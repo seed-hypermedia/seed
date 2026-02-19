@@ -60,12 +60,7 @@ function Text({
   }) {
   const Comp = asChild ? Slot : 'span'
 
-  return (
-    <Comp
-      className={cn(textVariants({size, color, weight, family, className}))}
-      {...props}
-    />
-  )
+  return <Comp className={cn(textVariants({size, color, weight, family, className}))} {...props} />
 }
 
 // SizableText is just an alias for Text for backward compatibility during migration

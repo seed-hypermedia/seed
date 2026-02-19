@@ -18,10 +18,7 @@ import * as log from './logger'
 
 let goDaemonExecutablePath = getDaemonBinaryPath()
 
-const lndhubFlags =
-  IS_PROD_DESKTOP && !IS_PROD_DEV
-    ? '-lndhub.mainnet=true'
-    : '-lndhub.mainnet=false'
+const lndhubFlags = IS_PROD_DESKTOP && !IS_PROD_DEV ? '-lndhub.mainnet=true' : '-lndhub.mainnet=false'
 
 // Base daemon arguments (without embedding flags)
 const baseDaemonArguments = [
@@ -77,11 +74,7 @@ type ErrorState = {t: 'error'; message: string}
 type StartupState = {t: 'startup'}
 type MigratingState = {t: 'migrating'; completed: number; total: number}
 
-export type GoDaemonState =
-  | ReadyState
-  | ErrorState
-  | StartupState
-  | MigratingState
+export type GoDaemonState = ReadyState | ErrorState | StartupState | MigratingState
 
 let goDaemonState: GoDaemonState = {t: 'startup'}
 
@@ -89,9 +82,7 @@ export function getDaemonState() {
   return goDaemonState
 }
 const daemonStateHandlers = new Set<(state: GoDaemonState) => void>()
-export function subscribeDaemonState(
-  handler: (state: GoDaemonState) => void,
-): () => void {
+export function subscribeDaemonState(handler: (state: GoDaemonState) => void): () => void {
   daemonStateHandlers.add(handler)
   return () => {
     daemonStateHandlers.delete(handler)
@@ -103,9 +94,7 @@ export function updateGoDaemonState(state: GoDaemonState) {
   daemonStateHandlers.forEach((handler) => handler(state))
 }
 
-export async function startMainDaemon(
-  embeddingEnabled: boolean = false,
-): Promise<{
+export async function startMainDaemon(embeddingEnabled: boolean = false): Promise<{
   httpPort: string | undefined
   grpcPort: string | undefined
   p2pPort: string | undefined
@@ -209,9 +198,7 @@ export async function startMainDaemon(
   await tryUntilSuccess(
     async () => {
       log.debug('Checking HTTP endpoint health...')
-      const response = await fetch(
-        `http://localhost:${DAEMON_HTTP_PORT}/debug/version`,
-      )
+      const response = await fetch(`http://localhost:${DAEMON_HTTP_PORT}/debug/version`)
       if (!response.ok) {
         throw new Error(`HTTP endpoint not ready: ${response.status}`)
       }
@@ -262,9 +249,7 @@ async function tryUntilSuccess(
  * Restarts the daemon with new embedding configuration.
  * This will kill the current daemon process and start a new one with updated flags.
  */
-export async function restartDaemonWithEmbedding(
-  embeddingEnabled: boolean,
-): Promise<void> {
+export async function restartDaemonWithEmbedding(embeddingEnabled: boolean): Promise<void> {
   if (process.env.SEED_NO_DAEMON_SPAWN) {
     log.debug('Daemon restart skipped (SEED_NO_DAEMON_SPAWN)')
     return
@@ -383,9 +368,7 @@ export async function restartDaemonWithEmbedding(
   await tryUntilSuccess(
     async () => {
       log.debug('Checking HTTP endpoint health after restart...')
-      const response = await fetch(
-        `http://localhost:${DAEMON_HTTP_PORT}/debug/version`,
-      )
+      const response = await fetch(`http://localhost:${DAEMON_HTTP_PORT}/debug/version`)
       if (!response.ok) {
         throw new Error(`HTTP endpoint not ready: ${response.status}`)
       }

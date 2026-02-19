@@ -9,9 +9,7 @@ export type EditHyperlinkMenuItemInputProps = {
   onSubmit: () => void
 }
 
-export function EditHyperlinkMenuItemInput(
-  props: EditHyperlinkMenuItemInputProps,
-) {
+export function EditHyperlinkMenuItemInput(props: EditHyperlinkMenuItemInputProps) {
   function handleEnter(event: KeyboardEvent) {
     if (event.key === 'Enter') {
       event.preventDefault()

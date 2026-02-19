@@ -1,22 +1,11 @@
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {ReactNode} from 'react'
 import {PanelContent} from './accessories'
-import {
-  DirectoryEmpty,
-  DirectoryListViewWithActivity,
-  useDirectoryDataWithActivity,
-} from './directory-page'
+import {DirectoryEmpty, DirectoryListViewWithActivity, useDirectoryDataWithActivity} from './directory-page'
 import {Spinner} from './spinner'
 
-export function DirectoryPanel({
-  docId,
-  header,
-}: {
-  docId: UnpackedHypermediaId
-  header?: ReactNode
-}) {
-  const {items, accountsMetadata, isInitialLoading} =
-    useDirectoryDataWithActivity(docId)
+export function DirectoryPanel({docId, header}: {docId: UnpackedHypermediaId; header?: ReactNode}) {
+  const {items, accountsMetadata, isInitialLoading} = useDirectoryDataWithActivity(docId)
 
   if (isInitialLoading) {
     return (
@@ -30,19 +19,14 @@ export function DirectoryPanel({
     return (
       <div className="p-4">
         <DirectoryEmpty />
-        {header ? (
-          <div className="flex justify-center p-3">{header}</div>
-        ) : null}
+        {header ? <div className="flex justify-center p-3">{header}</div> : null}
       </div>
     )
   }
 
   return (
     <PanelContent header={header}>
-      <DirectoryListViewWithActivity
-        items={items}
-        accountsMetadata={accountsMetadata}
-      />
+      <DirectoryListViewWithActivity items={items} accountsMetadata={accountsMetadata} />
     </PanelContent>
   )
 }

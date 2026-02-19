@@ -5,8 +5,7 @@ import {t} from './app-trpc'
 
 const EXPERIMENTS_STORAGE_KEY = 'Experiments-v001'
 
-let experimentsState: AppExperiments =
-  appStore.get(EXPERIMENTS_STORAGE_KEY) || {}
+let experimentsState: AppExperiments = appStore.get(EXPERIMENTS_STORAGE_KEY) || {}
 
 /**
  * Returns the stored embedding enabled setting.

@@ -17,9 +17,7 @@ export function Tooltip({
 }) {
   return (
     <TooltipPrimitive.Root data-slot="tooltip" {...props} delayDuration={delay}>
-      <TooltipTrigger asChild>
-        {asChild ? children : <span>{children}</span>}
-      </TooltipTrigger>
+      <TooltipTrigger asChild>{asChild ? children : <span>{children}</span>}</TooltipTrigger>
       {content && <TooltipContent side={side}>{content}</TooltipContent>}
     </TooltipPrimitive.Root>
   )
@@ -27,22 +25,11 @@ export function Tooltip({
 
 // ================================================
 
-export function TooltipProvider({
-  delayDuration = 0,
-  ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
-  return (
-    <TooltipPrimitive.Provider
-      data-slot="tooltip-provider"
-      delayDuration={delayDuration}
-      {...props}
-    />
-  )
+export function TooltipProvider({delayDuration = 0, ...props}: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  return <TooltipPrimitive.Provider data-slot="tooltip-provider" delayDuration={delayDuration} {...props} />
 }
 
-function TooltipTrigger({
-  ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
+function TooltipTrigger({...props}: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
   return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
 }
 

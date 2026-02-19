@@ -9,17 +9,12 @@ type RecentSignersState = {
   recentSigners: string[]
 }
 
-let state: RecentSignersState = (appStore.get(
-  RECENT_SIGNERS_STORAGE_KEY,
-) as RecentSignersState) || {recentSigners: []}
+let state: RecentSignersState = (appStore.get(RECENT_SIGNERS_STORAGE_KEY) as RecentSignersState) || {recentSigners: []}
 
 async function writeRecentSigner(accountUid: string) {
   state = {
     ...state,
-    recentSigners: [
-      accountUid,
-      ...state.recentSigners.filter((signer) => signer !== accountUid),
-    ],
+    recentSigners: [accountUid, ...state.recentSigners.filter((signer) => signer !== accountUid)],
   }
   appStore.set(RECENT_SIGNERS_STORAGE_KEY, state)
   return undefined

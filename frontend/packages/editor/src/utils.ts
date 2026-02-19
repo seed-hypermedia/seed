@@ -12,8 +12,7 @@ import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import type {BlockIdentifier} from './blocknote/core/extensions/Blocks/api/blockTypes'
 
 export function youtubeParser(url: string) {
-  var regExp =
-    /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/
+  var regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/
   var match = url.match(regExp)
   // @ts-ignore
   return match && match[7].length == 11 ? match[7] : false
@@ -38,25 +37,13 @@ export function camelToFlat(camel: string) {
 export const timeoutPromise = (promise, delay, reason) =>
   Promise.race([
     promise,
-    new Promise((resolve, reject) =>
-      setTimeout(
-        () => (reason === undefined ? resolve(null) : reject(reason)),
-        delay,
-      ),
-    ),
+    new Promise((resolve, reject) => setTimeout(() => (reason === undefined ? resolve(null) : reject(reason)), delay)),
   ])
 
-export function setGroupTypes(
-  tiptap: Editor,
-  blocks: Array<Partial<BNBlock<BlockSchema>>>,
-) {
+export function setGroupTypes(tiptap: Editor, blocks: Array<Partial<BNBlock<BlockSchema>>>) {
   blocks.forEach((block: Partial<BNBlock<BlockSchema>>) => {
     tiptap.state.doc.descendants((node: TipTapNode, pos: number) => {
-      if (
-        node.attrs.id === block.id &&
-        block.props &&
-        block.props.childrenType
-      ) {
+      if (node.attrs.id === block.id && block.props && block.props.childrenType) {
         // @ts-ignore
         node.descendants((child: TipTapNode, childPos: number) => {
           if (child.type.name === 'blockGroup') {
@@ -136,10 +123,7 @@ export function getBlockGroup(
   return undefined
 }
 
-export function serverBlockNodesFromEditorBlocks(
-  editor: BlockNoteEditor,
-  editorBlocks: EditorBlock[],
-): BlockNode[] {
+export function serverBlockNodesFromEditorBlocks(editor: BlockNoteEditor, editorBlocks: EditorBlock[]): BlockNode[] {
   if (!editorBlocks) return []
   return editorBlocks.map((block: EditorBlock) => {
     const childGroup = getBlockGroup(editor, block.id)
@@ -227,8 +211,7 @@ export async function handleDragMedia(
 }
 
 export function generateBlockId(length: number = 8): string {
-  const characters =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
   let result = ''
   for (let i = 0; i < length; i++) {
     result += characters.charAt(Math.floor(Math.random() * characters.length))
@@ -250,21 +233,14 @@ export const chromiumSupportedImageMimeTypes = new Set([
   'image/avif',
 ])
 
-export const chromiumSupportedVideoMimeTypes = new Set([
-  'video/mp4',
-  'video/webm',
-])
+export const chromiumSupportedVideoMimeTypes = new Set(['video/mp4', 'video/webm'])
 
 export function removeTrailingBlocks(blocks: Array<EditorBlock>) {
   let trailedBlocks = [...blocks]
   while (true) {
     let lastBlock = trailedBlocks[trailedBlocks.length - 1]
     if (!lastBlock) break
-    if (
-      lastBlock.type == 'paragraph' &&
-      lastBlock.content.length == 0 &&
-      lastBlock.children.length == 0
-    ) {
+    if (lastBlock.type == 'paragraph' && lastBlock.content.length == 0 && lastBlock.children.length == 0) {
       trailedBlocks.pop()
     } else {
       break

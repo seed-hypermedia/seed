@@ -42,10 +42,7 @@ export function useCreateInvoice() {
       Object.entries(input.recipients).forEach(([accountId, amount]) => {
         params.append('user', `${accountId},${amount}`)
       })
-      const res = await fetch(
-        `${LIGHTNING_API_URL}/v2/invoice?${params.toString()}`,
-        {},
-      )
+      const res = await fetch(`${LIGHTNING_API_URL}/v2/invoice?${params.toString()}`, {})
       const serverInvoice = await res.json()
       const invoice: HMInvoice = {
         payload: serverInvoice.pr,
@@ -60,11 +57,7 @@ export function useCreateInvoice() {
 
 const InvoiceStatusSchema = z.array(
   z.object({
-    status: z.union([
-      z.literal('open'),
-      z.literal('settled'),
-      z.literal('error'),
-    ]),
+    status: z.union([z.literal('open'), z.literal('settled'), z.literal('error')]),
   }),
 )
 

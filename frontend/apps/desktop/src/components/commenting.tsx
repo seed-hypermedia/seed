@@ -7,20 +7,9 @@ import {handleDragMedia} from '@/utils/media-drag'
 import {useNavigate} from '@/utils/useNavigate'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {CommentEditor} from '@shm/editor/comment-editor'
-import {
-  commentIdToHmId,
-  packHmId,
-  queryClient,
-  queryKeys,
-  trimTrailingEmptyBlocks,
-} from '@shm/shared'
+import {commentIdToHmId, packHmId, queryClient, queryKeys, trimTrailingEmptyBlocks} from '@shm/shared'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
-import {
-  HMBlockNode,
-  HMCommentGroup,
-  HMListDiscussionsOutput,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+import {HMBlockNode, HMCommentGroup, HMListDiscussionsOutput, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useContacts, useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
@@ -33,9 +22,7 @@ import {SendHorizonal} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {memo, useCallback, useEffect, useRef, useState} from 'react'
 
-export function useCommentGroupAuthors(
-  commentGroups: HMCommentGroup[],
-): HMListDiscussionsOutput['authors'] {
+export function useCommentGroupAuthors(commentGroups: HMCommentGroup[]): HMListDiscussionsOutput['authors'] {
   const commentGroupAuthors = new Set<string>()
   commentGroups.forEach((commentGroup) => {
     commentGroup.comments.forEach((comment) => {
@@ -62,8 +49,7 @@ function _CommentBox(props: {
   autoFocus?: boolean
   context?: 'accessory' | 'feed' | 'document-content'
 }) {
-  const {docId, quotingBlockId, commentId, isReplying, autoFocus, context} =
-    props
+  const {docId, quotingBlockId, commentId, isReplying, autoFocus, context} = props
 
   const account = useSelectedAccount()
   const selectedAccountId = useSelectedAccountId()
@@ -92,13 +78,7 @@ function _CommentBox(props: {
     }
   }, [])
 
-  const commentDraftQueryKey = [
-    queryKeys.COMMENT_DRAFT,
-    docId.id,
-    commentId,
-    quotingBlockId,
-    context,
-  ]
+  const commentDraftQueryKey = [queryKeys.COMMENT_DRAFT, docId.id, commentId, quotingBlockId, context]
 
   // Draft write mutation
   const writeDraft = useMutation({
@@ -142,25 +122,15 @@ function _CommentBox(props: {
 
   // Recent signer mutation
   const writeRecentSigner = useMutation({
-    mutationFn: (signingKeyName: string) =>
-      client.recentSigners.writeRecentSigner.mutate(signingKeyName),
+    mutationFn: (signingKeyName: string) => client.recentSigners.writeRecentSigner.mutate(signingKeyName),
   })
 
   // Publish comment mutation
   const publishComment = useMutation({
-    mutationFn: async ({
-      content,
-      signingKeyName,
-    }: {
-      content: BlockNode[]
-      signingKeyName: string
-    }) => {
+    mutationFn: async ({content, signingKeyName}: {content: BlockNode[]; signingKeyName: string}) => {
       // When quoting a block, include the version to ensure we reference
       // the specific version containing the block
-      const targetDoc =
-        targetEntity.data?.type === 'document'
-          ? targetEntity.data.document
-          : undefined
+      const targetDoc = targetEntity.data?.type === 'document' ? targetEntity.data.document : undefined
       const targetVersion = targetDoc?.version
       const publishContent = quotingBlockId
         ? [
@@ -210,11 +180,7 @@ function _CommentBox(props: {
       removeDraft.mutate()
 
       // Invalidate queries
-      invalidateQueries([
-        queryKeys.DOCUMENT_DISCUSSION,
-        docId.uid,
-        ...(docId.path || []),
-      ])
+      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION, docId.uid, ...(docId.path || [])])
       invalidateQueries([queryKeys.LIBRARY])
       invalidateQueries([queryKeys.SITE_LIBRARY, docId.uid])
       invalidateQueries([queryKeys.LIST_ACCOUNTS])
@@ -240,11 +206,7 @@ function _CommentBox(props: {
 
   // Clear autoFocus from route after used
   useEffect(() => {
-    if (
-      autoFocus &&
-      route.key === 'document' &&
-      route.panel?.key === 'activity'
-    ) {
+    if (autoFocus && route.key === 'document' && route.panel?.key === 'activity') {
       const panel = route.panel
       if (panel.autoFocus) {
         setTimeout(() => {
@@ -265,8 +227,7 @@ function _CommentBox(props: {
         const hasContent = blocks.some(
           (block) =>
             // @ts-expect-error - text exists on paragraph/heading blocks
-            (block.block?.text && block.block.text.trim()) ||
-            (block.children && block.children.length > 0),
+            (block.block?.text && block.block.text.trim()) || (block.children && block.children.length > 0),
         )
 
         if (!hasContent) {
@@ -303,13 +264,11 @@ function _CommentBox(props: {
       try {
         // For desktop, we handle file uploads differently - files are already uploaded
         // So we just need to get the content without re-uploading
-        const {blockNodes: rawBlockNodes} = await getContent(
-          async (binaries) => {
-            // Desktop handles media uploads inline via handleDragMedia
-            // which already returns URLs, so no additional upload needed
-            return {blobs: [], resultCIDs: []}
-          },
-        )
+        const {blockNodes: rawBlockNodes} = await getContent(async (binaries) => {
+          // Desktop handles media uploads inline via handleDragMedia
+          // which already returns URLs, so no additional upload needed
+          return {blobs: [], resultCIDs: []}
+        })
         const blockNodes = trimTrailingEmptyBlocks(rawBlockNodes)
 
         // Convert to BlockNode for gRPC
@@ -365,9 +324,7 @@ function _CommentBox(props: {
       }}
       perspectiveAccountUid={selectedAccountId}
       submitButton={({getContent, reset}) => (
-        <Tooltip
-          content={`Publish Comment as "${account?.document?.metadata?.name}"`}
-        >
+        <Tooltip content={`Publish Comment as "${account?.document?.metadata?.name}"`}>
           <Button
             size="icon"
             onClick={(e) => {

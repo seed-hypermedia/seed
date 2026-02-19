@@ -36,17 +36,11 @@ export function useCollaboratorsData(docId: UnpackedHypermediaId) {
     const allCaps = capabilities.data || []
 
     // Filter out agents (devices) and owners
-    const filteredCaps = allCaps.filter(
-      (cap) => cap.role !== 'agent' && cap.role !== 'owner',
-    )
+    const filteredCaps = allCaps.filter((cap) => cap.role !== 'agent' && cap.role !== 'owner')
 
     // Separate parent capabilities from direct grants
-    const parentCapabilities = filteredCaps.filter(
-      (cap) => cap.grantId.id !== docId.id,
-    )
-    const grantedCapabilities = filteredCaps.filter(
-      (cap) => cap.grantId.id === docId.id,
-    )
+    const parentCapabilities = filteredCaps.filter((cap) => cap.grantId.id !== docId.id)
+    const grantedCapabilities = filteredCaps.filter((cap) => cap.grantId.id === docId.id)
 
     // Deduplicate by accountUid
     const seen = new Set<string>()
@@ -77,17 +71,11 @@ function PublisherCollaborator({uid}: {uid: string}) {
   const resource = useResource(publisherId)
   const linkProps = useRouteLink({key: 'document', id: publisherId})
 
-  const metadata =
-    resource.data?.type === 'document'
-      ? resource.data.document?.metadata
-      : undefined
+  const metadata = resource.data?.type === 'document' ? resource.data.document?.metadata : undefined
   const isLoading = resource.isLoading
 
   return (
-    <a
-      {...linkProps}
-      className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors"
-    >
+    <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
       <HMIcon
         id={publisherId}
         name={isLoading ? undefined : metadata?.name}
@@ -118,8 +106,7 @@ export function CollaboratorsListView({
   publisherUid: string
   docId: UnpackedHypermediaId
 }) {
-  const hasNoCollaborators =
-    parentCapabilities.length === 0 && grantedCapabilities.length === 0
+  const hasNoCollaborators = parentCapabilities.length === 0 && grantedCapabilities.length === 0
 
   return (
     <div className="flex flex-col gap-4">
@@ -130,11 +117,7 @@ export function CollaboratorsListView({
       {parentCapabilities.length > 0 && (
         <div className="flex flex-col gap-1">
           {parentCapabilities.map((cap) => (
-            <CollaboratorListItem
-              key={cap.accountUid}
-              capability={cap}
-              docId={docId}
-            />
+            <CollaboratorListItem key={cap.accountUid} capability={cap} docId={docId} />
           ))}
         </div>
       )}
@@ -146,11 +129,7 @@ export function CollaboratorsListView({
             Granted
           </SizableText>
           {grantedCapabilities.map((cap) => (
-            <CollaboratorListItem
-              key={cap.accountUid}
-              capability={cap}
-              docId={docId}
-            />
+            <CollaboratorListItem key={cap.accountUid} capability={cap} docId={docId} />
           ))}
         </div>
       )}
@@ -164,29 +143,17 @@ export function CollaboratorsListView({
   )
 }
 
-function CollaboratorListItem({
-  capability,
-  docId,
-}: {
-  capability: HMCapability
-  docId: UnpackedHypermediaId
-}) {
+function CollaboratorListItem({capability, docId}: {capability: HMCapability; docId: UnpackedHypermediaId}) {
   const collaboratorId = hmId(capability.accountUid)
   const resource = useResource(collaboratorId)
   const linkProps = useRouteLink({key: 'document', id: collaboratorId})
 
-  const metadata =
-    resource.data?.type === 'document'
-      ? resource.data.document?.metadata
-      : undefined
+  const metadata = resource.data?.type === 'document' ? resource.data.document?.metadata : undefined
   const isLoading = resource.isLoading
   const isParentCapability = capability.grantId.id !== docId.id
 
   return (
-    <a
-      {...linkProps}
-      className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors"
-    >
+    <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
       <HMIcon
         id={collaboratorId}
         name={isLoading ? undefined : metadata?.name}
@@ -208,12 +175,7 @@ function CollaboratorListItem({
 
 /** Full read-only collaborators content with data fetching */
 export function DocumentCollaborators({docId}: {docId: UnpackedHypermediaId}) {
-  const {
-    parentCapabilities,
-    grantedCapabilities,
-    publisherUid,
-    isInitialLoading,
-  } = useCollaboratorsData(docId)
+  const {parentCapabilities, grantedCapabilities, publisherUid, isInitialLoading} = useCollaboratorsData(docId)
 
   if (isInitialLoading) {
     return (

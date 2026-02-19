@@ -27,9 +27,7 @@ export function useExportDocuments() {
           const resource = await resolveResource(id)
           if (resource.type !== 'document') return null
           const hmDoc = resource.document
-          const editorBlocks: EditorBlock[] = hmBlocksToEditorContent(
-            hmDoc.content,
-          )
+          const editorBlocks: EditorBlock[] = hmBlocksToEditorContent(hmDoc.content)
           const markdown = await convertBlocksToMarkdown(editorBlocks, hmDoc)
           return {
             title: getDocumentTitle(hmDoc) || 'Untitled document',
@@ -48,11 +46,7 @@ export function useExportDocuments() {
               <SizableText className="break-words">
                 Successfully exported documents to: <b>{`${res}`}</b>.
               </SizableText>
-              <SizableText
-                color="brand"
-                asChild
-                className="cursor-pointer underline"
-              >
+              <SizableText color="brand" asChild className="cursor-pointer underline">
                 <a
                   onClick={() => {
                     openDirectory(res)

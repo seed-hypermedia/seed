@@ -34,13 +34,8 @@ export const ButtonBlock = createReactBlockSpec({
   },
   containsInlineContent: true,
   // @ts-ignore
-  render: ({
-    block,
-    editor,
-  }: {
-    block: Block<HMBlockSchema>
-    editor: BlockNoteEditor<HMBlockSchema>
-  }) => Render(block, editor),
+  render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) =>
+    Render(block, editor),
 })
 
 type ButtonAlignment = 'flex-start' | 'center' | 'flex-end'
@@ -57,10 +52,7 @@ export type ButtonType = {
   type: string
 }
 
-const Render = (
-  block: Block<HMBlockSchema>,
-  editor: BlockNoteEditor<HMBlockSchema>,
-) => {
+const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSchema>) => {
   const popoverState = usePopoverState()
   // const [focused, setFocused] = useState(false)
   // const [sizing, setSizing] = useState('hug-content')
@@ -85,9 +77,7 @@ const Render = (
     })
   }
 
-  useEditorSelectionChange(editor, () =>
-    updateSelection(editor, block, setSelected),
-  )
+  useEditorSelectionChange(editor, () => updateSelection(editor, block, setSelected))
 
   useEffect(() => {
     setAlignment(block.props.alignment as ButtonAlignment)
@@ -106,17 +96,10 @@ const Render = (
         size="lg"
         className={cn(
           'w-auto max-w-full justify-center border-none border-transparent text-center select-none',
-          alignment == 'center'
-            ? 'self-center'
-            : alignment == 'flex-end'
-            ? 'self-end'
-            : 'self-start',
+          alignment == 'center' ? 'self-center' : alignment == 'flex-end' ? 'self-end' : 'self-start',
         )}
       >
-        <SizableText
-          size="lg"
-          className="truncate text-center font-sans font-bold text-white"
-        >
+        <SizableText size="lg" className="truncate text-center font-sans font-bold text-white">
           {block.props.name || 'Button Text'}
         </SizableText>
       </Button>

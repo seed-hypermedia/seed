@@ -1,10 +1,4 @@
-import {
-  HMDraft,
-  hmId,
-  NavRoute,
-  pathMatches,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {HMDraft, hmId, NavRoute, pathMatches, UnpackedHypermediaId} from '@shm/shared'
 import {useAccountDraftList} from './documents'
 
 export function draftLocationId(draft: HMDraft | null | undefined) {

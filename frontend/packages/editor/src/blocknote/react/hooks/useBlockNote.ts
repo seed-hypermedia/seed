@@ -1,21 +1,14 @@
-import {
-  BlockNoteEditor,
-  BlockNoteEditorOptions,
-  DefaultBlockSchema,
-} from '../../core'
+import {BlockNoteEditor, BlockNoteEditorOptions, DefaultBlockSchema} from '../../core'
 import {HMBlockSchema} from '../../../schema'
 import {DependencyList, useMemo, useRef} from 'react'
 
-const initEditor = <BSchema extends HMBlockSchema>(
-  options: Partial<BlockNoteEditorOptions<BSchema>>,
-) => new BlockNoteEditor<BSchema>(options)
+const initEditor = <BSchema extends HMBlockSchema>(options: Partial<BlockNoteEditorOptions<BSchema>>) =>
+  new BlockNoteEditor<BSchema>(options)
 
 /**
  * Main hook for importing a BlockNote editor into a React project
  */
-export const useBlockNote = <
-  BSchema extends HMBlockSchema = DefaultBlockSchema,
->(
+export const useBlockNote = <BSchema extends HMBlockSchema = DefaultBlockSchema>(
   options: Partial<BlockNoteEditorOptions<BSchema>> = {},
   deps: DependencyList = [],
 ): BlockNoteEditor<BSchema> => {

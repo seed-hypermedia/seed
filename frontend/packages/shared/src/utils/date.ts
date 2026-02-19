@@ -7,35 +7,15 @@ type KeyOfType<T, U> = {
   [P in keyof T]: T[P] extends U ? P : never
 }[keyof T]
 
-export type DateKeys = Exclude<
-  KeyOfType<Document, Timestamp | undefined>,
-  undefined
->
+export type DateKeys = Exclude<KeyOfType<Document, Timestamp | undefined>, undefined>
 
-var months = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-]
+var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-const hasRelativeDate =
-  typeof Intl !== 'undefined' && typeof Intl.RelativeTimeFormat !== 'undefined'
+const hasRelativeDate = typeof Intl !== 'undefined' && typeof Intl.RelativeTimeFormat !== 'undefined'
 
 export type AnyTimestamp = string | Date | Timestamp | HMTimestamp | undefined
 
-export function formattedDate(
-  value?: AnyTimestamp,
-  options?: {onlyRelative?: boolean},
-) {
+export function formattedDate(value?: AnyTimestamp, options?: {onlyRelative?: boolean}) {
   let date = normalizeDate(value)
   if (!date) return ''
   if (hasRelativeDate) {
@@ -57,8 +37,7 @@ export function normalizeDate(value: AnyTimestamp) {
   } else if (value instanceof Date) {
     date = value
   } else if (value?.seconds) {
-    const seconds =
-      typeof value.seconds === 'bigint' ? value.seconds : BigInt(value.seconds)
+    const seconds = typeof value.seconds === 'bigint' ? value.seconds : BigInt(value.seconds)
     // @ts-ignore
     date = new Date(Number(seconds * 1000n))
   }
@@ -140,10 +119,7 @@ export function formattedDateDayOnly(
   })
 }
 
-export function relativeFormattedDate(
-  value?: AnyTimestamp,
-  options?: {onlyRelative?: boolean},
-) {
+export function relativeFormattedDate(value?: AnyTimestamp, options?: {onlyRelative?: boolean}) {
   const onlyRelative = !!options?.onlyRelative
   var now = new Date()
   let date = normalizeDate(value)

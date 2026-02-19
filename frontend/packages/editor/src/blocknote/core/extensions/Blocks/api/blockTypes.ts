@@ -5,12 +5,7 @@ import {BlockNoteEditor} from '../../../BlockNoteEditor'
 import {DefaultBlockSchema} from './defaultBlocks'
 import {InlineContent, PartialInlineContent} from './inlineContentTypes'
 
-export type BlockNoteDOMElement =
-  | 'editor'
-  | 'blockContainer'
-  | 'blockGroup'
-  | 'blockContent'
-  | 'inlineContent'
+export type BlockNoteDOMElement = 'editor' | 'blockContainer' | 'blockGroup' | 'blockContent' | 'inlineContent'
 
 export type BlockNoteDOMAttributes = Partial<{
   [DOMElement in BlockNoteDOMElement]: Record<string, string>
@@ -97,10 +92,7 @@ export type BlockConfig<
     /**
      * The custom block to render
      */
-    block: SpecificBlock<
-      BSchema & {[k in Type]: BlockSpec<Type, PSchema>},
-      Type
-    >,
+    block: SpecificBlock<BSchema & {[k in Type]: BlockSpec<Type, PSchema>}, Type>,
     /**
      * The BlockNote editor instance
      * This is typed generically. If you want an editor with your custom schema, you need to
@@ -132,9 +124,7 @@ export type BlockSpec<Type extends string, PSchema extends PropSchema> = {
 
 // Utility type. For a given object block schema, ensures that the key of each
 // block spec matches the name of the TipTap node in it.
-export type TypesMatch<
-  Blocks extends Record<string, BlockSpec<string, PropSchema>>,
-> = Blocks extends {
+export type TypesMatch<Blocks extends Record<string, BlockSpec<string, PropSchema>>> = Blocks extends {
   [Type in keyof Blocks]: Type extends string
     ? Blocks[Type] extends BlockSpec<Type, PropSchema>
       ? Blocks[Type]
@@ -149,9 +139,7 @@ export type TypesMatch<
 // `blocks` option of the BlockNoteEditor. From a block schema, we can derive
 // both the blocks' internal implementation (as TipTap nodes) and the type
 // information for the external API.
-export type BlockSchema = TypesMatch<
-  Record<string, BlockSpec<string, PropSchema>>
->
+export type BlockSchema = TypesMatch<Record<string, BlockSpec<string, PropSchema>>>
 
 // Converts each block spec into a Block object without children. We later merge
 // them into a union type and add a children property to create the Block and

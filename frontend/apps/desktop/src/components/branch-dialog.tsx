@@ -12,13 +12,7 @@ import {toast} from '@shm/ui/toast'
 import {useMemo, useRef, useState} from 'react'
 import {LocationPicker} from './location-picker'
 
-export function BranchDialog({
-  onClose,
-  input,
-}: {
-  onClose: () => void
-  input: UnpackedHypermediaId
-}) {
+export function BranchDialog({onClose, input}: {onClose: () => void; input: UnpackedHypermediaId}) {
   const {data: entity} = useResource(input)
   const forkDoc = useForkDocument()
   const navigate = useNavigate()
@@ -62,9 +56,7 @@ export function BranchDialog({
               <Button
                 onClick={() => {
                   if (!isAvailable.current) {
-                    toast.error(
-                      'This location is unavailable. Create a new path name.',
-                    )
+                    toast.error('This location is unavailable. Create a new path name.')
                     return
                   }
                   if (pathInvalid) {

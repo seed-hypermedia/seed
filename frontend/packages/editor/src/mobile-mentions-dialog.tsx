@@ -1,15 +1,7 @@
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {
-  InlineMentionsResult,
-  useInlineMentions,
-} from '@shm/shared/models/inline-mentions'
+import {InlineMentionsResult, useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {Button} from '@shm/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@shm/ui/components/dialog'
+import {Dialog, DialogContent, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {LoadedHMIcon} from '@shm/ui/hm-icon'
 import {Search, X} from '@shm/ui/icons'
@@ -19,20 +11,11 @@ import {useEffect, useState} from 'react'
 interface MobileMentionsDialogProps {
   isOpen: boolean
   onClose: () => void
-  onSelect: (mention: {
-    id: UnpackedHypermediaId
-    label: string
-    type: string
-  }) => void
+  onSelect: (mention: {id: UnpackedHypermediaId; label: string; type: string}) => void
   perspectiveAccountUid?: string | null | undefined
 }
 
-export function MobileMentionsDialog({
-  isOpen,
-  onClose,
-  onSelect,
-  perspectiveAccountUid,
-}: MobileMentionsDialogProps) {
+export function MobileMentionsDialog({isOpen, onClose, onSelect, perspectiveAccountUid}: MobileMentionsDialogProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [results, setResults] = useState<InlineMentionsResult>({
     Sites: [],
@@ -75,29 +58,16 @@ export function MobileMentionsDialog({
     onClose()
   }
 
-  const allResults = [
-    ...results.Contacts,
-    ...results.Sites,
-    ...results.Documents,
-    ...results.Recents,
-  ]
+  const allResults = [...results.Contacts, ...results.Sites, ...results.Documents, ...results.Recents]
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
-        className="h-full max-h-full w-full max-w-full rounded-none p-0"
-        showCloseButton={false}
-      >
+      <DialogContent className="h-full max-h-full w-full max-w-full rounded-none p-0" showCloseButton={false}>
         <div className="flex h-full flex-col">
           <DialogHeader className="border-b p-4">
             <div className="flex items-center justify-between">
               <DialogTitle>Mention Contact, Site, or Document</DialogTitle>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={onClose}
-                className="h-8 w-8"
-              >
+              <Button size="icon" variant="ghost" onClick={onClose} className="h-8 w-8">
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -119,47 +89,27 @@ export function MobileMentionsDialog({
           <div className="flex-1 overflow-y-auto">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
-                <SizableText className="text-muted-foreground">
-                  Searching...
-                </SizableText>
+                <SizableText className="text-muted-foreground">Searching...</SizableText>
               </div>
             ) : allResults.length === 0 ? (
               <div className="flex items-center justify-center py-8">
                 <SizableText className="text-muted-foreground">
-                  {searchQuery
-                    ? 'No results found'
-                    : 'Start typing to search...'}
+                  {searchQuery ? 'No results found' : 'Start typing to search...'}
                 </SizableText>
               </div>
             ) : (
               <div className="divide-y">
                 {results.Contacts.length > 0 && (
-                  <MentionSection
-                    title="Contacts"
-                    items={results.Contacts}
-                    onSelect={handleSelectMention}
-                  />
+                  <MentionSection title="Contacts" items={results.Contacts} onSelect={handleSelectMention} />
                 )}
                 {results.Sites.length > 0 && (
-                  <MentionSection
-                    title="Sites"
-                    items={results.Sites}
-                    onSelect={handleSelectMention}
-                  />
+                  <MentionSection title="Sites" items={results.Sites} onSelect={handleSelectMention} />
                 )}
                 {results.Documents.length > 0 && (
-                  <MentionSection
-                    title="Documents"
-                    items={results.Documents}
-                    onSelect={handleSelectMention}
-                  />
+                  <MentionSection title="Documents" items={results.Documents} onSelect={handleSelectMention} />
                 )}
                 {results.Recents.length > 0 && searchQuery === '' && (
-                  <MentionSection
-                    title="Recent"
-                    items={results.Recents}
-                    onSelect={handleSelectMention}
-                  />
+                  <MentionSection title="Recent" items={results.Recents} onSelect={handleSelectMention} />
                 )}
               </div>
             )}
@@ -170,24 +120,12 @@ export function MobileMentionsDialog({
   )
 }
 
-function MentionSection({
-  title,
-  items,
-  onSelect,
-}: {
-  title: string
-  items: any[]
-  onSelect: (item: any) => void
-}) {
+function MentionSection({title, items, onSelect}: {title: string; items: any[]; onSelect: (item: any) => void}) {
   if (items.length === 0) return null
 
   return (
     <div className="py-2">
-      <SizableText
-        size="xs"
-        weight="medium"
-        className="text-muted-foreground px-4 py-2"
-      >
+      <SizableText size="xs" weight="medium" className="text-muted-foreground px-4 py-2">
         {title}
       </SizableText>
       {items.map((item) => (

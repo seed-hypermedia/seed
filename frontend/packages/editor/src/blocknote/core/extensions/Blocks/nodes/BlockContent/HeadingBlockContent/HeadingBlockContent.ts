@@ -38,15 +38,12 @@ export const HeadingBlockContent = createTipTapBlock<'heading'>({
               //   },
               // })
               .command(
-                updateBlockCommand(
-                  state.doc.resolve(state.selection.from).start() - 2,
-                  {
-                    type: 'heading',
-                    props: {
-                      level: level,
-                    },
+                updateBlockCommand(state.doc.resolve(state.selection.from).start() - 2, {
+                  type: 'heading',
+                  props: {
+                    level: level,
                   },
-                ),
+                }),
               )
               // Removes the "#" character(s) used to set the heading.
               .deleteRange({from: range.from, to: range.to})
@@ -87,10 +84,8 @@ export const HeadingBlockContent = createTipTapBlock<'heading'>({
   },
 
   renderHTML({node, HTMLAttributes}) {
-    const blockContentDOMAttributes =
-      this.options.domAttributes?.blockContent || {}
-    const inlineContentDOMAttributes =
-      this.options.domAttributes?.inlineContent || {}
+    const blockContentDOMAttributes = this.options.domAttributes?.blockContent || {}
+    const inlineContentDOMAttributes = this.options.domAttributes?.inlineContent || {}
 
     return [
       'div',

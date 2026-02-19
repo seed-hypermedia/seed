@@ -17,10 +17,7 @@ export function SelectionBackButton({
     <Button
       variant="ghost"
       size="sm"
-      className={cn(
-        'text-muted-foreground m-2 flex-1 justify-start rounded-lg p-2',
-        className,
-      )}
+      className={cn('text-muted-foreground m-2 flex-1 justify-start rounded-lg p-2', className)}
       onClick={onClick}
       {...props}
     >
@@ -30,18 +27,10 @@ export function SelectionBackButton({
   )
 }
 
-export function PanelContent({
-  children,
-  header,
-}: {
-  children: React.ReactNode
-  header?: React.ReactNode
-}) {
+export function PanelContent({children, header}: {children: React.ReactNode; header?: React.ReactNode}) {
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden">
-      {header ? (
-        <div className="border-border border-b p-4">{header}</div>
-      ) : null}
+      {header ? <div className="border-border border-b p-4">{header}</div> : null}
       <ScrollArea className="">{children}</ScrollArea>
     </div>
   )

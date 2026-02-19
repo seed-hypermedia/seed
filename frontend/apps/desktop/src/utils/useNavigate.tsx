@@ -1,10 +1,6 @@
 import {useIPC} from '@/app-context'
 import {NavRoute} from '@shm/shared/routes'
-import {
-  NavMode,
-  useNavigationDispatch,
-  useNavigationState,
-} from '@shm/shared/utils/navigation'
+import {NavMode, useNavigationDispatch, useNavigationState} from '@shm/shared/utils/navigation'
 import {startTransition, useCallback} from 'react'
 import {encodeRouteToPath} from './route-encoding'
 import {getRouteWindowType, getWindowType} from './window-types'
@@ -17,8 +13,7 @@ export function useNavigate(requestedMode: NavMode = 'push') {
   return useCallback(
     (route: NavRoute) => {
       const routeWindowType = getRouteWindowType(route)
-      const mode =
-        routeWindowType.key === getWindowType() ? requestedMode : 'spawn'
+      const mode = routeWindowType.key === getWindowType() ? requestedMode : 'spawn'
       startTransition(() => {
         if (mode === 'spawn') {
           const path = encodeRouteToPath(route)

@@ -62,8 +62,7 @@ export function getRouteKey(route: NavRoute): string {
     route.key === 'directory'
   )
     return `document:${route.id.uid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
-  if (route.key === 'feed')
-    return `feed:${route.id.uid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
+  if (route.key === 'feed') return `feed:${route.id.uid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
   return route.key
 }
 
@@ -97,10 +96,7 @@ export function navStateReducer(state: NavState, action: NavAction): NavState {
       }
       return {
         ...state,
-        routes: [
-          ...state.routes.slice(0, state.routes.length - 1),
-          action.route,
-        ],
+        routes: [...state.routes.slice(0, state.routes.length - 1), action.route],
         routeIndex: state.routeIndex,
         lastAction: action.type,
       }
@@ -151,8 +147,7 @@ export function useNavigation(overrideNav: NavigationContext | undefined) {
   if (overrideNav) {
     return overrideNav
   }
-  if (!nav)
-    throw new Error('useNavigation must be used within a NavigationProvider')
+  if (!nav) throw new Error('useNavigation must be used within a NavigationProvider')
   return nav
 }
 
@@ -160,8 +155,7 @@ export const NavContextProvider = NavContext.Provider
 
 export function useNavRoute() {
   const nav = useContext(NavContext)
-  if (!nav)
-    throw new Error('useNavRoute must be used within a NavigationProvider')
+  if (!nav) throw new Error('useNavRoute must be used within a NavigationProvider')
   const navRoute = useStreamSelector<NavState, NavRoute>(nav.state, (state) => {
     return state.routes[state.routeIndex] || defaultRoute
   })
@@ -185,19 +179,13 @@ export function useRouteDocId(): UnpackedHypermediaId | null {
 
 export function useNavigationState() {
   const nav = useContext(NavContext)
-  if (!nav)
-    throw new Error(
-      'useNavigationState must be used within a NavigationProvider',
-    )
+  if (!nav) throw new Error('useNavigationState must be used within a NavigationProvider')
   return useStream<NavState>(nav.state)
 }
 
 export function useNavigationDispatch() {
   const nav = useContext(NavContext)
-  if (!nav)
-    throw new Error(
-      'useNavigationDispatch must be used within a NavigationProvider',
-    )
+  if (!nav) throw new Error('useNavigationDispatch must be used within a NavigationProvider')
   return nav.dispatch
 }
 

@@ -68,15 +68,12 @@ export function BlockNoteView<BSchema extends BlockSchema>(
     children?: ReactNode
   } & HTMLAttributes<HTMLDivElement>,
 ) {
-  const {theme = {light: lightDefaultTheme, dark: darkDefaultTheme}, ...rest} =
-    props
+  const {theme = {light: lightDefaultTheme, dark: darkDefaultTheme}, ...rest} = props
 
   // Use state to track the current system theme
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(() => {
     // Initialize with the current system preference
-    return window.matchMedia('(prefers-color-scheme: dark)').matches
-      ? 'dark'
-      : 'light'
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
 
   // Set up an effect to listen for system theme changes
@@ -107,9 +104,7 @@ export function BlockNoteView<BSchema extends BlockSchema>(
     }
 
     if ('light' in theme && 'dark' in theme) {
-      return blockNoteToMantineTheme(
-        theme[systemTheme === 'dark' ? 'dark' : 'light'],
-      )
+      return blockNoteToMantineTheme(theme[systemTheme === 'dark' ? 'dark' : 'light'])
     }
 
     return blockNoteToMantineTheme(theme)

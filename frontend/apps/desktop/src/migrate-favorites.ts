@@ -18,36 +18,25 @@ export type StoreInterface = {
 // If anything fails, old data is preserved and migration retries on next launch.
 export function migrateFromFavorites(store: StoreInterface): void {
   try {
-    const legacyFavorites = store.get(LEGACY_FAVORITES_KEY) as
-      | {favorites: {url: string}[]}
-      | undefined
+    const legacyFavorites = store.get(LEGACY_FAVORITES_KEY) as {favorites: {url: string}[]} | undefined
     if (!legacyFavorites) return
 
     const migratedState: BookmarksState = {
       bookmarks: Array.isArray(legacyFavorites.favorites)
-        ? legacyFavorites.favorites.filter(
-            (f) => f && typeof f.url === 'string',
-          )
+        ? legacyFavorites.favorites.filter((f) => f && typeof f.url === 'string')
         : [],
     }
 
     store.set(BOOKMARKS_STORAGE_KEY, migratedState)
 
     // Verify write succeeded before deleting old data
-    const written = store.get(BOOKMARKS_STORAGE_KEY) as
-      | BookmarksState
-      | undefined
+    const written = store.get(BOOKMARKS_STORAGE_KEY) as BookmarksState | undefined
     if (written && Array.isArray(written.bookmarks)) {
       store.delete(LEGACY_FAVORITES_KEY)
     } else {
-      console.error(
-        'Bookmarks migration: verification failed, keeping legacy data for retry',
-      )
+      console.error('Bookmarks migration: verification failed, keeping legacy data for retry')
     }
   } catch (err) {
-    console.error(
-      'Bookmarks migration failed, legacy favorites preserved for next retry:',
-      err,
-    )
+    console.error('Bookmarks migration failed, legacy favorites preserved for next retry:', err)
   }
 }

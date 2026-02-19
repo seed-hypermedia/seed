@@ -84,10 +84,7 @@ export async function getChangesDepth(deps: string[]) {
   return Math.max(...allDepths)
 }
 
-export async function signObject(
-  keyPair: CryptoKeyPair,
-  data: any,
-): Promise<ArrayBuffer> {
+export async function signObject(keyPair: CryptoKeyPair, data: any): Promise<ArrayBuffer> {
   const cborData = cborEncode(data)
   const signature = await crypto.subtle.sign(
     {
@@ -100,9 +97,7 @@ export async function signObject(
   return signature
 }
 
-function annotationsToPublishable(
-  annotations: HMAnnotation[],
-): HMPublishableAnnotation[] {
+function annotationsToPublishable(annotations: HMAnnotation[]): HMPublishableAnnotation[] {
   return annotations.map((annotation) => {
     const {type, starts, ends} = annotation
     if (type === 'Bold') return {type: 'Bold', starts, ends}
@@ -110,10 +105,8 @@ function annotationsToPublishable(
     if (type === 'Underline') return {type: 'Underline', starts, ends}
     if (type === 'Strike') return {type: 'Strike', starts, ends}
     if (type === 'Code') return {type: 'Code', starts, ends}
-    if (type === 'Link')
-      return {type: 'Link', starts, ends, link: annotation.link || ''}
-    if (type === 'Embed')
-      return {type: 'Embed', starts, ends, link: annotation.link || ''}
+    if (type === 'Link') return {type: 'Link', starts, ends, link: annotation.link || ''}
+    if (type === 'Embed') return {type: 'Embed', starts, ends, link: annotation.link || ''}
     throw new Error(`Unsupported annotation type: ${type}`)
   })
 }
@@ -214,9 +207,7 @@ function blockToPublishable(blockNode: HMBlockNode): HMPublishableBlock | null {
   throw new Error(`Unsupported block type: ${block.type}`)
 }
 
-function hmBlocksToPublishable(
-  blockNodes: HMBlockNode[],
-): HMPublishableBlock[] {
+function hmBlocksToPublishable(blockNodes: HMBlockNode[]): HMPublishableBlock[] {
   return blockNodes
     .map((blockNode) => {
       const block = blockToPublishable(blockNode)
@@ -321,16 +312,11 @@ export function createUnsignedComment({
   return unsignedComment
 }
 
-export function createSignedComment(
-  comment: UnsignedComment,
-  signature: ArrayBuffer,
-): SignedComment {
+export function createSignedComment(comment: UnsignedComment, signature: ArrayBuffer): SignedComment {
   const signedComment = {
     ...comment,
     version: comment.version.split('.').map((v) => CID.parse(v)),
-    replyParent: comment.replyParent
-      ? CID.parse(comment.replyParent)
-      : undefined,
+    replyParent: comment.replyParent ? CID.parse(comment.replyParent) : undefined,
     threadRoot: comment.threadRoot ? CID.parse(comment.threadRoot) : undefined,
     sig: signature,
   } satisfies SignedComment
@@ -340,10 +326,7 @@ export function createSignedComment(
   return signedComment
 }
 
-export async function signComment(
-  comment: UnsignedComment,
-  keyPair: CryptoKeyPair,
-): Promise<SignedComment> {
+export async function signComment(comment: UnsignedComment, keyPair: CryptoKeyPair): Promise<SignedComment> {
   const commentForSigning = {
     ...comment,
     version: comment.version.split('.').map((v) => CID.parse(v)),
@@ -396,11 +379,7 @@ function cleanContentOfUndefined(content: HMBlockNode[]) {
   })
 }
 
-export async function createDocumentGenesisChange({
-  keyPair,
-}: {
-  keyPair: CryptoKeyPair
-}) {
+export async function createDocumentGenesisChange({keyPair}: {keyPair: CryptoKeyPair}) {
   const signerKey = await preparePublicKey(keyPair.publicKey)
   const unsignedChange: UnsignedDocumentChange = {
     type: 'Change',

@@ -102,9 +102,7 @@ export function MobileSearch({
                   )
                 })
               ) : (
-                <div className="text-muted-foreground p-4 text-center">
-                  No results found
-                </div>
+                <div className="text-muted-foreground p-4 text-center">No results found</div>
               )}
             </div>
           </ScrollArea>
@@ -114,11 +112,7 @@ export function MobileSearch({
   )
 }
 
-export function HeaderSearch({
-  siteHomeId,
-}: {
-  siteHomeId: UnpackedHypermediaId | null
-}) {
+export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | null}) {
   const popoverState = usePopoverState()
   const [searchValue, setSearchValue] = useState('')
   const searchResults = useSearch(searchValue, {
@@ -144,11 +138,7 @@ export function HeaderSearch({
       const handleKeyDown = (e: KeyboardEvent) => {
         // Don't trigger if user is typing in an input, textarea, or contenteditable
         const target = e.target as HTMLElement
-        if (
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.isContentEditable
-        ) {
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
           return
         }
 
@@ -230,8 +220,7 @@ export function HeaderSearch({
                       return
                     }
 
-                    const selectedEntity =
-                      searchResults.data?.entities[focusedIndex]
+                    const selectedEntity = searchResults.data?.entities[focusedIndex]
 
                     if (!selectedEntity) {
                       return
@@ -243,17 +232,12 @@ export function HeaderSearch({
                     })
 
                     popoverState.onOpenChange(false)
-                    console.log(
-                      '🔍 [DEBUG] Navigation completed, popover closed',
-                    )
+                    console.log('🔍 [DEBUG] Navigation completed, popover closed')
                   }
 
                   if (e.key === 'ArrowUp') {
                     e.preventDefault()
-                    setFocusedIndex(
-                      (prev) =>
-                        (prev - 1 + searchItems.length) % searchItems.length,
-                    )
+                    setFocusedIndex((prev) => (prev - 1 + searchItems.length) % searchItems.length)
                   }
 
                   if (e.key === 'ArrowDown') {
@@ -275,27 +259,15 @@ export function HeaderSearch({
                               focusedIndex === index
                                 ? (el) => {
                                     if (el) {
-                                      const container = el.closest(
-                                        '[data-radix-scroll-area-viewport]',
-                                      )
+                                      const container = el.closest('[data-radix-scroll-area-viewport]')
                                       if (container) {
-                                        const containerRect =
-                                          container.getBoundingClientRect()
-                                        const elementRect =
-                                          el.getBoundingClientRect()
+                                        const containerRect = container.getBoundingClientRect()
+                                        const elementRect = el.getBoundingClientRect()
 
-                                        if (
-                                          elementRect.bottom >
-                                          containerRect.bottom
-                                        ) {
-                                          container.scrollTop +=
-                                            elementRect.bottom -
-                                            containerRect.bottom
-                                        } else if (
-                                          elementRect.top < containerRect.top
-                                        ) {
-                                          container.scrollTop -=
-                                            containerRect.top - elementRect.top
+                                        if (elementRect.bottom > containerRect.bottom) {
+                                          container.scrollTop += elementRect.bottom - containerRect.bottom
+                                        } else if (elementRect.top < containerRect.top) {
+                                          container.scrollTop -= containerRect.top - elementRect.top
                                         }
                                       }
                                     }
@@ -312,16 +284,12 @@ export function HeaderSearch({
                               // }}
                             />
                           </div>
-                          {index === searchItems.length - 1 ? undefined : (
-                            <Separator />
-                          )}
+                          {index === searchItems.length - 1 ? undefined : <Separator />}
                         </Fragment>
                       )
                     })
                   ) : (
-                    <div className="text-muted-foreground p-4 text-center">
-                      No results found
-                    </div>
+                    <div className="text-muted-foreground p-4 text-center">No results found</div>
                   )}
                 </div>
               </ScrollArea>
@@ -409,11 +377,7 @@ export function SearchResultItem({
         </SizableText>
 
         {unpackedId?.blockRef && (
-          <SizableText
-            size="xs"
-            weight="light"
-            className="line-clamp-1 flex-none text-left font-sans text-gray-400"
-          >
+          <SizableText size="xs" weight="light" className="line-clamp-1 flex-none text-left font-sans text-gray-400">
             ...{highlightSearchMatch(item.title, item.searchQuery)}...
           </SizableText>
         )}
@@ -422,11 +386,7 @@ export function SearchResultItem({
           <div className="flex min-w-0 items-center gap-2 overflow-hidden">
             <div className="flex min-w-0 flex-1 items-center">
               {!!item.path && (
-                <SizableText
-                  size="xs"
-                  weight="light"
-                  className="line-clamp-1 truncate font-sans text-gray-400"
-                >
+                <SizableText size="xs" weight="light" className="line-clamp-1 truncate font-sans text-gray-400">
                   {collapsedPath.join(' / ')}
                 </SizableText>
               )}
@@ -440,11 +400,7 @@ export function SearchResultItem({
                 weight="light"
                 color={unpackedId?.latest ? 'success' : 'default'}
               >
-                {unpackedId?.latest
-                  ? 'Latest Version'
-                  : item.versionTime
-                  ? 'Previous Version'
-                  : ''}
+                {unpackedId?.latest ? 'Latest Version' : item.versionTime ? 'Previous Version' : ''}
               </SizableText>
             </Tooltip>
           </div>
@@ -479,10 +435,7 @@ export function RecentSearchResultItem({
     const homeId = `hm://${item.id.uid}`
     const unpacked = unpackHmId(homeId)
     const homeEntity = useResource(unpacked!)
-    const doc =
-      homeEntity.data?.type === 'document'
-        ? homeEntity.data.document
-        : undefined
+    const doc = homeEntity.data?.type === 'document' ? homeEntity.data.document : undefined
     const homeTitle = getDocumentTitle(doc)
 
     if (homeTitle && homeTitle !== item.title) {
@@ -617,10 +570,7 @@ export function useCollapsedPath(
     const charWidth = fontSize * 0.6 // approx width of each character
 
     // Estimate full breadcrumb width
-    const fullWidth = path.reduce(
-      (acc, item) => acc + item.length * charWidth + spacer,
-      0,
-    )
+    const fullWidth = path.reduce((acc, item) => acc + item.length * charWidth + spacer, 0)
 
     if (fullWidth <= containerWidth) {
       setCollapsedPath(path)

@@ -28,10 +28,7 @@ function utf16ToCodepointOffset(text: string, utf16Offset: number): number {
   return codepointOffset
 }
 
-function getBlockNodeById(
-  blocks: Array<HMBlockNode>,
-  blockId: string,
-): HMBlockNode | null {
+function getBlockNodeById(blocks: Array<HMBlockNode>, blockId: string): HMBlockNode | null {
   if (!blockId) return null
 
   let res: HMBlockNode | undefined
@@ -216,25 +213,15 @@ export function useRangeSelection(documentContent?: Array<HMBlockNode>): {
               if (isTripleClick && anchorBlockId) {
                 // Handle triple-click: select entire anchor block
                 if (documentContent) {
-                  const blockNode = getBlockNodeById(
-                    documentContent,
-                    anchorBlockId,
-                  )
-                  if (
-                    blockNode?.block &&
-                    'text' in blockNode.block &&
-                    blockNode.block.text
-                  ) {
+                  const blockNode = getBlockNodeById(documentContent, anchorBlockId)
+                  if (blockNode?.block && 'text' in blockNode.block && blockNode.block.text) {
                     const blockText = blockNode.block.text
                     return {
                       ...defaultContext,
                       selection: sel,
                       blockId: anchorBlockId,
                       rangeStart: 0,
-                      rangeEnd: utf16ToCodepointOffset(
-                        blockText,
-                        blockText.length,
-                      ),
+                      rangeEnd: utf16ToCodepointOffset(blockText, blockText.length),
                       expanded: false,
                     }
                   }
@@ -266,25 +253,15 @@ export function useRangeSelection(documentContent?: Array<HMBlockNode>): {
                 if (isTripleClick && anchorBlockId) {
                   // Handle triple-click: select entire anchor block
                   if (documentContent) {
-                    const blockNode = getBlockNodeById(
-                      documentContent,
-                      anchorBlockId,
-                    )
-                    if (
-                      blockNode?.block &&
-                      'text' in blockNode.block &&
-                      blockNode.block.text
-                    ) {
+                    const blockNode = getBlockNodeById(documentContent, anchorBlockId)
+                    if (blockNode?.block && 'text' in blockNode.block && blockNode.block.text) {
                       const blockText = blockNode.block.text
                       return {
                         ...defaultContext,
                         selection: sel,
                         blockId: anchorBlockId,
                         rangeStart: 0,
-                        rangeEnd: utf16ToCodepointOffset(
-                          blockText,
-                          blockText.length,
-                        ),
+                        rangeEnd: utf16ToCodepointOffset(blockText, blockText.length),
                       }
                     }
                   }
@@ -323,16 +300,9 @@ export function useRangeSelection(documentContent?: Array<HMBlockNode>): {
 
               if (documentContent && blockId) {
                 const blockNode = getBlockNodeById(documentContent, blockId)
-                if (
-                  blockNode?.block &&
-                  'text' in blockNode.block &&
-                  blockNode.block.text
-                ) {
+                if (blockNode?.block && 'text' in blockNode.block && blockNode.block.text) {
                   const blockText = blockNode.block.text
-                  rangeStart = utf16ToCodepointOffset(
-                    blockText,
-                    utf16RangeStart,
-                  )
+                  rangeStart = utf16ToCodepointOffset(blockText, utf16RangeStart)
                   rangeEnd = utf16ToCodepointOffset(blockText, utf16RangeEnd)
                 }
               }
@@ -377,17 +347,12 @@ export function useRangeSelection(documentContent?: Array<HMBlockNode>): {
       setCoords({
         top: rect.top - wrapperRect.top - (bubbleRect.height + 8),
 
-        left:
-          rect.left + rect.width / 2 - wrapperRect.left - bubbleRect.width / 2,
+        left: rect.left + rect.width / 2 - wrapperRect.left - bubbleRect.width / 2,
       })
     } else {
       setCoords({top: -9999, left: -9999})
     }
-  }, [
-    wrapper.current,
-    state.matches({active: 'selected'}),
-    state.context.selection,
-  ])
+  }, [wrapper.current, state.matches({active: 'selected'}), state.context.selection])
 
   useEffect(function rangeSelectionEffect() {
     document.addEventListener('selectionchange', handleSelectionChange)

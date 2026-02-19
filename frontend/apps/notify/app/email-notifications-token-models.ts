@@ -10,9 +10,7 @@ export function useEmailNotificationsWithToken(token: string | null) {
       if (!token) {
         return null
       }
-      const result = (await get(
-        `/hm/api/email-notif-token?token=${token}`,
-      )) as Email
+      const result = (await get(`/hm/api/email-notif-token?token=${token}`)) as Email
       return result
     },
   })

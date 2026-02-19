@@ -51,56 +51,34 @@ describe('Database', () => {
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
 
       // Check if tables exist
-      const tables = db
-        .prepare("SELECT name FROM sqlite_master WHERE type='table'")
-        .all() as TableInfo[]
+      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as TableInfo[]
       expect(tables).toHaveLength(3)
       expect(tables.map((t) => t.name)).toContain('emails')
       expect(tables.map((t) => t.name)).toContain('email_subscriptions')
       expect(tables.map((t) => t.name)).toContain('notifier_status')
 
       // Check emails table schema
-      const emailsSchema = db
-        .prepare('PRAGMA table_info(emails)')
-        .all() as ColumnInfo[]
+      const emailsSchema = db.prepare('PRAGMA table_info(emails)').all() as ColumnInfo[]
       expect(emailsSchema).toHaveLength(4)
       expect(emailsSchema.find((c) => c.name === 'email')).toBeDefined()
       expect(emailsSchema.find((c) => c.name === 'adminToken')).toBeDefined()
       expect(emailsSchema.find((c) => c.name === 'createdAt')).toBeDefined()
-      expect(
-        emailsSchema.find((c) => c.name === 'isUnsubscribed'),
-      ).toBeDefined()
+      expect(emailsSchema.find((c) => c.name === 'isUnsubscribed')).toBeDefined()
 
       // Check email_subscriptions table schema
-      const subscriptionsSchema = db
-        .prepare('PRAGMA table_info(email_subscriptions)')
-        .all() as ColumnInfo[]
+      const subscriptionsSchema = db.prepare('PRAGMA table_info(email_subscriptions)').all() as ColumnInfo[]
       expect(subscriptionsSchema).toHaveLength(8)
       expect(subscriptionsSchema.find((c) => c.name === 'id')).toBeDefined()
       expect(subscriptionsSchema.find((c) => c.name === 'email')).toBeDefined()
-      expect(
-        subscriptionsSchema.find((c) => c.name === 'createdAt'),
-      ).toBeDefined()
-      expect(
-        subscriptionsSchema.find((c) => c.name === 'notifyAllMentions'),
-      ).toBeDefined()
-      expect(
-        subscriptionsSchema.find((c) => c.name === 'notifyAllReplies'),
-      ).toBeDefined()
-      expect(
-        subscriptionsSchema.find((c) => c.name === 'notifyOwnedDocChange'),
-      ).toBeDefined()
-      expect(
-        subscriptionsSchema.find((c) => c.name === 'notifySiteDiscussions'),
-      ).toBeDefined()
-      expect(
-        subscriptionsSchema.find((c) => c.name === 'notifyAllComments'),
-      ).toBeDefined()
+      expect(subscriptionsSchema.find((c) => c.name === 'createdAt')).toBeDefined()
+      expect(subscriptionsSchema.find((c) => c.name === 'notifyAllMentions')).toBeDefined()
+      expect(subscriptionsSchema.find((c) => c.name === 'notifyAllReplies')).toBeDefined()
+      expect(subscriptionsSchema.find((c) => c.name === 'notifyOwnedDocChange')).toBeDefined()
+      expect(subscriptionsSchema.find((c) => c.name === 'notifySiteDiscussions')).toBeDefined()
+      expect(subscriptionsSchema.find((c) => c.name === 'notifyAllComments')).toBeDefined()
 
       // Check foreign key constraint
-      const foreignKeys = db
-        .prepare('PRAGMA foreign_key_list(email_subscriptions)')
-        .all() as ForeignKeyInfo[]
+      const foreignKeys = db.prepare('PRAGMA foreign_key_list(email_subscriptions)').all() as ForeignKeyInfo[]
       expect(foreignKeys).toHaveLength(1)
       // @ts-expect-error
       expect(foreignKeys[0].from).toBe('email')
@@ -134,10 +112,7 @@ describe('Database', () => {
       }
       createSubscription(subscriptionData)
 
-      const subscription = getSubscription(
-        subscriptionData.id,
-        subscriptionData.email,
-      )
+      const subscription = getSubscription(subscriptionData.id, subscriptionData.email)
       expect(subscription).toMatchObject({
         id: subscriptionData.id,
         email: subscriptionData.email,
@@ -162,10 +137,7 @@ describe('Database', () => {
       }
       createSubscription(subscriptionData)
 
-      const subscription = getSubscription(
-        subscriptionData.id,
-        subscriptionData.email,
-      )
+      const subscription = getSubscription(subscriptionData.id, subscriptionData.email)
       expect(subscription).toMatchObject({
         id: subscriptionData.id,
         email: subscriptionData.email,
@@ -198,10 +170,7 @@ describe('Database', () => {
         notifyAllComments: false,
       })
 
-      const subscription = getSubscription(
-        subscriptionData.id,
-        subscriptionData.email,
-      )
+      const subscription = getSubscription(subscriptionData.id, subscriptionData.email)
       expect(subscription).toMatchObject({
         id: subscriptionData.id,
         notifyAllMentions: true,
@@ -213,10 +182,7 @@ describe('Database', () => {
     })
 
     it('should return null for non-existent subscription', () => {
-      const subscription = getSubscription(
-        'non-existent-id',
-        'non-existent@example.com',
-      )
+      const subscription = getSubscription('non-existent-id', 'non-existent@example.com')
       expect(subscription).toBeNull()
     })
 
@@ -232,10 +198,7 @@ describe('Database', () => {
       }
       setSubscription(subscriptionData)
 
-      const subscription = getSubscription(
-        subscriptionData.id,
-        subscriptionData.email,
-      )
+      const subscription = getSubscription(subscriptionData.id, subscriptionData.email)
       expect(subscription).toMatchObject({
         id: subscriptionData.id,
         email: subscriptionData.email,
@@ -352,9 +315,7 @@ describe('Database', () => {
 
       // Get the adminToken from the database directly
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
-      const adminToken = db
-        .prepare('SELECT adminToken FROM emails WHERE email = ?')
-        .get(email) as {adminToken: string}
+      const adminToken = db.prepare('SELECT adminToken FROM emails WHERE email = ?').get(email) as {adminToken: string}
       db.close()
 
       const emailData = getEmailWithToken(adminToken.adminToken)
@@ -400,9 +361,7 @@ describe('Database', () => {
       })
 
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
-      const adminToken = db
-        .prepare('SELECT adminToken FROM emails WHERE email = ?')
-        .get(email) as {adminToken: string}
+      const adminToken = db.prepare('SELECT adminToken FROM emails WHERE email = ?').get(email) as {adminToken: string}
       db.close()
 
       setEmailUnsubscribed(adminToken.adminToken, true)
@@ -466,8 +425,7 @@ describe('Database', () => {
 
   describe('notifier operations', () => {
     it('should get and set last processed blob CID', () => {
-      const testId =
-        'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi'
+      const testId = 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi'
 
       // Initially should be undefined
       expect(getNotifierLastProcessedEventId()).toBeUndefined()
@@ -479,8 +437,7 @@ describe('Database', () => {
       expect(getNotifierLastProcessedEventId()).toBe(testId)
 
       // Setting a new CID should update the value
-      const newCid =
-        'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdj'
+      const newCid = 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdj'
       setNotifierLastProcessedEventId(newCid)
       expect(getNotifierLastProcessedEventId()).toBe(newCid)
     })

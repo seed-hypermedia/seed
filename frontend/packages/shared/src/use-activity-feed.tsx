@@ -32,13 +32,7 @@ export function useActivityFeed({
   const client = useUniversalClient()
 
   return useInfiniteQuery({
-    queryKey: [
-      queryKeys.ACTIVITY_FEED,
-      filterResource,
-      filterAuthors,
-      filterEventType,
-      currentAccount,
-    ],
+    queryKey: [queryKeys.ACTIVITY_FEED, filterResource, filterAuthors, filterEventType, currentAccount],
     queryFn: async ({pageParam}): Promise<LoadedEventsResponse> => {
       try {
         const input: HMListEventsInput = {
@@ -51,10 +45,7 @@ export function useActivityFeed({
         }
 
         // Fetch pre-resolved events from API
-        const response = await client.request<HMListEventsRequest>(
-          'ListEvents',
-          input,
-        )
+        const response = await client.request<HMListEventsRequest>('ListEvents', input)
 
         return {
           events: response.events as LoadedEvent[],

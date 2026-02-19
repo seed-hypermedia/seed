@@ -1,9 +1,5 @@
 import {combine} from '@atlaskit/pragmatic-drag-and-drop/combine'
-import {
-  draggable,
-  dropTargetForElements,
-  monitorForElements,
-} from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
+import {draggable, dropTargetForElements, monitorForElements} from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import {packHmId, SearchResult, unpackHmId, useSearch} from '@shm/shared'
 import {HMNavigationItem, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
@@ -11,11 +7,7 @@ import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import '@shm/shared/styles/document.css'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@shm/ui/components/popover'
+import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {FormField} from '@shm/ui/forms'
 import {SearchResultItem} from '@shm/ui/search'
 import {Separator} from '@shm/ui/separator'
@@ -23,14 +15,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
-import {
-  EllipsisVertical,
-  Globe,
-  Pencil,
-  Plus,
-  Search,
-  Trash,
-} from 'lucide-react'
+import {EllipsisVertical, Globe, Pencil, Plus, Search, Trash} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useEffect, useRef, useState} from 'react'
 
@@ -90,9 +75,7 @@ function EditNavigation({
         }
 
         const over = location.current.dropTargets[0]
-        const sourceIndex = docNav.findIndex(
-          (item) => item.id === source.data.id,
-        )
+        const sourceIndex = docNav.findIndex((item) => item.id === source.data.id)
         // @ts-ignore
         const overIndex = docNav.findIndex((item) => item.id === over.data.id)
 
@@ -227,12 +210,7 @@ function DraggableNavItem({
         <div className="rounded-1 hover:bg-color6 cursor-grab p-1 active:cursor-grabbing">
           <EllipsisVertical size={16} />
         </div>
-        <span
-          className={cn(
-            'select-none',
-            item.text === '' ? 'text-muted-foreground' : '',
-          )}
-        >
+        <span className={cn('select-none', item.text === '' ? 'text-muted-foreground' : '')}>
           {item.text || 'Untitled Document'}
         </span>
       </div>
@@ -401,9 +379,7 @@ function SearchUI({
             onSelect: () => onValue(packHmId(item.id), item.title || ''),
             subtitle: 'Document',
             searchQuery: item.searchQuery,
-            versionTime: item.versionTime
-              ? item.versionTime.toDate().toLocaleString()
-              : '',
+            versionTime: item.versionTime ? item.versionTime.toDate().toLocaleString() : '',
           }
         })
         .filter(Boolean) ?? []
@@ -467,9 +443,7 @@ function SearchUI({
 
             if (e.key === 'ArrowUp') {
               e.preventDefault()
-              setFocusedIndex(
-                (prev) => (prev - 1 + results.length) % results.length,
-              )
+              setFocusedIndex((prev) => (prev - 1 + results.length) % results.length)
             }
 
             if (e.key === 'ArrowDown') {

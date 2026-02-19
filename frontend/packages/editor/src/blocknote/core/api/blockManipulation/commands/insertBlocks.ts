@@ -1,11 +1,6 @@
 import {Node} from 'prosemirror-model'
 import {BlockNoteEditor} from '../../../BlockNoteEditor'
-import {
-  Block,
-  BlockIdentifier,
-  BlockSchema,
-  PartialBlock,
-} from '../../../extensions/Blocks/api/blockTypes'
+import {Block, BlockIdentifier, BlockSchema, PartialBlock} from '../../../extensions/Blocks/api/blockTypes'
 import {blockToNode, nodeToBlock} from '../../nodeConversions/nodeConversions'
 import {getNodeById} from '../../util/nodeUtil'
 
@@ -15,8 +10,7 @@ export function insertBlocks<BSchema extends BlockSchema>(
   referenceBlock: BlockIdentifier,
   placement: 'before' | 'after' | 'nested' = 'before',
 ): Block<BSchema>[] {
-  const id =
-    typeof referenceBlock === 'string' ? referenceBlock : referenceBlock.id
+  const id = typeof referenceBlock === 'string' ? referenceBlock : referenceBlock.id
 
   const nodesToInsert: Node[] = []
   for (const blockSpec of blocksToInsert) {
@@ -31,21 +25,11 @@ export function insertBlocks<BSchema extends BlockSchema>(
   // TODO: we might want to use the ReplaceStep directly here instead of insert,
   // because the fitting algorithm should not be necessary and might even cause unexpected behavior
   if (placement === 'before') {
-    editor.dispatch(
-      editor._tiptapEditor.state.tr.insert(
-        posInfo.posBeforeNode,
-        nodesToInsert,
-      ),
-    )
+    editor.dispatch(editor._tiptapEditor.state.tr.insert(posInfo.posBeforeNode, nodesToInsert))
   }
 
   if (placement === 'after') {
-    editor.dispatch(
-      editor._tiptapEditor.state.tr.insert(
-        posInfo.posBeforeNode + posInfo.node.nodeSize,
-        nodesToInsert,
-      ),
-    )
+    editor.dispatch(editor._tiptapEditor.state.tr.insert(posInfo.posBeforeNode + posInfo.node.nodeSize, nodesToInsert))
   }
 
   // Now that the `PartialBlock`s have been converted to nodes, we can

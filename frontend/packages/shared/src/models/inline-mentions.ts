@@ -4,9 +4,7 @@ import {useUniversalClient} from '../routing'
 import {useRecents} from './recents'
 import {SearchResultItem} from './search'
 
-export function useInlineMentions(
-  perspectiveAccountUid?: string | null | undefined,
-) {
+export function useInlineMentions(perspectiveAccountUid?: string | null | undefined) {
   const client = useUniversalClient()
   const recents = useRecents()
   const recentsRef = useRef<SearchResultItem[]>([])

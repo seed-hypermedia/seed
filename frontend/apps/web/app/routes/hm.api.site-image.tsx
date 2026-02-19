@@ -8,13 +8,10 @@ const SITE_IMAGE_MAX_SIZE = 512
 export const action: ActionFunction = async ({request}: {request: Request}) => {
   const contentLength = parseInt(request.headers.get('content-length') || '0')
   if (contentLength > MAX_FILE_SIZE) {
-    return new Response(
-      JSON.stringify({error: 'File too large, max size is 10MB'}),
-      {
-        status: 413,
-        headers: {'Content-Type': 'application/json'},
-      },
-    )
+    return new Response(JSON.stringify({error: 'File too large, max size is 10MB'}), {
+      status: 413,
+      headers: {'Content-Type': 'application/json'},
+    })
   }
   try {
     const arrayBuffer = await request.arrayBuffer()

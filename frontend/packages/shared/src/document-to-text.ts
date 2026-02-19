@@ -71,10 +71,7 @@ export async function documentToText({
 /**
  * Recursively converts an array of block nodes to text
  */
-async function blockNodesToText(
-  nodes: HMBlockNode[],
-  context: ConversionContext,
-): Promise<string> {
+async function blockNodesToText(nodes: HMBlockNode[], context: ConversionContext): Promise<string> {
   const textParts: string[] = []
 
   for (const node of nodes) {
@@ -103,10 +100,7 @@ async function blockNodesToText(
 /**
  * Converts a single block to text based on its type
  */
-async function blockToText(
-  block: HMBlock,
-  context: ConversionContext,
-): Promise<string> {
+async function blockToText(block: HMBlock, context: ConversionContext): Promise<string> {
   switch (block.type) {
     case 'Paragraph':
     case 'Heading':
@@ -156,10 +150,7 @@ async function blockToText(
 /**
  * Processes a text block (Paragraph, Heading, etc.) with annotations
  */
-async function processTextBlock(
-  block: HMBlock,
-  context: ConversionContext,
-): Promise<string> {
+async function processTextBlock(block: HMBlock, context: ConversionContext): Promise<string> {
   const blockText = (block as any).text || ''
 
   if (!blockText) {
@@ -179,11 +170,7 @@ async function processTextBlock(
 /**
  * Processes text with standoff annotations, replacing inline embeds with document names
  */
-async function processAnnotations(
-  text: string,
-  annotations: any[],
-  context: ConversionContext,
-): Promise<string> {
+async function processAnnotations(text: string, annotations: any[], context: ConversionContext): Promise<string> {
   // Build a map of positions to inline embed links
   const embedMap = new Map<number, string>()
 
@@ -230,10 +217,7 @@ async function processAnnotations(
 /**
  * Resolves an inline embed link to a document name
  */
-async function resolveInlineEmbed(
-  link: string,
-  context: ConversionContext,
-): Promise<string> {
+async function resolveInlineEmbed(link: string, context: ConversionContext): Promise<string> {
   const id = unpackHmId(link)
 
   if (!id) {
@@ -265,10 +249,7 @@ async function resolveInlineEmbed(
  * Processes an embed block by recursively fetching and converting the embedded document
  * Handles blockRef (specific block) and blockRange (fragment) references
  */
-async function processEmbedBlock(
-  block: HMBlock,
-  context: ConversionContext,
-): Promise<string> {
+async function processEmbedBlock(block: HMBlock, context: ConversionContext): Promise<string> {
   const link = (block as any).link
 
   if (!link) {
@@ -315,10 +296,7 @@ async function processEmbedBlock(
       if (targetBlock) {
         // If there's a blockRange, apply it to the children of the target block
         if (id.blockRange && targetBlock.children) {
-          const rangeBlocks = extractBlockRange(
-            targetBlock.children,
-            id.blockRange,
-          )
+          const rangeBlocks = extractBlockRange(targetBlock.children, id.blockRange)
           if (rangeBlocks.length > 0) {
             const rangeText = await blockNodesToText(rangeBlocks, context)
             context.currentDepth--
@@ -351,10 +329,7 @@ async function processEmbedBlock(
 /**
  * Finds a block by its ID in the block tree
  */
-function findBlockById(
-  nodes: HMBlockNode[],
-  blockId: string,
-): HMBlockNode | null {
+function findBlockById(nodes: HMBlockNode[], blockId: string): HMBlockNode | null {
   for (const node of nodes) {
     if (node.block?.id === blockId) {
       return node

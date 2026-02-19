@@ -4,11 +4,7 @@ import {useGatewayUrl} from '@/models/gateway-settings'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {BlockRange, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
-import {
-  createSiteUrl,
-  createWebHMUrl,
-  hmId,
-} from '@shm/shared/utils/entity-id-url'
+import {createSiteUrl, createWebHMUrl, hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button, ButtonProps} from '@shm/ui/button'
 import {ExternalLink, Link} from '@shm/ui/icons'
@@ -58,10 +54,7 @@ export function useDocumentUrl({
         latest,
       })
   // Get document version for block links
-  const docVersion =
-    docEntity.data?.type === 'document'
-      ? docEntity.data.document?.version
-      : undefined
+  const docVersion = docEntity.data?.type === 'document' ? docEntity.data.document?.version : undefined
 
   return {
     url,
@@ -129,13 +122,7 @@ export function CopyReferenceButton({
 
   return (
     <>
-      <Tooltip
-        content={
-          shouldOpen
-            ? `Open ${reference.label} Link in Web Browser`
-            : `Copy ${reference.label} Link`
-        }
-      >
+      <Tooltip content={shouldOpen ? `Open ${reference.label} Link in Web Browser` : `Copy ${reference.label} Link`}>
         <Button
           size="icon"
           variant="ghost"

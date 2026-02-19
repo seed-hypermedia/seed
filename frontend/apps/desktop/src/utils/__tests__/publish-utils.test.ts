@@ -1,11 +1,6 @@
 import {HMBlockNode, HMDocument, hmId} from '@shm/shared'
 import {describe, expect, it, vi} from 'vitest'
-import {
-  computeDraftRoute,
-  computePublishPath,
-  shouldAutoLinkParent,
-  validatePublishPath,
-} from '../publish-utils'
+import {computeDraftRoute, computePublishPath, shouldAutoLinkParent, validatePublishPath} from '../publish-utils'
 
 function createDocument(content: HMBlockNode[]): HMDocument {
   return {
@@ -57,8 +52,7 @@ describe('validatePublishPath', () => {
   // Mimics the real validatePath behavior for testing
   const mockValidatePath = (path: string) => {
     if (path === '') return null
-    if (!path.startsWith('/'))
-      return {error: "wrong path format (should start with '/')"}
+    if (!path.startsWith('/')) return {error: "wrong path format (should start with '/')"}
     const p = path.slice(1)
     if (['assets', 'favicon.ico', 'robots.txt', 'hm', 'api'].includes(p)) {
       return {error: `This path name is reserved and can't be used: ${p}`}
@@ -73,11 +67,7 @@ describe('validatePublishPath', () => {
 
   it('private docs always pass validation', () => {
     // Path starting with "-" would normally fail validatePath
-    const result = validatePublishPath(
-      true,
-      ['-TWLswGF5TvO9tCnnkwOG'],
-      mockValidatePath,
-    )
+    const result = validatePublishPath(true, ['-TWLswGF5TvO9tCnnkwOG'], mockValidatePath)
     expect(result).toBeNull()
   })
 
@@ -112,12 +102,7 @@ describe('shouldAutoLinkParent', () => {
   it('private docs never auto-link to parent', () => {
     const editableLocation = hmId('parent-uid', {path: ['parent', 'child']})
     const parentDoc = createDocument([])
-    const result = shouldAutoLinkParent(
-      true,
-      parentDoc,
-      editableLocation,
-      parentId,
-    )
+    const result = shouldAutoLinkParent(true, parentDoc, editableLocation, parentId)
     expect(result).toBe(false)
   })
 
@@ -130,12 +115,7 @@ describe('shouldAutoLinkParent', () => {
   it('public docs auto-link when parent has no existing link', () => {
     const editableLocation = hmId('parent-uid', {path: ['parent', 'child']})
     const parentDoc = createDocument([])
-    const result = shouldAutoLinkParent(
-      false,
-      parentDoc,
-      editableLocation,
-      parentId,
-    )
+    const result = shouldAutoLinkParent(false, parentDoc, editableLocation, parentId)
     expect(result).toBe(true)
   })
 
@@ -151,12 +131,7 @@ describe('shouldAutoLinkParent', () => {
         },
       },
     ] as HMBlockNode[])
-    const result = shouldAutoLinkParent(
-      false,
-      parentDoc,
-      editableLocation,
-      parentId,
-    )
+    const result = shouldAutoLinkParent(false, parentDoc, editableLocation, parentId)
     expect(result).toBe(false)
   })
 
@@ -172,20 +147,13 @@ describe('shouldAutoLinkParent', () => {
             banner: false,
             columnCount: 1,
             query: {
-              includes: [
-                {space: 'parent-uid', path: '/parent', mode: 'Children'},
-              ],
+              includes: [{space: 'parent-uid', path: '/parent', mode: 'Children'}],
             },
           },
         },
       },
     ] as HMBlockNode[])
-    const result = shouldAutoLinkParent(
-      false,
-      parentDoc,
-      editableLocation,
-      parentId,
-    )
+    const result = shouldAutoLinkParent(false, parentDoc, editableLocation, parentId)
     expect(result).toBe(false)
   })
 
@@ -218,13 +186,7 @@ describe('computeDraftRoute', () => {
   })
 
   it('private doc falls back to selectedAccountId when no locationUid', () => {
-    const result = computeDraftRoute(
-      'PRIVATE',
-      {},
-      'selected-account-uid',
-      mockGenerateId,
-      mockGeneratePath,
-    )
+    const result = computeDraftRoute('PRIVATE', {}, 'selected-account-uid', mockGenerateId, mockGeneratePath)
     expect(result).toEqual({
       key: 'draft',
       id: 'draft-id-10',
@@ -235,13 +197,7 @@ describe('computeDraftRoute', () => {
   })
 
   it('private doc returns null when no locationUid and no selectedAccountId', () => {
-    const result = computeDraftRoute(
-      'PRIVATE',
-      {},
-      undefined,
-      mockGenerateId,
-      mockGeneratePath,
-    )
+    const result = computeDraftRoute('PRIVATE', {}, undefined, mockGenerateId, mockGeneratePath)
     expect(result).toBeNull()
   })
 
@@ -261,13 +217,7 @@ describe('computeDraftRoute', () => {
       locationUid: 'location-uid',
       locationPath: ['docs', 'sub'],
     }
-    const result = computeDraftRoute(
-      'PUBLIC',
-      draftParams,
-      'selected-account-uid',
-      mockGenerateId,
-      mockGeneratePath,
-    )
+    const result = computeDraftRoute('PUBLIC', draftParams, 'selected-account-uid', mockGenerateId, mockGeneratePath)
     expect(result).toEqual({
       key: 'draft',
       id: 'draft-id-10',
@@ -282,13 +232,7 @@ describe('computeDraftRoute', () => {
       locationUid: 'location-uid',
       locationPath: ['docs'],
     }
-    const result = computeDraftRoute(
-      undefined,
-      draftParams,
-      'selected-account-uid',
-      mockGenerateId,
-      mockGeneratePath,
-    )
+    const result = computeDraftRoute(undefined, draftParams, 'selected-account-uid', mockGenerateId, mockGeneratePath)
     expect(result).toEqual({
       key: 'draft',
       id: 'draft-id-10',
@@ -299,13 +243,7 @@ describe('computeDraftRoute', () => {
   })
 
   it('public doc with empty draftParams still works', () => {
-    const result = computeDraftRoute(
-      undefined,
-      {},
-      'selected-account-uid',
-      mockGenerateId,
-      mockGeneratePath,
-    )
+    const result = computeDraftRoute(undefined, {}, 'selected-account-uid', mockGenerateId, mockGeneratePath)
     expect(result).toEqual({
       key: 'draft',
       id: 'draft-id-10',

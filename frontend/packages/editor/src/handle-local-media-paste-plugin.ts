@@ -25,8 +25,7 @@ const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
         }
 
         const insertPos =
-          view.state.selection.$anchor.parent.type.name !== 'image' &&
-          view.state.selection.$anchor.parent.nodeSize <= 2
+          view.state.selection.$anchor.parent.type.name !== 'image' && view.state.selection.$anchor.parent.nodeSize <= 2
             ? view.state.selection.$anchor.start() - 2
             : view.state.selection.$anchor.end() + 1
 
@@ -80,19 +79,10 @@ const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
                         fetch(src)
                           .then((response) => response.blob())
                           .then((blob) => {
-                            const imgFile = new File(
-                              [blob],
-                              `pasted-image-${Date.now()}.png`,
-                              {
-                                type: blob.type || 'image/png',
-                              },
-                            )
-                            processImage(
-                              imgFile,
-                              view,
-                              insertPos,
-                              blockNoteEditor,
-                            )
+                            const imgFile = new File([blob], `pasted-image-${Date.now()}.png`, {
+                              type: blob.type || 'image/png',
+                            })
+                            processImage(imgFile, view, insertPos, blockNoteEditor)
                           })
                           .catch((error) => {
                             console.error('Error processing data URL:', error)
@@ -103,25 +93,13 @@ const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
                         fetch(src)
                           .then((response) => response.blob())
                           .then((blob) => {
-                            const imgFile = new File(
-                              [blob],
-                              `pasted-image-${Date.now()}.png`,
-                              {
-                                type: blob.type || 'image/png',
-                              },
-                            )
-                            processImage(
-                              imgFile,
-                              view,
-                              insertPos,
-                              blockNoteEditor,
-                            )
+                            const imgFile = new File([blob], `pasted-image-${Date.now()}.png`, {
+                              type: blob.type || 'image/png',
+                            })
+                            processImage(imgFile, view, insertPos, blockNoteEditor)
                           })
                           .catch((error) => {
-                            console.error(
-                              'Error fetching image from web paste:',
-                              error,
-                            )
+                            console.error('Error fetching image from web paste:', error)
                           })
 
                         hasProcessed = true
@@ -185,12 +163,7 @@ const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
     },
   })
 
-function processImage(
-  img: File,
-  view: any,
-  insertPos: number,
-  blockNoteEditor: any,
-) {
+function processImage(img: File, view: any, insertPos: number, blockNoteEditor: any) {
   // Check if we're in a comment editor in the web app
   // Desktop uploads immediately, web stores for later upload
   const isCommentEditor = view.dom.closest('.comment-editor') !== null

@@ -13,14 +13,7 @@ export const Button = React.forwardRef<
 >(({className, variant, size, asChild = false, ...props}, ref) => {
   const Comp = asChild ? Slot : 'button'
 
-  return (
-    <Comp
-      ref={ref}
-      data-slot="button"
-      className={cn(buttonVariants({variant, size, className}))}
-      {...props}
-    />
-  )
+  return <Comp ref={ref} data-slot="button" className={cn(buttonVariants({variant, size, className}))} {...props} />
 })
 Button.displayName = 'Button'
 
@@ -30,13 +23,7 @@ export function ButtonLink({
   size,
   ...props
 }: React.ComponentProps<'a'> & VariantProps<typeof buttonVariants>) {
-  return (
-    <a
-      data-slot="button-link"
-      className={cn(buttonVariants({variant, size, className}))}
-      {...props}
-    />
-  )
+  return <a data-slot="button-link" className={cn(buttonVariants({variant, size, className}))} {...props} />
 }
 
 export type ButtonProps = React.ComponentProps<'button'> &
@@ -49,26 +36,22 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default:
-          'bg-primary text-primary-foreground shadow-xs hover:bg-primary/90',
+        default: 'bg-primary text-primary-foreground shadow-xs hover:bg-primary/90',
         destructive:
           'bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive dark:hover:bg-destructive/90',
         outline:
           'border bg-transparent shadow-xs hover:bg-background hover:shadow-md hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50',
-        secondary:
-          'bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80',
+        secondary: 'bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80',
         accent: 'bg-accent text-accent-foreground shadow-xs hover:bg-accent/80',
         ghost:
           'active:bg-black/5 text-foreground dark:active:bg-white/10 hover:text-foreground hover:bg-black/5 dark:hover:bg-muted',
         link: 'text-primary underline-offset-4 hover:underline',
         brand: 'bg-brand text-white shadow-xs hover:bg-brand-4 active:brand-3',
-        'brand-12':
-          'bg-brand-12 shadow-xs hover:bg-brand-11 active:bg-brand-10',
+        'brand-12': 'bg-brand-12 shadow-xs hover:bg-brand-11 active:bg-brand-10',
         blue: 'bg-blue-700 text-white shadow-xs hover:bg-blue-800',
         green: 'bg-green-700 text-white shadow-xs hover:bg-green-800',
         orange: 'bg-orange-700 text-white shadow-xs hover:bg-orange-800',
-        inverse:
-          'bg-black text-white shadow-xs hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90',
+        inverse: 'bg-black text-white shadow-xs hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90',
       },
       size: {
         xs: 'h-6 rounded-md gap-1.5 px-2 has-[>svg]:px-1.5 text-xs',

@@ -19,12 +19,7 @@ export interface PlaceholderOptions {
   isFilterClass: string
   hasAnchorClass: string
   placeholder:
-    | ((PlaceholderProps: {
-        editor: Editor
-        node: ProsemirrorNode
-        pos: number
-        hasAnchor: boolean
-      }) => string)
+    | ((PlaceholderProps: {editor: Editor; node: ProsemirrorNode; pos: number; hasAnchor: boolean}) => string)
     | string
   showOnlyWhenEditable: boolean
   showOnlyCurrent: boolean
@@ -56,8 +51,7 @@ export const Placeholder = Extension.create<PlaceholderOptions>({
             const {doc, selection} = state
             // Get state of slash menu
             const menuState = slashMenuPluginKey.getState(state)
-            const active =
-              this.editor.isEditable || !this.options.showOnlyWhenEditable
+            const active = this.editor.isEditable || !this.options.showOnlyWhenEditable
             const {anchor} = selection
             const decorations: Decoration[] = []
 

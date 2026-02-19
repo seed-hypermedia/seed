@@ -158,8 +158,7 @@
 
 .editor code {
   background-color: var(--muted);
-  font-family: 'ui-monospace', 'SFMono-Regular', 'SF Mono', Menlo, Consolas,
-    'Liberation Mono', monospace;
+  font-family: 'ui-monospace', 'SFMono-Regular', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
   overflow: hidden;
   font-size: 0.8em;
   line-height: 1.5;
@@ -212,9 +211,7 @@ ol > [data-node-type='block-outer']::marker {
   --tweet-actions-line-height: 1rem;
   --tweet-actions-font-weight: 700;
   --tweet-actions-icon-size: 1.25em;
-  --tweet-actions-icon-wrapper-size: calc(
-    var(--tweet-actions-icon-size) + 0.75em
-  );
+  --tweet-actions-icon-wrapper-size: calc(var(--tweet-actions-icon-size) + 0.75em);
 }
 
 :where(.x-post-container) * {
@@ -225,16 +222,9 @@ ol > [data-node-type='block-outer']::marker {
 
 :is([data-theme='light'], .light) :where(.x-post-container),
 :where(.x-post-container) {
-  --tweet-skeleton-gradient: linear-gradient(
-    270deg,
-    #fafafa,
-    #eaeaea,
-    #eaeaea,
-    #fafafa
-  );
+  --tweet-skeleton-gradient: linear-gradient(270deg, #fafafa, #eaeaea, #eaeaea, #fafafa);
   --tweet-border: 1px solid rgb(207, 217, 222);
-  --tweet-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    Helvetica, Arial, sans-serif;
+  --tweet-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --tweet-font-color: rgb(15, 20, 25);
   --tweet-font-color-secondary: rgb(83, 100, 113);
   --tweet-bg-color: #fff;
@@ -254,16 +244,9 @@ ol > [data-node-type='block-outer']::marker {
 }
 
 :is([data-theme='dark'], .dark) :where(.x-post-container) {
-  --tweet-skeleton-gradient: linear-gradient(
-    270deg,
-    #15202b,
-    rgb(30, 39, 50),
-    rgb(30, 39, 50),
-    rgb(21, 32, 43)
-  );
+  --tweet-skeleton-gradient: linear-gradient(270deg, #15202b, rgb(30, 39, 50), rgb(30, 39, 50), rgb(21, 32, 43));
   --tweet-border: 1px solid rgb(66, 83, 100);
-  --tweet-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    Helvetica, Arial, sans-serif;
+  --tweet-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --tweet-font-color: rgb(247, 249, 249);
   --tweet-font-color-secondary: rgb(139, 152, 165);
   --tweet-bg-color: rgb(21, 32, 43);
@@ -284,16 +267,9 @@ ol > [data-node-type='block-outer']::marker {
 
 @media (prefers-color-scheme: dark) {
   :where(.x-post-container) {
-    --tweet-skeleton-gradient: linear-gradient(
-      270deg,
-      #15202b,
-      rgb(30, 39, 50),
-      rgb(30, 39, 50),
-      rgb(21, 32, 43)
-    );
+    --tweet-skeleton-gradient: linear-gradient(270deg, #15202b, rgb(30, 39, 50), rgb(30, 39, 50), rgb(21, 32, 43));
     --tweet-border: 1px solid rgb(66, 83, 100);
-    --tweet-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-      Helvetica, Arial, sans-serif;
+    --tweet-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     --tweet-font-color: rgb(247, 249, 249);
     --tweet-font-color-secondary: rgb(139, 152, 165);
     --tweet-bg-color: rgb(21, 32, 43);
@@ -534,19 +510,13 @@ ul[data-list-type='Unordered']
 }
 
 /* Default margin for all heading containers */
-[data-node-type='block-outer']:has(
-    > [data-node-type='blockContainer'] > [data-content-type='heading']
-  ) {
+[data-node-type='block-outer']:has(> [data-node-type='blockContainer'] > [data-content-type='heading']) {
   margin-bottom: 1em;
 }
 
 /* Reset margin for consecutive headings */
-[data-node-type='block-outer']:has(
-    [data-node-type='blockContainer'] > [data-content-type='heading']
-  )
-  + [data-node-type='block-outer']:has(
-    > [data-node-type='blockContainer'] > [data-content-type='heading']
-  ) {
+[data-node-type='block-outer']:has([data-node-type='blockContainer'] > [data-content-type='heading'])
+  + [data-node-type='block-outer']:has(> [data-node-type='blockContainer'] > [data-content-type='heading']) {
   margin-top: -1em; /* Cancel out the previous element's margin */
 }
 

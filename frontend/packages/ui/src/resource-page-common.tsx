@@ -13,37 +13,15 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
-import {
-  useAccountsMetadata,
-  useDirectory,
-  useResource,
-  useResources,
-} from '@shm/shared/models/entity'
+import {useAccountsMetadata, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
-import {
-  createSiteUrl,
-  createWebHMUrl,
-  getCommentTargetId,
-  parseFragment,
-} from '@shm/shared/utils/entity-id-url'
+import {createSiteUrl, createWebHMUrl, getCommentTargetId, parseFragment} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Folder} from 'lucide-react'
-import {
-  CSSProperties,
-  ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
-import {
-  BlockRangeSelectOptions,
-  BlocksContent,
-  BlocksContentProvider,
-} from './blocks-content'
+import {CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {BlockRangeSelectOptions, BlocksContent, BlocksContentProvider} from './blocks-content'
 import {DocumentCollaborators} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
@@ -77,9 +55,7 @@ import {useMedia} from './use-media'
 import {cn} from './utils'
 
 /** Common menu items generated internally for all document views */
-export function useCommonMenuItems(
-  docId: UnpackedHypermediaId,
-): MenuItemType[] {
+export function useCommonMenuItems(docId: UnpackedHypermediaId): MenuItemType[] {
   const navigate = useNavigate()
   const media = useMedia()
   const isMobile = media.xs
@@ -138,12 +114,7 @@ function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
   return params as DocumentPanelRoute
 }
 
-export type ActiveView =
-  | 'content'
-  | 'activity'
-  | 'discussions'
-  | 'directory'
-  | 'collaborators'
+export type ActiveView = 'content' | 'activity' | 'discussions' | 'directory' | 'collaborators'
 
 function getActiveView(routeKey: string): ActiveView {
   switch (routeKey) {
@@ -223,26 +194,15 @@ export function ResourcePage({
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
   const homeDirectory = useDirectory(siteHomeId)
 
-  const siteHomeDocument =
-    siteHomeResource.data?.type === 'document'
-      ? siteHomeResource.data.document
-      : null
+  const siteHomeDocument = siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
 
   // Compute header data
-  const headerData = computeHeaderData(
-    siteHomeId,
-    siteHomeDocument,
-    homeDirectory.data,
-  )
+  const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data)
 
   // Loading state - should not show during SSR if data was prefetched
   if (resource.isInitialLoading) {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={docId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
@@ -254,11 +214,7 @@ export function ResourcePage({
   // Handle discovery state
   if (resource.isDiscovering) {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={docId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
         <PageDiscovery />
         {pageFooter}
       </PageWrapper>
@@ -268,11 +224,7 @@ export function ResourcePage({
   // Handle not-found
   if (!resource.data || resource.data.type === 'not-found') {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={docId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
         <PageNotFound />
         {pageFooter}
       </PageWrapper>
@@ -282,11 +234,7 @@ export function ResourcePage({
   // Handle tombstone (deleted)
   if (resource.isTombstone || resource.data.type === 'tombstone') {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={docId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
         <PageDeleted />
         {pageFooter}
       </PageWrapper>
@@ -296,11 +244,7 @@ export function ResourcePage({
   // Handle error
   if (resource.data.type === 'error') {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={docId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
         <div className="flex flex-1 items-center justify-center p-8">
           <div className="text-destructive">{resource.data.message}</div>
         </div>
@@ -312,11 +256,7 @@ export function ResourcePage({
   // Handle redirect - for now just show not found, redirect handling comes later
   if (resource.data.type === 'redirect') {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={docId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
         <PageNotFound />
         {pageFooter}
       </PageWrapper>
@@ -338,11 +278,7 @@ export function ResourcePage({
   // Success: render document
   if (resource.data.type !== 'document') {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={docId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
         <PageNotFound />
         {pageFooter}
       </PageWrapper>
@@ -351,12 +287,7 @@ export function ResourcePage({
   const document = resource.data.document
 
   return (
-    <PageWrapper
-      siteHomeId={siteHomeId}
-      docId={docId}
-      headerData={headerData}
-      document={document}
-    >
+    <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} document={document}>
       <DocumentBody
         docId={docId}
         document={document}
@@ -391,15 +322,8 @@ function CommentResourcePage({
   const siteHomeId = targetDocId ? hmId(targetDocId.uid) : hmId(commentId.uid)
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
   const homeDirectory = useDirectory(siteHomeId)
-  const siteHomeDocument =
-    siteHomeResource.data?.type === 'document'
-      ? siteHomeResource.data.document
-      : null
-  const headerData = computeHeaderData(
-    siteHomeId,
-    siteHomeDocument,
-    homeDirectory.data,
-  )
+  const siteHomeDocument = siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
+  const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data)
 
   // Load target document
   const targetResource = useResource(targetDocId, {
@@ -409,11 +333,7 @@ function CommentResourcePage({
 
   if (!targetDocId) {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={commentId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={commentId} headerData={headerData}>
         <PageNotFound />
         {pageFooter}
       </PageWrapper>
@@ -422,11 +342,7 @@ function CommentResourcePage({
 
   if (targetResource.isInitialLoading) {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={targetDocId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={targetDocId} headerData={headerData}>
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
@@ -437,11 +353,7 @@ function CommentResourcePage({
 
   if (targetResource.data?.type !== 'document') {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={targetDocId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={targetDocId} headerData={headerData}>
         <PageNotFound />
         {pageFooter}
       </PageWrapper>
@@ -452,12 +364,7 @@ function CommentResourcePage({
   const isHomeDoc = !targetDocId.path?.length
 
   return (
-    <PageWrapper
-      siteHomeId={siteHomeId}
-      docId={targetDocId}
-      headerData={headerData}
-      document={document}
-    >
+    <PageWrapper siteHomeId={siteHomeId} docId={targetDocId} headerData={headerData} document={document}>
       <CommentPageBody
         docId={targetDocId}
         document={document}
@@ -502,8 +409,7 @@ function CommentPageBody({
     const items: BreadcrumbEntry[] = breadcrumbIds.map((id, i) => {
       const result = breadcrumbResults[i]
       const data = result?.data
-      const metadata =
-        data?.type === 'document' ? data.document?.metadata || {} : {}
+      const metadata = data?.type === 'document' ? data.document?.metadata || {} : {}
       const fallbackName = id.path?.at(-1) || id.uid.slice(0, 8)
       return {
         id,
@@ -512,8 +418,7 @@ function CommentPageBody({
         isLoading: result?.isDiscovering || result?.isLoading,
         isTombstone: result?.isTombstone,
         isNotFound: data?.type === 'not-found' && !result?.isDiscovering,
-        isError:
-          result?.isError && !result?.isDiscovering && !result?.isTombstone,
+        isError: result?.isError && !result?.isDiscovering && !result?.isTombstone,
       }
     })
     items.push({label: 'Comments'})
@@ -550,10 +455,7 @@ function CommentPageBody({
       )}
     >
       <DocumentCover cover={document.metadata?.cover} />
-      <div
-        className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
-        style={{maxWidth: contentMaxWidth}}
-      >
+      <div className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')} style={{maxWidth: contentMaxWidth}}>
         {!isHomeDoc && (
           <DocumentHeader
             docId={docId}
@@ -588,9 +490,7 @@ function CommentPageBody({
         openComment={openComment}
         contentMaxWidth={contentMaxWidth}
         targetDomain={siteUrl}
-        commentEditor={
-          CommentEditor ? <CommentEditor docId={docId} autoFocus /> : undefined
-        }
+        commentEditor={CommentEditor ? <CommentEditor docId={docId} autoFocus /> : undefined}
       />
       {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
     </div>
@@ -636,8 +536,7 @@ export function computeHeaderData(
     directory: directory ?? undefined,
   })
 
-  const items =
-    homeNavigationItems.length > 0 ? homeNavigationItems : directoryItems
+  const items = homeNavigationItems.length > 0 ? homeNavigationItems : directoryItems
 
   const isCenterLayout =
     siteHomeDocument?.metadata?.theme?.headerLayout === 'Center' ||
@@ -677,9 +576,7 @@ export function PageWrapper({
     <div
       style={
         {
-          '--site-header-default-h': headerData.isCenterLayout
-            ? '96px'
-            : '60px',
+          '--site-header-default-h': headerData.isCenterLayout ? '96px' : '60px',
         } as CSSProperties
       }
       className={cn(
@@ -751,8 +648,7 @@ function DocumentBody({
       : undefined
 
   // Extract blockRef from route for scroll-to-block and highlighting
-  const routeBlockRef =
-    'id' in route && typeof route.id === 'object' ? route.id.blockRef : null
+  const routeBlockRef = 'id' in route && typeof route.id === 'object' ? route.id.blockRef : null
   const {scrollToBlock} = useBlockScroll(routeBlockRef)
 
   // On mount, sync URL hash (#blockId) into route if not already present
@@ -770,10 +666,7 @@ function DocumentBody({
       id: {
         ...route.id,
         blockRef: fragment.blockId,
-        blockRange:
-          'start' in fragment && 'end' in fragment
-            ? {start: fragment.start, end: fragment.end}
-            : null,
+        blockRange: 'start' in fragment && 'end' in fragment ? {start: fragment.start, end: fragment.end} : null,
       },
     })
   }, []) // only on mount
@@ -795,8 +688,7 @@ function DocumentBody({
     const items: BreadcrumbEntry[] = breadcrumbIds.map((id, i) => {
       const result = breadcrumbResults[i]
       const data = result?.data
-      const metadata =
-        data?.type === 'document' ? data.document?.metadata || {} : {}
+      const metadata = data?.type === 'document' ? data.document?.metadata || {} : {}
       const fallbackName = id.path?.at(-1) || id.uid.slice(0, 8)
       return {
         id,
@@ -805,8 +697,7 @@ function DocumentBody({
         isLoading: result?.isDiscovering || result?.isLoading,
         isTombstone: result?.isTombstone,
         isNotFound: data?.type === 'not-found' && !result?.isDiscovering,
-        isError:
-          result?.isError && !result?.isDiscovering && !result?.isTombstone,
+        isError: result?.isError && !result?.isDiscovering && !result?.isTombstone,
       }
     })
 
@@ -826,14 +717,9 @@ function DocumentBody({
       const blockNode = findContentBlock(document.content, routeBlockRef)
       if (blockNode?.block) {
         let text = getBlockText(blockNode.block)
-        const routeId =
-          'id' in route && typeof route.id === 'object' ? route.id : null
+        const routeId = 'id' in route && typeof route.id === 'object' ? route.id : null
         const blockRange = routeId?.blockRange ?? null
-        if (
-          blockRange &&
-          typeof blockRange.start === 'number' &&
-          typeof blockRange.end === 'number'
-        ) {
+        if (blockRange && typeof blockRange.start === 'number' && typeof blockRange.end === 'number') {
           text = text.slice(blockRange.start, blockRange.end)
         }
         const truncated = text.length > 40 ? text.slice(0, 40) + '...' : text
@@ -842,15 +728,7 @@ function DocumentBody({
     }
 
     return items
-  }, [
-    isHomeDoc,
-    breadcrumbIds,
-    breadcrumbResults,
-    activeView,
-    routeBlockRef,
-    document.content,
-    route,
-  ])
+  }, [isHomeDoc, breadcrumbIds, breadcrumbResults, activeView, routeBlockRef, document.content, route])
 
   // Track when DocumentTools becomes sticky
   const [isToolsSticky, setIsToolsSticky] = useState(false)
@@ -877,21 +755,11 @@ function DocumentBody({
     return () => observer.disconnect()
   }, [])
 
-  const {
-    showSidebars,
-    showCollapsed,
-    sidebarProps,
-    mainContentProps,
-    elementRef,
-    wrapperProps,
-    contentMaxWidth,
-  } = useDocumentLayout({
-    contentWidth: document.metadata?.contentWidth,
-    showSidebars:
-      !isHomeDoc &&
-      document.metadata?.showOutline !== false &&
-      activeView === 'content',
-  })
+  const {showSidebars, showCollapsed, sidebarProps, mainContentProps, elementRef, wrapperProps, contentMaxWidth} =
+    useDocumentLayout({
+      contentWidth: document.metadata?.contentWidth,
+      showSidebars: !isHomeDoc && document.metadata?.showOutline !== false && activeView === 'content',
+    })
 
   // Fetch author metadata for document header
   const accountsMetadata = useAccountsMetadata(document.authors || [])
@@ -912,10 +780,7 @@ function DocumentBody({
   const isMobile = media.xs
 
   // Block tools handlers
-  const blockCitations = useMemo(
-    () => interactionSummary.data?.blocks || null,
-    [interactionSummary.data?.blocks],
-  )
+  const blockCitations = useMemo(() => interactionSummary.data?.blocks || null, [interactionSummary.data?.blocks])
 
   const handleBlockCitationClick = useCallback(
     (blockId?: string | null) => {
@@ -938,20 +803,12 @@ function DocumentBody({
   )
 
   const handleBlockCommentClick = useCallback(
-    (
-      blockId?: string | null,
-      blockRangeInput?: BlockRange | undefined,
-      _startCommentingNow?: boolean,
-    ) => {
+    (blockId?: string | null, blockRangeInput?: BlockRange | undefined, _startCommentingNow?: boolean) => {
       if (route.key !== 'document' && route.key !== 'feed') return
       if (!blockId) return
       // Validate blockRange has proper structure
       const blockRange =
-        blockRangeInput &&
-        'start' in blockRangeInput &&
-        'end' in blockRangeInput
-          ? blockRangeInput
-          : null
+        blockRangeInput && 'start' in blockRangeInput && 'end' in blockRangeInput ? blockRangeInput : null
       navigate({
         ...route,
         id: {
@@ -975,10 +832,7 @@ function DocumentBody({
   const handleBlockSelect = useCallback(
     (blockId: string, opts?: BlockRangeSelectOptions) => {
       if (route.key !== 'document' && route.key !== 'feed') return
-      const blockRange =
-        opts && 'start' in opts && 'end' in opts
-          ? {start: opts.start, end: opts.end}
-          : null
+      const blockRange = opts && 'start' in opts && 'end' in opts ? {start: opts.start, end: opts.end} : null
       const blockRoute = {
         ...route,
         id: {
@@ -1017,9 +871,7 @@ function DocumentBody({
   )
 
   // Activity filter change handler (main page)
-  const handleMainActivityFilterChange = (filter: {
-    filterEventType?: string[]
-  }) => {
+  const handleMainActivityFilterChange = (filter: {filterEventType?: string[]}) => {
     if (route.key === 'activity') {
       navigate({
         ...route,
@@ -1039,9 +891,7 @@ function DocumentBody({
   const hasActionButtons = hasOptions || editActions
   const actionButtons = hasActionButtons ? (
     <>
-      {hasOptions && (
-        <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
-      )}
+      {hasOptions && <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />}
       {editActions}
     </>
   ) : null
@@ -1059,23 +909,9 @@ function DocumentBody({
       <DocumentCover cover={document.metadata?.cover} />
 
       {!isMobile ? (
-        <div
-          style={wrapperProps.style}
-          className={cn(
-            'mx-auto flex w-full justify-between',
-            isHomeDoc && 'mt-6',
-          )}
-        >
-          {showSidebars && (
-            <div
-              {...sidebarProps}
-              className={cn(sidebarProps.className, '!h-auto')}
-            />
-          )}
-          <div
-            {...mainContentProps}
-            className={cn(mainContentProps.className, 'flex flex-col')}
-          >
+        <div style={wrapperProps.style} className={cn('mx-auto flex w-full justify-between', isHomeDoc && 'mt-6')}>
+          {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
+          <div {...mainContentProps} className={cn(mainContentProps.className, 'flex flex-col')}>
             {!isHomeDoc && (
               <DocumentHeader
                 docId={docId}
@@ -1086,19 +922,11 @@ function DocumentBody({
               />
             )}
           </div>
-          {showSidebars && (
-            <div
-              {...sidebarProps}
-              className={cn(sidebarProps.className, '!h-auto')}
-            />
-          )}
+          {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
         </div>
       ) : (
         <div
-          className={cn(
-            'mx-auto flex w-full flex-col px-4',
-            isHomeDoc && 'mt-6',
-          )}
+          className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
           style={{maxWidth: contentMaxWidth}}
         >
           {!isHomeDoc && (
@@ -1126,11 +954,7 @@ function DocumentBody({
       >
         <DocumentTools
           id={docId}
-          activeTab={
-            activeView === 'activity' || activeView === 'directory'
-              ? undefined
-              : activeView
-          }
+          activeTab={activeView === 'activity' || activeView === 'directory' ? undefined : activeView}
           currentPanel={panelRoute}
           existingDraft={existingDraft}
           commentsCount={interactionSummary.data?.comments || 0}
@@ -1148,21 +972,13 @@ function DocumentBody({
             <div className="flex items-center gap-1 pr-2 md:pr-0">
               {hasOptions && (
                 <div className="md:hidden">
-                  <OptionsDropdown
-                    menuItems={allMenuItems}
-                    align="end"
-                    side="bottom"
-                  />
+                  <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
                 </div>
               )}
               {activeView !== 'content' && !isMobile && (
                 <OpenInPanelButton
                   id={docId}
-                  panelRoute={
-                    route.key === activeView
-                      ? extractPanelRoute(route)
-                      : {key: activeView, id: docId}
-                  }
+                  panelRoute={route.key === activeView ? extractPanelRoute(route) : {key: activeView, id: docId}}
                 />
               )}
             </div>
@@ -1174,9 +990,7 @@ function DocumentBody({
       <div className="px-4">
         <MainContent
           docId={docId}
-          resourceId={
-            'id' in route && typeof route.id === 'object' ? route.id : docId
-          }
+          resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
           document={document}
           activeView={activeView}
           contentMaxWidth={contentMaxWidth}
@@ -1186,9 +1000,7 @@ function DocumentBody({
           showSidebars={showSidebars}
           showCollapsed={showCollapsed}
           discussionsParams={discussionsParams}
-          activityFilterEventType={
-            route.key === 'activity' ? route.filterEventType : undefined
-          }
+          activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
           onActivityFilterChange={handleMainActivityFilterChange}
           blockCitations={blockCitations}
           onBlockCitationClick={handleBlockCitationClick}
@@ -1213,10 +1025,7 @@ function DocumentBody({
 
   // Activity filter change handler (panel)
   const handleFilterChange = (filter: {filterEventType?: string[]}) => {
-    if (
-      (route.key === 'document' || route.key === 'feed') &&
-      route.panel?.key === 'activity'
-    ) {
+    if ((route.key === 'document' || route.key === 'feed') && route.panel?.key === 'activity') {
       navigate({
         ...route,
         panel: {...route.panel, filterEventType: filter.filterEventType},
@@ -1244,11 +1053,7 @@ function DocumentBody({
               showOpenInPanel={false}
               contentMaxWidth={contentMaxWidth}
               targetDomain={siteUrl}
-              commentEditor={
-                CommentEditor ? (
-                  <CommentEditor docId={docId} autoFocus />
-                ) : undefined
-              }
+              commentEditor={CommentEditor ? <CommentEditor docId={docId} autoFocus /> : undefined}
             />
           </MobilePanelSheet>
         )}
@@ -1270,19 +1075,12 @@ function DocumentBody({
   ) : null
 
   return (
-    <div
-      className="relative flex flex-1 flex-col overflow-hidden"
-      ref={elementRef}
-    >
+    <div className="relative flex flex-1 flex-col overflow-hidden" ref={elementRef}>
       <PanelLayout
         panelKey={panelKey}
         panelContent={panelContent}
         onPanelClose={handlePanelClose}
-        filterEventType={
-          panelRoute?.key === 'activity'
-            ? panelRoute.filterEventType
-            : undefined
-        }
+        filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
       >
         {/* Floating action buttons - visible when DocumentTools is NOT sticky */}
@@ -1324,12 +1122,7 @@ function PanelContentRenderer({
   switch (panelRoute.key) {
     case 'activity':
       return (
-        <Feed
-          size="sm"
-          filterResource={docId.id}
-          filterEventType={panelRoute.filterEventType}
-          targetDomain={siteUrl}
-        />
+        <Feed size="sm" filterResource={docId.id} filterEventType={panelRoute.filterEventType} targetDomain={siteUrl} />
       )
     case 'discussions':
       return (
@@ -1357,13 +1150,7 @@ function PanelContentRenderer({
         />
       )
     case 'directory':
-      return (
-        <DirectoryPageContent
-          docId={docId}
-          showTitle={false}
-          contentMaxWidth={contentMaxWidth}
-        />
-      )
+      return <DirectoryPageContent docId={docId} showTitle={false} contentMaxWidth={contentMaxWidth} />
     case 'collaborators':
       return (
         <div className="p-4">
@@ -1432,13 +1219,7 @@ function MainContent({
 }) {
   switch (activeView) {
     case 'directory':
-      return (
-        <DirectoryPageContent
-          docId={docId}
-          showTitle
-          contentMaxWidth={contentMaxWidth}
-        />
-      )
+      return <DirectoryPageContent docId={docId} showTitle contentMaxWidth={contentMaxWidth} />
 
     case 'collaborators':
       return (
@@ -1451,10 +1232,7 @@ function MainContent({
     case 'activity':
       return (
         <PageLayout contentMaxWidth={contentMaxWidth}>
-          <FeedFilters
-            filterEventType={activityFilterEventType}
-            onFilterChange={onActivityFilterChange}
-          />
+          <FeedFilters filterEventType={activityFilterEventType} onFilterChange={onActivityFilterChange} />
           <Feed
             size="md"
             filterResource={docId.id}
@@ -1553,10 +1331,7 @@ function ContentViewWithOutline({
         <div {...sidebarProps}>
           {outline.length > 0 && (
             <div className="sticky top-24 mt-4">
-              <DocNavigationWrapper
-                showCollapsed={showCollapsed}
-                outline={outline}
-              >
+              <DocNavigationWrapper showCollapsed={showCollapsed} outline={outline}>
                 <DocumentOutline
                   onActivateBlock={(blockId) => {
                     const el = window.document.getElementById(blockId)
@@ -1584,11 +1359,7 @@ function ContentViewWithOutline({
         >
           <BlocksContent blocks={document.content} />
         </BlocksContentProvider>
-        <UnreferencedDocuments
-          docId={docId}
-          content={document.content}
-          directory={directory}
-        />
+        <UnreferencedDocuments docId={docId} content={document.content} directory={directory} />
       </div>
 
       {showSidebars && <div {...sidebarProps} />}

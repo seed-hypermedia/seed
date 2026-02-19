@@ -1,11 +1,7 @@
 import {useNavigate} from '@/utils/useNavigate'
 import {PanelSelectionOptions} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
-import {
-  useNavigationDispatch,
-  useNavigationState,
-  useNavRoute,
-} from '@shm/shared/utils/navigation'
+import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {panelContainerStyles} from '@shm/ui/container'
 import {FeedFilters} from '@shm/ui/feed-filters'
@@ -71,10 +67,7 @@ export function AccessoryLayout({
     const panelGroup = panelsRef.current
     if (panelGroup) {
       if (state?.accessoryWidth && state?.accessoryWidth > 0) {
-        panelGroup.setLayout([
-          100 - state?.accessoryWidth,
-          state?.accessoryWidth,
-        ])
+        panelGroup.setLayout([100 - state?.accessoryWidth, state?.accessoryWidth])
       } else {
         panelGroup.setLayout([100, 0])
       }
@@ -83,8 +76,7 @@ export function AccessoryLayout({
 
   // Enforce 480px minimum when opening the accessory panel
   useLayoutEffect(() => {
-    const isOpening =
-      prevPanelKey.current === undefined && panelKey !== undefined
+    const isOpening = prevPanelKey.current === undefined && panelKey !== undefined
 
     if (isOpening) {
       const container = containerRef.current
@@ -137,9 +129,7 @@ export function AccessoryLayout({
         <Panel id="main" minSize={50} className="p-0.5 pr-1">
           <div className="h-full rounded-lg">{children}</div>
         </Panel>
-        {panelKey !== undefined ? (
-          <PanelResizeHandle className="panel-resize-handle" />
-        ) : null}
+        {panelKey !== undefined ? <PanelResizeHandle className="panel-resize-handle" /> : null}
         <Panel
           hidden={panelKey === undefined}
           id="accessory"
@@ -153,12 +143,7 @@ export function AccessoryLayout({
           className="p-0.5 pl-1"
         >
           <div className="h-full rounded-lg">
-            <div
-              className={cn(
-                panelContainerStyles,
-                'dark:bg-background flex flex-col bg-white',
-              )}
-            >
+            <div className={cn(panelContainerStyles, 'dark:bg-background flex flex-col bg-white')}>
               <div className="border-border border-b px-5 py-3">
                 <div className="flex items-center justify-between gap-2">
                   <Text weight="semibold" size="lg" className="flex-1">
@@ -181,22 +166,13 @@ export function AccessoryLayout({
                 {panelKey == 'activity' ? (
                   <FeedFilters
                     filterEventType={
-                      route &&
-                      (route.key === 'document' || route.key === 'feed') &&
-                      route.panel?.key == 'activity'
+                      route && (route.key === 'document' || route.key === 'feed') && route.panel?.key == 'activity'
                         ? route.panel?.filterEventType
                         : undefined
                     }
-                    onFilterChange={({
-                      filterEventType,
-                    }: {
-                      filterEventType?: string[]
-                    }) => {
+                    onFilterChange={({filterEventType}: {filterEventType?: string[]}) => {
                       console.log('== ~ FILTER onFilterChange', filterEventType)
-                      if (
-                        route &&
-                        (route.key === 'document' || route.key === 'feed')
-                      ) {
+                      if (route && (route.key === 'document' || route.key === 'feed')) {
                         replace({
                           ...route,
                           panel: {

@@ -6,10 +6,7 @@ import {useScrollRestoration as useScrollRestorationBase} from '@shm/ui/use-scro
  * Web app wrapper for scroll restoration hook.
  * Uses Remix's navigation system with hash-only change detection.
  */
-export function useScrollRestoration(
-  scrollId: string,
-  useNativeScroll = false,
-) {
+export function useScrollRestoration(scrollId: string, useNativeScroll = false) {
   const location = useLocation()
   const previousPathnameRef = useRef(location.pathname)
   const previousSearchRef = useRef(location.search)
@@ -34,8 +31,7 @@ export function useScrollRestoration(
       // Skip scroll restoration for hash-only changes (e.g., clicking blocks in document outline)
       // This allows smooth scrolling to blocks without resetting scroll position
       const isHashOnlyChange =
-        location.pathname === previousPathnameRef.current &&
-        location.search === previousSearchRef.current
+        location.pathname === previousPathnameRef.current && location.search === previousSearchRef.current
 
       if (!isHashOnlyChange) {
         // Update refs for next comparison

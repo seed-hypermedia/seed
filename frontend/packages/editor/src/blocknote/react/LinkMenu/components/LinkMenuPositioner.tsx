@@ -1,34 +1,24 @@
-import {
-  BlockNoteEditor,
-  BlockSchema,
-  DefaultBlockSchema,
-  LinkMenuProsemirrorPlugin,
-  LinkMenuState,
-} from '../../../core'
+import {BlockNoteEditor, BlockSchema, DefaultBlockSchema, LinkMenuProsemirrorPlugin, LinkMenuState} from '../../../core'
 import Tippy from '@tippyjs/react'
 import {FC, useEffect, useMemo, useRef, useState} from 'react'
 
 import {LinkMenuItem} from '../../../core/extensions/LinkMenu/LinkMenuItem'
 import {DefaultLinkMenu} from './DefaultLinkMenu'
 
-export type LinkMenuProps<BSchema extends BlockSchema = DefaultBlockSchema> =
-  Pick<LinkMenuProsemirrorPlugin<BSchema, any>, 'itemCallback'> &
-    Pick<
-      LinkMenuState<LinkMenuItem<BSchema>>,
-      'items' | 'keyboardHoveredItemIndex'
-    >
+export type LinkMenuProps<BSchema extends BlockSchema = DefaultBlockSchema> = Pick<
+  LinkMenuProsemirrorPlugin<BSchema, any>,
+  'itemCallback'
+> &
+  Pick<LinkMenuState<LinkMenuItem<BSchema>>, 'items' | 'keyboardHoveredItemIndex'>
 
-export const LinkMenuPositioner = <
-  BSchema extends BlockSchema = DefaultBlockSchema,
->(props: {
+export const LinkMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSchema>(props: {
   editor: BlockNoteEditor<BSchema>
   linkMenu?: FC<LinkMenuProps<BSchema>>
 }) => {
   const [show, setShow] = useState<boolean>(false)
   const [ref, setRef] = useState<string>('')
   const [items, setItems] = useState<LinkMenuItem<BSchema>[]>([])
-  const [keyboardHoveredItemIndex, setKeyboardHoveredItemIndex] =
-    useState<number>()
+  const [keyboardHoveredItemIndex, setKeyboardHoveredItemIndex] = useState<number>()
   const scroller = useRef<HTMLElement | null>(null)
 
   const referencePos = useRef<DOMRect>()
@@ -79,13 +69,7 @@ export const LinkMenuPositioner = <
         />
       )
     },
-    [
-      keyboardHoveredItemIndex,
-      props.editor.linkMenu,
-      props.linkMenu,
-      ref,
-      items,
-    ], // eslint-disable-line
+    [keyboardHoveredItemIndex, props.editor.linkMenu, props.linkMenu, ref, items], // eslint-disable-line
   )
 
   return (
@@ -113,13 +97,7 @@ export const LinkMenuPositioner = <
           {
             name: 'flip',
             options: {
-              fallbackPlacements: [
-                'top-start',
-                'bottom-end',
-                'top-end',
-                'right-start',
-                'left-start',
-              ],
+              fallbackPlacements: ['top-start', 'bottom-end', 'top-end', 'right-start', 'left-start'],
               boundary: 'viewport',
               padding: 8,
             },

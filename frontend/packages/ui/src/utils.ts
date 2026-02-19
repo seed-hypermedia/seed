@@ -24,18 +24,12 @@ export function mergeRefs<T = unknown>(
 export function getDocumentCardImage(document: HMDocument): string | null {
   const coverImage = document.metadata.cover
   if (coverImage) return coverImage
-  const firstImageBlock = findFirstBlock(
-    document.content,
-    (block) => block.type === 'Image' && !!block.link,
-  )
+  const firstImageBlock = findFirstBlock(document.content, (block) => block.type === 'Image' && !!block.link)
   if (firstImageBlock) return (firstImageBlock as any).link || null
   return null
 }
 
-export function findFirstBlock(
-  content: HMBlockNode[],
-  test: (block: HMBlock) => boolean,
-): HMBlock | null {
+export function findFirstBlock(content: HMBlockNode[], test: (block: HMBlock) => boolean): HMBlock | null {
   let found: HMBlock | null = null
   let index = 0
   while (!found && index < content.length) {
@@ -44,9 +38,7 @@ export function findFirstBlock(
       found = (blockNode as any).block
       break
     }
-    const foundChild =
-      (blockNode as any).children &&
-      findFirstBlock((blockNode as any).children, test)
+    const foundChild = (blockNode as any).children && findFirstBlock((blockNode as any).children, test)
     if (foundChild) {
       found = foundChild
       break

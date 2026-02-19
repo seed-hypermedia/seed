@@ -146,11 +146,7 @@ type AgentCapability = {
   ts: bigint
 }
 
-async function signAgentCapability(
-  kp: CryptoKeyPair,
-  delegate: PublicKey,
-  ts: bigint,
-): Promise<AgentCapability> {
+async function signAgentCapability(kp: CryptoKeyPair, delegate: PublicKey, ts: bigint): Promise<AgentCapability> {
   const pubKey = await preparePublicKey(kp.publicKey)
 
   const unsigned: AgentCapability = {
@@ -186,11 +182,7 @@ type Profile = {
   ts: bigint
 }
 
-async function signProfileAlias(
-  kp: CryptoKeyPair,
-  alias: PublicKey,
-  ts: bigint,
-): Promise<Profile> {
+async function signProfileAlias(kp: CryptoKeyPair, alias: PublicKey, ts: bigint): Promise<Profile> {
   const pubKey = await preparePublicKey(kp.publicKey)
 
   const unsigned: Profile = {

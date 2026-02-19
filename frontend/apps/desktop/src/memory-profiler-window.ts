@@ -25,21 +25,12 @@ let startTime: number = 0
 
 interface ProfilerEvent {
   timestamp: number
-  type:
-    | 'window_open'
-    | 'window_close'
-    | 'subscription_change'
-    | 'memory_warning'
-    | 'gc'
-    | 'snapshot'
+  type: 'window_open' | 'window_close' | 'subscription_change' | 'memory_warning' | 'gc' | 'snapshot'
   details: string
 }
 
 export function isProfilerEnabled(): boolean {
-  return (
-    process.env.MEMORY_PROFILER === '1' ||
-    process.argv.includes('--memory-profiler')
-  )
+  return process.env.MEMORY_PROFILER === '1' || process.argv.includes('--memory-profiler')
 }
 
 export function createProfilerWindow(): BrowserWindow | null {
@@ -64,9 +55,7 @@ export function createProfilerWindow(): BrowserWindow | null {
   })
 
   // Load profiler HTML
-  profilerWindow.loadURL(
-    `data:text/html;charset=utf-8,${encodeURIComponent(getProfilerHTML())}`,
-  )
+  profilerWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(getProfilerHTML())}`)
 
   profilerWindow.on('closed', () => {
     profilerWindow = null
@@ -127,16 +116,9 @@ function sendUpdate() {
 
   // Check for memory warnings
   if (report.leakSuspects.length > 0) {
-    const highSeverity = report.leakSuspects.filter(
-      (s) => s.severity === 'high',
-    )
+    const highSeverity = report.leakSuspects.filter((s) => s.severity === 'high')
     if (highSeverity.length > 0) {
-      logEvent(
-        'memory_warning',
-        `High severity leak suspects: ${highSeverity
-          .map((s) => s.type)
-          .join(', ')}`,
-      )
+      logEvent('memory_warning', `High severity leak suspects: ${highSeverity.map((s) => s.type).join(', ')}`)
     }
   }
 
@@ -175,10 +157,7 @@ export function logWindowClose(windowId: string) {
 }
 
 export function logSubscriptionChange(count: number, delta: number) {
-  logEvent(
-    'subscription_change',
-    `Subscriptions: ${count} (${delta >= 0 ? '+' : ''}${delta})`,
-  )
+  logEvent('subscription_change', `Subscriptions: ${count} (${delta >= 0 ? '+' : ''}${delta})`)
 }
 
 export async function exportFinalReport(): Promise<string> {
@@ -231,9 +210,7 @@ function generateSummary(report: MemoryReport): object {
     snapshots: history.length,
     heapStart: formatBytes(first.heapUsed),
     heapEnd: formatBytes(last.heapUsed),
-    heapGrowth: `${formatBytes(Math.abs(heapGrowth))} (${
-      heapGrowth >= 0 ? '+' : ''
-    }${heapGrowthPercent}%)`,
+    heapGrowth: `${formatBytes(Math.abs(heapGrowth))} (${heapGrowth >= 0 ? '+' : ''}${heapGrowthPercent}%)`,
     leakSuspects: report.leakSuspects.length,
     recommendations: report.recommendations.length,
   }
@@ -294,18 +271,14 @@ function generateHTMLReport(data: any): string {
 </head>
 <body>
   <h1>Memory Profiler Report</h1>
-  <p>Generated: ${data.generatedAt} | Session Duration: ${
-    data.uptimeFormatted
-  }</p>
+  <p>Generated: ${data.generatedAt} | Session Duration: ${data.uptimeFormatted}</p>
 
   <div class="summary">
     <h2>Summary</h2>
     <div class="summary-grid">
       <div class="stat">
         <div class="stat-label">Status</div>
-        <div class="stat-value ${summary.status === 'OK' ? 'ok' : 'warning'}">${
-          summary.status
-        }</div>
+        <div class="stat-value ${summary.status === 'OK' ? 'ok' : 'warning'}">${summary.status}</div>
       </div>
       <div class="stat">
         <div class="stat-label">Heap Start</div>
@@ -325,9 +298,7 @@ function generateHTMLReport(data: any): string {
       </div>
       <div class="stat">
         <div class="stat-label">Leak Suspects</div>
-        <div class="stat-value ${
-          summary.leakSuspects > 0 ? 'warning' : 'ok'
-        }">${summary.leakSuspects}</div>
+        <div class="stat-value ${summary.leakSuspects > 0 ? 'warning' : 'ok'}">${summary.leakSuspects}</div>
       </div>
     </div>
   </div>
@@ -388,9 +359,7 @@ function generateHTMLReport(data: any): string {
       .map(
         (e: any) => `
       <div class="event">
-        <span class="event-time">${new Date(
-          e.timestamp,
-        ).toLocaleTimeString()}</span>
+        <span class="event-time">${new Date(e.timestamp).toLocaleTimeString()}</span>
         <span class="event-type ${e.type}">${e.type}</span>
         ${e.details}
       </div>

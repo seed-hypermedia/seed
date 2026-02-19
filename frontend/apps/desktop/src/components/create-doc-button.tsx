@@ -1,7 +1,4 @@
-import {
-  roleCanWrite,
-  useSelectedAccountCapability,
-} from '@/models/access-control'
+import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
 import {UnpackedHypermediaId} from '@shm/shared'
@@ -27,10 +24,7 @@ function ImportMenuItem({
   children,
 }: {
   locationId: UnpackedHypermediaId
-  children: (props: {
-    openImportDialog: () => void
-    content: ReactNode
-  }) => ReactNode
+  children: (props: {openImportDialog: () => void; content: ReactNode}) => ReactNode
 }) {
   const importing = useImporting(locationId)
   const importDialog = useImportDialog()
@@ -52,13 +46,7 @@ function ImportMenuItem({
   )
 }
 
-export function CreateDocumentButton({
-  locationId,
-  siteUrl,
-}: {
-  locationId?: UnpackedHypermediaId
-  siteUrl?: string
-}) {
+export function CreateDocumentButton({locationId, siteUrl}: {locationId?: UnpackedHypermediaId; siteUrl?: string}) {
   const capability = useSelectedAccountCapability(locationId)
   const canEdit = roleCanWrite(capability?.role)
   const isHomeDoc = !locationId?.path?.length
@@ -95,9 +83,7 @@ export function CreateDocumentButton({
                     Public Document
                   </DropdownMenuItem>
                   {hasSiteUrl ? (
-                    <DropdownMenuItem
-                      onClick={() => createDraft({visibility: 'PRIVATE'})}
-                    >
+                    <DropdownMenuItem onClick={() => createDraft({visibility: 'PRIVATE'})}>
                       <Lock className="size-4" />
                       Private Document
                     </DropdownMenuItem>
@@ -115,18 +101,10 @@ export function CreateDocumentButton({
                           </DropdownMenuItem>
                         </div>
                       </HoverCardTrigger>
-                      <HoverCardContent
-                        side="right"
-                        sideOffset={12}
-                        className="w-64"
-                      >
+                      <HoverCardContent side="right" sideOffset={12} className="w-64">
                         <div className="flex flex-col gap-3">
-                          <SizableText
-                            size="sm"
-                            className="text-muted-foreground"
-                          >
-                            To create private documents, you need to configure
-                            your web domain first.
+                          <SizableText size="sm" className="text-muted-foreground">
+                            To create private documents, you need to configure your web domain first.
                           </SizableText>
                           <Button
                             size="sm"

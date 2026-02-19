@@ -44,9 +44,7 @@ export function PanelCard({
       /> */}
       <div className="flex items-center gap-2">
         {avatar}
-        {author && (
-          <SizableText size="sm">{author.profile?.alias || '...'}</SizableText>
-        )}
+        {author && <SizableText size="sm">{author.profile?.alias || '...'}</SizableText>}
         <div className="flex flex-1" />
         {date && (
           <SizableText size="sm" color="muted" className="px-1">
@@ -56,20 +54,12 @@ export function PanelCard({
       </div>
       <div className="flex flex-1 flex-col gap-2">
         {title && (
-          <SizableText
-            weight="semibold"
-            className="truncate overflow-hidden whitespace-nowrap"
-          >
+          <SizableText weight="semibold" className="truncate overflow-hidden whitespace-nowrap">
             {title}
           </SizableText>
         )}
         {content && (
-          <SizableText
-            color="muted"
-            size="xs"
-            className="overflow-hidden leading-6"
-            style={{maxHeight: 23 * 3}}
-          >
+          <SizableText color="muted" size="xs" className="overflow-hidden leading-6" style={{maxHeight: 23 * 3}}>
             {content}
           </SizableText>
         )}

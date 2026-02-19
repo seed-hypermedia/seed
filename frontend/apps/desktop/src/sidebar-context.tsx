@@ -1,8 +1,5 @@
 import {useStream} from '@shm/shared/use-stream'
-import {
-  useNavigationDispatch,
-  useNavigationState,
-} from '@shm/shared/utils/navigation'
+import {useNavigationDispatch, useNavigationState} from '@shm/shared/utils/navigation'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {PropsWithChildren, createContext, useContext, useMemo} from 'react'
 
@@ -34,16 +31,11 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
   return (
     <SidebarContext.Provider
       value={useMemo(() => {
-        const [setIsHoverVisible, isHoverVisible] =
-          writeableStateStream<boolean>(false)
+        const [setIsHoverVisible, isHoverVisible] = writeableStateStream<boolean>(false)
         const [setIsLocked, isLocked] = writeableStateStream<boolean>(
-          typeof state?.sidebarLocked === 'boolean'
-            ? state.sidebarLocked
-            : true,
+          typeof state?.sidebarLocked === 'boolean' ? state.sidebarLocked : true,
         )
-        const [setSidebarWidth, sidebarWidth] = writeableStateStream<number>(
-          state?.sidebarWidth || 15,
-        )
+        const [setSidebarWidth, sidebarWidth] = writeableStateStream<number>(state?.sidebarWidth || 15)
         let closeTimeout: null | NodeJS.Timeout = null
         let hoverOpenTimeout: null | NodeJS.Timeout = null
         function onMenuHover() {
@@ -143,10 +135,7 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
 
 export function useSidebarContext() {
   const ctx = useContext(SidebarContext)
-  if (!ctx)
-    throw new Error(
-      'useSidebarContext must be used within SidebarContextProvider',
-    )
+  if (!ctx) throw new Error('useSidebarContext must be used within SidebarContextProvider')
   return ctx
 }
 

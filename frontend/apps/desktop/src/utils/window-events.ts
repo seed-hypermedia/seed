@@ -20,10 +20,7 @@ export type AppWindowEvent =
   | {type: 'deviceLink'; origin?: string}
 
 // Helper type to extract payload for a given key
-type EventPayload<K extends AppWindowEvent['type']> = Extract<
-  AppWindowEvent,
-  {type: K}
->
+type EventPayload<K extends AppWindowEvent['type']> = Extract<AppWindowEvent, {type: K}>
 export function useListenAppEvent<K extends AppWindowEvent['type']>(
   eventKey: K,
   handlerFn: (event: EventPayload<K>) => void,

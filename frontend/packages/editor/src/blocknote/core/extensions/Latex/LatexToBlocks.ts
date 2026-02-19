@@ -138,10 +138,7 @@ function nodesToStyledText(nodes: Ast.Node[]): StyledText[] {
 
   function processNode(node: Ast.Node, inheritedStyles: Styles = {}) {
     if (node.type === 'string') {
-      if (
-        JSON.stringify(currentStyles) !== JSON.stringify(inheritedStyles) &&
-        currentText
-      ) {
+      if (JSON.stringify(currentStyles) !== JSON.stringify(inheritedStyles) && currentText) {
         flushText()
         currentStyles = {...inheritedStyles}
       } else if (!currentText) {
@@ -149,10 +146,7 @@ function nodesToStyledText(nodes: Ast.Node[]): StyledText[] {
       }
       currentText += node.content
     } else if (node.type === 'whitespace') {
-      if (
-        JSON.stringify(currentStyles) !== JSON.stringify(inheritedStyles) &&
-        currentText
-      ) {
+      if (JSON.stringify(currentStyles) !== JSON.stringify(inheritedStyles) && currentText) {
         flushText()
         currentStyles = {...inheritedStyles}
       } else if (!currentText) {
@@ -174,8 +168,7 @@ function nodesToStyledText(nodes: Ast.Node[]): StyledText[] {
             flushText()
             const newStyles: Styles = {...inheritedStyles}
             if (node.content === 'textbf') newStyles.bold = true
-            if (node.content === 'textit' || node.content === 'emph')
-              newStyles.italic = true
+            if (node.content === 'textit' || node.content === 'emph') newStyles.italic = true
             if (node.content === 'texttt') newStyles.code = true
             if (node.content === 'underline') newStyles.underline = true
 
@@ -221,11 +214,7 @@ function nodesToStyledText(nodes: Ast.Node[]): StyledText[] {
             ],
           } as any)
         }
-      } else if (
-        node.content === 'textrm' ||
-        node.content === 'textsf' ||
-        node.content === 'textsc'
-      ) {
+      } else if (node.content === 'textrm' || node.content === 'textsf' || node.content === 'textsc') {
         // Other text macros - just extract content
         const args = node.args || []
         for (const arg of args) {
@@ -239,10 +228,7 @@ function nodesToStyledText(nodes: Ast.Node[]): StyledText[] {
         // Handle other macros that produce text
         const text = getStringContent(node)
         if (text) {
-          if (
-            JSON.stringify(currentStyles) !== JSON.stringify(inheritedStyles) &&
-            currentText
-          ) {
+          if (JSON.stringify(currentStyles) !== JSON.stringify(inheritedStyles) && currentText) {
             flushText()
             currentStyles = {...inheritedStyles}
           } else if (!currentText) {
@@ -294,9 +280,7 @@ function getLatexSource(nodes: Ast.Node[]): string {
         return '{' + getLatexSource(node.content) + '}'
       }
       if (node.type === 'environment') {
-        return `\\begin{${node.env}}${getLatexSource(node.content)}\\end{${
-          node.env
-        }}`
+        return `\\begin{${node.env}}${getLatexSource(node.content)}\\end{${node.env}}`
       }
       return ''
     })
@@ -336,10 +320,7 @@ const sectionLevelMap: Record<string, string> = {
 }
 
 // Process images and upload to IPFS
-export async function processLatexMedia(
-  ast: Ast.Root,
-  directoryPath: string,
-): Promise<Map<string, string>> {
+export async function processLatexMedia(ast: Ast.Root, directoryPath: string): Promise<Map<string, string>> {
   const mediaMap = new Map<string, string>()
 
   visit(ast, (node) => {
@@ -368,10 +349,7 @@ export async function processLatexMedia(
         try {
           const fileResponse = await readMediaFile(fullPath)
           if (fileResponse) {
-            const fileContent = Uint8Array.from(
-              atob(fileResponse.content),
-              (c) => c.charCodeAt(0),
-            )
+            const fileContent = Uint8Array.from(atob(fileResponse.content), (c) => c.charCodeAt(0))
             const file = new File([fileContent], fileResponse.fileName, {
               type: fileResponse.mimeType,
             })
@@ -398,10 +376,7 @@ export async function processLatexMedia(
 }
 
 // Main converter function
-export async function LatexToBlocks(
-  latex: string,
-  directoryPath: string = '',
-): Promise<Block<BlockSchema>[]> {
+export async function LatexToBlocks(latex: string, directoryPath: string = ''): Promise<Block<BlockSchema>[]> {
   const blocks: Block<BlockSchema>[] = []
   const organizedBlocks: Block<BlockSchema>[] = []
 
@@ -419,10 +394,7 @@ export async function LatexToBlocks(
     if (currentParagraphContent.length > 0) {
       // Filter out pure whitespace
       const hasContent = currentParagraphContent.some(
-        (n) =>
-          n.type !== 'whitespace' &&
-          n.type !== 'parbreak' &&
-          (n.type !== 'string' || n.content.trim() !== ''),
+        (n) => n.type !== 'whitespace' && n.type !== 'parbreak' && (n.type !== 'string' || n.content.trim() !== ''),
       )
 
       if (hasContent) {
@@ -540,9 +512,7 @@ export async function LatexToBlocks(
             const styledContent = nodesToStyledText(currentItemContent)
             if (styledContent.length > 0) {
               // Each list item is a normal paragraph as a child
-              listItemChildren.push(
-                createBlock('paragraph', {type: 'p'}, styledContent),
-              )
+              listItemChildren.push(createBlock('paragraph', {type: 'p'}, styledContent))
             }
             currentItemContent = []
           }
@@ -576,11 +546,7 @@ export async function LatexToBlocks(
         const styledContent = nodesToStyledText(node.content)
         if (styledContent.length > 0) {
           // Create a child paragraph with the quote content
-          const quoteChild = createBlock(
-            'paragraph',
-            {type: 'p'},
-            styledContent,
-          )
+          const quoteChild = createBlock('paragraph', {type: 'p'}, styledContent)
           // Create parent block with childrenType: 'Blockquote' and the content as child
           blocks.push(
             createBlock(
@@ -595,11 +561,7 @@ export async function LatexToBlocks(
       }
 
       // Code environments
-      if (
-        node.env === 'verbatim' ||
-        node.env === 'lstlisting' ||
-        node.env === 'minted'
-      ) {
+      if (node.env === 'verbatim' || node.env === 'lstlisting' || node.env === 'minted') {
         const codeContent = getStringContent(node.content)
         let language = ''
 
@@ -669,12 +631,7 @@ export async function LatexToBlocks(
     }
 
     // String, whitespace, etc - add to current paragraph
-    if (
-      node.type === 'string' ||
-      node.type === 'whitespace' ||
-      node.type === 'group' ||
-      node.type === 'inlinemath'
-    ) {
+    if (node.type === 'string' || node.type === 'whitespace' || node.type === 'group' || node.type === 'inlinemath') {
       currentParagraphContent.push(node)
     }
   }

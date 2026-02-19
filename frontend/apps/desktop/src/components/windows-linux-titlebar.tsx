@@ -13,17 +13,7 @@ import {
   MenubarShortcut,
   MenubarTrigger,
 } from '@shm/ui/components/menubar'
-import {
-  AddSquare,
-  Close,
-  CloseAll,
-  Contact,
-  Delete,
-  Hide,
-  Reload,
-  Search,
-  Settings,
-} from '@shm/ui/icons'
+import {AddSquare, Close, CloseAll, Contact, Delete, Hide, Reload, Search, Settings} from '@shm/ui/icons'
 import {TitlebarRow, TitlebarSection, TitlebarWrapper} from '@shm/ui/titlebar'
 import {nanoid} from 'nanoid'
 import {useMemo} from 'react'
@@ -49,15 +39,9 @@ export function WindowsLinuxTitleBar({
         </TitlebarSection>
       </TitlebarRow>
       <TitlebarRow className="window-drag">
-        <div className="window-drag flex min-w-min flex-none items-center">
-          {left}
-        </div>
-        <div className="pointer-events-none flex h-full flex-1 items-center justify-center">
-          {title}
-        </div>
-        <div className="window-drag flex min-w-min flex-none items-center justify-end">
-          {right}
-        </div>
+        <div className="window-drag flex min-w-min flex-none items-center">{left}</div>
+        <div className="pointer-events-none flex h-full flex-1 items-center justify-center">{title}</div>
+        <div className="window-drag flex min-w-min flex-none items-center justify-end">{right}</div>
       </TitlebarRow>
     </TitlebarWrapper>
   )
@@ -65,8 +49,7 @@ export function WindowsLinuxTitleBar({
 
 export function SystemMenu() {
   const createDraft = useNavigate('spawn')
-  const {hide, close, quit, minimize, maximize, unmaximize, isMaximized} =
-    useWindowUtils()
+  const {hide, close, quit, minimize, maximize, unmaximize, isMaximized} = useWindowUtils()
   const spawn = useNavigate('spawn')
   const push = useNavigate('push')
   const navDispatch = useNavigationDispatch()
@@ -222,17 +205,7 @@ export function SystemMenu() {
           ],
         },
       ] as MenuItemElement[],
-    [
-      createDraft,
-      close,
-      hide,
-      invoke,
-      spawn,
-      triggerFocusedWindow,
-      route.key,
-      navDispatch,
-      push,
-    ],
+    [createDraft, close, hide, invoke, spawn, triggerFocusedWindow, route.key, navDispatch, push],
   )
 
   return (
@@ -242,26 +215,19 @@ export function SystemMenu() {
           <MenubarMenu key={item.id}>
             <MenubarTrigger className="font-bold">{item.title}</MenubarTrigger>
             <MenubarContent>
-              {item.children.map(
-                (p: SubMenuItemElement | {id: 'separator'}) => {
-                  if (p.id == 'separator') {
-                    return <MenubarSeparator key={p.id} />
-                  } else {
-                    let item: SubMenuItemElement = p as SubMenuItemElement
-                    return (
-                      <MenubarItem
-                        onClick={item.onSelect}
-                        disabled={item.disabled}
-                      >
-                        {item.title}
-                        {item.accelerator && (
-                          <MenubarShortcut>{item.accelerator}</MenubarShortcut>
-                        )}
-                      </MenubarItem>
-                    )
-                  }
-                },
-              )}
+              {item.children.map((p: SubMenuItemElement | {id: 'separator'}) => {
+                if (p.id == 'separator') {
+                  return <MenubarSeparator key={p.id} />
+                } else {
+                  let item: SubMenuItemElement = p as SubMenuItemElement
+                  return (
+                    <MenubarItem onClick={item.onSelect} disabled={item.disabled}>
+                      {item.title}
+                      {item.accelerator && <MenubarShortcut>{item.accelerator}</MenubarShortcut>}
+                    </MenubarItem>
+                  )
+                }
+              })}
             </MenubarContent>
           </MenubarMenu>
         ))}

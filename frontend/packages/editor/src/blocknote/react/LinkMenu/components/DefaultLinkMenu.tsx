@@ -3,9 +3,7 @@ import {createStyles, Menu} from '@mantine/core'
 import {LinkMenuItem} from './LinkMenuItem'
 import {LinkMenuProps} from './LinkMenuPositioner'
 
-export function DefaultLinkMenu<BSchema extends BlockSchema>(
-  props: LinkMenuProps<BSchema>,
-) {
+export function DefaultLinkMenu<BSchema extends BlockSchema>(props: LinkMenuProps<BSchema>) {
   const {classes} = createStyles({
     root: {
       // Ensure the menu doesn't interfere with Tippy's positioning
@@ -65,11 +63,7 @@ export function DefaultLinkMenu<BSchema extends BlockSchema>(
         onMouseDown={(event) => event.preventDefault()}
         className={classes.root}
       >
-        {renderedItems.length > 0 ? (
-          renderedItems
-        ) : (
-          <Menu.Item>No match found</Menu.Item>
-        )}
+        {renderedItems.length > 0 ? renderedItems : <Menu.Item>No match found</Menu.Item>}
       </Menu.Dropdown>
     </Menu>
   )

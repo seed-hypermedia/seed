@@ -2,11 +2,7 @@ import '@/blocknote/core/style.css'
 import '@/editor.css'
 import {HMFormattingToolbar} from '@shm/editor/hm-formatting-toolbar'
 import {HypermediaLinkPreview} from '@shm/editor/hm-link-preview'
-import {
-  SearchResultItem,
-  UniversalAppProvider,
-  writeableStateStream,
-} from '@shm/shared'
+import {SearchResultItem, UniversalAppProvider, writeableStateStream} from '@shm/shared'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {useEffect, useState} from 'react'
@@ -96,16 +92,9 @@ const p = (id: string, content: any[]) =>
 const fixtures: Record<FixtureName, Block<HMBlockSchema>[]> = {
   empty: [p('p-empty', [])],
 
-  withExternalLink: [
-    p('p-ext', [text('Hello '), link('https://example.com', 'Link')]),
-  ],
+  withExternalLink: [p('p-ext', [text('Hello '), link('https://example.com', 'Link')])],
 
-  withHmLink: [
-    p('p-hm', [
-      text('Hello '),
-      link('hm://bafy-doc-uid/Root/Notes/Test HM Doc?l', 'Link'),
-    ]),
-  ],
+  withHmLink: [p('p-hm', [text('Hello '), link('hm://bafy-doc-uid/Root/Notes/Test HM Doc?l', 'Link')])],
 }
 
 function getFixtureFromUrl(): FixtureName {
@@ -120,9 +109,7 @@ declare global {
     TEST_EDITOR: {
       editor: ReturnType<typeof useBlockNote<HMBlockSchema>> | null
       getBlocks: () => Block<HMBlockSchema>[]
-      getSelection: () => ReturnType<
-        ReturnType<typeof useBlockNote<HMBlockSchema>>['getSelection']
-      >
+      getSelection: () => ReturnType<ReturnType<typeof useBlockNote<HMBlockSchema>>['getSelection']>
       getSelectedText: () => string
       isEditable: () => boolean
       focus: () => void
@@ -180,16 +167,13 @@ export function TestEditor() {
         >
           <div className="test-harness" data-testid="editor-harness">
             <div className="test-info" data-testid="editor-info">
-              <strong>Block count:</strong> {editorContent.length} |{' '}
-              <strong>Editor ready:</strong> {editor.ready ? 'Yes' : 'No'}
+              <strong>Block count:</strong> {editorContent.length} | <strong>Editor ready:</strong>{' '}
+              {editor.ready ? 'Yes' : 'No'}
             </div>
             <div data-testid="editor-container">
               <BlockNoteView editor={editor} theme="light">
                 <SlashMenuPositioner editor={editor} />
-                <FormattingToolbarPositioner
-                  editor={editor}
-                  formattingToolbar={HMFormattingToolbar}
-                />
+                <FormattingToolbarPositioner editor={editor} formattingToolbar={HMFormattingToolbar} />
                 <HyperlinkToolbarPositioner
                   editor={editor}
                   openUrl={() => {}}

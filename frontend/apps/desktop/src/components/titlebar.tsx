@@ -11,9 +11,7 @@ export interface TitleBarProps {
   height?: number
 }
 
-export function TitleBar(
-  props: TitleBarProps & HTMLAttributes<HTMLDivElement>,
-) {
+export function TitleBar(props: TitleBarProps & HTMLAttributes<HTMLDivElement>) {
   const {platform} = useAppContext()
   let Component = getTitleBar(platform)
   return (

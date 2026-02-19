@@ -5,11 +5,7 @@ import {useStream} from '@shm/shared/use-stream'
 import useMedia from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {ReactNode, useEffect, useLayoutEffect, useRef, useState} from 'react'
-import {
-  ImperativePanelHandle,
-  Panel,
-  PanelResizeHandle,
-} from 'react-resizable-panels'
+import {ImperativePanelHandle, Panel, PanelResizeHandle} from 'react-resizable-panels'
 
 const HoverRegionWidth = 30
 
@@ -42,8 +38,7 @@ export function GenericSidebarContainer({
   // Enforce 250px minimum when locking sidebar open
   useLayoutEffect(() => {
     const isOpening = prevIsLocked.current === false && isLocked === true
-    const isInitialMount =
-      prevIsLocked.current === undefined && isLocked === true
+    const isInitialMount = prevIsLocked.current === undefined && isLocked === true
 
     // console.log('[250px constraint] Effect running:', {
     //   prevIsLocked: prevIsLocked.current,
@@ -89,10 +84,7 @@ export function GenericSidebarContainer({
         panel.collapse()
       }
     } catch (error) {
-      console.log(
-        '[250px constraint] Panel operation failed (panel not ready yet):',
-        error,
-      )
+      console.log('[250px constraint] Panel operation failed (panel not ready yet):', error)
     }
 
     prevIsLocked.current = isLocked
@@ -155,9 +147,7 @@ export function GenericSidebarContainer({
             isVisible ? 'opacity-100' : 'opacity-0',
           )}
           style={{
-            transform: `translateX(${
-              isVisible ? 0 : -SidebarWidth
-            }px) translateY(${isLocked ? 0 : 40}px)`,
+            transform: `translateX(${isVisible ? 0 : -SidebarWidth}px) translateY(${isLocked ? 0 : 40}px)`,
             maxWidth: isLocked ? undefined : SidebarWidth,
             top: isLocked ? undefined : platform === 'win32' ? 24 : 8,
             bottom: isLocked ? undefined : 8,
@@ -166,14 +156,7 @@ export function GenericSidebarContainer({
           // onMouseEnter={ctx.onMenuHover}
           // onMouseLeave={ctx.onMenuHoverLeave}
         >
-          <div
-            className={cn(
-              'flex-1 overflow-y-auto pb-8',
-              isLocked ? '' : 'py-2',
-            )}
-          >
-            {children}
-          </div>
+          <div className={cn('flex-1 overflow-y-auto pb-8', isLocked ? '' : 'py-2')}>{children}</div>
           {footer ? (
             <div
               className={cn(
@@ -191,13 +174,7 @@ export function GenericSidebarContainer({
   )
 }
 
-export const useIsWindowFocused = ({
-  onFocus,
-  onBlur,
-}: {
-  onFocus?: () => void
-  onBlur?: () => void
-}): boolean => {
+export const useIsWindowFocused = ({onFocus, onBlur}: {onFocus?: () => void; onBlur?: () => void}): boolean => {
   const [isFocused, setIsFocused] = useState(document.hasFocus())
   useEffect(() => {
     const handleFocus = () => {
@@ -219,10 +196,7 @@ export const useIsWindowFocused = ({
 }
 
 function useIsWindowNarrowForHoverSidebar() {
-  const [
-    isWindowTooNarrowForHoverSidebar,
-    setIsWindowTooNarrowForHoverSidebar,
-  ] = useState(window.innerWidth < 820)
+  const [isWindowTooNarrowForHoverSidebar, setIsWindowTooNarrowForHoverSidebar] = useState(window.innerWidth < 820)
   useEffect(() => {
     const handleResize = () => {
       setIsWindowTooNarrowForHoverSidebar(window.innerWidth < 820)

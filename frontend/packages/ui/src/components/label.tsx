@@ -21,15 +21,8 @@ function Label({
   className,
   size = 'default',
   ...props
-}: React.ComponentProps<typeof LabelPrimitive.Root> &
-  VariantProps<typeof labelVariants>) {
-  return (
-    <LabelPrimitive.Root
-      data-slot="label"
-      className={cn(labelVariants({size}), className)}
-      {...props}
-    />
-  )
+}: React.ComponentProps<typeof LabelPrimitive.Root> & VariantProps<typeof labelVariants>) {
+  return <LabelPrimitive.Root data-slot="label" className={cn(labelVariants({size}), className)} {...props} />
 }
 
 export {Label}

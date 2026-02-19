@@ -1,9 +1,4 @@
-import {
-  HMAccountsMetadata,
-  HMDocumentInfo,
-  HMResourceFetchResult,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {HMAccountsMetadata, HMDocumentInfo, HMResourceFetchResult, UnpackedHypermediaId} from '@shm/shared'
 import {DocumentCardGrid} from './blocks-content'
 import {DocumentListItem} from './document-list-item'
 
@@ -39,13 +34,7 @@ export function QueryBlockContent({
     )
   }
 
-  return (
-    <QueryBlockListView
-      items={items}
-      accountsMetadata={accountsMetadata}
-      isDiscovering={isDiscovering}
-    />
-  )
+  return <QueryBlockListView items={items} accountsMetadata={accountsMetadata} isDiscovering={isDiscovering} />
 }
 
 function QueryBlockCardView({
@@ -66,8 +55,7 @@ function QueryBlockCardView({
   const firstItem = banner ? items[0] : undefined
   const restItems = banner ? items.slice(1) : items
 
-  const columnCountNum =
-    typeof columnCount === 'string' ? parseInt(columnCount, 10) : columnCount
+  const columnCountNum = typeof columnCount === 'string' ? parseInt(columnCount, 10) : columnCount
 
   return (
     <DocumentCardGrid
@@ -94,9 +82,7 @@ function QueryBlockListView({
   if (items.length === 0 && isDiscovering) {
     return (
       <div className="bg-muted flex items-center rounded-lg p-4">
-        <span className="text-muted-foreground italic">
-          Searching for documents...
-        </span>
+        <span className="text-muted-foreground italic">Searching for documents...</span>
       </div>
     )
   }
@@ -104,13 +90,7 @@ function QueryBlockListView({
   return (
     <div className="my-4 flex w-full flex-col gap-1">
       {items.map((item) => {
-        return (
-          <DocumentListItem
-            key={item.id.id}
-            item={item}
-            accountsMetadata={accountsMetadata}
-          />
-        )
+        return <DocumentListItem key={item.id.id} item={item} accountsMetadata={accountsMetadata} />
       })}
     </div>
   )

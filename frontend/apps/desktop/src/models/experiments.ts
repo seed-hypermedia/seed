@@ -13,9 +13,8 @@ export function useExperiments() {
 
 export function useWriteExperiments() {
   const writeExperiments = useMutation({
-    mutationFn: (
-      experiments: Parameters<typeof client.experiments.write.mutate>[0],
-    ) => client.experiments.write.mutate(experiments),
+    mutationFn: (experiments: Parameters<typeof client.experiments.write.mutate>[0]) =>
+      client.experiments.write.mutate(experiments),
     onError() {
       toast.error('Could not save this change')
     },

@@ -27,20 +27,16 @@ export const bookmarksApi = t.router({
   get: t.procedure.query(async () => {
     return state
   }),
-  setBookmark: t.procedure
-    .input(z.object({url: z.string(), isBookmark: z.boolean()}))
-    .mutation(async ({input}) => {
-      const newBookmarks = state.bookmarks.filter(
-        (bookmark) => bookmark.url !== input.url,
-      )
-      if (input.isBookmark) {
-        newBookmarks.push({url: input.url})
-      }
-      await writeBookmarks({
-        ...state,
-        bookmarks: newBookmarks,
-      })
-    }),
+  setBookmark: t.procedure.input(z.object({url: z.string(), isBookmark: z.boolean()})).mutation(async ({input}) => {
+    const newBookmarks = state.bookmarks.filter((bookmark) => bookmark.url !== input.url)
+    if (input.isBookmark) {
+      newBookmarks.push({url: input.url})
+    }
+    await writeBookmarks({
+      ...state,
+      bookmarks: newBookmarks,
+    })
+  }),
   addBookmark: t.procedure.input(z.string()).mutation(async ({input}) => {
     await writeBookmarks({
       ...state,

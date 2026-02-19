@@ -10,17 +10,8 @@
 
 import {grpcClient} from '@/grpc-client'
 import {DISCOVERY_DEBOUNCE_MS} from '@shm/shared/constants'
-import {
-  AggregatedDiscoveryState,
-  DiscoveryProgress,
-  DiscoveryState,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
-import {
-  getErrorMessage,
-  HMRedirectError,
-  HMResourceTombstoneError,
-} from '@shm/shared/models/entity'
+import {AggregatedDiscoveryState, DiscoveryProgress, DiscoveryState, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {getErrorMessage, HMRedirectError, HMResourceTombstoneError} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {createResourceFetcher} from '@shm/shared/resource-loader'
 import {Event} from '@shm/shared/src/client/.generated/activity/v1alpha/activity_pb'
@@ -99,22 +90,19 @@ const state: SyncState = {
 }
 
 // Aggregated discovery state
-const [writeAggregatedDiscovery, aggregatedDiscoveryStream] =
-  writeableStateStream<AggregatedDiscoveryState>({
-    activeCount: 0,
-    tombstoneCount: 0,
-    notFoundCount: 0,
-    blobsDiscovered: 0,
-    blobsDownloaded: 0,
-    blobsFailed: 0,
-  })
+const [writeAggregatedDiscovery, aggregatedDiscoveryStream] = writeableStateStream<AggregatedDiscoveryState>({
+  activeCount: 0,
+  tombstoneCount: 0,
+  notFoundCount: 0,
+  blobsDiscovered: 0,
+  blobsDownloaded: 0,
+  blobsFailed: 0,
+})
 
 // Resource fetcher for checking tombstone/redirect status
 const fetchResource = createResourceFetcher(grpcClient)
 
-async function checkResourceStatus(
-  id: UnpackedHypermediaId,
-): Promise<'ok' | 'tombstone' | 'redirect' | 'not-found'> {
+async function checkResourceStatus(id: UnpackedHypermediaId): Promise<'ok' | 'tombstone' | 'redirect' | 'not-found'> {
   const resource = await fetchResource(id)
   if (resource.type === 'tombstone') return 'tombstone'
   if (resource.type === 'redirect') return 'redirect'
@@ -132,9 +120,7 @@ function getOrCreateDiscoveryStream(entityId: string) {
   return state.discoveryStreams.get(entityId)!
 }
 
-export function getDiscoveryStream(
-  entityId: string,
-): StateStream<DiscoveryState | null> {
+export function getDiscoveryStream(entityId: string): StateStream<DiscoveryState | null> {
   return getOrCreateDiscoveryStream(entityId).stream
 }
 
@@ -211,10 +197,7 @@ function scheduleInvalidation(resource: string) {
   state.pendingInvalidations.add(resource)
 
   if (!state.debounceTimer) {
-    state.debounceTimer = setTimeout(
-      flushInvalidations,
-      INVALIDATION_DEBOUNCE_MS,
-    )
+    state.debounceTimer = setTimeout(flushInvalidations, INVALIDATION_DEBOUNCE_MS)
   }
 }
 
@@ -369,8 +352,7 @@ export async function discoverDocument(
 
   return await tryUntilSuccess(
     async () => {
-      const discoverResp =
-        await grpcClient.entities.discoverEntity(discoverRequest)
+      const discoverResp = await grpcClient.entities.discoverEntity(discoverRequest)
       if (discoverResp.progress && onProgress) {
         onProgress({
           blobsDiscovered: discoverResp.progress.blobsDiscovered,
@@ -378,8 +360,7 @@ export async function discoverDocument(
           blobsFailed: discoverResp.progress.blobsFailed,
         })
       }
-      if (checkDiscoverySuccess(discoverResp))
-        return {version: discoverResp.version}
+      if (checkDiscoverySuccess(discoverResp)) return {version: discoverResp.version}
       return null
     },
     {
@@ -387,10 +368,7 @@ export async function discoverDocument(
       retryDelayMs: 2_000,
       immediateCatch: (e) => {
         const error = getErrorMessage(e)
-        return (
-          error instanceof HMRedirectError ||
-          error instanceof HMResourceTombstoneError
-        )
+        return error instanceof HMRedirectError || error instanceof HMResourceTombstoneError
       },
     },
   )
@@ -403,45 +381,34 @@ type DiscoveryResult = {
   isNotFound?: boolean
 }
 
-async function runDiscovery(
-  sub: ResourceSubscription,
-): Promise<DiscoveryResult | null> {
+async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult | null> {
   const {id, recursive} = sub
   const discoveryStream = getOrCreateDiscoveryStream(id.id)
 
   // Use effective recursive value - if any recursive subscription exists, report as recursive
-  const getEffectiveRecursive = () =>
-    recursive || hasRecursiveSubscription(id.id)
+  const getEffectiveRecursive = () => recursive || hasRecursiveSubscription(id.id)
 
   // Run discovery first (syncs data from network)
   let discoveryResult: {version: string} | null = null
   try {
-    discoveryResult = await discoverDocument(
-      id.uid,
-      id.path,
-      undefined,
-      recursive,
-      (progress) => {
-        // Don't overwrite settled state (not-found/tombstone) with discovering
-        const currentState = discoveryStream.stream.get()
-        if (currentState?.isNotFound || currentState?.isTombstone) return
+    discoveryResult = await discoverDocument(id.uid, id.path, undefined, recursive, (progress) => {
+      // Don't overwrite settled state (not-found/tombstone) with discovering
+      const currentState = discoveryStream.stream.get()
+      if (currentState?.isNotFound || currentState?.isTombstone) return
 
-        discoveryStream.write({
-          isDiscovering: true,
-          startedAt: Date.now(),
-          entityId: id.id,
-          recursive: getEffectiveRecursive(),
-          progress,
-        })
-        updateAggregatedDiscoveryState()
-      },
-    )
+      discoveryStream.write({
+        isDiscovering: true,
+        startedAt: Date.now(),
+        entityId: id.id,
+        recursive: getEffectiveRecursive(),
+        progress,
+      })
+      updateAggregatedDiscoveryState()
+    })
   } catch (e) {
     // Discovery failed (timeout, network error, etc.)
     // Check resource status anyway - data may have been synced
-    console.log(
-      `[Discovery] ${id.id}: discovery error, checking resource status`,
-    )
+    console.log(`[Discovery] ${id.id}: discovery error, checking resource status`)
   }
 
   // After discovery, check resource status via GetResource
@@ -520,8 +487,7 @@ async function runDiscovery(
   const newVersion = discoveryResult?.version
   const lastKnownVersion = state.lastKnownVersions.get(id.id)
 
-  const shouldInvalidate =
-    !needsInvalidation && newVersion && newVersion !== lastKnownVersion
+  const shouldInvalidate = !needsInvalidation && newVersion && newVersion !== lastKnownVersion
   console.log(
     `[Discovery] ${id.id}: newVersion=${newVersion}, lastKnown=${lastKnownVersion}, shouldInvalidate=${shouldInvalidate}`,
   )
@@ -584,10 +550,7 @@ function isEntityCoveredByRecursive(id: UnpackedHypermediaId): boolean {
 
   const basePath = `hm://${id.uid}`
   for (let i = 0; i <= id.path.length; i++) {
-    const parentPath =
-      i === 0
-        ? `${basePath}/*`
-        : `${basePath}/${id.path.slice(0, i).join('/')}/*`
+    const parentPath = i === 0 ? `${basePath}/*` : `${basePath}/${id.path.slice(0, i).join('/')}/*`
     if (state.recursiveSubscriptions.has(parentPath)) {
       return true
     }
@@ -607,9 +570,7 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
   // Check if covered by parent recursive subscription OR same entity has recursive subscription
   const sameEntityRecursiveKey = `${id.id}/*`
   const isCovered =
-    !recursive &&
-    (isEntityCoveredByRecursive(id) ||
-      state.recursiveSubscriptions.has(sameEntityRecursiveKey))
+    !recursive && (isEntityCoveredByRecursive(id) || state.recursiveSubscriptions.has(sameEntityRecursiveKey))
 
   // Check current stream state - if already settled, preserve that state
   const discoveryStream = getOrCreateDiscoveryStream(id.id)
@@ -636,9 +597,7 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
     // Re-check if now covered (a recursive subscription may have been added after we started)
     const sameEntityRecursiveKey = `${id.id}/*`
     const nowCovered =
-      !recursive &&
-      (isEntityCoveredByRecursive(id) ||
-        state.recursiveSubscriptions.has(sameEntityRecursiveKey))
+      !recursive && (isEntityCoveredByRecursive(id) || state.recursiveSubscriptions.has(sameEntityRecursiveKey))
 
     if (nowCovered) {
       // Defer to the recursive subscription
@@ -670,10 +629,7 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
   }
 
   // Debounce initial discovery
-  discoveryTimer = setTimeout(
-    discoveryLoop,
-    DISCOVERY_DEBOUNCE_MS + Math.random() * 100,
-  )
+  discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_DEBOUNCE_MS + Math.random() * 100)
 
   function unsubscribe() {
     cancelled = true
@@ -794,19 +750,17 @@ export const syncApi = t.router({
     }),
 
   // Subscribe to discovery state changes
-  discoveryState: t.procedure
-    .input(z.string())
-    .subscription(({input: entityId}) => {
-      return observable<DiscoveryState | null>((emit) => {
-        const stream = getDiscoveryStream(entityId)
-        const unsubscribe = stream.subscribe((state) => {
-          emit.next(state)
-        })
-        // Emit initial state
-        emit.next(stream.get())
-        return unsubscribe
+  discoveryState: t.procedure.input(z.string()).subscription(({input: entityId}) => {
+    return observable<DiscoveryState | null>((emit) => {
+      const stream = getDiscoveryStream(entityId)
+      const unsubscribe = stream.subscribe((state) => {
+        emit.next(state)
       })
-    }),
+      // Emit initial state
+      emit.next(stream.get())
+      return unsubscribe
+    })
+  }),
 
   // Get aggregated discovery state
   getAggregatedState: t.procedure.query(() => {

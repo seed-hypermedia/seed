@@ -1,24 +1,13 @@
 import {SearchInput} from '@/components/search-input'
 import {Block, BlockNoteEditor} from '@shm/editor/blocknote'
 import {MultipleNodeSelection} from '@shm/editor/blocknote/core/extensions/SideMenu/MultipleNodeSelection'
-import {
-  createReactBlockSpec,
-  useEditorSelectionChange,
-} from '@shm/editor/blocknote/react'
+import {createReactBlockSpec, useEditorSelectionChange} from '@shm/editor/blocknote/react'
 import {getNodesInSelection} from '@shm/editor/utils'
 import {entityQueryPathToHmIdPath} from '@shm/shared'
 import {queryBlockSortedItems} from '@shm/shared/content'
 import {EditorQueryBlock} from '@shm/shared/editor-types'
-import {
-  HMAccountsMetadata,
-  HMBlockQuery,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
-import {
-  useDirectory,
-  useResource,
-  useResources,
-} from '@shm/shared/models/entity'
+import {HMAccountsMetadata, HMBlockQuery, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
@@ -69,13 +58,8 @@ export const QueryBlock = createReactBlockSpec({
   },
   containsInlineContent: true,
 
-  render: ({
-    block,
-    editor,
-  }: {
-    block: Block<HMBlockSchema>
-    editor: BlockNoteEditor<HMBlockSchema>
-  }) => Render(block, editor),
+  render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) =>
+    Render(block, editor),
 
   parseHTML: [
     {
@@ -88,10 +72,7 @@ export const QueryBlock = createReactBlockSpec({
   ],
 })
 
-function Render(
-  block: Block<HMBlockSchema>,
-  editor: BlockNoteEditor<HMBlockSchema>,
-) {
+function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSchema>) {
   const [selected, setSelected] = useState(false)
   const tiptapEditor = editor._tiptapEditor
 
@@ -160,31 +141,20 @@ function Render(
     if (selection instanceof NodeSelection) {
       // If the selection is a NodeSelection, check if this block is the selected node
       const selectedNode = view.state.doc.resolve(selection.from).parent
-      if (
-        selectedNode &&
-        selectedNode.attrs &&
-        selectedNode.attrs.id === block.id
-      ) {
+      if (selectedNode && selectedNode.attrs && selectedNode.attrs.id === block.id) {
         isSelected = true
       }
-    } else if (
-      selection instanceof TextSelection ||
-      selection instanceof MultipleNodeSelection
-    ) {
+    } else if (selection instanceof TextSelection || selection instanceof MultipleNodeSelection) {
       // If it's a TextSelection or MultipleNodeSelection (TODO Fix for drag), check if this block's node is within the selection range
       const selectedNodes = getNodesInSelection(view)
-      isSelected = selectedNodes.some(
-        (node) => node.attrs && node.attrs.id === block.id,
-      )
+      isSelected = selectedNodes.some((node) => node.attrs && node.attrs.id === block.id)
     }
 
     setSelected(isSelected)
   }
 
   const authorIds = new Set<string>()
-  sortedItems.forEach((item) =>
-    item.authors.forEach((authorId) => authorIds.add(authorId)),
-  )
+  sortedItems.forEach((item) => item.authors.forEach((authorId) => authorIds.add(authorId)))
 
   const authors = useResources(Array.from(authorIds).map((uid) => hmId(uid)))
 
@@ -211,10 +181,7 @@ function Render(
   const documents = useResources(sortedItems.map((item) => item.id))
 
   function getEntity(id: UnpackedHypermediaId) {
-    return (
-      documents?.find((document) => document.data?.id?.id === id.id)?.data ||
-      null
-    )
+    return documents?.find((document) => document.data?.id?.id === id.id)?.data || null
   }
 
   return (
@@ -264,9 +231,7 @@ function EmptyQueryBlock({queryIncludes}: {queryIncludes: string | undefined}) {
       : null,
   )
   if (!queryIncludesFirst || !queryIncludesFirst.space) {
-    return (
-      <BlankQueryBlockMessage message="Empty Query. Select a Document to Query the Directory." />
-    )
+    return <BlankQueryBlockMessage message="Empty Query. Select a Document to Query the Directory." />
   }
   return (
     <BlankQueryBlockMessage
@@ -301,13 +266,7 @@ function QuerySettings({
   queryIncludes: HMQueryBlockIncludes
   querySort: HMQueryBlockSort
   banner: boolean
-  onValuesChange: ({
-    id,
-    props,
-  }: {
-    id: UnpackedHypermediaId | null
-    props: EditorQueryBlock['props']
-  }) => void
+  onValuesChange: ({id, props}: {id: UnpackedHypermediaId | null; props: EditorQueryBlock['props']}) => void
   editor: BlockNoteEditor<HMBlockSchema>
 }) {
   // @ts-expect-error
@@ -373,11 +332,8 @@ function QuerySettings({
                       {
                         ...queryIncludes[0],
                         space: id.uid,
-                        path:
-                          id.path && id.path.length ? id.path.join('/') : '',
-                        mode: queryIncludes[0]?.mode
-                          ? queryIncludes[0]?.mode
-                          : 'AllDescendants',
+                        path: id.path && id.path.length ? id.path.join('/') : '',
+                        mode: queryIncludes[0]?.mode ? queryIncludes[0]?.mode : 'AllDescendants',
                       },
                     ]
                     onValuesChange({
@@ -605,10 +561,7 @@ function QuerySettings({
         ) : null}
       </div>
       {popoverState.open ? (
-        <div
-          className="fixed inset-0 z-10"
-          onClick={() => popoverState.onOpenChange(false)}
-        />
+        <div className="fixed inset-0 z-10" onClick={() => popoverState.onOpenChange(false)} />
       ) : null}
     </>
   )
@@ -620,15 +573,7 @@ export function QuerySearch({
   allowWebURL,
 }: {
   selectedDocName?: string | null | undefined
-  onSelect: ({
-    id,
-    route,
-    webUrl,
-  }: {
-    id?: UnpackedHypermediaId
-    route?: NavRoute
-    webUrl?: string
-  }) => void
+  onSelect: ({id, route, webUrl}: {id?: UnpackedHypermediaId; route?: NavRoute; webUrl?: string}) => void
   allowWebURL?: boolean
 }) {
   const [showSearch, setShowSearch] = useState(false)
@@ -652,10 +597,7 @@ export function QuerySearch({
       </Button>
       {showSearch ? (
         <>
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setShowSearch(false)}
-          />
+          <div className="fixed inset-0 z-40" onClick={() => setShowSearch(false)} />
           <div className="no-window-drag border-muted bg-background absolute -top-2 -left-2 z-40 h-[260px] min-h-[80%] w-[calc(100%+16px)] max-w-[800px] rounded-md border p-2 shadow-lg">
             <SearchInput
               onClose={() => setShowSearch(false)}

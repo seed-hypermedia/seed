@@ -5,10 +5,7 @@ import {useSelectedAccount} from '@/selected-account'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmId} from '@shm/shared'
-import {
-  CommentsProvider,
-  isRouteEqualToCommentTarget,
-} from '@shm/shared/comments-service-provider'
+import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMComment} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
@@ -32,9 +29,7 @@ export default function DesktopFeedPage() {
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
   const siteHomeResource = useResource(hmId(docId.uid), {subscribed: true})
   const siteUrl =
-    siteHomeResource.data?.type === 'document'
-      ? siteHomeResource.data.document?.metadata?.siteUrl
-      : undefined
+    siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document?.metadata?.siteUrl : undefined
 
   const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
   const [copySiteUrlContent, onCopySiteUrl] = useCopyReferenceUrl(
@@ -131,11 +126,7 @@ export default function DesktopFeedPage() {
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
       >
-        <FeedPage
-          docId={docId}
-          extraMenuItems={menuItems}
-          currentAccountUid={selectedAccount?.id?.uid}
-        />
+        <FeedPage docId={docId} extraMenuItems={menuItems} currentAccountUid={selectedAccount?.id?.uid} />
       </CommentsProvider>
       {copyGatewayContent}
       {copySiteUrlContent}

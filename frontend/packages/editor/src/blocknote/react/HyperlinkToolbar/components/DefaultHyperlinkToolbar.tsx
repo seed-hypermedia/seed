@@ -38,15 +38,8 @@ export const DefaultHyperlinkToolbar = (
   }
 
   return (
-    <Toolbar
-      onMouseEnter={props.stopHideTimer}
-      onMouseLeave={props.startHideTimer}
-    >
-      <ToolbarButton
-        mainTooltip="Edit"
-        isSelected={false}
-        onClick={() => setIsEditing(true)}
-      >
+    <Toolbar onMouseEnter={props.stopHideTimer} onMouseLeave={props.startHideTimer}>
+      <ToolbarButton mainTooltip="Edit" isSelected={false} onClick={() => setIsEditing(true)}>
         Edit Link
       </ToolbarButton>
       <ToolbarButton
@@ -57,12 +50,7 @@ export const DefaultHyperlinkToolbar = (
         }}
         icon={RiExternalLinkFill}
       />
-      <ToolbarButton
-        mainTooltip="Remove link"
-        isSelected={false}
-        onClick={props.deleteHyperlink}
-        icon={RiLinkUnlink}
-      />
+      <ToolbarButton mainTooltip="Remove link" isSelected={false} onClick={props.deleteHyperlink} icon={RiLinkUnlink} />
     </Toolbar>
   )
 }

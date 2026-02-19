@@ -3,12 +3,7 @@ import {CreateAccountBanner} from '@/components/onboarding'
 import {useMarkAsRead} from '@/models/documents'
 
 import {useExportDocuments} from '@/models/export-documents'
-import {
-  LibraryItem,
-  LibrarySite,
-  useLibrary,
-  useSiteLibrary,
-} from '@/models/library'
+import {LibraryItem, LibrarySite, useLibrary, useSiteLibrary} from '@/models/library'
 import {useNavigate} from '@/utils/useNavigate'
 import {getMetadataName} from '@shm/shared/content'
 import {
@@ -26,11 +21,7 @@ import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
 import {Button} from '@shm/ui/button'
 import {Checkbox} from '@shm/ui/components/checkbox'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@shm/ui/components/popover'
+import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {FacePile} from '@shm/ui/face-pile'
 import {HMIcon} from '@shm/ui/hm-icon'
@@ -39,16 +30,7 @@ import {PrivateBadge} from '@shm/ui/private-badge'
 import {SizableText} from '@shm/ui/text'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
-import {
-  Check,
-  CheckCheck,
-  ChevronDown,
-  ChevronRight,
-  FileOutput,
-  ListFilter,
-  MessageSquare,
-  X,
-} from 'lucide-react'
+import {Check, CheckCheck, ChevronDown, ChevronRight, FileOutput, ListFilter, MessageSquare, X} from 'lucide-react'
 import {createContext, useContext, useState} from 'react'
 
 export default function LibraryPage() {
@@ -101,19 +83,11 @@ export default function LibraryPage() {
                 activeValue={displayMode}
                 onDisplayMode={setDisplayMode}
               />
-              <DisplayModeTab
-                label="All"
-                value="all"
-                activeValue={displayMode}
-                onDisplayMode={setDisplayMode}
-              />
+              <DisplayModeTab label="All" value="all" activeValue={displayMode} onDisplayMode={setDisplayMode} />
             </div>
             <div className="my-2 mb-4 flex justify-between">
               <div className="flex gap-2">
-                <GroupingControl
-                  grouping={grouping}
-                  onGroupingChange={setGrouping}
-                />
+                <GroupingControl grouping={grouping} onGroupingChange={setGrouping} />
               </div>
               {isLibraryEmpty ? null : (
                 <div className="flex items-center gap-3">
@@ -175,9 +149,7 @@ export default function LibraryPage() {
                 selectedDocIds,
                 onSelect: (docId, isSelected) => {
                   setSelectedDocIds(
-                    isSelected
-                      ? [...selectedDocIds, docId]
-                      : selectedDocIds.filter((id) => id !== docId),
+                    isSelected ? [...selectedDocIds, docId] : selectedDocIds.filter((id) => id !== docId),
                   )
                 },
               }}
@@ -185,13 +157,7 @@ export default function LibraryPage() {
               <div className="flex flex-col gap-1">
                 {library.items?.map((item: LibraryItem) => {
                   if (item.type === 'site') {
-                    return (
-                      <LibrarySiteItem
-                        key={item.id}
-                        site={item}
-                        accountsMetadata={library.accountsMetadata}
-                      />
-                    )
+                    return <LibrarySiteItem key={item.id} site={item} accountsMetadata={library.accountsMetadata} />
                   }
                   return (
                     <LibraryDocumentItem
@@ -262,11 +228,7 @@ function GroupingControl({
               variant="ghost"
               className="justify-start border-none"
             >
-              {grouping === option.value ? (
-                <Check className="text-primary size-4" />
-              ) : (
-                <div className="size-4" />
-              )}
+              {grouping === option.value ? <Check className="text-primary size-4" /> : <div className="size-4" />}
               {option.label}
             </Button>
           ))}
@@ -324,41 +286,26 @@ function SelectionCollapseButton({
             setIsCollapsed?.(!isCollapsed)
           }}
         >
-          {isCollapsed ? (
-            <ChevronRight className="size-4" />
-          ) : (
-            <ChevronDown className="size-4" />
-          )}
+          {isCollapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
         </Button>
       )}
     </div>
   )
 }
 
-function LibrarySiteItem({
-  site,
-  accountsMetadata,
-}: {
-  site: LibrarySite
-  accountsMetadata?: HMAccountsMetadata
-}) {
+function LibrarySiteItem({site, accountsMetadata}: {site: LibrarySite; accountsMetadata?: HMAccountsMetadata}) {
   const route = useNavRoute()
-  const {isSelecting, selectedDocIds, onSelect} = useContext(
-    librarySelectionContext,
-  )
+  const {isSelecting, selectedDocIds, onSelect} = useContext(librarySelectionContext)
 
   const libraryRoute = route.key === 'library' ? route : undefined
   const replace = useNavigate('replace')
-  const expandedIds =
-    (route.key === 'library' ? route.expandedIds : undefined) || []
+  const expandedIds = (route.key === 'library' ? route.expandedIds : undefined) || []
   const isCollapsed = !expandedIds.includes(site.id)
   function setIsCollapsed(isCollapsed: boolean) {
     replace({
       key: 'library',
       ...(libraryRoute || {}),
-      expandedIds: isCollapsed
-        ? expandedIds?.filter((id) => id !== site.id)
-        : [...expandedIds, site.id],
+      expandedIds: isCollapsed ? expandedIds?.filter((id) => id !== site.id) : [...expandedIds, site.id],
     })
   }
   const navigate = useNavigate()
@@ -367,13 +314,8 @@ function LibrarySiteItem({
   const isSelected = selectedDocIds.includes(id.id)
   const documents = useSiteLibrary(site.id, !isCollapsed)
   const homeDocument = documents.data?.find((doc) => !doc.path?.length)
-  const siteDisplayActivitySummary =
-    !isCollapsed && homeDocument
-      ? homeDocument.activitySummary
-      : site.activitySummary
-  const latestComment = isCollapsed
-    ? site.latestComment
-    : homeDocument?.latestComment
+  const siteDisplayActivitySummary = !isCollapsed && homeDocument ? homeDocument.activitySummary : site.activitySummary
+  const latestComment = isCollapsed ? site.latestComment : homeDocument?.latestComment
   const isRead = !siteDisplayActivitySummary?.isUnread
   return (
     <>
@@ -407,20 +349,13 @@ function LibrarySiteItem({
           <div className="flex items-center gap-3">
             <div className="items-center-justify-start flex flex-1 overflow-hidden">
               <SizableText
-                className={cn(
-                  'flex-1 truncate overflow-hidden text-left',
-                  isRead ? undefined : 'font-bold',
-                )}
+                className={cn('flex-1 truncate overflow-hidden text-left', isRead ? undefined : 'font-bold')}
               >
                 {getMetadataName(metadata)}
               </SizableText>
             </div>
             {siteDisplayActivitySummary && (
-              <LibraryEntryCommentCount
-                activitySummary={
-                  siteDisplayActivitySummary as HMActivitySummary
-                }
-              />
+              <LibraryEntryCommentCount activitySummary={siteDisplayActivitySummary as HMActivitySummary} />
             )}
           </div>
           {siteDisplayActivitySummary && (
@@ -462,9 +397,7 @@ export function LibraryDocumentItem({
   const navigate = useNavigate()
   const metadata = item?.metadata
   const id = item.id
-  const {isSelecting, selectedDocIds, onSelect} = useContext(
-    librarySelectionContext,
-  )
+  const {isSelecting, selectedDocIds, onSelect} = useContext(librarySelectionContext)
   const isSelected = selectedDocIds.includes(id.id)
   const isRead = !item.activitySummary?.isUnread
   return (
@@ -494,28 +427,16 @@ export function LibraryDocumentItem({
       <div className="size-8 shrink-0" />
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <LibraryEntryBreadcrumbs
-          breadcrumbs={item.breadcrumbs}
-          onNavigate={navigate}
-          id={id}
-        />
+        <LibraryEntryBreadcrumbs breadcrumbs={item.breadcrumbs} onNavigate={navigate} id={id} />
         <div className="flex flex-1 items-center gap-3">
           <div className="items-center-justify-start flex flex-1 overflow-hidden">
-            <SizableText
-              className={cn('flex-1 truncate text-left')}
-              weight={isRead ? undefined : 'bold'}
-            >
+            <SizableText className={cn('flex-1 truncate text-left')} weight={isRead ? undefined : 'bold'}>
               {getMetadataName(metadata)}
             </SizableText>
             {item.visibility === 'PRIVATE' && <PrivateBadge />}
           </div>
-          {item.activitySummary && (
-            <LibraryEntryCommentCount activitySummary={item.activitySummary} />
-          )}
-          <LibraryEntryAuthors
-            item={item}
-            accountsMetadata={accountsMetadata}
-          />
+          {item.activitySummary && <LibraryEntryCommentCount activitySummary={item.activitySummary} />}
+          <LibraryEntryAuthors item={item} accountsMetadata={accountsMetadata} />
         </div>
         {item.activitySummary && (
           <LibraryEntryUpdateSummary
@@ -560,10 +481,7 @@ function LibraryEntryBreadcrumbs({
             {breadcrumb.name}
           </Button>
           {idx === displayCrumbs.length - 1 ? null : (
-            <SizableText
-              key={`separator-${idx}`}
-              className="text-muted-foreground text-sm"
-            >
+            <SizableText key={`separator-${idx}`} className="text-muted-foreground text-sm">
               /
             </SizableText>
           )}
@@ -573,11 +491,7 @@ function LibraryEntryBreadcrumbs({
   )
 }
 
-function LibraryEntryCommentCount({
-  activitySummary,
-}: {
-  activitySummary: HMActivitySummary
-}) {
+function LibraryEntryCommentCount({activitySummary}: {activitySummary: HMActivitySummary}) {
   const commentCount = activitySummary?.commentCount
   if (!commentCount) return null
   return (
@@ -588,13 +502,7 @@ function LibraryEntryCommentCount({
   )
 }
 
-function LibraryEntryAuthors({
-  item,
-  accountsMetadata,
-}: {
-  item: HMDocumentInfo
-  accountsMetadata: HMAccountsMetadata
-}) {
+function LibraryEntryAuthors({item, accountsMetadata}: {item: HMDocumentInfo; accountsMetadata: HMAccountsMetadata}) {
   const {authors} = item
   return <FacePile accounts={authors} accountsMetadata={accountsMetadata} />
 }

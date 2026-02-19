@@ -1,13 +1,5 @@
 import {json, LinksFunction, LoaderFunctionArgs} from '@remix-run/node'
-import {
-  isRouteErrorResponse,
-  Links,
-  Meta,
-  Outlet,
-  Scripts,
-  useRouteLoaderData,
-  useRouteError,
-} from '@remix-run/react'
+import {isRouteErrorResponse, Links, Meta, Outlet, Scripts, useRouteLoaderData, useRouteError} from '@remix-run/react'
 import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
 import {
   ENABLE_EMAIL_NOTIFICATIONS,
@@ -41,14 +33,7 @@ function getBaseDomain(host: string) {
   const parts = host.split('.')
   if (parts.length <= 2) return host
 
-  const twoLevel = new Set([
-    'co.uk',
-    'org.uk',
-    'gov.uk',
-    'ac.uk',
-    'net.uk',
-    'sch.uk',
-  ])
+  const twoLevel = new Set(['co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'net.uk', 'sch.uk'])
   const lastTwo = parts.slice(-2).join('.')
   if (twoLevel.has(lastTwo) && parts.length >= 3) {
     return parts.slice(-3).join('.')
@@ -63,9 +48,7 @@ export async function loader({request}: LoaderFunctionArgs) {
   // Gate everything on the server so no client env access is needed
   const isProd = process.env.NODE_ENV === 'production'
 
-  const enableStats =
-    process.env.SEED_ENABLE_STATISTICS === 'true' ||
-    process.env.SEED_ENABLE_STATISTICS === '1'
+  const enableStats = process.env.SEED_ENABLE_STATISTICS === 'true' || process.env.SEED_ENABLE_STATISTICS === '1'
 
   const domain = process.env.MONITORING_DOMAIN || runtimeDomain
 
@@ -79,12 +62,7 @@ export async function loader({request}: LoaderFunctionArgs) {
 
 export function Layout({children}: {children: React.ReactNode}) {
   const data = useRouteLoaderData<typeof loader>('root')
-  const {
-    isProd = false,
-    enableStats = false,
-    domain = '',
-    siteHost = '',
-  } = data || {}
+  const {isProd = false, enableStats = false, domain = '', siteHost = ''} = data || {}
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -163,16 +141,12 @@ export function ErrorBoundary({}: {}) {
               </SizableText>
 
               <SizableText asChild>
-                <p>
-                  Looks like something didn't go as planned on our end. Don't
-                  worry, it's not your fault!
-                </p>
+                <p>Looks like something didn't go as planned on our end. Don't worry, it's not your fault!</p>
               </SizableText>
               <SizableText asChild>
                 <p>
-                  Give it a quick refresh or come back in a bit, and we'll have
-                  things sorted. If it keeps happening, just reach out to
-                  support and we'll make it right in no time!
+                  Give it a quick refresh or come back in a bit, and we'll have things sorted. If it keeps happening,
+                  just reach out to support and we'll make it right in no time!
                 </p>
               </SizableText>
             </div>

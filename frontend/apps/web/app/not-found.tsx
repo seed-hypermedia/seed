@@ -5,13 +5,7 @@ import type {SiteDocumentPayload} from './loaders'
 import {NavigationLoadingContent} from './providers'
 import {WebSiteHeader} from './web-site-header'
 
-export function NotFoundPage({
-  id,
-  homeMetadata,
-  originHomeId,
-  origin,
-  isLatest,
-}: SiteDocumentPayload) {
+export function NotFoundPage({id, homeMetadata, originHomeId, origin, isLatest}: SiteDocumentPayload) {
   const tx = useTx()
 
   return (

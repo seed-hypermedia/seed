@@ -26,9 +26,7 @@ export const OG_IMAGE_SIZE = {
 }
 
 const PERCENTAGE_COVER_WIDTH = 59 // from the designs
-const COVER_WIDTH = Math.round(
-  OG_IMAGE_SIZE.width * (PERCENTAGE_COVER_WIDTH / 100),
-)
+const COVER_WIDTH = Math.round(OG_IMAGE_SIZE.width * (PERCENTAGE_COVER_WIDTH / 100))
 function loadFont(fileName: string) {
   const path = join(process.cwd(), 'font', fileName)
   return readFileSync(path)
@@ -97,12 +95,7 @@ function DocumentCard({
               justifyContent: 'center',
             }}
           >
-            <img
-              src={icon}
-              width={MAIN_ICON_SIZE}
-              height={MAIN_ICON_SIZE}
-              style={{borderRadius: MAIN_ICON_SIZE / 2}}
-            />
+            <img src={icon} width={MAIN_ICON_SIZE} height={MAIN_ICON_SIZE} style={{borderRadius: MAIN_ICON_SIZE / 2}} />
           </div>
         )}
         {title && (
@@ -183,8 +176,7 @@ function DocumentCard({
           }}
         >
           {authors.map((author) => {
-            const accountLetter =
-              author.document.metadata?.name?.slice(0, 1) || '?'
+            const accountLetter = author.document.metadata?.name?.slice(0, 1) || '?'
             if (!author.document.metadata.icon || !author.icon)
               return (
                 <div
@@ -316,10 +308,7 @@ export const loader = async ({request}: {request: Request}) => {
             id,
           }
         } catch (error) {
-          console.error(
-            `Failed to process image for author ${author.account}:`,
-            error,
-          )
+          console.error(`Failed to process image for author ${author.account}:`, error)
           return {document: author, icon: null, id}
         }
       }
@@ -343,9 +332,7 @@ export const loader = async ({request}: {request: Request}) => {
 
   if (iconId) {
     // remove the author from the face pile if the id matches
-    processedAuthors = processedAuthors.filter(
-      (author) => author.id.id !== iconId,
-    )
+    processedAuthors = processedAuthors.filter((author) => author.id.id !== iconId)
   }
 
   let cover = null

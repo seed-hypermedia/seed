@@ -29,19 +29,12 @@ import {
   serverBlockNodesFromEditorBlocks,
 } from './utils'
 
-function crawlEditorBlocks(
-  blocks: EditorBlock[],
-  filter: (block: EditorBlock) => boolean,
-): EditorBlock[] {
-  const matchedChildren = blocks.flatMap((block) =>
-    crawlEditorBlocks(block.children, filter),
-  )
+function crawlEditorBlocks(blocks: EditorBlock[], filter: (block: EditorBlock) => boolean): EditorBlock[] {
+  const matchedChildren = blocks.flatMap((block) => crawlEditorBlocks(block.children, filter))
   return [...matchedChildren, ...blocks.filter(filter)]
 }
 
-const [setGwUrl, gwUrl] = writeableStateStream<string | null>(
-  'https://hyper.media',
-)
+const [setGwUrl, gwUrl] = writeableStateStream<string | null>('https://hyper.media')
 
 export function useCommentEditor(
   perspectiveAccountUid?: string | null | undefined,
@@ -129,17 +122,15 @@ export function useCommentEditor(
                 addKeyboardShortcuts() {
                   return {
                     '@': ({editor}) => {
-                      if (!onMobileMentionTrigger || !isMobileDevice())
-                        return false
+                      if (!onMobileMentionTrigger || !isMobileDevice()) return false
 
                       const {state, view} = editor
                       const {selection} = state
 
-                      const textBeforeCursor =
-                        selection.$from.parent.textContent.substring(
-                          0,
-                          selection.$from.parentOffset,
-                        )
+                      const textBeforeCursor = selection.$from.parent.textContent.substring(
+                        0,
+                        selection.$from.parentOffset,
+                      )
 
                       const isAtStart = textBeforeCursor.length === 0
                       const isAfterSpace = textBeforeCursor.endsWith(' ')
@@ -151,17 +142,15 @@ export function useCommentEditor(
                       return false
                     },
                     '/': ({editor}) => {
-                      if (!onMobileSlashTrigger || !isMobileDevice())
-                        return false
+                      if (!onMobileSlashTrigger || !isMobileDevice()) return false
 
                       const {state, view} = editor
                       const {selection} = state
 
-                      const textBeforeCursor =
-                        selection.$from.parent.textContent.substring(
-                          0,
-                          selection.$from.parentOffset,
-                        )
+                      const textBeforeCursor = selection.$from.parent.textContent.substring(
+                        0,
+                        selection.$from.parentOffset,
+                      )
 
                       const isAtStart = textBeforeCursor.length === 0
                       const isAfterSpace = textBeforeCursor.endsWith(' ')
@@ -308,11 +297,7 @@ export function CommentEditor({
     initialBlocks.length > 0 &&
     initialBlocks.some((block) => {
       // Check if block has text content (for paragraph-like blocks)
-      if (
-        'text' in block.block &&
-        typeof block.block.text === 'string' &&
-        block.block.text.trim().length > 0
-      ) {
+      if ('text' in block.block && typeof block.block.text === 'string' && block.block.text.trim().length > 0) {
         return true
       }
       // Check if block has children
@@ -321,9 +306,7 @@ export function CommentEditor({
       }
       return false
     })
-  const [isEditorFocused, setIsEditorFocused] = useState(
-    () => autoFocus || hasDraftContent || false,
-  )
+  const [isEditorFocused, setIsEditorFocused] = useState(() => autoFocus || hasDraftContent || false)
   const openUrl = useOpenUrl()
   const [isDragging, setIsDragging] = useState(false)
   const tx = useTx()
@@ -336,12 +319,7 @@ export function CommentEditor({
 
   // Initialize editor with draft content and rehydrate media
   useEffect(() => {
-    if (
-      initialBlocks &&
-      initialBlocks.length > 0 &&
-      !isInitializedRef.current &&
-      editor
-    ) {
+    if (initialBlocks && initialBlocks.length > 0 && !isInitializedRef.current && editor) {
       isInitializedRef.current = true
 
       const initializeWithRehydration = async () => {
@@ -352,23 +330,17 @@ export function CommentEditor({
 
           // Rehydrate media blocks from IndexedDB
           if (getDraftMediaBlob) {
-            const rehydrateEditorBlocks = async (
-              blocks: any[],
-            ): Promise<void> => {
+            const rehydrateEditorBlocks = async (blocks: any[]): Promise<void> => {
               for (const block of blocks) {
                 if (
-                  (block.type === 'image' ||
-                    block.type === 'video' ||
-                    block.type === 'file') &&
+                  (block.type === 'image' || block.type === 'video' || block.type === 'file') &&
                   block.props?.mediaRef
                 ) {
                   // Parse mediaRef from JSON string
                   let mediaRef
                   try {
                     mediaRef =
-                      typeof block.props.mediaRef === 'string'
-                        ? JSON.parse(block.props.mediaRef)
-                        : block.props.mediaRef
+                      typeof block.props.mediaRef === 'string' ? JSON.parse(block.props.mediaRef) : block.props.mediaRef
                   } catch (e) {
                     console.error('Failed to parse mediaRef:', e)
                     continue
@@ -382,15 +354,10 @@ export function CommentEditor({
                       delete block.props.url
                       block.props.displaySrc = URL.createObjectURL(blob)
                     } else {
-                      console.warn(
-                        `Media blob not found in IndexedDB for rehydration: ${draftId}/${mediaId}`,
-                      )
+                      console.warn(`Media blob not found in IndexedDB for rehydration: ${draftId}/${mediaId}`)
                     }
                   } catch (error) {
-                    console.error(
-                      `Failed to rehydrate media ${mediaId}:`,
-                      error,
-                    )
+                    console.error(`Failed to rehydrate media ${mediaId}:`, error)
                   }
                 }
 
@@ -408,10 +375,7 @@ export function CommentEditor({
           // @ts-expect-error - EditorBlock type mismatch with BlockNote
           editor.replaceBlocks(editor.topLevelBlocks, editorBlocks)
         } catch (error) {
-          console.error(
-            'Failed to initialize editor with draft content:',
-            error,
-          )
+          console.error('Failed to initialize editor with draft content:', error)
         }
       }
 
@@ -606,9 +570,7 @@ export function CommentEditor({
         block.props.url = `ipfs://${resultCIDs[index]}`
       } else {
         // Clear the block if failed to retrieve blob from IndexedDB. This avoids publishing corrupt image.
-        console.error(
-          `Cannot publish block ${block.id} - media not found in IndexedDB`,
-        )
+        console.error(`Cannot publish block ${block.id} - media not found in IndexedDB`)
         // @ts-expect-error
         block.props.url = ''
       }
@@ -754,9 +716,7 @@ export function CommentEditor({
       }
 
       if (files.length > 0) {
-        const editorElement = document.getElementsByClassName(
-          'mantine-Editor-root',
-        )[0]
+        const editorElement = document.getElementsByClassName('mantine-Editor-root')[0]
         if (!editorElement) return
         const editorBoundingBox = editorElement.getBoundingClientRect()
         const posAtCoords = ttEditor.view.posAtCoords({
@@ -765,8 +725,7 @@ export function CommentEditor({
         })
         let pos: number | null
         if (posAtCoords && posAtCoords.inside !== -1) pos = posAtCoords.pos
-        else if (event.clientY > editorBoundingBox.bottom)
-          pos = ttEditor.view.state.doc.content.size - 4
+        else if (event.clientY > editorBoundingBox.bottom) pos = ttEditor.view.state.doc.content.size - 4
 
         let lastId: string
 
@@ -777,72 +736,70 @@ export function CommentEditor({
             event.stopPropagation()
 
             if (pos) {
-              return handleDragMedia(file, handleFileAttachment).then(
-                (props) => {
-                  if (!props) return Promise.resolve()
+              return handleDragMedia(file, handleFileAttachment).then((props) => {
+                if (!props) return Promise.resolve()
 
-                  const {state} = ttEditor.view
-                  let blockNode
-                  const newId = generateBlockId()
+                const {state} = ttEditor.view
+                let blockNode
+                const newId = generateBlockId()
 
-                  if (chromiumSupportedImageMimeTypes.has(file.type)) {
-                    blockNode = {
-                      id: newId,
-                      type: 'image',
-                      props: {
-                        displaySrc: props.displaySrc,
-                        fileBinary: props.fileBinary,
-                        mediaRef: props.mediaRef,
-                        name: props.name,
-                      },
-                    }
-                  } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
-                    blockNode = {
-                      id: newId,
-                      type: 'video',
-                      props: {
-                        displaySrc: props.displaySrc,
-                        fileBinary: props.fileBinary,
-                        mediaRef: props.mediaRef,
-                        name: props.name,
-                      },
-                    }
-                  } else {
-                    blockNode = {
-                      id: newId,
-                      type: 'file',
-                      props: {
-                        fileBinary: props.fileBinary,
-                        mediaRef: props.mediaRef,
-                        name: props.name,
-                        size: props.size,
-                      },
-                    }
+                if (chromiumSupportedImageMimeTypes.has(file.type)) {
+                  blockNode = {
+                    id: newId,
+                    type: 'image',
+                    props: {
+                      displaySrc: props.displaySrc,
+                      fileBinary: props.fileBinary,
+                      mediaRef: props.mediaRef,
+                      name: props.name,
+                    },
                   }
-
-                  const blockInfo = getBlockInfoFromPos(state, pos)
-
-                  if (index === 0) {
-                    ;(editor as BlockNoteEditor).insertBlocks(
-                      // @ts-expect-error
-                      [blockNode],
-                      blockInfo.block.node.attrs.id,
-                      // blockInfo.node.textContent ? 'after' : 'before',
-                      'after',
-                    )
-                  } else {
-                    ;(editor as BlockNoteEditor).insertBlocks(
-                      // @ts-expect-error
-                      [blockNode],
-                      lastId,
-                      'after',
-                    )
+                } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
+                  blockNode = {
+                    id: newId,
+                    type: 'video',
+                    props: {
+                      displaySrc: props.displaySrc,
+                      fileBinary: props.fileBinary,
+                      mediaRef: props.mediaRef,
+                      name: props.name,
+                    },
                   }
+                } else {
+                  blockNode = {
+                    id: newId,
+                    type: 'file',
+                    props: {
+                      fileBinary: props.fileBinary,
+                      mediaRef: props.mediaRef,
+                      name: props.name,
+                      size: props.size,
+                    },
+                  }
+                }
 
-                  lastId = newId
-                  return Promise.resolve()
-                },
-              )
+                const blockInfo = getBlockInfoFromPos(state, pos)
+
+                if (index === 0) {
+                  ;(editor as BlockNoteEditor).insertBlocks(
+                    // @ts-expect-error
+                    [blockNode],
+                    blockInfo.block.node.attrs.id,
+                    // blockInfo.node.textContent ? 'after' : 'before',
+                    'after',
+                  )
+                } else {
+                  ;(editor as BlockNoteEditor).insertBlocks(
+                    // @ts-expect-error
+                    [blockNode],
+                    lastId,
+                    'after',
+                  )
+                }
+
+                lastId = newId
+                return Promise.resolve()
+              })
             } else {
               return Promise.resolve()
             }
@@ -864,9 +821,7 @@ export function CommentEditor({
     console.error('CommentEditor: editor is null/undefined')
     return (
       <div className="border-destructive bg-destructive/10 rounded border p-4">
-        <p className="text-destructive text-sm">
-          Error: Editor failed to initialize. Check console for details.
-        </p>
+        <p className="text-destructive text-sm">Error: Editor failed to initialize. Check console for details.</p>
       </div>
     )
   }
@@ -878,21 +833,14 @@ export function CommentEditor({
           {account?.metadata ? (
             <LinkIcon id={account.id} metadata={account.metadata} size={32} />
           ) : (
-            <UIAvatar
-              url={avatarPlaceholder}
-              size={32}
-              onPress={onAvatarPress}
-              className="rounded-full"
-            />
+            <UIAvatar url={avatarPlaceholder} size={32} onPress={onAvatarPress} className="rounded-full" />
           )}
         </div>
         <div className="bg-muted w-full min-w-0 flex-1 rounded-lg">
           <div
             className={cn(
               'comment-editor max-h-[160px] min-h-8 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto md:max-h-full',
-              isEditorFocused
-                ? 'justify-start px-3 pt-1 pb-2'
-                : 'justify-center',
+              isEditorFocused ? 'justify-start px-3 pt-1 pb-2' : 'justify-center',
             )}
             // marginTop="$1"
 
@@ -942,39 +890,18 @@ export function CommentEditor({
             )}
           </div>
           {isEditorFocused ? (
-            <div
-              ref={toolbarRef}
-              className={cn(
-                'mx-2 mb-2 flex gap-2',
-                isMobile ? 'justify-between' : 'justify-end',
-              )}
-            >
+            <div ref={toolbarRef} className={cn('mx-2 mb-2 flex gap-2', isMobile ? 'justify-between' : 'justify-end')}>
               {isMobile && (
                 <div className="flex items-center gap-2">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8"
-                    onClick={() => setIsMentionsDialogOpen(true)}
-                  >
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setIsMentionsDialogOpen(true)}>
                     <AtSignIcon className="h-4 w-4" />
                   </Button>
 
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8"
-                    onClick={handleImageClick}
-                  >
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleImageClick}>
                     <ImageIcon className="h-4 w-4" />
                   </Button>
 
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8"
-                    onClick={() => setIsSlashDialogOpen(true)}
-                  >
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setIsSlashDialogOpen(true)}>
                     <SlashSquareIcon className="h-4 w-4" />
                   </Button>
                 </div>
@@ -999,23 +926,14 @@ export function CommentEditor({
             onClose={() => setIsMentionsDialogOpen(false)}
             onSelect={(mention) => {
               const {state, schema} = editor._tiptapEditor
-              const node = schema.nodes['inline-embed'].create(
-                {link: mention.id.id},
-                schema.text(' '),
-              )
-              editor._tiptapEditor.view.dispatch(
-                state.tr.replaceSelectionWith(node).scrollIntoView(),
-              )
+              const node = schema.nodes['inline-embed'].create({link: mention.id.id}, schema.text(' '))
+              editor._tiptapEditor.view.dispatch(state.tr.replaceSelectionWith(node).scrollIntoView())
               setIsMentionsDialogOpen(false)
               setTimeout(() => editor._tiptapEditor.commands.focus(), 100)
             }}
             perspectiveAccountUid={perspectiveAccountUid}
           />
-          <MobileSlashDialog
-            isOpen={isSlashDialogOpen}
-            onClose={() => setIsSlashDialogOpen(false)}
-            editor={editor}
-          />
+          <MobileSlashDialog isOpen={isSlashDialogOpen} onClose={() => setIsSlashDialogOpen(false)} editor={editor} />
         </>
       )}
     </>

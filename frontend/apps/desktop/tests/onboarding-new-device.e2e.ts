@@ -1,8 +1,6 @@
 import {test} from '../test/fixtures'
 
-test('Onboarding by adding a new device to account', async ({
-  onboardingPage,
-}) => {
+test('Onboarding by adding a new device to account', async ({onboardingPage}) => {
   await test.step('TODO', () => {
     console.log('Horacio Implement me')
   })

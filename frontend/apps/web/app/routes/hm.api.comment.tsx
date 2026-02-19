@@ -55,10 +55,7 @@ export const action: ActionFunction = async ({request}) => {
     return json({message: 'Method not allowed'}, {status: 405})
   }
   if (request.headers.get('Content-Type') !== 'application/cbor') {
-    return json(
-      {message: 'Content-Type must be application/cbor'},
-      {status: 400},
-    )
+    return json({message: 'Content-Type must be application/cbor'}, {status: 400})
   }
   const cborData = await request.arrayBuffer()
   const commentPayload = cborDecode(new Uint8Array(cborData)) as CommentPayload
@@ -70,9 +67,7 @@ export const action: ActionFunction = async ({request}) => {
       },
     ],
   })
-  const comment = cborDecode(
-    new Uint8Array(commentPayload.comment),
-  ) as SignedComment
+  const comment = cborDecode(new Uint8Array(commentPayload.comment)) as SignedComment
   const signerUid = base58btc.encode(comment.signer)
   const resultCommentId = resultComment.cids[0]
   if (!resultCommentId) {

@@ -7,12 +7,7 @@ import {
   useSetEmailUnsubscribed,
 } from '@/email-notifications-token-models'
 import {useSearchParams} from '@remix-run/react'
-import {
-  abbreviateUid,
-  hmId,
-  HMMetadata,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {abbreviateUid, hmId, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {SwitchField} from '@shm/ui/form-fields'
@@ -31,11 +26,7 @@ function NotifySiteHeader() {
   return (
     <div className="flex flex-col gap-4 px-6 pt-8">
       <div className="flex items-center gap-2">
-        <img
-          src="/assets/seed-icon.svg"
-          alt="Seed"
-          className="h-6 w-6 flex-shrink-0 object-contain"
-        />
+        <img src="/assets/seed-icon.svg" alt="Seed" className="h-6 w-6 flex-shrink-0 object-contain" />
         <h1 className="text-brand text-2xl font-bold">Seed Notify</h1>
       </div>
     </div>
@@ -58,11 +49,7 @@ function NotifySiteContainer({children}: {children: React.ReactNode}) {
 export function EmailNotificationsContent() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token')
-  const {
-    data: notifSettings,
-    isLoading,
-    error,
-  } = useEmailNotificationsWithToken(token)
+  const {data: notifSettings, isLoading, error} = useEmailNotificationsWithToken(token)
   const {mutate: setEmailUnsubscribed} = useSetEmailUnsubscribed(token)
   if (!token) {
     return <SizableText>No token provided</SizableText>
@@ -72,9 +59,7 @@ export function EmailNotificationsContent() {
     return (
       <div className="flex items-center justify-center">
         <Spinner />
-        <SizableText className="ml-2">
-          Loading notification settings...
-        </SizableText>
+        <SizableText className="ml-2">Loading notification settings...</SizableText>
       </div>
     )
   }
@@ -82,9 +67,7 @@ export function EmailNotificationsContent() {
   if (error) {
     return (
       <div className="text-red-600">
-        <SizableText>
-          Error loading notification settings: {String(error)}
-        </SizableText>
+        <SizableText>Error loading notification settings: {String(error)}</SizableText>
       </div>
     )
   }
@@ -99,12 +82,8 @@ export function EmailNotificationsContent() {
           {notifSettings.isUnsubscribed ? (
             <>
               <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-                <p className="font-bold text-red-700">
-                  Unsubscribed from All Notifications
-                </p>
-                <SizableText className="mt-2 text-red-600">
-                  You were subscribed to:
-                </SizableText>
+                <p className="font-bold text-red-700">Unsubscribed from All Notifications</p>
+                <SizableText className="mt-2 text-red-600">You were subscribed to:</SizableText>
                 <div className="mt-3 space-y-2">
                   {notifSettings.subscriptions.map((sub) => (
                     <LoadedAccountTitle key={sub.id} id={hmId(sub.id)} />
@@ -124,11 +103,7 @@ export function EmailNotificationsContent() {
             <>
               <div className="space-y-6">
                 {notifSettings.subscriptions.map((sub) => (
-                  <EmailNotificationSubscription
-                    key={sub.id}
-                    subscription={sub}
-                    token={token}
-                  />
+                  <EmailNotificationSubscription key={sub.id} subscription={sub} token={token} />
                 ))}
               </div>
 
@@ -158,21 +133,10 @@ function LoadedAccountTitle({id}: {id: UnpackedHypermediaId}) {
   const {data: account} = useResource(id)
   if (!account) return null
   if (account.type !== 'document') return null
-  return (
-    <AccountTitle
-      accountId={account.id}
-      metadata={account.document?.metadata}
-    />
-  )
+  return <AccountTitle accountId={account.id} metadata={account.document?.metadata} />
 }
 
-function AccountTitle({
-  accountId,
-  metadata,
-}: {
-  accountId: UnpackedHypermediaId
-  metadata: HMMetadata
-}) {
+function AccountTitle({accountId, metadata}: {accountId: UnpackedHypermediaId; metadata: HMMetadata}) {
   const displayName = metadata?.name || abbreviateUid(accountId.uid)
 
   return (
@@ -196,19 +160,15 @@ function EmailNotificationSubscription({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
-        <AccountTitle
-          accountId={account.id}
-          metadata={account.document?.metadata}
-        />
+        <AccountTitle accountId={account.id} metadata={account.document?.metadata} />
       </div>
 
       <div className="space-y-6">
         <div className="space-y-3">
           <h4 className="font-bold text-gray-800">Site Activity</h4>
           <p className="text-sm text-gray-600">
-            Get notified when something happens in{' '}
-            {account.document?.metadata?.name}. Emails will be sent every 4
-            hours at most.
+            Get notified when something happens in {account.document?.metadata?.name}. Emails will be sent every 4 hours
+            at most.
           </p>
           <p className="text-sm text-gray-600">Notify me when:</p>
           <div className="space-y-3 pl-4">
@@ -230,8 +190,7 @@ function EmailNotificationSubscription({
         <div className="space-y-3">
           <h4 className="font-bold text-gray-800">User Activity</h4>
           <p className="text-sm text-gray-600">
-            Get notified about activity related to this user. Notify me
-            immediately when:
+            Get notified about activity related to this user. Notify me immediately when:
           </p>
           <div className="space-y-3 pl-4">
             <AccountValueSwitch

@@ -41,9 +41,7 @@ const ClickSelectionPlugin = new Plugin({
       mousedown(view, event) {
         if (event.shiftKey && event.button === 0) {
           const {state} = view
-          const editorBoundingBox = (
-            view.dom.firstChild! as HTMLElement
-          ).getBoundingClientRect()
+          const editorBoundingBox = (view.dom.firstChild! as HTMLElement).getBoundingClientRect()
           const coords = {
             left: editorBoundingBox.left + editorBoundingBox.width / 2, // take middle of editor
             top: event.clientY,
@@ -55,10 +53,7 @@ const ClickSelectionPlugin = new Plugin({
           const {selection} = state
           const selectedPos = state.doc.resolve(selection.from)
           const nodePos = state.doc.resolve(pos.pos)
-          if (
-            selectedPos.start() === selection.from &&
-            pos.pos === nodePos.end()
-          ) {
+          if (selectedPos.start() === selection.from && pos.pos === nodePos.end()) {
             const decoration = Decoration.widget(nodePos.pos, () => {
               const span = document.createElement('span')
               span.style.backgroundColor = 'blue'
@@ -91,11 +86,7 @@ const PastePlugin = new Plugin({
       const {$from, $to} = selection
 
       if ($from.parent.type.name === 'image') {
-        tr = tr.insertText(
-          event.clipboardData.getData('text/plain'),
-          $from.pos,
-          $to.pos,
-        )
+        tr = tr.insertText(event.clipboardData.getData('text/plain'), $from.pos, $to.pos)
         view.dispatch(tr)
         return true
       }
@@ -113,10 +104,7 @@ const headingBoxPlugin = new Plugin({
     },
     apply(tr, decorations, oldState, newState) {
       // Only recalculate if selection or document changed
-      if (
-        !oldState.selection.eq(newState.selection) ||
-        !oldState.doc.eq(newState.doc)
-      ) {
+      if (!oldState.selection.eq(newState.selection) || !oldState.doc.eq(newState.doc)) {
         return getHeadingDecorations(newState)
       }
       return decorations
@@ -156,10 +144,7 @@ function getNearestHeadingFromPos(state: EditorState, pos: number) {
     const node = $pos.node(depth)
 
     // Check if current node is a blockContainer with heading as first child
-    if (
-      node.type.name === 'blockContainer' &&
-      node.firstChild?.type.name === 'heading'
-    ) {
+    if (node.type.name === 'blockContainer' && node.firstChild?.type.name === 'heading') {
       return {
         depth,
         groupStartPos: $pos.start(depth),
@@ -218,9 +203,7 @@ export const BlockContainer = Node.create<{
             }
           }
 
-          return element.getAttribute('data-node-type') === 'blockContainer'
-            ? attrs
-            : false
+          return element.getAttribute('data-node-type') === 'blockContainer' ? attrs : false
         },
         priority: 200,
       },
@@ -301,29 +284,16 @@ export const BlockContainer = Node.create<{
                 .deleteSelection()
                 .command(splitBlockCommand(state.selection.from, false))
                 .sinkListItem('blockContainer')
-                .command(
-                  updateGroupCommand(
-                    -1,
-                    blockInfo.block.node.attrs.listType,
-                    true,
-                  ),
-                )
+                .command(updateGroupCommand(-1, blockInfo.block.node.attrs.listType, true))
                 .run()
             })
           } else {
-            const originalBlockContent = state.doc.cut(
-              block.beforePos + 2,
-              state.selection.from,
-            )
-            let newBlockContent = state.doc.cut(
-              state.selection.from,
-              block.beforePos + blockContent.node.nodeSize,
-            )
+            const originalBlockContent = state.doc.cut(block.beforePos + 2, state.selection.from)
+            let newBlockContent = state.doc.cut(state.selection.from, block.beforePos + blockContent.node.nodeSize)
             const newBlock =
               // @ts-ignore
               state.schema.nodes['blockContainer'].createAndFill()!
-            const newBlockInsertionPos =
-              block.beforePos + blockContent.node.nodeSize + 2
+            const newBlockInsertionPos = block.beforePos + blockContent.node.nodeSize + 2
             const newBlockContentPos = newBlockInsertionPos + 2
 
             if (dispatch) {
@@ -339,28 +309,18 @@ export const BlockContainer = Node.create<{
                 newBlockContentPos,
                 newBlockContentPos + 1,
                 newBlockContent.content.size > 0
-                  ? new Slice(
-                      Fragment.from(newBlockContent),
-                      depth + 1,
-                      depth + 1,
-                    )
+                  ? new Slice(Fragment.from(newBlockContent), depth + 1, depth + 1)
                   : undefined,
               )
 
               // Set the selection to the start of the new block's content node.
-              state.tr.setSelection(
-                new TextSelection(state.doc.resolve(newBlockContentPos)),
-              )
+              state.tr.setSelection(new TextSelection(state.doc.resolve(newBlockContentPos)))
 
               state.tr.replace(
                 block.beforePos + 2,
                 block.beforePos + blockContent.node.nodeSize,
                 originalBlockContent.content.size > 0
-                  ? new Slice(
-                      Fragment.from(originalBlockContent),
-                      depth + 1,
-                      depth + 1,
-                    )
+                  ? new Slice(Fragment.from(originalBlockContent), depth + 1, depth + 1)
                   : undefined,
               )
             }
@@ -387,11 +347,7 @@ export const BlockContainer = Node.create<{
               const previousChar = state.doc.textBetween(from - 1, from, null)
               if (previousChar === '-') {
                 // Replace the two hyphens with a long dash
-                const tr = state.tr.replaceRangeWith(
-                  from - 1,
-                  to,
-                  state.schema.text('—'),
-                )
+                const tr = state.tr.replaceRangeWith(from - 1, to, state.schema.text('—'))
                 view.dispatch(tr)
                 return true
               }

@@ -6,29 +6,16 @@ import {Node} from '@tiptap/pm/model'
 import {EditorView} from '@tiptap/pm/view'
 import {HMBlockSchema} from './schema'
 
-export function updateGroup(
-  editor: BlockNoteEditor<HMBlockSchema>,
-  block: any,
-  listType: HMBlockChildrenType,
-) {
+export function updateGroup(editor: BlockNoteEditor<HMBlockSchema>, block: any, listType: HMBlockChildrenType) {
   let {posBeforeNode} = getNodeById(block.id, editor._tiptapEditor.state.doc)
 
-  const posData = getBlockInfoFromPos(
-    editor._tiptapEditor.state,
-    posBeforeNode + 1,
-  )
+  const posData = getBlockInfoFromPos(editor._tiptapEditor.state, posBeforeNode + 1)
 
   if (!posData) return
 
   editor.focus()
   editor._tiptapEditor.commands.command(
-    updateGroupCommand(
-      posData.block.beforePos + 2,
-      listType,
-      false,
-      undefined,
-      true,
-    ),
+    updateGroupCommand(posData.block.beforePos + 2, listType, false, undefined, true),
   )
 }
 
@@ -41,18 +28,12 @@ export function findNextBlock(view: EditorView, pos?: number) {
   let nextBlockPos: number | undefined
   // Find first child
   if (blockInfo.childContainer) {
-    state.doc.nodesBetween(
-      blockInfo.block.beforePos + 1,
-      blockInfo.block.afterPos - 1,
-      (node, pos) => {
-        if (
-          node.attrs.id === blockInfo.childContainer!.node.firstChild?.attrs.id
-        ) {
-          nextBlock = node
-          nextBlockPos = pos
-        }
-      },
-    )
+    state.doc.nodesBetween(blockInfo.block.beforePos + 1, blockInfo.block.afterPos - 1, (node, pos) => {
+      if (node.attrs.id === blockInfo.childContainer!.node.firstChild?.attrs.id) {
+        nextBlock = node
+        nextBlockPos = pos
+      }
+    })
   }
   const maybePos = pos ? state.doc.resolve(pos) : state.selection.$to
   const nextBlockInfo = getBlockInfoFromPos(state, maybePos.end() + 3)
@@ -64,8 +45,7 @@ export function findNextBlock(view: EditorView, pos?: number) {
         nextBlockPos,
       }
   }
-  if (!nextBlockInfo || nextBlockInfo.block.beforePos + 1 < currentPos)
-    return undefined
+  if (!nextBlockInfo || nextBlockInfo.block.beforePos + 1 < currentPos) return undefined
   return {
     nextBlock: nextBlockInfo.block.node,
     nextBlockPos: nextBlockInfo.block.beforePos,
@@ -91,16 +71,12 @@ export function findPreviousBlock(view: EditorView, pos?: number) {
   let prevBlockPos: number | undefined
   // Find last child of prev block and return it
   if (prevBlockInfo.childContainer) {
-    state.doc.nodesBetween(
-      prevBlockInfo.block.beforePos + 4,
-      blockInfo.block.beforePos - 1,
-      (node, pos) => {
-        if (node.type.name === 'blockContainer') {
-          prevBlock = node
-          prevBlockPos = pos
-        }
-      },
-    )
+    state.doc.nodesBetween(prevBlockInfo.block.beforePos + 4, blockInfo.block.beforePos - 1, (node, pos) => {
+      if (node.type.name === 'blockContainer') {
+        prevBlock = node
+        prevBlockPos = pos
+      }
+    })
   }
   if (prevBlock && prevBlockPos) return {prevBlock, prevBlockPos}
 }

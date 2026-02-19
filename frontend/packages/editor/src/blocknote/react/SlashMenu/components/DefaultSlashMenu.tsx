@@ -5,9 +5,7 @@ import {BlockSchema} from '../../../core'
 import {SlashMenuItem} from './SlashMenuItem'
 import {SlashMenuProps} from './SlashMenuPositioner'
 
-export function DefaultSlashMenu<BSchema extends BlockSchema>(
-  props: SlashMenuProps<BSchema>,
-) {
+export function DefaultSlashMenu<BSchema extends BlockSchema>(props: SlashMenuProps<BSchema>) {
   const {classes} = createStyles({
     root: {
       maxHeight: 300,
@@ -23,11 +21,7 @@ export function DefaultSlashMenu<BSchema extends BlockSchema>(
   // const showNostr = trpc.experiments.get.useQuery().data?.nostr
 
   _.forEach(groups, (groupedItems) => {
-    renderedItems.push(
-      <Menu.Label key={groupedItems[0]?.group}>
-        {groupedItems[0]?.group}
-      </Menu.Label>,
-    )
+    renderedItems.push(<Menu.Label key={groupedItems[0]?.group}>{groupedItems[0]?.group}</Menu.Label>)
 
     for (const item of groupedItems) {
       // if (item.name !== 'Nostr' || showNostr) {
@@ -64,11 +58,7 @@ export function DefaultSlashMenu<BSchema extends BlockSchema>(
         onMouseDown={(event) => event.preventDefault()}
         className={classes.root}
       >
-        {renderedItems.length > 0 ? (
-          renderedItems
-        ) : (
-          <Menu.Item>No match found</Menu.Item>
-        )}
+        {renderedItems.length > 0 ? renderedItems : <Menu.Item>No match found</Menu.Item>}
       </Menu.Dropdown>
     </Menu>
   )

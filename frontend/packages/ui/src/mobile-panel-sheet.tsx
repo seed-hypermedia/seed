@@ -15,12 +15,7 @@ export interface MobilePanelSheetProps {
   children: ReactNode
 }
 
-export function MobilePanelSheet({
-  isOpen,
-  title,
-  onClose,
-  children,
-}: MobilePanelSheetProps) {
+export function MobilePanelSheet({isOpen, title, onClose, children}: MobilePanelSheetProps) {
   return (
     <div
       className={cn(
@@ -35,12 +30,7 @@ export function MobilePanelSheet({
           {title}
         </Text>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          className="shrink-0"
-        >
+        <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0">
           <Close className="size-4" />
         </Button>
       </div>

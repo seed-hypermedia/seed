@@ -4,18 +4,8 @@ import {HMSearchInput, HMSearchPayload, HMSearchRequest} from './hm-types'
 import {hmId, unpackHmId} from './utils'
 
 export const Search: HMRequestImplementation<HMSearchRequest> = {
-  async getData(
-    grpcClient: GRPCClient,
-    input: HMSearchInput,
-  ): Promise<HMSearchPayload> {
-    const {
-      query,
-      accountUid,
-      includeBody,
-      contextSize,
-      perspectiveAccountUid,
-      searchType,
-    } = input
+  async getData(grpcClient: GRPCClient, input: HMSearchInput): Promise<HMSearchPayload> {
+    const {query, accountUid, includeBody, contextSize, perspectiveAccountUid, searchType} = input
     const result = await grpcClient.entities.searchEntities({
       query,
       includeBody,

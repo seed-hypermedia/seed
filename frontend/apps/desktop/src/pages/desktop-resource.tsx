@@ -5,10 +5,7 @@ import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
 import {CreateDocumentButton} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {MoveDialog} from '@/components/move-dialog'
-import {
-  roleCanWrite,
-  useSelectedAccountCapability,
-} from '@/models/access-control'
+import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useExistingDraft} from '@/models/drafts'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
@@ -16,10 +13,7 @@ import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmId} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
-import {
-  CommentsProvider,
-  isRouteEqualToCommentTarget,
-} from '@shm/shared/comments-service-provider'
+import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
 import {HMBlockNode, HMComment} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useNavRoute, useNavigationDispatch} from '@shm/shared/utils/navigation'
@@ -42,13 +36,7 @@ export default function DesktopResourcePage() {
   const replace = useNavigate('replace')
 
   // Only handle document-related routes
-  const supportedKeys = [
-    'document',
-    'directory',
-    'collaborators',
-    'activity',
-    'discussions',
-  ]
+  const supportedKeys = ['document', 'directory', 'collaborators', 'activity', 'discussions']
   if (!supportedKeys.includes(route.key)) {
     throw new Error(`DesktopResourcePage: unsupported route ${route.key}`)
   }
@@ -66,14 +54,11 @@ export default function DesktopResourcePage() {
   // Get site URL for CreateDocumentButton
   const siteHomeResource = useResource(hmId(docId.uid), {subscribed: true})
   const siteUrl =
-    siteHomeResource.data?.type === 'document'
-      ? siteHomeResource.data.document?.metadata?.siteUrl
-      : undefined
+    siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document?.metadata?.siteUrl : undefined
 
   // Hooks for options dropdown
   const resource = useResource(docId)
-  const doc =
-    resource.data?.type === 'document' ? resource.data.document : undefined
+  const doc = resource.data?.type === 'document' ? resource.data.document : undefined
   const isPrivate = doc?.visibility === 'PRIVATE'
   const {exportDocument, openDirectory} = useAppContext()
   const deleteEntity = useDeleteDialog()
@@ -109,8 +94,7 @@ export default function DesktopResourcePage() {
           toast.success(
             <div className="flex max-w-[700px] flex-col gap-1.5">
               <SizableText className="text-wrap break-all">
-                Successfully exported document &quot;{title}&quot; to:{' '}
-                <b>{`${res}`}</b>.
+                Successfully exported document &quot;{title}&quot; to: <b>{`${res}`}</b>.
               </SizableText>
               <SizableText
                 className="text-current underline"
@@ -170,9 +154,7 @@ export default function DesktopResourcePage() {
         <Button
           size="sm"
           variant="outline"
-          className={cn(
-            existingDraft ? 'bg-yellow-200' : 'bg-background dark:bg-black',
-          )}
+          className={cn(existingDraft ? 'bg-yellow-200' : 'bg-background dark:bg-black')}
           onClick={() => {
             if (existingDraft) {
               navigate({
@@ -195,9 +177,7 @@ export default function DesktopResourcePage() {
           <Pencil className="size-4" />
         </Button>
       </Tooltip>
-      {!isPrivate && (
-        <CreateDocumentButton locationId={docId} siteUrl={siteUrl} />
-      )}
+      {!isPrivate && <CreateDocumentButton locationId={docId} siteUrl={siteUrl} />}
     </>
   ) : null
 

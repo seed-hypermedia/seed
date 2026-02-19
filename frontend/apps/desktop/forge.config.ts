@@ -42,17 +42,12 @@ const daemonBinaryPath = path.join(
 const extraResources = [daemonBinaryPath]
 
 if (process.platform === 'win32') {
-  const winpthreadRuntimePath = path.join(
-    devProjectRoot,
-    'plz-out/bin/backend/libwinpthread-1.dll',
-  )
+  const winpthreadRuntimePath = path.join(devProjectRoot, 'plz-out/bin/backend/libwinpthread-1.dll')
 
   if (fs.existsSync(winpthreadRuntimePath)) {
     extraResources.push(winpthreadRuntimePath)
   } else if (process.env.CI) {
-    throw new Error(
-      `Missing Windows runtime dependency at ${winpthreadRuntimePath}`,
-    )
+    throw new Error(`Missing Windows runtime dependency at ${winpthreadRuntimePath}`)
   }
 }
 
@@ -174,25 +169,19 @@ const config: ForgeConfig = {
       name: IS_PROD_DEV ? 'SeedDev' : 'Seed',
       authors: 'Mintter inc.',
       exe: IS_PROD_DEV ? 'SeedDev.exe' : 'seed.exe',
-      description: `Seed: a hyper.media protocol client ${
-        IS_PROD_DEV ? '(dev build)' : ''
-      }`,
+      description: `Seed: a hyper.media protocol client ${IS_PROD_DEV ? '(dev build)' : ''}`,
       // An URL to an ICO file to use as the application icon (displayed in Control Panel > Programs and Features).
       iconUrl: `${iconsPath}.ico`,
       noMsi: true,
       setupIcon: `${iconsPath}.ico`,
-      setupExe: `seed${IS_PROD_DEV ? '-dev' : ''}-${version}-win32-${
-        process.arch
-      }-setup.exe`,
+      setupExe: `seed${IS_PROD_DEV ? '-dev' : ''}-${version}-win32-${process.arch}-setup.exe`,
       // The ICO file to use as the icon for the generated Setup.exe
       loadingGif: path.resolve(__dirname, 'assets', 'loading.gif'),
 
       // Note that we must provide this S3 URL here
       // in order to generate delta updates
       // remoteReleases: `https://seedappdev.s3.eu-west-2.amazonaws.com/dev/win32/${arch}`,
-      remoteReleases: IS_PROD_DEV
-        ? `https://seedappdev.s3.eu-west-2.amazonaws.com/dev/win32/${arch}`
-        : undefined,
+      remoteReleases: IS_PROD_DEV ? `https://seedappdev.s3.eu-west-2.amazonaws.com/dev/win32/${arch}` : undefined,
 
       // certificateFile: process.env.WINDOWS_PFX_FILE,
       // certificatePassword: process.env.WINDOWS_PFX_PASSWORD,
@@ -266,9 +255,7 @@ const config: ForgeConfig = {
         const files = fs.readdirSync(outputPath)
         files.forEach((file) => {
           const stats = fs.statSync(`${outputPath}/${file}`)
-          console.info(
-            `- ${file} (${stats.isDirectory() ? 'directory' : 'file'})`,
-          )
+          console.info(`- ${file} (${stats.isDirectory() ? 'directory' : 'file'})`)
         })
       }
     },
@@ -378,8 +365,7 @@ function notarizeMaybe() {
     entitlementsInherit: './entitlements.plist',
     gatekeeperAssess: false,
     hardenedRuntime: true,
-    identity:
-      'Developer ID Application: Mintter Technologies S.L. (XSKC6RJDD8)',
+    identity: 'Developer ID Application: Mintter Technologies S.L. (XSKC6RJDD8)',
     binaries: [daemonBinaryPath],
   }
 }

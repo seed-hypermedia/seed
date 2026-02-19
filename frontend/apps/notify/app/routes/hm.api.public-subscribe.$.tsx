@@ -73,12 +73,7 @@ export const action: ActionFunction = async ({request}) => {
   } catch (error) {
     console.error('Public subscribe error:', error)
     if (error instanceof z.ZodError) {
-      return withCors(
-        json(
-          {error: 'Invalid request data', details: error.errors},
-          {status: 400},
-        ),
-      )
+      return withCors(json({error: 'Invalid request data', details: error.errors}, {status: 400}))
     }
     return withCors(json({error: 'Internal server error'}, {status: 500}))
   }

@@ -79,8 +79,7 @@ export function getNavigationChanges(
   // Create/update items in new order
   let leftSibling = ''
   newItems.forEach((item) => {
-    const oldBlock = oldChildren.find((child) => child.block.id === item.id)
-      ?.block
+    const oldBlock = oldChildren.find((child) => child.block.id === item.id)?.block
     const newBlock = {
       id: item.id,
       type: 'Link' as const,

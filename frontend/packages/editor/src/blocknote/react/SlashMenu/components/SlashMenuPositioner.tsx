@@ -11,24 +11,19 @@ import {
 import {ReactSlashMenuItem} from '../ReactSlashMenuItem'
 import {DefaultSlashMenu} from './DefaultSlashMenu'
 
-export type SlashMenuProps<BSchema extends BlockSchema = DefaultBlockSchema> =
-  Pick<SlashMenuProsemirrorPlugin<BSchema, any>, 'itemCallback'> &
-    Pick<
-      SuggestionsMenuState<ReactSlashMenuItem<BSchema>>,
-      'filteredItems' | 'keyboardHoveredItemIndex'
-    >
+export type SlashMenuProps<BSchema extends BlockSchema = DefaultBlockSchema> = Pick<
+  SlashMenuProsemirrorPlugin<BSchema, any>,
+  'itemCallback'
+> &
+  Pick<SuggestionsMenuState<ReactSlashMenuItem<BSchema>>, 'filteredItems' | 'keyboardHoveredItemIndex'>
 
-export const SlashMenuPositioner = <
-  BSchema extends BlockSchema = DefaultBlockSchema,
->(props: {
+export const SlashMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSchema>(props: {
   editor: BlockNoteEditor<BSchema>
   slashMenu?: FC<SlashMenuProps<BSchema>>
 }) => {
   const [show, setShow] = useState<boolean>(false)
-  const [filteredItems, setFilteredItems] =
-    useState<ReactSlashMenuItem<BSchema>[]>()
-  const [keyboardHoveredItemIndex, setKeyboardHoveredItemIndex] =
-    useState<number>()
+  const [filteredItems, setFilteredItems] = useState<ReactSlashMenuItem<BSchema>[]>()
+  const [keyboardHoveredItemIndex, setKeyboardHoveredItemIndex] = useState<number>()
   const scroller = useRef<HTMLElement | null>(null)
 
   const referencePos = useRef<DOMRect>()
@@ -87,12 +82,7 @@ export const SlashMenuPositioner = <
         keyboardHoveredItemIndex={keyboardHoveredItemIndex}
       />
     )
-  }, [
-    filteredItems,
-    keyboardHoveredItemIndex,
-    props.editor.slashMenu,
-    props.slashMenu,
-  ])
+  }, [filteredItems, keyboardHoveredItemIndex, props.editor.slashMenu, props.slashMenu])
 
   return (
     <Tippy

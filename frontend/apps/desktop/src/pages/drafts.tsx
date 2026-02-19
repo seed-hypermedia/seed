@@ -106,15 +106,10 @@ export default function DraftsPage() {
       })) || []
 
     // Combine and sort by lastUpdateTime
-    return [...docDrafts, ...commentDraftItems].sort(
-      (a, b) => b.lastUpdateTime - a.lastUpdateTime,
-    )
+    return [...docDrafts, ...commentDraftItems].sort((a, b) => b.lastUpdateTime - a.lastUpdateTime)
   }, [documentDrafts.data, commentDrafts.data, entities])
 
-  const hasNoDrafts =
-    !documentDrafts.isLoading &&
-    !commentDrafts.isLoading &&
-    unifiedDrafts.length === 0
+  const hasNoDrafts = !documentDrafts.isLoading && !commentDrafts.isLoading && unifiedDrafts.length === 0
 
   return (
     <PanelContainer>
@@ -125,13 +120,7 @@ export default function DraftsPage() {
           ) : (
             unifiedDrafts.map((item) => {
               if (item.type === 'document') {
-                return (
-                  <DocumentDraftItem
-                    item={item}
-                    key={item.id}
-                    breadcrumbs={item.breadcrumbs}
-                  />
-                )
+                return <DocumentDraftItem item={item} key={item.id} breadcrumbs={item.breadcrumbs} />
               } else {
                 return <CommentDraftItem item={item} key={item.id} />
               }
@@ -153,8 +142,7 @@ function EmptyDraftsState() {
           No drafts yet
         </SizableText>
         <SizableText size="sm" color="muted" className="max-w-md">
-          Start creating documents and comments. Your drafts will automatically
-          be saved here.
+          Start creating documents and comments. Your drafts will automatically be saved here.
         </SizableText>
       </div>
       <Button onClick={() => createDraft()}>Create New Draft</Button>
@@ -162,13 +150,7 @@ function EmptyDraftsState() {
   )
 }
 
-function DocumentDraftItem({
-  item,
-  breadcrumbs,
-}: {
-  item: HMListedDraft
-  breadcrumbs: HMMetadataPayload[]
-}) {
+function DocumentDraftItem({item, breadcrumbs}: {item: HMListedDraft; breadcrumbs: HMMetadataPayload[]}) {
   const navigate = useNavigate()
   const deleteDialog = useDeleteDraftDialog()
   const metadata = item?.metadata
@@ -200,9 +182,7 @@ function DocumentDraftItem({
                       })
                     }}
                   >
-                    {breadcrumb.metadata?.name ??
-                      breadcrumb.id?.path?.at(-1) ??
-                      '?'}
+                    {breadcrumb.metadata?.name ?? breadcrumb.id?.path?.at(-1) ?? '?'}
                   </Button>
                   {idx === breadcrumbs.length - 1 ? null : (
                     <SizableText size="xs" color="muted">
@@ -214,10 +194,7 @@ function DocumentDraftItem({
             </div>
           </div>
 
-          <SizableText
-            weight="bold"
-            className="block w-full truncate overflow-hidden text-left whitespace-nowrap"
-          >
+          <SizableText weight="bold" className="block w-full truncate overflow-hidden text-left whitespace-nowrap">
             {getMetadataName(metadata)}
           </SizableText>
           {item.visibility === 'PRIVATE' && (
@@ -316,13 +293,8 @@ function CommentDraftItem({item}: {item: HMListedCommentDraft}) {
             )}
           </div>
 
-          <SizableText
-            weight="bold"
-            className="block w-full truncate overflow-hidden text-left whitespace-nowrap"
-          >
-            {targetDoc.data?.type === 'document'
-              ? getMetadataName(targetDoc.data.document.metadata)
-              : 'Comment Draft'}
+          <SizableText weight="bold" className="block w-full truncate overflow-hidden text-left whitespace-nowrap">
+            {targetDoc.data?.type === 'document' ? getMetadataName(targetDoc.data.document.metadata) : 'Comment Draft'}
           </SizableText>
         </div>
 

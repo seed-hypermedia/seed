@@ -18,9 +18,5 @@ export type HMRequestParams<Request extends HMRequest> = {
 export type QueryDaemonFn = <T>(pathAndQuery: string) => Promise<T>
 
 export type HMRequestImplementation<Request extends HMRequest> = {
-  getData: (
-    grpcClient: GRPCClient,
-    input: Request['input'],
-    queryDaemon: QueryDaemonFn,
-  ) => Promise<Request['output']>
+  getData: (grpcClient: GRPCClient, input: Request['input'], queryDaemon: QueryDaemonFn) => Promise<Request['output']>
 }

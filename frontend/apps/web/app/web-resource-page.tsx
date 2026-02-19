@@ -1,8 +1,5 @@
 import {UnpackedHypermediaId, useUniversalAppContext} from '@shm/shared'
-import {
-  CommentsProvider,
-  isRouteEqualToCommentTarget,
-} from '@shm/shared/comments-service-provider'
+import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
 import {HMComment} from '@shm/shared/hm-types'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
@@ -100,10 +97,7 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
   return (
     <WebAccountFooter liftForPageFooter={true}>
       {showBanner && <HypermediaHostBanner origin={origin} />}
-      <CommentsProvider
-        onReplyClick={onReplyClick}
-        onReplyCountClick={onReplyCountClick}
-      >
+      <CommentsProvider onReplyClick={onReplyClick} onReplyCountClick={onReplyCountClick}>
         <ResourcePage
           docId={docId}
           CommentEditor={CommentEditor}

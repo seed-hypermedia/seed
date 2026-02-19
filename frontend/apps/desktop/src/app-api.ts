@@ -6,21 +6,9 @@ import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 
 import {grpcClient} from '@/grpc-client'
 import {HMHostConfigSchema, SiteDiscoverRequest} from '@shm/shared'
-import {
-  createDocumentNavRoute,
-  defaultRoute,
-  NavRoute,
-  navRouteSchema,
-} from '@shm/shared/routes'
+import {createDocumentNavRoute, defaultRoute, NavRoute, navRouteSchema} from '@shm/shared/routes'
 import {parseCustomURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {
-  app,
-  BrowserWindow,
-  dialog,
-  ipcMain,
-  NativeImage,
-  WebContentsView,
-} from 'electron'
+import {app, BrowserWindow, dialog, ipcMain, NativeImage, WebContentsView} from 'electron'
 import {createIPCHandler} from 'electron-trpc/main'
 import {writeFile} from 'fs-extra'
 import path from 'path'
@@ -118,9 +106,7 @@ ipcMain.on('find_in_page_cancel', () => {
   console.log('Cancelling search - empty query')
   let focusedWindow = getFocusedWindow()
   focusedWindow?.webContents?.stopFindInPage('keepSelection')
-  let findInPageView = focusedWindow?.contentView.children[0] as
-    | WebContentsView
-    | undefined
+  let findInPageView = focusedWindow?.contentView.children[0] as WebContentsView | undefined
   if (findInPageView) {
     findInPageView.setBounds({
       ...findInPageView.getBounds(),
@@ -143,15 +129,13 @@ log.info('App User Data', {path: userDataPath})
 export async function openInitialWindows() {
   const windowsState = getWindowsState()
 
-  const validWindowEntries = Object.entries(windowsState).filter(
-    ([windowId, window]) => {
-      if (!window || !Array.isArray(window.routes)) return false
-      if (window.routes.length === 0) return false
-      return window.routes.every((route) => {
-        return navRouteSchema.safeParse(route).success
-      })
-    },
-  )
+  const validWindowEntries = Object.entries(windowsState).filter(([windowId, window]) => {
+    if (!window || !Array.isArray(window.routes)) return false
+    if (window.routes.length === 0) return false
+    return window.routes.every((route) => {
+      return navRouteSchema.safeParse(route).success
+    })
+  })
   const defaultSelectedIdentity = await getFirstAvailableAccount()
   if (!validWindowEntries.length) {
     trpc.createAppWindow({
@@ -297,11 +281,9 @@ export const router = t.router({
     closeAppWindow(input)
     return null
   }),
-  deleteAccount: t.procedure
-    .input(z.string())
-    .mutation(async ({input: accountId}) => {
-      return await deleteAccount(accountId)
-    }),
+  deleteAccount: t.procedure.input(z.string()).mutation(async ({input: accountId}) => {
+    return await deleteAccount(accountId)
+  }),
   createAppWindow: t.procedure
     .input(
       z.object({
@@ -361,8 +343,7 @@ export const router = t.router({
       const htmlValue = await webView.webContents.executeJavaScript(
         "document.getElementsByTagName('html').item(0).outerHTML",
       )
-      const versionRegex =
-        /<meta\s+name="hypermedia-entity-version"\s+content="(.*?)"/
+      const versionRegex = /<meta\s+name="hypermedia-entity-version"\s+content="(.*?)"/
       const versionMatch = htmlValue.match(versionRegex)
       const hmVersion = versionMatch ? versionMatch[1] : null
 
@@ -379,11 +360,7 @@ export const router = t.router({
       }
 
       const png = await new Promise<Buffer>((resolve, reject) => {
-        function paintHandler(
-          event: unknown,
-          dirty: unknown,
-          image: NativeImage,
-        ) {
+        function paintHandler(event: unknown, dirty: unknown, image: NativeImage) {
           webView.webContents.removeListener('paint', paintHandler)
           resolve(image.toPNG())
         }
@@ -416,9 +393,7 @@ export const router = t.router({
       daemonVersion = await daemonVersionReq.text()
     } catch (error: unknown) {
       const e = error as Error
-      errors.push(
-        `Failed to fetch daemon info from ${buildInfoUrl} url. "${e.message}"`,
-      )
+      errors.push(`Failed to fetch daemon info from ${buildInfoUrl} url. "${e.message}"`)
     }
     return {daemonVersion, errors}
   }),
@@ -427,13 +402,11 @@ export const router = t.router({
     return {dataDir: userDataPath, loggingDir: log.loggingDir}
   }),
 
-  restartDaemonWithEmbedding: t.procedure
-    .input(z.object({embeddingEnabled: z.boolean()}))
-    .mutation(async ({input}) => {
-      log.info('Restarting daemon with embedding setting:', input)
-      await restartDaemonWithEmbedding(input.embeddingEnabled)
-      return {success: true}
-    }),
+  restartDaemonWithEmbedding: t.procedure.input(z.object({embeddingEnabled: z.boolean()})).mutation(async ({input}) => {
+    log.info('Restarting daemon with embedding setting:', input)
+    await restartDaemonWithEmbedding(input.embeddingEnabled)
+    return {success: true}
+  }),
 })
 
 export const trpc = router.createCaller({})
@@ -454,24 +427,15 @@ export async function handleUrlOpen(url: string) {
   const id = unpackHmId(url)
   const parsed = parseCustomURL(url)
   const panel = parsed?.query?.panel || null
-  const appRoute = id
-    ? panel
-      ? createDocumentNavRoute(id, null, panel)
-      : appRouteOfId(id)
-    : null
+  const appRoute = id ? (panel ? createDocumentNavRoute(id, null, panel) : appRouteOfId(id)) : null
   if (appRoute) {
     // Get selectedIdentity from last focused window
     const lastFocusedWindow = getLastFocusedWindow()
     const lastFocusedWindowId = lastFocusedWindow
-      ? Array.from(getAllWindows().entries()).find(
-          ([_, window]) => window === lastFocusedWindow,
-        )?.[0]
+      ? Array.from(getAllWindows().entries()).find(([_, window]) => window === lastFocusedWindow)?.[0]
       : null
 
-    let selectedIdentity = getSelectedIdentityFromWindowState(
-      getWindowNavState(),
-      lastFocusedWindowId,
-    )
+    let selectedIdentity = getSelectedIdentityFromWindowState(getWindowNavState(), lastFocusedWindowId)
 
     // Fallback to first available account if no focused window
     if (!selectedIdentity) {

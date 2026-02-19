@@ -75,9 +75,5 @@ body {
   height: 40px;
   z-index: 1000;
   background: var(--color-secondary);
-  background: linear-gradient(
-    0deg,
-    var(--color-secondary) 5%,
-    var(--color-secondary) 100%
-  );
+  background: linear-gradient(0deg, var(--color-secondary) 5%, var(--color-secondary) 100%);
 }

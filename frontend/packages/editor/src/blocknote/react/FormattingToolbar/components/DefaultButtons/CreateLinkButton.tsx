@@ -4,12 +4,8 @@ import {RiLink} from 'react-icons/ri'
 import {useEditorSelectionChange} from '../../../hooks/useEditorSelectionChange'
 import LinkToolbarButton from '../LinkToolbarButton'
 
-export const CreateLinkButton = <BSchema extends BlockSchema>(props: {
-  editor: BlockNoteEditor<BSchema>
-}) => {
-  const [url, setUrl] = useState<string>(
-    props.editor.getSelectedLinkUrl() || '',
-  )
+export const CreateLinkButton = <BSchema extends BlockSchema>(props: {editor: BlockNoteEditor<BSchema>}) => {
+  const [url, setUrl] = useState<string>(props.editor.getSelectedLinkUrl() || '')
   const [text, setText] = useState<string>(props.editor.getSelectedText() || '')
 
   useEditorSelectionChange(props.editor, () => {

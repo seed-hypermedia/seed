@@ -10,12 +10,7 @@ import {
   removeBlocks,
   replaceBlocks,
 } from './api/blockManipulation/blockManipulation'
-import {
-  HTMLToBlocks,
-  blocksToHTML,
-  blocksToMarkdown,
-  markdownToBlocks,
-} from './api/formatConversions/formatConversions'
+import {HTMLToBlocks, blocksToHTML, blocksToMarkdown, markdownToBlocks} from './api/formatConversions/formatConversions'
 import {blockToNode, nodeToBlock} from './api/nodeConversions/nodeConversions'
 import {getNodeById} from './api/util/nodeUtil'
 import styles from './editor.module.css'
@@ -27,16 +22,9 @@ import {
   PartialBlock,
 } from './extensions/Blocks/api/blockTypes'
 import {TextCursorPosition} from './extensions/Blocks/api/cursorPositionTypes'
-import {
-  ColorStyle,
-  Styles,
-  ToggledStyle,
-} from './extensions/Blocks/api/inlineContentTypes'
+import {ColorStyle, Styles, ToggledStyle} from './extensions/Blocks/api/inlineContentTypes'
 import {Selection} from './extensions/Blocks/api/selectionTypes'
-import {
-  getBlockInfoFromPos,
-  getBlockInfoFromSelection,
-} from './extensions/Blocks/helpers/getBlockInfoFromPos'
+import {getBlockInfoFromPos, getBlockInfoFromSelection} from './extensions/Blocks/helpers/getBlockInfoFromPos'
 
 import {UnpackedHypermediaId} from '@shm/shared'
 import {InlineMentionsResult} from '@shm/shared/models/inline-mentions'
@@ -149,9 +137,7 @@ export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
 }
 
 export type LinkExtensionOptions = {
-  resolveHypermediaLink?: (
-    url: string,
-  ) => Promise<Partial<UnpackedHypermediaId> | null>
+  resolveHypermediaLink?: (url: string) => Promise<Partial<UnpackedHypermediaId> | null>
 }
 
 export type ImportWebFileResult =
@@ -169,9 +155,7 @@ export type ImportWebFileResult =
       size: number
     }
 
-export type ImportWebFileFunction = (
-  url: string,
-) => Promise<ImportWebFileResult>
+export type ImportWebFileFunction = (url: string) => Promise<ImportWebFileResult>
 
 export type HandleFileAttachmentFunction = (file: File) => Promise<{
   displaySrc: string
@@ -215,13 +199,9 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public readonly importWebFile?: ImportWebFileFunction
   public readonly handleFileAttachment?: HandleFileAttachmentFunction
 
-  public readonly getResourceUrl?: (
-    blockId?: string | null,
-  ) => string | undefined
+  public readonly getResourceUrl?: (blockId?: string | null) => string | undefined
 
-  constructor(
-    private readonly options: Partial<BlockNoteEditorOptions<BSchema>> = {},
-  ) {
+  constructor(private readonly options: Partial<BlockNoteEditorOptions<BSchema>> = {}) {
     // apply defaults
     const newOptions: Omit<typeof options, 'defaultStyles' | 'blockSchema'> & {
       defaultStyles: boolean
@@ -240,10 +220,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     this.getResourceUrl = options.getResourceUrl
     this.sideMenu = new SideMenuProsemirrorPlugin(this)
     this.formattingToolbar = new FormattingToolbarProsemirrorPlugin(this)
-    this.slashMenu = new SlashMenuProsemirrorPlugin(
-      this,
-      newOptions.getSlashMenuItems || (() => []),
-    )
+    this.slashMenu = new SlashMenuProsemirrorPlugin(this, newOptions.getSlashMenuItems || (() => []))
     this.hyperlinkToolbar = new HyperlinkToolbarProsemirrorPlugin(this)
     this.linkMenu = new LinkMenuProsemirrorPlugin(this)
     this.importWebFile = newOptions.importWebFile
@@ -316,11 +293,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
 
         const ic = initialContent.map((block) => blockToNode(block, schema))
 
-        const root = schema.node(
-          'doc',
-          undefined,
-          schema.node('blockGroup', {listType: 'Group'}, ic),
-        )
+        const root = schema.node('doc', undefined, schema.node('blockGroup', {listType: 'Group'}, ic))
         // override the initialcontent
         editor.editor.options.content = root.toJSON()
       },
@@ -425,12 +398,9 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    * @param blockIdentifier The identifier of an existing block that should be retrieved.
    * @returns The block that matches the identifier, or `undefined` if no matching block was found.
    */
-  public getBlock(
-    blockIdentifier: BlockIdentifier,
-  ): Block<BSchema> | undefined {
+  public getBlock(blockIdentifier: BlockIdentifier): Block<BSchema> | undefined {
     if (!blockIdentifier) return undefined
-    const id =
-      typeof blockIdentifier === 'string' ? blockIdentifier : blockIdentifier.id
+    const id = typeof blockIdentifier === 'string' ? blockIdentifier : blockIdentifier.id
     let newBlock: Block<BSchema> | undefined = undefined
 
     // @ts-ignore
@@ -456,10 +426,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    * @param callback The callback to execute for each block. Returning `false` stops the traversal.
    * @param reverse Whether the blocks should be traversed in reverse order.
    */
-  public forEachBlock(
-    callback: (block: Block<BSchema>) => boolean,
-    reverse = false,
-  ): void {
+  public forEachBlock(callback: (block: Block<BSchema>) => boolean, reverse = false): void {
     const blocks = this.topLevelBlocks.slice()
 
     if (reverse) {
@@ -472,9 +439,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
           return false
         }
 
-        const children = reverse
-          ? block.children.slice().reverse()
-          : block.children
+        const children = reverse ? block.children.slice().reverse() : block.children
 
         if (!traverseBlockArray(children)) {
           return false
@@ -552,9 +517,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     const prevNode = resolvedPos.nodeBefore
 
     // Gets next blockContainer node at the same nesting level, if the current node isn't the last child.
-    const nextNode = this._tiptapEditor.state.doc.resolve(
-      block.afterPos,
-    ).nodeAfter
+    const nextNode = this._tiptapEditor.state.doc.resolve(block.afterPos).nodeAfter
 
     // Gets parent blockContainer node, if the current node is nested.
     let parentNode: Node | undefined = undefined
@@ -570,14 +533,8 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
 
     return {
       block: nodeToBlock(block.node, this.schema, this.blockCache),
-      prevBlock:
-        prevNode === null
-          ? undefined
-          : nodeToBlock(prevNode, this.schema, this.blockCache),
-      nextBlock:
-        nextNode === null
-          ? undefined
-          : nodeToBlock(nextNode, this.schema, this.blockCache),
+      prevBlock: prevNode === null ? undefined : nodeToBlock(prevNode, this.schema, this.blockCache),
+      nextBlock: nextNode === null ? undefined : nodeToBlock(nextNode, this.schema, this.blockCache),
       // parentBlock:
       //   parentNode === undefined
       //     ? undefined
@@ -595,24 +552,16 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    * @param targetBlock The identifier of an existing block that the text cursor should be moved to.
    * @param placement Whether the text cursor should be placed at the start or end of the block.
    */
-  public setTextCursorPosition(
-    targetBlock: BlockIdentifier,
-    placement: 'start' | 'end' = 'start',
-  ) {
+  public setTextCursorPosition(targetBlock: BlockIdentifier, placement: 'start' | 'end' = 'start') {
     const id = typeof targetBlock === 'string' ? targetBlock : targetBlock.id
 
     const {posBeforeNode} = getNodeById(id, this._tiptapEditor.state.doc)
-    const {block, blockContent} = getBlockInfoFromPos(
-      this._tiptapEditor.state,
-      posBeforeNode + 2,
-    )!
+    const {block, blockContent} = getBlockInfoFromPos(this._tiptapEditor.state, posBeforeNode + 2)!
 
     if (placement === 'start') {
       this._tiptapEditor.commands.setTextSelection(block.beforePos + 2)
     } else {
-      this._tiptapEditor.commands.setTextSelection(
-        block.beforePos + blockContent.node.nodeSize,
-      )
+      this._tiptapEditor.commands.setTextSelection(block.beforePos + blockContent.node.nodeSize)
     }
   }
 
@@ -620,10 +569,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    * Gets a snapshot of the current selection.
    */
   public getSelection(): Selection<BSchema> | undefined {
-    if (
-      this._tiptapEditor.state.selection.from ===
-      this._tiptapEditor.state.selection.to
-    ) {
+    if (this._tiptapEditor.state.selection.from === this._tiptapEditor.state.selection.to) {
       return undefined
     }
 
@@ -642,13 +588,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
         return true
       }
 
-      blocks.push(
-        nodeToBlock(
-          this._tiptapEditor.state.doc.resolve(pos).node(),
-          this.schema,
-          this.blockCache,
-        ),
-      )
+      blocks.push(nodeToBlock(this._tiptapEditor.state.doc.resolve(pos).node(), this.schema, this.blockCache))
 
       return false
     })
@@ -711,11 +651,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    * @param blockToUpdate The block that should be updated.
    * @param update A partial block which defines how the existing block should be changed.
    */
-  public updateBlock(
-    blockToUpdate: BlockIdentifier,
-    update: PartialBlock<BSchema>,
-    keepSelection?: boolean,
-  ) {
+  public updateBlock(blockToUpdate: BlockIdentifier, update: PartialBlock<BSchema>, keepSelection?: boolean) {
     return updateBlock(this, blockToUpdate, update, keepSelection)
   }
 
@@ -756,10 +692,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    * @param blocksToRemove An array of blocks that should be replaced.
    * @param blocksToInsert An array of partial blocks to replace the old ones with.
    */
-  public replaceBlocks(
-    blocksToRemove: BlockIdentifier[],
-    blocksToInsert: PartialBlock<BSchema>[],
-  ) {
+  public replaceBlocks(blocksToRemove: BlockIdentifier[], blocksToInsert: PartialBlock<BSchema>[]) {
     replaceBlocks(blocksToRemove, blocksToInsert, this._tiptapEditor)
   }
 
@@ -770,10 +703,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    * @param blocksToRemove An array of blocks that should be replaced.
    * @param blocksToInsert An array of partial blocks to replace the old ones with.
    */
-  public newReplaceBlocks(
-    blocksToRemove: BlockIdentifier[],
-    blocksToInsert: PartialBlock<BSchema>[],
-  ) {
+  public newReplaceBlocks(blocksToRemove: BlockIdentifier[], blocksToInsert: PartialBlock<BSchema>[]) {
     return newReplaceBlocks(this, blocksToRemove, blocksToInsert)
   }
 
@@ -784,13 +714,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     const styles: Styles = {}
     const marks = this._tiptapEditor.state.selection.$to.marks()
 
-    const toggleStyles = new Set<ToggledStyle>([
-      'bold',
-      'italic',
-      'underline',
-      'strike',
-      'code',
-    ])
+    const toggleStyles = new Set<ToggledStyle>(['bold', 'italic', 'underline', 'strike', 'code'])
     const colorStyles = new Set<ColorStyle>(['textColor', 'backgroundColor'])
 
     for (const mark of marks) {
@@ -809,13 +733,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    * @param styles The styles to add.
    */
   public addStyles(styles: Styles) {
-    const toggleStyles = new Set<ToggledStyle>([
-      'bold',
-      'italic',
-      'underline',
-      'strike',
-      'code',
-    ])
+    const toggleStyles = new Set<ToggledStyle>(['bold', 'italic', 'underline', 'strike', 'code'])
     const colorStyles = new Set<ColorStyle>(['textColor', 'backgroundColor'])
 
     this._tiptapEditor.view.focus()
@@ -846,13 +764,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    * @param styles The styles to toggle.
    */
   public toggleStyles(styles: Styles) {
-    const toggleStyles = new Set<ToggledStyle>([
-      'bold',
-      'italic',
-      'underline',
-      'strike',
-      'code',
-    ])
+    const toggleStyles = new Set<ToggledStyle>(['bold', 'italic', 'underline', 'strike', 'code'])
     const colorStyles = new Set<ColorStyle>(['textColor', 'backgroundColor'])
 
     this._tiptapEditor.view.focus()
@@ -994,9 +906,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    */
   public updateCollaborationUserInfo(user: {name: string; color: string}) {
     if (!this.options.collaboration) {
-      throw new Error(
-        'Cannot update collaboration user info when collaboration is disabled.',
-      )
+      throw new Error('Cannot update collaboration user info when collaboration is disabled.')
     }
     // @ts-ignore
     this._tiptapEditor.commands.updateUser(user)

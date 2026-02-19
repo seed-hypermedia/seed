@@ -17,9 +17,7 @@ const emailNotificationsSchema = z.object({
   notifySiteDiscussions: z.boolean(),
 })
 
-export type UIEmailNotificationsFormSchema = z.infer<
-  typeof emailNotificationsSchema
->
+export type UIEmailNotificationsFormSchema = z.infer<typeof emailNotificationsSchema>
 
 export function UIEmailNotificationsForm({
   onClose,
@@ -29,9 +27,7 @@ export function UIEmailNotificationsForm({
 }: {
   onClose: () => void
   onComplete: (email: string) => void
-  setEmailNotifications: (
-    input: UIEmailNotificationsFormSchema,
-  ) => Promise<void>
+  setEmailNotifications: (input: UIEmailNotificationsFormSchema) => Promise<void>
   isPending: boolean
 }) {
   const tx = useTxString()
@@ -60,35 +56,14 @@ export function UIEmailNotificationsForm({
   }, [setFocus])
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-      <FormField
-        name="email"
-        label={tx('Notification Email')}
-        errors={errors}
-        className="mx-0"
-      >
-        <FormInput
-          name="email"
-          control={control}
-          placeholder="me@example.com"
-        />
+      <FormField name="email" label={tx('Notification Email')} errors={errors} className="mx-0">
+        <FormInput name="email" control={control} placeholder="me@example.com" />
       </FormField>
       <div className="flex flex-col gap-3">
         <SizableText>{tx('Notify me when')}:</SizableText>
-        <FormCheckbox
-          name="notifyAllMentions"
-          label={tx('Someone mentions me')}
-          control={control}
-        />
-        <FormCheckbox
-          name="notifyAllReplies"
-          label={tx('Someone replies to me')}
-          control={control}
-        />
-        <FormCheckbox
-          name="notifyOwnedDocChange"
-          label={tx('Someone changes a document I own')}
-          control={control}
-        />
+        <FormCheckbox name="notifyAllMentions" label={tx('Someone mentions me')} control={control} />
+        <FormCheckbox name="notifyAllReplies" label={tx('Someone replies to me')} control={control} />
+        <FormCheckbox name="notifyOwnedDocChange" label={tx('Someone changes a document I own')} control={control} />
         <FormCheckbox
           name="notifySiteDiscussions"
           label={tx('Someone creates a discussion in my site')}
@@ -118,11 +93,7 @@ export function UIEmailNotificationsForm({
   )
 }
 
-function EmptyNotifWarning({
-  control,
-}: {
-  control: Control<z.infer<typeof emailNotificationsSchema>>
-}) {
+function EmptyNotifWarning({control}: {control: Control<z.infer<typeof emailNotificationsSchema>>}) {
   const tx = useTxString()
   const {field: notifyAllMentionsField} = useController({
     control,
@@ -147,29 +118,17 @@ function EmptyNotifWarning({
     notifySiteDiscussions.value
   )
     return null
-  return (
-    <SizableText className="text-red-500">
-      {tx('You will not receive any notifications.')}
-    </SizableText>
-  )
+  return <SizableText className="text-red-500">{tx('You will not receive any notifications.')}</SizableText>
 }
 
-export function EmailNotificationsSuccess({
-  email,
-  onClose,
-}: {
-  email?: string | null
-  onClose: () => void
-}) {
+export function EmailNotificationsSuccess({email, onClose}: {email?: string | null; onClose: () => void}) {
   return (
     <>
       <SizableText>
-        Email notifications have been set for{' '}
-        <SizableText weight="bold">{email || 'your email'}</SizableText>.
+        Email notifications have been set for <SizableText weight="bold">{email || 'your email'}</SizableText>.
       </SizableText>
       <SizableText>
-        You can edit your notification preferences by clicking "Manage
-        Notifications" from any email you receive.
+        You can edit your notification preferences by clicking "Manage Notifications" from any email you receive.
       </SizableText>
       <Button variant="default" onClick={() => onClose()}>
         Done

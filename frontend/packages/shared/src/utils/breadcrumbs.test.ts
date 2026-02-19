@@ -12,11 +12,7 @@ describe('getBreadcrumbDocumentIds', () => {
     const ids = getBreadcrumbDocumentIds(docId)
 
     expect(ids).toHaveLength(3)
-    expect(ids.map((id) => id.path)).toEqual([
-      [],
-      ['guides'],
-      ['guides', 'install'],
-    ])
+    expect(ids.map((id) => id.path)).toEqual([[], ['guides'], ['guides', 'install']])
     expect(ids.map((id) => id.version)).toEqual([null, null, 'v123'])
   })
 

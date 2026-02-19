@@ -21,9 +21,7 @@ async function isArm64(): Promise<boolean | null> {
   // this check only works on chrome, not safari. So we need to handle null and offer both dl buttons
 
   // @ts-expect-error
-  const values = await navigator.userAgentData?.getHighEntropyValues([
-    'architecture',
-  ])
+  const values = await navigator.userAgentData?.getHighEntropyValues(['architecture'])
   if (!values) return null
   return values.architecture === 'arm'
 }
@@ -45,8 +43,7 @@ async function getPlatform() {
   }
 }
 
-const RELEASES_JSON_URL =
-  'https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json'
+const RELEASES_JSON_URL = 'https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json'
 
 const assetSchema = z.object({
   download_url: z.string().optional(),
@@ -89,37 +86,20 @@ export const loader = async ({request}: {request: Request}) => {
   const serviceConfig = await getConfig(hostname)
   if (!serviceConfig) throw new Error(`No config defined for ${hostname}`)
   const {registeredAccountUid} = serviceConfig
-  if (!registeredAccountUid)
-    throw new Error(`No registered account uid defined for ${hostname}`)
+  if (!registeredAccountUid) throw new Error(`No registered account uid defined for ${hostname}`)
   const stableRelease = await loadUpstreamRelease()
-  return await loadSiteResource(
-    parsedRequest,
-    hmId(registeredAccountUid, {path: [], latest: true}),
-    {
-      stableRelease,
-    },
-  )
+  return await loadSiteResource(parsedRequest, hmId(registeredAccountUid, {path: [], latest: true}), {
+    stableRelease,
+  })
 }
 
 export const meta = defaultPageMeta('Download Seed Hypermedia')
 
 export default function DownloadPage() {
-  const data = unwrap<
-    SiteDocumentPayload & {stableRelease: z.infer<typeof releaseSchema>}
-  >(useLoaderData())
-  const {
-    stableRelease,
-    originHomeId,
-    siteHost,
-    homeMetadata,
-    id,
-    document,
-    origin,
-  } = data
+  const data = unwrap<SiteDocumentPayload & {stableRelease: z.infer<typeof releaseSchema>}>(useLoaderData())
+  const {stableRelease, originHomeId, siteHost, homeMetadata, id, document, origin} = data
   //   const os = getOS();
-  const [platform, setPlatform] = useState<
-    Awaited<ReturnType<typeof getPlatform>> | undefined
-  >(undefined)
+  const [platform, setPlatform] = useState<Awaited<ReturnType<typeof getPlatform>> | undefined>(undefined)
   useEffect(() => {
     getPlatform().then(setPlatform)
   }, [])
@@ -127,64 +107,29 @@ export default function DownloadPage() {
   if (platform?.os === 'mac') {
     if (platform.isArm64 || platform.isArm64 == null) {
       suggestedButtons.push(
-        <ReleaseEntry
-          large
-          label="Download Seed for Mac (Apple Silicon)"
-          asset={stableRelease.assets?.macos?.arm64}
-        />,
+        <ReleaseEntry large label="Download Seed for Mac (Apple Silicon)" asset={stableRelease.assets?.macos?.arm64} />,
       )
     }
     if (!platform.isArm64) {
       suggestedButtons.push(
-        <ReleaseEntry
-          large
-          label="Download Seed for Mac (Intel)"
-          asset={stableRelease.assets?.macos?.x64}
-        />,
+        <ReleaseEntry large label="Download Seed for Mac (Intel)" asset={stableRelease.assets?.macos?.x64} />,
       )
     }
   } else if (platform?.os === 'windows') {
     suggestedButtons.push(
-      <ReleaseEntry
-        large
-        label="Download Seed for Windows x64"
-        asset={stableRelease.assets?.win32?.x64}
-      />,
+      <ReleaseEntry large label="Download Seed for Windows x64" asset={stableRelease.assets?.win32?.x64} />,
     )
   } else if (platform?.os === 'linux') {
     suggestedButtons.push(
-      <ReleaseEntry
-        large
-        label="Download Seed for Linux (rpm)"
-        asset={stableRelease.assets?.linux?.rpm}
-      />,
-      <ReleaseEntry
-        large
-        label="Download Seed for Linux (deb)"
-        asset={stableRelease.assets?.linux?.deb}
-      />,
-      <ReleaseEntry
-        large
-        label="Download Seed for Linux (AppImage)"
-        asset={stableRelease.assets?.linux?.app_image}
-      />,
-      <ReleaseEntry
-        large
-        label="Download Seed for Linux (Flatpak)"
-        asset={stableRelease.assets?.linux?.flatpak}
-      />,
+      <ReleaseEntry large label="Download Seed for Linux (rpm)" asset={stableRelease.assets?.linux?.rpm} />,
+      <ReleaseEntry large label="Download Seed for Linux (deb)" asset={stableRelease.assets?.linux?.deb} />,
+      <ReleaseEntry large label="Download Seed for Linux (AppImage)" asset={stableRelease.assets?.linux?.app_image} />,
+      <ReleaseEntry large label="Download Seed for Linux (Flatpak)" asset={stableRelease.assets?.linux?.flatpak} />,
     )
   }
   return (
-    <WebSiteProvider
-      origin={origin}
-      originHomeId={originHomeId}
-      siteHost={siteHost}
-    >
-      <div
-        className="bg-cover bg-top"
-        style={{backgroundImage: `url(${downloadBg})`}}
-      >
+    <WebSiteProvider origin={origin} originHomeId={originHomeId} siteHost={siteHost}>
+      <div className="bg-cover bg-top" style={{backgroundImage: `url(${downloadBg})`}}>
         <WebSiteHeader
           homeMetadata={homeMetadata}
           originHomeId={originHomeId}
@@ -196,15 +141,11 @@ export default function DownloadPage() {
         <NavigationLoadingContent className="flex flex-1 flex-col pt-[var(--site-header-h)] sm:pt-0">
           <div className="flex min-h-[45vh] flex-col items-center justify-center py-8">
             <Container className="gap-4 px-6">
-              <h1 className="text-center text-4xl font-bold md:text-5xl">
-                Download Seed Hypermedia Today!
-              </h1>
+              <h1 className="text-center text-4xl font-bold md:text-5xl">Download Seed Hypermedia Today!</h1>
               <SizableText size="xl" className="text-center">
                 Start writing and collaborating with your peers.
               </SizableText>
-              <div className="flex flex-col gap-4">
-                {suggestedButtons.length > 0 && suggestedButtons}
-              </div>
+              <div className="flex flex-col gap-4">{suggestedButtons.length > 0 && suggestedButtons}</div>
             </Container>
           </div>
           <Container>
@@ -215,25 +156,13 @@ export default function DownloadPage() {
             </div>
             <div className="flex flex-col items-center justify-center gap-4 p-4 sm:flex-row">
               {stableRelease.assets?.macos && (
-                <PlatformItem
-                  label="MacOS"
-                  icon={Macos}
-                  assets={stableRelease.assets.macos}
-                />
+                <PlatformItem label="MacOS" icon={Macos} assets={stableRelease.assets.macos} />
               )}
               {stableRelease.assets?.win32 && (
-                <PlatformItem
-                  label="Windows"
-                  icon={Win32}
-                  assets={stableRelease.assets.win32}
-                />
+                <PlatformItem label="Windows" icon={Win32} assets={stableRelease.assets.win32} />
               )}
               {stableRelease.assets?.linux && (
-                <PlatformItem
-                  label="Linux"
-                  icon={Linux}
-                  assets={stableRelease.assets.linux}
-                />
+                <PlatformItem label="Linux" icon={Linux} assets={stableRelease.assets.linux} />
               )}
             </div>
           </Container>
@@ -273,9 +202,7 @@ function PlatformItem({
               <Button
                 key={asset.label}
                 variant="link"
-                className={`plausible-event-name=download plausible-event-os=${asset.url
-                  .split('.')
-                  .pop()}`}
+                className={`plausible-event-name=download plausible-event-os=${asset.url.split('.').pop()}`}
                 size="sm"
                 asChild
               >
@@ -291,15 +218,7 @@ function PlatformItem({
   )
 }
 
-function ReleaseEntry({
-  label,
-  asset,
-  large,
-}: {
-  label: string
-  asset?: z.infer<typeof assetSchema>
-  large?: boolean
-}) {
+function ReleaseEntry({label, asset, large}: {label: string; asset?: z.infer<typeof assetSchema>; large?: boolean}) {
   if (!asset) return null
   if (!asset.download_url) return null
   return (
@@ -313,8 +232,7 @@ function ReleaseEntry({
       size={large ? 'lg' : 'default'}
     >
       <a href={asset.download_url}>
-        <Download className={large ? 'size-6' : 'size-4'} />{' '}
-        <span className="text-xl">{label}</span>
+        <Download className={large ? 'size-6' : 'size-4'} /> <span className="text-xl">{label}</span>
       </a>
     </Button>
   )

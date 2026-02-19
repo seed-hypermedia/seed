@@ -64,12 +64,7 @@ export function EmbedWrapper({
       data-url={packHmId(id)}
       data-view={viewType}
       data-blockid={
-        id &&
-        id.blockRange &&
-        'expanded' in id.blockRange &&
-        id.blockRange.expanded
-          ? id?.blockRef
-          : undefined
+        id && id.blockRange && 'expanded' in id.blockRange && id.blockRange.expanded ? id?.blockRef : undefined
       }
       data-resourceid={id?.blockRef ? undefined : id?.id}
       onClick={

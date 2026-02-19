@@ -10,22 +10,21 @@ export type ToolbarDropdownTargetProps = {
   onClick?: MouseEventHandler
 }
 
-export const ToolbarDropdownTarget = forwardRef<
-  HTMLButtonElement,
-  ToolbarDropdownTargetProps
->((props: ToolbarDropdownTargetProps, ref) => {
-  const TargetIcon = props.icon
-  return (
-    <Button
-      leftIcon={TargetIcon && <TargetIcon size={16} />}
-      rightIcon={<ChevronDown />}
-      size={'xs'}
-      variant={'subtle'}
-      disabled={props.isDisabled}
-      onClick={props.onClick}
-      ref={ref}
-    >
-      {props.text}
-    </Button>
-  )
-})
+export const ToolbarDropdownTarget = forwardRef<HTMLButtonElement, ToolbarDropdownTargetProps>(
+  (props: ToolbarDropdownTargetProps, ref) => {
+    const TargetIcon = props.icon
+    return (
+      <Button
+        leftIcon={TargetIcon && <TargetIcon size={16} />}
+        rightIcon={<ChevronDown />}
+        size={'xs'}
+        variant={'subtle'}
+        disabled={props.isDisabled}
+        onClick={props.onClick}
+        ref={ref}
+      >
+        {props.text}
+      </Button>
+    )
+  },
+)

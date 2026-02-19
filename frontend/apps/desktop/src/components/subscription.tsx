@@ -10,19 +10,8 @@ import {
   AlertDialogDescription,
   AlertDialogTitle,
 } from '@shm/ui/components/alert-dialog'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@shm/ui/components/popover'
-import {
-  Check,
-  ChevronDown,
-  CircleOff,
-  Folder,
-  Subscribe,
-  SubscribeSpace,
-} from '@shm/ui/icons'
+import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
+import {Check, ChevronDown, CircleOff, Folder, Subscribe, SubscribeSpace} from '@shm/ui/icons'
 import {SizableText, Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
@@ -52,9 +41,7 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
         <Tooltip
           content={
             subscription.subscription != 'none'
-              ? `Subscribe to ${
-                  subscription.subscription == 'space' ? 'Site' : 'Document'
-                }`
+              ? `Subscribe to ${subscription.subscription == 'space' ? 'Site' : 'Document'}`
               : ''
           }
         >
@@ -80,11 +67,7 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
               <SubscriptionOptionButton
                 Icon={SubscribeSpace}
                 active={subscription.subscription == 'space'}
-                title={`${
-                  subscription.subscription == 'space'
-                    ? 'Subscribed'
-                    : 'Subscribe'
-                } to Site`}
+                title={`${subscription.subscription == 'space' ? 'Subscribed' : 'Subscribe'} to Site`}
                 description="Receive the latest updates of this document and the full directory"
                 onClick={() => {
                   subscription.setSubscription('space')
@@ -94,11 +77,7 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
               <SubscriptionOptionButton
                 Icon={Subscribe}
                 active={subscription.subscription == 'document'}
-                title={`${
-                  subscription.subscription == 'document'
-                    ? 'Subscribed'
-                    : 'Subscribe'
-                } to Document`}
+                title={`${subscription.subscription == 'document' ? 'Subscribed' : 'Subscribe'} to Document`}
                 description="Receive the latest updates of this document"
                 onClick={() => {
                   subscription.setSubscription('document')
@@ -142,16 +121,13 @@ function UnsubscribeParentDialog({
   input: {id: UnpackedHypermediaId; onConfirm: () => void}
 }) {
   const entity = useResource(input.id)
-  const document =
-    entity.data?.type === 'document' ? entity.data.document : undefined
+  const document = entity.data?.type === 'document' ? entity.data.document : undefined
   const title = getDocumentTitle(document)
 
   return (
     <>
       <AlertDialogTitle>Unsubscribe from "{title}"</AlertDialogTitle>
-      <AlertDialogDescription>
-        You will unsubscribe from this whole space.
-      </AlertDialogDescription>
+      <AlertDialogDescription>You will unsubscribe from this whole space.</AlertDialogDescription>
 
       <AlertDialogCancel onClick={onClose}>Cancel</AlertDialogCancel>
       <AlertDialogAction
@@ -169,8 +145,7 @@ function UnsubscribeParentDialog({
 
 function ParentSubscription({sub}: {sub: HMSubscription}) {
   const entity = useResource(sub.id)
-  const document =
-    entity.data?.type === 'document' ? entity.data.document : undefined
+  const document = entity.data?.type === 'document' ? entity.data.document : undefined
   const title = getDocumentTitle(document)
   if (!title) return
   return (
@@ -209,10 +184,7 @@ function SubscriptionOptionButton({
   }
   return (
     <Button
-      className={cn(
-        'flex h-auto w-full items-start justify-start gap-3 p-3',
-        className,
-      )}
+      className={cn('flex h-auto w-full items-start justify-start gap-3 p-3', className)}
       onClick={onClick}
       disabled={active}
       variant={variant}
@@ -225,10 +197,7 @@ function SubscriptionOptionButton({
         </Text>
 
         {description ? (
-          <SizableText
-            size="sm"
-            className="text-muted-foreground block text-left text-sm whitespace-normal"
-          >
+          <SizableText size="sm" className="text-muted-foreground block text-left text-sm whitespace-normal">
             {description}
           </SizableText>
         ) : null}

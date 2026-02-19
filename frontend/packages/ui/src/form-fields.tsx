@@ -2,19 +2,9 @@ import {Label} from './components/label'
 import {PropsWithChildren} from 'react'
 import {Input} from './components/input'
 import {Switch, SwitchProps} from './components/switch'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './select-dropdown'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
 
-export function Field({
-  id,
-  label,
-  children,
-}: PropsWithChildren<{label: string; id: string}>) {
+export function Field({id, label, children}: PropsWithChildren<{label: string; id: string}>) {
   return (
     <div className="flex flex-col gap-1">
       <Label htmlFor={id} size="sm" className="text-muted-foreground">
@@ -105,11 +95,7 @@ export function SelectField({
   }
 }
 
-export function SwitchField({
-  label,
-  id,
-  ...props
-}: SwitchProps & {label: string; id: string}) {
+export function SwitchField({label, id, ...props}: SwitchProps & {label: string; id: string}) {
   return (
     <div className="flex w-full items-center justify-between">
       <Label htmlFor={id} size="sm" className="text-muted-foreground flex-1">

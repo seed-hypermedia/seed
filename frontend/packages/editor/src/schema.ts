@@ -1,8 +1,5 @@
 import {BlockSchema, TypesMatch} from './blocknote'
-import {
-  defaultBlockSchema,
-  defaultProps,
-} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
+import {defaultBlockSchema, defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
 import {ButtonBlock} from './button'
 import {EmbedBlock} from './embed-block'
 import {FileBlock} from './file'

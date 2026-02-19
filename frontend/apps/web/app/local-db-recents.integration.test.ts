@@ -16,13 +16,7 @@ import {RecentsResult} from '@shm/shared/models/recents'
 import {indexedDB} from 'fake-indexeddb'
 import 'fake-indexeddb/auto'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
-import {
-  addRecent,
-  clearRecents,
-  deleteRecent,
-  getRecents,
-  resetDB,
-} from './local-db-recents'
+import {addRecent, clearRecents, deleteRecent, getRecents, resetDB} from './local-db-recents'
 
 const DB_NAME = 'recents-db-01'
 
@@ -186,17 +180,13 @@ describe('local-db-recents integration', () => {
       // The first 5 items should not be in the recents list
       for (let i = 0; i < 5; i++) {
         // @ts-expect-error
-        expect(recents.some((r) => r.id.id === addedRecents[i].id.id)).toBe(
-          false,
-        )
+        expect(recents.some((r) => r.id.id === addedRecents[i].id.id)).toBe(false)
       }
 
       // The last 20 items should be in the recents list
       for (let i = 5; i < recentsToAdd; i++) {
         // @ts-expect-error
-        expect(recents.some((r) => r.id.id === addedRecents[i].id.id)).toBe(
-          true,
-        )
+        expect(recents.some((r) => r.id.id === addedRecents[i].id.id)).toBe(true)
       }
     } finally {
       // Always close the database connection

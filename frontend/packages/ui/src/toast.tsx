@@ -30,10 +30,7 @@ const useUniversalTheme = () => {
       // Watch for theme changes
       const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
-          if (
-            mutation.type === 'attributes' &&
-            mutation.attributeName === 'class'
-          ) {
+          if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
             const isDark = document.documentElement.classList.contains('dark')
             setTheme(isDark ? 'dark' : 'light')
           }

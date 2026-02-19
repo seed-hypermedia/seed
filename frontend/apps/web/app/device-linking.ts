@@ -10,12 +10,7 @@ import {DeviceLinkSession} from '@shm/shared/hm-types'
 import {lpStream} from 'it-length-prefixed-stream'
 import {createLibp2p} from 'libp2p'
 import {base58btc} from 'multiformats/bases/base58'
-import {
-  AgentCapability,
-  Profile,
-  signAgentCapability,
-  signProfileAlias,
-} from './auth-utils'
+import {AgentCapability, Profile, signAgentCapability, signProfileAlias} from './auth-utils'
 
 import {preparePublicKey} from './auth-utils'
 
@@ -207,9 +202,7 @@ export async function linkDevice(
   }
 }
 
-function newTimeout(
-  msecs: number,
-): [AbortSignal, ReturnType<typeof setTimeout>] {
+function newTimeout(msecs: number): [AbortSignal, ReturnType<typeof setTimeout>] {
   const abort = new AbortController()
   const id = setTimeout(() => {
     abort.abort()

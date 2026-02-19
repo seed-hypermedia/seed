@@ -4,11 +4,7 @@ import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@shm/ui/components/popover'
+import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Close} from '@shm/ui/icons'
 import {SearchResultItem} from '@shm/ui/search'
 import {Spinner} from '@shm/ui/spinner'
@@ -17,19 +13,13 @@ import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
 import {Check, Link, Unlink} from 'lucide-react'
 import {useCallback, useEffect, useState} from 'react'
-import {
-  BlockNoteEditor,
-  BlockSchema,
-  useEditorSelectionChange,
-} from './blocknote'
+import {BlockNoteEditor, BlockSchema, useEditorSelectionChange} from './blocknote'
 
 export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
   editor: BlockNoteEditor<BSchema>
   testId: string
 }) => {
-  const [url, setUrl] = useState<string>(
-    props.editor.getSelectedLinkUrl() || '',
-  )
+  const [url, setUrl] = useState<string>(props.editor.getSelectedLinkUrl() || '')
   const [text, setText] = useState<string>(props.editor.getSelectedText() || '')
 
   const {open, ...popoverProps} = usePopoverState()
@@ -44,13 +34,10 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
   })
 
   useEffect(() => {
-    const removeListener = props.editor.hyperlinkToolbar.on(
-      'update',
-      (state) => {
-        setText(state.text || '')
-        setUrl(state.url || '')
-      },
-    )
+    const removeListener = props.editor.hyperlinkToolbar.on('update', (state) => {
+      setText(state.text || '')
+      setUrl(state.url || '')
+    })
 
     return () => removeListener()
   }, [props.editor])
@@ -78,9 +65,7 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
         // @ts-ignore
         const linkMark = linkMarks.find((mark) => mark.type.name == 'link')
         view.dispatch(
-          view.state.tr
-            .removeMark($urlPos.start(), $urlPos.end(), linkMark)
-            .setMeta('preventAutolink', true),
+          view.state.tr.removeMark($urlPos.start(), $urlPos.end(), linkMark).setMeta('preventAutolink', true),
         )
         view.focus()
       }
@@ -149,15 +134,12 @@ function LinkSearchInput({
   const [isLoading, setIsLoading] = useState(false)
 
   // Helper functions to detect URL types
-  const isHttpUrl = (url: string) =>
-    url.startsWith('http://') || url.startsWith('https://') || url.includes('.')
-  const isHypermediaUrl = (url: string) =>
-    url.startsWith('hm://') || unpackHmId(url) !== null
+  const isHttpUrl = (url: string) => url.startsWith('http://') || url.startsWith('https://') || url.includes('.')
+  const isHypermediaUrl = (url: string) => url.startsWith('hm://') || unpackHmId(url) !== null
 
   // Use the search hook from shared package
   const searchResults = useSearch(searchValue, {
-    enabled:
-      !!searchValue && !isHttpUrl(searchValue) && !isHypermediaUrl(searchValue),
+    enabled: !!searchValue && !isHttpUrl(searchValue) && !isHypermediaUrl(searchValue),
     includeBody: false,
     contextSize: 48 - searchValue.length,
   })
@@ -202,20 +184,14 @@ function LinkSearchInput({
               if (resolved) {
                 const baseId = unpackHmId(resolved.id)
                 if (baseId) {
-                  const u = new URL(
-                    url.startsWith('http')
-                      ? url
-                      : `https://${url.replace('hm://', '')}`,
-                  )
+                  const u = new URL(url.startsWith('http') ? url : `https://${url.replace('hm://', '')}`)
                   const latest = u.searchParams.get('l')
                   const blockRef = u.hash?.slice(1)
                   const id = hmId(baseId.uid, {
                     path: baseId.path,
                     latest: latest === '',
                   })
-                  const finalUrl = `${packHmId(id)}${
-                    blockRef ? `#${blockRef}` : ''
-                  }`
+                  const finalUrl = `${packHmId(id)}${blockRef ? `#${blockRef}` : ''}`
                   onLinkSelect(finalUrl)
                   return
                 }
@@ -302,10 +278,7 @@ function LinkSearchInput({
           <Button
             size="icon"
             variant="ghost"
-            className={cn(
-              'hover:bg-black/10 dark:hover:bg-white/10',
-              'focus:bg-black/10 dark:focus:bg-white/10',
-            )}
+            className={cn('hover:bg-black/10 dark:hover:bg-white/10', 'focus:bg-black/10 dark:focus:bg-white/10')}
             disabled={!searchValue}
             onClick={() => handleUrlSubmit(searchValue)}
           >
@@ -318,10 +291,7 @@ function LinkSearchInput({
             <Button
               size="icon"
               variant="ghost"
-              className={cn(
-                'hover:bg-black/10 dark:hover:bg-white/10',
-                'focus:bg-black/10 dark:focus:bg-white/10',
-              )}
+              className={cn('hover:bg-black/10 dark:hover:bg-white/10', 'focus:bg-black/10 dark:focus:bg-white/10')}
               onClick={onDeleteLink}
             >
               <Unlink className="size-3" />
@@ -332,10 +302,7 @@ function LinkSearchInput({
         <Button
           size="icon"
           variant="ghost"
-          className={cn(
-            'hover:bg-black/10 dark:hover:bg-white/10',
-            'focus:bg-black/10 dark:focus:bg-white/10',
-          )}
+          className={cn('hover:bg-black/10 dark:hover:bg-white/10', 'focus:bg-black/10 dark:focus:bg-white/10')}
           onClick={onCancel}
         >
           <Close className="size-4" />

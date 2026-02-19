@@ -6,8 +6,7 @@ import {cn} from '@shm/ui/utils'
 import {CircleUser} from 'lucide-react'
 import {useCreateAccount, useLocalKeyPair} from './auth'
 
-const COMMON_BUBBLE_CLASSES =
-  'sticky bottom-4 left-4 z-10 mt-auto mb-4 flex hidden self-start shadow-lg'
+const COMMON_BUBBLE_CLASSES = 'sticky bottom-4 left-4 z-10 mt-auto mb-4 flex hidden self-start shadow-lg'
 
 export function MyAccountBubble() {
   const media = useMedia()
@@ -30,10 +29,7 @@ export function MyAccountBubble() {
     return <CreateAccountBubble />
   }
   return (
-    <a
-      className={cn(COMMON_BUBBLE_CLASSES, 'hidden rounded-full sm:flex')}
-      {...linkProps}
-    >
+    <a className={cn(COMMON_BUBBLE_CLASSES, 'hidden rounded-full sm:flex')} {...linkProps}>
       <HMIcon
         id={hmId(keyPair.id)}
         name={myAccount.data?.metadata?.name}

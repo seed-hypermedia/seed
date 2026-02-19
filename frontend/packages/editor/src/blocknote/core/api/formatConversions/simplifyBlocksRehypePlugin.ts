@@ -32,19 +32,12 @@ export function simplifyBlocks(options: SimplifyBlocksOptions) {
       const blockOuter = tree.children[i] as HASTElement
       const blockContainer = blockOuter.children[0] as HASTElement
       const blockContent = blockContainer.children[0] as HASTElement
-      const blockGroup =
-        blockContainer.children.length === 2
-          ? (blockContainer.children[1] as HASTElement)
-          : null
+      const blockGroup = blockContainer.children.length === 2 ? (blockContainer.children[1] as HASTElement) : null
 
-      const isListItemBlock = listItemBlockTypes.has(
-        blockContent.properties!['dataContentType'] as string,
-      )
+      const isListItemBlock = listItemBlockTypes.has(blockContent.properties!['dataContentType'] as string)
 
       const listItemBlockType = isListItemBlock
-        ? options.orderedListItemBlockTypes.has(
-            blockContent.properties!['dataContentType'] as string,
-          )
+        ? options.orderedListItemBlockTypes.has(blockContent.properties!['dataContentType'] as string)
           ? 'ol'
           : 'ul'
         : null
@@ -57,11 +50,7 @@ export function simplifyBlocks(options: SimplifyBlocksOptions) {
       // Checks that there is an active list, but the block can't be added to it as it's of a different type.
       if (activeList && activeList.tagName !== listItemBlockType) {
         // Blocks that were copied into the list are removed and the list is inserted in their place.
-        tree.children.splice(
-          i - activeList.children.length,
-          activeList.children.length,
-          activeList,
-        )
+        tree.children.splice(i - activeList.children.length, activeList.children.length, activeList)
 
         // Updates the current index and number of child elements.
         const numElementsRemoved = activeList.children.length - 1
@@ -77,15 +66,11 @@ export function simplifyBlocks(options: SimplifyBlocksOptions) {
         // type as this was already done earlier.
         if (!activeList) {
           // Creates a new list element to represent an active list.
-          activeList = fromDom(
-            document.createElement(listItemBlockType!),
-          ) as HASTElement
+          activeList = fromDom(document.createElement(listItemBlockType!)) as HASTElement
         }
 
         // Creates a new list item element to represent the block.
-        const listItemElement = fromDom(
-          document.createElement('li'),
-        ) as HASTElement
+        const listItemElement = fromDom(document.createElement('li')) as HASTElement
 
         // Adds only the content inside the block to the active list.
         // @ts-ignore
@@ -119,11 +104,7 @@ export function simplifyBlocks(options: SimplifyBlocksOptions) {
     // Since the active list is only inserted after encountering a block which can't be added to it, there are cases
     // where it remains un-inserted after processing all blocks, which are handled here.
     if (activeList) {
-      tree.children.splice(
-        numChildElements - activeList.children.length,
-        activeList.children.length,
-        activeList,
-      )
+      tree.children.splice(numChildElements - activeList.children.length, activeList.children.length, activeList)
     }
   }
 

@@ -1,12 +1,6 @@
 import {CheckedState} from '@radix-ui/react-checkbox'
 import {useId} from 'react'
-import {
-  Control,
-  FieldErrors,
-  FieldValues,
-  Path,
-  useController,
-} from 'react-hook-form'
+import {Control, FieldErrors, FieldValues, Path, useController} from 'react-hook-form'
 import {Checkbox, CheckboxProps} from './components/checkbox'
 import {Input} from './components/input'
 import {Label} from './components/label'

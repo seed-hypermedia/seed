@@ -12,12 +12,7 @@ import {
   UnpackedHypermediaId,
 } from '../hm-types'
 import {RequestCache} from '../request-cache'
-import {
-  entityQueryPathToHmIdPath,
-  hmId,
-  parseFragment,
-  unpackHmId,
-} from '../utils'
+import {entityQueryPathToHmIdPath, hmId, parseFragment, unpackHmId} from '../utils'
 
 export type HMListEventsParams = {
   pageSize?: number
@@ -225,9 +220,7 @@ export async function loadCommentEvent(
 
     const author = await cache.getAccount(comment.author, currentAccount)
 
-    const replyingComment = comment.replyParent
-      ? await cache.getComment(comment.replyParent)
-      : null
+    const replyingComment = comment.replyParent ? await cache.getComment(comment.replyParent) : null
 
     const replyParentAuthor = replyingComment?.author
       ? await cache.getAccount(replyingComment.author, currentAccount)
@@ -242,9 +235,7 @@ export async function loadCommentEvent(
     const replyCount = await cache.getCommentReplyCount(comment.id)
 
     const targetId = hmId(comment.targetAccount, {
-      path: comment.targetPath
-        ? comment.targetPath.split('/').filter(Boolean)
-        : null,
+      path: comment.targetPath ? comment.targetPath.split('/').filter(Boolean) : null,
       version: comment.targetVersion || null,
     })
 
@@ -261,9 +252,7 @@ export async function loadCommentEvent(
       type: 'comment',
       author,
       time: event.eventTime as any,
-      replyingComment: replyingComment
-        ? prepareHMComment(replyingComment)
-        : null,
+      replyingComment: replyingComment ? prepareHMComment(replyingComment) : null,
       replyParentAuthor,
       comment: comment ? prepareHMComment(comment) : null,
       commentId: unpackHmId(`hm://${comment.id}`)!,
@@ -298,10 +287,7 @@ export async function loadCapabilityEvent(
     const capId = unpackHmId(event.newBlob.resource)
 
     if (!capId) {
-      console.error(
-        'loadCapabilityEvent Error, unpacking resource id',
-        event.newBlob.resource,
-      )
+      console.error('loadCapabilityEvent Error, unpacking resource id', event.newBlob.resource)
 
       return null
     }
@@ -315,10 +301,7 @@ export async function loadCapabilityEvent(
       path: grpcCapability.path,
     })
 
-    const delegate = await cache.getAccount(
-      grpcCapability.delegate,
-      currentAccount,
-    )
+    const delegate = await cache.getAccount(grpcCapability.delegate, currentAccount)
     const role = HMRoleSchema.parse(
       (
         grpcCapability.toJson({
@@ -333,10 +316,7 @@ export async function loadCapabilityEvent(
     }
 
     if (!grpcCapability.createTime) {
-      throw new Error(
-        'Event: missing createTime for capability event:' +
-          JSON.stringify(event),
-      )
+      throw new Error('Event: missing createTime for capability event:' + JSON.stringify(event))
     }
     const capability: HMCapability = {
       role,
@@ -506,16 +486,12 @@ export async function loadCitationEvent(
     const citationType =
       sourceTypeLower.startsWith('doc/') || sourceTypeLower === 'ref'
         ? 'd'
-        : sourceTypeLower.startsWith('comment/') ||
-          sourceTypeLower === 'comment'
+        : sourceTypeLower.startsWith('comment/') || sourceTypeLower === 'comment'
         ? 'c'
         : null
 
     if (!citationType) {
-      console.error(
-        'Event: Could not determine citationType from sourceType:',
-        sourceTypeLower,
-      )
+      console.error('Event: Could not determine citationType from sourceType:', sourceTypeLower)
       return null
     }
 
@@ -561,9 +537,7 @@ export async function loadCitationEvent(
     try {
       sourceDocument = await cache.getDocument({
         account: sourceUnpacked.uid,
-        path: sourceUnpacked.path?.length
-          ? `/${sourceUnpacked.path.join('/')}`
-          : '',
+        path: sourceUnpacked.path?.length ? `/${sourceUnpacked.path.join('/')}` : '',
         version: event.newMention.sourceBlob?.cid || undefined,
       })
     } catch (error) {
@@ -584,9 +558,7 @@ export async function loadCitationEvent(
     try {
       targetDocument = await cache.getDocument({
         account: targetUnpacked.uid,
-        path: targetUnpacked.path?.length
-          ? `/${targetUnpacked.path.join('/')}`
-          : '',
+        path: targetUnpacked.path?.length ? `/${targetUnpacked.path.join('/')}` : '',
         version: event.newMention.targetVersion || undefined,
       })
     } catch (error) {

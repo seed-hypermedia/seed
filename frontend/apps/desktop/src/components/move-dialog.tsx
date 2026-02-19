@@ -28,9 +28,7 @@ export function MoveDialog({
   if (!selectedAccount) {
     return <div>No account selected</div>
   }
-  const [location, setLocation] = useState<UnpackedHypermediaId | null>(
-    input.id,
-  )
+  const [location, setLocation] = useState<UnpackedHypermediaId | null>(input.id)
   const isAvailable = useRef(true)
   const pathInvalid = useMemo(
     () => location && validatePath(hmIdPathToEntityQueryPath(location.path)),
@@ -64,9 +62,7 @@ export function MoveDialog({
               <Button
                 onClick={() => {
                   if (!isAvailable.current) {
-                    toast.error(
-                      'This location is unavailable. Create a new path name.',
-                    )
+                    toast.error('This location is unavailable. Create a new path name.')
                     return
                   }
                   if (pathInvalid) {

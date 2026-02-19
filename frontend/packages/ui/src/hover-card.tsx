@@ -3,25 +3,12 @@ import * as React from 'react'
 
 import {cn} from './utils'
 
-function HoverCard({
-  openDelay = 100,
-  ...props
-}: React.ComponentProps<typeof HoverCardPrimitive.Root>) {
-  return (
-    <HoverCardPrimitive.Root
-      data-slot="hover-card"
-      openDelay={openDelay}
-      {...props}
-    />
-  )
+function HoverCard({openDelay = 100, ...props}: React.ComponentProps<typeof HoverCardPrimitive.Root>) {
+  return <HoverCardPrimitive.Root data-slot="hover-card" openDelay={openDelay} {...props} />
 }
 
-function HoverCardTrigger({
-  ...props
-}: React.ComponentProps<typeof HoverCardPrimitive.Trigger>) {
-  return (
-    <HoverCardPrimitive.Trigger data-slot="hover-card-trigger" {...props} />
-  )
+function HoverCardTrigger({...props}: React.ComponentProps<typeof HoverCardPrimitive.Trigger>) {
+  return <HoverCardPrimitive.Trigger data-slot="hover-card-trigger" {...props} />
 }
 
 function HoverCardContent({

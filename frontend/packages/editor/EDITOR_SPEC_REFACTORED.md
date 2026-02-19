@@ -1,8 +1,7 @@
 # Editor Technical Specification (editor-refactor-plan branch)
 
-This document describes the ProseMirror-based editor architecture after the
-schema refactoring on the `editor-refactor-plan` branch. Use this as context
-when working on editor features.
+This document describes the ProseMirror-based editor architecture after the schema refactoring on the
+`editor-refactor-plan` branch. Use this as context when working on editor features.
 
 For the pre-refactoring spec, see `EDITOR_SPEC_MAIN.md`.
 
@@ -22,8 +21,7 @@ For the pre-refactoring spec, see `EDITOR_SPEC_MAIN.md`.
 | File: BlockContainer.ts  | exists                            | renamed to BlockNode.ts     |
 | File: BlockGroup.ts      | exists                            | renamed to BlockChildren.ts |
 
-**HMBlock server format is unchanged.** The refactoring only affects the
-ProseMirror schema and DOM output.
+**HMBlock server format is unchanged.** The refactoring only affects the ProseMirror schema and DOM output.
 
 ---
 
@@ -101,8 +99,8 @@ export const BlockNode = Node.create({
 
 Content nodes (paragraph, heading, etc.) are in group `block` only.
 
-This means `isInGroup('block')` matches **both** blockNode and content nodes. To
-find only blockNode wrappers, always use **`isInGroup('blockNodeChild')`**.
+This means `isInGroup('block')` matches **both** blockNode and content nodes. To find only blockNode wrappers, always
+use **`isInGroup('blockNodeChild')`**.
 
 ```
 isInGroup('blockNodeChild')  →  blockNode only         ← use this for block lookups
@@ -122,9 +120,7 @@ Defined in `BlockAttributes.ts`:
 
 ### parseHTML
 
-Matches `<li>` (priority 300) and
-`<div data-node-type="blockNode"|"blockContainer">` (priority 200 — backward
-compat).
+Matches `<li>` (priority 300) and `<div data-node-type="blockNode"|"blockContainer">` (priority 200 — backward compat).
 
 ### renderHTML — Single Div (Flat)
 
@@ -194,9 +190,8 @@ addNodeView() {
 }
 ```
 
-**Important:** Because this is a custom NodeView, ProseMirror does NOT
-automatically apply `Decoration.node` attributes. The NodeView must explicitly
-handle decorations (adding/removing CSS classes).
+**Important:** Because this is a custom NodeView, ProseMirror does NOT automatically apply `Decoration.node` attributes.
+The NodeView must explicitly handle decorations (adding/removing CSS classes).
 
 ### ProseMirror Plugins
 
@@ -205,8 +200,7 @@ Defined inline in `BlockNode.ts`:
 - **SelectionPlugin** — manages selection decorations
 - **ClickSelectionPlugin** — handles shift+click range selection
 - **PastePlugin** — handles paste into image caption
-- **headingBoxPlugin** — adds `selection-in-section` class to blockNode
-  containing nearest heading
+- **headingBoxPlugin** — adds `selection-in-section` class to blockNode containing nearest heading
 - **Em-dash plugin** — replaces `--` with `—`
 
 ---
@@ -225,8 +219,7 @@ export const BlockChildren = Node.create({
 
 ### Attributes
 
-- `listType` — default `'Group'`, values:
-  `'Group' | 'Ordered' | 'Unordered' | 'Blockquote'`
+- `listType` — default `'Group'`, values: `'Group' | 'Ordered' | 'Unordered' | 'Blockquote'`
 - `listLevel` — default `'1'`
 
 ### renderHTML — Dynamic Tag
@@ -255,16 +248,11 @@ function listNode(listType) {
 
 `BlockChildren.ts` contains extensive paste normalization logic:
 
-- `wrapBlockContentInContainer(node, schema)` — wraps bare content node in a
-  blockNode
-- `wrapBlockGroupInContainer(groupNode, schema, prevNode)` — wraps bare
-  blockChildren in a blockNode
-- `normalizeFragment(fragment, schema)` — ensures all children are valid
-  blockNodes
-- `splitBlockContainerNode(node, schema)` — splits blockNode with multiple
-  content children
-- `normalizeBlockContainer(node, schema)` — ensures blockNode has exactly one
-  content + optional blockChildren
+- `wrapBlockContentInContainer(node, schema)` — wraps bare content node in a blockNode
+- `wrapBlockGroupInContainer(groupNode, schema, prevNode)` — wraps bare blockChildren in a blockNode
+- `normalizeFragment(fragment, schema)` — ensures all children are valid blockNodes
+- `splitBlockContainerNode(node, schema)` — splits blockNode with multiple content children
+- `normalizeBlockContainer(node, schema)` — ensures blockNode has exactly one content + optional blockChildren
 - `transformPasted` plugin processes all pasted content through normalizers
 
 ---
@@ -285,8 +273,8 @@ export function createTipTapBlock<Type extends string>(config) {
 
 ### createBlockSpec — NodeView WITHOUT Wrapper
 
-In the refactored schema, the intermediate `blockContent` wrapper div is
-**removed**. The block's rendered DOM gets the blockContent class directly:
+In the refactored schema, the intermediate `blockContent` wrapper div is **removed**. The block's rendered DOM gets the
+blockContent class directly:
 
 ```ts
 addNodeView() {
@@ -314,11 +302,7 @@ export const ParagraphBlockContent = createTipTapBlock<'paragraph'>({
   name: 'paragraph',
   content: 'inline*',
   renderHTML() {
-    return [
-      'p',
-      {class: 'block-paragraph blockContent', 'data-content-type': 'paragraph'},
-      0,
-    ]
+    return ['p', {class: 'block-paragraph blockContent', 'data-content-type': 'paragraph'}, 0]
   },
 })
 ```
@@ -365,9 +349,7 @@ export const CodeBlock = Node.create({
 <div data-node-type="blockChildren" data-list-type="Group">
   <!-- A heading block with children -->
   <div class="blockNode" data-node-type="blockNode" data-id="abc">
-    <h2 class="block-heading blockContent" data-content-type="heading">
-      My Heading
-    </h2>
+    <h2 class="block-heading blockContent" data-content-type="heading">My Heading</h2>
     <div data-node-type="blockChildren" data-list-type="Group">
       <!-- child blocks... -->
     </div>
@@ -375,19 +357,13 @@ export const CodeBlock = Node.create({
 
   <!-- An ordered list -->
   <div class="blockNode" data-node-type="blockNode" data-id="def">
-    <p class="block-paragraph blockContent" data-content-type="paragraph">
-      Parent item
-    </p>
+    <p class="block-paragraph blockContent" data-content-type="paragraph">Parent item</p>
     <ol data-node-type="blockChildren" data-list-type="Ordered">
       <li class="blockNode" data-node-type="blockNode" data-id="ghi">
-        <p class="block-paragraph blockContent" data-content-type="paragraph">
-          List item 1
-        </p>
+        <p class="block-paragraph blockContent" data-content-type="paragraph">List item 1</p>
       </li>
       <li class="blockNode" data-node-type="blockNode" data-id="jkl">
-        <p class="block-paragraph blockContent" data-content-type="paragraph">
-          List item 2
-        </p>
+        <p class="block-paragraph blockContent" data-content-type="paragraph">List item 2</p>
       </li>
     </ol>
   </div>
@@ -396,8 +372,7 @@ export const CodeBlock = Node.create({
 
 **DOM depth per block:** ~4 levels (blockChildren > blockNode > element > text)
 
-Compare with old: ~7 levels (blockGroup > blockOuter > block > blockContent >
-element > inlineContent > text)
+Compare with old: ~7 levels (blockGroup > blockOuter > block > blockContent > element > inlineContent > text)
 
 ---
 
@@ -411,8 +386,7 @@ element > inlineContent > text)
 | `node.type.name === 'blockChildren'` | `blockChildren` only                            | Identifying child containers                                                                                       |
 | `node.type.name === 'blockNode'`     | `blockNode` only                                | Explicit type check (headingBoxPlugin, findBlock)                                                                  |
 
-**Critical rule:** Never use `isInGroup('block')` to find blockNode wrappers.
-Always use `isInGroup('blockNodeChild')`.
+**Critical rule:** Never use `isInGroup('block')` to find blockNode wrappers. Always use `isInGroup('blockNodeChild')`.
 
 ---
 
@@ -431,8 +405,7 @@ export type BlockInfo = {
 }
 ```
 
-**`getNearestBlockPos(doc, pos)`** — walks up tree using
-`isInGroup('blockNodeChild')`:
+**`getNearestBlockPos(doc, pos)`** — walks up tree using `isInGroup('blockNodeChild')`:
 
 ```ts
 export function getNearestBlockPos(doc, pos) {
@@ -472,9 +445,7 @@ export type GroupInfo = {
 ### findBlock
 
 ```ts
-export const findBlock = findParentNode(
-  (node) => node.type.name === 'blockNode',
-)
+export const findBlock = findParentNode((node) => node.type.name === 'blockNode')
 ```
 
 ---
@@ -496,8 +467,7 @@ const types = [
 
 ### nestBlock / unnestBlock
 
-- `nestBlock` — custom `sinkListItem` using `ReplaceAroundStep` to wrap in
-  `blockNode > blockChildren`
+- `nestBlock` — custom `sinkListItem` using `ReplaceAroundStep` to wrap in `blockNode > blockChildren`
 - `unnestBlock` — custom `liftListItem` handling sibling blocks
 - `canNestBlock` / `canUnnestBlock` — checks preceding sibling / depth > 1
 
@@ -517,8 +487,7 @@ if (newNodeType.spec.group === 'block') {  // content type check (exact match)
 
 ### updateGroup
 
-Changes `listType` on a `blockChildren` node. Handles type conversion and
-updates child `listLevel` attributes.
+Changes `listType` on a `blockChildren` node. Handles type conversion and updates child `listLevel` attributes.
 
 ### replaceBlocks
 
@@ -536,14 +505,8 @@ Traverses document finding blocks by ID using `isInGroup('blockNodeChild')`.
 function blockToNode(block, schema) {
   const contentNode = schema.nodes[type].create(props, inlineContent)
   const children = block.children.map((child) => blockToNode(child, schema))
-  const groupNode = schema.nodes['blockChildren'].create(
-    {listType: 'Group'},
-    children,
-  )
-  return schema.nodes['blockNode'].create(
-    {id, ...props},
-    children.length > 0 ? [contentNode, groupNode] : contentNode,
-  )
+  const groupNode = schema.nodes['blockChildren'].create({listType: 'Group'}, children)
+  return schema.nodes['blockNode'].create({id, ...props}, children.length > 0 ? [contentNode, groupNode] : contentNode)
 }
 ```
 
@@ -570,8 +533,8 @@ function nodeToBlock(node, schema, cache) {
 
 **File:** `api/formatConversions/simplifyBlocksRehypePlugin.ts`
 
-Converts BlockNote internal HTML → standard HTML for clipboard/export. After
-refactoring, the plugin walks a simpler structure:
+Converts BlockNote internal HTML → standard HTML for clipboard/export. After refactoring, the plugin walks a simpler
+structure:
 
 - `blockNode > blockContent` (no blockOuter wrapper to strip)
 - Extracts the content element directly
@@ -630,8 +593,7 @@ function getBlockNoteExtensions(opts) {
 
 Key classes:
 
-- `.blockNode` —
-  `display: flex; flex-direction: column; position: relative; line-height: 1.5`
+- `.blockNode` — `display: flex; flex-direction: column; position: relative; line-height: 1.5`
 - `.blockContent` — `padding: 12px 0 3px 0; flex-grow: 1`
 - `.blockChildren .blockChildren` — `margin-left: 1.5em` (nesting indent)
 - `.inlineContent` — `font-size: 0.9em`
@@ -662,9 +624,7 @@ Heading sizes via nesting depth:
 [data-node-type='blockChildren'] [data-content-type='heading'] {
   --level: 30px;
 }
-[data-node-type='blockChildren']
-  [data-node-type='blockChildren']
-  [data-content-type='heading'] {
+[data-node-type='blockChildren'] [data-node-type='blockChildren'] [data-content-type='heading'] {
   --level: 24px;
 }
 /* ...deeper nesting = smaller */
@@ -685,17 +645,14 @@ Placeholders:
 
 - `.selection-in-section::before` — heading section highlight with `z-index: -1`
 - `[data-node-type='blockNode']::marker` — list marker styling
-- `[data-node-type='blockNode']:has(> [data-content-type='heading'])` — heading
-  margins
-- `.block-heading + [data-node-type='blockChildren']` — group margin after
-  headings
+- `[data-node-type='blockNode']:has(> [data-content-type='heading'])` — heading margins
+- `.block-heading + [data-node-type='blockChildren']` — group margin after headings
 
 ---
 
 ## headingBoxPlugin
 
-Decorates the blockNode containing the nearest heading when cursor is in its
-subtree:
+Decorates the blockNode containing the nearest heading when cursor is in its subtree:
 
 ```ts
 function getHeadingDecorations(state) {
@@ -707,19 +664,16 @@ function getHeadingDecorations(state) {
 
 function getNearestHeadingFromPos(state, pos) {
   for (let depth = maxDepth; depth >= 0; depth--) {
-    if (
-      node.type.name === 'blockNode' &&
-      node.firstChild?.type.name === 'heading'
-    ) {
+    if (node.type.name === 'blockNode' && node.firstChild?.type.name === 'heading') {
       return {depth, groupStartPos, heading, group: node, $pos}
     }
   }
 }
 ```
 
-**Important:** Since blockNode uses a custom NodeView, the NodeView must
-explicitly apply/remove the `selection-in-section` CSS class from decorations.
-ProseMirror does NOT auto-apply `Decoration.node` attrs to custom NodeViews.
+**Important:** Since blockNode uses a custom NodeView, the NodeView must explicitly apply/remove the
+`selection-in-section` CSS class from decorations. ProseMirror does NOT auto-apply `Decoration.node` attrs to custom
+NodeViews.
 
 ---
 
@@ -743,8 +697,7 @@ blockNode [+1] paragraph [+1] ... [-1] blockChildren? [+1] ... [-1] [-1]
 before(d)       start(d)                blockChildren start           after(d)
 ```
 
-Old schema had one extra level (blockOuter > blockContainer), so all offsets
-were +1 deeper.
+Old schema had one extra level (blockOuter > blockContainer), so all offsets were +1 deeper.
 
 ---
 
@@ -752,13 +705,12 @@ were +1 deeper.
 
 ### 1. isInGroup('block') Ambiguity
 
-**Problem:** After renaming `blockContent` group to `block`, both `blockNode`
-(group: `'blockNodeChild block'`) and content nodes like `paragraph` (group:
-`'block'`) matched `isInGroup('block')`. This broke `getNearestBlockPos` which
+**Problem:** After renaming `blockContent` group to `block`, both `blockNode` (group: `'blockNodeChild block'`) and
+content nodes like `paragraph` (group: `'block'`) matched `isInGroup('block')`. This broke `getNearestBlockPos` which
 returned paragraph nodes instead of blockNodes.
 
-**Fix:** All block-lookup code uses `isInGroup('blockNodeChild')` instead.
-Content-type checks use `spec.group === 'block'` (exact match).
+**Fix:** All block-lookup code uses `isInGroup('blockNodeChild')` instead. Content-type checks use
+`spec.group === 'block'` (exact match).
 
 Affected files:
 
@@ -769,38 +721,33 @@ Affected files:
 
 ### 2. NodeView Needed for List Items
 
-**Problem:** `blockNode` renders as `<div>` via `renderHTML`, but `<div>` inside
-`<ol>`/`<ul>` is invalid HTML. Old code also used `<div>` + `display: list-item`
-CSS, but the visual rendering was unreliable.
+**Problem:** `blockNode` renders as `<div>` via `renderHTML`, but `<div>` inside `<ol>`/`<ul>` is invalid HTML. Old code
+also used `<div>` + `display: list-item` CSS, but the visual rendering was unreliable.
 
-**Fix:** Added `addNodeView` to `BlockNode` that creates `<li>` when parent is a
-list, `<div>` otherwise. The `update` method returns `false` when tag needs to
-change, forcing re-creation.
+**Fix:** Added `addNodeView` to `BlockNode` that creates `<li>` when parent is a list, `<div>` otherwise. The `update`
+method returns `false` when tag needs to change, forcing re-creation.
 
 ### 3. NodeView Decoration Handling
 
-**Problem:** The `headingBoxPlugin` uses `Decoration.node` to add
-`selection-in-section` class to the heading's blockNode. With a custom NodeView,
-ProseMirror doesn't automatically apply node decoration attributes.
+**Problem:** The `headingBoxPlugin` uses `Decoration.node` to add `selection-in-section` class to the heading's
+blockNode. With a custom NodeView, ProseMirror doesn't automatically apply node decoration attributes.
 
-**Fix:** The NodeView explicitly tracks decorations and applies/removes CSS
-classes in both the constructor and `update` method.
+**Fix:** The NodeView explicitly tracks decorations and applies/removes CSS classes in both the constructor and `update`
+method.
 
 ### 4. z-index on Heading Highlight
 
-**Problem:** The `.selection-in-section::before` pseudo-element rendered on top
-of heading content because with the flat DOM, the `::before` and heading are
-siblings in the same containing block.
+**Problem:** The `.selection-in-section::before` pseudo-element rendered on top of heading content because with the flat
+DOM, the `::before` and heading are siblings in the same containing block.
 
 **Fix:** Added `z-index: -1` to `.selection-in-section::before`.
 
 ### 5. code-block Group and References
 
-**Problem:** `code-block.ts` used `group: 'blockContent'` (the old group name)
-and referenced `schema.nodes['blockContainer']` / `schema.nodes['blockGroup']`.
+**Problem:** `code-block.ts` used `group: 'blockContent'` (the old group name) and referenced
+`schema.nodes['blockContainer']` / `schema.nodes['blockGroup']`.
 
-**Fix:** Changed to `group: 'block'`, `schema.nodes['blockNode']`,
-`schema.nodes['blockChildren']`.
+**Fix:** Changed to `group: 'block'`, `schema.nodes['blockNode']`, `schema.nodes['blockChildren']`.
 
 ---
 
@@ -808,17 +755,16 @@ and referenced `schema.nodes['blockContainer']` / `schema.nodes['blockGroup']`.
 
 ### parseHTML
 
-Both `BlockNode` and `BlockChildren` accept old `data-node-type` values in
-`parseHTML` rules for clipboard paste compatibility:
+Both `BlockNode` and `BlockChildren` accept old `data-node-type` values in `parseHTML` rules for clipboard paste
+compatibility:
 
 - `blockNode` matches both `data-node-type="blockNode"` and `"blockContainer"`
-- `blockChildren` matches both `data-node-type="blockChildren"` and
-  `"blockGroup"`
+- `blockChildren` matches both `data-node-type="blockChildren"` and `"blockGroup"`
 
 ### document.css (Viewer)
 
-`frontend/packages/shared/src/styles/document.css` uses dual selectors for both
-old (viewer) and new (editor) attribute names:
+`frontend/packages/shared/src/styles/document.css` uses dual selectors for both old (viewer) and new (editor) attribute
+names:
 
 ```css
 [data-node-type='blockContainer'], [data-node-type='blockNode'] { ... }
@@ -826,5 +772,4 @@ old (viewer) and new (editor) attribute names:
 
 ### BlockNoteDOMAttributes
 
-The `blockContent` key in `BlockNoteDOMAttributes` was kept (not renamed to
-`block`) to avoid public API breakage.
+The `blockContent` key in `BlockNoteDOMAttributes` was kept (not renamed to `block`) to avoid public API breakage.

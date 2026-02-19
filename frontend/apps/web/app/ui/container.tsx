@@ -8,12 +8,7 @@ interface ContainerProps {
   className?: string
 }
 
-export const Container = ({
-  children,
-  hide = false,
-  clearVerticalSpace = false,
-  className,
-}: ContainerProps) => {
+export const Container = ({children, hide = false, clearVerticalSpace = false, className}: ContainerProps) => {
   return (
     <div
       className={cn(

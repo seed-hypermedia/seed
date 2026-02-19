@@ -40,8 +40,7 @@ export function useLocalStorage(key: string, initialValue: unknown) {
 
   const setValue = useCallback(
     (value: any) => {
-      const valueToStore =
-        typeof value === 'function' ? value(getSnapshot()) : value
+      const valueToStore = typeof value === 'function' ? value(getSnapshot()) : value
 
       localStorage.setItem(key, JSON.stringify(valueToStore))
       cachedValue.current = valueToStore // update cache

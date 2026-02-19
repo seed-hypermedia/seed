@@ -29,19 +29,11 @@ export const MathBlock = (type: 'math') =>
     },
     containsInlineContent: true,
 
-    render: ({
-      block,
-      editor,
-    }: {
-      block: Block<HMBlockSchema>
-      editor: BlockNoteEditor<HMBlockSchema>
-    }) => Render(block, editor),
+    render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) =>
+      Render(block, editor),
   })
 
-const Render = (
-  block: Block<HMBlockSchema>,
-  editor: BlockNoteEditor<HMBlockSchema>,
-) => {
+const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSchema>) => {
   const [selected, setSelected] = useState(false)
   const [opened, setOpened] = useState(false)
   const mathRef = useRef<HTMLDivElement>(null)
@@ -49,8 +41,7 @@ const Render = (
   const tiptapEditor = editor._tiptapEditor
   const selection = tiptapEditor.state.selection
   const containerRef = useRef<HTMLDivElement>(null)
-  const [isContentSmallerThanContainer, setIsContentSmallerThanContainer] =
-    useState(true)
+  const [isContentSmallerThanContainer, setIsContentSmallerThanContainer] = useState(true)
 
   // Use context directly to avoid error when not in a provider
   const blocksContentCtx = useContext(blocksContentContext)
@@ -59,10 +50,7 @@ const Render = (
   useEffect(() => {
     const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
     if (selectedNode && selectedNode.block.node.attrs.id) {
-      if (
-        selectedNode.block.node.attrs.id === block.id &&
-        selectedNode.block.beforePos + 1 === selection.$anchor.pos
-      ) {
+      if (selectedNode.block.node.attrs.id === block.id && selectedNode.block.beforePos + 1 === selection.$anchor.pos) {
         setSelected(true)
         setOpened(true)
       } else if (selectedNode.block.node.attrs.id !== block.id) {
@@ -119,9 +107,7 @@ const Render = (
       // Get the actual rendered content width from the first child of mathRef
       // (KaTeX creates nested elements)
       const contentElement = mathRef.current.firstElementChild as HTMLElement
-      const contentWidth = contentElement
-        ? contentElement.offsetWidth
-        : mathRef.current.offsetWidth
+      const contentWidth = contentElement ? contentElement.offsetWidth : mathRef.current.offsetWidth
       const containerWidth = containerRef.current.offsetWidth
 
       // Account for padding
@@ -219,9 +205,7 @@ const Render = (
         }}
         className={cn(
           'relative flex min-h-7 w-full flex-col px-3 py-[10px] select-none',
-          isContentSmallerThanContainer
-            ? 'items-center overflow-hidden'
-            : 'items-start overflow-scroll',
+          isContentSmallerThanContainer ? 'items-center overflow-hidden' : 'items-start overflow-scroll',
         )}
       >
         <p ref={mathRef} className="text-base select-none" />
@@ -239,10 +223,7 @@ const Render = (
                 if (key === 'ArrowUp') {
                   e.preventDefault()
                   const {state, view} = tiptapEditor
-                  const prevBlockInfo = findPreviousBlock(
-                    view,
-                    state.selection.from,
-                  )
+                  const prevBlockInfo = findPreviousBlock(view, state.selection.from)
 
                   if (prevBlockInfo) {
                     const {prevBlock, prevBlockPos} = prevBlockInfo
@@ -250,16 +231,10 @@ const Render = (
                     const prevNodePos = prevBlockPos + 1
 
                     if (selectableNodeTypes.includes(prevNode.type.name)) {
-                      const selection = NodeSelection.create(
-                        state.doc,
-                        prevNodePos,
-                      )
+                      const selection = NodeSelection.create(state.doc, prevNodePos)
                       view.dispatch(state.tr.setSelection(selection))
                     } else {
-                      editor.setTextCursorPosition(
-                        editor.getTextCursorPosition().prevBlock!,
-                        'end',
-                      )
+                      editor.setTextCursorPosition(editor.getTextCursorPosition().prevBlock!, 'end')
                     }
 
                     view.focus()
@@ -268,10 +243,7 @@ const Render = (
                 } else if (key === 'ArrowDown') {
                   e.preventDefault()
                   const {state, view} = tiptapEditor
-                  const nextBlockInfo = findNextBlock(
-                    view,
-                    state.selection.from,
-                  )
+                  const nextBlockInfo = findNextBlock(view, state.selection.from)
 
                   if (nextBlockInfo) {
                     const {nextBlock, nextBlockPos} = nextBlockInfo
@@ -279,36 +251,20 @@ const Render = (
                     const nextNodePos = nextBlockPos + 1
 
                     if (selectableNodeTypes.includes(nextNode.type.name)) {
-                      const selection = NodeSelection.create(
-                        state.doc,
-                        nextNodePos,
-                      )
+                      const selection = NodeSelection.create(state.doc, nextNodePos)
                       view.dispatch(state.tr.setSelection(selection))
                     } else {
-                      editor.setTextCursorPosition(
-                        editor.getTextCursorPosition().nextBlock!,
-                        'start',
-                      )
+                      editor.setTextCursorPosition(editor.getTextCursorPosition().nextBlock!, 'start')
                     }
 
                     view.focus()
                     setOpened(false)
                   }
                 } else if (key === 'Backspace') {
-                  const blockInfo = getBlockInfoFromSelection(
-                    tiptapEditor.state,
-                  )
-                  if (
-                    blockInfo.block.node.attrs.id === block.id &&
-                    !blockInfo.blockContent.node.textContent.length
-                  ) {
+                  const blockInfo = getBlockInfoFromSelection(tiptapEditor.state)
+                  if (blockInfo.block.node.attrs.id === block.id && !blockInfo.blockContent.node.textContent.length) {
                     const {state, view} = tiptapEditor
-                    view.dispatch(
-                      state.tr.delete(
-                        blockInfo.block.beforePos + 1,
-                        blockInfo.block.afterPos - 1,
-                      ),
-                    )
+                    view.dispatch(state.tr.delete(blockInfo.block.beforePos + 1, blockInfo.block.afterPos - 1))
                     editor.focus()
                   }
                 }

@@ -62,10 +62,7 @@ describe('prepareHMDocument', () => {
     expect(result.content).toBeDefined()
 
     // Should have logged the error
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Error parsing document'),
-      expect.any(Object),
-    )
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Error parsing document'), expect.any(Object))
 
     consoleSpy.mockRestore()
   })
@@ -167,10 +164,7 @@ describe('prepareHMComment', () => {
     expect(result.content).toBeDefined()
 
     // Should have logged the error
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Error parsing comment'),
-      expect.any(Object),
-    )
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Error parsing comment'), expect.any(Object))
 
     consoleSpy.mockRestore()
   })

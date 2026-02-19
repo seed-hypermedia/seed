@@ -41,19 +41,11 @@ export const FileBlock = createReactBlockSpec({
   },
   containsInlineContent: true,
   // @ts-ignore
-  render: ({
-    block,
-    editor,
-  }: {
-    block: Block<HMBlockSchema>
-    editor: BlockNoteEditor<HMBlockSchema>
-  }) => Render(block, editor),
+  render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) =>
+    Render(block, editor),
 })
 
-const Render = (
-  block: Block<HMBlockSchema>,
-  editor: BlockNoteEditor<HMBlockSchema>,
-) => {
+const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSchema>) => {
   return (
     <MediaRender
       block={block}
@@ -66,13 +58,7 @@ const Render = (
   )
 }
 
-const display = ({
-  editor,
-  block,
-  selected,
-  setSelected,
-  assign,
-}: DisplayComponentProps) => {
+const display = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
   return (
     <MediaContainer
       editor={editor}
@@ -84,10 +70,7 @@ const display = ({
     >
       <Button className="w-full justify-start px-4 py-3 select-none" disabled>
         <File className="size-4 shrink-0" />
-        <SizableText
-          size="md"
-          className="min-w-0 flex-1 truncate overflow-hidden whitespace-nowrap"
-        >
+        <SizableText size="md" className="min-w-0 flex-1 truncate overflow-hidden whitespace-nowrap">
           {block.props.name}
         </SizableText>
         <SizableText className="shrink-0 pt-1" color="muted" size="sm">

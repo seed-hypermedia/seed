@@ -34,9 +34,7 @@ export const PreviousBlockTypePlugin = () => {
             // use setTimeout 0 to clear the decorations so that at least
             // for one DOM-render the decorations have been applied
             timeout = setTimeout(() => {
-              view.dispatch(
-                view.state.tr.setMeta(PLUGIN_KEY, {clearUpdate: true}),
-              )
+              view.dispatch(view.state.tr.setMeta(PLUGIN_KEY, {clearUpdate: true}))
             }, 0)
           }
         },
@@ -90,9 +88,7 @@ export const PreviousBlockTypePlugin = () => {
         const currentTransactionOriginalOldBlockAttrs = {} as any
 
         const oldNodes = findChildren(oldState.doc, (node) => node.attrs.id)
-        const oldNodesById = new Map(
-          oldNodes.map((node) => [node.node.attrs.id, node]),
-        )
+        const oldNodesById = new Map(oldNodes.map((node) => [node.node.attrs.id, node]))
         const newNodes = findChildren(newState.doc, (node) => node.attrs.id)
 
         // Traverses all block containers in the new editor state.
@@ -117,8 +113,7 @@ export const PreviousBlockTypePlugin = () => {
               depth: oldState.doc.resolve(oldNode.pos).depth,
             }
 
-            currentTransactionOriginalOldBlockAttrs[node.node.attrs.id] =
-              oldAttrs
+            currentTransactionOriginalOldBlockAttrs[node.node.attrs.id] = oldAttrs
 
             // Whenever a transaction is appended by the OrderedListItemIndexPlugin, it's given the metadata:
             // { "orderedListIndexing": true }
@@ -145,8 +140,7 @@ export const PreviousBlockTypePlugin = () => {
 
             // TODO: faster deep equal?
             if (JSON.stringify(oldAttrs) !== JSON.stringify(newAttrs)) {
-              ;(oldAttrs as any)['depth-change'] =
-                oldAttrs.depth - newAttrs.depth
+              ;(oldAttrs as any)['depth-change'] = oldAttrs.depth - newAttrs.depth
 
               // for debugging:
               // console.log(
@@ -163,8 +157,7 @@ export const PreviousBlockTypePlugin = () => {
           }
         }
 
-        prev.prevTransactionOldBlockAttrs =
-          currentTransactionOriginalOldBlockAttrs
+        prev.prevTransactionOldBlockAttrs = currentTransactionOriginalOldBlockAttrs
 
         return prev
       },
@@ -187,13 +180,11 @@ export const PreviousBlockTypePlugin = () => {
             return
           }
 
-          const prevAttrs =
-            pluginState.currentTransactionOldBlockAttrs[node.attrs.id]
+          const prevAttrs = pluginState.currentTransactionOldBlockAttrs[node.attrs.id]
           const decorationAttrs: any = {}
 
           for (const [nodeAttr, val] of Object.entries(prevAttrs)) {
-            decorationAttrs['data-prev-' + nodeAttributes[nodeAttr]] =
-              val || 'none'
+            decorationAttrs['data-prev-' + nodeAttributes[nodeAttr]] = val || 'none'
           }
 
           // for debugging:

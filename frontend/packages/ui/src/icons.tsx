@@ -145,13 +145,7 @@ export function StarFull(props: any) {
 
 export function AppleIcon(props: any) {
   return (
-    <svg
-      fill="currentColor"
-      viewBox="0 0 16 16"
-      height="1em"
-      width="1em"
-      {...props}
-    >
+    <svg fill="currentColor" viewBox="0 0 16 16" height="1em" width="1em" {...props}>
       <path d="M11.182.008C11.148-.03 9.923.023 8.857 1.18c-1.066 1.156-.902 2.482-.878 2.516.024.034 1.52.087 2.475-1.258.955-1.345.762-2.391.728-2.43zm3.314 11.733c-.048-.096-2.325-1.234-2.113-3.422.212-2.189 1.675-2.789 1.698-2.854.023-.065-.597-.79-1.254-1.157a3.692 3.692 0 00-1.563-.434c-.108-.003-.483-.095-1.254.116-.508.139-1.653.589-1.968.607-.316.018-1.256-.522-2.267-.665-.647-.125-1.333.131-1.824.328-.49.196-1.422.754-2.074 2.237-.652 1.482-.311 3.83-.067 4.56.244.729.625 1.924 1.273 2.796.576.984 1.34 1.667 1.659 1.899.319.232 1.219.386 1.843.067.502-.308 1.408-.485 1.766-.472.357.013 1.061.154 1.782.539.571.197 1.111.115 1.652-.105.541-.221 1.324-1.059 2.238-2.758.347-.79.505-1.217.473-1.282z" />
       <path d="M11.182.008C11.148-.03 9.923.023 8.857 1.18c-1.066 1.156-.902 2.482-.878 2.516.024.034 1.52.087 2.475-1.258.955-1.345.762-2.391.728-2.43zm3.314 11.733c-.048-.096-2.325-1.234-2.113-3.422.212-2.189 1.675-2.789 1.698-2.854.023-.065-.597-.79-1.254-1.157a3.692 3.692 0 00-1.563-.434c-.108-.003-.483-.095-1.254.116-.508.139-1.653.589-1.968.607-.316.018-1.256-.522-2.267-.665-.647-.125-1.333.131-1.824.328-.49.196-1.422.754-2.074 2.237-.652 1.482-.311 3.83-.067 4.56.244.729.625 1.924 1.273 2.796.576.984 1.34 1.667 1.659 1.899.319.232 1.219.386 1.843.067.502-.308 1.408-.485 1.766-.472.357.013 1.061.154 1.782.539.571.197 1.111.115 1.652-.105.541-.221 1.324-1.059 2.238-2.758.347-.79.505-1.217.473-1.282z" />
     </svg>
@@ -171,13 +165,7 @@ export function WindowsIcon(props: any) {
 
 export function LinuxIcon(props: any) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      height="1em"
-      width="1em"
-      {...props}
-    >
+    <svg viewBox="0 0 24 24" fill="currentColor" height="1em" width="1em" {...props}>
       <path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.132 1.884 1.071.771-.06 1.592-.536 2.257-1.306.631-.765 1.683-1.084 2.378-1.503.348-.199.629-.469.649-.853.023-.4-.2-.811-.714-1.376v-.097l-.003-.003c-.17-.2-.25-.535-.338-.926-.085-.401-.182-.786-.492-1.046h-.003c-.059-.054-.123-.067-.188-.135a.357.357 0 00-.19-.064c.431-1.278.264-2.55-.173-3.694-.533-1.41-1.465-2.638-2.175-3.483-.796-1.005-1.576-1.957-1.56-3.368.026-2.152.236-6.133-3.544-6.139zm.529 3.405h.013c.213 0 .396.062.584.198.19.135.33.332.438.533.105.259.158.459.166.724 0-.02.006-.04.006-.06v.105a.086.086 0 01-.004-.021l-.004-.024a1.807 1.807 0 01-.15.706.953.953 0 01-.213.335.71.71 0 00-.088-.042c-.104-.045-.198-.064-.284-.133a1.312 1.312 0 00-.22-.066c.05-.06.146-.133.183-.198.053-.128.082-.264.088-.402v-.02a1.21 1.21 0 00-.061-.4c-.045-.134-.101-.2-.183-.333-.084-.066-.167-.132-.267-.132h-.016c-.093 0-.176.03-.262.132a.8.8 0 00-.205.334 1.18 1.18 0 00-.09.4v.019c.002.089.008.179.02.267-.193-.067-.438-.135-.607-.202a1.635 1.635 0 01-.018-.2v-.02a1.772 1.772 0 01.15-.768 1.08 1.08 0 01.43-.533.985.985 0 01.594-.2zm-2.962.059h.036c.142 0 .27.048.399.135.146.129.264.288.344.465.09.199.14.4.153.667v.004c.007.134.006.2-.002.266v.08c-.03.007-.056.018-.083.024-.152.055-.274.135-.393.2.012-.09.013-.18.003-.267v-.015c-.012-.133-.04-.2-.082-.333a.613.613 0 00-.166-.267.248.248 0 00-.183-.064h-.021c-.071.006-.13.04-.186.132a.552.552 0 00-.12.27.944.944 0 00-.023.33v.015c.012.135.037.2.08.334.046.134.098.2.166.268.01.009.02.018.034.024-.07.057-.117.07-.176.136a.304.304 0 01-.131.068 2.62 2.62 0 01-.275-.402 1.772 1.772 0 01-.155-.667 1.759 1.759 0 01.08-.668 1.43 1.43 0 01.283-.535c.128-.133.26-.2.418-.2zm1.37 1.706c.332 0 .733.065 1.216.399.293.2.523.269 1.052.468h.003c.255.136.405.266.478.399v-.131a.571.571 0 01.016.47c-.123.31-.516.643-1.063.842v.002c-.268.135-.501.333-.775.465-.276.135-.588.292-1.012.267a1.139 1.139 0 01-.448-.067 3.566 3.566 0 01-.322-.198c-.195-.135-.363-.332-.612-.465v-.005h-.005c-.4-.246-.616-.512-.686-.71-.07-.268-.005-.47.193-.6.224-.135.38-.271.483-.336.104-.074.143-.102.176-.131h.002v-.003c.169-.202.436-.47.839-.601.139-.036.294-.065.466-.065zm2.8 2.142c.358 1.417 1.196 3.475 1.735 4.473.286.534.855 1.659 1.102 3.024.156-.005.33.018.513.064.646-1.671-.546-3.467-1.089-3.966-.22-.2-.232-.335-.123-.335.59.534 1.365 1.572 1.646 2.757.13.535.16 1.104.021 1.67.067.028.135.06.205.067 1.032.534 1.413.938 1.23 1.537v-.043c-.06-.003-.12 0-.18 0h-.016c.151-.467-.182-.825-1.065-1.224-.915-.4-1.646-.336-1.77.465-.008.043-.013.066-.018.135-.068.023-.139.053-.209.064-.43.268-.662.669-.793 1.187-.13.533-.17 1.156-.205 1.869v.003c-.02.334-.17.838-.319 1.35-1.5 1.072-3.58 1.538-5.348.334a2.645 2.645 0 00-.402-.533 1.45 1.45 0 00-.275-.333c.182 0 .338-.03.465-.067a.615.615 0 00.314-.334c.108-.267 0-.697-.345-1.163-.345-.467-.931-.995-1.788-1.521-.63-.4-.986-.87-1.15-1.396-.165-.534-.143-1.085-.015-1.645.245-1.07.873-2.11 1.274-2.763.107-.065.037.135-.408.974-.396.751-1.14 2.497-.122 3.854a8.123 8.123 0 01.647-2.876c.564-1.278 1.743-3.504 1.836-5.268.048.036.217.135.289.202.218.133.38.333.59.465.21.201.477.335.876.335.039.003.075.006.11.006.412 0 .73-.134.997-.268.29-.134.52-.334.74-.4h.005c.467-.135.835-.402 1.044-.7zm2.185 8.958c.037.6.343 1.245.882 1.377.588.134 1.434-.333 1.791-.765l.211-.01c.315-.007.577.01.847.268l.003.003c.208.199.305.53.391.876.085.4.154.78.409 1.066.486.527.645.906.636 1.14l.003-.007v.018l-.003-.012c-.015.262-.185.396-.498.595-.63.401-1.746.712-2.457 1.57-.618.737-1.37 1.14-2.036 1.191-.664.053-1.237-.2-1.574-.898l-.005-.003c-.21-.4-.12-1.025.056-1.69.176-.668.428-1.344.463-1.897.037-.714.076-1.335.195-1.814.12-.465.308-.797.641-.984l.045-.022zm-10.814.049h.01c.053 0 .105.005.157.014.376.055.706.333 1.023.752l.91 1.664.003.003c.243.533.754 1.064 1.189 1.637.434.598.77 1.131.729 1.57v.006c-.057.744-.48 1.148-1.125 1.294-.645.135-1.52.002-2.395-.464-.968-.536-2.118-.469-2.857-.602-.369-.066-.61-.2-.723-.4-.11-.2-.113-.602.123-1.23v-.004l.002-.003c.117-.334.03-.752-.027-1.118-.055-.401-.083-.71.043-.94.16-.334.396-.4.69-.533.294-.135.64-.202.915-.47h.002v-.002c.256-.268.445-.601.668-.838.19-.201.38-.336.663-.336zm7.159-9.074c-.435.201-.945.535-1.488.535-.542 0-.97-.267-1.28-.466-.154-.134-.28-.268-.373-.335-.164-.134-.144-.333-.074-.333.109.016.129.134.199.2.096.066.215.2.36.333.292.2.68.467 1.167.467.485 0 1.053-.267 1.398-.466.195-.135.445-.334.648-.467.156-.136.149-.267.279-.267.128.016.034.134-.147.332a8.097 8.097 0 01-.69.468zm-1.082-1.583V5.64c-.006-.02.013-.042.029-.05.074-.043.18-.027.26.004.063 0 .16.067.15.135-.006.049-.085.066-.135.066-.055 0-.092-.043-.141-.068-.052-.018-.146-.008-.163-.065zm-.551 0c-.02.058-.113.049-.166.066-.047.025-.086.068-.14.068-.05 0-.13-.02-.136-.068-.01-.066.088-.133.15-.133.08-.031.184-.047.259-.005.019.009.036.03.03.05v.02h.003z" />
     </svg>
   )
@@ -185,13 +173,7 @@ export function LinuxIcon(props: any) {
 
 export function DebianIcon(props: any) {
   return (
-    <svg
-      viewBox="0 0 32 32"
-      fill="currentColor"
-      height="1em"
-      width="1em"
-      {...props}
-    >
+    <svg viewBox="0 0 32 32" fill="currentColor" height="1em" width="1em" {...props}>
       <path
         fill="currentColor"
         d="M18.885 17.41c.167-.13.319-.262.454-.391-.377.092-.76.094-1.146.059-.463.006.088.239.692.332zm1.794-.952c.276-.381.477-.798.548-1.229-.062.307-.229.572-.386.852-.866.545-.081-.324 0-.654-.931 1.172-.128.703-.162 1.03zm.918-2.388c.056-.834-.164-.571-.238-.252.086.045.155.588.238.252zM16.436 2.667c.247.044.534.078.494.137.27-.059.332-.114-.494-.137zm.482.159l.012-.022-.175.036zm-.631 17.24a5.44 5.44 0 01-1.779-1.361c.266.39.554.769.925 1.067-.629-.213-1.468-1.523-1.713-1.576 1.084 1.94 4.396 3.402 6.131 2.677-.803.029-1.822.016-2.724-.317-.347-.179-.807-.532-.811-.648-.017.045-.046.09-.028.158zm.035-.181a.032.032 0 00-.007.022l.007-.022zm9.952-7.588c.008-.425.118-.223.161-.328-.084-.048-.303-.374-.436-.999.097-.147.258.381.39.403-.085-.497-.23-.876-.236-1.258-.384-.803-.136.107-.448-.345-.409-1.276.339-.296.39-.875.62.898.973 2.289 1.135 2.866a11.778 11.778 0 00-.568-2.042c.188.079-.303-1.446.245-.436-.585-2.153-2.504-4.165-4.27-5.109.216.198.489.446.391.485-.878-.523-.724-.564-.849-.784-.716-.291-.762.023-1.236.001-1.348-.715-1.608-.639-2.849-1.087l.057.264c-.893-.297-1.041.113-2.006.001-.059-.046.309-.166.612-.21-.864.114-.823-.17-1.668.031.208-.146.428-.243.651-.367-.704.043-1.681.41-1.38.076-1.149.513-3.189 1.232-4.334 2.306l-.036-.241c-.525.63-2.288 1.881-2.428 2.697l-.14.033c-.273.462-.45.986-.666 1.462-.357.608-.524.234-.473.329-.702 1.424-1.051 2.62-1.352 3.601.215.321.005 1.932.086 3.222-.353 6.369 4.47 12.552 9.741 13.98.773.276 1.922.266 2.899.294-1.153-.33-1.302-.175-2.425-.566-.81-.382-.988-.817-1.562-1.315l.227.401c-1.126-.398-.655-.493-1.571-.783l.243-.317c-.365-.028-.966-.615-1.131-.94l-.399.016c-.48-.592-.735-1.018-.716-1.348l-.129.23c-.146-.251-1.764-2.219-.925-1.761-.156-.143-.363-.232-.588-.64l.171-.195c-.404-.52-.743-1.186-.718-1.408.216.291.365.345.513.395-1.02-2.531-1.077-.139-1.85-2.576l.163-.013c-.125-.189-.201-.394-.302-.595l.071-.709c-.734-.849-.205-3.611-.099-5.125.073-.616.613-1.272 1.023-2.3l-.25-.043c.478-.834 2.729-3.348 3.772-3.219.505-.634-.1-.002-.199-.162 1.109-1.148 1.458-.811 2.207-1.018.807-.479-.693.187-.31-.183 1.396-.356.989-.81 2.81-.991.192.109-.446.169-.606.311 1.163-.569 3.68-.44 5.315.316 1.897.887 4.029 3.507 4.113 5.973l.096.026c-.048.98.15 2.114-.194 3.155l.234-.493c.027.749-.219 1.113-.442 1.756l-.401.2c-.328.636.032.404-.203.91-.512.455-1.552 1.423-1.885 1.511-.243-.005.165-.287.218-.397-.684.47-.549.706-1.596.992l-.031-.068c-2.583 1.215-6.17-1.193-6.123-4.478-.028.209-.078.156-.136.241-.133-1.691.781-3.388 2.322-4.081 1.508-.746 3.275-.44 4.355.566-.593-.777-1.774-1.601-3.173-1.524-1.371.022-2.653.893-3.081 1.838-.702.442-.784 1.704-1.09 1.935-.412 3.026.774 4.333 2.781 5.871.162.109.181.171.167.227l.003-.004c2.367.884 4.812.67 6.86-.972.521-.406 1.09-1.096 1.255-1.106-.248.373.042.179-.148.508.519-.837-.226-.341.537-1.446l.282.388c-.105-.695.863-1.539.765-2.638.222-.336.248.362.012 1.135.327-.858.086-.996.17-1.704.091.238.21.491.271.742-.213-.829.218-1.396.325-1.878-.105-.047-.329.366-.38-.613zm-13.203 5.741c.304.414.546.862.935 1.185-.28-.546-.487-.772-.87-1.51l-.065.325zm.785-.353c-.161-.178-.257-.393-.363-.607.102.376.311.698.506 1.027l-.143-.42zm11.861-.021a8.083 8.083 0 00.875-2.747l-.068.171a8.244 8.244 0 01-.807 2.576zM17.63 2.307c-.433.036-.864.058-1.29.113l.188.026c.313-.115.77-.063 1.102-.138zM5.659 8.779c.322-.724-.089-.26-.125-.453.05.643-.495.886.125.453zm-.641 1.635c-.401.513-.185.622-.227.971.145-.446.171-.713.227-.971z"
@@ -202,13 +184,7 @@ export function DebianIcon(props: any) {
 
 export function TwitterXIcon(props: any) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      height="1em"
-      width="1em"
-      {...props}
-    >
+    <svg viewBox="0 0 24 24" fill="currentColor" height="1em" width="1em" {...props}>
       <path d="M18.2048 2.25H21.5128L14.2858 10.51L22.7878 21.75H16.1308L10.9168 14.933L4.95084 21.75H1.64084L9.37084 12.915L1.21484 2.25H8.04084L12.7538 8.481L18.2048 2.25ZM17.0438 19.77H18.8768L7.04484 4.126H5.07784L17.0438 19.77Z"></path>
     </svg>
   )
@@ -223,21 +199,8 @@ export function CitationsIcon({
   size?: string | number
 }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 20 20"
-      fill="none"
-      {...props}
-    >
-      <g
-        stroke={color}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={1.2}
-        clipPath="url(#a)"
-      >
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 20 20" fill="none" {...props}>
+      <g stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} clipPath="url(#a)">
         <path d="M3.333 10.832c-1.11-1.545-1.11-3.455 0-5M6.667 10.832c-1.11-1.545-1.11-3.455 0-5M13.334 15.832c1.11-1.545 1.11-3.455 0-5M16.666 15.832c1.11-1.545 1.11-3.455 0-5" />
       </g>
       <defs>
@@ -259,21 +222,8 @@ export function HistoryIcon({
   className?: string
 }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 20 20"
-      fill="none"
-      {...props}
-    >
-      <g
-        stroke={color}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={1.2}
-        clipPath="url(#a)"
-      >
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 20 20" fill="none" {...props}>
+      <g stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} clipPath="url(#a)">
         <path d="M10.832 6.982v3.01l1.505 1.504" />
         <path d="M4.098 9.241a6.771 6.771 0 1 1 .376 3.01m-.376 3.761v-3.761h3.761" />
       </g>
@@ -295,22 +245,8 @@ export function CollaboratorsIcon({
   size?: string | number
 }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 20 20"
-      fill="none"
-      {...props}
-    >
-      <circle
-        cx={10.666}
-        cy={6.789}
-        r={2.568}
-        stroke={color}
-        strokeLinecap="round"
-        strokeWidth={1.2}
-      />
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 20 20" fill="none" {...props}>
+      <circle cx={10.666} cy={6.789} r={2.568} stroke={color} strokeLinecap="round" strokeWidth={1.2} />
       <path
         stroke={color}
         strokeLinecap="round"
@@ -321,27 +257,10 @@ export function CollaboratorsIcon({
   )
 }
 
-export function SuggestedChangesIcon({
-  color = DefaultIconColor,
-  size = '1em',
-  ...props
-}) {
+export function SuggestedChangesIcon({color = DefaultIconColor, size = '1em', ...props}) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 20 20"
-      fill="none"
-      {...props}
-    >
-      <g
-        stroke={color}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={1.2}
-        clipPath="url(#a)"
-      >
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 20 20" fill="none" {...props}>
+      <g stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} clipPath="url(#a)">
         <path d="M3.367 14.977a1.659 1.659 0 1 0 3.318 0 1.659 1.659 0 0 0-3.318 0ZM13.32 14.977a1.659 1.659 0 1 0 3.318 0 1.659 1.659 0 0 0-3.318 0ZM5.025 10V8.343a4.977 4.977 0 1 1 9.954 0v1.659" />
         <path d="M12.49 7.512 14.98 10l2.488-2.488" />
       </g>
@@ -363,14 +282,7 @@ export function CommentsIcon({
   size?: string | number
 }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 20 20"
-      fill="none"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 20 20" fill="none" {...props}>
       <path
         fill={color}
         d="m4.429 5.533.534.272-.534-.272Zm.367 11.328.425.424-.425-.424Zm11.329-2.966-.273-.534.273.534Zm1.092-1.092.535.272-.535-.272Zm0-7.27.535-.272-.535.272ZM16.125 4.44l-.273.535.273-.535Zm-10.604 0 .273.535-.273-.535Zm1.725 9.972.424.424-.424-.424Zm-2.49-6.244c0-.71 0-1.206.032-1.593.031-.38.09-.6.175-.77l-1.069-.544c-.186.366-.265.762-.302 1.216-.036.447-.036 1-.036 1.691h1.2Zm0 1.833V8.168h-1.2v1.833h1.2Zm-1.2 0v4.167h1.2v-4.167h-1.2Zm0 4.167v2.428h1.2v-2.428h-1.2Zm0 2.428c0 .869 1.05 1.304 1.665.69l-.849-.85a.225.225 0 0 1 .384.16h-1.2Zm1.665.69 2.449-2.45-.849-.848-2.449 2.449.849.848Zm8.269-3.718H7.835v1.2h5.655v-1.2Zm2.362-.207c-.168.086-.39.144-.77.175-.386.032-.883.032-1.592.032v1.2c.69 0 1.243 0 1.69-.036.454-.037.85-.115 1.217-.302l-.545-1.07Zm.83-.83a1.9 1.9 0 0 1-.83.83l.545 1.07a3.1 3.1 0 0 0 1.355-1.356l-1.07-.544Zm.208-2.363c0 .71 0 1.206-.032 1.593-.032.38-.09.6-.175.77l1.069.544c.186-.366.264-.762.302-1.216.036-.447.036-1 .036-1.691h-1.2Zm0-2v2h1.2v-2h-1.2Zm-.207-2.363c.085.17.143.39.175.77.031.387.032.883.032 1.593h1.2c0-.69 0-1.244-.037-1.69-.037-.455-.115-.851-.301-1.217l-1.07.544Zm-.83-.83a1.9 1.9 0 0 1 .83.83l1.069-.544a3.1 3.1 0 0 0-1.355-1.355l-.545 1.07Zm-2.363-.207c.71 0 1.206 0 1.593.032.38.031.6.09.77.175l.544-1.07c-.366-.186-.763-.264-1.217-.301-.447-.037-1-.036-1.69-.036v1.2Zm-5.334 0h5.334v-1.2H8.156v1.2Zm-2.362.207c.168-.086.39-.144.77-.175.386-.032.882-.032 1.592-.032v-1.2c-.69 0-1.244 0-1.69.036-.455.037-.851.115-1.217.302l.545 1.07Zm-.83.83a1.9 1.9 0 0 1 .83-.83l-.545-1.07a3.1 3.1 0 0 0-1.355 1.356l1.07.544Zm2.706 9.031a.234.234 0 0 1 .165-.068v-1.2c-.38 0-.745.151-1.014.42l.849.848Z"
@@ -379,23 +291,9 @@ export function CommentsIcon({
   )
 }
 
-export function Check({
-  color = DefaultIconColor,
-  size = '1em',
-  ...props
-}: {
-  color?: string
-  size?: string | number
-}) {
+export function Check({color = DefaultIconColor, size = '1em', ...props}: {color?: string; size?: string | number}) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 20 20"
-      width={size}
-      height={size}
-      fill="none"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width={size} height={size} fill="none" {...props}>
       <path
         stroke={color}
         strokeLinecap="round"
@@ -406,23 +304,9 @@ export function Check({
   )
 }
 
-export function SeedHost({
-  color = DefaultIconColor,
-  size = '1em',
-  ...props
-}: {
-  color?: string
-  size?: string | number
-}) {
+export function SeedHost({color = DefaultIconColor, size = '1em', ...props}: {color?: string; size?: string | number}) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 512 697"
-      fill="none"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 512 697" fill="none" {...props}>
       <path
         fill={color}
         d="M510.932 366.895c1.946-55.696-3.783-151.443-49.492-236.419-20.739-38.557-52.798-72.52-90.005-96.13C342.914 16.25 311.367 4.236 279.574.9a.064.064 0 0 0-.071.06.066.066 0 0 1-.072.06c-40.047-4.362-80.518 5.018-115.856 33.328-105.154 84.241-65.67 240.07 23.084 309.932.041.032.09.051.142.054.05.004.093.019.133.049 7.879 5.962 36.405 27.87 65.31 54.077a.185.185 0 0 0 .309-.123.184.184 0 0 1 .307-.124c17.773 16.101 35.708 33.839 49.093 50.506 17.479 21.764 30.866 62.362 27.743 98.162-3.553 40.742-28.489 75.27-93.109 68.753-.035-.003-.068.022-.071.057a.062.062 0 0 1-.067.058c-5.255-.508-10.774-1.289-16.568-2.363C81.094 587.679 52.605 422.767 45.137 359.759c-6.359-53.655-2.158-88.112.066-106.35 5.092-41.771 25.146-94.567 41.503-132.644 7.291-16.974-1.673-22.836-12.038-7.545C29.418 179.972 2.42 269.779.322 329.879c-1.946 55.696 3.783 151.443 49.492 236.42 20.739 38.556 52.797 72.519 90.005 96.129 28.521 18.097 60.068 30.111 91.861 33.447a.064.064 0 0 0 .071-.06.065.065 0 0 1 .072-.059c40.047 4.362 80.518-5.019 115.856-33.328 105.154-84.242 65.67-240.071-23.084-309.933a.254.254 0 0 0-.142-.054.238.238 0 0 1-.133-.049c-7.879-5.961-36.406-27.869-65.31-54.077a.185.185 0 0 0-.309.123.184.184 0 0 1-.308.124c-17.772-16.101-35.707-33.839-49.092-50.506-18.675-23.253-32.679-68.005-26.867-105.435 5.819-37.472 31.498-67.605 92.233-61.48.035.003.068-.022.07-.057a.062.062 0 0 1 .068-.058c5.255.508 10.774 1.29 16.567 2.363 138.788 25.706 167.277 190.618 174.745 253.626 6.359 53.655 2.158 88.112-.066 106.351v.003l-.003.021c-2.711 38.771-23.84 93.401-41.13 132.799-7.423 16.916 1.302 22.657 11.668 7.366 45.25-66.752 72.247-156.56 74.346-216.66Z"
@@ -436,23 +320,9 @@ export function SeedHost({
   )
 }
 
-export function SelfHost({
-  color = DefaultIconColor,
-  size = '1em',
-  ...props
-}: {
-  color?: string
-  size?: string | number
-}) {
+export function SelfHost({color = DefaultIconColor, size = '1em', ...props}: {color?: string; size?: string | number}) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 29 28"
-      fill="none"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 29 28" fill="none" {...props}>
       <path
         stroke={color}
         strokeLinecap="round"
@@ -480,14 +350,7 @@ export function PasteSetupUrl({
   size?: string | number
 }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 29 28"
-      fill="none"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 29 28" fill="none" {...props}>
       <path
         stroke={color}
         strokeLinecap="round"
@@ -516,48 +379,19 @@ export function Contact({
   className?: string
 }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 20 20"
-      width={size}
-      height={size}
-      fill="none"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width={size} height={size} fill="none" {...props}>
       <path
         stroke={color}
         strokeWidth={1.2}
         d="M15.494 17.254c-.285-.886-.913-1.669-1.786-2.227-.873-.558-1.943-.861-3.044-.861-1.1 0-2.17.303-3.044.861-.873.558-1.5 1.341-1.786 2.227"
       />
-      <circle
-        cx={10.664}
-        cy={8.334}
-        r={2.5}
-        stroke={color}
-        strokeLinecap="round"
-        strokeWidth={1.2}
-      />
-      <rect
-        width={15.467}
-        height={15.467}
-        x={2.93}
-        y={2.266}
-        stroke={color}
-        strokeWidth={1.2}
-        rx={2.733}
-      />
+      <circle cx={10.664} cy={8.334} r={2.5} stroke={color} strokeLinecap="round" strokeWidth={1.2} />
+      <rect width={15.467} height={15.467} x={2.93} y={2.266} stroke={color} strokeWidth={1.2} rx={2.733} />
     </svg>
   )
 }
 
-export function Options({
-  color = DefaultIconColor,
-  size = '1em',
-  ...props
-}: {
-  color?: string
-  size?: string | number
-}) {
+export function Options({color = DefaultIconColor, size = '1em', ...props}: {color?: string; size?: string | number}) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -576,13 +410,7 @@ export function Options({
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        <path
-          d="M30.5 13.5L34.5 17.5"
-          stroke={color}
-          strokeWidth="1.44"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        <path d="M30.5 13.5L34.5 17.5" stroke={color} strokeWidth="1.44" strokeLinecap="round" strokeLinejoin="round" />
         <path
           d="M28 16L23 11L19 15L24 20"
           stroke={color}
@@ -590,13 +418,7 @@ export function Options({
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        <path
-          d="M23 16L21.5 17.5"
-          stroke={color}
-          strokeWidth="1.44"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        <path d="M23 16L21.5 17.5" stroke={color} strokeWidth="1.44" strokeLinecap="round" strokeLinejoin="round" />
         <path
           d="M32 20L37 25L33 29L28 24"
           stroke={color}
@@ -604,61 +426,27 @@ export function Options({
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        <path
-          d="M32 25L30.5 26.5"
-          stroke={color}
-          strokeWidth="1.44"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        <path d="M32 25L30.5 26.5" stroke={color} strokeWidth="1.44" strokeLinecap="round" strokeLinejoin="round" />
       </g>
       <defs>
         <clipPath id="clip0_10497_46166">
-          <rect
-            width="24"
-            height="24"
-            fill="white"
-            transform="translate(16 8)"
-          />
+          <rect width="24" height="24" fill="white" transform="translate(16 8)" />
         </clipPath>
       </defs>
     </svg>
   )
 }
 
-export function Document({
-  color = DefaultIconColor,
-  size = '1em',
-  ...props
-}: {
-  color?: string
-  size?: string | number
-}) {
+export function Document({color = DefaultIconColor, size = '1em', ...props}: {color?: string; size?: string | number}) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 20 20"
-      width={size}
-      height={size}
-      fill="none"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width={size} height={size} fill="none" {...props}>
       <path
         stroke={color}
         strokeWidth={1.2}
         d="M11.724 2.5H8.247c-1.57 0-2.357 0-2.845.488s-.488 1.274-.488 2.845v8.334c0 1.571 0 2.357.488 2.845s1.274.488 2.845.488h5c1.572 0 2.357 0 2.846-.488.488-.488.488-1.274.488-2.845v-6.81c0-.34 0-.51-.064-.664-.063-.153-.184-.274-.424-.514l-3.19-3.19c-.242-.242-.362-.362-.515-.426-.153-.063-.324-.063-.664-.063Z"
       />
-      <path
-        stroke={color}
-        strokeLinecap="round"
-        strokeWidth={1.2}
-        d="M8.248 10.834h5M8.248 14.166h3.333"
-      />
-      <path
-        stroke={color}
-        strokeWidth={1.2}
-        d="M11.582 2.5v3.333c0 .786 0 1.179.244 1.423s.637.244 1.423.244h3.333"
-      />
+      <path stroke={color} strokeLinecap="round" strokeWidth={1.2} d="M8.248 10.834h5M8.248 14.166h3.333" />
+      <path stroke={color} strokeWidth={1.2} d="M11.582 2.5v3.333c0 .786 0 1.179.244 1.423s.637.244 1.423.244h3.333" />
     </svg>
   )
 }
@@ -672,14 +460,7 @@ export function Subscribe({
   size?: string | number
 }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 20 20"
-      width={size}
-      height={size}
-      fill="none"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width={size} height={size} fill="none" {...props}>
       <path
         fill={color}
         fillRule="evenodd"
@@ -699,18 +480,8 @@ export function UnSubscribe({
   size?: string | number
 }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 20 20"
-      width={size}
-      height={size}
-      fill="none"
-      {...props}
-    >
-      <path
-        fill={color}
-        d="M2.675 2.076a.6.6 0 1 0-.849.849l15 15a.6.6 0 0 0 .849-.849l-15-15Z"
-      />
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width={size} height={size} fill="none" {...props}>
+      <path fill={color} d="M2.675 2.076a.6.6 0 1 0-.849.849l15 15a.6.6 0 0 0 .849-.849l-15-15Z" />
       <path
         fill={color}
         fillRule="evenodd"
@@ -730,14 +501,7 @@ export function SubscribeSpace({
   size?: string | number
 }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 20 20"
-      width={size}
-      height={size}
-      fill="none"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width={size} height={size} fill="none" {...props}>
       <path
         fill={color}
         fillRule="evenodd"
@@ -757,18 +521,8 @@ export function UnSubscribeSpace({
   size?: string | number
 }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 20 20"
-      width={size}
-      height={size}
-      fill="none"
-      {...props}
-    >
-      <path
-        fill={color}
-        d="M2.675 2.076a.6.6 0 1 0-.849.849l15 15a.6.6 0 0 0 .849-.849l-15-15Z"
-      />
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width={size} height={size} fill="none" {...props}>
+      <path fill={color} d="M2.675 2.076a.6.6 0 1 0-.849.849l15 15a.6.6 0 0 0 .849-.849l-15-15Z" />
       <path
         fill={color}
         fillRule="evenodd"
@@ -789,23 +543,9 @@ export function UnSubscribeSpace({
   )
 }
 
-export function Version({
-  color = DefaultIconColor,
-  size = '1em',
-  ...props
-}: {
-  color?: string
-  size?: string | number
-}) {
+export function Version({color = DefaultIconColor, size = '1em', ...props}: {color?: string; size?: string | number}) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 20 20"
-      width={size}
-      height={size}
-      fill="none"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width={size} height={size} fill="none" {...props}>
       <path
         fill={color}
         d="M14.062 5.278A6.171 6.171 0 0 0 3.865 9.302a.6.6 0 0 1-1.194-.121 7.371 7.371 0 1 1 1.197 4.83v2.002a.6.6 0 0 1-1.2 0V12.25a.6.6 0 0 1 .6-.6H7.03a.6.6 0 0 1 0 1.2H4.57a6.171 6.171 0 1 0 9.492-7.573Z"
@@ -818,19 +558,10 @@ export function Version({
   )
 }
 
-export function EmptyDiscussion(props: {
-  color?: string
-  size?: string | number
-}) {
+export function EmptyDiscussion(props: {color?: string; size?: string | number}) {
   const size = props.size || 100
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 96 92"
-      width={size}
-      height={size}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 96 92" width={size} height={size}>
       <path
         fill={props.color}
         fillRule="evenodd"
@@ -841,11 +572,7 @@ export function EmptyDiscussion(props: {
   )
 }
 
-export function NoConnection(props: {
-  color?: string
-  size?: string | number
-  className: string
-}) {
+export function NoConnection(props: {color?: string; size?: string | number; className: string}) {
   const size = props.size || 100
   return (
     <svg
@@ -869,14 +596,7 @@ export function NoConnection(props: {
 export function Macos(props: {color?: string; size?: string | number}) {
   const size = props.size || '1em'
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 51 51"
-      fill="none"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 51 51" fill="none" {...props}>
       <path
         stroke={props.color || 'currentColor'}
         strokeLinecap="round"
@@ -891,13 +611,7 @@ export function Macos(props: {color?: string; size?: string | number}) {
 export function Win32(props: {color?: string; size?: string | number}) {
   const size = props.size || '1em'
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 51 51"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
+    <svg width={size} height={size} viewBox="0 0 51 51" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path
         d="M37.2715 42.3892L12.2715 39.2642C10.1882 39.0559 8.52148 37.3892 8.52148 35.3059V16.1392C8.52148 14.0559 10.1882 12.3892 12.2715 12.1809L37.2715 9.05588C39.7715 8.84755 41.8548 10.7225 41.8548 13.0142V38.2225C41.8548 40.7225 39.5631 42.5975 37.2715 42.1809V42.3892Z"
         stroke={props.color || 'currentColor'}
@@ -926,13 +640,7 @@ export function Win32(props: {color?: string; size?: string | number}) {
 export function Linux(props: {color?: string; size?: string | number}) {
   const size = props.size || '1em'
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      fill="none"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} fill="none" {...props}>
       <path
         fill={props.color || 'currentColor'}
         fillRule="evenodd"

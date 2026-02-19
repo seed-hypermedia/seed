@@ -25,8 +25,7 @@ export const ImagePlaceholder = createTipTapBlock<'imagePlaceholder'>({
   },
 
   renderHTML({HTMLAttributes}) {
-    const blockContentDOMAttributes =
-      this.options.domAttributes?.blockContent || {}
+    const blockContentDOMAttributes = this.options.domAttributes?.blockContent || {}
     return [
       'img',
       mergeAttributes({

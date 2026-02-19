@@ -10,13 +10,7 @@ import {DAEMON_FILE_URL, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {NavRoute} from '@shm/shared/routes'
 import {AppEvent, UniversalAppProvider} from '@shm/shared/routing'
 import {routeToUrl} from '@shm/shared/utils/entity-id-url'
-import {
-  NavAction,
-  NavContextProvider,
-  NavState,
-  navStateReducer,
-  useNavRoute,
-} from '@shm/shared/utils/navigation'
+import {NavAction, NavContextProvider, NavState, navStateReducer, useNavRoute} from '@shm/shared/utils/navigation'
 import {streamSelector, writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
@@ -43,10 +37,7 @@ const navigation = {
     }
   },
   state: navState,
-  selectedIdentity: streamSelector<NavState, string | null>(
-    navState,
-    (state) => state.selectedIdentity || null,
-  ),
+  selectedIdentity: streamSelector<NavState, string | null>(navState, (state) => state.selectedIdentity || null),
 }
 
 navigation.state.subscribe(() => {
@@ -124,25 +115,12 @@ export function NavigationContainer({children}: {children: ReactNode}) {
         const url = routeToUrl({key: 'document', id}, {hostname: gwUrl})
         await copyTextToClipboard(url)
         if (pushOnCopy.data === 'never') return
-        const [setPushStatus, pushStatus] =
-          writeableStateStream<PushResourceStatus | null>(null)
-        const pushPromise = pushResource(
-          desktopUniversalClient,
-          gwUrl,
-          id,
-          gwUrl,
-          setPushStatus,
-        )
+        const [setPushStatus, pushStatus] = writeableStateStream<PushResourceStatus | null>(null)
+        const pushPromise = pushResource(desktopUniversalClient, gwUrl, id, gwUrl, setPushStatus)
         toast.promise(pushPromise, {
           loading: <CopiedToast pushStatus={pushStatus} status="loading" />,
           success: <CopiedToast pushStatus={pushStatus} status="success" />,
-          error: (err) => (
-            <CopiedToast
-              pushStatus={pushStatus}
-              status="error"
-              errorMessage={err.message}
-            />
-          ),
+          error: (err) => <CopiedToast pushStatus={pushStatus} status="error" errorMessage={err.message} />,
         })
       }}
     >
@@ -179,9 +157,5 @@ function DevTools() {
 }
 
 function RouteDialog({input}: {input: NavRoute}) {
-  return (
-    <code style={{whiteSpace: 'pre-wrap'}}>
-      {JSON.stringify(input, null, 2)}
-    </code>
-  )
+  return <code style={{whiteSpace: 'pre-wrap'}}>{JSON.stringify(input, null, 2)}</code>
 }

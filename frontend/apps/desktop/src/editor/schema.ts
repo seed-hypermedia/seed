@@ -1,9 +1,4 @@
-import {
-  BlockSchema,
-  TypesMatch,
-  defaultBlockSchema,
-  defaultProps,
-} from '@shm/editor/blocknote'
+import {BlockSchema, TypesMatch, defaultBlockSchema, defaultProps} from '@shm/editor/blocknote'
 import {ButtonBlock} from '@shm/editor/button'
 import {EmbedBlock} from '@shm/editor/embed-block'
 import {FileBlock} from '@shm/editor/file'

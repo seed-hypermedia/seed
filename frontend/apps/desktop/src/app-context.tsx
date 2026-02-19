@@ -72,33 +72,26 @@ export const AppContext = createContext<AppContext | null>(null)
 
 export function useAppContext() {
   const context = useContext(AppContext)
-  if (!context)
-    throw new Error('useAppContext must be used within a AppContextProvider')
+  if (!context) throw new Error('useAppContext must be used within a AppContextProvider')
 
   return context
 }
 
 export function useIPC(): AppIPC {
   const context = useContext(AppContext)
-  if (!context)
-    throw new Error('useIPC must be used within a AppContextProvider')
+  if (!context) throw new Error('useIPC must be used within a AppContextProvider')
 
   return context.ipc
 }
 
 export function useWindowUtils(): WindowUtils {
   const context = useContext(AppContext)
-  if (!context)
-    throw new Error('useWindowUtils must be used within a AppContextProvider')
+  if (!context) throw new Error('useWindowUtils must be used within a AppContextProvider')
 
   return context.windowUtils
 }
 
-export function useListen<T = unknown>(
-  cmd: string,
-  handler: EventCallback<T>,
-  deps: React.DependencyList = [],
-) {
+export function useListen<T = unknown>(cmd: string, handler: EventCallback<T>, deps: React.DependencyList = []) {
   const {listen} = useIPC()
   useEffect(() => {
     if (!listen) {

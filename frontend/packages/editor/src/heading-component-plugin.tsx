@@ -31,15 +31,12 @@ export const HMHeadingBlockContent = createTipTapBlock<'heading'>({
           handler: ({state, chain, range}) => {
             chain()
               .command(
-                updateBlockCommand(
-                  state.doc.resolve(state.selection.from).start() - 2,
-                  {
-                    type: 'heading',
-                    props: {
-                      level: '2',
-                    },
+                updateBlockCommand(state.doc.resolve(state.selection.from).start() - 2, {
+                  type: 'heading',
+                  props: {
+                    level: '2',
                   },
-                ),
+                }),
               )
               // Removes the "#" character(s) used to set the heading.
               .deleteRange({from: range.from, to: range.to})

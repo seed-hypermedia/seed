@@ -41,17 +41,12 @@ export function OptionsDropdown({
     <div
       className={cn(
         'flex group-hover/item:opacity-100',
-        !popoverState.open && hiddenUntilItemHover
-          ? 'opacity-0'
-          : 'opacity-100',
+        !popoverState.open && hiddenUntilItemHover ? 'opacity-0' : 'opacity-100',
         className,
         popoverState.open && '!opacity-100', // Force visible when dropdown is open
       )}
     >
-      <DropdownMenu
-        open={popoverState.open}
-        onOpenChange={popoverState.onOpenChange}
-      >
+      <DropdownMenu open={popoverState.open} onOpenChange={popoverState.onOpenChange}>
         <DropdownMenuTrigger
           className={cn(
             buttonVariants({variant: 'outline'}),
@@ -67,9 +62,7 @@ export function OptionsDropdown({
             {menuItems.flatMap((item, index) =>
               item
                 ? [
-                    index > 0 ? (
-                      <Separator key={`${item.key}-separator`} />
-                    ) : null,
+                    index > 0 ? <Separator key={`${item.key}-separator`} /> : null,
                     <div key={item.key}>
                       <DropdownMenuItem
                         variant={item.variant}
@@ -84,10 +77,7 @@ export function OptionsDropdown({
                           <div className="flex flex-col gap-1">
                             <SizableText>{item.label}</SizableText>
 
-                            <SizableText
-                              size="sm"
-                              className="text-muted-foreground text-xs"
-                            >
+                            <SizableText size="sm" className="text-muted-foreground text-xs">
                               {item.subLabel}
                             </SizableText>
                           </div>

@@ -2,13 +2,7 @@ import * as SeparatorPrimitive from '@radix-ui/react-separator'
 
 import {cn} from './utils'
 
-export function Separator({
-  vertical = false,
-  className,
-}: {
-  vertical?: boolean
-  className?: string
-}) {
+export function Separator({vertical = false, className}: {vertical?: boolean; className?: string}) {
   return (
     <SeparatorPrimitive.Root
       data-slot="separator"

@@ -5,19 +5,14 @@ test.use({clipboardPermissions: false})
 
 test.describe('Block Manipulation', () => {
   test.describe('Block Insertion', () => {
-    test('Should start with content after fixture initialization', async ({
-      editorHelpers,
-    }) => {
+    test('Should start with content after fixture initialization', async ({editorHelpers}) => {
       // The editor should have one empty paragraph node after initialization
       const blocks = await editorHelpers.getAllBlocks()
       expect(blocks.length).toBeGreaterThanOrEqual(1)
       expect(blocks[0].type).toBe('paragraph')
     })
 
-    test('Should create new paragraph block on Enter', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should create new paragraph block on Enter', async ({editorHelpers, page}) => {
       await editorHelpers.typeText('First paragraph')
       await editorHelpers.pressKey('Enter')
       await editorHelpers.typeText('Second paragraph')
@@ -32,10 +27,7 @@ test.describe('Block Manipulation', () => {
       expect(blocks[1].content[0].text).toContain('Second paragraph')
     })
 
-    test('Should insert heading with slash menu', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should insert heading with slash menu', async ({editorHelpers, page}) => {
       await editorHelpers.openSlashMenu()
       await editorHelpers.clickSlashMenuItem('Heading')
       // await page.waitForTimeout(200)
@@ -44,10 +36,7 @@ test.describe('Block Manipulation', () => {
       expect(blocks[0].type).toBe('heading')
     })
 
-    test('Should insert code block with slash menu', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should insert code block with slash menu', async ({editorHelpers, page}) => {
       await editorHelpers.openSlashMenu()
       await editorHelpers.clickSlashMenuItem('Code Block')
       // await page.waitForTimeout(200)
@@ -56,32 +45,22 @@ test.describe('Block Manipulation', () => {
       expect(blocks[0].type).toBe('code-block')
     })
 
-    test('Should filter slash menu items when typing after slash', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should filter slash menu items when typing after slash', async ({editorHelpers, page}) => {
       await editorHelpers.typeText('/head')
       // await page.waitForTimeout(300)
 
       // Heading should be visible in the Mantine Menu
-      const headingItem = page.locator(
-        '.mantine-Menu-dropdown >> text="Heading"',
-      )
+      const headingItem = page.locator('.mantine-Menu-dropdown >> text="Heading"')
       await expect(headingItem).toBeVisible()
 
       // Paragraph should not be visible (filtered out)
-      const paragraphItem = page.locator(
-        '.mantine-Menu-dropdown >> text="Paragraph"',
-      )
+      const paragraphItem = page.locator('.mantine-Menu-dropdown >> text="Paragraph"')
       await expect(paragraphItem).not.toBeVisible()
     })
   })
 
   test.describe('Block Deletion', () => {
-    test('Should delete empty block with Backspace', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should delete empty block with Backspace', async ({editorHelpers, page}) => {
       await editorHelpers.typeText('First line')
 
       const initialBlocks = await editorHelpers.getBlocks()
@@ -102,10 +81,7 @@ test.describe('Block Manipulation', () => {
       expect(blocks.length).toBe(initialCount)
     })
 
-    test('Should merge blocks when backspacing at start', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should merge blocks when backspacing at start', async ({editorHelpers, page}) => {
       await editorHelpers.typeText('First')
       await editorHelpers.pressKey('Enter')
       await editorHelpers.typeText('Second')
@@ -128,10 +104,7 @@ test.describe('Block Manipulation', () => {
       expect(text).toContain('FirstSecond')
     })
 
-    test('Should delete selected text with Delete key', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should delete selected text with Delete key', async ({editorHelpers, page}) => {
       await editorHelpers.typeText('Hello World')
 
       // Select all and delete
@@ -147,10 +120,7 @@ test.describe('Block Manipulation', () => {
   })
 
   test.describe('Block Modification', () => {
-    test('Should add a heading after paragraph with slash menu', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should add a heading after paragraph with slash menu', async ({editorHelpers, page}) => {
       await editorHelpers.typeText('My Paragraph')
       // await page.waitForTimeout(50)
 
@@ -167,10 +137,7 @@ test.describe('Block Manipulation', () => {
       expect(blocks[1].type).toBe('heading')
     })
 
-    test('Should preserve text when changing block type', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should preserve text when changing block type', async ({editorHelpers, page}) => {
       await editorHelpers.typeText('My content')
       // await page.waitForTimeout(50)
 

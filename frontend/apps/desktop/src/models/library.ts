@@ -10,10 +10,7 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {
-  documentMetadataParseAdjustments,
-  prepareHMDocumentInfo,
-} from '@shm/shared/models/entity'
+import {documentMetadataParseAdjustments, prepareHMDocumentInfo} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useQuery} from '@tanstack/react-query'
@@ -22,14 +19,7 @@ import {useContactList} from './contacts'
 import {useBookmarks} from './bookmarks'
 import {HMSubscription, useListSubscriptions} from './subscription'
 
-export type FilterItem =
-  | 'owner'
-  | 'admin'
-  | 'editor'
-  | 'writer'
-  | 'drafts'
-  | 'subscribed'
-  | 'bookmarks'
+export type FilterItem = 'owner' | 'admin' | 'editor' | 'writer' | 'drafts' | 'subscribed' | 'bookmarks'
 
 export type LibraryQueryState = {
   sort: 'lastUpdate' | 'alphabetical'
@@ -53,10 +43,7 @@ export type LibraryData = {
   totalItemCount: number
 }
 
-function isSubscribedBy(
-  id: UnpackedHypermediaId,
-  sub: HMSubscription,
-): boolean {
+function isSubscribedBy(id: UnpackedHypermediaId, sub: HMSubscription): boolean {
   if (sub.id.uid !== id.uid) return false
   if (!id.path || !sub.id.path) return false
   const subPath = sub.id.path.join('/')
@@ -108,9 +95,7 @@ export function useLibrary({
   if (grouping === 'none') {
     let documents = allDocuments.data
     if (displayMode === 'subscribed') {
-      documents = documents?.filter(
-        (doc) => subscriptions.data?.find((sub) => isSubscribedBy(doc.id, sub)),
-      )
+      documents = documents?.filter((doc) => subscriptions.data?.find((sub) => isSubscribedBy(doc.id, sub)))
     } else if (displayMode === 'bookmarks') {
       documents = documents?.filter(
         (doc) =>
@@ -123,21 +108,15 @@ export function useLibrary({
       ...doc,
       type: 'document' as const,
       latestComment: doc.activitySummary?.latestCommentId
-        ? comments.data?.find(
-            (c) => c?.id === doc.activitySummary?.latestCommentId,
-          )
+        ? comments.data?.find((c) => c?.id === doc.activitySummary?.latestCommentId)
         : undefined,
     }))
   } else {
     let accts = accounts.data?.accounts
     if (displayMode === 'subscribed') {
-      accts = accts?.filter(
-        (acct) => subscriptions.data?.find((sub) => sub.account === acct.id),
-      )
+      accts = accts?.filter((acct) => subscriptions.data?.find((sub) => sub.account === acct.id))
     } else if (displayMode === 'bookmarks') {
-      accts = accts?.filter(
-        (acct) => bookmarks?.find((bm) => bm && bm.uid === acct.id),
-      )
+      accts = accts?.filter((acct) => bookmarks?.find((bm) => bm && bm.uid === acct.id))
     }
     // @ts-expect-error
     items = accts?.map((account) => {
@@ -146,9 +125,7 @@ export function useLibrary({
         ...plainAccount,
         type: 'site' as const,
         latestComment: account.activitySummary?.latestCommentId
-          ? comments.data?.find(
-              (c) => c?.id === account.activitySummary?.latestCommentId,
-            )
+          ? comments.data?.find((c) => c?.id === account.activitySummary?.latestCommentId)
           : undefined,
       }
     })
@@ -176,10 +153,7 @@ function useAllDocuments(enabled: boolean) {
   return allDocuments
 }
 
-export function useSiteLibrary(
-  siteUid: string | null | undefined,
-  enabled: boolean,
-) {
+export function useSiteLibrary(siteUid: string | null | undefined, enabled: boolean) {
   const siteDocuments = useQuery({
     queryKey: [queryKeys.SITE_LIBRARY, siteUid],
     enabled,
@@ -209,9 +183,7 @@ export function useSiteLibrary(
       (doc) =>
         ({
           ...doc,
-          latestComment: comments.data?.find(
-            (c) => c?.id === doc.activitySummary?.latestCommentId,
-          ),
+          latestComment: comments.data?.find((c) => c?.id === doc.activitySummary?.latestCommentId),
         }) satisfies HMLibraryDocument,
     ) || []
 
@@ -221,14 +193,8 @@ export function useSiteLibrary(
   }
 }
 
-export function useChildrenActivity(
-  docId: UnpackedHypermediaId | null | undefined,
-  opts?: {enabled?: boolean},
-) {
-  const siteLibrary = useSiteLibrary(
-    docId?.uid,
-    !!docId && opts?.enabled !== false,
-  )
+export function useChildrenActivity(docId: UnpackedHypermediaId | null | undefined, opts?: {enabled?: boolean}) {
+  const siteLibrary = useSiteLibrary(docId?.uid, !!docId && opts?.enabled !== false)
   const path = docId?.path
   const pathPrefix = docId?.path?.join('/') || ''
   return {
@@ -272,9 +238,7 @@ export function useSubscribedDocuments() {
       documentsMap.set(doc.id.id, {
         ...doc,
         latestComment: doc.activitySummary?.latestCommentId
-          ? comments.data?.find(
-              (c) => c?.id === doc.activitySummary?.latestCommentId,
-            )
+          ? comments.data?.find((c) => c?.id === doc.activitySummary?.latestCommentId)
           : undefined,
       })
     }

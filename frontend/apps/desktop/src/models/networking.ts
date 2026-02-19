@@ -2,18 +2,11 @@ import appError from '@/errors'
 import {grpcClient} from '@/grpc-client'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
-import {
-  ConnectionStatus,
-  PeerInfo,
-} from '@shm/shared/client/.generated/networking/v1alpha/networking_pb'
+import {ConnectionStatus, PeerInfo} from '@shm/shared/client/.generated/networking/v1alpha/networking_pb'
 import {BIG_INT} from '@shm/shared/constants'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {
-  FetchQueryOptions,
-  UseQueryOptions,
-  useQuery,
-} from '@tanstack/react-query'
+import {FetchQueryOptions, UseQueryOptions, useQuery} from '@tanstack/react-query'
 import {useEffect, useRef, useState} from 'react'
 import {useGatewayUrl} from './gateway-settings'
 
@@ -60,9 +53,7 @@ export function useIsGatewayConnected() {
       promise.current = checkGatewayConnected(gwUrl.data)
         .then((status) => setIsConnected(status))
         .then(() => {
-          return new Promise<void>((resolve) =>
-            setTimeout(() => resolve(), 2_000),
-          )
+          return new Promise<void>((resolve) => setTimeout(() => resolve(), 2_000))
         })
         .catch((error) => {
           appError('Unexpected checkGatewayConnected Error', {error})
@@ -81,10 +72,7 @@ export function useIsGatewayConnected() {
 
 export type HMPeerInfo = PlainMessage<PeerInfo>
 
-export function usePeers(
-  filterConnected: boolean,
-  options: UseQueryOptions<HMPeerInfo[] | null, ConnectError> = {},
-) {
+export function usePeers(filterConnected: boolean, options: UseQueryOptions<HMPeerInfo[] | null, ConnectError> = {}) {
   return useQuery<HMPeerInfo[] | null, ConnectError>({
     queryKey: [queryKeys.PEERS, filterConnected],
     queryFn: async () => {
@@ -108,9 +96,7 @@ export function usePeers(
   })
 }
 
-export function useConnectedPeers(
-  options: UseQueryOptions<PeerInfo[], ConnectError> = {},
-) {
+export function useConnectedPeers(options: UseQueryOptions<PeerInfo[], ConnectError> = {}) {
   // @ts-expect-error
   return usePeers(true, options)
 }
@@ -118,9 +104,7 @@ export function useConnectedPeers(
 function queryPeerInfo(
   grpcClient: GRPCClient,
   deviceId?: string,
-):
-  | UseQueryOptions<PeerInfo, ConnectError>
-  | FetchQueryOptions<PeerInfo, ConnectError> {
+): UseQueryOptions<PeerInfo, ConnectError> | FetchQueryOptions<PeerInfo, ConnectError> {
   return {
     queryKey: [queryKeys.GET_PEER_INFO, deviceId],
     enabled: !!deviceId,

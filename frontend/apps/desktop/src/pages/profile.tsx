@@ -15,10 +15,7 @@ export default function ProfilePage() {
   const profile = useAccount(profileId.uid)
   const selectedAccount = useSelectedAccount()
   const navigate = useNavigate('replace')
-  const redirectDestination =
-    profile.data?.id.uid && profile.data.id.uid !== profileId.uid
-      ? profile.data.id
-      : null
+  const redirectDestination = profile.data?.id.uid && profile.data.id.uid !== profileId.uid ? profile.data.id : null
   useEffect(() => {
     // todo, make this actually make sense.
     if (redirectDestination) {
@@ -32,11 +29,7 @@ export default function ProfilePage() {
     <PanelContainer>
       <MainWrapper scrollable className="w-full">
         {profile.data && (
-          <HMProfilePage
-            profile={profile.data}
-            currentAccount={selectedAccount?.id.uid ?? ''}
-            onEditProfile={null}
-          />
+          <HMProfilePage profile={profile.data} currentAccount={selectedAccount?.id.uid ?? ''} onEditProfile={null} />
         )}
       </MainWrapper>
     </PanelContainer>

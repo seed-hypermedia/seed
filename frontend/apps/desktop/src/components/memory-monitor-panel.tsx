@@ -15,16 +15,7 @@ import {SizableText} from '@shm/ui/text'
 import {Separator} from '@shm/ui/separator'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {cn} from '@shm/ui/utils'
-import {
-  Activity,
-  AlertTriangle,
-  Camera,
-  Download,
-  Play,
-  Pause,
-  Trash2,
-  RefreshCw,
-} from 'lucide-react'
+import {Activity, AlertTriangle, Camera, Download, Play, Pause, Trash2, RefreshCw} from 'lucide-react'
 
 // Types from memory-monitor.ts
 interface MemorySnapshot {
@@ -115,10 +106,7 @@ export function MemoryMonitorPanel() {
   const [isTracking, setIsTracking] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [timerSummary, setTimerSummary] = useState<TimerSummary | null>(null)
-  const [listenerSummary, setListenerSummary] = useState<Record<
-    string,
-    number
-  > | null>(null)
+  const [listenerSummary, setListenerSummary] = useState<Record<string, number> | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const memMonitor = typeof window !== 'undefined' ? window.memoryMonitor : null
@@ -201,9 +189,7 @@ export function MemoryMonitorPanel() {
   if (!memMonitor) {
     return (
       <div className="p-4">
-        <SizableText className="text-red-600">
-          Memory monitor not available in this environment
-        </SizableText>
+        <SizableText className="text-red-600">Memory monitor not available in this environment</SizableText>
       </div>
     )
   }
@@ -215,20 +201,11 @@ export function MemoryMonitorPanel() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Activity className="h-5 w-5" />
-            <SizableText className="text-lg font-semibold">
-              Memory Monitor
-            </SizableText>
+            <SizableText className="text-lg font-semibold">Memory Monitor</SizableText>
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchReport}
-              disabled={isLoading}
-            >
-              <RefreshCw
-                className={cn('mr-1 h-4 w-4', isLoading && 'animate-spin')}
-              />
+            <Button variant="outline" size="sm" onClick={fetchReport} disabled={isLoading}>
+              <RefreshCw className={cn('mr-1 h-4 w-4', isLoading && 'animate-spin')} />
               Refresh
             </Button>
             {isTracking ? (
@@ -257,18 +234,9 @@ export function MemoryMonitorPanel() {
             <div className="space-y-2">
               <SizableText className="font-medium">Current Memory</SizableText>
               <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                <StatCard
-                  label="Heap Used"
-                  value={formatBytes(report.current.heapUsed)}
-                />
-                <StatCard
-                  label="Heap Total"
-                  value={formatBytes(report.current.heapTotal)}
-                />
-                <StatCard
-                  label="External"
-                  value={formatBytes(report.current.external)}
-                />
+                <StatCard label="Heap Used" value={formatBytes(report.current.heapUsed)} />
+                <StatCard label="Heap Total" value={formatBytes(report.current.heapTotal)} />
+                <StatCard label="External" value={formatBytes(report.current.external)} />
                 <StatCard label="RSS" value={formatBytes(report.current.rss)} />
               </div>
             </div>
@@ -277,27 +245,17 @@ export function MemoryMonitorPanel() {
 
             {/* Resource Counts */}
             <div className="space-y-2">
-              <SizableText className="font-medium">
-                Tracked Resources
-              </SizableText>
+              <SizableText className="font-medium">Tracked Resources</SizableText>
               <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                <StatCard
-                  label="Windows"
-                  value={report.current.trackedResources.windows.toString()}
-                />
-                <StatCard
-                  label="Subscriptions"
-                  value={report.current.trackedResources.subscriptions.toString()}
-                />
+                <StatCard label="Windows" value={report.current.trackedResources.windows.toString()} />
+                <StatCard label="Subscriptions" value={report.current.trackedResources.subscriptions.toString()} />
                 <StatCard
                   label="Discovery Streams"
                   value={report.current.trackedResources.discoveryStreams.toString()}
                 />
                 <StatCard
                   label="Timers"
-                  value={`${timerSummary?.timers || 0} / ${
-                    timerSummary?.intervals || 0
-                  }`}
+                  value={`${timerSummary?.timers || 0} / ${timerSummary?.intervals || 0}`}
                   subtitle="timers / intervals"
                 />
               </div>
@@ -316,17 +274,9 @@ export function MemoryMonitorPanel() {
                 </div>
                 <div className="space-y-2">
                   {report.leakSuspects.map((suspect, i) => (
-                    <div
-                      key={i}
-                      className="rounded-md bg-gray-100 p-3 dark:bg-gray-800"
-                    >
+                    <div key={i} className="rounded-md bg-gray-100 p-3 dark:bg-gray-800">
                       <div className="flex items-center justify-between">
-                        <SizableText
-                          className={cn(
-                            'font-medium',
-                            getSeverityColor(suspect.severity),
-                          )}
-                        >
+                        <SizableText className={cn('font-medium', getSeverityColor(suspect.severity))}>
                           {suspect.type.toUpperCase()}
                         </SizableText>
                         <span
@@ -354,15 +304,11 @@ export function MemoryMonitorPanel() {
             {/* Recommendations */}
             {report.recommendations.length > 0 && (
               <div className="space-y-2">
-                <SizableText className="font-medium">
-                  Recommendations
-                </SizableText>
+                <SizableText className="font-medium">Recommendations</SizableText>
                 <ul className="list-inside list-disc space-y-1">
                   {report.recommendations.map((rec, i) => (
                     <li key={i}>
-                      <SizableText className="text-sm text-gray-600 dark:text-gray-400">
-                        {rec}
-                      </SizableText>
+                      <SizableText className="text-sm text-gray-600 dark:text-gray-400">{rec}</SizableText>
                     </li>
                   ))}
                 </ul>
@@ -380,16 +326,9 @@ export function MemoryMonitorPanel() {
                 <div className="max-h-40 overflow-y-auto">
                   <div className="space-y-1">
                     {Object.entries(listenerSummary).map(([key, count]) => (
-                      <div
-                        key={key}
-                        className="flex justify-between font-mono text-sm"
-                      >
-                        <span className="max-w-[200px] truncate text-gray-600 dark:text-gray-400">
-                          {key}
-                        </span>
-                        <span className={count > 3 ? 'text-red-600' : ''}>
-                          {count}
-                        </span>
+                      <div key={key} className="flex justify-between font-mono text-sm">
+                        <span className="max-w-[200px] truncate text-gray-600 dark:text-gray-400">{key}</span>
+                        <span className={count > 3 ? 'text-red-600' : ''}>{count}</span>
                       </div>
                     ))}
                   </div>
@@ -402,15 +341,11 @@ export function MemoryMonitorPanel() {
             {/* Memory History Chart (simple text-based) */}
             {report.history.length > 1 && (
               <div className="space-y-2">
-                <SizableText className="font-medium">
-                  Memory History ({report.history.length} snapshots)
-                </SizableText>
+                <SizableText className="font-medium">Memory History ({report.history.length} snapshots)</SizableText>
                 <div className="max-h-40 overflow-y-auto font-mono text-xs">
                   {report.history.slice(-10).map((snapshot, i) => (
                     <div key={i} className="flex gap-4">
-                      <span className="text-gray-500">
-                        {formatTime(snapshot.timestamp)}
-                      </span>
+                      <span className="text-gray-500">{formatTime(snapshot.timestamp)}</span>
                       <span>Heap: {formatBytes(snapshot.heapUsed)}</span>
                       <span>RSS: {formatBytes(snapshot.rss)}</span>
                     </div>
@@ -425,12 +360,7 @@ export function MemoryMonitorPanel() {
             <div className="space-y-2">
               <SizableText className="font-medium">Actions</SizableText>
               <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleTakeHeapSnapshot}
-                  disabled={isLoading}
-                >
+                <Button variant="outline" size="sm" onClick={handleTakeHeapSnapshot} disabled={isLoading}>
                   <Camera className="mr-1 h-4 w-4" />
                   Take Heap Snapshot
                 </Button>
@@ -438,19 +368,14 @@ export function MemoryMonitorPanel() {
                   <Trash2 className="mr-1 h-4 w-4" />
                   Force GC
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleClearHistory}
-                >
+                <Button variant="outline" size="sm" onClick={handleClearHistory}>
                   <Trash2 className="mr-1 h-4 w-4" />
                   Clear History
                 </Button>
               </div>
               <SizableText className="text-xs text-gray-500">
-                Heap snapshots are saved to ~/Library/Application
-                Support/Seed/heap-snapshots/ Open in Chrome DevTools for
-                analysis.
+                Heap snapshots are saved to ~/Library/Application Support/Seed/heap-snapshots/ Open in Chrome DevTools
+                for analysis.
               </SizableText>
             </div>
           </>
@@ -460,22 +385,12 @@ export function MemoryMonitorPanel() {
   )
 }
 
-function StatCard({
-  label,
-  value,
-  subtitle,
-}: {
-  label: string
-  value: string
-  subtitle?: string
-}) {
+function StatCard({label, value, subtitle}: {label: string; value: string; subtitle?: string}) {
   return (
     <div className="rounded-md bg-gray-100 p-3 dark:bg-gray-800">
       <SizableText className="text-xs text-gray-500">{label}</SizableText>
       <SizableText className="font-mono font-medium">{value}</SizableText>
-      {subtitle && (
-        <SizableText className="text-xs text-gray-400">{subtitle}</SizableText>
-      )}
+      {subtitle && <SizableText className="text-xs text-gray-400">{subtitle}</SizableText>}
     </div>
   )
 }

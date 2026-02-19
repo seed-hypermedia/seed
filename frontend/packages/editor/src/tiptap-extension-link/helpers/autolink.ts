@@ -19,12 +19,8 @@ export function autolink(options: AutolinkOptions): Plugin {
   return new Plugin({
     key: new PluginKey('autolink'),
     appendTransaction: (transactions, oldState, newState) => {
-      const docChanges =
-        transactions.some((transaction) => transaction.docChanged) &&
-        !oldState.doc.eq(newState.doc)
-      const preventAutolink = transactions.some((transaction) =>
-        transaction.getMeta('preventAutolink'),
-      )
+      const docChanges = transactions.some((transaction) => transaction.docChanged) && !oldState.doc.eq(newState.doc)
+      const preventAutolink = transactions.some((transaction) => transaction.getMeta('preventAutolink'))
 
       if (!docChanges || preventAutolink) {
         return
@@ -44,23 +40,16 @@ export function autolink(options: AutolinkOptions): Plugin {
           .forEach((oldMark) => {
             const newFrom = mapping.map(oldMark.from)
             const newTo = mapping.map(oldMark.to)
-            const newMarks = getMarksBetween(
-              newFrom,
-              newTo,
-              newState.doc,
-            ).filter((item) => item.mark.type === options.type)
+            const newMarks = getMarksBetween(newFrom, newTo, newState.doc).filter(
+              (item) => item.mark.type === options.type,
+            )
 
             if (!newMarks.length) {
               return
             }
 
             const newMark = newMarks[0]
-            const oldLinkText = oldState.doc.textBetween(
-              oldMark.from,
-              oldMark.to,
-              undefined,
-              ' ',
-            )
+            const oldLinkText = oldState.doc.textBetween(oldMark.from, oldMark.to, undefined, ' ')
             const newLinkText = newState.doc.textBetween(
               // @ts-ignore
               newMark.from,
@@ -90,11 +79,7 @@ export function autolink(options: AutolinkOptions): Plugin {
           })
 
         // Now let’s see if we can add new links.
-        const nodesInChangedRanges = findChildrenInRange(
-          newState.doc,
-          newRange,
-          (node) => node.isTextblock,
-        )
+        const nodesInChangedRanges = findChildrenInRange(newState.doc, newRange, (node) => node.isTextblock)
 
         let textBlock: NodeWithPos | undefined
         let textBeforeWhitespace: string | undefined
@@ -113,9 +98,7 @@ export function autolink(options: AutolinkOptions): Plugin {
         } else if (
           nodesInChangedRanges.length &&
           // We want to make sure to include the block seperator argument to treat hard breaks like spaces.
-          newState.doc
-            .textBetween(newRange.from, newRange.to, ' ', ' ')
-            .endsWith(' ')
+          newState.doc.textBetween(newRange.from, newRange.to, ' ', ' ').endsWith(' ')
         ) {
           textBlock = nodesInChangedRanges[0]
           textBeforeWhitespace = newState.doc.textBetween(
@@ -128,16 +111,13 @@ export function autolink(options: AutolinkOptions): Plugin {
         }
 
         if (textBlock && textBeforeWhitespace) {
-          const wordsBeforeWhitespace = textBeforeWhitespace
-            .split(' ')
-            .filter((s) => s !== '')
+          const wordsBeforeWhitespace = textBeforeWhitespace.split(' ').filter((s) => s !== '')
 
           if (wordsBeforeWhitespace.length <= 0) {
             return false
           }
 
-          const lastWordBeforeSpace =
-            wordsBeforeWhitespace[wordsBeforeWhitespace.length - 1]
+          const lastWordBeforeSpace = wordsBeforeWhitespace[wordsBeforeWhitespace.length - 1]
           const lastWordAndBlockOffset =
             textBlock.pos +
             // @ts-ignore
@@ -163,11 +143,7 @@ export function autolink(options: AutolinkOptions): Plugin {
             }))
             // Add link mark.
             .forEach((link) => {
-              if (
-                getMarksBetween(link.from, link.to, newState.doc).some(
-                  (item) => item.mark.type === options.type,
-                )
-              ) {
+              if (getMarksBetween(link.from, link.to, newState.doc).some((item) => item.mark.type === options.type)) {
                 return
               }
               let id = nanoid(8)

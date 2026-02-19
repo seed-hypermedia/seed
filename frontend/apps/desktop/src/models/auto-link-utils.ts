@@ -18,10 +18,7 @@ import {
  * Check if a document contains a link/embed to a specific child document
  * Compares URLs ignoring version and latest flags
  */
-export function documentContainsLinkToChild(
-  document: HMDocument,
-  childId: UnpackedHypermediaId,
-): boolean {
+export function documentContainsLinkToChild(document: HMDocument, childId: UnpackedHypermediaId): boolean {
   // Normalize the child URL by removing version and latest flags
   const childUrlNormalized = packHmId({...childId, version: null, latest: null})
 
@@ -36,8 +33,7 @@ export function documentContainsLinkToChild(
         }
       }
       // Check inline annotations for links (only some block types have annotations)
-      const annotations =
-        'annotations' in node.block ? node.block.annotations : undefined
+      const annotations = 'annotations' in node.block ? node.block.annotations : undefined
       if (annotations) {
         for (const ann of annotations) {
           if (ann.type === 'Link' || ann.type === 'Embed') {
@@ -60,10 +56,7 @@ export function documentContainsLinkToChild(
  * Check if a document has a self-referential Query block
  * (query to itself that would include children)
  */
-export function documentHasSelfQuery(
-  document: HMDocument,
-  documentId: UnpackedHypermediaId,
-): boolean {
+export function documentHasSelfQuery(document: HMDocument, documentId: UnpackedHypermediaId): boolean {
   // hmIdPathToEntityQueryPath returns "/my/document" with leading slash
   // but Query blocks may store paths as "my/document" without leading slash
   // We normalize both to compare correctly
@@ -79,10 +72,7 @@ export function documentHasSelfQuery(
             // Self-referential if space is empty or matches document
             const isSpaceMatch = !inc.space || inc.space === documentId.uid
             // Path can be stored with or without leading slash
-            const isPathMatch =
-              !inc.path ||
-              inc.path === documentPathWithSlash ||
-              inc.path === documentPathWithoutSlash
+            const isPathMatch = !inc.path || inc.path === documentPathWithSlash || inc.path === documentPathWithoutSlash
             if (isSpaceMatch && isPathMatch) return true
           }
         }

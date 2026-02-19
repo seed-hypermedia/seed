@@ -70,9 +70,7 @@ export const ListEvents: HMRequestImplementation<HMListEventsRequest> = {
 
     // Resolve all events server-side
     const resolvedEvents = await Promise.allSettled(
-      response.events.map((event) =>
-        resolveEvent(grpcClient, event, input.currentAccount, cache),
-      ),
+      response.events.map((event) => resolveEvent(grpcClient, event, input.currentAccount, cache)),
     )
 
     // Filter out failed promises and null values

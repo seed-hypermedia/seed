@@ -5,13 +5,7 @@ import {HMContactRecord, UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
 import {LanguagePack} from './translation'
 import type {UniversalClient} from './universal-client'
-import {
-  activityFilterToSlug,
-  getRoutePanelParam,
-  hmIdToURL,
-  idToUrl,
-  unpackHmId,
-} from './utils'
+import {activityFilterToSlug, getRoutePanelParam, hmIdToURL, idToUrl, unpackHmId} from './utils'
 import {StateStream} from './utils/stream'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
@@ -129,9 +123,7 @@ export function UniversalAppProvider(props: {
 export function useUniversalAppContext() {
   const context = useContext(UniversalAppContext)
   if (!context) {
-    throw new Error(
-      'useUniversalAppContext must be used within a UniversalAppProvider',
-    )
+    throw new Error('useUniversalAppContext must be used within a UniversalAppProvider')
   }
   return context
 }
@@ -148,8 +140,7 @@ export function useUniversalClient() {
 
 export function useOpenUrl() {
   const context = useContext(UniversalAppContext)
-  if (!context)
-    throw new Error('useOpenUrl must be used in a UniversalRoutingProvider')
+  if (!context) throw new Error('useOpenUrl must be used in a UniversalRoutingProvider')
   return context.openUrl
 }
 
@@ -194,9 +185,7 @@ export function routeToHref(
       // Same as origin, use relative path
       basePath = docId.path?.length ? `/${docId.path.join('/')}` : ''
     } else {
-      basePath = `/hm/${docId.uid}${
-        docId.path?.length ? `/${docId.path.join('/')}` : ''
-      }`
+      basePath = `/hm/${docId.uid}${docId.path?.length ? `/${docId.path.join('/')}` : ''}`
     }
     // Add view term - need a / separator between path and view term
     let viewTerm = `:${route.key}`
@@ -209,10 +198,8 @@ export function routeToHref(
     return href
   }
 
-  const docRoute =
-    typeof route !== 'string' && route.key == 'document' ? route : null
-  const docId =
-    typeof route === 'string' ? null : route.key == 'document' ? route.id : null
+  const docRoute = typeof route !== 'string' && route.key == 'document' ? route : null
+  const docId = typeof route === 'string' ? null : route.key == 'document' ? route.id : null
   let href: string | undefined = undefined
   if (typeof route == 'string') {
     href = route
@@ -231,10 +218,7 @@ export function routeToHref(
   return href
 }
 
-export function useRouteLink(
-  route: NavRoute | string | null,
-  opts?: UseRouteLinkOpts,
-) {
+export function useRouteLink(route: NavRoute | string | null, opts?: UseRouteLinkOpts) {
   const context = useContext(UniversalAppContext)
 
   if (!route)
@@ -243,8 +227,7 @@ export function useRouteLink(
       href: undefined,
       tag: 'a',
     }
-  if (!context)
-    throw new Error('useRouteLink must be used in a UniversalRoutingProvider')
+  if (!context) throw new Error('useRouteLink must be used in a UniversalRoutingProvider')
 
   const href = routeToHref(route, {
     hmUrlHref: context.hmUrlHref,
@@ -258,9 +241,7 @@ export function useRouteLink(
           if (context.openRouteNewWindow) {
             e.preventDefault()
             if (typeof route === 'string') {
-              context.openUrl(
-                route.startsWith('http') ? route : `https://${route}`,
-              )
+              context.openUrl(route.startsWith('http') ? route : `https://${route}`)
             } else {
               context.openRouteNewWindow(route)
             }
@@ -274,10 +255,7 @@ export function useRouteLink(
         } else if (context.openRoute) {
           context.openRoute(route, opts?.replace)
         } else {
-          console.error(
-            'No openRoute function in UniversalAppContext. Cannot open route',
-            route,
-          )
+          console.error('No openRoute function in UniversalAppContext. Cannot open route', route)
         }
       }
     : undefined

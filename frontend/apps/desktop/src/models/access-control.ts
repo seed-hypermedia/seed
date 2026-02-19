@@ -2,20 +2,12 @@ import {grpcClient} from '@/grpc-client'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {Role} from '@shm/shared/client/.generated/documents/v3alpha/access_control_pb'
 import {BIG_INT} from '@shm/shared/constants'
-import {
-  HMCapability,
-  HMResourceFetchResult,
-  HMRole,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+import {HMCapability, HMResourceFetchResult, HMRole, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useCapabilities, useResources} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId, isPathParentOfOrEqual} from '@shm/shared/utils/entity-id-url'
-import {
-  entityQueryPathToHmIdPath,
-  hmIdPathToEntityQueryPath,
-} from '@shm/shared/utils/path-api'
+import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {toast} from '@shm/ui/toast'
 import {useMutation, useQueries} from '@tanstack/react-query'
 import {useMyAccountIds} from './daemon'
@@ -86,11 +78,10 @@ function useAccountsCapabilities(accountIds: string[]) {
     queries: accountIds.map((accountId) => ({
       queryKey: [queryKeys.ACCOUNT_CAPABILITIES, accountId],
       queryFn: async () => {
-        const result =
-          await grpcClient.accessControl.listCapabilitiesForDelegate({
-            delegate: accountId,
-            pageSize: BIG_INT,
-          })
+        const result = await grpcClient.accessControl.listCapabilitiesForDelegate({
+          delegate: accountId,
+          pageSize: BIG_INT,
+        })
 
         return {
           accountId,
@@ -124,9 +115,7 @@ export type HMWritableDocument = {
 
 export function useSelectedAccountWritableDocuments(): HMWritableDocument[] {
   const selectedAccountId = useSelectedAccountId()
-  const accountsCaps = useAccountsCapabilities(
-    selectedAccountId ? [selectedAccountId] : [],
-  )
+  const accountsCaps = useAccountsCapabilities(selectedAccountId ? [selectedAccountId] : [])
   const writableDocumentIds: UnpackedHypermediaId[] = []
   function addWritableId(id: UnpackedHypermediaId) {
     // if writableDocumentIds already has this id, don't add it
@@ -213,10 +202,7 @@ export function useSelectedAccountCapability(
   return myCapability || null
 }
 
-export function useMyCapability(
-  id?: UnpackedHypermediaId,
-  minimumRole: HMRole = 'writer',
-): HMCapability | null {
+export function useMyCapability(id?: UnpackedHypermediaId, minimumRole: HMRole = 'writer'): HMCapability | null {
   if (!id) return null
   const myAccounts = useMyAccountIds()
   const capabilities = useCapabilities(id)
@@ -239,9 +225,7 @@ export function useMyCapability(
       return isGreaterOrEqualRole(minimumRole, cap.role)
     })
     .find((cap) => {
-      return !!myAccounts.data?.find(
-        (myAccountUid) => myAccountUid === cap.accountUid,
-      )
+      return !!myAccounts.data?.find((myAccountUid) => myAccountUid === cap.accountUid)
     })
   return myCapability || null
 }
@@ -280,16 +264,13 @@ export function useSelectedAccountCapabilities(
   return [...ownerCap, ...myCapabilities]
 }
 
-export function useMyAccountsWithWriteAccess(
-  id: UnpackedHypermediaId | undefined | null,
-) {
+export function useMyAccountsWithWriteAccess(id: UnpackedHypermediaId | undefined | null) {
   const myAccounts = useMyAccountIds()
   const capabilities = useCapabilities(id)
 
   const myAccountIdsWithCapability = myAccounts.data?.filter((accountUid) => {
     return !!capabilities.data?.find((cap) => cap.accountUid === accountUid)
   })
-  const accountsWithCapabilities =
-    myAccountIdsWithCapability?.map((uid) => hmId(uid)) || []
+  const accountsWithCapabilities = myAccountIdsWithCapability?.map((uid) => hmId(uid)) || []
   return useResources(accountsWithCapabilities)
 }

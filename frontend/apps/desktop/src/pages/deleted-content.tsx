@@ -56,9 +56,7 @@ function UndeleteButton({item}: {item: HMDeletedEntity}) {
   const unpackedId = item.id ? unpackHmId(item.id) : null
   if (!unpackedId) return null
   return (
-    <Tooltip
-      content={`Allow this document to be synced to your computer again.`}
-    >
+    <Tooltip content={`Allow this document to be synced to your computer again.`}>
       <Button
         size="sm"
         onClick={() => {

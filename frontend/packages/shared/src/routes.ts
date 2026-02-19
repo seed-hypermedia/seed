@@ -1,10 +1,5 @@
 import {z} from 'zod'
-import {
-  BlockRangeSchema,
-  HMResourceVisibilitySchema,
-  UnpackedHypermediaId,
-  unpackedHmIdSchema,
-} from './hm-types'
+import {BlockRangeSchema, HMResourceVisibilitySchema, UnpackedHypermediaId, unpackedHmIdSchema} from './hm-types'
 import {activitySlugToFilter} from './utils/entity-id-url'
 import type {ViewRouteKey} from './utils/entity-id-url'
 
@@ -296,10 +291,7 @@ export function routeToPanelRoute(route: NavRoute): DocumentPanelRoute | null {
  * - "comment/COMMENT_ID" for specific comment open in panel
  * - "discussions/BLOCKID" for block-specific discussions
  */
-function createPanelRoute(
-  panelParam: string,
-  docId: UnpackedHypermediaId,
-): DocumentPanelRoute {
+function createPanelRoute(panelParam: string, docId: UnpackedHypermediaId): DocumentPanelRoute {
   // Check for comment/COMMENT_ID format (most specific)
   if (panelParam.startsWith('comment/')) {
     const openComment = panelParam.slice('comment/'.length)

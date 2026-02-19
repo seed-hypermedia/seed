@@ -44,19 +44,9 @@ export function cleanupOnboardingFormData() {
 // Maximum file size (5MB)
 export const MAX_IMAGE_SIZE = 5 * 1024 * 1024
 // Allowed image types
-export const ALLOWED_IMAGE_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-]
+export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
-export type OnboardingStep =
-  | 'welcome'
-  | 'profile'
-  | 'recovery'
-  | 'ready'
-  | 'existing'
+export type OnboardingStep = 'welcome' | 'profile' | 'recovery' | 'ready' | 'existing'
 
 export interface ImageData {
   base64: string
@@ -88,14 +78,10 @@ export class ImageValidationError extends Error {
 
 export function validateImage(file: File): void {
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-    throw new ImageValidationError(
-      `Invalid file type. Allowed types: ${ALLOWED_IMAGE_TYPES.join(', ')}`,
-    )
+    throw new ImageValidationError(`Invalid file type. Allowed types: ${ALLOWED_IMAGE_TYPES.join(', ')}`)
   }
   if (file.size > MAX_IMAGE_SIZE) {
-    throw new ImageValidationError(
-      `File too large. Maximum size: ${MAX_IMAGE_SIZE / 1024 / 1024}MB`,
-    )
+    throw new ImageValidationError(`File too large. Maximum size: ${MAX_IMAGE_SIZE / 1024 / 1024}MB`)
   }
 }
 

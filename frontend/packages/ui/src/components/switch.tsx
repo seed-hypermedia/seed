@@ -3,10 +3,7 @@ import * as React from 'react'
 
 import {cn} from '../utils'
 
-export function Switch({
-  className,
-  ...props
-}: React.ComponentProps<typeof SwitchPrimitive.Root>) {
+export function Switch({className, ...props}: React.ComponentProps<typeof SwitchPrimitive.Root>) {
   return (
     <SwitchPrimitive.Root
       data-slot="switch"

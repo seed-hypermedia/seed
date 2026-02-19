@@ -1,10 +1,7 @@
 import {selectableNodeTypes} from '../../../extensions/BlockManipulation/BlockManipulationExtension'
 import {Node} from 'prosemirror-model'
 import {EditorState, NodeSelection} from 'prosemirror-state'
-import {
-  BlockInfo,
-  getBlockInfoFromResolvedPos,
-} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
+import {BlockInfo, getBlockInfoFromResolvedPos} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
 
 export const getParentBlockInfo = (doc: Node, beforePos: number) => {
   const $pos = doc.resolve(beforePos)
@@ -14,14 +11,9 @@ export const getParentBlockInfo = (doc: Node, beforePos: number) => {
   }
 
   // Get the start position of the parent
-  const parentBeforePos = $pos.posAtIndex(
-    $pos.index($pos.depth - 1),
-    $pos.depth - 1,
-  )
+  const parentBeforePos = $pos.posAtIndex($pos.index($pos.depth - 1), $pos.depth - 1)
 
-  const parentBlockInfo = getBlockInfoFromResolvedPos(
-    doc.resolve(parentBeforePos),
-  )
+  const parentBlockInfo = getBlockInfoFromResolvedPos(doc.resolve(parentBeforePos))
   return parentBlockInfo
 }
 
@@ -40,9 +32,7 @@ export const getPrevBlockInfo = (doc: Node, beforePos: number) => {
 
   const prevBlockBeforePos = $pos.posAtIndex(indexInParent - 1)
 
-  const prevBlockInfo = getBlockInfoFromResolvedPos(
-    doc.resolve(prevBlockBeforePos),
-  )
+  const prevBlockInfo = getBlockInfoFromResolvedPos(doc.resolve(prevBlockBeforePos))
   return prevBlockInfo
 }
 
@@ -59,9 +49,7 @@ export const getBottomNestedBlockInfo = (doc: Node, blockInfo: BlockInfo) => {
   while (blockInfo.childContainer) {
     const group = blockInfo.childContainer.node
 
-    const newPos = doc
-      .resolve(blockInfo.childContainer.beforePos + 1)
-      .posAtIndex(group.childCount - 1)
+    const newPos = doc.resolve(blockInfo.childContainer.beforePos + 1).posAtIndex(group.childCount - 1)
     blockInfo = getBlockInfoFromResolvedPos(doc.resolve(newPos))
   }
 
@@ -84,12 +72,8 @@ const mergeBlocks = (
 ) => {
   // Remove a level of nesting all children of the block.
   if (nextBlockInfo.childContainer) {
-    const childBlocksStart = state.doc.resolve(
-      nextBlockInfo.childContainer.beforePos + 1,
-    )
-    const childBlocksEnd = state.doc.resolve(
-      nextBlockInfo.childContainer.afterPos - 1,
-    )
+    const childBlocksStart = state.doc.resolve(nextBlockInfo.childContainer.beforePos + 1)
+    const childBlocksEnd = state.doc.resolve(nextBlockInfo.childContainer.afterPos - 1)
     const childBlocksRange = childBlocksStart.blockRange(childBlocksEnd)
 
     if (dispatch) {
@@ -102,14 +86,8 @@ const mergeBlocks = (
     if (!prevBlockInfo.blockContent.node.textContent) {
       if (dispatch) {
         const tr = state.tr
-        tr.replaceRangeWith(
-          prevBlockInfo.block.beforePos,
-          nextBlockInfo.block.afterPos - 1,
-          nextBlockInfo.block.node,
-        )
-        tr.setSelection(
-          new NodeSelection(tr.doc.resolve(prevBlockInfo.block.beforePos + 1)),
-        )
+        tr.replaceRangeWith(prevBlockInfo.block.beforePos, nextBlockInfo.block.afterPos - 1, nextBlockInfo.block.node)
+        tr.setSelection(new NodeSelection(tr.doc.resolve(prevBlockInfo.block.beforePos + 1)))
         dispatch(tr)
       }
       return true
@@ -120,12 +98,7 @@ const mergeBlocks = (
   // removing the closing tags of the first block and the opening tags of the
   // second one to stitch them together.
   if (dispatch) {
-    dispatch(
-      state.tr.delete(
-        prevBlockInfo.blockContent.afterPos - 1,
-        nextBlockInfo.blockContent.beforePos + 1,
-      ),
-    )
+    dispatch(state.tr.delete(prevBlockInfo.blockContent.afterPos - 1, nextBlockInfo.blockContent.beforePos + 1))
   }
 
   return true
@@ -133,29 +106,17 @@ const mergeBlocks = (
 
 export const mergeBlocksCommand =
   (posBetweenBlocks: number) =>
-  ({
-    state,
-    dispatch,
-  }: {
-    state: EditorState
-    dispatch: ((args?: any) => any) | undefined
-  }) => {
+  ({state, dispatch}: {state: EditorState; dispatch: ((args?: any) => any) | undefined}) => {
     const $pos = state.doc.resolve(posBetweenBlocks)
     const nextBlockInfo = getBlockInfoFromResolvedPos($pos)
 
-    const prevBlockInfo = getPrevBlockInfo(
-      state.doc,
-      nextBlockInfo.block.beforePos,
-    )
+    const prevBlockInfo = getPrevBlockInfo(state.doc, nextBlockInfo.block.beforePos)
 
     if (!prevBlockInfo) {
       return false
     }
 
-    const bottomNestedBlockInfo = getBottomNestedBlockInfo(
-      state.doc,
-      prevBlockInfo,
-    )
+    const bottomNestedBlockInfo = getBottomNestedBlockInfo(state.doc, prevBlockInfo)
 
     if (!canMerge(bottomNestedBlockInfo, nextBlockInfo)) {
       return false

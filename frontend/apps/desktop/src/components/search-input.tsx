@@ -23,16 +23,8 @@ import {
   unpackHmId,
   viewTermToRouteKey,
 } from '@shm/shared/utils/entity-id-url'
-import {
-  appRouteOfId,
-  isHttpUrl,
-  useNavRoute,
-} from '@shm/shared/utils/navigation'
-import {
-  RecentSearchResultItem,
-  SearchInput as SearchInputUI,
-  SearchResultItem,
-} from '@shm/ui/search'
+import {appRouteOfId, isHttpUrl, useNavRoute} from '@shm/shared/utils/navigation'
+import {RecentSearchResultItem, SearchInput as SearchInputUI, SearchResultItem} from '@shm/ui/search'
 import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -59,15 +51,7 @@ export const SearchInput = forwardRef<
   {
     onClose?: () => void
     allowWebURL?: boolean
-    onSelect: ({
-      id,
-      route,
-      webUrl,
-    }: {
-      id?: UnpackedHypermediaId
-      route?: NavRoute
-      webUrl?: string
-    }) => void
+    onSelect: ({id, route, webUrl}: {id?: UnpackedHypermediaId; route?: NavRoute; webUrl?: string}) => void
     /** When provided, use this value instead of internal state */
     externalSearch?: string
     /** Callback when search changes (for controlled mode) */
@@ -78,15 +62,7 @@ export const SearchInput = forwardRef<
     onLoadingChange?: (loading: boolean) => void
   }
 >(function SearchInput(
-  {
-    onClose,
-    onSelect,
-    allowWebURL,
-    externalSearch,
-    onExternalSearchChange,
-    hideInput = false,
-    onLoadingChange,
-  },
+  {onClose, onSelect, allowWebURL, externalSearch, onExternalSearchChange, hideInput = false, onLoadingChange},
   ref,
 ) {
   const [internalSearch, setInternalSearch] = useState('')
@@ -131,19 +107,10 @@ export const SearchInput = forwardRef<
           const unpacked = unpackHmId(search)
           const appRoute = unpacked ? appRouteOfId(unpacked) : null
 
-          if (
-            (unpacked?.scheme === HYPERMEDIA_SCHEME ||
-              unpacked?.hostname === gwHost) &&
-            appRoute &&
-            unpacked
-          ) {
+          if ((unpacked?.scheme === HYPERMEDIA_SCHEME || unpacked?.hostname === gwHost) && appRoute && unpacked) {
             onClose?.()
             onSelect({route: appRoute, id: unpacked})
-          } else if (
-            search.startsWith('http://') ||
-            search.startsWith('https://') ||
-            search.includes('.')
-          ) {
+          } else if (search.startsWith('http://') || search.startsWith('https://') || search.includes('.')) {
             if (allowWebURL) {
               onSelect({webUrl: search})
             }
@@ -198,9 +165,7 @@ export const SearchInput = forwardRef<
           onSelect: () => onSelect({id: item.id, route: appRouteOfId(item.id)}),
           subtitle: 'Document',
           searchQuery: item.searchQuery,
-          versionTime: item.versionTime
-            ? item.versionTime.toDate().toLocaleString()
-            : '',
+          versionTime: item.versionTime ? item.versionTime.toDate().toLocaleString() : '',
         }
       })
       .filter(Boolean) ?? []
@@ -238,15 +203,11 @@ export const SearchInput = forwardRef<
         }
       }) || []
   const isDisplayingRecents = !deferredSearch.length
-  const activeItems = isDisplayingRecents
-    ? recentItems
-    : [...(queryItem ? [queryItem] : []), ...searchItems]
+  const activeItems = isDisplayingRecents ? recentItems : [...(queryItem ? [queryItem] : []), ...searchItems]
 
   // Expose keyboard handlers via ref
   const handleArrowUp = useCallback(() => {
-    setFocusedIndex(
-      (prev) => (prev - 1 + activeItems.length) % activeItems.length,
-    )
+    setFocusedIndex((prev) => (prev - 1 + activeItems.length) % activeItems.length)
   }, [activeItems.length])
 
   const handleArrowDown = useCallback(() => {
@@ -271,8 +232,7 @@ export const SearchInput = forwardRef<
     [handleArrowUp, handleArrowDown, handleEnter],
   )
 
-  const isLoading =
-    (isSearchPending || searchResults.isFetching) && !isDisplayingRecents
+  const isLoading = (isSearchPending || searchResults.isFetching) && !isDisplayingRecents
 
   useEffect(() => {
     onLoadingChange?.(isLoading)
@@ -309,11 +269,7 @@ export const SearchInput = forwardRef<
           }
 
           return (
-            <div
-              ref={(el) => (itemRefs.current[itemIndex] = el)}
-              key={item.key}
-              className="focus:outline-none"
-            >
+            <div ref={(el) => (itemRefs.current[itemIndex] = el)} key={item.key} className="focus:outline-none">
               {isDisplayingRecents ? (
                 <RecentSearchResultItem
                   item={{
@@ -353,9 +309,7 @@ export const SearchInput = forwardRef<
   if (hideInput) {
     return (
       <div className="flex h-full w-full flex-col gap-2">
-        <div className="max-h-[200px] min-h-0 flex-1 overflow-y-auto">
-          {content || <p>working...</p>}
-        </div>
+        <div className="max-h-[200px] min-h-0 flex-1 overflow-y-auto">{content || <p>working...</p>}</div>
       </div>
     )
   }
@@ -373,9 +327,7 @@ export const SearchInput = forwardRef<
         setFocusedIndex((prev) => (prev + 1) % activeItems.length)
       }}
       onArrowUp={() => {
-        setFocusedIndex(
-          (prev) => (prev - 1 + activeItems.length) % activeItems.length,
-        )
+        setFocusedIndex((prev) => (prev - 1 + activeItems.length) % activeItems.length)
       }}
       onEscape={() => {
         onClose?.()
@@ -397,10 +349,7 @@ export const SearchInput = forwardRef<
 /**
  * Apply view term to a resolved route (e.g., /:directory -> open Directory page)
  */
-function applyViewTermToRoute(
-  route: NavRoute,
-  routeKey: ReturnType<typeof viewTermToRouteKey>,
-): NavRoute {
+function applyViewTermToRoute(route: NavRoute, routeKey: ReturnType<typeof viewTermToRouteKey>): NavRoute {
   if (!routeKey) return route
   if (route.key === 'document') {
     // Return first-class page route, not panel
@@ -437,10 +386,7 @@ function useURLHandler() {
         const resId = res?.id ? unpackHmId(res.id) : null
         const navRoute = resId ? appRouteOfId(resId) : null
         if (navRoute) return applyViewTermToRoute(navRoute, routeKey)
-        console.log(
-          'Failed to open this hypermedia content',
-          webResult.hypermedia,
-        )
+        console.log('Failed to open this hypermedia content', webResult.hypermedia)
         toast.error('Failed to open this hypermedia content')
         return null
       }
@@ -461,12 +407,7 @@ function useURLHandler() {
         return null
       }
       let route: NavRoute | null | undefined = null
-      if (
-        result.type === 'Comment' &&
-        result.target &&
-        result.hmId &&
-        result.hmId.path
-      ) {
+      if (result.type === 'Comment' && result.target && result.hmId && result.hmId.path) {
         route = {
           key: 'document',
           id: result.target,
@@ -480,11 +421,7 @@ function useURLHandler() {
       } else if (result.hmId) {
         // Check for panel query param and use createDocumentNavRoute if present
         if (result.panel) {
-          route = createDocumentNavRoute(
-            {...result.hmId, ...idFragment},
-            null,
-            result.panel,
-          )
+          route = createDocumentNavRoute({...result.hmId, ...idFragment}, null, result.panel)
         } else {
           route = appRouteOfId({...result.hmId, ...idFragment})
         }

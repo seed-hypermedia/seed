@@ -20,10 +20,7 @@ export function HyperMediaEditorView({
 }) {
   return (
     <BlockNoteView editor={editor}>
-      <FormattingToolbarPositioner
-        editor={editor}
-        formattingToolbar={HMFormattingToolbar}
-      />
+      <FormattingToolbarPositioner editor={editor} formattingToolbar={HMFormattingToolbar} />
       <HyperlinkToolbarPositioner
         // hyperlinkToolbar={HypermediaLinkToolbar}
         // @ts-expect-error

@@ -15,13 +15,11 @@ export const htmlContent = {
   // Basic text with inline formatting
   boldText: '<p>The <strong>important</strong> message</p>',
   italicText: '<p>An <em>emphasized</em> phrase</p>',
-  mixedFormatting:
-    '<p>This has <strong>strong</strong>, <em>emphasis</em>, and <u>underlined</u> words</p>',
+  mixedFormatting: '<p>This has <strong>strong</strong>, <em>emphasis</em>, and <u>underlined</u> words</p>',
 
   // Links
   simpleLink: '<p>Visit <a href="https://example.com">Example Site</a></p>',
-  multiplLinks:
-    '<p><a href="https://one.com">One</a> and <a href="https://two.com">Two</a></p>',
+  multiplLinks: '<p><a href="https://one.com">One</a> and <a href="https://two.com">Two</a></p>',
 
   // Lists
   unorderedList: `<ul>
@@ -48,8 +46,7 @@ export const htmlContent = {
 
   // Blockquotes
   blockquote: '<blockquote>This is a quoted text from somewhere</blockquote>',
-  nestedBlockquote:
-    '<blockquote>Quote level 1<blockquote>Quote level 2</blockquote></blockquote>',
+  nestedBlockquote: '<blockquote>Quote level 1<blockquote>Quote level 2</blockquote></blockquote>',
 
   // Headings
   heading1: '<h1>Main Heading</h1>',
@@ -224,10 +221,7 @@ export const seedBlockHTML = {
 // Helper to create clipboard data
 // =============================================================================
 
-export function createClipboardHTML(
-  html: string,
-  plainText?: string,
-): {html: string; plain: string} {
+export function createClipboardHTML(html: string, plainText?: string): {html: string; plain: string} {
   return {
     html,
     plain: plainText || html.replace(/<[^>]*>/g, ''),

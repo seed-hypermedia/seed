@@ -4,11 +4,7 @@ import {Button} from './button'
 import {SizableText} from './text'
 import {cn} from './utils'
 
-export function QueryBlockPlaceholder({
-  styleType,
-}: {
-  styleType: 'Card' | 'List'
-}) {
+export function QueryBlockPlaceholder({styleType}: {styleType: 'Card' | 'List'}) {
   if (styleType === 'Card') {
     return <QueryBlockCardPlaceholder />
   }
@@ -122,17 +118,7 @@ function Skeleton(
     marginLeft?: number
   },
 ) {
-  const {
-    w,
-    width,
-    height,
-    maxWidth,
-    borderRadius,
-    marginLeft,
-    className,
-    style,
-    ...rest
-  } = props
+  const {w, width, height, maxWidth, borderRadius, marginLeft, className, style, ...rest} = props
   return (
     <div
       className={cn('bg-muted-foreground/20', className)}
@@ -140,8 +126,7 @@ function Skeleton(
         width: w || (width ? `${width}px` : undefined),
         height: height ? `${height}px` : undefined,
         maxWidth: maxWidth ? `${maxWidth}px` : undefined,
-        borderRadius:
-          typeof borderRadius === 'number' ? `${borderRadius}px` : borderRadius,
+        borderRadius: typeof borderRadius === 'number' ? `${borderRadius}px` : borderRadius,
         marginLeft: marginLeft ? `${marginLeft}px` : undefined,
         ...style,
       }}

@@ -6,10 +6,7 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 // @ts-expect-error
 import {hmId, UnpackedHypermediaId} from '@shm/shared/utils/entity-id-url'
-import {
-  entityQueryPathToHmIdPath,
-  hmIdPathToEntityQueryPath,
-} from '@shm/shared/utils/path-api'
+import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useMutation, useQuery} from '@tanstack/react-query'
 
 export type HMSubscription = Omit<PlainMessage<Subscription>, 'path'> & {
@@ -19,16 +16,12 @@ export type HMSubscription = Omit<PlainMessage<Subscription>, 'path'> & {
 export function useSubscription(id: UnpackedHypermediaId) {
   const allSubs = useListSubscriptions()
   const exactSubscription = allSubs.data?.find(
-    (sub) =>
-      sub.account === id.uid && sub.path === hmIdPathToEntityQueryPath(id.path),
+    (sub) => sub.account === id.uid && sub.path === hmIdPathToEntityQueryPath(id.path),
   )
   let parentSubscription = null
   if (!exactSubscription) {
     parentSubscription = allSubs.data?.find(
-      (sub) =>
-        sub.account === id.uid &&
-        hmIdPathToEntityQueryPath(id.path).startsWith(sub.path) &&
-        sub.recursive,
+      (sub) => sub.account === id.uid && hmIdPathToEntityQueryPath(id.path).startsWith(sub.path) && sub.recursive,
     )
   }
   const setSubscription = useSetSubscription()
@@ -78,11 +71,7 @@ export function useListSubscriptions() {
 
 export function useSetSubscription() {
   return useMutation({
-    mutationFn: async (input: {
-      subscribed: boolean
-      id: UnpackedHypermediaId
-      recursive?: boolean
-    }) => {
+    mutationFn: async (input: {subscribed: boolean; id: UnpackedHypermediaId; recursive?: boolean}) => {
       if (input.subscribed) {
         await grpcClient.subscriptions.subscribe({
           account: input.id.uid,

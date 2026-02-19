@@ -1,8 +1,4 @@
-function upgradeStore(
-  db: IDBDatabase,
-  storeName: string,
-  options?: IDBObjectStoreParameters,
-): IDBObjectStore | null {
+function upgradeStore(db: IDBDatabase, storeName: string, options?: IDBObjectStoreParameters): IDBObjectStore | null {
   if (db.objectStoreNames.contains(storeName)) {
     return null
   }
@@ -83,11 +79,7 @@ function storeGet<T>(store: IDBObjectStore, key: string): Promise<T> {
   })
 }
 
-function storePut<T>(
-  store: IDBObjectStore,
-  value: T,
-  key: string,
-): Promise<void> {
+function storePut<T>(store: IDBObjectStore, value: T, key: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const doGet = store.put(value, key)
     doGet.onsuccess = (event) => {
@@ -152,9 +144,7 @@ function storeIndexGetAll<T>(store: IDBObjectStore | IDBIndex): Promise<T[]> {
 }
 
 export async function getStoredLocalKeys(): Promise<CryptoKeyPair | null> {
-  const store = (await getDB())
-    .transaction(KEYS_STORE_NAME)
-    .objectStore(KEYS_STORE_NAME)
+  const store = (await getDB()).transaction(KEYS_STORE_NAME).objectStore(KEYS_STORE_NAME)
   const [privateKey, publicKey] = await Promise.all([
     storeGet<CryptoKey>(store, 'privateKey'),
     storeGet<CryptoKey>(store, 'publicKey'),
@@ -163,9 +153,7 @@ export async function getStoredLocalKeys(): Promise<CryptoKeyPair | null> {
 }
 
 export async function writeLocalKeys(keyPair: CryptoKeyPair): Promise<void> {
-  const store = (await getDB())
-    .transaction(KEYS_STORE_NAME, 'readwrite')
-    .objectStore(KEYS_STORE_NAME)
+  const store = (await getDB()).transaction(KEYS_STORE_NAME, 'readwrite').objectStore(KEYS_STORE_NAME)
   console.log('~! writeLocalKeys', keyPair)
   await Promise.all([
     storePut(store, keyPair.privateKey, 'privateKey'),
@@ -174,9 +162,7 @@ export async function writeLocalKeys(keyPair: CryptoKeyPair): Promise<void> {
 }
 
 export async function deleteLocalKeys() {
-  const store = (await getDB())
-    .transaction(KEYS_STORE_NAME, 'readwrite')
-    .objectStore(KEYS_STORE_NAME)
+  const store = (await getDB()).transaction(KEYS_STORE_NAME, 'readwrite').objectStore(KEYS_STORE_NAME)
   await storeClear(store)
 }
 
@@ -187,9 +173,7 @@ export async function hasPromptedEmailNotifications(): Promise<boolean> {
   return (await storeGet<boolean>(store, 'hasPrompted')) ?? false
 }
 
-export async function setHasPromptedEmailNotifications(
-  hasPrompted: boolean,
-): Promise<void> {
+export async function setHasPromptedEmailNotifications(hasPrompted: boolean): Promise<void> {
   const store = (await getDB())
     .transaction(EMAIL_NOTIFICATIONS_STORE_NAME, 'readwrite')
     .objectStore(EMAIL_NOTIFICATIONS_STORE_NAME)

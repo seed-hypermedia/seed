@@ -22,9 +22,7 @@ import {PrivateBadge} from './private-badge'
 import {SizableText} from './text'
 import {cn} from './utils'
 
-export type DocumentListItemData =
-  | HMDocumentInfo
-  | (HMLibraryDocument & {breadcrumbs?: HMBreadcrumb[]})
+export type DocumentListItemData = HMDocumentInfo | (HMLibraryDocument & {breadcrumbs?: HMBreadcrumb[]})
 
 interface DocumentListItemProps {
   item: DocumentListItemData
@@ -60,32 +58,15 @@ export function DocumentListItem({
   const visibility = 'visibility' in item ? item.visibility : undefined
   const isPrivate = visibility === 'PRIVATE'
   const itemActivitySummary =
-    activitySummary !== undefined
-      ? activitySummary
-      : 'activitySummary' in item
-      ? item.activitySummary
-      : null
+    activitySummary !== undefined ? activitySummary : 'activitySummary' in item ? item.activitySummary : null
   const itemLatestComment =
-    latestComment !== undefined
-      ? latestComment
-      : 'latestComment' in item
-      ? item.latestComment
-      : null
-  const itemBreadcrumbs =
-    breadcrumbs !== undefined
-      ? breadcrumbs
-      : 'breadcrumbs' in item
-      ? item.breadcrumbs
-      : null
-  const computedIsRead =
-    isRead !== undefined ? isRead : !itemActivitySummary?.isUnread
+    latestComment !== undefined ? latestComment : 'latestComment' in item ? item.latestComment : null
+  const itemBreadcrumbs = breadcrumbs !== undefined ? breadcrumbs : 'breadcrumbs' in item ? item.breadcrumbs : null
+  const computedIsRead = isRead !== undefined ? isRead : !itemActivitySummary?.isUnread
 
-  const showAuthors =
-    !!accountsMetadata && Object.keys(accountsMetadata).length > 0
+  const showAuthors = !!accountsMetadata && Object.keys(accountsMetadata).length > 0
 
-  const route = draftId
-    ? {key: 'draft' as const, id: draftId}
-    : {key: 'document' as const, id}
+  const route = draftId ? {key: 'draft' as const, id: draftId} : {key: 'document' as const, id}
   const linkProps = useRouteLink(route)
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -120,25 +101,17 @@ export function DocumentListItem({
           )}
           <div className="flex flex-1 items-center gap-3">
             <div className="flex flex-1 items-center gap-1.5 overflow-hidden">
-              <SizableText
-                className={cn('truncate text-left font-sans')}
-                weight={computedIsRead ? undefined : 'bold'}
-              >
+              <SizableText className={cn('truncate text-left font-sans')} weight={computedIsRead ? undefined : 'bold'}>
                 {getMetadataName(metadata)}
               </SizableText>
               {!!draftId && <DraftBadge />}
               {isPrivate && <PrivateBadge size="sm" />}
             </div>
             {interactionSummary && interactionSummary.comments > 0 && (
-              <DocumentListItemCommentCount
-                count={interactionSummary.comments}
-              />
+              <DocumentListItemCommentCount count={interactionSummary.comments} />
             )}
             {showAuthors && 'authors' in item && (
-              <FacePile
-                accounts={item.authors}
-                accountsMetadata={accountsMetadata}
-              />
+              <FacePile accounts={item.authors} accountsMetadata={accountsMetadata} />
             )}
             {!showAuthors && !itemActivitySummary && 'updateTime' in item && (
               <SizableText size="xs" color="muted" className="font-sans">
@@ -159,11 +132,7 @@ export function DocumentListItem({
   )
 }
 
-function DocumentListItemBreadcrumbs({
-  breadcrumbs,
-}: {
-  breadcrumbs: HMBreadcrumb[]
-}) {
+function DocumentListItemBreadcrumbs({breadcrumbs}: {breadcrumbs: HMBreadcrumb[]}) {
   const displayCrumbs = breadcrumbs.slice(1).filter((crumb) => !!crumb.name)
   if (!displayCrumbs.length) return null
   return (
@@ -183,10 +152,7 @@ function DocumentListItemBreadcrumbs({
             {breadcrumb.name}
           </Button>
           {idx === displayCrumbs.length - 1 ? null : (
-            <SizableText
-              key={`separator-${idx}`}
-              className="text-muted-foreground text-sm"
-            >
+            <SizableText key={`separator-${idx}`} className="text-muted-foreground text-sm">
               /
             </SizableText>
           )}
@@ -201,9 +167,7 @@ function DocumentListItemCommentCount({count}: {count: number}) {
   return (
     <div className="flex items-center gap-1">
       <MessageSquare className="text-muted-foreground size-3" />
-      <SizableText className="text-muted-foreground text-[10px]">
-        {count}
-      </SizableText>
+      <SizableText className="text-muted-foreground text-[10px]">{count}</SizableText>
     </div>
   )
 }

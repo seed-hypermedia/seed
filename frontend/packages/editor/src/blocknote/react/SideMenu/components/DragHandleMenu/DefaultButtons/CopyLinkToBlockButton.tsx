@@ -4,10 +4,7 @@ import {HMBlockSchema} from '../../../../../../schema'
 import {DragHandleMenuProps} from '../DragHandleMenu'
 import {DragHandleMenuItem} from '../DragHandleMenuItem'
 
-export function CopyLinkToBlockButton<BSchema extends HMBlockSchema>({
-  block,
-  editor,
-}: DragHandleMenuProps<BSchema>) {
+export function CopyLinkToBlockButton<BSchema extends HMBlockSchema>({block, editor}: DragHandleMenuProps<BSchema>) {
   const url = editor.getResourceUrl?.(block.id)
   if (!url) return null
   return (

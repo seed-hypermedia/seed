@@ -91,9 +91,7 @@ export function CoverImage({
                     backgroundColor: '#666666',
                   }}
                 />
-                <Button variant="ghost" className="bg-background">{`${
-                  url ? 'CHANGE' : 'ADD'
-                } COVER`}</Button>
+                <Button variant="ghost" className="bg-background">{`${url ? 'CHANGE' : 'ADD'} COVER`}</Button>
               </div>
             </div>
           </div>

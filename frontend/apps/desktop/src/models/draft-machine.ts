@@ -99,8 +99,7 @@ export const draftMachine = setup({
             return event.payload.data.navigation
           } else if (event.payload.type == 'edit') {
             // When editing an existing document, extract navigation from the document
-            const navNode =
-              event.payload.data.document?.detachedBlocks?.navigation
+            const navNode = event.payload.data.document?.detachedBlocks?.navigation
 
             if (navNode && navNode.children) {
               const extractedNavigation = navNode.children.map((child) => ({
@@ -304,25 +303,16 @@ export const draftMachine = setup({
           },
         },
         creating: {
-          entry: [
-            'resetChangeWhileSaving',
-            {type: 'setDraftStatus', params: {status: 'saving'}},
-          ],
+          entry: ['resetChangeWhileSaving', {type: 'setDraftStatus', params: {status: 'saving'}}],
           on: {
             change: {
               target: 'saving',
-              actions: [
-                {type: 'setHasChangedWhileSaving'},
-                {type: 'setAttributes'},
-              ],
+              actions: [{type: 'setHasChangedWhileSaving'}, {type: 'setAttributes'}],
               reenter: false,
             },
             'reset.content': {
               target: 'saving',
-              actions: [
-                {type: 'setHasChangedWhileSaving'},
-                {type: 'resetContent'},
-              ],
+              actions: [{type: 'setHasChangedWhileSaving'}, {type: 'resetContent'}],
               reenter: false,
             },
           },
@@ -339,9 +329,7 @@ export const draftMachine = setup({
             onDone: [
               {
                 target: 'saving',
-                actions: [
-                  {type: 'setDraftCreated', params: {draftCreated: true}},
-                ],
+                actions: [{type: 'setDraftCreated', params: {draftCreated: true}}],
                 guard: 'didChangeWhileSaving',
                 reenter: true,
               },
@@ -379,25 +367,16 @@ export const draftMachine = setup({
           },
         },
         saving: {
-          entry: [
-            'resetChangeWhileSaving',
-            {type: 'setDraftStatus', params: {status: 'saving'}},
-          ],
+          entry: ['resetChangeWhileSaving', {type: 'setDraftStatus', params: {status: 'saving'}}],
           on: {
             change: {
               target: 'saving',
-              actions: [
-                {type: 'setHasChangedWhileSaving'},
-                {type: 'setAttributes'},
-              ],
+              actions: [{type: 'setHasChangedWhileSaving'}, {type: 'setAttributes'}],
               reenter: false,
             },
             'reset.content': {
               target: 'saving',
-              actions: [
-                {type: 'setHasChangedWhileSaving'},
-                {type: 'resetContent'},
-              ],
+              actions: [{type: 'setHasChangedWhileSaving'}, {type: 'resetContent'}],
               reenter: false,
             },
           },

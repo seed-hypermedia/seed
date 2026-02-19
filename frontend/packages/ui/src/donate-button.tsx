@@ -46,17 +46,9 @@ async function sendWeblnPayment(invoice: string) {
   }
 }
 
-export function DonateButton({
-  docId,
-  authors,
-}: {
-  docId: UnpackedHypermediaId
-  authors: HMMetadataPayload[]
-}) {
+export function DonateButton({docId, authors}: {docId: UnpackedHypermediaId; authors: HMMetadataPayload[]}) {
   const donateDialog = useAppDialog(DonateDialog)
-  const allowedRecipients = useAllowedPaymentRecipients(
-    authors.map((author) => author.id.uid) || [],
-  )
+  const allowedRecipients = useAllowedPaymentRecipients(authors.map((author) => author.id.uid) || [])
   if (allowedRecipients.isError) return null
   if (allowedRecipients.isLoading) return null
   if (!allowedRecipients.data?.length) return null
@@ -98,14 +90,7 @@ function DonateDialog({
   const allowed = new Set(allowedRecipients)
 
   let content = <SizableText>No available recipents to pay</SizableText>
-  if (openInvoice)
-    return (
-      <DonateInvoice
-        invoice={openInvoice}
-        onReset={() => setOpenInvoice(null)}
-        onClose={onClose}
-      />
-    )
+  if (openInvoice) return <DonateInvoice invoice={openInvoice} onReset={() => setOpenInvoice(null)} onClose={onClose} />
   else if (allowed.size)
     content = (
       <DonateForm
@@ -154,8 +139,7 @@ function DonateInvoice({
           <PartyPopper size={120} />
         </div>
         <DialogDescription>
-          {invoice.amount} SATS has been sent to the{' '}
-          {authors.length > 1 ? 'authors' : 'author'}.
+          {invoice.amount} SATS has been sent to the {authors.length > 1 ? 'authors' : 'author'}.
         </DialogDescription>
         <Button variant="ghost" size="sm" onClick={onClose}>
           Done
@@ -165,9 +149,7 @@ function DonateInvoice({
   }
   return (
     <>
-      <DialogTitle>
-        Pay Invoice to {authors.length > 1 ? 'Authors' : 'Author'}
-      </DialogTitle>
+      <DialogTitle>Pay Invoice to {authors.length > 1 ? 'Authors' : 'Author'}</DialogTitle>
       <div className="flex flex-col items-center gap-4">
         <QRCode value={invoice.payload} />
         <Tooltip content="Click to Copy Invoice Text">
@@ -204,15 +186,11 @@ function DonateForm({
   allowed: Set<string>
   docId: UnpackedHypermediaId
 }) {
-  const [paymentAllocation, setPaymentAllocation] = useState<PaymentAllocation>(
-    {
-      mode: 'even',
-      amount: DEFAULT_PAYMENT_AMOUNTS[0]!,
-      recipients: authors
-        .filter((a) => allowed.has(a.id.uid))
-        .map((a) => a.id.uid),
-    },
-  )
+  const [paymentAllocation, setPaymentAllocation] = useState<PaymentAllocation>({
+    mode: 'even',
+    amount: DEFAULT_PAYMENT_AMOUNTS[0]!,
+    recipients: authors.filter((a) => allowed.has(a.id.uid)).map((a) => a.id.uid),
+  })
   const createInvoice = useCreateInvoice()
   const {fee, recipients, total, isEven} = getAllocations(paymentAllocation)
   if (createInvoice.isLoading)
@@ -238,11 +216,7 @@ function DonateForm({
       <CheckboxField
         id="split-evenly"
         checked={isEven}
-        onCheckedChange={(v) =>
-          setPaymentAllocation(
-            applyIsEvenAllocation(v === 'indeterminate' ? false : v),
-          )
-        }
+        onCheckedChange={(v) => setPaymentAllocation(applyIsEvenAllocation(v === 'indeterminate' ? false : v))}
       >
         Divide Evenly
       </CheckboxField>
@@ -250,16 +224,11 @@ function DonateForm({
         {authors.map((author) => {
           if (!author.metadata) return null
           const isAllowedRecipient = allowed.has(author.id.uid)
-          const recieveAmount =
-            recipients.find((r) => r.account === author.id.uid)?.amount || 0
+          const recieveAmount = recipients.find((r) => r.account === author.id.uid)?.amount || 0
           return (
             <div key={author.id.uid} className="flex justify-between">
               <div className="flex items-center gap-4">
-                <HMIcon
-                  id={author.id}
-                  name={author.metadata?.name}
-                  icon={author.metadata?.icon}
-                />
+                <HMIcon id={author.id} name={author.metadata?.name} icon={author.metadata?.icon} />
                 <SizableText color={isAllowedRecipient ? 'default' : 'muted'}>
                   {getMetadataName(author.metadata)}
                 </SizableText>
@@ -268,11 +237,8 @@ function DonateForm({
                 <Input
                   value={String(recieveAmount)}
                   onChange={(e: any) => {
-                    const text =
-                      'nativeEvent' in e ? e.nativeEvent.text : e.target.value
-                    setPaymentAllocation(
-                      applyRecipientAmount(author.id.uid, text),
-                    )
+                    const text = 'nativeEvent' in e ? e.nativeEvent.text : e.target.value
+                    setPaymentAllocation(applyRecipientAmount(author.id.uid, text))
                   }}
                   type="text"
                 />

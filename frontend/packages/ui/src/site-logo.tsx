@@ -4,13 +4,7 @@ import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
 import {cn} from './utils'
 
-export function SiteLogo({
-  id,
-  metadata,
-}: {
-  id: UnpackedHypermediaId
-  metadata?: HMMetadata | null
-}) {
+export function SiteLogo({id, metadata}: {id: UnpackedHypermediaId; metadata?: HMMetadata | null}) {
   const imageUrl = useImageUrl()
   const highlighter = useHighlighter()
   const homeLinkProps = useRouteLink({
@@ -23,16 +17,8 @@ export function SiteLogo({
   })
   if (metadata?.seedExperimentalLogo) {
     return (
-      <div
-        className={cn('flex flex-1 items-center justify-center')}
-        style={{height: '60px'}}
-        {...highlighter(id)}
-      >
-        <a
-          {...homeLinkProps}
-          data-resourceid={id.id}
-          className="flex h-full items-center justify-center"
-        >
+      <div className={cn('flex flex-1 items-center justify-center')} style={{height: '60px'}} {...highlighter(id)}>
+        <a {...homeLinkProps} data-resourceid={id.id} className="flex h-full items-center justify-center">
           <img
             src={imageUrl(metadata.seedExperimentalLogo, 'M')}
             height={60}

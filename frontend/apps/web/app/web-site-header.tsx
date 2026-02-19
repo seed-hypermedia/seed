@@ -1,9 +1,4 @@
-import {
-  HMDocument,
-  HMMetadata,
-  UnpackedHypermediaId,
-  unpackHmId,
-} from '@shm/shared'
+import {HMDocument, HMMetadata, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
@@ -22,21 +17,14 @@ export type WebSiteHeaderProps = {
   hideSiteBarClassName?: AutoHideSiteHeaderClassName
 }
 
-export function WebSiteHeader({
-  origin,
-  ...props
-}: React.PropsWithChildren<WebSiteHeaderProps>) {
+export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSiteHeaderProps>) {
   const homeResourceQuery = useResource(props.siteHomeId)
   const homeDirectoryQuery = useDirectory(props.siteHomeId)
 
   const isCenterLayout =
-    props.homeMetadata?.theme?.headerLayout === 'Center' ||
-    props.homeMetadata?.layout === 'Seed/Experimental/Newspaper'
+    props.homeMetadata?.theme?.headerLayout === 'Center' || props.homeMetadata?.layout === 'Seed/Experimental/Newspaper'
 
-  const homeDocFromQuery =
-    homeResourceQuery.data?.type === 'document'
-      ? homeResourceQuery.data.document
-      : null
+  const homeDocFromQuery = homeResourceQuery.data?.type === 'document' ? homeResourceQuery.data.document : null
 
   const navigationBlockNode = homeDocFromQuery?.detachedBlocks?.navigation
 
@@ -67,14 +55,11 @@ export function WebSiteHeader({
     : []
 
   // For header menu: use home nav items if available, otherwise directory items
-  const items: DocNavigationItem[] =
-    homeNavigationItems.length > 0 ? homeNavigationItems : directoryItems
+  const items: DocNavigationItem[] = homeNavigationItems.length > 0 ? homeNavigationItems : directoryItems
 
   return (
     <>
-      {origin &&
-      props.siteHomeId &&
-      props.siteHomeId.uid !== props.originHomeId.uid ? (
+      {origin && props.siteHomeId && props.siteHomeId.uid !== props.originHomeId.uid ? (
         <HypermediaHostBanner origin={origin} />
       ) : null}
       <SiteHeader

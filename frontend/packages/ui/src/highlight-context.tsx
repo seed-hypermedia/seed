@@ -11,9 +11,7 @@ type HighlighterProps = {
 
 export function useHighlighter() {
   const {broadcastEvent} = useUniversalAppContext()
-  return (
-    id?: UnpackedHypermediaId | null | undefined,
-  ): HighlighterProps | {} => {
+  return (id?: UnpackedHypermediaId | null | undefined): HighlighterProps | {} => {
     if (!id) return {}
     const divProps: HighlighterProps = {
       onMouseEnter: () => {

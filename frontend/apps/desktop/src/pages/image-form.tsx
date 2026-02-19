@@ -95,10 +95,7 @@ export function ImageForm({
         />
         {emptyLabel && !url ? (
           <div className="bg-muted pointer-events-none absolute z-50 h-full items-center justify-center gap-2 opacity-100">
-            <SizableText
-              size="xs"
-              className="text-muted-foreground text-center"
-            >
+            <SizableText size="xs" className="text-muted-foreground text-center">
               {emptyLabel}
             </SizableText>
           </div>
@@ -106,17 +103,10 @@ export function ImageForm({
 
         {image || (
           <div className="bg-muted border-border pointer-events-none absolute z-50 flex h-full w-full flex-col items-center justify-center gap-0 rounded-md border opacity-100">
-            <SizableText
-              size="xs"
-              weight="bold"
-              className="text-muted-foreground text-center"
-            >
+            <SizableText size="xs" weight="bold" className="text-muted-foreground text-center">
               {url ? 'Update Cover' : emptyLabel || 'Add Cover'}
             </SizableText>
-            <SizableText
-              size="xs"
-              className="text-muted-foreground text-center"
-            >
+            <SizableText size="xs" className="text-muted-foreground text-center">
               {suggestedSize}
             </SizableText>
           </div>

@@ -1,9 +1,6 @@
 import {grpcClient} from '@/grpc-client'
 import {PartialMessage} from '@bufbuild/protobuf'
-import {
-  Entity,
-  SearchEntitiesRequest,
-} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
+import {Entity, SearchEntitiesRequest} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
 import {SearchPayload} from '@shm/shared/models/search'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 
@@ -16,8 +13,7 @@ export async function fetchSearch(
     perspectiveAccountUid?: string
   },
 ): Promise<SearchPayload> {
-  const {accountUid, includeBody, contextSize, perspectiveAccountUid} =
-    opts || {}
+  const {accountUid, includeBody, contextSize, perspectiveAccountUid} = opts || {}
   const query: PartialMessage<SearchEntitiesRequest> = {
     query: searchQuery,
     includeBody: includeBody,
@@ -65,9 +61,7 @@ interface SearchItem {
   value: string
 }
 
-export function transformResultsToItems(
-  results: Array<Entity>,
-): Array<SearchItem> {
+export function transformResultsToItems(results: Array<Entity>): Array<SearchItem> {
   // @ts-expect-error
   return (
     results

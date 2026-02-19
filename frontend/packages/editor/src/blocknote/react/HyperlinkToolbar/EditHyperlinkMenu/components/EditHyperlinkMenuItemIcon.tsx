@@ -9,19 +9,12 @@ export type EditHyperlinkMenuItemIconProps = {
   secondaryTooltip?: string
 }
 
-export function EditHyperlinkMenuItemIcon(
-  props: EditHyperlinkMenuItemIconProps,
-) {
+export function EditHyperlinkMenuItemIcon(props: EditHyperlinkMenuItemIconProps) {
   const Icon = props.icon
 
   return (
     <Tippy
-      content={
-        <TooltipContent
-          mainTooltip={props.mainTooltip}
-          secondaryTooltip={props.secondaryTooltip}
-        />
-      }
+      content={<TooltipContent mainTooltip={props.mainTooltip} secondaryTooltip={props.secondaryTooltip} />}
       placement="left"
     >
       <Container>

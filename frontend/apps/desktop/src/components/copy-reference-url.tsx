@@ -10,11 +10,7 @@ import {CopiedToast, PushResourceStatus} from '@shm/ui/push-toast'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useState} from 'react'
-import {
-  usePushOnCopy,
-  useSetPushOnCopy,
-  useSetPushOnPublish,
-} from '../models/gateway-settings'
+import {usePushOnCopy, useSetPushOnCopy, useSetPushOnPublish} from '../models/gateway-settings'
 
 export function useCopyReferenceUrl(
   hostname: string,
@@ -36,8 +32,7 @@ export function useCopyReferenceUrl(
     if (pushOnCopy.data === 'never') {
       return
     }
-    const [setPushStatus, pushStatus] =
-      writeableStateStream<PushResourceStatus | null>(null)
+    const [setPushStatus, pushStatus] = writeableStateStream<PushResourceStatus | null>(null)
 
     const pushId = route.key === 'document' ? route.id : null
     if (pushId) {
@@ -45,13 +40,7 @@ export function useCopyReferenceUrl(
       toast.promise(pushPromise, {
         loading: <CopiedToast pushStatus={pushStatus} status="loading" />,
         success: <CopiedToast pushStatus={pushStatus} status="success" />,
-        error: (err) => (
-          <CopiedToast
-            pushStatus={pushStatus}
-            status="error"
-            errorMessage={err.message}
-          />
-        ),
+        error: (err) => <CopiedToast pushStatus={pushStatus} status="error" errorMessage={err.message} />,
       })
     }
   }

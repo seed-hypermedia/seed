@@ -141,17 +141,11 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
               label="Include Children"
               id="expanded"
               defaultChecked={
-                !!unpacked.blockRange &&
-                'expanded' in unpacked.blockRange &&
-                !!unpacked.blockRange.expanded
+                !!unpacked.blockRange && 'expanded' in unpacked.blockRange && !!unpacked.blockRange.expanded
               }
               style={{
                 opacity:
-                  unpacked.blockRange &&
-                  'expanded' in unpacked.blockRange &&
-                  unpacked.blockRange.expanded
-                    ? 1
-                    : 0.4,
+                  unpacked.blockRange && 'expanded' in unpacked.blockRange && unpacked.blockRange.expanded ? 1 : 0.4,
               }}
               onCheckedChange={(checked) => {
                 const newUrl = packHmId({
@@ -181,11 +175,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
                 props.editor.hyperlinkToolbar.stopHideTimer()
                 props.editor.hyperlinkToolbar.updatePosition()
               }}
-              variant={
-                props.toolbarProps.alignment === 'flex-start'
-                  ? 'default'
-                  : 'ghost'
-              }
+              variant={props.toolbarProps.alignment === 'flex-start' ? 'default' : 'ghost'}
             >
               <AlignLeft className="size-3" />
             </Button>
@@ -198,9 +188,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
                 props.editor.hyperlinkToolbar.stopHideTimer()
                 props.editor.hyperlinkToolbar.updatePosition()
               }}
-              variant={
-                props.toolbarProps.alignment === 'center' ? 'default' : 'ghost'
-              }
+              variant={props.toolbarProps.alignment === 'center' ? 'default' : 'ghost'}
             >
               <AlignCenter className="size-3" />
             </Button>
@@ -213,11 +201,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
                 props.editor.hyperlinkToolbar.stopHideTimer()
                 props.editor.hyperlinkToolbar.updatePosition()
               }}
-              variant={
-                props.toolbarProps.alignment === 'flex-end'
-                  ? 'default'
-                  : 'ghost'
-              }
+              variant={props.toolbarProps.alignment === 'flex-end' ? 'default' : 'ghost'}
             >
               <AlignRight className="size-3" />
             </Button>
@@ -225,11 +209,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
         </div>
       )}
 
-      <SizableText
-        size="sm"
-        className="text-primary"
-        data-testid="link-resource-type"
-      >
+      <SizableText size="sm" className="text-primary" data-testid="link-resource-type">
         {!!props.isHmLink ? `Seed Resource` : 'Web Address'}
       </SizableText>
 
@@ -249,10 +229,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
               const contentNode = state.doc.nodeAt(posBeforeNode + 1)
 
               if (contentNode) {
-                if (
-                  contentNode.type.name === 'embed' ||
-                  contentNode.type.name === 'button'
-                ) {
+                if (contentNode.type.name === 'embed' || contentNode.type.name === 'button') {
                   range = {
                     from: posBeforeNode + 1,
                     to: posBeforeNode + 1 + contentNode.nodeSize,
@@ -267,11 +244,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
                     if (linkMark) {
                       range = {
                         from: posBeforeNode + 2 + childPos,
-                        to:
-                          posBeforeNode +
-                          2 +
-                          childPos +
-                          (child.text?.length || 1),
+                        to: posBeforeNode + 2 + childPos + (child.text?.length || 1),
                       }
                       return false
                     }
@@ -285,11 +258,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
                   })
                 }
               }
-              tr = tr.insertText(
-                props.text.length ? props.text : ' ',
-                range!.from,
-                range!.to,
-              )
+              tr = tr.insertText(props.text.length ? props.text : ' ', range!.from, range!.to)
               view.dispatch(tr)
             } else props.editor.removeBlocks([props.id])
             props.resetLink()
@@ -325,10 +294,7 @@ const SearchInput = ({
 
   const unpackedId = unpackHmId(link)
   const currentEntity = useResource(unpackedId)
-  const document =
-    currentEntity.data?.type === 'document'
-      ? currentEntity.data.document
-      : undefined
+  const document = currentEntity.data?.type === 'document' ? currentEntity.data.document : undefined
 
   const [search, setSearch] = useState(() => {
     return document?.metadata.name ?? link
@@ -350,8 +316,7 @@ const SearchInput = ({
           versionTime: item.versionTime
             ? typeof item.versionTime.toDate === 'function'
               ? item.versionTime.toDate().toLocaleString()
-              : typeof item.versionTime === 'string' ||
-                typeof item.versionTime === 'number'
+              : typeof item.versionTime === 'string' || typeof item.versionTime === 'number'
               ? new Date(item.versionTime).toLocaleString()
               : ''
             : '',
@@ -395,17 +360,12 @@ const SearchInput = ({
         activeItems.length > 0 ? 'opacity-100' : 'opacity-0',
       )}
       style={{
-        width:
-          inputPosition && inputPosition.width ? inputPosition.width + 37 : 300,
-        top: inputPosition
-          ? Math.min(inputPosition.bottom, viewportHeight - 200) + 5
-          : 0,
+        width: inputPosition && inputPosition.width ? inputPosition.width + 37 : 300,
+        top: inputPosition ? Math.min(inputPosition.bottom, viewportHeight - 200) + 5 : 0,
         left: inputPosition ? inputPosition.left - 30 : 0,
       }}
     >
-      {isDisplayingRecents ? (
-        <SizableText className="mx-4">Recent Resources</SizableText>
-      ) : null}
+      {isDisplayingRecents ? <SizableText className="mx-4">Recent Resources</SizableText> : null}
       {activeItems?.map((item, itemIndex) => {
         return (
           <SearchResultItem
@@ -473,9 +433,7 @@ const SearchInput = ({
           }
           if (e.nativeEvent.key === 'ArrowUp') {
             e.preventDefault()
-            setFocusedIndex(
-              (prev) => (prev - 1 + activeItems.length) % activeItems.length,
-            )
+            setFocusedIndex((prev) => (prev - 1 + activeItems.length) % activeItems.length)
           }
         }}
       />
@@ -528,14 +486,8 @@ export function LinkTypeDropdown({
             setFocused(false)
           }}
         >
-          <item.icon
-            size={16}
-            color={item.value === selected ? '$brand4' : '$color12'}
-          />
-          <SizableText
-            size="md"
-            color={item.value === selected ? 'brand' : 'default'}
-          >
+          <item.icon size={16} color={item.value === selected ? '$brand4' : '$color12'} />
+          <SizableText size="md" color={item.value === selected ? 'brand' : 'default'}>
             {item.label}
           </SizableText>
         </div>

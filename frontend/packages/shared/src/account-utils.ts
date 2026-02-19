@@ -42,12 +42,7 @@ export async function resolveAccount(
 
   // Check if it's an alias account - if so, recursively resolve
   if (grpcAccount.aliasAccount) {
-    return resolveAccount(
-      grpcClient,
-      grpcAccount.aliasAccount,
-      currentAccount,
-      maxDepth - 1,
-    )
+    return resolveAccount(grpcClient, grpcAccount.aliasAccount, currentAccount, maxDepth - 1)
   }
 
   // Get the account's metadata
@@ -66,9 +61,7 @@ export async function resolveAccount(
       })
     : null
 
-  const contact = contactsResponse?.contacts.find(
-    (c) => toPlainMessage(c).subject === accountId,
-  )
+  const contact = contactsResponse?.contacts.find((c) => toPlainMessage(c).subject === accountId)
 
   const id = hmId(accountId)
   // If there's a contact, override the name in metadata

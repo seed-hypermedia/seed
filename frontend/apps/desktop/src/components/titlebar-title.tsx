@@ -1,22 +1,10 @@
-import {
-  BreadcrumbIconKey,
-  BreadcrumbItem,
-  useRouteBreadcrumbs,
-} from '@/hooks/use-route-breadcrumbs'
+import {BreadcrumbIconKey, BreadcrumbItem, useRouteBreadcrumbs} from '@/hooks/use-route-breadcrumbs'
 import {useHostSession} from '@/models/host'
 import {useSizeObserver} from '@/utils/use-size-observer'
 import {useNavigate} from '@/utils/useNavigate'
-import {
-  HMMetadata,
-  hostnameStripProtocol,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {HMMetadata, hostnameStripProtocol, UnpackedHypermediaId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from '@shm/ui//hover-card'
+import {HoverCard, HoverCardContent, HoverCardTrigger} from '@shm/ui//hover-card'
 import {Button} from '@shm/ui/button'
 import {DraftBadge} from '@shm/ui/draft-badge'
 import {useHighlighter} from '@shm/ui/highlight-context'
@@ -64,11 +52,7 @@ export function TitleContent({
   if (breadcrumbs.isAllError || !breadcrumbs.items.length) return null
 
   // Simple routes (single item, no entity)
-  if (
-    !breadcrumbs.entityId &&
-    breadcrumbs.items.length <= 2 &&
-    !breadcrumbs.isDraft
-  ) {
+  if (!breadcrumbs.entityId && breadcrumbs.items.length <= 2 && !breadcrumbs.isDraft) {
     const icon = <BreadcrumbIcon icon={breadcrumbs.icon} />
     if (breadcrumbs.items.length === 1) {
       return (
@@ -199,19 +183,13 @@ function BreadcrumbTitleView({
     const fixedItemWidth = firstItemWidth + lastItemWidth + spacerWidth
 
     const middleCrumbWidths = crumbWidths.slice(1, -1)
-    let usableWidth = middleCrumbWidths.reduce(
-      (acc, w) => acc + w + spacerWidth,
-      0,
-    )
+    let usableWidth = middleCrumbWidths.reduce((acc, w) => acc + w + spacerWidth, 0)
 
     const maxCollapseCount = items.length - 2
     let newCollapseCount = 0
 
     while (
-      usableWidth +
-        fixedItemWidth +
-        (newCollapseCount ? spacerWidth + ellipsisWidth : 0) >
-        availableContainerWidth &&
+      usableWidth + fixedItemWidth + (newCollapseCount ? spacerWidth + ellipsisWidth : 0) > availableContainerWidth &&
       newCollapseCount < maxCollapseCount
     ) {
       usableWidth -= (middleCrumbWidths[newCollapseCount] || 0) + spacerWidth
@@ -295,13 +273,7 @@ function BreadcrumbTitleView({
   })
   const displayItems = [firstItem]
   if (collapsedCount) {
-    displayItems.push(
-      <BreadcrumbEllipsis
-        key="ellipsis"
-        crumbDetails={items}
-        collapsedCount={collapsedCount}
-      />,
-    )
+    displayItems.push(<BreadcrumbEllipsis key="ellipsis" crumbDetails={items} collapsedCount={collapsedCount} />)
   }
   displayItems.push(...remainderItems)
   displayItems.push(
@@ -324,18 +296,13 @@ function BreadcrumbTitleView({
   if (isAllError || !displayItems.length) return null
 
   return (
-    <div
-      ref={containerObserverRef}
-      className="flex items-center gap-2 overflow-hidden"
-    >
+    <div ref={containerObserverRef} className="flex items-center gap-2 overflow-hidden">
       <div className="flex h-full min-w-0 flex-1 items-center gap-2 overflow-hidden">
         {displayItems.flatMap((item, itemIndex) => {
           if (!item) return null
           return [
             item,
-            itemIndex < displayItems.length - 1 ? (
-              <BreadcrumbSeparator key={`seperator-${itemIndex}`} />
-            ) : null,
+            itemIndex < displayItems.length - 1 ? <BreadcrumbSeparator key={`seperator-${itemIndex}`} /> : null,
           ]
         })}
       </div>
@@ -355,19 +322,9 @@ function BreadcrumbTitleView({
   )
 }
 
-function PendingDomainStatus({
-  status,
-  siteUrl,
-}: {
-  status: 'waiting-dns' | 'initializing' | 'error'
-  siteUrl: string
-}) {
+function PendingDomainStatus({status, siteUrl}: {status: 'waiting-dns' | 'initializing' | 'error'; siteUrl: string}) {
   if (status === 'waiting-dns') {
-    return (
-      <SizableText color="muted">
-        Waiting for DNS to resolve to {hostnameStripProtocol(siteUrl)}
-      </SizableText>
-    )
+    return <SizableText color="muted">Waiting for DNS to resolve to {hostnameStripProtocol(siteUrl)}</SizableText>
   }
   if (status === 'initializing') {
     return <SizableText color="muted">Initializing Domain...</SizableText>
@@ -380,9 +337,7 @@ function PendingDomain({id}: {id: UnpackedHypermediaId}) {
   const site = useResource(id)
 
   if (id.path?.length) return null
-  const pendingDomain = hostSession.pendingDomains?.find(
-    (domain) => domain.siteUid === id.uid,
-  )
+  const pendingDomain = hostSession.pendingDomains?.find((domain) => domain.siteUid === id.uid)
   if (!pendingDomain) return null
   return (
     <div className="no-window-drag p-2">
@@ -496,27 +451,21 @@ function BreadcrumbItemView({
   if (details.isLoading) {
     return (
       <div className="flex items-center justify-center">
-        <TitleTextButton className="no-window-drag text-foreground-muted">
-          {details.fallbackName}
-        </TitleTextButton>
+        <TitleTextButton className="no-window-drag text-foreground-muted">{details.fallbackName}</TitleTextButton>
       </div>
     )
   }
   if (details.isTombstone) {
     return (
       <Tooltip content="This Document has been deleted">
-        <TitleTextButton className="no-window-drag text-destructive">
-          {details.fallbackName}
-        </TitleTextButton>
+        <TitleTextButton className="no-window-drag text-destructive">{details.fallbackName}</TitleTextButton>
       </Tooltip>
     )
   }
   if (details.isNotFound) {
     return (
       <Tooltip content="Document not found on the network">
-        <TitleTextButton className="no-window-drag text-destructive">
-          {details.fallbackName}
-        </TitleTextButton>
+        <TitleTextButton className="no-window-drag text-destructive">{details.fallbackName}</TitleTextButton>
       </Tooltip>
     )
   }
@@ -564,9 +513,7 @@ function BreadcrumbItemView({
       style={textStyle}
       {...highlighter(details.id)}
     >
-      <TitleText className={cn('min-w-0 flex-1 truncate font-bold')}>
-        {details.name}
-      </TitleText>
+      <TitleText className={cn('min-w-0 flex-1 truncate font-bold')}>{details.name}</TitleText>
       {draft ? <DraftBadge className="flex-shrink-0" /> : null}
     </div>
   ) : (
@@ -579,9 +526,5 @@ function BreadcrumbItemView({
       {details.name}
     </TitleText>
   )
-  return (
-    <div className={cn('no-window-drag', isActive ? 'min-w-0 flex-1' : '')}>
-      {content}
-    </div>
-  )
+  return <div className={cn('no-window-drag', isActive ? 'min-w-0 flex-1' : '')}>{content}</div>
 }

@@ -57,9 +57,7 @@ export function LinkDeviceDialog({
         <DialogTitle>Device Linked!</DialogTitle>
         <div className="flex flex-col gap-4">
           <p>
-            You have signed in to{' '}
-            <SizableText weight="bold">{input.accountName}</SizableText> in the
-            web browser.
+            You have signed in to <SizableText weight="bold">{input.accountName}</SizableText> in the web browser.
           </p>
           <div className="flex justify-center">
             <Button
@@ -87,8 +85,8 @@ export function LinkDeviceDialog({
     <>
       <DialogTitle>Linking Session Details</DialogTitle>
       <p>
-        Copy this session token and paste it into the web page you are trying to
-        link with, or scan the QR Code below if your device has a camera.
+        Copy this session token and paste it into the web page you are trying to link with, or scan the QR Code below if
+        your device has a camera.
       </p>
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-1">
@@ -104,19 +102,14 @@ export function LinkDeviceDialog({
               setTimeout(() => setCopied(false), 2000)
             }}
           >
-            {copied ? (
-              <Check className="h-4 w-4" />
-            ) : (
-              <Copy className="h-4 w-4" />
-            )}
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
           </Button>
         </div>
         <div className="flex justify-center">
           <ErrorBoundary
             fallbackRender={(err) => (
               <SizableText color="destructive">
-                Failed to generate QR code: {String(err.error)}. It's probably a
-                bug. Try using the token above.
+                Failed to generate QR code: {String(err.error)}. It's probably a bug. Try using the token above.
               </SizableText>
             )}
           >
@@ -159,9 +152,7 @@ function DeviceLabelForm({
     setFocus,
     formState: {errors},
   } = useForm<{label: string}>({
-    resolver: zodResolver(
-      z.object({label: z.string().min(1, 'Device label is required')}),
-    ),
+    resolver: zodResolver(z.object({label: z.string().min(1, 'Device label is required')})),
     defaultValues: {
       label: defaulLabel,
     },
@@ -191,8 +182,7 @@ function DeviceLabelForm({
       <div className="flex flex-col gap-4">
         {linkDevice.error ? (
           <p className="text-destructive">
-            Error linking device:{' '}
-            {(linkDevice.error as any)?.message || 'Unknown error'}
+            Error linking device: {(linkDevice.error as any)?.message || 'Unknown error'}
           </p>
         ) : null}
         <div className="flex flex-col gap-1">
@@ -200,9 +190,8 @@ function DeviceLabelForm({
             <FormInput control={control} name="label" placeholder="My Device" />
           </FormField>
           <SizableText size="xs" className="text-muted-foreground">
-            This label <em>cannot</em> be changed later. It's just for your
-            convenience to distinguish linked sessions. E.g. you can use the
-            name or the domain of the web site you are linking with.
+            This label <em>cannot</em> be changed later. It's just for your convenience to distinguish linked sessions.
+            E.g. you can use the name or the domain of the web site you are linking with.
           </SizableText>
         </div>
 

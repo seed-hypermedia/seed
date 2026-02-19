@@ -17,17 +17,7 @@ declare global {
   }
 }
 import * as Sentry from '@sentry/electron/main'
-import {
-  app,
-  BrowserWindow,
-  dialog,
-  globalShortcut,
-  ipcMain,
-  Menu,
-  OpenDialogOptions,
-  session,
-  shell,
-} from 'electron'
+import {app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, OpenDialogOptions, session, shell} from 'electron'
 import {performance} from 'perf_hooks'
 
 import contextMenu from 'electron-context-menu'
@@ -36,13 +26,7 @@ import fs from 'fs'
 import mime from 'mime'
 import path from 'node:path'
 
-import {
-  dispatchFocusedWindowAppEvent,
-  handleSecondInstance,
-  handleUrlOpen,
-  openInitialWindows,
-  trpc,
-} from './app-api'
+import {dispatchFocusedWindowAppEvent, handleSecondInstance, handleUrlOpen, openInitialWindows, trpc} from './app-api'
 import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
 import {createAppMenu} from './app-menu'
@@ -65,21 +49,12 @@ import {saveCidAsFile} from './save-cid-as-file'
 import {saveMarkdownFile} from './save-markdown-file'
 
 import {State} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
-import {
-  BIG_INT,
-  IS_PROD_DESKTOP,
-  OS_PROTOCOL_SCHEME,
-  VERSION,
-} from '@shm/shared/constants'
+import {BIG_INT, IS_PROD_DESKTOP, OS_PROTOCOL_SCHEME, VERSION} from '@shm/shared/constants'
 import {defaultRoute} from '@shm/shared/routes'
 import {initCommentDrafts} from './app-comments'
 import {initDrafts} from './app-drafts'
 import {getStoredEmbeddingEnabled} from './app-experiments'
-import {
-  getOnboardingState,
-  setInitialAccountIdCount,
-  setupOnboardingHandlers,
-} from './app-onboarding-store'
+import {getOnboardingState, setInitialAccountIdCount, setupOnboardingHandlers} from './app-onboarding-store'
 import {memoryMonitor, setupMemoryMonitorLifecycle} from './memory-monitor'
 import {getSubscriptionCount, getDiscoveryStreamCount} from './app-sync'
 import {
@@ -138,9 +113,7 @@ if (IS_PROD_DESKTOP) {
 
   if (process.defaultApp) {
     if (process.argv.length >= 2) {
-      app.setAsDefaultProtocolClient(OS_REGISTER_SCHEME, process.execPath, [
-        path.resolve(process.argv[1]!),
-      ])
+      app.setAsDefaultProtocolClient(OS_REGISTER_SCHEME, process.execPath, [path.resolve(process.argv[1]!)])
     }
   } else {
     app.setAsDefaultProtocolClient(OS_REGISTER_SCHEME)
@@ -190,18 +163,14 @@ app.on('before-quit', () => {
  * Can be forced to show with VITE_FORCE_LOADING_WINDOW env var for testing.
  */
 async function startDaemonWithLoadingWindow(): Promise<void> {
-  const forceLoadingWindow =
-    typeof __FORCE_LOADING_WINDOW__ !== 'undefined' &&
-    __FORCE_LOADING_WINDOW__ === 'true'
+  const forceLoadingWindow = typeof __FORCE_LOADING_WINDOW__ !== 'undefined' && __FORCE_LOADING_WINDOW__ === 'true'
   let loadingWindowShown = false
   let unsubscribe: (() => void) | null = null
   let daemonIsPolling = false
 
   logger.info(
     `[MAIN]: __FORCE_LOADING_WINDOW__ = ${
-      typeof __FORCE_LOADING_WINDOW__ !== 'undefined'
-        ? __FORCE_LOADING_WINDOW__
-        : 'undefined'
+      typeof __FORCE_LOADING_WINDOW__ !== 'undefined' ? __FORCE_LOADING_WINDOW__ : 'undefined'
     }`,
   )
   logger.info(`[MAIN]: forceLoadingWindow = ${forceLoadingWindow}`)
@@ -220,13 +189,9 @@ async function startDaemonWithLoadingWindow(): Promise<void> {
             // Not ACTIVE yet, show loading window
             loadingWindowShown = true
             createLoadingWindow()
-            logger.info(
-              `[MAIN]: Daemon not ACTIVE (state: ${info.state}), showing loading window`,
-            )
+            logger.info(`[MAIN]: Daemon not ACTIVE (state: ${info.state}), showing loading window`)
           } else {
-            logger.info(
-              '[MAIN]: Daemon already ACTIVE, skipping loading window',
-            )
+            logger.info('[MAIN]: Daemon already ACTIVE, skipping loading window')
           }
         })
         .catch((err) => {
@@ -235,15 +200,8 @@ async function startDaemonWithLoadingWindow(): Promise<void> {
     }
     // Second 'ready' event: daemon became ACTIVE, unsubscribe but keep loading window open
     // Loading window will be closed when main windows are about to open
-    else if (
-      state.t === 'ready' &&
-      daemonIsPolling &&
-      loadingWindowShown &&
-      !forceLoadingWindow
-    ) {
-      logger.info(
-        '[MAIN]: Daemon is ACTIVE, keeping loading window until main window opens',
-      )
+    else if (state.t === 'ready' && daemonIsPolling && loadingWindowShown && !forceLoadingWindow) {
+      logger.info('[MAIN]: Daemon is ACTIVE, keeping loading window until main window opens')
       if (unsubscribe) {
         unsubscribe()
         unsubscribe = null
@@ -290,10 +248,7 @@ app.whenReady().then(async () => {
   // Register memory monitor resource counters
   memoryMonitor.registerResourceCounter('windows', () => getAllWindows().size)
   memoryMonitor.registerResourceCounter('subscriptions', getSubscriptionCount)
-  memoryMonitor.registerResourceCounter(
-    'discoveryStreams',
-    getDiscoveryStreamCount,
-  )
+  memoryMonitor.registerResourceCounter('discoveryStreams', getDiscoveryStreamCount)
 
   // Start local server in production to avoid file:// protocol issues with iframes
   if (IS_PROD_DESKTOP && !MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -303,9 +258,7 @@ app.whenReady().then(async () => {
       ;(global as any).localServerPort = port
       logger.info(`[MAIN]: Local server started on port ${port}`)
     } catch (err) {
-      logger.error(
-        '[MAIN]: Failed to start local server: ' + (err as Error).message,
-      )
+      logger.error('[MAIN]: Failed to start local server: ' + (err as Error).message)
     }
   }
 
@@ -314,10 +267,7 @@ app.whenReady().then(async () => {
     const responseHeaders = details.responseHeaders || {}
 
     // Remove X-Frame-Options from our app responses to allow embeds
-    if (
-      details.url.includes('localhost') ||
-      details.url.includes('127.0.0.1')
-    ) {
+    if (details.url.includes('localhost') || details.url.includes('127.0.0.1')) {
       delete responseHeaders['X-Frame-Options']
       delete responseHeaders['x-frame-options']
     }
@@ -333,9 +283,7 @@ app.whenReady().then(async () => {
     logger.info('[MAIN]: App relaunched after update, ensuring window opens')
     // Force open a window
     // Remove the flag from argv to prevent issues on subsequent launches
-    process.argv = process.argv.filter(
-      (arg) => arg !== '--relaunch-after-update',
-    )
+    process.argv = process.argv.filter((arg) => arg !== '--relaunch-after-update')
   }
 
   if (!IS_PROD_DESKTOP) {
@@ -385,9 +333,7 @@ app.whenReady().then(async () => {
             logger.debug('[MAIN]: Startup complete, main window created')
             // Process cold start deep link if present
             if (coldStartDeepLinkUrl) {
-              logger.info(
-                `[MAIN]: Processing cold start deep link: ${coldStartDeepLinkUrl}`,
-              )
+              logger.info(`[MAIN]: Processing cold start deep link: ${coldStartDeepLinkUrl}`)
               handleUrlOpen(coldStartDeepLinkUrl)
               coldStartDeepLinkUrl = null
             }
@@ -398,9 +344,7 @@ app.whenReady().then(async () => {
           logger.debug('[MAIN]: Startup complete, initial windows opened')
           // Process cold start deep link if present
           if (coldStartDeepLinkUrl) {
-            logger.info(
-              `[MAIN]: Processing cold start deep link: ${coldStartDeepLinkUrl}`,
-            )
+            logger.info(`[MAIN]: Processing cold start deep link: ${coldStartDeepLinkUrl}`)
             handleUrlOpen(coldStartDeepLinkUrl)
             coldStartDeepLinkUrl = null
           }
@@ -550,9 +494,7 @@ function initializeIpcHandlers() {
     let height: number | undefined = undefined
 
     if (focusedWindow) {
-      const focusedWindowId = Array.from(getAllWindows().entries()).find(
-        ([_, window]) => window === focusedWindow,
-      )?.[0]
+      const focusedWindowId = Array.from(getAllWindows().entries()).find(([_, window]) => window === focusedWindow)?.[0]
 
       if (focusedWindowId) {
         // Use in-memory windowNavState instead of persisted windowsState
@@ -565,11 +507,7 @@ function initializeIpcHandlers() {
         sidebarWidth = focusedWindowState?.sidebarWidth
 
         // Only get dimensions if window is in a valid state (not fullscreen/maximized/minimized)
-        if (
-          !focusedWindow.isFullScreen() &&
-          !focusedWindow.isMaximized() &&
-          !focusedWindow.isMinimized()
-        ) {
+        if (!focusedWindow.isFullScreen() && !focusedWindow.isMaximized() && !focusedWindow.isMinimized()) {
           const bounds = focusedWindow.getBounds()
           width = bounds.width
           height = bounds.height
@@ -583,10 +521,7 @@ function initializeIpcHandlers() {
       accessoryWidth,
       sidebarLocked,
       sidebarWidth,
-      bounds:
-        width !== undefined && height !== undefined
-          ? {width, height}
-          : undefined,
+      bounds: width !== undefined && height !== undefined ? {width, height} : undefined,
     })
   })
 
@@ -653,9 +588,7 @@ function initializeIpcHandlers() {
   ipcMain.on('export-document', saveMarkdownFile)
   ipcMain.on('quit_app', () => app.quit())
   ipcMain.on('open_path', (event, path) => shell.openPath(path))
-  ipcMain.on('open-external-link', (_event, linkUrl) =>
-    shell.openExternal(linkUrl),
-  )
+  ipcMain.on('open-external-link', (_event, linkUrl) => shell.openExternal(linkUrl))
   ipcMain.on('open-directory', (_event, directory) => shell.openPath(directory))
 
   // Markdown file handlers
@@ -668,10 +601,7 @@ function initializeIpcHandlers() {
 
     const options: OpenDialogOptions = {
       title: 'Select directories containing Markdown files',
-      properties: [
-        'openDirectory',
-        'multiSelections',
-      ] as OpenDialogOptions['properties'],
+      properties: ['openDirectory', 'multiSelections'] as OpenDialogOptions['properties'],
     }
 
     try {
@@ -680,10 +610,7 @@ function initializeIpcHandlers() {
         const directories = result.filePaths
         const validDocuments = []
 
-        const docMap = new Map<
-          string,
-          {relativePath?: string; name: string; path: string}
-        >()
+        const docMap = new Map<string, {relativePath?: string; name: string; path: string}>()
 
         for (const dirPath of directories) {
           const files = fs.readdirSync(dirPath)
@@ -700,10 +627,7 @@ function initializeIpcHandlers() {
 
               docMap.set('./' + markdownFile, {
                 name: title,
-                path: path.join(
-                  accountId,
-                  title.toLowerCase().replace(/\s+/g, '-'),
-                ),
+                path: path.join(accountId, title.toLowerCase().replace(/\s+/g, '-')),
               })
 
               validDocuments.push({
@@ -755,10 +679,7 @@ function initializeIpcHandlers() {
       if (!result.canceled && result.filePaths.length > 0) {
         const files = result.filePaths
         const validDocuments = []
-        const docMap = new Map<
-          string,
-          {relativePath?: string; name: string; path: string}
-        >()
+        const docMap = new Map<string, {relativePath?: string; name: string; path: string}>()
 
         for (const filePath of files) {
           const stats = fs.lstatSync(filePath)
@@ -769,10 +690,7 @@ function initializeIpcHandlers() {
 
             docMap.set('./' + dirName, {
               name: title,
-              path: path.join(
-                accountId,
-                title.toLowerCase().replace(/\s+/g, '-'),
-              ),
+              path: path.join(accountId, title.toLowerCase().replace(/\s+/g, '-')),
             })
 
             validDocuments.push({
@@ -812,10 +730,7 @@ function initializeIpcHandlers() {
 
     const options: OpenDialogOptions = {
       title: 'Select directories containing LaTeX files',
-      properties: [
-        'openDirectory',
-        'multiSelections',
-      ] as OpenDialogOptions['properties'],
+      properties: ['openDirectory', 'multiSelections'] as OpenDialogOptions['properties'],
     }
 
     try {
@@ -824,10 +739,7 @@ function initializeIpcHandlers() {
         const directories = result.filePaths
         const validDocuments = []
 
-        const docMap = new Map<
-          string,
-          {relativePath?: string; name: string; path: string}
-        >()
+        const docMap = new Map<string, {relativePath?: string; name: string; path: string}>()
 
         for (const dirPath of directories) {
           const files = fs.readdirSync(dirPath)
@@ -844,10 +756,7 @@ function initializeIpcHandlers() {
 
               docMap.set('./' + latexFile, {
                 name: title,
-                path: path.join(
-                  accountId,
-                  title.toLowerCase().replace(/\s+/g, '-'),
-                ),
+                path: path.join(accountId, title.toLowerCase().replace(/\s+/g, '-')),
               })
 
               validDocuments.push({
@@ -899,10 +808,7 @@ function initializeIpcHandlers() {
       if (!result.canceled && result.filePaths.length > 0) {
         const files = result.filePaths
         const validDocuments = []
-        const docMap = new Map<
-          string,
-          {relativePath?: string; name: string; path: string}
-        >()
+        const docMap = new Map<string, {relativePath?: string; name: string; path: string}>()
 
         for (const filePath of files) {
           const stats = fs.lstatSync(filePath)
@@ -913,10 +819,7 @@ function initializeIpcHandlers() {
 
             docMap.set('./' + dirName, {
               name: title,
-              path: path.join(
-                accountId,
-                title.toLowerCase().replace(/\s+/g, '-'),
-              ),
+              path: path.join(accountId, title.toLowerCase().replace(/\s+/g, '-')),
             })
 
             validDocuments.push({
@@ -964,8 +867,7 @@ function initializeIpcHandlers() {
       console.error('Error reading media file:', error)
       event.sender.send('media-file-content', {
         success: false,
-        error:
-          error instanceof Error ? error.message : 'Unknown error occurred',
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
       })
     }
   })

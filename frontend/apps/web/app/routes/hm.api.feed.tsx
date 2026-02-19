@@ -18,11 +18,9 @@ export const loader = async ({
   const url = new URL(request.url)
   const pageToken = url.searchParams.get('pageToken') || undefined
   const pageSize = parseInt(url.searchParams.get('pageSize') || '10', 10)
-  const filterAuthors =
-    url.searchParams.get('filterAuthors')?.split(',') || undefined
+  const filterAuthors = url.searchParams.get('filterAuthors')?.split(',') || undefined
   const filterResource = url.searchParams.get('filterResource') || undefined
-  const filterEventType =
-    url.searchParams.get('filterEventType')?.split(',') || undefined
+  const filterEventType = url.searchParams.get('filterEventType')?.split(',') || undefined
   try {
     const result = await listEventsImpl(grpcClient, {
       pageToken,

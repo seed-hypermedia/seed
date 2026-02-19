@@ -14,20 +14,14 @@ import {DefaultHyperlinkToolbar} from './DefaultHyperlinkToolbar'
 
 export type HyperlinkToolbarProps = Pick<
   HyperlinkToolbarProsemirrorPlugin<any>,
-  | 'deleteHyperlink'
-  | 'startHideTimer'
-  | 'stopHideTimer'
-  | 'updateHyperlink'
-  | 'resetHyperlink'
+  'deleteHyperlink' | 'startHideTimer' | 'stopHideTimer' | 'updateHyperlink' | 'resetHyperlink'
 > &
   Omit<HyperlinkToolbarState, keyof BaseUiElementState> & {
     editor: BlockNoteEditor<HMBlockSchema>
     onChangeLink: any
   }
 
-export const HyperlinkToolbarPositioner = <
-  BSchema extends BlockSchema = DefaultBlockSchema,
->(props: {
+export const HyperlinkToolbarPositioner = <BSchema extends BlockSchema = DefaultBlockSchema>(props: {
   openUrl: (url?: string | undefined, newWindow?: boolean | undefined) => void
   editor: BlockNoteEditor<BSchema>
   hyperlinkToolbar?: FC<HyperlinkToolbarProps>
@@ -37,25 +31,21 @@ export const HyperlinkToolbarPositioner = <
   const [text, setText] = useState<string>()
   const [type, setType] = useState<string>()
   const [id, setId] = useState<string>()
-  const [toolbarProps, setToolbarProps] =
-    useState<HyperlinkToolbarState['props']>()
+  const [toolbarProps, setToolbarProps] = useState<HyperlinkToolbarState['props']>()
 
   const referencePos = useRef<DOMRect>()
 
   useEffect(() => {
-    return props.editor.hyperlinkToolbar.on(
-      'update',
-      (hyperlinkToolbarState) => {
-        setShow(hyperlinkToolbarState.show)
-        setUrl(hyperlinkToolbarState.url)
-        setText(hyperlinkToolbarState.text)
-        setType(hyperlinkToolbarState.type)
-        setId(hyperlinkToolbarState.id)
-        setToolbarProps(hyperlinkToolbarState.props)
+    return props.editor.hyperlinkToolbar.on('update', (hyperlinkToolbarState) => {
+      setShow(hyperlinkToolbarState.show)
+      setUrl(hyperlinkToolbarState.url)
+      setText(hyperlinkToolbarState.text)
+      setType(hyperlinkToolbarState.type)
+      setId(hyperlinkToolbarState.id)
+      setToolbarProps(hyperlinkToolbarState.props)
 
-        referencePos.current = hyperlinkToolbarState.referencePos
-      },
-    )
+      referencePos.current = hyperlinkToolbarState.referencePos
+    })
   }, [props.editor])
 
   const getReferenceClientRect = useCallback(() => {
@@ -99,9 +89,7 @@ export const HyperlinkToolbarPositioner = <
         // @ts-expect-error
         type={type}
         id={id}
-        setHovered={(hovering: boolean) =>
-          props.editor.hyperlinkToolbar.setToolbarHovered(hovering)
-        }
+        setHovered={(hovering: boolean) => props.editor.hyperlinkToolbar.setToolbarHovered(hovering)}
         toolbarProps={toolbarProps}
       />
     )

@@ -1,9 +1,5 @@
 import {useOpenUrl} from '@shm/shared'
-import {
-  generateInstagramEmbedHtml,
-  loadInstagramScript,
-  loadTwitterScript,
-} from '@shm/shared/utils/web-embed-scripts'
+import {generateInstagramEmbedHtml, loadInstagramScript, loadTwitterScript} from '@shm/shared/utils/web-embed-scripts'
 import {TwitterXIcon} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
@@ -33,13 +29,8 @@ export const WebEmbed = createReactBlockSpec({
   },
   containsInlineContent: true,
 
-  render: ({
-    block,
-    editor,
-  }: {
-    block: Block<HMBlockSchema>
-    editor: BlockNoteEditor<HMBlockSchema>
-  }) => Render(block, editor),
+  render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) =>
+    Render(block, editor),
 
   parseHTML: [
     {
@@ -52,21 +43,14 @@ export const WebEmbed = createReactBlockSpec({
   ],
 })
 
-const Render = (
-  block: Block<HMBlockSchema>,
-  editor: BlockNoteEditor<HMBlockSchema>,
-) => {
+const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSchema>) => {
   const submitWebEmbedLink = (url: string, assign: any, setFileName: any) => {
     if (!isValidUrl(url)) {
       setFileName({name: 'The provided URL is invalid.', color: 'red'})
       return
     }
 
-    if (
-      !url.includes('twitter') &&
-      !url.includes('x.com') &&
-      !url.includes('instagram.com')
-    ) {
+    if (!url.includes('twitter') && !url.includes('x.com') && !url.includes('instagram.com')) {
       setFileName({
         name: 'Only Twitter/X and Instagram embeds are supported.',
         color: 'red',
@@ -79,18 +63,10 @@ const Render = (
     const cursorPosition = editor.getTextCursorPosition()
     editor.focus()
     if (cursorPosition.block.id === block.id) {
-      if (cursorPosition.nextBlock)
-        editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
+      if (cursorPosition.nextBlock) editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
       else {
-        editor.insertBlocks(
-          [{type: 'paragraph', content: ''}],
-          block.id,
-          'after',
-        )
-        editor.setTextCursorPosition(
-          editor.getTextCursorPosition().nextBlock!,
-          'start',
-        )
+        editor.insertBlocks([{type: 'paragraph', content: ''}], block.id, 'after')
+        editor.setTextCursorPosition(editor.getTextCursorPosition().nextBlock!, 'start')
       }
     }
   }
@@ -107,13 +83,7 @@ const Render = (
   )
 }
 
-const display = ({
-  editor,
-  block,
-  selected,
-  setSelected,
-  assign,
-}: DisplayComponentProps) => {
+const display = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
   const openUrl = useOpenUrl()
@@ -140,14 +110,10 @@ const display = ({
           if (!isInitialized.current && twttr && containerRef.current) {
             if (!createdTweets.current.has(block.id)) {
               createdTweets.current.add(block.id)
-              const result = await twttr.widgets.createTweet(
-                tweetId!,
-                containerRef.current,
-                {
-                  theme: 'dark',
-                  align: 'center',
-                },
-              )
+              const result = await twttr.widgets.createTweet(tweetId!, containerRef.current, {
+                theme: 'dark',
+                align: 'center',
+              })
               isInitialized.current = true
               if (!result) setError(true)
             }

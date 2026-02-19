@@ -23,19 +23,13 @@ function isEmptyBlockNode(node: HMBlockNode): boolean {
   return !block.text || block.text.trim() === ''
 }
 
-export function getCommentGroups(
-  comments?: Array<HMComment>,
-  targetCommentId?: string,
-): HMCommentGroup[] {
+export function getCommentGroups(comments?: Array<HMComment>, targetCommentId?: string): HMCommentGroup[] {
   const groups: HMCommentGroup[] = []
 
   if (!comments) return groups
 
   comments?.forEach((comment) => {
-    if (
-      comment.replyParent === targetCommentId ||
-      (!targetCommentId && comment.replyParent === '')
-    ) {
+    if (comment.replyParent === targetCommentId || (!targetCommentId && comment.replyParent === '')) {
       groups.push({
         comments: [comment],
         moreCommentsCount: 0,
@@ -50,9 +44,7 @@ export function getCommentGroups(
     let comment: HMComment | null = group.comments[0]
 
     while (comment) {
-      const nextComments = comments?.filter(
-        (c) => c.replyParent === comment?.id,
-      )
+      const nextComments = comments?.filter((c) => c.replyParent === comment?.id)
 
       if (nextComments?.length === 1) {
         // @ts-ignore
@@ -72,9 +64,7 @@ export function getCommentGroups(
     while (walkMoreCommentIds.size) {
       walkMoreCommentIds.forEach((commentId) => moreComments.add(commentId))
       walkMoreCommentIds = new Set<string>(
-        comments
-          .filter((c) => c.replyParent && walkMoreCommentIds.has(c.replyParent))
-          .map((comment) => comment.id),
+        comments.filter((c) => c.replyParent && walkMoreCommentIds.has(c.replyParent)).map((comment) => comment.id),
       )
     }
 
@@ -86,11 +76,7 @@ export function getCommentGroups(
     // Get the latest update time from all comments in group A
     const aLatestTime = Math.max(
       ...a.comments
-        .map((c) =>
-          c.updateTime && typeof c.updateTime === 'string'
-            ? new Date(c.updateTime).getTime()
-            : 0,
-        )
+        .map((c) => (c.updateTime && typeof c.updateTime === 'string' ? new Date(c.updateTime).getTime() : 0))
         .filter((t) => t > 0),
       0,
     )
@@ -98,11 +84,7 @@ export function getCommentGroups(
     // Get the latest update time from all comments in group B
     const bLatestTime = Math.max(
       ...b.comments
-        .map((c) =>
-          c.updateTime && typeof c.updateTime === 'string'
-            ? new Date(c.updateTime).getTime()
-            : 0,
-        )
+        .map((c) => (c.updateTime && typeof c.updateTime === 'string' ? new Date(c.updateTime).getTime() : 0))
         .filter((t) => t > 0),
       0,
     )
@@ -113,10 +95,7 @@ export function getCommentGroups(
   return sortedGroups
 }
 
-export function useCommentParents(
-  comments: Array<HMComment> | undefined,
-  focusedCommentId: string,
-) {
+export function useCommentParents(comments: Array<HMComment> | undefined, focusedCommentId: string) {
   return useMemo(() => {
     const focusedComment = comments?.find((c) => c.id === focusedCommentId)
     if (!focusedComment) return null
@@ -144,10 +123,7 @@ export function useCommentParents(
   }, [comments, focusedCommentId])
 }
 
-export function useCommentGroups(
-  comments?: Array<HMComment>,
-  targetCommentId?: string,
-) {
+export function useCommentGroups(comments?: Array<HMComment>, targetCommentId?: string) {
   // we are using the data object here for future migration to react-query
   return useMemo(
     () => ({

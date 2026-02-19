@@ -16,10 +16,7 @@ export const autocompletePluginKey = new PluginKey('inline-embed')
 export function createAutoCompletePlugin<N extends string, T>(args: {
   nodeName: N
   triggerCharacter: string
-  renderPopup: (
-    state: AutocompleteTokenPluginState<T>,
-    actions: AutocompleteTokenPluginActions,
-  ) => void
+  renderPopup: (state: AutocompleteTokenPluginState<T>, actions: AutocompleteTokenPluginActions) => void
 }): {plugins: Array<Plugin>; nodes: {[key in N]: NodeSpec}} {
   const {nodeName, triggerCharacter, renderPopup} = args
   const dataAttr = `data-${nodeName}`
@@ -59,9 +56,7 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
         return {active: false}
       },
       apply(tr, state) {
-        const action: AutocompleteTokenPluginAction | undefined = tr.getMeta(
-          autocompletePluginKey,
-        )
+        const action: AutocompleteTokenPluginAction | undefined = tr.getMeta(autocompletePluginKey)
 
         if (action) {
           // this controls if we need to open the suggestions popup or not
@@ -82,8 +77,7 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
         // Update the range and compute query.
         if (state.active) {
           const {range} = state
-          const from =
-            range.from === range.to ? range.from : tr.mapping.map(range.from)
+          const from = range.from === range.to ? range.from : tr.mapping.map(range.from)
           const to = tr.mapping.map(range.to)
 
           const text = tr.doc.textBetween(from, to, '\n', '\0')
@@ -127,16 +121,10 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
             const isStart = $position.pos === $position.start()
             const isEnd = $position.pos === $position.end()
             const emptyPrev = Boolean(
-              !isStart &&
-                $position.doc
-                  .textBetween($position.pos - 1, $position.pos, '\n', '\0')
-                  .match(/\s/),
+              !isStart && $position.doc.textBetween($position.pos - 1, $position.pos, '\n', '\0').match(/\s/),
             )
             const emptyNext = Boolean(
-              !isEnd &&
-                $position.doc
-                  .textBetween($position.pos, $position.pos + 1, '\n', '\0')
-                  .match(/\s/),
+              !isEnd && $position.doc.textBetween($position.pos, $position.pos + 1, '\n', '\0').match(/\s/),
             )
 
             // TODO: testing if letting add mentions anywhere feels better
@@ -157,14 +145,11 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
         const state = autocompletePluginKey.getState(view.state)
 
         if (state.active) {
-          view.dispatch(
-            view.state.tr.setMeta(autocompletePluginKey, {type: 'close'}),
-          )
+          view.dispatch(view.state.tr.setMeta(autocompletePluginKey, {type: 'close'}))
         }
       },
       decorations(editorState) {
-        const state: AutocompleteTokenPluginState<T> =
-          autocompletePluginKey.getState(editorState)
+        const state: AutocompleteTokenPluginState<T> = autocompletePluginKey.getState(editorState)
         if (!state.active) {
           return null
         }
@@ -180,23 +165,15 @@ export function createAutoCompletePlugin<N extends string, T>(args: {
     view() {
       return {
         update(view) {
-          var state: AutocompleteTokenPluginState<T> =
-            autocompletePluginKey.getState(view.state)
+          var state: AutocompleteTokenPluginState<T> = autocompletePluginKey.getState(view.state)
 
-          const onCreate = (
-            link: string,
-            range: {from: number; to: number},
-          ) => {
+          const onCreate = (link: string, range: {from: number; to: number}) => {
             // @ts-ignore
             const node = view.state.schema.nodes[nodeName].create({
               link,
             })
             view.dispatch(
-              view.state.tr.replaceWith(
-                range.from,
-                range.to,
-                Fragment.fromArray([node, view.state.schema.text(' ')]),
-              ),
+              view.state.tr.replaceWith(range.from, range.to, Fragment.fromArray([node, view.state.schema.text(' ')])),
             )
           }
 
@@ -267,13 +244,7 @@ export function AutocompletePopup(props: {
     return null
   }
 
-  return (
-    <AutocompletePopupInner
-      editor={props.editor}
-      {...props.state}
-      {...props.actions}
-    />
-  )
+  return <AutocompletePopupInner editor={props.editor} {...props.state} {...props.actions} />
 }
 
 const popupHeight = 160
@@ -287,10 +258,7 @@ function AutocompletePopupInner(
   const {rect, text, onClose, range, onCreate, editor} = props
   const debouncedText = useDebounce(text, 250)
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({})
-  const [index, setIndex] = useState<[keyof InlineMentionsResult, number]>([
-    'Recents',
-    0,
-  ])
+  const [index, setIndex] = useState<[keyof InlineMentionsResult, number]>(['Recents', 0])
   const [suggestions, setSuggestions] = useState<InlineMentionsResult>({
     Recents: [],
     Sites: [],
@@ -326,22 +294,20 @@ function AutocompletePopupInner(
   useEffect(() => {
     let isActive = true
 
-    editor.options
-      .onMentionsQuery(debouncedText)
-      .then((results: InlineMentionsResult) => {
-        if (!isActive) return
+    editor.options.onMentionsQuery(debouncedText).then((results: InlineMentionsResult) => {
+      if (!isActive) return
 
-        console.log('~~ MENTIONS RESULTS', results)
+      console.log('~~ MENTIONS RESULTS', results)
 
-        setSuggestions((prev) => ({
-          ...prev,
-          ...results,
-        }))
+      setSuggestions((prev) => ({
+        ...prev,
+        ...results,
+      }))
 
-        if (isOptionsEmpty(results) && debouncedText.length > 5) {
-          onClose()
-        }
-      })
+      if (isOptionsEmpty(results) && debouncedText.length > 5) {
+        onClose()
+      }
+    })
 
     return () => {
       isActive = false
@@ -357,9 +323,7 @@ function AutocompletePopupInner(
 
   const groupsOrder = ['Contacts', 'Recents', 'Sites', 'Documents'] as const
   const groups = useMemo(() => {
-    return groupsOrder.filter(
-      (g) => suggestions.hasOwnProperty(g) && suggestions[g].length,
-    )
+    return groupsOrder.filter((g) => suggestions.hasOwnProperty(g) && suggestions[g].length)
   }, [suggestions])
 
   // console.log('groups', groups)
@@ -378,10 +342,7 @@ function AutocompletePopupInner(
             groups[groups.length - 1].length - 1,
           ])
         } else {
-          let groupIdx = strangle(groups.indexOf(group) - 1, [
-            0,
-            groupsOrder.length - 1,
-          ])
+          let groupIdx = strangle(groups.indexOf(group) - 1, [0, groupsOrder.length - 1])
           // @ts-ignore
           setIndex([groups[groupIdx], suggestions[groups[groupIdx]].length - 1])
         }
@@ -394,19 +355,13 @@ function AutocompletePopupInner(
     ArrowDown: (e) => {
       e.preventDefault()
       let [group, idx] = index
-      if (
-        groups.indexOf(group) == groups.length - 1 &&
-        idx == suggestions[group].length - 1
-      ) {
+      if (groups.indexOf(group) == groups.length - 1 && idx == suggestions[group].length - 1) {
         // @ts-ignore
         setIndex([groups[0], 0])
       } else if (idx < suggestions[group].length - 1) {
         setIndex([group, idx + 1])
       } else {
-        let groupIdx = strangle(groups.indexOf(group) + 1, [
-          0,
-          groups.length - 1,
-        ])
+        let groupIdx = strangle(groups.indexOf(group) + 1, [0, groups.length - 1])
 
         // @ts-ignore
         setIndex([groups[groupIdx], 0])
@@ -417,10 +372,7 @@ function AutocompletePopupInner(
       e.preventDefault()
       let [group, idx] = index
 
-      if (
-        groups.indexOf(group) < groups.length &&
-        idx < suggestions[group].length
-      ) {
+      if (groups.indexOf(group) < groups.length && idx < suggestions[group].length) {
         let item = suggestions[group][idx]
 
         // @ts-ignore
@@ -437,10 +389,7 @@ function AutocompletePopupInner(
   })
 
   const topValue = position === 'below' ? rect.bottom + 4 : undefined
-  const bottomValue =
-    position === 'above'
-      ? window.innerHeight - rect.top + popupHeight
-      : undefined
+  const bottomValue = position === 'above' ? window.innerHeight - rect.top + popupHeight : undefined
 
   // Calculate left position to prevent overflow
   const popupWidth = 320
@@ -485,15 +434,9 @@ function AutocompletePopupInner(
           {groups.map((group) => {
             if (suggestions[group] && suggestions[group].length) {
               return (
-                <div
-                  className="border-border flex flex-col last:border-b-0"
-                  key={group}
-                >
+                <div className="border-border flex flex-col last:border-b-0" key={group}>
                   <div className="flex gap-2 bg-white px-4 py-2 dark:bg-black">
-                    <SizableText
-                      size="sm"
-                      className="text-muted-foreground flex-1"
-                    >
+                    <SizableText size="sm" className="text-muted-foreground flex-1">
                       {group}
                     </SizableText>
                     {suggestions[group].length >= 1 ? (
@@ -571,9 +514,7 @@ function strangle(n: number, minMax: [number, number]) {
   return Math.max(lowerBound, Math.min(n, upperBound))
 }
 
-export type AutocompleteTokenPluginState<T> =
-  | {active: false}
-  | AutocompleteTokenPluginActiveState<T>
+export type AutocompleteTokenPluginState<T> = {active: false} | AutocompleteTokenPluginActiveState<T>
 
 export type AutocompleteTokenPluginActiveState<T> = {
   active: true

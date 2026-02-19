@@ -19,11 +19,8 @@ export function ContactToken({
 }) {
   const linkProps = useRouteLink({key: 'document', id: id})
   const icon =
-    !id.path?.length || metadata?.icon ? (
-      <HMIcon size={20} id={id} name={metadata?.name} icon={metadata?.icon} />
-    ) : null
-  const className =
-    'h-5 truncate rounded px-1 text-sm font-bold inline-flex gap-1 items-center'
+    !id.path?.length || metadata?.icon ? <HMIcon size={20} id={id} name={metadata?.name} icon={metadata?.icon} /> : null
+  const className = 'h-5 truncate rounded px-1 text-sm font-bold inline-flex gap-1 items-center'
   if (ResourcePreview) {
     return (
       <HoverCard>
@@ -40,16 +37,9 @@ export function ContactToken({
     )
   }
   return (
-    <a
-      className="inline-flex items-center gap-1 overflow-hidden"
-      {...linkProps}
-    >
+    <a className="inline-flex items-center gap-1 overflow-hidden" {...linkProps}>
       {icon}
-      <SizableText
-        size="xs"
-        weight="bold"
-        className="h-5 truncate rounded text-sm font-bold"
-      >
+      <SizableText size="xs" weight="bold" className="h-5 truncate rounded text-sm font-bold">
         {metadata?.name}
       </SizableText>
     </a>

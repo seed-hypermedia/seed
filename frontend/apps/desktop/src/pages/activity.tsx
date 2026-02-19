@@ -3,18 +3,8 @@ import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useChildrenActivity} from '@/models/library'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
-import {
-  ActivityRoute,
-  HMDocument,
-  hmId,
-  HMResourceFetchResult,
-  UnpackedHypermediaId,
-} from '@shm/shared'
-import {
-  useAccount,
-  useCapabilities,
-  useResource,
-} from '@shm/shared/models/entity'
+import {ActivityRoute, HMDocument, hmId, HMResourceFetchResult, UnpackedHypermediaId} from '@shm/shared'
+import {useAccount, useCapabilities, useResource} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {panelContainerStyles} from '@shm/ui/container'
@@ -23,24 +13,14 @@ import {Feed} from '@shm/ui/feed'
 import {FeedFilters} from '@shm/ui/feed-filters'
 import {OpenInPanelButton} from '@shm/ui/open-in-panel'
 import {PageLayout} from '@shm/ui/page-layout'
-import {
-  PageDiscovery,
-  PageNotFound,
-  PageRedirected,
-} from '@shm/ui/page-message-states'
+import {PageDiscovery, PageNotFound, PageRedirected} from '@shm/ui/page-message-states'
 import {SiteHeader} from '@shm/ui/site-header'
 import {toast} from '@shm/ui/toast'
 import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {cn} from '@shm/ui/utils'
 import React, {useEffect} from 'react'
 
-function _ActivityContent({
-  id,
-  route,
-}: {
-  id: UnpackedHypermediaId
-  route: ActivityRoute
-}) {
+function _ActivityContent({id, route}: {id: UnpackedHypermediaId; route: ActivityRoute}) {
   const replace = useNavigate('replace')
   const navigate = useNavigate()
   const selectedAccount = useSelectedAccount()
@@ -62,9 +42,7 @@ function _ActivityContent({
   // Reset scroll when filter changes
   useEffect(() => {
     if (scrollRef.current && route.filterEventType) {
-      const viewport = scrollRef.current.querySelector(
-        '[data-slot="scroll-area-viewport"]',
-      ) as HTMLElement
+      const viewport = scrollRef.current.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement
       if (viewport) {
         viewport.scrollTo({top: 0, behavior: 'instant'})
       }
@@ -128,18 +106,10 @@ function _ActivityContent({
 
   return (
     <div className={cn(panelContainerStyles)}>
-      <ActivitySiteHeader
-        siteHomeEntity={siteHomeEntityData}
-        docId={id}
-        document={document}
-      />
+      <ActivitySiteHeader siteHomeEntity={siteHomeEntityData} docId={id} document={document} />
       <DocumentTools
         id={id}
-        activeTab={
-          route.panel
-            ? (route.panel.key as 'discussions' | 'collaborators')
-            : undefined
-        }
+        activeTab={route.panel ? (route.panel.key as 'discussions' | 'collaborators') : undefined}
         commentsCount={interactionSummary.data?.comments || 0}
         collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
       />
@@ -201,8 +171,7 @@ function _ActivitySiteHeader({
       docId={docId}
       isCenterLayout={
         siteHomeEntity.document?.metadata.theme?.headerLayout === 'Center' ||
-        siteHomeEntity.document?.metadata.layout ===
-          'Seed/Experimental/Newspaper'
+        siteHomeEntity.document?.metadata.layout === 'Seed/Experimental/Newspaper'
       }
       document={document}
       siteHomeDocument={siteHomeEntity.document}

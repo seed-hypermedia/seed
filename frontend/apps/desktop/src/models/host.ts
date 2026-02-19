@@ -56,17 +56,13 @@ export const CreateSiteDomainRequestSchema = z.object({
   hostname: z.string(),
   currentSiteUrl: z.string(),
 })
-export type CreateSiteDomainRequest = z.infer<
-  typeof CreateSiteDomainRequestSchema
->
+export type CreateSiteDomainRequest = z.infer<typeof CreateSiteDomainRequestSchema>
 
 export const CreateSiteDomainResponseSchema = z.object({
   hostname: z.string(),
   domainId: z.string(),
 })
-export type CreateSiteDomainResponse = z.infer<
-  typeof CreateSiteDomainResponseSchema
->
+export type CreateSiteDomainResponse = z.infer<typeof CreateSiteDomainResponseSchema>
 
 export const HostInfoResponseSchema = z.object({
   serviceErrorMessage: z.string().optional(),
@@ -134,8 +130,7 @@ export function useHostSession({
     return respJson
   }
   const setHostState = useMutation({
-    mutationFn: (state: Parameters<typeof client.host.set.mutate>[0]) =>
-      client.host.set.mutate(state),
+    mutationFn: (state: Parameters<typeof client.host.set.mutate>[0]) => client.host.set.mutate(state),
     onSuccess: () => {
       invalidateQueries([queryKeys.HOST_STATE])
     },
@@ -203,8 +198,7 @@ export function useHostSession({
         const result = HostInfoResponseSchema.safeParse(respJson)
         if (!result.success) {
           return {
-            serviceErrorMessage:
-              'Host API incompatible with this app. Please update to the latest version.',
+            serviceErrorMessage: 'Host API incompatible with this app. Please update to the latest version.',
           } satisfies HostInfoResponse
         }
         return result.data
@@ -261,9 +255,7 @@ export function useHostSession({
         .then(() => {
           setHostState.mutate({
             ...hostState,
-            pendingDomains: hostState.pendingDomains?.filter(
-              (domain) => domain.id !== id,
-            ),
+            pendingDomains: hostState.pendingDomains?.filter((domain) => domain.id !== id),
           })
         })
         .catch((e) => {
@@ -279,8 +271,7 @@ export function useHostSession({
     login: login.mutate,
     isSendingEmail: login.isLoading,
     error: login.error,
-    isPendingEmailValidation:
-      !hostState?.sessionToken && !!hostState?.pendingSessionToken,
+    isPendingEmailValidation: !hostState?.sessionToken && !!hostState?.pendingSessionToken,
     reset: () => {
       setHostState.mutate({
         email: null,

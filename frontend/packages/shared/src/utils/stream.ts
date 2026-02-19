@@ -34,10 +34,7 @@ export type EventStream<V> = {
   subscribe: (handler: (value: V) => void) => () => void
 }
 
-export function eventStream<EventValue>(): readonly [
-  (value: EventValue) => void,
-  EventStream<EventValue>,
-] {
+export function eventStream<EventValue>(): readonly [(value: EventValue) => void, EventStream<EventValue>] {
   const handlers = new Set<(event: EventValue) => void>()
 
   function dispatch(event: EventValue) {
@@ -60,9 +57,7 @@ export function streamSelector<S, T extends Object | null>(
   sourceStream: StateStream<S>,
   selectorFn: (state: S) => T,
 ): StateStream<T> {
-  const [setDerivedState, derivedStream] = writeableStateStream(
-    selectorFn(sourceStream.get()),
-  )
+  const [setDerivedState, derivedStream] = writeableStateStream(selectorFn(sourceStream.get()))
 
   sourceStream.subscribe((newState) => {
     const newValue = selectorFn(newState)

@@ -1,11 +1,7 @@
 import {loadSiteHeaderData, SiteHeaderPayload} from '@/loaders'
 import {defaultSiteIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
-import {
-  getOptimizedImageUrl,
-  NavigationLoadingContent,
-  WebSiteProvider,
-} from '@/providers'
+import {getOptimizedImageUrl, NavigationLoadingContent, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {unwrap} from '@/wrapping'
 import {wrapJSON} from '@/wrapping.server'
@@ -13,10 +9,7 @@ import {WebSiteHeader} from '@/web-site-header'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
 import {MetaDescriptor, useLoaderData} from '@remix-run/react'
-import {
-  HMPeerConnectionRequest,
-  HMPeerConnectionRequestSchema,
-} from '@shm/shared/hm-types'
+import {HMPeerConnectionRequest, HMPeerConnectionRequestSchema} from '@shm/shared/hm-types'
 import {Button} from '@shm/ui/button'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {cn} from '@shm/ui/utils'
@@ -29,9 +22,7 @@ type ConnectPagePayload = SiteHeaderPayload
 export const meta: MetaFunction = ({data}) => {
   const {homeMetadata} = unwrap<ConnectPagePayload>(data)
   const meta: MetaDescriptor[] = []
-  const homeIcon = homeMetadata?.icon
-    ? getOptimizedImageUrl(extractIpfsUrlCid(homeMetadata.icon), 'S')
-    : null
+  const homeIcon = homeMetadata?.icon ? getOptimizedImageUrl(extractIpfsUrlCid(homeMetadata.icon), 'S') : null
   meta.push({
     tagName: 'link',
     rel: 'icon',
@@ -52,18 +43,12 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
 }
 
 export default function ConnectPage() {
-  const {originHomeId, siteHost, origin, homeMetadata, dehydratedState} =
-    unwrap<ConnectPagePayload>(useLoaderData())
+  const {originHomeId, siteHost, origin, homeMetadata, dehydratedState} = unwrap<ConnectPagePayload>(useLoaderData())
   if (!originHomeId) {
     return <h2>Invalid origin home id</h2>
   }
   return (
-    <WebSiteProvider
-      origin={origin}
-      originHomeId={originHomeId}
-      siteHost={siteHost}
-      dehydratedState={dehydratedState}
-    >
+    <WebSiteProvider origin={origin} originHomeId={originHomeId} siteHost={siteHost} dehydratedState={dehydratedState}>
       <div className="flex min-h-screen flex-1 flex-col items-center">
         <WebSiteHeader
           homeMetadata={homeMetadata}
@@ -84,13 +69,7 @@ export default function ConnectPage() {
 }
 
 const ConnectionPageContainer = ({className, ...props}: any) => (
-  <div
-    className={cn(
-      'dark:bg-dark flex flex-col items-center gap-5 rounded-sm bg-white p-4',
-      className,
-    )}
-    {...props}
-  />
+  <div className={cn('dark:bg-dark flex flex-col items-center gap-5 rounded-sm bg-white p-4', className)} {...props} />
 )
 
 export function HMConnectPage() {
@@ -106,9 +85,7 @@ export function HMConnectPage() {
       if (!fragment) {
         throw new Error('No fragment passed to /hm/connect#FRAGMENT')
       }
-      const decodedData = HMPeerConnectionRequestSchema.parse(
-        cborDecode(base58btc.decode(fragment)),
-      )
+      const decodedData = HMPeerConnectionRequestSchema.parse(cborDecode(base58btc.decode(fragment)))
       console.log('decodedData', decodedData)
       setConnectionInfo({
         encoded: fragment,
@@ -132,10 +109,7 @@ export function HMConnectPage() {
   return (
     <ConnectionPageContainer>
       <h2>Connect to Seed Hypermedia Peer</h2>
-      <p>
-        Somebody wants to connect with you. Click the button below to launch the
-        Seed Desktop App and connect.
-      </p>
+      <p>Somebody wants to connect with you. Click the button below to launch the Seed Desktop App and connect.</p>
       {connectionInfo && (
         <Button variant="default" asChild>
           <a href={`hm://connect/${connectionInfo.encoded}`}>

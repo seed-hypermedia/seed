@@ -1,17 +1,8 @@
 import {getDocumentTitle} from '@shm/shared/content'
 import {GRPCClient} from '@shm/shared/grpc-client'
-import {
-  HMDocumentMetadataSchema,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+import {HMDocumentMetadataSchema, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
-import {
-  hmId,
-  isHypermediaScheme,
-  isPublicGatewayLink,
-  packHmId,
-  unpackHmId,
-} from '@shm/shared/utils/entity-id-url'
+import {hmId, isHypermediaScheme, isPublicGatewayLink, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {StateStream} from '@shm/shared/utils/stream'
 import {Editor} from '@tiptap/core'
@@ -74,15 +65,11 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
         const schema = view.state.schema
         const linkMarkType = options.type
 
-        function addLinkMarksToFragment(
-          fragment: Fragment,
-          inCodeBlock: boolean = false,
-        ): Fragment {
+        function addLinkMarksToFragment(fragment: Fragment, inCodeBlock: boolean = false): Fragment {
           const nodes: any[] = []
 
           fragment.forEach((node: any) => {
-            const isCodeBlock =
-              !!node.type?.spec?.code || node.type?.name === 'code-block'
+            const isCodeBlock = !!node.type?.spec?.code || node.type?.name === 'code-block'
 
             const isInCode = inCodeBlock || isCodeBlock
 
@@ -134,10 +121,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               }
             } else if (node.content && node.content.size > 0) {
               // Process child content
-              const transformedContent = addLinkMarksToFragment(
-                node.content,
-                isInCode,
-              )
+              const transformedContent = addLinkMarksToFragment(node.content, isInCode)
               nodes.push(node.copy(transformedContent))
             } else {
               nodes.push(node)
@@ -195,8 +179,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
             : null
 
         const unpackedHmId =
-          isHypermediaScheme(textContent) ||
-          isPublicGatewayLink(textContent, options.gwUrl)
+          isHypermediaScheme(textContent) || isPublicGatewayLink(textContent, options.gwUrl)
             ? unpackHmId(textContent)
             : null
 
@@ -240,11 +223,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
 
         // If transformPasted already added a link mark, skip further processing
         // unless we have a link that might need special handling (twitter, instagram, video, etc)
-        if (
-          firstChildIsText &&
-          firstChildContainsLinkMark &&
-          !(link && selection.empty && !unpackedHmId)
-        ) {
+        if (firstChildIsText && firstChildContainsLinkMark && !(link && selection.empty && !unpackedHmId)) {
           return false
         }
 
@@ -253,18 +232,11 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
 
           let pos = tr.selection.from
           if (options.grpcClient) {
-            fetchEntityTitle(
-              unpackedHmId,
-              options.grpcClient,
-              unpackedHmId.blockRef,
-            )
+            fetchEntityTitle(unpackedHmId, options.grpcClient, unpackedHmId.blockRef)
               .then(({title, version}) => {
                 // When blockRef is present, use the fetched version to ensure
                 // we reference the specific version containing the block
-                const resolvedVersion =
-                  unpackedHmId.blockRef && !unpackedHmId.version
-                    ? version
-                    : unpackedHmId.version
+                const resolvedVersion = unpackedHmId.blockRef && !unpackedHmId.version ? version : unpackedHmId.version
                 const normalizedHmUrl = packHmId(
                   hmId(unpackedHmId.uid, {
                     ...unpackedHmId,
@@ -322,9 +294,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               })
               .catch((err) => {
                 // Fallback: use original URL without resolved version
-                const normalizedHmUrl = packHmId(
-                  hmId(unpackedHmId.uid, unpackedHmId),
-                )
+                const normalizedHmUrl = packHmId(hmId(unpackedHmId.uid, unpackedHmId))
                 view.dispatch(
                   tr.insertText(normalizedHmUrl, pos).addMark(
                     pos,
@@ -385,8 +355,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
             .then(async (linkMetaResult) => {
               if (linkMetaResult?.hmId) {
                 const fullHmUrl = packHmId(linkMetaResult.hmId)
-                const currentPos =
-                  view.state.selection.$from.pos - link.href.length
+                const currentPos = view.state.selection.$from.pos - link.href.length
                 const title = linkMetaResult.title
                 const displayText = title || fullHmUrl
 
@@ -412,10 +381,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                       hmId: linkMetaResult.hmId,
                       sourceUrl: fullHmUrl,
                       title,
-                      type:
-                        linkMetaResult.type === 'Comment'
-                          ? 'Comment'
-                          : 'Document',
+                      type: linkMetaResult.type === 'Comment' ? 'Comment' : 'Document',
                       gwUrl: options.gwUrl,
                     }),
                   }),
@@ -437,9 +403,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
     },
   })
 
-  function checkMediaUrl(
-    url: string,
-  ): ['file' | 'image' | 'video' | 'web' | 'twitter' | 'instagram', string] {
+  function checkMediaUrl(url: string): ['file' | 'image' | 'video' | 'web' | 'twitter' | 'instagram', string] {
     const matchResult = url.match(/[^/\\&\?]+\.\w{3,4}(?=([\?&].*$|$))/)
     if (matchResult) {
       const extensionArray = matchResult[0].split('.')
@@ -452,9 +416,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
       } else if (extension && ['mp4', 'webm', 'ogg'].includes(extension)) {
         return ['video', matchResult[0]]
       }
-    } else if (
-      ['youtu.be', 'youtube', 'vimeo'].some((value) => url.includes(value))
-    ) {
+    } else if (['youtu.be', 'youtube', 'vimeo'].some((value) => url.includes(value))) {
       return ['video', '']
     } else if (['twitter', 'x.com'].some((value) => url.includes(value))) {
       return ['twitter', '']
@@ -637,10 +599,7 @@ function getPastedNodes(parent: any, editor: any): any[] {
         nodeToInsert = editor.schema.nodes.paragraph.create({}, node)
       }
       // @ts-ignore
-      const container = editor.schema.nodes['blockContainer'].create(
-        null,
-        nodeToInsert,
-      )
+      const container = editor.schema.nodes['blockContainer'].create(null, nodeToInsert)
       nodes.push(container)
     } else if (node.firstChild?.type.name === 'blockGroup') {
       const prevContainer = nodes.pop()
@@ -662,11 +621,7 @@ function getPastedNodes(parent: any, editor: any): any[] {
   return nodes
 }
 
-async function fetchEntityTitle(
-  hmId: UnpackedHypermediaId,
-  grpcClient: GRPCClient,
-  blockRef?: string | null,
-) {
+async function fetchEntityTitle(hmId: UnpackedHypermediaId, grpcClient: GRPCClient, blockRef?: string | null) {
   const document = await grpcClient.documents.getDocument({
     account: hmId.uid,
     path: hmIdPathToEntityQueryPath(hmId.path),
@@ -688,9 +643,7 @@ async function fetchEntityTitle(
   if (!title) {
     title = getDocumentTitle({
       ...doc,
-      metadata: HMDocumentMetadataSchema.parse(
-        doc.metadata?.toJson({emitDefaultValues: true, enumAsInteger: false}),
-      ),
+      metadata: HMDocumentMetadataSchema.parse(doc.metadata?.toJson({emitDefaultValues: true, enumAsInteger: false})),
     })
   }
   // Return version from document - important when blockRef is present

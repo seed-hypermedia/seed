@@ -2,23 +2,16 @@ import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {normalizeDate} from '@shm/shared'
 import {BIG_INT} from '@shm/shared/constants'
-import {
-  HMChangeSummary,
-  HMDocumentChangeInfo,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+import {HMChangeSummary, HMDocumentChangeInfo, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useQuery} from '@tanstack/react-query'
 import {useContacts} from './contacts'
 
-export function useDocumentPublishedChanges(
-  id: UnpackedHypermediaId | null | undefined,
-) {
+export function useDocumentPublishedChanges(id: UnpackedHypermediaId | null | undefined) {
   const entity = useResource(id ? {...id, version: null} : null)
-  const version =
-    entity.data?.type === 'document' ? entity.data.document?.version : undefined
+  const version = entity.data?.type === 'document' ? entity.data.document?.version : undefined
   const path = id ? hmIdPathToEntityQueryPath(id.path) : undefined
   return useQuery({
     queryKey: [queryKeys.ENTITY_CHANGES, id?.uid, path, version],
@@ -30,9 +23,7 @@ export function useDocumentPublishedChanges(
         version,
         pageSize: BIG_INT,
       })
-      let changes = result.changes
-        .map(toPlainMessage)
-        .map((change) => ({...change, type: 'change'}) as HMChangeSummary)
+      let changes = result.changes.map(toPlainMessage).map((change) => ({...change, type: 'change'}) as HMChangeSummary)
 
       return changes
     },
@@ -40,9 +31,7 @@ export function useDocumentPublishedChanges(
   })
 }
 
-export function useDocumentChanges(
-  id: UnpackedHypermediaId | null | undefined,
-) {
+export function useDocumentChanges(id: UnpackedHypermediaId | null | undefined) {
   const publishedChanges = useDocumentPublishedChanges(id)
   const changeAuthorIds: Set<string> = new Set()
   publishedChanges.data?.forEach((change) => {
@@ -52,9 +41,7 @@ export function useDocumentChanges(
   const changeAuthors = useContacts(changeAuthorIdList)
   const changes: HMDocumentChangeInfo[] = []
   const authors = Object.fromEntries(
-    changeAuthorIdList
-      .map((id, index) => [id, changeAuthors[index]?.data])
-      .filter(([id, a]) => !!a),
+    changeAuthorIdList.map((id, index) => [id, changeAuthors[index]?.data]).filter(([id, a]) => !!a),
   )
   publishedChanges.data?.forEach((change) => {
     const author = authors[change.author]
@@ -74,12 +61,9 @@ export function useDocumentChanges(
   }
 }
 
-export function useVersionChanges(
-  id: UnpackedHypermediaId | null | undefined,
-): null | Set<string> {
+export function useVersionChanges(id: UnpackedHypermediaId | null | undefined): null | Set<string> {
   const entity = useResource(id)
-  const document =
-    entity.data?.type === 'document' ? entity.data.document : undefined
+  const document = entity.data?.type === 'document' ? entity.data.document : undefined
   const version = id?.version || document?.version
   const versionChanges = version?.split('.')
   if (!versionChanges) return null

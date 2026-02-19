@@ -24,10 +24,8 @@ export const ParagraphBlockContent = createTipTapBlock({
   },
 
   renderHTML({HTMLAttributes}) {
-    const blockContentDOMAttributes =
-      this.options.domAttributes?.blockContent || {}
-    const inlineContentDOMAttributes =
-      this.options.domAttributes?.inlineContent || {}
+    const blockContentDOMAttributes = this.options.domAttributes?.blockContent || {}
+    const inlineContentDOMAttributes = this.options.domAttributes?.inlineContent || {}
 
     return [
       'div',

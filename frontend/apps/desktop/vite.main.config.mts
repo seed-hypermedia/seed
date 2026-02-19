@@ -3,19 +3,7 @@ import path from 'path'
 import {defineConfig} from 'vite'
 import tsConfigPaths from 'vite-tsconfig-paths'
 
-const extensions = [
-  '.web.tsx',
-  '.tsx',
-  '.web.ts',
-  '.ts',
-  '.web.jsx',
-  '.jsx',
-  '.web.js',
-  '.js',
-  '.css',
-  '.json',
-  '.mjs',
-]
+const extensions = ['.web.tsx', '.tsx', '.web.ts', '.ts', '.web.jsx', '.jsx', '.web.js', '.js', '.css', '.json', '.mjs']
 
 // https://vitejs.dev/config
 export default defineConfig(({command, mode}) => {
@@ -24,27 +12,15 @@ export default defineConfig(({command, mode}) => {
   return {
     define: {
       __SENTRY_DSN__: JSON.stringify(process.env.VITE_DESKTOP_SENTRY_DSN),
-      __FORCE_LOADING_WINDOW__: JSON.stringify(
-        process.env.VITE_FORCE_LOADING_WINDOW,
-      ),
+      __FORCE_LOADING_WINDOW__: JSON.stringify(process.env.VITE_FORCE_LOADING_WINDOW),
 
       // Electron Forge environment variables for main process
-      MAIN_WINDOW_VITE_DEV_SERVER_URL: JSON.stringify(
-        process.env.MAIN_WINDOW_VITE_DEV_SERVER_URL,
-      ),
+      MAIN_WINDOW_VITE_DEV_SERVER_URL: JSON.stringify(process.env.MAIN_WINDOW_VITE_DEV_SERVER_URL),
       MAIN_WINDOW_VITE_NAME: JSON.stringify(process.env.MAIN_WINDOW_VITE_NAME),
-      FIND_IN_PAGE_VITE_DEV_SERVER_URL: JSON.stringify(
-        process.env.FIND_IN_PAGE_VITE_DEV_SERVER_URL,
-      ),
-      FIND_IN_PAGE_VITE_NAME: JSON.stringify(
-        process.env.FIND_IN_PAGE_VITE_NAME,
-      ),
-      LOADING_WINDOW_VITE_DEV_SERVER_URL: JSON.stringify(
-        process.env.LOADING_WINDOW_VITE_DEV_SERVER_URL,
-      ),
-      LOADING_WINDOW_VITE_NAME: JSON.stringify(
-        process.env.LOADING_WINDOW_VITE_NAME,
-      ),
+      FIND_IN_PAGE_VITE_DEV_SERVER_URL: JSON.stringify(process.env.FIND_IN_PAGE_VITE_DEV_SERVER_URL),
+      FIND_IN_PAGE_VITE_NAME: JSON.stringify(process.env.FIND_IN_PAGE_VITE_NAME),
+      LOADING_WINDOW_VITE_DEV_SERVER_URL: JSON.stringify(process.env.LOADING_WINDOW_VITE_DEV_SERVER_URL),
+      LOADING_WINDOW_VITE_NAME: JSON.stringify(process.env.LOADING_WINDOW_VITE_NAME),
     },
     publicDir: 'assets',
     build: {
@@ -56,10 +32,7 @@ export default defineConfig(({command, mode}) => {
          * @see {@link https://github.com/TanStack/query/pull/5161#issuecomment-1477389761 Preserve 'use client' directives TanStack/query#5161}
          */
         onwarn(warning, warn) {
-          if (
-            warning.code === 'MODULE_LEVEL_DIRECTIVE' &&
-            warning.message.includes(`"use client"`)
-          ) {
+          if (warning.code === 'MODULE_LEVEL_DIRECTIVE' && warning.message.includes(`"use client"`)) {
             return
           }
           warn(warning)

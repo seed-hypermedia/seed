@@ -5,11 +5,7 @@ import {toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {ListAccountsRequest} from '@shm/shared'
 import {GRPCClient} from '@shm/shared/grpc-client'
-import {
-  HMDocumentMetadataSchema,
-  HMDraft,
-  hmMetadataJsonCorrection,
-} from '@shm/shared/hm-types'
+import {HMDocumentMetadataSchema, HMDraft, hmMetadataJsonCorrection} from '@shm/shared/hm-types'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
@@ -18,9 +14,7 @@ export function useAccount_deprecated() {
   throw new Error('useAccount_deprecated is fully broken')
 }
 
-export function useAccountList({
-  queryOptions,
-}: {queryOptions?: Partial<ListAccountsRequest>} = {}) {
+export function useAccountList({queryOptions}: {queryOptions?: Partial<ListAccountsRequest>} = {}) {
   const q = useQuery({
     queryKey: [queryKeys.LIST_ACCOUNTS],
     queryFn: async () => {
@@ -115,12 +109,7 @@ export function queryDraft({
           // either the entity is unknown (no changes) or 404
         } else {
           console.log('queryProfile draft ERROR', connectErr)
-          throw Error(
-            `DRAFT get Error: ${connectErr.code} ${JSON.stringify(
-              connectErr,
-              null,
-            )}`,
-          )
+          throw Error(`DRAFT get Error: ${connectErr.code} ${JSON.stringify(connectErr, null)}`)
         }
       }
 

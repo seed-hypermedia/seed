@@ -44,10 +44,8 @@ describe('accessory shortcut logic', () => {
     })
 
     it('should determine to open when current key does not match target key', () => {
-      const currentSelectionKey: PanelSelectionOptions | undefined =
-        'activity' as PanelSelectionOptions
-      const targetSelectionKey: PanelSelectionOptions =
-        'discussions' as PanelSelectionOptions
+      const currentSelectionKey: PanelSelectionOptions | undefined = 'activity' as PanelSelectionOptions
+      const targetSelectionKey: PanelSelectionOptions = 'discussions' as PanelSelectionOptions
 
       const shouldClose = currentSelectionKey === targetSelectionKey
       expect(shouldClose).toBe(false)
@@ -93,8 +91,7 @@ describe('accessory shortcut logic', () => {
         selection: {key: 'activity' as PanelSelectionOptions},
       }
 
-      const panelKey =
-        route.key === 'document' ? route.selection?.key : undefined
+      const panelKey = route.key === 'document' ? route.selection?.key : undefined
       expect(panelKey).toBe('activity')
     })
 
@@ -120,8 +117,7 @@ describe('accessory shortcut logic', () => {
         selection: null,
       }
 
-      const panelKey =
-        route.key === 'document' ? route.selection?.key : undefined
+      const panelKey = route.key === 'document' ? route.selection?.key : undefined
       expect(panelKey).toBeUndefined()
     })
 

@@ -41,10 +41,7 @@ export const List = forwardRef(function ListComponent<Item>(
   }, [])
 
   return (
-    <div
-      ref={containerRef}
-      className="flex h-full flex-1 flex-col self-stretch"
-    >
+    <div ref={containerRef} className="flex h-full flex-1 flex-col self-stretch">
       <Virtuoso
         ref={ref}
         fixedItemHeight={fixedItemHeight}

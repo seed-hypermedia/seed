@@ -259,13 +259,7 @@ describe('computeEntityBreadcrumbs', () => {
     const id = makeId('abc123')
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
-      entityContents: [
-        makeEntityContent(
-          id,
-          {metadata: {name: 'Test'}},
-          {isDiscovering: true},
-        ),
-      ],
+      entityContents: [makeEntityContent(id, {metadata: {name: 'Test'}}, {isDiscovering: true})],
       contacts: [],
     })
     expect(items[0].isLoading).toBe(true)
@@ -464,13 +458,7 @@ describe('computeDraftEntityParams', () => {
 
   it('editId with no draft name uses editDocName', () => {
     const editId = makeId('uid2', ['page'])
-    const result = computeDraftEntityParams(
-      {metadata: {}},
-      draftRoute as any,
-      undefined,
-      editId,
-      'Original Title',
-    )
+    const result = computeDraftEntityParams({metadata: {}}, draftRoute as any, undefined, editId, 'Original Title')
     expect(result.draftName).toBe('Original Title')
     expect(result.replaceLastItem).toBe(true)
   })
@@ -503,13 +491,7 @@ describe('computeDraftEntityParams', () => {
   })
 
   it('fallback with no draft name', () => {
-    const result = computeDraftEntityParams(
-      null,
-      draftRoute as any,
-      undefined,
-      undefined,
-      undefined,
-    )
+    const result = computeDraftEntityParams(null, draftRoute as any, undefined, undefined, undefined)
     expect(result.isFallback).toBe(true)
     expect(result.fallbackDraftName).toBe('New Draft')
   })

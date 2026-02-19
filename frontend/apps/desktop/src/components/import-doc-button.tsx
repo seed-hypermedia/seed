@@ -8,10 +8,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import {ScrapeStatus} from '@/web-scraper'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {BlockNoteEditor, type BlockSchema} from '@shm/editor/blocknote'
-import {
-  LatexToBlocks,
-  extractLatexMetadata,
-} from '@shm/editor/blocknote/core/extensions/Latex/LatexToBlocks'
+import {LatexToBlocks, extractLatexMetadata} from '@shm/editor/blocknote/core/extensions/Latex/LatexToBlocks'
 import {
   MarkdownToBlocks,
   processLinkMarkdown,
@@ -22,23 +19,13 @@ import {HMResourceFetchResult, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {Button} from '@shm/ui/button'
-import {
-  DialogClose,
-  DialogDescription,
-  DialogTitle,
-} from '@shm/ui/components/dialog'
+import {DialogClose, DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {File, FileInput, Folder, FolderInput} from '@shm/ui/icons'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@shm/ui/select-dropdown'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -72,9 +59,7 @@ export function ImportDialog({
   return (
     <>
       <DialogTitle>Import Content</DialogTitle>
-      <DialogDescription>
-        Import Markdown or LaTeX files, folders, or websites.
-      </DialogDescription>
+      <DialogDescription>Import Markdown or LaTeX files, folders, or websites.</DialogDescription>
       <DialogClose />
       <div className="flex flex-col gap-4">
         <Button
@@ -126,20 +111,8 @@ export function ImportDialog({
   )
 }
 
-export function ImportDropdownButton({
-  id,
-  button,
-}: {
-  id: UnpackedHypermediaId
-  button: ReactElement
-}) {
-  const {
-    importFile,
-    importDirectory,
-    importLatexFile,
-    importLatexDirectory,
-    content,
-  } = useImporting(id)
+export function ImportDropdownButton({id, button}: {id: UnpackedHypermediaId; button: ReactElement}) {
+  const {importFile, importDirectory, importLatexFile, importLatexDirectory, content} = useImporting(id)
 
   return (
     <>
@@ -179,12 +152,7 @@ export function ImportDropdownButton({
 }
 
 export function useImporting(parentId: UnpackedHypermediaId) {
-  const {
-    openMarkdownDirectories,
-    openMarkdownFiles,
-    openLatexDirectories,
-    openLatexFiles,
-  } = useAppContext()
+  const {openMarkdownDirectories, openMarkdownFiles, openLatexDirectories, openLatexFiles} = useAppContext()
   const accts = useMyAccountsWithWriteAccess(parentId)
   const navigate = useNavigate()
   const signingAccount = useMemo(() => {
@@ -192,8 +160,7 @@ export function useImporting(parentId: UnpackedHypermediaId) {
     return accts.length ? accts[0].data : undefined
   }, [accts])
   const createDraft = useMutation({
-    mutationFn: (input: Parameters<typeof client.drafts.write.mutate>[0]) =>
-      client.drafts.write.mutate(input),
+    mutationFn: (input: Parameters<typeof client.drafts.write.mutate>[0]) => client.drafts.write.mutate(input),
   })
   const {grpcClient} = useAppContext()
   const openUrl = useOpenUrl()
@@ -230,10 +197,7 @@ export function useImporting(parentId: UnpackedHypermediaId) {
       })
   }
 
-  const handleConfirm = async (
-    documents: ImportedDocument[],
-    docMap: Map<string, {name: string; path: string}>,
-  ) => {
+  const handleConfirm = async (documents: ImportedDocument[], docMap: Map<string, {name: string; path: string}>) => {
     const editor = new BlockNoteEditor<BlockSchema>({
       linkExtensionOptions: {
         // @ts-expect-error
@@ -263,14 +227,7 @@ export function useImporting(parentId: UnpackedHypermediaId) {
     // const subDirs: string[] = []
 
     toast.promise(
-      ImportDocumentsWithFeedback(
-        parentId,
-        createDraft,
-        signingAccount,
-        documents,
-        docMap,
-        editor,
-      ).then((draftIds) => {
+      ImportDocumentsWithFeedback(parentId, createDraft, signingAccount, documents, docMap, editor).then((draftIds) => {
         if (draftIds.draftIds.length === 1) {
           // @ts-ignore
           navigate({key: 'draft', id: draftIds.draftIds[0]})
@@ -351,8 +308,7 @@ function WebImportDialog({
   const [importId, setImportId] = useState<string | null>(null)
   const [hostname, setHostname] = useState<string | null>(null)
   const startImport = useMutation({
-    mutationFn: (input: {url: string}) =>
-      client.webImporting.importWebSite.mutate(input),
+    mutationFn: (input: {url: string}) => client.webImporting.importWebSite.mutate(input),
   })
 
   return (
@@ -403,11 +359,8 @@ function WebImportInProgress({
     refetchInterval: 250,
   })
   const confirmImport = useMutation({
-    mutationFn: (
-      input: Parameters<
-        typeof client.webImporting.importWebSiteConfirm.mutate
-      >[0],
-    ) => client.webImporting.importWebSiteConfirm.mutate(input),
+    mutationFn: (input: Parameters<typeof client.webImporting.importWebSiteConfirm.mutate>[0]) =>
+      client.webImporting.importWebSiteConfirm.mutate(input),
   })
   const accounts = useMyAccountsWithWriteAccess(destinationId)
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null)
@@ -476,20 +429,14 @@ function WebImportInProgress({
         </Button>
       </div>
     )
-  } else if (
-    status?.mode === 'importing' ||
-    status?.mode === 'scraping' ||
-    confirmImport.isLoading
-  ) {
-    const scrapeStatus: ScrapeStatus | undefined =
-      status?.mode === 'scraping' ? status : undefined
+  } else if (status?.mode === 'importing' || status?.mode === 'scraping' || confirmImport.isLoading) {
+    const scrapeStatus: ScrapeStatus | undefined = status?.mode === 'scraping' ? status : undefined
     return (
       <div className="flex flex-col gap-4">
         <DialogTitle>Importing from {hostname}...</DialogTitle>
         {scrapeStatus?.visitedCount ? (
           <SizableText>
-            {scrapeStatus?.visitedCount} pages visited,{' '}
-            {scrapeStatus?.crawlQueueCount || '0'} queued (
+            {scrapeStatus?.visitedCount} pages visited, {scrapeStatus?.crawlQueueCount || '0'} queued (
             {scrapeStatus?.scrapeMode})
           </SizableText>
         ) : null}
@@ -498,12 +445,8 @@ function WebImportInProgress({
             {scrapeStatus?.activeUrl}
           </SizableText>
         ) : null}
-        {status?.mode === 'importing' ? (
-          <SizableText>Preparing...</SizableText>
-        ) : null}
-        {confirmImport.isLoading ? (
-          <SizableText>Importing...</SizableText>
-        ) : null}
+        {status?.mode === 'importing' ? <SizableText>Preparing...</SizableText> : null}
+        {confirmImport.isLoading ? <SizableText>Importing...</SizableText> : null}
         <Spinner size="small" />
       </div>
     )
@@ -526,13 +469,7 @@ const ImportURLSchema = z.object({
   url: z.string().url(),
 })
 type ImportURLFields = z.infer<typeof ImportURLSchema>
-function ImportURLForm({
-  onSubmit,
-  defaultUrl,
-}: {
-  onSubmit: (url: string) => void
-  defaultUrl?: string
-}) {
+function ImportURLForm({onSubmit, defaultUrl}: {onSubmit: (url: string) => void; defaultUrl?: string}) {
   const {
     control,
     handleSubmit,
@@ -578,12 +515,7 @@ const ImportDocumentsWithFeedback = (
   return new Promise<{draftIds: string[]}>(async (resolve, reject) => {
     const draftIds: string[] = []
     try {
-      for (const {
-        markdownContent,
-        latexContent,
-        title,
-        directoryPath,
-      } of documents) {
+      for (const {markdownContent, latexContent, title, directoryPath} of documents) {
         let documentTitle: string = title
         let icon: string | undefined
         let cover: string | undefined
@@ -609,9 +541,7 @@ const ImportDocumentsWithFeedback = (
             let lines = markdown.split('\n')
 
             // Find the first non-empty line index
-            const firstNonEmptyLineIndex = lines.findIndex(
-              (line) => line.trim() !== '',
-            )
+            const firstNonEmptyLineIndex = lines.findIndex((line) => line.trim() !== '')
 
             if (
               firstNonEmptyLineIndex !== -1 &&
@@ -620,9 +550,7 @@ const ImportDocumentsWithFeedback = (
             ) {
               // Extract the h1 as the title and update documentTitle
               // @ts-ignore
-              documentTitle = lines[firstNonEmptyLineIndex]
-                .replace('# ', '')
-                .trim()
+              documentTitle = lines[firstNonEmptyLineIndex].replace('# ', '').trim()
 
               // Remove the h1 line from the markdown content
               lines.splice(firstNonEmptyLineIndex, 1)

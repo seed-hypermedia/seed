@@ -2,18 +2,12 @@ import {BlockSchema} from '../../../core'
 
 import {Toolbar} from '../../SharedComponents/Toolbar/components/Toolbar'
 import {ToggledStyleButton} from './DefaultButtons/ToggledStyleButton'
-import {
-  BlockTypeDropdown,
-  BlockTypeDropdownItem,
-} from './DefaultDropdowns/BlockTypeDropdown'
+import {BlockTypeDropdown, BlockTypeDropdownItem} from './DefaultDropdowns/BlockTypeDropdown'
 import {FormattingToolbarProps} from './FormattingToolbarPositioner'
 // import {TextAlignButton} from './DefaultButtons/TextAlignButton'
 // import {ColorStyleButton} from './DefaultButtons/ColorStyleButton'
 import {CreateLinkButton} from './DefaultButtons/CreateLinkButton'
-import {
-  NestBlockButton,
-  UnnestBlockButton,
-} from './DefaultButtons/NestBlockButtons'
+import {NestBlockButton, UnnestBlockButton} from './DefaultButtons/NestBlockButtons'
 
 export const DefaultFormattingToolbar = <BSchema extends BlockSchema>(
   props: FormattingToolbarProps<BSchema> & {

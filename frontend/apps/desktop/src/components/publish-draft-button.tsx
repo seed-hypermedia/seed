@@ -4,11 +4,7 @@ import {useGatewayUrl, usePushOnPublish} from '@/models/gateway-settings'
 import {useSelectedAccount} from '@/selected-account'
 import {client} from '@/trpc'
 import {pathNameify} from '@/utils/path'
-import {
-  computePublishPath,
-  shouldAutoLinkParent,
-  validatePublishPath,
-} from '@/utils/publish-utils'
+import {computePublishPath, shouldAutoLinkParent, validatePublishPath} from '@/utils/publish-utils'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMDocument, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
@@ -16,21 +12,13 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {DraftRoute} from '@shm/shared/routes'
 import {validatePath} from '@shm/shared/utils/document-path'
-import {
-  createSiteUrl,
-  createWebHMUrl,
-  hmId,
-} from '@shm/shared/utils/entity-id-url'
+import {createSiteUrl, createWebHMUrl, hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@shm/ui/components/popover'
+import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {AlertCircle, Check, Copy, Document, Share} from '@shm/ui/icons'
 import {PublishedToast, PushResourceStatus} from '@shm/ui/push-toast'
@@ -40,14 +28,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {useMutation, useQuery} from '@tanstack/react-query'
-import {
-  HTMLAttributes,
-  PropsWithChildren,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import {HTMLAttributes, PropsWithChildren, useEffect, useMemo, useRef, useState} from 'react'
 import {useDraft} from '../models/accounts'
 import {
   addLinkToParentDraft,
@@ -64,9 +45,7 @@ export default function PublishDraftButton() {
   const draftId = draftRoute.id
   const draft = useDraft(draftId)
   const pushOnPublish = usePushOnPublish()
-  const editId = draftRoute.editUid
-    ? hmId(draftRoute.editUid, {path: draftRoute.editPath})
-    : draftEditId(draft.data)
+  const editId = draftRoute.editUid ? hmId(draftRoute.editUid, {path: draftRoute.editPath}) : draftEditId(draft.data)
 
   const deleteDraft = useMutation({
     mutationFn: (draftId: string) => client.drafts.delete.mutate(draftId),
@@ -89,13 +68,11 @@ export default function PublishDraftButton() {
 
   // Determine if this is an edit (existing doc) or first publish (new doc)
   const isFirstPublish = !editId
-  const isPrivate =
-    draftRoute.visibility === 'PRIVATE' || draft.data?.visibility === 'PRIVATE'
+  const isPrivate = draftRoute.visibility === 'PRIVATE' || draft.data?.visibility === 'PRIVATE'
   const defaultLocationId = draftLocationId(draft.data)
 
   // For first publish, we need editable location state
-  const [editableLocation, setEditableLocation] =
-    useState<UnpackedHypermediaId | null>(null)
+  const [editableLocation, setEditableLocation] = useState<UnpackedHypermediaId | null>(null)
 
   // Track if location is available (not already taken)
   const isLocationAvailable = useRef(true)
@@ -108,8 +85,7 @@ export default function PublishDraftButton() {
     draftId?: string
     willAddLink: boolean
   }
-  const [parentPublishInfo, setParentPublishInfo] =
-    useState<ParentPublishInfo | null>(null)
+  const [parentPublishInfo, setParentPublishInfo] = useState<ParentPublishInfo | null>(null)
 
   // Compute parent ID from the destination location
   const parentId = useMemo(() => {
@@ -123,13 +99,10 @@ export default function PublishDraftButton() {
 
   // Fetch parent document resource
   const {data: parentResource, refetch: refetchParentResource} = useResource(
-    parentId
-      ? hmId(parentId.uid, {path: parentId.path, latest: true})
-      : undefined,
+    parentId ? hmId(parentId.uid, {path: parentId.path, latest: true}) : undefined,
     {staleTime: 0}, // Always fetch fresh data
   )
-  const parentDocument =
-    parentResource?.type === 'document' ? parentResource.document : null
+  const parentDocument = parentResource?.type === 'document' ? parentResource.document : null
 
   // Check if parent has an existing draft
   const {data: parentDraft, refetch: refetchParentDraft} = useQuery({
@@ -152,12 +125,7 @@ export default function PublishDraftButton() {
       return
     }
 
-    const willAddLink = shouldAutoLinkParent(
-      !!isPrivate,
-      parentDocument,
-      editableLocation,
-      parentId,
-    )
+    const willAddLink = shouldAutoLinkParent(!!isPrivate, parentDocument, editableLocation, parentId)
 
     setParentPublishInfo({
       parentId,
@@ -166,14 +134,7 @@ export default function PublishDraftButton() {
       draftId: parentDraft?.id,
       willAddLink,
     })
-  }, [
-    isFirstPublish,
-    isPrivate,
-    parentId,
-    editableLocation,
-    parentDocument,
-    parentDraft,
-  ])
+  }, [isFirstPublish, isPrivate, parentId, editableLocation, parentDocument, parentDraft])
 
   // Track initialization params to avoid redundant updates
   const initializedWith = useRef<{
@@ -190,10 +151,7 @@ export default function PublishDraftButton() {
     const locationUid = defaultLocationId?.uid
 
     // Skip if we already initialized with these exact values
-    if (
-      initializedWith.current?.name === docName &&
-      initializedWith.current?.locationUid === locationUid
-    ) {
+    if (initializedWith.current?.name === docName && initializedWith.current?.locationUid === locationUid) {
       return
     }
 
@@ -207,22 +165,14 @@ export default function PublishDraftButton() {
         path: computePublishPath(!!isPrivate, basePath, docName),
       }),
     )
-  }, [
-    isFirstPublish,
-    signingAccountId,
-    defaultLocationId,
-    draft.data?.metadata.name,
-  ])
+  }, [isFirstPublish, signingAccountId, defaultLocationId, draft.data?.metadata.name])
 
   // Use editable location for first publish, otherwise use editId
   const locationId = isFirstPublish ? editableLocation : editId
 
   const gatewayUrl = useGatewayUrl()
-  const {data: siteResource} = useResource(
-    locationId ? hmId(locationId.uid, {latest: true}) : undefined,
-  )
-  const siteDocument =
-    siteResource?.type === 'document' ? siteResource.document : undefined
+  const {data: siteResource} = useResource(locationId ? hmId(locationId.uid, {latest: true}) : undefined)
+  const siteDocument = siteResource?.type === 'document' ? siteResource.document : undefined
 
   // Compute parent URL (site root or parent path)
   const parentUrl = useMemo(() => {
@@ -266,10 +216,7 @@ export default function PublishDraftButton() {
       throw new Error('Draft not loaded')
     }
 
-    async function handlePublish(
-      destinationId: UnpackedHypermediaId,
-      accountId: string,
-    ) {
+    async function handlePublish(destinationId: UnpackedHypermediaId, accountId: string) {
       if (!draft.data) {
         toast.error('Draft not loaded')
         throw new Error('Draft not loaded')
@@ -312,12 +259,7 @@ export default function PublishDraftButton() {
             // Add to draft - no push needed for parent
             await addLinkToParentDraft(parentPublishInfo.draftId, childResultId)
             // Show success toast for draft update
-            toast.success(
-              <ParentUpdateToast
-                message="Link added to parent draft"
-                onViewParent={navigateToParent}
-              />,
-            )
+            toast.success(<ParentUpdateToast message="Link added to parent draft" onViewParent={navigateToParent} />)
           } else if (parentPublishInfo.parentDocument) {
             // Publish to parent document
             parentResultDoc = await publishLinkToParentDocument(
@@ -327,12 +269,7 @@ export default function PublishDraftButton() {
               accountId,
             )
             // Show success toast for parent publish
-            toast.success(
-              <ParentUpdateToast
-                message="Parent document updated"
-                onViewParent={navigateToParent}
-              />,
-            )
+            toast.success(<ParentUpdateToast message="Parent document updated" onViewParent={navigateToParent} />)
           }
         } catch (error) {
           console.error('Failed to add link to parent:', error)
@@ -357,10 +294,7 @@ export default function PublishDraftButton() {
         )
         navigate({
           key: 'document',
-          panel:
-            route.key == 'draft' && route.panel?.key == 'activity'
-              ? route.panel
-              : null,
+          panel: route.key == 'draft' && route.panel?.key == 'activity' ? route.panel : null,
           id: resultDocId,
           immediatelyPromptNotifs: !hasAlreadyPrompted,
         })
@@ -368,15 +302,10 @@ export default function PublishDraftButton() {
 
       // Step 5: Handle push workflow (in background, after navigation)
       if (pushOnPublish.data !== 'never' && res.version) {
-        const [setPushStatus, pushStatus] =
-          writeableStateStream<PushResourceStatus | null>(null)
+        const [setPushStatus, pushStatus] = writeableStateStream<PushResourceStatus | null>(null)
 
         // Push child document
-        const childPushPromise = pushResource(
-          childResultId,
-          undefined,
-          setPushStatus,
-        )
+        const childPushPromise = pushResource(childResultId, undefined, setPushStatus)
 
         // Push parent document if we published changes to it
         if (parentResultDoc) {
@@ -392,13 +321,7 @@ export default function PublishDraftButton() {
         toast.promise(childPushPromise, {
           loading: <PublishedToast pushStatus={pushStatus} status="loading" />,
           success: <PublishedToast pushStatus={pushStatus} status="success" />,
-          error: (err) => (
-            <PublishedToast
-              pushStatus={pushStatus}
-              status="error"
-              errorMessage={err.message}
-            />
-          ),
+          error: (err) => <PublishedToast pushStatus={pushStatus} status="error" errorMessage={err.message} />,
         })
       }
     }
@@ -412,11 +335,7 @@ export default function PublishDraftButton() {
         toast.error('This location is unavailable. Create a new path name.')
         return
       }
-      const pathError = validatePublishPath(
-        !!isPrivate,
-        editableLocation.path,
-        validatePath,
-      )
+      const pathError = validatePublishPath(!!isPrivate, editableLocation.path, validatePath)
       if (pathError) {
         toast.error(pathError)
         return
@@ -441,17 +360,10 @@ export default function PublishDraftButton() {
       <SaveIndicatorStatus />
       <Popover {...popoverState}>
         <Tooltip
-          content={
-            signingAccount
-              ? `Publish as ${signingAccount?.document?.metadata.name}`
-              : 'Publish Document...'
-          }
+          content={signingAccount ? `Publish as ${signingAccount?.document?.metadata.name}` : 'Publish Document...'}
         >
           <PopoverTrigger asChild>
-            <Button
-              size="sm"
-              className="hover:bg-hover dark:bg-background bg-white px-2"
-            >
+            <Button size="sm" className="hover:bg-hover dark:bg-background bg-white px-2">
               <Share className="size-4" />
               Publish
             </Button>
@@ -467,9 +379,7 @@ export default function PublishDraftButton() {
         >
           <div className="flex flex-col gap-3">
             {/* Header - first publish only */}
-            {isFirstPublish && (
-              <p className="text-base font-semibold">Ready to publish?</p>
-            )}
+            {isFirstPublish && <p className="text-base font-semibold">Ready to publish?</p>}
 
             {/* You are publishing section */}
             <div className="flex flex-col gap-1">
@@ -478,14 +388,11 @@ export default function PublishDraftButton() {
                 <span className="shrink-0">
                   <Document size={12} color="currentColor" />
                 </span>
-                <span className="truncate text-sm">
-                  {draft.data?.metadata.name || 'Untitled'}
-                </span>
+                <span className="truncate text-sm">{draft.data?.metadata.name || 'Untitled'}</span>
               </div>
               {isFirstPublish && (
                 <p className="text-muted-foreground text-xs">
-                  Publishing means your document will be public and live on the
-                  URL below.
+                  Publishing means your document will be public and live on the URL below.
                 </p>
               )}
             </div>
@@ -494,9 +401,7 @@ export default function PublishDraftButton() {
 
             {/* Your document will be available at section */}
             <div className="flex flex-col gap-2">
-              <p className="text-sm font-medium">
-                Your document will be available at
-              </p>
+              <p className="text-sm font-medium">Your document will be available at</p>
               {documentUrl ? (
                 <div className="flex items-center gap-2">
                   <span
@@ -535,21 +440,14 @@ export default function PublishDraftButton() {
               {/* Permalink editor - first publish only */}
               {isFirstPublish && editableLocation && (
                 <div className="flex flex-col gap-1">
-                  <p className="text-muted-foreground text-xs">
-                    Edit your permalink
-                  </p>
+                  <p className="text-muted-foreground text-xs">Edit your permalink</p>
                   <Input
                     value={`/${editablePath}`}
                     onChange={(e) => {
                       if (!editableLocation) return
                       const raw = e.target.value.replace(/^\//, '')
-                      const newPath = [
-                        ...(editableLocation.path?.slice(0, -1) || []),
-                        pathNameify(raw),
-                      ]
-                      setEditableLocation(
-                        hmId(editableLocation.uid, {path: newPath}),
-                      )
+                      const newPath = [...(editableLocation.path?.slice(0, -1) || []), pathNameify(raw)]
+                      setEditableLocation(hmId(editableLocation.uid, {path: newPath}))
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
@@ -583,11 +481,7 @@ export default function PublishDraftButton() {
               >
                 Preview: View before publishing
               </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => popoverState.onOpenChange(false)}
-              >
+              <Button size="sm" variant="ghost" onClick={() => popoverState.onOpenChange(false)}>
                 Cancel
               </Button>
             </div>
@@ -598,16 +492,9 @@ export default function PublishDraftButton() {
   )
 }
 
-function StatusWrapper({
-  children,
-  className,
-  ...props
-}: PropsWithChildren<HTMLAttributes<HTMLDivElement>>) {
+function StatusWrapper({children, className, ...props}: PropsWithChildren<HTMLAttributes<HTMLDivElement>>) {
   return (
-    <div
-      className={`flex flex-col gap-2 opacity-60 ${className || ''}`}
-      {...props}
-    >
+    <div className={`flex flex-col gap-2 opacity-60 ${className || ''}`} {...props}>
       {children}
     </div>
   )
@@ -665,22 +552,11 @@ function SaveIndicatorStatus() {
   return null
 }
 
-function ParentUpdateToast({
-  message,
-  onViewParent,
-}: {
-  message: string
-  onViewParent: () => void
-}) {
+function ParentUpdateToast({message, onViewParent}: {message: string; onViewParent: () => void}) {
   return (
     <div className="flex items-center gap-2">
       <span>{message}</span>
-      <Button
-        size="xs"
-        variant="link"
-        className="h-auto p-0"
-        onClick={onViewParent}
-      >
+      <Button size="xs" variant="link" className="h-auto p-0" onClick={onViewParent}>
         View parent
       </Button>
     </div>

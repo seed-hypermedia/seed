@@ -3,11 +3,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import {hmId, useUniversalAppContext} from '@shm/shared'
 import {useStream} from '@shm/shared/use-stream'
 import {Button} from '@shm/ui/button'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@shm/ui/components/popover'
+import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 
 import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {useResources} from '@shm/shared/models/entity'
@@ -21,22 +17,15 @@ import {KeySquare, Plus, Settings} from 'lucide-react'
 import {useEffect, useState} from 'react'
 import {dispatchOnboardingDialog} from './onboarding'
 
-export function SidebarFooter({
-  isSidebarVisible = false,
-}: {
-  isSidebarVisible?: boolean
-}) {
+export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: boolean}) {
   const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
   const selectedIdentityValue = useStream(selectedIdentity)
   const myAccounts = useMyAccountIds()
-  const myAccountResources = useResources(
-    myAccounts.data?.map((a) => hmId(a)) || [],
-  )
+  const myAccountResources = useResources(myAccounts.data?.map((a) => hmId(a)) || [])
 
   const accountOptions = myAccounts.data
     ?.map((a) => {
-      const resourceData = myAccountResources.find((r) => r.data?.id?.uid === a)
-        ?.data
+      const resourceData = myAccountResources.find((r) => r.data?.id?.uid === a)?.data
       if (!resourceData) return null
       if (resourceData.type !== 'document') return null
       if (typeof resourceData.document?.metadata === 'undefined') return null
@@ -47,8 +36,7 @@ export function SidebarFooter({
   useEffect(() => {
     // Check if current selected account is valid (exists in accountOptions)
     const isSelectedAccountInvalid =
-      !!myAccounts.data &&
-      !myAccounts.data.some((option) => option === selectedIdentityValue)
+      !!myAccounts.data && !myAccounts.data.some((option) => option === selectedIdentityValue)
 
     // Get the first valid account from the filtered options
     const firstValidAccount = myAccounts.data?.[0]
@@ -56,21 +44,12 @@ export function SidebarFooter({
     // Set selected identity if:
     // 1. No account is selected, OR
     // 2. The selected account is not in the valid options list
-    if (
-      setSelectedIdentity &&
-      firstValidAccount &&
-      (!selectedIdentityValue || isSelectedAccountInvalid)
-    ) {
+    if (setSelectedIdentity && firstValidAccount && (!selectedIdentityValue || isSelectedAccountInvalid)) {
       setSelectedIdentity(firstValidAccount)
     }
   }, [setSelectedIdentity, myAccounts.data])
-  const selectedAccount = myAccountResources.find(
-    (a) => a.data?.id?.uid === selectedIdentityValue,
-  )
-  const selectedAccountDoc =
-    selectedAccount?.data?.type === 'document'
-      ? selectedAccount.data.document
-      : undefined
+  const selectedAccount = myAccountResources.find((a) => a.data?.id?.uid === selectedIdentityValue)
+  const selectedAccountDoc = selectedAccount?.data?.type === 'document' ? selectedAccount.data.document : undefined
   const [isOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
@@ -108,8 +87,7 @@ export function SidebarFooter({
             ) : null}
 
             <p className="truncate text-sm select-none">
-              {selectedAccountDoc?.metadata?.name ||
-                `?${selectedIdentityValue?.slice(-8) || 'Unknown'}`}
+              {selectedAccountDoc?.metadata?.name || `?${selectedIdentityValue?.slice(-8) || 'Unknown'}`}
             </p>
 
             {/* </Button> */}
@@ -127,9 +105,7 @@ export function SidebarFooter({
                   key={option.id.uid}
                   className={cn(
                     'hover:bg-sidebar-accent flex flex-row items-center gap-4 rounded-md p-2',
-                    selectedAccount?.data?.id?.uid === option.id.uid
-                      ? 'bg-sidebar-accent'
-                      : '',
+                    selectedAccount?.data?.id?.uid === option.id.uid ? 'bg-sidebar-accent' : '',
                   )}
                   onClick={() => {
                     setSelectedIdentity?.(option.id.uid || null)
@@ -164,13 +140,8 @@ function LinkKeyButton() {
   const myAccounts = useMyAccounts()
   const linkDevice = useAppDialog(LinkDeviceDialog)
 
-  const selectedAccount = myAccounts?.find(
-    (a) => a.data?.id?.uid === selectedIdentityValue,
-  )
-  const selectedAccountDoc =
-    selectedAccount?.data?.type === 'document'
-      ? selectedAccount.data.document
-      : undefined
+  const selectedAccount = myAccounts?.find((a) => a.data?.id?.uid === selectedIdentityValue)
+  const selectedAccountDoc = selectedAccount?.data?.type === 'document' ? selectedAccount.data.document : undefined
 
   const accountName = selectedAccountDoc?.metadata?.name || 'Account'
 
@@ -230,13 +201,7 @@ function AppSettingsButton() {
   )
 }
 
-export const useIsWindowFocused = ({
-  onFocus,
-  onBlur,
-}: {
-  onFocus?: () => void
-  onBlur?: () => void
-}): boolean => {
+export const useIsWindowFocused = ({onFocus, onBlur}: {onFocus?: () => void; onBlur?: () => void}): boolean => {
   const [isFocused, setIsFocused] = useState(document.hasFocus())
   useEffect(() => {
     const handleFocus = () => {

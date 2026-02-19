@@ -62,10 +62,7 @@ let stmtEnsureEmail: Database.Statement
 let stmtUpsertSubscription: Database.Statement
 
 export async function initDatabase(): Promise<void> {
-  const dbFilePath = join(
-    process.env.DATA_DIR || process.cwd(),
-    'web-db.sqlite',
-  )
+  const dbFilePath = join(process.env.DATA_DIR || process.cwd(), 'web-db.sqlite')
   console.log('Init DB data file:', dbFilePath)
   db = new Database(dbFilePath)
   let version: number = db.pragma('user_version', {simple: true}) as number
@@ -165,9 +162,7 @@ export async function initDatabase(): Promise<void> {
   }
 
   // Initialize all prepared statements
-  stmtInsertEmail = db.prepare(
-    'INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)',
-  )
+  stmtInsertEmail = db.prepare('INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)')
   stmtInsertSubscription = db.prepare(
     'INSERT INTO email_subscriptions (id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange, notifySiteDiscussions, notifyAllComments) VALUES (?, ?, ?, ?, ?, ?, ?)',
   )
@@ -210,9 +205,7 @@ export async function initDatabase(): Promise<void> {
     SELECT emails.*
     FROM emails 
   `)
-  stmtEnsureEmail = db.prepare(
-    'INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)',
-  )
+  stmtEnsureEmail = db.prepare('INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)')
   stmtUpsertSubscription = db.prepare(`
     INSERT INTO email_subscriptions (
       id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange, notifySiteDiscussions, notifyAllComments
@@ -263,10 +256,7 @@ export function createSubscription({
   )
 }
 
-export function getSubscription(
-  id: string,
-  email: string,
-): BaseSubscription | null {
+export function getSubscription(id: string, email: string): BaseSubscription | null {
   const result = stmtGetSubscription.get(id, email) as Subscription | undefined
   if (!result) return null
 
@@ -294,9 +284,7 @@ export function getSubscriptionsForAccount(id: string): BaseSubscription[] {
 }
 
 export function getNotifierLastProcessedEventId(): string | undefined {
-  const result = stmtGetNotifierStatus.get('last_processed_event_id') as
-    | {value: string}
-    | undefined
+  const result = stmtGetNotifierStatus.get('last_processed_event_id') as {value: string} | undefined
   return result?.value
 }
 
@@ -305,9 +293,7 @@ export function setNotifierLastProcessedEventId(eventId: string): void {
 }
 
 export function getBatchNotifierLastProcessedEventId(): string | undefined {
-  const result = stmtGetNotifierStatus.get('last_processed_batch_event_id') as
-    | {value: string}
-    | undefined
+  const result = stmtGetNotifierStatus.get('last_processed_batch_event_id') as {value: string} | undefined
   return result?.value
 }
 
@@ -316,9 +302,7 @@ export function setBatchNotifierLastProcessedEventId(eventId: string): void {
 }
 
 export function getBatchNotifierLastSendTime(): Date | undefined {
-  const result = stmtGetNotifierStatus.get('batch_notifier_last_send_time') as
-    | {value: string}
-    | undefined
+  const result = stmtGetNotifierStatus.get('batch_notifier_last_send_time') as {value: string} | undefined
   if (!result?.value) return undefined
   return new Date(result.value)
 }
@@ -365,9 +349,7 @@ export function getEmail(email: string): BaseEmail | null {
 }
 
 export function getEmailWithToken(emailAdminToken: string): Email | null {
-  const email = stmtGetEmailWithToken.get(emailAdminToken) as
-    | DBEmail
-    | undefined
+  const email = stmtGetEmailWithToken.get(emailAdminToken) as DBEmail | undefined
   if (!email) return null
 
   const subs = stmtGetSubscriptionsForEmail.all(email.email) as DBSubscription[]
@@ -386,10 +368,7 @@ export function getEmailWithToken(emailAdminToken: string): Email | null {
   }
 }
 
-export function setEmailUnsubscribed(
-  emailAdminToken: string,
-  isUnsubscribed: boolean,
-): void {
+export function setEmailUnsubscribed(emailAdminToken: string, isUnsubscribed: boolean): void {
   stmtSetEmailUnsubscribed.run(isUnsubscribed ? 1 : 0, emailAdminToken)
 }
 
@@ -397,9 +376,7 @@ export function getAllEmails(): Email[] {
   const emails = stmtGetAllEmails.all() as DBEmail[]
 
   return emails.map((email) => {
-    const subs = stmtGetSubscriptionsForEmail.all(
-      email.email,
-    ) as DBSubscription[]
+    const subs = stmtGetSubscriptionsForEmail.all(email.email) as DBSubscription[]
 
     return {
       ...email,
@@ -441,29 +418,13 @@ export function setSubscription({
 
   const current = getSubscription(id, email)
 
-  const toInt = (next: boolean | undefined, curr: boolean | undefined) =>
-    next ?? curr ?? false ? 1 : 0
+  const toInt = (next: boolean | undefined, curr: boolean | undefined) => (next ?? curr ?? false ? 1 : 0)
 
-  const nextNotifyAllMentions = toInt(
-    notifyAllMentions,
-    current?.notifyAllMentions,
-  )
-  const nextNotifyAllReplies = toInt(
-    notifyAllReplies,
-    current?.notifyAllReplies,
-  )
-  const nextNotifyOwnedDocChange = toInt(
-    notifyOwnedDocChange,
-    current?.notifyOwnedDocChange,
-  )
-  const nextNotifySiteDiscussions = toInt(
-    notifySiteDiscussions,
-    current?.notifySiteDiscussions,
-  )
-  const nextNotifyAllComments = toInt(
-    notifyAllComments,
-    current?.notifyAllComments,
-  )
+  const nextNotifyAllMentions = toInt(notifyAllMentions, current?.notifyAllMentions)
+  const nextNotifyAllReplies = toInt(notifyAllReplies, current?.notifyAllReplies)
+  const nextNotifyOwnedDocChange = toInt(notifyOwnedDocChange, current?.notifyOwnedDocChange)
+  const nextNotifySiteDiscussions = toInt(notifySiteDiscussions, current?.notifySiteDiscussions)
+  const nextNotifyAllComments = toInt(notifyAllComments, current?.notifyAllComments)
 
   stmtUpsertSubscription.run(
     id,

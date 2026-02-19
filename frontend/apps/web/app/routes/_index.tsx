@@ -6,20 +6,10 @@ import {unwrap} from '@/wrapping'
 import {WebResourcePage} from '@/web-resource-page'
 import {Code} from '@connectrpc/connect'
 import {Params, useLoaderData} from '@remix-run/react'
-import {
-  createDocumentNavRoute,
-  UnpackedHypermediaId,
-  ViewRouteKey,
-} from '@shm/shared'
+import {createDocumentNavRoute, UnpackedHypermediaId, ViewRouteKey} from '@shm/shared'
 import {DaemonErrorPage, loader as loaderFn, meta as metaFn} from './$'
 
-export const loader = async ({
-  params,
-  request,
-}: {
-  params: Params
-  request: Request
-}) => {
+export const loader = async ({params, request}: {params: Params; request: Request}) => {
   return await loaderFn({
     params,
     request,
@@ -46,12 +36,7 @@ export default function IndexPage() {
 
   // Handle errors
   if (data.daemonError && data.daemonError.code !== Code.NotFound) {
-    return (
-      <DaemonErrorPage
-        message={data.daemonError.message}
-        code={data.daemonError.code}
-      />
-    )
+    return <DaemonErrorPage message={data.daemonError.message} code={data.daemonError.code} />
   }
 
   // Render unified ResourcePage with WebSiteProvider for navigation context
@@ -61,11 +46,7 @@ export default function IndexPage() {
       originHomeId={data.originHomeId}
       siteHost={data.siteHost}
       dehydratedState={data.dehydratedState}
-      initialRoute={createDocumentNavRoute(
-        data.id,
-        data.viewTerm,
-        data.panelParam,
-      )}
+      initialRoute={createDocumentNavRoute(data.id, data.viewTerm, data.panelParam)}
     >
       <InnerResourcePage docId={data.id} />
     </WebSiteProvider>

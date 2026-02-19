@@ -1,10 +1,4 @@
-import {
-  ComponentProps,
-  PropsWithChildren,
-  ReactNode,
-  useMemo,
-  useState,
-} from 'react'
+import {ComponentProps, PropsWithChildren, ReactNode, useMemo, useState} from 'react'
 import {Button} from './button'
 import {Copy, ExternalLink} from './icons'
 import {SizableText} from './text'
@@ -50,29 +44,15 @@ export function TableList({
   )
 }
 
-function TableHeader({
-  children,
-  className,
-  ...props
-}: PropsWithChildren<{className?: string} & ComponentProps<'div'>>) {
+function TableHeader({children, className, ...props}: PropsWithChildren<{className?: string} & ComponentProps<'div'>>) {
   return (
-    <div
-      className={cn(
-        'flex items-center gap-3 bg-gray-200 px-4 py-2 dark:bg-gray-800',
-        className,
-      )}
-      {...props}
-    >
+    <div className={cn('flex items-center gap-3 bg-gray-200 px-4 py-2 dark:bg-gray-800', className)} {...props}>
       {children}
     </div>
   )
 }
 
-function TableItem({
-  children,
-  className,
-  ...props
-}: PropsWithChildren<{className?: string} & ComponentProps<'div'>>) {
+function TableItem({children, className, ...props}: PropsWithChildren<{className?: string} & ComponentProps<'div'>>) {
   return (
     <div
       className={cn(
@@ -89,13 +69,7 @@ function TableItem({
   )
 }
 
-export function InfoListHeader({
-  title,
-  right,
-}: {
-  title: string
-  right?: ReactNode
-}) {
+export function InfoListHeader({title, right}: {title: string; right?: ReactNode}) {
   return (
     <TableList.Header>
       <SizableText weight="bold">{title}</SizableText>
@@ -120,10 +94,7 @@ export function InfoListItem({
 
   return (
     <TableList.Item {...hoverProps}>
-      <SizableText
-        size="xs"
-        className="text-muted-foreground w-[140px] min-w-[140px] flex-none"
-      >
+      <SizableText size="xs" className="text-muted-foreground w-[140px] min-w-[140px] flex-none">
         {label}:
       </SizableText>
       <div className="min-w-0 flex-1 overflow-hidden">
@@ -142,10 +113,7 @@ export function InfoListItem({
           <Button
             variant="ghost"
             size="sm"
-            className={cn(
-              'ml-2 flex-none transition-opacity',
-              hover ? 'opacity-100' : 'opacity-0',
-            )}
+            className={cn('ml-2 flex-none transition-opacity', hover ? 'opacity-100' : 'opacity-0')}
             onClick={onCopy}
           >
             <Copy />
@@ -157,10 +125,7 @@ export function InfoListItem({
           <Button
             variant="ghost"
             size="sm"
-            className={cn(
-              'ml-2 flex-none transition-opacity',
-              hover ? 'opacity-100' : 'opacity-0',
-            )}
+            className={cn('ml-2 flex-none transition-opacity', hover ? 'opacity-100' : 'opacity-0')}
             onClick={onOpen}
           >
             <ExternalLink />

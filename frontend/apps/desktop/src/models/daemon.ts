@@ -1,23 +1,13 @@
 import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
 import {Code, ConnectError} from '@connectrpc/connect'
-import {
-  GenMnemonicResponse,
-  Info,
-  RegisterKeyRequest,
-} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
+import {GenMnemonicResponse, Info, RegisterKeyRequest} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {useResources} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {
-  FetchQueryOptions,
-  useMutation,
-  UseMutationOptions,
-  useQuery,
-  UseQueryOptions,
-} from '@tanstack/react-query'
+import {FetchQueryOptions, useMutation, UseMutationOptions, useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {useEffect, useState} from 'react'
 
 export type NamedKey = {
@@ -73,9 +63,7 @@ export function useDaemonInfo(opts: UseQueryOptions<Info | null> = {}) {
       }
       return null
     },
-    refetchInterval: hasActiveTasks
-      ? ACTIVE_TASKS_DAEMON_INFO_INTERVAL
-      : DEFAULT_DAEMON_INFO_INTERVAL,
+    refetchInterval: hasActiveTasks ? ACTIVE_TASKS_DAEMON_INFO_INTERVAL : DEFAULT_DAEMON_INFO_INTERVAL,
     useErrorBoundary: false,
     ...opts,
   })
@@ -89,9 +77,7 @@ export function useDaemonInfo(opts: UseQueryOptions<Info | null> = {}) {
   return query
 }
 
-export function useMnemonics(
-  opts?: UseQueryOptions<GenMnemonicResponse['mnemonic']>,
-) {
+export function useMnemonics(opts?: UseQueryOptions<GenMnemonicResponse['mnemonic']>) {
   return useQuery({
     queryKey: [queryKeys.GENERATE_MNEMONIC],
     queryFn: async () => {
@@ -119,11 +105,7 @@ export function useMyAccountIds() {
           .map((k) => k.publicKey)
       } catch (e) {
         const connectError = ConnectError.from(e)
-        console.error(
-          `useMyAccountIds error code ${
-            Code[connectError.code]
-          }: ${JSON.stringify(connectError.message)}`,
-        )
+        console.error(`useMyAccountIds error code ${Code[connectError.code]}: ${JSON.stringify(connectError.message)}`)
         return []
       }
     },
@@ -201,9 +183,7 @@ export function useRegisterKey(
   })
 }
 
-export function useDeleteKey(
-  opts?: UseMutationOptions<any, unknown, {accountId: string}>,
-) {
+export function useDeleteKey(opts?: UseMutationOptions<any, unknown, {accountId: string}>) {
   return useMutation({
     mutationFn: async ({accountId}) => {
       // Use TRPC to handle the entire deletion process on the backend

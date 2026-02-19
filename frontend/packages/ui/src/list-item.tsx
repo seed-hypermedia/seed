@@ -9,13 +9,7 @@ import {SizableText} from './text'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
-export function FocusButton({
-  onPress,
-  label,
-}: {
-  onPress: () => void
-  label?: string
-}) {
+export function FocusButton({onPress, label}: {onPress: () => void; label?: string}) {
   return (
     <Tooltip content={label ? `Focus ${label}` : 'Focus'}>
       <Button
@@ -121,24 +115,14 @@ export function SmallListItem({
             onSetCollapsed?.(!isCollapsed)
           }}
         >
-          {isCollapsed ? (
-            <ChevronRight className="size-3" />
-          ) : (
-            <ChevronDown className="size-3" />
-          )}
+          {isCollapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
         </Button>
       ) : null}
 
       {iconAfter || rightHover || menuItems ? (
         <>
-          {rightHover ? (
-            <div className="flex opacity-0 group-hover:opacity-100">
-              {rightHover}
-            </div>
-          ) : null}
-          {menuItems ? (
-            <OptionsDropdown hiddenUntilItemHover menuItems={menuItems} />
-          ) : null}
+          {rightHover ? <div className="flex opacity-0 group-hover:opacity-100">{rightHover}</div> : null}
+          {menuItems ? <OptionsDropdown hiddenUntilItemHover menuItems={menuItems} /> : null}
         </>
       ) : null}
     </Button>
@@ -156,11 +140,7 @@ export function SmallListGroupItem({
   const [isCollapsed, setIsCollapsed] = useState(defaultExpanded ? false : true)
   return (
     <>
-      <SmallListItem
-        {...props}
-        isCollapsed={items.length ? isCollapsed : null}
-        onSetCollapsed={setIsCollapsed}
-      />
+      <SmallListItem {...props} isCollapsed={items.length ? isCollapsed : null} onSetCollapsed={setIsCollapsed} />
       {isCollapsed ? null : items}
     </>
   )

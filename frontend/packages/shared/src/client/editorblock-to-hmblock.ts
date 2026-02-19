@@ -1,17 +1,8 @@
 import {EditorBlock, HMInlineContent} from '../editor-types'
-import {
-  HMAnnotations,
-  HMBlock,
-  HMBlockButtonAlignmentSchema,
-  HMBlockSchema,
-  HMBlockType,
-  toNumber,
-} from '../hm-types'
+import {HMAnnotations, HMBlock, HMBlockButtonAlignmentSchema, HMBlockSchema, HMBlockType, toNumber} from '../hm-types'
 import {AnnotationSet, codePointLength} from './unicode'
 
-function toHMBlockType(
-  editorBlockType: EditorBlock['type'],
-): HMBlockType | undefined {
+function toHMBlockType(editorBlockType: EditorBlock['type']): HMBlockType | undefined {
   if (editorBlockType === 'heading') return 'Heading'
   if (editorBlockType === 'paragraph') return 'Paragraph'
   if (editorBlockType === 'code-block') return 'Code'
@@ -220,8 +211,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
       // The rehydration logic will recreate the blob URL from IndexedDB
       blockFile.link = ''
     }
-    if (editorBlock.props.name)
-      blockFile.attributes.name = editorBlock.props.name
+    if (editorBlock.props.name) blockFile.attributes.name = editorBlock.props.name
     const size = toNumber(editorBlock.props.size)
     if (size) blockFile.attributes.size = size
   }
@@ -229,20 +219,13 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   const blockButton = block.type === 'Button' ? block : undefined
   if (blockButton && editorBlock.type == 'button') {
     if (editorBlock.props.url) blockButton.link = editorBlock.props.url
-    if (editorBlock.props.name)
-      blockButton.attributes.name = editorBlock.props.name
+    if (editorBlock.props.name) blockButton.attributes.name = editorBlock.props.name
     if (editorBlock.props.alignment)
-      blockButton.attributes.alignment = HMBlockButtonAlignmentSchema.parse(
-        editorBlock.props.alignment,
-      )
+      blockButton.attributes.alignment = HMBlockButtonAlignmentSchema.parse(editorBlock.props.alignment)
   }
 
   const blockWebEmbed = block.type === 'WebEmbed' ? block : undefined
-  if (
-    blockWebEmbed &&
-    editorBlock.type == 'web-embed' &&
-    editorBlock.props.url
-  ) {
+  if (blockWebEmbed && editorBlock.type == 'web-embed' && editorBlock.props.url) {
     blockWebEmbed.link = editorBlock.props.url
   }
 
@@ -250,8 +233,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   if (blockEmbed && editorBlock.type == 'embed') {
     block.text = '' // for some reason the text was being set to " " but it should be "" according to the schema
     if (editorBlock.props.url) blockEmbed.link = editorBlock.props.url
-    if (editorBlock.props.view)
-      blockEmbed.attributes.view = editorBlock.props.view
+    if (editorBlock.props.view) blockEmbed.attributes.view = editorBlock.props.view
   }
 
   const blockQuery = block.type === 'Query' ? block : undefined
@@ -262,12 +244,9 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
       includes: [],
       sort: [],
     }
-    if (editorBlock.props.queryIncludes)
-      query.includes = JSON.parse(editorBlock.props.queryIncludes)
-    if (editorBlock.props.querySort)
-      query.sort = JSON.parse(editorBlock.props.querySort)
-    if (editorBlock.props.queryLimit)
-      query.limit = Number(editorBlock.props.queryLimit)
+    if (editorBlock.props.queryIncludes) query.includes = JSON.parse(editorBlock.props.queryIncludes)
+    if (editorBlock.props.querySort) query.sort = JSON.parse(editorBlock.props.querySort)
+    if (editorBlock.props.queryLimit) query.limit = Number(editorBlock.props.queryLimit)
     blockQuery.attributes.query = query
     blockQuery.attributes.banner = editorBlock.props.banner == 'true'
   }
@@ -280,19 +259,11 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
 
   // TypeScript can't narrow the type here, so we need to assert it
   const failedParse = blockParse as {success: false; error: any}
-  console.error(
-    'Failed to validate block for writing',
-    block,
-    failedParse.error,
-  )
-  throw new Error(
-    'Failed to validate block for writing ' + JSON.stringify(failedParse.error),
-  )
+  console.error('Failed to validate block for writing', block, failedParse.error)
+  throw new Error('Failed to validate block for writing ' + JSON.stringify(failedParse.error))
 }
 
-function flattenLeaves(
-  content: Array<HMInlineContent>,
-): Array<HMInlineContent> {
+function flattenLeaves(content: Array<HMInlineContent>): Array<HMInlineContent> {
   let result: HMInlineContent[] = []
 
   for (let i = 0; i < content.length; i++) {

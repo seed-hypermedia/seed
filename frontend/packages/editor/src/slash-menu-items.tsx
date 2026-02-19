@@ -13,13 +13,7 @@ import {
   RiVideoAddFill,
   RiWindow2Fill,
 } from 'react-icons/ri'
-import {
-  BlockNoteEditor,
-  BlockSpec,
-  insertOrUpdateBlock,
-  PartialBlock,
-  PropSchema,
-} from './blocknote/core'
+import {BlockNoteEditor, BlockSpec, insertOrUpdateBlock, PartialBlock, PropSchema} from './blocknote/core'
 import {HMBlockSchema} from './schema'
 
 export function getSlashMenuItems({
@@ -37,9 +31,7 @@ export function getSlashMenuItems({
     group: 'Text blocks',
 
     icon: <RiHeading size={18} />,
-    execute: (
-      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
-    ) => {
+    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
       insertOrUpdateBlock(editor, {
         type: 'heading',
         props: {level: '2'},
@@ -53,9 +45,7 @@ export function getSlashMenuItems({
     aliases: ['p'],
     group: 'Text blocks',
     icon: <RiText size={18} />,
-    execute: (
-      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
-    ) => {
+    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
       insertOrUpdateBlock(editor, {
         type: 'paragraph',
       } as PartialBlock<HMBlockSchema>)
@@ -86,9 +76,7 @@ export function getSlashMenuItems({
     group: 'Media blocks',
     icon: <RiImage2Fill size={18} />,
     hint: 'Insert an Image',
-    execute: (
-      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
-    ) => {
+    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
       insertOrUpdateBlock(
         editor,
         {
@@ -110,9 +98,7 @@ export function getSlashMenuItems({
     group: 'Media blocks',
     icon: <RiVideoAddFill size={18} />,
     hint: 'Insert a Video',
-    execute: (
-      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
-    ) => {
+    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
       insertOrUpdateBlock(
         editor,
         {
@@ -134,9 +120,7 @@ export function getSlashMenuItems({
     group: 'Media blocks',
     icon: <RiFile2Fill size={18} />,
     hint: 'Insert a File',
-    execute: (
-      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
-    ) => {
+    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
       insertOrUpdateBlock(
         editor,
         {
@@ -158,9 +142,7 @@ export function getSlashMenuItems({
     group: 'Media blocks',
     icon: <RiArticleFill size={18} />,
     hint: 'Insert a Hypermedia Embed',
-    execute: (
-      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
-    ) => {
+    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
       insertOrUpdateBlock(
         editor,
         {
@@ -181,9 +163,7 @@ export function getSlashMenuItems({
     group: 'Media blocks',
     icon: <RiWindow2Fill size={18} />,
     hint: 'Insert a Hypermedia Card Embed',
-    execute: (
-      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
-    ) => {
+    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
       insertOrUpdateBlock(
         editor,
         {
@@ -205,9 +185,7 @@ export function getSlashMenuItems({
     group: 'Media blocks',
     icon: <RiFunctions size={18} />,
     hint: 'Insert an Math Block',
-    execute: (
-      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
-    ) => {
+    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
       insertOrUpdateBlock(
         editor,
         {
@@ -225,9 +203,7 @@ export function getSlashMenuItems({
     group: '',
     icon: <RiRadioButtonFill size={18} />,
     hint: 'Insert a button block',
-    execute: (
-      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
-    ) => {
+    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
       insertOrUpdateBlock(
         editor,
         {
@@ -249,9 +225,7 @@ export function getSlashMenuItems({
       group: 'Web embeds',
       icon: <RiGridFill size={18} />,
       hint: 'Insert a Query Block',
-      execute: (
-        editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
-      ) => {
+      execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
         insertOrUpdateBlock(
           editor,
           {

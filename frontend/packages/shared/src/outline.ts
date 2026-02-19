@@ -1,11 +1,4 @@
-import {
-  getMetadataName,
-  HMBlockNode,
-  HMDraft,
-  HMInlineContent,
-  HMResourceFetchResult,
-  UnpackedHypermediaId,
-} from '.'
+import {getMetadataName, HMBlockNode, HMDraft, HMInlineContent, HMResourceFetchResult, UnpackedHypermediaId} from '.'
 import {unpackHmId} from './utils'
 
 type IconDefinition = React.FC<{size: any; color: any}>
@@ -33,26 +26,12 @@ export function getNodesOutline(
         id: child.block.id,
         title: child.block.text,
         entityId: entityId,
-        children:
-          child.children &&
-          getNodesOutline(child.children, entityId, embeds, visitedEmbedIds),
+        children: child.children && getNodesOutline(child.children, entityId, embeds, visitedEmbedIds),
       })
-    } else if (
-      child.block.type === 'Embed' &&
-      child.block.attributes?.view !== 'Card'
-    ) {
-      outline.push(
-        ...getEmbedOutline(
-          child.block.id,
-          child.block.link,
-          embeds,
-          visitedEmbedIds,
-        ),
-      )
+    } else if (child.block.type === 'Embed' && child.block.attributes?.view !== 'Card') {
+      outline.push(...getEmbedOutline(child.block.id, child.block.link, embeds, visitedEmbedIds))
     } else if (child.children) {
-      outline.push(
-        ...getNodesOutline(child.children, entityId, embeds, visitedEmbedIds),
-      )
+      outline.push(...getNodesOutline(child.children, entityId, embeds, visitedEmbedIds))
     }
   })
   return outline
@@ -79,22 +58,14 @@ function getEmbedOutline(
 
     const embedEntity = embedEntities?.find((e) => e.id.id === embedId.id)
     if (embedId.blockRef && embedEntity?.document?.content) {
-      const embedBn = findContentBlock(
-        embedEntity.document.content,
-        embedId.blockRef,
-      )
+      const embedBn = findContentBlock(embedEntity.document.content, embedId.blockRef)
       if (embedBn && embedBn.block.type === 'Heading') {
         outline.push({
           id: blockId,
           title: embedBn.block.text,
           entityId: embedId,
           children: embedBn.children
-            ? getNodesOutline(
-                embedBn.children,
-                embedId,
-                embedEntities,
-                newVisitedEmbedIds,
-              )
+            ? getNodesOutline(embedBn.children, embedId, embedEntities, newVisitedEmbedIds)
             : [],
         })
       }
@@ -103,12 +74,7 @@ function getEmbedOutline(
         id: blockId,
         title: getMetadataName(embedEntity?.document?.metadata),
         children: embedEntity?.document?.content
-          ? getNodesOutline(
-              embedEntity?.document?.content,
-              embedId,
-              embedEntities,
-              newVisitedEmbedIds,
-            )
+          ? getNodesOutline(embedEntity?.document?.content, embedId, embedEntities, newVisitedEmbedIds)
           : [],
       })
     }
@@ -117,10 +83,7 @@ function getEmbedOutline(
   return outline
 }
 
-export function findContentBlock(
-  content: HMBlockNode[],
-  blockRef: string,
-): HMBlockNode | null {
+export function findContentBlock(content: HMBlockNode[], blockRef: string): HMBlockNode | null {
   let block: HMBlockNode | null = null
   content.find((node) => {
     if (node.block.id === blockRef) {
@@ -146,10 +109,7 @@ export function getDraftNodesOutline(
     if (child.type === 'heading') {
       // Extract text from inline content, filtering out non-text items
       const title = child.content
-        .filter(
-          (c: HMInlineContent): c is Extract<HMInlineContent, {type: 'text'}> =>
-            c.type === 'text',
-        )
+        .filter((c: HMInlineContent): c is Extract<HMInlineContent, {type: 'text'}> => c.type === 'text')
         .map((c: Extract<HMInlineContent, {type: 'text'}>) => c.text)
         .join('')
 
@@ -157,28 +117,12 @@ export function getDraftNodesOutline(
         id: child.id,
         title: title || undefined,
         entityId: parentEntityId,
-        children:
-          child.children &&
-          getDraftNodesOutline(
-            child.children,
-            parentEntityId,
-            embeds,
-            visitedEmbedIds,
-          ),
+        children: child.children && getDraftNodesOutline(child.children, parentEntityId, embeds, visitedEmbedIds),
       })
     } else if (child.type === 'embed' && child.props?.view !== 'Card') {
-      outline.push(
-        ...getEmbedOutline(child.id, child.props.url, embeds, visitedEmbedIds),
-      )
+      outline.push(...getEmbedOutline(child.id, child.props.url, embeds, visitedEmbedIds))
     } else if (child.children) {
-      outline.push(
-        ...getDraftNodesOutline(
-          child.children,
-          parentEntityId,
-          embeds,
-          visitedEmbedIds,
-        ),
-      )
+      outline.push(...getDraftNodesOutline(child.children, parentEntityId, embeds, visitedEmbedIds))
     }
   })
   return outline

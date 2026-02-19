@@ -1,13 +1,7 @@
 import {grpcClient} from '@/client.server'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {
-  HMAccountsMetadata,
-  HMDocumentInfo,
-  HMDocumentMetadataSchema,
-  hmId,
-  unpackHmId,
-} from '@shm/shared'
+import {HMAccountsMetadata, HMDocumentInfo, HMDocumentMetadataSchema, hmId, unpackHmId} from '@shm/shared'
 import {createQueryResolver} from '@shm/shared/models/directory'
 
 export type DirectoryPayload = {
@@ -18,16 +12,10 @@ export type DirectoryPayload = {
 
 const loadQueryResults = createQueryResolver(grpcClient)
 
-export const loader = async ({
-  request,
-}: {
-  request: Request
-}): Promise<WrappedResponse<DirectoryPayload>> => {
+export const loader = async ({request}: {request: Request}): Promise<WrappedResponse<DirectoryPayload>> => {
   const url = new URL(request.url)
   const id = unpackHmId(url.searchParams.get('id') || undefined)
-  const mode = (url.searchParams.get('mode') || 'Children') as
-    | 'Children'
-    | 'AllDescendants'
+  const mode = (url.searchParams.get('mode') || 'Children') as 'Children' | 'AllDescendants'
   if (!id) throw new Error('id is required')
   let result: DirectoryPayload
   try {

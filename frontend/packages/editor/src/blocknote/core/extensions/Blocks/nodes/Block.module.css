@@ -103,13 +103,11 @@ NESTED BLOCKS
   display: list-item !important;
 }
 
-.blockGroup[data-list-type='Unordered']
-  > span[data-decoration-type='link-dropdown'] {
+.blockGroup[data-list-type='Unordered'] > span[data-decoration-type='link-dropdown'] {
   display: list-item !important;
 }
 
-.blockGroup[data-list-type='Ordered']
-  > span[data-decoration-type='link-dropdown'] {
+.blockGroup[data-list-type='Ordered'] > span[data-decoration-type='link-dropdown'] {
   display: list-item !important;
 }
 
@@ -258,9 +256,7 @@ NESTED BLOCKS
   --level: 30px;
 }
 
-[data-node-type='blockGroup']
-  [data-node-type='blockGroup']
-  [data-content-type='heading'] {
+[data-node-type='blockGroup'] [data-node-type='blockGroup'] [data-content-type='heading'] {
   --level: 24px;
 }
 
@@ -288,9 +284,7 @@ NESTED BLOCKS
   --level: 16px;
 }
 
-.blockOuter:not([data-prev-type])
-  > .block
-  .blockContent[data-content-type='heading'] {
+.blockOuter:not([data-prev-type]) > .block .blockContent[data-content-type='heading'] {
   font-size: var(--level);
   line-height: 1.2;
   /* margin-top: 0.6em; */
@@ -334,8 +328,7 @@ NESTED BLOCKS
 
 /* CODE */
 .blockContent[data-content-type='code-block'] code {
-  font-family: 'ui-monospace', 'SFMono-Regular', 'SF Mono', Menlo, Consolas,
-    'Liberation Mono', monospace;
+  font-family: 'ui-monospace', 'SFMono-Regular', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
   font-size: 0.85em;
   white-space: pre;
   padding: 0 12px 0 0;
@@ -359,47 +352,31 @@ NESTED BLOCKS
   --prev-index: attr(data-prev-index);
 }
 
-.blockOuter[data-prev-type='numberedListItem']:not([data-prev-index='none'])
-  > .block
-  > .blockContent::before {
+.blockOuter[data-prev-type='numberedListItem']:not([data-prev-index='none']) > .block > .blockContent::before {
   margin-right: 1.2em;
   content: var(--prev-index) '.';
 }
 
-.blockOuter:not([data-prev-type])
-  > .block
-  > .blockContent[data-content-type='numberedListItem']::before {
+.blockOuter:not([data-prev-type]) > .block > .blockContent[data-content-type='numberedListItem']::before {
   margin-right: 1.2em;
   content: var(--index) '.';
 }
 
 /* Safari only fix. Safari handles list items display differently than other browsers when there's 
   padding on the content. The padding pushes text down while markers stay at top */
-@supports (-webkit-hyphens: none) and (not (overflow: -webkit-marquee)) and
-  (not (-ms-ime-align: auto)) {
-  .blockGroup[data-list-type='Unordered']
-    > .blockOuter
-    > .block
-    > .blockContent,
+@supports (-webkit-hyphens: none) and (not (overflow: -webkit-marquee)) and (not (-ms-ime-align: auto)) {
+  .blockGroup[data-list-type='Unordered'] > .blockOuter > .block > .blockContent,
   .blockGroup[data-list-type='Ordered'] > .blockOuter > .block > .blockContent {
     display: flex !important;
     align-items: flex-start !important;
   }
 
-  .blockGroup[data-list-type='Unordered']
-    > .blockOuter
-    > .block
-    > .blockContent
-    .inlineContent {
+  .blockGroup[data-list-type='Unordered'] > .blockOuter > .block > .blockContent .inlineContent {
     margin-top: 3px !important;
     margin-left: -0.5em !important;
   }
 
-  .blockGroup[data-list-type='Ordered']
-    > .blockOuter
-    > .block
-    > .blockContent
-    .inlineContent {
+  .blockGroup[data-list-type='Ordered'] > .blockOuter > .block > .blockContent .inlineContent {
     margin-top: 3px !important;
     margin-left: -1em !important;
   }
@@ -526,8 +503,7 @@ NESTED BLOCKS
   content: 'Type to filter';
 }
 
-.blockContent[data-content-type='heading'].isEmpty.hasAnchor
-  .inlineContent:before {
+.blockContent[data-content-type='heading'].isEmpty.hasAnchor .inlineContent:before {
   font-family:
     'Inter',
     'SF Pro Display',
@@ -546,8 +522,7 @@ NESTED BLOCKS
   content: 'Heading';
 }
 
-.blockContent[data-content-type='code-block'].isEmpty.hasAnchor
-  .inlineContent:before {
+.blockContent[data-content-type='code-block'].isEmpty.hasAnchor .inlineContent:before {
   font-family:
     'Inter',
     'SF Pro Display',
@@ -702,9 +677,7 @@ NESTED BLOCKS
   opacity: 1;
 }
 
-:global(.comment-editor)
-  .blockContent.isFilter.hasAnchor
-  .inlineContent:before {
+:global(.comment-editor) .blockContent.isFilter.hasAnchor .inlineContent:before {
   color: var(--muted-foreground, rgb(99 104 118));
   opacity: 1;
 }
@@ -714,9 +687,7 @@ NESTED BLOCKS
   border: 1px solid var(--border);
 }
 
-:global(.dark)
-  :global(.comment-editor)
-  .blockContent[data-content-type='code-block'] {
+:global(.dark) :global(.comment-editor) .blockContent[data-content-type='code-block'] {
   background-color: rgb(255 255 255 / 0.1);
 }
 
@@ -730,9 +701,7 @@ NESTED BLOCKS
   margin: 1em 0;
 }
 
-:global(.dark)
-  :global(.comment-editor)
-  .blockGroup[data-list-type='Blockquote'] {
+:global(.dark) :global(.comment-editor) .blockGroup[data-list-type='Blockquote'] {
   border-left: 3px solid rgb(255 255 255 / 0.3) !important;
 }
 

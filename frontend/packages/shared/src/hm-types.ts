@@ -40,26 +40,14 @@ export type HMExistingDraft = {
 }
 
 export const HMBlockChildrenTypeSchema = z
-  .union([
-    z.literal('Group'),
-    z.literal('Ordered'),
-    z.literal('Unordered'),
-    z.literal('Blockquote'),
-  ])
+  .union([z.literal('Group'), z.literal('Ordered'), z.literal('Unordered'), z.literal('Blockquote')])
   .nullable() // null or missing childrenType means "Group"
 export type HMBlockChildrenType = z.infer<typeof HMBlockChildrenTypeSchema>
 
-export const HMEmbedViewSchema = z.union([
-  z.literal('Content'),
-  z.literal('Card'),
-  z.literal('Comments'),
-])
+export const HMEmbedViewSchema = z.union([z.literal('Content'), z.literal('Card'), z.literal('Comments')])
 export type HMEmbedView = z.infer<typeof HMEmbedViewSchema>
 
-export const HMQueryStyleSchema = z.union([
-  z.literal('Card'),
-  z.literal('List'),
-])
+export const HMQueryStyleSchema = z.union([z.literal('Card'), z.literal('List')])
 
 export type HMQueryStyle = z.infer<typeof HMQueryStyleSchema>
 
@@ -74,15 +62,11 @@ export type EditorTextStyles = {
 }
 
 export type EditorToggledStyle = {
-  [K in keyof EditorTextStyles]-?: Required<EditorTextStyles>[K] extends true
-    ? K
-    : never
+  [K in keyof EditorTextStyles]-?: Required<EditorTextStyles>[K] extends true ? K : never
 }[keyof EditorTextStyles]
 
 export type EditorColorStyle = {
-  [K in keyof EditorTextStyles]-?: Required<EditorTextStyles>[K] extends string
-    ? K
-    : never
+  [K in keyof EditorTextStyles]-?: Required<EditorTextStyles>[K] extends string ? K : never
 }[keyof EditorTextStyles]
 
 export type ServerBlockNode = PlainMessage<BlockNode>
@@ -271,10 +255,7 @@ export function toNumber(value: any): number | null {
       return converted
     }
   }
-  console.warn(
-    'Value must be a number or a string that can be converted to a number',
-    value,
-  )
+  console.warn('Value must be a number or a string that can be converted to a number', value)
   return null
 }
 
@@ -357,9 +338,7 @@ export const HMBlockFileSchema = z
 export const HMBlockButtonAlignmentSchema = z
   .union([z.literal('flex-start'), z.literal('center'), z.literal('flex-end')])
   .optional()
-export type HMBlockButtonAlignment = z.infer<
-  typeof HMBlockButtonAlignmentSchema
->
+export type HMBlockButtonAlignment = z.infer<typeof HMBlockButtonAlignmentSchema>
 
 export const HMBlockButtonSchema = z
   .object({
@@ -560,19 +539,13 @@ export const HMDocumentMetadataSchema = z.object({
   thumbnail: z.string().optional(), // DEPRECATED
   cover: z.string().optional(),
   siteUrl: z.string().optional(),
-  layout: z
-    .union([z.literal('Seed/Experimental/Newspaper'), z.literal('')])
-    .optional(),
+  layout: z.union([z.literal('Seed/Experimental/Newspaper'), z.literal('')]).optional(),
   displayPublishTime: z.string().optional(),
   seedExperimentalLogo: z.string().optional(),
-  seedExperimentalHomeOrder: z
-    .union([z.literal('UpdatedFirst'), z.literal('CreatedFirst')])
-    .optional(),
+  seedExperimentalHomeOrder: z.union([z.literal('UpdatedFirst'), z.literal('CreatedFirst')]).optional(),
   showOutline: z.boolean().optional(),
   showActivity: z.boolean().optional(),
-  contentWidth: z
-    .union([z.literal('S'), z.literal('M'), z.literal('L')])
-    .optional(),
+  contentWidth: z.union([z.literal('S'), z.literal('M'), z.literal('L')]).optional(),
   theme: z
     .object({
       headerLayout: z.union([z.literal('Center'), z.literal('')]).optional(),
@@ -726,9 +699,7 @@ export const HMExternalCommentGroupSchema = z.object({
   target: z.lazy(() => HMMetadataPayloadSchema),
   type: z.literal('externalCommentGroup'),
 })
-export type HMExternalCommentGroup = z.infer<
-  typeof HMExternalCommentGroupSchema
->
+export type HMExternalCommentGroup = z.infer<typeof HMExternalCommentGroupSchema>
 
 export type HMDraftChange = {
   id: string
@@ -794,9 +765,7 @@ export type HMChangeGroup = {
 export const HMQueryResultSchema = z.object({
   in: unpackedHmIdSchema,
   results: z.array(HMDocumentInfoSchema),
-  mode: z
-    .union([z.literal('Children'), z.literal('AllDescendants')])
-    .optional(),
+  mode: z.union([z.literal('Children'), z.literal('AllDescendants')]).optional(),
 })
 export type HMQueryResult = z.infer<typeof HMQueryResultSchema>
 
@@ -814,16 +783,12 @@ const HMDraftMetaBaseSchema = z.object({
   visibility: HMResourceVisibilitySchema.optional().default('PUBLIC'),
 })
 
-const draftLocationRefinement = (data: {
-  editUid?: string
-  locationUid?: string
-}) => data.editUid || data.locationUid
+const draftLocationRefinement = (data: {editUid?: string; locationUid?: string}) => data.editUid || data.locationUid
 
 // Refined schema for validation
-export const HMDraftMetaSchema = HMDraftMetaBaseSchema.refine(
-  draftLocationRefinement,
-  {message: 'Either editUid or locationUid must be provided'},
-)
+export const HMDraftMetaSchema = HMDraftMetaBaseSchema.refine(draftLocationRefinement, {
+  message: 'Either editUid or locationUid must be provided',
+})
 
 // TypeScript union type: editUid OR locationUid must be present
 type HMDraftMetaBase = {
@@ -835,10 +800,7 @@ type HMDraftMetaBase = {
 }
 
 export type HMDraftMeta = HMDraftMetaBase &
-  (
-    | {editUid: string; locationUid?: string}
-    | {editUid?: undefined; locationUid: string}
-  )
+  ({editUid: string; locationUid?: string} | {editUid?: undefined; locationUid: string})
 
 // Schema with refinement for writing new drafts
 export const HMListedDraftSchema = HMDraftMetaBaseSchema.extend({
@@ -894,10 +856,7 @@ export const HMAccountNotFoundSchema = z.object({
 })
 export type HMAccountNotFound = z.infer<typeof HMAccountNotFoundSchema>
 
-export const HMAccountResultSchema = z.discriminatedUnion('type', [
-  HMAccountPayloadSchema,
-  HMAccountNotFoundSchema,
-])
+export const HMAccountResultSchema = z.discriminatedUnion('type', [HMAccountPayloadSchema, HMAccountNotFoundSchema])
 export type HMAccountResult = z.infer<typeof HMAccountResultSchema>
 
 export const HMAccountsMetadataSchema = z.record(
@@ -936,11 +895,7 @@ export const HMLoadedInlineEmbedNodeSchema = z
   .strict()
 
 export const HMLoadedTextSchema = z.array(
-  z.discriminatedUnion('type', [
-    HMLoadedTextContentNodeSchema,
-    HMLoadedInlineEmbedNodeSchema,
-    HMLoadedLinkNodeSchema,
-  ]),
+  z.discriminatedUnion('type', [HMLoadedTextContentNodeSchema, HMLoadedInlineEmbedNodeSchema, HMLoadedLinkNodeSchema]),
 )
 
 export const HMLoadedParagraphSchema = z
@@ -1024,8 +979,7 @@ export const HMQuerySchema = z.object({
   includes: z.array(HMQueryInclusionSchema),
   sort: z.array(HMQuerySortSchema).optional(),
   limit: z.preprocess(
-    (val) =>
-      val === '' || val === null || val === undefined ? undefined : val,
+    (val) => (val === '' || val === null || val === undefined ? undefined : val),
     z.coerce.number().optional(),
   ),
 })
@@ -1073,13 +1027,9 @@ export const HMLoadedDocumentSchema = z
   })
   .strict()
 
-export type HMLoadedTextContentNode = z.infer<
-  typeof HMLoadedTextContentNodeSchema
->
+export type HMLoadedTextContentNode = z.infer<typeof HMLoadedTextContentNodeSchema>
 export type HMLoadedLinkNode = z.infer<typeof HMLoadedLinkNodeSchema>
-export type HMLoadedInlineEmbedNode = z.infer<
-  typeof HMLoadedInlineEmbedNodeSchema
->
+export type HMLoadedInlineEmbedNode = z.infer<typeof HMLoadedInlineEmbedNodeSchema>
 export type HMLoadedText = z.infer<typeof HMLoadedTextSchema>
 export type HMLoadedParagraph = z.infer<typeof HMLoadedParagraphSchema>
 export type HMLoadedHeading = z.infer<typeof HMLoadedHeadingSchema>
@@ -1329,10 +1279,7 @@ const HMCitationDocumentSourceSchema = z.object({
 })
 
 export const HMCitationSchema = z.object({
-  source: z.discriminatedUnion('type', [
-    HMCitationCommentSourceSchema,
-    HMCitationDocumentSourceSchema,
-  ]),
+  source: z.discriminatedUnion('type', [HMCitationCommentSourceSchema, HMCitationDocumentSourceSchema]),
   isExactVersion: z.boolean(),
   targetFragment: ParsedFragmentSchema.nullable(),
   targetId: unpackedHmIdSchema,
@@ -1361,9 +1308,7 @@ export const HMPeerConnectionRequestSchema = z.object({
   d: z.string(), // peer/device ID
 })
 
-export type HMPeerConnectionRequest = z.infer<
-  typeof HMPeerConnectionRequestSchema
->
+export type HMPeerConnectionRequest = z.infer<typeof HMPeerConnectionRequestSchema>
 
 // Contact record schema (matches gRPC Contact type)
 export const HMContactRecordSchema = z.object({
@@ -1395,9 +1340,7 @@ export const HMAccountContactsRequestSchema = z.object({
   input: z.string(), // account UID
   output: z.array(HMContactRecordSchema),
 })
-export type HMAccountContactsRequest = z.infer<
-  typeof HMAccountContactsRequestSchema
->
+export type HMAccountContactsRequest = z.infer<typeof HMAccountContactsRequestSchema>
 
 export const HMCapabilitySchema = z.object({
   id: z.string(),
@@ -1447,9 +1390,7 @@ export const HMResourceMetadataRequestSchema = z.object({
   input: unpackedHmIdSchema,
   output: HMMetadataPayloadSchema,
 })
-export type HMResourceMetadataRequest = z.infer<
-  typeof HMResourceMetadataRequestSchema
->
+export type HMResourceMetadataRequest = z.infer<typeof HMResourceMetadataRequestSchema>
 
 export const HMAccountRequestSchema = z.object({
   key: z.literal('Account'),
@@ -1529,59 +1470,45 @@ export const HMListDiscussionsInputSchema = z.object({
   targetId: unpackedHmIdSchema,
   commentId: z.string().optional(),
 })
-export type HMListDiscussionsInput = z.infer<
-  typeof HMListDiscussionsInputSchema
->
+export type HMListDiscussionsInput = z.infer<typeof HMListDiscussionsInputSchema>
 
 export const HMListDiscussionsOutputSchema = z.object({
   discussions: z.array(HMCommentGroupSchema),
   authors: z.record(z.string(), HMMetadataPayloadSchema),
   citingDiscussions: z.array(HMExternalCommentGroupSchema),
 })
-export type HMListDiscussionsOutput = z.infer<
-  typeof HMListDiscussionsOutputSchema
->
+export type HMListDiscussionsOutput = z.infer<typeof HMListDiscussionsOutputSchema>
 
 export const HMListDiscussionsRequestSchema = z.object({
   key: z.literal('ListDiscussions'),
   input: HMListDiscussionsInputSchema,
   output: HMListDiscussionsOutputSchema,
 })
-export type HMListDiscussionsRequest = z.infer<
-  typeof HMListDiscussionsRequestSchema
->
+export type HMListDiscussionsRequest = z.infer<typeof HMListDiscussionsRequestSchema>
 
 export const HMListCommentsByReferenceInputSchema = z.object({
   targetId: unpackedHmIdSchema,
 })
-export type HMListCommentsByReferenceInput = z.infer<
-  typeof HMListCommentsByReferenceInputSchema
->
+export type HMListCommentsByReferenceInput = z.infer<typeof HMListCommentsByReferenceInputSchema>
 
 export const HMListCommentsByReferenceRequestSchema = z.object({
   key: z.literal('ListCommentsByReference'),
   input: HMListCommentsByReferenceInputSchema,
   output: HMListCommentsOutputSchema,
 })
-export type HMListCommentsByReferenceRequest = z.infer<
-  typeof HMListCommentsByReferenceRequestSchema
->
+export type HMListCommentsByReferenceRequest = z.infer<typeof HMListCommentsByReferenceRequestSchema>
 
 export const HMGetCommentReplyCountInputSchema = z.object({
   id: z.string(),
 })
-export type HMGetCommentReplyCountInput = z.infer<
-  typeof HMGetCommentReplyCountInputSchema
->
+export type HMGetCommentReplyCountInput = z.infer<typeof HMGetCommentReplyCountInputSchema>
 
 export const HMGetCommentReplyCountRequestSchema = z.object({
   key: z.literal('GetCommentReplyCount'),
   input: HMGetCommentReplyCountInputSchema,
   output: z.number(),
 })
-export type HMGetCommentReplyCountRequest = z.infer<
-  typeof HMGetCommentReplyCountRequestSchema
->
+export type HMGetCommentReplyCountRequest = z.infer<typeof HMGetCommentReplyCountRequestSchema>
 
 // Activity API request schemas
 export const HMListEventsInputSchema = z.object({
@@ -1650,25 +1577,19 @@ export const HMListCommentsByAuthorOutputSchema = z.object({
   comments: z.array(HMCommentSchema),
   authors: z.record(z.string(), HMMetadataPayloadSchema),
 })
-export type HMListCommentsByAuthorOutput = z.infer<
-  typeof HMListCommentsByAuthorOutputSchema
->
+export type HMListCommentsByAuthorOutput = z.infer<typeof HMListCommentsByAuthorOutputSchema>
 
 export const HMListCommentsByAuthorInputSchema = z.object({
   authorId: unpackedHmIdSchema,
 })
-export type HMListCommentsByAuthorInput = z.infer<
-  typeof HMListCommentsByAuthorInputSchema
->
+export type HMListCommentsByAuthorInput = z.infer<typeof HMListCommentsByAuthorInputSchema>
 
 export const HMListCommentsByAuthorRequestSchema = z.object({
   key: z.literal('ListCommentsByAuthor'),
   input: HMListCommentsByAuthorInputSchema,
   output: HMListCommentsByAuthorOutputSchema,
 })
-export type HMListCommentsByAuthorRequest = z.infer<
-  typeof HMListCommentsByAuthorRequestSchema
->
+export type HMListCommentsByAuthorRequest = z.infer<typeof HMListCommentsByAuthorRequestSchema>
 
 // ListCitations - lists mentions/citations of an entity (raw API response)
 export const HMRawMentionSchema = z.object({
@@ -1695,9 +1616,7 @@ export const HMListCitationsRequestSchema = z.object({
   input: HMListCitationsInputSchema,
   output: HMListCitationsOutputSchema,
 })
-export type HMListCitationsRequest = z.infer<
-  typeof HMListCitationsRequestSchema
->
+export type HMListCitationsRequest = z.infer<typeof HMListCitationsRequestSchema>
 
 // ListChanges - lists document changes/history
 export const HMRawDocumentChangeSchema = z.object({
@@ -1743,33 +1662,25 @@ export type HMRawCapability = z.infer<typeof HMRawCapabilitySchema>
 export const HMListCapabilitiesOutputSchema = z.object({
   capabilities: z.array(HMRawCapabilitySchema),
 })
-export type HMListCapabilitiesOutput = z.infer<
-  typeof HMListCapabilitiesOutputSchema
->
+export type HMListCapabilitiesOutput = z.infer<typeof HMListCapabilitiesOutputSchema>
 
 export const HMListCapabilitiesInputSchema = z.object({
   targetId: unpackedHmIdSchema,
 })
-export type HMListCapabilitiesInput = z.infer<
-  typeof HMListCapabilitiesInputSchema
->
+export type HMListCapabilitiesInput = z.infer<typeof HMListCapabilitiesInputSchema>
 
 export const HMListCapabilitiesRequestSchema = z.object({
   key: z.literal('ListCapabilities'),
   input: HMListCapabilitiesInputSchema,
   output: HMListCapabilitiesOutputSchema,
 })
-export type HMListCapabilitiesRequest = z.infer<
-  typeof HMListCapabilitiesRequestSchema
->
+export type HMListCapabilitiesRequest = z.infer<typeof HMListCapabilitiesRequestSchema>
 
 // InteractionSummary - gets interaction summary for a document
 export const HMInteractionSummaryInputSchema = z.object({
   id: unpackedHmIdSchema,
 })
-export type HMInteractionSummaryInput = z.infer<
-  typeof HMInteractionSummaryInputSchema
->
+export type HMInteractionSummaryInput = z.infer<typeof HMInteractionSummaryInputSchema>
 
 export const HMInteractionSummaryOutputSchema = z.object({
   citations: z.number(),
@@ -1784,18 +1695,14 @@ export const HMInteractionSummaryOutputSchema = z.object({
     }),
   ),
 })
-export type HMInteractionSummaryOutput = z.infer<
-  typeof HMInteractionSummaryOutputSchema
->
+export type HMInteractionSummaryOutput = z.infer<typeof HMInteractionSummaryOutputSchema>
 
 export const HMInteractionSummaryRequestSchema = z.object({
   key: z.literal('InteractionSummary'),
   input: HMInteractionSummaryInputSchema,
   output: HMInteractionSummaryOutputSchema,
 })
-export type HMInteractionSummaryRequest = z.infer<
-  typeof HMInteractionSummaryRequestSchema
->
+export type HMInteractionSummaryRequest = z.infer<typeof HMInteractionSummaryRequestSchema>
 
 export const HMRequestSchema = z.discriminatedUnion('key', [
   HMResourceRequestSchema,

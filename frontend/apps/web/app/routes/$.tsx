@@ -83,11 +83,7 @@ const unregisteredMeta = defaultPageMeta('Welcome to Seed Hypermedia')
 
 // export const links = () => [...documentLinks()]
 
-export const documentPageMeta = ({
-  data,
-}: {
-  data: Wrapped<SiteDocumentPayload>
-}): ReturnType<MetaFunction> => {
+export const documentPageMeta = ({data}: {data: Wrapped<SiteDocumentPayload>}): ReturnType<MetaFunction> => {
   const siteDocument = unwrap<SiteDocumentPayload>(data)
   // Use the document's home icon (siteHomeIcon), not the origin site's icon
   const siteHomeIcon = siteDocument?.siteHomeIcon
@@ -114,9 +110,7 @@ export const documentPageMeta = ({
     const documentDescription = ''
     const imageUrl = `${siteDocument.origin}/hm/api/content-image?space=${
       siteDocument.id.uid
-    }&path=${hmIdPathToEntityQueryPath(siteDocument.id.path)}&version=${
-      siteDocument.id.version
-    }`
+    }&path=${hmIdPathToEntityQueryPath(siteDocument.id.path)}&version=${siteDocument.id.version}`
     const currentUrl = `${siteDocument.origin}${
       siteDocument.id.path?.length ? '/' + siteDocument.id.path.join('/') : ''
     }`
@@ -201,18 +195,9 @@ export const meta: MetaFunction<typeof loader> = (args) => {
 
 export const headers: HeadersFunction = ({loaderHeaders}) => loaderHeaders
 
-export const loader = async ({
-  params,
-  request,
-}: {
-  params: Params
-  request: Request
-}) => {
+export const loader = async ({params, request}: {params: Params; request: Request}) => {
   const parsedRequest = parseRequest(request)
-  const ctx = createInstrumentationContext(
-    parsedRequest.url.pathname,
-    request.method,
-  )
+  const ctx = createInstrumentationContext(parsedRequest.url.pathname, request.method)
 
   // Check if this is a data request (client-side navigation) vs document request (full page)
   // Remix single fetch normalizes URLs, so check sec-fetch-mode header
@@ -235,9 +220,7 @@ export const loader = async ({
   const latest = url.searchParams.get('l') === ''
   const panelParam = url.searchParams.get('panel')
 
-  const serviceConfig = await instrument(ctx, 'getConfig', () =>
-    getConfig(hostname),
-  )
+  const serviceConfig = await instrument(ctx, 'getConfig', () => getConfig(hostname))
   if (!serviceConfig) {
     if (isDataRequest && ctx.enabled) {
       printInstrumentationSummary(ctx)
@@ -315,20 +298,11 @@ export default function UnifiedDocumentPage() {
   // The not found error is handled by the DocumentPage component,
   // and here we handle the rest of the errors.
   if (data.daemonError && data.daemonError.code !== Code.NotFound) {
-    return (
-      <DaemonErrorPage
-        message={data.daemonError.message}
-        code={data.daemonError.code}
-      />
-    )
+    return <DaemonErrorPage message={data.daemonError.message} code={data.daemonError.code} />
   }
 
   // Render unified ResourcePage or FeedPage with WebSiteProvider for navigation context
-  const initialRoute = createDocumentNavRoute(
-    data.id,
-    data.viewTerm,
-    data.panelParam,
-  )
+  const initialRoute = createDocumentNavRoute(data.id, data.viewTerm, data.panelParam)
 
   return (
     <WebSiteProvider
@@ -338,11 +312,7 @@ export default function UnifiedDocumentPage() {
       dehydratedState={data.dehydratedState}
       initialRoute={initialRoute}
     >
-      {data.viewTerm === 'feed' ? (
-        <WebFeedPage docId={data.id} />
-      ) : (
-        <InnerResourcePage docId={data.id} />
-      )}
+      {data.viewTerm === 'feed' ? <WebFeedPage docId={data.id} /> : <InnerResourcePage docId={data.id} />}
     </WebSiteProvider>
   )
 }
@@ -360,9 +330,7 @@ export function DaemonErrorPage(props: GRPCError) {
         <div className="border-border dark:bg-background flex w-full max-w-2xl flex-1 flex-col gap-4 rounded-lg border bg-white p-6 shadow-lg">
           <SizableText size="3xl">☹️</SizableText>
           <SizableText size="2xl" weight="bold">
-            {props.code === Code.Unavailable
-              ? tx('Internal Server Error')
-              : tx('Server Error')}
+            {props.code === Code.Unavailable ? tx('Internal Server Error') : tx('Server Error')}
           </SizableText>
 
           {props.code === Code.Unavailable ? (
@@ -374,9 +342,7 @@ export function DaemonErrorPage(props: GRPCError) {
             </SizableText>
           ) : null}
 
-          <pre className="text-destructive wrap-break-word whitespace-pre-wrap">
-            {props.message}
-          </pre>
+          <pre className="text-destructive wrap-break-word whitespace-pre-wrap">{props.message}</pre>
         </div>
       </div>
     </div>

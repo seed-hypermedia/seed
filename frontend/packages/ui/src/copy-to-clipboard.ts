@@ -1,9 +1,6 @@
 import {toast} from './toast'
 
-export async function copyUrlToClipboardWithFeedback(
-  url: string,
-  label: string,
-) {
+export async function copyUrlToClipboardWithFeedback(url: string, label: string) {
   toast.promise(copyTextToClipboard(url), {
     loading: '',
     success: `${label} Link Copied to Clipboard`,

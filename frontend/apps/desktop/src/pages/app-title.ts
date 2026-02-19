@@ -3,8 +3,7 @@ import {useEffect, useRef, useState} from 'react'
 
 type TitlebatKeys = 'page' | 'titlebar'
 
-export const [dispatchShowTitleEvent, showTitleEvent] =
-  eventStream<TitlebatKeys>()
+export const [dispatchShowTitleEvent, showTitleEvent] = eventStream<TitlebatKeys>()
 
 export function useShowTitleObserver(ref: HTMLElement | null) {
   const triggered = useRef(false)

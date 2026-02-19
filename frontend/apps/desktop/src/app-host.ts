@@ -56,10 +56,7 @@ export const hostApi = t.router({
   }),
 })
 
-async function updateSingleDNSStatus(
-  sessionToken: string,
-  pendingDomain: z.infer<typeof PendingDomainSchema>,
-) {
+async function updateSingleDNSStatus(sessionToken: string, pendingDomain: z.infer<typeof PendingDomainSchema>) {
   const resp = await fetch(`${SEED_HOST_URL}/api/domains/${pendingDomain.id}`, {
     headers: {
       Authorization: `Bearer ${sessionToken}`,
@@ -107,17 +104,12 @@ async function writeDNSActive(pendingDomain: PendingDomain) {
   setTimeout(() => {
     writeHostState({
       ...state,
-      pendingDomains: state.pendingDomains?.filter(
-        (pending) => pending.id !== pendingDomain.id,
-      ),
+      pendingDomains: state.pendingDomains?.filter((pending) => pending.id !== pendingDomain.id),
     })
   }, 250) // delay for a bit because it takes a moment for the front end to catch up
 }
 
-async function writeDNSStatus(
-  domainId: string,
-  status: PendingDomain['status'],
-) {
+async function writeDNSStatus(domainId: string, status: PendingDomain['status']) {
   if (
     state.pendingDomains?.find((pending) => {
       return pending.id === domainId && pending.status !== status

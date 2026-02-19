@@ -62,10 +62,7 @@ function rawCapToHMCapability(raw: HMRawCapability): HMCapability | null {
 /**
  * Query options for fetching a resource (document, comment, etc.)
  */
-export function queryResource(
-  client: UniversalClient,
-  id: UnpackedHypermediaId | null | undefined,
-) {
+export function queryResource(client: UniversalClient, id: UnpackedHypermediaId | null | undefined) {
   const version = id?.version || undefined
   return {
     queryKey: [queryKeys.ENTITY, id?.id, version] as const,
@@ -87,10 +84,7 @@ export function queryResource(
  * Query options for fetching account metadata.
  * Returns HMMetadataPayload or null (handles not-found internally).
  */
-export function queryAccount(
-  client: UniversalClient,
-  uid: string | null | undefined,
-) {
+export function queryAccount(client: UniversalClient, uid: string | null | undefined) {
   return {
     queryKey: [queryKeys.ACCOUNT, uid] as const,
     queryFn: async (): Promise<HMMetadataPayload | null> => {
@@ -134,10 +128,7 @@ export function queryDirectory(
 /**
  * Query options for fetching comments on a target.
  */
-export function queryComments(
-  client: UniversalClient,
-  targetId: UnpackedHypermediaId | null | undefined,
-) {
+export function queryComments(client: UniversalClient, targetId: UnpackedHypermediaId | null | undefined) {
   return {
     queryKey: [queryKeys.COMMENTS, targetId?.id] as const,
     queryFn: async (): Promise<HMListCommentsOutput> => {
@@ -153,10 +144,7 @@ export function queryComments(
 /**
  * Query options for fetching citations to a target.
  */
-export function queryCitations(
-  client: UniversalClient,
-  targetId: UnpackedHypermediaId | null | undefined,
-) {
+export function queryCitations(client: UniversalClient, targetId: UnpackedHypermediaId | null | undefined) {
   return {
     queryKey: [queryKeys.CITATIONS, targetId?.id] as const,
     queryFn: async (): Promise<HMListCitationsOutput> => {
@@ -172,10 +160,7 @@ export function queryCitations(
 /**
  * Query options for fetching changes to a target.
  */
-export function queryChanges(
-  client: UniversalClient,
-  targetId: UnpackedHypermediaId | null | undefined,
-) {
+export function queryChanges(client: UniversalClient, targetId: UnpackedHypermediaId | null | undefined) {
   return {
     queryKey: [queryKeys.CHANGES, targetId?.id] as const,
     queryFn: async (): Promise<HMListChangesOutput> => {
@@ -192,22 +177,12 @@ export function queryChanges(
  * Query options for fetching capabilities on a target.
  * Returns deduplicated HMCapability[] including a synthetic owner entry.
  */
-export function queryCapabilities(
-  client: UniversalClient,
-  targetId: UnpackedHypermediaId | null | undefined,
-) {
+export function queryCapabilities(client: UniversalClient, targetId: UnpackedHypermediaId | null | undefined) {
   return {
-    queryKey: [
-      queryKeys.CAPABILITIES,
-      targetId?.uid,
-      ...(targetId?.path || []),
-    ] as const,
+    queryKey: [queryKeys.CAPABILITIES, targetId?.uid, ...(targetId?.path || [])] as const,
     queryFn: async (): Promise<HMCapability[]> => {
       if (!targetId) throw new Error('ID required')
-      const result = await client.request<HMListCapabilitiesRequest>(
-        'ListCapabilities',
-        {targetId},
-      )
+      const result = await client.request<HMListCapabilitiesRequest>('ListCapabilities', {targetId})
       const visitedCaps = new Set<string>()
       const caps: HMCapability[] = []
       for (const raw of result.capabilities) {
@@ -234,10 +209,7 @@ export function queryCapabilities(
 /**
  * Query options for fetching interaction summary for a document.
  */
-export function queryInteractionSummary(
-  client: UniversalClient,
-  id: UnpackedHypermediaId | null | undefined,
-) {
+export function queryInteractionSummary(client: UniversalClient, id: UnpackedHypermediaId | null | undefined) {
   return {
     queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY, id?.id] as const,
     queryFn: async (): Promise<HMInteractionSummaryOutput> => {
@@ -250,10 +222,7 @@ export function queryInteractionSummary(
           blocks: {},
         }
       }
-      return await client.request<HMInteractionSummaryRequest>(
-        'InteractionSummary',
-        {id},
-      )
+      return await client.request<HMInteractionSummaryRequest>('InteractionSummary', {id})
     },
     enabled: !!id,
   }

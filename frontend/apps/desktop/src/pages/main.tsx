@@ -22,21 +22,9 @@ import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {
-  lazy,
-  ReactElement,
-  ReactNode,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import {lazy, ReactElement, ReactNode, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
-import {
-  ImperativePanelGroupHandle,
-  Panel,
-  PanelGroup,
-} from 'react-resizable-panels'
+import {ImperativePanelGroupHandle, Panel, PanelGroup} from 'react-resizable-panels'
 import {AppErrorPage, RootAppError} from '../components/app-error'
 import {AutoUpdater} from '../components/auto-updater'
 import Footer from '../components/footer'
@@ -64,10 +52,7 @@ export default function Main({className}: {className?: string}) {
   const navigate = useNavigate()
 
   const {platform} = useAppContext()
-  const {PageComponent, Fallback} = useMemo(
-    () => getPageComponent(navR),
-    [navR],
-  )
+  const {PageComponent, Fallback} = useMemo(() => getPageComponent(navR), [navR])
   const routeKey = useMemo(() => getRouteKey(navR), [navR])
   useListen<NavRoute>(
     'open_route',
@@ -110,9 +95,7 @@ export default function Main({className}: {className?: string}) {
     titlebar = (
       <TitlebarWrapper className="bg-background h-6 min-h-6 dark:bg-black">
         <div className="window-drag flex w-full items-center justify-center">
-          <TitleText className="text-center font-bold">
-            Review Deleted Content
-          </TitleText>
+          <TitleText className="text-center font-bold">Review Deleted Content</TitleText>
           {platform !== 'darwin' && <WindowClose />}
         </div>
       </TitlebarWrapper>
@@ -149,13 +132,7 @@ export default function Main({className}: {className?: string}) {
   )
 }
 
-function ConfirmConnectionDialogContent({
-  input,
-  onClose,
-}: {
-  input: string
-  onClose: () => void
-}) {
+function ConfirmConnectionDialogContent({input, onClose}: {input: string; onClose: () => void}) {
   const connect = useConnectPeer({
     onSuccess: () => {
       onClose()
@@ -205,15 +182,9 @@ function PanelContent({children}: {children: ReactNode}) {
     // Skip if editor is focused - toggle_bold handler will handle it
     const activeElement = document.activeElement
     const isEditorFocused =
-      activeElement &&
-      (activeElement.classList.contains('ProseMirror') ||
-        activeElement.closest('.ProseMirror'))
+      activeElement && (activeElement.classList.contains('ProseMirror') || activeElement.closest('.ProseMirror'))
 
-    console.log(
-      '[toggle_sidebar] activeElement:',
-      activeElement?.tagName,
-      activeElement?.className,
-    )
+    console.log('[toggle_sidebar] activeElement:', activeElement?.tagName, activeElement?.className)
     console.log('[toggle_sidebar] isEditorFocused:', isEditorFocused)
 
     if (isEditorFocused) return
@@ -384,9 +355,7 @@ function AccountSelectorDialogContent({
   onClose: () => void
 }) {
   const myAccounts = useMyAccounts()
-  const [selectedAccountUid, setSelectedAccountUid] = useState<string | null>(
-    null,
-  )
+  const [selectedAccountUid, setSelectedAccountUid] = useState<string | null>(null)
 
   const accountOptions = myAccounts
     ?.map((a) => {
@@ -406,25 +375,14 @@ function AccountSelectorDialogContent({
       return true
     })
 
-  const selectedAccount = myAccounts?.find(
-    (a) => a.data?.id?.uid === selectedAccountUid,
-  )
-  const selectedAccountDoc =
-    selectedAccount?.data?.type === 'document'
-      ? selectedAccount.data.document
-      : undefined
+  const selectedAccount = myAccounts?.find((a) => a.data?.id?.uid === selectedAccountUid)
+  const selectedAccountDoc = selectedAccount?.data?.type === 'document' ? selectedAccount.data.document : undefined
 
   return (
     <>
       <DialogTitle>Select Account to Link</DialogTitle>
-      {input.origin && (
-        <p className="text-sm font-medium text-gray-600">
-          Origin: {input.origin}
-        </p>
-      )}
-      <p className="text-sm text-gray-600">
-        Choose which account you want to link to the web browser.
-      </p>
+      {input.origin && <p className="text-sm font-medium text-gray-600">Origin: {input.origin}</p>}
+      <p className="text-sm text-gray-600">Choose which account you want to link to the web browser.</p>
       <ScrollArea className="h-full max-h-[300px] flex-1 overflow-y-auto">
         <div className="flex flex-col gap-2">
           {accountOptions?.map((option) =>
@@ -433,18 +391,12 @@ function AccountSelectorDialogContent({
                 key={option.id.uid}
                 className={cn(
                   'hover:bg-sidebar-accent flex cursor-pointer flex-row items-center gap-4 rounded-md p-3',
-                  selectedAccountUid === option.id.uid
-                    ? 'bg-sidebar-accent'
-                    : '',
+                  selectedAccountUid === option.id.uid ? 'bg-sidebar-accent' : '',
                 )}
                 onClick={() => setSelectedAccountUid(option.id.uid)}
               >
                 {option.id ? (
-                  <HMIcon
-                    id={option?.id}
-                    name={option?.metadata?.name}
-                    icon={option?.metadata?.icon}
-                  />
+                  <HMIcon id={option?.id} name={option?.metadata?.name} icon={option?.metadata?.icon} />
                 ) : null}
                 <span className="flex-1">{option.metadata?.name}</span>
               </div>
@@ -461,8 +413,7 @@ function AccountSelectorDialogContent({
           disabled={!selectedAccountUid}
           onClick={() => {
             if (selectedAccountUid) {
-              const accountName =
-                selectedAccountDoc?.metadata?.name || 'Account'
+              const accountName = selectedAccountDoc?.metadata?.name || 'Account'
               input.onAccountSelected(selectedAccountUid, accountName)
               onClose()
             }

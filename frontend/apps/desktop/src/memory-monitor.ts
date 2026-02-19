@@ -96,9 +96,7 @@ class ListenerRegistry {
   }
 
   getByTarget(target: string): ListenerEntry[] {
-    return Array.from(this.listeners.values()).filter(
-      (l) => l.target === target,
-    )
+    return Array.from(this.listeners.values()).filter((l) => l.target === target)
   }
 
   getByEvent(event: string): ListenerEntry[] {
@@ -158,13 +156,11 @@ class TimerRegistry {
   }
 
   getTimerCount(): number {
-    return Array.from(this.timers.values()).filter((t) => t.type === 'timer')
-      .length
+    return Array.from(this.timers.values()).filter((t) => t.type === 'timer').length
   }
 
   getIntervalCount(): number {
-    return Array.from(this.timers.values()).filter((t) => t.type === 'interval')
-      .length
+    return Array.from(this.timers.values()).filter((t) => t.type === 'interval').length
   }
 
   getAll(): Map<string, TimerEntry> {
@@ -176,11 +172,7 @@ class TimerRegistry {
     const entries = Array.from(this.timers.entries())
     for (const [id, entry] of entries) {
       const age = Date.now() - entry.createdAt
-      details.push(
-        `${id}: ${entry.type} (age: ${Math.round(age / 1000)}s) ${
-          entry.description || ''
-        }`,
-      )
+      details.push(`${id}: ${entry.type} (age: ${Math.round(age / 1000)}s) ${entry.description || ''}`)
     }
     return {
       timers: this.getTimerCount(),
@@ -309,9 +301,7 @@ class MemoryMonitor {
     if (heapGrowth > 20) {
       suspects.push({
         type: 'heap',
-        description: `Heap grew ${heapGrowth.toFixed(1)}% in last ${
-          recent.length
-        } snapshots`,
+        description: `Heap grew ${heapGrowth.toFixed(1)}% in last ${recent.length} snapshots`,
         severity: heapGrowth > 50 ? 'high' : heapGrowth > 30 ? 'medium' : 'low',
         currentValue: last.heapUsed,
         trend: 'growing',
@@ -319,20 +309,13 @@ class MemoryMonitor {
     }
 
     // Check listener growth
-    const firstListenerCount = Object.values(first.listenerCounts).reduce(
-      (a, b) => a + b,
-      0,
-    )
-    const lastListenerCount = Object.values(last.listenerCounts).reduce(
-      (a, b) => a + b,
-      0,
-    )
+    const firstListenerCount = Object.values(first.listenerCounts).reduce((a, b) => a + b, 0)
+    const lastListenerCount = Object.values(last.listenerCounts).reduce((a, b) => a + b, 0)
     if (lastListenerCount > firstListenerCount + 5) {
       suspects.push({
         type: 'listeners',
         description: `Listener count grew from ${firstListenerCount} to ${lastListenerCount}`,
-        severity:
-          lastListenerCount > firstListenerCount + 20 ? 'high' : 'medium',
+        severity: lastListenerCount > firstListenerCount + 20 ? 'high' : 'medium',
         currentValue: lastListenerCount,
         trend: 'growing',
       })
@@ -371,45 +354,27 @@ class MemoryMonitor {
     for (const suspect of suspects) {
       switch (suspect.type) {
         case 'heap':
-          recommendations.push(
-            'Consider taking a heap snapshot to identify retained objects',
-          )
-          recommendations.push(
-            'Check for detached DOM nodes and unreferenced closures',
-          )
+          recommendations.push('Consider taking a heap snapshot to identify retained objects')
+          recommendations.push('Check for detached DOM nodes and unreferenced closures')
           break
         case 'listeners':
-          recommendations.push(
-            'Review event listener cleanup in component unmount/window close',
-          )
-          recommendations.push(
-            'Check for missing removeListener calls in IPC handlers',
-          )
+          recommendations.push('Review event listener cleanup in component unmount/window close')
+          recommendations.push('Check for missing removeListener calls in IPC handlers')
           break
         case 'windows':
-          recommendations.push(
-            'Verify all windows are properly closed and removed from registry',
-          )
+          recommendations.push('Verify all windows are properly closed and removed from registry')
           break
         case 'daemonStateHandlers':
-          recommendations.push(
-            'Check subscribeDaemonState cleanup in window close handlers',
-          )
+          recommendations.push('Check subscribeDaemonState cleanup in window close handlers')
           break
         case 'subscriptions':
-          recommendations.push(
-            'Review subscription cleanup in app-sync.ts unsubscribe flow',
-          )
+          recommendations.push('Review subscription cleanup in app-sync.ts unsubscribe flow')
           break
         case 'discoveryStreams':
-          recommendations.push(
-            'Consider implementing eviction policy for discovery streams',
-          )
+          recommendations.push('Consider implementing eviction policy for discovery streams')
           break
         case 'intervals':
-          recommendations.push(
-            'Review setInterval usage - ensure all are cleared on cleanup',
-          )
+          recommendations.push('Review setInterval usage - ensure all are cleared on cleanup')
           break
       }
     }
@@ -440,10 +405,7 @@ class MemoryMonitor {
       fs.mkdirSync(snapshotDir, {recursive: true})
     }
 
-    const snapshotPath = path.join(
-      snapshotDir,
-      filename || `heap-${Date.now()}.heapsnapshot`,
-    )
+    const snapshotPath = path.join(snapshotDir, filename || `heap-${Date.now()}.heapsnapshot`)
 
     memLogger.info(`Taking heap snapshot: ${snapshotPath}`)
 
@@ -544,10 +506,7 @@ export function trackedSetTimeout(
     memoryMonitor.timerRegistry.unregister(trackId)
     callback()
   }, ms)
-  const trackId = memoryMonitor.timerRegistry.registerTimer(
-    timeout,
-    description,
-  )
+  const trackId = memoryMonitor.timerRegistry.registerTimer(timeout, description)
   return {timeout, trackId}
 }
 
@@ -557,10 +516,7 @@ export function trackedSetInterval(
   description?: string,
 ): {interval: NodeJS.Timeout; trackId: string} {
   const interval = setInterval(callback, ms)
-  const trackId = memoryMonitor.timerRegistry.registerInterval(
-    interval,
-    description,
-  )
+  const trackId = memoryMonitor.timerRegistry.registerInterval(interval, description)
   return {interval, trackId}
 }
 

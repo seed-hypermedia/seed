@@ -38,9 +38,7 @@ const defaultCommentsContext: CommentsProviderValue = {
   useHackyAuthorsSubscriptions: undefined,
 }
 
-const CommentsContext = createContext<CommentsProviderValue>(
-  defaultCommentsContext,
-)
+const CommentsContext = createContext<CommentsProviderValue>(defaultCommentsContext)
 
 export function CommentsProvider({
   children,
@@ -74,10 +72,7 @@ export function useCommentsService(params: HMListCommentsInput) {
     queryKey: [queryKeys.DOCUMENT_COMMENTS, params.targetId],
     queryFn: async (): Promise<HMListCommentsOutput> => {
       try {
-        return await client.request<HMListCommentsRequest>(
-          'ListComments',
-          params,
-        )
+        return await client.request<HMListCommentsRequest>('ListComments', params)
       } catch (error) {
         console.error('Error fetching comments:', error)
         throw error
@@ -92,17 +87,10 @@ export function useDiscussionsService(params: HMListDiscussionsInput) {
   const client = useUniversalClient()
 
   return useQuery({
-    queryKey: [
-      queryKeys.DOCUMENT_DISCUSSION,
-      params.targetId,
-      params.commentId,
-    ],
+    queryKey: [queryKeys.DOCUMENT_DISCUSSION, params.targetId, params.commentId],
     queryFn: async (): Promise<HMListDiscussionsOutput> => {
       try {
-        return await client.request<HMListDiscussionsRequest>(
-          'ListDiscussions',
-          params,
-        )
+        return await client.request<HMListDiscussionsRequest>('ListDiscussions', params)
       } catch (error) {
         console.error('Error fetching discussions:', error)
         throw error
@@ -113,19 +101,14 @@ export function useDiscussionsService(params: HMListDiscussionsInput) {
   })
 }
 
-export function useBlockDiscussionsService(
-  params: HMListCommentsByReferenceInput,
-) {
+export function useBlockDiscussionsService(params: HMListCommentsByReferenceInput) {
   const client = useUniversalClient()
 
   return useQuery({
     queryKey: [queryKeys.BLOCK_DISCUSSIONS, params.targetId],
     queryFn: async (): Promise<HMListCommentsOutput> => {
       try {
-        return await client.request<HMListCommentsByReferenceRequest>(
-          'ListCommentsByReference',
-          params,
-        )
+        return await client.request<HMListCommentsByReferenceRequest>('ListCommentsByReference', params)
       } catch (error) {
         console.error('Error fetching block discussions:', error)
         throw error
@@ -154,10 +137,7 @@ export function isRouteEqualToCommentTarget({
     version: comment.targetVersion,
   })
 
-  if (
-    targetRoute.uid == id.uid &&
-    targetRoute.path?.join('/') == id.path?.join('/')
-  ) {
+  if (targetRoute.uid == id.uid && targetRoute.path?.join('/') == id.path?.join('/')) {
     return null
   }
 

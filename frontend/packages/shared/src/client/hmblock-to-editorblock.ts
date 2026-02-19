@@ -10,17 +10,8 @@ import {
   HMInlineContent,
   MediaBlockProps,
 } from '../editor-types'
-import {
-  HMAnnotation,
-  HMBlock,
-  HMBlockChildrenType,
-  HMBlockNode,
-  HMBlockType,
-} from '../hm-types'
-import {
-  Annotation,
-  BlockNode,
-} from './.generated/documents/v3alpha/documents_pb'
+import {HMAnnotation, HMBlock, HMBlockChildrenType, HMBlockNode, HMBlockType} from '../hm-types'
+import {Annotation, BlockNode} from './.generated/documents/v3alpha/documents_pb'
 import {isSurrogate} from './unicode'
 
 type ServerToEditorRecursiveOpts = {
@@ -56,13 +47,10 @@ export function hmBlocksToEditorContent(
   }
   return blocks
     .map((hmBlock: PlainMessage<BlockNode> | HMBlockNode) => {
-      let res = hmBlock.block
-        ? hmBlockToEditorBlock(hmBlock.block as unknown as HMBlock)
-        : null
+      let res = hmBlock.block ? hmBlockToEditorBlock(hmBlock.block as unknown as HMBlock) : null
 
       if (res && hmBlock.children?.length) {
-        const childrenType = ((hmBlock.block as any)?.attributes || {})
-          ?.childrenType
+        const childrenType = ((hmBlock.block as any)?.attributes || {})?.childrenType
         // Ensure we only assign valid values to childrenType
         const validChildrenType: HMBlockChildrenType =
           childrenType === 'Group' ||
@@ -131,19 +119,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
   //       : block.attributes.start
   // }
 
-  if (
-    [
-      'code-block',
-      'video',
-      'image',
-      'file',
-      'button',
-      'embed',
-      'web-embed',
-      'math',
-      'nostr',
-    ].includes(blockType)
-  ) {
+  if (['code-block', 'video', 'image', 'file', 'button', 'embed', 'web-embed', 'math', 'nostr'].includes(blockType)) {
     if ((block as any).link) {
       ;(out.props as MediaBlockProps).url = (block as any).link
     }
@@ -173,9 +149,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     const queryProps = out.props as any
     queryProps.style = block.attributes?.style
     queryProps.columnCount = String(block.attributes?.columnCount || '')
-    queryProps.queryIncludes = JSON.stringify(
-      block.attributes?.query?.includes || [],
-    )
+    queryProps.queryIncludes = JSON.stringify(block.attributes?.query?.includes || [])
     queryProps.querySort = JSON.stringify(block.attributes?.query?.sort || {})
     queryProps.banner = block.attributes?.banner ? 'true' : 'false'
     queryProps.queryLimit = String(block.attributes?.query?.limit || '')
@@ -334,11 +308,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
         }
       }
 
-      if (
-        ['Bold', 'Italic', 'Strike', 'Underline', 'Code', 'Range'].includes(
-          annotationData.type,
-        )
-      ) {
+      if (['Bold', 'Italic', 'Strike', 'Underline', 'Code', 'Range'].includes(annotationData.type)) {
         const styleKey = annotationData.type.toLowerCase()
         ;(newLeaf.styles as Record<string, boolean>)[styleKey] = true
       }
@@ -394,9 +364,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
 
   function linkChangedIdentity(annotation: any): boolean {
     if (!inlineBlockContent) return false
-    let currentLink =
-      (inlineBlockContent as any).link ||
-      (inlineBlockContent as EditorLink).href
+    let currentLink = (inlineBlockContent as any).link || (inlineBlockContent as EditorLink).href
     return currentLink != annotation.link && currentLink != annotation.href
   }
 
@@ -417,9 +385,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
           text: '',
           styles: leaf.styles,
         }
-        ;((inlineBlockContent as EditorLink).content as HMInlineContent[]).push(
-          typedLeaf,
-        )
+        ;((inlineBlockContent as EditorLink).content as HMInlineContent[]).push(typedLeaf)
       }
     } else {
       if (leaf && !_.isEqual(leaf, {type: 'text', text: '', styles: {}})) {
@@ -472,10 +438,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
 // because it's implemented as a binary search.
 // It returns array index of the span the position matches.
 // Otherwise it returns -1.
-export function annotationContains(
-  annotation: Annotation,
-  pos: number,
-): number {
+export function annotationContains(annotation: Annotation, pos: number): number {
   let low = 0
   let high = annotation.starts.length - 1
   let mid = 0
@@ -499,12 +462,7 @@ export function annotationContains(
 
   const startAtLow = annotation.starts[low]
   const endAtLow = annotation.ends[low]
-  if (
-    startAtLow !== undefined &&
-    endAtLow !== undefined &&
-    startAtLow <= pos &&
-    pos < endAtLow
-  ) {
+  if (startAtLow !== undefined && endAtLow !== undefined && startAtLow <= pos && pos < endAtLow) {
     return low
   }
 
@@ -512,9 +470,5 @@ export function annotationContains(
 }
 
 function isText(entry: HMInlineContent): boolean {
-  return (
-    entry?.type &&
-    entry.type == 'text' &&
-    typeof (entry as EditorText).text == 'string'
-  )
+  return entry?.type && entry.type == 'text' && typeof (entry as EditorText).text == 'string'
 }

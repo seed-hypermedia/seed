@@ -3,30 +3,17 @@ import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {Button} from '@shm/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@shm/ui/components/dialog'
+import {Dialog, DialogContent, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {SearchResultItem} from '@shm/ui/search'
 import {Spinner} from '@shm/ui/spinner'
 import {cn} from '@shm/ui/utils'
 import {Check, Link, Unlink, X} from 'lucide-react'
 import {useCallback, useEffect, useState} from 'react'
-import {
-  BlockNoteEditor,
-  BlockSchema,
-  useEditorSelectionChange,
-} from './blocknote'
+import {BlockNoteEditor, BlockSchema, useEditorSelectionChange} from './blocknote'
 
-export const MobileLinkToolbarButton = <BSchema extends BlockSchema>(props: {
-  editor: BlockNoteEditor<BSchema>
-}) => {
-  const [url, setUrl] = useState<string>(
-    props.editor.getSelectedLinkUrl() || '',
-  )
+export const MobileLinkToolbarButton = <BSchema extends BlockSchema>(props: {editor: BlockNoteEditor<BSchema>}) => {
+  const [url, setUrl] = useState<string>(props.editor.getSelectedLinkUrl() || '')
   const [text, setText] = useState<string>(props.editor.getSelectedText() || '')
   const [isOpen, setIsOpen] = useState(false)
 
@@ -36,13 +23,10 @@ export const MobileLinkToolbarButton = <BSchema extends BlockSchema>(props: {
   })
 
   useEffect(() => {
-    const removeListener = props.editor.hyperlinkToolbar.on(
-      'update',
-      (state) => {
-        setText(state.text || '')
-        setUrl(state.url || '')
-      },
-    )
+    const removeListener = props.editor.hyperlinkToolbar.on('update', (state) => {
+      setText(state.text || '')
+      setUrl(state.url || '')
+    })
 
     return () => removeListener()
   }, [props.editor])
@@ -70,9 +54,7 @@ export const MobileLinkToolbarButton = <BSchema extends BlockSchema>(props: {
         // @ts-ignore
         const linkMark = linkMarks.find((mark) => mark.type.name == 'link')
         view.dispatch(
-          view.state.tr
-            .removeMark($urlPos.start(), $urlPos.end(), linkMark)
-            .setMeta('preventAutolink', true),
+          view.state.tr.removeMark($urlPos.start(), $urlPos.end(), linkMark).setMeta('preventAutolink', true),
         )
         view.focus()
       }
@@ -108,12 +90,7 @@ export const MobileLinkToolbarButton = <BSchema extends BlockSchema>(props: {
             <DialogHeader className="border-b p-4">
               <div className="flex items-center justify-between">
                 <DialogTitle>Add Link</DialogTitle>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setIsOpen(false)}
-                  className="h-8 w-8"
-                >
+                <Button size="icon" variant="ghost" onClick={() => setIsOpen(false)} className="h-8 w-8">
                   <X className="h-4 w-4" />
                 </Button>
               </div>
@@ -158,14 +135,11 @@ function LinkSearchInput({
   const [focusedIndex, setFocusedIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
 
-  const isHttpUrl = (url: string) =>
-    url.startsWith('http://') || url.startsWith('https://') || url.includes('.')
-  const isHypermediaUrl = (url: string) =>
-    url.startsWith('hm://') || unpackHmId(url) !== null
+  const isHttpUrl = (url: string) => url.startsWith('http://') || url.startsWith('https://') || url.includes('.')
+  const isHypermediaUrl = (url: string) => url.startsWith('hm://') || unpackHmId(url) !== null
 
   const searchResults = useSearch(searchValue, {
-    enabled:
-      !!searchValue && !isHttpUrl(searchValue) && !isHypermediaUrl(searchValue),
+    enabled: !!searchValue && !isHttpUrl(searchValue) && !isHypermediaUrl(searchValue),
     includeBody: false,
     contextSize: 48 - searchValue.length,
   })
@@ -209,20 +183,14 @@ function LinkSearchInput({
               if (resolved) {
                 const baseId = unpackHmId(resolved.id)
                 if (baseId) {
-                  const u = new URL(
-                    url.startsWith('http')
-                      ? url
-                      : `https://${url.replace('hm://', '')}`,
-                  )
+                  const u = new URL(url.startsWith('http') ? url : `https://${url.replace('hm://', '')}`)
                   const latest = u.searchParams.get('l')
                   const blockRef = u.hash?.slice(1)
                   const id = hmId(baseId.uid, {
                     path: baseId.path,
                     latest: latest === '',
                   })
-                  const finalUrl = `${packHmId(id)}${
-                    blockRef ? `#${blockRef}` : ''
-                  }`
+                  const finalUrl = `${packHmId(id)}${blockRef ? `#${blockRef}` : ''}`
                   onLinkSelect(finalUrl)
                   return
                 }

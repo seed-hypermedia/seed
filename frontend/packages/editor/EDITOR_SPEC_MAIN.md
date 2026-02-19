@@ -1,13 +1,12 @@
 # Editor Technical Specification (main branch)
 
-This document describes the ProseMirror-based editor architecture as it exists
-on the `main` branch. Use this as context when working on editor features.
+This document describes the ProseMirror-based editor architecture as it exists on the `main` branch. Use this as context
+when working on editor features.
 
 ## Overview
 
-The editor is built on **TipTap** (a wrapper around ProseMirror) and uses a
-**BlockNote**-derived architecture. Every document is a tree of "blocks" — each
-block has an ID, a content type (paragraph, heading, image, etc.), optional
+The editor is built on **TipTap** (a wrapper around ProseMirror) and uses a **BlockNote**-derived architecture. Every
+document is a tree of "blocks" — each block has an ID, a content type (paragraph, heading, image, etc.), optional
 children, and belongs to a group (list, blockquote, or plain group).
 
 Key packages:
@@ -88,17 +87,13 @@ export const BlockContainer = Node.create({
 ```
 
 - **group `blockGroupChild`** — used as content of `blockGroup`
-- **group `block`** — used by helpers like `getNearestBlockPos` with
-  `isInGroup('block')`
-- **content** — exactly one content node from group `blockContent`, optionally
-  followed by a `blockGroup`
-- **Attributes:** `id`, `blockColor`, `blockStyle`, `depth`, `depthChange`
-  (defined in `BlockAttributes.ts`)
+- **group `block`** — used by helpers like `getNearestBlockPos` with `isInGroup('block')`
+- **content** — exactly one content node from group `blockContent`, optionally followed by a `blockGroup`
+- **Attributes:** `id`, `blockColor`, `blockStyle`, `depth`, `depthChange` (defined in `BlockAttributes.ts`)
 
 ### parseHTML
 
-Matches `<li>` (priority 300) and `<div data-node-type="blockContainer">`
-(priority 200).
+Matches `<li>` (priority 300) and `<div data-node-type="blockContainer">` (priority 200).
 
 ### renderHTML — Two Nested Divs
 
@@ -139,8 +134,8 @@ Defined inline in `BlockContainer.ts`:
 - **SelectionPlugin** — manages selection decorations
 - **ClickSelectionPlugin** — handles shift+click range selection
 - **PastePlugin** — handles paste into image caption
-- **headingBoxPlugin** — adds `selection-in-section` class to blockContainer
-  containing nearest heading when cursor is in its subtree
+- **headingBoxPlugin** — adds `selection-in-section` class to blockContainer containing nearest heading when cursor is
+  in its subtree
 - **Em-dash plugin** — replaces `--` with `—`
 
 ---
@@ -186,18 +181,13 @@ function listNode(listType) {
 
 `BlockGroup.ts` contains extensive paste normalization logic:
 
-- `wrapBlockContentInContainer(node, schema)` — wraps a bare content node in a
-  blockContainer
-- `wrapBlockGroupInContainer(groupNode, schema, prevNode)` — wraps a bare
-  blockGroup in a blockContainer, merging with previous if possible
-- `normalizeFragment(fragment, schema)` — ensures all children of a blockGroup
-  are valid blockContainers
-- `splitBlockContainerNode(node, schema)` — splits a blockContainer that has
-  multiple content children
-- `normalizeBlockContainer(node, schema)` — ensures a blockContainer has exactly
-  one content child + optional blockGroup
-- `transformPasted` plugin processes all pasted content through these
-  normalizers
+- `wrapBlockContentInContainer(node, schema)` — wraps a bare content node in a blockContainer
+- `wrapBlockGroupInContainer(groupNode, schema, prevNode)` — wraps a bare blockGroup in a blockContainer, merging with
+  previous if possible
+- `normalizeFragment(fragment, schema)` — ensures all children of a blockGroup are valid blockContainers
+- `splitBlockContainerNode(node, schema)` — splits a blockContainer that has multiple content children
+- `normalizeBlockContainer(node, schema)` — ensures a blockContainer has exactly one content child + optional blockGroup
+- `transformPasted` plugin processes all pasted content through these normalizers
 
 ---
 
@@ -230,10 +220,7 @@ export function createBlockSpec(blockConfig, blockSchema) {
 
           // WRAPPER DIV around the block's rendered content
           const blockContent = document.createElement('div')
-          blockContent.className = mergeCSSClasses(
-            styles.blockContent,
-            blockConfig.type,
-          )
+          blockContent.className = mergeCSSClasses(styles.blockContent, blockConfig.type)
           blockContent.setAttribute('data-content-type', blockConfig.type)
           blockContent.appendChild(rendered.dom)
 
@@ -249,8 +236,7 @@ export function createBlockSpec(blockConfig, blockSchema) {
 }
 ```
 
-Each content block gets wrapped in a
-`<div class="blockContent" data-content-type="...">` by the NodeView.
+Each content block gets wrapped in a `<div class="blockContent" data-content-type="...">` by the NodeView.
 
 ### Paragraph
 
@@ -333,11 +319,9 @@ export const CodeBlock = Node.create({
 </div>
 ```
 
-**DOM depth per block:** ~7 levels (blockGroup > blockOuter > block >
-blockContent > element > inlineContent > text)
+**DOM depth per block:** ~7 levels (blockGroup > blockOuter > block > blockContent > element > inlineContent > text)
 
-Note: `<div>` elements inside `<ol>`/`<ul>` use `display: list-item !important`
-via CSS.
+Note: `<div>` elements inside `<ol>`/`<ul>` use `display: list-item !important` via CSS.
 
 ---
 
@@ -368,11 +352,9 @@ export type BlockInfo = {
 }
 ```
 
-**`getNearestBlockPos(doc, pos)`** — walks up the tree using
-`isInGroup('block')` to find the nearest blockContainer.
+**`getNearestBlockPos(doc, pos)`** — walks up the tree using `isInGroup('block')` to find the nearest blockContainer.
 
-**`getBlockInfoWithManualOffset(node, offset)`** — iterates blockContainer
-children:
+**`getBlockInfoWithManualOffset(node, offset)`** — iterates blockContainer children:
 
 - Child with `spec.group === 'blockContent'` → blockContent
 - Child with `type.name === 'blockGroup'` → childContainer
@@ -394,9 +376,7 @@ export type GroupInfo = {
 ### findBlock
 
 ```ts
-export const findBlock = findParentNode(
-  (node) => node.type.name === 'blockContainer',
-)
+export const findBlock = findParentNode((node) => node.type.name === 'blockContainer')
 ```
 
 ---
@@ -418,8 +398,7 @@ const types = [
 
 ### nestBlock / unnestBlock
 
-- `nestBlock` — custom `sinkListItem` using `ReplaceAroundStep` to wrap block in
-  `blockContainer > blockGroup`
+- `nestBlock` — custom `sinkListItem` using `ReplaceAroundStep` to wrap block in `blockContainer > blockGroup`
 - `unnestBlock` — custom `liftListItem` that handles sibling blocks
 - `canNestBlock` / `canUnnestBlock` — checks for preceding sibling / depth > 1
 
@@ -427,21 +406,19 @@ const types = [
 
 1. `updateChildren(block, state, blockInfo)` — replaces or creates blockGroup
 2. `updateBlockContentNode(...)` — uses `setNodeMarkup` or `replaceWith`
-3. Sets blockContainer attributes:
-   `tr.setNodeMarkup(pos, type, {...attrs, ...props})`
+3. Sets blockContainer attributes: `tr.setNodeMarkup(pos, type, {...attrs, ...props})`
 
-Uses `isInGroup('block')` to detect if newNodeType is a blockContainer type, and
-`isInGroup('blockContent')` for content types.
+Uses `isInGroup('block')` to detect if newNodeType is a blockContainer type, and `isInGroup('blockContent')` for content
+types.
 
 ### updateGroup
 
-Changes `listType` on a blockGroup node. Handles type conversion (Group ↔
-Ordered ↔ Unordered ↔ Blockquote) and updates child `listLevel` attributes.
+Changes `listType` on a blockGroup node. Handles type conversion (Group ↔ Ordered ↔ Unordered ↔ Blockquote) and
+updates child `listLevel` attributes.
 
 ### replaceBlocks
 
-Traverses document finding blocks by ID using `isInGroup('block')`, inserts
-replacements, deletes originals.
+Traverses document finding blocks by ID using `isInGroup('block')`, inserts replacements, deletes originals.
 
 ---
 
@@ -455,10 +432,7 @@ replacements, deletes originals.
 function blockToNode(block, schema) {
   const contentNode = schema.nodes[type].create(props, inlineContent)
   const children = block.children.map((child) => blockToNode(child, schema))
-  const groupNode = schema.nodes['blockGroup'].create(
-    {listType: 'Group'},
-    children,
-  )
+  const groupNode = schema.nodes['blockGroup'].create({listType: 'Group'}, children)
   return schema.nodes['blockContainer'].create(
     {id, ...props},
     children.length > 0 ? [contentNode, groupNode] : contentNode,
@@ -491,8 +465,7 @@ function nodeToBlock(node, schema, cache) {
 
 Converts BlockNote internal HTML → standard HTML for clipboard/export:
 
-- Removes `blockOuter` wrapper: walks
-  `blockOuter > blockContainer > blockContent`
+- Removes `blockOuter` wrapper: walks `blockOuter > blockContainer > blockContent`
 - Extracts the semantic element from inside `blockContent`
 - Wraps list items in proper `<ul>`/`<ol>` elements
 - Lifts nested blockGroups for non-list types
@@ -550,10 +523,8 @@ function getBlockNoteExtensions(opts) {
 
 Key classes:
 
-- `.blockOuter` — outer wrapper, no display set (defaults to `block`); becomes
-  `display: list-item` in lists
-- `.block` — inner wrapper with
-  `display: flex; flex-direction: column; position: relative`
+- `.blockOuter` — outer wrapper, no display set (defaults to `block`); becomes `display: list-item` in lists
+- `.block` — inner wrapper with `display: flex; flex-direction: column; position: relative`
 - `.blockContent` — `padding: 12px 0 3px 0; flex-grow: 1`
 - `.blockGroup .blockGroup` — `margin-left: 1.5em` (nesting indent)
 - `.inlineContent` — `font-size: 0.9em`
@@ -584,9 +555,7 @@ Heading sizes via nesting depth:
 [data-node-type='blockGroup'] [data-content-type='heading'] {
   --level: 30px;
 }
-[data-node-type='blockGroup']
-  [data-node-type='blockGroup']
-  [data-content-type='heading'] {
+[data-node-type='blockGroup'] [data-node-type='blockGroup'] [data-content-type='heading'] {
   --level: 24px;
 }
 /* ...deeper nesting = smaller */
@@ -606,17 +575,14 @@ Placeholders:
 ### editor.css (Global)
 
 - `.selection-in-section::before` — heading section highlight background
-- `[data-node-type='block-outer']` selectors for marker styling and heading
-  margins
-- `.block-heading + [data-node-type='blockGroup']` — removes extra margin for
-  group children of headings
+- `[data-node-type='block-outer']` selectors for marker styling and heading margins
+- `.block-heading + [data-node-type='blockGroup']` — removes extra margin for group children of headings
 
 ---
 
 ## headingBoxPlugin
 
-Decorates the blockContainer that contains the nearest heading when cursor is in
-its subtree:
+Decorates the blockContainer that contains the nearest heading when cursor is in its subtree:
 
 ```ts
 function getHeadingDecorations(state) {
@@ -629,10 +595,7 @@ function getHeadingDecorations(state) {
 function getNearestHeadingFromPos(state, pos) {
   // Walk up tree, find blockContainer with heading as firstChild
   for (let depth = maxDepth; depth >= 0; depth--) {
-    if (
-      node.type.name === 'blockContainer' &&
-      node.firstChild?.type.name === 'heading'
-    ) {
+    if (node.type.name === 'blockContainer' && node.firstChild?.type.name === 'heading') {
       return {depth, groupStartPos, heading, group: node, $pos}
     }
   }

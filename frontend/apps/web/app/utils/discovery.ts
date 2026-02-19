@@ -1,11 +1,6 @@
 import {grpcClient} from '@/client.server'
 import {getDocument} from '@/loaders'
-import {
-  HMBlockNode,
-  HMCommentSchema,
-  hmId,
-  hmIdPathToEntityQueryPath,
-} from '@shm/shared'
+import {HMBlockNode, HMCommentSchema, hmId, hmIdPathToEntityQueryPath} from '@shm/shared'
 import {BIG_INT, DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {findIpfsUrlCid} from '@shm/ui/get-file-url'
@@ -30,17 +25,11 @@ export async function discoverDocument(
   }
   return await tryUntilSuccess(async () => {
     try {
-      const discoverResp =
-        await grpcClient.entities.discoverEntity(discoverRequest)
-      if (checkDiscoverySuccess(discoverResp.version))
-        return {version: discoverResp.version}
+      const discoverResp = await grpcClient.entities.discoverEntity(discoverRequest)
+      if (checkDiscoverySuccess(discoverResp.version)) return {version: discoverResp.version}
       return null
     } catch (e) {
-      console.warn(
-        `discoverEntity error on hm://${uid}${hmIdPathToEntityQueryPath(
-          path,
-        )},  error: ${e}`,
-      )
+      console.warn(`discoverEntity error on hm://${uid}${hmIdPathToEntityQueryPath(path)},  error: ${e}`)
       // becaue the discovery sometimes errors randomly, we still need to getDocument to get the equivalent of discoverResp.version
       const doc = await grpcClient.documents.getDocument({
         account: uid,
@@ -55,11 +44,7 @@ export async function discoverDocument(
   })
 }
 
-export async function discoverMedia(
-  uid: string,
-  path: string[],
-  version?: string,
-) {
+export async function discoverMedia(uid: string, path: string[], version?: string) {
   const allReferencdeIpfsCids = new Set<string>()
 
   function extractIpfsCids(blocks: Array<HMBlockNode>) {
@@ -88,9 +73,7 @@ export async function discoverMedia(
     pageSize: BIG_INT,
   })
   comments.comments.forEach((c) => {
-    const comment = HMCommentSchema.parse(
-      c.toJson({emitDefaultValues: true, enumAsInteger: false}),
-    )
+    const comment = HMCommentSchema.parse(c.toJson({emitDefaultValues: true, enumAsInteger: false}))
     extractIpfsCids(comment.content)
   })
   await Promise.all(

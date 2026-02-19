@@ -18,9 +18,7 @@ export function getParentPaths(path?: string[] | null): string[][] {
  * Parent breadcrumbs are unversioned; the current breadcrumb preserves
  * the document's version/latest flags so it matches the active resource query.
  */
-export function getBreadcrumbDocumentIds(
-  docId: UnpackedHypermediaId,
-): UnpackedHypermediaId[] {
+export function getBreadcrumbDocumentIds(docId: UnpackedHypermediaId): UnpackedHypermediaId[] {
   const parentPaths = getParentPaths(docId.path)
   const lastPathIndex = parentPaths.length - 1
 

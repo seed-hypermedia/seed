@@ -24,15 +24,7 @@ import {useImageUrl} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SmallListItem} from '@shm/ui/list-item'
 import {SizableText} from '@shm/ui/text'
-import {
-  AlertCircle,
-  ChevronDown,
-  ChevronRight,
-  Contact,
-  File,
-  Library,
-  Lock,
-} from 'lucide-react'
+import {AlertCircle, ChevronDown, ChevronRight, Contact, File, Library, Lock} from 'lucide-react'
 import React, {memo} from 'react'
 import {CreateDocumentButton} from './create-doc-button'
 import {GenericSidebarContainer} from './sidebar-base'
@@ -147,9 +139,7 @@ function BookmarksSection() {
             <ErrorListItem
               key={bookmark.data.id.id}
               id={bookmark.data.id}
-              active={
-                route.key === 'document' && route.id.id === bookmark.data.id.id
-              }
+              active={route.key === 'document' && route.id.id === bookmark.data.id.id}
             />
           )
         }
@@ -173,13 +163,7 @@ function BookmarksSection() {
   )
 }
 
-function ErrorListItem({
-  id,
-  active,
-}: {
-  id: UnpackedHypermediaId
-  active: boolean
-}) {
+function ErrorListItem({id, active}: {id: UnpackedHypermediaId; active: boolean}) {
   const linkProps = useRouteLink({key: 'document', id})
   return (
     <SmallListItem
@@ -212,9 +196,7 @@ function BookmarkListItem({
       docId={id.id}
       active={active}
       title={metadata?.name || 'Untitled'}
-      icon={
-        <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />
-      }
+      icon={<HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />}
       accessory={visibility === 'PRIVATE' ? <Lock size={12} /> : null}
       {...linkProps}
     />
@@ -228,9 +210,7 @@ function SubscriptionsSection() {
   const accountList = useContactList()
   // filter out subscription to current selected account (auto-subscribed on creation)
   const filteredSubs =
-    subscriptions.data?.filter(
-      (sub) => sub.id.uid !== selectedAccountId || sub.id.path?.length,
-    ) || []
+    subscriptions.data?.filter((sub) => sub.id.uid !== selectedAccountId || sub.id.path?.length) || []
   // sort by activity using the backend's account order (already sorted by activity desc)
   const sortedSubs = [...filteredSubs].sort((a, b) => {
     const accounts = accountList.data?.accounts || []
@@ -273,9 +253,7 @@ function SubscriptionsSection() {
             <ErrorListItem
               key={entity.data.id.id}
               id={entity.data.id}
-              active={
-                route.key === 'document' && route.id.id === entity.data.id.id
-              }
+              active={route.key === 'document' && route.id.id === entity.data.id.id}
             />
           )
         }
@@ -287,9 +265,7 @@ function SubscriptionsSection() {
         const docData = subscribedDocs.data?.get(id.id)
 
         // For home subscriptions, also check account-level data
-        const account = isHomeSubscription
-          ? accounts.find((acc) => acc.id === id.uid)
-          : undefined
+        const account = isHomeSubscription ? accounts.find((acc) => acc.id === id.uid) : undefined
 
         // Skip subscriptions with no discoverable data (not synced yet)
         if (!docData && !account && !document?.metadata?.name) {
@@ -300,9 +276,7 @@ function SubscriptionsSection() {
         // 1. For home subs: prefer contact name override, then docData, then entity
         // 2. For sub-docs: prefer docData, then entity
         const baseMetadata = docData?.metadata || document?.metadata
-        const metadata = isHomeSubscription
-          ? getContactMetadata(id.uid, baseMetadata, contacts.data)
-          : baseMetadata
+        const metadata = isHomeSubscription ? getContactMetadata(id.uid, baseMetadata, contacts.data) : baseMetadata
         if (!metadata) return null
 
         // Use account-level activity for home subs (if available), else document-level
@@ -313,9 +287,7 @@ function SubscriptionsSection() {
           // Prefer account-level activity for home subscriptions
           activitySummary = account.activitySummary as HMActivitySummary
           latestComment = activitySummary?.latestCommentId
-            ? comments.data?.find(
-                (c) => c?.id === activitySummary?.latestCommentId,
-              )
+            ? comments.data?.find((c) => c?.id === activitySummary?.latestCommentId)
             : undefined
         } else {
           // Fall back to document-level activity
@@ -364,9 +336,7 @@ function SubscriptionListItem({
       key={id.id}
       docId={id.id}
       active={active}
-      icon={
-        <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />
-      }
+      icon={<HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />}
       {...linkProps}
     >
       <div className="flex w-full flex-1 flex-col overflow-hidden">
@@ -390,9 +360,7 @@ function SubscriptionListItem({
 }
 
 function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
-  const resource = useResource(
-    selectedAccountId ? hmId(selectedAccountId) : undefined,
-  )
+  const resource = useResource(selectedAccountId ? hmId(selectedAccountId) : undefined)
   const imageUrl = useImageUrl()
   const navigate = useNavigate()
 
@@ -418,9 +386,7 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
           url={document.metadata.icon ? imageUrl(document.metadata.icon) : ''}
           className="shrink-0"
         />
-        <span className="truncate text-sm font-bold select-none">
-          {document.metadata.name}
-        </span>
+        <span className="truncate text-sm font-bold select-none">{document.metadata.name}</span>
       </div>
     </SidebarSection>
   )

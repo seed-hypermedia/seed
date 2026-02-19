@@ -79,12 +79,8 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
 }
 
 function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
-  const a1 = (b1 as GenericBlockFields).attributes as
-    | Record<string, unknown>
-    | undefined
-  const a2 = (b2 as GenericBlockFields).attributes as
-    | Record<string, unknown>
-    | undefined
+  const a1 = (b1 as GenericBlockFields).attributes as Record<string, unknown> | undefined
+  const a2 = (b2 as GenericBlockFields).attributes as Record<string, unknown> | undefined
 
   if (!a1 && !a2) return true
   if (!a1 || !a2) {
@@ -116,28 +112,16 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
 
   const result = attributesToCompare.every((attr) => {
     if (attr === 'query') {
-      return isQueryEqual(
-        a1.query as HMQuery | undefined,
-        a2.query as HMQuery | undefined,
-      )
+      return isQueryEqual(a1.query as HMQuery | undefined, a2.query as HMQuery | undefined)
     }
-    return (
-      (a1[attr] === undefined && a2[attr] === undefined) ||
-      a1[attr] === a2[attr]
-    )
+    return (a1[attr] === undefined && a2[attr] === undefined) || a1[attr] === a2[attr]
   })
 
   if (!result) {
     console.log('Block attributes not equal. Differences found:', {
       blockId: b1.id,
       differences: attributesToCompare
-        .filter(
-          (attr) =>
-            !(
-              (a1[attr] === undefined && a2[attr] === undefined) ||
-              a1[attr] === a2[attr]
-            ),
-        )
+        .filter((attr) => !((a1[attr] === undefined && a2[attr] === undefined) || a1[attr] === a2[attr]))
         .map((attr) => ({
           attribute: attr,
           a1Value: a1[attr],

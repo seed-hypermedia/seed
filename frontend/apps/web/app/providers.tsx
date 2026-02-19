@@ -7,31 +7,16 @@ import {
   UniversalAppProvider,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {
-  DAEMON_FILE_URL,
-  SEED_ASSET_HOST,
-  SITE_BASE_URL,
-} from '@shm/shared/constants'
+import {DAEMON_FILE_URL, SEED_ASSET_HOST, SITE_BASE_URL} from '@shm/shared/constants'
 import {languagePacks} from '@shm/shared/language-packs'
 import {defaultRoute} from '@shm/shared/routes'
-import {
-  NavAction,
-  NavContextProvider,
-  NavState,
-  navStateReducer,
-} from '@shm/shared/utils/navigation'
+import {NavAction, NavContextProvider, NavState, navStateReducer} from '@shm/shared/utils/navigation'
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Spinner} from '@shm/ui/spinner'
 import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
-import {
-  DehydratedState,
-  hydrate,
-  QueryClient,
-  QueryClientProvider,
-  useQueryClient,
-} from '@tanstack/react-query'
+import {DehydratedState, hydrate, QueryClient, QueryClientProvider, useQueryClient} from '@tanstack/react-query'
 import {createContext, useContext, useEffect, useMemo, useState} from 'react'
 import {webUniversalClient} from './universal-client'
 
@@ -83,9 +68,7 @@ export const Providers = (props: {children: any}) => {
   const [client] = useState(getQueryClient)
   return (
     <ThemeProvider>
-      <QueryClientProvider client={client}>
-        {props.children}
-      </QueryClientProvider>
+      <QueryClientProvider client={client}>{props.children}</QueryClientProvider>
     </ThemeProvider>
   )
 }
@@ -127,19 +110,13 @@ function NavigationLoadingProvider({children}: {children: React.ReactNode}) {
   )
 }
 
-export function NavigationLoadingContent({
-  children,
-  className,
-}: {
-  children: React.ReactNode
-  className?: string
-}) {
+export function NavigationLoadingContent({children, className}: {children: React.ReactNode; className?: string}) {
   const isLoading = useIsNavigationLoading()
   return (
     <div
-      className={`transition-opacity duration-200 ${
-        isLoading ? 'pointer-events-none opacity-50' : ''
-      } ${className || ''}`}
+      className={`transition-opacity duration-200 ${isLoading ? 'pointer-events-none opacity-50' : ''} ${
+        className || ''
+      }`}
     >
       {children}
     </div>
@@ -150,9 +127,7 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     // Check system preference on initial load
     if (typeof window !== 'undefined') {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light'
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
     }
     return 'light'
   })
@@ -303,9 +278,7 @@ export function WebSiteProvider(props: {
         toast.success('Comment link copied to clipboard')
       }}
     >
-      <NavContextProvider value={navigation}>
-        {props.children}
-      </NavContextProvider>
+      <NavContextProvider value={navigation}>{props.children}</NavContextProvider>
     </UniversalAppProvider>
   )
 }

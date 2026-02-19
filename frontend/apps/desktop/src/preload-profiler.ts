@@ -6,8 +6,7 @@ import {contextBridge, ipcRenderer} from 'electron'
 
 // Expose IPC to the profiler window
 contextBridge.exposeInMainWorld('ipcRenderer', {
-  invoke: (channel: string, ...args: any[]) =>
-    ipcRenderer.invoke(channel, ...args),
+  invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args),
   on: (channel: string, listener: (event: any, ...args: any[]) => void) => {
     ipcRenderer.on(channel, listener)
     return () => ipcRenderer.removeListener(channel, listener)
@@ -19,12 +18,8 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
   if (module === 'electron') {
     return {
       ipcRenderer: {
-        invoke: (channel: string, ...args: any[]) =>
-          ipcRenderer.invoke(channel, ...args),
-        on: (
-          channel: string,
-          listener: (event: any, ...args: any[]) => void,
-        ) => {
+        invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args),
+        on: (channel: string, listener: (event: any, ...args: any[]) => void) => {
           ipcRenderer.on(channel, listener)
         },
       },

@@ -5,15 +5,7 @@ import rehypeStringify from 'rehype-stringify'
 import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import {unified} from 'unified'
-import {
-  Block,
-  BlockNoteEditor,
-  BlockSchema,
-  BNLink,
-  nodeToBlock,
-  StyledText,
-  Styles,
-} from '../..'
+import {Block, BlockNoteEditor, BlockSchema, BNLink, nodeToBlock, StyledText, Styles} from '../..'
 import {remarkCodeClass} from './RemarkCodeClass'
 import {remarkImageWidth} from './RemarkImageWidth'
 
@@ -90,20 +82,10 @@ const parseImageCaptionStyles = (content: string): (StyledText | BNLink)[] => {
       const styles: Styles = {}
 
       // Set styles based on tags
-      if (element.tagName === 'B' || element.style.fontWeight === 'bold')
-        styles.bold = true
-      if (element.tagName === 'I' || element.style.fontStyle === 'italic')
-        styles.italic = true
-      if (
-        element.tagName === 'U' ||
-        element.style.textDecoration === 'underline'
-      )
-        styles.underline = true
-      if (
-        element.tagName === 'S' ||
-        element.style.textDecoration === 'line-through'
-      )
-        styles.strike = true
+      if (element.tagName === 'B' || element.style.fontWeight === 'bold') styles.bold = true
+      if (element.tagName === 'I' || element.style.fontStyle === 'italic') styles.italic = true
+      if (element.tagName === 'U' || element.style.textDecoration === 'underline') styles.underline = true
+      if (element.tagName === 'S' || element.style.textDecoration === 'line-through') styles.strike = true
       if (element.tagName === 'CODE') styles.code = true
 
       if (element.tagName === 'A' && element.hasAttribute('href')) {
@@ -138,19 +120,13 @@ const parseImageCaptionStyles = (content: string): (StyledText | BNLink)[] => {
   return styledContent
 }
 
-export const processMediaMarkdown = async (
-  markdownContent: string,
-  directoryPath: string,
-) => {
+export const processMediaMarkdown = async (markdownContent: string, directoryPath: string) => {
   const filePattern = /\[([^\]]+)\]\\\(([^\s]+\.[^\s]+) "size=(\d+)"\)/g
   const videoPattern = /!\\\[([^\]]*)\]\\\(([^\s]+) "width=(\d*|undefined)"\)/g
   const imagePattern = /!\[([^\]]*)\]\(([^\s]+\.[^\s]+)(?: "([^"]*)")?\)/g
 
   const mediaMatches = []
-  const mediaRegex = new RegExp(
-    `${filePattern.source}|${videoPattern.source}|${imagePattern.source}`,
-    'g',
-  )
+  const mediaRegex = new RegExp(`${filePattern.source}|${videoPattern.source}|${imagePattern.source}`, 'g')
   let match
   while ((match = mediaRegex.exec(markdownContent)) !== null) {
     mediaMatches.push(match)
@@ -172,9 +148,7 @@ export const processMediaMarkdown = async (
       try {
         const filePath = directoryPath + '/' + url
         const fileResponse = await readMediaFile(filePath)
-        const fileContent = Uint8Array.from(atob(fileResponse.content), (c) =>
-          c.charCodeAt(0),
-        )
+        const fileContent = Uint8Array.from(atob(fileResponse.content), (c) => c.charCodeAt(0))
         const file = new File([fileContent], fileResponse.fileName, {
           type: fileResponse.mimeType,
         })
@@ -229,10 +203,7 @@ function unwrapImagesFromParagraphs(doc: Document) {
   return doc
 }
 
-export const MarkdownToBlocks = async (
-  markdown: string,
-  editor: BlockNoteEditor,
-) => {
+export const MarkdownToBlocks = async (markdown: string, editor: BlockNoteEditor) => {
   const blocks: Block<BlockSchema>[] = []
   const organizedBlocks: Block<BlockSchema>[] = []
 
@@ -325,10 +296,7 @@ export const MarkdownToBlocks = async (
               videoProps = {
                 name: videoMatch[1],
                 url: videoMatch[2],
-                width:
-                  videoMatch[3] && videoMatch[3] !== 'undefined'
-                    ? videoMatch[3]
-                    : '',
+                width: videoMatch[3] && videoMatch[3] !== 'undefined' ? videoMatch[3] : '',
               }
             }
             blockToInsert = {

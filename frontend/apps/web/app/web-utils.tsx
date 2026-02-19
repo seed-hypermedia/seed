@@ -17,8 +17,7 @@ export function useWebAccountButton() {
 
   const myAccount = useAccount(keyPair?.id || undefined, {
     retry: 3,
-    retryDelay: (attemptIndex: number) =>
-      Math.min(1000 * 2 ** attemptIndex, 30000),
+    retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
     refetchOnWindowFocus: false,
   })
 
@@ -49,12 +48,7 @@ export function useWebAccountButton() {
 
   const accountButton = account?.id ? (
     <a {...profileLinkProps} className="flex rounded-full shadow-lg">
-      <HMIcon
-        id={account.id}
-        name={account.metadata?.name}
-        icon={account.metadata?.icon}
-        size={32}
-      />
+      <HMIcon id={account.id} name={account.metadata?.name} icon={account.metadata?.icon} size={32} />
     </a>
   ) : (
     <button
@@ -75,10 +69,7 @@ export function useWebAccountButton() {
 export function useWebMenuItems(): MenuItemType[] {
   const route = useNavRoute()
   const gwUrl = DEFAULT_GATEWAY_URL
-  const gatewayLink = useMemo(
-    () => routeToUrl(route, {hostname: gwUrl}),
-    [route, gwUrl],
-  )
+  const gatewayLink = useMemo(() => routeToUrl(route, {hostname: gwUrl}), [route, gwUrl])
 
   return useMemo(
     () => [
@@ -135,9 +126,7 @@ export function WebAccountFooter({
     }
 
     const attachToFooter = () => {
-      const nextFooter = document.querySelector<HTMLElement>(
-        '[data-page-footer="true"]',
-      )
+      const nextFooter = document.querySelector<HTMLElement>('[data-page-footer="true"]')
       if (!nextFooter || nextFooter === pageFooter) return
 
       cleanupObservers()
@@ -149,9 +138,7 @@ export function WebAccountFooter({
           return
         }
         // Keep the floating account button above the currently visible footer.
-        setFooterLiftPx(
-          Math.ceil(pageFooter.getBoundingClientRect().height) + 8,
-        )
+        setFooterLiftPx(Math.ceil(pageFooter.getBoundingClientRect().height) + 8)
       }
 
       intersectionObserver = new IntersectionObserver((entries) => {

@@ -25,9 +25,7 @@ export class BadRequestError extends APIError {
   }
 }
 
-export function apiGetter<ResultType>(
-  handler: (req: ParsedRequest) => ResultType,
-) {
+export function apiGetter<ResultType>(handler: (req: ParsedRequest) => ResultType) {
   const apiGet: LoaderFunction = async ({request}) => {
     const parsedRequest = parseRequest(request)
     try {
@@ -43,22 +41,14 @@ export function apiGetter<ResultType>(
       if (e instanceof APIError) {
         return withCors(json({error: e.message}, {status: e.status}))
       }
-      return withCors(
-        json(
-          {error: e instanceof Error ? e.message : 'Unknown error'},
-          {status: 500},
-        ),
-      )
+      return withCors(json({error: e instanceof Error ? e.message : 'Unknown error'}, {status: 500}))
     }
   }
   return apiGet
 }
 
 export function cborApiAction<RequestType, ResultType>(
-  handler: (
-    data: RequestType,
-    other: ParsedRequest & {rawData: ArrayBuffer},
-  ) => ResultType,
+  handler: (data: RequestType, other: ParsedRequest & {rawData: ArrayBuffer}) => ResultType,
 ) {
   const apiAction: ActionFunction = async ({request}) => {
     const parsedRequest = parseRequest(request)
@@ -80,12 +70,7 @@ export function cborApiAction<RequestType, ResultType>(
       if (e instanceof APIError) {
         return withCors(json({error: e.message}, {status: e.status}))
       }
-      return withCors(
-        json(
-          {error: e instanceof Error ? e.message : 'Unknown error'},
-          {status: 500},
-        ),
-      )
+      return withCors(json({error: e instanceof Error ? e.message : 'Unknown error'}, {status: 500}))
     }
   }
   return apiAction

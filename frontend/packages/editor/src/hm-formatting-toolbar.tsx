@@ -11,24 +11,12 @@ import {
   Underline,
   UnorderedList,
 } from '@shm/ui/icons'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@shm/ui/select-dropdown'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {useState} from 'react'
-import {
-  BlockNoteEditor,
-  BlockSpec,
-  getBlockInfoFromSelection,
-  PropSchema,
-  updateGroupCommand,
-} from './blocknote/core'
+import {BlockNoteEditor, BlockSpec, getBlockInfoFromSelection, PropSchema, updateGroupCommand} from './blocknote/core'
 import {getGroupInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
 import {
   BlockTypeDropdownItem,
@@ -107,9 +95,7 @@ const textTypeOptions = [
   {label: 'Code Block', value: 'code-block'},
 ]
 
-export function HMFormattingToolbar<
-  Schema extends Record<string, BlockSpec<string, PropSchema>>,
->(
+export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<string, PropSchema>>>(
   props: FormattingToolbarProps<Schema> & {
     blockTypeDropdownItems?: BlockTypeDropdownItem[]
   },
@@ -144,15 +130,7 @@ export function HMFormattingToolbar<
       const tiptap = props.editor._tiptapEditor
       const {state} = tiptap
       const {$pos} = getGroupInfoFromPos(state.selection.from, state)
-      tiptap.commands.command(
-        updateGroupCommand(
-          $pos.pos,
-          listType as HMBlockChildrenType,
-          false,
-          false,
-          true,
-        ),
-      )
+      tiptap.commands.command(updateGroupCommand($pos.pos, listType as HMBlockChildrenType, false, false, true))
       setCurrentGroupType(listType)
     }
     setIsTextMarkerDialogOpen(false)
@@ -184,12 +162,7 @@ export function HMFormattingToolbar<
       >
         <div className="text-foreground flex w-full items-center justify-stretch gap-1">
           {toggleStyles.map((item) => (
-            <ToggleStyleButton
-              key={item.style}
-              editor={props.editor}
-              toggleStyle={item.style}
-              {...item}
-            />
+            <ToggleStyleButton key={item.style} editor={props.editor} toggleStyle={item.style} {...item} />
           ))}
 
           {/* Link button - different for mobile/desktop */}
@@ -222,18 +195,9 @@ export function HMFormattingToolbar<
                 if (listType !== currentGroupType) {
                   const tiptap = props.editor._tiptapEditor
                   const {state} = tiptap
-                  const {$pos} = getGroupInfoFromPos(
-                    state.selection.from,
-                    state,
-                  )
+                  const {$pos} = getGroupInfoFromPos(state.selection.from, state)
                   tiptap.commands.command(
-                    updateGroupCommand(
-                      $pos.pos,
-                      listType as HMBlockChildrenType,
-                      false,
-                      false,
-                      true,
-                    ),
+                    updateGroupCommand($pos.pos, listType as HMBlockChildrenType, false, false, true),
                   )
                   setCurrentGroupType(listType)
                 }
@@ -296,9 +260,7 @@ export function HMFormattingToolbar<
   )
 }
 
-function ToggleStyleButton<
-  Schema extends Record<string, BlockSpec<string, PropSchema>>,
->({
+function ToggleStyleButton<Schema extends Record<string, BlockSpec<string, PropSchema>>>({
   editor,
   toggleStyle,
 
@@ -310,9 +272,7 @@ function ToggleStyleButton<
   name: string
   icon: any
 }) {
-  const [active, setActive] = useState<boolean>(
-    toggleStyle in editor.getActiveStyles(),
-  )
+  const [active, setActive] = useState<boolean>(toggleStyle in editor.getActiveStyles())
 
   function toggleCurrentStyle() {
     setActive(toggleStyle in editor.getActiveStyles())
@@ -370,11 +330,7 @@ function FormatDropdown({
         </SelectTrigger>
         <SelectContent>
           {options.map((option) => (
-            <SelectItem
-              key={option.value}
-              value={option.value}
-              className="format-toolbar-item"
-            >
+            <SelectItem key={option.value} value={option.value} className="format-toolbar-item">
               {option.label}
             </SelectItem>
           ))}

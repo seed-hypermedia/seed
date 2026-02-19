@@ -11,13 +11,7 @@ import {useBlockNote} from '@shm/editor/blocknote'
 import {BlockNoteEditor} from '@shm/editor/blocknote/core'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {getSlashMenuItems} from '@shm/editor/slash-menu-items'
-import {
-  getCommentTargetId,
-  getParentPaths,
-  HMAnnotation,
-  UniversalClient,
-  useUniversalClient,
-} from '@shm/shared'
+import {getCommentTargetId, getParentPaths, HMAnnotation, UniversalClient, useUniversalClient} from '@shm/shared'
 import {
   Block,
   CreateDocumentChangeRequest,
@@ -44,12 +38,7 @@ import {
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {
-  prepareHMDocumentInfo,
-  useDirectory,
-  useResource,
-  useResources,
-} from '@shm/shared/models/entity'
+import {prepareHMDocumentInfo, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -59,18 +48,9 @@ import {
   extractDeletes,
   getDocAttributeChanges,
 } from '@shm/shared/utils/document-changes'
-import {
-  createWebHMUrl,
-  hmId,
-  hmIdToURL,
-  packHmId,
-  unpackHmId,
-} from '@shm/shared/utils/entity-id-url'
+import {createWebHMUrl, hmId, hmIdToURL, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
-import {
-  entityQueryPathToHmIdPath,
-  hmIdPathToEntityQueryPath,
-} from '@shm/shared/utils/path-api'
+import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {eventStream} from '@shm/shared/utils/stream'
 import {DocNavigationItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {PushResourceStatus} from '@shm/ui/push-toast'
@@ -127,9 +107,7 @@ export function useAccountDraftList(accountUid?: string) {
   })
 }
 
-export function useDeleteDraft(
-  opts?: UseMutationOptions<void, unknown, string>,
-) {
+export function useDeleteDraft(opts?: UseMutationOptions<void, unknown, string>) {
   const deleteDraft = useMutation({
     mutationFn: (draftId: string) => client.drafts.delete.mutate(draftId),
     onSuccess: (data, input, ctx) => {
@@ -170,26 +148,20 @@ export function sortDocuments(a?: Timestamp, b?: Timestamp) {
   return dateB - dateA
 }
 
-export function getDefaultShortname(
-  docTitle: string | undefined,
-  docId: string,
-) {
+export function getDefaultShortname(docTitle: string | undefined, docId: string) {
   const unpackedId = unpackHmId(docId)
   const idShortname = unpackedId ? unpackedId.uid.slice(0, 5).toLowerCase() : ''
   const kebabName = docTitle ? pathNameify(docTitle) : idShortname
-  const shortName =
-    kebabName.length > 40 ? kebabName.substring(0, 40) : kebabName
+  const shortName = kebabName.length > 40 ? kebabName.substring(0, 40) : kebabName
   return shortName
 }
 
 function useDraftDiagnosis() {
   const appendDraft = useMutation({
-    mutationFn: (input: {draftId: string; event: unknown}) =>
-      client.diagnosis.appendDraftLog.mutate(input),
+    mutationFn: (input: {draftId: string; event: unknown}) => client.diagnosis.appendDraftLog.mutate(input),
   })
   const completeDraft = useMutation({
-    mutationFn: (input: {draftId: string; event: unknown}) =>
-      client.diagnosis.completeDraftLog.mutate(input),
+    mutationFn: (input: {draftId: string; event: unknown}) => client.diagnosis.completeDraftLog.mutate(input),
   })
   return {
     append(draftId: string, event: unknown) {
@@ -212,21 +184,13 @@ export function usePublishResource(
 ) {
   const accts = useMyAccountIds()
   const editEntity = useResource(editId)
-  const editDocument =
-    editEntity.data?.type === 'document' ? editEntity.data.document : undefined
+  const editDocument = editEntity.data?.type === 'document' ? editEntity.data.document : undefined
   const writeRecentSigner = useMutation({
-    mutationFn: (signingKeyName: string) =>
-      client.recentSigners.writeRecentSigner.mutate(signingKeyName),
+    mutationFn: (signingKeyName: string) => client.recentSigners.writeRecentSigner.mutate(signingKeyName),
   })
   return useMutation<HMDocument, any, PublishDraftInput>({
-    mutationFn: async ({
-      draft,
-      destinationId,
-      accountId,
-    }: PublishDraftInput): Promise<HMDocument> => {
-      const blocksMap = editId
-        ? createBlocksMap(editDocument?.content || [], '')
-        : {}
+    mutationFn: async ({draft, destinationId, accountId}: PublishDraftInput): Promise<HMDocument> => {
+      const blocksMap = editId ? createBlocksMap(editDocument?.content || [], '') : {}
       let newContent = removeTrailingBlocks(draft.content || [])
 
       // Fill query blocks for new documents
@@ -238,10 +202,7 @@ export function usePublishResource(
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
 
-      const navigationChanges = getNavigationChanges(
-        draft.navigation,
-        editDocument?.detachedBlocks?.navigation,
-      )
+      const navigationChanges = getNavigationChanges(draft.navigation, editDocument?.detachedBlocks?.navigation)
 
       if (accts.data?.length == 0) {
         dispatchOnboardingDialog(true)
@@ -257,19 +218,13 @@ export function usePublishResource(
 
             let capabilityId = ''
             if (accountId !== destinationId.uid) {
-              const capabilities =
-                await grpcClient.accessControl.listCapabilities({
-                  account: destinationId.uid,
-                  path: hmIdPathToEntityQueryPath(destinationId.path || []),
-                })
+              const capabilities = await grpcClient.accessControl.listCapabilities({
+                account: destinationId.uid,
+                path: hmIdPathToEntityQueryPath(destinationId.path || []),
+              })
 
-              const capability = capabilities.capabilities.find(
-                (cap) => cap.delegate === accountId,
-              )
-              if (!capability)
-                throw new Error(
-                  'Could not find capability for this draft signing account',
-                )
+              const capability = capabilities.capabilities.find((cap) => cap.delegate === accountId)
+              if (!capability) throw new Error('Could not find capability for this draft signing account')
               capabilityId = capability.id
             }
             writeRecentSigner.mutateAsync(accountId).then(() => {
@@ -296,8 +251,7 @@ export function usePublishResource(
               req.visibility = ResourceVisibility.UNSPECIFIED
             }
 
-            const publishedDoc =
-              await grpcClient.documents.createDocumentChange(req)
+            const publishedDoc = await grpcClient.documents.createDocumentChange(req)
             const resultDoc: HMDocument = prepareHMDocument(publishedDoc)
             return resultDoc
           } else {
@@ -306,9 +260,7 @@ export function usePublishResource(
         } catch (error) {
           const connectErr = ConnectError.from(error)
           if (connectErr.rawMessage.includes('path already exists')) {
-            toast.error(
-              `Can't publish to this path. You already have a document at this location.`,
-            )
+            toast.error(`Can't publish to this path. You already have a document at this location.`)
           } else {
             toast.error(`Publish error: ${connectErr.rawMessage}`)
           }
@@ -318,11 +270,7 @@ export function usePublishResource(
       }
       throw new Error('Unhandled publish')
     },
-    onSuccess: (
-      result: HMDocument,
-      variables: PublishDraftInput,
-      context: unknown,
-    ) => {
+    onSuccess: (result: HMDocument, variables: PublishDraftInput, context: unknown) => {
       const resultDocId = hmId(result.account, {
         path: entityQueryPathToHmIdPath(result.path),
       })
@@ -339,16 +287,10 @@ export function usePublishResource(
         invalidateQueries([queryKeys.SITE_LIBRARY, resultDocId.uid])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
         invalidateQueries([queryKeys.DOC_CITATIONS])
-        invalidateQueries([
-          queryKeys.DOCUMENT_INTERACTION_SUMMARY,
-          resultDocId.id,
-        ])
+        invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, resultDocId.id])
         getParentPaths(resultDocId.path).forEach((path) => {
           const parentId = hmId(resultDocId.uid, {path})
-          invalidateQueries([
-            queryKeys.DOCUMENT_INTERACTION_SUMMARY,
-            parentId.id,
-          ])
+          invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentId.id])
         })
       }
     },
@@ -486,19 +428,13 @@ export function useDraftEditor() {
   }, [route, data])
 
   const editEntity = useResource(editId)
-  const editDocument =
-    editEntity.data?.type === 'document' ? editEntity.data.document : undefined
+  const editDocument = editEntity.data?.type === 'document' ? editEntity.data.document : undefined
   const editHomeEntity = useResource(editId ? hmId(editId?.uid) : undefined)
-  const getResourceUrl = useRef<
-    (blockId?: string | null) => string | undefined
-  >(() => undefined)
+  const getResourceUrl = useRef<(blockId?: string | null) => string | undefined>(() => undefined)
   useEffect(() => {
     getResourceUrl.current = (blockId?: string | null) => {
       if (!editId) return undefined
-      const siteHomeDoc =
-        editHomeEntity.data?.type === 'document'
-          ? editHomeEntity.data.document
-          : undefined
+      const siteHomeDoc = editHomeEntity.data?.type === 'document' ? editHomeEntity.data.document : undefined
       const siteHomeUrl = siteHomeDoc?.metadata?.siteUrl
       // When copying a block link, include the version to ensure
       // the block can be found in the correct document version
@@ -520,15 +456,13 @@ export function useDraftEditor() {
     mutationFn: (url: string) => client.webImporting.checkWebUrl.mutate(url),
   })
   const saveDraft = useMutation({
-    mutationFn: (input: Parameters<typeof client.drafts.write.mutate>[0]) =>
-      client.drafts.write.mutate(input),
+    mutationFn: (input: Parameters<typeof client.drafts.write.mutate>[0]) => client.drafts.write.mutate(input),
   })
   const selectedAccountId = useSelectedAccountId()
   const {onMentionsQuery} = useInlineMentions(selectedAccountId)
   const importWebFile = useMutation({
-    mutationFn: (
-      input: Parameters<typeof client.webImporting.importWebFile.mutate>[0],
-    ) => client.webImporting.importWebFile.mutate(input),
+    mutationFn: (input: Parameters<typeof client.webImporting.importWebFile.mutate>[0]) =>
+      client.webImporting.importWebFile.mutate(input),
   })
 
   const editor = useBlockNote<typeof hmBlockSchema>({
@@ -549,11 +483,7 @@ export function useDraftEditor() {
     onTextCursorPositionChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
       const {view} = editor._tiptapEditor
       const {selection} = view.state
-      if (
-        selection.from !== selection.to &&
-        !(selection instanceof NodeSelection)
-      )
-        return
+      if (selection.from !== selection.to && !(selection instanceof NodeSelection)) return
       const domAtPos = view.domAtPos(selection.from)
       try {
         const node = domAtPos.node as HTMLElement
@@ -562,8 +492,7 @@ export function useDraftEditor() {
         // if (rect && (rect.top < 0 || rect.top > window.innerHeight)) {
         if (rect && rect.top > window.innerHeight) {
           // Scroll the cursor into view if not caused by media drag
-          if (!(editor as any).sideMenu?.sideMenuView?.isDragging)
-            node.scrollIntoView({block: 'center'})
+          if (!(editor as any).sideMenu?.sideMenuView?.isDragging) node.scrollIntoView({block: 'center'})
         }
       } catch {}
       return
@@ -688,9 +617,7 @@ export function useDraftEditor() {
                 // @ts-expect-error
                 signingAccount: context.signingAccount,
                 content,
-                deps: event.payload.data.document?.version
-                  ? [event.payload.data.document?.version]
-                  : undefined,
+                deps: event.payload.data.document?.version ? [event.payload.data.document?.version] : undefined,
               }
             }
           }
@@ -764,13 +691,11 @@ export function useDraftEditor() {
 
   // this updates the draft with the correct signing account
   useEffect(() => {
-    draftEvents.subscribe(
-      (value: {type: 'change'; signingAccount?: string} | null) => {
-        if (value) {
-          send(value)
-        }
-      },
-    )
+    draftEvents.subscribe((value: {type: 'change'; signingAccount?: string} | null) => {
+      if (value) {
+        send(value)
+      }
+    })
   }, [])
 
   return {
@@ -784,14 +709,9 @@ export function useDraftEditor() {
   }
 }
 
-export type HyperMediaEditor = Exclude<
-  ReturnType<typeof useDraftEditor>['editor'],
-  null
->
+export type HyperMediaEditor = Exclude<ReturnType<typeof useDraftEditor>['editor'], null>
 
-export const findBlock = findParentNode(
-  (node) => node.type.name === 'blockContainer',
-)
+export const findBlock = findParentNode((node) => node.type.name === 'blockContainer')
 
 export function useDocTextContent(doc?: HMDocument | null) {
   return useMemo(() => {
@@ -843,10 +763,7 @@ export async function pushResource(
   onlyPushToHost?: string,
   onStatusChange?: (status: PushResourceStatus) => void,
 ): Promise<boolean> {
-  const resource = await universalClient.request<HMResourceRequest>(
-    'Resource',
-    id,
-  )
+  const resource = await universalClient.request<HMResourceRequest>('Resource', id)
   // step 1. find all the site IDs that will be affected by this resource.
   // console.log('== publish 1', id, resource, gwUrl)
   let destinationSiteUids = new Set<string>()
@@ -921,20 +838,13 @@ export async function pushResource(
   await Promise.all(
     Array.from(destinationSiteUids).map(async (uid) => {
       try {
-        const resource = await universalClient.request<HMResourceRequest>(
-          'Resource',
-          hmId(uid),
-        )
+        const resource = await universalClient.request<HMResourceRequest>('Resource', hmId(uid))
         if (resource.type === 'document') {
           const siteUrl = resource.document.metadata?.siteUrl
           if (siteUrl) destinationHosts.add(siteUrl)
         }
       } catch (error) {
-        console.error(
-          'Error loading site resource for pushing to the siteUrl',
-          uid,
-          error,
-        )
+        console.error('Error loading site resource for pushing to the siteUrl', uid, error)
       }
     }),
   )
@@ -976,11 +886,7 @@ export async function pushResource(
     }
     onStatusChange?.(status)
   }
-  function updatePeerStatus(
-    peerId: string,
-    newStatus: 'success' | 'error' | 'pending',
-    message: string,
-  ) {
+  function updatePeerStatus(peerId: string, newStatus: 'success' | 'error' | 'pending', message: string) {
     status = {
       ...status,
       hosts: status.hosts.map((h) => {
@@ -1022,8 +928,7 @@ export async function pushResource(
   // step 4. push this resource to all the sites.
   // - the daemon will automatically connect, and will push all the relevant materials to the destination peers
   // console.log('== publish 4 == pushing to peers', peerIds)
-  const resourceIdToPush =
-    resource.type === 'comment' ? getCommentTargetId(resource.comment) : id
+  const resourceIdToPush = resource.type === 'comment' ? getCommentTargetId(resource.comment) : id
   if (!resourceIdToPush) {
     console.error('Could not determine resource ID to push', resource)
     throw new Error('Could not determine resource ID to push')
@@ -1063,25 +968,14 @@ export async function pushResource(
           resources: [pushResourceUrl],
         })
         for await (const progress of pushProgress) {
-          console.log(
-            `== publish ${syncDebugId} == progress`,
-            JSON.stringify(toPlainMessage(progress)),
-          )
-          updatePeerStatus(
-            peerId,
-            'pending',
-            `Pushing ${progress.blobsProcessed}/${progress.blobsWanted}`,
-          )
+          console.log(`== publish ${syncDebugId} == progress`, JSON.stringify(toPlainMessage(progress)))
+          updatePeerStatus(peerId, 'pending', `Pushing ${progress.blobsProcessed}/${progress.blobsWanted}`)
           lastProgress = progress
         }
         console.log(`== publish ${syncDebugId} == DONE =====`)
         updatePeerStatus(peerId, 'success', 'Done')
       } catch (error) {
-        console.error(
-          `== publish ${syncDebugId} == Error pushing to peer`,
-          peerId,
-          error,
-        )
+        console.error(`== publish ${syncDebugId} == Error pushing to peer`, peerId, error)
         updatePeerStatus(peerId, 'error', (error as Error).message)
       }
       console.log(`== publish ${syncDebugId} == lastProgress`, lastProgress)
@@ -1097,11 +991,8 @@ export async function pushResource(
 export function usePushResource() {
   const universalClient = useUniversalClient()
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
-  return (
-    id: UnpackedHypermediaId,
-    onlyPushToHost?: string,
-    onStatusChange?: (status: PushResourceStatus) => void,
-  ) => pushResource(universalClient, gwUrl, id, onlyPushToHost, onStatusChange)
+  return (id: UnpackedHypermediaId, onlyPushToHost?: string, onStatusChange?: (status: PushResourceStatus) => void) =>
+    pushResource(universalClient, gwUrl, id, onlyPushToHost, onStatusChange)
 }
 
 // ============================================================================
@@ -1109,20 +1000,14 @@ export function usePushResource() {
 // ============================================================================
 
 // Re-export utility functions from auto-link-utils.ts for easier testing
-export {
-  documentContainsLinkToChild,
-  documentHasSelfQuery,
-} from './auto-link-utils'
+export {documentContainsLinkToChild, documentHasSelfQuery} from './auto-link-utils'
 
 /**
  * Add an embed link to a parent draft file
  * TODO: If user discards this draft later, the auto-link will be lost.
  * Discuss with team whether we should warn user or handle this differently.
  */
-export async function addLinkToParentDraft(
-  parentDraftId: string,
-  childId: UnpackedHypermediaId,
-): Promise<void> {
+export async function addLinkToParentDraft(parentDraftId: string, childId: UnpackedHypermediaId): Promise<void> {
   const draft = await client.drafts.get.query(parentDraftId)
   if (!draft) {
     throw new Error(`Draft ${parentDraftId} not found`)
@@ -1214,13 +1099,9 @@ export async function publishLinkToParentDocument(
       account: parentId.uid,
       path: hmIdPathToEntityQueryPath(parentId.path || []),
     })
-    const capability = capabilities.capabilities.find(
-      (cap) => cap.delegate === signingKeyName,
-    )
+    const capability = capabilities.capabilities.find((cap) => cap.delegate === signingKeyName)
     if (!capability) {
-      throw new Error(
-        'Could not find capability for signing account to update parent document',
-      )
+      throw new Error('Could not find capability for signing account to update parent document')
     }
     capabilityId = capability.id
   }
@@ -1327,16 +1208,10 @@ export function useListProfileDocuments() {
   })
 }
 
-function fillEmptyQueryBlocks(
-  blocks: EditorBlock[],
-  destinationId: UnpackedHypermediaId,
-): EditorBlock[] {
+function fillEmptyQueryBlocks(blocks: EditorBlock[], destinationId: UnpackedHypermediaId): EditorBlock[] {
   return blocks.map((block) => {
     if (block.type === 'query') {
-      const queryIncludes = JSON.parse(
-        block.props.queryIncludes ||
-          '[{"space":"","path":"","mode":"Children"}]',
-      )
+      const queryIncludes = JSON.parse(block.props.queryIncludes || '[{"space":"","path":"","mode":"Children"}]')
 
       // Fill empty space with destination
       if (!queryIncludes[0]?.space || queryIncludes[0]?.space === '') {
@@ -1373,11 +1248,7 @@ function removeTrailingBlocks(blocks: Array<EditorBlock>) {
   while (true) {
     let lastBlock = trailedBlocks[trailedBlocks.length - 1]
     if (!lastBlock) break
-    if (
-      lastBlock.type == 'paragraph' &&
-      lastBlock.content.length == 0 &&
-      lastBlock.children.length == 0
-    ) {
+    if (lastBlock.type == 'paragraph' && lastBlock.content.length == 0 && lastBlock.children.length == 0) {
       trailedBlocks.pop()
     } else {
       break

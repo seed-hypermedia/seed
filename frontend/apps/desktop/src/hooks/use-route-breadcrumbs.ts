@@ -1,20 +1,10 @@
 import {useDraft} from '@/models/accounts'
 import {useContact, useSelectedAccountContacts} from '@/models/contacts'
 import {draftEditId, draftLocationId} from '@/models/drafts'
-import {
-  commentIdToHmId,
-  getParentPaths,
-  hmId,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {commentIdToHmId, getParentPaths, hmId, UnpackedHypermediaId} from '@shm/shared'
 import {getDocumentTitle} from '@shm/shared/content'
 import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
-import {
-  ContactRoute,
-  DocumentPanelRoute,
-  DraftRoute,
-  ProfileRoute,
-} from '@shm/shared/routes'
+import {ContactRoute, DocumentPanelRoute, DraftRoute, ProfileRoute} from '@shm/shared/routes'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useMemo} from 'react'
 import {
@@ -91,20 +81,11 @@ export function useRouteBreadcrumbs(): RouteBreadcrumbsResult {
   }, [draftRoute, draft.data])
 
   const editDocument = useResource(editId)
-  const editDocName =
-    editDocument.data?.type === 'document'
-      ? getDocumentTitle(editDocument.data.document)
-      : undefined
+  const editDocName = editDocument.data?.type === 'document' ? getDocumentTitle(editDocument.data.document) : undefined
 
   const draftParams = useMemo(() => {
     if (!draftRoute) return undefined
-    return computeDraftEntityParams(
-      draft.data,
-      draftRoute,
-      locationId,
-      editId,
-      editDocName,
-    )
+    return computeDraftEntityParams(draft.data, draftRoute, locationId, editId, editDocName)
   }, [draftRoute, draft.data, locationId, editId, editDocName])
 
   // --- Determine entityId and panel for entity-based routes ---
@@ -126,12 +107,9 @@ export function useRouteBreadcrumbs(): RouteBreadcrumbsResult {
   const panel = useMemo((): DocumentPanelRoute | null | undefined => {
     if (isDraft) return draftParams?.panel
     if (route.key === 'document' || route.key === 'feed') return null
-    if (route.key === 'directory')
-      return {key: 'directory' as const} as DocumentPanelRoute
-    if (route.key === 'collaborators')
-      return {key: 'collaborators' as const} as DocumentPanelRoute
-    if (route.key === 'activity')
-      return {key: 'activity' as const} as DocumentPanelRoute
+    if (route.key === 'directory') return {key: 'directory' as const} as DocumentPanelRoute
+    if (route.key === 'collaborators') return {key: 'collaborators' as const} as DocumentPanelRoute
+    if (route.key === 'activity') return {key: 'activity' as const} as DocumentPanelRoute
     if (route.key === 'discussions')
       return {
         key: 'discussions' as const,
@@ -142,24 +120,18 @@ export function useRouteBreadcrumbs(): RouteBreadcrumbsResult {
 
   // --- Entity data (noop when entityId is undefined) ---
   const contacts = useSelectedAccountContacts()
-  const latestDoc = useResource(
-    entityId ? {...entityId, version: null, latest: true} : null,
-  )
+  const latestDoc = useResource(entityId ? {...entityId, version: null, latest: true} : null)
   const isLatest =
     !entityId ||
     entityId.latest ||
-    entityId.version ===
-      (latestDoc.data?.type === 'document'
-        ? latestDoc.data.document?.version
-        : undefined)
+    entityId.version === (latestDoc.data?.type === 'document' ? latestDoc.data.document?.version : undefined)
 
   const isNewDraft = isDraft ? draftParams?.isNewDraft ?? false : false
 
   const entityIds = useMemo(() => {
     if (!entityId) return []
     const paths = getParentPaths(entityId.path)
-    const subscribablePaths =
-      isNewDraft && paths.length > 0 ? paths.slice(0, -1) : paths
+    const subscribablePaths = isNewDraft && paths.length > 0 ? paths.slice(0, -1) : paths
     return subscribablePaths.map((path) => hmId(entityId.uid, {path}))
   }, [entityId, isNewDraft])
 
@@ -172,10 +144,8 @@ export function useRouteBreadcrumbs(): RouteBreadcrumbsResult {
         const data = result?.data
         const isDiscovering = result?.isDiscovering
         if (!data) return {id, entity: undefined, isDiscovering}
-        if (data.type === 'tombstone')
-          return {id, entity: {id: data.id, isTombstone: true}, isDiscovering}
-        if (data.type === 'not-found')
-          return {id, entity: {id: data.id, isNotFound: true}, isDiscovering}
+        if (data.type === 'tombstone') return {id, entity: {id: data.id, isTombstone: true}, isDiscovering}
+        if (data.type === 'not-found') return {id, entity: {id: data.id, isNotFound: true}, isDiscovering}
         if (data.type === 'document')
           return {
             id,
@@ -196,20 +166,15 @@ export function useRouteBreadcrumbs(): RouteBreadcrumbsResult {
   }, [panel])
 
   const comment = useResource(openCommentId)
-  const commentData =
-    comment.data?.type === 'comment' ? comment.data.comment : null
+  const commentData = comment.data?.type === 'comment' ? comment.data.comment : null
   const commentAuthorId = commentData?.author ? hmId(commentData.author) : null
   const commentAuthor = useAccount(commentAuthorId?.uid, {
     enabled: !!commentAuthorId,
   })
 
   // --- Contact/profile data (noop for non-matching routes) ---
-  const contact = useContact(
-    route.key === 'contact' ? (route as ContactRoute).id : undefined,
-  )
-  const profile = useAccount(
-    route.key === 'profile' ? (route as ProfileRoute).id.uid : undefined,
-  )
+  const contact = useContact(route.key === 'contact' ? (route as ContactRoute).id : undefined)
+  const profile = useAccount(route.key === 'profile' ? (route as ProfileRoute).id.uid : undefined)
 
   // --- Compute result ---
   return useMemo((): RouteBreadcrumbsResult => {
@@ -280,8 +245,7 @@ export function useRouteBreadcrumbs(): RouteBreadcrumbsResult {
     // Entity routes (document, feed, directory, collaborators, activity, discussions, draft with entity)
     if (!entityId) return EMPTY_RESULT
 
-    const activeDocContent =
-      entityContents.at(-1)?.entity?.document?.content ?? undefined
+    const activeDocContent = entityContents.at(-1)?.entity?.document?.content ?? undefined
 
     const items = computeEntityBreadcrumbs({
       entityIds,

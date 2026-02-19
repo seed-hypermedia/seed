@@ -60,10 +60,7 @@ export function PageRedirected({
   onNavigate: (target: UnpackedHypermediaId) => void
 }) {
   return (
-    <PageMessageBox
-      title="Redirected"
-      message="This document has been redirected to a new location."
-    >
+    <PageMessageBox title="Redirected" message="This document has been redirected to a new location.">
       <Button
         onClick={() => {
           onNavigate(redirectTarget)
@@ -93,22 +90,12 @@ export function PageDiscovery() {
  * Shown when a document is not found.
  */
 export function PageNotFound() {
-  return (
-    <PageMessageBox
-      title="Document Not Found"
-      message="This document could not be found on the network."
-    />
-  )
+  return <PageMessageBox title="Document Not Found" message="This document could not be found on the network." />
 }
 
 /**
  * Shown when a document has been deleted (tombstone).
  */
 export function PageDeleted() {
-  return (
-    <PageMessageBox
-      title="Document Deleted"
-      message="This document has been deleted by its owner."
-    />
-  )
+  return <PageMessageBox title="Document Deleted" message="This document has been deleted by its owner." />
 }

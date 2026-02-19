@@ -62,13 +62,7 @@ export default defineConfig(({isSsrBuild}) => {
       exclude:
         process.env.NODE_ENV === 'production'
           ? []
-          : [
-              'expo-linear-gradient',
-              'react-icons',
-              '@shm/editor',
-              '@shm/shared',
-              '@remix-run/react',
-            ],
+          : ['expo-linear-gradient', 'react-icons', '@shm/editor', '@shm/shared', '@remix-run/react'],
     },
     plugins: [
       remix({

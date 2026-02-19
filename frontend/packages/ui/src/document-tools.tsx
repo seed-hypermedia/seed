@@ -160,8 +160,7 @@ export function DocumentTools({
   )
 
   if (layoutProps) {
-    const {wrapperProps, sidebarProps, mainContentProps, showSidebars} =
-      layoutProps
+    const {wrapperProps, sidebarProps, mainContentProps, showSidebars} = layoutProps
     return (
       <div className="flex w-full shrink-0">
         <div
@@ -169,35 +168,18 @@ export function DocumentTools({
           className={cn(wrapperProps.className, 'flex flex-1 items-center')}
           style={wrapperProps.style}
         >
-          {showSidebars && (
-            <div
-              {...sidebarProps}
-              className={cn(sidebarProps.className, '!h-auto !p-0')}
-            />
-          )}
+          {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto !p-0')} />}
           <div
             {...mainContentProps}
             ref={containerRef}
-            className={cn(
-              mainContentProps.className,
-              'flex items-center gap-2 p-1 md:gap-4 md:p-2',
-            )}
+            className={cn(mainContentProps.className, 'flex items-center gap-2 p-1 md:gap-4 md:p-2')}
           >
             {tabButtons}
           </div>
           {showSidebars ? (
-            <div
-              {...sidebarProps}
-              className={cn(
-                sidebarProps.className,
-                'flex !h-auto items-center !p-0',
-              )}
-            >
+            <div {...sidebarProps} className={cn(sidebarProps.className, 'flex !h-auto items-center !p-0')}>
               {rightActions ? (
-                <div
-                  ref={rightActionsRef}
-                  className="flex shrink-0 items-center"
-                >
+                <div ref={rightActionsRef} className="flex shrink-0 items-center">
                   {rightActions}
                 </div>
               ) : null}
@@ -216,10 +198,7 @@ export function DocumentTools({
 
   return (
     <div className="flex w-full shrink-0">
-      <div
-        ref={containerRef}
-        className="flex flex-1 items-center gap-2 p-1 md:gap-4 md:p-2"
-      >
+      <div ref={containerRef} className="flex flex-1 items-center gap-2 p-1 md:gap-4 md:p-2">
         {tabButtons}
       </div>
       {rightActions ? (
@@ -253,18 +232,13 @@ function ToolLink({
   const linkProps = useRouteLink(route)
   let btn = (
     <Button
-      className={cn(
-        'plausible-event-name=Open+Document+Comments flex-1 rounded-full',
-        bg,
-      )}
+      className={cn('plausible-event-name=Open+Document+Comments flex-1 rounded-full', bg)}
       asChild
       variant={active ? 'accent' : 'ghost'}
     >
       <a {...linkProps}>
         <Icon className="size-4" />
-        {label && showLabel ? (
-          <span className="hidden truncate text-sm md:block">{label}</span>
-        ) : null}
+        {label && showLabel ? <span className="hidden truncate text-sm md:block">{label}</span> : null}
         {count ? <span className="text-sm">{count}</span> : null}
       </a>
     </Button>

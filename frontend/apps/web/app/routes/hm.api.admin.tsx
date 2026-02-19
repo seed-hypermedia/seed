@@ -111,9 +111,7 @@ async function handleCreateService(
   }
 }
 
-async function handleRmService(
-  action: z.infer<typeof AdminActionRemoveService>,
-): Promise<AdminResult> {
+async function handleRmService(action: z.infer<typeof AdminActionRemoveService>): Promise<AdminResult> {
   await rmService(action.name)
   return {
     status: 200,
@@ -138,9 +136,7 @@ async function handleCreateCustomDomain(
   }
 }
 
-async function handleRmCustomDomain(
-  action: z.infer<typeof AdminActionRemoveCustomDomain>,
-): Promise<AdminResult> {
+async function handleRmCustomDomain(action: z.infer<typeof AdminActionRemoveCustomDomain>): Promise<AdminResult> {
   await rmCustomDomain(action.hostname)
   return {
     status: 200,
@@ -163,9 +159,7 @@ async function handleConfigureService(
   serviceConfig: ServiceConfig,
 ): Promise<AdminResult> {
   await writeConfig(
-    action.name
-      ? `${action.name}.${serviceConfig.rootHostname}`
-      : serviceConfig.rootHostname,
+    action.name ? `${action.name}.${serviceConfig.rootHostname}` : serviceConfig.rootHostname,
     action.config,
   )
   return {
@@ -184,10 +178,7 @@ export const action: ActionFunction = async ({request}) => {
 
     const parseResult = AdminActionRequest.safeParse(data)
     if (!parseResult.success) {
-      return json(
-        {message: 'Invalid request', errors: parseResult.error.errors},
-        {status: 400},
-      )
+      return json({message: 'Invalid request', errors: parseResult.error.errors}, {status: 400})
     }
     const payload = parseResult.data
 
@@ -230,9 +221,6 @@ export const action: ActionFunction = async ({request}) => {
     return json(result.data, {status: result.status})
   } catch (error) {
     console.error('Admin action error:', error)
-    return json(
-      {message: error instanceof Error ? error.message : 'Unknown error'},
-      {status: 500},
-    )
+    return json({message: error instanceof Error ? error.message : 'Unknown error'}, {status: 500})
   }
 }

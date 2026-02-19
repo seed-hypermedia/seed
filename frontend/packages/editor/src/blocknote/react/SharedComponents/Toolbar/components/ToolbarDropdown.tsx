@@ -1,8 +1,5 @@
 import {Menu} from '@mantine/core'
-import {
-  ToolbarDropdownItem,
-  ToolbarDropdownItemProps,
-} from './ToolbarDropdownItem'
+import {ToolbarDropdownItem, ToolbarDropdownItemProps} from './ToolbarDropdownItem'
 import {ToolbarDropdownTarget} from './ToolbarDropdownTarget'
 
 export type ToolbarDropdownProps = {
@@ -21,11 +18,7 @@ export function ToolbarDropdown(props: ToolbarDropdownProps) {
     // @ts-expect-error
     <Menu exitTransitionDuration={0} disabled={props.isDisabled}>
       <Menu.Target>
-        <ToolbarDropdownTarget
-          text={selectedItem.text}
-          icon={selectedItem.icon}
-          isDisabled={selectedItem.isDisabled}
-        />
+        <ToolbarDropdownTarget text={selectedItem.text} icon={selectedItem.icon} isDisabled={selectedItem.isDisabled} />
       </Menu.Target>
       <Menu.Dropdown>
         {props.items.map((item) => (

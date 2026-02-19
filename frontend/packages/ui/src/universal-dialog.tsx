@@ -1,8 +1,4 @@
-import {
-  NavContextProvider,
-  NavigationContext,
-  useNavigation,
-} from '@shm/shared/utils/navigation'
+import {NavContextProvider, NavigationContext, useNavigation} from '@shm/shared/utils/navigation'
 import * as React from 'react'
 import {FC, useMemo, useState} from 'react'
 
@@ -10,8 +6,7 @@ import {ButtonProps} from './button'
 import * as AlertDialog from './components/alert-dialog'
 import * as Dialog from './components/dialog'
 
-export const dialogBoxShadow =
-  'hsl(206 22% 7% / 35%) 0px 10px 38px -10px, hsl(206 22% 7% / 20%) 0px 10px 20px -15px'
+export const dialogBoxShadow = 'hsl(206 22% 7% / 35%) 0px 10px 38px -10px, hsl(206 22% 7% / 20%) 0px 10px 20px -15px'
 
 function getComponent(isAlert?: boolean) {
   const Component = isAlert
@@ -32,10 +27,7 @@ function getComponent(isAlert?: boolean) {
   return Component
 }
 
-export function AppDialog<
-  TriggerComponentProps extends {},
-  ContentComponentProps extends {},
->({
+export function AppDialog<TriggerComponentProps extends {}, ContentComponentProps extends {}>({
   TriggerComponent,
   ContentComponent,
   isAlert,
@@ -49,9 +41,7 @@ export function AppDialog<
       children: React.ReactNode
     } & TriggerComponentProps
   >
-  ContentComponent: React.FC<
-    {onClose: () => void; isOpen: boolean} & ContentComponentProps
-  >
+  ContentComponent: React.FC<{onClose: () => void; isOpen: boolean} & ContentComponentProps>
   isAlert?: boolean
   triggerLabel?: string
   triggerComponentProps: TriggerComponentProps
@@ -138,10 +128,7 @@ export function useAppDialog<DialogInput>(
             <div onClick={(e) => e.stopPropagation()}>
               <NavContextProvider value={nav}>
                 <Component.Overlay onClick={close} />
-                <Component.Content
-                  className={options?.className}
-                  contentClassName={options?.contentClassName}
-                >
+                <Component.Content className={options?.className} contentClassName={options?.contentClassName}>
                   {openState && (
                     <DialogContentComponent
                       input={openState}
@@ -158,13 +145,5 @@ export function useAppDialog<DialogInput>(
         </Component.Root>
       ),
     }
-  }, [
-    Component,
-    DialogContentComponent,
-    nav,
-    openState,
-    onClose,
-    options?.className,
-    options?.contentClassName,
-  ])
+  }, [Component, DialogContentComponent, nav, openState, onClose, options?.className, options?.contentClassName])
 }

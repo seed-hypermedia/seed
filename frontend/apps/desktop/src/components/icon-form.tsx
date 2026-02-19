@@ -49,10 +49,7 @@ export function IconForm({
   const iconImage = <UIAvatar label={label} id={id} url={url} size={size} />
   if (!onIconUpload) return iconImage
   return (
-    <div
-      className="group flex w-auto items-end gap-2 self-start"
-      data-group="icon"
-    >
+    <div className="group flex w-auto items-end gap-2 self-start" data-group="icon">
       <div
         className="relative overflow-hidden"
         style={{

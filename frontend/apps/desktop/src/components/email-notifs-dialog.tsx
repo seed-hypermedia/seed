@@ -21,9 +21,7 @@ export function NotifSettingsDialog({
     },
   })
   const [subscribedEmail, setSubscribedEmail] = useState<string | null>(null)
-  const setEmailNotifications = async (
-    formData: UIEmailNotificationsFormSchema,
-  ) => {
+  const setEmailNotifications = async (formData: UIEmailNotificationsFormSchema) => {
     if (isPending) return
     await mutateAsync({
       notifyServiceHost: input.notifyServiceHost,

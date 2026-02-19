@@ -31,9 +31,7 @@ export async function saveCidAsFile(event, args) {
 
           // Try to get extension from content-type header
           const contentType =
-            (response.headers['content-type'] as string) ||
-            (response.headers['Content-Type'] as string) ||
-            ''
+            (response.headers['content-type'] as string) || (response.headers['Content-Type'] as string) || ''
 
           debug('Content-Type from IPFS:', contentType)
 

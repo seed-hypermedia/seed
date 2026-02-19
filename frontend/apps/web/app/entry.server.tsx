@@ -7,12 +7,7 @@ import type {AppLoadContext, EntryContext} from '@remix-run/node'
 import {createReadableStreamFromReadable, redirect} from '@remix-run/node'
 import {RemixServer} from '@remix-run/react'
 import {getCommentTargetId, hmId, packHmId} from '@shm/shared'
-import {
-  SITE_BASE_URL,
-  WEB_IDENTITY_ENABLED,
-  WEB_IDENTITY_ORIGIN,
-  WEB_SIGNING_ENABLED,
-} from '@shm/shared/constants'
+import {SITE_BASE_URL, WEB_IDENTITY_ENABLED, WEB_IDENTITY_ORIGIN, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
 import fs from 'fs'
 import {mkdir, readFile, stat, writeFile} from 'fs/promises'
 import * as isbotModule from 'isbot'
@@ -30,11 +25,7 @@ import {
 import {resolveResource} from './loaders'
 import {logDebug} from './logger'
 import {ParsedRequest, parseRequest} from './request'
-import {
-  applyConfigSubscriptions,
-  getConfig,
-  getHostnames,
-} from './site-config.server'
+import {applyConfigSubscriptions, getConfig, getHostnames} from './site-config.server'
 
 configDotenv() // we need this so dotenv config stays in the imports.
 
@@ -62,9 +53,7 @@ async function warmAllCaches() {
   await Promise.all(hostnames.map((hostname) => warmFullCache(hostname)))
 }
 
-const CACHE_WARM_INTERVAL = process.env.CACHE_WARM_INTERVAL
-  ? parseInt(process.env.CACHE_WARM_INTERVAL) * 1000
-  : 45_000
+const CACHE_WARM_INTERVAL = process.env.CACHE_WARM_INTERVAL ? parseInt(process.env.CACHE_WARM_INTERVAL) * 1000 : 45_000
 
 async function initializeServer() {
   recursiveRm(CACHE_PATH)
@@ -104,37 +93,23 @@ async function connectToWebIdentityOrigin() {
   }
   try {
     const peers = (await grpcClient.networking.listPeers({})).peers
-    const identityOriginInfoReq = await fetch(
-      `${WEB_IDENTITY_ORIGIN}/hm/api/config`,
-    )
+    const identityOriginInfoReq = await fetch(`${WEB_IDENTITY_ORIGIN}/hm/api/config`)
     if (identityOriginInfoReq.status !== 200) {
-      throw new Error(
-        'Connection failed to the WEB_IDENTITY_ORIGIN server at ' +
-          WEB_IDENTITY_ORIGIN,
-      )
+      throw new Error('Connection failed to the WEB_IDENTITY_ORIGIN server at ' + WEB_IDENTITY_ORIGIN)
     }
     const identityOriginInfo = await identityOriginInfoReq.json()
     const identityOriginPeerId = identityOriginInfo.peerId
     if (!identityOriginPeerId) {
-      throw new Error(
-        'WEB_IDENTITY_ORIGIN server at ' +
-          WEB_IDENTITY_ORIGIN +
-          ' did not return a peerId',
-      )
+      throw new Error('WEB_IDENTITY_ORIGIN server at ' + WEB_IDENTITY_ORIGIN + ' did not return a peerId')
     }
-    const alreadyConnectedPeer = peers.find(
-      (peer) => peer.id === identityOriginPeerId,
-    )
+    const alreadyConnectedPeer = peers.find((peer) => peer.id === identityOriginPeerId)
     if (alreadyConnectedPeer) {
       // we are already connected, great!
       console.log('Already connected to the WEB_IDENTITY_ORIGIN server')
       return
     }
     console.log(
-      'Connecting to the WEB_IDENTITY_ORIGIN server ' +
-        WEB_IDENTITY_ORIGIN +
-        ' Peer ID: ' +
-        identityOriginPeerId,
+      'Connecting to the WEB_IDENTITY_ORIGIN server ' + WEB_IDENTITY_ORIGIN + ' Peer ID: ' + identityOriginPeerId,
     )
     await grpcClient.networking.connect({
       addrs: identityOriginInfo.addrs,
@@ -161,22 +136,13 @@ initializeServer()
     console.error('Error initializing server', e)
   })
 
-async function warmCachePath(
-  hostname: string,
-  path: string,
-  version?: string | null,
-) {
-  const resp = await fetch(
-    `http://localhost:${process.env.PORT || '3000'}${path}${
-      version ? `?v=${version}` : ''
-    }`,
-    {
-      headers: {
-        'x-full-render': 'true',
-        'x-forwarded-host': hostname,
-      },
+async function warmCachePath(hostname: string, path: string, version?: string | null) {
+  const resp = await fetch(`http://localhost:${process.env.PORT || '3000'}${path}${version ? `?v=${version}` : ''}`, {
+    headers: {
+      'x-full-render': 'true',
+      'x-forwarded-host': hostname,
     },
-  )
+  })
   const respHtml = await resp.text()
   const links = new Set<string>()
   const matches = respHtml.match(/href="\/[^"]*"/g) || []
@@ -187,13 +153,7 @@ async function warmCachePath(
     }
   }
   // save html to CACHE_PATH with every path is index.html and the path is a directory
-  const cachePath = join(
-    CACHE_PATH,
-    hostname,
-    path,
-    version ? `.versions/${version}/` : '',
-    'index.html',
-  )
+  const cachePath = join(CACHE_PATH, hostname, path, version ? `.versions/${version}/` : '', 'index.html')
   if (!respHtml) {
     console.error('respHtml is empty for path', path)
     throw new Error('respHtml is empty for path ' + path)
@@ -203,9 +163,7 @@ async function warmCachePath(
     await mkdir(dirname(cachePath), {recursive: true})
     await writeFile(cachePath, respHtml)
   }
-  const contentLinks = new Set(
-    Array.from(links).filter((link) => !link.startsWith('/assets')),
-  )
+  const contentLinks = new Set(Array.from(links).filter((link) => !link.startsWith('/assets')))
   return {
     html: respHtml,
     status: resp.status,
@@ -242,10 +200,7 @@ async function warmFullCache(hostname: string) {
   }
 }
 
-function getHmIdOfRequest(
-  {pathParts, url}: ParsedRequest,
-  originAccountId: string | undefined,
-) {
+function getHmIdOfRequest({pathParts, url}: ParsedRequest, originAccountId: string | undefined) {
   const version = url.searchParams.get('v')
   const latest = url.searchParams.get('l') === ''
   if (pathParts.length === 0) {
@@ -285,25 +240,17 @@ async function handleOptionsRequest(request: Request) {
       if (resource.type === 'document') {
         headers['X-Hypermedia-Id'] = encodeURIComponent(resourceId.id)
         headers['X-Hypermedia-Version'] = resource.document.version
-        headers['X-Hypermedia-Authors'] = uriEncodedAuthors(
-          resource.document.authors,
-        )
+        headers['X-Hypermedia-Authors'] = uriEncodedAuthors(resource.document.authors)
         headers['X-Hypermedia-Type'] = 'Document'
-        headers['X-Hypermedia-Title'] = encodeURIComponent(
-          resource.document.metadata.name || '',
-        )
+        headers['X-Hypermedia-Title'] = encodeURIComponent(resource.document.metadata.name || '')
       } else if (resource.type === 'comment') {
         headers['X-Hypermedia-Id'] = encodeURIComponent(resourceId.id)
-        headers['X-Hypermedia-Authors'] = uriEncodedAuthors([
-          resource.comment.author,
-        ])
+        headers['X-Hypermedia-Authors'] = uriEncodedAuthors([resource.comment.author])
         headers['X-Hypermedia-Version'] = resource.comment.version
         headers['X-Hypermedia-Type'] = 'Comment'
         const targetId = getCommentTargetId(resource.comment)
         if (targetId) {
-          headers['X-Hypermedia-Target'] = encodeURIComponent(
-            packHmId(targetId),
-          )
+          headers['X-Hypermedia-Target'] = encodeURIComponent(packHmId(targetId))
         }
         let targetTitle: string = 'a Document'
         if (targetId) {
@@ -370,10 +317,7 @@ export default async function handleRequest(
   if (url.pathname.startsWith('/.well-known/')) {
     return new Response('Not Found', {status: 404})
   }
-  if (
-    parsedRequest.pathParts.length > 1 &&
-    parsedRequest.pathParts.find((part) => part === '') == ''
-  ) {
+  if (parsedRequest.pathParts.length > 1 && parsedRequest.pathParts.find((part) => part === '') == '') {
     // This block handles redirecting from trailing slash requests
     const newPathParts = parsedRequest.pathParts.filter((part) => part !== '')
     const newUrl = new URL(SITE_BASE_URL + '/' + newPathParts.join('/'))
@@ -388,22 +332,13 @@ export default async function handleRequest(
 
   if (!ENABLE_HTML_CACHE || useFullRender(parsedRequest)) {
     sendPerfLog('requested full')
-    return handleFullRequest(
-      request,
-      responseStatusCode,
-      responseHeaders,
-      remixContext,
-      loadContext,
-      sendPerfLog,
-    )
+    return handleFullRequest(request, responseStatusCode, responseHeaders, remixContext, loadContext, sendPerfLog)
   }
 
   const queryVersion = url.searchParams.get('v')
   const cachePath = join(
     CACHE_PATH,
-    `${hostname}/${url.pathname}/${
-      queryVersion ? `.versions/${queryVersion}/` : ''
-    }index.html`,
+    `${hostname}/${url.pathname}/${queryVersion ? `.versions/${queryVersion}/` : ''}index.html`,
   )
   if (await fileExists(cachePath)) {
     const html = await readFile(cachePath, 'utf8')
@@ -432,24 +367,11 @@ export function handleFullRequest(
   loadContext: AppLoadContext,
   onComplete: (msg: string) => void,
 ) {
-  let prohibitOutOfOrderStreaming =
-    isBotRequest(request.headers.get('user-agent')) || remixContext.isSpaMode
+  let prohibitOutOfOrderStreaming = isBotRequest(request.headers.get('user-agent')) || remixContext.isSpaMode
 
   return prohibitOutOfOrderStreaming
-    ? handleBotRequest(
-        request,
-        responseStatusCode,
-        responseHeaders,
-        remixContext,
-        onComplete,
-      )
-    : handleBrowserRequest(
-        request,
-        responseStatusCode,
-        responseHeaders,
-        remixContext,
-        onComplete,
-      )
+    ? handleBotRequest(request, responseStatusCode, responseHeaders, remixContext, onComplete)
+    : handleBrowserRequest(request, responseStatusCode, responseHeaders, remixContext, onComplete)
 }
 
 // We have some Remix apps in the wild already running with isbot@3 so we need
@@ -491,11 +413,7 @@ function handleBotRequest(
   return new Promise((resolve, reject) => {
     let shellRendered = false
     const {pipe, abort} = renderToPipeableStream(
-      <RemixServer
-        context={remixContext}
-        url={request.url}
-        abortDelay={ABORT_DELAY}
-      />,
+      <RemixServer context={remixContext} url={request.url} abortDelay={ABORT_DELAY} />,
       {
         onAllReady() {
           shellRendered = true
@@ -572,11 +490,7 @@ function handleBrowserRequest(
   return new Promise((resolve, reject) => {
     let shellRendered = false
     const {pipe, abort} = renderToPipeableStream(
-      <RemixServer
-        context={remixContext}
-        url={request.url}
-        abortDelay={ABORT_DELAY}
-      />,
+      <RemixServer context={remixContext} url={request.url} abortDelay={ABORT_DELAY} />,
       {
         onShellReady() {
           shellRendered = true

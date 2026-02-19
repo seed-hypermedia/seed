@@ -1,9 +1,4 @@
-import {
-  getDocumentTitle,
-  HMDocument,
-  UnpackedHypermediaId,
-  unpackHmId,
-} from '@shm/shared'
+import {getDocumentTitle, HMDocument, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {useHighlighter} from '@shm/ui/highlight-context'
@@ -11,11 +6,7 @@ import {SizableText} from '@shm/ui/text'
 import {Fragment, Node} from '@tiptap/pm/model'
 import {useEffect, useMemo, useState} from 'react'
 import {Pencil} from '../../ui/src/icons'
-import {
-  BlockNoteEditor,
-  getBlockInfoFromPos,
-  HyperlinkToolbarProps,
-} from './blocknote'
+import {BlockNoteEditor, getBlockInfoFromPos, HyperlinkToolbarProps} from './blocknote'
 import {getNodeById} from './blocknote/core/api/util/nodeUtil'
 import {HypermediaLinkForm} from './hm-link-form'
 import {HMBlockSchema} from './schema'
@@ -41,8 +32,7 @@ export function HypermediaLinkPreview(
 
   const entity = useResource(unpackedRef || undefined)
   // console.log('entity', entity)
-  const document =
-    entity.data?.type === 'document' ? entity.data.document : undefined
+  const document = entity.data?.type === 'document' ? entity.data.document : undefined
   useEffect(() => {
     if (props.stopEditing && isEditing) {
       setIsEditing(false)
@@ -67,60 +57,23 @@ export function HypermediaLinkPreview(
     const title = getTitle()
 
     if (type === 'link') {
-      const node = schema.text(title, [
-        schema.marks['link'].create({href: props.url}),
-      ])
-      insertNode(
-        props.editor,
-        props.id,
-        props.url,
-        props.text,
-        props.type,
-        node,
-      )
+      const node = schema.text(title, [schema.marks['link'].create({href: props.url})])
+      insertNode(props.editor, props.id, props.url, props.text, props.type, node)
     } else if (type === 'inline-embed') {
-      const node = schema.nodes['inline-embed'].create(
-        {link: props.url},
-        schema.text(' '),
-      )
-      insertMentionNode(
-        props.editor,
-        props.text,
-        node,
-        props.id,
-        props.type === 'link',
-      )
+      const node = schema.nodes['inline-embed'].create({link: props.url}, schema.text(' '))
+      insertMentionNode(props.editor, props.text, node, props.id, props.type === 'link')
     } else if (type === 'button') {
       const node = schema.nodes.button.create({url: props.url, name: title})
-      insertNode(
-        props.editor,
-        props.id,
-        props.url,
-        props.text,
-        props.type,
-        node,
-      )
+      insertNode(props.editor, props.id, props.url, props.text, props.type, node)
     } else if (type === 'embed' || type === 'card' || type === 'comments') {
       const node = schema.nodes.embed.create(
         {
           url: props.url,
-          view:
-            type === 'embed'
-              ? 'Content'
-              : type === 'card'
-              ? 'Card'
-              : 'Comments',
+          view: type === 'embed' ? 'Content' : type === 'card' ? 'Card' : 'Comments',
         },
         schema.text(' '),
       )
-      insertNode(
-        props.editor,
-        props.id,
-        props.url,
-        props.text,
-        props.type,
-        node,
-      )
+      insertNode(props.editor, props.id, props.url, props.text, props.type, node)
     }
 
     props.resetHyperlink()
@@ -159,11 +112,7 @@ export function HypermediaLinkPreview(
               handleChangeBlockType(type)
             }}
             type={props.type}
-            hasName={
-              props.type !== 'embed' &&
-              props.type !== 'inline-embed' &&
-              props.type !== 'card'
-            }
+            hasName={props.type !== 'embed' && props.type !== 'inline-embed' && props.type !== 'card'}
             hasSearch={props.type !== 'link'}
             resetLink={props.resetHyperlink}
             isHmLink={!!unpackedRef}
@@ -199,10 +148,7 @@ export function HypermediaLinkPreview(
   )
 }
 
-function getTitleFromEntity(
-  unpackedId?: UnpackedHypermediaId | null,
-  document?: HMDocument | null,
-) {
+function getTitleFromEntity(unpackedId?: UnpackedHypermediaId | null, document?: HMDocument | null) {
   if (!document || !unpackedId) return
   let title
   if (unpackedId.blockRef) {
@@ -300,11 +246,7 @@ function insertNode(
   } else {
     const {posBeforeNode} = getNodeById(selectedId, state.doc)
     const blockInfo = getBlockInfoFromPos(state, posBeforeNode + 1)
-    tr = tr.replaceRangeWith(
-      blockInfo.blockContent.beforePos,
-      blockInfo.blockContent.afterPos,
-      node,
-    )
+    tr = tr.replaceRangeWith(blockInfo.blockContent.beforePos, blockInfo.blockContent.afterPos, node)
   }
   view.dispatch(tr)
   editor._tiptapEditor.commands.focus()

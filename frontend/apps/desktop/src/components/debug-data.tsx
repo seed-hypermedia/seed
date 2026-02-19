@@ -9,11 +9,7 @@ export function DebugData({data}: {data: any}) {
   if (!hasDevTools) return null
   return (
     <div className="mx-auto my-[200px] flex max-w-[500px] flex-col">
-      <Button
-        size="sm"
-        className="w-full"
-        onClick={() => setDebugValue((v) => !v)}
-      >
+      <Button size="sm" className="w-full" onClick={() => setDebugValue((v) => !v)}>
         toggle value
       </Button>
       {debugValue && (

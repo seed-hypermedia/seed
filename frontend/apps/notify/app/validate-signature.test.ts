@@ -31,11 +31,7 @@ describe('validateSignature', () => {
     const compressedKey = await preparePublicKey(keyPair.publicKey)
 
     // Validate the signature
-    const isValid = await validateSignature(
-      compressedKey,
-      new Uint8Array(signature),
-      testData,
-    )
+    const isValid = await validateSignature(compressedKey, new Uint8Array(signature), testData)
 
     expect(isValid).toBe(true)
   })
@@ -69,11 +65,7 @@ describe('validateSignature', () => {
     const compressedKey = await preparePublicKey(keyPair.publicKey)
 
     // Validate the signature against the original data (should fail)
-    const isValid = await validateSignature(
-      compressedKey,
-      new Uint8Array(signature),
-      testData,
-    )
+    const isValid = await validateSignature(compressedKey, new Uint8Array(signature), testData)
 
     expect(isValid).toBe(false)
   })

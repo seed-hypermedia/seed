@@ -1,10 +1,7 @@
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useSubscribeToNotifications} from '@shm/shared/models/email-notifications'
 import {useAccount} from '@shm/shared/models/entity'
-import {
-  UIEmailNotificationsForm,
-  UIEmailNotificationsFormSchema,
-} from '@shm/ui/email-notifications'
+import {UIEmailNotificationsForm, UIEmailNotificationsFormSchema} from '@shm/ui/email-notifications'
 import {useLocalKeyPair} from './auth'
 
 export function EmailNotificationsForm({
@@ -18,12 +15,9 @@ export function EmailNotificationsForm({
   const account = useAccount(keyPair?.id)
   const {mutateAsync, isPending} = useSubscribeToNotifications()
 
-  const setEmailNotifications = async (
-    formData: UIEmailNotificationsFormSchema,
-  ) => {
+  const setEmailNotifications = async (formData: UIEmailNotificationsFormSchema) => {
     if (!account.data?.id.uid) return
-    if (!NOTIFY_SERVICE_HOST)
-      throw new Error('Email notifications service host is not configured')
+    if (!NOTIFY_SERVICE_HOST) throw new Error('Email notifications service host is not configured')
 
     await mutateAsync({
       notifyServiceHost: NOTIFY_SERVICE_HOST,

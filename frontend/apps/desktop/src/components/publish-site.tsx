@@ -3,12 +3,7 @@ import {HostInfoResponse, useHostSession} from '@/models/host'
 import {useRemoveSite, useSiteRegistration} from '@/models/site'
 import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
-import {
-  DocumentRoute,
-  hmId,
-  hostnameStripProtocol,
-  useUniversalAppContext,
-} from '@shm/shared'
+import {DocumentRoute, hmId, hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
 import {SEED_HOST_URL, VERSION} from '@shm/shared/constants'
 import {getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
@@ -17,25 +12,12 @@ import {Button, ButtonProps} from '@shm/ui/button'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
-import {
-  IconComponent,
-  PasteSetupUrl,
-  SeedHost,
-  SelfHost,
-  UploadCloud,
-} from '@shm/ui/icons'
+import {IconComponent, PasteSetupUrl, SeedHost, SelfHost, UploadCloud} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText, Text, TextProps} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
-import {
-  AlertCircle,
-  ArrowRight,
-  Check,
-  Copy,
-  ExternalLink,
-  X,
-} from 'lucide-react'
+import {AlertCircle, ArrowRight, Check, Copy, ExternalLink, X} from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
 import {z} from 'zod'
@@ -51,12 +33,7 @@ import {HoverCard, HoverCardContent, HoverCardTrigger} from '@shm/ui/hover-card'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {AlertTriangle, ArrowLeft, Plus} from 'lucide-react'
-import {
-  CelebrationDotsLeft,
-  CelebrationDotsRight,
-  CongratsGraphic,
-  WebPublishedGraphic,
-} from './publish-graphics'
+import {CelebrationDotsLeft, CelebrationDotsRight, CongratsGraphic, WebPublishedGraphic} from './publish-graphics'
 
 export function usePublishSite() {
   return useAppDialog(PublishSiteDialog, {
@@ -69,20 +46,13 @@ export function useRemoveSiteDialog() {
   return useAppDialog(RemoveSiteDialog, {isAlert: true})
 }
 
-function RemoveSiteDialog({
-  onClose,
-  input,
-}: {
-  onClose: () => void
-  input: UnpackedHypermediaId
-}) {
+function RemoveSiteDialog({onClose, input}: {onClose: () => void; input: UnpackedHypermediaId}) {
   const removeSite = useRemoveSite(input)
   return (
     <div className="flex flex-col gap-4 rounded-lg p-4">
       <AlertDialogTitle>Remove Site</AlertDialogTitle>
       <AlertDialogDescription>
-        Remove this site URL from the entity? Your site will still exist until
-        you delete the server.
+        Remove this site URL from the entity? Your site will still exist until you delete the server.
       </AlertDialogDescription>
 
       <div className="flex justify-end gap-3">
@@ -127,9 +97,7 @@ function PublishDialogContainer({
           {heading}
         </SizableText>
       ) : null}
-      {backButton ? (
-        <div className="absolute top-4 left-4">{backButton}</div>
-      ) : null}
+      {backButton ? <div className="absolute top-4 left-4">{backButton}</div> : null}
       <div className="flex flex-col justify-center gap-2">{children}</div>
     </div>
   )
@@ -159,9 +127,7 @@ function SeedHostContainer({
   return (
     <div className="relative flex h-full w-full flex-col items-center gap-4 rounded-lg bg-gray-900 p-4">
       <SeedHostHeader />
-      {backButton ? (
-        <div className="absolute top-4 left-4">{backButton}</div>
-      ) : null}
+      {backButton ? <div className="absolute top-4 left-4">{backButton}</div> : null}
       <div className="flex flex-1 flex-col items-center justify-center gap-3">
         {heading ? (
           <Text weight="bold" size="lg" className="text-center text-white/90">
@@ -201,11 +167,7 @@ function SeedHostCongratsContainer({
           </div>
         ) : null}
         {heading ? (
-          <Text
-            weight="bold"
-            size="lg"
-            className="mb-4 text-center text-white/90"
-          >
+          <Text weight="bold" size="lg" className="mb-4 text-center text-white/90">
             {heading}
           </Text>
         ) : null}
@@ -227,30 +189,17 @@ function PublishSiteDialog({
   onClose: () => void
 }) {
   const {id, step: initialStep} = input
-  const [mode, setMode] = useState<
-    'input-url' | 'self-host' | 'seed-host' | 'seed-host-custom-domain' | null
-  >(initialStep || null)
+  const [mode, setMode] = useState<'input-url' | 'self-host' | 'seed-host' | 'seed-host-custom-domain' | null>(
+    initialStep || null,
+  )
   if (mode === 'input-url') {
-    return (
-      <PublishWithUrl
-        id={id}
-        onComplete={onClose}
-        onBack={() => setMode(null)}
-      />
-    )
+    return <PublishWithUrl id={id} onComplete={onClose} onBack={() => setMode(null)} />
   }
   if (mode === 'self-host') {
-    return (
-      <SelfHostContent
-        onSetupUrl={() => setMode('input-url')}
-        onBack={() => setMode(null)}
-      />
-    )
+    return <SelfHostContent onSetupUrl={() => setMode('input-url')} onBack={() => setMode(null)} />
   }
   if (mode === 'seed-host') {
-    return (
-      <SeedHostContent onClose={onClose} onBack={() => setMode(null)} id={id} />
-    )
+    return <SeedHostContent onClose={onClose} onBack={() => setMode(null)} id={id} />
   }
   if (mode === 'seed-host-custom-domain') {
     return <SeedHostRegisterCustomDomain id={id} onClose={onClose} />
@@ -285,12 +234,7 @@ function PublishSiteDialog({
 }
 
 function DialogInner(props: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      {...props}
-      className={cn(props.className, 'flex max-w-md flex-col gap-2')}
-    />
-  )
+  return <div {...props} className={cn(props.className, 'flex max-w-md flex-col gap-2')} />
 }
 
 function BlueButton(props: ButtonProps) {
@@ -332,13 +276,7 @@ function BackButton({onPress}: {onPress: () => void}) {
   )
 }
 
-function SeedHostInfo({
-  info,
-  onSubmit,
-}: {
-  info: HostInfoResponse
-  onSubmit: () => void
-}) {
+function SeedHostInfo({info, onSubmit}: {info: HostInfoResponse; onSubmit: () => void}) {
   if (!info.pricing?.free || !info.pricing?.premium) {
     return (
       <SizableText className="text-destructive">
@@ -349,9 +287,8 @@ function SeedHostInfo({
   return (
     <div className="flex max-w-[600px] flex-col items-center justify-center gap-3">
       <SizableText className="text-muted-foreground text-center">
-        Seed offers free server hosting with a generous storage and bandwidth
-        limit, perfect for getting started. If your needs grow beyond the free
-        tier, you can easily purchase additional capacity to scale seamlessly.
+        Seed offers free server hosting with a generous storage and bandwidth limit, perfect for getting started. If
+        your needs grow beyond the free tier, you can easily purchase additional capacity to scale seamlessly.
       </SizableText>
       <SizableText className="text-center text-blue-700">
         By using Seed, you're supporting{' '}
@@ -368,9 +305,7 @@ function SeedHostInfo({
           </PlanHeading>
           <PlanFeatures>
             <PlanFeature label={`${info.pricing.free.gbStorage} GB Storage`} />
-            <PlanFeature
-              label={`${info.pricing.free.gbBandwidth} GB Bandwidth`}
-            />
+            <PlanFeature label={`${info.pricing.free.gbBandwidth} GB Bandwidth`} />
             <PlanFeature label={siteCountLabel(info.pricing.free.siteCount)} />
           </PlanFeatures>
           <OverageWarning />
@@ -379,29 +314,20 @@ function SeedHostInfo({
         <PlanContainer>
           <PlanHeading>
             <PlanTitle>Premium</PlanTitle>
-            <PlanPrice
-              value={info.pricing.premium.monthlyPriceUSDCents}
-              label="starting at"
-            />
+            <PlanPrice value={info.pricing.premium.monthlyPriceUSDCents} label="starting at" />
           </PlanHeading>
           <PlanFeatures>
             <PlanFeature
               label={`${info.pricing.premium.gbStorage} GB Storage`}
-              plus={`${formatPriceUSDCents(
-                info.pricing.premium.gbStorageOverageUSDCents,
-              )}/GB/mo extra`}
+              plus={`${formatPriceUSDCents(info.pricing.premium.gbStorageOverageUSDCents)}/GB/mo extra`}
             />
             <PlanFeature
               label={`${info.pricing.premium.gbBandwidth} GB Bandwidth`}
-              plus={`${formatPriceUSDCents(
-                info.pricing.premium.gbBandwidthOverageUSDCents,
-              )}/GB extra`}
+              plus={`${formatPriceUSDCents(info.pricing.premium.gbBandwidthOverageUSDCents)}/GB extra`}
             />
             <PlanFeature
               label={siteCountLabel(info.pricing.premium.siteCount)}
-              plus={`${formatPriceUSDCents(
-                info.pricing.premium.siteCountOverageUSDCents,
-              )}/mo extra site`}
+              plus={`${formatPriceUSDCents(info.pricing.premium.siteCountOverageUSDCents)}/mo extra site`}
             />
           </PlanFeatures>
           <SelectPlanButton comingSoon />
@@ -470,30 +396,17 @@ function siteCountLabel(count: number) {
   return `${count} Sites`
 }
 
-const PlanHeading = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => {
+const PlanHeading = ({className, ...props}: React.HTMLAttributes<HTMLDivElement>) => {
   return (
     <div
-      className={cn(
-        'flex min-h-[100px] flex-col items-center border-b border-blue-700 p-3',
-        className,
-      )}
+      className={cn('flex min-h-[100px] flex-col items-center border-b border-blue-700 p-3', className)}
       {...props}
     />
   )
 }
 
 const PlanTitle = ({className, ...props}: TextProps) => {
-  return (
-    <Text
-      weight="bold"
-      size="lg"
-      className={cn('text-muted-foreground mb-3 text-center', className)}
-      {...props}
-    />
-  )
+  return <Text weight="bold" size="lg" className={cn('text-muted-foreground mb-3 text-center', className)} {...props} />
 }
 
 function formatPriceUSDCents(cents: number) {
@@ -506,9 +419,7 @@ function formatPriceUSDCents(cents: number) {
 function PlanPrice({value, label}: {value: number; label?: string}) {
   return (
     <div className="flex flex-col items-center gap-1">
-      <SizableText className="text-blue-300">
-        {label?.toUpperCase() || ' '}
-      </SizableText>
+      <SizableText className="text-blue-300">{label?.toUpperCase() || ' '}</SizableText>
       <div className="flex gap-1">
         <Text weight="bold" size="lg" className="text-muted-foreground">
           {formatPriceUSDCents(value)}
@@ -540,69 +451,29 @@ function PlanFeature({label, plus}: {label: string; plus?: string}) {
   )
 }
 
-const FeatureSpacer = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => {
-  return (
-    <div
-      className={cn('flex h-6 w-6 items-center justify-center', className)}
-      {...props}
-    />
-  )
+const FeatureSpacer = ({className, ...props}: React.HTMLAttributes<HTMLDivElement>) => {
+  return <div className={cn('flex h-6 w-6 items-center justify-center', className)} {...props} />
 }
 
-const PlanFeatures = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => {
-  return (
-    <div
-      className={cn('flex flex-1 flex-col items-start p-3', className)}
-      {...props}
-    />
-  )
+const PlanFeatures = ({className, ...props}: React.HTMLAttributes<HTMLDivElement>) => {
+  return <div className={cn('flex flex-1 flex-col items-start p-3', className)} {...props} />
 }
 
-const PlusLabel = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => {
-  return (
-    <div
-      className={cn(
-        'ml-[38px] flex gap-2 rounded-sm bg-blue-50 p-1 px-2',
-        className,
-      )}
-      {...props}
-    />
-  )
+const PlusLabel = ({className, ...props}: React.HTMLAttributes<HTMLDivElement>) => {
+  return <div className={cn('ml-[38px] flex gap-2 rounded-sm bg-blue-50 p-1 px-2', className)} {...props} />
 }
 
-const PlanContainer = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => {
+const PlanContainer = ({className, ...props}: React.HTMLAttributes<HTMLDivElement>) => {
   return (
     <div
-      className={cn(
-        'flex flex-1 flex-shrink-0 flex-col gap-2 rounded-lg border border-blue-700',
-        className,
-      )}
+      className={cn('flex flex-1 flex-shrink-0 flex-col gap-2 rounded-lg border border-blue-700', className)}
       {...props}
     />
   )
 }
 
 const FeatureText = ({className, ...props}: TextProps) => {
-  return (
-    <Text
-      weight="bold"
-      size="lg"
-      className={cn('text-muted-foreground', className)}
-      {...props}
-    />
-  )
+  return <Text weight="bold" size="lg" className={cn('text-muted-foreground', className)} {...props} />
 }
 
 function versionToInt(version: string): number | null {
@@ -642,8 +513,7 @@ function SeedHostIntro({
       <Spinner />
     </div>
   ) : null
-  const isInvalidVersion =
-    info?.minimumAppVersion && !isAppVersionEqualOrAbove(info.minimumAppVersion)
+  const isInvalidVersion = info?.minimumAppVersion && !isAppVersionEqualOrAbove(info.minimumAppVersion)
 
   if (info && !info.serviceErrorMessage && !isInvalidVersion) {
     content = <SeedHostInfo info={info} onSubmit={onSubmit} />
@@ -673,33 +543,17 @@ function SeedHostIntro({
       </div>
     )
   }
-  return (
-    <SeedHostContainer backButton={<BackButton onPress={onBack} />}>
-      {content}
-    </SeedHostContainer>
-  )
+  return <SeedHostContainer backButton={<BackButton onPress={onBack} />}>{content}</SeedHostContainer>
 }
 
 const LoginSchema = z.object({
   email: z.string(),
 })
 type LoginFields = z.infer<typeof LoginSchema>
-function SeedHostLogin({
-  onAuthenticated,
-  onBack,
-}: {
-  onAuthenticated: () => void
-  onBack: () => void
-}) {
-  const {
-    login,
-    absorbedSession,
-    email,
-    isSendingEmail,
-    isPendingEmailValidation,
-    error,
-    reset,
-  } = useHostSession({onAuthenticated})
+function SeedHostLogin({onAuthenticated, onBack}: {onAuthenticated: () => void; onBack: () => void}) {
+  const {login, absorbedSession, email, isSendingEmail, isPendingEmailValidation, error, reset} = useHostSession({
+    onAuthenticated,
+  })
 
   const {
     control,
@@ -735,8 +589,7 @@ function SeedHostLogin({
           ) : (
             <>
               <SizableText className="text-center text-white/80">
-                We sent a verification link to {email}. Click on it, and you
-                will be logged in here.
+                We sent a verification link to {email}. Click on it, and you will be logged in here.
               </SizableText>
               <div className="flex items-center justify-center">
                 <Spinner />
@@ -748,23 +601,10 @@ function SeedHostLogin({
     )
   }
   return (
-    <SeedHostContainer
-      heading="Login to Seed Hypermedia Hosting"
-      backButton={<BackButton onPress={onBack} />}
-    >
+    <SeedHostContainer heading="Login to Seed Hypermedia Hosting" backButton={<BackButton onPress={onBack} />}>
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-        <FormField
-          name="email"
-          label="Email Address"
-          errors={errors}
-          width={400}
-        >
-          <FormInput
-            disabled={isSendingEmail}
-            control={control}
-            name="email"
-            placeholder="me@email.com"
-          />
+        <FormField name="email" label="Email Address" errors={errors} width={400}>
+          <FormInput disabled={isSendingEmail} control={control} name="email" placeholder="me@email.com" />
         </FormField>
 
         <BlueButton disabled={isSendingEmail} type="submit">
@@ -884,10 +724,7 @@ function SeedHostRegisterSubdomain({
         </div>
       }
     >
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="flex flex-col items-center gap-4"
-      >
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col items-center gap-4">
         <FormField
           name="subdomain"
           label={`Select your unique sub-domain name on ${info?.hostDomain}`}
@@ -950,9 +787,7 @@ function SeedHostSubdomainPublished({
       graphic={<WebPublishedGraphic />}
       footer={
         <div className="flex flex-col gap-3">
-          <SizableText className="text-white/80">
-            Now you can publish the site to your own domain.
-          </SizableText>
+          <SizableText className="text-white/80">Now you can publish the site to your own domain.</SizableText>
 
           <div className="flex gap-3">
             <Button onClick={onClose}>
@@ -967,9 +802,7 @@ function SeedHostSubdomainPublished({
         </div>
       }
     >
-      <SizableText className="text-white/80">
-        Here is the link to your new site.
-      </SizableText>
+      <SizableText className="text-white/80">Here is the link to your new site.</SizableText>
       <PublishedUrl url={host} />
     </SeedHostCongratsContainer>
   )
@@ -1012,10 +845,7 @@ function PublishedUrl({url}: {url: string}) {
         </div>
       </div>
 
-      <BlueButton
-        className="rounded-tl-none rounded-bl-none"
-        onClick={() => openUrl(url)}
-      >
+      <BlueButton className="rounded-tl-none rounded-bl-none" onClick={() => openUrl(url)}>
         Open
         <ExternalLink className="size-4" />
       </BlueButton>
@@ -1051,18 +881,15 @@ export function useSeedHostDialog() {
     })
     watchingDomainsInProgress.current.forEach((watchingDomain) => {
       if (!pendingDomains.find((p) => p.id === watchingDomain.domainId)) {
-        watchingDomainsInProgress.current =
-          watchingDomainsInProgress.current.filter(
-            (pendingDomain) =>
-              pendingDomain.domainId !== watchingDomain.domainId,
-          )
+        watchingDomainsInProgress.current = watchingDomainsInProgress.current.filter(
+          (pendingDomain) => pendingDomain.domainId !== watchingDomain.domainId,
+        )
         if (activelyWatchedDomainIds.has(watchingDomain.domainId)) {
           return
         }
         fetchResource(hmId(watchingDomain.siteUid))
           .then((entity: Awaited<ReturnType<typeof fetchResource>>) => {
-            const siteDocument =
-              entity?.type === 'document' ? entity.document : undefined
+            const siteDocument = entity?.type === 'document' ? entity.document : undefined
             const siteUrl = siteDocument?.metadata?.siteUrl
             if (siteUrl && siteUrl === `https://${watchingDomain.hostname}`) {
               open({
@@ -1090,32 +917,13 @@ function SeedHostDomainPublishedDialog({
   }
   onClose: () => void
 }) {
-  return (
-    <SeedHostDomainPublished
-      onClose={onClose}
-      host={input.host}
-      id={input.id}
-    />
-  )
+  return <SeedHostDomainPublished onClose={onClose} host={input.host} id={input.id} />
 }
 
-function SeedHostDomainPublished({
-  onClose,
-  host,
-  id,
-}: {
-  onClose: () => void
-  host: string
-  id: UnpackedHypermediaId
-}) {
+function SeedHostDomainPublished({onClose, host, id}: {onClose: () => void; host: string; id: UnpackedHypermediaId}) {
   return (
-    <SeedHostCongratsContainer
-      heading={`Now Published to ${host}!`}
-      graphic={<CongratsGraphic />}
-    >
-      <SizableText className="text-white/80">
-        Here is the link for your site.
-      </SizableText>
+    <SeedHostCongratsContainer heading={`Now Published to ${host}!`} graphic={<CongratsGraphic />}>
+      <SizableText className="text-white/80">Here is the link for your site.</SizableText>
       <PublishedUrl url={`https://${host}`} />
       <div className="flex">
         <BlueButton onClick={onClose}>
@@ -1157,8 +965,7 @@ function SeedHostRegisterCustomDomain({
     hostname: string
     domainId: string
   } | null>(null)
-  const document =
-    entity.data?.type === 'document' ? entity.data.document : undefined
+  const document = entity.data?.type === 'document' ? entity.data.document : undefined
   const siteUrl = document?.metadata?.siteUrl
   function onSubmit({domain}: RegisterCustomDomainFields) {
     if (!siteUrl) throw new Error('Site URL not found')
@@ -1172,9 +979,7 @@ function SeedHostRegisterCustomDomain({
         setPendingDomain(d)
       })
   }
-  const pendingDomain = useHostSession().pendingDomains?.find(
-    (pending) => pending.siteUid === id.uid,
-  )
+  const pendingDomain = useHostSession().pendingDomains?.find((pending) => pending.siteUid === id.uid)
   const pendingDomainId = localPendingDomain?.domainId
   // @ts-ignore
   useEffect(() => {
@@ -1193,33 +998,22 @@ function SeedHostRegisterCustomDomain({
   if (pendingDomain) {
     let pendingStatus = null
     if (pendingDomain?.status === 'error') {
-      pendingStatus = (
-        <ErrorBox error="Something went wrong. Please try domain setup again." />
-      )
+      pendingStatus = <ErrorBox error="Something went wrong. Please try domain setup again." />
     } else if (pendingDomain?.status === 'waiting-dns' && siteUrl) {
       pendingStatus = (
         <DialogInner>
-          <DNSInstructions
-            hostname={pendingDomain.hostname}
-            siteUrl={siteUrl}
-          />
+          <DNSInstructions hostname={pendingDomain.hostname} siteUrl={siteUrl} />
         </DialogInner>
       )
     } else if (pendingDomain?.status === 'initializing') {
-      pendingStatus = (
-        <SizableText className="text-white/80">
-          Initializing your domain...
-        </SizableText>
-      )
+      pendingStatus = <SizableText className="text-white/80">Initializing your domain...</SizableText>
     }
     return (
       <SeedHostContainer
         heading="Set Up Custom Domain"
         footer={
           <div className="flex flex-col gap-3">
-            <SizableText className="text-white/80">
-              You can close this dialog and keep using the app.
-            </SizableText>
+            <SizableText className="text-white/80">You can close this dialog and keep using the app.</SizableText>
             <BlueButton onClick={onClose}>Close</BlueButton>
           </div>
         }
@@ -1231,46 +1025,23 @@ function SeedHostRegisterCustomDomain({
       </SeedHostContainer>
     )
   }
-  if (
-    localPendingDomain &&
-    siteUrl === `https://${localPendingDomain.hostname}`
-  ) {
-    return (
-      <SeedHostDomainPublished
-        host={localPendingDomain.hostname}
-        onClose={onClose}
-        id={id}
-      />
-    )
+  if (localPendingDomain && siteUrl === `https://${localPendingDomain.hostname}`) {
+    return <SeedHostDomainPublished host={localPendingDomain.hostname} onClose={onClose} id={id} />
   }
   return (
     <SeedHostContainer
-      heading={
-        localPendingDomain
-          ? `Setting up ${localPendingDomain.hostname}`
-          : 'Set Up Custom Domain'
-      }
+      heading={localPendingDomain ? `Setting up ${localPendingDomain.hostname}` : 'Set Up Custom Domain'}
       backButton={onBack ? <BackButton onPress={onBack} /> : null}
     >
       {siteUrl ? (
         <>
           <DialogInner>
+            <SizableText className="text-white/80">You can now publish to a domain that you own.</SizableText>
             <SizableText className="text-white/80">
-              You can now publish to a domain that you own.
+              On the next step you will be asked to update your DNS settings to point to the Seed Host service.
             </SizableText>
-            <SizableText className="text-white/80">
-              On the next step you will be asked to update your DNS settings to
-              point to the Seed Host service.
-            </SizableText>
-            <form
-              onSubmit={handleSubmit(onSubmit)}
-              className="flex flex-col gap-4"
-            >
-              <FormField
-                name="domain"
-                label="What is your Domain Name?"
-                errors={errors}
-              >
+            <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+              <FormField name="domain" label="What is your Domain Name?" errors={errors}>
                 <FormInput
                   control={control}
                   name="domain"
@@ -1301,27 +1072,17 @@ function SeedHostRegisterCustomDomain({
           </DialogInner>
         </>
       ) : (
-        <SizableText className="text-white/80">
-          You need to publish your site first.
-        </SizableText>
+        <SizableText className="text-white/80">You need to publish your site first.</SizableText>
       )}
     </SeedHostContainer>
   )
 }
 
-export function DNSInstructions({
-  hostname,
-  siteUrl,
-}: {
-  hostname: string
-  siteUrl: string
-}) {
+export function DNSInstructions({hostname, siteUrl}: {hostname: string; siteUrl: string}) {
   const isSubd = isSubdomain(hostname)
   return (
     <div className="flex flex-col gap-3">
-      <SizableText className="text-white/80">
-        Now is your time to change the DNS record for your domain.
-      </SizableText>
+      <SizableText className="text-white/80">Now is your time to change the DNS record for your domain.</SizableText>
       <SizableText className="text-white/80">
         Set the{' '}
         <Text weight="bold" className="text-white/90">
@@ -1333,8 +1094,7 @@ export function DNSInstructions({
         </Text>
       </SizableText>
       <SizableText className="text-white/80">
-        Once you update the DNS, it usually takes 10 minutes to propagate. Keep
-        the app open until then.
+        Once you update the DNS, it usually takes 10 minutes to propagate. Keep the app open until then.
       </SizableText>
     </div>
   )
@@ -1344,23 +1104,11 @@ function isSubdomain(hostname: string) {
   return hostname.split('.').length > 2
 }
 
-function SeedHostContent({
-  onBack,
-  onClose,
-  id,
-}: {
-  onBack: () => void
-  onClose: () => void
-  id: UnpackedHypermediaId
-}) {
+function SeedHostContent({onBack, onClose, id}: {onBack: () => void; onClose: () => void; id: UnpackedHypermediaId}) {
   const {loggedIn, hostInfo} = useHostSession({})
   const [host, setHost] = useState<string | null>(null)
   const [mode, setMode] = useState<
-    | 'intro'
-    | 'login'
-    | 'register-subdomain'
-    | 'subdomain-published'
-    | 'register-custom-domain'
+    'intro' | 'login' | 'register-subdomain' | 'subdomain-published' | 'register-custom-domain'
   >('intro')
   if (mode === 'intro') {
     return (
@@ -1427,23 +1175,14 @@ function SeedHostContent({
   return null
 }
 
-function SelfHostContent({
-  onSetupUrl,
-  onBack,
-}: {
-  onSetupUrl: () => void
-  onBack: () => void
-}) {
+function SelfHostContent({onSetupUrl, onBack}: {onSetupUrl: () => void; onBack: () => void}) {
   const spawn = useNavigate('spawn')
   return (
-    <PublishDialogContainer
-      heading="Host on Your Own Server"
-      backButton={<BackButton onPress={onBack} />}
-    >
+    <PublishDialogContainer heading="Host on Your Own Server" backButton={<BackButton onPress={onBack} />}>
       <DialogInner>
         <SizableText className="text-muted-foreground text-center">
-          You will need your own server and domain. Follow this guide to get
-          started, and return when the setup script has printed the setup URL.
+          You will need your own server and domain. Follow this guide to get started, and return when the setup script
+          has printed the setup URL.
         </SizableText>
         <div className="my-6 flex justify-center">
           <Button
@@ -1474,8 +1213,7 @@ function PublishWithUrl({
   onBack?: () => void
 }) {
   const entity = useResource(id)
-  const document =
-    entity.data?.type === 'document' ? entity.data.document : undefined
+  const document = entity.data?.type === 'document' ? entity.data.document : undefined
   const replace = useNavigate('replace')
   const register = useSiteRegistration(id.uid)
   const onSubmit: SubmitHandler<PublishSiteFields> = (data) => {
@@ -1505,9 +1243,7 @@ function PublishWithUrl({
   const spawn = useNavigate('spawn')
   return (
     <PublishDialogContainer
-      heading={`Publish "${getDocumentTitle(
-        document,
-      )}" with a Hosting Setup URL`}
+      heading={`Publish "${getDocumentTitle(document)}" with a Hosting Setup URL`}
       backButton={onBack ? <BackButton onPress={onBack} /> : null}
     >
       {/* <DialogDescription>description</DialogDescription> */}
@@ -1523,17 +1259,9 @@ function PublishWithUrl({
         </span>{' '}
         will output a setup URL for you to paste here.
       </SizableText>
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="flex flex-col items-center gap-4"
-      >
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col items-center gap-4">
         <FormField name="url" label="Site Setup URL" errors={errors}>
-          <FormInput
-            control={control}
-            name="url"
-            placeholder="https://mysite.com/hm/register?..."
-            width={500}
-          />
+          <FormInput control={control} name="url" placeholder="https://mysite.com/hm/register?..." width={500} />
         </FormField>
         {/* @ts-expect-error */}
         {register.error ? <ErrorBox error={register.error.message} /> : null}

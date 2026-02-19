@@ -49,11 +49,7 @@ export function UnreferencedDocuments({
           'text-muted-foreground hover:text-foreground flex w-full items-center gap-2 py-2 text-sm transition-colors',
         )}
       >
-        {isExpanded ? (
-          <ChevronDown className="size-4" />
-        ) : (
-          <ChevronRight className="size-4" />
-        )}
+        {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
         Unreferenced Documents ({unreferencedDocs.length})
       </button>
       {isExpanded && (

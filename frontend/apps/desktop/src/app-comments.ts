@@ -1,10 +1,6 @@
 import {hasBlockContent} from '@shm/shared/content'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {
-  HMCommentDraft,
-  HMListedCommentDraft,
-  HMListedCommentDraftSchema,
-} from '@shm/shared/hm-types'
+import {HMCommentDraft, HMListedCommentDraft, HMListedCommentDraftSchema} from '@shm/shared/hm-types'
 import Store from 'electron-store'
 import fs from 'fs/promises'
 import {nanoid} from 'nanoid'
@@ -71,9 +67,7 @@ export async function initCommentDrafts() {
     await saveCommentDraftIndex()
   } else {
     const commentIndexJSON = await fs.readFile(commentDraftIndexPath, 'utf-8')
-    commentDraftIndex = z
-      .array(HMListedCommentDraftSchema)
-      .parse(JSON.parse(commentIndexJSON))
+    commentDraftIndex = z.array(HMListedCommentDraftSchema).parse(JSON.parse(commentIndexJSON))
   }
 
   // Clean up empty drafts on init
@@ -103,18 +97,13 @@ async function cleanupEmptyDrafts() {
   }
 
   if (draftsToRemove.length > 0) {
-    commentDraftIndex = commentDraftIndex.filter(
-      (d) => !draftsToRemove.includes(d.id),
-    )
+    commentDraftIndex = commentDraftIndex.filter((d) => !draftsToRemove.includes(d.id))
     await saveCommentDraftIndex()
   }
 }
 
 async function saveCommentDraftIndex() {
-  await fs.writeFile(
-    commentDraftIndexPath,
-    JSON.stringify(commentDraftIndex, null, 2),
-  )
+  await fs.writeFile(commentDraftIndexPath, JSON.stringify(commentDraftIndex, null, 2))
 }
 
 function getCommentStoreId(
@@ -190,8 +179,7 @@ export const commentsApi = t.router({
       }),
     )
     .mutation(async ({input}) => {
-      const {targetDocId, replyCommentId, quotingBlockId, context, blocks} =
-        input
+      const {targetDocId, replyCommentId, quotingBlockId, context, blocks} = input
 
       if (!commentDraftIndex) {
         throw Error('[COMMENT DRAFT]: Comment Draft Index not initialized')
@@ -254,9 +242,7 @@ export const commentsApi = t.router({
 
       if (!existingDraft) return
 
-      commentDraftIndex = commentDraftIndex?.filter(
-        (d) => d.id !== existingDraft.id,
-      )
+      commentDraftIndex = commentDraftIndex?.filter((d) => d.id !== existingDraft.id)
       await saveCommentDraftIndex()
 
       const draftPath = join(commentDraftsDir, `${existingDraft.id}.json`)

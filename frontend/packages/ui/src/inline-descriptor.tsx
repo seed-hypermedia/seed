@@ -23,13 +23,7 @@ function formatUTC(date: Date) {
   return `${year}-${month}-${day} ${hours}:${minutes} (UTC)`
 }
 
-export function Timestamp({
-  time,
-  route,
-}: {
-  time: AnyTimestamp
-  route?: NavRoute | null
-}) {
+export function Timestamp({time, route}: {time: AnyTimestamp; route?: NavRoute | null}) {
   if (!time) return null
 
   const linkProps = route ? useRouteLink(route ?? null) : {}
@@ -52,9 +46,7 @@ export function InlineDescriptor({children}: {children: React.ReactNode}) {
 
 export function AuthorNameLink({author}: {author: HMContactItem | null}) {
   const authorName = author?.metadata?.name || abbreviateUid(author?.id?.uid)
-  const linkProps = useRouteLink(
-    author?.id ? {key: 'profile', id: author.id} : null,
-  )
+  const linkProps = useRouteLink(author?.id ? {key: 'profile', id: author.id} : null)
   return (
     <a className="text-foreground text-sm font-bold" {...linkProps}>
       {authorName}

@@ -20,19 +20,9 @@ import {useResponsiveItems} from './use-responsive-items'
 
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {HistoryIcon, Lock} from 'lucide-react'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from './components/dropdown-menu'
+import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {useHighlighter} from './highlight-context'
-import {
-  DocNavigationItem,
-  DocumentOutline,
-  DocumentSmallListItem,
-  useNodesOutline,
-} from './navigation'
+import {DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutline} from './navigation'
 import {HeaderSearch, MobileSearch} from './search'
 import {Separator} from './separator'
 import {SiteLogo} from './site-logo'
@@ -132,14 +122,8 @@ export function SiteHeader({
     const updateHeaderHeight = () => {
       const headerHeight = headerRef.current?.offsetHeight || 60
 
-      window.document.documentElement.style.setProperty(
-        '--site-header-h',
-        `${headerHeight}px`,
-      )
-      window.document.documentElement.style.setProperty(
-        '--site-header-live-h',
-        `${headerHeight}px`,
-      )
+      window.document.documentElement.style.setProperty('--site-header-h', `${headerHeight}px`)
+      window.document.documentElement.style.setProperty('--site-header-live-h', `${headerHeight}px`)
     }
 
     // Initial measurement
@@ -154,13 +138,8 @@ export function SiteHeader({
     // Cleanup
     return () => {
       resizeObserver.disconnect()
-      window.document.documentElement.style.setProperty(
-        '--site-header-h',
-        '0px',
-      )
-      window.document.documentElement.style.removeProperty(
-        '--site-header-live-h',
-      )
+      window.document.documentElement.style.setProperty('--site-header-h', '0px')
+      window.document.documentElement.style.removeProperty('--site-header-live-h')
     }
   }, [headerRef.current])
 
@@ -169,9 +148,7 @@ export function SiteHeader({
   if (!headerHomeId) return null
   return (
     <>
-      {docId && document ? (
-        <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
-      ) : null}
+      {docId && document ? <GotoLatestBanner isLatest={isLatest} id={docId} document={document} /> : null}
 
       <header
         ref={headerRef}
@@ -193,21 +170,13 @@ export function SiteHeader({
           })}
         >
           <div className="flex flex-1 justify-center overflow-hidden">
-            <SiteLogo
-              id={headerHomeId}
-              metadata={draftMetadata || homeDoc.document?.metadata}
-            />
+            <SiteLogo id={headerHomeId} metadata={draftMetadata || homeDoc.document?.metadata} />
           </div>
           {routeType != 'draft' && isCenterLayout ? (
             <div className="flex items-center gap-2 md:absolute md:right-0">
               {headerSearch}
               {notifyServiceHost && (
-                <Button
-                  variant="brand"
-                  size="sm"
-                  className="text-white"
-                  onClick={() => setIsSubscribeDialogOpen(true)}
-                >
+                <Button variant="brand" size="sm" className="text-white" onClick={() => setIsSubscribeDialogOpen(true)}>
                   Subscribe
                 </Button>
               )}
@@ -259,9 +228,7 @@ export function SiteHeader({
               />
 
               <div className="relative min-h-0 flex-1">
-                {isMobileSearchActive ? (
-                  <div className="bg-background absolute inset-0 z-10" />
-                ) : null}
+                {isMobileSearchActive ? <div className="bg-background absolute inset-0 z-10" /> : null}
 
                 <div className="relative z-0">
                   {/* Always show home navigation items */}
@@ -273,10 +240,7 @@ export function SiteHeader({
                           setIsMobileMenuOpen(false)
                         }}
                       />
-                      <MobileFeedLink
-                        siteHomeId={siteHomeId}
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      />
+                      <MobileFeedLink siteHomeId={siteHomeId} onClick={() => setIsMobileMenuOpen(false)} />
                     </div>
                   )}
                   {/* 
@@ -330,13 +294,7 @@ export function SiteHeader({
   )
 }
 
-function NavItems({
-  items,
-  onClick,
-}: {
-  items?: DocNavigationItem[] | null
-  onClick?: () => void
-}) {
+function NavItems({items, onClick}: {items?: DocNavigationItem[] | null; onClick?: () => void}) {
   return items
     ? items.map((doc) => {
         // Skip items without id or draftId to prevent routing errors
@@ -370,22 +328,11 @@ function MobileMenuOutline({
   const outline = useNodesOutline(document, docId, embeds)
 
   return (
-    <DocumentOutline
-      onActivateBlock={onActivateBlock}
-      outline={outline}
-      id={docId}
-      activeBlockId={docId.blockRef}
-    />
+    <DocumentOutline onActivateBlock={onActivateBlock} outline={outline} id={docId} activeBlockId={docId.blockRef} />
   )
 }
 
-function MobileFeedLink({
-  siteHomeId,
-  onClick,
-}: {
-  siteHomeId: UnpackedHypermediaId
-  onClick?: () => void
-}) {
+function MobileFeedLink({siteHomeId, onClick}: {siteHomeId: UnpackedHypermediaId; onClick?: () => void}) {
   const feedLinkProps = useRouteLink({
     key: 'feed',
     id: {...siteHomeId, latest: true, version: null},
@@ -428,9 +375,7 @@ function OverflowMenuItem({
     <DropdownMenuItem {...linkProps}>
       <div className="flex w-full items-center justify-between gap-2">
         <span>{getMetadataName(item.metadata)}</span>
-        {item.visibility === 'PRIVATE' ? (
-          <Lock size={12} className="text-muted-foreground" />
-        ) : null}
+        {item.visibility === 'PRIVATE' ? <Lock size={12} className="text-muted-foreground" /> : null}
       </div>
     </DropdownMenuItem>
   )
@@ -478,9 +423,7 @@ function HeaderLinkItem({
       >
         {getMetadataName(metadata)}
       </a>
-      {visibility === 'PRIVATE' ? (
-        <Lock size={12} className="text-muted-foreground" />
-      ) : null}
+      {visibility === 'PRIVATE' ? <Lock size={12} className="text-muted-foreground" /> : null}
       {draftId ? <DraftBadge /> : null}
     </div>
   )
@@ -505,10 +448,8 @@ export function SiteHeaderMenu({
   const feedLinkButtonRef = useRef<HTMLAnchorElement>(null)
 
   // Calculate reserved width for the dropdown button, edit pane, and feed button
-  const editNavPaneWidth =
-    editNavPaneRef.current?.getBoundingClientRect().width || 0
-  const feedLinkButtonWidth =
-    feedLinkButtonRef.current?.getBoundingClientRect().width || 0
+  const editNavPaneWidth = editNavPaneRef.current?.getBoundingClientRect().width || 0
+  const feedLinkButtonWidth = feedLinkButtonRef.current?.getBoundingClientRect().width || 0
   const reservedWidth = editNavPaneWidth + feedLinkButtonWidth + 8 + 32 + 40 // padding + button + gaps
 
   // Determine active key based on current docId
@@ -527,14 +468,13 @@ export function SiteHeaderMenu({
     return activeItem?.key
   }, [docId, items])
 
-  const {containerRef, itemRefs, visibleItems, overflowItems} =
-    useResponsiveItems({
-      items: items || [],
-      activeKey,
-      getItemWidth: getNavItemWidth,
-      reservedWidth,
-      gapWidth: 20,
-    })
+  const {containerRef, itemRefs, visibleItems, overflowItems} = useResponsiveItems({
+    items: items || [],
+    activeKey,
+    getItemWidth: getNavItemWidth,
+    reservedWidth,
+    gapWidth: 20,
+  })
 
   const feedLinkProps = useRouteLink({
     key: 'feed',
@@ -609,11 +549,7 @@ export function SiteHeaderMenu({
                 <ChevronDown className="size-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent
-              className="max-h-[300px] w-50 overflow-y-scroll"
-              side="bottom"
-              align="end"
-            >
+            <DropdownMenuContent className="max-h-[300px] w-50 overflow-y-scroll" side="bottom" align="end">
               {overflowItems.map((item) => (
                 <OverflowMenuItem key={item.key} item={item} />
               ))}
@@ -637,9 +573,7 @@ export function SiteHeaderMenu({
           <HistoryIcon
             className={cn(
               'size-4 flex-none shrink-0',
-              isMainFeedVisible
-                ? 'text-foreground text-bold'
-                : 'text-muted-foreground',
+              isMainFeedVisible ? 'text-foreground text-bold' : 'text-muted-foreground',
             )}
           />
 
@@ -647,9 +581,7 @@ export function SiteHeaderMenu({
           <span
             className={cn(
               'hidden lg:inline',
-              isMainFeedVisible
-                ? 'text-foreground text-bold'
-                : 'text-muted-foreground',
+              isMainFeedVisible ? 'text-foreground text-bold' : 'text-muted-foreground',
             )}
           >
             Feed
@@ -723,21 +655,13 @@ function GotoLatestBanner({
       )}
     >
       <div className="bg-background border-border pointer-events-auto flex max-w-xl items-center gap-4 rounded-sm border p-2 shadow-lg">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setHideVersionBanner(true)}
-        >
+        <Button variant="ghost" size="icon" onClick={() => setHideVersionBanner(true)}>
           <X color="var(--color-muted-foreground)" size={20} />
         </Button>
         <p className="text-muted-foreground text-sm">
-          {tx(
-            'version_from',
-            ({date}: {date: string}) => `Version from ${date}`,
-            {
-              date: formattedDateLong(document.updateTime),
-            },
-          )}
+          {tx('version_from', ({date}: {date: string}) => `Version from ${date}`, {
+            date: formattedDateLong(document.updateTime),
+          })}
         </p>
         <Button variant="outline" size="sm" {...latestLinkProps}>
           <span className="text-muted-foreground">{tx('Go to Latest')}</span>
@@ -750,9 +674,7 @@ function GotoLatestBanner({
 
 export type AutoHideSiteHeaderClassName = 'translate-y-0' | '-translate-y-full'
 
-export function useAutoHideSiteHeader(
-  scrollContainerRef?: React.RefObject<HTMLElement>,
-) {
+export function useAutoHideSiteHeader(scrollContainerRef?: React.RefObject<HTMLElement>) {
   const media = useMedia()
   const prevScrollPos = useRef(0)
   const [isHidden, setIsHidden] = useState(false)
@@ -810,9 +732,7 @@ export function useAutoHideSiteHeader(
   }, [media.gtSm, scrollContainerRef])
 
   return {
-    hideSiteHeaderClassName: isHidden
-      ? '-translate-y-full'
-      : ('translate-y-0' as AutoHideSiteHeaderClassName),
+    hideSiteHeaderClassName: isHidden ? '-translate-y-full' : ('translate-y-0' as AutoHideSiteHeaderClassName),
     hideMobileBarClassName: isHidden ? 'opacity-40' : '',
     onScroll: () => {}, // Keep for backward compatibility
   }

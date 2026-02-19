@@ -29,11 +29,7 @@ export async function serverRequest<K extends keyof typeof APIRouter>(
   input: Parameters<(typeof APIRouter)[K]['getData']>[1],
 ): Promise<Awaited<ReturnType<(typeof APIRouter)[K]['getData']>>> {
   const apiDefinition = APIRouter[key]
-  const result = await apiDefinition.getData(
-    grpcClient,
-    input as never,
-    queryDaemon,
-  )
+  const result = await apiDefinition.getData(grpcClient, input as never, queryDaemon)
   return result as Awaited<ReturnType<(typeof APIRouter)[K]['getData']>>
 }
 

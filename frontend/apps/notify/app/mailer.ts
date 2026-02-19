@@ -27,16 +27,12 @@ export async function sendEmail(
   senderLabel?: string,
 ) {
   if (!transporter) {
-    console.error(
-      `Email notifier is not enabled. Failed to send email to ${to} with subject ${subject}`,
-    )
+    console.error(`Email notifier is not enabled. Failed to send email to ${to} with subject ${subject}`)
     return
   }
   console.log(`Sending email to ${to} with subject ${subject}`)
 
-  const from = senderLabel
-    ? `${senderLabel} <${NOTIFY_SMTP_USER}>`
-    : NOTIFY_SENDER
+  const from = senderLabel ? `${senderLabel} <${NOTIFY_SMTP_USER}>` : NOTIFY_SENDER
 
   const info = await transporter.sendMail({
     from,

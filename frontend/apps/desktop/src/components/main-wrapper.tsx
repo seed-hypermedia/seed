@@ -30,11 +30,7 @@ export function MainWrapper({
   )
 }
 
-export function MainWrapperStandalone({
-  children,
-  className,
-  ...props
-}: HTMLAttributes<HTMLDivElement>) {
+export function MainWrapperStandalone({children, className, ...props}: HTMLAttributes<HTMLDivElement>) {
   return (
     <div className={`flex flex-1 ${className || ''}`} {...props}>
       {/* TODO: we cannot remove this ID here because the SlashMenu is referencing
@@ -51,11 +47,7 @@ export function MainWrapperStandalone({
   )
 }
 
-export function MainWrapperNoScroll({
-  children,
-  className,
-  ...props
-}: HTMLAttributes<HTMLDivElement>) {
+export function MainWrapperNoScroll({children, className, ...props}: HTMLAttributes<HTMLDivElement>) {
   return (
     <div className={`flex flex-1 ${className || ''}`} {...props}>
       {children}

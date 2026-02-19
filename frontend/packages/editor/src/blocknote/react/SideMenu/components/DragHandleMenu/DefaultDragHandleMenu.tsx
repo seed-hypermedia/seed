@@ -19,9 +19,7 @@ import {RemoveBlockButton} from './DefaultButtons/RemoveBlockButton'
 import {DragHandleMenu, DragHandleMenuProps} from './DragHandleMenu'
 import {DragHandleMenuItem} from './DragHandleMenuItem'
 
-export const DefaultDragHandleMenu = <BSchema extends HMBlockSchema>(
-  props: DragHandleMenuProps<BSchema>,
-) => (
+export const DefaultDragHandleMenu = <BSchema extends HMBlockSchema>(props: DragHandleMenuProps<BSchema>) => (
   <DragHandleMenu>
     <RemoveBlockButton {...props}>Delete</RemoveBlockButton>
     <TurnIntoMenu {...props} />
@@ -55,11 +53,7 @@ function TurnIntoMenu(props: DragHandleMenuProps<HMBlockSchema>) {
   let index = 0
 
   _.forEach(groups, (groupedItems) => {
-    renderedItems.push(
-      <Menu.Label key={groupedItems[0]?.group}>
-        {groupedItems[0]?.group}
-      </Menu.Label>,
-    )
+    renderedItems.push(<Menu.Label key={groupedItems[0]?.group}>{groupedItems[0]?.group}</Menu.Label>)
 
     for (const item of groupedItems) {
       renderedItems.push(
@@ -83,10 +77,7 @@ function TurnIntoMenu(props: DragHandleMenuProps<HMBlockSchema>) {
   }
 
   return (
-    <DragHandleMenuItem
-      onMouseOver={stopMenuCloseTimer}
-      onMouseLeave={startMenuCloseTimer}
-    >
+    <DragHandleMenuItem onMouseOver={stopMenuCloseTimer} onMouseLeave={startMenuCloseTimer}>
       <Menu opened={opened} position="right">
         <Menu.Target>
           <div className="flex gap-2">
@@ -97,11 +88,7 @@ function TurnIntoMenu(props: DragHandleMenuProps<HMBlockSchema>) {
             </Box>
           </div>
         </Menu.Target>
-        <Menu.Dropdown
-          onMouseLeave={startMenuCloseTimer}
-          onMouseOver={stopMenuCloseTimer}
-          style={{marginLeft: '5px'}}
-        >
+        <Menu.Dropdown onMouseLeave={startMenuCloseTimer} onMouseOver={stopMenuCloseTimer} style={{marginLeft: '5px'}}>
           {renderedItems}
         </Menu.Dropdown>
       </Menu>
@@ -114,13 +101,7 @@ var turnIntoItems = [
     label: 'Paragraph',
     group: 'Block operations',
     Icon: RiText,
-    onClick: ({
-      block,
-      editor,
-    }: {
-      block: Block<HMBlockSchema>
-      editor: BlockNoteEditor<HMBlockSchema>
-    }) => {
+    onClick: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) => {
       editor.focus()
       editor.updateBlock(block, {
         type: 'paragraph',
@@ -132,13 +113,7 @@ var turnIntoItems = [
     label: 'Heading',
     group: 'Block operations',
     Icon: RiHeading,
-    onClick: ({
-      block,
-      editor,
-    }: {
-      block: Block<HMBlockSchema>
-      editor: BlockNoteEditor<HMBlockSchema>
-    }) => {
+    onClick: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) => {
       console.log(block)
       editor.focus()
       editor.updateBlock(block, {
@@ -151,13 +126,7 @@ var turnIntoItems = [
     label: 'Code',
     group: 'Block operations',
     Icon: RiCodeBoxLine,
-    onClick: ({
-      block,
-      editor,
-    }: {
-      block: Block<HMBlockSchema>
-      editor: BlockNoteEditor<HMBlockSchema>
-    }) => {
+    onClick: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) => {
       editor.focus()
       editor.updateBlock(block, {
         type: 'code-block',
@@ -185,13 +154,7 @@ var turnIntoItems = [
     label: 'Bullet item',
     group: 'Group operations',
     Icon: RiListUnordered,
-    onClick: ({
-      block,
-      editor,
-    }: {
-      block: Block<HMBlockSchema>
-      editor: BlockNoteEditor<HMBlockSchema>
-    }) => {
+    onClick: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) => {
       editor.focus()
       updateGroup(editor, block, 'Unordered')
     },
@@ -200,13 +163,7 @@ var turnIntoItems = [
     label: 'Numbered item',
     group: 'Group operations',
     Icon: RiListOrdered,
-    onClick: ({
-      block,
-      editor,
-    }: {
-      block: Block<HMBlockSchema>
-      editor: BlockNoteEditor<HMBlockSchema>
-    }) => {
+    onClick: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) => {
       editor.focus()
       updateGroup(editor, block, 'Ordered')
     },
@@ -215,13 +172,7 @@ var turnIntoItems = [
     label: 'Group item',
     group: 'Group operations',
     Icon: RiMenuLine,
-    onClick: ({
-      block,
-      editor,
-    }: {
-      block: Block<HMBlockSchema>
-      editor: BlockNoteEditor<HMBlockSchema>
-    }) => {
+    onClick: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) => {
       editor.focus()
       updateGroup(editor, block, 'Group')
     },
@@ -231,13 +182,7 @@ var turnIntoItems = [
     label: 'Blockquote item',
     group: 'Group operations',
     Icon: RiChatQuoteLine,
-    onClick: ({
-      block,
-      editor,
-    }: {
-      block: Block<HMBlockSchema>
-      editor: BlockNoteEditor<HMBlockSchema>
-    }) => {
+    onClick: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) => {
       editor.focus()
       updateGroup(editor, block, 'Blockquote')
     },

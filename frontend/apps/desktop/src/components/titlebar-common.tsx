@@ -1,10 +1,7 @@
 import {useAppContext} from '@/app-context'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {useDeleteDialog} from '@/components/delete-dialog'
-import {
-  roleCanWrite,
-  useSelectedAccountCapability,
-} from '@/models/access-control'
+import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
@@ -21,13 +18,7 @@ import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
-import {
-  createDocumentNavRoute,
-  DocumentRoute,
-  DraftRoute,
-  FeedRoute,
-  NavRoute,
-} from '@shm/shared/routes'
+import {createDocumentNavRoute, DocumentRoute, DraftRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {
   activitySlugToFilter,
@@ -40,28 +31,10 @@ import {
   unpackHmId,
   viewTermToRouteKey,
 } from '@shm/shared/utils/entity-id-url'
-import {
-  appRouteOfId,
-  useNavigationDispatch,
-  useNavigationState,
-  useNavRoute,
-} from '@shm/shared/utils/navigation'
+import {appRouteOfId, useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@shm/ui/components/popover'
-import {
-  ArrowRight,
-  Back,
-  CloudOff,
-  Download,
-  Forward,
-  Link,
-  Trash,
-  UploadCloud,
-} from '@shm/ui/icons'
+import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
+import {ArrowRight, Back, CloudOff, Download, Forward, Link, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
@@ -81,81 +54,47 @@ import {
   PanelLeft,
   Search,
 } from 'lucide-react'
-import {
-  ReactNode,
-  useCallback,
-  useContext,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import {ReactNode, useCallback, useContext, useMemo, useRef, useState} from 'react'
 import {BookmarkButton} from './bookmarking'
 import {BranchDialog} from './branch-dialog'
 import {CopyReferenceButton} from './copy-reference-button'
 import {useImportDialog, useImporting} from './import-doc-button'
 import {MoveDialog} from './move-dialog'
-import {
-  usePublishSite,
-  useRemoveSiteDialog,
-  useSeedHostDialog,
-} from './publish-site'
+import {usePublishSite, useRemoveSiteDialog, useSeedHostDialog} from './publish-site'
 import {SearchInput, SearchInputHandle} from './search-input'
 import {SubscriptionButton} from './subscription'
 import {TitleBarProps} from './titlebar'
 
 // Route keys that have an id and support DocOptionsButton
-const DOC_OPTIONS_ROUTE_KEYS = [
-  'document',
-  'feed',
-  'activity',
-  'discussions',
-  'directory',
-  'collaborators',
-] as const
+const DOC_OPTIONS_ROUTE_KEYS = ['document', 'feed', 'activity', 'discussions', 'directory', 'collaborators'] as const
 
 type DocOptionsRouteKey = (typeof DOC_OPTIONS_ROUTE_KEYS)[number]
 
-function isDocOptionsRoute(
-  route: NavRoute,
-): route is NavRoute & {key: DocOptionsRouteKey; id: UnpackedHypermediaId} {
-  return (
-    DOC_OPTIONS_ROUTE_KEYS.includes(route.key as DocOptionsRouteKey) &&
-    'id' in route
-  )
+function isDocOptionsRoute(route: NavRoute): route is NavRoute & {key: DocOptionsRouteKey; id: UnpackedHypermediaId} {
+  return DOC_OPTIONS_ROUTE_KEYS.includes(route.key as DocOptionsRouteKey) && 'id' in route
 }
 
 export function DocOptionsButton({
   onPublishSite,
 }: {
-  onPublishSite: (input: {
-    id: UnpackedHypermediaId
-    step?: 'seed-host-custom-domain'
-  }) => void
+  onPublishSite: (input: {id: UnpackedHypermediaId; step?: 'seed-host-custom-domain'}) => void
 }) {
   const route = useNavRoute()
   const dispatch = useNavigationDispatch()
-  if (!isDocOptionsRoute(route))
-    throw new Error(
-      'DocOptionsButton must be used within a route that has an id',
-    )
+  if (!isDocOptionsRoute(route)) throw new Error('DocOptionsButton must be used within a route that has an id')
   const id = route.id
   const {exportDocument, openDirectory} = useAppContext()
   const deleteEntity = useDeleteDialog()
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
   const resource = useResource(id)
-  const doc =
-    resource.data?.type === 'document' ? resource.data.document : undefined
+  const doc = resource.data?.type === 'document' ? resource.data.document : undefined
   const rootEntity = useResource(hmId(id?.uid))
-  const rootDocument =
-    rootEntity.data?.type === 'document' ? rootEntity.data.document : undefined
+  const rootDocument = rootEntity.data?.type === 'document' ? rootEntity.data.document : undefined
   const siteUrl = rootDocument?.metadata.siteUrl
   // const copyLatest =
   //   route.id.latest || !route.id.version || doc?.version === route.id.version
   const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
-  const [copySiteUrlContent, onCopySiteUrl] = useCopyReferenceUrl(
-    siteUrl || gwUrl,
-    siteUrl ? hmId(id?.uid) : undefined,
-  )
+  const [copySiteUrlContent, onCopySiteUrl] = useCopyReferenceUrl(siteUrl || gwUrl, siteUrl ? hmId(id?.uid) : undefined)
   // const  {
   //   ...route.id,
   //   latest: copyLatest,
@@ -168,9 +107,7 @@ export function DocOptionsButton({
   const branchDialog = useAppDialog(BranchDialog)
   const moveDialog = useAppDialog(MoveDialog)
   const myAccountIds = useMyAccountIds()
-  const pendingDomain = useHostSession().pendingDomains?.find(
-    (pending) => !!id && pending.siteUid === id.uid,
-  )
+  const pendingDomain = useHostSession().pendingDomains?.find((pending) => !!id && pending.siteUid === id.uid)
   const menuItems: MenuItemType[] = [
     {
       key: 'link',
@@ -191,10 +128,7 @@ export function DocOptionsButton({
         const editorBlocks = hmBlocksToEditorContent(blocks, {
           childrenType: 'Group',
         })
-        const markdownWithFiles = await convertBlocksToMarkdown(
-          editorBlocks,
-          doc,
-        )
+        const markdownWithFiles = await convertBlocksToMarkdown(editorBlocks, doc)
         const {markdownContent, mediaFiles} = markdownWithFiles
         exportDocument(title, markdownContent, mediaFiles)
           .then((res) => {
@@ -202,8 +136,7 @@ export function DocOptionsButton({
               <>
                 <div className="flex max-w-[700px] flex-col gap-1.5">
                   <SizableText className="text-wrap break-all">
-                    Successfully exported document "{title}" to:{' '}
-                    <b>{`${res}`}</b>.
+                    Successfully exported document "{title}" to: <b>{`${res}`}</b>.
                   </SizableText>
                   <SizableText
                     className="text-current underline"
@@ -354,12 +287,7 @@ export function DocOptionsButton({
       {seedHostDialog.content}
       {branchDialog.content}
       {moveDialog.content}
-      <OptionsDropdown
-        className="window-no-drag"
-        menuItems={menuItems}
-        align="start"
-        side="bottom"
-      />
+      <OptionsDropdown className="window-no-drag" menuItems={menuItems} align="start" side="bottom" />
     </>
   )
 }
@@ -392,18 +320,11 @@ function DocumentTitlebarButtons({route}: {route: DocumentRoute | FeedRoute}) {
   const canEditDoc = roleCanWrite(capability?.role)
   const entity = useResource(id)
   const showPublishSiteButton =
-    isHomeDoc &&
-    canEditDoc &&
-    entity.data?.type == 'document' &&
-    !entity.data.document?.metadata.siteUrl
+    isHomeDoc && canEditDoc && entity.data?.type == 'document' && !entity.data.document?.metadata.siteUrl
   return (
     <TitlebarSection>
       {showPublishSiteButton ? (
-        <Button
-          variant="default"
-          onClick={() => publishSite.open({id})}
-          size="sm"
-        >
+        <Button variant="default" onClick={() => publishSite.open({id})} size="sm">
           Publish to Web Domain
           <UploadCloud className="size-4" />
         </Button>
@@ -460,11 +381,7 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
   }
 
   if (isHoverVisible) {
-    icon = !isLocked ? (
-      <ArrowRightFromLine className="size-4" />
-    ) : (
-      <ArrowLeftFromLine className="size-4" />
-    )
+    icon = !isLocked ? <ArrowRightFromLine className="size-4" /> : <ArrowLeftFromLine className="size-4" />
   }
 
   // Add a state to track the last click time to debounce clicks
@@ -588,28 +505,17 @@ function useCurrentRouteUrl(): {
   const routeId = getRouteId(route)
 
   // For draft/preview routes, fetch draft data
-  const draftId =
-    route.key === 'draft'
-      ? route.id
-      : route.key === 'preview'
-      ? route.draftId
-      : undefined
+  const draftId = route.key === 'draft' ? route.id : route.key === 'preview' ? route.draftId : undefined
   const draft = useDraft(draftId)
   const draftData = draft.data
 
   // Resolve uid for siteUrl lookup: route > draft data
-  const draftEditUid =
-    (route.key === 'draft' ? route.editUid : undefined) || draftData?.editUid
-  const draftLocationUid =
-    (route.key === 'draft' ? route.locationUid : undefined) ||
-    draftData?.locationUid
+  const draftEditUid = (route.key === 'draft' ? route.editUid : undefined) || draftData?.editUid
+  const draftLocationUid = (route.key === 'draft' ? route.locationUid : undefined) || draftData?.locationUid
   const draftUid = draftEditUid || draftLocationUid
   const lookupUid = routeId?.uid || draftUid
   const accountEntity = useResource(lookupUid ? hmId(lookupUid) : null)
-  const entitySiteUrl =
-    accountEntity.data?.type === 'document'
-      ? accountEntity.data.document?.metadata?.siteUrl
-      : null
+  const entitySiteUrl = accountEntity.data?.type === 'document' ? accountEntity.data.document?.metadata?.siteUrl : null
   // Entity metadata is authoritative; fall back to hostname preserved from input URL
   const siteHostname = entitySiteUrl || routeId?.hostname || null
 
@@ -620,18 +526,10 @@ function useCurrentRouteUrl(): {
     if (route.key === 'draft' || route.key === 'preview') {
       const hostname = siteHostname || gwUrl
       // Resolve edit/location from route or draft data
-      const editUid =
-        (route.key === 'draft' ? route.editUid : undefined) ||
-        draftData?.editUid
-      const editPath =
-        (route.key === 'draft' ? route.editPath : undefined) ||
-        draftData?.editPath
-      const locationUid =
-        (route.key === 'draft' ? route.locationUid : undefined) ||
-        draftData?.locationUid
-      const locationPath =
-        (route.key === 'draft' ? route.locationPath : undefined) ||
-        draftData?.locationPath
+      const editUid = (route.key === 'draft' ? route.editUid : undefined) || draftData?.editUid
+      const editPath = (route.key === 'draft' ? route.editPath : undefined) || draftData?.editPath
+      const locationUid = (route.key === 'draft' ? route.locationUid : undefined) || draftData?.locationUid
+      const locationPath = (route.key === 'draft' ? route.locationPath : undefined) || draftData?.locationPath
 
       if (editUid) {
         // Editing existing doc - show the doc's URL, copyable
@@ -645,9 +543,7 @@ function useCurrentRouteUrl(): {
       if (locationUid) {
         // New doc - use pathemified title or fallback to draft ID, NOT copyable
         const draftRouteId = route.key === 'draft' ? route.id : route.draftId
-        const pathSegment = draftTitle?.trim()
-          ? pathNameify(draftTitle)
-          : draftRouteId
+        const pathSegment = draftTitle?.trim() ? pathNameify(draftTitle) : draftRouteId
         const newPath = [...(locationPath || []), pathSegment]
         const url = createWebHMUrl(locationUid, {
           path: newPath,
@@ -799,15 +695,7 @@ export function Omnibar() {
   const searchInputRef = useRef<SearchInputHandle>(null)
   const [isSearchLoading, setIsSearchLoading] = useState(false)
 
-  const {
-    mode,
-    inputValue,
-    inputRef,
-    focus,
-    focusSearch,
-    blur,
-    handleInputChange,
-  } = useOmnibarState(copyableUrl)
+  const {mode, inputValue, inputRef, focus, focusSearch, blur, handleInputChange} = useOmnibarState(copyableUrl)
 
   // Listen for keyboard shortcuts
   useListenAppEvent('focus_omnibar', (event) => {
@@ -827,11 +715,7 @@ export function Omnibar() {
   const handleUrlNavigation = useCallback(
     async (url: string): Promise<boolean> => {
       // Extract view term (e.g., /:activity) from URL before processing
-      const {
-        url: cleanUrl,
-        viewTerm,
-        activityFilter,
-      } = extractViewTermFromUrl(url)
+      const {url: cleanUrl, viewTerm, activityFilter} = extractViewTermFromUrl(url)
       const routeKey = viewTermToRouteKey(viewTerm)
 
       // Helper to apply view term to route
@@ -839,11 +723,7 @@ export function Omnibar() {
         if (!routeKey) return route
         if (route.key === 'document') {
           const viewRoute: NavRoute = {key: routeKey, id: route.id}
-          if (
-            routeKey === 'activity' &&
-            activityFilter &&
-            viewRoute.key === 'activity'
-          ) {
+          if (routeKey === 'activity' && activityFilter && viewRoute.key === 'activity') {
             viewRoute.filterEventType = activitySlugToFilter(activityFilter)
           }
           return viewRoute
@@ -864,9 +744,7 @@ export function Omnibar() {
           const panelMatch = cleanUrl.match(/[?&]panel=([^&]+)/)
           if (panelMatch) panel = decodeURIComponent(panelMatch[1])
         }
-        const navRoute = panel
-          ? createDocumentNavRoute(unpacked, null, panel)
-          : appRouteOfId(unpacked)
+        const navRoute = panel ? createDocumentNavRoute(unpacked, null, panel) : appRouteOfId(unpacked)
         if (navRoute) {
           navigate(applyViewTerm(navRoute))
           return true
@@ -908,8 +786,7 @@ export function Omnibar() {
           const url = inputValue.trim()
           if (url) {
             // Check if it's an HTTP URL that needs async resolution
-            const isHttpUrl =
-              url.startsWith('http://') || url.startsWith('https://')
+            const isHttpUrl = url.startsWith('http://') || url.startsWith('https://')
             const unpacked = unpackHmId(url)
 
             if (unpacked) {
@@ -987,22 +864,13 @@ export function Omnibar() {
         onClick={handleContainerClick}
       >
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">
-          <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
-            {displayText}
-          </span>
+          <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">{displayText}</span>
           {indicators}
         </div>
         {routeId ? (
-          <div
-            className="flex shrink-0 items-center"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="flex shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
             <BookmarkButton id={routeId} />
-            <CopyReferenceButton
-              docId={routeId}
-              isBlockFocused={false}
-              latest
-            />
+            <CopyReferenceButton docId={routeId} isBlockFocused={false} latest />
             {/* <DocOptionsButton onPublishSite={publishSite.open} /> */}
           </div>
         ) : null}
@@ -1067,9 +935,7 @@ export function Omnibar() {
             placeholder="Search documents..."
             autoFocus
           />
-          {isSearchLoading ? (
-            <Spinner className="text-muted-foreground size-3.5 shrink-0" />
-          ) : null}
+          {isSearchLoading ? <Spinner className="text-muted-foreground size-3.5 shrink-0" /> : null}
           {indicators}
         </div>
       </PopoverTrigger>

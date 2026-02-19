@@ -5,9 +5,7 @@ import {useStream} from '@shm/shared/use-stream'
 export function useSelectedAccount() {
   const {selectedIdentity} = useUniversalAppContext()
   const selectedIdentityValue = useStream(selectedIdentity)
-  const {data: account} = useResource(
-    selectedIdentityValue ? hmId(selectedIdentityValue) : null,
-  )
+  const {data: account} = useResource(selectedIdentityValue ? hmId(selectedIdentityValue) : null)
   if (account?.type !== 'document') return undefined
   return account
 }

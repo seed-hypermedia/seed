@@ -23,11 +23,7 @@ export type RequestCache = {
   /**
    * Get or fetch a document. Caches by account:path:version key.
    */
-  getDocument: (params: {
-    account?: string
-    path?: string
-    version?: string
-  }) => Promise<Document>
+  getDocument: (params: {account?: string; path?: string; version?: string}) => Promise<Document>
 
   /**
    * Get or fetch a comment. Caches by comment ID.
@@ -42,9 +38,7 @@ export type RequestCache = {
   /**
    * Get or fetch contacts for an account. Caches by account UID.
    */
-  getContacts: (
-    accountUid: string,
-  ) => Promise<{subject: string; name: string}[]>
+  getContacts: (accountUid: string) => Promise<{subject: string; name: string}[]>
 }
 
 /**
@@ -73,18 +67,13 @@ export function createRequestCache(grpcClient: GRPCClient): RequestCache {
       // Key includes currentAccount because contact name may differ
       const key = `${uid}:${currentAccount || ''}`
       if (!accounts.has(key)) {
-        accounts.set(
-          key,
-          resolveAccountWithCache(grpcClient, uid, currentAccount, this),
-        )
+        accounts.set(key, resolveAccountWithCache(grpcClient, uid, currentAccount, this))
       }
       return accounts.get(key)!
     },
 
     getDocument(params) {
-      const key = `${params.account || ''}:${params.path || ''}:${
-        params.version || ''
-      }`
+      const key = `${params.account || ''}:${params.path || ''}:${params.version || ''}`
       if (!documents.has(key)) {
         documents.set(
           key,
@@ -109,9 +98,7 @@ export function createRequestCache(grpcClient: GRPCClient): RequestCache {
       if (!replyCounts.has(id)) {
         replyCounts.set(
           id,
-          grpcClient.comments
-            .getCommentReplyCount({id})
-            .then((r) => Number(r.replyCount)),
+          grpcClient.comments.getCommentReplyCount({id}).then((r) => Number(r.replyCount)),
         )
       }
       return replyCounts.get(id)!
@@ -185,9 +172,7 @@ async function resolveAccountWithCache(
   }) as HMMetadata | undefined
 
   // Check if current user has a contact for this account (using cache)
-  const contactsList = currentAccount
-    ? await cache.getContacts(currentAccount)
-    : null
+  const contactsList = currentAccount ? await cache.getContacts(currentAccount) : null
 
   const contact = contactsList?.find((c) => c.subject === accountId)
 
