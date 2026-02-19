@@ -1,17 +1,17 @@
-import {createComment, postCBOR} from '@/api'
-import {LocalWebIdentity, useCreateAccount} from '@/auth'
+import {postCBOR} from '@/api'
+import {useCreateAccount} from '@/auth'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {CommentEditor} from '@shm/editor/comment-editor'
 import {
   HMBlockNode,
   idToUrl,
-  packHmId,
   queryKeys,
-  trimTrailingEmptyBlocks,
   UnpackedHypermediaId,
   unpackHmId,
   useUniversalAppContext,
+  useUniversalClient,
 } from '@shm/shared'
+import {prepareComment} from '@shm/shared/comment-creation'
 import {useCommentsService} from '@shm/shared/comments-service-provider'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
@@ -64,6 +64,7 @@ export default function WebCommenting({
   const openUrl = useOpenUrlWeb()
   const queryClient = useQueryClient()
   const tx = useTxString()
+  const {getSigner} = useUniversalClient()
 
   // Resolve reply parent from commentId when explicit version props aren't provided
   const commentsService = useCommentsService({targetId: docId})
@@ -215,15 +216,18 @@ export default function WebCommenting({
 
       try {
         setIsSubmitting(true)
+        if (!getSigner) throw new Error('getSigner not available')
+        const signer = getSigner(userKeyPair.id)
         const commentPayload = await prepareComment(
           getContent,
           {
             docId,
             docVersion,
-            keyPair: userKeyPair,
+            signer,
             replyCommentVersion,
             rootReplyCommentVersion,
             quotingBlockId,
+            prepareAttachments,
           },
           commentingOriginUrl,
         )
@@ -364,75 +368,6 @@ async function prepareAttachments(binaries: Uint8Array[]) {
     })
   }
   return {blobs, resultCIDs}
-}
-
-function generateBlockId(length: number = 8): string {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-  let result = ''
-  for (let i = 0; i < length; i++) {
-    result += characters.charAt(Math.floor(Math.random() * characters.length))
-  }
-  return result
-}
-
-async function prepareComment(
-  getContent: (
-    prepareAttachments: (binaries: Uint8Array[]) => Promise<{
-      blobs: {cid: string; data: Uint8Array}[]
-      resultCIDs: string[]
-    }>,
-  ) => Promise<{
-    blockNodes: HMBlockNode[]
-    blobs: {cid: string; data: Uint8Array}[]
-  }>,
-  commentMeta: {
-    docId: UnpackedHypermediaId
-    docVersion: string
-    keyPair: LocalWebIdentity
-    replyCommentVersion: string | null | undefined
-    rootReplyCommentVersion: string | null | undefined
-    quotingBlockId?: string
-  },
-  commentingOriginUrl: string | undefined,
-): Promise<CommentPayload> {
-  const {blockNodes: rawBlockNodes, blobs} = await getContent(prepareAttachments)
-  const blockNodes = trimTrailingEmptyBlocks(rawBlockNodes)
-
-  // If quotingBlockId is provided, wrap content in an embed block like desktop version
-  // Include version to ensure we reference the specific version containing the block
-  const publishContent = commentMeta.quotingBlockId
-    ? [
-        {
-          block: {
-            id: generateBlockId(8),
-            type: 'Embed',
-            text: '',
-            attributes: {
-              childrenType: 'Group',
-              view: 'Content',
-            },
-            annotations: [],
-            link: packHmId({
-              ...commentMeta.docId,
-              blockRef: commentMeta.quotingBlockId,
-              version: commentMeta.docVersion,
-            }),
-          },
-          children: blockNodes,
-        } as HMBlockNode,
-      ]
-    : blockNodes
-
-  const signedComment = await createComment({
-    content: publishContent,
-    ...commentMeta,
-  })
-  const result: CommentPayload = {
-    comment: cborEncode(signedComment),
-    blobs,
-  }
-  if (commentingOriginUrl) result.commentingOriginUrl = commentingOriginUrl
-  return result
 }
 
 // UUID v4 with safe fallback for browsers without crypto.randomUUID (Safari < 15.4)

@@ -1,4 +1,4 @@
-import type {DiscoveryState, HMListedDraft, HMRequest, UnpackedHypermediaId} from './hm-types'
+import type {DiscoveryState, HMListedDraft, HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'
 import type {RecentsResult} from './models/recents'
 import type {StateStream} from './utils/stream'
 
@@ -42,4 +42,7 @@ export type UniversalClient = {
 
   // Drafts service (desktop only - undefined on web)
   drafts?: DraftsService
+
+  // Platform-specific signing
+  getSigner?: (accountUid: string) => HMSigner
 }

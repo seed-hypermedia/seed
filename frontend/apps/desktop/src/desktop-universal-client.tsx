@@ -1,8 +1,9 @@
 import {addSubscribedEntity, getDiscoveryStream, removeSubscribedEntity} from '@/models/entities'
 import {deleteRecent, fetchRecents} from '@/models/recents'
 import {client as trpcClient} from '@/trpc'
-import type {UnpackedHypermediaId} from '@shm/shared'
+import type {HMSigner, UnpackedHypermediaId} from '@shm/shared'
 import type {DeleteCommentInput, UniversalClient} from '@shm/shared/universal-client'
+import {base58btc} from 'multiformats/bases/base58'
 import {CommentBox} from './components/commenting'
 import {desktopRequest} from './desktop-api'
 import {grpcClient} from './grpc-client'
@@ -36,4 +37,15 @@ export const desktopUniversalClient: UniversalClient = {
   drafts: {
     listAccountDrafts: (accountUid) => trpcClient.drafts.listAccount.query(accountUid),
   },
+
+  getSigner: (accountUid: string): HMSigner => ({
+    getPublicKey: async () => new Uint8Array(base58btc.decode(accountUid)),
+    sign: async (data: Uint8Array) => {
+      const result = await grpcClient.daemon.signData({
+        signingKeyName: accountUid,
+        data: new Uint8Array(data),
+      })
+      return new Uint8Array(result.signature)
+    },
+  }),
 }

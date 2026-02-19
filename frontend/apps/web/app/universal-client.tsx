@@ -1,7 +1,9 @@
-import type {UnpackedHypermediaId} from '@shm/shared'
+import type {HMSigner, UnpackedHypermediaId} from '@shm/shared'
 import {createWebUniversalClient} from '@shm/shared'
 import {cborEncode, postCBOR as rawPostCBOR} from './api'
+import {preparePublicKey} from './auth-utils'
 import WebCommenting from './commenting'
+import {getStoredLocalKeys} from './local-db'
 import {deleteRecent, getRecents} from './local-db-recents'
 import {queryAPI} from './models'
 
@@ -13,4 +15,21 @@ export const webUniversalClient = createWebUniversalClient({
   },
   fetchRecents: getRecents,
   deleteRecent: deleteRecent,
+  getSigner: (): HMSigner => ({
+    getPublicKey: async () => {
+      const keys = await getStoredLocalKeys()
+      if (!keys) throw new Error('No signing keys available')
+      return preparePublicKey(keys.publicKey)
+    },
+    sign: async (data: Uint8Array) => {
+      const keys = await getStoredLocalKeys()
+      if (!keys) throw new Error('No signing keys available')
+      const sig = await crypto.subtle.sign(
+        {...keys.privateKey.algorithm, hash: {name: 'SHA-256'}},
+        keys.privateKey,
+        new Uint8Array(data),
+      )
+      return new Uint8Array(sig)
+    },
+  }),
 })
