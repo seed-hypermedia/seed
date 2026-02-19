@@ -18,6 +18,7 @@ import {ArrowRight, ChevronDown, Close, Menu, X} from './icons'
 import {SmallListItem} from './list-item'
 import {useResponsiveItems} from './use-responsive-items'
 
+import {IS_DESKTOP} from '@shm/shared/constants'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {HistoryIcon, Lock} from 'lucide-react'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
@@ -108,7 +109,7 @@ export function SiteHeader({
       >
         <Menu size={20} />
       </Button>
-      {siteHomeId ? (
+      {siteHomeId && !IS_DESKTOP ? (
         <div className="hidden md:block">
           <HeaderSearch siteHomeId={siteHomeId} />
         </div>
@@ -217,15 +218,17 @@ export function SiteHeader({
           onClose={() => setIsMobileMenuOpen(false)}
           renderContent={() => (
             <div className="flex min-h-full flex-col">
-              <MobileSearch
-                siteHomeId={siteHomeId}
-                onSearchActiveChange={setIsMobileSearchActive}
-                // @ts-expect-error
-                onSelect={(item: SearchResult) => {
-                  setIsMobileMenuOpen(false)
-                  // Navigation not yet implemented for mobile search results
-                }}
-              />
+              {!IS_DESKTOP && (
+                <MobileSearch
+                  siteHomeId={siteHomeId}
+                  onSearchActiveChange={setIsMobileSearchActive}
+                  // @ts-expect-error
+                  onSelect={(item: SearchResult) => {
+                    setIsMobileMenuOpen(false)
+                    // Navigation not yet implemented for mobile search results
+                  }}
+                />
+              )}
 
               <div className="relative min-h-0 flex-1">
                 {isMobileSearchActive ? <div className="bg-background absolute inset-0 z-10" /> : null}

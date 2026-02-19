@@ -1,6 +1,6 @@
 import {PanelSelectionOptions} from '@shm/shared'
 import {X} from 'lucide-react'
-import {useLayoutEffect, useRef} from 'react'
+import {useRef} from 'react'
 import {
   ImperativePanelGroupHandle,
   ImperativePanelHandle,
@@ -8,6 +8,7 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
+import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {Button} from './button'
 import {FeedFilters} from './feed-filters'
 import {Text} from './text'
@@ -72,7 +73,7 @@ export function PanelLayout({
   const prevPanelKey = useRef<PanelSelectionOptions | null>(panelKey)
 
   // Always open panel at DEFAULT_PANEL_PX, capped at MAX_PANEL_PERCENT
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const isOpening = prevPanelKey.current === null && panelKey !== null
 
     if (isOpening) {
