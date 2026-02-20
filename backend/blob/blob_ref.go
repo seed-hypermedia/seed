@@ -430,9 +430,7 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 		dg.Metadata.set("$db.redirect", redirectTarget, refTime)
 	}
 
-	if v.Visibility != "" {
-		dg.Metadata.set("$db.visibility", string(v.Visibility), refTime)
-	}
+	dg.Metadata.set("$db.visibility", string(v.Visibility), refTime)
 
 	if isTombstone {
 		dg.LastTombstoneRefTime = max(dg.LastTombstoneRefTime, refTime)

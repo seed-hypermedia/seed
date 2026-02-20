@@ -63,7 +63,11 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
-	// delete content of embeddings table before reindexing with new schema
+	// Reindexing the database after private documents fix.
+	{Version: "2026-02-20.101920", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return scheduleReindex(conn)
+	}},
+	// Delete content of embeddings table before reindexing with new schema.
 	{Version: "2026-01-24.1", Run: func(_ *Store, conn *sqlite.Conn) error {
 		// Drop first to make idempotent (vec0 doesn't support IF NOT EXISTS).
 		if err := sqlitex.ExecScript(conn, "DROP TABLE IF EXISTS embeddings;"); err != nil {

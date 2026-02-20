@@ -226,11 +226,17 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 	}
 	newBlobs = append(newBlobs, docChange)
 
-	var visibility blob.Visibility
-	if in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+	visibility := doc.Visibility()
+	switch in.Visibility {
+	case documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE:
 		visibility = blob.VisibilityPrivate
-	} else {
+	case documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC:
 		visibility = blob.VisibilityPublic
+	case documents.ResourceVisibility_RESOURCE_VISIBILITY_UNSPECIFIED:
+		// Keep the existing document visibility for updates.
+		// For new documents this defaults to public.
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "unknown visibility value: %v", in.Visibility)
 	}
 
 	ref, err := doc.Ref(kp, visibility)
@@ -302,6 +308,7 @@ func (srv *Server) handleDocumentChangeRequest(ctx context.Context, in *document
 				return nil, status.Errorf(codes.InvalidArgument, "private documents must have a simple path with only a leading slash (e.g., '/document-name'): got %s", in.Path)
 			}
 		}
+
 	}
 
 	heads, err := docmodel.Version(in.BaseVersion).Parse()

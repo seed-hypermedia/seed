@@ -2756,6 +2756,184 @@ func TestPrivateDocumentAccessControl(t *testing.T) {
 	require.True(t, foundPublic, "Alice must see the public document in her document list")
 }
 
+func TestPrivateDocumentUpdatePreservesVisibility(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+	aliceKey := must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main"))
+
+	createdDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceKey.String(),
+		Path:           "/private-doc-update",
+		SigningKeyName: "main",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Private Document"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Original private content",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE, createdDoc.Visibility, "created document must be private")
+
+	updatedDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceKey.String(),
+		Path:           createdDoc.Path,
+		BaseVersion:    createdDoc.Version,
+		SigningKeyName: "main",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_UNSPECIFIED,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Updated Private Document"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Updated private content",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE, updatedDoc.Visibility, "updated document must remain private")
+
+	gotDocument, err := alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: updatedDoc.Account,
+		Path:    updatedDoc.Path,
+	})
+	require.NoError(t, err)
+	require.Equal(t, updatedDoc.Version, gotDocument.Version, "GetDocument must return the updated version")
+	require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE, gotDocument.Visibility, "GetDocument must return private visibility after update")
+
+	gotResource, err := alice.RPC.DocumentsV3.GetResource(ctx, &documents.GetResourceRequest{
+		Iri: "hm://" + updatedDoc.Account + updatedDoc.Path,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, gotResource.GetDocument(), "GetResource must return a document")
+	require.Equal(t, updatedDoc.Version, gotResource.Version, "GetResource must return the updated version")
+	require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE, gotResource.GetDocument().Visibility, "GetResource document visibility must remain private after update")
+
+	require.NoError(t, bob.Net.ForceConnect(ctx, alice.Net.AddrInfo()))
+
+	for n := range 100 {
+		resp, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+			Account:   aliceKey.String(),
+			Path:      updatedDoc.Path,
+			Recursive: false,
+		})
+		require.NoError(t, err)
+
+		if resp.State == entities.DiscoveryTaskState_DISCOVERY_TASK_COMPLETED {
+			break
+		}
+
+		if n == 99 {
+			t.Fatal("discovery retries exhausted")
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: updatedDoc.Account,
+		Path:    updatedDoc.Path,
+	})
+	require.Error(t, err, "Bob must not be able to retrieve Alice's private document after discovery")
+}
+
+func TestPrivateDocumentExplicitPublicUpdateBecomesPublic(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+	aliceKey := must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main"))
+
+	createdDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceKey.String(),
+		Path:           "/private-doc-explicit-public",
+		SigningKeyName: "main",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Private Document"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE, createdDoc.Visibility)
+
+	updatedDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceKey.String(),
+		Path:           createdDoc.Path,
+		BaseVersion:    createdDoc.Version,
+		SigningKeyName: "main",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Now Public"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC, updatedDoc.Visibility)
+
+	gotDocument, err := alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: updatedDoc.Account,
+		Path:    updatedDoc.Path,
+	})
+	require.NoError(t, err)
+	require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC, gotDocument.Visibility)
+
+	gotResource, err := alice.RPC.DocumentsV3.GetResource(ctx, &documents.GetResourceRequest{
+		Iri: "hm://" + updatedDoc.Account + updatedDoc.Path,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, gotResource.GetDocument())
+	require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC, gotResource.GetDocument().Visibility)
+
+	require.NoError(t, bob.Net.ForceConnect(ctx, alice.Net.AddrInfo()))
+
+	for n := range 100 {
+		resp, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+			Account:   aliceKey.String(),
+			Path:      updatedDoc.Path,
+			Recursive: false,
+		})
+		require.NoError(t, err)
+
+		if resp.State == entities.DiscoveryTaskState_DISCOVERY_TASK_COMPLETED {
+			break
+		}
+
+		if n == 99 {
+			t.Fatal("discovery retries exhausted")
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	bobDoc, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: updatedDoc.Account,
+		Path:    updatedDoc.Path,
+	})
+	require.NoError(t, err)
+	require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC, bobDoc.Visibility)
+}
+
 func TestPrivateDocumentsSync(t *testing.T) {
 	t.Parallel()
 
