@@ -1,5 +1,5 @@
 /**
- * Account commands
+ * Account commands — get, list, contacts, capabilities.
  */
 
 import type {Command} from 'commander'
@@ -7,9 +7,14 @@ import {getClient, getOutputFormat} from '../index'
 import {formatOutput, printError} from '../output'
 
 export function registerAccountCommands(program: Command) {
-  // Get single account
-  program
-    .command('account <uid>')
+  const account = program
+    .command('account')
+    .description('Manage accounts (get, list, contacts, capabilities)')
+
+  // ── get ──────────────────────────────────────────────────────────────────
+
+  account
+    .command('get <uid>')
     .description('Get account information')
     .option('-q, --quiet', 'Output ID only')
     .action(async (uid: string, _options, cmd) => {
@@ -35,9 +40,10 @@ export function registerAccountCommands(program: Command) {
       }
     })
 
-  // List all accounts
-  program
-    .command('accounts')
+  // ── list ─────────────────────────────────────────────────────────────────
+
+  account
+    .command('list')
     .description('List all known accounts')
     .option('-q, --quiet', 'Output IDs and names only')
     .action(async (_options, cmd) => {
@@ -62,8 +68,9 @@ export function registerAccountCommands(program: Command) {
       }
     })
 
-  // Get account contacts
-  program
+  // ── contacts ─────────────────────────────────────────────────────────────
+
+  account
     .command('contacts <uid>')
     .description('List contacts for an account')
     .option('-q, --quiet', 'Output names only')
@@ -82,6 +89,25 @@ export function registerAccountCommands(program: Command) {
         } else {
           console.log(formatOutput(result, format))
         }
+      } catch (error) {
+        printError((error as Error).message)
+        process.exit(1)
+      }
+    })
+
+  // ── capabilities ─────────────────────────────────────────────────────────
+
+  account
+    .command('capabilities <id>')
+    .description('List access control capabilities')
+    .action(async (id: string, _options, cmd) => {
+      const globalOpts = cmd.optsWithGlobals()
+      const client = getClient(globalOpts)
+      const format = getOutputFormat(globalOpts)
+
+      try {
+        const result = await client.listCapabilities(id)
+        console.log(formatOutput(result, format))
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)
