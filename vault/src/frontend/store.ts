@@ -6,7 +6,7 @@ import { createContext, useContext } from "react"
 import { proxy, useSnapshot } from "valtio"
 import type * as api from "@/api"
 import * as localCrypto from "./crypto"
-import * as vaultDataMod from "./vault"
+import * as vault from "./vault"
 
 export interface SessionInfo {
 	authenticated: boolean
@@ -31,7 +31,7 @@ export function initialState() {
 		passkeySupported: false,
 		platformAuthAvailable: false,
 		userHasPassword: true,
-		vaultData: null as vaultDataMod.VaultData | null,
+		vaultData: null as vault.State | null,
 		vaultVersion: 0,
 		selectedAccountIndex: -1,
 		creatingAccount: false,
@@ -866,13 +866,13 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				if (serverData.encryptedData) {
 					const encryptedData = base64.decode(serverData.encryptedData)
 					const decryptedData = await localCrypto.decrypt(encryptedData, state.decryptedDEK)
-					state.vaultData = await vaultDataMod.deserializeVault(decryptedData)
+					state.vaultData = await vault.deserialize(decryptedData)
 
 					if (state.vaultData.accounts.length === 1) {
 						state.selectedAccountIndex = 0
 					}
 				} else {
-					state.vaultData = vaultDataMod.emptyVault()
+					state.vaultData = vault.createEmpty()
 				}
 				state.vaultVersion = serverData.version ?? 0
 			} catch (e) {
@@ -889,7 +889,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 			state.error = ""
 
 			try {
-				const dataBytes = await vaultDataMod.serializeVault(state.vaultData)
+				const dataBytes = await vault.serialize(state.vaultData)
 				const encryptedData = await localCrypto.encrypt(dataBytes, state.decryptedDEK)
 
 				await client.saveVaultData({
@@ -918,7 +918,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				const ts = Date.now()
 				const encoded = blobs.createProfile(kp, { name, description }, ts)
 
-				const account: vaultDataMod.Account = {
+				const account: vault.Account = {
 					seed: kp.privateKey,
 					profile: encoded.decoded,
 					createdAt: ts,
@@ -945,7 +945,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 			state.creatingAccount = open
 		},
 
-		getSelectedAccount(): vaultDataMod.Account | null {
+		getSelectedAccount(): vault.Account | null {
 			if (
 				!state.vaultData ||
 				state.selectedAccountIndex < 0 ||
@@ -954,6 +954,109 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				return null
 			}
 			return state.vaultData.accounts[state.selectedAccountIndex] ?? null
+		},
+
+		async deleteAccount(principal: string) {
+			if (!state.vaultData || !state.decryptedDEK) {
+				state.error = "Vault must be unlocked first"
+				return
+			}
+
+			const index = state.vaultData.accounts.findIndex((a) => blobs.principalToString(a.profile.signer) === principal)
+
+			if (index === -1) {
+				state.error = "Account not found"
+				return
+			}
+
+			state.loading = true
+			state.error = ""
+
+			try {
+				// 1. Remove the account
+				state.vaultData.accounts.splice(index, 1)
+
+				// Remove associated delegations and shift indexes.
+				for (let i = state.vaultData.delegations.length - 1; i >= 0; i--) {
+					const d = state.vaultData.delegations[i]
+					if (!d) continue
+					if (d.accountIndex === index) {
+						state.vaultData.delegations.splice(i, 1)
+					} else if (d.accountIndex > index) {
+						d.accountIndex--
+					}
+				}
+
+				// 3. Adjust selectedAccountIndex
+				if (state.vaultData.accounts.length === 0) {
+					state.selectedAccountIndex = -1
+				} else if (state.selectedAccountIndex === index) {
+					state.selectedAccountIndex = Math.max(0, index - 1)
+				} else if (state.selectedAccountIndex > index) {
+					state.selectedAccountIndex--
+				}
+
+				await actions.saveVaultData()
+			} catch (e) {
+				console.error("Failed to delete account:", e)
+				state.error = (e as Error).message || "Failed to delete account"
+			} finally {
+				state.loading = false
+			}
+		},
+
+		async reorderAccount(activePrincipal: string, overPrincipal: string) {
+			if (!state.vaultData || !state.decryptedDEK) {
+				state.error = "Vault must be unlocked first"
+				return
+			}
+
+			if (activePrincipal === overPrincipal) return
+
+			const oldIndex = state.vaultData.accounts.findIndex(
+				(a) => blobs.principalToString(a.profile.signer) === activePrincipal,
+			)
+			const newIndex = state.vaultData.accounts.findIndex(
+				(a) => blobs.principalToString(a.profile.signer) === overPrincipal,
+			)
+
+			if (oldIndex === -1 || newIndex === -1) {
+				return
+			}
+
+			state.loading = true
+			state.error = ""
+
+			try {
+				const [moved] = state.vaultData.accounts.splice(oldIndex, 1)
+				if (!moved) throw new Error("Account not found during splice")
+				state.vaultData.accounts.splice(newIndex, 0, moved)
+
+				if (state.selectedAccountIndex === oldIndex) {
+					state.selectedAccountIndex = newIndex
+				} else if (state.selectedAccountIndex > oldIndex && state.selectedAccountIndex <= newIndex) {
+					state.selectedAccountIndex--
+				} else if (state.selectedAccountIndex < oldIndex && state.selectedAccountIndex >= newIndex) {
+					state.selectedAccountIndex++
+				}
+
+				for (const d of state.vaultData.delegations) {
+					if (d.accountIndex === oldIndex) {
+						d.accountIndex = newIndex
+					} else if (d.accountIndex > oldIndex && d.accountIndex <= newIndex) {
+						d.accountIndex--
+					} else if (d.accountIndex < oldIndex && d.accountIndex >= newIndex) {
+						d.accountIndex++
+					}
+				}
+
+				await actions.saveVaultData()
+			} catch (e) {
+				console.error("Failed to reorder accounts:", e)
+				state.error = (e as Error).message || "Failed to reorder accounts"
+			} finally {
+				state.loading = false
+			}
 		},
 
 		// Email Change Actions.
@@ -1115,7 +1218,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				const sessionKeyPrincipal = blobs.principalFromString(state.delegationRequest.sessionKeyPrincipal)
 				const encoded = hmauth.createDelegation(issuerKeyPair, sessionKeyPrincipal, state.delegationRequest.clientId)
 
-				const delegatedSession: vaultDataMod.DelegatedSession = {
+				const delegatedSession: vault.DelegatedSession = {
 					clientId: state.delegationRequest.clientId,
 					sessionKeyPrincipal: state.delegationRequest.sessionKeyPrincipal,
 					accountIndex: state.selectedAccountIndex,

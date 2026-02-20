@@ -103,6 +103,7 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 - Don't use relative imports outside the current directory. Don't import from `../../../something` — use workspace imports.
 - When asked to fix bugs, always try to write a test that fails to reproduce the bug before fixing it. Unless asked otherwise.
 - When finished coding run `bun run biome check --write` and `bun run check` to ensure the code doesn't raise any issues.
+- Never suppress biome warnings with `biome-ignore` just to avoid fixing them. Only suppress when the warning is genuinely a false positive and add a meaningful justification.
 - We use `tsgo` for typechecking, and `biome` for formatting and linting.
 - Prefer whole module imports (aka namespace imports, e.g. `import * as X from "x"`) over very granular imports for individual symbols with destructuring.
   - It's OK to use import destructuring for common third-party libraries like React, e.g. when importing hooks, but for our own code, prefer namespace imports.

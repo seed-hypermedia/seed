@@ -436,6 +436,140 @@ describe("Store", () => {
 			mockStartAuthentication.mockReset()
 		})
 	})
+
+	describe("deleteAccount", () => {
+		test("removes account and related delegations, and updates indexes", async () => {
+			const saveVaultDataCalls: unknown[] = []
+			const client = createMockClient({
+				saveVaultData: async (req) => {
+					saveVaultDataCalls.push(req)
+					return { success: true }
+				},
+			})
+			const { state, actions } = createStore(client)
+
+			// Setup vault with 3 accounts
+			const kp1 = blobs.generateKeyPair()
+			const kp2 = blobs.generateKeyPair()
+			const kp3 = blobs.generateKeyPair()
+
+			state.decryptedDEK = new Uint8Array(32) // Needed to authorize action
+			state.vaultData = {
+				version: 1,
+				accounts: [
+					{
+						seed: kp1.privateKey,
+						profile: blobs.createProfile(kp1, { name: "Acc 0" }, Date.now()).decoded,
+						createdAt: Date.now(),
+					},
+					{
+						seed: kp2.privateKey,
+						profile: blobs.createProfile(kp2, { name: "Acc 1" }, Date.now()).decoded,
+						createdAt: Date.now(),
+					},
+					{
+						seed: kp3.privateKey,
+						profile: blobs.createProfile(kp3, { name: "Acc 2" }, Date.now()).decoded,
+						createdAt: Date.now(),
+					},
+				],
+				delegations: [
+					{ accountIndex: 0, clientId: "0", sessionKeyPrincipal: "0", createdAt: 0 },
+					{ accountIndex: 1, clientId: "1a", sessionKeyPrincipal: "1a", createdAt: 0 },
+					{ accountIndex: 1, clientId: "1b", sessionKeyPrincipal: "1b", createdAt: 0 },
+					{ accountIndex: 2, clientId: "2", sessionKeyPrincipal: "2", createdAt: 0 },
+				],
+			}
+			state.selectedAccountIndex = 1
+
+			const principal2 = blobs.principalToString(state.vaultData!.accounts[1]!.profile.signer)
+			await actions.deleteAccount(principal2)
+
+			expect(state.vaultData!.accounts.length).toBe(2)
+			expect(state.vaultData!.accounts[0]!.profile.name).toBe("Acc 0")
+			expect(state.vaultData!.accounts[1]!.profile.name).toBe("Acc 2")
+
+			expect(state.vaultData!.delegations.length).toBe(2)
+			expect(state.vaultData!.delegations[0]!.clientId).toBe("0")
+			expect(state.vaultData!.delegations[0]!.accountIndex).toBe(0) // Unchanged
+			expect(state.vaultData!.delegations[1]!.clientId).toBe("2")
+			expect(state.vaultData!.delegations[1]!.accountIndex).toBe(1) // Shifted from 2 to 1
+
+			expect(state.selectedAccountIndex).toBe(0) // Shifted down
+			expect(saveVaultDataCalls.length).toBe(1)
+		})
+	})
+
+	describe("reorderAccount", () => {
+		test("moves account correctly, shifts selection and delegations", async () => {
+			const saveVaultDataCalls: unknown[] = []
+			const client = createMockClient({
+				saveVaultData: async (req) => {
+					saveVaultDataCalls.push(req)
+					return { success: true }
+				},
+			})
+			const { state, actions } = createStore(client)
+
+			const kp1 = blobs.generateKeyPair()
+			const kp2 = blobs.generateKeyPair()
+			const kp3 = blobs.generateKeyPair()
+
+			const p1 = blobs.principalToString(kp1.principal)
+			const p3 = blobs.principalToString(kp3.principal)
+
+			state.decryptedDEK = new Uint8Array(32)
+			state.vaultData = {
+				version: 1,
+				accounts: [
+					{
+						seed: kp1.privateKey,
+						profile: blobs.createProfile(kp1, { name: "Acc 0" }, Date.now()).decoded,
+						createdAt: Date.now(),
+					},
+					{
+						seed: kp2.privateKey,
+						profile: blobs.createProfile(kp2, { name: "Acc 1" }, Date.now()).decoded,
+						createdAt: Date.now(),
+					},
+					{
+						seed: kp3.privateKey,
+						profile: blobs.createProfile(kp3, { name: "Acc 2" }, Date.now()).decoded,
+						createdAt: Date.now(),
+					},
+				],
+				delegations: [
+					{ accountIndex: 0, clientId: "0", sessionKeyPrincipal: "0", createdAt: 0 },
+					{ accountIndex: 1, clientId: "1a", sessionKeyPrincipal: "1a", createdAt: 0 },
+					{ accountIndex: 2, clientId: "2", sessionKeyPrincipal: "2", createdAt: 0 },
+				],
+			}
+			state.selectedAccountIndex = 0
+
+			// Move index 0 to index 2
+			await actions.reorderAccount(p1, p3)
+
+			expect(state.vaultData!.accounts.length).toBe(3)
+			expect(state.vaultData!.accounts[0]!.profile.name).toBe("Acc 1")
+			expect(state.vaultData!.accounts[1]!.profile.name).toBe("Acc 2")
+			expect(state.vaultData!.accounts[2]!.profile.name).toBe("Acc 0")
+
+			// The selected account was 0 ("Acc 0"). It moved to index 2.
+			expect(state.selectedAccountIndex).toBe(2)
+
+			// Delegations shift
+			expect(state.vaultData!.delegations[0]!.clientId).toBe("0")
+			expect(state.vaultData!.delegations[0]!.accountIndex).toBe(2) // 0 -> 2
+
+			expect(state.vaultData!.delegations[1]!.clientId).toBe("1a")
+			expect(state.vaultData!.delegations[1]!.accountIndex).toBe(0) // 1 -> 0
+
+			expect(state.vaultData!.delegations[2]!.clientId).toBe("2")
+			expect(state.vaultData!.delegations[2]!.accountIndex).toBe(1) // 2 -> 1
+
+			expect(saveVaultDataCalls.length).toBe(1)
+		})
+	})
 })
 
 describe("delegation flow", () => {

@@ -31,7 +31,7 @@ export interface DelegatedSession {
 }
 
 /** Top-level vault data structure. */
-export interface VaultData {
+export interface State {
 	/** Schema version for future migrations. */
 	version: 1
 	/** List of Hypermedia accounts. */
@@ -41,24 +41,24 @@ export interface VaultData {
 }
 
 /** Create an empty vault. */
-export function emptyVault(): VaultData {
+export function createEmpty(): State {
 	return { version: 1, accounts: [], delegations: [] }
 }
 
 /** Serialize vault data: CBOR encode → gzip compress. Returns compressed bytes. */
-export async function serializeVault(data: VaultData): Promise<Uint8Array> {
+export async function serialize(data: State): Promise<Uint8Array> {
 	const cbor = dagCBOR.encode(data)
 	return compress(new Uint8Array(cbor))
 }
 
 /** Deserialize vault data: gzip decompress → CBOR decode. */
-export async function deserializeVault(compressed: Uint8Array): Promise<VaultData> {
+export async function deserialize(compressed: Uint8Array): Promise<State> {
 	const cbor = await decompress(compressed)
-	return dagCBOR.decode(cbor) as VaultData
+	return dagCBOR.decode(cbor) as State
 }
 
 /** Compress data using gzip. */
-export async function compress(data: Uint8Array): Promise<Uint8Array> {
+async function compress(data: Uint8Array): Promise<Uint8Array> {
 	const cs = new CompressionStream("gzip")
 	const writer = cs.writable.getWriter()
 	writer.write(data as Uint8Array<ArrayBuffer>)
