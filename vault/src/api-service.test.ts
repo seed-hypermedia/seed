@@ -5,7 +5,7 @@
 
 import type * as bunsqlite from "bun:sqlite"
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test"
-import * as base64 from "@/frontend/base64"
+import * as base64 from "@shm/shared/base64"
 import * as crypto from "@/frontend/crypto"
 import * as storage from "@/sqlite"
 

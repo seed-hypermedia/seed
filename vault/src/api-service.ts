@@ -1,9 +1,9 @@
 import type { Database } from "bun:sqlite"
+import * as base64 from "@shm/shared/base64"
 import * as webauthn from "@simplewebauthn/server"
 import * as challenge from "@/challenge"
 import type * as config from "@/config"
 import type * as email from "@/email"
-import * as base64 from "@/frontend/base64"
 import * as sess from "@/session"
 import type * as api from "./api"
 
@@ -52,17 +52,6 @@ interface Challenge {
 	new_email: string | null
 	verified: number
 	expire_time: number
-}
-
-// ============================================================================
-// Crypto utilities
-// ============================================================================
-
-// Hardcoded Argon2 parameters (Bitwarden defaults).
-const DEFAULT_ARGON2_PARAMS = {
-	memoryCost: 65536,
-	timeCost: 3,
-	parallelism: 4,
 }
 
 function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
@@ -1066,8 +1055,3 @@ export class Service implements api.ServerInterface {
 	// ==========================================================================
 	// Identity Endpoints
 }
-
-/**
- * Exported for use in client code that needs to know the default Argon2 params.
- */
-export { DEFAULT_ARGON2_PARAMS }

@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
+import * as base64 from "@shm/shared/base64"
 import { Cookie } from "bun"
-import * as base64 from "@/frontend/base64"
 
 export function getCookieName(isProd: boolean): string {
 	return isProd ? "__Secure-wac" : "wac"

@@ -3,7 +3,7 @@
  * Tests key derivation, encryption/decryption, and encoding utilities.
  */
 import { describe, expect, test } from "bun:test"
-import * as base64 from "./base64"
+import * as base64 from "@shm/shared/base64"
 import * as crypto from "./crypto"
 
 describe("crypto utilities", () => {

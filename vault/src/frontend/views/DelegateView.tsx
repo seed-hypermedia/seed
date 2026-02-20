@@ -1,11 +1,11 @@
 import * as blobs from "@shm/shared/blobs"
+import * as hmauth from "@shm/shared/hmauth"
 import { ExternalLink, Plus, Shield, User } from "lucide-react"
 import { Navigate, useSearchParams } from "react-router-dom"
 import { CreateAccountDialog } from "@/frontend/components/CreateAccountDialog"
 import { ErrorMessage } from "@/frontend/components/ErrorMessage"
 import { Button } from "@/frontend/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/frontend/components/ui/card"
-import * as hmauth from "@/frontend/hmauth"
 import { useActions, useAppState } from "@/frontend/store"
 
 /**

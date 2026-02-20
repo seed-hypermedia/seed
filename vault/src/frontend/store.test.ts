@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
+import * as base64 from "@shm/shared/base64"
 import * as blobs from "@shm/shared/blobs"
 import * as simplewebauthn from "@simplewebauthn/browser"
-import * as base64 from "./base64"
 import { createStore } from "./store"
 import { createMockClient } from "./test-utils"
 
