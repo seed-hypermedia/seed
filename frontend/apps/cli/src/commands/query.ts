@@ -1,5 +1,7 @@
 /**
- * Query command - list documents in space
+ * Query and discovery commands — query, children, citations, activity.
+ *
+ * These remain top-level commands as they are frequently used for discovery.
  */
 
 import type {Command} from 'commander'
@@ -7,14 +9,21 @@ import {getClient, getOutputFormat} from '../index'
 import {formatOutput, printError} from '../output'
 import type {QueryInclude, QuerySort} from '../client'
 
-export function registerQueryCommand(program: Command) {
+export function registerQueryCommands(program: Command) {
   program
     .command('query <space>')
     .description('List documents in a space')
     .option('-p, --path <path>', 'Path prefix')
-    .option('-m, --mode <mode>', 'Query mode: Children or AllDescendants', 'Children')
+    .option(
+      '-m, --mode <mode>',
+      'Query mode: Children or AllDescendants',
+      'Children',
+    )
     .option('-l, --limit <n>', 'Limit results', parseInt)
-    .option('--sort <term>', 'Sort by: Path, Title, CreateTime, UpdateTime, DisplayTime')
+    .option(
+      '--sort <term>',
+      'Sort by: Path, Title, CreateTime, UpdateTime, DisplayTime',
+    )
     .option('--reverse', 'Reverse sort order')
     .option('-q, --quiet', 'Output IDs and names only')
     .action(async (space: string, options, cmd) => {
@@ -23,11 +32,13 @@ export function registerQueryCommand(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const includes: QueryInclude[] = [{
-          space,
-          path: options.path,
-          mode: options.mode as 'Children' | 'AllDescendants',
-        }]
+        const includes: QueryInclude[] = [
+          {
+            space,
+            path: options.path,
+            mode: options.mode as 'Children' | 'AllDescendants',
+          },
+        ]
 
         const sort: QuerySort[] | undefined = options.sort
           ? [{term: options.sort, reverse: options.reverse}]
@@ -48,7 +59,6 @@ export function registerQueryCommand(program: Command) {
       }
     })
 
-  // Shorthand for children
   program
     .command('children <space>')
     .description('List child documents (shorthand for query --mode Children)')
@@ -61,11 +71,13 @@ export function registerQueryCommand(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const includes: QueryInclude[] = [{
-          space,
-          path: options.path,
-          mode: 'Children',
-        }]
+        const includes: QueryInclude[] = [
+          {
+            space,
+            path: options.path,
+            mode: 'Children',
+          },
+        ]
 
         const result = await client.query(includes, undefined, options.limit)
 
@@ -82,7 +94,6 @@ export function registerQueryCommand(program: Command) {
       }
     })
 
-  // List citations
   program
     .command('citations <id>')
     .description('List documents citing this resource')
@@ -108,18 +119,35 @@ export function registerQueryCommand(program: Command) {
       }
     })
 
-  // List capabilities
   program
-    .command('capabilities <id>')
-    .description('List access control capabilities')
-    .action(async (id: string, _options, cmd) => {
+    .command('activity')
+    .description('List activity events')
+    .option('-l, --limit <n>', 'Page size', parseInt)
+    .option('-t, --token <token>', 'Page token for pagination')
+    .option('--authors <uids>', 'Filter by author UIDs (comma-separated)')
+    .option('--resource <id>', 'Filter by resource')
+    .option('-q, --quiet', 'Output summary only')
+    .action(async (options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
 
       try {
-        const result = await client.listCapabilities(id)
-        console.log(formatOutput(result, format))
+        const result = await client.listEvents({
+          pageSize: options.limit,
+          pageToken: options.token,
+          filterAuthors: options.authors?.split(','),
+          filterResource: options.resource,
+        })
+
+        if (globalOpts.quiet) {
+          console.log(`${result.events.length} events`)
+          if (result.nextPageToken) {
+            console.log(`next\t${result.nextPageToken}`)
+          }
+        } else {
+          console.log(formatOutput(result, format))
+        }
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)

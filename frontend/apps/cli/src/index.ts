@@ -10,16 +10,12 @@ import {loadConfig, setConfigValue, getConfigValue} from './config'
 import type {OutputFormat} from './output'
 
 // Commands
-import {registerGetCommand} from './commands/get'
+import {registerDocumentCommands} from './commands/document'
+import {registerCommentCommands} from './commands/comment'
 import {registerAccountCommands} from './commands/account'
 import {registerSearchCommand} from './commands/search'
-import {registerQueryCommand} from './commands/query'
-import {registerCommentsCommand} from './commands/comments'
-import {registerChangesCommand} from './commands/changes'
+import {registerQueryCommands} from './commands/query'
 import {registerKeyCommands} from './commands/key'
-import {registerUpdateCommand} from './commands/update'
-import {registerWriteCommentCommand} from './commands/write-comment'
-import {registerCreateCommand} from './commands/create'
 
 const program = new Command()
 
@@ -53,17 +49,15 @@ export function getClient(options: Record<string, unknown>) {
   return createClient({server})
 }
 
-// Register commands
-registerGetCommand(program)
+// Register command groups
+registerDocumentCommands(program)
+registerCommentCommands(program)
 registerAccountCommands(program)
-registerSearchCommand(program)
-registerQueryCommand(program)
-registerCommentsCommand(program)
-registerChangesCommand(program)
 registerKeyCommands(program)
-registerUpdateCommand(program)
-registerWriteCommentCommand(program)
-registerCreateCommand(program)
+
+// Register top-level commands
+registerSearchCommand(program)
+registerQueryCommands(program)
 
 // Config command
 program
