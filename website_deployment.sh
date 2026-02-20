@@ -1,4 +1,22 @@
 #!/bin/sh
+# =============================================================================
+# DEPRECATION NOTICE
+#
+# This script is deprecated and will be removed in a future release.
+# Please use the new deployment system instead:
+#
+#   curl -fsSL https://seed.hyper.media/deploy.sh | sudo sh
+#
+# The new system provides:
+#   - Interactive setup wizard with guided configuration
+#   - Automatic migration from existing installations
+#   - Nightly auto-updates via cron (no Watchtower dependency)
+#   - Idempotent headless mode for safe repeated runs
+#   - Config-driven deployments at /opt/seed/config.json
+#
+# See ops/deploy.ts in the seed repo for details.
+# =============================================================================
+
 set -e
 
 command_exists() {
@@ -81,7 +99,7 @@ hostname="${hostname%/}"
 mkdir -p ${workspace}
 rm -f ${workspace}/deployment.log
 touch ${workspace}/deployment.log
-curl -s -o ${workspace}/hmsite.yml https://raw.githubusercontent.com/seed-hypermedia/seed/main/docker-compose.yml
+curl -s -o ${workspace}/hmsite.yml https://raw.githubusercontent.com/seed-hypermedia/seed/main/ops/docker-compose.yml
 
 install_docker
 if [ -n "$profile" ]; then
