@@ -69,17 +69,50 @@ bun run src/index.ts [command]
 
 ## Write Operations
 
-### Update Document Metadata
+### Create a New Document
 
-Update a document's title or summary:
+Create a new document from markdown content:
 
 ```bash
-$SEED_CLI update <hm-id> --title "New Title" --key <keyname>
-$SEED_CLI update <hm-id> --summary "New summary" --key <keyname>
-$SEED_CLI update <hm-id> --title "Title" --summary "Summary" --key <keyname>
+$SEED_CLI document create <account> --path /my-document --body-file content.md --key <keyname>
 
 # Development mode
-$SEED_CLI update <hm-id> --title "Title" --key <keyname> --dev
+$SEED_CLI document create <account> --path /my-doc --body-file content.md --key <keyname> --dev
+```
+
+**Parameters:**
+
+- `<account>`: Account UID to create the document under (e.g., `z6Mk...`)
+- `-p, --path <path>`: Document path (e.g. "my-document"). Auto-generated from title if omitted.
+- `--title <title>`: Document title (overrides H1 from markdown).
+- `--body <text>`: Markdown content inline.
+- `--body-file <file>`: Read markdown content from a file.
+- `-k, --key <name>`: Signing key name or account ID.
+- `--dev`: Use development environment
+
+**What happens internally:**
+
+1. Creates three signed blobs: a genesis change (document identity anchor), a document change (content operations), and a ref (linking to path/account)
+2. Pushes all blobs to the server automatically
+
+### Update Document Metadata or Content
+
+Update a document's title, summary, or append new content blocks:
+
+```bash
+$SEED_CLI document update <hm-id> --title "New Title" --key <keyname>
+$SEED_CLI document update <hm-id> --summary "New summary" --key <keyname>
+$SEED_CLI document update <hm-id> --title "Title" --summary "Summary" --key <keyname>
+$SEED_CLI document update <hm-id> --body-file new-section.md --key <keyname>
+
+# Append content under a specific parent block
+$SEED_CLI document update <hm-id> --body-file content.md --parent <blockId> --key <keyname>
+
+# Delete specific blocks
+$SEED_CLI document update <hm-id> --delete-blocks "blockId1,blockId2" --key <keyname>
+
+# Development mode
+$SEED_CLI document update <hm-id> --title "Title" --key <keyname> --dev
 ```
 
 **Parameters:**
@@ -87,14 +120,18 @@ $SEED_CLI update <hm-id> --title "Title" --key <keyname> --dev
 - `<hm-id>`: Hypermedia ID of the document (e.g., `hm://z6Mk.../path`)
 - `--title`: New document title (stored as `name` metadata)
 - `--summary`: New document summary
-- `--key`: Name or account ID of the signing key. If omitted, uses the default key.
+- `--body <text>`: Markdown content to append inline
+- `--body-file <file>`: Read markdown content to append from file
+- `--parent <blockId>`: Parent block ID for new content (default: document root)
+- `--delete-blocks <ids>`: Comma-separated block IDs to delete
+- `-k, --key`: Name or account ID of the signing key. If omitted, uses the default key.
 - `--dev`: Use development environment
 
 **What happens internally:**
 
 1. Fetches the document to get account, path, genesis CID
 2. Lists all changes to compute the current depth in the DAG
-3. Creates a signed Change blob with `SetAttributes` operations
+3. Creates a signed Change blob with operations (SetAttributes, ReplaceBlock, MoveBlocks, DeleteBlock)
 4. Creates a signed Ref blob pointing to the new change
 5. Submits both via HTTP POST to the server
 
@@ -104,16 +141,16 @@ Create a comment on a document:
 
 ```bash
 # Inline text
-$SEED_CLI comment-create <target-hm-id> --body "My comment" --key <keyname>
+$SEED_CLI comment create <target-hm-id> --body "My comment" --key <keyname>
 
 # From a file
-$SEED_CLI comment-create <target-hm-id> --file comment.md --key <keyname>
+$SEED_CLI comment create <target-hm-id> --file comment.md --key <keyname>
 
 # Reply to an existing comment
-$SEED_CLI comment-create <target-hm-id> --body "Reply text" --reply <comment-id> --key <keyname>
+$SEED_CLI comment create <target-hm-id> --body "Reply text" --reply <comment-id> --key <keyname>
 
 # Development mode
-$SEED_CLI comment-create <target-hm-id> --body "Comment" --key <keyname> --dev
+$SEED_CLI comment create <target-hm-id> --body "Comment" --key <keyname> --dev
 ```
 
 **Parameters:**
@@ -122,7 +159,7 @@ $SEED_CLI comment-create <target-hm-id> --body "Comment" --key <keyname> --dev
 - `--body`: Comment text (inline)
 - `--file`: Read comment text from a file
 - `--reply`: Reply to an existing comment by its ID
-- `--key`: Signing key name or account ID
+- `-k, --key`: Signing key name or account ID
 - `--dev`: Use development environment
 
 ## Workflow
@@ -140,7 +177,7 @@ $SEED_CLI comment-create <target-hm-id> --body "Comment" --key <keyname> --dev
 3. **Make the change** — Use the appropriate write command:
 
    ```bash
-   $SEED_CLI update hm://z6Mk.../doc-path --title "Updated Title" --key z6Mk... --dev
+   $SEED_CLI document update hm://z6Mk.../doc-path --title "Updated Title" --key z6Mk... --dev
    ```
 
 4. **Verify** — Read the document again to confirm the change was applied.
@@ -159,13 +196,13 @@ $SEED_CLI query z6Mk... --mode AllDescendants -q
 
 ## Error Handling
 
-| Error                   | Cause                       | Fix                                                  |
-| ----------------------- | --------------------------- | ---------------------------------------------------- |
-| "No signing keys found" | No keys in keyring          | Run `seed-cli key import` or `seed-cli key generate` |
-| "Key not found"         | Specified key doesn't exist | Check `seed-cli key list` for available keys         |
-| "No changes found"      | Document doesn't exist      | Verify the HM ID is correct                          |
-| "API error (403)"       | Key lacks write permission  | Key must be the document owner or have a capability  |
-| "API error (500)"       | Server-side error           | Check server URL, try again                          |
+| Error                   | Cause                       | Fix                                                    |
+| ----------------------- | --------------------------- | ------------------------------------------------------ |
+| "No signing keys found" | No keys in keyring          | Run `$SEED_CLI key import` or `$SEED_CLI key generate` |
+| "Key not found"         | Specified key doesn't exist | Check `$SEED_CLI key list` for available keys          |
+| "No changes found"      | Document doesn't exist      | Verify the HM ID is correct                            |
+| "API error (403)"       | Key lacks write permission  | Key must be the document owner or have a capability    |
+| "API error (500)"       | Server-side error           | Check server URL, try again                            |
 
 ## Key Management
 
@@ -236,7 +273,7 @@ Default server: `https://hyper.media`
 Override per-command:
 
 ```bash
-$SEED_CLI --server http://localhost:4000 update <hm-id> --title "Title"
+$SEED_CLI --server http://localhost:4000 document update <hm-id> --title "Title"
 ```
 
 Or set globally:
@@ -248,5 +285,5 @@ $SEED_CLI config --server http://localhost:4000
 Environment variable:
 
 ```bash
-SEED_SERVER=http://localhost:4000 $SEED_CLI update <hm-id> --title "Title"
+SEED_SERVER=http://localhost:4000 $SEED_CLI document update <hm-id> --title "Title"
 ```
