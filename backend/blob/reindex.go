@@ -24,6 +24,7 @@ var derivedTables = []string{
 	storage.T_Spaces,
 	storage.T_DocumentGenerations,
 	storage.T_StashedBlobs,
+	storage.T_Embeddings,
 	storage.T_Fts,
 	storage.T_FtsIndex,
 	storage.T_BlobVisibility,

@@ -216,7 +216,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 
 	dlink := devicelink.NewService(a.Net.Libp2p().Host, a.Storage.KeyStore(), a.Index, logging.New("seed/devicelink", cfg.LogLevel))
 
-	embedder, err := initLLM(ctx, cfg.LLM, a.Storage.DB(), logging.New("seed/llm", cfg.LogLevel), a.taskMgr)
+	embedder, err := initLLM(ctx, cfg.LLM, a.Storage.DB(), logging.New("seed/llm", cfg.LogLevel), a.taskMgr, a.Index)
 	if err != nil {
 		return nil, err
 	}
@@ -421,6 +421,7 @@ func initLLM(
 	db *sqlitex.Pool,
 	log *zap.Logger,
 	tskMgr *taskmanager.TaskManager,
+	idx *blob.Index,
 ) (*embeddings.Embedder, error) {
 	if !cfg.Embedding.Enabled {
 		log.Info("LLM embedding indexer is disabled")
@@ -469,13 +470,16 @@ func initLLM(
 		return nil, errors.New("unsupported LLM backend URL scheme: " + cfg.Backend.Cfg.URL.Scheme)
 	}
 	embedderOpts := []embeddings.EmbedderOption{
-
 		embeddings.WithIndexPassSize(cfg.Embedding.IndexPassSize),
 		embeddings.WithDocumentPrefix(cfg.Embedding.DocumentPrefix),
 		embeddings.WithQueryPrefix(cfg.Embedding.QueryPrefix),
 		embeddings.WithSleepPerPass(cfg.Embedding.SleepBetweenPasses),
 		embeddings.WithInterval(cfg.Embedding.PeriodicInterval),
 		embeddings.WithModel(cfg.Embedding.Model),
+		embeddings.WithCanIndex(func() bool {
+			info := idx.ReindexInfo()
+			return info.State != blob.ReindexStateInProgress && info.State != blob.ReindexStatePending
+		}),
 	}
 	embedder, err := embeddings.NewEmbedder(db, backend, log, tskMgr, embedderOpts...)
 	if err != nil {

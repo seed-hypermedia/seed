@@ -113,6 +113,7 @@ type Embedder struct {
 	documentPrefix     string
 	queryPrefix        string
 	maxChunkLength     int
+	canIndex           func() bool
 	mu                 sync.Mutex
 }
 
@@ -185,6 +186,17 @@ func WithDocumentPrefix(prefix string) EmbedderOption {
 func WithQueryPrefix(prefix string) EmbedderOption {
 	return func(embedder *Embedder) error {
 		embedder.queryPrefix = prefix
+		return nil
+	}
+}
+
+// WithCanIndex sets a function that the embedder calls before each run to check
+// whether it's safe to proceed. If canIndex returns false, the embedder skips
+// the current run and retries later. This is used to prevent embedding during
+// reindexing, because embeddings reference FTS row IDs that get reassigned.
+func WithCanIndex(canIndex func() bool) EmbedderOption {
+	return func(embedder *Embedder) error {
+		embedder.canIndex = canIndex
 		return nil
 	}
 }
@@ -507,6 +519,14 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 }
 
 func (e *Embedder) runOnce(ctx context.Context) error {
+	if e.taskMgr.GlobalState() != daemonpb.State_ACTIVE {
+		return fmt.Errorf("daemon must be fully active to run embedding indexing. Current state: %s", e.taskMgr.GlobalState().String())
+	}
+
+	if e.canIndex != nil && !e.canIndex() {
+		return fmt.Errorf("embedding indexing skipped: reindexing is in progress")
+	}
+
 	conn, release, err := e.pool.Conn(ctx)
 	if err != nil {
 		return err
@@ -524,10 +544,6 @@ func (e *Embedder) runOnce(ctx context.Context) error {
 		return err
 	}
 	release()
-
-	if e.taskMgr.GlobalState() != daemonpb.State_ACTIVE {
-		return fmt.Errorf("daemon must be fully active to run embedding indexing. Current state: %s", e.taskMgr.GlobalState().String())
-	}
 	if _, err := e.taskMgr.AddTask(taskID, daemonpb.TaskName_EMBEDDING, taskDescription, totalEmbeddable); err != nil {
 		if errors.Is(err, taskmanager.ErrTaskExists) {
 			return fmt.Errorf("another embedding indexing task is already running")
