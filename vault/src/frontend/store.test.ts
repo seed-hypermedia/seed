@@ -453,47 +453,79 @@ describe("Store", () => {
 			const kp2 = blobs.generateKeyPair()
 			const kp3 = blobs.generateKeyPair()
 
+			const p1 = blobs.createProfile(kp1, { name: "Acc 0" }, Date.now())
+			const p2 = blobs.createProfile(kp2, { name: "Acc 1" }, Date.now())
+			const p3 = blobs.createProfile(kp3, { name: "Acc 2" }, Date.now())
+
+			const c1_2 = blobs.createCapability(kp1, kp2.principal, "WRITER", 0)
+			const c2_1 = blobs.createCapability(kp2, kp1.principal, "WRITER", 0)
+			const c2_3 = blobs.createCapability(kp2, kp3.principal, "WRITER", 0)
+			const c3_1 = blobs.createCapability(kp3, kp1.principal, "WRITER", 0)
+
 			state.decryptedDEK = new Uint8Array(32) // Needed to authorize action
 			state.vaultData = {
 				version: 1,
 				accounts: [
 					{
 						seed: kp1.privateKey,
-						profile: blobs.createProfile(kp1, { name: "Acc 0" }, Date.now()).decoded,
-						createdAt: Date.now(),
+						profile: { cid: p1.cid, decoded: p1.decoded },
+						createTime: Date.now(),
+						delegations: [
+							{
+								clientId: "0",
+								createTime: 0,
+								deviceType: "desktop",
+								capability: { cid: c1_2.cid, decoded: c1_2.decoded },
+							},
+						],
 					},
 					{
 						seed: kp2.privateKey,
-						profile: blobs.createProfile(kp2, { name: "Acc 1" }, Date.now()).decoded,
-						createdAt: Date.now(),
+						profile: { cid: p2.cid, decoded: p2.decoded },
+						createTime: Date.now(),
+						delegations: [
+							{
+								clientId: "1a",
+								createTime: 0,
+								deviceType: "tablet",
+								capability: { cid: c2_1.cid, decoded: c2_1.decoded },
+							},
+							{
+								clientId: "1b",
+								createTime: 0,
+								deviceType: "mobile",
+								capability: { cid: c2_3.cid, decoded: c2_3.decoded },
+							},
+						],
 					},
 					{
 						seed: kp3.privateKey,
-						profile: blobs.createProfile(kp3, { name: "Acc 2" }, Date.now()).decoded,
-						createdAt: Date.now(),
+						profile: { cid: p3.cid, decoded: p3.decoded },
+						createTime: Date.now(),
+						delegations: [
+							{
+								clientId: "2",
+								createTime: 0,
+								deviceType: "desktop",
+								capability: { cid: c3_1.cid, decoded: c3_1.decoded },
+							},
+						],
 					},
-				],
-				delegations: [
-					{ accountIndex: 0, clientId: "0", sessionKeyPrincipal: "0", createdAt: 0 },
-					{ accountIndex: 1, clientId: "1a", sessionKeyPrincipal: "1a", createdAt: 0 },
-					{ accountIndex: 1, clientId: "1b", sessionKeyPrincipal: "1b", createdAt: 0 },
-					{ accountIndex: 2, clientId: "2", sessionKeyPrincipal: "2", createdAt: 0 },
 				],
 			}
 			state.selectedAccountIndex = 1
 
-			const principal2 = blobs.principalToString(state.vaultData!.accounts[1]!.profile.signer)
+			const principal2 = blobs.principalToString(state.vaultData!.accounts[1]!.profile.decoded.signer)
 			await actions.deleteAccount(principal2)
 
 			expect(state.vaultData!.accounts.length).toBe(2)
-			expect(state.vaultData!.accounts[0]!.profile.name).toBe("Acc 0")
-			expect(state.vaultData!.accounts[1]!.profile.name).toBe("Acc 2")
+			expect(state.vaultData!.accounts[0]!.profile.decoded.name).toBe("Acc 0")
+			expect(state.vaultData!.accounts[1]!.profile.decoded.name).toBe("Acc 2")
 
-			expect(state.vaultData!.delegations.length).toBe(2)
-			expect(state.vaultData!.delegations[0]!.clientId).toBe("0")
-			expect(state.vaultData!.delegations[0]!.accountIndex).toBe(0) // Unchanged
-			expect(state.vaultData!.delegations[1]!.clientId).toBe("2")
-			expect(state.vaultData!.delegations[1]!.accountIndex).toBe(1) // Shifted from 2 to 1
+			expect(state.vaultData!.accounts[0]!.delegations.length).toBe(1)
+			expect(state.vaultData!.accounts[0]!.delegations[0]!.clientId).toBe("0")
+			expect(state.vaultData!.accounts[1]!.delegations.length).toBe(1)
+			expect(state.vaultData!.accounts[1]!.delegations[0]!.clientId).toBe("2")
 
 			expect(state.selectedAccountIndex).toBe(0) // Shifted down
 			expect(saveVaultDataCalls.length).toBe(1)
@@ -515,8 +547,16 @@ describe("Store", () => {
 			const kp2 = blobs.generateKeyPair()
 			const kp3 = blobs.generateKeyPair()
 
-			const p1 = blobs.principalToString(kp1.principal)
-			const p3 = blobs.principalToString(kp3.principal)
+			const p1 = blobs.createProfile(kp1, { name: "Acc 0" }, Date.now())
+			const p2 = blobs.createProfile(kp2, { name: "Acc 1" }, Date.now())
+			const p3 = blobs.createProfile(kp3, { name: "Acc 2" }, Date.now())
+
+			const c1_2 = blobs.createCapability(kp1, kp2.principal, "WRITER", 0)
+			const c2_1 = blobs.createCapability(kp2, kp1.principal, "WRITER", 0)
+			const c3_1 = blobs.createCapability(kp3, kp1.principal, "WRITER", 0)
+
+			const p1Str = blobs.principalToString(kp1.principal)
+			const p3Str = blobs.principalToString(kp3.principal)
 
 			state.decryptedDEK = new Uint8Array(32)
 			state.vaultData = {
@@ -524,48 +564,61 @@ describe("Store", () => {
 				accounts: [
 					{
 						seed: kp1.privateKey,
-						profile: blobs.createProfile(kp1, { name: "Acc 0" }, Date.now()).decoded,
-						createdAt: Date.now(),
+						profile: { cid: p1.cid, decoded: p1.decoded },
+						createTime: Date.now(),
+						delegations: [
+							{
+								clientId: "0",
+								createTime: 0,
+								deviceType: "desktop",
+								capability: { cid: c1_2.cid, decoded: c1_2.decoded },
+							},
+						],
 					},
 					{
 						seed: kp2.privateKey,
-						profile: blobs.createProfile(kp2, { name: "Acc 1" }, Date.now()).decoded,
-						createdAt: Date.now(),
+						profile: { cid: p2.cid, decoded: p2.decoded },
+						createTime: Date.now(),
+						delegations: [
+							{
+								clientId: "1a",
+								createTime: 0,
+								capability: { cid: c2_1.cid, decoded: c2_1.decoded },
+							},
+						],
 					},
 					{
 						seed: kp3.privateKey,
-						profile: blobs.createProfile(kp3, { name: "Acc 2" }, Date.now()).decoded,
-						createdAt: Date.now(),
+						profile: { cid: p3.cid, decoded: p3.decoded },
+						createTime: Date.now(),
+						delegations: [
+							{
+								clientId: "2",
+								createTime: 0,
+								deviceType: "desktop",
+								capability: { cid: c3_1.cid, decoded: c3_1.decoded },
+							},
+						],
 					},
-				],
-				delegations: [
-					{ accountIndex: 0, clientId: "0", sessionKeyPrincipal: "0", createdAt: 0 },
-					{ accountIndex: 1, clientId: "1a", sessionKeyPrincipal: "1a", createdAt: 0 },
-					{ accountIndex: 2, clientId: "2", sessionKeyPrincipal: "2", createdAt: 0 },
 				],
 			}
 			state.selectedAccountIndex = 0
 
 			// Move index 0 to index 2
-			await actions.reorderAccount(p1, p3)
+			await actions.reorderAccount(p1Str, p3Str)
 
 			expect(state.vaultData!.accounts.length).toBe(3)
-			expect(state.vaultData!.accounts[0]!.profile.name).toBe("Acc 1")
-			expect(state.vaultData!.accounts[1]!.profile.name).toBe("Acc 2")
-			expect(state.vaultData!.accounts[2]!.profile.name).toBe("Acc 0")
+			expect(state.vaultData!.accounts[0]!.profile.decoded.name).toBe("Acc 1")
+			expect(state.vaultData!.accounts[1]!.profile.decoded.name).toBe("Acc 2")
+			expect(state.vaultData!.accounts[2]!.profile.decoded.name).toBe("Acc 0")
 
 			// The selected account was 0 ("Acc 0"). It moved to index 2.
 			expect(state.selectedAccountIndex).toBe(2)
 
-			// Delegations shift
-			expect(state.vaultData!.delegations[0]!.clientId).toBe("0")
-			expect(state.vaultData!.delegations[0]!.accountIndex).toBe(2) // 0 -> 2
-
-			expect(state.vaultData!.delegations[1]!.clientId).toBe("1a")
-			expect(state.vaultData!.delegations[1]!.accountIndex).toBe(0) // 1 -> 0
-
-			expect(state.vaultData!.delegations[2]!.clientId).toBe("2")
-			expect(state.vaultData!.delegations[2]!.accountIndex).toBe(1) // 2 -> 1
+			// Delegations correctly follow their respective accounts
+			expect(state.vaultData!.accounts[0]!.delegations[0]!.clientId).toBe("1a")
+			expect(state.vaultData!.accounts[1]!.delegations[0]!.clientId).toBe("2")
+			expect(state.vaultData!.accounts[2]!.delegations[0]!.clientId).toBe("0")
 
 			expect(saveVaultDataCalls.length).toBe(1)
 		})
@@ -642,11 +695,11 @@ describe("delegation flow", () => {
 			accounts: [
 				{
 					seed: kp.privateKey,
-					profile: profile.decoded,
-					createdAt: ts,
+					profile: { cid: profile.cid, decoded: profile.decoded },
+					createTime: ts,
+					delegations: [],
 				},
 			],
-			delegations: [],
 		}
 		state.selectedAccountIndex = 0
 		state.vaultVersion = 0
@@ -663,6 +716,8 @@ describe("delegation flow", () => {
 		expect(window.location.href).toContain(`state=${request.state}`)
 
 		// Delegation state should be cleared.
+		expect(state.vaultData!.accounts[0]!.delegations.length).toBe(1)
+		expect(state.vaultData!.accounts[0]!.delegations[0]!.deviceType).toBeDefined()
 		expect(state.delegationRequest).toBeNull()
 		expect(state.delegationConsented).toBe(false)
 		expect(state.error).toBe("")
@@ -679,8 +734,14 @@ describe("delegation flow", () => {
 		const profile = blobs.createProfile(kp, { name: "Test" }, Date.now())
 		state.vaultData = {
 			version: 1,
-			accounts: [{ seed: kp.privateKey, profile: profile.decoded, createdAt: Date.now() }],
-			delegations: [],
+			accounts: [
+				{
+					seed: kp.privateKey,
+					profile: { cid: profile.cid, decoded: profile.decoded },
+					createTime: Date.now(),
+					delegations: [],
+				},
+			],
 		}
 		state.selectedAccountIndex = 0
 		state.relyingPartyOrigin = "https://vault.example.com"

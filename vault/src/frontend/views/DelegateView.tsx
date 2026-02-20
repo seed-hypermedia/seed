@@ -91,7 +91,7 @@ export function DelegateView() {
 						<p className="text-sm font-medium">Select an account</p>
 						<div className="space-y-1">
 							{accounts.map((account, index) => {
-								const principal = blobs.principalToString(account.profile.signer)
+								const principal = blobs.principalToString(account.profile.decoded.signer)
 								const isSelected = index === selectedAccountIndex
 								return (
 									<button
@@ -108,10 +108,8 @@ export function DelegateView() {
 											<User className="size-4 text-primary" />
 										</div>
 										<div className="min-w-0">
-											<div className="text-sm font-medium truncate">{account.profile.name || "Unnamed"}</div>
-											<div className="text-xs text-muted-foreground font-mono truncate">
-												{principal.slice(0, 16)}\u2026
-											</div>
+											<div className="text-sm font-medium truncate">{account.profile.decoded.name || "Unnamed"}</div>
+											<div className="text-xs text-muted-foreground font-mono truncate">{principal}</div>
 										</div>
 									</button>
 								)

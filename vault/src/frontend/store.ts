@@ -871,8 +871,12 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 					if (state.vaultData.accounts.length === 1) {
 						state.selectedAccountIndex = 0
 					}
+					if (state.vaultData.accounts.length === 0) {
+						state.creatingAccount = true
+					}
 				} else {
 					state.vaultData = vault.createEmpty()
+					state.creatingAccount = true
 				}
 				state.vaultVersion = serverData.version ?? 0
 			} catch (e) {
@@ -920,8 +924,12 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				const account: vault.Account = {
 					seed: kp.privateKey,
-					profile: encoded.decoded,
-					createdAt: ts,
+					profile: {
+						cid: encoded.cid,
+						decoded: encoded.decoded,
+					},
+					createTime: ts,
+					delegations: [],
 				}
 
 				state.vaultData.accounts.push(account)
@@ -962,7 +970,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				return
 			}
 
-			const index = state.vaultData.accounts.findIndex((a) => blobs.principalToString(a.profile.signer) === principal)
+			const index = state.vaultData.accounts.findIndex(
+				(a) => blobs.principalToString(a.profile.decoded.signer) === principal,
+			)
 
 			if (index === -1) {
 				state.error = "Account not found"
@@ -976,18 +986,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				// 1. Remove the account
 				state.vaultData.accounts.splice(index, 1)
 
-				// Remove associated delegations and shift indexes.
-				for (let i = state.vaultData.delegations.length - 1; i >= 0; i--) {
-					const d = state.vaultData.delegations[i]
-					if (!d) continue
-					if (d.accountIndex === index) {
-						state.vaultData.delegations.splice(i, 1)
-					} else if (d.accountIndex > index) {
-						d.accountIndex--
-					}
-				}
-
-				// 3. Adjust selectedAccountIndex
+				// 2. Adjust selectedAccountIndex
 				if (state.vaultData.accounts.length === 0) {
 					state.selectedAccountIndex = -1
 				} else if (state.selectedAccountIndex === index) {
@@ -1014,10 +1013,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 			if (activePrincipal === overPrincipal) return
 
 			const oldIndex = state.vaultData.accounts.findIndex(
-				(a) => blobs.principalToString(a.profile.signer) === activePrincipal,
+				(a) => blobs.principalToString(a.profile.decoded.signer) === activePrincipal,
 			)
 			const newIndex = state.vaultData.accounts.findIndex(
-				(a) => blobs.principalToString(a.profile.signer) === overPrincipal,
+				(a) => blobs.principalToString(a.profile.decoded.signer) === overPrincipal,
 			)
 
 			if (oldIndex === -1 || newIndex === -1) {
@@ -1038,16 +1037,6 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 					state.selectedAccountIndex--
 				} else if (state.selectedAccountIndex < oldIndex && state.selectedAccountIndex >= newIndex) {
 					state.selectedAccountIndex++
-				}
-
-				for (const d of state.vaultData.delegations) {
-					if (d.accountIndex === oldIndex) {
-						d.accountIndex = newIndex
-					} else if (d.accountIndex > oldIndex && d.accountIndex <= newIndex) {
-						d.accountIndex--
-					} else if (d.accountIndex < oldIndex && d.accountIndex >= newIndex) {
-						d.accountIndex++
-					}
 				}
 
 				await actions.saveVaultData()
@@ -1220,12 +1209,14 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				const delegatedSession: vault.DelegatedSession = {
 					clientId: state.delegationRequest.clientId,
-					sessionKeyPrincipal: state.delegationRequest.sessionKeyPrincipal,
-					accountIndex: state.selectedAccountIndex,
-					createdAt: Date.now(),
-					label: `Session for ${state.delegationRequest.clientId}`,
+					deviceType: getDeviceType(),
+					capability: {
+						cid: encoded.cid,
+						decoded: encoded.decoded,
+					},
+					createTime: Date.now(),
 				}
-				state.vaultData.delegations.push(delegatedSession)
+				account.delegations.push(delegatedSession)
 
 				await actions.saveVaultData()
 
@@ -1234,7 +1225,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 					state.delegationRequest.state,
 					issuerKeyPair.principal,
 					encoded.decoded,
-					account.profile,
+					account.profile.decoded,
 				)
 
 				state.delegationRequest = null
@@ -1349,4 +1340,23 @@ export function useAppState() {
  */
 export function useActions(): StoreActions {
 	return useStore().actions
+}
+
+function getDeviceType(): vault.DelegatedSession["deviceType"] {
+	if (typeof navigator === "undefined") return "unknown"
+
+	if ("userAgentData" in navigator) {
+		const uaData = navigator.userAgentData as { mobile: boolean }
+		return uaData.mobile ? "mobile" : "desktop"
+	}
+
+	// Fallback for Safari/Firefox
+	const ua = navigator.userAgent
+	if (/Tablet|iPad|PlayBook|Silk/i.test(ua)) {
+		return "tablet"
+	}
+	if (/Mobi|Android|iPhone/i.test(ua)) {
+		return "mobile"
+	}
+	return "desktop"
 }

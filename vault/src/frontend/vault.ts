@@ -5,29 +5,38 @@
 
 import * as dagCBOR from "@ipld/dag-cbor"
 import type * as blobs from "@shm/shared/blobs"
+import type { CID } from "multiformats/cid"
+
+/** A decoded hypermedia blob stored alongside its CID. */
+export interface StoredBlob<T extends blobs.Blob> {
+	/** Content-addressable ID natively encoded by dag-cbor. */
+	cid: CID
+	/** The decoded payload data. */
+	decoded: T
+}
 
 /** A single Hypermedia account stored in the vault. */
 export interface Account {
 	/** 32-byte Ed25519 private key seed. */
 	seed: Uint8Array
 	/** Signed profile blob. */
-	profile: blobs.Profile
+	profile: StoredBlob<blobs.Profile>
 	/** Unix timestamp ms when account was created. */
-	createdAt: number
+	createTime: number
+	/** List of delegations issued to third-party sites by this account. */
+	delegations: DelegatedSession[]
 }
 
 /** Record of a delegation issued to a third-party site's session key. */
 export interface DelegatedSession {
 	/** The origin (client_id) the delegation was issued to, e.g. "https://example.com". */
 	clientId: string
-	/** Base58btc-encoded principal of the session key that was delegated to. */
-	sessionKeyPrincipal: string
-	/** Index of the account in the vault that issued the delegation. */
-	accountIndex: number
+	/** Type of device that requested the session. */
+	deviceType?: "desktop" | "mobile" | "tablet" | "unknown"
+	/** The capability blob delegating rights to the session key. */
+	capability: StoredBlob<blobs.Capability>
 	/** Unix timestamp ms when the delegation was created. */
-	createdAt: number
-	/** Optional human-readable label/note. */
-	label?: string
+	createTime: number
 }
 
 /** Top-level vault data structure. */
@@ -36,13 +45,11 @@ export interface State {
 	version: 1
 	/** List of Hypermedia accounts. */
 	accounts: Account[]
-	/** List of delegations issued to third-party sites. */
-	delegations: DelegatedSession[]
 }
 
 /** Create an empty vault. */
 export function createEmpty(): State {
-	return { version: 1, accounts: [], delegations: [] }
+	return { version: 1, accounts: [] }
 }
 
 /** Serialize vault data: CBOR encode → gzip compress. Returns compressed bytes. */

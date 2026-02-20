@@ -15,7 +15,7 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import * as blobs from "@shm/shared/blobs"
-import { Check, Copy, GripVertical, Plus, Settings, User } from "lucide-react"
+import { Check, Copy, GripVertical, Link, Monitor, Plus, Settings, Smartphone, Tablet, User } from "lucide-react"
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { CreateAccountDialog } from "@/frontend/components/CreateAccountDialog"
@@ -87,17 +87,17 @@ export function VaultView() {
 					<div className="flex-1 overflow-y-auto">
 						<DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
 							<SortableContext
-								items={accounts.map((a) => blobs.principalToString(a.profile.signer))}
+								items={accounts.map((a) => blobs.principalToString(a.profile.decoded.signer))}
 								strategy={verticalListSortingStrategy}
 							>
 								{accounts.map((account, index) => {
-									const principal = blobs.principalToString(account.profile.signer)
+									const principal = blobs.principalToString(account.profile.decoded.signer)
 									const isSelected = index === selectedAccountIndex
 									return (
 										<SortableAccountItem
 											key={principal}
 											id={principal}
-											account={account}
+											account={account as unknown as vault.Account}
 											isSelected={isSelected}
 											onSelect={() => actions.selectAccount(index)}
 										/>
@@ -117,7 +117,7 @@ export function VaultView() {
 				{/* Right panel */}
 				<div className="flex-1 overflow-y-auto">
 					{selectedAccount ? (
-						<AccountDetails account={selectedAccount} />
+						<AccountDetails account={selectedAccount as unknown as vault.Account} />
 					) : (
 						<div className="h-full flex items-center justify-center text-muted-foreground">
 							<p>Select an account to view details</p>
@@ -163,6 +163,9 @@ function SortableAccountItem({
 }) {
 	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
 
+	const name = account.profile.decoded.name || "Unnamed"
+	const Component = account.profile.decoded.alias ? Link : User
+
 	const style = {
 		transform: CSS.Transform.toString(transform),
 		transition,
@@ -186,11 +189,15 @@ function SortableAccountItem({
 				<GripVertical className="size-4" />
 			</div>
 			<button type="button" className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer" onClick={onSelect}>
-				<div className="size-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-					<User className="size-4 text-primary" />
+				<div className="size-6 shrink-0 bg-muted rounded-full flex items-center justify-center overflow-hidden">
+					{account.profile.decoded.avatar ? (
+						<img src={account.profile.decoded.avatar} className="size-full object-cover" alt="" />
+					) : (
+						<Component className="size-3 text-muted-foreground" />
+					)}
 				</div>
 				<div className="min-w-0 flex-1 text-left">
-					<div className="text-sm font-medium truncate">{account.profile.name || "Unnamed"}</div>
+					<div className="text-sm font-medium truncate">{name}</div>
 					<div className="text-xs text-muted-foreground font-mono truncate">{id.slice(0, 16)}…</div>
 				</div>
 			</button>
@@ -199,9 +206,8 @@ function SortableAccountItem({
 }
 
 /** Account profile detail panel. Only shows identity information, not vault credentials. */
-function AccountDetails({ account }: { account: { profile: blobs.Profile; createdAt: number } }) {
-	const { selectedAccountIndex } = useAppState()
-	const principal = blobs.principalToString(account.profile.signer)
+function AccountDetails({ account }: { account: vault.Account }) {
+	const principal = blobs.principalToString(account.profile.decoded.signer)
 	const [copied, setCopied] = useState(false)
 
 	async function copyPrincipal() {
@@ -222,7 +228,7 @@ function AccountDetails({ account }: { account: { profile: blobs.Profile; create
 					<User className="size-7 text-primary" />
 				</div>
 				<div className="min-w-0 flex-1">
-					<h1 className="text-2xl font-semibold">{account.profile.name || "Unnamed"}</h1>
+					<h1 className="text-2xl font-semibold">{account.profile.decoded.name || "Unnamed"}</h1>
 					<div className="mt-1 flex items-center gap-2">
 						<code className="text-sm text-muted-foreground font-mono truncate">{principal}</code>
 						<Button variant="ghost" size="icon-xs" onClick={copyPrincipal} title="Copy principal">
@@ -236,24 +242,24 @@ function AccountDetails({ account }: { account: { profile: blobs.Profile; create
 
 			{/* Profile details */}
 			<div className="space-y-4">
-				{account.profile.description && (
+				{account.profile.decoded.description && (
 					<div>
 						<h3 className="text-sm font-medium text-muted-foreground mb-1">Description</h3>
-						<p className="text-sm">{account.profile.description}</p>
+						<p className="text-sm">{account.profile.decoded.description}</p>
 					</div>
 				)}
 
-				{account.profile.avatar && (
+				{account.profile.decoded.avatar && (
 					<div>
 						<h3 className="text-sm font-medium text-muted-foreground mb-1">Avatar</h3>
-						<p className="text-sm font-mono break-all">{account.profile.avatar}</p>
+						<p className="text-sm font-mono break-all">{account.profile.decoded.avatar}</p>
 					</div>
 				)}
 
 				<div>
 					<h3 className="text-sm font-medium text-muted-foreground mb-1">Created</h3>
 					<p className="text-sm">
-						{new Date(account.createdAt).toLocaleDateString(undefined, {
+						{new Date(account.createTime).toLocaleDateString(undefined, {
 							year: "numeric",
 							month: "long",
 							day: "numeric",
@@ -264,23 +270,19 @@ function AccountDetails({ account }: { account: { profile: blobs.Profile; create
 				</div>
 			</div>
 
-			<AuthorizedSessionsList accountIndex={selectedAccountIndex} />
+			<AuthorizedSessionsList account={account} />
 
 			<Separator />
 
-			{/* Danger zone */}
 			<div>
-				<h3 className="text-sm font-medium text-destructive mb-2">Danger Zone</h3>
 				<DeleteAccountButton principal={principal} />
 			</div>
 		</div>
 	)
 }
 
-function AuthorizedSessionsList({ accountIndex }: { accountIndex: number }) {
-	const { vaultData } = useAppState()
-
-	const sessions = vaultData?.delegations.filter((d) => d.accountIndex === accountIndex) || []
+function AuthorizedSessionsList({ account }: { account: vault.Account }) {
+	const sessions = account.delegations || []
 
 	if (sessions.length === 0) {
 		return null
@@ -291,38 +293,43 @@ function AuthorizedSessionsList({ accountIndex }: { accountIndex: number }) {
 			<Separator />
 			<div>
 				<h3 className="text-sm font-medium mb-4">Authorized Sessions</h3>
-				<div className="space-y-3">
-					{sessions.map((session) => {
-						const key = `${session.clientId}:${session.sessionKeyPrincipal}`
+				<div className="space-y-0 rounded-md border text-sm">
+					{sessions.map((session, index) => {
+						const delegatePrincipal = blobs.principalToString(session.capability.decoded.delegate)
+						const key = `${session.clientId}:${delegatePrincipal}`
+
+						const isLast = index === sessions.length - 1
+
+						// Determine Device Icon
+						let DeviceIcon = Monitor
+						if (session.deviceType === "mobile") DeviceIcon = Smartphone
+						if (session.deviceType === "tablet") DeviceIcon = Tablet
+
 						return (
 							<div
 								key={key}
-								className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-md border text-sm"
+								className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 ${
+									!isLast ? "border-b" : ""
+								}`}
 							>
-								<div className="min-w-0 flex-1">
-									<div className="font-medium truncate">{session.label || session.clientId}</div>
-									<div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-										<span className="shrink-0">
-											{new Date(session.createdAt).toLocaleString(undefined, {
-												year: "numeric",
-												month: "short",
-												day: "numeric",
-												hour: "numeric",
-												minute: "2-digit",
-											})}
-										</span>
-										<TooltipProvider>
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded truncate max-w-full cursor-help">
-														{session.sessionKeyPrincipal}
-													</span>
-												</TooltipTrigger>
-												<TooltipContent>
-													<p className="font-mono text-xs">{session.sessionKeyPrincipal}</p>
-												</TooltipContent>
-											</Tooltip>
-										</TooltipProvider>
+								<div className="flex items-start gap-4 flex-1 min-w-0">
+									<div className="mt-1">
+										<DeviceIcon className="size-6 text-muted-foreground" strokeWidth={1.5} />
+									</div>
+									<div className="min-w-0">
+										<div className="font-semibold text-base truncate">{session.clientId}</div>
+										<div className="text-muted-foreground mt-1 space-y-1">
+											<div className="text-[13px]">
+												{new Date(session.createTime).toLocaleString(undefined, {
+													year: "numeric",
+													month: "short",
+													day: "numeric",
+													hour: "2-digit",
+													minute: "2-digit",
+												})}
+											</div>
+											<div className="text-xs font-mono cursor-help truncate">{delegatePrincipal}</div>
+										</div>
 									</div>
 								</div>
 							</div>
@@ -362,7 +369,7 @@ function DeleteAccountButton({ principal }: { principal: string }) {
 			onClick={handleDelete}
 			disabled={loading}
 		>
-			{confirming ? "Click again to confirm delete" : "Delete Account"}
+			{confirming ? "Confirm Delete Account?" : "Delete Account"}
 		</Button>
 	)
 }
