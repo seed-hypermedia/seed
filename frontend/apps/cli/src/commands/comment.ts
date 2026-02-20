@@ -1,7 +1,5 @@
 /**
- * Comment creation command.
- *
- * Creates a signed Comment blob and submits it to the server.
+ * Comment commands — get, list, create, discussions.
  */
 
 import type {Command} from 'commander'
@@ -9,7 +7,7 @@ import {readFileSync} from 'fs'
 import {CID} from 'multiformats/cid'
 import {base58btc} from 'multiformats/bases/base58'
 import {getClient, getOutputFormat} from '../index'
-import {printError, printSuccess, printInfo, formatOutput} from '../output'
+import {formatOutput, printError, printSuccess, printInfo} from '../output'
 import {resolveKey} from '../utils/keyring'
 import {signBlob, encodeBlock, blockReference} from '../utils/signing'
 
@@ -37,9 +35,63 @@ type SignedComment = {
   threadRoot?: CID
 }
 
-export function registerWriteCommentCommand(program: Command) {
-  program
-    .command('comment-create <targetId>')
+export function registerCommentCommands(program: Command) {
+  const comment = program
+    .command('comment')
+    .description('Manage comments (get, list, create, discussions)')
+
+  // ── get ──────────────────────────────────────────────────────────────────
+
+  comment
+    .command('get <id>')
+    .description('Get a single comment by ID')
+    .action(async (id: string, _options, cmd) => {
+      const globalOpts = cmd.optsWithGlobals()
+      const client = getClient(globalOpts)
+      const format = getOutputFormat(globalOpts)
+
+      try {
+        const result = await client.getComment(id)
+        console.log(formatOutput(result, format))
+      } catch (error) {
+        printError((error as Error).message)
+        process.exit(1)
+      }
+    })
+
+  // ── list ─────────────────────────────────────────────────────────────────
+
+  comment
+    .command('list <targetId>')
+    .description('List comments on a document')
+    .option('-q, --quiet', 'Output IDs and authors only')
+    .action(async (targetId: string, _options, cmd) => {
+      const globalOpts = cmd.optsWithGlobals()
+      const client = getClient(globalOpts)
+      const format = getOutputFormat(globalOpts)
+
+      try {
+        const result = await client.listComments(targetId)
+
+        if (globalOpts.quiet) {
+          result.comments.forEach((c) => {
+            const authorName =
+              result.authors[c.author]?.metadata?.name || c.author
+            console.log(`${c.id}\t${authorName}`)
+          })
+        } else {
+          console.log(formatOutput(result, format))
+        }
+      } catch (error) {
+        printError((error as Error).message)
+        process.exit(1)
+      }
+    })
+
+  // ── create ───────────────────────────────────────────────────────────────
+
+  comment
+    .command('create <targetId>')
     .description('Create a comment on a document')
     .option('--body <text>', 'Comment text')
     .option('--file <path>', 'Read comment text from file')
@@ -51,10 +103,8 @@ export function registerWriteCommentCommand(program: Command) {
       const client = getClient(globalOpts)
 
       try {
-        // Resolve signing key.
         const key = resolveKey(options.key, dev)
 
-        // Get comment body text.
         let text: string
         if (options.body) {
           text = options.body
@@ -64,7 +114,6 @@ export function registerWriteCommentCommand(program: Command) {
           throw new Error('Provide comment text with --body or --file.')
         }
 
-        // Fetch the target document to get space, path, and version.
         const resource = await client.getResource(targetId)
         if (resource.type !== 'document') {
           throw new Error(`Target is ${resource.type}, expected a document.`)
@@ -75,20 +124,16 @@ export function registerWriteCommentCommand(program: Command) {
         const path = doc.path || ''
         const versionCids = doc.version.split('.').map((v) => CID.parse(v))
 
-        // Build comment body as simple paragraph blocks.
         const body = textToBlocks(text)
 
-        // Resolve reply parent if specified.
         let replyParent: CID | undefined
         let threadRoot: CID | undefined
 
         if (options.reply) {
-          // Fetch the reply parent comment to get its ID (CID).
           const parentComment = await client.getComment(options.reply)
           if (parentComment.id) {
             replyParent = CID.parse(parentComment.version || parentComment.id)
           }
-          // Thread root is either the parent's thread root or the parent itself.
           if (parentComment.threadRoot) {
             threadRoot = CID.parse(parentComment.threadRoot)
           } else if (parentComment.version) {
@@ -96,7 +141,6 @@ export function registerWriteCommentCommand(program: Command) {
           }
         }
 
-        // Build unsigned comment.
         const unsigned: SignedComment = {
           type: 'Comment',
           signer: key.publicKeyWithPrefix,
@@ -111,13 +155,9 @@ export function registerWriteCommentCommand(program: Command) {
         if (replyParent) unsigned.replyParent = replyParent
         if (threadRoot) unsigned.threadRoot = threadRoot
 
-        // Sign the comment blob.
         const signed = await signBlob(unsigned, key.privateKey)
-
-        // Encode as IPLD block.
         const commentBlock = await encodeBlock(signed)
 
-        // Submit to server.
         await client.createComment({
           comment: commentBlock.bytes,
           blobs: [],
@@ -134,12 +174,30 @@ export function registerWriteCommentCommand(program: Command) {
         process.exit(1)
       }
     })
+
+  // ── discussions ──────────────────────────────────────────────────────────
+
+  comment
+    .command('discussions <targetId>')
+    .description('List threaded discussions on a document')
+    .option('-c, --comment <id>', 'Filter to specific thread')
+    .action(async (targetId: string, options, cmd) => {
+      const globalOpts = cmd.optsWithGlobals()
+      const client = getClient(globalOpts)
+      const format = getOutputFormat(globalOpts)
+
+      try {
+        const result = await client.listDiscussions(targetId, options.comment)
+        console.log(formatOutput(result, format))
+      } catch (error) {
+        printError((error as Error).message)
+        process.exit(1)
+      }
+    })
 }
 
-/**
- * Converts plain text into an array of Paragraph blocks.
- * Each non-empty line becomes a separate block.
- */
+// ── helpers ──────────────────────────────────────────────────────────────────
+
 function textToBlocks(text: string): CommentBlock[] {
   const lines = text.split('\n').filter((line) => line.trim().length > 0)
 
