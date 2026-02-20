@@ -63,7 +63,7 @@ if [ "$NEEDS_BUILD" = "true" ]; then
   cd "$LLAMA_GO_DIR"
   if [ "$(uname -s)" = "Darwin" ]; then
     echo "Building llama.cpp libraries with Metal (this may take a few minutes)..."
-    BUILD_TYPE=metal CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a
+    BUILD_TYPE=metal CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_OPENMP=OFF" make libbinding.a
     cp build/bin/ggml-metal.metal . 2>/dev/null || true
     # Stub for Vulkan (not used on macOS).
     touch libggml-vulkan.a

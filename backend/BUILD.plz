@@ -31,7 +31,7 @@ export PATH="$(dirname $TOOLS_CMAKE):$PATH"
 # CI handles Vulkan/Metal per-platform in ci-setup/action.yml.
 if [ "$OS" = "darwin" ]; then
     export BUILD_TYPE=metal
-    export CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF"
+    export CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_OPENMP=OFF"
     echo "Building llama.cpp with Metal..."
     make libbinding.a || { echo "ERROR: llama.cpp Metal build failed"; exit 1; }
     cp build/bin/ggml-metal.metal . 2>/dev/null || true

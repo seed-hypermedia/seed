@@ -67,7 +67,7 @@ runs:
       if: startsWith(inputs.matrix-os, 'macos')
       run: |
         cd backend/util/llama-go
-        BUILD_TYPE=metal CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a
+        BUILD_TYPE=metal CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_OPENMP=OFF" make libbinding.a
       shell: bash
 
     - name: "Build llama.cpp (Windows)"
