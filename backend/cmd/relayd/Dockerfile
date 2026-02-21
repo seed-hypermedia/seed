@@ -2,6 +2,7 @@
 FROM golang:1.25.4-alpine AS builder
 WORKDIR /code
 COPY go.mod go.sum ./
+COPY backend/util/llama-go/go.mod backend/util/llama-go/go.sum ./backend/util/llama-go/
 RUN go mod download
 COPY backend ./backend
 RUN go install ./backend/cmd/relayd/
