@@ -715,11 +715,15 @@ export function Omnibar() {
   const handleUrlNavigation = useCallback(
     async (url: string): Promise<boolean> => {
       // Extract view term (e.g., /:activity) from URL before processing
-      const {url: cleanUrl, viewTerm, activityFilter} = extractViewTermFromUrl(url)
+      const {url: cleanUrl, viewTerm, activityFilter, commentId} = extractViewTermFromUrl(url)
       const routeKey = viewTermToRouteKey(viewTerm)
 
       // Helper to apply view term to route
       const applyViewTerm = (route: NavRoute): NavRoute => {
+        // :comment/AUTHOR/TSID → open discussions with comment focused
+        if (commentId && route.key === 'document') {
+          return {key: 'discussions', id: route.id, openComment: commentId}
+        }
         if (!routeKey) return route
         if (route.key === 'document') {
           const viewRoute: NavRoute = {key: routeKey, id: route.id}
