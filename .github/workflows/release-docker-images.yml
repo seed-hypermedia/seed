@@ -95,6 +95,21 @@ jobs:
           COMMIT_DATE=$(git show -s --format="%cd" ${{ github.sha }})
           echo "COMMIT_DATE=$COMMIT_DATE" >> $GITHUB_ENV
 
+      - name: Cache GGUF model
+        uses: actions/cache@v4
+        with:
+          path: backend/llm/backends/llamacpp/models/*.gguf
+          key: gguf-model-granite-v2
+          enableCrossOsArchive: true
+
+      - name: Download GGUF model
+        run: |
+          if [ ! -f backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf ]; then
+            mkdir -p backend/llm/backends/llamacpp/models
+            curl -fSL -o backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf \
+              "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
+          fi
+
       # Build and test performance before Docker build
       - name: Install pnpm
         uses: pnpm/action-setup@v4
