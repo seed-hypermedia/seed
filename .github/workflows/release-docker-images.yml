@@ -184,6 +184,7 @@ jobs:
       - name: DockerHub Release seedhypermedia/site:latest
         uses: docker/build-push-action@v4
         with:
+          context: .
           push: true
           build-args: |
             COMMIT_HASH=${{ github.sha }}
