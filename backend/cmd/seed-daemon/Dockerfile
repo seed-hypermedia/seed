@@ -34,7 +34,7 @@ RUN go install -ldflags="-X 'seed/backend/daemon.commit=$COMMIT_HASH' -X 'seed/b
 
 FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    rsync libvulkan1 ca-certificates \
+    rsync libvulkan1 libgomp1 ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /go/bin/seed-daemon /usr/local/bin/seed-daemon
 COPY --from=builder /code/monitoring/grafana /monitoring/grafana
