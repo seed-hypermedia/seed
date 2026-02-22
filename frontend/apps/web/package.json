@@ -45,6 +45,7 @@
     "@sentry/vite-plugin": "latest",
     "@shm/editor": "workspace:*",
     "@shm/emails": "workspace:*",
+    "@seed-hypermedia/client": "workspace:*",
     "@shm/shared": "workspace:*",
     "@shm/ui": "workspace:*",
     "@simplewebauthn/server": "^13.1.1",
