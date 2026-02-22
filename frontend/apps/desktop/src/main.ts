@@ -11,6 +11,7 @@ declare global {
       SEED_NO_DAEMON_SPAWN?: string
       VITE_DESKTOP_HTTP_PORT?: string
       VITE_DESKTOP_GRPC_PORT?: string
+      VITE_DESKTOP_API_PORT?: string
       VITE_DESKTOP_P2P_PORT?: string
       CI?: string
     }
@@ -43,6 +44,7 @@ import {
 } from './app-windows'
 import autoUpdate from './auto-update'
 import {startMainDaemon, subscribeDaemonState} from './daemon'
+import {startApiServer, stopApiServer} from './app-http-server'
 import {startLocalServer, stopLocalServer} from './local-server'
 import * as logger from './logger'
 import {saveCidAsFile} from './save-cid-as-file'
@@ -145,7 +147,8 @@ app.on('will-finish-launching', () => {
 app.on('before-quit', () => {
   logger.info('[MAIN]: App before-quit - starting cleanup')
 
-  // Stop local server when app quits
+  // Stop servers when app quits
+  stopApiServer()
   stopLocalServer()
 
   // Stop memory monitoring
@@ -296,6 +299,11 @@ app.whenReady().then(async () => {
   startDaemonWithLoadingWindow()
     .then(() => {
       logger.info('DaemonStarted')
+      startApiServer().catch((err) => {
+        logger.error(
+          '[MAIN]: Failed to start API server: ' + (err as Error).message,
+        )
+      })
       return Promise.all([
         initDrafts().then(() => {
           logger.info('Drafts ready')

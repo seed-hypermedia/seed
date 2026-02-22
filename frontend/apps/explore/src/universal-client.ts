@@ -1,21 +1,14 @@
 import {createWebUniversalClient} from '@shm/shared'
-import {deserialize} from 'superjson'
+import type {HMRequest} from '@shm/shared'
+import {createSeedClient} from '@seed-hypermedia/client'
 import {getApiHost} from './queryClient'
 
-export async function queryAPI<T>(url: string): Promise<T> {
-  // The url comes in as "/api/..." but we need to prepend the API host
-  const fullUrl = `${getApiHost()}${url}`
-  const response = await fetch(fullUrl)
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${fullUrl}: ${response.statusText}`)
-  }
-  const data = await response.json()
-  // Unwrap superjson-serialized response
-  return deserialize(data) as T
-}
-
 export const exploreUniversalClient = createWebUniversalClient({
-  queryAPI,
+  request: <Req extends HMRequest>(key: Req['key'], input: Req['input']) => {
+    // Create client per-request since apiHost can change at runtime
+    const client = createSeedClient(getApiHost())
+    return client.request<Req>(key, input)
+  },
   // Explore app doesn't need comment editing
   CommentEditor: () => null as unknown as JSX.Element,
 })

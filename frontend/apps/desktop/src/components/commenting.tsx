@@ -8,6 +8,7 @@ import {CommentEditor} from '@shm/editor/comment-editor'
 import {queryClient, queryKeys} from '@shm/shared'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {prepareComment} from '@shm/shared/comment-creation'
+import {useCommentsService} from '@shm/shared/comments-service-provider'
 import {HMBlockNode, HMCommentGroup, HMListDiscussionsOutput, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useContacts, useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -18,7 +19,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useMutation} from '@tanstack/react-query'
 import {SendHorizonal} from 'lucide-react'
-import {memo, useCallback, useEffect, useRef, useState} from 'react'
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 
 export function useCommentGroupAuthors(commentGroups: HMCommentGroup[]): HMListDiscussionsOutput['authors'] {
   const commentGroupAuthors = new Set<string>()
@@ -55,6 +56,18 @@ function _CommentBox(props: {
   const {getSigner} = useUniversalClient()
   const route = useNavRoute()
   const navigate = useNavigate('replace')
+
+  // Resolve reply parent: commentId is an ID like "author/path", but prepareComment needs CID versions
+  const commentsService = useCommentsService({targetId: docId})
+  const resolvedReply = useMemo(() => {
+    if (!commentId) return null
+    const comment = commentsService.data?.comments?.find((c) => c.id === commentId)
+    if (!comment) return null
+    return {
+      replyCommentVersion: comment.version,
+      rootReplyCommentVersion: comment.threadRootVersion || comment.version,
+    }
+  }, [commentId, commentsService.data?.comments])
 
   const draft = useCommentDraft(
     quotingBlockId ? {...docId, blockRef: quotingBlockId} : docId,
@@ -145,14 +158,33 @@ function _CommentBox(props: {
       const targetVersion = targetDoc?.version
 
       const signer = getSigner(signingKeyName)
+      console.log('~~ prepareComment start', {signingKeyName, docId: docId.id, docVersion: targetVersion || docId.version || '', replyCommentVersion: resolvedReply?.replyCommentVersion, rootReplyCommentVersion: resolvedReply?.rootReplyCommentVersion, quotingBlockId})
       const commentPayload = await prepareComment(getContent, {
         docId,
         docVersion: targetVersion || docId.version || '',
         signer,
-        replyCommentVersion: commentId,
-        rootReplyCommentVersion: commentId,
+        replyCommentVersion: resolvedReply?.replyCommentVersion,
+        rootReplyCommentVersion: resolvedReply?.rootReplyCommentVersion,
         quotingBlockId,
       })
+      console.log('~~ prepareComment done', {
+        commentBytes: commentPayload.comment.length,
+        blobCount: commentPayload.blobs.length,
+        commentHex: Array.from(commentPayload.comment.slice(0, 64)).map(b => b.toString(16).padStart(2, '0')).join(''),
+      })
+
+      // Decode the CBOR blob to inspect the signed comment
+      try {
+        const {decode} = await import('@ipld/dag-cbor')
+        const decoded = decode(commentPayload.comment)
+        console.log('~~ signed comment decoded:', JSON.stringify(decoded, (_k, v) => {
+          if (v instanceof Uint8Array || (v && v.type === 'Buffer')) return `<Uint8Array(${v.length || v.data?.length})>`
+          if (typeof v === 'bigint') return v.toString() + 'n'
+          return v
+        }, 2))
+      } catch (e) {
+        console.log('~~ failed to decode comment CBOR:', e)
+      }
 
       await grpcClient.daemon.storeBlobs({
         blobs: [
@@ -163,6 +195,7 @@ function _CommentBox(props: {
           })),
         ],
       })
+      console.log('~~ storeBlobs success')
 
       writeRecentSigner.mutateAsync(signingKeyName).then(() => {
         invalidateQueries([queryKeys.RECENT_SIGNERS])

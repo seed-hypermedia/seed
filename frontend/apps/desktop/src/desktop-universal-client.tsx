@@ -3,10 +3,13 @@ import {deleteRecent, fetchRecents} from '@/models/recents'
 import {client as trpcClient} from '@/trpc'
 import type {HMSigner, UnpackedHypermediaId} from '@shm/shared'
 import type {DeleteCommentInput, UniversalClient} from '@shm/shared/universal-client'
+import {createSeedClient} from '@seed-hypermedia/client'
+import {API_HTTP_URL} from '@shm/shared/constants'
 import {base58btc} from 'multiformats/bases/base58'
 import {CommentBox} from './components/commenting'
-import {desktopRequest} from './desktop-api'
 import {grpcClient} from './grpc-client'
+
+const seedClient = createSeedClient(API_HTTP_URL)
 
 async function deleteComment(input: DeleteCommentInput): Promise<void> {
   await grpcClient.comments.deleteComment({
@@ -22,7 +25,7 @@ export const desktopUniversalClient: UniversalClient = {
   deleteRecent: deleteRecent,
   deleteComment: deleteComment,
 
-  request: desktopRequest,
+  request: seedClient.request,
 
   subscribeEntity: ({id, recursive}) => {
     const sub = {id, recursive}
