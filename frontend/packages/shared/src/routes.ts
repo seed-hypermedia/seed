@@ -176,6 +176,11 @@ export type DraftsRoute = z.infer<typeof draftsSchema>
 export const settingsRouteSchema = z.object({key: z.literal('settings')})
 export type SettingsRoute = z.infer<typeof settingsRouteSchema>
 
+export const notificationsRouteSchema = z.object({
+  key: z.literal('notifications'),
+})
+export type NotificationsRoute = z.infer<typeof notificationsRouteSchema>
+
 export const deletedContentRouteSchema = z.object({
   key: z.literal('deleted-content'),
 })
@@ -202,6 +207,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   profileRouteSchema,
   contactRouteSchema,
   settingsRouteSchema,
+  notificationsRouteSchema,
   documentRouteSchema,
   draftRouteSchema,
   draftRebaseRouteSchema,

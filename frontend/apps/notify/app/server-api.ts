@@ -53,12 +53,6 @@ export function cborApiAction<RequestType, ResultType>(
   const apiAction: ActionFunction = async ({request}) => {
     const parsedRequest = parseRequest(request)
     try {
-      if (WEB_API_DISABLED) {
-        throw new APIError('API is disabled with SEED_API_ENABLED=false', 500)
-      }
-      if (!WEB_IS_GATEWAY) {
-        throw new APIError('API only enabled when SEED_IS_GATEWAY=true', 500)
-      }
       const cborData = await request.arrayBuffer()
       const data: RequestType = cborDecode(new Uint8Array(cborData))
       const result = await handler(data, {

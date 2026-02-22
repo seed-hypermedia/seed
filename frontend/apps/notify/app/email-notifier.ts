@@ -1,6 +1,6 @@
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import {createNotificationsEmail, Notification} from '@shm/emails/notifier'
+import {createDesktopNotificationsEmail, createNotificationsEmail, Notification} from '@shm/emails/notifier'
 import {
   createWebHMUrl,
   entityQueryPathToHmIdPath,
@@ -17,11 +17,12 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
-import {DAEMON_HTTP_URL, SITE_BASE_URL} from '@shm/shared/constants'
+import {DAEMON_HTTP_URL, NOTIFY_SERVICE_HOST, SITE_BASE_URL} from '@shm/shared/constants'
 import {CID} from 'multiformats'
 import {
   BaseSubscription,
   getAllEmails,
+  getAllNotificationConfigs,
   getBatchNotifierLastProcessedEventId,
   getBatchNotifierLastSendTime,
   getNotifierLastProcessedEventId,
@@ -30,6 +31,7 @@ import {
   setNotifierLastProcessedEventId,
 } from './db'
 import {sendEmail} from './mailer'
+import {buildNotificationReadRedirectUrl} from './notification-read-redirect'
 import {grpcClient, requestAPI} from './notify-request'
 
 async function getDocument(id: UnpackedHypermediaId) {
@@ -60,11 +62,27 @@ const notifReasonsImmediate = new Set<NotifReason>(['mention', 'reply'])
 const notifReasonsBatch = new Set<NotifReason>(['site-doc-update', 'site-new-discussion'])
 
 const adminEmail = process.env.SEED_DEV_ADMIN_EMAIL || 'eric@seedhypermedia.com'
+const notificationEmailHost = (NOTIFY_SERVICE_HOST || SITE_BASE_URL).replace(/\/$/, '')
+const notifDebugEnabled = process.env.NOTIFY_DEBUG === '1' || process.env.NODE_ENV !== 'production'
 
 // Error batching for reportError
 const errorBatchDelayMs = 30_000 // 30 seconds
 let pendingErrors: string[] = []
 let errorBatchTimeout: ReturnType<typeof setTimeout> | null = null
+
+type NotificationEventMeta = {
+  eventId?: string
+  eventAtMs: number
+}
+
+function logNotifDebug(message: string, details?: Record<string, unknown>) {
+  if (!notifDebugEnabled) return
+  if (details) {
+    console.info(`[notify][email] ${message}`, details)
+  } else {
+    console.info(`[notify][email] ${message}`)
+  }
+}
 
 function reportError(message: string) {
   const messageWithTime = `${new Date().toISOString()} ${message}`
@@ -75,6 +93,8 @@ function reportError(message: string) {
     errorBatchTimeout = setTimeout(flushErrorBatch, errorBatchDelayMs)
   }
 }
+
+const reportedOldEventIds = new Set<string>()
 
 async function flushErrorBatch() {
   errorBatchTimeout = null
@@ -219,6 +239,10 @@ async function handleBatchNotifications(signal?: AbortSignal) {
 async function handleEmailNotifications(signal?: AbortSignal) {
   const startTime = Date.now()
   const lastProcessedEventId = getNotifierLastProcessedEventId()
+  logNotifDebug('immediate loop tick', {
+    hasCursor: Boolean(lastProcessedEventId),
+    lastProcessedEventId,
+  })
   if (lastProcessedEventId) {
     await handleImmediateNotificationsAfterEventId(lastProcessedEventId, signal)
     const elapsed = Date.now() - startTime
@@ -238,7 +262,9 @@ async function getLastEventId(): Promise<string | undefined> {
   })
   const event = events.at(0)
   if (!event) return
-  const lastEventId = getEventId(event)
+  const plainEvent =
+    typeof (event as any).toJson === 'function' ? toPlainMessage(event) : (event as PlainMessage<Event>)
+  const lastEventId = getEventId(plainEvent)
   if (!lastEventId) return
   return lastEventId
 }
@@ -302,7 +328,32 @@ async function handleEmailNotifs(events: PlainMessage<Event>[], includedNotifRea
   console.log(`Will handleEmailNotifs (${events.length} events): ${Array.from(includedNotifReasons).join(', ')}`)
   const allEmailsIncludingUnsubscribed = getAllEmails()
   const allSubscribedEmails = allEmailsIncludingUnsubscribed.filter((email) => !email.isUnsubscribed)
-  const allSubscriptions = deduplicateSubscriptions(allSubscribedEmails.flatMap((email) => email.subscriptions))
+  const configSubscriptions = getAllNotificationConfigs().map((config) => ({
+    id: config.accountId,
+    email: config.email,
+    createdAt: config.createdAt,
+    notifyAllMentions: true,
+    notifyAllReplies: true,
+    notifyOwnedDocChange: false,
+    notifySiteDiscussions: false,
+    notifyAllComments: false,
+  }))
+  const allSubscriptions = deduplicateSubscriptions(
+    allSubscribedEmails.flatMap((email) => email.subscriptions).concat(configSubscriptions),
+  )
+  const mentionSourceBlobCids = new Set<string>()
+  for (const event of events) {
+    if (event.data.case !== 'newMention') continue
+    const sourceBlobCid = event.data.value?.sourceBlob?.cid
+    if (sourceBlobCid) mentionSourceBlobCids.add(sourceBlobCid)
+  }
+  logNotifDebug('notification evaluation start', {
+    eventCount: events.length,
+    includedNotifReasons: Array.from(includedNotifReasons),
+    subscribedEmails: allSubscribedEmails.length,
+    notificationConfigEntries: configSubscriptions.length,
+    dedupedSubscriptions: allSubscriptions.length,
+  })
   const notificationsToSend: Record<
     string, // email
     {
@@ -330,24 +381,69 @@ async function handleEmailNotifs(events: PlainMessage<Event>[], includedNotifRea
   for (const event of events) {
     const eventStartTime = Date.now()
     const eventId = getEventId(event)
+    const notificationCountBefore = Object.values(notificationsToSend).reduce((count, items) => count + items.length, 0)
     try {
-      await evaluateEventForNotifications(event, allSubscriptions, appendNotification)
+      await evaluateEventForNotifications(event, allSubscriptions, appendNotification, {mentionSourceBlobCids})
     } catch (error: any) {
       reportError('Error evaluating event for notifications: ' + error.message)
     }
+    const notificationCountAfter = Object.values(notificationsToSend).reduce((count, items) => count + items.length, 0)
+    logNotifDebug('event notification result', {
+      eventId,
+      newNotificationsQueued: notificationCountAfter - notificationCountBefore,
+      totalQueued: notificationCountAfter,
+    })
     const eventTime = Date.now() - eventStartTime
     if (eventTime > 5000) {
       reportError(`Slow event processing: ${eventId} took ${eventTime}ms (threshold: 5000ms)`)
     }
   }
   const emailsToSend = Object.entries(notificationsToSend)
+  const useDesktopTemplate = shouldUseDesktopEmailTemplate(includedNotifReasons)
+  logNotifDebug('notification evaluation complete', {
+    uniqueRecipientEmails: emailsToSend.length,
+    useDesktopTemplate,
+  })
   for (const [email, notifications] of emailsToSend) {
     const firstNotification = notifications[0]
     if (!firstNotification) continue
     const adminToken = firstNotification.adminToken
-    const notificationEmail = await createNotificationsEmail(email, {adminToken}, notifications)
+    const notificationsWithActions = notifications.map((notification) => {
+      if (
+        (notification.notif.reason === 'mention' || notification.notif.reason === 'reply') &&
+        notification.notif.eventId &&
+        notification.notif.eventAtMs &&
+        notificationEmailHost
+      ) {
+        return {
+          ...notification,
+          notif: {
+            ...notification.notif,
+            actionUrl: buildNotificationReadRedirectUrl({
+              notifyServiceHost: notificationEmailHost,
+              token: adminToken,
+              accountId: notification.accountId,
+              eventId: notification.notif.eventId,
+              eventAtMs: notification.notif.eventAtMs,
+              redirectTo: notification.notif.url,
+            }),
+          },
+        }
+      }
+      return notification
+    })
+
+    const createEmail = useDesktopTemplate ? createDesktopNotificationsEmail : createNotificationsEmail
+
+    const notificationEmail = await createEmail(email, {adminToken}, notificationsWithActions)
     if (notificationEmail) {
       const {subject, text, html} = notificationEmail
+      logNotifDebug('sending notification email', {
+        email,
+        subject,
+        notificationsCount: notificationsWithActions.length,
+        reasons: notificationsWithActions.map((n) => n.notif.reason),
+      })
       await sendEmail(email, subject, {text, html})
     }
   }
@@ -361,15 +457,75 @@ function getEventId(event: PlainMessage<Event>) {
   if (event.data.case === 'newMention') {
     if (!event.data.value) return undefined
     const {sourceBlob, mentionType, target} = event.data.value
-    return `mention-${sourceBlob?.cid}-${mentionType}-${target}`
+    const normalizedMentionType = typeof mentionType === 'string' ? mentionType : ''
+    const normalizedTarget = typeof target === 'string' ? target : ''
+    return `mention-${sourceBlob?.cid}-${normalizedMentionType}-${normalizedTarget}`
   }
   return undefined
+}
+
+type EventCursorFingerprint = {kind: 'blob'; cid: string} | {kind: 'mention'; cid: string}
+
+function getEventCursorFingerprint(event: PlainMessage<Event>): EventCursorFingerprint | null {
+  if (event.data.case === 'newBlob') {
+    const cid = event.data.value?.cid
+    if (!cid) return null
+    return {kind: 'blob', cid}
+  }
+  if (event.data.case === 'newMention') {
+    const cid = event.data.value?.sourceBlob?.cid
+    if (!cid) return null
+    return {kind: 'mention', cid}
+  }
+  return null
+}
+
+function parseCursorFingerprintFromId(eventId: string): EventCursorFingerprint | null {
+  if (eventId.startsWith('blob-')) {
+    const cid = eventId.slice('blob-'.length)
+    if (!cid) return null
+    return {kind: 'blob', cid}
+  }
+  if (eventId.startsWith('mention-')) {
+    const withoutPrefix = eventId.slice('mention-'.length)
+    const firstDash = withoutPrefix.indexOf('-')
+    if (firstDash <= 0) return null
+    const cid = withoutPrefix.slice(0, firstDash)
+    if (!cid) return null
+    return {kind: 'mention', cid}
+  }
+  return null
+}
+
+function matchesCursorEvent(event: PlainMessage<Event>, eventId: string | undefined, lastProcessedEventId: string) {
+  if (eventId && eventId === lastProcessedEventId) return true
+  const cursorFingerprint = parseCursorFingerprintFromId(lastProcessedEventId)
+  const eventFingerprint = getEventCursorFingerprint(event)
+  if (!cursorFingerprint || !eventFingerprint) return false
+  return cursorFingerprint.kind === eventFingerprint.kind && cursorFingerprint.cid === eventFingerprint.cid
+}
+
+function getEventAtMs(event: PlainMessage<Event>): number {
+  const eventTime = normalizeDate(event.eventTime)
+  const observeTime = normalizeDate(event.observeTime)
+  if (eventTime && observeTime) {
+    return Math.max(eventTime.getTime(), observeTime.getTime())
+  }
+  if (eventTime) return eventTime.getTime()
+  if (observeTime) return observeTime.getTime()
+  return Date.now()
+}
+
+function shouldUseDesktopEmailTemplate(includedNotifReasons: Set<NotifReason>) {
+  if (includedNotifReasons.size === 0) return false
+  return Array.from(includedNotifReasons).every((reason) => reason === 'mention' || reason === 'reply')
 }
 
 async function evaluateEventForNotifications(
   event: PlainMessage<Event>,
   allSubscriptions: BaseSubscription[],
   appendNotification: (subscription: BaseSubscription, notif: Notification) => Promise<void>,
+  options: {mentionSourceBlobCids: Set<string>},
 ) {
   const eventTime = normalizeDate(event.eventTime)
   const observeTime = normalizeDate(event.observeTime)
@@ -378,12 +534,50 @@ async function evaluateEventForNotifications(
     eventTime && observeTime ? Math.max(eventTime.getTime(), observeTime.getTime()) : eventTime || observeTime
   // if the consideration time is older than the emailBatchNotifIntervalHours, we ignore it and print an error
   if (considerationTime && considerationTime < new Date(Date.now() - emailBatchNotifIntervalHours * 60 * 60 * 1000)) {
-    const eventId = getEventId(event)
-    reportError(`Event ${eventId} is older than ${emailBatchNotifIntervalHours} hours. Ignoring!`)
+    const eventId = getEventId(event) || 'unknown-event'
+    if (!reportedOldEventIds.has(eventId)) {
+      if (reportedOldEventIds.size > 5_000) reportedOldEventIds.clear()
+      reportedOldEventIds.add(eventId)
+      console.warn(`[notify][email] skip old event ${eventId} older than ${emailBatchNotifIntervalHours} hours`)
+    }
     return
   }
+  const eventMeta: NotificationEventMeta = {
+    eventId: getEventId(event),
+    eventAtMs: getEventAtMs(event),
+  }
+  logNotifDebug('evaluate event', {
+    eventId: eventMeta.eventId,
+    eventAtMs: eventMeta.eventAtMs,
+    eventCase: event.data.case,
+    account: event.account,
+  })
+
+  if (event.data.case === 'newMention') {
+    logNotifDebug('processing newMention event', {
+      eventId: eventMeta.eventId,
+      target: event.data.value?.target,
+      source: event.data.value?.source,
+      sourceType: event.data.value?.sourceType,
+      sourceDocument: event.data.value?.sourceDocument,
+    })
+    await evaluateMentionEventForNotifications(
+      event.data.value,
+      allSubscriptions,
+      appendNotification,
+      eventMeta,
+      event.account,
+    )
+    return
+  }
+
   if (event.data.case === 'newBlob') {
     const blob = event.data.value
+    logNotifDebug('processing newBlob event', {
+      eventId: eventMeta.eventId,
+      blobType: blob.blobType,
+      cid: blob.cid,
+    })
     if (blob.blobType === 'Ref') {
       const refStartTime = Date.now()
       const refEvent = await loadRefEvent(event)
@@ -402,7 +596,10 @@ async function evaluateEventForNotifications(
       }
       const rawComment = toPlainMessage(serverComment)
       const comment = HMCommentSchema.parse(rawComment)
-      await evaluateNewCommentForNotifications(comment, allSubscriptions, appendNotification)
+      const includeMentionsFromBody = !options.mentionSourceBlobCids.has(blob.cid)
+      await evaluateNewCommentForNotifications(comment, allSubscriptions, appendNotification, eventMeta, {
+        includeMentionsFromBody,
+      })
     }
   }
 }
@@ -440,11 +637,162 @@ async function evaluateDocUpdateForNotifications(
   }
 }
 
+async function getAccountSiteBaseUrl(accountId: string): Promise<string> {
+  try {
+    const accountResult = await requestAPI('Account', accountId)
+    if (accountResult.type === 'account') {
+      return accountResult.metadata?.siteUrl?.replace(/\/$/, '') || SITE_BASE_URL.replace(/\/$/, '')
+    }
+  } catch (error: any) {
+    reportError(`Error getting account site url ${accountId}: ${error.message}`)
+  }
+  return SITE_BASE_URL.replace(/\/$/, '')
+}
+
+async function evaluateMentionEventForNotifications(
+  mentionEvent: any,
+  allSubscriptions: BaseSubscription[],
+  appendNotification: (subscription: BaseSubscription, notif: Notification) => Promise<void>,
+  eventMeta: NotificationEventMeta,
+  fallbackAuthorAccountId: string,
+) {
+  if (!mentionEvent) {
+    logNotifDebug('skip mention: missing mention payload', {
+      eventId: eventMeta.eventId,
+    })
+    return
+  }
+
+  const targetId = unpackHmId(mentionEvent.target)
+  if (!targetId || targetId.path?.length) {
+    logNotifDebug('skip mention: target is not account root', {
+      eventId: eventMeta.eventId,
+      target: mentionEvent.target,
+      parsedTargetUid: targetId?.uid,
+      parsedTargetPath: targetId?.path,
+    })
+    return
+  }
+
+  const sourceType = mentionEvent.sourceType?.toLowerCase() || ''
+  const isCommentMention = sourceType.startsWith('comment/')
+  const sourceHref = isCommentMention && mentionEvent.sourceDocument ? mentionEvent.sourceDocument : mentionEvent.source
+  const sourceId = unpackHmId(sourceHref)
+  if (!sourceId) {
+    logNotifDebug('skip mention: unable to parse source href', {
+      eventId: eventMeta.eventId,
+      sourceHref,
+      sourceType,
+    })
+    return
+  }
+
+  const sourceDocId = hmId(sourceId.uid, {
+    path: sourceId.path,
+    version: sourceId.version || null,
+  })
+
+  let targetMeta: HMMetadata | null = null
+  try {
+    targetMeta = (await requestAPI('ResourceMetadata', sourceDocId)).metadata
+  } catch (error: any) {
+    reportError(`Error getting source metadata for mention ${sourceDocId.id}: ${error.message}`)
+  }
+
+  const authorAccountId = mentionEvent.sourceBlob?.author || fallbackAuthorAccountId
+  let authorMeta: HMMetadata | null = null
+  try {
+    const authorResult = await requestAPI('Account', authorAccountId)
+    authorMeta = authorResult.type === 'account' ? authorResult.metadata : null
+  } catch (error: any) {
+    reportError(`Error getting mention author ${authorAccountId}: ${error.message}`)
+  }
+
+  const siteBaseUrl = await getAccountSiteBaseUrl(sourceDocId.uid)
+
+  let mentionUrl: string
+  let mentionComment: HMComment | undefined
+  if (isCommentMention) {
+    const sourceCommentId = unpackHmId(mentionEvent.source)
+    const commentPath = sourceCommentId?.path?.[0]
+    if (!sourceCommentId || !commentPath) {
+      return
+    }
+    mentionUrl = createWebHMUrl(sourceCommentId.uid, {
+      path: [commentPath],
+      hostname: siteBaseUrl,
+    })
+    try {
+      const sourceBlobCid = mentionEvent.sourceBlob?.cid
+      if (sourceBlobCid) {
+        const serverComment = await grpcClient.comments.getComment({
+          id: sourceBlobCid,
+        })
+        const rawComment = toPlainMessage(serverComment)
+        mentionComment = HMCommentSchema.parse(rawComment)
+      }
+    } catch (error: any) {
+      reportError(`Error loading mention comment ${mentionEvent.sourceBlob?.cid}: ${error.message}`)
+    }
+  } else {
+    mentionUrl = createWebHMUrl(sourceDocId.uid, {
+      path: sourceDocId.path,
+      hostname: siteBaseUrl,
+    })
+  }
+
+  for (const sub of allSubscriptions) {
+    if (!sub.notifyAllMentions || sub.id !== targetId.uid) continue
+    const subjectAccountResult = await requestAPI('Account', sub.id)
+    const subjectAccountMeta = subjectAccountResult.type === 'account' ? subjectAccountResult.metadata : null
+    await appendNotification(sub, {
+      reason: 'mention',
+      source: isCommentMention ? 'comment' : 'document',
+      authorAccountId,
+      authorMeta,
+      targetMeta,
+      subjectAccountId: sub.id,
+      subjectAccountMeta,
+      targetId: sourceDocId,
+      url: mentionUrl,
+      comment: mentionComment,
+      eventId: eventMeta.eventId,
+      eventAtMs: eventMeta.eventAtMs,
+    })
+    logNotifDebug('mention notification queued', {
+      eventId: eventMeta.eventId,
+      subscriptionAccountId: sub.id,
+      subscriptionEmail: sub.email,
+      mentionUrl,
+      sourceType,
+    })
+  }
+
+  const matchingSubscriptions = allSubscriptions.filter((sub) => sub.notifyAllMentions && sub.id === targetId.uid)
+  if (!matchingSubscriptions.length) {
+    logNotifDebug('skip mention: no matching subscriptions', {
+      eventId: eventMeta.eventId,
+      targetAccountId: targetId.uid,
+      totalSubscriptions: allSubscriptions.length,
+    })
+  }
+}
+
 async function evaluateNewCommentForNotifications(
   comment: HMComment,
   allSubscriptions: BaseSubscription[],
   appendNotification: (subscription: BaseSubscription, notif: Notification) => Promise<void>,
+  eventMeta: NotificationEventMeta,
+  options: {includeMentionsFromBody: boolean},
 ) {
+  logNotifDebug('evaluate comment notification', {
+    eventId: eventMeta.eventId,
+    commentId: comment.id,
+    commentAuthor: comment.author,
+    targetAccount: comment.targetAccount,
+    hasReplyParent: Boolean(comment.replyParent),
+    includeMentionsFromBody: options.includeMentionsFromBody,
+  })
   const parentStartTime = Date.now()
   const parentComments = await getParentComments(comment)
   const parentTime = Date.now() - parentStartTime
@@ -506,14 +854,16 @@ async function evaluateNewCommentForNotifications(
 
   // Get all mentioned users in this comment
   const mentionedUsers = new Set<string>()
-  for (const rawBlockNode of comment.content) {
-    const blockNode = HMBlockNodeSchema.parse(rawBlockNode)
-    // @ts-expect-error
-    for (const annotation of blockNode.block?.annotations || []) {
-      if (annotation.type === 'Embed') {
-        const hmId = unpackHmId(annotation.link)
-        if (hmId && !hmId.path?.length) {
-          mentionedUsers.add(hmId.uid)
+  if (options.includeMentionsFromBody) {
+    for (const rawBlockNode of comment.content) {
+      const blockNode = HMBlockNodeSchema.parse(rawBlockNode)
+      // @ts-expect-error
+      for (const annotation of blockNode.block?.annotations || []) {
+        if (annotation.type === 'Embed') {
+          const hmId = unpackHmId(annotation.link)
+          if (hmId && !hmId.path?.length) {
+            mentionedUsers.add(hmId.uid)
+          }
         }
       }
     }
@@ -548,6 +898,14 @@ async function evaluateNewCommentForNotifications(
         url: commentUrl,
         subjectAccountId: sub.id,
         subjectAccountMeta: subjectAccountResult.metadata,
+        eventId: eventMeta.eventId,
+        eventAtMs: eventMeta.eventAtMs,
+      })
+      logNotifDebug('comment mention notification queued', {
+        eventId: eventMeta.eventId,
+        subscriptionAccountId: sub.id,
+        subscriptionEmail: sub.email,
+        commentId: comment.id,
       })
     }
     if (sub.notifyAllReplies && parentCommentAuthor === sub.id) {
@@ -559,6 +917,15 @@ async function evaluateNewCommentForNotifications(
         targetMeta: targetMeta,
         targetId: targetDocId,
         url: commentUrl,
+        eventId: eventMeta.eventId,
+        eventAtMs: eventMeta.eventAtMs,
+      })
+      logNotifDebug('reply notification queued', {
+        eventId: eventMeta.eventId,
+        subscriptionAccountId: sub.id,
+        subscriptionEmail: sub.email,
+        commentId: comment.id,
+        parentCommentAuthor,
       })
     }
     if (sub.id === comment.targetAccount && !comment.threadRoot && sub.notifySiteDiscussions) {
@@ -700,16 +1067,16 @@ async function loadEventsAfterEventId(lastProcessedEventId: string, signal?: Abo
 
     for (const event of events) {
       const eventId = getEventId(event)
-      if (eventId) {
-        if (eventId === lastProcessedEventId) {
-          const totalTime = Date.now() - startTime
-          if (totalTime > 5000) {
-            console.log(
-              `loadEventsAfterEventId found target after ${pageCount} pages, ${eventsAfterEventId.length} events, ${totalTime}ms`,
-            )
-          }
-          return {events: eventsAfterEventId, foundCursor: true, aborted: false}
+      if (matchesCursorEvent(event, eventId, lastProcessedEventId)) {
+        const totalTime = Date.now() - startTime
+        if (totalTime > 5000) {
+          console.log(
+            `loadEventsAfterEventId found target after ${pageCount} pages, ${eventsAfterEventId.length} events, ${totalTime}ms`,
+          )
         }
+        return {events: eventsAfterEventId, foundCursor: true, aborted: false}
+      }
+      if (eventId) {
         eventsAfterEventId.push(event)
       }
     }

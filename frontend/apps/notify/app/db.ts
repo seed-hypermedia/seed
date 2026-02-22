@@ -43,6 +43,17 @@ type DBEmail = {
   isUnsubscribed: number
 }
 
+type DBNotificationReadStateRow = {
+  accountId: string
+  markAllReadAtMs: number | null
+  updatedAt: string
+}
+
+type DBNotificationReadEventRow = {
+  eventId: string
+  eventAtMs: number
+}
+
 let db: Database.Database
 
 // Prepared statements - initialized after db is ready
@@ -60,6 +71,14 @@ let stmtSetEmailUnsubscribed: Database.Statement
 let stmtGetAllEmails: Database.Statement
 let stmtEnsureEmail: Database.Statement
 let stmtUpsertSubscription: Database.Statement
+let stmtGetNotificationConfig: Database.Statement
+let stmtGetAllNotificationConfigs: Database.Statement
+let stmtUpsertNotificationConfig: Database.Statement
+let stmtGetNotificationReadState: Database.Statement
+let stmtUpsertNotificationReadState: Database.Statement
+let stmtGetNotificationReadEvents: Database.Statement
+let stmtUpsertNotificationReadEvent: Database.Statement
+let stmtPruneNotificationReadEvents: Database.Statement
 
 export async function initDatabase(): Promise<void> {
   const dbFilePath = join(process.env.DATA_DIR || process.cwd(), 'web-db.sqlite')
@@ -161,6 +180,41 @@ export async function initDatabase(): Promise<void> {
     version = 4
   }
 
+  if (version === 4) {
+    db.exec(`
+    BEGIN;
+    CREATE TABLE notification_config (
+      accountId TEXT PRIMARY KEY NOT NULL,
+      email TEXT NOT NULL,
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    PRAGMA user_version = 5;
+    COMMIT;
+  `)
+    version = 5
+  }
+
+  if (version === 5) {
+    db.exec(`
+    BEGIN;
+    CREATE TABLE notification_read_state (
+      accountId TEXT PRIMARY KEY NOT NULL,
+      markAllReadAtMs INTEGER NULL,
+      updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE notification_read_events (
+      accountId TEXT NOT NULL,
+      eventId TEXT NOT NULL,
+      eventAtMs INTEGER NOT NULL,
+      PRIMARY KEY (accountId, eventId)
+    ) WITHOUT ROWID;
+    PRAGMA user_version = 6;
+    COMMIT;
+  `)
+    version = 6
+  }
+
   // Initialize all prepared statements
   stmtInsertEmail = db.prepare('INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)')
   stmtInsertSubscription = db.prepare(
@@ -217,6 +271,55 @@ export async function initDatabase(): Promise<void> {
       notifySiteDiscussions = excluded.notifySiteDiscussions,
       notifyAllComments     = excluded.notifyAllComments
   `)
+  stmtGetNotificationConfig = db.prepare('SELECT * FROM notification_config WHERE accountId = ?')
+  stmtGetAllNotificationConfigs = db.prepare('SELECT * FROM notification_config')
+  stmtUpsertNotificationConfig = db.prepare(`
+    INSERT INTO notification_config (accountId, email, updatedAt)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(accountId) DO UPDATE SET
+      email = excluded.email,
+      updatedAt = CURRENT_TIMESTAMP
+  `)
+  stmtGetNotificationReadState = db.prepare('SELECT * FROM notification_read_state WHERE accountId = ?')
+  stmtUpsertNotificationReadState = db.prepare(`
+    INSERT INTO notification_read_state (accountId, markAllReadAtMs, updatedAt)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(accountId) DO UPDATE SET
+      markAllReadAtMs = CASE
+        WHEN excluded.markAllReadAtMs IS NULL THEN notification_read_state.markAllReadAtMs
+        WHEN notification_read_state.markAllReadAtMs IS NULL THEN excluded.markAllReadAtMs
+        WHEN excluded.markAllReadAtMs > notification_read_state.markAllReadAtMs THEN excluded.markAllReadAtMs
+        ELSE notification_read_state.markAllReadAtMs
+      END,
+      updatedAt = CURRENT_TIMESTAMP
+  `)
+  stmtGetNotificationReadEvents = db.prepare(`
+    SELECT eventId, eventAtMs
+    FROM notification_read_events
+    WHERE accountId = ?
+    ORDER BY eventAtMs DESC, eventId ASC
+  `)
+  stmtUpsertNotificationReadEvent = db.prepare(`
+    INSERT INTO notification_read_events (accountId, eventId, eventAtMs)
+    VALUES (?, ?, ?)
+    ON CONFLICT(accountId, eventId) DO UPDATE SET
+      eventAtMs = CASE
+        WHEN excluded.eventAtMs > notification_read_events.eventAtMs THEN excluded.eventAtMs
+        ELSE notification_read_events.eventAtMs
+      END
+  `)
+  stmtPruneNotificationReadEvents = db.prepare(`
+    DELETE FROM notification_read_events
+    WHERE accountId = ? AND eventAtMs <= ?
+  `)
+
+  // Ensure email rows exist for notification_config entries from previous runs.
+  const existingNotificationConfigs = stmtGetAllNotificationConfigs.all() as {
+    email: string
+  }[]
+  for (const cfg of existingNotificationConfigs) {
+    stmtEnsureEmail.run(cfg.email, crypto.randomBytes(32).toString('hex'))
+  }
 }
 
 export function cleanup(): void {
@@ -435,6 +538,87 @@ export function setSubscription({
     nextNotifySiteDiscussions,
     nextNotifyAllComments,
   )
+}
+
+export type NotificationConfigRow = {
+  accountId: string
+  email: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type NotificationReadEvent = {
+  eventId: string
+  eventAtMs: number
+}
+
+export type NotificationReadStateRow = {
+  accountId: string
+  markAllReadAtMs: number | null
+  readEvents: NotificationReadEvent[]
+  updatedAt: string
+}
+
+export function getNotificationConfig(accountId: string): NotificationConfigRow | null {
+  const row = stmtGetNotificationConfig.get(accountId) as NotificationConfigRow | undefined
+  return row ?? null
+}
+
+export function getAllNotificationConfigs(): NotificationConfigRow[] {
+  return stmtGetAllNotificationConfigs.all() as NotificationConfigRow[]
+}
+
+export function setNotificationConfig(accountId: string, email: string): void {
+  stmtEnsureEmail.run(email, crypto.randomBytes(32).toString('hex'))
+  stmtUpsertNotificationConfig.run(accountId, email)
+}
+
+export function getNotificationReadState(accountId: string): NotificationReadStateRow {
+  const row = stmtGetNotificationReadState.get(accountId) as DBNotificationReadStateRow | undefined
+  const readEvents = stmtGetNotificationReadEvents.all(accountId) as DBNotificationReadEventRow[]
+
+  return {
+    accountId,
+    markAllReadAtMs: row?.markAllReadAtMs ?? null,
+    readEvents: readEvents.map((evt) => ({
+      eventId: evt.eventId,
+      eventAtMs: evt.eventAtMs,
+    })),
+    updatedAt: row?.updatedAt ?? new Date(0).toISOString(),
+  }
+}
+
+export function mergeNotificationReadState(
+  accountId: string,
+  snapshot: {
+    markAllReadAtMs: number | null
+    readEvents: NotificationReadEvent[]
+  },
+): NotificationReadStateRow {
+  const normalizedReadEvents = snapshot.readEvents
+    .filter((evt) => evt?.eventId && Number.isFinite(evt.eventAtMs))
+    .map((evt) => ({
+      eventId: evt.eventId,
+      eventAtMs: Math.max(0, Math.floor(evt.eventAtMs)),
+    }))
+
+  const transaction = db.transaction(() => {
+    stmtUpsertNotificationReadState.run(accountId, snapshot.markAllReadAtMs)
+
+    for (const evt of normalizedReadEvents) {
+      stmtUpsertNotificationReadEvent.run(accountId, evt.eventId, evt.eventAtMs)
+    }
+
+    const merged = stmtGetNotificationReadState.get(accountId) as DBNotificationReadStateRow | undefined
+    const mergedMarkAllReadAtMs = merged?.markAllReadAtMs ?? null
+    if (mergedMarkAllReadAtMs !== null) {
+      stmtPruneNotificationReadEvents.run(accountId, mergedMarkAllReadAtMs)
+    }
+
+    return getNotificationReadState(accountId)
+  })
+
+  return transaction()
 }
 
 // export function setAccount({

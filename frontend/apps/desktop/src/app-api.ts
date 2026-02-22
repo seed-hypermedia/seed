@@ -20,6 +20,8 @@ import {diagnosisApi} from './app-diagnosis'
 import {draftsApi} from './app-drafts'
 import {experimentsApi} from './app-experiments'
 import {bookmarksApi} from './app-bookmarks'
+import {notificationReadApi, startNotificationReadBackgroundSync} from './app-notification-read-state'
+import {notificationInboxApi, startNotificationInboxBackgroundIngestor} from './app-notification-inbox'
 import {gatewaySettingsApi} from './app-gateway-settings'
 import {hostApi} from './app-host'
 import {appInvalidateQueries, queryInvalidation} from './app-invalidation'
@@ -125,6 +127,8 @@ ipcMain.on('find_in_page_cancel', () => {
 // })
 
 log.info('App User Data', {path: userDataPath})
+startNotificationReadBackgroundSync()
+startNotificationInboxBackgroundIngestor()
 
 export async function openInitialWindows() {
   const windowsState = getWindowsState()
@@ -268,6 +272,8 @@ export const router = t.router({
       }),
   }),
   bookmarks: bookmarksApi,
+  notificationRead: notificationReadApi,
+  notificationInbox: notificationInboxApi,
   host: hostApi,
   recentSigners: recentSignersApi,
   comments: commentsApi,
