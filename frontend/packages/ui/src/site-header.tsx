@@ -173,7 +173,7 @@ export function SiteHeader({
           <div className="flex flex-1 justify-center overflow-hidden">
             <SiteLogo id={headerHomeId} metadata={draftMetadata || homeDoc.document?.metadata} />
           </div>
-          {routeType != 'draft' && isCenterLayout ? (
+          {routeType != 'draft' && isCenterLayout && !IS_DESKTOP ? (
             <div className="flex items-center gap-2 md:absolute md:right-0">
               {headerSearch}
               {notifyServiceHost && (
@@ -202,7 +202,7 @@ export function SiteHeader({
 
         <div className="flex items-center gap-2">
           {!isCenterLayout && headerSearch}
-          {routeType != 'draft' && !isCenterLayout && (
+          {routeType != 'draft' && !isCenterLayout && !IS_DESKTOP && (
             <Button
               variant="brand"
               size="sm"
