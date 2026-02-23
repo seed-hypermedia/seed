@@ -232,6 +232,7 @@ func (p *Pool) Put(conn *sqlite.Conn) {
 		panic("sqlite.Pool.Put: connection not created by this pool")
 	}
 
+	conn.ResetTxTracking()
 	cancel()
 	p.free <- conn
 }

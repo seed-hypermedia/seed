@@ -302,26 +302,34 @@ func TestNoFalseSlowQueryAfterFailedWriteTx(t *testing.T) {
 	})
 	require.True(t, errors.Is(err, sqlitex.ErrBeginImmediateTx), "expected ErrBeginImmediateTx, got: %v", err)
 
-	// Step 3: Release conn1's write lock.
+	// Step 3: Release conn1's write lock immediately (before the busy timeout
+	// elapses, so conn1's transaction is NOT reported as slow).
 	require.NoError(t, sqlitex.Exec(conn1, "COMMIT", nil))
 	release1()
 
-	// Step 4: Wait longer than the busy timeout so a stale txStart would
-	// produce a SlowQuery if txEnd were triggered.
+	// Clear any logs from the setup phase.
+	capture.mu.Lock()
+	capture.logs = nil
+	capture.mu.Unlock()
+
+	// Step 4: Wait longer than the busy timeout so a stale txStart on
+	// the failed connection would produce a SlowQuery if txEnd were triggered.
 	time.Sleep(busyTimeout + 10*time.Millisecond)
 
-	// Step 5: Use WithSave, returning an error from the callback.
-	// This triggers the real ROLLBACK TO path in savepoint.go:122.
-	// If the pool hands us the connection with the stale txStart, and the
-	// ROLLBACK TO is misclassified as txEnd, a false SlowQuery is emitted.
-	err = pool.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return fmt.Errorf("intentional error to trigger savepoint rollback")
+	// Step 5: Do a real WithTx that succeeds. If the pool hands us the
+	// connection with the stale txStart from step 2, the new BEGIN IMMEDIATE
+	// won't overwrite it (trackTransaction only sets txStart when it's zero).
+	// When this transaction commits, the duration is measured from the stale
+	// txStart, producing a false SlowQuery with a bogus duration.
+	err = pool.WithTx(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, "INSERT INTO test (id) VALUES (1)", nil)
 	})
-	require.Error(t, err)
+	require.NoError(t, err)
 
-	// Assert: no SlowQuery must have been logged.
+	// Assert: no SlowQuery must have been logged. The only write transaction
+	// that actually completed was the INSERT above, which took milliseconds.
 	require.False(t, capture.hasSlowQuery(),
-		"unexpected SlowQuery from a connection that never held a real write transaction")
+		"unexpected SlowQuery from a connection that never held a real long transaction")
 }
 
 func TestPoolPutMatch(t *testing.T) {

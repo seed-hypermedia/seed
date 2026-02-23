@@ -513,6 +513,14 @@ const (
 	txEnd     txEvent = 2
 )
 
+// ResetTxTracking clears any in-progress transaction tracking state.
+// This should be called when a connection is returned to a pool to prevent
+// stale state from a failed BEGIN IMMEDIATE from producing false SlowQuery
+// warnings on subsequent uses of the connection.
+func (conn *Conn) ResetTxTracking() {
+	conn.txStart = time.Time{}
+}
+
 func (conn *Conn) trackTransaction(query string) {
 	evt := parseTransactionEvent(query)
 
@@ -602,13 +610,17 @@ func parseTransactionEvent(sql string) txEvent {
 	}
 
 	// ROLLBACK → TxEnd unless it's a savepoint rollback.
+	// ROLLBACK TO is always a savepoint operation in SQLite regardless of
+	// whether the optional SAVEPOINT keyword is present. The savepoint.go
+	// code emits ROLLBACK TO "<name>" (without SAVEPOINT), so we must
+	// treat any ROLLBACK TO as a non-event.
 	if t0 == "ROLLBACK" {
-		// Case 1: ROLLBACK TO SAVEPOINT.
-		if t1 == "TO" && t2 == "SAVEPOINT" {
+		// Case 1: ROLLBACK TO [SAVEPOINT] <name>.
+		if t1 == "TO" {
 			return noTxEvent
 		}
 
-		// Case 2: ROLLBACK TRANSACTION TO SAVEPOINT.
+		// Case 2: ROLLBACK TRANSACTION TO [SAVEPOINT] <name>.
 		// We only have three tokens → "ROLLBACK", "TRANSACTION", "TO".
 		if t1 == "TRANSACTION" && t2 == "TO" {
 			return noTxEvent
