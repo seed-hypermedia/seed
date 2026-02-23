@@ -23,7 +23,7 @@ vi.mock('../app-store.mts', () => ({
   appStore: appStoreMock,
 }))
 
-vi.mock('../grpc-client', () => ({
+vi.mock('../app-grpc', () => ({
   grpcClient: {
     daemon: {
       listKeys: listKeysMock,
