@@ -20,6 +20,7 @@ import {useSelectedAccount} from '@/selected-account'
 import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {handleDragMedia} from '@/utils/media-drag'
+import {clearNavigationGuard, setNavigationGuard} from '@/utils/navigation-container'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {BlockNoteEditor} from '@shm/editor/blocknote'
@@ -46,13 +47,14 @@ import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {PanelContent} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
 import {DocumentCollaborators} from '@shm/ui/collaborators-page'
+import {AlertDialog, AlertDialogContent, AlertDialogFooter, AlertDialogTitle} from '@shm/ui/components/alert-dialog'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DirectoryPanel} from '@shm/ui/directory-panel'
 import {DocumentTools} from '@shm/ui/document-tools'
 import {Feed} from '@shm/ui/feed'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {Home, Trash} from '@shm/ui/icons'
+import {Home, Undo} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {DocNavigationItem} from '@shm/ui/navigation'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
@@ -1152,18 +1154,20 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
     },
     {
       key: 'delete-draft',
-      label: 'Delete Draft',
-      icon: <Trash className="size-4" />,
+      label: 'Discard Changes',
+      icon: <Undo className="size-4" />,
       variant: 'destructive',
       onClick: () => {
         if (draftId) {
           deleteDialog.open({
             draftId,
             onSuccess: () => {
+              clearNavigationGuard()
               dispatch({type: 'closeBack'})
             },
           })
         } else {
+          clearNavigationGuard()
           dispatch({type: 'closeBack'})
         }
       },
