@@ -126,23 +126,35 @@ func (srv *Server) ListCapabilities(ctx context.Context, in *documents.ListCapab
 		return nil, err
 	}
 
-	iri, err := makeIRI(acc, in.Path)
-	if err != nil {
-		return nil, err
-	}
-
 	// TODO(burdiyan): implement pagination.
 	resp := &documents.ListCapabilitiesResponse{}
 
-	if err := srv.idx.WalkCapabilities(ctx, iri, acc, func(c cid.Cid, cpb *blob.Capability) error {
+	collectCaps := func(c cid.Cid, cpb *blob.Capability) error {
 		pb, err := capToProto(c, cpb)
 		if err != nil {
 			return err
 		}
 		resp.Capabilities = append(resp.Capabilities, pb)
 		return nil
-	}); err != nil {
-		return nil, err
+	}
+
+	if in.Path == "*" {
+		// Site-wide listing: return all capabilities for this account across all document paths.
+		accountIRI, err := makeIRI(acc, "")
+		if err != nil {
+			return nil, err
+		}
+		if err := srv.idx.WalkAllAccountCapabilities(ctx, accountIRI, acc, collectCaps); err != nil {
+			return nil, err
+		}
+	} else {
+		iri, err := makeIRI(acc, in.Path)
+		if err != nil {
+			return nil, err
+		}
+		if err := srv.idx.WalkCapabilities(ctx, iri, acc, collectCaps); err != nil {
+			return nil, err
+		}
 	}
 
 	return resp, nil
