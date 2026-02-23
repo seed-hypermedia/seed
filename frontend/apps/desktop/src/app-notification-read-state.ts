@@ -4,7 +4,7 @@ import {base58btc} from 'multiformats/bases/base58'
 import z from 'zod'
 // @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
-import {grpcClient} from './grpc-client'
+import {grpcClient} from './app-grpc'
 import * as log from './logger'
 import {t} from './app-trpc'
 
@@ -54,6 +54,12 @@ function getNowMs() {
 function loadStore(): NotificationReadStore {
   const raw = appStore.get(NOTIFICATION_READ_STATE_KEY) as NotificationReadStore | undefined
   if (raw?.version === 1 && raw.accounts && typeof raw.accounts === 'object') {
+    // Sanitize each account's readEvents to ensure it's a plain object
+    for (const [uid, state] of Object.entries(raw.accounts)) {
+      if (!state || typeof state.readEvents !== 'object' || Array.isArray(state.readEvents)) {
+        raw.accounts[uid] = {...state, readEvents: {}}
+      }
+    }
     return raw
   }
   return {version: 1, accounts: {}}
@@ -73,7 +79,8 @@ function normalizeHost(host: string) {
   return host.replace(/\/$/, '')
 }
 
-function readEventsMapToList(readEvents: Record<string, number>): NotificationReadEvent[] {
+function readEventsMapToList(readEvents: Record<string, number> | undefined | null): NotificationReadEvent[] {
+  if (!readEvents || typeof readEvents !== 'object') return []
   return Object.entries(readEvents)
     .filter(([, eventAtMs]) => Number.isFinite(eventAtMs))
     .map(([eventId, eventAtMs]) => ({
@@ -83,8 +90,9 @@ function readEventsMapToList(readEvents: Record<string, number>): NotificationRe
     .sort((a, b) => b.eventAtMs - a.eventAtMs || a.eventId.localeCompare(b.eventId))
 }
 
-function readEventsListToMap(readEvents: NotificationReadEvent[]): Record<string, number> {
+function readEventsListToMap(readEvents: NotificationReadEvent[] | undefined | null): Record<string, number> {
   const next: Record<string, number> = {}
+  if (!Array.isArray(readEvents)) return next
   for (const evt of readEvents) {
     if (!evt?.eventId || !Number.isFinite(evt.eventAtMs)) continue
     const normalizedTime = Math.max(0, Math.floor(evt.eventAtMs))
@@ -94,7 +102,8 @@ function readEventsListToMap(readEvents: NotificationReadEvent[]): Record<string
   return next
 }
 
-function pruneReadEvents(readEvents: Record<string, number>, markAllReadAtMs: number | null) {
+function pruneReadEvents(readEvents: Record<string, number> | undefined | null, markAllReadAtMs: number | null) {
+  if (!readEvents || typeof readEvents !== 'object') return {}
   if (markAllReadAtMs === null) return readEvents
   const next: Record<string, number> = {}
   for (const [eventId, eventAtMs] of Object.entries(readEvents)) {
@@ -197,7 +206,12 @@ async function signedNotificationReadStatePost(accountUid: string, host: string,
   if (!response.ok) {
     throw new Error(json?.error || 'Notification read-state request failed')
   }
-  return json as NotificationReadStateResponse
+  const result = json as NotificationReadStateResponse
+  // Ensure readEvents is always an array even if server returns unexpected shape
+  if (!Array.isArray(result.readEvents)) {
+    result.readEvents = []
+  }
+  return result
 }
 
 function mergeLocalAndRemoteState(
@@ -205,13 +219,14 @@ function mergeLocalAndRemoteState(
   remote: NotificationReadStateResponse,
 ): {markAllReadAtMs: number | null; readEvents: NotificationReadEvent[]} {
   const mergedMarkAllReadAtMs = maxNullable(local.markAllReadAtMs, remote.markAllReadAtMs)
+  const remoteEvents = Array.isArray(remote?.readEvents) ? remote.readEvents : []
 
   const mergedReadEventsMap = {
-    ...readEventsListToMap(remote.readEvents),
+    ...readEventsListToMap(remoteEvents),
     ...local.readEvents,
   }
 
-  for (const evt of remote.readEvents) {
+  for (const evt of remoteEvents) {
     const current = mergedReadEventsMap[evt.eventId]
     const normalized = Math.max(0, Math.floor(evt.eventAtMs))
     mergedReadEventsMap[evt.eventId] = current === undefined ? normalized : Math.max(current, normalized)

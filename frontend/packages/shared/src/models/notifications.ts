@@ -44,8 +44,12 @@ async function signedNotifPost(host: string, path: string, signer: NotificationS
     headers: {'Content-Type': 'application/cbor'},
   })
   if (!res.ok) {
-    const err = await res.json()
-    throw new Error(err.error || 'Request failed')
+    let message = `Request failed (${res.status})`
+    try {
+      const err = await res.json()
+      if (err?.error) message = err.error
+    } catch {}
+    throw new Error(message)
   }
   return res.json()
 }

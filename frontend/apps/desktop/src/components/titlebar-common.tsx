@@ -299,10 +299,10 @@ function NotificationButton() {
   const route = useNavRoute()
   if (!experiments?.notifications) return null
   return (
-    <Tooltip content="Notifications">
+    <Tooltip content="Notifications" asChild>
       <Button
         size="icon"
-        variant={route.key === 'notifications' ? 'secondary' : 'ghost'}
+        variant={route.key === 'notifications' ? 'brand' : 'ghost'}
         className="window-no-drag"
         onClick={() => navigate({key: 'notifications'})}
       >

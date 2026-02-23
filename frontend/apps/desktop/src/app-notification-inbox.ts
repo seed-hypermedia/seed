@@ -6,7 +6,7 @@ import z from 'zod'
 // @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
-import {grpcClient} from './grpc-client'
+import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
 import * as log from './logger'
 import {classifyNotificationEvent, NotificationReason} from '@/models/notification-event-classifier'
