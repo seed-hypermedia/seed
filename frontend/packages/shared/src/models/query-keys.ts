@@ -128,6 +128,10 @@ export const queryKeys = {
   SECURE_STORAGE: 'SECURE_STORAGE',
   DRAFTS_LIST: 'DRAFTS_LIST',
   DRAFTS_LIST_ACCOUNT: 'DRAFTS_LIST_ACCOUNT', // accountUid
+  NOTIFICATION_CONFIG: 'NOTIFICATION_CONFIG', // notifyServiceHost, accountUid
+  NOTIFICATION_INBOX: 'NOTIFICATION_INBOX', // accountUid
+  NOTIFICATION_READ_STATE: 'NOTIFICATION_READ_STATE', // notifyServiceHost, accountUid
+  NOTIFICATION_SYNC_STATUS: 'NOTIFICATION_SYNC_STATUS', // accountUid
 } as const
 
 export function labelOfQueryKey(key: QueryKey) {

@@ -46,6 +46,7 @@ var DeletedContent = lazy(() => import('./deleted-content'))
 var Drafts = lazy(() => import('./drafts'))
 var Profile = lazy(() => import('./profile'))
 var Preview = lazy(() => import('./preview'))
+var Notifications = lazy(() => import('./notifications'))
 
 export default function Main({className}: {className?: string}) {
   const navR = useNavRoute()
@@ -297,6 +298,11 @@ function getPageComponent(navRoute: NavRoute) {
       return {
         PageComponent: Preview,
         Fallback: DocumentPlaceholder,
+      }
+    case 'notifications':
+      return {
+        PageComponent: Notifications,
+        Fallback: BaseLoading,
       }
     default:
       return {

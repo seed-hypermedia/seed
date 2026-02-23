@@ -1,11 +1,11 @@
 import {useInfiniteQuery} from '@tanstack/react-query'
 import {HMListEventsInput, HMListEventsRequest} from './hm-types'
-import {LoadedEvent} from './models/activity-service'
+import {LoadedEventWithNotifMeta} from './models/activity-service'
 import {queryKeys} from './models/query-keys'
 import {useUniversalClient} from './routing'
 
 type LoadedEventsResponse = {
-  events: LoadedEvent[]
+  events: LoadedEventWithNotifMeta[]
   nextPageToken: string
 }
 
@@ -48,7 +48,7 @@ export function useActivityFeed({
         const response = await client.request<HMListEventsRequest>('ListEvents', input)
 
         return {
-          events: response.events as LoadedEvent[],
+          events: response.events as LoadedEventWithNotifMeta[],
           nextPageToken: response.nextPageToken,
         }
       } catch (error) {

@@ -2,6 +2,8 @@ import {HMRequestImplementation} from './api-types'
 import {GRPCClient} from './grpc-client'
 import {HMListEventsRequest} from './hm-types'
 import {
+  getEventAtMs,
+  getFeedEventId,
   getEventType,
   HMActivityEvent,
   listEventsImpl,
@@ -10,6 +12,7 @@ import {
   loadCommentEvent,
   loadContactEvent,
   LoadedEvent,
+  LoadedEventWithNotifMeta,
   loadRefEvent,
 } from './models/activity-service'
 import {createRequestCache, RequestCache} from './request-cache'
@@ -19,7 +22,7 @@ async function resolveEvent(
   event: HMActivityEvent,
   currentAccount: string | undefined,
   cache: RequestCache,
-): Promise<LoadedEvent | null> {
+): Promise<LoadedEventWithNotifMeta | null> {
   try {
     const eventType = getEventType(event)
 
@@ -28,29 +31,50 @@ async function resolveEvent(
       return null
     }
 
+    let resolvedEvent: LoadedEvent | null = null
     switch (eventType) {
       case 'comment':
-        return loadCommentEvent(grpcClient, event, currentAccount, cache)
+        resolvedEvent = await loadCommentEvent(grpcClient, event, currentAccount, cache)
+        break
       case 'ref':
-        return loadRefEvent(grpcClient, event, currentAccount, cache)
+        resolvedEvent = await loadRefEvent(grpcClient, event, currentAccount, cache)
+        break
       case 'capability':
-        return loadCapabilityEvent(grpcClient, event, currentAccount, cache)
+        resolvedEvent = await loadCapabilityEvent(grpcClient, event, currentAccount, cache)
+        break
       case 'contact':
-        return loadContactEvent(grpcClient, event, currentAccount, cache)
+        resolvedEvent = await loadContactEvent(grpcClient, event, currentAccount, cache)
+        break
       case 'citation':
       case 'comment/target':
       case 'comment/embed':
       case 'comment/link':
+      case 'doc/target':
       case 'doc/embed':
       case 'doc/link':
       case 'doc/button':
-        return loadCitationEvent(grpcClient, event, currentAccount, cache)
+        resolvedEvent = await loadCitationEvent(grpcClient, event, currentAccount, cache)
+        break
       case 'dagpb':
       case 'profile':
         return null
       default:
         console.warn(`Unknown event type: ${eventType}`)
         return null
+    }
+
+    if (!resolvedEvent) return null
+
+    const feedEventId = getFeedEventId(event)
+    if (!feedEventId) {
+      console.warn('Missing feedEventId for event:', event)
+      return null
+    }
+
+    return {
+      ...resolvedEvent,
+      feedEventId,
+      eventAtMs: getEventAtMs(event),
     }
   } catch (error) {
     console.error('Error resolving event:', event, error)

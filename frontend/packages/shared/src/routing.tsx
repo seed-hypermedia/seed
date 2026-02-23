@@ -21,6 +21,7 @@ export const appExperimentsSchema = z
     pubContentDevMenu: z.boolean().optional(),
     newLibrary: z.boolean().optional(),
     embeddingEnabled: z.boolean().optional(),
+    notifications: z.boolean().optional(),
   })
   .strict()
 export type AppExperiments = z.infer<typeof appExperimentsSchema>

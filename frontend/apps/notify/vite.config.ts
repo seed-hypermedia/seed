@@ -37,7 +37,7 @@ export default defineConfig(({isSsrBuild}) => {
     plugins: [
       remix(),
       envOnlyMacros(),
-      tsconfigPaths(),
+      tsconfigPaths({root: path.resolve(__dirname, '../..')}),
       commonjs({
         filter(id) {
           if (id.includes('node_modules/@react-native/normalize-color')) {

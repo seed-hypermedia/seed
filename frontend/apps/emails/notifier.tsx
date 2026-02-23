@@ -24,6 +24,20 @@ type GroupedNotifications = Record<
   Record<string, FullNotification[]>
 >
 
+function getNotifyServiceHost() {
+  return (NOTIFY_SERVICE_HOST || 'https://hyper.media').replace(/\/$/, '')
+}
+
+function getNotificationActionUrl(notification: Notification) {
+  if (
+    (notification.reason === 'mention' || notification.reason === 'reply') &&
+    notification.actionUrl
+  ) {
+    return notification.actionUrl
+  }
+  return notification.url
+}
+
 export async function createNotificationsEmail(
   email: string,
   opts: {adminToken: string},
@@ -79,7 +93,9 @@ export async function createNotificationsEmail(
 
     firstNotification.accountMeta,
   )
-  const notifSettingsUrl = `${NOTIFY_SERVICE_HOST}/hm/email-notifications?token=${opts.adminToken}`
+  const notifSettingsUrl = `${getNotifyServiceHost()}/hm/email-notifications?token=${
+    opts.adminToken
+  }`
 
   const text = `${baseNotifsSubject}
 
@@ -96,13 +112,13 @@ ${docNotifs
         if (notif.reason === 'site-new-discussion') {
           return `New comment from ${
             notif.authorMeta?.name || 'an account you are subscribed to'
-          } on ${notif.url}`
+          } on ${getNotificationActionUrl(notif)}`
         }
 
         if (notif.reason === 'site-doc-update') {
           return `New document change from ${
             notif.authorMeta?.name || notif.authorAccountId
-          } on ${notif.url}`
+          } on ${getNotificationActionUrl(notif)}`
         }
 
         if (notif.reason === 'mention') {
@@ -110,7 +126,7 @@ ${docNotifs
             notif.authorMeta?.name || notif.authorAccountId
           } mentioned ${
             notification.accountMeta?.name || 'an account you are subscribed to'
-          } on ${notif.url}`
+          } on ${getNotificationActionUrl(notif)}`
         }
 
         if (notif.reason === 'reply') {
@@ -118,14 +134,16 @@ ${docNotifs
             notif.authorMeta?.name || notif.comment.author
           } replied to ${
             notification.accountMeta?.name || 'an account you are subscribed to'
-          } comment on ${notif.url}`
+          } comment on ${getNotificationActionUrl(notif)}`
         }
 
         return ''
       })
       .join('\n')
 
-    return `${docName}\n\n${lines}\n\n${notifications?.[0]?.notif?.url}`
+    return `${docName}\n\n${lines}\n\n${getNotificationActionUrl(
+      notifications?.[0]?.notif!,
+    )}`
   })
   .join('\n')}
 
@@ -190,7 +208,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
               {docEntries.map(([docId, docNotifs]) => {
                 const targetName =
                   docNotifs?.[0]?.notif?.targetMeta?.name || 'Untitled Document'
-                const docUrl = docNotifs?.[0]?.notif?.url
+                const docUrl = getNotificationActionUrl(docNotifs?.[0]?.notif!)
 
                 return (
                   <React.Fragment key={docId}>
@@ -298,6 +316,139 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
   return {email, subject, text, html: emailHtml, subscriberNames}
 }
 
+type ImmediateReason = 'mention' | 'reply'
+type ImmediateNotification = FullNotification & {
+  notif: Extract<Notification, {reason: ImmediateReason}>
+}
+
+export async function createDesktopNotificationsEmail(
+  email: string,
+  opts: {adminToken: string},
+  notifications: FullNotification[],
+) {
+  const immediate = notifications.filter(
+    (notification): notification is ImmediateNotification =>
+      notification.notif.reason === 'mention' ||
+      notification.notif.reason === 'reply',
+  )
+  if (!immediate.length) return
+
+  const sorted = [...immediate].sort((a, b) => {
+    return (b.notif.eventAtMs || 0) - (a.notif.eventAtMs || 0)
+  })
+
+  const subscriberNames: Set<string> = new Set()
+  for (const notification of sorted) {
+    subscriberNames.add(notification.accountMeta?.name || 'Subscriber')
+  }
+
+  const first = sorted[0]!
+  const firstText = getDesktopNotificationText(first)
+  const subject =
+    sorted.length === 1 ? firstText : `${sorted.length} new notifications`
+  const preview =
+    sorted.length === 1
+      ? firstText
+      : `${firstText} and ${sorted.length - 1} more`
+
+  const notifSettingsUrl = `${getNotifyServiceHost()}/hm/email-notifications?token=${
+    opts.adminToken
+  }`
+
+  const textLines = sorted
+    .map((notification) => {
+      const line = getDesktopNotificationText(notification)
+      const actionUrl = getNotificationActionUrl(notification.notif)
+      return `${line}\n${actionUrl}`
+    })
+    .join('\n\n')
+
+  const text = `${subject}
+
+${textLines}
+
+Manage notification emails: ${notifSettingsUrl}`
+
+  const {html: emailHtml} = renderReactToMjml(
+    <Mjml>
+      <MjmlHead>
+        <MjmlTitle>{subject}</MjmlTitle>
+        <MjmlPreview>{preview}</MjmlPreview>
+      </MjmlHead>
+      <MjmlBody width={500}>
+        <EmailHeader />
+
+        <MjmlSection padding="8px 0px">
+          <MjmlColumn>
+            <MjmlText fontSize="20px" fontWeight="bold">
+              Notifications
+            </MjmlText>
+          </MjmlColumn>
+        </MjmlSection>
+
+        {sorted.map((notification) => {
+          const actionUrl = getNotificationActionUrl(notification.notif)
+          const actionLabel =
+            notification.notif.reason === 'mention'
+              ? 'Open Mention'
+              : 'Open Reply'
+          const timeLabel = formatDesktopNotificationTime(
+            notification.notif.eventAtMs,
+          )
+          const key =
+            notification.notif.reason === 'mention'
+              ? `${notification.accountId}:${
+                  notification.notif.eventId || notification.notif.url
+                }`
+              : `${notification.accountId}:${
+                  notification.notif.comment?.id || notification.notif.url
+                }`
+
+          return (
+            <MjmlSection key={key} padding="0px 0px 12px">
+              <MjmlColumn
+                backgroundColor="#f6f8f8"
+                border="1px solid #e6ebeb"
+                borderRadius="8px"
+                padding="12px 14px"
+              >
+                <MjmlText
+                  fontSize="15px"
+                  fontWeight="bold"
+                  padding="0px 0px 6px"
+                >
+                  {getDesktopNotificationText(notification)}
+                </MjmlText>
+                {timeLabel ? (
+                  <MjmlText
+                    fontSize="12px"
+                    color="#6b7280"
+                    padding="0px 0px 8px"
+                  >
+                    {timeLabel}
+                  </MjmlText>
+                ) : null}
+                <MjmlButton
+                  align="left"
+                  href={actionUrl}
+                  backgroundColor="#0d9488"
+                  padding="4px 0px 0px"
+                >
+                  {actionLabel}
+                </MjmlButton>
+              </MjmlColumn>
+            </MjmlSection>
+          )
+        })}
+
+        <NotifSettings url={notifSettingsUrl} />
+      </MjmlBody>
+    </Mjml>,
+  )
+
+  return {email, subject, text, html: emailHtml, subscriberNames}
+}
+
 export type Notification =
   | {
       reason: 'site-doc-update'
@@ -327,6 +478,9 @@ export type Notification =
       subjectAccountMeta: HMMetadata | null
       targetId: UnpackedHypermediaId
       url: string
+      actionUrl?: string
+      eventId?: string
+      eventAtMs?: number
       source: 'comment' | 'document'
       comment?: HMComment
       resolvedNames?: Record<string, string>
@@ -339,6 +493,9 @@ export type Notification =
       targetMeta: HMMetadata | null
       targetId: UnpackedHypermediaId
       url: string
+      actionUrl?: string
+      eventId?: string
+      eventAtMs?: number
       resolvedNames?: Record<string, string>
     }
   | {
@@ -355,6 +512,38 @@ export type FullNotification = {
   accountId: string
   accountMeta: HMMetadata | null
   notif: Notification
+}
+
+function formatDesktopNotificationTime(eventAtMs?: number) {
+  if (!eventAtMs) return null
+  try {
+    return new Date(eventAtMs).toLocaleString('en-US', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    })
+  } catch {
+    return null
+  }
+}
+
+function getDesktopNotificationText(notification: ImmediateNotification) {
+  const notif = notification.notif
+  const actor = notif.authorMeta?.name || 'Someone'
+  const subjectName = notification.accountMeta?.name
+  const subject = subjectName || 'you'
+
+  if (notif.reason === 'mention') {
+    const targetName = notif.targetMeta?.name
+    return `${actor} mentioned ${subject}${
+      targetName ? ` in ${targetName}` : ''
+    }`
+  }
+
+  const targetName = notif.targetMeta?.name
+  const commentOwner = subjectName ? `${subjectName}'s` : 'your'
+  return `${actor} replied to ${commentOwner} comment${
+    targetName ? ` in ${targetName}` : ''
+  }`
 }
 
 function getNotificationSummary(
