@@ -10,7 +10,7 @@ import PublishDraftButton from '@/components/publish-draft-button'
 import {subscribeDraftFocus} from '@/draft-focusing'
 import {useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
-import {useDraftEditor, useSiteNavigationItems} from '@/models/documents'
+import {useDeleteDraft, useDraftEditor, useSiteNavigationItems} from '@/models/documents'
 import {draftMachine, DraftMachineState} from '@/models/draft-machine'
 import {draftEditId, draftLocationId} from '@/models/drafts'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
@@ -205,6 +205,49 @@ export default function DraftPage() {
     showSidebars: showOutline && !isEditingHomeDoc,
   })
 
+  // Navigation guard: prompt user when navigating away from a draft that exists
+  const draftId = route.id
+  const draft = useDraft(draftId)
+  const [pendingProceed, setPendingProceed] = useState<(() => void) | null>(null)
+  const deleteDraft = useDeleteDraft()
+
+  useEffect(() => {
+    setNavigationGuard((action, proceed) => {
+      // Don't block if draft doesn't exist yet
+      if (!draft.data) return true
+      // Allow same-draft navigation (panel changes, etc.)
+      if ('route' in action) {
+        const targetRoute = (action as {route: any}).route
+        if (targetRoute.key === 'draft' && targetRoute.id === draftId) {
+          return true
+        }
+      }
+      // Block and show dialog
+      setPendingProceed(() => proceed)
+      return false
+    })
+
+    return () => clearNavigationGuard()
+  }, [draftId, draft.data])
+
+  const handleLeaveDraftDiscard = () => {
+    if (pendingProceed && draftId) {
+      const proceed = pendingProceed
+      setPendingProceed(null)
+      deleteDraft.mutate(draftId, {
+        onSettled: () => proceed(),
+      })
+    }
+  }
+
+  const handleLeaveDraftSave = () => {
+    if (pendingProceed) {
+      const proceed = pendingProceed
+      setPendingProceed(null)
+      proceed()
+    }
+  }
+
   const panelContent = panelKey ? (
     <ScrollArea className="flex-1">
       <DraftPanelContent
@@ -287,6 +330,18 @@ export default function DraftPage() {
           </div>
         </div>
       </CommentsProvider>
+      <AlertDialog open={!!pendingProceed}>
+        <AlertDialogContent>
+          <AlertDialogTitle>Leave Draft?</AlertDialogTitle>
+          <p className="text-muted-foreground text-sm">Do you want to save your draft before leaving?</p>
+          <AlertDialogFooter>
+            <Button variant="destructive" onClick={handleLeaveDraftDiscard}>
+              Discard
+            </Button>
+            <Button onClick={handleLeaveDraftSave}>Save</Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </ErrorBoundary>
   )
 }

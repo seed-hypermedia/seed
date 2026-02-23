@@ -3,6 +3,7 @@ import {draftEditId, draftLocationId} from '@/models/drafts'
 import {useGatewayUrl, usePushOnPublish} from '@/models/gateway-settings'
 import {useSelectedAccount} from '@/selected-account'
 import {client} from '@/trpc'
+import {clearNavigationGuard} from '@/utils/navigation-container'
 import {pathNameify} from '@/utils/path'
 import {computePublishPath, shouldAutoLinkParent, validatePublishPath} from '@/utils/publish-utils'
 import {useNavigate} from '@/utils/useNavigate'
@@ -289,6 +290,7 @@ export default function PublishDraftButton() {
 
       // Step 4: Navigate to the published document
       if (resultDocId) {
+        clearNavigationGuard()
         const hasAlreadyPrompted = await client.prompting.getPromptedKey.query(
           `account-email-notifs-${resultDocId.uid}`,
         )
