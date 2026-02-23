@@ -150,8 +150,13 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 		if err = n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
 			return sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=strftime('%s', 'now') WHERE addresses!=excluded.addresses AND excluded.addresses !='';", nil, info.ID.String(), initialAddrs, true)
 		}); err != nil {
-			n.log.Warn("Failing to store peer", zap.Error(err))
-			return err
+			// Transient write lock contention (e.g. during reindexing) should not
+			// fail an otherwise successful P2P connection. The peer address will be
+			// persisted on the next identify/connect cycle.
+			if !errors.Is(err, sqlitex.ErrBeginImmediateTx) {
+				return err
+			}
+			n.log.Warn("Failing to store peer, will retry later", zap.Error(err))
 		}
 	}
 	return nil

@@ -49,6 +49,11 @@ func TestParseTransactionEvent(t *testing.T) {
 		{"rollback to savepoint spaced", "rollback   to   savepoint   x", noTxEvent},
 		{"rollback to savepoint newline", "rollback\nto savepoint x", noTxEvent},
 
+		// Rollback to without SAVEPOINT keyword — what savepoint.go:122 actually emits.
+		{"rollback to quoted name", `ROLLBACK TO "sqlitex.Save";`, noTxEvent},
+		{"rollback to simple name", "ROLLBACK TO mysave", noTxEvent},
+		{"rollback to qualified name", `ROLLBACK TO "seed/backend/blob.isBlobPublic";`, noTxEvent},
+
 		// Noise / others.
 		{"unrelated", "SELECT * FROM users", noTxEvent},
 		{"empty", "", noTxEvent},

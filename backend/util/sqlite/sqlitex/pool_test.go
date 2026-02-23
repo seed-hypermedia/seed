@@ -15,14 +15,18 @@
 package sqlitex_test
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 )
@@ -217,6 +221,107 @@ func TestSharedCacheLock(t *testing.T) {
 
 	// TODO: It is possible for stmt.Reset to return SQLITE_LOCKED.
 	//       Work out why and find a way to test it.
+}
+
+// logCapture captures slog records for test assertions.
+type logCapture struct {
+	mu   sync.Mutex
+	logs []slog.Record
+}
+
+func (h *logCapture) Handle(_ context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.logs = append(h.logs, r)
+	return nil
+}
+
+func (h *logCapture) WithAttrs([]slog.Attr) slog.Handler       { return h }
+func (h *logCapture) WithGroup(string) slog.Handler            { return h }
+func (h *logCapture) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *logCapture) hasSlowQuery() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, r := range h.logs {
+		if r.Message == "SlowQuery" {
+			return true
+		}
+	}
+	return false
+}
+
+// TestNoFalseSlowQueryAfterFailedWriteTx verifies that a connection which
+// experienced a failed BEGIN IMMEDIATE (SQLITE_BUSY) does not produce a
+// spurious SlowQuery warning when it is later reused from the pool for a
+// savepoint-based read that encounters an error.
+//
+// This exercises two bugs:
+//  1. parseTransactionEvent misclassifies ROLLBACK TO "<name>" as txEnd.
+//  2. A failed BEGIN IMMEDIATE leaves a stale txStart on the connection,
+//     which is not cleared when the connection is returned to the pool.
+func TestNoFalseSlowQueryAfterFailedWriteTx(t *testing.T) {
+	// WAL mode requires a file-backed database.
+	dbFile := filepath.Join(t.TempDir(), "test.db")
+	pool, err := sqlitex.Open(dbFile, 0, 2)
+	require.NoError(t, err)
+	defer pool.Close()
+
+	// Short busy timeout so the test runs quickly.
+	busyTimeout := 50 * time.Millisecond
+	require.NoError(t, pool.ForEach(func(conn *sqlite.Conn) error {
+		conn.SetBusyTimeout(busyTimeout)
+		return nil
+	}))
+
+	// Capture log output.
+	capture := &logCapture{}
+	sqlite.SetLogger(slog.New(capture))
+	t.Cleanup(func() { sqlite.SetLogger(slog.Default()) })
+
+	ctx := context.Background()
+
+	// Create a table so we have something to query inside savepoints.
+	require.NoError(t, pool.WithTx(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, "CREATE TABLE test (id INTEGER PRIMARY KEY)")
+	}))
+
+	// Step 1: Acquire conn1 and hold the write lock.
+	conn1, release1, err := pool.Conn(ctx)
+	require.NoError(t, err)
+	require.NoError(t, sqlitex.Exec(conn1, "BEGIN IMMEDIATE", nil))
+
+	// Step 2: Try WithTx on the remaining pool connection — must fail with
+	// ErrBeginImmediateTx because conn1 holds the write lock.
+	// Internally, the failing connection's Prepare("BEGIN IMMEDIATE") sets
+	// txStart before Step() discovers SQLITE_BUSY. The connection is then
+	// returned to the pool with a stale txStart.
+	err = pool.WithTx(ctx, func(conn *sqlite.Conn) error {
+		t.Fatal("must not be reached — BEGIN IMMEDIATE should have failed")
+		return nil
+	})
+	require.True(t, errors.Is(err, sqlitex.ErrBeginImmediateTx), "expected ErrBeginImmediateTx, got: %v", err)
+
+	// Step 3: Release conn1's write lock.
+	require.NoError(t, sqlitex.Exec(conn1, "COMMIT", nil))
+	release1()
+
+	// Step 4: Wait longer than the busy timeout so a stale txStart would
+	// produce a SlowQuery if txEnd were triggered.
+	time.Sleep(busyTimeout + 10*time.Millisecond)
+
+	// Step 5: Use WithSave, returning an error from the callback.
+	// This triggers the real ROLLBACK TO path in savepoint.go:122.
+	// If the pool hands us the connection with the stale txStart, and the
+	// ROLLBACK TO is misclassified as txEnd, a false SlowQuery is emitted.
+	err = pool.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return fmt.Errorf("intentional error to trigger savepoint rollback")
+	})
+	require.Error(t, err)
+
+	// Assert: no SlowQuery must have been logged.
+	require.False(t, capture.hasSlowQuery(),
+		"unexpected SlowQuery from a connection that never held a real write transaction")
 }
 
 func TestPoolPutMatch(t *testing.T) {
