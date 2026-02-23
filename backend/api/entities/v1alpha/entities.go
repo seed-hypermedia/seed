@@ -37,6 +37,7 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -54,14 +55,16 @@ type Server struct {
 	db       *sqlitex.Pool
 	disc     Discoverer
 	embedder llm.LightEmbedder
+	log      *zap.Logger
 }
 
 // NewServer creates a new entities server.
-func NewServer(db *sqlitex.Pool, disc Discoverer, embedder llm.LightEmbedder) *Server {
+func NewServer(db *sqlitex.Pool, disc Discoverer, embedder llm.LightEmbedder, log *zap.Logger) *Server {
 	return &Server{
 		db:       db,
 		disc:     disc,
 		embedder: embedder,
+		log:      log,
 	}
 }
 
@@ -785,8 +788,15 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	const semanticThreshold = 0.45 // 0.55 Minimum similarity for relevant results with granite-embedding-107m-multilingual model.
 
 	// Check if semantic search is requested but embedder is not available.
-	if srv.embedder == nil && (in.SearchType == entpb.SearchType_SEARCH_HYBRID || in.SearchType == entpb.SearchType_SEARCH_SEMANTIC) {
-		return nil, status.Errorf(codes.Unavailable, "semantic search is not available: embedding service is disabled")
+	if srv.embedder == nil {
+		switch in.SearchType {
+		case entpb.SearchType_SEARCH_SEMANTIC:
+			return nil, status.Errorf(codes.Unavailable, "semantic search is not available: embedding service is disabled")
+		case entpb.SearchType_SEARCH_HYBRID:
+			// Degrade to keyword-only when embedding service is not available.
+			srv.log.Warn("Embedding service disabled, hybrid search falling back to keyword-only")
+			in.SearchType = entpb.SearchType_SEARCH_KEYWORD
+		}
 	}
 
 	switch in.SearchType {
@@ -813,30 +823,24 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			return nil, fmt.Errorf("keyword search failed: %w", keywordErr)
 		}
 
-		// Handle semantic search errors.
+		// On any semantic failure, fall back to keyword-only results instead of
+		// failing the entire search. The keyword leg still provides useful results.
 		if semanticErr != nil {
-			if errors.Is(semanticErr, llm.ErrUnreliableEmbedding) {
-				// Query embedding is unreliable (rare/unknown word). Fall back to keyword-only results.
-				winners = keywordResults
-			} else {
-				return nil, fmt.Errorf("semantic search failed: %w", semanticErr)
-			}
+			srv.log.Warn("Semantic search failed in hybrid mode, falling back to keyword-only results",
+				zap.Error(semanticErr), zap.String("query", query))
+			winners = keywordResults
 		} else {
 			// Blend results with RRF.
 			winners = blendSearchResults(semanticResults, keywordResults, resultsLmit*2, query)
 		}
 
 	case entpb.SearchType_SEARCH_SEMANTIC:
-		// Semantic-only search.
+		// Semantic-only search. Any failure is surfaced to the caller since there
+		// is no keyword leg to fall back to.
 		var err error
 		winners, err = srv.embedder.SemanticSearch(ctx, query, resultsLmit*2, contentTypes, iriGlob, semanticThreshold)
 		if err != nil {
-			if errors.Is(err, llm.ErrUnreliableEmbedding) {
-				// Query embedding is unreliable. Return empty results for semantic-only search.
-				winners = llm.SearchResultMap{}
-			} else {
-				return nil, fmt.Errorf("semantic search failed: %w", err)
-			}
+			return nil, fmt.Errorf("semantic search failed: %w", err)
 		}
 
 	default:
@@ -850,6 +854,13 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			return nil, fmt.Errorf("keyword search failed: %w", err)
 		}
 	}
+
+	// Short-circuit when there are no results to avoid running the expensive
+	// entity resolution query with an empty input set.
+	if len(winners) == 0 {
+		return &entpb.SearchEntitiesResponse{}, nil
+	}
+
 	winnerIDsJSON, err := json.Marshal(winners.Keys())
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal winner IDs: %w", err)

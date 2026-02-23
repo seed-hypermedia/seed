@@ -3383,6 +3383,27 @@ func TestSearchEntitiesFilters(t *testing.T) {
 		require.NoError(t, err)
 		require.Greater(t, len(res.Entities), 0, "must return results with valid authority_weight")
 	})
+
+	t.Run("HybridFallsBackToKeywordWhenEmbeddingDisabled", func(t *testing.T) {
+		// Hybrid search must degrade gracefully to keyword-only when the
+		// embedding service is not available, instead of returning an error.
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:       "rocks",
+			IncludeBody: true,
+			SearchType:  entities.SearchType_SEARCH_HYBRID,
+		})
+		require.NoError(t, err)
+		require.Greater(t, len(res.Entities), 0, "hybrid search must return keyword results when embedding is disabled")
+	})
+
+	t.Run("SemanticFailsWhenEmbeddingDisabled", func(t *testing.T) {
+		// Semantic-only search must return an error when embedding is disabled.
+		_, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:      "rocks",
+			SearchType: entities.SearchType_SEARCH_SEMANTIC,
+		})
+		require.Error(t, err, "semantic-only search must fail when embedding is disabled")
+	})
 }
 
 // parseEntityVersion extracts version info from an entity ID.

@@ -58,7 +58,7 @@ func New(
 		Activity:    activity,
 		Daemon:      daemon.NewServer(repo, node, idx, dlink, taskMgr),
 		Networking:  networking.NewServer(node, db, logging.New("seed/networking", LogLevel)),
-		Entities:    entities.NewServer(db, sync, embedder),
+		Entities:    entities.NewServer(db, sync, embedder, logging.New("seed/entities", LogLevel)),
 		DocumentsV3: documentsv3.NewServer(cfg, repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel), node),
 		Syncing:     sync,
 		Payments:    payments.NewServer(logging.New("seed/payments", LogLevel), db, node, repo.KeyStore(), isMainnet),
