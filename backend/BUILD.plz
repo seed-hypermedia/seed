@@ -116,7 +116,7 @@ fi
 echo "Looking for llama libraries in: $LLAMA_GO_PATH"
 ls -la $LLAMA_GO_PATH/*.a || echo "No .a files found!"
 
-$TOOLS_GO build $BUILD_TAGS -trimpath -o $OUT ./backend/cmd/seed-daemon
+$TOOLS_GO build $BUILD_TAGS -trimpath -buildvcs=false -o $OUT ./backend/cmd/seed-daemon
     """,
     binary = True,
     building_description = "Building seed-daemon with llama.cpp...",
