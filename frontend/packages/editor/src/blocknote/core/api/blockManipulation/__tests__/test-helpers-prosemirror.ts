@@ -93,6 +93,22 @@ export function buildDoc(
 }
 
 /**
+ * Extract the text content of the first <code> inside a <pre>.
+ */
+export function getCodeText(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  return doc.querySelector('pre code')?.textContent ?? ''
+}
+
+/**
+ * Extract the class of the first <code> inside a <pre>.
+ */
+export function getCodeClass(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  return doc.querySelector('pre code')?.className ?? ''
+}
+
+/**
  * Print document structure for debugging.
  */
 export function printDoc(doc: PMNode): string {
