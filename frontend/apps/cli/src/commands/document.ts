@@ -16,16 +16,15 @@ import {
   createRef,
   encodeBlock,
   blockReference,
-  signBlob,
   type DocumentOperation,
 } from '../utils/signing'
 import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations} from '../utils/markdown'
+import {createBlocksMap, matchBlockIds, computeReplaceOps, type APIBlockNode} from '../utils/block-diff'
+import type {BlockNode as ClientBlockNode} from '../client'
 
 export function registerDocumentCommands(program: Command) {
-  const doc = program
-    .command('document')
-    .description('Manage documents (get, create, update, changes, stats, cid)')
+  const doc = program.command('document').description('Manage documents (get, create, update, changes, stats, cid)')
 
   // ── get ──────────────────────────────────────────────────────────────────
 
@@ -35,10 +34,7 @@ export function registerDocumentCommands(program: Command) {
     .option('-m, --metadata', 'Fetch metadata only')
     .option('--md', 'Output as markdown')
     .option('--frontmatter', 'Include YAML frontmatter (with --md)')
-    .option(
-      '-r, --resolve',
-      'Resolve embeds, mentions, and queries (with --md)',
-    )
+    .option('-r, --resolve', 'Resolve embeds, mentions, and queries (with --md)')
     .option('-q, --quiet', 'Output minimal info')
     .action(async (id: string, options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
@@ -132,9 +128,7 @@ export function registerDocumentCommands(program: Command) {
         const title = options.title || parsedTitle
 
         if (!title) {
-          printError(
-            'No title found. Use --title or include an H1 heading in the markdown.',
-          )
+          printError('No title found. Use --title or include an H1 heading in the markdown.')
           process.exit(1)
         }
 
@@ -151,13 +145,7 @@ export function registerDocumentCommands(program: Command) {
         const genesisChange = await createGenesisChange(key)
         const genesisBlock = await encodeBlock(genesisChange)
 
-        const signedChange = await createDocumentChange(
-          key,
-          genesisBlock.cid,
-          [genesisBlock.cid],
-          1,
-          ops,
-        )
+        const signedChange = await createDocumentChange(key, genesisBlock.cid, [genesisBlock.cid], 1, ops)
         const changeBlock = await encodeBlock(signedChange)
 
         const generation = Number(signedChange.ts)
@@ -206,10 +194,8 @@ export function registerDocumentCommands(program: Command) {
     .option('--summary <summary>', 'Set document summary')
     .option('--body <text>', 'Markdown content to append (inline)')
     .option('--body-file <file>', 'Read markdown content to append from file')
-    .option(
-      '--parent <blockId>',
-      'Parent block ID for new content (default: root)',
-    )
+    .option('--replace-body <file>', 'Replace document body from file (smart positional diff)')
+    .option('--parent <blockId>', 'Parent block ID for new content (default: root)')
     .option('--delete-blocks <ids>', 'Comma-separated block IDs to delete')
     .option('-k, --key <name>', 'Signing key name or account ID')
     .action(async (id: string, options, cmd) => {
@@ -219,73 +205,95 @@ export function registerDocumentCommands(program: Command) {
 
       try {
         const key = resolveKey(options.key, dev)
-        const ops = buildMetadataOps(options)
 
-        if (options.deleteBlocks) {
-          const blockIds = options.deleteBlocks
-            .split(',')
-            .map((id: string) => id.trim())
-            .filter(Boolean)
-          if (blockIds.length > 0) {
-            ops.push({type: 'DeleteBlocks', blocks: blockIds})
-          }
-        }
-
-        if (options.bodyFile || options.body) {
-          let markdown: string
-          if (options.bodyFile) {
-            markdown = readFileSync(options.bodyFile, 'utf-8')
-          } else {
-            markdown = options.body
-          }
-
-          const parentId = options.parent || ''
-          const {tree} = parseMarkdown(markdown)
-          ops.push(...flattenToOperations(tree, parentId))
-        }
-
-        if (ops.length === 0) {
-          printError(
-            'No updates specified. Use --title, --summary, --body, --body-file, or --delete-blocks.',
-          )
+        // --replace-body is mutually exclusive with --body, --body-file, --delete-blocks
+        if (options.replaceBody && (options.body || options.bodyFile || options.deleteBlocks)) {
+          printError('--replace-body cannot be combined with --body, --body-file, or --delete-blocks.')
           process.exit(1)
         }
 
+        const ops = buildMetadataOps(options)
+
+        // Fetch the document — needed for all paths (replace-body needs
+        // the existing block tree; other paths need account/path).
         const resource = await client.getResource(id)
         if (resource.type !== 'document') {
           printError(`Resource is ${resource.type}, not a document.`)
           process.exit(1)
         }
+        const existingDoc = resource.document
 
-        const doc = resource.document
-        const account = doc.account
-        const path = doc.path || ''
+        if (options.replaceBody) {
+          // Smart replace: diff existing blocks against new markdown
+          const markdown = readFileSync(options.replaceBody, 'utf-8')
+          const {title: parsedTitle, tree: newTree} = parseMarkdown(markdown)
+
+          // If the markdown has a title and --title wasn't explicitly set, update title
+          if (parsedTitle && options.title === undefined) {
+            const currentTitle = existingDoc.metadata?.name || ''
+            if (parsedTitle !== currentTitle) {
+              ops.push({
+                type: 'SetAttributes',
+                attrs: [{key: ['name'], value: parsedTitle}],
+              })
+            }
+          }
+
+          // Convert API block tree to the format expected by block-diff
+          const oldNodes = (existingDoc.content || []).map(toAPIBlockNode)
+          const oldMap = createBlocksMap(oldNodes)
+
+          // Match IDs positionally, then compute minimal ops
+          const matched = matchBlockIds(oldNodes, newTree)
+          const diffOps = computeReplaceOps(oldMap, matched)
+          ops.push(...diffOps)
+        } else {
+          if (options.deleteBlocks) {
+            const blockIds = options.deleteBlocks
+              .split(',')
+              .map((id: string) => id.trim())
+              .filter(Boolean)
+            if (blockIds.length > 0) {
+              ops.push({type: 'DeleteBlocks', blocks: blockIds})
+            }
+          }
+
+          if (options.bodyFile || options.body) {
+            let markdown: string
+            if (options.bodyFile) {
+              markdown = readFileSync(options.bodyFile, 'utf-8')
+            } else {
+              markdown = options.body
+            }
+
+            const parentId = options.parent || ''
+            const {tree} = parseMarkdown(markdown)
+            ops.push(...flattenToOperations(tree, parentId))
+          }
+        }
+
+        if (ops.length === 0) {
+          printError(
+            'No updates specified. Use --title, --summary, --body, --body-file, --replace-body, or --delete-blocks.',
+          )
+          process.exit(1)
+        }
+
+        const docAccount = existingDoc.account
+        const docPath = existingDoc.path || ''
 
         const state = await resolveDocumentState(client, id)
         const genesisCid = CID.parse(state.genesis)
         const depCids = state.heads.map((h) => CID.parse(h))
         const newDepth = state.headDepth + 1
 
-        const space = base58btc.decode(account)
+        const space = base58btc.decode(docAccount)
 
-        const signedChange = await createDocumentChange(
-          key,
-          genesisCid,
-          depCids,
-          newDepth,
-          ops,
-        )
+        const signedChange = await createDocumentChange(key, genesisCid, depCids, newDepth, ops)
         const changeBlock = await encodeBlock(signedChange)
 
         const generation = Number(signedChange.ts)
-        const signedRef = await createRef(
-          key,
-          genesisCid,
-          changeBlock.cid,
-          generation,
-          path || undefined,
-          space,
-        )
+        const signedRef = await createRef(key, genesisCid, changeBlock.cid, generation, docPath || undefined, space)
         const refBlock = await encodeBlock(signedRef)
 
         await client.updateDocument({
@@ -377,9 +385,7 @@ export function registerDocumentCommands(program: Command) {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function buildMetadataOps(
-  options: Record<string, string>,
-): DocumentOperation[] {
+function buildMetadataOps(options: Record<string, string>): DocumentOperation[] {
   const ops: DocumentOperation[] = []
   const attrs: Array<{key: string[]; value: unknown}> = []
 
@@ -404,4 +410,22 @@ function slugify(title: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 60)
+}
+
+/**
+ * Convert API BlockNode (with optional children) to the APIBlockNode shape
+ * expected by block-diff utilities (with required children array).
+ */
+function toAPIBlockNode(node: ClientBlockNode): APIBlockNode {
+  return {
+    block: {
+      id: node.block.id,
+      type: node.block.type,
+      text: node.block.text || '',
+      link: node.block.link || '',
+      annotations: node.block.annotations || [],
+      attributes: node.block.attributes || {},
+    },
+    children: (node.children || []).map(toAPIBlockNode),
+  }
 }

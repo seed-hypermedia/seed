@@ -10,6 +10,7 @@ import {getClient, getOutputFormat} from '../index'
 import {formatOutput, printError, printSuccess, printInfo} from '../output'
 import {resolveKey} from '../utils/keyring'
 import {signBlob, encodeBlock, blockReference} from '../utils/signing'
+import {unpackHmId, packHmId} from '../utils/hm-id'
 
 // Ed25519 multicodec prefix.
 const ED25519_MULTICODEC_PREFIX = new Uint8Array([0xed, 0x01])
@@ -19,6 +20,8 @@ type CommentBlock = {
   type: string
   text: string
   annotations: unknown[]
+  attributes?: Record<string, string>
+  link?: string
   children?: CommentBlock[]
 }
 
@@ -36,9 +39,7 @@ type SignedComment = {
 }
 
 export function registerCommentCommands(program: Command) {
-  const comment = program
-    .command('comment')
-    .description('Manage comments (get, list, create, discussions)')
+  const comment = program.command('comment').description('Manage comments (get, list, create, discussions)')
 
   // ── get ──────────────────────────────────────────────────────────────────
 
@@ -75,8 +76,7 @@ export function registerCommentCommands(program: Command) {
 
         if (globalOpts.quiet) {
           result.comments.forEach((c) => {
-            const authorName =
-              result.authors[c.author]?.metadata?.name || c.author
+            const authorName = result.authors[c.author]?.metadata?.name || c.author
             console.log(`${c.id}\t${authorName}`)
           })
         } else {
@@ -114,7 +114,16 @@ export function registerCommentCommands(program: Command) {
           throw new Error('Provide comment text with --body or --file.')
         }
 
-        const resource = await client.getResource(targetId)
+        // Parse the target ID to extract an optional block reference.
+        const unpacked = unpackHmId(targetId)
+        if (!unpacked) {
+          throw new Error(`Invalid Hypermedia ID: ${targetId}`)
+        }
+        const blockRef = unpacked.blockRef
+        // Strip the blockRef for the API fetch (server doesn't need it).
+        const fetchId = unpacked.id + (unpacked.version ? `?v=${unpacked.version}` : '')
+
+        const resource = await client.getResource(fetchId)
         if (resource.type !== 'document') {
           throw new Error(`Target is ${resource.type}, expected a document.`)
         }
@@ -124,7 +133,29 @@ export function registerCommentCommands(program: Command) {
         const path = doc.path || ''
         const versionCids = doc.version.split('.').map((v) => CID.parse(v))
 
-        const body = textToBlocks(text)
+        let body = textToBlocks(text)
+
+        // When targeting a specific block, wrap the comment body in an
+        // Embed block whose link contains the block reference fragment.
+        // This matches the desktop/web app behaviour for block-level comments.
+        if (blockRef) {
+          const embedLink = packHmId({
+            ...unpacked,
+            version: doc.version,
+            blockRef,
+          })
+          body = [
+            {
+              id: generateBlockId(),
+              type: 'Embed',
+              text: '',
+              annotations: [],
+              attributes: {childrenType: 'Group', view: 'Content'},
+              link: embedLink,
+              children: body,
+            },
+          ]
+        }
 
         let replyParent: CID | undefined
         let threadRoot: CID | undefined
@@ -198,6 +229,46 @@ export function registerCommentCommands(program: Command) {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
+type InlineAnnotation = {
+  type: string
+  starts: number[]
+  ends: number[]
+  link: string
+}
+
+/**
+ * Parse a line of text, extracting inline mentions of the form
+ * `@[DisplayName](hm://accountId)`. Each mention is replaced with
+ * U+FFFC (object replacement character) in the output text and an
+ * Embed annotation is created spanning that single character.
+ */
+function parseMentions(line: string): {text: string; annotations: InlineAnnotation[]} {
+  const mentionRe = /@\[([^\]]*)\]\((hm:\/\/[^)]+)\)/g
+  const annotations: InlineAnnotation[] = []
+  let result = ''
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = mentionRe.exec(line)) !== null) {
+    // Append text before the mention
+    result += line.slice(lastIndex, match.index)
+    const pos = result.length
+    // Insert the object replacement character
+    result += '\uFFFC'
+    annotations.push({
+      type: 'Embed',
+      starts: [pos],
+      ends: [pos + 1],
+      link: match[2],
+    })
+    lastIndex = match.index + match[0].length
+  }
+
+  // Append remaining text
+  result += line.slice(lastIndex)
+  return {text: result, annotations}
+}
+
 function textToBlocks(text: string): CommentBlock[] {
   const lines = text.split('\n').filter((line) => line.trim().length > 0)
 
@@ -212,12 +283,15 @@ function textToBlocks(text: string): CommentBlock[] {
     ]
   }
 
-  return lines.map((line) => ({
-    id: generateBlockId(),
-    type: 'Paragraph',
-    text: line,
-    annotations: [],
-  }))
+  return lines.map((line) => {
+    const {text: parsedText, annotations} = parseMentions(line)
+    return {
+      id: generateBlockId(),
+      type: 'Paragraph',
+      text: parsedText,
+      annotations,
+    }
+  })
 }
 
 let blockCounter = 0
