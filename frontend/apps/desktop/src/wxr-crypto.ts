@@ -42,10 +42,7 @@ export function decrypt(encryptedData: string, password: string): string {
 
   const salt = data.subarray(0, SALT_LENGTH)
   const iv = data.subarray(SALT_LENGTH, SALT_LENGTH + IV_LENGTH)
-  const authTag = data.subarray(
-    SALT_LENGTH + IV_LENGTH,
-    SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH,
-  )
+  const authTag = data.subarray(SALT_LENGTH + IV_LENGTH, SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH)
   const encrypted = data.subarray(SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH)
 
   const key = deriveKey(password, salt)
@@ -53,10 +50,7 @@ export function decrypt(encryptedData: string, password: string): string {
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
   decipher.setAuthTag(authTag)
 
-  const decrypted = Buffer.concat([
-    decipher.update(encrypted),
-    decipher.final(),
-  ])
+  const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()])
   return decrypted.toString('utf8')
 }
 
@@ -132,10 +126,7 @@ export interface SeedImportData {
 /**
  * Create a new import file structure.
  */
-export function createImportFile(
-  data: SeedImportData,
-  password?: string,
-): SeedImportFileV1 {
+export function createImportFile(data: SeedImportData, password?: string): SeedImportFileV1 {
   if (password) {
     return {
       format: 'seed-import-v1',
@@ -153,10 +144,7 @@ export function createImportFile(
 /**
  * Parse an import file.
  */
-export function parseImportFile(
-  content: string,
-  password?: string,
-): SeedImportData {
+export function parseImportFile(content: string, password?: string): SeedImportData {
   const file = JSON.parse(content) as SeedImportFileV1
 
   if (file.format !== 'seed-import-v1') {

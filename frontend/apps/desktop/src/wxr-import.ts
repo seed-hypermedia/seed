@@ -19,13 +19,7 @@ import {
   normalizeAuthorLogin,
   normalizeWXRSlug,
 } from './wxr-import-utils'
-import {
-  createImportFile,
-  parseImportFile,
-  SeedImportData,
-  SeedImportFileV1,
-  serializeImportFile,
-} from './wxr-crypto'
+import {createImportFile, parseImportFile, SeedImportData, SeedImportFileV1, serializeImportFile} from './wxr-crypto'
 import {
   clearImportState,
   getImportFile,
@@ -89,17 +83,8 @@ export interface ImportProgress {
 /**
  * Start a new WXR import.
  */
-export async function startWXRImport(
-  options: WXRImportOptions,
-): Promise<string> {
-  const {
-    wxrContent,
-    destinationUid,
-    destinationPath,
-    publisherKeyName,
-    mode,
-    overwriteExisting = false,
-  } = options
+export async function startWXRImport(options: WXRImportOptions): Promise<string> {
+  const {wxrContent, destinationUid, destinationPath, publisherKeyName, mode, overwriteExisting = false} = options
 
   const onProgress = options.onProgress || (() => {})
 
@@ -195,9 +180,7 @@ async function executeImport(
 
       // Get list of existing keys to check if author keys need registration.
       const existingKeys = await grpcClient.daemon.listKeys({})
-      const existingKeysByName = new Map(
-        existingKeys.keys.map((key) => [key.name, key]),
-      )
+      const existingKeysByName = new Map(existingKeys.keys.map((key) => [key.name, key]))
 
       let authorCount = 0
       for (const login of authoredEligibleLogins) {
@@ -273,22 +256,16 @@ async function executeImport(
         currentItem: postTitle,
       })
 
-      const normalizedAuthorLogin =
-        normalizeAuthorLogin(postInfo.authorLogin) ||
-        fallbackAuthorLogin(postInfo.id)
+      const normalizedAuthorLogin = normalizeAuthorLogin(postInfo.authorLogin) || fallbackAuthorLogin(postInfo.id)
       const author = data.authors[normalizedAuthorLogin]
       const authorDisplayName = getAuthorDisplayName(
         normalizedAuthorLogin || fallbackAuthorLogin(postInfo.id),
         author?.displayName,
       )
       const canUseAuthoredSigner =
-        state.isAuthored &&
-        !!author &&
-        isEmailUsableForAuthored(author.email) &&
-        !!author.publicKey
+        state.isAuthored && !!author && isEmailUsableForAuthored(author.email) && !!author.publicKey
 
-      const displayAuthor =
-        state.isAuthored && canUseAuthoredSigner ? undefined : authorDisplayName
+      const displayAuthor = state.isAuthored && canUseAuthoredSigner ? undefined : authorDisplayName
 
       // Determine signing key - use author's key for authored mode, publisher's key for ghostwritten.
       const signingKeyName = canUseAuthoredSigner
@@ -306,9 +283,7 @@ async function executeImport(
             path: pathQuery,
           })
           delegates = new Set(
-            existingCaps.capabilities
-              .filter((cap) => cap.role === Role.WRITER)
-              .map((cap) => cap.delegate),
+            existingCaps.capabilities.filter((cap) => cap.role === Role.WRITER).map((cap) => cap.delegate),
           )
           existingWriterCapsByPath.set(pathQuery, delegates)
         }
@@ -359,9 +334,7 @@ async function executeImport(
           title: postTitle,
           error:
             error instanceof Error
-              ? `[author=${
-                  normalizedAuthorLogin || 'unknown'
-                }][signing=${signingKeyName}] ${error.message}`
+              ? `[author=${normalizedAuthorLogin || 'unknown'}][signing=${signingKeyName}] ${error.message}`
               : 'Unknown error',
         })
         // Continue with next post instead of failing the entire import.
@@ -375,9 +348,7 @@ async function executeImport(
       // Update saved file.
       const file = getImportFile()
       if (file && !file.encrypted) {
-        const idx = (file.data as SeedImportData).posts.findIndex(
-          (p) => p.id === postInfo.id,
-        )
+        const idx = (file.data as SeedImportData).posts.findIndex((p) => p.id === postInfo.id)
         if (idx >= 0) {
           ;(file.data as SeedImportData).posts[idx].imported = true
         }
@@ -394,8 +365,7 @@ async function executeImport(
       results,
     })
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     markImportError(errorMessage)
     progress({
       phase: 'error',
@@ -410,10 +380,7 @@ async function executeImport(
 /**
  * Create import data from parsed WXR.
  */
-async function createImportData(
-  wxr: WXRParseResult,
-  mode: string,
-): Promise<SeedImportData> {
+async function createImportData(wxr: WXRParseResult, mode: string): Promise<SeedImportData> {
   const authors: SeedImportData['authors'] = {}
   const allPosts = [...wxr.posts, ...wxr.pages]
   const pagesById = new Map<number, WXRPost>()
@@ -465,10 +432,7 @@ async function createImportData(
       displayName,
       email,
       // Generate mnemonics only for authors that can sign in authored mode.
-      mnemonic:
-        mode === 'authored' && hasUsableEmail
-          ? await generateMnemonic()
-          : undefined,
+      mnemonic: mode === 'authored' && hasUsableEmail ? await generateMnemonic() : undefined,
     }
   }
 
@@ -479,8 +443,7 @@ async function createImportData(
   for (const post of allPosts) {
     if (post.status !== 'publish') continue
 
-    const authorLogin =
-      normalizeAuthorLogin(post.authorLogin) || fallbackAuthorLogin(post.id)
+    const authorLogin = normalizeAuthorLogin(post.authorLogin) || fallbackAuthorLogin(post.id)
 
     if (!authors[authorLogin]) {
       authors[authorLogin] = {
@@ -492,8 +455,7 @@ async function createImportData(
     // For posts, use the last segment of the <link> URL as the slug, which is
     // the canonical URL slug WordPress serves (may differ from wp:post_name).
     // Fall back to wp:post_name if the link is missing or unparseable.
-    const linkSlug =
-      post.type === 'post' ? extractSlugFromLink(post.link) : null
+    const linkSlug = post.type === 'post' ? extractSlugFromLink(post.link) : null
     const normalizedSlug = normalizeWXRSlug(linkSlug || post.slug, post.id)
 
     let path: string[]
@@ -567,19 +529,14 @@ function sanitizeTaxonomyValue(name: string): string {
  * Returns null if the result would be empty.
  */
 function buildTaxonomyString(values: string[]): string | null {
-  const sanitized = values
-    .map(sanitizeTaxonomyValue)
-    .filter((v) => v.length > 0) // Remove empty values
+  const sanitized = values.map(sanitizeTaxonomyValue).filter((v) => v.length > 0) // Remove empty values
   return sanitized.length > 0 ? sanitized.join(',') : null
 }
 
 /**
  * Minimal post data needed for import.
  */
-type ImportablePost = Pick<
-  WXRPost,
-  'id' | 'title' | 'slug' | 'content' | 'postDateGmt' | 'categories' | 'tags'
->
+type ImportablePost = Pick<WXRPost, 'id' | 'title' | 'slug' | 'content' | 'postDateGmt' | 'categories' | 'tags'>
 
 export type ImportPostResult = 'imported' | 'skipped'
 
@@ -598,13 +555,7 @@ export async function importPost(
     overwriteExisting?: boolean
   },
 ): Promise<ImportPostResult> {
-  const {
-    destinationUid,
-    documentPath,
-    signingKeyName,
-    displayAuthor,
-    overwriteExisting = false,
-  } = options
+  const {destinationUid, documentPath, signingKeyName, displayAuthor, overwriteExisting = false} = options
 
   // Build the document path.
   const docPath = documentPath
@@ -620,16 +571,12 @@ export async function importPost(
     // If we got here without error, the document exists.
     if (!overwriteExisting) {
       // Document exists and we're not overwriting - skip it.
-      console.log(
-        `Document already exists at ${pathString}, skipping (overwrite disabled)`,
-      )
+      console.log(`Document already exists at ${pathString}, skipping (overwrite disabled)`)
       return 'skipped'
     }
     // Document exists and we want to overwrite - get the version for base_version.
     baseVersion = existingDoc.version
-    console.log(
-      `Document exists at ${pathString}, overwriting (base_version: ${baseVersion})`,
-    )
+    console.log(`Document exists at ${pathString}, overwriting (base_version: ${baseVersion})`)
   } catch {
     // Document doesn't exist (expected for new imports), proceed with creation.
   }
@@ -765,10 +712,7 @@ function blocksToChanges(blocks: any[], parentId = ''): DocumentChange[] {
 /**
  * Download and upload an image, returning its CID.
  */
-async function downloadAndUploadImage(
-  url: string,
-  cache: Map<string, string>,
-): Promise<string | null> {
+async function downloadAndUploadImage(url: string, cache: Map<string, string>): Promise<string | null> {
   if (cache.has(url)) {
     return cache.get(url) || null
   }

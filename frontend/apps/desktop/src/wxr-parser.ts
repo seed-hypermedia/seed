@@ -67,9 +67,7 @@ export function parseWXR(xml: string): WXRParseResult {
     const tagName = getTagName(el)
     if (tagName === 'wp:author' || tagName === 'author') {
       const $el = $(el)
-      const login = normalizeAuthorLogin(
-        getChildText($, $el, 'wp:author_login'),
-      )
+      const login = normalizeAuthorLogin(getChildText($, $el, 'wp:author_login'))
       if (login) {
         authors.push({
           login,
@@ -93,28 +91,20 @@ export function parseWXR(xml: string): WXRParseResult {
     const postType = getChildText($, $item, 'wp:post_type') || 'post'
     const postId = parseInt(getChildText($, $item, 'wp:post_id') || '0', 10)
     const title = $item.children('title').text().trim()
-    const content =
-      getChildText($, $item, 'content:encoded') ||
-      getChildText($, $item, 'encoded')
+    const content = getChildText($, $item, 'content:encoded') || getChildText($, $item, 'encoded')
     const excerpt = getChildText($, $item, 'excerpt:encoded') || ''
-    const status =
-      (getChildText($, $item, 'wp:status') as WXRPost['status']) || 'publish'
+    const status = (getChildText($, $item, 'wp:status') as WXRPost['status']) || 'publish'
     const authorLogin = normalizeAuthorLogin(
-      getChildText($, $item, 'dc:creator') ||
-        getChildText($, $item, 'creator') ||
-        '',
+      getChildText($, $item, 'dc:creator') || getChildText($, $item, 'creator') || '',
     )
     const pubDate = $item.children('pubDate').text().trim() || undefined
     const postDate = getChildText($, $item, 'wp:post_date') || undefined
     const postDateGmt = getChildText($, $item, 'wp:post_date_gmt') || undefined
-    const parentId =
-      parseInt(getChildText($, $item, 'wp:post_parent') || '0', 10) || undefined
-    const menuOrder =
-      parseInt(getChildText($, $item, 'wp:menu_order') || '0', 10) || undefined
+    const parentId = parseInt(getChildText($, $item, 'wp:post_parent') || '0', 10) || undefined
+    const menuOrder = parseInt(getChildText($, $item, 'wp:menu_order') || '0', 10) || undefined
     const slug = getChildText($, $item, 'wp:post_name') || ''
     const link = $item.children('link').text().trim()
-    const attachmentUrl =
-      getChildText($, $item, 'wp:attachment_url') || undefined
+    const attachmentUrl = getChildText($, $item, 'wp:attachment_url') || undefined
 
     // Parse categories and tags.
     const categories: string[] = []
@@ -201,10 +191,7 @@ function getChildText(
   $parent.children().each((_i, el) => {
     const elTagName = getTagName(el)
     // Match exact tag name or just the local part after the colon
-    if (
-      elTagName === tagName ||
-      elTagName.endsWith(':' + tagName.split(':').pop())
-    ) {
+    if (elTagName === tagName || elTagName.endsWith(':' + tagName.split(':').pop())) {
       result = $(el).text().trim()
       return false // break the loop
     }
