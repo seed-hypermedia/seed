@@ -114,14 +114,14 @@ function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
   return params as DocumentPanelRoute
 }
 
-export type ActiveView = 'content' | 'activity' | 'discussions' | 'directory' | 'collaborators'
+export type ActiveView = 'content' | 'activity' | 'comments' | 'directory' | 'collaborators'
 
 function getActiveView(routeKey: string): ActiveView {
   switch (routeKey) {
     case 'activity':
       return 'activity'
-    case 'discussions':
-      return 'discussions'
+    case 'comments':
+      return 'comments'
     case 'directory':
       return 'directory'
     case 'collaborators':
@@ -164,7 +164,7 @@ function getPanelTitle(panelKey: string | null): string {
   switch (panelKey) {
     case 'activity':
       return 'Activity'
-    case 'discussions':
+    case 'comments':
       return 'Discussions'
     case 'directory':
       return 'Directory'
@@ -429,7 +429,7 @@ function CommentPageBody({
     return items
   }, [isHomeDoc, breadcrumbIds, breadcrumbResults])
 
-  const {contentMaxWidth} = useDocumentLayout({
+  const {contentMaxWidth, wrapperProps, sidebarProps, mainContentProps, showSidebars} = useDocumentLayout({
     contentWidth: document.metadata?.contentWidth,
     showSidebars: false,
   })
@@ -473,14 +473,24 @@ function CommentPageBody({
       <div className="dark:bg-background sticky top-0 z-10 bg-white py-1">
         <DocumentTools
           id={docId}
-          activeTab="discussions"
+          activeTab="comments"
           commentsCount={interactionSummary.data?.comments || 0}
+          layoutProps={
+            isMobile
+              ? undefined
+              : {
+                  wrapperProps,
+                  sidebarProps,
+                  mainContentProps,
+                  showSidebars,
+                }
+          }
           rightActions={
             !isMobile ? (
               <OpenInPanelButton
                 id={docId}
                 panelRoute={{
-                  key: 'discussions',
+                  key: 'comments',
                   id: docId,
                   openComment,
                 }}
@@ -643,7 +653,7 @@ function DocumentBody({
 
   // Extract discussions-specific params from route
   const discussionsParams =
-    route.key === 'discussions'
+    route.key === 'comments'
       ? {
           openComment: route.openComment,
           targetBlockId: route.targetBlockId,
@@ -714,7 +724,7 @@ function DocumentBody({
 
     // Append active panel name when not on content/draft view
     const panelLabels: Record<string, string> = {
-      discussions: 'Comments',
+      comments: 'Comments',
       collaborators: 'People',
       directory: 'Directory',
       activity: 'Activity',
@@ -804,7 +814,7 @@ function DocumentBody({
           blockRange: null,
         },
         panel: {
-          key: 'discussions',
+          key: 'comments',
           id: route.id,
           blockId: blockId || undefined,
         },
@@ -828,7 +838,7 @@ function DocumentBody({
           blockRange,
         },
         panel: {
-          key: 'discussions',
+          key: 'comments',
           id: route.id,
           targetBlockId: blockId,
           blockRange,
@@ -1061,7 +1071,7 @@ function DocumentBody({
         {mobilePanelOpen && (
           <MobilePanelSheet
             isOpen={mobilePanelOpen}
-            title={getPanelTitle('discussions')}
+            title={getPanelTitle('comments')}
             onClose={() => setMobilePanelOpen(false)}
           >
             <DiscussionsPageContent
@@ -1141,7 +1151,7 @@ function PanelContentRenderer({
       return (
         <Feed size="sm" filterResource={docId.id} filterEventType={panelRoute.filterEventType} targetDomain={siteUrl} />
       )
-    case 'discussions':
+    case 'comments':
       if (!docId.path?.length) {
         return <Feed size="sm" filterResource={`${docId.id}*`} filterEventType={['Comment']} targetDomain={siteUrl} />
       }
@@ -1264,7 +1274,7 @@ function MainContent({
         </PageLayout>
       )
 
-    case 'discussions':
+    case 'comments':
       if (!docId.path?.length) {
         return (
           <PageLayout contentMaxWidth={contentMaxWidth}>
