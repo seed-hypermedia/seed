@@ -168,7 +168,7 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
                         {!isRead ? <span className="bg-brand inline-block h-2 w-2 rounded-full" /> : null}
                         <p className="truncate text-sm">{notificationTitle(item)}</p>
                       </div>
-                      <p className="text-muted-foreground text-xs">{formattedDateShort(item.event.time)}</p>
+                      <p className="text-muted-foreground text-xs">{formattedDateShort(new Date(item.event.eventAtMs))}</p>
                     </div>
                   </button>
                 )
