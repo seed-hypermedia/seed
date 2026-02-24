@@ -1,4 +1,4 @@
-import {useNavigate, useNavigation} from '@remix-run/react'
+import {useLocation, useNavigate, useNavigation} from '@remix-run/react'
 import {
   createWebHMUrl,
   NavRoute,
@@ -227,6 +227,24 @@ export function WebSiteProvider(props: {
     }
   }, [])
 
+  // Track whether navigation was initiated by openRoute (vs browser back/forward)
+  const isInternalNav = useMemo(() => ({current: false}), [])
+  const location = useLocation()
+
+  // Sync browser back/forward into NavContext
+  // When Remix re-runs the loader on popstate, initialRoute updates but NavContext
+  // doesn't. Detect location changes not initiated by openRoute and sync the route.
+  useEffect(() => {
+    if (isInternalNav.current) {
+      isInternalNav.current = false
+      return
+    }
+    // Location changed externally (browser back/forward) — sync initialRoute
+    if (props.initialRoute) {
+      navigation.dispatch({type: 'replace', route: props.initialRoute})
+    }
+  }, [location.pathname, location.search])
+
   return (
     <UniversalAppProvider
       origin={props.origin}
@@ -261,6 +279,7 @@ export function WebSiteProvider(props: {
             console.log('redirecting to seed.hyper.media')
             window.location.assign('https://seed.hyper.media')
           } else {
+            isInternalNav.current = true
             navigate(href, {
               replace,
             })
