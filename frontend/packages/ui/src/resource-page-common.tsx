@@ -671,23 +671,35 @@ function DocumentBody({
   const replaceRoute = useNavigate('replace')
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (routeBlockRef) return // already have blockRef from route
     const hash = window.location.hash
     if (!hash) return
     const fragment = parseFragment(hash.substring(1))
     if (!fragment?.blockId) return
+    const blockRange =
+      'start' in fragment && 'end' in fragment
+        ? {start: fragment.start, end: fragment.end}
+        : 'expanded' in fragment && fragment.expanded
+        ? {expanded: true}
+        : null
+    // For comments routes, sync fragment into blockId/blockRange (comment block selection)
+    if (route.key === 'comments') {
+      if (route.blockId) return // already have block selection
+      replaceRoute({
+        ...route,
+        id: {...route.id, blockRef: fragment.blockId, blockRange},
+        blockId: fragment.blockId,
+        blockRange,
+      })
+      return
+    }
     if (route.key !== 'document' && route.key !== 'feed') return
+    if (routeBlockRef) return // already have blockRef from route
     replaceRoute({
       ...route,
       id: {
         ...route.id,
         blockRef: fragment.blockId,
-        blockRange:
-          'start' in fragment && 'end' in fragment
-            ? {start: fragment.start, end: fragment.end}
-            : 'expanded' in fragment && fragment.expanded
-            ? {expanded: true}
-            : null,
+        blockRange,
       },
     })
   }, []) // only on mount
