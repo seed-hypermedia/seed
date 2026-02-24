@@ -268,25 +268,12 @@ test.describe('Formatting Toolbar', () => {
       await editorHelpers.typeText('Sibling')
       await page.waitForTimeout(100)
 
-      // Select Child 1 and Child 2 with tiptap
-      await page.evaluate(() => {
-        const editor = (window as any).TEST_EDITOR?.editor
-        if (!editor) throw new Error('TEST_EDITOR not found')
-        const tiptap = editor._tiptapEditor
-        const doc = tiptap.state.doc
-        let child1Start = 0
-        let child2End = 0
-        doc.descendants((node: any, pos: number) => {
-          if (node.isTextblock && node.textContent === 'Child 1') {
-            child1Start = pos
-          }
-          if (node.isTextblock && node.textContent === 'Child 2') {
-            child2End = pos + node.nodeSize
-          }
-        })
-        tiptap.commands.setTextSelection({from: child1Start, to: child2End})
-        tiptap.view.focus()
-      })
+      // Select Child 1 and Child 2 by clicking Child 1 then shift-clicking Child 2
+      await editorHelpers.selectText('Child 1')
+      await page.waitForTimeout(50)
+      const area = page.locator('[data-testid="editor-container"] [contenteditable="true"]').first()
+      const child2 = area.locator(':text("Child 2")').first()
+      await child2.click({modifiers: ['Shift']})
       await page.waitForTimeout(100)
 
       // Check that the correct text is selected
@@ -302,7 +289,7 @@ test.describe('Formatting Toolbar', () => {
 
       // Click option by visible label
       await page.getByRole('option', {name: 'Bullets'}).click()
-      await page.waitForTimeout(200)
+      await page.waitForTimeout(500)
 
       // Check that the list type is set correctly
       const blocks = await editorHelpers.getBlocks()
