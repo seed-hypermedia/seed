@@ -172,7 +172,9 @@ export default function DesktopResourcePage() {
         <Button
           size="sm"
           variant="outline"
-          className={cn(existingDraft ? 'bg-yellow-200' : 'bg-background dark:bg-black')}
+          className={cn(
+            existingDraft ? 'bg-yellow-200 hover:bg-yellow-300' : 'hover:bg-hover dark:bg-background bg-white',
+          )}
           onClick={() => {
             if (existingDraft) {
               navigate({

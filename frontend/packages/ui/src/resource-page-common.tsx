@@ -451,62 +451,67 @@ function CommentPageBody({
   }, [document.authors, commentAccountsMetadata.data])
 
   return (
-    <div
-      className={cn(
-        'flex flex-1 flex-col',
-        pageFooter &&
-          'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]',
-      )}
-    >
-      <DocumentCover cover={document.metadata?.cover} />
-      <div className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')} style={{maxWidth: contentMaxWidth}}>
-        {!isHomeDoc && (
-          <DocumentHeader
-            docId={docId}
-            docMetadata={document.metadata}
-            authors={commentAuthorPayloads}
-            updateTime={document.updateTime}
-            breadcrumbs={breadcrumbs}
-          />
+    <div className="flex flex-1 flex-col overflow-auto">
+      <div
+        className={cn(
+          'flex flex-1 flex-col',
+          pageFooter &&
+            'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]',
         )}
-      </div>
-      <div className="dark:bg-background sticky top-0 z-10 bg-white py-1">
-        <DocumentTools
-          id={docId}
-          activeTab="comments"
-          commentsCount={interactionSummary.data?.comments || 0}
-          layoutProps={
-            isMobile
-              ? undefined
-              : {
-                  wrapperProps,
-                  sidebarProps,
-                  mainContentProps,
-                  showSidebars,
-                }
-          }
-          rightActions={
-            !isMobile ? (
-              <OpenInPanelButton
-                id={docId}
-                panelRoute={{
-                  key: 'comments',
-                  id: docId,
-                  openComment,
-                }}
-              />
-            ) : undefined
-          }
+      >
+        <DocumentCover cover={document.metadata?.cover} />
+        <div
+          className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
+          style={{maxWidth: contentMaxWidth}}
+        >
+          {!isHomeDoc && (
+            <DocumentHeader
+              docId={docId}
+              docMetadata={document.metadata}
+              authors={commentAuthorPayloads}
+              updateTime={document.updateTime}
+              breadcrumbs={breadcrumbs}
+            />
+          )}
+        </div>
+        <div className="dark:bg-background sticky top-0 z-10 bg-white py-1">
+          <DocumentTools
+            id={docId}
+            activeTab="comments"
+            commentsCount={interactionSummary.data?.comments || 0}
+            layoutProps={
+              isMobile
+                ? undefined
+                : {
+                    wrapperProps,
+                    sidebarProps,
+                    mainContentProps,
+                    showSidebars,
+                  }
+            }
+            rightActions={
+              !isMobile ? (
+                <OpenInPanelButton
+                  id={docId}
+                  panelRoute={{
+                    key: 'comments',
+                    id: docId,
+                    openComment,
+                  }}
+                />
+              ) : undefined
+            }
+          />
+        </div>
+        <DiscussionsPageContent
+          docId={docId}
+          openComment={openComment}
+          contentMaxWidth={contentMaxWidth}
+          targetDomain={siteUrl}
+          commentEditor={CommentEditor ? <CommentEditor docId={docId} autoFocus /> : undefined}
         />
+        {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
       </div>
-      <DiscussionsPageContent
-        docId={docId}
-        openComment={openComment}
-        contentMaxWidth={contentMaxWidth}
-        targetDomain={siteUrl}
-        commentEditor={CommentEditor ? <CommentEditor docId={docId} autoFocus /> : undefined}
-      />
-      {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
     </div>
   )
 }
