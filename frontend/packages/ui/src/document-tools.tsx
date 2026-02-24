@@ -161,22 +161,23 @@ export function DocumentTools({
 
   if (layoutProps) {
     const {wrapperProps, sidebarProps, mainContentProps, showSidebars} = layoutProps
-    return (
-      <div className="flex w-full shrink-0">
-        <div
-          {...wrapperProps}
-          className={cn(wrapperProps.className, 'flex flex-1 items-center')}
-          style={wrapperProps.style}
-        >
-          {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto !p-0')} />}
+
+    if (showSidebars) {
+      return (
+        <div className="flex w-full shrink-0">
           <div
-            {...mainContentProps}
-            ref={containerRef}
-            className={cn(mainContentProps.className, 'flex items-center gap-2 p-1 md:gap-4 md:p-2')}
+            {...wrapperProps}
+            className={cn(wrapperProps.className, 'flex flex-1 items-center')}
+            style={wrapperProps.style}
           >
-            {tabButtons}
-          </div>
-          {showSidebars ? (
+            <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto !p-0')} />
+            <div
+              {...mainContentProps}
+              ref={containerRef}
+              className={cn(mainContentProps.className, 'flex items-center gap-2 p-1 md:gap-4 md:p-2')}
+            >
+              {tabButtons}
+            </div>
             <div {...sidebarProps} className={cn(sidebarProps.className, 'flex !h-auto items-center !p-0')}>
               {rightActions ? (
                 <div ref={rightActionsRef} className="flex shrink-0 items-center">
@@ -184,12 +185,26 @@ export function DocumentTools({
                 </div>
               ) : null}
             </div>
-          ) : (
-            rightActions && (
-              <div ref={rightActionsRef} className="flex shrink-0 items-center">
-                {rightActions}
-              </div>
-            )
+          </div>
+        </div>
+      )
+    }
+
+    // No sidebars: center with mx-auto, no flex-1 (matching header pattern)
+    return (
+      <div className="flex w-full shrink-0">
+        <div style={wrapperProps.style} className="mx-auto flex w-full items-center justify-between">
+          <div
+            {...mainContentProps}
+            ref={containerRef}
+            className={cn(mainContentProps.className, 'flex items-center gap-2 p-1 md:gap-4 md:p-2')}
+          >
+            {tabButtons}
+          </div>
+          {rightActions && (
+            <div ref={rightActionsRef} className="flex shrink-0 items-center">
+              {rightActions}
+            </div>
           )}
         </div>
       </div>
