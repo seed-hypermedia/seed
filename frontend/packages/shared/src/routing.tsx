@@ -5,7 +5,7 @@ import {HMContactRecord, UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
 import {LanguagePack} from './translation'
 import type {UniversalClient} from './universal-client'
-import {activityFilterToSlug, getRoutePanelParam, hmIdToURL, idToUrl, unpackHmId} from './utils'
+import {activityFilterToSlug, getRoutePanelParam, hmIdToURL, idToUrl, serializeBlockRange, unpackHmId} from './utils'
 import {StateStream} from './utils/stream'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
@@ -200,6 +200,10 @@ export function routeToHref(
       viewTerm += `/${route.openComment}`
     }
     let href = basePath ? `${basePath}/${viewTerm}` : `/${viewTerm}`
+    // Append block fragment if present
+    if (route.id.blockRef) {
+      href += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
+    }
     return href
   }
 
