@@ -123,10 +123,7 @@ export function getBlockGroup(
   return undefined
 }
 
-export function serverBlockNodesFromEditorBlocks(
-  editor: BlockNoteEditor,
-  editorBlocks: EditorBlock[],
-): BlockNode[] {
+export function serverBlockNodesFromEditorBlocks(editor: BlockNoteEditor, editorBlocks: EditorBlock[]): BlockNode[] {
   if (!editorBlocks) return []
 
   return editorBlocks.map((block: EditorBlock) => {
