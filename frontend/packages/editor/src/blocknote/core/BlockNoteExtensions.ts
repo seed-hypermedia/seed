@@ -19,7 +19,7 @@ import {createInlineEmbedNode} from '../../mentions-plugin'
 import {debugPlugin} from '../../prosemirror-debugger'
 import Link from '../../tiptap-extension-link'
 import {BlockManipulationExtension} from './extensions/BlockManipulation/BlockManipulationExtension'
-import {BlockContainer, BlockGroup, Doc} from './extensions/Blocks'
+import {BlockNode, BlockChildren, Doc} from './extensions/Blocks'
 import {BlockNoteDOMAttributes} from './extensions/Blocks/api/blockTypes'
 import {CustomBlockSerializerExtension} from './extensions/Blocks/api/serialization'
 import blockStyles from './extensions/Blocks/nodes/Block.module.css'
@@ -70,7 +70,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
       showOnlyCurrent: false,
     }),
     UniqueID.configure({
-      types: ['blockContainer'],
+      types: ['blockNode'],
     }),
     // Comments,
 
@@ -102,7 +102,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     }),
     // nodes
     Doc,
-    BlockGroup.configure({
+    BlockChildren.configure({
       domAttributes: opts.domAttributes,
     }),
     ...Object.values(opts.blockSchema).map((blockSpec) => {
@@ -118,7 +118,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     // This needs to be at the bottom of this list, because Key events (such as enter, when selecting a /command),
     // should be handled before Enter handlers in other components like splitListItem
     TrailingNode,
-    BlockContainer.configure({
+    BlockNode.configure({
       domAttributes: opts.domAttributes,
     }),
     debugPlugin,

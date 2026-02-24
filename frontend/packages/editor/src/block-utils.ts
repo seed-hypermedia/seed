@@ -71,7 +71,7 @@ export function findPreviousBlock(view: EditorView, pos?: number) {
   // Find last child of prev block and return it
   if (prevBlockInfo.childContainer) {
     state.doc.nodesBetween(prevBlockInfo.block.beforePos + 4, blockInfo.block.beforePos - 1, (node, pos) => {
-      if (node.type.name === 'blockContainer') {
+      if (node.type.name === 'blockNode') {
         prevBlock = node
         prevBlockPos = pos
       }

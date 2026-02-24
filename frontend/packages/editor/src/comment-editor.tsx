@@ -585,8 +585,9 @@ export function CommentEditor({
     })
 
     const blocks = serverBlockNodesFromEditorBlocks(editor, editorBlocks)
+    const blockNodes = blocks.map((b) => b.toJson()) as HMBlockNode[]
     return {
-      blockNodes: blocks.map((b) => b.toJson()) as HMBlockNode[],
+      blockNodes,
       blobs,
     }
   }

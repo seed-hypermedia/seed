@@ -23,9 +23,9 @@ export const updateBlockCommand =
       // Adds blockGroup node with child blocks if necessary.
       const oldNodeType = state.schema.nodes[blockInfo.blockContentType]
       const newNodeType = state.schema.nodes[block.type || blockInfo.blockContentType]
-      const newBlockNodeType = newNodeType.isInGroup('block') ? newNodeType : state.schema.nodes['blockContainer']
+      const newBlockNodeType = newNodeType.isInGroup('blockNodeChild') ? newNodeType : state.schema.nodes['blockNode']
 
-      if (newNodeType.isInGroup('blockContent')) {
+      if (newNodeType.spec.group === 'block') {
         updateChildren(block, state, blockInfo)
         // The code below determines the new content of the block.
         // or "keep" to keep as-is
@@ -91,6 +91,13 @@ function updateBlockContentNode<BSchema extends BlockSchema>(
     } else if (newNodeType.spec.content !== oldNodeType.spec.content) {
       // the content type changed, replace the previous content
       content = []
+    } else if (newNodeType.spec.marks !== oldNodeType.spec.marks) {
+      // marks allowed changed (e.g. paragraph→code-block), strip marks from content
+      const stripped: PMNode[] = []
+      blockInfo.blockContent.node.content.forEach((child) => {
+        stripped.push(child.mark(child.marks.filter((m) => newNodeType.allowsMarkType(m.type))))
+      })
+      content = stripped
     } else {
       // keep old content, because the content type is the same and should be compatible
     }
@@ -160,7 +167,7 @@ function updateChildren<BSchema extends BlockSchema>(
       state.tr.insert(
         blockInfo.blockContent.afterPos,
         // @ts-ignore
-        state.schema.nodes['blockGroup'].createChecked({}, childNodes),
+        state.schema.nodes['blockChildren'].createChecked({}, childNodes),
       )
     }
   }

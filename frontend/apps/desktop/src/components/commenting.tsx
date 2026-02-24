@@ -8,7 +8,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {CommentEditor} from '@shm/editor/comment-editor'
 import {commentIdToHmId, packHmId, queryClient, queryKeys, trimTrailingEmptyBlocks} from '@shm/shared'
-import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {Block, BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {HMBlockNode, HMCommentGroup, HMListDiscussionsOutput, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useContacts, useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -84,7 +84,7 @@ function _CommentBox(props: {
   const writeDraft = useMutation({
     mutationFn: (blocks: HMBlockNode[]) =>
       client.comments.writeCommentDraft.mutate({
-        blocks: blocks.map((b) => new BlockNode(b as any)),
+        blocks: blocks.map((b) => BlockNode.fromJson(b as any)),
         targetDocId: docId.id,
         replyCommentId: commentId,
         quotingBlockId: quotingBlockId,
@@ -135,21 +135,21 @@ function _CommentBox(props: {
       const publishContent = quotingBlockId
         ? [
             new BlockNode({
-              block: {
+              block: Block.fromJson({
                 id: nanoid(8),
                 type: 'Embed',
                 text: '',
                 attributes: {
                   childrenType: 'Group',
                   view: 'Content',
-                } as any,
+                },
                 annotations: [],
                 link: packHmId({
                   ...docId,
                   blockRef: quotingBlockId,
                   version: targetVersion || docId.version,
                 }),
-              },
+              }),
               children: content,
             }),
           ]
@@ -271,8 +271,9 @@ function _CommentBox(props: {
         })
         const blockNodes = trimTrailingEmptyBlocks(rawBlockNodes)
 
-        // Convert to BlockNode for gRPC
-        const content = blockNodes.map((b) => new BlockNode(b as any))
+        // Convert to BlockNode for gRPC - must use fromJson to properly handle
+        // google.protobuf.Struct fields (like attributes.childrenType)
+        const content = blockNodes.map((b) => BlockNode.fromJson(b as any))
 
         await publishComment.mutateAsync({
           content,

@@ -22,7 +22,7 @@
   margin-bottom: 60px;
 } */
 
-.block-heading + [data-node-type='blockGroup'][data-list-type='Group'] {
+.block-heading + [data-node-type='blockChildren'][data-list-type='Group'] {
   margin-left: 0;
 }
 
@@ -119,8 +119,8 @@
   background-color: var(--backgroundPress);
 }
 
-[data-list-type='Unordered'] .node-blockContainer,
-[data-list-type='Ordered'] .node-blockContainer {
+[data-list-type='Unordered'] .node-blockNode,
+[data-list-type='Ordered'] .node-blockNode {
   display: list-item;
 }
 
@@ -166,11 +166,11 @@
   border-radius: 4px;
 }
 
-[data-node-type='block-outer']::marker {
+[data-node-type='blockNode']::marker {
   color: hsl(0, 0%, 42.5%);
 }
 
-ol > [data-node-type='block-outer']::marker {
+ol > [data-node-type='blockNode']::marker {
   font-size: 0.8em;
 }
 
@@ -498,25 +498,19 @@ ol > [data-node-type='block-outer']::marker {
   }
 }
 
-ol[data-list-type='Ordered']
-  > [data-node-type='block-outer']
-  > [data-node-type='blockContainer']
-  > [data-list-type='Group'],
-ul[data-list-type='Unordered']
-  > [data-node-type='block-outer']
-  > [data-node-type='blockContainer']
-  > [data-list-type='Group'] {
+ol[data-list-type='Ordered'] > [data-node-type='blockNode'] > [data-list-type='Group'],
+ul[data-list-type='Unordered'] > [data-node-type='blockNode'] > [data-list-type='Group'] {
   margin-left: 0;
 }
 
 /* Default margin for all heading containers */
-[data-node-type='block-outer']:has(> [data-node-type='blockContainer'] > [data-content-type='heading']) {
+[data-node-type='blockNode']:has(> [data-content-type='heading']) {
   margin-bottom: 1em;
 }
 
 /* Reset margin for consecutive headings */
-[data-node-type='block-outer']:has([data-node-type='blockContainer'] > [data-content-type='heading'])
-  + [data-node-type='block-outer']:has(> [data-node-type='blockContainer'] > [data-content-type='heading']) {
+[data-node-type='blockNode']:has([data-content-type='heading'])
+  + [data-node-type='blockNode']:has(> [data-content-type='heading']) {
   margin-top: -1em; /* Cancel out the previous element's margin */
 }
 
@@ -526,6 +520,7 @@ ul[data-list-type='Unordered']
 
 .selection-in-section {
   position: relative;
+  isolation: isolate;
 }
 
 .selection-in-section::before {
@@ -539,6 +534,7 @@ ul[data-list-type='Unordered']
   border-radius: 6px;
   margin: 0 0 0 -8px;
   animation: fadeIn 0.15s ease-in-out;
+  z-index: -1;
 }
 
 .dark .selection-in-section::before {

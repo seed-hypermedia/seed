@@ -228,7 +228,7 @@ export const MarkdownToBlocks = async (markdown: string, editor: BlockNoteEditor
 
   // @ts-ignore
   fragment.firstChild!.content.forEach((node) => {
-    if (node.type.name !== 'blockContainer') {
+    if (node.type.name !== 'blockNode') {
       return false
     }
 

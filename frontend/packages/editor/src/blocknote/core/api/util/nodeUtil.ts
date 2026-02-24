@@ -14,7 +14,7 @@ export function getNodeById(id: string, doc: Node): {node: Node; posBeforeNode: 
     }
 
     // Keeps traversing nodes if block with target ID has not been found.
-    if (node.type.name !== 'blockContainer' || node.attrs.id !== id) {
+    if (node.type.name !== 'blockNode' || node.attrs.id !== id) {
       return true
     }
 

@@ -46,7 +46,7 @@ export function setGroupTypes(tiptap: Editor, blocks: Array<Partial<BNBlock<Bloc
       if (node.attrs.id === block.id && block.props && block.props.childrenType) {
         // @ts-ignore
         node.descendants((child: TipTapNode, childPos: number) => {
-          if (child.type.name === 'blockGroup') {
+          if (child.type.name === 'blockChildren') {
             setTimeout(() => {
               let tr = tiptap.state.tr
               tr = block.props?.start
@@ -78,7 +78,7 @@ export function getNodesInSelection(view: EditorView) {
   const nodes: TipTapNode[] = []
 
   state.doc.nodesBetween(from, to, (node) => {
-    if (node.type.name === 'blockContainer') {
+    if (node.type.name === 'blockNode') {
       nodes.push(node)
     }
   })
@@ -104,7 +104,7 @@ export function getBlockGroup(
       }
 
       node.descendants((child: TipTapNode) => {
-        if (child.attrs.listType && child.type.name === 'blockGroup') {
+        if (child.attrs.listType && child.type.name === 'blockChildren') {
           group = {
             type: child.attrs.listType,
             start: child.attrs.start,
@@ -125,6 +125,7 @@ export function getBlockGroup(
 
 export function serverBlockNodesFromEditorBlocks(editor: BlockNoteEditor, editorBlocks: EditorBlock[]): BlockNode[] {
   if (!editorBlocks) return []
+
   return editorBlocks.map((block: EditorBlock) => {
     const childGroup = getBlockGroup(editor, block.id)
     const serverBlock = editorBlockToHMBlock(block)
@@ -146,10 +147,11 @@ export function serverBlockNodesFromEditorBlocks(editor: BlockNoteEditor, editor
         // @ts-expect-error
         serverBlock.attributes.start = childGroup.start.toString()
     }
-    return new BlockNode({
+    const blockNode = new BlockNode({
       block: Block.fromJson(serverBlock),
       children: serverBlockNodesFromEditorBlocks(editor, block.children),
     })
+    return blockNode
   })
 }
 

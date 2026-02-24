@@ -349,7 +349,7 @@ function insertNode(editor: BlockNoteEditor<HMBlockSchema>, ref: string, node: N
       // Insert the embed block after the current block
       const nextBlockPos = blockInfo.block.afterPos
       const mappedNextBlockPos = tr.mapping.map(nextBlockPos)
-      const embedBlock = state.schema.nodes['blockContainer'].createAndFill()!
+      const embedBlock = state.schema.nodes['blockNode'].createAndFill()!
       tr = tr.insert(mappedNextBlockPos, embedBlock)
 
       // Resolve position in the updated document to insert the embed node
@@ -370,7 +370,7 @@ function insertNode(editor: BlockNoteEditor<HMBlockSchema>, ref: string, node: N
         const insertedEmbedBlock = tr.doc.nodeAt(mappedNextBlockPos)
         if (insertedEmbedBlock) {
           const embedBlockAfterPos = mappedNextBlockPos + insertedEmbedBlock.nodeSize
-          const afterTextBlock = state.schema.nodes['blockContainer'].createAndFill()!
+          const afterTextBlock = state.schema.nodes['blockNode'].createAndFill()!
           tr = tr.insert(embedBlockAfterPos, afterTextBlock)
 
           // Insert the after-link text into the new block (resolve position after inserting afterTextBlock)

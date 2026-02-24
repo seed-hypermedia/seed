@@ -139,28 +139,6 @@ export function createBlockSpec<
 
     addNodeView() {
       return ({HTMLAttributes, getPos}) => {
-        // Create blockContent element
-        const blockContent = document.createElement('div')
-        // Add custom HTML attributes
-        const blockContentDOMAttributes = this.options.domAttributes?.blockContent || {}
-        for (const [attribute, value] of Object.entries(blockContentDOMAttributes)) {
-          if (attribute !== 'class') {
-            blockContent.setAttribute(attribute, value)
-          }
-        }
-        // Set blockContent & custom classes
-        blockContent.className = mergeCSSClasses(
-          // @ts-ignore
-          styles.blockContent,
-          blockContentDOMAttributes.class,
-        )
-        // Add blockContent HTML attribute
-        blockContent.setAttribute('data-content-type', blockConfig.type)
-        // Add props as HTML attributes in kebab-case with "data-" prefix
-        for (const [attribute, value] of Object.entries(HTMLAttributes)) {
-          blockContent.setAttribute(attribute, value)
-        }
-
         // Gets BlockNote editor instance
         const editor = this.options.editor! as BlockNoteEditor<BSchema & {[k in BType]: BlockSpec<BType, PSchema>}>
         // Gets position of the node
@@ -170,10 +148,10 @@ export function createBlockSpec<
         const pos = getPos()
         // Gets TipTap editor instance
         const tipTapEditor = editor._tiptapEditor
-        // Gets parent blockContainer node
-        const blockContainer = tipTapEditor.state.doc.resolve(pos!).node()
+        // Gets parent blockNode node
+        const blockNode = tipTapEditor.state.doc.resolve(pos!).node()
         // Gets block identifier
-        const blockIdentifier = blockContainer.attrs.id
+        const blockIdentifier = blockNode.attrs.id
 
         // Get the block
         const block = editor.getBlock(blockIdentifier)!
@@ -183,6 +161,26 @@ export function createBlockSpec<
 
         // Render elements
         const rendered = blockConfig.render(block as any, editor)
+
+        // Apply blockContent attributes directly to rendered.dom
+        const dom = rendered.dom
+        const blockContentDOMAttributes = this.options.domAttributes?.blockContent || {}
+        for (const [attribute, value] of Object.entries(blockContentDOMAttributes)) {
+          if (attribute !== 'class') {
+            dom.setAttribute(attribute, value)
+          }
+        }
+        dom.className = mergeCSSClasses(
+          dom.className,
+          // @ts-ignore
+          styles.blockContent,
+          blockContentDOMAttributes.class,
+        )
+        dom.setAttribute('data-content-type', blockConfig.type)
+        for (const [attribute, value] of Object.entries(HTMLAttributes)) {
+          dom.setAttribute(attribute, value)
+        }
+
         // Add HTML attributes to contentDOM
         if ('contentDOM' in rendered) {
           const inlineContentDOMAttributes = this.options.domAttributes?.inlineContent || {}
@@ -200,16 +198,14 @@ export function createBlockSpec<
             inlineContentDOMAttributes.class,
           )
         }
-        // Add elements to blockContent
-        blockContent.appendChild(rendered.dom)
 
         return 'contentDOM' in rendered
           ? {
-              dom: blockContent,
+              dom,
               contentDOM: rendered.contentDOM,
             }
           : {
-              dom: blockContent,
+              dom,
             }
       }
     },
@@ -236,6 +232,6 @@ export function createTipTapBlock<
   // attribute to be read only.
   return Node.create<Options, Storage>({
     ...config,
-    group: 'blockContent',
+    group: 'block',
   }) as TipTapNode<Type, Options, Storage>
 }

@@ -29,10 +29,9 @@ export function simplifyBlocks(options: SimplifyBlocksOptions) {
     let activeList: HASTElement | undefined
 
     for (let i = 0; i < numChildElements; i++) {
-      const blockOuter = tree.children[i] as HASTElement
-      const blockContainer = blockOuter.children[0] as HASTElement
-      const blockContent = blockContainer.children[0] as HASTElement
-      const blockGroup = blockContainer.children.length === 2 ? (blockContainer.children[1] as HASTElement) : null
+      const blockNode = tree.children[i] as HASTElement
+      const blockContent = blockNode.children[0] as HASTElement
+      const blockGroup = blockNode.children.length === 2 ? (blockNode.children[1] as HASTElement) : null
 
       const isListItemBlock = listItemBlockTypes.has(blockContent.properties!['dataContentType'] as string)
 
@@ -74,7 +73,7 @@ export function simplifyBlocks(options: SimplifyBlocksOptions) {
 
         // Adds only the content inside the block to the active list.
         // @ts-ignore
-        listItemElement.children.push(blockContent.children[0])
+        listItemElement.children.push(blockContent)
         // Nested blocks have already been processed in the recursive function call, so the resulting elements are
         // also added to the active list.
         if (blockGroup !== null) {
@@ -88,7 +87,7 @@ export function simplifyBlocks(options: SimplifyBlocksOptions) {
         tree.children.splice(i + 1, 0, ...blockGroup.children)
         // Replaces the block with only the content inside it.
         // @ts-ignore
-        tree.children[i] = blockContent.children[0]
+        tree.children[i] = blockContent
 
         // Updates the current index and number of child elements.
         const numElementsAdded = blockGroup.children.length
@@ -97,7 +96,7 @@ export function simplifyBlocks(options: SimplifyBlocksOptions) {
       } else {
         // Replaces the block with only the content inside it.
         // @ts-ignore
-        tree.children[i] = blockContent.children[0]
+        tree.children[i] = blockContent
       }
     }
 

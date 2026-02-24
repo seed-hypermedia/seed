@@ -268,8 +268,12 @@ test.describe('Formatting Toolbar', () => {
       await editorHelpers.typeText('Sibling')
       await page.waitForTimeout(100)
 
-      // Select the text between Parent and Sibling
-      await editorHelpers.dragSelectText('Parent', 'Sibling')
+      // Select Child 1 and Child 2 by clicking Child 1 then shift-clicking Child 2
+      await editorHelpers.selectText('Child 1')
+      await page.waitForTimeout(50)
+      const area = page.locator('[data-testid="editor-container"] [contenteditable="true"]').first()
+      const child2 = area.locator(':text("Child 2")').first()
+      await child2.click({modifiers: ['Shift']})
       await page.waitForTimeout(100)
 
       // Check that the correct text is selected
@@ -285,7 +289,7 @@ test.describe('Formatting Toolbar', () => {
 
       // Click option by visible label
       await page.getByRole('option', {name: 'Bullets'}).click()
-      await page.waitForTimeout(200)
+      await page.waitForTimeout(500)
 
       // Check that the list type is set correctly
       const blocks = await editorHelpers.getBlocks()

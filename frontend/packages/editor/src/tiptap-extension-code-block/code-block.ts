@@ -4,6 +4,7 @@ import styles from '../blocknote/core/extensions/Blocks/nodes/Block.module.css'
 import {Editor, mergeAttributes, Node, textblockTypeInputRule} from '@tiptap/core'
 import {Fragment, Slice} from '@tiptap/pm/model'
 import {Plugin, PluginKey, TextSelection} from '@tiptap/pm/state'
+import {transformPastedCodeBlockHTML} from './transformPastedCodeBlock'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -50,7 +51,7 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
 
   marks: '',
 
-  group: 'blockContent',
+  group: 'block',
 
   code: true,
 
@@ -96,7 +97,6 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
 
   renderHTML({HTMLAttributes, node}) {
     const blockContentDOMAttributes = this.options.domAttributes?.blockContent || {}
-    const inlineContentDOMAttributes = this.options.domAttributes?.inlineContent || {}
 
     return [
       'pre',
@@ -111,18 +111,7 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
         'data-content-type': this.name,
         'data-language': HTMLAttributes.language,
       }),
-      [
-        'code',
-        {
-          ...inlineContentDOMAttributes,
-          class: mergeCSSClasses(
-            // @ts-ignore
-            styles.inlineContent,
-            inlineContentDOMAttributes.class,
-          ),
-        },
-        0,
-      ],
+      0,
     ]
   },
 
@@ -156,7 +145,7 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
       const newBlockContent = state.doc.cut(codePos.pos, codePos.end())
 
       // @ts-ignore
-      const newBlock = state.schema.nodes['blockContainer'].createAndFill()!
+      const newBlock = state.schema.nodes['blockNode'].createAndFill()!
       const nextBlockPos = codePos.end() + 2
       const nextBlockContentPos = nextBlockPos + 2
 
@@ -358,7 +347,7 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
         if (isAtEnd && endsWithNewline) {
           const nextBlockPos = codePos.end() + 2
           const {group, container, $pos, depth} = getGroupInfoFromPos(codePos.pos, state)
-          if (group.type.name === 'blockGroup' && group.lastChild?.firstChild?.eq(codeBlock)) {
+          if (group.type.name === 'blockChildren' && group.lastChild?.firstChild?.eq(codeBlock)) {
             editor
               .chain()
               .command(({tr}) => {
@@ -371,23 +360,20 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
                     lastBlockContent,
                   ]
                   // @ts-ignore
-                  const newContainer = state.schema.nodes['blockContainer'].createAndFill(null, newBlockContent)!
+                  const newContainer = state.schema.nodes['blockNode'].createAndFill(null, newBlockContent)!
                   // @ts-ignore
-                  const replaceContainer = state.schema.nodes['blockContainer'].createAndFill(
-                    container?.attrs,
-                    codeBlock,
-                  )!
+                  const replaceContainer = state.schema.nodes['blockNode'].createAndFill(container?.attrs, codeBlock)!
                   const newGroupContent = group.content
                     .replaceChild(group.childCount - 1, replaceContainer)
                     .addToEnd(newContainer)
                   // @ts-ignore
-                  const newGroup = state.schema.nodes['blockGroup'].createAndFill(group.attrs, newGroupContent)!
+                  const newGroup = state.schema.nodes['blockChildren'].createAndFill(group.attrs, newGroupContent)!
                   const groupPos = state.doc.resolve($pos.after(depth + 1))
                   tr.replaceRangeWith(groupPos.start(), groupPos.end(), newGroup)
                 } else {
                   const newContainer =
                     // @ts-ignore
-                    state.schema.nodes['blockContainer'].createAndFill()!
+                    state.schema.nodes['blockNode'].createAndFill()!
                   tr.insert(nextBlockPos, newContainer)
                 }
                 return false
@@ -477,6 +463,7 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
       new Plugin({
         key: new PluginKey('codeBlockVSCodeHandler'),
         props: {
+          transformPastedHTML: transformPastedCodeBlockHTML,
           handlePaste: (view, event) => {
             if (!event.clipboardData) {
               return false

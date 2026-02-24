@@ -183,11 +183,11 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
               // Return if pasting inline
               const isInlineTextPaste =
                 selection.$from.parent.isTextblock &&
-                selection.$from.parent.type.spec.group === 'blockContent' &&
+                selection.$from.parent.type.spec.group === 'block' &&
                 selection.$from.parent.content.content.length > 0
               if (isInlineTextPaste) return false
 
-              const isRichHtml = /<(ul|ol|table|pre|code|h1|h2|h3|h4|h5|h6|blockquote|img)\b/i.test(pastedHtml)
+              const isRichHtml = /<(ul|ol|table|pre|h1|h2|h3|h4|h5|h6|blockquote|img)\b/i.test(pastedHtml)
 
               // Prefer HTML handling when there are rich html tags
               if (isRichHtml) return false

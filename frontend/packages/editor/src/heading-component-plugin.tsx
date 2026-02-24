@@ -89,21 +89,14 @@ export const HMHeadingBlockContent = createTipTapBlock<'heading'>({
 
   renderHTML({HTMLAttributes, node}) {
     return [
-      'div',
+      `h${node.attrs.level}`,
       mergeAttributes(HTMLAttributes, {
-        class: `${styles.blockContent} block-heading`,
+        class: `block-heading heading-content ${styles.blockContent} ${headingVariants({
+          level: node.attrs.level as 1 | 2 | 3 | 4,
+        })}`,
         'data-content-type': this.name,
       }),
-      [
-        `h${node.attrs.level}`,
-        // 'p',
-        {
-          class: `${styles.inlineContent} heading-content ${headingVariants({
-            level: node.attrs.level as 1 | 2 | 3 | 4,
-          })}`,
-        },
-        0,
-      ],
+      0,
     ]
   },
 })

@@ -9,7 +9,7 @@ export const splitBlockCommand = (posInBlock: number, keepType?: boolean, keepPr
 
     const blockInfo = getBlockInfoFromPos(state, posInBlock)
 
-    if (blockInfo.block.node.type.name !== 'blockContainer') {
+    if (blockInfo.block.node.type.name !== 'blockNode') {
       throw new Error(`BlockContainer expected when calling splitBlock, position ${posInBlock}`)
     }
 
