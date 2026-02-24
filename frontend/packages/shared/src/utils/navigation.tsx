@@ -56,7 +56,7 @@ export function getRouteKey(route: NavRoute): string {
   }
   if (
     route.key === 'document' ||
-    route.key === 'discussions' ||
+    route.key === 'comments' ||
     route.key === 'activity' ||
     route.key === 'collaborators' ||
     route.key === 'directory'

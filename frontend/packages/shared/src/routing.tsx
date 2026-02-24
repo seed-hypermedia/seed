@@ -170,11 +170,11 @@ export function routeToHref(
     return `/hm/contact/${route.id.uid}`
   }
 
-  // Handle view routes (activity, discussions, directory, collaborators, feed)
+  // Handle view routes (activity, comments, directory, collaborators, feed)
   if (
     typeof route !== 'string' &&
     (route.key === 'activity' ||
-      route.key === 'discussions' ||
+      route.key === 'comments' ||
       route.key === 'directory' ||
       route.key === 'collaborators' ||
       route.key === 'feed')
@@ -194,6 +194,10 @@ export function routeToHref(
     if (route.key === 'activity') {
       const filterSlug = activityFilterToSlug(route.filterEventType)
       if (filterSlug) viewTerm += `/${filterSlug}`
+    }
+    // Append openComment to view term path for comments
+    if (route.key === 'comments' && route.openComment) {
+      viewTerm += `/${route.openComment}`
     }
     let href = basePath ? `${basePath}/${viewTerm}` : `/${viewTerm}`
     return href

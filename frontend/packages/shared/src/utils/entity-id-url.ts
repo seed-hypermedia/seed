@@ -28,14 +28,15 @@ export function activitySlugToFilter(slug: string): string[] | undefined {
 }
 
 // View terms for URL paths (e.g., /:activity, /:directory)
-export const VIEW_TERMS = [':activity', ':discussions', ':collaborators', ':directory', ':feed'] as const
+// ':discussions' kept for backward compat URL parsing
+export const VIEW_TERMS = [':activity', ':comments', ':discussions', ':collaborators', ':directory', ':feed'] as const
 export type ViewTerm = (typeof VIEW_TERMS)[number]
 
 // Route keys that correspond to view terms (excludes 'options' which is panel-only)
-export type ViewRouteKey = 'activity' | 'discussions' | 'collaborators' | 'directory' | 'feed'
+export type ViewRouteKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'feed'
 
 // Panel keys that can be encoded in URL query param
-export type PanelQueryKey = 'activity' | 'discussions' | 'collaborators' | 'directory' | 'options'
+export type PanelQueryKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'options'
 
 /**
  * Extract view term from URL path and return cleaned URL + view term
@@ -45,8 +46,20 @@ export function extractViewTermFromUrl(url: string): {
   url: string
   viewTerm: ViewTerm | null
   activityFilter?: string
+  commentId?: string
 } {
-  // Check for :activity/<slug> pattern first
+  // Check for :comments/UID/TSID pattern (2 path segments after :comments)
+  const commentsPattern = /\/\:comments\/([^/?#]+\/[^/?#]+)(?=[?#]|$)/
+  const commentsMatch = url.match(commentsPattern)
+  if (commentsMatch) {
+    return {
+      url: url.replace(commentsMatch[0], ''),
+      viewTerm: ':comments',
+      commentId: commentsMatch[1],
+    }
+  }
+
+  // Check for :activity/<slug> pattern
   const activitySlugPattern = /\/\:activity\/([a-z]+)(?=[?#]|$)/
   const activitySlugMatch = url.match(activitySlugPattern)
   if (activitySlugMatch) {
@@ -77,7 +90,8 @@ export function viewTermToRouteKey(viewTerm: ViewTerm | null): ViewRouteKey | nu
   if (!viewTerm) return null
   const mapping: Record<ViewTerm, ViewRouteKey> = {
     ':activity': 'activity',
-    ':discussions': 'discussions',
+    ':comments': 'comments',
+    ':discussions': 'comments', // backward compat
     ':collaborators': 'collaborators',
     ':directory': 'directory',
     ':feed': 'feed',
@@ -122,9 +136,9 @@ export function createSiteUrl({
  * Build a comment URL relative to a document context.
  * Produces site-style URLs when siteUrl is provided, gateway URLs otherwise.
  *
- * For `:discussions` main view → `.../path/:discussions?panel=comment/COMMENT_ID`
- * For document with panel    → `.../path?panel=comment/COMMENT_ID`
- * With blockRef              → append `#BLOCK_ID+` or `#BLOCK_ID[start:end]`
+ * For `:comments` main view → `.../path/:comments/COMMENT_ID`
+ * For document with panel   → `.../path?panel=comments/COMMENT_ID`
+ * With blockRef             → append `#BLOCK_ID+` or `#BLOCK_ID[start:end]`
  */
 export function createCommentUrl({
   docId,
@@ -140,30 +154,51 @@ export function createCommentUrl({
   siteUrl?: string | null
   blockRef?: string | null
   blockRange?: BlockRange | null
-  /** true when on the :discussions main view, false when comment is in a panel */
+  /** true when on the :comments main view, false when comment is in a panel */
   isDiscussionsView?: boolean
   latest?: boolean | null
 }): string {
-  const panelParam = `comment/${commentId}`
-  if (siteUrl) {
-    return createSiteUrl({
+  if (isDiscussionsView) {
+    // Main panel → commentId in URL path via view term
+    const viewTermWithComment = `:comments/${commentId}`
+    if (siteUrl) {
+      return createSiteUrl({
+        path: docId.path,
+        hostname: siteUrl,
+        latest: latest ?? undefined,
+        viewTerm: viewTermWithComment,
+        blockRef,
+        blockRange,
+      })
+    }
+    return createWebHMUrl(docId.uid, {
       path: docId.path,
-      hostname: siteUrl,
-      latest: latest ?? undefined,
-      viewTerm: isDiscussionsView ? ':discussions' : null,
+      latest,
+      viewTerm: viewTermWithComment,
+      blockRef,
+      blockRange,
+    })
+  } else {
+    // Right panel → commentId in panel query param
+    const panelParam = `comments/${commentId}`
+    if (siteUrl) {
+      return createSiteUrl({
+        path: docId.path,
+        hostname: siteUrl,
+        latest: latest ?? undefined,
+        panel: panelParam,
+        blockRef,
+        blockRange,
+      })
+    }
+    return createWebHMUrl(docId.uid, {
+      path: docId.path,
+      latest,
       panel: panelParam,
       blockRef,
       blockRange,
     })
   }
-  return createWebHMUrl(docId.uid, {
-    path: docId.path,
-    latest,
-    viewTerm: isDiscussionsView ? ':discussions' : null,
-    panel: panelParam,
-    blockRef,
-    blockRange,
-  })
 }
 
 export function getCommentTargetId(comment: HMComment | undefined): UnpackedHypermediaId | undefined {
@@ -218,9 +253,9 @@ export function createOSProtocolUrl({uid, path, version, latest, blockRef, block
 /**
  * Extract panel param from route for URL query param
  * Supports:
- * - "comment/COMMENT_ID" for specific comment open in panel
- * - "discussions/BLOCKID" for block-specific discussions
- * - "discussions", "activity", etc. for general panels
+ * - "comments/COMMENT_ID" for specific comment open in panel
+ * - "comments/BLOCKID" for block-specific comments
+ * - "comments", "activity", etc. for general panels
  */
 export function getRoutePanelParam(route: NavRoute): string | null {
   let panel:
@@ -236,7 +271,7 @@ export function getRoutePanelParam(route: NavRoute): string | null {
     panel = route.panel
   } else if (
     (route.key === 'activity' ||
-      route.key === 'discussions' ||
+      route.key === 'comments' ||
       route.key === 'collaborators' ||
       route.key === 'directory' ||
       route.key === 'feed') &&
@@ -248,13 +283,13 @@ export function getRoutePanelParam(route: NavRoute): string | null {
   if (!panel) return null
 
   // Priority 1: Encode openComment - most specific
-  if (panel.key === 'discussions' && panel.openComment) {
-    return `comment/${panel.openComment}`
+  if (panel.key === 'comments' && panel.openComment) {
+    return `comments/${panel.openComment}`
   }
 
-  // Priority 2: Encode targetBlockId into discussions panel param
-  if (panel.key === 'discussions' && panel.targetBlockId) {
-    return `discussions/${panel.targetBlockId}`
+  // Priority 2: Encode targetBlockId into comments panel param
+  if (panel.key === 'comments' && panel.targetBlockId) {
+    return `comments/${panel.targetBlockId}`
   }
 
   // Encode activity filter slug into panel param
@@ -289,7 +324,7 @@ export function routeToUrl(
     route.key === 'activity' ||
     route.key === 'directory' ||
     route.key === 'collaborators' ||
-    route.key === 'discussions'
+    route.key === 'comments'
   ) {
     // View-term routes use /:viewTerm in the path
     let viewTermPath = `:${route.key}`
@@ -300,11 +335,11 @@ export function routeToUrl(
         viewTermPath = `:activity/${filterSlug}`
       }
     }
-    // For discussions with openComment, include it in the panel param
-    let effectivePanelParam = panelParam
-    if (!effectivePanelParam && route.key === 'discussions' && route.openComment) {
-      effectivePanelParam = `comment/${route.openComment}`
+    // For comments with openComment, put commentId in view term path
+    if (route.key === 'comments' && route.openComment) {
+      viewTermPath = `:comments/${route.openComment}`
     }
+    let effectivePanelParam = panelParam
     // View-term URLs only need uid + path, not version/blockRef/latest
     return createWebHMUrl(route.id.uid, {
       path: route.id.path,

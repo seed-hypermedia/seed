@@ -6,7 +6,7 @@ describe('accessory shortcut logic', () => {
     it('should return undefined when no accessory at index', () => {
       const accessoryOptions = [
         {key: 'activity' as PanelSelectionOptions, label: 'Activity'},
-        {key: 'discussions' as PanelSelectionOptions, label: 'Discussions'},
+        {key: 'comments' as PanelSelectionOptions, label: 'Discussions'},
       ]
 
       const result = accessoryOptions[2] // Out of bounds
@@ -16,7 +16,7 @@ describe('accessory shortcut logic', () => {
     it('should return accessory when index is valid', () => {
       const accessoryOptions = [
         {key: 'activity' as PanelSelectionOptions, label: 'Activity'},
-        {key: 'discussions' as PanelSelectionOptions, label: 'Discussions'},
+        {key: 'comments' as PanelSelectionOptions, label: 'Discussions'},
       ]
 
       const result = accessoryOptions[0]
@@ -45,7 +45,7 @@ describe('accessory shortcut logic', () => {
 
     it('should determine to open when current key does not match target key', () => {
       const currentSelectionKey: PanelSelectionOptions | undefined = 'activity' as PanelSelectionOptions
-      const targetSelectionKey: PanelSelectionOptions = 'discussions' as PanelSelectionOptions
+      const targetSelectionKey: PanelSelectionOptions = 'comments' as PanelSelectionOptions
 
       const shouldClose = currentSelectionKey === targetSelectionKey
       expect(shouldClose).toBe(false)
@@ -99,11 +99,11 @@ describe('accessory shortcut logic', () => {
       const route = {
         key: 'draft' as const,
         id: 'test-draft',
-        selection: {key: 'discussions' as PanelSelectionOptions},
+        selection: {key: 'comments' as PanelSelectionOptions},
       }
 
       const panelKey = route.key === 'draft' ? route.selection?.key : undefined
-      expect(panelKey).toBe('discussions')
+      expect(panelKey).toBe('comments')
     })
 
     it('should return undefined when no selection in route', () => {
@@ -153,14 +153,14 @@ describe('accessory shortcut logic', () => {
     it('should maintain order for shortcut mapping', () => {
       const accessoryOptions = [
         {key: 'activity' as PanelSelectionOptions, label: 'Activity'}, // Cmd+1 → index 0
-        {key: 'discussions' as PanelSelectionOptions, label: 'Discussions'}, // Cmd+2 → index 1
+        {key: 'comments' as PanelSelectionOptions, label: 'Discussions'}, // Cmd+2 → index 1
         {key: 'collaborators' as PanelSelectionOptions, label: 'Collaborators'}, // Cmd+3 → index 2
         {key: 'directory' as PanelSelectionOptions, label: 'Directory'}, // Cmd+4 → index 3
         {key: 'options' as PanelSelectionOptions, label: 'Options'}, // Cmd+5 → index 4
       ]
 
       expect(accessoryOptions[0].key).toBe('activity')
-      expect(accessoryOptions[1].key).toBe('discussions')
+      expect(accessoryOptions[1].key).toBe('comments')
       expect(accessoryOptions[2].key).toBe('collaborators')
       expect(accessoryOptions[3].key).toBe('directory')
       expect(accessoryOptions[4].key).toBe('options')

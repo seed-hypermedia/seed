@@ -63,7 +63,7 @@ Add it to the `documentPanelRoute` discriminated union:
 ```ts
 const documentPanelRoute = z.discriminatedUnion('key', [
   activityRouteSchema,
-  discussionsRouteSchema,
+  commentsRouteSchema,
   directoryRouteSchema,
   collaboratorsRouteSchema,
   documentOptionsRouteSchema,
@@ -83,7 +83,7 @@ case 'content':
 Add `'content'` to the `PanelQueryKey` type:
 
 ```ts
-export type PanelQueryKey = 'activity' | 'discussions' | 'collaborators' | 'directory' | 'options' | 'content' // ADD THIS
+export type PanelQueryKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'options' | 'content' // ADD THIS
 ```
 
 The existing fallthrough in `getRoutePanelParam` (`return panel.key as PanelQueryKey`) already handles `'content'` — no
@@ -338,13 +338,13 @@ const buttons: {
     label: 'Comments',
     tooltip: 'Open Document Comments',
     icon: MessageSquare,
-    active: activeTab == 'discussions',
+    active: activeTab == 'comments',
     count: commentsCount,
-    route: {key: 'discussions', id: idWithoutBlock, panel: panelFor()},
+    route: {key: 'comments', id: idWithoutBlock, panel: panelFor()},
     dragData: {
       label: 'Comments',
-      mainRoute: {key: 'discussions', id: idWithoutBlock, panel: panelFor()},
-      panelRouteKey: 'discussions',
+      mainRoute: {key: 'comments', id: idWithoutBlock, panel: panelFor()},
+      panelRouteKey: 'comments',
     },
   },
 ]
@@ -445,7 +445,7 @@ function getPanelTitle(panelKey: PanelSelectionOptions | null): string {
   switch (panelKey) {
     case 'activity':
       return 'Document Activity'
-    case 'discussions':
+    case 'comments':
       return 'Discussions'
     case 'directory':
       return 'Directory'
@@ -622,7 +622,7 @@ case 'content':
 | -------- | ------------------------------------------------- | ---------------------------------------------------------- |
 | Content  | Navigate to doc/draft route                       | `{key: 'document', id, panel: {key: 'content', id}}`       |
 | People   | `{key: 'collaborators', id, panel: currentPanel}` | `{key: 'document', id, panel: {key: 'collaborators', id}}` |
-| Comments | `{key: 'discussions', id, panel: currentPanel}`   | `{key: 'document', id, panel: {key: 'discussions', id}}`   |
+| Comments | `{key: 'comments', id, panel: currentPanel}`      | `{key: 'document', id, panel: {key: 'comments', id}}`      |
 
 ---
 

@@ -97,7 +97,7 @@ export function useRouteBreadcrumbs(): RouteBreadcrumbsResult {
       route.key === 'directory' ||
       route.key === 'collaborators' ||
       route.key === 'activity' ||
-      route.key === 'discussions'
+      route.key === 'comments'
     ) {
       return route.id
     }
@@ -110,9 +110,9 @@ export function useRouteBreadcrumbs(): RouteBreadcrumbsResult {
     if (route.key === 'directory') return {key: 'directory' as const} as DocumentPanelRoute
     if (route.key === 'collaborators') return {key: 'collaborators' as const} as DocumentPanelRoute
     if (route.key === 'activity') return {key: 'activity' as const} as DocumentPanelRoute
-    if (route.key === 'discussions')
+    if (route.key === 'comments')
       return {
-        key: 'discussions' as const,
+        key: 'comments' as const,
         openComment: route.openComment,
       } as DocumentPanelRoute
     return undefined
@@ -159,7 +159,7 @@ export function useRouteBreadcrumbs(): RouteBreadcrumbsResult {
 
   // --- Comment data for discussions panel ---
   const openCommentId = useMemo(() => {
-    if (panel?.key === 'discussions' && panel.openComment) {
+    if (panel?.key === 'comments' && panel.openComment) {
       return commentIdToHmId(panel.openComment)
     }
     return null

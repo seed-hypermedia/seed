@@ -19,7 +19,7 @@ export function DocumentTools({
   layoutProps,
 }: {
   id: UnpackedHypermediaId
-  activeTab?: 'draft' | 'content' | 'discussions' | 'collaborators'
+  activeTab?: 'draft' | 'content' | 'comments' | 'collaborators'
   commentsCount?: number
   collabsCount?: number
   rightActions?: React.ReactNode
@@ -116,9 +116,9 @@ export function DocumentTools({
       label: 'Comments',
       tooltip: 'Open Document Comments',
       icon: MessageSquare,
-      active: activeTab == 'discussions',
+      active: activeTab == 'comments',
       count: commentsCount,
-      route: {key: 'discussions', id: idWithoutBlock, panel: panelFor()},
+      route: {key: 'comments', id: idWithoutBlock, panel: panelFor()},
     },
   ]
   const tabButtons = (

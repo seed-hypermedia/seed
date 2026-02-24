@@ -1667,7 +1667,7 @@ export function BlockEmbedContentComment({
         key: 'document',
         id: getCommentTargetId(comment)!,
         panel: {
-          key: 'discussions',
+          key: 'comments',
           id,
           openComment: comment.id,
         },

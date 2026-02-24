@@ -35,7 +35,7 @@ export function useExistingDraft(route: NavRoute) {
 function getRouteResourceId(route: NavRoute): UnpackedHypermediaId | null {
   if (route.key === 'document') return route.id
   if (route.key === 'directory') return route.id
-  if (route.key === 'discussions') return route.id
+  if (route.key === 'comments') return route.id
   if (route.key === 'activity') return route.id
   if (route.key === 'collaborators') return route.id
   return null

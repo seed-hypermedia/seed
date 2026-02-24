@@ -58,7 +58,7 @@ export function Feed({
   const useFullPageNavigation = useMemo(() => {
     if (navigationContext) return navigationContext === 'page'
     // Auto-detect: if we're on activity or discussions page, use full page navigation
-    return currentRoute.key === 'activity' || currentRoute.key === 'discussions'
+    return currentRoute.key === 'activity' || currentRoute.key === 'comments'
   }, [navigationContext, currentRoute.key])
 
   const {data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error, refetch} = useActivityFeed({
@@ -219,7 +219,7 @@ function EventHeaderContent({
 }) {
   const tx = useTxString()
   const currentRoute = useNavRoute()
-  const isDiscussionsView = currentRoute.key === 'discussions' || currentRoute.key === 'activity'
+  const isDiscussionsView = currentRoute.key === 'comments' || currentRoute.key === 'activity'
   if (event.type == 'comment') {
     const options: MenuItemType[] = []
     if (onCommentDelete && event.comment && currentAccount == event.comment.author) {
@@ -258,7 +258,7 @@ function EventHeaderContent({
                   if (targetDocId && event.comment) {
                     const routeLatest =
                       currentRoute.key === 'document' ||
-                      currentRoute.key === 'discussions' ||
+                      currentRoute.key === 'comments' ||
                       currentRoute.key === 'activity'
                         ? currentRoute.id.latest
                         : undefined
@@ -722,7 +722,7 @@ function getEventRoute(event: LoadedEvent, useFullPageNavigation: boolean = fals
     if (useFullPageNavigation) {
       // Navigate to full discussions page
       return {
-        key: 'discussions' as const,
+        key: 'comments' as const,
         id: event.target.id,
         openComment: event.comment.id,
       }
@@ -733,7 +733,7 @@ function getEventRoute(event: LoadedEvent, useFullPageNavigation: boolean = fals
       key: 'document' as const,
       id: event.target.id,
       panel: {
-        key: 'discussions' as const,
+        key: 'comments' as const,
         id: event.target.id,
         openComment: event.comment.id,
       },
@@ -789,7 +789,7 @@ function getEventRoute(event: LoadedEvent, useFullPageNavigation: boolean = fals
     if (event.citationType === 'c' && event.comment) {
       if (useFullPageNavigation) {
         return {
-          key: 'discussions' as const,
+          key: 'comments' as const,
           id: event.source.id,
           openComment: event.comment.id,
         }
@@ -798,7 +798,7 @@ function getEventRoute(event: LoadedEvent, useFullPageNavigation: boolean = fals
         key: 'document' as const,
         id: event.source.id,
         panel: {
-          key: 'discussions' as const,
+          key: 'comments' as const,
           id: event.source.id,
           openComment: event.comment.id,
         },

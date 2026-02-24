@@ -28,8 +28,8 @@ const activityPanelSchema = z.object({
   filterEventType: z.array(z.string()).optional(),
 })
 
-const discussionsPanelSchema = z.object({
-  key: z.literal('discussions'),
+const commentsPanelSchema = z.object({
+  key: z.literal('comments'),
   id: unpackedHmIdSchema.optional(),
   openComment: z.string().optional(),
 })
@@ -47,7 +47,7 @@ const directoryPanelSchema = z.object({
 // Directory page panel options
 const directoryPagePanelSchema = z.discriminatedUnion('key', [
   activityPanelSchema,
-  discussionsPanelSchema,
+  commentsPanelSchema,
   collaboratorsPanelSchema,
 ])
 
@@ -61,7 +61,7 @@ export type DocumentDirectorySelection = z.infer<typeof directoryRouteSchema>
 // Collaborators page panel options
 const collaboratorsPagePanelSchema = z.discriminatedUnion('key', [
   activityPanelSchema,
-  discussionsPanelSchema,
+  commentsPanelSchema,
   directoryPanelSchema,
 ])
 
@@ -74,7 +74,7 @@ export type CollaboratorsRoute = z.infer<typeof collaboratorsRouteSchema>
 
 // Activity page panel options
 const activityPagePanelSchema = z.discriminatedUnion('key', [
-  discussionsPanelSchema,
+  commentsPanelSchema,
   collaboratorsPanelSchema,
   directoryPanelSchema,
 ])
@@ -94,15 +94,16 @@ export const activityRouteSchema = z.object({
 })
 export type ActivityRoute = z.infer<typeof activityRouteSchema>
 
-// Discussions page panel options
-const discussionsPagePanelSchema = z.discriminatedUnion('key', [
+// Comments page panel options
+const commentsPagePanelSchema = z.discriminatedUnion('key', [
   activityPanelSchema,
+  commentsPanelSchema,
   collaboratorsPanelSchema,
   directoryPanelSchema,
 ])
 
-export const discussionsRouteSchema = z.object({
-  key: z.literal('discussions'),
+export const commentsRouteSchema = z.object({
+  key: z.literal('comments'),
   id: unpackedHmIdSchema,
   width: z.number().optional(),
   openComment: z.string().optional(),
@@ -111,13 +112,13 @@ export const discussionsRouteSchema = z.object({
   blockRange: BlockRangeSchema.nullable().optional(),
   autoFocus: z.boolean().optional(),
   isReplying: z.boolean().optional(),
-  panel: discussionsPagePanelSchema.nullable().optional(),
+  panel: commentsPagePanelSchema.nullable().optional(),
 })
-export type DiscussionsRoute = z.infer<typeof discussionsRouteSchema>
+export type CommentsRoute = z.infer<typeof commentsRouteSchema>
 
 const documentPanelRoute = z.discriminatedUnion('key', [
   activityRouteSchema,
-  discussionsRouteSchema,
+  commentsRouteSchema,
   directoryRouteSchema,
   collaboratorsRouteSchema,
   documentOptionsRouteSchema,
@@ -219,7 +220,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   directoryRouteSchema,
   collaboratorsRouteSchema,
   activityRouteSchema,
-  discussionsRouteSchema,
+  commentsRouteSchema,
 ])
 export type NavRoute = z.infer<typeof navRouteSchema>
 
@@ -255,7 +256,7 @@ export function getRoutePanel(route: NavRoute): NavRoute | null {
   } else if (route.key === 'activity') {
     panel = route.panel as DocumentPanelRoute | null
     routeId = route.id
-  } else if (route.key === 'discussions') {
+  } else if (route.key === 'comments') {
     panel = route.panel as DocumentPanelRoute | null
     routeId = route.id
   }
@@ -274,7 +275,7 @@ export function routeToPanelRoute(route: NavRoute): DocumentPanelRoute | null {
       const {panel, ...rest} = route
       return rest
     }
-    case 'discussions': {
+    case 'comments': {
       const {panel, ...rest} = route
       return rest
     }
@@ -294,14 +295,16 @@ export function routeToPanelRoute(route: NavRoute): DocumentPanelRoute | null {
 /**
  * Create a DocumentPanelRoute from a panel param string
  * Supports extended formats:
- * - "comment/COMMENT_ID" for specific comment open in panel
- * - "discussions/BLOCKID" for block-specific discussions
+ * - "comments/COMMENT_ID" for specific comment open in panel
+ * - "comments/BLOCKID" for block-specific comments
+ * Backward compat: "comment/COMMENT_ID" and "discussions/BLOCKID" also accepted
  */
 function createPanelRoute(panelParam: string, docId: UnpackedHypermediaId): DocumentPanelRoute {
-  // Check for comment/COMMENT_ID format (most specific)
-  if (panelParam.startsWith('comment/')) {
-    const openComment = panelParam.slice('comment/'.length)
-    return {key: 'discussions' as const, id: docId, openComment}
+  // Check for comments/COMMENT_ID or comment/COMMENT_ID format (most specific)
+  if (panelParam.startsWith('comments/') || panelParam.startsWith('comment/')) {
+    const prefix = panelParam.startsWith('comments/') ? 'comments/' : 'comment/'
+    const openComment = panelParam.slice(prefix.length)
+    return {key: 'comments' as const, id: docId, openComment}
   }
 
   // Check for activity/<filter-slug> format
@@ -311,17 +314,18 @@ function createPanelRoute(panelParam: string, docId: UnpackedHypermediaId): Docu
     return {key: 'activity', id: docId, filterEventType}
   }
 
-  // Check for discussions/BLOCKID format
+  // Check for discussions/BLOCKID format (backward compat)
   if (panelParam.startsWith('discussions/')) {
     const targetBlockId = panelParam.slice('discussions/'.length)
-    return {key: 'discussions' as const, id: docId, targetBlockId}
+    return {key: 'comments' as const, id: docId, targetBlockId}
   }
 
   switch (panelParam) {
     case 'activity':
       return {key: 'activity', id: docId}
-    case 'discussions':
-      return {key: 'discussions', id: docId}
+    case 'comments':
+    case 'discussions': // backward compat
+      return {key: 'comments', id: docId}
     case 'directory':
       return {key: 'directory', id: docId}
     case 'collaborators':
@@ -330,19 +334,21 @@ function createPanelRoute(panelParam: string, docId: UnpackedHypermediaId): Docu
       return {key: 'options'}
     default:
       // Fallback for unknown panel types
-      return {key: 'discussions', id: docId}
+      return {key: 'comments', id: docId}
   }
 }
 
 /**
  * Convert docId + viewTerm + panelParam into a NavRoute
  * Used by web to initialize navigation context from URL
- * panelParam supports extended format like "discussions/BLOCKID" or "comment/COMMENT_ID"
+ * panelParam supports extended format like "comments/BLOCKID" or "comments/COMMENT_ID"
+ * Backward compat: "discussions" viewTerm and "comment/" panel prefix also accepted
  */
 export function createDocumentNavRoute(
   docId: UnpackedHypermediaId,
   viewTerm?: ViewRouteKey | null,
   panelParam?: string | null,
+  openComment?: string | null,
 ): NavRoute {
   // Create properly typed panel route if panelParam provided
   const panel = panelParam ? createPanelRoute(panelParam, docId) : null
@@ -358,8 +364,17 @@ export function createDocumentNavRoute(
       }
       return {key: 'activity', id: docId, filterEventType}
     }
-    case 'discussions':
-      return {key: 'discussions', id: docId}
+    case 'comments':
+      // /:comments?panel=comments/COMMENT_ID → comments main + comments right panel
+      if (panelParam?.startsWith('comments/') || panelParam?.startsWith('comment/')) {
+        const commentsPanel = panel && panel.key === 'comments' ? panel : null
+        return {key: 'comments', id: docId, panel: commentsPanel}
+      }
+      // /:comments/UID/TSID → comments main with openComment
+      if (openComment) {
+        return {key: 'comments', id: docId, openComment}
+      }
+      return {key: 'comments', id: docId}
     case 'directory':
       return {key: 'directory', id: docId}
     case 'collaborators':
@@ -367,11 +382,7 @@ export function createDocumentNavRoute(
     case 'feed':
       return {key: 'feed', id: docId, panel}
     default: {
-      // Comment links should open in main discussions view, not panel
-      if (panelParam?.startsWith('comment/')) {
-        const openComment = panelParam.slice('comment/'.length)
-        return {key: 'discussions', id: docId, openComment}
-      }
+      // ?panel=comments/COMMENT_ID (no viewTerm) → document main + comments right panel
       return {key: 'document', id: docId, panel}
     }
   }

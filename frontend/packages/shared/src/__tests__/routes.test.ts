@@ -27,12 +27,21 @@ describe('createDocumentNavRoute', () => {
       })
     })
 
-    test('discussions panel', () => {
+    test('comments panel', () => {
+      const route = createDocumentNavRoute(testDocId, null, 'comments')
+      expect(route).toEqual({
+        key: 'document',
+        id: testDocId,
+        panel: {key: 'comments', id: testDocId},
+      })
+    })
+
+    test('discussions panel (backward compat)', () => {
       const route = createDocumentNavRoute(testDocId, null, 'discussions')
       expect(route).toEqual({
         key: 'document',
         id: testDocId,
-        panel: {key: 'discussions', id: testDocId},
+        panel: {key: 'comments', id: testDocId},
       })
     })
 
@@ -65,21 +74,57 @@ describe('createDocumentNavRoute', () => {
   })
 
   describe('extended panel formats', () => {
-    test('discussions with targetBlockId', () => {
+    test('comments panel opens document with comments right panel', () => {
+      const route = createDocumentNavRoute(testDocId, null, 'comments/block123')
+      expect(route).toEqual({
+        key: 'document',
+        id: testDocId,
+        panel: {key: 'comments', id: testDocId, openComment: 'block123'},
+      })
+    })
+
+    test('discussions/BLOCKID backward compat', () => {
       const route = createDocumentNavRoute(testDocId, null, 'discussions/block123')
       expect(route).toEqual({
         key: 'document',
         id: testDocId,
-        panel: {key: 'discussions', id: testDocId, targetBlockId: 'block123'},
+        panel: {key: 'comments', id: testDocId, targetBlockId: 'block123'},
       })
     })
 
-    test('comment opens main discussions view with openComment', () => {
+    test('comments/ panel opens document with comments right panel + openComment', () => {
+      const route = createDocumentNavRoute(testDocId, null, 'comments/uid123/path/to/comment')
+      expect(route).toEqual({
+        key: 'document',
+        id: testDocId,
+        panel: {key: 'comments', id: testDocId, openComment: 'uid123/path/to/comment'},
+      })
+    })
+
+    test('comment/ backward compat opens document with comments right panel', () => {
       const route = createDocumentNavRoute(testDocId, null, 'comment/uid123/path/to/comment')
       expect(route).toEqual({
-        key: 'discussions',
+        key: 'document',
         id: testDocId,
-        openComment: 'uid123/path/to/comment',
+        panel: {key: 'comments', id: testDocId, openComment: 'uid123/path/to/comment'},
+      })
+    })
+
+    test('comments viewTerm + comments panel → comments main + right panel', () => {
+      const route = createDocumentNavRoute(testDocId, 'comments', 'comments/uid123/tsid456')
+      expect(route).toEqual({
+        key: 'comments',
+        id: testDocId,
+        panel: {key: 'comments', id: testDocId, openComment: 'uid123/tsid456'},
+      })
+    })
+
+    test('comments viewTerm + openComment → comments main with highlight', () => {
+      const route = createDocumentNavRoute(testDocId, 'comments', null, 'uid123/tsid456')
+      expect(route).toEqual({
+        key: 'comments',
+        id: testDocId,
+        openComment: 'uid123/tsid456',
       })
     })
 
@@ -134,9 +179,9 @@ describe('createDocumentNavRoute', () => {
       })
     })
 
-    test('discussions viewTerm returns discussions route', () => {
-      const route = createDocumentNavRoute(testDocId, 'discussions', null)
-      expect(route).toEqual({key: 'discussions', id: testDocId})
+    test('comments viewTerm returns comments route', () => {
+      const route = createDocumentNavRoute(testDocId, 'comments', null)
+      expect(route).toEqual({key: 'comments', id: testDocId})
     })
 
     test('directory viewTerm returns directory route', () => {

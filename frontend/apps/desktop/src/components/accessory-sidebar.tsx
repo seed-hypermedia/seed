@@ -113,7 +113,7 @@ export function AccessoryLayout({
     accessoryTitle = tx('Draft Options')
   } else if (panelKey == 'activity') {
     accessoryTitle = tx('Document Activity')
-  } else if (panelKey == 'discussions') {
+  } else if (panelKey == 'comments') {
     accessoryTitle = tx('Discussions')
   }
 

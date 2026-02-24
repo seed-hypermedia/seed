@@ -349,10 +349,16 @@ export const SearchInput = forwardRef<
 /**
  * Apply view term to a resolved route (e.g., /:directory -> open Directory page)
  */
-function applyViewTermToRoute(route: NavRoute, routeKey: ReturnType<typeof viewTermToRouteKey>): NavRoute {
+function applyViewTermToRoute(
+  route: NavRoute,
+  routeKey: ReturnType<typeof viewTermToRouteKey>,
+  commentId?: string,
+): NavRoute {
   if (!routeKey) return route
   if (route.key === 'document') {
-    // Return first-class page route, not panel
+    if (routeKey === 'comments' && commentId) {
+      return {key: 'comments', id: route.id, openComment: commentId}
+    }
     return {key: routeKey, id: route.id}
   }
   return route
@@ -374,7 +380,7 @@ function useURLHandler() {
     const httpSearch = isHttpUrl(search) ? search : `https://${search}`
 
     // Extract view term (e.g., /:activity) before making request
-    const {url: cleanUrl, viewTerm} = extractViewTermFromUrl(httpSearch)
+    const {url: cleanUrl, viewTerm, commentId} = extractViewTermFromUrl(httpSearch)
     const routeKey = viewTermToRouteKey(viewTerm)
 
     connect.mutate(cleanUrl)
@@ -385,7 +391,7 @@ function useURLHandler() {
         const res = await resolveHypermediaUrl(webResult.hypermedia.url)
         const resId = res?.id ? unpackHmId(res.id) : null
         const navRoute = resId ? appRouteOfId(resId) : null
-        if (navRoute) return applyViewTermToRoute(navRoute, routeKey)
+        if (navRoute) return applyViewTermToRoute(navRoute, routeKey, commentId)
         console.log('Failed to open this hypermedia content', webResult.hypermedia)
         toast.error('Failed to open this hypermedia content')
         return null
@@ -412,7 +418,7 @@ function useURLHandler() {
           key: 'document',
           id: result.target,
           panel: {
-            key: 'discussions',
+            key: 'comments',
             id: result.target,
             openComment: `${result.hmId.uid}/${result.hmId.path.join('/')}`,
             ...idFragment,
@@ -426,7 +432,7 @@ function useURLHandler() {
           route = appRouteOfId({...result.hmId, ...idFragment})
         }
       }
-      if (route) return applyViewTermToRoute(route, routeKey)
+      if (route) return applyViewTermToRoute(route, routeKey, commentId)
       toast.error('Failed to open this hypermedia content')
       return null
     }

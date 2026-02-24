@@ -39,19 +39,19 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
           key: 'document',
           id: targetRoute,
           panel: {
-            key: 'discussions',
+            key: 'comments',
             id: targetRoute,
             openComment: replyComment.id,
             isReplying: true,
           },
         })
-      } else if (route.key === 'discussions') {
+      } else if (route.key === 'comments') {
         replaceRoute({...route, openComment: replyComment.id, isReplying: true})
       } else {
         replaceRoute({
           ...route,
           panel: {
-            key: 'discussions',
+            key: 'comments',
             id: docId,
             openComment: replyComment.id,
             isReplying: true,
@@ -73,18 +73,18 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
           key: 'document',
           id: targetRoute,
           panel: {
-            key: 'discussions',
+            key: 'comments',
             id: targetRoute,
             openComment: replyComment.id,
           },
         })
-      } else if (route.key === 'discussions') {
+      } else if (route.key === 'comments') {
         replaceRoute({...route, openComment: replyComment.id})
       } else {
         replaceRoute({
           ...route,
           panel: {
-            key: 'discussions',
+            key: 'comments',
             id: docId,
             openComment: replyComment.id,
           },

@@ -269,7 +269,7 @@ function CommentDraftItem({item}: {item: HMListedCommentDraft}) {
       onClick={() => {
         if (targetDocId) {
           navigate({
-            key: 'discussions',
+            key: 'comments',
             id: targetDocId,
             openComment: item.replyCommentId,
             targetBlockId: item.quotingBlockId,
