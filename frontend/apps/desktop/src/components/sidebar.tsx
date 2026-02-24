@@ -1,6 +1,6 @@
+import {useBookmarks} from '@/models/bookmarks'
 import {useComments} from '@/models/comments'
 import {useContactList, useSelectedAccountContacts} from '@/models/contacts'
-import {useBookmarks} from '@/models/bookmarks'
 import {useSubscribedDocuments} from '@/models/library'
 import {useListSubscriptions} from '@/models/subscription'
 import {useSelectedAccountId} from '@/selected-account'
@@ -20,15 +20,35 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
 import {UIAvatar} from '@shm/ui/avatar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@shm/ui/components/dropdown-menu'
+import {
+  SidebarContent,
+  SidebarFooter as SidebarFooterLayout,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarSeparator,
+} from '@shm/ui/components/sidebar'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SmallListItem} from '@shm/ui/list-item'
 import {SizableText} from '@shm/ui/text'
-import {AlertCircle, ChevronDown, ChevronRight, Contact, File, Library, Lock} from 'lucide-react'
+import {cn} from '@shm/ui/utils'
+import {AlertCircle, ChevronDown, ChevronRight, Contact, File, Library, Lock, MoreHorizontal} from 'lucide-react'
 import React, {memo} from 'react'
 import {CreateDocumentButton} from './create-doc-button'
 import {GenericSidebarContainer} from './sidebar-base'
-import {SidebarFooter} from './sidebar-footer'
+import {SidebarFooter as AppSidebarFooter} from './sidebar-footer'
 
 export const AppSidebar = memo(MainAppSidebar)
 
@@ -39,46 +59,56 @@ export function MainAppSidebar() {
   return (
     <GenericSidebarContainer
       footer={({isVisible}) => (
-        <div>
-          <div className="border-border flex w-full flex-col gap-2 border-t py-4">
-            <SmallListItem
-              active={route.key == 'library'}
-              onClick={() => {
-                navigate({key: 'library'})
-              }}
-              title="Library"
-              bold
-              icon={<Library className="size-4" />}
-              rightHover={[]}
-            />
-            <SmallListItem
-              active={route.key == 'contacts'}
-              onClick={() => {
-                navigate({key: 'contacts'})
-              }}
-              icon={<Contact className="size-4" />}
-              title="Contacts"
-              bold
-            />
-            <SmallListItem
-              active={route.key == 'drafts'}
-              onClick={() => {
-                navigate({key: 'drafts'})
-              }}
-              icon={<File className="size-4" />}
-              title="Drafts"
-              bold
-            />
-          </div>
-          <SidebarFooter isSidebarVisible={isVisible} />
-        </div>
+        <SidebarFooterLayout className="gap-0 p-0">
+          <SidebarSeparator />
+          <SidebarMenu className="py-4">
+            <SidebarMenuItem>
+              <SmallListItem
+                active={route.key == 'library'}
+                onClick={() => {
+                  navigate({key: 'library'})
+                }}
+                title="Library"
+                bold
+                icon={<Library className="size-4" />}
+                rightHover={[]}
+              />
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SmallListItem
+                active={route.key == 'contacts'}
+                onClick={() => {
+                  navigate({key: 'contacts'})
+                }}
+                icon={<Contact className="size-4" />}
+                title="Contacts"
+                bold
+              />
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SmallListItem
+                active={route.key == 'drafts'}
+                onClick={() => {
+                  navigate({key: 'drafts'})
+                }}
+                icon={<File className="size-4" />}
+                title="Drafts"
+                bold
+              />
+            </SidebarMenuItem>
+          </SidebarMenu>
+          <AppSidebarFooter isSidebarVisible={isVisible} />
+        </SidebarFooterLayout>
       )}
     >
-      <CreateDocumentButton />
-      <MySiteSection selectedAccountId={selectedAccountId ?? undefined} />
-
-      <SubscriptionsSection />
-      <BookmarksSection />
+      <SidebarHeader>
+        <CreateDocumentButton />
+      </SidebarHeader>
+      <SidebarContent>
+        <MySiteSection selectedAccountId={selectedAccountId ?? undefined} />
+        <SubscriptionsSection />
+        <BookmarksSection />
+      </SidebarContent>
     </GenericSidebarContainer>
   )
 }
@@ -95,32 +125,34 @@ function SidebarSection({
   const [collapsed, setCollapsed] = React.useState(false)
   let Icon = collapsed ? ChevronRight : ChevronDown
   return (
-    <div className="mt-4 flex flex-col gap-2">
+    <SidebarGroup className="mt-4">
       <div className="flex items-center justify-between px-2">
-        <div
-          className="group/header hover:bg-border flex w-full cursor-pointer items-center justify-center gap-1"
+        <SidebarGroupLabel
+          className="group/header hover:bg-border flex w-full cursor-pointer items-center gap-1 rounded-lg px-2 tracking-normal normal-case"
           onClick={() => {
             setCollapsed(!collapsed)
           }}
         >
-          <div className="flex w-full items-center rounded-lg px-2">
-            <SizableText
-              weight="bold"
-              size="xs"
-              color="muted"
-              className="group-hover/header:text-foreground flex-1 capitalize select-none"
-            >
-              {title}
-            </SizableText>
-            <div className="flex h-5 w-4 items-center justify-center">
-              <Icon size={14} />
-            </div>
+          <SizableText
+            weight="bold"
+            size="xs"
+            color="muted"
+            className="group-hover/header:text-foreground flex-1 capitalize select-none"
+          >
+            {title}
+          </SizableText>
+          <div className="flex h-5 w-4 items-center justify-center">
+            <Icon size={14} />
           </div>
-        </div>
-        <div className="flex">{accessory}</div>
+        </SidebarGroupLabel>
+        {accessory ? <div className="flex">{accessory}</div> : null}
       </div>
-      {collapsed ? null : <div className="flex flex-col gap-1">{children}</div>}
-    </div>
+      {collapsed ? null : (
+        <SidebarGroupContent>
+          <SidebarMenu>{children}</SidebarMenu>
+        </SidebarGroupContent>
+      )}
+    </SidebarGroup>
   )
 }
 
@@ -136,11 +168,12 @@ function BookmarksSection() {
         if (!bookmark.data) return null
         if (bookmark.data.type === 'error') {
           return (
-            <ErrorListItem
-              key={bookmark.data.id.id}
-              id={bookmark.data.id}
-              active={route.key === 'document' && route.id.id === bookmark.data.id.id}
-            />
+            <SidebarMenuItem key={bookmark.data.id.id}>
+              <ErrorListItem
+                id={bookmark.data.id}
+                active={route.key === 'document' && route.id.id === bookmark.data.id.id}
+              />
+            </SidebarMenuItem>
           )
         }
         if (bookmark.data.type !== 'document') return null
@@ -150,13 +183,14 @@ function BookmarksSection() {
           : getContactMetadata(id.uid, document?.metadata, contacts.data)
         if (!metadata) return null
         return (
-          <BookmarkListItem
-            key={id.id}
-            id={id}
-            metadata={metadata}
-            active={route.key === 'document' && route.id.id === id.id}
-            visibility={document?.visibility}
-          />
+          <SidebarMenuItem key={id.id}>
+            <BookmarkListItem
+              id={id}
+              metadata={metadata}
+              active={route.key === 'document' && route.id.id === id.id}
+              visibility={document?.visibility}
+            />
+          </SidebarMenuItem>
         )
       })}
     </SidebarSection>
@@ -250,11 +284,12 @@ function SubscriptionsSection() {
         if (!entity?.data) return null
         if (entity.data.type === 'error') {
           return (
-            <ErrorListItem
-              key={entity.data.id.id}
-              id={entity.data.id}
-              active={route.key === 'document' && route.id.id === entity.data.id.id}
-            />
+            <SidebarMenuItem key={entity.data.id.id}>
+              <ErrorListItem
+                id={entity.data.id}
+                active={route.key === 'document' && route.id.id === entity.data.id.id}
+              />
+            </SidebarMenuItem>
           )
         }
         if (entity.data.type !== 'document') return null
@@ -297,16 +332,17 @@ function SubscriptionsSection() {
 
         const isUnread = activitySummary?.isUnread ?? false
         return (
-          <SubscriptionListItem
-            key={id.id}
-            id={id}
-            metadata={metadata}
-            active={route.key === 'document' && route.id.id === id.id}
-            isUnread={isUnread}
-            activitySummary={activitySummary}
-            latestComment={latestComment}
-            accountsMetadata={accountsMetadata}
-          />
+          <SidebarMenuItem key={id.id}>
+            <SubscriptionListItem
+              id={id}
+              metadata={metadata}
+              active={route.key === 'document' && route.id.id === id.id}
+              isUnread={isUnread}
+              activitySummary={activitySummary}
+              latestComment={latestComment}
+              accountsMetadata={accountsMetadata}
+            />
+          </SidebarMenuItem>
         )
       })}
     </SidebarSection>
@@ -332,30 +368,38 @@ function SubscriptionListItem({
 }) {
   const linkProps = useRouteLink({key: 'document', id})
   return (
-    <SmallListItem
-      key={id.id}
-      docId={id.id}
-      active={active}
-      icon={<HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />}
-      {...linkProps}
-    >
-      <div className="flex w-full flex-1 flex-col overflow-hidden">
-        <SizableText
-          size="sm"
-          className="truncate text-left whitespace-nowrap select-none"
-          weight={isUnread ? 'bold' : undefined}
-        >
-          {metadata?.name || 'Untitled'}
-        </SizableText>
-        {activitySummary && (
-          <LibraryEntryUpdateSummary
-            accountsMetadata={accountsMetadata}
-            latestComment={latestComment}
-            activitySummary={activitySummary}
-          />
-        )}
-      </div>
-    </SmallListItem>
+    <>
+      <SidebarMenuButton isActive={active} className="min-h-10 items-start pr-8" onClick={linkProps.onClick}>
+        <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} className="mt-0.5 shrink-0 self-center" />
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <span className={cn('truncate text-left text-sm select-none', isUnread && 'font-bold')}>
+            {metadata?.name || 'Untitled'}
+          </span>
+          {activitySummary && (
+            <LibraryEntryUpdateSummary
+              accountsMetadata={accountsMetadata}
+              latestComment={latestComment}
+              activitySummary={activitySummary}
+            />
+          )}
+        </div>
+      </SidebarMenuButton>
+      <SidebarMenuAction>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className="hover:bg-sidebar-accent flex items-center justify-center rounded-md p-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MoreHorizontal className="size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="start">
+            <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Mute notifications</DropdownMenuItem>
+            <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Unsubscribe</DropdownMenuItem>
+            <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Copy link</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuAction>
+    </>
   )
 }
 

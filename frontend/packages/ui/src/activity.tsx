@@ -85,7 +85,7 @@ export function LibraryEntryUpdateSummary({
   }
   return (
     <div className="flex items-center justify-start gap-2">
-      <SizableText size="xs" color="muted" className="line-clamp-1 font-sans" weight="light">
+      <SizableText size="xs" color="muted" className="line-clamp-1 text-left font-sans" weight="light">
         {summaryText}
       </SizableText>
       <ActivityTime activitySummary={activitySummary} />
