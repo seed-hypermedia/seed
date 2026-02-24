@@ -47,11 +47,7 @@ export function hasBlockContent(block: HMBlockNode): boolean {
     case 'Group':
     case 'Link':
       // Group and Link blocks are structural, check text if available
-      return !!(
-        'text' in blockData &&
-        blockData.text &&
-        blockData.text.trim().length > 0
-      )
+      return !!('text' in blockData && blockData.text && blockData.text.trim().length > 0)
 
     default:
       return false
@@ -60,10 +56,7 @@ export function hasBlockContent(block: HMBlockNode): boolean {
 
 // HMBlockNodes are recursive values. we want the output to have the same shape, but limit the total number of blocks
 // the first blocks will be included up until the totalBlock value is reached
-export function clipContentBlocks(
-  content: HMBlockNode[] | undefined,
-  totalBlocks: number,
-): HMBlockNode[] | null {
+export function clipContentBlocks(content: HMBlockNode[] | undefined, totalBlocks: number): HMBlockNode[] | null {
   if (!content) return null
   const output: HMBlockNode[] = []
   let blocksRemaining: number = totalBlocks
@@ -89,18 +82,12 @@ export function clipContentBlocks(
   return output
 }
 
-export function getDocumentTitle(
-  document?: Pick<HMDocument, 'metadata' | 'path'> | null,
-) {
+export function getDocumentTitle(document?: Pick<HMDocument, 'metadata' | 'path'> | null) {
   if (!document) {
     return 'Error: document not found'
   }
 
-  return (
-    document.metadata?.name ||
-    entityQueryPathToHmIdPath(document.path)?.at(-1) ||
-    ''
-  )
+  return document.metadata?.name || entityQueryPathToHmIdPath(document.path)?.at(-1) || ''
 }
 
 export function getContactMetadata(
@@ -126,10 +113,7 @@ export function getAccountName(document: HMDocument | null | undefined) {
   return '?'
 }
 
-export function sortNewsEntries(
-  items: HMDocumentInfo[] | undefined,
-  sort: HMMetadata['seedExperimentalHomeOrder'],
-) {
+export function sortNewsEntries(items: HMDocumentInfo[] | undefined, sort: HMMetadata['seedExperimentalHomeOrder']) {
   if (!items) return []
   if (sort === 'CreatedFirst') {
     return [...items].sort(createTimeSort)
@@ -220,10 +204,7 @@ export type RefDefinition = {
   refId: any
 }
 
-export function extractRefs(
-  children: HMBlockNode[],
-  skipCards?: boolean,
-): RefDefinition[] {
+export function extractRefs(children: HMBlockNode[], skipCards?: boolean): RefDefinition[] {
   let refs: RefDefinition[] = []
   function extractRefsFromBlock(block: HMBlockNode) {
     if (block.block?.type === 'Embed' && block.block.link) {
@@ -254,9 +235,7 @@ export function extractRefs(
   return refs
 }
 
-export function extractAllContentRefs(
-  children: HMBlockNode[],
-): RefDefinition[] {
+export function extractAllContentRefs(children: HMBlockNode[]): RefDefinition[] {
   let refs: RefDefinition[] = []
   function walk(block: HMBlockNode) {
     if (block.block?.type === 'Embed' && block.block.link) {
@@ -342,8 +321,7 @@ export function getDocumentImage(document: HMDocument): string | null {
   if (coverImage) return coverImage
   const firstImageBlock = findFirstBlock<HMBlockImage>(
     document.content,
-    (block): block is HMBlockImage =>
-      block.type === 'Image' && !!(block as any).link,
+    (block): block is HMBlockImage => block.type === 'Image' && !!(block as any).link,
   )
   if (firstImageBlock) return firstImageBlock.link || null
   return null
@@ -375,9 +353,7 @@ export function findFirstBlock<ResultBlockType extends HMBlock>(
   return found
 }
 
-export function getChildrenType(
-  block: HMBlock | undefined | null,
-): HMBlockChildrenType | undefined {
+export function getChildrenType(block: HMBlock | undefined | null): HMBlockChildrenType | undefined {
   if (!block) return undefined
   if (block.type === 'Paragraph') return block.attributes?.childrenType
   if (block.type === 'Heading') return block.attributes?.childrenType

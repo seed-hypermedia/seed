@@ -21,10 +21,8 @@ export const welcomingApi = t.router({
   isProbablyNewAccount: t.procedure.query(async () => {
     return appStore.get('isProbablyNewAccount') || false
   }),
-  writeIsProbablyNewAccount: t.procedure
-    .input(z.boolean())
-    .mutation(async ({input}) => {
-      appStore.set('isProbablyNewAccount', input)
-      return true
-    }),
+  writeIsProbablyNewAccount: t.procedure.input(z.boolean()).mutation(async ({input}) => {
+    appStore.set('isProbablyNewAccount', input)
+    return true
+  }),
 })

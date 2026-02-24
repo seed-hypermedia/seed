@@ -66,11 +66,7 @@ describe('createDocumentNavRoute', () => {
 
   describe('extended panel formats', () => {
     test('discussions with targetBlockId', () => {
-      const route = createDocumentNavRoute(
-        testDocId,
-        null,
-        'discussions/block123',
-      )
+      const route = createDocumentNavRoute(testDocId, null, 'discussions/block123')
       expect(route).toEqual({
         key: 'document',
         id: testDocId,
@@ -79,11 +75,7 @@ describe('createDocumentNavRoute', () => {
     })
 
     test('comment opens main discussions view with openComment', () => {
-      const route = createDocumentNavRoute(
-        testDocId,
-        null,
-        'comment/uid123/path/to/comment',
-      )
+      const route = createDocumentNavRoute(testDocId, null, 'comment/uid123/path/to/comment')
       expect(route).toEqual({
         key: 'discussions',
         id: testDocId,
@@ -110,23 +102,14 @@ describe('createDocumentNavRoute', () => {
     })
 
     test('activity with citations filter', () => {
-      const route = createDocumentNavRoute(
-        testDocId,
-        null,
-        'activity/citations',
-      )
+      const route = createDocumentNavRoute(testDocId, null, 'activity/citations')
       expect(route).toEqual({
         key: 'document',
         id: testDocId,
         panel: {
           key: 'activity',
           id: testDocId,
-          filterEventType: [
-            'comment/Embed',
-            'doc/Embed',
-            'doc/Link',
-            'doc/Button',
-          ],
+          filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
         },
       })
     })
@@ -143,11 +126,7 @@ describe('createDocumentNavRoute', () => {
     })
 
     test('activity viewTerm with activity/versions panelParam applies filter', () => {
-      const route = createDocumentNavRoute(
-        testDocId,
-        'activity',
-        'activity/versions',
-      )
+      const route = createDocumentNavRoute(testDocId, 'activity', 'activity/versions')
       expect(route).toEqual({
         key: 'activity',
         id: testDocId,

@@ -5,8 +5,7 @@ export async function resolveHypermediaUrl(url: string) {
   // Parse query params and fragment from original URL
   let latest = false
   let blockRef: string | null = null
-  let blockRange: {start: number; end: number} | {expanded: boolean} | null =
-    null
+  let blockRange: {start: number; end: number} | {expanded: boolean} | null = null
   let panel: string | null = null
   try {
     const parsedUrl = new URL(url)
@@ -56,9 +55,7 @@ export async function resolveHypermediaUrl(url: string) {
       const hmId = unpackHmId(id)
       // When blockRef is present, ensure version is included in hmId
       // so it gets packed correctly when creating links
-      const resolvedVersion = blockRef
-        ? version ?? hmId?.version ?? null
-        : hmId?.version ?? null
+      const resolvedVersion = blockRef ? version ?? hmId?.version ?? null : hmId?.version ?? null
       // Preserve the site hostname from the input URL.
       // If the URL is NOT a gateway URL (no /hm/ prefix), the host is the siteURL.
       let siteHostname: string | null = null

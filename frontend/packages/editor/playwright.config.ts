@@ -20,9 +20,7 @@ export default defineConfig({
   // Run tests in parallel (4 workers in CI, all available locally)
   workers: process.env.CI ? 4 : undefined,
   // Reporter to use
-  reporter: process.env.CI
-    ? [['github']]
-    : [['html', {outputFolder: 'e2e/playwright-report', open: 'never'}]],
+  reporter: process.env.CI ? [['github']] : [['html', {outputFolder: 'e2e/playwright-report', open: 'never'}]],
   // Shared settings for all projects
   use: {
     // Base URL to use in actions like `await page.goto('/')`

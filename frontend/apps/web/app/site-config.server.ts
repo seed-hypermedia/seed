@@ -59,9 +59,7 @@ if (serviceConfig) {
   console.log('Single site config loaded.')
 } else {
   console.error('Config error: ', singleSiteConfigError)
-  throw new Error(
-    'Failed to load configuration. Set DATA_DIR/config.json or DATA_DIR/service-config.json',
-  )
+  throw new Error('Failed to load configuration. Set DATA_DIR/config.json or DATA_DIR/service-config.json')
 }
 
 export async function getConfig(hostname: string) {
@@ -70,10 +68,7 @@ export async function getConfig(hostname: string) {
     if (hostname === serviceConfig.rootHostname) return serviceConfig.rootConfig
     if (serviceConfig.customDomains && serviceConfig.customDomains[hostname]) {
       const customDomain = serviceConfig.customDomains[hostname]
-      if (
-        customDomain.service &&
-        serviceConfig.namedServices[customDomain.service]
-      ) {
+      if (customDomain.service && serviceConfig.namedServices[customDomain.service]) {
         return serviceConfig.namedServices[customDomain.service] || null
       }
     }
@@ -106,19 +101,13 @@ export async function writeConfig(hostname: string, newConfig: SiteConfig) {
       await writeServiceConfig(newServiceConfig)
     } else {
       let subdomain: string | null = null
-      if (
-        serviceConfig.customDomains &&
-        serviceConfig.customDomains[hostname]
-      ) {
+      if (serviceConfig.customDomains && serviceConfig.customDomains[hostname]) {
         subdomain = serviceConfig.customDomains[hostname].service
       } else {
         // split hostname into parts and validate format subdomain.rootHostname
         const parts = hostname.split('.')
         const rootParts = serviceConfig.rootHostname.split('.')
-        if (
-          parts.length !== rootParts.length + 1 ||
-          parts.slice(1).join('.') !== serviceConfig.rootHostname
-        ) {
+        if (parts.length !== rootParts.length + 1 || parts.slice(1).join('.') !== serviceConfig.rootHostname) {
           throw new Error(
             `Cannot write to service config for hostname ${hostname} - must be in format [subdomain].${serviceConfig.rootHostname}`,
           )
@@ -146,22 +135,18 @@ export async function applyConfigSubscriptions() {
   const siteAccounts = new Set<string>()
   if (serviceConfig) {
     Object.values(serviceConfig.namedServices).forEach((config: SiteConfig) => {
-      if (config.registeredAccountUid)
-        siteAccounts.add(config.registeredAccountUid)
+      if (config.registeredAccountUid) siteAccounts.add(config.registeredAccountUid)
     })
-    if (serviceConfig.rootConfig.registeredAccountUid)
-      siteAccounts.add(serviceConfig.rootConfig.registeredAccountUid)
+    if (serviceConfig.rootConfig.registeredAccountUid) siteAccounts.add(serviceConfig.rootConfig.registeredAccountUid)
   } else if (singleSiteConfig) {
-    if (singleSiteConfig.registeredAccountUid)
-      siteAccounts.add(singleSiteConfig.registeredAccountUid)
+    if (singleSiteConfig.registeredAccountUid) siteAccounts.add(singleSiteConfig.registeredAccountUid)
   } else {
     throw new Error('No site config loaded!')
   }
   const subs = await grpcClient.subscriptions.listSubscriptions({})
   const toUnsubscribe: {account: string; path: string}[] = []
   subs.subscriptions.forEach((sub) => {
-    if (!siteAccounts.has(sub.account) || sub.path !== '')
-      toUnsubscribe.push({account: sub.account, path: sub.path})
+    if (!siteAccounts.has(sub.account) || sub.path !== '') toUnsubscribe.push({account: sub.account, path: sub.path})
   })
   await Promise.all(
     toUnsubscribe.map(async ({account, path}) => {
@@ -174,12 +159,7 @@ export async function applyConfigSubscriptions() {
   )
   const toSubscribe: {account: string}[] = []
   siteAccounts.forEach((account) => {
-    if (
-      !subs.subscriptions.some(
-        (sub) => sub.account === account && sub.path === '',
-      )
-    )
-      toSubscribe.push({account})
+    if (!subs.subscriptions.some((sub) => sub.account === account && sub.path === '')) toSubscribe.push({account})
   })
   await Promise.all(
     toSubscribe.map(async ({account}) => {
@@ -193,10 +173,7 @@ export async function applyConfigSubscriptions() {
   )
 }
 
-export async function writeCustomDomainConfig(
-  hostname: string,
-  serviceName: string,
-) {
+export async function writeCustomDomainConfig(hostname: string, serviceName: string) {
   if (!serviceConfig) throw new Error('Service config not loaded')
   await writeServiceConfig({
     ...serviceConfig,
@@ -219,8 +196,7 @@ export async function rmCustomDomain(hostname: string) {
 
 export async function rmService(name: string) {
   if (!serviceConfig) throw new Error('Service config not loaded')
-  if (!serviceConfig.namedServices[name])
-    throw new Error(`Service ${name} not found`)
+  if (!serviceConfig.namedServices[name]) throw new Error(`Service ${name} not found`)
   const namedServices = {...serviceConfig.namedServices}
   delete namedServices[name]
   await writeServiceConfig({
@@ -256,9 +232,7 @@ export function getHostnames() {
     const rootHostname = serviceConfig.rootHostname
     return [
       rootHostname,
-      ...Object.keys(serviceConfig.namedServices).map(
-        (subdomain) => `${subdomain}.${rootHostname}`,
-      ),
+      ...Object.keys(serviceConfig.namedServices).map((subdomain) => `${subdomain}.${rootHostname}`),
     ]
   }
   const baseDomainWithPort = SITE_BASE_URL?.split('://')[1]

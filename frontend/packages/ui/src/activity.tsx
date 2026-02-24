@@ -75,30 +75,17 @@ export function LibraryEntryUpdateSummary({
   if (latestChangeTime) {
     summaryText = `Document Changed`
   }
-  if (
-    latestCommentTime &&
-    latestChangeTime &&
-    latestCommentTime > latestChangeTime
-  ) {
-    const author = latestComment?.author
-      ? accountsMetadata?.[latestComment?.author]
-      : undefined
+  if (latestCommentTime && latestChangeTime && latestCommentTime > latestChangeTime) {
+    const author = latestComment?.author ? accountsMetadata?.[latestComment?.author] : undefined
     const authorName = author?.metadata?.name
     summaryText = `Comment`
     if (authorName && latestComment) {
-      summaryText = `${authorName}: ${plainTextOfContent(
-        latestComment.content,
-      )}`
+      summaryText = `${authorName}: ${plainTextOfContent(latestComment.content)}`
     }
   }
   return (
     <div className="flex items-center justify-start gap-2">
-      <SizableText
-        size="xs"
-        color="muted"
-        className="line-clamp-1 font-sans"
-        weight="light"
-      >
+      <SizableText size="xs" color="muted" className="line-clamp-1 font-sans" weight="light">
         {summaryText}
       </SizableText>
       <ActivityTime activitySummary={activitySummary} />
@@ -106,27 +93,14 @@ export function LibraryEntryUpdateSummary({
   )
 }
 
-export function ActivityTime({
-  activitySummary,
-}: {
-  activitySummary: HMActivitySummary
-}) {
+export function ActivityTime({activitySummary}: {activitySummary: HMActivitySummary}) {
   const latestChangeTime = normalizeDate(activitySummary?.latestChangeTime)
   const latestCommentTime = normalizeDate(activitySummary?.latestCommentTime)
   const displayTime =
-    latestCommentTime &&
-    latestChangeTime &&
-    latestCommentTime > latestChangeTime
-      ? latestCommentTime
-      : latestChangeTime
+    latestCommentTime && latestChangeTime && latestCommentTime > latestChangeTime ? latestCommentTime : latestChangeTime
   if (displayTime) {
     return (
-      <SizableText
-        size="xs"
-        color="muted"
-        className="line-clamp-1 shrink-0 opacity-80"
-        weight="light"
-      >
+      <SizableText size="xs" color="muted" className="line-clamp-1 shrink-0 opacity-80" weight="light">
         ({formattedDate(displayTime)})
       </SizableText>
     )

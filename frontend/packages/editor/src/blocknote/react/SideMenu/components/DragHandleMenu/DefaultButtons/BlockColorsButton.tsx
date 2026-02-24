@@ -30,18 +30,12 @@ export const BlockColorsButton = <BSchema extends BlockSchema>(
     setOpened(true)
   }, [])
 
-  if (
-    !('textColor' in props.block.props) ||
-    !('backgroundColor' in props.block.props)
-  ) {
+  if (!('textColor' in props.block.props) || !('backgroundColor' in props.block.props)) {
     return null
   }
 
   return (
-    <DragHandleMenuItem
-      onMouseLeave={startMenuCloseTimer}
-      onMouseOver={stopMenuCloseTimer}
-    >
+    <DragHandleMenuItem onMouseLeave={startMenuCloseTimer} onMouseOver={stopMenuCloseTimer}>
       <Menu opened={opened} position={'right'}>
         <Menu.Target>
           <div style={{display: 'flex', alignItems: 'center'}}>
@@ -51,11 +45,7 @@ export const BlockColorsButton = <BSchema extends BlockSchema>(
             </Box>
           </div>
         </Menu.Target>
-        <Menu.Dropdown
-          onMouseLeave={startMenuCloseTimer}
-          onMouseOver={stopMenuCloseTimer}
-          style={{marginLeft: '5px'}}
-        >
+        <Menu.Dropdown onMouseLeave={startMenuCloseTimer} onMouseOver={stopMenuCloseTimer} style={{marginLeft: '5px'}}>
           <ColorPicker
             iconSize={18}
             textColor={props.block.props.textColor || 'default'}

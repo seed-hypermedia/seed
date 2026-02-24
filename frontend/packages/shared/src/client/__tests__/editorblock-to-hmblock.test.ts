@@ -716,8 +716,7 @@ describe('EditorBlock to HMBlock', () => {
         ],
         props: {
           banner: 'true',
-          queryIncludes:
-            '[{"space": "FOO_SPACE", "path": "", "mode": "Children"}]',
+          queryIncludes: '[{"space": "FOO_SPACE", "path": "", "mode": "Children"}]',
           querySort: '[{"term": "UpdateTime", "reverse": false}]',
           queryLimit: '10',
           style: 'Card',

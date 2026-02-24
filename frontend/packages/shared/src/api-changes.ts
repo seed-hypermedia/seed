@@ -6,10 +6,7 @@ import {packHmId, unpackHmId} from './utils'
 import {hmIdPathToEntityQueryPath} from './utils/path-api'
 
 export const ListChanges: HMRequestImplementation<HMListChangesRequest> = {
-  async getData(
-    grpcClient: GRPCClient,
-    input,
-  ): Promise<HMListChangesRequest['output']> {
+  async getData(grpcClient: GRPCClient, input): Promise<HMListChangesRequest['output']> {
     const path = hmIdPathToEntityQueryPath(input.targetId.path)
 
     // Get the latest document to determine version
@@ -28,9 +25,7 @@ export const ListChanges: HMRequestImplementation<HMListChangesRequest> = {
     })
 
     return {
-      changes: result.changes.map(
-        (c) => c.toJson({emitDefaultValues: true, enumAsInteger: false}) as any,
-      ),
+      changes: result.changes.map((c) => c.toJson({emitDefaultValues: true, enumAsInteger: false}) as any),
       latestVersion: latestDoc.version,
     }
   },

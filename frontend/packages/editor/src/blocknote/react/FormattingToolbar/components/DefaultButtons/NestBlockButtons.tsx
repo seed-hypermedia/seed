@@ -10,9 +10,7 @@ import {useEditorContentChange} from '../../../hooks/useEditorContentChange'
 import {useEditorSelectionChange} from '../../../hooks/useEditorSelectionChange'
 import {formatKeyboardShortcut} from '../../../utils'
 
-export const NestBlockButton = <BSchema extends BlockSchema>(props: {
-  editor: BlockNoteEditor<BSchema>
-}) => {
+export const NestBlockButton = <BSchema extends BlockSchema>(props: {editor: BlockNoteEditor<BSchema>}) => {
   const [canNestBlock, setCanNestBlock] = useState<boolean>()
 
   useEditorContentChange(props.editor, () => {
@@ -39,9 +37,7 @@ export const NestBlockButton = <BSchema extends BlockSchema>(props: {
   )
 }
 
-export const UnnestBlockButton = <BSchema extends BlockSchema>(props: {
-  editor: BlockNoteEditor<BSchema>
-}) => {
+export const UnnestBlockButton = <BSchema extends BlockSchema>(props: {editor: BlockNoteEditor<BSchema>}) => {
   const [canUnnestBlock, setCanUnnestBlock] = useState<boolean>()
 
   useEditorContentChange(props.editor, () => {

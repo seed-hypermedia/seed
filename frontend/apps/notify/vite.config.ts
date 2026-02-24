@@ -26,26 +26,18 @@ export default defineConfig(({isSsrBuild}) => {
       : {
           'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
           'process.env.NODE_DEBUG': JSON.stringify(process.env.NODE_DEBUG),
-          'process.env.SEED_ENABLE_STATISTICS': JSON.stringify(
-            process.env.SEED_ENABLE_STATISTICS,
-          ),
+          'process.env.SEED_ENABLE_STATISTICS': JSON.stringify(process.env.SEED_ENABLE_STATISTICS),
         },
     optimizeDeps: {
       exclude:
         process.env.NODE_ENV === 'production'
           ? []
-          : [
-              'expo-linear-gradient',
-              'react-icons',
-              '@shm/editor',
-              '@shm/shared',
-              '@remix-run/react',
-            ],
+          : ['expo-linear-gradient', 'react-icons', '@shm/editor', '@shm/shared', '@remix-run/react'],
     },
     plugins: [
       remix(),
       envOnlyMacros(),
-      tsconfigPaths(),
+      tsconfigPaths({root: path.resolve(__dirname, '../..')}),
       commonjs({
         filter(id) {
           if (id.includes('node_modules/@react-native/normalize-color')) {

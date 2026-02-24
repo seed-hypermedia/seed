@@ -1,15 +1,6 @@
 import {getMetadataName, useRouteLink} from '@shm/shared'
-import {
-  HMAccountsMetadata,
-  HMDocumentInfo,
-  HMListedDraft,
-  HMMetadata,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
-import {
-  useAccountsMetadata,
-  useDirectoryWithDrafts,
-} from '@shm/shared/models/entity'
+import {HMAccountsMetadata, HMDocumentInfo, HMListedDraft, HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useAccountsMetadata, useDirectoryWithDrafts} from '@shm/shared/models/entity'
 import {normalizeDate} from '@shm/shared/utils/date'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {Folder, Search} from 'lucide-react'
@@ -55,17 +46,11 @@ export function DirectoryPageContent({
     debug: false,
   })
 
-  const {items, accountsMetadata, isInitialLoading} =
-    useDirectoryDataWithActivity(docId)
+  const {items, accountsMetadata, isInitialLoading} = useDirectoryDataWithActivity(docId)
 
   // Filter items based on search query
   const filteredItems = searchQuery
-    ? items.filter(
-        (item) =>
-          item.metadata?.name
-            ?.toLowerCase()
-            .includes(searchQuery.toLowerCase()),
-      )
+    ? items.filter((item) => item.metadata?.name?.toLowerCase().includes(searchQuery.toLowerCase()))
     : items
 
   if (isInitialLoading) {
@@ -83,9 +68,7 @@ export function DirectoryPageContent({
         <Input
           placeholder="Filter documents..."
           value={searchQuery}
-          onChange={(e: ChangeEvent<HTMLInputElement>) =>
-            setSearchQuery(e.target.value)
-          }
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
           className="pl-9"
         />
       </div>
@@ -100,13 +83,10 @@ export function DirectoryPageContent({
           {headerRight}
         </>
       }
-      centered
       contentMaxWidth={contentMaxWidth}
     >
       {/* Optional header slot (for create button, etc.) */}
-      {header && (
-        <div className="border-border border-b px-6 py-3">{header}</div>
-      )}
+      {header && <div className="border-border border-b px-6 py-3">{header}</div>}
 
       {/* Content */}
       <div className="py-6" ref={scrollRef}>
@@ -115,10 +95,7 @@ export function DirectoryPageContent({
         ) : filteredItems.length === 0 ? (
           <DirectoryNoResults searchQuery={searchQuery} />
         ) : (
-          <DirectoryListViewWithActivity
-            items={filteredItems}
-            accountsMetadata={accountsMetadata}
-          />
+          <DirectoryListViewWithActivity items={filteredItems} accountsMetadata={accountsMetadata} />
         )}
       </div>
     </PageLayout>
@@ -216,13 +193,11 @@ export function useDirectoryDataWithActivity(docId: UnpackedHypermediaId) {
     })
 
     // Map published items with draft info
-    const publishedItems: DirectoryItemWithActivity[] = (directory ?? []).map(
-      (item) => ({
-        ...item,
-        draftId: editIds.get(item.id.id),
-        isPublished: true as const,
-      }),
-    )
+    const publishedItems: DirectoryItemWithActivity[] = (directory ?? []).map((item) => ({
+      ...item,
+      draftId: editIds.get(item.id.id),
+      isPublished: true as const,
+    }))
 
     // Add unpublished drafts (new docs not yet published) that belong to this directory
     const unpublishedDraftItems: DirectoryItemWithActivity[] = draftsArray
@@ -277,31 +252,16 @@ export function DirectoryListViewWithActivity({
     <div className="flex flex-col gap-1">
       {items.map((item) =>
         item.isPublished ? (
-          <DocumentListItem
-            key={item.id.id}
-            item={item}
-            draftId={item.draftId}
-            accountsMetadata={accountsMetadata}
-          />
+          <DocumentListItem key={item.id.id} item={item} draftId={item.draftId} accountsMetadata={accountsMetadata} />
         ) : (
-          <DraftListItem
-            key={item.draftId}
-            draftId={item.draftId}
-            metadata={item.metadata}
-          />
+          <DraftListItem key={item.draftId} draftId={item.draftId} metadata={item.metadata} />
         ),
       )}
     </div>
   )
 }
 
-function DraftListItem({
-  draftId,
-  metadata,
-}: {
-  draftId: string
-  metadata: HMMetadata
-}) {
+function DraftListItem({draftId, metadata}: {draftId: string; metadata: HMMetadata}) {
   const linkProps = useRouteLink({key: 'draft', id: draftId})
   return (
     <Button
@@ -311,9 +271,7 @@ function DraftListItem({
     >
       <a {...linkProps}>
         <div className="flex flex-1 items-center gap-1.5 overflow-hidden">
-          <SizableText className="truncate text-left font-sans">
-            {getMetadataName(metadata)}
-          </SizableText>
+          <SizableText className="truncate text-left font-sans">{getMetadataName(metadata)}</SizableText>
           <DraftBadge />
         </div>
       </a>

@@ -28,8 +28,7 @@ export function DocumentDate({
   disableTooltip?: boolean
 }) {
   const tx = useTx()
-  const {formattedDateDayOnly, formattedDateMedium, formattedDateLong} =
-    useTxUtils()
+  const {formattedDateDayOnly, formattedDateMedium, formattedDateLong} = useTxUtils()
   const displayText = metadata?.displayPublishTime
     ? formattedDateDayOnly(new Date(metadata.displayPublishTime))
     : formattedDateMedium(updateTime)
@@ -67,9 +66,7 @@ export function DocumentDate({
       </HoverCardTrigger>
       {!disableTooltip && (
         <HoverCardContent>
-          <div className="flex flex-col items-center justify-center gap-2">
-            {content}
-          </div>
+          <div className="flex flex-col items-center justify-center gap-2">{content}</div>
         </HoverCardContent>
       )}
     </HoverCard>

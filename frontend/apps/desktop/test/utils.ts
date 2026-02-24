@@ -73,17 +73,7 @@ export function findLatestBuild(): string {
   // list of files in the out directory
   const builds = fs.readdirSync(outDir)
 
-  const platforms = [
-    'win32',
-    'win',
-    'windows',
-    'darwin',
-    'mac',
-    'macos',
-    'osx',
-    'linux',
-    'ubuntu',
-  ]
+  const platforms = ['win32', 'win', 'windows', 'darwin', 'mac', 'macos', 'osx', 'linux', 'ubuntu']
 
   const latestBuild = builds
     // @ts-ignore
@@ -137,18 +127,10 @@ export function parseElectronApp(buildDir: string): ElectronAppInfo {
     if (baseName.includes('win')) {
       platform = 'win32'
     }
-    if (
-      baseName.includes('linux') ||
-      baseName.includes('ubuntu') ||
-      baseName.includes('debian')
-    ) {
+    if (baseName.includes('linux') || baseName.includes('ubuntu') || baseName.includes('debian')) {
       platform = 'linux'
     }
-    if (
-      baseName.includes('darwin') ||
-      baseName.includes('mac') ||
-      baseName.includes('osx')
-    ) {
+    if (baseName.includes('darwin') || baseName.includes('mac') || baseName.includes('osx')) {
       platform = 'darwin'
     }
   }
@@ -209,14 +191,10 @@ export function parseElectronApp(buildDir: string): ElectronAppInfo {
     let packageJson: {main: string; name: string}
     if (asar) {
       const asarPath = path.join(resourcesDir, 'app.asar')
-      packageJson = JSON.parse(
-        ASAR.extractFile(asarPath, 'package.json').toString('utf8'),
-      )
+      packageJson = JSON.parse(ASAR.extractFile(asarPath, 'package.json').toString('utf8'))
       main = path.join(asarPath, packageJson.main)
     } else {
-      packageJson = JSON.parse(
-        fs.readFileSync(path.join(resourcesDir, 'app', 'package.json'), 'utf8'),
-      )
+      packageJson = JSON.parse(fs.readFileSync(path.join(resourcesDir, 'app', 'package.json'), 'utf8'))
       main = path.join(resourcesDir, 'app', packageJson.main)
     }
     name = packageJson.name
@@ -245,14 +223,10 @@ export function parseElectronApp(buildDir: string): ElectronAppInfo {
 
     if (asar) {
       const asarPath = path.join(resourcesDir, 'app.asar')
-      packageJson = JSON.parse(
-        ASAR.extractFile(asarPath, 'package.json').toString('utf8'),
-      )
+      packageJson = JSON.parse(ASAR.extractFile(asarPath, 'package.json').toString('utf8'))
       main = path.join(asarPath, packageJson.main)
     } else {
-      packageJson = JSON.parse(
-        fs.readFileSync(path.join(resourcesDir, 'app', 'package.json'), 'utf8'),
-      )
+      packageJson = JSON.parse(fs.readFileSync(path.join(resourcesDir, 'app', 'package.json'), 'utf8'))
       main = path.join(resourcesDir, 'app', packageJson.main)
     }
     name = packageJson.name
@@ -268,14 +242,10 @@ export function parseElectronApp(buildDir: string): ElectronAppInfo {
     let packageJson: {main: string; name: string}
     if (asar) {
       const asarPath = path.join(resourcesDir, 'app.asar')
-      packageJson = JSON.parse(
-        ASAR.extractFile(asarPath, 'package.json').toString('utf8'),
-      )
+      packageJson = JSON.parse(ASAR.extractFile(asarPath, 'package.json').toString('utf8'))
       main = path.join(asarPath, packageJson.main)
     } else {
-      packageJson = JSON.parse(
-        fs.readFileSync(path.join(resourcesDir, 'app', 'package.json'), 'utf8'),
-      )
+      packageJson = JSON.parse(fs.readFileSync(path.join(resourcesDir, 'app', 'package.json'), 'utf8'))
       main = path.join(resourcesDir, 'app', packageJson.main)
     }
     name = packageJson.name

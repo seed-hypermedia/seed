@@ -24,18 +24,14 @@ export function insertOrUpdateBlock<BSchema extends BlockSchema>(
     if (isNode) {
       const cursorPosition = editor.getTextCursorPosition()
       editor.focus()
-      if (cursorPosition.nextBlock)
-        editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
+      if (cursorPosition.nextBlock) editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
       else {
         // editor.insertBlocks(
         //   [{type: 'paragraph', content: ''}],
         //   currentBlock,
         //   'after',
         // )
-        editor.setTextCursorPosition(
-          editor.getTextCursorPosition().block,
-          'start',
-        )
+        editor.setTextCursorPosition(editor.getTextCursorPosition().block, 'start')
       }
     }
   } else {
@@ -43,12 +39,7 @@ export function insertOrUpdateBlock<BSchema extends BlockSchema>(
     // editor.setTextCursorPosition(editor.getTextCursorPosition().nextBlock!)
     const {state, view} = editor._tiptapEditor
     editor._tiptapEditor.commands.command(
-      splitBlockCommand(
-        state.selection.from,
-        true,
-        true,
-        blockToNode(block, state.schema),
-      ),
+      splitBlockCommand(state.selection.from, true, true, blockToNode(block, state.schema)),
     )
   }
 }

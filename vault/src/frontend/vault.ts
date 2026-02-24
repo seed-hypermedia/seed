@@ -4,59 +4,67 @@
  */
 
 import * as dagCBOR from "@ipld/dag-cbor"
-import type * as blobs from "./blobs"
+import type * as blobs from "@shm/shared/blobs"
+import type { CID } from "multiformats/cid"
+
+/** A decoded hypermedia blob stored alongside its CID. */
+export interface StoredBlob<T extends blobs.Blob> {
+	/** Content-addressable ID natively encoded by dag-cbor. */
+	cid: CID
+	/** The decoded payload data. */
+	decoded: T
+}
 
 /** A single Hypermedia account stored in the vault. */
 export interface Account {
 	/** 32-byte Ed25519 private key seed. */
 	seed: Uint8Array
 	/** Signed profile blob. */
-	profile: blobs.Profile
+	profile: StoredBlob<blobs.Profile>
 	/** Unix timestamp ms when account was created. */
-	createdAt: number
+	createTime: number
+	/** List of delegations issued to third-party sites by this account. */
+	delegations: DelegatedSession[]
 }
 
 /** Record of a delegation issued to a third-party site's session key. */
 export interface DelegatedSession {
 	/** The origin (client_id) the delegation was issued to, e.g. "https://example.com". */
 	clientId: string
-	/** Base58btc-encoded principal of the session key that was delegated to. */
-	sessionKeyPrincipal: string
-	/** Index of the account in the vault that issued the delegation. */
-	accountIndex: number
+	/** Type of device that requested the session. */
+	deviceType?: "desktop" | "mobile" | "tablet" | "unknown"
+	/** The capability blob delegating rights to the session key. */
+	capability: StoredBlob<blobs.Capability>
 	/** Unix timestamp ms when the delegation was created. */
-	createdAt: number
-	/** Optional human-readable label/note. */
-	label?: string
+	createTime: number
 }
 
 /** Top-level vault data structure. */
-export interface VaultData {
+export interface State {
 	/** Schema version for future migrations. */
 	version: 1
 	/** List of Hypermedia accounts. */
 	accounts: Account[]
-	/** List of delegations issued to third-party sites. */
-	delegations: DelegatedSession[]
 }
 
 /** Create an empty vault. */
-export function emptyVault(): VaultData {
-	return { version: 1, accounts: [], delegations: [] }
+export function createEmpty(): State {
+	return { version: 1, accounts: [] }
 }
 
 /** Serialize vault data: CBOR encode → gzip compress. Returns compressed bytes. */
-export async function serializeVault(data: VaultData): Promise<Uint8Array> {
+export async function serialize(data: State): Promise<Uint8Array> {
 	const cbor = dagCBOR.encode(data)
 	return compress(new Uint8Array(cbor))
 }
 
 /** Deserialize vault data: gzip decompress → CBOR decode. */
-export async function deserializeVault(compressed: Uint8Array): Promise<VaultData> {
+export async function deserialize(compressed: Uint8Array): Promise<State> {
 	const cbor = await decompress(compressed)
-	return dagCBOR.decode(cbor) as VaultData
+	return dagCBOR.decode(cbor) as State
 }
 
+/** Compress data using gzip. */
 async function compress(data: Uint8Array): Promise<Uint8Array> {
 	const cs = new CompressionStream("gzip")
 	const writer = cs.writable.getWriter()

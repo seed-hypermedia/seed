@@ -1,14 +1,16 @@
+import * as base64 from "@shm/shared/base64"
+import * as blobs from "@shm/shared/blobs"
+import * as hmauth from "@shm/shared/hmauth"
 import * as webauthn from "@simplewebauthn/browser"
 import { createContext, useContext } from "react"
 import { proxy, useSnapshot } from "valtio"
 import type * as api from "@/api"
-import * as blobs from "./blobs"
 import * as localCrypto from "./crypto"
-import * as delegation from "./delegation"
-import * as vaultDataMod from "./vault"
+import * as vault from "./vault"
 
 export interface SessionInfo {
 	authenticated: boolean
+	relyingPartyOrigin: string
 	userId?: string
 	email?: string
 	hasPassword?: boolean
@@ -29,7 +31,7 @@ export function initialState() {
 		passkeySupported: false,
 		platformAuthAvailable: false,
 		userHasPassword: true,
-		vaultData: null as vaultDataMod.VaultData | null,
+		vaultData: null as vault.State | null,
 		vaultVersion: 0,
 		selectedAccountIndex: -1,
 		creatingAccount: false,
@@ -37,9 +39,11 @@ export function initialState() {
 		emailChangeChallengeId: "", // For email change polling.
 		sessionChecked: false,
 		/** Active delegation request parsed from URL params. Null when not in delegation flow. */
-		delegationRequest: null as delegation.DelegationRequest | null,
+		delegationRequest: null as hmauth.DelegationRequest | null,
 		/** Whether the user has given consent for the current delegation. */
 		delegationConsented: false,
+		/** Server-configured relying party origin used by WebAuthn verification. */
+		relyingPartyOrigin: "",
 	}
 }
 
@@ -76,14 +80,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 			state.error = error
 		},
 
-		async checkPasskeySupport() {
-			state.passkeySupported = localCrypto.isWebAuthnSupported()
-			state.platformAuthAvailable = await localCrypto.isPlatformAuthenticatorAvailable()
-		},
-
 		async checkSession() {
 			try {
 				const data = await client.getSession()
+				state.relyingPartyOrigin = data.relyingPartyOrigin
 				if (data.authenticated && data.email) {
 					state.session = data
 					state.email = data.email
@@ -92,6 +92,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				console.error("Session check failed:", e)
 			} finally {
 				state.sessionChecked = true
+				state.passkeySupported = localCrypto.isWebAuthnSupported()
+				state.platformAuthAvailable = await localCrypto.isPlatformAuthenticatorAvailable()
 			}
 		},
 
@@ -146,7 +148,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				if (!state.challengeId) return
 
 				try {
-					const data = await client.registerPoll({ challengeId: state.challengeId })
+					const data = await client.registerPoll({
+						challengeId: state.challengeId,
+					})
 
 					if (data.verified) {
 						// Poll successful, session created. Update local state.
@@ -214,11 +218,12 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				const authHash = await localCrypto.computeAuthHash(stretchedKey)
 
 				await client.addPassword({
-					encryptedDEK: localCrypto.base64urlEncode(encryptedDEK),
-					authHash: localCrypto.base64urlEncode(authHash),
+					encryptedDEK: base64.encode(encryptedDEK),
+					authHash: base64.encode(authHash),
 				})
 
 				state.decryptedDEK = dek
+				await actions.loadVaultData()
 				navigator.go("/")
 				await actions.checkSession()
 			} catch (e) {
@@ -258,8 +263,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				const authHash = await localCrypto.computeAuthHash(stretchedKey)
 
 				await client.addPassword({
-					encryptedDEK: localCrypto.base64urlEncode(encryptedDEK),
-					authHash: localCrypto.base64urlEncode(authHash),
+					encryptedDEK: base64.encode(encryptedDEK),
+					authHash: base64.encode(authHash),
 				})
 
 				await actions.checkSession()
@@ -304,8 +309,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				const authHash = await localCrypto.computeAuthHash(stretchedKey)
 
 				await client.changePassword({
-					encryptedDEK: localCrypto.base64urlEncode(encryptedDEK),
-					authHash: localCrypto.base64urlEncode(authHash),
+					encryptedDEK: base64.encode(encryptedDEK),
+					authHash: base64.encode(authHash),
 				})
 
 				await actions.checkSession()
@@ -347,7 +352,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 					},
 				}
 
-				const regResponse = await webauthn.startRegistration({ optionsJSON: regOptionsWithPrf })
+				const regResponse = await webauthn.startRegistration({
+					optionsJSON: regOptionsWithPrf,
+				})
 
 				const completeData = await client.webAuthnRegisterComplete({
 					response: regResponse,
@@ -355,13 +362,17 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				// Check if we got PRF output from registration.
 				let wrapKey: Uint8Array | null = null
-				const regPrfOutput = regResponse.clientExtensionResults as { prf?: localCrypto.PRFOutput }
+				const regPrfOutput = regResponse.clientExtensionResults as {
+					prf?: localCrypto.PRFOutput
+				}
 				wrapKey = localCrypto.extractPRFKey(regPrfOutput.prf)
 
 				if (!wrapKey) {
 					// Step 2: PRF not evaluated during registration. Try to authenticate immediately to get PRF output.
 					try {
-						const authOptions = await client.webAuthnLoginStart({ email: state.email })
+						const authOptions = await client.webAuthnLoginStart({
+							email: state.email,
+						})
 
 						const authOptionsWithPrf = {
 							...authOptions,
@@ -375,10 +386,14 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 							},
 						}
 
-						const authResponse = await webauthn.startAuthentication({ optionsJSON: authOptionsWithPrf })
+						const authResponse = await webauthn.startAuthentication({
+							optionsJSON: authOptionsWithPrf,
+						})
 
 						// Extract the PRF key from the authenticator response to wrap the DEK.
-						const authPrfOutput = authResponse.clientExtensionResults as { prf?: localCrypto.PRFOutput }
+						const authPrfOutput = authResponse.clientExtensionResults as {
+							prf?: localCrypto.PRFOutput
+						}
 						wrapKey = localCrypto.extractPRFKey(authPrfOutput.prf)
 
 						// Cleanup the pending login challenge on server best-effort (or just let it expire).
@@ -404,7 +419,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				// Store encrypted DEK for this credential.
 				await client.webAuthnVaultStore({
 					credentialId: completeData.credentialId,
-					encryptedDEK: localCrypto.base64urlEncode(encryptedDEK),
+					encryptedDEK: base64.encode(encryptedDEK),
 				})
 
 				if (!completeData.backupState) {
@@ -412,6 +427,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				}
 
 				state.decryptedDEK = dek
+				await actions.loadVaultData()
 				navigator.go("/")
 				await actions.checkSession()
 			} catch (e) {
@@ -435,13 +451,14 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				const response = await client.login({
 					email: state.email,
-					authHash: localCrypto.base64urlEncode(authHash),
+					authHash: base64.encode(authHash),
 				})
 
 				if (response.vault) {
-					const encryptedDEK = localCrypto.base64urlDecode(response.vault.encryptedDEK)
+					const encryptedDEK = base64.decode(response.vault.encryptedDEK)
 					const dek = await localCrypto.decrypt(encryptedDEK, stretchedKey)
 					state.decryptedDEK = dek
+					await actions.loadVaultData()
 				} else {
 					// Should not happen for password users based on current schema,
 					// but defensive coding.
@@ -478,7 +495,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 					},
 				}
 
-				const authResponse = await webauthn.startAuthentication({ optionsJSON: optionsWithPrf })
+				const authResponse = await webauthn.startAuthentication({
+					optionsJSON: optionsWithPrf,
+				})
 
 				const data = await client.webAuthnLoginComplete({
 					response: authResponse,
@@ -486,7 +505,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				if (data.vault) {
 					// Extract PRF output for wrapKey.
-					const prfOutput = authResponse.clientExtensionResults as { prf?: localCrypto.PRFOutput }
+					const prfOutput = authResponse.clientExtensionResults as {
+						prf?: localCrypto.PRFOutput
+					}
 					const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
 
 					if (!wrapKey) {
@@ -495,9 +516,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 						return
 					}
 
-					const encryptedDEK = localCrypto.base64urlDecode(data.vault.encryptedDEK)
+					const encryptedDEK = base64.decode(data.vault.encryptedDEK)
 					const dek = await localCrypto.decrypt(encryptedDEK, wrapKey)
 					state.decryptedDEK = dek
+					await actions.loadVaultData()
 				}
 
 				await actions.checkSession()
@@ -538,7 +560,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 					},
 				}
 
-				const authResponse = await webauthn.startAuthentication({ optionsJSON: optionsWithPrf })
+				const authResponse = await webauthn.startAuthentication({
+					optionsJSON: optionsWithPrf,
+				})
 
 				const data = await client.webAuthnLoginComplete({
 					response: authResponse,
@@ -546,7 +570,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				if (data.vault) {
 					// Extract PRF output for wrapKey.
-					const prfOutput = authResponse.clientExtensionResults as { prf?: localCrypto.PRFOutput }
+					const prfOutput = authResponse.clientExtensionResults as {
+						prf?: localCrypto.PRFOutput
+					}
 					const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
 
 					if (!wrapKey) {
@@ -555,9 +581,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 						return
 					}
 
-					const encryptedDEK = localCrypto.base64urlDecode(data.vault.encryptedDEK)
+					const encryptedDEK = base64.decode(data.vault.encryptedDEK)
 					const dek = await localCrypto.decrypt(encryptedDEK, wrapKey)
 					state.decryptedDEK = dek
+					await actions.loadVaultData()
 				} else {
 					state.error = "No vault found for this passkey"
 				}
@@ -620,7 +647,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				})
 
 				if (data.vault) {
-					const prfOutput = authResponse.clientExtensionResults as { prf?: localCrypto.PRFOutput }
+					const prfOutput = authResponse.clientExtensionResults as {
+						prf?: localCrypto.PRFOutput
+					}
 					const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
 
 					if (!wrapKey) {
@@ -628,13 +657,15 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 						return
 					}
 
-					const encryptedDEK = localCrypto.base64urlDecode(data.vault.encryptedDEK)
+					const encryptedDEK = base64.decode(data.vault.encryptedDEK)
 					const dek = await localCrypto.decrypt(encryptedDEK, wrapKey)
 					state.decryptedDEK = dek
+					await actions.loadVaultData()
 				}
 
 				await actions.checkSession()
 			} catch (e) {
+				if ((e as Error).name === "AbortError") return
 				console.error("Conditional mediation error:", e)
 			}
 		},
@@ -671,7 +702,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				})
 
 				if (data.vault) {
-					const prfOutput = authResponse.clientExtensionResults as { prf?: localCrypto.PRFOutput }
+					const prfOutput = authResponse.clientExtensionResults as {
+						prf?: localCrypto.PRFOutput
+					}
 					const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
 
 					if (!wrapKey) {
@@ -679,9 +712,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 						return
 					}
 
-					const encryptedDEK = localCrypto.base64urlDecode(data.vault.encryptedDEK)
+					const encryptedDEK = base64.decode(data.vault.encryptedDEK)
 					const dek = await localCrypto.decrypt(encryptedDEK, wrapKey)
 					state.decryptedDEK = dek
+					await actions.loadVaultData()
 				} else {
 					state.error = "No vault found for this passkey"
 					return
@@ -730,7 +764,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 					},
 				}
 
-				const regResponse = await webauthn.startRegistration({ optionsJSON: regOptionsWithPrf })
+				const regResponse = await webauthn.startRegistration({
+					optionsJSON: regOptionsWithPrf,
+				})
 
 				const data = await client.webAuthnRegisterComplete({
 					response: regResponse,
@@ -738,13 +774,17 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				// Check if we got PRF output from registration.
 				let wrapKey: Uint8Array | null = null
-				const regPrfOutput = regResponse.clientExtensionResults as { prf?: localCrypto.PRFOutput }
+				const regPrfOutput = regResponse.clientExtensionResults as {
+					prf?: localCrypto.PRFOutput
+				}
 				wrapKey = localCrypto.extractPRFKey(regPrfOutput.prf)
 
 				if (!wrapKey) {
 					// Step 2: PRF not evaluated during registration. Try to authenticate immediately to get PRF output.
 					try {
-						const authOptions = await client.webAuthnLoginStart({ email: state.email })
+						const authOptions = await client.webAuthnLoginStart({
+							email: state.email,
+						})
 
 						const authOptionsWithPrf = {
 							...authOptions,
@@ -758,9 +798,13 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 							},
 						}
 
-						const authResponse = await webauthn.startAuthentication({ optionsJSON: authOptionsWithPrf })
+						const authResponse = await webauthn.startAuthentication({
+							optionsJSON: authOptionsWithPrf,
+						})
 
-						const authPrfOutput = authResponse.clientExtensionResults as { prf?: localCrypto.PRFOutput }
+						const authPrfOutput = authResponse.clientExtensionResults as {
+							prf?: localCrypto.PRFOutput
+						}
 						wrapKey = localCrypto.extractPRFKey(authPrfOutput.prf)
 					} catch (e) {
 						console.warn("Failed to perform immediate PRF evaluation after registration:", e)
@@ -793,7 +837,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				// Store encrypted DEK for this credential.
 				await client.webAuthnVaultStore({
 					credentialId: data.credentialId,
-					encryptedDEK: localCrypto.base64urlEncode(encryptedDEK),
+					encryptedDEK: base64.encode(encryptedDEK),
 				})
 
 				if (!data.backupState) {
@@ -801,6 +845,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				}
 
 				state.decryptedDEK = dek
+				await actions.loadVaultData()
 				navigator.go("/")
 				await actions.checkSession()
 			} catch (e) {
@@ -819,11 +864,19 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 			try {
 				const serverData = await client.getVault()
 				if (serverData.encryptedData) {
-					const encryptedData = localCrypto.base64urlDecode(serverData.encryptedData)
+					const encryptedData = base64.decode(serverData.encryptedData)
 					const decryptedData = await localCrypto.decrypt(encryptedData, state.decryptedDEK)
-					state.vaultData = await vaultDataMod.deserializeVault(decryptedData)
+					state.vaultData = await vault.deserialize(decryptedData)
+
+					if (state.vaultData.accounts.length === 1) {
+						state.selectedAccountIndex = 0
+					}
+					if (state.vaultData.accounts.length === 0) {
+						state.creatingAccount = true
+					}
 				} else {
-					state.vaultData = vaultDataMod.emptyVault()
+					state.vaultData = vault.createEmpty()
+					state.creatingAccount = true
 				}
 				state.vaultVersion = serverData.version ?? 0
 			} catch (e) {
@@ -840,11 +893,11 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 			state.error = ""
 
 			try {
-				const dataBytes = await vaultDataMod.serializeVault(state.vaultData)
+				const dataBytes = await vault.serialize(state.vaultData)
 				const encryptedData = await localCrypto.encrypt(dataBytes, state.decryptedDEK)
 
 				await client.saveVaultData({
-					encryptedData: localCrypto.base64urlEncode(encryptedData),
+					encryptedData: base64.encode(encryptedData),
 					version: state.vaultVersion,
 				})
 
@@ -869,10 +922,14 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				const ts = Date.now()
 				const encoded = blobs.createProfile(kp, { name, description }, ts)
 
-				const account: vaultDataMod.Account = {
+				const account: vault.Account = {
 					seed: kp.privateKey,
-					profile: encoded.decoded,
-					createdAt: ts,
+					profile: {
+						cid: encoded.cid,
+						decoded: encoded.decoded,
+					},
+					createTime: ts,
+					delegations: [],
 				}
 
 				state.vaultData.accounts.push(account)
@@ -896,7 +953,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 			state.creatingAccount = open
 		},
 
-		getSelectedAccount(): vaultDataMod.Account | null {
+		getSelectedAccount(): vault.Account | null {
 			if (
 				!state.vaultData ||
 				state.selectedAccountIndex < 0 ||
@@ -905,6 +962,90 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				return null
 			}
 			return state.vaultData.accounts[state.selectedAccountIndex] ?? null
+		},
+
+		async deleteAccount(principal: string) {
+			if (!state.vaultData || !state.decryptedDEK) {
+				state.error = "Vault must be unlocked first"
+				return
+			}
+
+			const index = state.vaultData.accounts.findIndex(
+				(a) => blobs.principalToString(a.profile.decoded.signer) === principal,
+			)
+
+			if (index === -1) {
+				state.error = "Account not found"
+				return
+			}
+
+			state.loading = true
+			state.error = ""
+
+			try {
+				// 1. Remove the account
+				state.vaultData.accounts.splice(index, 1)
+
+				// 2. Adjust selectedAccountIndex
+				if (state.vaultData.accounts.length === 0) {
+					state.selectedAccountIndex = -1
+				} else if (state.selectedAccountIndex === index) {
+					state.selectedAccountIndex = Math.max(0, index - 1)
+				} else if (state.selectedAccountIndex > index) {
+					state.selectedAccountIndex--
+				}
+
+				await actions.saveVaultData()
+			} catch (e) {
+				console.error("Failed to delete account:", e)
+				state.error = (e as Error).message || "Failed to delete account"
+			} finally {
+				state.loading = false
+			}
+		},
+
+		async reorderAccount(activePrincipal: string, overPrincipal: string) {
+			if (!state.vaultData || !state.decryptedDEK) {
+				state.error = "Vault must be unlocked first"
+				return
+			}
+
+			if (activePrincipal === overPrincipal) return
+
+			const oldIndex = state.vaultData.accounts.findIndex(
+				(a) => blobs.principalToString(a.profile.decoded.signer) === activePrincipal,
+			)
+			const newIndex = state.vaultData.accounts.findIndex(
+				(a) => blobs.principalToString(a.profile.decoded.signer) === overPrincipal,
+			)
+
+			if (oldIndex === -1 || newIndex === -1) {
+				return
+			}
+
+			state.loading = true
+			state.error = ""
+
+			try {
+				const [moved] = state.vaultData.accounts.splice(oldIndex, 1)
+				if (!moved) throw new Error("Account not found during splice")
+				state.vaultData.accounts.splice(newIndex, 0, moved)
+
+				if (state.selectedAccountIndex === oldIndex) {
+					state.selectedAccountIndex = newIndex
+				} else if (state.selectedAccountIndex > oldIndex && state.selectedAccountIndex <= newIndex) {
+					state.selectedAccountIndex--
+				} else if (state.selectedAccountIndex < oldIndex && state.selectedAccountIndex >= newIndex) {
+					state.selectedAccountIndex++
+				}
+
+				await actions.saveVaultData()
+			} catch (e) {
+				console.error("Failed to reorder accounts:", e)
+				state.error = (e as Error).message || "Failed to reorder accounts"
+			} finally {
+				state.loading = false
+			}
 		},
 
 		// Email Change Actions.
@@ -931,7 +1072,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 			state.loading = true
 
 			try {
-				const data = await client.changeEmailStart({ newEmail: state.newEmail })
+				const data = await client.changeEmailStart({
+					newEmail: state.newEmail,
+				})
 				state.emailChangeChallengeId = data.challengeId
 				navigator.go("/email/change-pending")
 				actions.startPollingEmailChange()
@@ -957,7 +1100,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				}
 
 				try {
-					const data = await client.changeEmailPoll({ challengeId: state.emailChangeChallengeId })
+					const data = await client.changeEmailPoll({
+						challengeId: state.emailChangeChallengeId,
+					})
 
 					if (data.verified && data.newEmail) {
 						// Update session with new email.
@@ -1010,9 +1155,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 		 * If the URL has no delegation params, this is a no-op.
 		 * If params are present but invalid, sets state.error.
 		 */
-		parseDelegationFromUrl(url: URL) {
+		parseDelegationFromUrl(url: URL | string) {
 			try {
-				const request = delegation.parseDelegationRequest(url)
+				const request = hmauth.parseDelegationRequest(url)
 				if (request) {
 					state.delegationRequest = request
 				}
@@ -1049,36 +1194,38 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				if (!account) {
 					throw new Error("No account selected")
 				}
+				if (!state.relyingPartyOrigin) {
+					throw new Error("Missing relying party origin")
+				}
+				const configuredVaultOrigin = new URL(state.relyingPartyOrigin).origin
+				if (configuredVaultOrigin !== state.delegationRequest.vaultOrigin) {
+					throw new Error("Delegation request vault origin mismatch")
+				}
+				await hmauth.verifyDelegationRequestProof(state.delegationRequest, configuredVaultOrigin)
 
 				const issuerKeyPair = blobs.keyPairFromPrivateKey(account.seed)
 				const sessionKeyPrincipal = blobs.principalFromString(state.delegationRequest.sessionKeyPrincipal)
-				const encoded = delegation.createDelegation(
-					issuerKeyPair,
-					sessionKeyPrincipal,
-					state.delegationRequest.clientId,
-				)
+				const encoded = hmauth.createDelegation(issuerKeyPair, sessionKeyPrincipal, state.delegationRequest.clientId)
 
-				const delegatedSession: vaultDataMod.DelegatedSession = {
+				const delegatedSession: vault.DelegatedSession = {
 					clientId: state.delegationRequest.clientId,
-					sessionKeyPrincipal: state.delegationRequest.sessionKeyPrincipal,
-					accountIndex: state.selectedAccountIndex,
-					createdAt: Date.now(),
-					label: `Session for ${state.delegationRequest.clientId}`,
+					deviceType: getDeviceType(),
+					capability: {
+						cid: encoded.cid,
+						decoded: encoded.decoded,
+					},
+					createTime: Date.now(),
 				}
-				state.vaultData.delegations.push(delegatedSession)
+				account.delegations.push(delegatedSession)
 
 				await actions.saveVaultData()
 
-				const accountPrincipal = blobs.principalToString(issuerKeyPair.principal)
-				const callbackUrl = delegation.buildCallbackUrl(
+				const callbackUrl = await hmauth.buildCallbackUrl(
 					state.delegationRequest.redirectUri,
-					encoded.data,
-					accountPrincipal,
-					{
-						name: account.profile.name,
-						description: account.profile.description,
-						avatar: account.profile.avatar,
-					},
+					state.delegationRequest.state,
+					issuerKeyPair.principal,
+					encoded.decoded,
+					account.profile.decoded,
 				)
 
 				state.delegationRequest = null
@@ -1086,7 +1233,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				window.location.href = callbackUrl
 			} catch (e) {
-				console.error("Delegation failed:", e)
+				// Error is surfaced to the user via state.error; no console.error
+				// to avoid noisy output in tests that intentionally trigger failures.
 				state.error = (e as Error).message || "Delegation failed"
 			} finally {
 				state.loading = false
@@ -1098,6 +1246,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 			if (state.delegationRequest) {
 				const url = new URL(state.delegationRequest.redirectUri)
 				url.searchParams.set("error", "access_denied")
+				url.searchParams.set("state", state.delegationRequest.state)
 				state.delegationRequest = null
 				state.delegationConsented = false
 				window.location.href = url.toString()
@@ -1191,4 +1340,23 @@ export function useAppState() {
  */
 export function useActions(): StoreActions {
 	return useStore().actions
+}
+
+function getDeviceType(): vault.DelegatedSession["deviceType"] {
+	if (typeof navigator === "undefined") return "unknown"
+
+	if ("userAgentData" in navigator) {
+		const uaData = navigator.userAgentData as { mobile: boolean }
+		return uaData.mobile ? "mobile" : "desktop"
+	}
+
+	// Fallback for Safari/Firefox
+	const ua = navigator.userAgent
+	if (/Tablet|iPad|PlayBook|Silk/i.test(ua)) {
+		return "tablet"
+	}
+	if (/Mobi|Android|iPhone/i.test(ua)) {
+		return "mobile"
+	}
+	return "desktop"
 }

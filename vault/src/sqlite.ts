@@ -1,16 +1,43 @@
 import { Database } from "bun:sqlite"
 
 /**
- * Opens or creates the SQLite database, initializing the schema if needed.
+ * Bump this value whenever the schema changes.
+ * When the stored version doesn't match, the server will refuse to start
+ * and ask the operator to drop the database file manually.
  */
-export function open(filename: string): Database {
+export const SCHEMA_VERSION = 4
+
+/** Result of opening the database. */
+export type OpenResult = { ok: true; db: Database } | { ok: false; current: number; desired: number }
+
+/**
+ * Opens or creates the SQLite database, initializing the schema if needed.
+ * Returns a discriminated union so the caller can handle version mismatches
+ * without an exception.
+ */
+export function open(filename: string): OpenResult {
 	const db = new Database(filename, { create: true, strict: true })
+	const isNew = db.query<{ count: number }, []>("SELECT count(*) as count FROM sqlite_schema").get()?.count === 0
 	db.run("PRAGMA journal_mode = WAL")
 	db.run("PRAGMA foreign_keys = ON")
-	db.transaction
 
 	initSchema(db)
-	return db
+
+	const row = db
+		.query<{ value: string }, [string]>("SELECT value FROM server_config WHERE key = ?")
+		.get("schema_version")
+
+	const current = row ? Number(row.value) : isNew ? SCHEMA_VERSION : 0
+	if (current !== SCHEMA_VERSION) {
+		db.close()
+		return { ok: false, current, desired: SCHEMA_VERSION }
+	}
+
+	if (!row) {
+		db.run("INSERT INTO server_config (key, value) VALUES (?, ?)", ["schema_version", String(SCHEMA_VERSION)])
+	}
+
+	return { ok: true, db }
 }
 
 function initSchema(db: Database): void {

@@ -9,10 +9,7 @@ const PRIMITIVE_VALUE_KEY = '__value'
  * Serializes data to a URL query string with proper type handling.
  * Non-object inputs (string, number, boolean) are stored under a __value key.
  */
-export function serializeQueryString<T>(
-  data: T,
-  _schema?: z.ZodType<T>,
-): string {
+export function serializeQueryString<T>(data: T, _schema?: z.ZodType<T>): string {
   const params = new URLSearchParams()
 
   // Handle non-object inputs (string, number, boolean)
@@ -30,11 +27,7 @@ export function serializeQueryString<T>(
     }
 
     // Handle primitives directly
-    if (
-      typeof value === 'string' ||
-      typeof value === 'number' ||
-      typeof value === 'boolean'
-    ) {
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
       params.append(key, String(value))
     } else {
       // Handle complex objects/arrays as JSON
@@ -50,14 +43,9 @@ export function serializeQueryString<T>(
  * Deserializes a URL query string using a Zod schema.
  * If the query contains only a __value key, returns the primitive value directly.
  */
-export function deserializeQueryString<T>(
-  queryString: string,
-  schema: z.ZodType<T>,
-): T {
+export function deserializeQueryString<T>(queryString: string, schema: z.ZodType<T>): T {
   // Remove leading '?' if present
-  const cleanQuery = queryString.startsWith('?')
-    ? queryString.slice(1)
-    : queryString
+  const cleanQuery = queryString.startsWith('?') ? queryString.slice(1) : queryString
 
   if (!cleanQuery) {
     return schema.parse({})
@@ -66,10 +54,7 @@ export function deserializeQueryString<T>(
   const params = new URLSearchParams(cleanQuery)
 
   // Handle primitive value inputs
-  if (
-    params.has(PRIMITIVE_VALUE_KEY) &&
-    Array.from(params.keys()).length === 1
-  ) {
+  if (params.has(PRIMITIVE_VALUE_KEY) && Array.from(params.keys()).length === 1) {
     return schema.parse(params.get(PRIMITIVE_VALUE_KEY))
   }
 

@@ -1,10 +1,7 @@
 let draftId: string | null = null
 let handlers = new Set<(blockId: string) => void>()
 
-export function subscribeDraftFocus(
-  docId: string,
-  handler: (blockId: string) => void,
-): () => void {
+export function subscribeDraftFocus(docId: string, handler: (blockId: string) => void): () => void {
   if (docId !== draftId) {
     draftId = docId
     handlers.clear()

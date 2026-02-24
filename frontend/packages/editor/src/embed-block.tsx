@@ -4,17 +4,8 @@ import {HMEmbedViewSchema} from '@shm/shared/hm-types'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
-import {
-  isHypermediaScheme,
-  isPublicGatewayLink,
-  normalizeHmId,
-  packHmId,
-} from '@shm/shared/utils/entity-id-url'
-import {
-  BlockEmbedCard,
-  BlockEmbedComments,
-  BlockEmbedContent,
-} from '@shm/ui/blocks-content'
+import {isHypermediaScheme, isPublicGatewayLink, normalizeHmId, packHmId} from '@shm/shared/utils/entity-id-url'
+import {BlockEmbedCard, BlockEmbedComments, BlockEmbedContent} from '@shm/ui/blocks-content'
 import {Input} from '@shm/ui/components/input'
 import {ExternalLink} from '@shm/ui/icons'
 import {RecentSearchResultItem, SearchResultItem} from '@shm/ui/search'
@@ -47,13 +38,8 @@ export const EmbedBlock = createReactBlockSpec({
   },
   containsInlineContent: true,
 
-  render: ({
-    block,
-    editor,
-  }: {
-    block: Block<HMBlockSchema>
-    editor: BlockNoteEditor<HMBlockSchema>
-  }) => Render(block, editor),
+  render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) =>
+    Render(block, editor),
 
   parseHTML: [
     {
@@ -66,17 +52,9 @@ export const EmbedBlock = createReactBlockSpec({
   ],
 })
 
-const Render = (
-  block: Block<HMBlockSchema>,
-  editor: BlockNoteEditor<HMBlockSchema>,
-) => {
+const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSchema>) => {
   const gwUrl = useGatewayUrlStream()
-  const submitEmbed = async (
-    url: string,
-    assign: any,
-    setFileName: any,
-    setLoading: any,
-  ) => {
+  const submitEmbed = async (url: string, assign: any, setFileName: any, setLoading: any) => {
     if (isPublicGatewayLink(url, gwUrl) || isHypermediaScheme(url)) {
       const hmLink = normalizeHmId(url, gwUrl)
       const newUrl = hmLink ? hmLink : url
@@ -84,18 +62,10 @@ const Render = (
       const cursorPosition = editor.getTextCursorPosition()
       editor.focus()
       if (cursorPosition.block.id === block.id) {
-        if (cursorPosition.nextBlock)
-          editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
+        if (cursorPosition.nextBlock) editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
         else {
-          editor.insertBlocks(
-            [{type: 'paragraph', content: ''}],
-            block.id,
-            'after',
-          )
-          editor.setTextCursorPosition(
-            editor.getTextCursorPosition().nextBlock!,
-            'start',
-          )
+          editor.insertBlocks([{type: 'paragraph', content: ''}], block.id, 'after')
+          editor.setTextCursorPosition(editor.getTextCursorPosition().nextBlock!, 'start')
         }
       }
     } else {
@@ -107,18 +77,10 @@ const Render = (
             const cursorPosition = editor.getTextCursorPosition()
             editor.focus()
             if (cursorPosition.block.id === block.id) {
-              if (cursorPosition.nextBlock)
-                editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
+              if (cursorPosition.nextBlock) editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
               else {
-                editor.insertBlocks(
-                  [{type: 'paragraph', content: ''}],
-                  block.id,
-                  'after',
-                )
-                editor.setTextCursorPosition(
-                  editor.getTextCursorPosition().nextBlock!,
-                  'start',
-                )
+                editor.insertBlocks([{type: 'paragraph', content: ''}], block.id, 'after')
+                editor.setTextCursorPosition(editor.getTextCursorPosition().nextBlock!, 'start')
               }
             }
           } else {
@@ -152,13 +114,7 @@ const Render = (
   )
 }
 
-const display = ({
-  editor,
-  block,
-  assign,
-  selected,
-  setSelected,
-}: DisplayComponentProps) => {
+const display = ({editor, block, assign, selected, setSelected}: DisplayComponentProps) => {
   return (
     <MediaContainer
       editor={editor}
@@ -203,37 +159,13 @@ const display = ({
   )
 }
 
-function EditorEmbedContent({
-  block,
-  parentBlockId,
-}: {
-  block: HMBlockEmbed
-  parentBlockId: string | null
-}) {
+function EditorEmbedContent({block, parentBlockId}: {block: HMBlockEmbed; parentBlockId: string | null}) {
   if (block.attributes.view === 'Card')
-    return (
-      <BlockEmbedCard
-        block={block}
-        parentBlockId={parentBlockId}
-        openOnClick={false}
-      />
-    )
+    return <BlockEmbedCard block={block} parentBlockId={parentBlockId} openOnClick={false} />
   if (block.attributes.view === 'Comments')
-    return (
-      <BlockEmbedComments
-        block={block}
-        parentBlockId={parentBlockId}
-        openOnClick={false}
-      />
-    )
+    return <BlockEmbedComments block={block} parentBlockId={parentBlockId} openOnClick={false} />
   // if (block.attributes.view === 'Content') // content is the default
-  return (
-    <BlockEmbedContent
-      block={block}
-      parentBlockId={parentBlockId}
-      openOnClick={false}
-    />
-  )
+  return <BlockEmbedContent block={block} parentBlockId={parentBlockId} openOnClick={false} />
 }
 
 const EmbedLauncherInput = ({
@@ -269,13 +201,10 @@ const EmbedLauncherInput = ({
           icon: item.icon,
           onFocus: () => {},
           onMouseEnter: () => {},
-          onSelect: () =>
-            assign({props: {url: packHmId(sanitizedId)}} as MediaType),
+          onSelect: () => assign({props: {url: packHmId(sanitizedId)}} as MediaType),
           subtitle: 'Document',
           searchQuery: item.searchQuery,
-          versionTime: item.versionTime
-            ? item.versionTime.toDate().toLocaleString()
-            : '',
+          versionTime: item.versionTime ? item.versionTime.toDate().toLocaleString() : '',
         }
       })
       .filter(Boolean) || []
@@ -305,9 +234,7 @@ const EmbedLauncherInput = ({
       }
     }) || []
   const isDisplayingRecents = !search.length
-  const activeItems: SearchResultItem[] = isDisplayingRecents
-    ? recentItems
-    : searchItems
+  const activeItems: SearchResultItem[] = isDisplayingRecents ? recentItems : searchItems
 
   const [focusedIndex, setFocusedIndex] = useState(0)
 
@@ -330,11 +257,7 @@ const EmbedLauncherInput = ({
       }}
     >
       {isDisplayingRecents && (
-        <SizableText
-          color="muted"
-          family="default"
-          className="mx-4 text-red-500"
-        >
+        <SizableText color="muted" family="default" className="mx-4 text-red-500">
           Recent Resources
         </SizableText>
       )}
@@ -349,17 +272,12 @@ const EmbedLauncherInput = ({
         return (
           <>
             {isDisplayingRecents ? (
-              <RecentSearchResultItem
-                item={{...item, id: item.id}}
-                {...sharedProps}
-              />
+              <RecentSearchResultItem item={{...item, id: item.id}} {...sharedProps} />
             ) : (
               <SearchResultItem item={item} {...sharedProps} />
             )}
 
-            {itemIndex !== activeItems.length - 1 ? (
-              <Separator className="bg-black/10 dark:bg-white/10" />
-            ) : null}
+            {itemIndex !== activeItems.length - 1 ? <Separator className="bg-black/10 dark:bg-white/10" /> : null}
           </>
         )
       })}
@@ -390,10 +308,7 @@ const EmbedLauncherInput = ({
           // If Enter is pressed and the input looks like a URL or hypermedia link,
           // blur the input to trigger form submission instead of selecting a search result
           if (e.key === 'Enter') {
-            const isUrl =
-              search.startsWith('http://') ||
-              search.startsWith('https://') ||
-              search.startsWith('hm://')
+            const isUrl = search.startsWith('http://') || search.startsWith('https://') || search.startsWith('hm://')
 
             if (isUrl) {
               // Blur to trigger form submission with the typed URL
@@ -416,9 +331,7 @@ const EmbedLauncherInput = ({
             setFocusedIndex((prev) => (prev + 1) % activeItems.length)
           } else if (e.key === 'ArrowUp') {
             e.preventDefault()
-            setFocusedIndex(
-              (prev) => (prev - 1 + activeItems.length) % activeItems.length,
-            )
+            setFocusedIndex((prev) => (prev - 1 + activeItems.length) % activeItems.length)
           }
         }}
         className="border-muted-foreground/30 focus-visible:border-ring text-foreground w-full"

@@ -1,17 +1,10 @@
 import {cn} from './utils'
 
-export function PanelContainer({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+export function PanelContainer({className, children, ...props}: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className="h-full w-full px-2">
+    <div className="h-full w-full">
       <div
-        className={cn(
-          'bg-panel sm:border-border h-full overflow-hidden sm:rounded-md sm:border',
-          className,
-        )}
+        className={cn('bg-panel sm:border-border h-full overflow-hidden sm:rounded-md sm:border', className)}
         {...props}
       >
         {children}
@@ -44,9 +37,7 @@ export const Container = ({
   )
 }
 
-export const windowContainerStyles = cn(
-  'flex flex-col w-screen h-screen min-h-svh bg-panel-background p-2',
-)
+export const windowContainerStyles = cn('flex flex-col w-screen h-screen min-h-svh bg-panel-background p-2')
 
 export const panelContainerStyles = cn(
   'flex flex-col w-full h-full min-h-0 rounded-md overflow-hidden bg-panel border border-border',

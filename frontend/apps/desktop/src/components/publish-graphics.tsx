@@ -1,12 +1,5 @@
 export const CongratsGraphic = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width={127 * 2}
-    height={101 * 2}
-    viewBox="0 0 127 101"
-    fill="none"
-    {...props}
-  >
+  <svg xmlns="http://www.w3.org/2000/svg" width={127 * 2} height={101 * 2} viewBox="0 0 127 101" fill="none" {...props}>
     <path
       fill="#fff"
       fillRule="evenodd"
@@ -23,22 +16,8 @@ export const CongratsGraphic = (props: React.SVGProps<SVGSVGElement>) => (
 )
 
 export const WebPublishedGraphic = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width={87 * 2}
-    height={101 * 2}
-    fill="none"
-    viewBox="0 0 87 101"
-    {...props}
-  >
-    <rect
-      width={86.995}
-      height={61.469}
-      x={0.002}
-      y={30.701}
-      fill="#14A"
-      rx={4.857}
-    />
+  <svg xmlns="http://www.w3.org/2000/svg" width={87 * 2} height={101 * 2} fill="none" viewBox="0 0 87 101" {...props}>
+    <rect width={86.995} height={61.469} x={0.002} y={30.701} fill="#14A" rx={4.857} />
     <path fill="#ACACAC" d="M6.023 37.266h74.953v42.781H6.023z" />
     <path fill="#fff" d="M12.614 24.691h61.77v55.355h-61.77z" />
     <path fill="#2E74FF" d="M18.54 41.19h22.258v22.258H18.54z" />
@@ -49,14 +28,7 @@ export const WebPublishedGraphic = (props: React.SVGProps<SVGSVGElement>) => (
       d="M43.5 47.627h25.625v2.746H43.5zM43.5 54.065h25.625v2.746H43.5zM43.5 60.502h25.625v2.746H43.5zM18.54 66.939h50.585v2.746H18.54zM18.54 73.376h50.585v2.746H18.54z"
     />
     <path fill="#0B3479" d="M33.376 92.171h20.248v5.46H33.376z" />
-    <rect
-      width={56.385}
-      height={2.869}
-      x={15.307}
-      y={97.631}
-      fill="#14A"
-      rx={0.971}
-    />
+    <rect width={56.385} height={2.869} x={15.307} y={97.631} fill="#14A" rx={0.971} />
     <circle cx={43.5} cy={86.108} r={2.633} fill="#2E74FF" />
     <path
       fill="#2E74FF"
@@ -66,13 +38,7 @@ export const WebPublishedGraphic = (props: React.SVGProps<SVGSVGElement>) => (
 )
 
 export const CelebrationDotsRight = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width={235}
-    height={555}
-    fill="none"
-    {...props}
-  >
+  <svg xmlns="http://www.w3.org/2000/svg" width={235} height={555} fill="none" {...props}>
     <circle
       cx={96.073}
       cy={484.309}
@@ -89,13 +55,7 @@ export const CelebrationDotsRight = (props: React.SVGProps<SVGSVGElement>) => (
       fillOpacity={0.1}
       transform="rotate(82.53 18.133 339.184)"
     />
-    <circle
-      cx={179.331}
-      cy={265.729}
-      r={15.583}
-      fill="#14A"
-      fillOpacity={0.1}
-    />
+    <circle cx={179.331} cy={265.729} r={15.583} fill="#14A" fillOpacity={0.1} />
     <circle
       cx={31.556}
       cy={428.752}
@@ -112,14 +72,7 @@ export const CelebrationDotsRight = (props: React.SVGProps<SVGSVGElement>) => (
       fillOpacity={0.1}
       transform="rotate(82.53 135.688 406.929)"
     />
-    <circle
-      cx={53.642}
-      cy={43.29}
-      r={38.112}
-      fill="#14A"
-      fillOpacity={0.1}
-      transform="rotate(82.53 53.642 43.29)"
-    />
+    <circle cx={53.642} cy={43.29} r={38.112} fill="#14A" fillOpacity={0.1} transform="rotate(82.53 53.642 43.29)" />
     <circle cx={70.472} cy={199.325} r={38.914} fill="#14A" fillOpacity={0.5} />
     <circle
       cx={12.977}
@@ -157,44 +110,14 @@ export const CelebrationDotsRight = (props: React.SVGProps<SVGSVGElement>) => (
 )
 
 export const CelebrationDotsLeft = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width={266}
-    height={527}
-    fill="none"
-    {...props}
-  >
-    <circle
-      cx={220.994}
-      cy={154.844}
-      r={32.661}
-      fill="#14A"
-      fillOpacity={0.2}
-    />
+  <svg xmlns="http://www.w3.org/2000/svg" width={266} height={527} fill="none" {...props}>
+    <circle cx={220.994} cy={154.844} r={32.661} fill="#14A" fillOpacity={0.2} />
     <circle cx={95.912} cy={295.216} r={15.583} fill="#14A" fillOpacity={0.5} />
     <circle cx={250.189} cy={15.865} r={15.583} fill="#14A" fillOpacity={0.1} />
-    <circle
-      cx={141.774}
-      cy={252.132}
-      r={15.583}
-      fill="#14A"
-      fillOpacity={0.1}
-    />
+    <circle cx={141.774} cy={252.132} r={15.583} fill="#14A" fillOpacity={0.1} />
     <circle cx={149.42} cy={95.177} r={38.914} fill="#14A" fillOpacity={0.5} />
-    <circle
-      cx={127.347}
-      cy={509.351}
-      r={16.842}
-      fill="#14A"
-      fillOpacity={0.5}
-    />
-    <circle
-      cx={211.275}
-      cy={399.748}
-      r={38.914}
-      fill="#14A"
-      fillOpacity={0.5}
-    />
+    <circle cx={127.347} cy={509.351} r={16.842} fill="#14A" fillOpacity={0.5} />
+    <circle cx={211.275} cy={399.748} r={38.914} fill="#14A" fillOpacity={0.5} />
     <circle
       cx={12.977}
       cy={12.977}

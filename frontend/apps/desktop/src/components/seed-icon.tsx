@@ -7,21 +7,11 @@ let sizes = {
   $4: 60,
 } as const
 
-export function SeedIcon({
-  size: propSize = '$2',
-  color,
-}: {
-  size?: IconSize
-  color?: string
-}) {
+export function SeedIcon({size: propSize = '$2', color}: {size?: IconSize; color?: string}) {
   let size = sizes[propSize]
   return (
     <div style={{width: `${size}px`, height: `${size}px`}}>
-      <svg
-        viewBox="0 0 832 960"
-        xmlns="http://www.w3.org/2000/svg"
-        fill={'currentColor'}
-      >
+      <svg viewBox="0 0 832 960" xmlns="http://www.w3.org/2000/svg" fill={'currentColor'}>
         <path
           fillRule="evenodd"
           clipRule="evenodd"

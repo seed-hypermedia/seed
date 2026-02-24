@@ -3,10 +3,7 @@ import {Node} from 'prosemirror-model'
 /**
  * Get a TipTap node by id
  */
-export function getNodeById(
-  id: string,
-  doc: Node,
-): {node: Node; posBeforeNode: number} {
+export function getNodeById(id: string, doc: Node): {node: Node; posBeforeNode: number} {
   let targetNode: Node | undefined = undefined
   let posBeforeNode: number | undefined = undefined
 

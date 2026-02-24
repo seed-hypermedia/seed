@@ -4,10 +4,7 @@ import {HMQuery, HMQueryRequest, HMQueryResult} from './hm-types'
 import {createQueryResolver} from './models/directory'
 
 export const Query: HMRequestImplementation<HMQueryRequest> = {
-  async getData(
-    grpcClient: GRPCClient,
-    input: HMQuery,
-  ): Promise<HMQueryResult | null> {
+  async getData(grpcClient: GRPCClient, input: HMQuery): Promise<HMQueryResult | null> {
     const getQueryResults = createQueryResolver(grpcClient)
     return await getQueryResults(input)
   },

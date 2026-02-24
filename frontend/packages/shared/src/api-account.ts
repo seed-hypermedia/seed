@@ -1,18 +1,8 @@
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {HMRequestImplementation, HMRequestParams} from './api-types'
 import {GRPCClient} from './grpc-client'
-import {
-  HMAccountNotFound,
-  HMAccountPayload,
-  HMAccountRequest,
-  HMAccountResult,
-  HMMetadataPayload,
-} from './hm-types'
-import {
-  getErrorMessage,
-  HMNotFoundError,
-  prepareHMDocumentMetadata,
-} from './models/entity'
+import {HMAccountNotFound, HMAccountPayload, HMAccountRequest, HMAccountResult, HMMetadataPayload} from './hm-types'
+import {getErrorMessage, HMNotFoundError, prepareHMDocumentMetadata} from './models/entity'
 import {hmId} from './utils'
 
 export const AccountParams: HMRequestParams<HMAccountRequest> = {
@@ -23,10 +13,7 @@ export const AccountParams: HMRequestParams<HMAccountRequest> = {
 /**
  * Load a single account with alias resolution
  */
-export async function loadAccount(
-  client: GRPCClient,
-  uid: string,
-): Promise<HMAccountResult> {
+export async function loadAccount(client: GRPCClient, uid: string): Promise<HMAccountResult> {
   try {
     const grpcAccount = await client.documents.getAccount({id: uid})
     const serverAccount = toPlainMessage(grpcAccount)
@@ -58,10 +45,7 @@ export async function loadAccount(
 /**
  * Load multiple accounts individually
  */
-export async function loadAccounts(
-  client: GRPCClient,
-  uids: string[],
-): Promise<Record<string, HMMetadataPayload>> {
+export async function loadAccounts(client: GRPCClient, uids: string[]): Promise<Record<string, HMMetadataPayload>> {
   const results = await Promise.all(uids.map((uid) => loadAccount(client, uid)))
   const accounts: Record<string, HMMetadataPayload> = {}
   results.forEach((result, index) => {
@@ -75,10 +59,7 @@ export async function loadAccounts(
 }
 
 export const Account: HMRequestImplementation<HMAccountRequest> = {
-  async getData(
-    grpcClient: GRPCClient,
-    input: string,
-  ): Promise<HMAccountResult> {
+  async getData(grpcClient: GRPCClient, input: string): Promise<HMAccountResult> {
     return await loadAccount(grpcClient, input)
   },
 }

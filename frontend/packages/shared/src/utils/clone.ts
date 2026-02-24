@@ -3,11 +3,7 @@ import {DocumentChange} from '../client'
 import {prepareHMDocument} from '../document-utils'
 import {GRPCClient} from '../grpc-client'
 import {HMBlockNode, HMDocumentSchema} from '../hm-types'
-import {
-  BlocksMap,
-  createBlocksMap,
-  getDocAttributeChanges,
-} from './document-changes'
+import {BlocksMap, createBlocksMap, getDocAttributeChanges} from './document-changes'
 
 export async function cloneSiteFromTemplate({
   client,
@@ -18,9 +14,7 @@ export async function cloneSiteFromTemplate({
   targetId: string
   templateId: string
 }) {
-  console.log(
-    `[Clone] Starting clone process from template ${templateId} to target ${targetId}`,
-  )
+  console.log(`[Clone] Starting clone process from template ${templateId} to target ${targetId}`)
 
   /**
    * - get the template Entity
@@ -39,9 +33,7 @@ export async function cloneSiteFromTemplate({
       account: targetId,
       path: '',
     })
-    console.log(
-      `[Clone] Target home document version: ${targetHomeDoc.version}`,
-    )
+    console.log(`[Clone] Target home document version: ${targetHomeDoc.version}`)
 
     const targetHomeDocEntity = prepareHMDocument(targetHomeDoc)
 
@@ -67,9 +59,7 @@ export async function cloneSiteFromTemplate({
 
     console.log('[Clone] Creating blocks map for template home document...')
     const blocksMap = createBlocksMap(templateHomeDocEntity.content, '')
-    console.log(
-      `[Clone] Blocks map created with ${Object.keys(blocksMap).length} blocks`,
-    )
+    console.log(`[Clone] Blocks map created with ${Object.keys(blocksMap).length} blocks`)
 
     console.log('[Clone] Applying changes to target home document...')
     await client.documents.createDocumentChange({
@@ -79,11 +69,7 @@ export async function cloneSiteFromTemplate({
       path: '',
       changes: [
         ...getDocAttributeChanges(templateHomeDocEntity.metadata),
-        ...getBlockNodeChanges(
-          targetId,
-          templateHomeDocEntity.content,
-          blocksMap,
-        ),
+        ...getBlockNodeChanges(targetId, templateHomeDocEntity.content, blocksMap),
       ],
     })
     console.log('[Clone] Target home document updated successfully')
@@ -96,12 +82,8 @@ export async function cloneSiteFromTemplate({
   const templateDocuments = await client.documents.listDocuments({
     account: templateId,
   })
-  const documentsToProcess = templateDocuments.documents.filter(
-    (doc) => doc.path !== '',
-  )
-  console.log(
-    `[Clone] Found ${documentsToProcess.length} documents to process (excluding home document)`,
-  )
+  const documentsToProcess = templateDocuments.documents.filter((doc) => doc.path !== '')
+  console.log(`[Clone] Found ${documentsToProcess.length} documents to process (excluding home document)`)
 
   for (const document of documentsToProcess) {
     try {
@@ -110,26 +92,17 @@ export async function cloneSiteFromTemplate({
         account: templateId,
         path: document.path,
       })
-      const doc = HMDocumentSchema.parse(
-        documentEntity.toJson({emitDefaultValues: true, enumAsInteger: false}),
-      )
+      const doc = HMDocumentSchema.parse(documentEntity.toJson({emitDefaultValues: true, enumAsInteger: false}))
       console.log(`[Clone] Document ${document.path} parsed successfully`)
 
       const blocksMap = createBlocksMap(doc.content, '')
-      console.log(
-        `[Clone] Created blocks map for ${document.path} with ${
-          Object.keys(blocksMap).length
-        } blocks`,
-      )
+      console.log(`[Clone] Created blocks map for ${document.path} with ${Object.keys(blocksMap).length} blocks`)
 
       await client.documents.createDocumentChange({
         signingKeyName: targetId,
         account: targetId,
         path: document.path,
-        changes: [
-          ...getDocAttributeChanges(doc.metadata),
-          ...getBlockNodeChanges(targetId, doc.content, blocksMap),
-        ],
+        changes: [...getDocAttributeChanges(doc.metadata), ...getBlockNodeChanges(targetId, doc.content, blocksMap)],
       })
       console.log(`[Clone] Successfully created document: ${document.path}`)
     } catch (e) {
@@ -140,11 +113,7 @@ export async function cloneSiteFromTemplate({
   console.log('[Clone] Clone process completed successfully')
 }
 
-function getBlockNodeChanges(
-  targetId: string,
-  blockNodes: HMBlockNode[],
-  blocksMap: BlocksMap,
-) {
+function getBlockNodeChanges(targetId: string, blockNodes: HMBlockNode[], blocksMap: BlocksMap) {
   let changes: Array<DocumentChange> = []
   for (const bn of blockNodes) {
     if (bn.block.type == 'Query') {
@@ -156,10 +125,7 @@ function getBlockNodeChanges(
     if (bn.block.type == 'Button') {
       console.log('[Clone] Processing Button block:')
       console.log(`[Clone] Original link: ${bn.block.link}`)
-      bn.block.link = bn.block.link.replace(
-        /hm:\/\/([^/]+)/,
-        `hm://${targetId}`,
-      )
+      bn.block.link = bn.block.link.replace(/hm:\/\/([^/]+)/, `hm://${targetId}`)
       console.log(`[Clone] New link: ${bn.block.link}`)
       console.log(`[Clone] Target ID used: ${targetId}`)
     }

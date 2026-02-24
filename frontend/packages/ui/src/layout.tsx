@@ -4,10 +4,10 @@ import {forwardRef, useMemo, useRef, useState} from 'react'
 import {ScrollArea} from './components/scroll-area'
 import {useMedia} from './use-media'
 
-export const MainWrapper = forwardRef<
-  any,
-  {noScroll?: boolean; children?: React.ReactNode}
->(function MainWrapper({children, noScroll = false, ...props}, ref) {
+export const MainWrapper = forwardRef<any, {noScroll?: boolean; children?: React.ReactNode}>(function MainWrapper(
+  {children, noScroll = false, ...props},
+  ref,
+) {
   return (
     <div ref={ref} className="content-wrapper flex flex-1 flex-col" {...props}>
       {noScroll ? (
@@ -45,10 +45,7 @@ export const useDocumentLayout = (
   const media = useMedia()
 
   // Get content width configuration
-  const contentMaxWidth = useMemo(
-    () => getContentWidth(config.contentWidth),
-    [config.contentWidth],
-  )
+  const contentMaxWidth = useMemo(() => getContentWidth(config.contentWidth), [config.contentWidth])
 
   // State for layout booleans - only updates when crossing breakpoints
   const [layoutState, setLayoutState] = useState(() => {
@@ -78,17 +75,12 @@ export const useDocumentLayout = (
     const updateLayoutIfNeeded = (width: number) => {
       currentWidthRef.current = width
 
-      const newShowSidebars = Boolean(
-        config.showSidebars && width > contentMaxWidth + 100,
-      )
+      const newShowSidebars = Boolean(config.showSidebars && width > contentMaxWidth + 100)
       const newShowCollapsed = width < contentMaxWidth + 700
 
       // Only update state if layout actually changed (crossing breakpoints)
       setLayoutState((prevState) => {
-        if (
-          prevState.showSidebars !== newShowSidebars ||
-          prevState.showCollapsed !== newShowCollapsed
-        ) {
+        if (prevState.showSidebars !== newShowSidebars || prevState.showCollapsed !== newShowCollapsed) {
           return {
             showSidebars: newShowSidebars,
             showCollapsed: newShowCollapsed,
@@ -158,9 +150,7 @@ export const useDocumentLayout = (
       showCollapsed: layoutState.showCollapsed,
       contentMaxWidth,
       sidebarProps: {
-        className: `document-aside flex-1 w-full pt-4 ${
-          layoutState.showCollapsed ? 'px-2' : 'pr-10 pl-4'
-        }`,
+        className: `document-aside flex-1 w-full pt-4 ${layoutState.showCollapsed ? 'px-2' : 'pr-10 pl-4'}`,
         style: {
           maxWidth: layoutState.showCollapsed ? 40 : 280,
         },
@@ -176,11 +166,7 @@ export const useDocumentLayout = (
         style: {
           maxWidth:
             contentMaxWidth +
-            (layoutState.showSidebars && config.showSidebars
-              ? layoutState.showCollapsed
-                ? 100
-                : 700
-              : 0) +
+            (layoutState.showSidebars && config.showSidebars ? (layoutState.showCollapsed ? 100 : 700) : 0) +
             /**
              * this is added because we are showing the comment and citations button
              * on the right of each block. in the future we might expand
@@ -190,13 +176,7 @@ export const useDocumentLayout = (
         },
       },
     }),
-    [
-      layoutState.showSidebars,
-      layoutState.showCollapsed,
-      contentMaxWidth,
-      config.showSidebars,
-      media.gtSm,
-    ],
+    [layoutState.showSidebars, layoutState.showCollapsed, contentMaxWidth, config.showSidebars, media.gtSm],
   )
 }
 

@@ -10,23 +10,14 @@ import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast, Toaster} from '@shm/ui/toast'
-import {
-  onlineManager,
-  QueryClientProvider,
-  QueryKey,
-} from '@tanstack/react-query'
+import {onlineManager, QueryClientProvider, QueryKey} from '@tanstack/react-query'
 import React, {Suspense, useEffect, useState} from 'react'
 import ReactDOM from 'react-dom/client'
 import {ErrorBoundary} from 'react-error-boundary'
 import {getOnboardingState} from './app-onboarding'
 import {RootAppError} from './components/app-error'
 import {DebugDialogs} from './components/debug-dialogs'
-import {
-  Onboarding,
-  OnboardingDebugBox,
-  OnboardingDialog,
-  ResetOnboardingButton,
-} from './components/onboarding'
+import {Onboarding, OnboardingDebugBox, OnboardingDialog, ResetOnboardingButton} from './components/onboarding'
 import type {GoDaemonState} from './daemon'
 import {grpcClient} from './grpc-client'
 import {ipc} from './ipc'
@@ -37,10 +28,7 @@ import './tailwind.css'
 import {client} from './trpc'
 
 import {AppWindowEvent} from '@/utils/window-events'
-import {
-  onQueryCacheError,
-  onQueryInvalidation,
-} from '@shm/shared/models/query-client'
+import {onQueryCacheError, onQueryInvalidation} from '@shm/shared/models/query-client'
 import {labelOfQueryKey} from '@shm/shared/models/query-keys'
 import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
@@ -66,19 +54,13 @@ function wrapLogger(logFn: (...args: any[]) => void) {
   }
 }
 
-const securitySensitiveMethods = new Set([
-  'Daemon.Register',
-  'Daemon.GenMnemonic',
-])
+const securitySensitiveMethods = new Set(['Daemon.Register', 'Daemon.GenMnemonic'])
 const enabledLogMessages = new Set<string>([
   // 'Accounts.ListAccounts',
   // 'Comments.ListComments',
   // etc.. add the messages you need to see here, please comment out before committing!
 ])
-const hiddenLogMessages = new Set<string>([
-  'Daemon.GetInfo',
-  'Networking.GetPeerInfo',
-])
+const hiddenLogMessages = new Set<string>(['Daemon.GetInfo', 'Networking.GetPeerInfo'])
 // const loggingInterceptor: Interceptor = (next) => async (req) => {
 //   const serviceLabel = req.service.typeName.split('.').at(-1)
 //   const methodFullname = `${serviceLabel}.${req.method.name}`
@@ -116,17 +98,15 @@ function useWindowUtils(ipc: AppIPC): WindowUtils {
 
   // Listen for window state changes
   useEffect(() => {
-    const unsubscribe = window.appWindowEvents?.subscribe(
-      (event: AppWindowEvent) => {
-        if (event.type === 'window_state_changed') {
-          // Get the actual window state from the exposed windowMaximizedState
-          if (window.windowMaximizedState) {
-            const currentState = window.windowMaximizedState.get()
-            setIsMaximized(currentState)
-          }
+    const unsubscribe = window.appWindowEvents?.subscribe((event: AppWindowEvent) => {
+      if (event.type === 'window_state_changed') {
+        // Get the actual window state from the exposed windowMaximizedState
+        if (window.windowMaximizedState) {
+          const currentState = window.windowMaximizedState.get()
+          setIsMaximized(currentState)
         }
-      },
-    )
+      }
+    })
 
     // Also initialize from current window state if available
     if (window.windowMaximizedState) {
@@ -173,9 +153,7 @@ const appInfo: AppInfoType = window.appInfo
 const darkMode: StateStream<boolean> = window.darkMode
 
 function useGoDaemonState(): GoDaemonState | undefined {
-  const [state, setState] = useState<GoDaemonState | undefined>(
-    daemonState.get(),
-  )
+  const [state, setState] = useState<GoDaemonState | undefined>(daemonState.get())
 
   useEffect(() => {
     const updateHandler = (value: GoDaemonState) => {
@@ -247,19 +225,16 @@ onlineManager.setOnline(true)
 onQueryCacheError((error, query) => {
   const queryKey = query.queryKey as string[]
   const errorMessage = ((error as any)?.message || null) as string | null // todo: repent for my sins
-  toast.error(
-    `Failed to Load ${labelOfQueryKey(queryKey)}. Click to copy details`,
-    {
-      action: {
-        label: 'Copy Details',
-        onClick: () => {
-          const detailString = JSON.stringify({queryKey, errorMessage}, null, 2)
-          copyTextToClipboard(detailString)
-          toast.success(`📋 Copied details to clipboard`)
-        },
+  toast.error(`Failed to Load ${labelOfQueryKey(queryKey)}. Click to copy details`, {
+    action: {
+      label: 'Copy Details',
+      onClick: () => {
+        const detailString = JSON.stringify({queryKey, errorMessage}, null, 2)
+        copyTextToClipboard(detailString)
+        toast.success(`📋 Copied details to clipboard`)
       },
     },
-  )
+  })
 })
 
 // Add window interface extension
@@ -283,25 +258,15 @@ function DaemonErrorContent({message}: {message: string}) {
     <div className={windowContainerStyles}>
       <div className={cn(panelContainerStyles)}>
         <div className="flex flex-1 items-start justify-center px-4 py-12">
-          <div
-            role="alertdialog"
-            className="m-8 flex w-full max-w-2xl flex-1 flex-none flex-col shadow-lg"
-          >
+          <div role="alertdialog" className="m-8 flex w-full max-w-2xl flex-1 flex-none flex-col shadow-lg">
             <div className="rounded-t bg-red-500 px-4 py-2">
-              <h2 className="text-xl font-bold text-white">
-                Something went wrong
-              </h2>
+              <h2 className="text-xl font-bold text-white">Something went wrong</h2>
             </div>
             <div className="max-h-50 gap-4 rounded-b border border-t-0 border-red-400 bg-red-100 px-4 py-3">
               <ScrollArea>
-                <pre className="p-4 text-sm break-all whitespace-pre-wrap text-red-700">
-                  {message}
-                </pre>
+                <pre className="p-4 text-sm break-all whitespace-pre-wrap text-red-700">{message}</pre>
               </ScrollArea>
-              <Button
-                variant="destructive"
-                onClick={() => window.location.reload()}
-              >
+              <Button variant="destructive" onClick={() => window.location.reload()}>
                 Try again
               </Button>
             </div>
@@ -325,15 +290,10 @@ function MainApp({}: {}) {
 
   // Initialize showOnboarding state with all checks to avoid flashing
   const [showOnboarding, setShowOnboarding] = useState(() => {
-    const {
-      hasCompletedOnboarding,
-      hasSkippedOnboarding,
-      initialAccountIdCount,
-    } = getOnboardingState()
+    const {hasCompletedOnboarding, hasSkippedOnboarding, initialAccountIdCount} = getOnboardingState()
     // Don't show onboarding if it's already completed, skipped, or if there are accounts
     const hasInitialAccountIds = initialAccountIdCount > 0
-    const shouldShowOnboarding =
-      !hasCompletedOnboarding && !hasSkippedOnboarding && !hasInitialAccountIds
+    const shouldShowOnboarding = !hasCompletedOnboarding && !hasSkippedOnboarding && !hasInitialAccountIds
     return shouldShowOnboarding
   })
 
@@ -441,11 +401,7 @@ function MainApp({}: {}) {
             mediaFiles: {url: string; filename: string; placeholder: string}[],
           ) => {
             // @ts-ignore
-            return window.docExport.exportDocument(
-              title,
-              markdownContent,
-              mediaFiles,
-            )
+            return window.docExport.exportDocument(title, markdownContent, mediaFiles)
           }}
           exportDocuments={async (
             documents: {
@@ -491,12 +447,7 @@ function MainApp({}: {}) {
     console.error('Daemon error', daemonState?.message)
     return <DaemonErrorContent message={daemonState?.message} />
   } else {
-    return (
-      <SpinnerWithText
-        message={'We are doing some housekeeping.\nDo not close this window!'}
-        delay={1000}
-      />
-    )
+    return <SpinnerWithText message={'We are doing some housekeeping.\nDo not close this window!'} delay={1000} />
   }
 }
 
@@ -517,12 +468,7 @@ function SpinnerWithText(props: {message: string; delay?: number}) {
   }, [])
 
   return (
-    <div
-      className={cn(
-        windowContainerStyles,
-        'window-drag items-center justify-center gap-4 p-8',
-      )}
-    >
+    <div className={cn(windowContainerStyles, 'window-drag items-center justify-center gap-4 p-8')}>
       <Spinner />
       <SizableText
         size="md"

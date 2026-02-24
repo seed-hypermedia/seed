@@ -20,9 +20,7 @@ export const BackgroundColorExtension = Extension.create({
           backgroundColor: {
             default: 'default',
             parseHTML: (element) =>
-              element.hasAttribute('data-background-color')
-                ? element.getAttribute('data-background-color')
-                : 'default',
+              element.hasAttribute('data-background-color') ? element.getAttribute('data-background-color') : 'default',
             renderHTML: (attributes) =>
               attributes.backgroundColor !== 'default' && {
                 'data-background-color': attributes.backgroundColor,
@@ -43,11 +41,7 @@ export const BackgroundColorExtension = Extension.create({
             return false
           }
 
-          state.tr.setNodeAttribute(
-            blockInfo.block.beforePos,
-            'backgroundColor',
-            color,
-          )
+          state.tr.setNodeAttribute(blockInfo.block.beforePos, 'backgroundColor', color)
 
           view.focus()
 

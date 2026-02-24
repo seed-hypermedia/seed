@@ -7,10 +7,10 @@
 
 import type {
   HMAccountRequest,
+  HMCapability,
   HMDocumentInfo,
   HMInteractionSummaryOutput,
   HMInteractionSummaryRequest,
-  HMListCapabilitiesOutput,
   HMListCapabilitiesRequest,
   HMListChangesOutput,
   HMListChangesRequest,
@@ -20,22 +20,49 @@ import type {
   HMListCommentsRequest,
   HMMetadataPayload,
   HMQueryRequest,
+  HMRawCapability,
   HMResource,
   HMResourceRequest,
+  HMRole,
   UnpackedHypermediaId,
 } from '../hm-types'
 import {HMQueryResultSchema, HMResourceSchema} from '../hm-types'
 import type {UniversalClient} from '../universal-client'
 import {hmIdPathToEntityQueryPath} from '../utils'
+import {hmId} from '../utils/entity-id-url'
+import {entityQueryPathToHmIdPath} from '../utils/path-api'
 import {queryKeys} from './query-keys'
+
+function rawRoleToHMRole(role?: string): HMRole {
+  if (role === 'WRITER') return 'writer'
+  if (role === 'AGENT') return 'agent'
+  return 'none'
+}
+
+function parseTimestamp(ts?: string): {seconds: number; nanos: number} {
+  if (!ts) return {seconds: 0, nanos: 0}
+  const ms = new Date(ts).getTime()
+  return {seconds: Math.floor(ms / 1000), nanos: (ms % 1000) * 1_000_000}
+}
+
+function rawCapToHMCapability(raw: HMRawCapability): HMCapability | null {
+  if (!raw.delegate || !raw.account) return null
+  return {
+    id: raw.id || '',
+    accountUid: raw.delegate,
+    role: rawRoleToHMRole(raw.role),
+    grantId: hmId(raw.account, {
+      path: entityQueryPathToHmIdPath(raw.path),
+    }),
+    label: raw.label,
+    createTime: parseTimestamp(raw.createTime),
+  }
+}
 
 /**
  * Query options for fetching a resource (document, comment, etc.)
  */
-export function queryResource(
-  client: UniversalClient,
-  id: UnpackedHypermediaId | null | undefined,
-) {
+export function queryResource(client: UniversalClient, id: UnpackedHypermediaId | null | undefined) {
   const version = id?.version || undefined
   return {
     queryKey: [queryKeys.ENTITY, id?.id, version] as const,
@@ -57,10 +84,7 @@ export function queryResource(
  * Query options for fetching account metadata.
  * Returns HMMetadataPayload or null (handles not-found internally).
  */
-export function queryAccount(
-  client: UniversalClient,
-  uid: string | null | undefined,
-) {
+export function queryAccount(client: UniversalClient, uid: string | null | undefined) {
   return {
     queryKey: [queryKeys.ACCOUNT, uid] as const,
     queryFn: async (): Promise<HMMetadataPayload | null> => {
@@ -104,10 +128,7 @@ export function queryDirectory(
 /**
  * Query options for fetching comments on a target.
  */
-export function queryComments(
-  client: UniversalClient,
-  targetId: UnpackedHypermediaId | null | undefined,
-) {
+export function queryComments(client: UniversalClient, targetId: UnpackedHypermediaId | null | undefined) {
   return {
     queryKey: [queryKeys.COMMENTS, targetId?.id] as const,
     queryFn: async (): Promise<HMListCommentsOutput> => {
@@ -123,10 +144,7 @@ export function queryComments(
 /**
  * Query options for fetching citations to a target.
  */
-export function queryCitations(
-  client: UniversalClient,
-  targetId: UnpackedHypermediaId | null | undefined,
-) {
+export function queryCitations(client: UniversalClient, targetId: UnpackedHypermediaId | null | undefined) {
   return {
     queryKey: [queryKeys.CITATIONS, targetId?.id] as const,
     queryFn: async (): Promise<HMListCitationsOutput> => {
@@ -142,10 +160,7 @@ export function queryCitations(
 /**
  * Query options for fetching changes to a target.
  */
-export function queryChanges(
-  client: UniversalClient,
-  targetId: UnpackedHypermediaId | null | undefined,
-) {
+export function queryChanges(client: UniversalClient, targetId: UnpackedHypermediaId | null | undefined) {
   return {
     queryKey: [queryKeys.CHANGES, targetId?.id] as const,
     queryFn: async (): Promise<HMListChangesOutput> => {
@@ -160,19 +175,32 @@ export function queryChanges(
 
 /**
  * Query options for fetching capabilities on a target.
+ * Returns deduplicated HMCapability[] including a synthetic owner entry.
  */
-export function queryCapabilities(
-  client: UniversalClient,
-  targetId: UnpackedHypermediaId | null | undefined,
-) {
+export function queryCapabilities(client: UniversalClient, targetId: UnpackedHypermediaId | null | undefined) {
   return {
-    queryKey: [queryKeys.CAPABILITIES, targetId?.id] as const,
-    queryFn: async (): Promise<HMListCapabilitiesOutput> => {
+    queryKey: [queryKeys.CAPABILITIES, targetId?.uid, ...(targetId?.path || [])] as const,
+    queryFn: async (): Promise<HMCapability[]> => {
       if (!targetId) throw new Error('ID required')
-      return await client.request<HMListCapabilitiesRequest>(
-        'ListCapabilities',
-        {targetId},
-      )
+      const result = await client.request<HMListCapabilitiesRequest>('ListCapabilities', {targetId})
+      const visitedCaps = new Set<string>()
+      const caps: HMCapability[] = []
+      for (const raw of result.capabilities) {
+        const key = `${raw.delegate}-${raw.role}`
+        if (visitedCaps.has(key)) continue
+        visitedCaps.add(key)
+        const cap = rawCapToHMCapability(raw)
+        if (cap) caps.push(cap)
+      }
+      caps.push({
+        id: '_owner',
+        accountUid: targetId.uid,
+        role: 'owner',
+        grantId: hmId(targetId.uid),
+        label: 'Owner',
+        createTime: {seconds: 0, nanos: 0},
+      })
+      return caps
     },
     enabled: !!targetId,
   }
@@ -181,10 +209,7 @@ export function queryCapabilities(
 /**
  * Query options for fetching interaction summary for a document.
  */
-export function queryInteractionSummary(
-  client: UniversalClient,
-  id: UnpackedHypermediaId | null | undefined,
-) {
+export function queryInteractionSummary(client: UniversalClient, id: UnpackedHypermediaId | null | undefined) {
   return {
     queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY, id?.id] as const,
     queryFn: async (): Promise<HMInteractionSummaryOutput> => {
@@ -197,10 +222,7 @@ export function queryInteractionSummary(
           blocks: {},
         }
       }
-      return await client.request<HMInteractionSummaryRequest>(
-        'InteractionSummary',
-        {id},
-      )
+      return await client.request<HMInteractionSummaryRequest>('InteractionSummary', {id})
     },
     enabled: !!id,
   }

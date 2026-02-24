@@ -1,9 +1,6 @@
 import {grpcClient} from '@/grpc-client'
 import {decode} from '@ipld/dag-cbor'
-import {
-  AuthorVersion,
-  Change,
-} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
+import {AuthorVersion, Change} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
 import {DAEMON_HTTP_PORT} from '@shm/shared/constants'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {UseQueryOptions, useQueries, useQuery} from '@tanstack/react-query'

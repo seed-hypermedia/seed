@@ -8,9 +8,7 @@ function resolveUrl(url: string): string {
     return url
   }
   // Otherwise, prefix with SITE_BASE_URL
-  const baseUrl = SITE_BASE_URL.endsWith('/')
-    ? SITE_BASE_URL.slice(0, -1)
-    : SITE_BASE_URL
+  const baseUrl = SITE_BASE_URL.endsWith('/') ? SITE_BASE_URL.slice(0, -1) : SITE_BASE_URL
   const path = url.startsWith('/') ? url : `/${url}`
   return `${baseUrl}${path}`
 }

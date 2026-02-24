@@ -1,11 +1,11 @@
 import {useInfiniteQuery} from '@tanstack/react-query'
 import {HMListEventsInput, HMListEventsRequest} from './hm-types'
-import {LoadedEvent} from './models/activity-service'
+import {LoadedEventWithNotifMeta} from './models/activity-service'
 import {queryKeys} from './models/query-keys'
 import {useUniversalClient} from './routing'
 
 type LoadedEventsResponse = {
-  events: LoadedEvent[]
+  events: LoadedEventWithNotifMeta[]
   nextPageToken: string
 }
 
@@ -32,13 +32,7 @@ export function useActivityFeed({
   const client = useUniversalClient()
 
   return useInfiniteQuery({
-    queryKey: [
-      queryKeys.ACTIVITY_FEED,
-      filterResource,
-      filterAuthors,
-      filterEventType,
-      currentAccount,
-    ],
+    queryKey: [queryKeys.ACTIVITY_FEED, filterResource, filterAuthors, filterEventType, currentAccount],
     queryFn: async ({pageParam}): Promise<LoadedEventsResponse> => {
       try {
         const input: HMListEventsInput = {
@@ -51,13 +45,10 @@ export function useActivityFeed({
         }
 
         // Fetch pre-resolved events from API
-        const response = await client.request<HMListEventsRequest>(
-          'ListEvents',
-          input,
-        )
+        const response = await client.request<HMListEventsRequest>('ListEvents', input)
 
         return {
-          events: response.events as LoadedEvent[],
+          events: response.events as LoadedEventWithNotifMeta[],
           nextPageToken: response.nextPageToken,
         }
       } catch (error) {

@@ -1,16 +1,8 @@
-import {
-  CloseButton,
-  WindowsLinuxWindowControls,
-} from '@/components/window-controls'
+import {CloseButton, WindowsLinuxWindowControls} from '@/components/window-controls'
 import {useSidebarWidth} from '@/sidebar-context'
 import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {TitleBarProps} from './titlebar'
-import {
-  NavigationButtons,
-  NavMenuButton,
-  Omnibar,
-  PageActionButtons,
-} from './titlebar-common'
+import {NavigationButtons, NavMenuButton, Omnibar, PageActionButtons} from './titlebar-common'
 import './titlebar-windows-linux.css'
 import {SystemMenu} from './windows-linux-titlebar'
 
@@ -38,10 +30,7 @@ export default function TitleBarWindows(props: TitleBarProps) {
     <WindowsLinuxTitleBar
       right={<PageActionButtons />}
       left={
-        <div
-          className="window-drag flex flex-1 items-start gap-2 px-0"
-          style={{minWidth: sidebarWidth}}
-        >
+        <div className="window-drag flex flex-1 items-start gap-2 px-0" style={{minWidth: sidebarWidth}}>
           <NavMenuButton />
           <NavigationButtons />
         </div>
@@ -78,16 +67,12 @@ export function WindowsLinuxTitleBar({
       {/* @ts-expect-error */}
       <TitlebarWrapper platform={platform}>
         <div className="window-drag flex justify-between pr-2">
-          <div className="window-drag flex min-w-min basis-0 items-center">
-            {left}
-          </div>
+          <div className="window-drag flex min-w-min basis-0 items-center">{left}</div>
           <div className="flex flex-1 items-center overflow-x-hidden px-2">
             {/* <Title /> */}
             {title}
           </div>
-          <div className="window-drag flex min-w-min basis-0 items-center justify-end pr-2">
-            {right}
-          </div>
+          <div className="window-drag flex min-w-min basis-0 items-center justify-end pr-2">{right}</div>
         </div>
       </TitlebarWrapper>
     </div>

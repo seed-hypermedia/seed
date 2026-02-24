@@ -41,13 +41,7 @@ export type ScrollRestorationRef = {
  * })
  */
 export function useScrollRestoration(options: ScrollRestorationOptions) {
-  const {
-    scrollId,
-    getStorageKey,
-    useNativeScroll = false,
-    debug = false,
-    shouldSkipRestoration,
-  } = options
+  const {scrollId, getStorageKey, useNativeScroll = false, debug = false, shouldSkipRestoration} = options
 
   const [viewport, setViewport] = useState<HTMLElement | null>(null)
   const storageKey = getStorageKey()
@@ -63,16 +57,9 @@ export function useScrollRestoration(options: ScrollRestorationOptions) {
     const callback = ((node: HTMLDivElement | null) => {
       containerRef.current = node
       if (node) {
-        const vp = useNativeScroll
-          ? node
-          : (node.querySelector(
-              '[data-slot="scroll-area-viewport"]',
-            ) as HTMLElement)
+        const vp = useNativeScroll ? node : (node.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement)
         if (debug) {
-          console.log(
-            `[SCROLL_RESTORE:${scrollId}] Container ref set, viewport:`,
-            !!vp,
-          )
+          console.log(`[SCROLL_RESTORE:${scrollId}] Container ref set, viewport:`, !!vp)
         }
         setViewport(vp)
       } else {
@@ -150,9 +137,7 @@ export function useScrollRestoration(options: ScrollRestorationOptions) {
     } else {
       // No saved position, scroll to top (new navigation)
       if (debug) {
-        console.log(
-          `[SCROLL_RESTORE:${scrollId}] No saved position, scrolling to top`,
-        )
+        console.log(`[SCROLL_RESTORE:${scrollId}] No saved position, scrolling to top`)
       }
       viewport.scrollTo({top: 0, behavior: 'instant'})
     }
@@ -182,17 +167,13 @@ export function useScrollRestoration(options: ScrollRestorationOptions) {
     }
 
     if (debug) {
-      console.log(
-        `[SCROLL_RESTORE:${scrollId}] Scroll listener attached to viewport`,
-      )
+      console.log(`[SCROLL_RESTORE:${scrollId}] Scroll listener attached to viewport`)
     }
     viewport.addEventListener('scroll', handleScroll, {passive: true})
 
     return () => {
       if (debug) {
-        console.log(
-          `[SCROLL_RESTORE:${scrollId}] Cleanup, removing scroll listener`,
-        )
+        console.log(`[SCROLL_RESTORE:${scrollId}] Cleanup, removing scroll listener`)
       }
       viewport.removeEventListener('scroll', handleScroll)
       if (scrollTimeout) clearTimeout(scrollTimeout)

@@ -87,9 +87,7 @@
         var debugButton = document.getElementById('debugButton')
         debugButton.style.display = 'block'
         debugButton.addEventListener('click', function () {
-          console.log(
-            '[LOADING WINDOW]: Debug button clicked - forcing active state',
-          )
+          console.log('[LOADING WINDOW]: Debug button clicked - forcing active state')
           if (window.forceActiveState) {
             window.forceActiveState()
           }

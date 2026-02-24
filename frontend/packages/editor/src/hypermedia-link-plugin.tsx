@@ -86,9 +86,7 @@ async function checkHyperLink(
         path: baseId.path,
         latest,
       })
-      const finalHmUrl = `${packHmId(fullHmId)}${
-        fragment ? `#${fragment}` : ''
-      }`
+      const finalHmUrl = `${packHmId(fullHmId)}${fragment ? `#${fragment}` : ''}`
       view.state.doc.descendants((node, pos) => {
         if (node.marks.some((mark) => mark.attrs.id == id)) {
           let tr = view.state.tr

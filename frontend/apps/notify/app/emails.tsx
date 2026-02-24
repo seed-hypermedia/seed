@@ -1,14 +1,5 @@
 import {PlainMessage} from '@bufbuild/protobuf'
-import {
-  Mjml,
-  MjmlBody,
-  MjmlButton,
-  MjmlHead,
-  MjmlPreview,
-  MjmlSection,
-  MjmlText,
-  MjmlTitle,
-} from '@faire/mjml-react'
+import {Mjml, MjmlBody, MjmlButton, MjmlHead, MjmlPreview, MjmlSection, MjmlText, MjmlTitle} from '@faire/mjml-react'
 import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
 import {NotifSettings} from '@shm/emails/components/NotifSettings'
 import {Comment, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
@@ -35,10 +26,7 @@ export async function sendNotificationsEmail(
     subscriberNames.add(notification.accountMeta?.name || 'You')
   }
   const docNotifs = Object.values(notificationsByDocument)
-  const baseNotifsSubject =
-    notifications.length > 1
-      ? `${notifications.length} Notifications`
-      : 'Notification'
+  const baseNotifsSubject = notifications.length > 1 ? `${notifications.length} Notifications` : 'Notification'
   let subject = baseNotifsSubject
   const singleDocumentTitle = notifications.every(
     // @ts-expect-error
@@ -56,10 +44,7 @@ export async function sendNotificationsEmail(
     // @ts-expect-error
     notifications[0].accountMeta,
   )
-  const notifSettingsUrl = `${SITE_BASE_URL.replace(
-    /\/$/,
-    '',
-  )}/hm/email-notifications?token=${opts.adminToken}`
+  const notifSettingsUrl = `${SITE_BASE_URL.replace(/\/$/, '')}/hm/email-notifications?token=${opts.adminToken}`
 
   const text = `${baseNotifsSubject}
 
@@ -94,9 +79,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
         <MjmlTitle>{subject}</MjmlTitle>
         {/* This preview is visible from the email client before the user clicks on the email */}
         <MjmlPreview>
-          {notifications.length > 1
-            ? `${firstNotificationSummary} and more`
-            : firstNotificationSummary}
+          {notifications.length > 1 ? `${firstNotificationSummary} and more` : firstNotificationSummary}
         </MjmlPreview>
       </MjmlHead>
       <MjmlBody width={500}>
@@ -115,10 +98,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
               {notifications.map((notification) => {
                 return (
                   <MjmlText paddingBottom={8} paddingTop={8}>
-                    {getNotificationSummary(
-                      notification.notif,
-                      notification.accountMeta,
-                    )}
+                    {getNotificationSummary(notification.notif, notification.accountMeta)}
                   </MjmlText>
                 )
               })}
@@ -138,12 +118,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
     </Mjml>,
   )
 
-  await sendEmail(
-    email,
-    subject,
-    {text, html},
-    `Hypermedia Updates for ${Array.from(subscriberNames).join(', ')}`,
-  )
+  await sendEmail(email, subject, {text, html}, `Hypermedia Updates for ${Array.from(subscriberNames).join(', ')}`)
 }
 
 export async function sendNotificationWelcomeEmail(
@@ -161,10 +136,7 @@ export async function sendNotificationWelcomeEmail(
   if (!NOTIFY_SERVICE_HOST) {
     throw new Error('NOTIFY_SERVICE_HOST is not set')
   }
-  const notifSettingsUrl = `${NOTIFY_SERVICE_HOST.replace(
-    /\/$/,
-    '',
-  )}/hm/email-notifications?token=${opts.adminToken}`
+  const notifSettingsUrl = `${NOTIFY_SERVICE_HOST.replace(/\/$/, '')}/hm/email-notifications?token=${opts.adminToken}`
   let notificationTypes = []
   if (opts.notifyAllMentions) notificationTypes.push('mentions')
   if (opts.notifyAllReplies) notificationTypes.push('replies')
@@ -189,9 +161,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
       <MjmlHead>
         <MjmlTitle>{subject}</MjmlTitle>
         {/* This preview is visible from the email client before the user clicks on the email */}
-        <MjmlPreview>
-          Welcome! You're now subscribed to receive email notifications.
-        </MjmlPreview>
+        <MjmlPreview>Welcome! You're now subscribed to receive email notifications.</MjmlPreview>
       </MjmlHead>
       <MjmlBody width={500}>
         <MjmlSection>
@@ -206,9 +176,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
     email,
     subject,
     {text, html},
-    accountMeta?.name
-      ? `Hypermedia Updates for ${accountMeta?.name}`
-      : 'Hypermedia Updates',
+    accountMeta?.name ? `Hypermedia Updates for ${accountMeta?.name}` : 'Hypermedia Updates',
   )
 }
 
@@ -238,19 +206,14 @@ export type FullNotification = {
   notif: Notification
 }
 
-function getNotificationSummary(
-  notification: Notification,
-  accountMeta: HMMetadata | null,
-): string {
+function getNotificationSummary(notification: Notification, accountMeta: HMMetadata | null): string {
   if (notification.type === 'mention') {
     return `${accountMeta?.name || 'You were'} mentioned by ${
       notification.commentAuthorMeta?.name || notification.comment.author
     }.`
   }
   if (notification.type === 'reply') {
-    return `Reply from ${
-      notification.commentAuthorMeta?.name || notification.comment.author
-    }.`
+    return `Reply from ${notification.commentAuthorMeta?.name || notification.comment.author}.`
   }
   return ''
 }

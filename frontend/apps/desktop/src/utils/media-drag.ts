@@ -25,8 +25,7 @@ export function getBlockInfo(blockContainer: Node): BlockInfoWithoutPositions {
   const id = blockContainer.attrs['id']
   const contentNode = blockContainer.firstChild!
   const contentType = contentNode.type
-  const numChildBlocks =
-    blockContainer.childCount === 2 ? blockContainer.lastChild!.childCount : 0
+  const numChildBlocks = blockContainer.childCount === 2 ? blockContainer.lastChild!.childCount : 0
 
   return {
     id,
@@ -78,8 +77,7 @@ export async function handleDragMedia(file: File) {
 }
 
 export function generateBlockId(length: number = 8): string {
-  const characters =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
   let result = ''
   for (let i = 0; i < length; i++) {
     result += characters.charAt(Math.floor(Math.random() * characters.length))
@@ -101,7 +99,4 @@ export const chromiumSupportedImageMimeTypes = new Set([
   'image/avif',
 ])
 
-export const chromiumSupportedVideoMimeTypes = new Set([
-  'video/mp4',
-  'video/webm',
-])
+export const chromiumSupportedVideoMimeTypes = new Set(['video/mp4', 'video/webm'])

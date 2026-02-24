@@ -28,11 +28,7 @@ export function HMProfilePage({
       <div className="border-t border-neutral-200 py-6 dark:border-neutral-800">
         <h2 className="text-2xl font-bold">{tx('Account Activity')}</h2>
       </div>
-      <Feed
-        currentAccount={currentAccount}
-        filterAuthors={[profile.id.uid]}
-        filterResource={undefined}
-      />
+      <Feed currentAccount={currentAccount} filterAuthors={[profile.id.uid]} filterResource={undefined} />
     </div>
   )
 }
@@ -54,12 +50,7 @@ function ProfileHeader({
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 py-7">
       <div className="flex items-center gap-4">
-        <HMIcon
-          id={profile.id}
-          size={100}
-          icon={profile.metadata?.icon}
-          name={profile.metadata?.name}
-        />
+        <HMIcon id={profile.id} size={100} icon={profile.metadata?.icon} name={profile.metadata?.name} />
         <div className="flex flex-col gap-2">
           <h2 className="text-4xl font-bold">
             {tx('about_account', ({name}) => `${name}`, {

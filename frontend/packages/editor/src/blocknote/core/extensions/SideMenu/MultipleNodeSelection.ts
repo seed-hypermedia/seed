@@ -77,10 +77,7 @@ export class MultipleNodeSelection extends Selection {
       return Selection.near(doc.resolve(toResult.pos))
     }
 
-    return new MultipleNodeSelection(
-      doc.resolve(fromResult.pos),
-      doc.resolve(toResult.pos),
-    )
+    return new MultipleNodeSelection(doc.resolve(fromResult.pos), doc.resolve(toResult.pos))
   }
 
   toJSON(): any {

@@ -29,18 +29,14 @@ function createSimpleStream<T>(initialValue: T) {
 
 // Get initial daemon state
 const windowInfo = ipcRenderer.sendSync('initWindow')
-const {stream: daemonState, update: updateDaemonState} =
-  createSimpleStream<GoDaemonState>(windowInfo.daemonState)
+const {stream: daemonState, update: updateDaemonState} = createSimpleStream<GoDaemonState>(windowInfo.daemonState)
 
 // Expose minimal API
 contextBridge.exposeInMainWorld('daemonState', daemonState)
 contextBridge.exposeInMainWorld('windowIsReady', () => {
   ipcRenderer.send('windowIsReady')
 })
-contextBridge.exposeInMainWorld(
-  'forceLoadingWindow',
-  windowInfo.forceLoadingWindow,
-)
+contextBridge.exposeInMainWorld('forceLoadingWindow', windowInfo.forceLoadingWindow)
 contextBridge.exposeInMainWorld('forceActiveState', () => {
   ipcRenderer.send('forceActiveState')
 })

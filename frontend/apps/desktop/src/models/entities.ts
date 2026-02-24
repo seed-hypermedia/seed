@@ -20,18 +20,12 @@ type DeleteEntitiesInput = {
   signingAccountUid: string
 }
 
-export function useDeleteEntities(
-  opts: UseMutationOptions<void, unknown, DeleteEntitiesInput>,
-) {
+export function useDeleteEntities(opts: UseMutationOptions<void, unknown, DeleteEntitiesInput>) {
   const push = usePushResource()
   const deleteRecent = useDeleteRecent()
   return useMutation({
     ...opts,
-    mutationFn: async ({
-      ids,
-      capabilityId,
-      signingAccountUid,
-    }: DeleteEntitiesInput) => {
+    mutationFn: async ({ids, capabilityId, signingAccountUid}: DeleteEntitiesInput) => {
       await Promise.all(
         ids.map(async (id) => {
           await deleteRecent.mutateAsync(id.id)
@@ -52,10 +46,7 @@ export function useDeleteEntities(
         invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, id.id])
         getParentPaths(id.path).forEach((path) => {
           const parentId = hmId(id.uid, {path})
-          invalidateQueries([
-            queryKeys.DOCUMENT_INTERACTION_SUMMARY,
-            parentId.id,
-          ])
+          invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentId.id])
         })
       })
       opts?.onSuccess?.(result, input, context)
@@ -66,18 +57,14 @@ export function useDeleteEntities(
 export function useDeletedContent() {
   return useQuery({
     queryFn: async () => {
-      const deleted = (
-        await grpcClient.entities.listDeletedEntities({})
-      ).deletedEntities.map((d) => toPlainMessage(d))
+      const deleted = (await grpcClient.entities.listDeletedEntities({})).deletedEntities.map((d) => toPlainMessage(d))
       return deleted
     },
     queryKey: [queryKeys.DELETED],
   })
 }
 
-export function useUndeleteEntity(
-  opts?: UseMutationOptions<void, unknown, {id: string}>,
-) {
+export function useUndeleteEntity(opts?: UseMutationOptions<void, unknown, {id: string}>) {
   const deleteRecent = useDeleteRecent()
 
   return useMutation({
@@ -131,35 +118,29 @@ function getOrCreateDiscoveryStream(entityId: string) {
   return discoveryStreams.get(entityId)!
 }
 
-export function getDiscoveryStream(
-  entityId: string,
-): StateStream<DiscoveryState | null> {
+export function getDiscoveryStream(entityId: string): StateStream<DiscoveryState | null> {
   return getOrCreateDiscoveryStream(entityId).stream
 }
 
 // Aggregated discovery state - subscribe to main process
-const [writeAggregatedDiscovery, aggregatedDiscoveryStream] =
-  writeableStateStream({
-    activeCount: 0,
-    tombstoneCount: 0,
-    notFoundCount: 0,
-    blobsDiscovered: 0,
-    blobsDownloaded: 0,
-    blobsFailed: 0,
-  })
+const [writeAggregatedDiscovery, aggregatedDiscoveryStream] = writeableStateStream({
+  activeCount: 0,
+  tombstoneCount: 0,
+  notFoundCount: 0,
+  blobsDiscovered: 0,
+  blobsDownloaded: 0,
+  blobsFailed: 0,
+})
 
 let aggregatedStateSubscription: {unsubscribe: () => void} | null = null
 
 function ensureAggregatedStateSubscription() {
   if (aggregatedStateSubscription) return
-  aggregatedStateSubscription = client.sync.aggregatedState.subscribe(
-    undefined,
-    {
-      onData: (state) => {
-        writeAggregatedDiscovery(state)
-      },
+  aggregatedStateSubscription = client.sync.aggregatedState.subscribe(undefined, {
+    onData: (state) => {
+      writeAggregatedDiscovery(state)
     },
-  )
+  })
 }
 
 export function getAggregatedDiscoveryStream() {
@@ -168,22 +149,17 @@ export function getAggregatedDiscoveryStream() {
 }
 
 // Active discoveries list - subscribe to main process
-const [writeActiveDiscoveries, activeDiscoveriesStream] = writeableStateStream<
-  DiscoveryState[]
->([])
+const [writeActiveDiscoveries, activeDiscoveriesStream] = writeableStateStream<DiscoveryState[]>([])
 
 let activeDiscoveriesSubscription: {unsubscribe: () => void} | null = null
 
 function ensureActiveDiscoveriesSubscription() {
   if (activeDiscoveriesSubscription) return
-  activeDiscoveriesSubscription = client.sync.activeDiscoveries.subscribe(
-    undefined,
-    {
-      onData: (discoveries) => {
-        writeActiveDiscoveries(discoveries)
-      },
+  activeDiscoveriesSubscription = client.sync.activeDiscoveries.subscribe(undefined, {
+    onData: (discoveries) => {
+      writeActiveDiscoveries(discoveries)
     },
-  )
+  })
 }
 
 export function getActiveDiscoveriesStream() {

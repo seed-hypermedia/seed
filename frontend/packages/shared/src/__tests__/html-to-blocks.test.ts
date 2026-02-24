@@ -274,9 +274,7 @@ describe('htmlToBlocks', () => {
 
   it('converts text with hm link to annotation', async () => {
     const html = '<p>😄<a href="https://github.com">foobar</a></p>'
-    const resolveHMLink = vi
-      .fn()
-      .mockResolvedValue(Promise.resolve('hm://foobar/baz'))
+    const resolveHMLink = vi.fn().mockResolvedValue(Promise.resolve('hm://foobar/baz'))
     const blocks = await htmlToBlocks(html, '/test/path', {resolveHMLink})
 
     expect(blocks).toHaveLength(1)
@@ -301,8 +299,7 @@ describe('htmlToBlocks', () => {
   })
 
   it('handles paragraphs with both links and bolds', async () => {
-    const html =
-      '<p>foo <a href="https://github.com">bar <strong>baz</strong></a> <strong>qux</strong></p>'
+    const html = '<p>foo <a href="https://github.com">bar <strong>baz</strong></a> <strong>qux</strong></p>'
     const uploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
     const blocks = await htmlToBlocks(html, '/test/path', {uploadLocalFile})
 

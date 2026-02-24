@@ -87,16 +87,14 @@ export function FindInPage() {
       queryInput.current?.select()
     }
 
-    const unsubscribe = window.appWindowEvents?.subscribe(
-      (event: AppWindowEvent) => {
-        if (event.type === 'find_in_page') {
-          setTimeout(() => {
-            queryInput.current?.focus()
-            queryInput.current?.select()
-          }, 10)
-        }
-      },
-    )
+    const unsubscribe = window.appWindowEvents?.subscribe((event: AppWindowEvent) => {
+      if (event.type === 'find_in_page') {
+        setTimeout(() => {
+          queryInput.current?.focus()
+          queryInput.current?.select()
+        }, 10)
+      }
+    })
 
     return () => unsubscribe?.()
   }, [])
@@ -169,11 +167,7 @@ export function FindInPage() {
           <ChevronDownIcon />
         </button>
 
-        <button
-          type="button"
-          onClick={clearFind}
-          className="hover:bg-muted flex size-8 items-center justify-center"
-        >
+        <button type="button" onClick={clearFind} className="hover:bg-muted flex size-8 items-center justify-center">
           <CloseIcon />
         </button>
       </div>

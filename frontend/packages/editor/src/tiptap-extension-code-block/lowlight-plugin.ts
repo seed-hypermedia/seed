@@ -4,16 +4,10 @@ import {Plugin, PluginKey} from '@tiptap/pm/state'
 import {Decoration, DecorationSet} from '@tiptap/pm/view'
 import highlight from 'highlight.js/lib/core'
 
-function parseNodes(
-  nodes: any[],
-  className: string[] = [],
-): {text: string; classes: string[]}[] {
+function parseNodes(nodes: any[], className: string[] = []): {text: string; classes: string[]}[] {
   return nodes
     .map((node) => {
-      const classes = [
-        ...className,
-        ...(node.properties ? node.properties.className : []),
-      ]
+      const classes = [...className, ...(node.properties ? node.properties.className : [])]
 
       if (node.children) {
         return parseNodes(node.children, classes)
@@ -56,9 +50,7 @@ function getDecorations({
 
     const nodes =
       language && (languages.includes(language) || registered(language))
-        ? getHighlightNodes(
-            lowlight.highlight(language, block.node.textContent),
-          )
+        ? getHighlightNodes(lowlight.highlight(language, block.node.textContent))
         : getHighlightNodes(lowlight.highlightAuto(block.node.textContent))
 
     parseNodes(nodes).forEach((node) => {
@@ -92,14 +84,8 @@ export function LowlightPlugin({
   lowlight: any
   defaultLanguage: string | null | undefined
 }) {
-  if (
-    !['highlight', 'highlightAuto', 'listLanguages'].every((api) =>
-      isFunction(lowlight[api]),
-    )
-  ) {
-    throw Error(
-      'You should provide an instance of lowlight to use the code-block-lowlight extension',
-    )
+  if (!['highlight', 'highlightAuto', 'listLanguages'].every((api) => isFunction(lowlight[api]))) {
+    throw Error('You should provide an instance of lowlight to use the code-block-lowlight extension')
   }
 
   const lowlightPlugin: Plugin<any> = new Plugin({
@@ -116,14 +102,8 @@ export function LowlightPlugin({
       apply: (transaction, decorationSet, oldState, newState) => {
         const oldNodeName = oldState.selection.$head.parent.type.name
         const newNodeName = newState.selection.$head.parent.type.name
-        const oldNodes = findChildren(
-          oldState.doc,
-          (node) => node.type.name === name,
-        )
-        const newNodes = findChildren(
-          newState.doc,
-          (node) => node.type.name === name,
-        )
+        const oldNodes = findChildren(oldState.doc, (node) => node.type.name === name)
+        const newNodes = findChildren(newState.doc, (node) => node.type.name === name)
 
         if (
           transaction.docChanged &&

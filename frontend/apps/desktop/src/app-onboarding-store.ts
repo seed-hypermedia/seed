@@ -1,9 +1,5 @@
 import {ipcMain} from 'electron'
-import type {
-  OnboardingFormData,
-  OnboardingState,
-  OnboardingStep,
-} from './app-onboarding'
+import type {OnboardingFormData, OnboardingState, OnboardingStep} from './app-onboarding'
 import {appStore} from './app-store.mjs'
 
 const ONBOARDING_STORAGE_KEY = 'onboarding-v001'
@@ -18,9 +14,7 @@ const ONBOARDING_INITIAL_STATE: OnboardingState = {
   initialAccountIdCount: 0,
 }
 
-let obState =
-  (appStore.get(ONBOARDING_STORAGE_KEY) as OnboardingState) ||
-  ONBOARDING_INITIAL_STATE
+let obState = (appStore.get(ONBOARDING_STORAGE_KEY) as OnboardingState) || ONBOARDING_INITIAL_STATE
 
 const getInitialState = (): OnboardingState => ONBOARDING_INITIAL_STATE
 
@@ -66,14 +60,11 @@ export function setupOnboardingHandlers() {
     console.log('📝 New store state:', getOnboardingState())
   })
 
-  ipcMain.on(
-    'set-onboarding-form-data',
-    (_, data: Partial<OnboardingFormData>) => {
-      console.log('📝 Setting form data:', data)
-      setOnboardingState({formData: {...obState.formData, ...data}})
-      console.log('📝 New store state:', getOnboardingState())
-    },
-  )
+  ipcMain.on('set-onboarding-form-data', (_, data: Partial<OnboardingFormData>) => {
+    console.log('📝 Setting form data:', data)
+    setOnboardingState({formData: {...obState.formData, ...data}})
+    console.log('📝 New store state:', getOnboardingState())
+  })
 
   ipcMain.on('set-onboarding-initial-account-id-count', (_, count: number) => {
     console.log('📝 Setting initial account id count:', count)

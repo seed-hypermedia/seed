@@ -14,6 +14,7 @@ import (
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet"
 	"seed/backend/hmnet/syncing"
+	"seed/backend/llm"
 	"seed/backend/logging"
 	"seed/backend/storage"
 
@@ -49,6 +50,7 @@ func New(
 	isMainnet bool,
 	dlink *devicelink.Service,
 	taskMgr *taskmanager.TaskManager,
+	embedder llm.LightEmbedder,
 ) Server {
 	db := repo.DB()
 	proxy := &p2pProxy{node: node}
@@ -56,7 +58,7 @@ func New(
 		Activity:    activity,
 		Daemon:      daemon.NewServer(repo, node, idx, dlink, taskMgr),
 		Networking:  networking.NewServer(node, db, logging.New("seed/networking", LogLevel)),
-		Entities:    entities.NewServer(db, sync),
+		Entities:    entities.NewServer(db, sync, embedder, logging.New("seed/entities", LogLevel)),
 		DocumentsV3: documentsv3.NewServer(cfg, repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel), node),
 		Syncing:     sync,
 		Payments:    payments.NewServer(logging.New("seed/payments", LogLevel), db, node, repo.KeyStore(), isMainnet),

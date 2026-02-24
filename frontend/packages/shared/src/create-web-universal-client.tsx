@@ -16,9 +16,7 @@ export type WebClientDependencies = {
   deleteRecent?: (id: string) => Promise<void>
 }
 
-export function createWebUniversalClient(
-  deps: WebClientDependencies,
-): UniversalClient {
+export function createWebUniversalClient(deps: WebClientDependencies): UniversalClient {
   return {
     CommentEditor: deps.CommentEditor,
 
@@ -26,14 +24,9 @@ export function createWebUniversalClient(
 
     deleteRecent: deps.deleteRecent,
 
-    request: async <Req extends HMRequest>(
-      key: Req['key'],
-      input: Req['input'],
-    ): Promise<Req['output']> => {
+    request: async <Req extends HMRequest>(key: Req['key'], input: Req['input']): Promise<Req['output']> => {
       // Find the matching request schema
-      const requestSchema = HMRequestSchema.options.find(
-        (schema) => schema.shape.key.value === key,
-      )
+      const requestSchema = HMRequestSchema.options.find((schema) => schema.shape.key.value === key)
       if (!requestSchema) {
         throw new Error(`No schema found for key: ${key}`)
       }
@@ -44,16 +37,11 @@ export function createWebUniversalClient(
       if (apiParams?.inputToParams) {
         const params = apiParams.inputToParams(input as any)
         const searchParams = new URLSearchParams(params)
-        queryString = searchParams.toString()
-          ? `?${searchParams.toString()}`
-          : ''
+        queryString = searchParams.toString() ? `?${searchParams.toString()}` : ''
       } else if (!input) {
         queryString = ''
       } else {
-        queryString = serializeQueryString(
-          input,
-          requestSchema.shape.input as any,
-        )
+        queryString = serializeQueryString(input, requestSchema.shape.input as any)
       }
       // Make the request to the API endpoint
       const url = `/api/${key}${queryString}`

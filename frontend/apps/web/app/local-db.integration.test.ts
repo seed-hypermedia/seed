@@ -15,11 +15,7 @@ global.window = {
 import {indexedDB} from 'fake-indexeddb'
 import 'fake-indexeddb/auto'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
-import {
-  hasPromptedEmailNotifications,
-  resetDB,
-  setHasPromptedEmailNotifications,
-} from './local-db'
+import {hasPromptedEmailNotifications, resetDB, setHasPromptedEmailNotifications} from './local-db'
 
 const DB_NAME = 'keyStore-04'
 

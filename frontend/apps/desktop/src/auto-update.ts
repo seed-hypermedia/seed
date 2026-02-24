@@ -1,8 +1,4 @@
-import {
-  AVOID_UPDATES,
-  IS_PROD_DESKTOP,
-  IS_PROD_DEV,
-} from '@shm/shared/constants'
+import {AVOID_UPDATES, IS_PROD_DESKTOP, IS_PROD_DEV} from '@shm/shared/constants'
 import {app, BrowserWindow, ipcMain, session, shell} from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -10,11 +6,7 @@ import {getLastFocusedWindow} from './app-windows'
 import * as log from './logger'
 import {UpdateAsset, UpdateInfo, UpdateStatus} from './types/updater-types'
 
-import {
-  autoUpdater as defaultAutoUpdater,
-  dialog,
-  MessageBoxOptions,
-} from 'electron'
+import {autoUpdater as defaultAutoUpdater, dialog, MessageBoxOptions} from 'electron'
 import {updateElectronApp, UpdateSourceType} from 'update-electron-app'
 
 export function defaultCheckForUpdates() {
@@ -29,14 +21,10 @@ export function defaultCheckForUpdates() {
   log.debug('[MAIN][AUTO-UPDATE]: checking for Updates END')
 }
 
-export const checkForUpdates =
-  process.platform == 'win32' ? defaultCheckForUpdates : customAutoUpdates
+export const checkForUpdates = process.platform == 'win32' ? defaultCheckForUpdates : customAutoUpdates
 
 export default function autoUpdate() {
-  console.log(
-    `[AUTO-UPDATE] autoUpdate call INIT`,
-    BrowserWindow.getFocusedWindow()?.id,
-  )
+  console.log(`[AUTO-UPDATE] autoUpdate call INIT`, BrowserWindow.getFocusedWindow()?.id)
 
   if (!IS_PROD_DESKTOP || AVOID_UPDATES) {
     log.debug('[MAIN][AUTO-UPDATE]: Not available in development')
@@ -45,9 +33,7 @@ export default function autoUpdate() {
 
   // Check if running inside Flatpak
   if (isRunningInFlatpak()) {
-    log.info(
-      '[AUTO-UPDATE] Running inside Flatpak - skipping custom auto-update setup',
-    )
+    log.info('[AUTO-UPDATE] Running inside Flatpak - skipping custom auto-update setup')
     setTimeout(() => {
       handleFlatpakUpdates()
     }, 2000) // Brief delay to ensure UI is ready
@@ -56,9 +42,7 @@ export default function autoUpdate() {
 
   // Check if running as AppImage
   if (isRunningInAppImage()) {
-    log.info(
-      '[AUTO-UPDATE] Running as AppImage - skipping custom auto-update setup',
-    )
+    log.info('[AUTO-UPDATE] Running as AppImage - skipping custom auto-update setup')
     setTimeout(() => {
       handleAppImageUpdates()
     }, 2000) // Brief delay to ensure UI is ready
@@ -105,17 +89,15 @@ function setup() {
     })
   } else {
     // this was the old way of doing it
-    const updateUrl = `https://update.electronjs.org/seed-hypermedia/seed/${
-      process.platform
-    }-${process.arch}/${app.getVersion()}`
+    const updateUrl = `https://update.electronjs.org/seed-hypermedia/seed/${process.platform}-${
+      process.arch
+    }/${app.getVersion()}`
 
     defaultAutoUpdater.setFeedURL({url: updateUrl})
   }
 
   defaultAutoUpdater.on('error', (message) => {
-    log.error(
-      `[MAIN][AUTO-UPDATE]: There was a problem updating the application: ${message}`,
-    )
+    log.error(`[MAIN][AUTO-UPDATE]: There was a problem updating the application: ${message}`)
   })
 
   defaultAutoUpdater.on('update-available', async () => {
@@ -124,27 +106,23 @@ function setup() {
     } catch (error) {}
   })
 
-  defaultAutoUpdater.on(
-    'update-downloaded',
-    (_event, releaseNotes, releaseName) => {
-      log.debug('[MAIN][AUTO-UPDATE]: New version downloaded')
-      const dialogOpts: MessageBoxOptions = {
-        type: 'info',
-        buttons: ['Restart', 'Later'],
-        title: 'Application Update',
-        message: process.platform == 'win32' ? releaseNotes : releaseName,
-        detail:
-          'A new version has been downloaded. Restart the application to apply the updates.',
-      }
+  defaultAutoUpdater.on('update-downloaded', (_event, releaseNotes, releaseName) => {
+    log.debug('[MAIN][AUTO-UPDATE]: New version downloaded')
+    const dialogOpts: MessageBoxOptions = {
+      type: 'info',
+      buttons: ['Restart', 'Later'],
+      title: 'Application Update',
+      message: process.platform == 'win32' ? releaseNotes : releaseName,
+      detail: 'A new version has been downloaded. Restart the application to apply the updates.',
+    }
 
-      dialog.showMessageBox(dialogOpts).then((returnValue: any) => {
-        if (returnValue.response === 0) {
-          log.debug('[MAIN][AUTO-UPDATE]: Quit and Install')
-          defaultAutoUpdater.quitAndInstall()
-        }
-      })
-    },
-  )
+    dialog.showMessageBox(dialogOpts).then((returnValue: any) => {
+      if (returnValue.response === 0) {
+        log.debug('[MAIN][AUTO-UPDATE]: Quit and Install')
+        defaultAutoUpdater.quitAndInstall()
+      }
+    })
+  })
 
   defaultAutoUpdater.on('update-not-available', () => {
     log.debug('[AUTO-UPDATE]: update not available')
@@ -166,25 +144,20 @@ function isRunningInAppImage(): boolean {
 }
 
 function handleFlatpakUpdates() {
-  log.info(
-    '[AUTO-UPDATE] Running inside Flatpak - using native update mechanism',
-  )
+  log.info('[AUTO-UPDATE] Running inside Flatpak - using native update mechanism')
 
   // Send notification to user about Flatpak updates
   const win = getLastFocusedWindow()
   if (win) {
     win.webContents.send('auto-update:status', {
       type: 'flatpak-info',
-      message:
-        'Updates are handled by your system package manager. Use "flatpak update" or your software center.',
+      message: 'Updates are handled by your system package manager. Use "flatpak update" or your software center.',
     })
   }
 }
 
 function handleAppImageUpdates() {
-  log.info(
-    '[AUTO-UPDATE] Running as AppImage - using AppImage update mechanism',
-  )
+  log.info('[AUTO-UPDATE] Running as AppImage - using AppImage update mechanism')
 
   // Send notification to user about AppImage updates
   const win = getLastFocusedWindow()
@@ -243,17 +216,13 @@ export class AutoUpdater {
 
     // Listen for download and install request from renderer
     ipcMain.on('auto-update:download-and-install', () => {
-      log.info(
-        `[AUTO-UPDATE] Received download and install request (platform: ${process.platform})`,
-      )
+      log.info(`[AUTO-UPDATE] Received download and install request (platform: ${process.platform})`)
       if (this.currentUpdateInfo) {
         // For Linux, open GitHub release page instead of downloading
         if (process.platform === 'linux') {
           log.info(`[AUTO-UPDATE] Opening Seed Hypermedia Download page`)
           shell.openExternal('https://seed.hyper.media/hm/download')
-          log.info(
-            '[AUTO-UPDATE] Linux download request completed - browser opened',
-          )
+          log.info('[AUTO-UPDATE] Linux download request completed - browser opened')
           return
         }
 
@@ -306,8 +275,7 @@ export class AutoUpdater {
         type: 'info',
         title: 'Update Available',
         message: `${this.currentUpdateInfo?.name}`,
-        detail:
-          this.currentUpdateInfo.release_notes || 'No release notes available',
+        detail: this.currentUpdateInfo.release_notes || 'No release notes available',
         buttons: ['OK'],
       })
     } else {
@@ -319,9 +287,7 @@ export class AutoUpdater {
     log.info('[AUTO-UPDATE] Checking for updates START')
     log.info(`[AUTO-UPDATE] Update URL: ${this.updateUrl}`)
     log.info(`[AUTO-UPDATE] Current app version: ${app.getVersion()}`)
-    log.info(
-      `[AUTO-UPDATE] Platform: ${process.platform}, Architecture: ${process.arch}`,
-    )
+    log.info(`[AUTO-UPDATE] Platform: ${process.platform}, Architecture: ${process.arch}`)
 
     const win = getLastFocusedWindow()
     if (!win) {
@@ -350,19 +316,11 @@ export class AutoUpdater {
       }
 
       const updateInfo: UpdateInfo = await response.json()
-      log.info(
-        `[AUTO-UPDATE] Received update info for version: ${updateInfo.name}`,
-      )
-      log.info(
-        `[AUTO-UPDATE] Current version: ${app.getVersion()}, Latest version: ${
-          updateInfo.name
-        }`,
-      )
+      log.info(`[AUTO-UPDATE] Received update info for version: ${updateInfo.name}`)
+      log.info(`[AUTO-UPDATE] Current version: ${app.getVersion()}, Latest version: ${updateInfo.name}`)
 
       if (this.shouldUpdate(updateInfo.name)) {
-        log.info(
-          '[AUTO-UPDATE] New version available, initiating update process',
-        )
+        log.info('[AUTO-UPDATE] New version available, initiating update process')
         this.status = {type: 'update-available', updateInfo: updateInfo}
         win.webContents.send('auto-update:status', this.status)
         this.currentUpdateInfo = updateInfo // Store the update info
@@ -374,14 +332,9 @@ export class AutoUpdater {
         this.currentUpdateInfo = null
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error)
+      const errorMessage = error instanceof Error ? error.message : String(error)
       log.error(`[AUTO-UPDATE] Error checking for updates: ${errorMessage}`)
-      log.error(
-        `[AUTO-UPDATE] Error stack: ${
-          error instanceof Error ? error.stack : 'No stack trace'
-        }`,
-      )
+      log.error(`[AUTO-UPDATE] Error stack: ${error instanceof Error ? error.stack : 'No stack trace'}`)
 
       this.status = {type: 'error', error: errorMessage}
 
@@ -456,16 +409,12 @@ export class AutoUpdater {
     win.webContents.send('auto-update:status', this.status)
   }
 
-  private getAssetForCurrentPlatform(
-    updateInfo: UpdateInfo,
-  ): UpdateAsset | null {
+  private getAssetForCurrentPlatform(updateInfo: UpdateInfo): UpdateAsset | null {
     log.info(`[AUTO-UPDATE] Getting asset for platform: ${process.platform}`)
     if (process.platform === 'linux') {
       const isRpm = fs.existsSync('/etc/redhat-release')
       log.info(`[AUTO-UPDATE] Linux package type: ${isRpm ? 'RPM' : 'DEB'}`)
-      return isRpm
-        ? updateInfo.assets.linux?.rpm || null
-        : updateInfo.assets.linux?.deb || null
+      return isRpm ? updateInfo.assets.linux?.rpm || null : updateInfo.assets.linux?.deb || null
     } else if (process.platform === 'darwin') {
       log.info('[AUTO-UPDATE] Platform: macOS')
       log.info(`[AUTO-UPDATE] Architecture: ${process.arch}`)
@@ -513,11 +462,7 @@ export class AutoUpdater {
       session.defaultSession.downloadURL(downloadUrl)
 
       session.defaultSession.on('will-download', (_event: any, item: any) => {
-        log.info(
-          `[AUTO-UPDATE] Download started for file: ${
-            item?.getFilename() || 'unknown'
-          }`,
-        )
+        log.info(`[AUTO-UPDATE] Download started for file: ${item?.getFilename() || 'unknown'}`)
         // Set download path
         let filePath: string
         try {
@@ -546,9 +491,7 @@ export class AutoUpdater {
                 const total = item.getTotalBytes()
                 if (total > 0) {
                   const progress = Math.round((received / total) * 100)
-                  log.info(
-                    `[AUTO-UPDATE] Download progress: ${progress}% (${received}/${total} bytes)`,
-                  )
+                  log.info(`[AUTO-UPDATE] Download progress: ${progress}% (${received}/${total} bytes)`)
                   this.status = {type: 'downloading', progress: progress}
                   win.webContents.send('auto-update:status', this.status)
                 } else {
@@ -559,9 +502,7 @@ export class AutoUpdater {
               log.info(`[AUTO-UPDATE] Download state changed to: ${state}`)
             }
           } catch (error) {
-            log.error(
-              `[AUTO-UPDATE] Error during download progress update: ${error}`,
-            )
+            log.error(`[AUTO-UPDATE] Error during download progress update: ${error}`)
           }
         })
 
@@ -573,9 +514,7 @@ export class AutoUpdater {
             try {
               // Verify the file exists and has content
               const stats = await require('fs/promises').stat(filePath)
-              log.info(
-                `[AUTO-UPDATE] Downloaded file size: ${stats.size} bytes`,
-              )
+              log.info(`[AUTO-UPDATE] Downloaded file size: ${stats.size} bytes`)
 
               if (stats.size === 0) {
                 throw new Error('Downloaded file is empty')
@@ -583,23 +522,17 @@ export class AutoUpdater {
 
               this.status = {type: 'restarting'}
               win.webContents.send('auto-update:status', this.status)
-              log.info(
-                `[AUTO-UPDATE] Download successfully saved to ${filePath}`,
-              )
+              log.info(`[AUTO-UPDATE] Download successfully saved to ${filePath}`)
 
               // Test mode - skip actual installation
               if (process.env.AUTO_UPDATE_TEST_MODE === 'true') {
-                log.info(
-                  '[AUTO-UPDATE] TEST MODE: Skipping installation and restart',
-                )
+                log.info('[AUTO-UPDATE] TEST MODE: Skipping installation and restart')
                 this.status = {type: 'idle'}
                 win.webContents.send('auto-update:status', this.status)
                 return
               }
             } catch (verifyError) {
-              log.error(
-                `[AUTO-UPDATE] Download verification failed: ${verifyError}`,
-              )
+              log.error(`[AUTO-UPDATE] Download verification failed: ${verifyError}`)
               this.status = {
                 type: 'error',
                 error: 'Download verification failed',
@@ -645,9 +578,7 @@ export class AutoUpdater {
                       })
                       .catch(() => {})
                     // Restore backup
-                    await execPromise(
-                      `cp -R "${backupPath}/${appName}.app" "/Applications/"`,
-                    )
+                    await execPromise(`cp -R "${backupPath}/${appName}.app" "/Applications/"`)
                     log.info('[AUTO-UPDATE] Backup restored successfully')
                   }
                 } catch (error) {
@@ -659,9 +590,7 @@ export class AutoUpdater {
                 log.info('[AUTO-UPDATE] Cleaning up...')
                 try {
                   // Remove temp directories and downloaded file
-                  await fs
-                    .rm(tempPath, {recursive: true, force: true})
-                    .catch(() => {})
+                  await fs.rm(tempPath, {recursive: true, force: true}).catch(() => {})
                   await fs.rm(filePath, {force: true}).catch(() => {})
                 } catch (error) {
                   log.error(`[AUTO-UPDATE] Error during cleanup: ${error}`)
@@ -682,9 +611,7 @@ export class AutoUpdater {
                     .catch(() => false)
                 ) {
                   log.info('[AUTO-UPDATE] Backing up existing app...')
-                  await execPromise(
-                    `cp -R "/Applications/${appName}.app" "${backupPath}/"`,
-                  )
+                  await execPromise(`cp -R "/Applications/${appName}.app" "${backupPath}/"`)
                 }
 
                 // Unzip new version
@@ -727,9 +654,7 @@ export class AutoUpdater {
 
                 // Set permissions
                 log.info('[AUTO-UPDATE] Setting permissions...')
-                await execPromise(
-                  `chmod -R u+rwx "/Applications/${appName}.app"`,
-                )
+                await execPromise(`chmod -R u+rwx "/Applications/${appName}.app"`)
 
                 // Clean up
                 await cleanup()
@@ -740,17 +665,12 @@ export class AutoUpdater {
                 log.info('[AUTO-UPDATE] Starting new version...')
                 try {
                   // Create a temporary script to launch the new app after this one quits
-                  const launchScriptPath = path.join(
-                    app.getPath('temp'),
-                    'launch-seed.sh',
-                  )
+                  const launchScriptPath = path.join(app.getPath('temp'), 'launch-seed.sh')
                   const scriptContent = `#!/bin/bash
 sleep 1
 open -n "/Applications/${appName}.app" --args --relaunch-after-update
 `
-                  log.info(
-                    `[AUTO-UPDATE] Creating launch script at: ${launchScriptPath}`,
-                  )
+                  log.info(`[AUTO-UPDATE] Creating launch script at: ${launchScriptPath}`)
                   log.info(`[AUTO-UPDATE] Script content: ${scriptContent}`)
                   await fs.writeFile(
                     launchScriptPath,
@@ -769,25 +689,16 @@ open -n "/Applications/${appName}.app" --args --relaunch-after-update
 
                   app.quit()
                 } catch (startError) {
-                  log.error(
-                    `[AUTO-UPDATE] Error starting new version: ${startError}`,
-                  )
+                  log.error(`[AUTO-UPDATE] Error starting new version: ${startError}`)
                   // If the first attempt fails, try one more time with direct approach
                   try {
-                    const launchScriptPath = path.join(
-                      app.getPath('temp'),
-                      'launch-seed-retry.sh',
-                    )
+                    const launchScriptPath = path.join(app.getPath('temp'), 'launch-seed-retry.sh')
                     const retryScriptContent = `#!/bin/bash
 sleep 2
 open "/Applications/${appName}.app" --args --relaunch-after-update
 `
-                    log.info(
-                      `[AUTO-UPDATE] Creating retry launch script at: ${launchScriptPath}`,
-                    )
-                    log.info(
-                      `[AUTO-UPDATE] Retry script content: ${retryScriptContent}`,
-                    )
+                    log.info(`[AUTO-UPDATE] Creating retry launch script at: ${launchScriptPath}`)
+                    log.info(`[AUTO-UPDATE] Retry script content: ${retryScriptContent}`)
                     fs.writeFileSync(
                       launchScriptPath,
                       retryScriptContent,
@@ -801,9 +712,7 @@ open "/Applications/${appName}.app" --args --relaunch-after-update
 
                     app.quit()
                   } catch (retryError) {
-                    log.error(
-                      `[AUTO-UPDATE] Retry to start new version failed: ${retryError}`,
-                    )
+                    log.error(`[AUTO-UPDATE] Retry to start new version failed: ${retryError}`)
                     throw new Error('Failed to start new version after update')
                   }
                 }
@@ -838,9 +747,7 @@ open "/Applications/${appName}.app" --args --relaunch-after-update
 
                 // Ensure the downloaded file has the correct extension
                 const fileExt = isRpm ? '.rpm' : '.deb'
-                const finalPackagePath = filePath.endsWith(fileExt)
-                  ? filePath
-                  : `${filePath}${fileExt}`
+                const finalPackagePath = filePath.endsWith(fileExt) ? filePath : `${filePath}${fileExt}`
 
                 // Rename the file if needed
                 if (filePath !== finalPackagePath) {
@@ -848,9 +755,7 @@ open "/Applications/${appName}.app" --args --relaunch-after-update
                 }
 
                 log.info(`[AUTO-UPDATE] Variables for Linux update:`)
-                log.info(
-                  `[AUTO-UPDATE] - Package type: ${isRpm ? 'RPM' : 'DEB'}`,
-                )
+                log.info(`[AUTO-UPDATE] - Package type: ${isRpm ? 'RPM' : 'DEB'}`)
                 log.info(`[AUTO-UPDATE] - Package name: ${packageName}`)
                 log.info(`[AUTO-UPDATE] - Remove command: ${removeCmd}`)
                 log.info(`[AUTO-UPDATE] - Install command: ${installCmd}`)
@@ -861,9 +766,7 @@ open "/Applications/${appName}.app" --args --relaunch-after-update
                 const cleanup = async () => {
                   log.info('[AUTO-UPDATE] Cleaning up...')
                   try {
-                    await fs
-                      .rm(tempPath, {recursive: true, force: true})
-                      .catch(() => {})
+                    await fs.rm(tempPath, {recursive: true, force: true}).catch(() => {})
                     await fs.rm(finalPackagePath, {force: true}).catch(() => {})
                   } catch (error) {
                     log.error(`[AUTO-UPDATE] Error during cleanup: ${error}`)
@@ -877,62 +780,41 @@ open "/Applications/${appName}.app" --args --relaunch-after-update
                 // Validate package format before installation
                 if (!isRpm) {
                   try {
-                    log.info(
-                      '[AUTO-UPDATE] Validating Debian package format...',
-                    )
+                    log.info('[AUTO-UPDATE] Validating Debian package format...')
                     await execPromise(`dpkg-deb -I "${finalPackagePath}"`)
-                    log.info(
-                      '[AUTO-UPDATE] Package format validation successful',
-                    )
+                    log.info('[AUTO-UPDATE] Package format validation successful')
                   } catch (error) {
-                    log.error(
-                      `[AUTO-UPDATE] Invalid Debian package format: ${error}`,
-                    )
+                    log.error(`[AUTO-UPDATE] Invalid Debian package format: ${error}`)
                     throw new Error('Invalid Debian package format')
                   }
                 }
 
                 // Save current package version for rollback
                 const currentVersion = await execPromise(
-                  `${
-                    isRpm ? 'rpm -q' : 'dpkg -l'
-                  } ${packageName} | grep ${packageName}`,
+                  `${isRpm ? 'rpm -q' : 'dpkg -l'} ${packageName} | grep ${packageName}`,
                 )
                   .then((result: any) => result.stdout.trim())
                   .catch(() => '')
 
                 if (currentVersion && currentVersion.length > 0) {
                   log.info(`[AUTO-UPDATE] Current version: ${currentVersion}`)
-                  await fs.writeFile(
-                    path.join(backupPath, 'version.txt'),
-                    currentVersion,
-                  )
+                  await fs.writeFile(path.join(backupPath, 'version.txt'), currentVersion)
                 } else {
-                  log.warn(
-                    '[AUTO-UPDATE] Could not detect current package version for rollback',
-                  )
+                  log.warn('[AUTO-UPDATE] Could not detect current package version for rollback')
                 }
 
                 // Install new package
                 log.info('[AUTO-UPDATE] Installing new package...')
                 try {
                   // Remove old package first (ignore errors as it might not exist)
-                  await execPromise(`pkexec ${removeCmd} ${packageName}`).catch(
-                    () => {},
-                  )
+                  await execPromise(`pkexec ${removeCmd} ${packageName}`).catch(() => {})
 
                   // Install new package
-                  const result = await execPromise(
-                    `pkexec ${installCmd} "${finalPackagePath}"`,
-                  )
-                  log.info(
-                    `[AUTO-UPDATE] Installation output: ${result.stdout}`,
-                  )
+                  const result = await execPromise(`pkexec ${installCmd} "${finalPackagePath}"`)
+                  log.info(`[AUTO-UPDATE] Installation output: ${result.stdout}`)
 
                   // Verify installation
-                  const verifyCmd = isRpm
-                    ? `rpm -q ${packageName}`
-                    : `dpkg -l ${packageName}`
+                  const verifyCmd = isRpm ? `rpm -q ${packageName}` : `dpkg -l ${packageName}`
                   const verifyResult = await execPromise(verifyCmd)
                   if (!verifyResult.stdout.includes(packageName)) {
                     throw new Error('Package verification failed')
@@ -952,12 +834,8 @@ open "/Applications/${appName}.app" --args --relaunch-after-update
 sleep 1
 ${packageName}
 `
-                  log.info(
-                    `[AUTO-UPDATE] Creating Linux launch script at: ${launchScriptPath}`,
-                  )
-                  log.info(
-                    `[AUTO-UPDATE] Linux script content: ${linuxScriptContent}`,
-                  )
+                  log.info(`[AUTO-UPDATE] Creating Linux launch script at: ${launchScriptPath}`)
+                  log.info(`[AUTO-UPDATE] Linux script content: ${linuxScriptContent}`)
 
                   // Create temp directory if it doesn't exist
                   if (!fs.existsSync(tempPath)) {
@@ -982,11 +860,8 @@ ${packageName}
                   app.quit()
                 } catch (error) {
                   log.error(`[AUTO-UPDATE] Installation error: ${error}`)
-                  const errorMessage =
-                    error instanceof Error ? error.message : String(error)
-                  log.error(
-                    `[AUTO-UPDATE] Installation error details: ${errorMessage}`,
-                  )
+                  const errorMessage = error instanceof Error ? error.message : String(error)
+                  log.error(`[AUTO-UPDATE] Installation error details: ${errorMessage}`)
                   this.status = {
                     type: 'error',
                     error: errorMessage,
@@ -1004,17 +879,11 @@ ${packageName}
                         .catch(() => false)
                     ) {
                       const oldVersion = await fs.readFile(versionFile, 'utf-8')
-                      log.info(
-                        `[AUTO-UPDATE] Rolling back to version: ${oldVersion.trim()}`,
-                      )
+                      log.info(`[AUTO-UPDATE] Rolling back to version: ${oldVersion.trim()}`)
 
                       // Remove failed new version
-                      await execPromise(
-                        `pkexec ${removeCmd} ${packageName}`,
-                      ).catch((removeError: any) => {
-                        log.warn(
-                          `[AUTO-UPDATE] Could not remove failed package: ${removeError}`,
-                        )
+                      await execPromise(`pkexec ${removeCmd} ${packageName}`).catch((removeError: any) => {
+                        log.warn(`[AUTO-UPDATE] Could not remove failed package: ${removeError}`)
                       })
 
                       // For DEB packages, we need to force old version installation
@@ -1033,33 +902,23 @@ ${packageName}
                         }
 
                         if (oldVersionNumber) {
-                          log.info(
-                            `[AUTO-UPDATE] Attempting to reinstall version: ${oldVersionNumber}`,
-                          )
+                          log.info(`[AUTO-UPDATE] Attempting to reinstall version: ${oldVersionNumber}`)
                           if (isRpm) {
                             // For RPM, we would need the original package file
-                            log.warn(
-                              '[AUTO-UPDATE] RPM rollback requires original package file - not implemented',
-                            )
+                            log.warn('[AUTO-UPDATE] RPM rollback requires original package file - not implemented')
                           } else {
                             await execPromise(
                               `pkexec apt-get install ${packageName}=${oldVersionNumber} --allow-downgrades -y`,
                             ).catch((reinstallError: any) => {
-                              log.error(
-                                `[AUTO-UPDATE] Could not reinstall old version: ${reinstallError}`,
-                              )
+                              log.error(`[AUTO-UPDATE] Could not reinstall old version: ${reinstallError}`)
                             })
                           }
                         } else {
-                          log.error(
-                            '[AUTO-UPDATE] Could not parse old version number from backup',
-                          )
+                          log.error('[AUTO-UPDATE] Could not parse old version number from backup')
                         }
                       }
                     } else {
-                      log.warn(
-                        '[AUTO-UPDATE] No version file found for rollback',
-                      )
+                      log.warn('[AUTO-UPDATE] No version file found for rollback')
                     }
                   } catch (rollbackError) {
                     log.error(`[AUTO-UPDATE] Rollback error: ${rollbackError}`)
@@ -1069,8 +928,7 @@ ${packageName}
                   await cleanup()
                 }
               } catch (error) {
-                const errorMessage =
-                  error instanceof Error ? error.message : String(error)
+                const errorMessage = error instanceof Error ? error.message : String(error)
                 log.error(`[AUTO-UPDATE] Linux update error: ${errorMessage}`)
                 this.status = {
                   type: 'error',
@@ -1104,14 +962,10 @@ ${packageName}
                 const cleanup = async () => {
                   log.info('[AUTO-UPDATE] Cleaning up Windows update files...')
                   try {
-                    await fs
-                      .rm(tempPath, {recursive: true, force: true})
-                      .catch(() => {})
+                    await fs.rm(tempPath, {recursive: true, force: true}).catch(() => {})
                     await fs.rm(filePath, {force: true}).catch(() => {})
                   } catch (error) {
-                    log.error(
-                      `[AUTO-UPDATE] Error during Windows cleanup: ${error}`,
-                    )
+                    log.error(`[AUTO-UPDATE] Error during Windows cleanup: ${error}`)
                   }
                 }
 
@@ -1120,51 +974,32 @@ ${packageName}
                 await fs.mkdir(backupPath, {recursive: true})
 
                 if (isExe || isMsi) {
-                  log.info(
-                    `[AUTO-UPDATE] Installing Windows ${
-                      isExe ? 'EXE' : 'MSI'
-                    } package...`,
-                  )
+                  log.info(`[AUTO-UPDATE] Installing Windows ${isExe ? 'EXE' : 'MSI'} package...`)
 
                   // For EXE installers, run silently
                   if (isExe) {
                     const installResult = await execPromise(`"${filePath}" /S`)
-                    log.info(
-                      `[AUTO-UPDATE] EXE installation output: ${installResult.stdout}`,
-                    )
+                    log.info(`[AUTO-UPDATE] EXE installation output: ${installResult.stdout}`)
                   } else if (isMsi) {
                     // For MSI installers, use msiexec
-                    const installResult = await execPromise(
-                      `msiexec /i "${filePath}" /quiet /norestart`,
-                    )
-                    log.info(
-                      `[AUTO-UPDATE] MSI installation output: ${installResult.stdout}`,
-                    )
+                    const installResult = await execPromise(`msiexec /i "${filePath}" /quiet /norestart`)
+                    log.info(`[AUTO-UPDATE] MSI installation output: ${installResult.stdout}`)
                   }
 
                   // Clean up
                   await cleanup()
 
-                  log.info(
-                    '[AUTO-UPDATE] Windows update completed successfully',
-                  )
+                  log.info('[AUTO-UPDATE] Windows update completed successfully')
 
                   // Create a temporary batch script to restart the app
-                  const launchScriptPath = path.join(
-                    tempPath,
-                    'launch-seed.bat',
-                  )
+                  const launchScriptPath = path.join(tempPath, 'launch-seed.bat')
                   const windowsScriptContent = `@echo off
 timeout /t 2 /nobreak >nul
 start "" "${app.getPath('exe')}"
 `
 
-                  log.info(
-                    `[AUTO-UPDATE] Creating Windows launch script at: ${launchScriptPath}`,
-                  )
-                  log.info(
-                    `[AUTO-UPDATE] Windows script content: ${windowsScriptContent}`,
-                  )
+                  log.info(`[AUTO-UPDATE] Creating Windows launch script at: ${launchScriptPath}`)
+                  log.info(`[AUTO-UPDATE] Windows script content: ${windowsScriptContent}`)
 
                   // Recreate temp directory for the script
                   await fs.mkdir(tempPath, {recursive: true})
@@ -1180,16 +1015,11 @@ start "" "${app.getPath('exe')}"
                   log.info('[AUTO-UPDATE] Quitting Windows app...')
                   app.quit()
                 } else {
-                  throw new Error(
-                    'Unsupported Windows installer format. Expected .exe or .msi',
-                  )
+                  throw new Error('Unsupported Windows installer format. Expected .exe or .msi')
                 }
               } catch (error) {
-                const errorMessage =
-                  error instanceof Error ? error.message : String(error)
-                log.error(
-                  `[AUTO-UPDATE] Windows installation error: ${errorMessage}`,
-                )
+                const errorMessage = error instanceof Error ? error.message : String(error)
+                log.error(`[AUTO-UPDATE] Windows installation error: ${errorMessage}`)
                 this.status = {
                   type: 'error',
                   error: errorMessage,
@@ -1197,9 +1027,7 @@ start "" "${app.getPath('exe')}"
                 win?.webContents.send('auto-update:status', this.status)
               }
             } else {
-              log.error(
-                `[AUTO-UPDATE] Unsupported platform: ${process.platform}`,
-              )
+              log.error(`[AUTO-UPDATE] Unsupported platform: ${process.platform}`)
               this.status = {
                 type: 'error',
                 error: `Unsupported platform: ${process.platform}`,
@@ -1214,14 +1042,9 @@ start "" "${app.getPath('exe')}"
         })
       })
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error)
+      const errorMessage = error instanceof Error ? error.message : String(error)
       log.error(`[AUTO-UPDATE] Download initiation error: ${errorMessage}`)
-      log.error(
-        `[AUTO-UPDATE] Error stack: ${
-          error instanceof Error ? error.stack : 'No stack trace'
-        }`,
-      )
+      log.error(`[AUTO-UPDATE] Error stack: ${error instanceof Error ? error.stack : 'No stack trace'}`)
 
       this.status = {
         type: 'error',
@@ -1231,17 +1054,13 @@ start "" "${app.getPath('exe')}"
       try {
         win.webContents.send('auto-update:status', this.status)
       } catch (sendError) {
-        log.error(
-          `[AUTO-UPDATE] Failed to send error status to renderer: ${sendError}`,
-        )
+        log.error(`[AUTO-UPDATE] Failed to send error status to renderer: ${sendError}`)
       }
     }
   }
 
   startAutoCheck(): void {
-    log.info(
-      `[AUTO-UPDATE] Starting auto-check with interval: ${this.checkIntervalMs}ms`,
-    )
+    log.info(`[AUTO-UPDATE] Starting auto-check with interval: ${this.checkIntervalMs}ms`)
     this.checkInterval = setInterval(() => {
       this.checkForUpdates()
     }, this.checkIntervalMs)

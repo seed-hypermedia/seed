@@ -34,9 +34,7 @@ export function ListItem({
   active?: boolean
 }) {
   let {hover, ...hoverProps} = useHover()
-  const [currentMenuItems, setMenuItems] = useState(
-    typeof menuItems === 'function' ? undefined : menuItems,
-  )
+  const [currentMenuItems, setMenuItems] = useState(typeof menuItems === 'function' ? undefined : menuItems)
   return (
     <div className="group flex w-full max-w-[900px] py-2">
       <Button
@@ -61,15 +59,9 @@ export function ListItem({
         >
           {title}
         </span>
-        {accessory && (
-          <div className="flex flex-shrink-0 gap-2 px-2">{accessory}</div>
-        )}
+        {accessory && <div className="flex flex-shrink-0 gap-2 px-2">{accessory}</div>}
         {currentMenuItems && currentMenuItems.length ? (
-          <div
-            className={`${
-              hover ? 'opacity-100' : 'opacity-0'
-            } group-hover:opacity-100`}
-          >
+          <div className={`${hover ? 'opacity-100' : 'opacity-0'} group-hover:opacity-100`}>
             <OptionsDropdown hover={hover} menuItems={currentMenuItems} />
           </div>
         ) : (
@@ -90,18 +82,8 @@ export function TimeSelection({
   tooltipLabel?: string
 }) {
   return (
-    <Tooltip
-      content={
-        tooltipLabel
-          ? `${tooltipLabel} ${formattedDateLong(time)}`
-          : formattedDateLong(time)
-      }
-    >
-      <button
-        className="min-w-10 justify-end text-right text-sm"
-        data-testid="list-item-date"
-        onClick={onPress as any}
-      >
+    <Tooltip content={tooltipLabel ? `${tooltipLabel} ${formattedDateLong(time)}` : formattedDateLong(time)}>
+      <button className="min-w-10 justify-end text-right text-sm" data-testid="list-item-date" onClick={onPress as any}>
         {time ? formattedDate(time) : '...'}
       </button>
     </Tooltip>
@@ -126,11 +108,7 @@ export function LibraryListItem({
   const metadata = entry.document?.metadata || entry.draft?.metadata
   // @ts-expect-error
   const isUnpublished = !!entry.draft && !entry.document
-  const editors = useMemo(
-    () =>
-      entry.authors.length > 3 ? entry.authors.slice(0, 2) : entry.authors,
-    [entry.authors],
-  )
+  const editors = useMemo(() => (entry.authors.length > 3 ? entry.authors.slice(0, 2) : entry.authors), [entry.authors])
 
   const icon =
     entry.id.path?.length == 0 || entry.document?.metadata.icon ? (
@@ -183,18 +161,11 @@ export function LibraryListItem({
               </span>
             )}
           </div>
-          {entry.location.length ? (
-            <LibraryEntryLocation
-              location={entry.location}
-              onNavigate={navigate}
-            />
-          ) : null}
+          {entry.location.length ? <LibraryEntryLocation location={entry.location} onNavigate={navigate} /> : null}
         </div>
       </div>
       <div className="flex items-center gap-3">
-        {isUnpublished ? null : (
-          <BookmarkButton id={entry.id} hideUntilItemHover />
-        )}
+        {isUnpublished ? null : <BookmarkButton id={entry.id} hideUntilItemHover />}
 
         <LibraryEntryTime entry={entry} />
 
@@ -205,12 +176,7 @@ export function LibraryListItem({
               className="border-background bg-background group-hover:border-accent group-hover:bg-accent -ml-2 overflow-hidden rounded-full border-2 transition-all duration-200"
               style={{zIndex: idx + 1}}
             >
-              <HMIcon
-                id={author.id}
-                name={author.metadata?.name}
-                icon={author.metadata?.icon}
-                size={20}
-              />
+              <HMIcon id={author.id} name={author.metadata?.name} icon={author.metadata?.icon} size={20} />
             </div>
           ))}
           {entry.authors.length > editors.length && editors.length != 0 ? (
@@ -268,10 +234,7 @@ function LibraryEntryLocation({
             {names.map(({id, metadata}, idx) => (
               <>
                 {idx != 0 ? (
-                  <span
-                    key={`slash-${id.id}`}
-                    className="text-muted-foreground text-xs"
-                  >
+                  <span key={`slash-${id.id}`} className="text-muted-foreground text-xs">
                     /
                   </span>
                 ) : null}
@@ -285,9 +248,7 @@ function LibraryEntryLocation({
                     onNavigate({key: 'document', id})
                   }}
                 >
-                  {metadata
-                    ? getMetadataName(metadata)
-                    : id.path?.at(-1) || 'Untitled'}
+                  {metadata ? getMetadataName(metadata) : id.path?.at(-1) || 'Untitled'}
                 </Button>
               </>
             ))}

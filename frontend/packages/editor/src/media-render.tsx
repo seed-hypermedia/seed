@@ -46,12 +46,7 @@ interface RenderProps {
   block: Block<HMBlockSchema>
   editor: BlockNoteEditor<HMBlockSchema>
   mediaType: string
-  submit?: (
-    url: string,
-    assign: any,
-    setFileName: any,
-    setLoading: any,
-  ) => Promise<void> | void | undefined
+  submit?: (url: string, assign: any, setFileName: any, setLoading: any) => Promise<void> | void | undefined
   icon: JSX.Element | FunctionComponent<{color?: string; size?: number}>
   DisplayComponent: React.ComponentType<DisplayComponentProps>
   CustomInput?: React.ComponentType<{
@@ -77,22 +72,13 @@ export function updateSelection(
   if (selection instanceof NodeSelection) {
     // If the selection is a NodeSelection, check if this block is the selected node
     const selectedNode = view.state.doc.resolve(selection.from).parent
-    if (
-      selectedNode &&
-      selectedNode.attrs &&
-      selectedNode.attrs.id === block.id
-    ) {
+    if (selectedNode && selectedNode.attrs && selectedNode.attrs.id === block.id) {
       isSelected = true
     }
-  } else if (
-    selection instanceof TextSelection ||
-    selection instanceof MultipleNodeSelection
-  ) {
+  } else if (selection instanceof TextSelection || selection instanceof MultipleNodeSelection) {
     // If it's a TextSelection or MultipleNodeSelection (TODO Fix for drag), check if this block's node is within the selection range
     const selectedNodes = getNodesInSelection(view)
-    isSelected = selectedNodes.some(
-      (node) => node.attrs && node.attrs.id === block.id,
-    )
+    isSelected = selectedNodes.some((node) => node.attrs && node.attrs.id === block.id)
   }
 
   setSelected(isSelected)
@@ -113,9 +99,7 @@ export const MediaRender: React.FC<RenderProps> = ({
   const [uploading, setUploading] = useState(false)
   const hasSrc = !!block.props?.src
 
-  useEditorSelectionChange(editor, () =>
-    updateSelection(editor, block, setSelected),
-  )
+  useEditorSelectionChange(editor, () => updateSelection(editor, block, setSelected))
 
   useEffect(() => {
     if (!uploading && hasSrc && editor.importWebFile && block.props.src) {
@@ -175,11 +159,7 @@ export const MediaRender: React.FC<RenderProps> = ({
   if (hasSrc || uploading) {
     // this means we have a URL in the props.url that is not starting with `ipfs://`, which means we are uploading the image to IPFS
     return (
-      <Button
-        contentEditable={false}
-        size="lg"
-        className="w-full justify-start"
-      >
+      <Button contentEditable={false} size="lg" className="w-full justify-start">
         uploading...
       </Button>
     )
@@ -232,13 +212,7 @@ function MediaComponent({
   DisplayComponent: React.ComponentType<DisplayComponentProps>
 }) {
   return (
-    <DisplayComponent
-      editor={editor}
-      block={block}
-      selected={selected}
-      setSelected={setSelected}
-      assign={assign}
-    />
+    <DisplayComponent editor={editor} block={block} selected={selected} setSelected={setSelected} assign={assign} />
   )
 }
 
@@ -258,12 +232,7 @@ function MediaForm({
   editor: BlockNoteEditor<HMBlockSchema>
   selected: boolean
   mediaType: string
-  submit?: (
-    url: string,
-    assign: any,
-    setFileName: any,
-    setLoading: any,
-  ) => Promise<void> | void | undefined
+  submit?: (url: string, assign: any, setFileName: any, setLoading: any) => Promise<void> | void | undefined
   icon: JSX.Element | FunctionComponent<{color?: string; size?: number}> | null
   CustomInput?: React.ComponentType<{
     editor: BlockNoteEditor<HMBlockSchema>
@@ -301,11 +270,9 @@ function MediaForm({
         files.forEach((file) => {
           if (!file.type.includes(`${mediaType}/`)) {
             setFileName({
-              name: `File ${
-                file.name.length < 36
-                  ? file.name
-                  : file.name.slice(0, 32) + '...'
-              } is not ${mediaType === 'image' ? 'an' : 'a'} ${mediaType}.`,
+              name: `File ${file.name.length < 36 ? file.name : file.name.slice(0, 32) + '...'} is not ${
+                mediaType === 'image' ? 'an' : 'a'
+              } ${mediaType}.`,
               color: 'red',
             })
             isMedia = false
@@ -413,9 +380,7 @@ function MediaForm({
       } catch (error) {
         console.error(`Editor: file upload error: ${error}`)
         setFileName({
-          name: `Upload failed: ${
-            error instanceof Error ? error.message : 'Unknown error'
-          }`,
+          name: `Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
           color: 'red',
         })
       }
@@ -426,14 +391,9 @@ function MediaForm({
     <div
       className={cn(
         'bg-muted relative flex flex-col rounded-md border-2 transition-colors outline-none',
-        drag || selected
-          ? 'border-foreground/20 dark:border-foreground/30'
-          : 'border-border',
+        drag || selected ? 'border-foreground/20 dark:border-foreground/30' : 'border-border',
         drag && 'border-dashed',
-        editor.commentEditor &&
-          !drag &&
-          !selected &&
-          'border-border bg-black/5 dark:bg-white/10',
+        editor.commentEditor && !drag && !selected && 'border-border bg-black/5 dark:bg-white/10',
       )}
       {...(isEmbed ? {} : dragProps)}
     >
@@ -457,9 +417,7 @@ function MediaForm({
               ) : (
                 <Input
                   className="border-muted-foreground/30 focus-visible:border-ring text-foreground max-w-full pl-3"
-                  placeholder={`Input ${
-                    mediaType === 'web-embed' ? 'X.com or Instagram' : mediaType
-                  } URL here...`}
+                  placeholder={`Input ${mediaType === 'web-embed' ? 'X.com or Instagram' : mediaType} URL here...`}
                   onChangeText={(text) => {
                     setUrl(text)
                     if (fileName.color)
@@ -473,10 +431,7 @@ function MediaForm({
               )}
               {['image', 'video'].includes(mediaType) ? (
                 <>
-                  <Tooltip
-                    content="Select file if the input is empty"
-                    side="top"
-                  >
+                  <Tooltip content="Select file if the input is empty" side="top">
                     <Button
                       variant="default"
                       size="sm"
@@ -488,20 +443,11 @@ function MediaForm({
                           submit!(url, assign, setFileName, setLoading)
                         } else {
                           // Trigger the file picker dialog if input is empty
-                          document
-                            .getElementById('file-upload' + block.id)
-                            ?.click()
+                          document.getElementById('file-upload' + block.id)?.click()
                         }
                       }}
                     >
-                      {loading ? (
-                        <Spinner
-                          size="small"
-                          className="text-primary-foreground"
-                        />
-                      ) : (
-                        'Upload'
-                      )}
+                      {loading ? <Spinner size="small" className="text-primary-foreground" /> : 'Upload'}
                     </Button>
                   </Tooltip>
                   <input
@@ -526,10 +472,7 @@ function MediaForm({
                   size="sm"
                   className="shrink-0 font-semibold"
                   style={{
-                    backgroundColor:
-                      fileName.color === 'red'
-                        ? 'text-muted-foreground/60'
-                        : 'text-muted-foreground',
+                    backgroundColor: fileName.color === 'red' ? 'text-muted-foreground/60' : 'text-muted-foreground',
                   }}
                   disabled={fileName.color === 'red'}
                   onClick={() => {
@@ -538,11 +481,7 @@ function MediaForm({
                     }
                   }}
                 >
-                  {loading ? (
-                    <Spinner size="small" className="text-primary-foreground" />
-                  ) : (
-                    'Upload'
-                  )}
+                  {loading ? <Spinner size="small" className="text-primary-foreground" /> : 'Upload'}
                 </Button>
               )}
             </div>

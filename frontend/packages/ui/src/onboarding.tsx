@@ -3,67 +3,37 @@ import {cn} from './utils'
 
 export const onboardingColor = '#755EFF'
 
-export const Title = ({
-  className,
-  ...props
-}: React.ComponentProps<typeof SizableText>) => (
+export const Title = ({className, ...props}: React.ComponentProps<typeof SizableText>) => (
   <SizableText size="3xl" weight="bold" className={cn(className)} {...props} />
 )
 
-export const Text = ({
-  className,
-  ...props
-}: React.ComponentProps<typeof SizableText>) => (
+export const Text = ({className, ...props}: React.ComponentProps<typeof SizableText>) => (
   <SizableText className={cn(className)} {...props} />
 )
 
-export const AccentSection = ({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+export const AccentSection = ({className, children, ...props}: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn(
-      'bg-primary/10 flex w-[220px] flex-none flex-col gap-4 rounded-lg px-4 py-6',
-      className,
-    )}
+    className={cn('bg-primary/10 flex w-[220px] flex-none flex-col gap-4 rounded-lg px-4 py-6', className)}
     {...props}
   >
     {children}
   </div>
 )
 
-export const MainSection = ({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
-  <div
-    className={cn('bg-background flex flex-1 flex-col gap-4 p-6', className)}
-    {...props}
-  >
+export const MainSection = ({className, children, ...props}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('bg-background flex flex-1 flex-col gap-4 p-6', className)} {...props}>
     {children}
   </div>
 )
 
-export const Wrapper = ({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+export const Wrapper = ({className, children, ...props}: React.HTMLAttributes<HTMLDivElement>) => (
   <div className={cn('flex flex-1 justify-stretch', className)} {...props}>
     {children}
   </div>
 )
 
 export const SuccessIcon = (props: any) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width={132}
-    height={137}
-    fill="none"
-    {...props}
-  >
+  <svg xmlns="http://www.w3.org/2000/svg" width={132} height={137} fill="none" {...props}>
     <path
       fill="#755FFD"
       fillRule="evenodd"

@@ -7,10 +7,14 @@ import {
   createSubscription,
   getAllEmails,
   getEmailWithToken,
+  getNotificationConfig,
+  getNotificationReadState,
   getNotifierLastProcessedEventId,
   getSubscription,
   initDatabase,
+  mergeNotificationReadState,
   setEmailUnsubscribed,
+  setNotificationConfig,
   setNotifierLastProcessedEventId,
   setSubscription,
   updateSubscription,
@@ -51,56 +55,37 @@ describe('Database', () => {
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
 
       // Check if tables exist
-      const tables = db
-        .prepare("SELECT name FROM sqlite_master WHERE type='table'")
-        .all() as TableInfo[]
-      expect(tables).toHaveLength(3)
+      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as TableInfo[]
+      expect(tables).toHaveLength(6)
       expect(tables.map((t) => t.name)).toContain('emails')
       expect(tables.map((t) => t.name)).toContain('email_subscriptions')
       expect(tables.map((t) => t.name)).toContain('notifier_status')
+      expect(tables.map((t) => t.name)).toContain('notification_config')
+      expect(tables.map((t) => t.name)).toContain('notification_read_state')
+      expect(tables.map((t) => t.name)).toContain('notification_read_events')
 
       // Check emails table schema
-      const emailsSchema = db
-        .prepare('PRAGMA table_info(emails)')
-        .all() as ColumnInfo[]
+      const emailsSchema = db.prepare('PRAGMA table_info(emails)').all() as ColumnInfo[]
       expect(emailsSchema).toHaveLength(4)
       expect(emailsSchema.find((c) => c.name === 'email')).toBeDefined()
       expect(emailsSchema.find((c) => c.name === 'adminToken')).toBeDefined()
       expect(emailsSchema.find((c) => c.name === 'createdAt')).toBeDefined()
-      expect(
-        emailsSchema.find((c) => c.name === 'isUnsubscribed'),
-      ).toBeDefined()
+      expect(emailsSchema.find((c) => c.name === 'isUnsubscribed')).toBeDefined()
 
       // Check email_subscriptions table schema
-      const subscriptionsSchema = db
-        .prepare('PRAGMA table_info(email_subscriptions)')
-        .all() as ColumnInfo[]
+      const subscriptionsSchema = db.prepare('PRAGMA table_info(email_subscriptions)').all() as ColumnInfo[]
       expect(subscriptionsSchema).toHaveLength(8)
       expect(subscriptionsSchema.find((c) => c.name === 'id')).toBeDefined()
       expect(subscriptionsSchema.find((c) => c.name === 'email')).toBeDefined()
-      expect(
-        subscriptionsSchema.find((c) => c.name === 'createdAt'),
-      ).toBeDefined()
-      expect(
-        subscriptionsSchema.find((c) => c.name === 'notifyAllMentions'),
-      ).toBeDefined()
-      expect(
-        subscriptionsSchema.find((c) => c.name === 'notifyAllReplies'),
-      ).toBeDefined()
-      expect(
-        subscriptionsSchema.find((c) => c.name === 'notifyOwnedDocChange'),
-      ).toBeDefined()
-      expect(
-        subscriptionsSchema.find((c) => c.name === 'notifySiteDiscussions'),
-      ).toBeDefined()
-      expect(
-        subscriptionsSchema.find((c) => c.name === 'notifyAllComments'),
-      ).toBeDefined()
+      expect(subscriptionsSchema.find((c) => c.name === 'createdAt')).toBeDefined()
+      expect(subscriptionsSchema.find((c) => c.name === 'notifyAllMentions')).toBeDefined()
+      expect(subscriptionsSchema.find((c) => c.name === 'notifyAllReplies')).toBeDefined()
+      expect(subscriptionsSchema.find((c) => c.name === 'notifyOwnedDocChange')).toBeDefined()
+      expect(subscriptionsSchema.find((c) => c.name === 'notifySiteDiscussions')).toBeDefined()
+      expect(subscriptionsSchema.find((c) => c.name === 'notifyAllComments')).toBeDefined()
 
       // Check foreign key constraint
-      const foreignKeys = db
-        .prepare('PRAGMA foreign_key_list(email_subscriptions)')
-        .all() as ForeignKeyInfo[]
+      const foreignKeys = db.prepare('PRAGMA foreign_key_list(email_subscriptions)').all() as ForeignKeyInfo[]
       expect(foreignKeys).toHaveLength(1)
       // @ts-expect-error
       expect(foreignKeys[0].from).toBe('email')
@@ -115,7 +100,7 @@ describe('Database', () => {
     it('should handle database version correctly', async () => {
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
       const version = db.pragma('user_version', {simple: true})
-      expect(version).toBe(4)
+      expect(version).toBe(6)
       db.close()
     })
   })
@@ -134,10 +119,7 @@ describe('Database', () => {
       }
       createSubscription(subscriptionData)
 
-      const subscription = getSubscription(
-        subscriptionData.id,
-        subscriptionData.email,
-      )
+      const subscription = getSubscription(subscriptionData.id, subscriptionData.email)
       expect(subscription).toMatchObject({
         id: subscriptionData.id,
         email: subscriptionData.email,
@@ -162,10 +144,7 @@ describe('Database', () => {
       }
       createSubscription(subscriptionData)
 
-      const subscription = getSubscription(
-        subscriptionData.id,
-        subscriptionData.email,
-      )
+      const subscription = getSubscription(subscriptionData.id, subscriptionData.email)
       expect(subscription).toMatchObject({
         id: subscriptionData.id,
         email: subscriptionData.email,
@@ -198,10 +177,7 @@ describe('Database', () => {
         notifyAllComments: false,
       })
 
-      const subscription = getSubscription(
-        subscriptionData.id,
-        subscriptionData.email,
-      )
+      const subscription = getSubscription(subscriptionData.id, subscriptionData.email)
       expect(subscription).toMatchObject({
         id: subscriptionData.id,
         notifyAllMentions: true,
@@ -213,10 +189,7 @@ describe('Database', () => {
     })
 
     it('should return null for non-existent subscription', () => {
-      const subscription = getSubscription(
-        'non-existent-id',
-        'non-existent@example.com',
-      )
+      const subscription = getSubscription('non-existent-id', 'non-existent@example.com')
       expect(subscription).toBeNull()
     })
 
@@ -232,10 +205,7 @@ describe('Database', () => {
       }
       setSubscription(subscriptionData)
 
-      const subscription = getSubscription(
-        subscriptionData.id,
-        subscriptionData.email,
-      )
+      const subscription = getSubscription(subscriptionData.id, subscriptionData.email)
       expect(subscription).toMatchObject({
         id: subscriptionData.id,
         email: subscriptionData.email,
@@ -352,9 +322,7 @@ describe('Database', () => {
 
       // Get the adminToken from the database directly
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
-      const adminToken = db
-        .prepare('SELECT adminToken FROM emails WHERE email = ?')
-        .get(email) as {adminToken: string}
+      const adminToken = db.prepare('SELECT adminToken FROM emails WHERE email = ?').get(email) as {adminToken: string}
       db.close()
 
       const emailData = getEmailWithToken(adminToken.adminToken)
@@ -400,9 +368,7 @@ describe('Database', () => {
       })
 
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
-      const adminToken = db
-        .prepare('SELECT adminToken FROM emails WHERE email = ?')
-        .get(email) as {adminToken: string}
+      const adminToken = db.prepare('SELECT adminToken FROM emails WHERE email = ?').get(email) as {adminToken: string}
       db.close()
 
       setEmailUnsubscribed(adminToken.adminToken, true)
@@ -464,10 +430,45 @@ describe('Database', () => {
     })
   })
 
+  describe('notification config operations', () => {
+    it('should return null for non-existent config', () => {
+      expect(getNotificationConfig('non-existent')).toBeNull()
+    })
+
+    it('should set and get notification config', () => {
+      setNotificationConfig('account-1', 'user@example.com')
+      const config = getNotificationConfig('account-1')
+      expect(config).not.toBeNull()
+      expect(config!.accountId).toBe('account-1')
+      expect(config!.email).toBe('user@example.com')
+      expect(config!.createdAt).toBeDefined()
+      expect(config!.updatedAt).toBeDefined()
+    })
+
+    it('should ensure email row exists for notification config email', () => {
+      setNotificationConfig('account-config-email', 'config@example.com')
+      const allEmails = getAllEmails()
+      expect(allEmails.find((email) => email.email === 'config@example.com')).toBeDefined()
+    })
+
+    it('should upsert notification config', () => {
+      setNotificationConfig('account-2', 'old@example.com')
+      setNotificationConfig('account-2', 'new@example.com')
+      const config = getNotificationConfig('account-2')
+      expect(config!.email).toBe('new@example.com')
+    })
+
+    it('should keep configs independent per account', () => {
+      setNotificationConfig('account-a', 'a@example.com')
+      setNotificationConfig('account-b', 'b@example.com')
+      expect(getNotificationConfig('account-a')!.email).toBe('a@example.com')
+      expect(getNotificationConfig('account-b')!.email).toBe('b@example.com')
+    })
+  })
+
   describe('notifier operations', () => {
     it('should get and set last processed blob CID', () => {
-      const testId =
-        'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi'
+      const testId = 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi'
 
       // Initially should be undefined
       expect(getNotifierLastProcessedEventId()).toBeUndefined()
@@ -479,10 +480,123 @@ describe('Database', () => {
       expect(getNotifierLastProcessedEventId()).toBe(testId)
 
       // Setting a new CID should update the value
-      const newCid =
-        'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdj'
+      const newCid = 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdj'
       setNotifierLastProcessedEventId(newCid)
       expect(getNotifierLastProcessedEventId()).toBe(newCid)
+    })
+  })
+
+  describe('notification read state operations', () => {
+    it('should return default read state when account has no state', () => {
+      const state = getNotificationReadState('account-empty')
+      expect(state).toMatchObject({
+        accountId: 'account-empty',
+        markAllReadAtMs: null,
+        readEvents: [],
+      })
+      expect(state.updatedAt).toBeDefined()
+    })
+
+    it('should merge mark-all watermark monotonically', () => {
+      const accountId = 'account-read-1'
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: 1000,
+        readEvents: [],
+      })
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: 500,
+        readEvents: [],
+      })
+
+      const state = getNotificationReadState(accountId)
+      expect(state.markAllReadAtMs).toBe(1000)
+    })
+
+    it('should union read events and keep max timestamp per event id', () => {
+      const accountId = 'account-read-2'
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: null,
+        readEvents: [
+          {eventId: 'event-a', eventAtMs: 100},
+          {eventId: 'event-b', eventAtMs: 200},
+        ],
+      })
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: null,
+        readEvents: [
+          {eventId: 'event-a', eventAtMs: 300},
+          {eventId: 'event-c', eventAtMs: 250},
+        ],
+      })
+
+      const state = getNotificationReadState(accountId)
+      expect(state.readEvents).toEqual([
+        {eventId: 'event-a', eventAtMs: 300},
+        {eventId: 'event-c', eventAtMs: 250},
+        {eventId: 'event-b', eventAtMs: 200},
+      ])
+    })
+
+    it('should prune read events at or before mark-all timestamp', () => {
+      const accountId = 'account-read-3'
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: null,
+        readEvents: [
+          {eventId: 'event-old', eventAtMs: 1000},
+          {eventId: 'event-new', eventAtMs: 2000},
+        ],
+      })
+
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: 1500,
+        readEvents: [],
+      })
+
+      const state = getNotificationReadState(accountId)
+      expect(state.markAllReadAtMs).toBe(1500)
+      expect(state.readEvents).toEqual([{eventId: 'event-new', eventAtMs: 2000}])
+    })
+
+    it('should be idempotent for repeated merges', () => {
+      const accountId = 'account-read-4'
+      const payload = {
+        markAllReadAtMs: 5000,
+        readEvents: [
+          {eventId: 'event-1', eventAtMs: 6000},
+          {eventId: 'event-2', eventAtMs: 7000},
+        ],
+      }
+      mergeNotificationReadState(accountId, payload)
+      mergeNotificationReadState(accountId, payload)
+
+      const state = getNotificationReadState(accountId)
+      expect(state.markAllReadAtMs).toBe(5000)
+      expect(state.readEvents).toEqual([
+        {eventId: 'event-2', eventAtMs: 7000},
+        {eventId: 'event-1', eventAtMs: 6000},
+      ])
+    })
+
+    it('should keep read states isolated per account', () => {
+      mergeNotificationReadState('account-a', {
+        markAllReadAtMs: 100,
+        readEvents: [{eventId: 'event-a', eventAtMs: 101}],
+      })
+      mergeNotificationReadState('account-b', {
+        markAllReadAtMs: 200,
+        readEvents: [{eventId: 'event-b', eventAtMs: 201}],
+      })
+
+      expect(getNotificationReadState('account-a')).toMatchObject({
+        accountId: 'account-a',
+        markAllReadAtMs: 100,
+        readEvents: [{eventId: 'event-a', eventAtMs: 101}],
+      })
+      expect(getNotificationReadState('account-b')).toMatchObject({
+        accountId: 'account-b',
+        markAllReadAtMs: 200,
+        readEvents: [{eventId: 'event-b', eventAtMs: 201}],
+      })
     })
   })
 })

@@ -73,14 +73,7 @@ describe('migrateFromFavorites', () => {
   it('filters out malformed favorite entries', () => {
     const store = createMockStore({
       'Favorites-v001': {
-        favorites: [
-          {url: 'hm://valid'},
-          null,
-          {url: 123},
-          undefined,
-          {noUrl: true},
-          {url: 'hm://also-valid'},
-        ],
+        favorites: [{url: 'hm://valid'}, null, {url: 123}, undefined, {noUrl: true}, {url: 'hm://also-valid'}],
       },
     })
 

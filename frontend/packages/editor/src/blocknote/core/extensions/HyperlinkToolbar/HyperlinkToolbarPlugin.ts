@@ -10,13 +10,7 @@ import {EventEmitter} from '../../shared/EventEmitter'
 import {BlockSchema} from '../Blocks/api/blockTypes'
 import {getGroupInfoFromPos} from '../Blocks/helpers/getGroupInfoFromPos'
 
-export type HyperlinkNodeType =
-  | 'link'
-  | 'inline-embed'
-  | 'embed'
-  | 'card'
-  | 'button'
-  | null
+export type HyperlinkNodeType = 'link' | 'inline-embed' | 'embed' | 'card' | 'button' | null
 
 export type HyperlinkToolbarState = BaseUiElementState & {
   // The link node's URL
@@ -34,10 +28,7 @@ export type HyperlinkToolbarState = BaseUiElementState & {
   }
 }
 
-function getNodeIdFromCoords(
-  coords: {left: number; top: number},
-  view: EditorView,
-) {
+function getNodeIdFromCoords(coords: {left: number; top: number}, view: EditorView) {
   if (!view.dom.isConnected) {
     // view is not connected to the DOM, this can cause posAtCoords to fail
     // (Cannot read properties of null (reading 'nearestDesc'), https://github.com/TypeCellOS/BlockNote/issues/123)
@@ -50,9 +41,7 @@ function getNodeIdFromCoords(
     return undefined
   }
 
-  let node: Node | null =
-    (pos.inside >= 0 ? view.nodeDOM(pos.inside) : null) ??
-    view.domAtPos(pos.pos).node
+  let node: Node | null = (pos.inside >= 0 ? view.nodeDOM(pos.inside) : null) ?? view.domAtPos(pos.pos).node
   if (!node) return undefined
   // let atomNode = view.nodeDOM(pos.inside) as HTMLElement
 
@@ -64,12 +53,7 @@ function getNodeIdFromCoords(
   if (node.nodeType === Node.TEXT_NODE) node = node.parentNode
   let el = node as HTMLElement | null
 
-  while (
-    el &&
-    el.parentNode &&
-    el.parentNode !== view.dom &&
-    !(el as any).hasAttribute?.('data-id')
-  ) {
+  while (el && el.parentNode && el.parentNode !== view.dom && !(el as any).hasAttribute?.('data-id')) {
     el = el.parentNode as HTMLElement
   }
   if (!el) return undefined
@@ -99,9 +83,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
   constructor(
     private readonly editor: BlockNoteEditor<BSchema>,
     private readonly pmView: EditorView,
-    updateHyperlinkToolbar: (
-      hyperlinkToolbarState: HyperlinkToolbarState,
-    ) => void,
+    updateHyperlinkToolbar: (hyperlinkToolbarState: HyperlinkToolbarState) => void,
   ) {
     this.updateHyperlinkToolbar = () => {
       if (!this.hyperlinkToolbarState) return
@@ -148,9 +130,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
       if (target.tagName === 'BUTTON' || target.closest('button')) {
         nextId = getNodeIdFromCoords(coords, this.pmView)?.id
       }
-    } else if (
-      target.closest('[data-content-type="embed"]')?.getAttribute('data-url')
-    ) {
+    } else if (target.closest('[data-content-type="embed"]')?.getAttribute('data-url')) {
       nextId = getNodeIdFromCoords(coords, this.pmView)?.id
     }
 
@@ -166,17 +146,12 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
   clickHandler = (event: MouseEvent) => {
     const target = event.target as Node | null
     if (!target) return
-    if (
-      this.isHoveringToolbar ||
-      (target as HTMLElement).closest?.('.hyperlink-preview-toolbar')
-    ) {
+    if (this.isHoveringToolbar || (target as HTMLElement).closest?.('.hyperlink-preview-toolbar')) {
       return
     }
 
     const editorWrapper = this.pmView.dom.parentElement!
-    const clickedOutsideEditor = !(
-      editorWrapper === target || editorWrapper?.contains(target)
-    )
+    const clickedOutsideEditor = !(editorWrapper === target || editorWrapper?.contains(target))
 
     if (
       // Toolbar is open.
@@ -210,11 +185,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
       markOrNode = nodeAndRange.markOrNode
       range = nodeAndRange.range
       if (this.hyperlinkToolbarState?.show) {
-        this.hyperlinkToolbarState.referencePos = posToDOMRect(
-          this.pmView,
-          range!.from,
-          range!.to,
-        )
+        this.hyperlinkToolbarState.referencePos = posToDOMRect(this.pmView, range!.from, range!.to)
         this.updateHyperlinkToolbar()
       }
     }
@@ -266,10 +237,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
           name: text,
           alignment: alignment,
         })
-      } else if (
-        this.hyperlinkToolbarState.type === 'embed' ||
-        this.hyperlinkToolbarState.type === 'card'
-      ) {
+      } else if (this.hyperlinkToolbarState.type === 'embed' || this.hyperlinkToolbarState.type === 'card') {
         tr = tr.setNodeMarkup(pos, null, {
           url: url,
           view: this.hyperlinkToolbarState.type === 'card' ? 'Card' : 'Content',
@@ -279,11 +247,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         const newLength = range.from + newText.length
         tr = this.pmView.state.tr
           .insertText(newText, range.from, range.to)
-          .addMark(
-            range.from,
-            newLength,
-            this.pmView.state.schema.mark('link', {href: url}),
-          )
+          .addMark(range.from, newLength, this.pmView.state.schema.mark('link', {href: url}))
 
         range.to = newLength
       }
@@ -330,14 +294,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     let range = this.selectedNodeRange || this.hoveredNodeRange
     const nodeId = this.hoveredId || this.hyperlinkToolbarState?.id
 
-    const nodeAndRange = getNodeAndRange(
-      markOrNode,
-      range,
-      nodeId,
-      this.pmView,
-      this,
-      this.hyperlinkToolbarState?.url,
-    )
+    const nodeAndRange = getNodeAndRange(markOrNode, range, nodeId, this.pmView, this, this.hyperlinkToolbarState?.url)
     markOrNode = nodeAndRange.markOrNode
     range = nodeAndRange.range
 
@@ -417,16 +374,9 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
 
     if (marksAtPos.length > 0) {
       for (const mark of marksAtPos) {
-        if (
-          mark.type.name === this.pmView.state.schema.mark('link').type.name
-        ) {
+        if (mark.type.name === this.pmView.state.schema.mark('link').type.name) {
           this.selectedNode = mark
-          this.selectedNodeRange =
-            getMarkRange(
-              this.pmView.state.selection.$from,
-              mark.type,
-              mark.attrs,
-            ) || undefined
+          this.selectedNodeRange = getMarkRange(this.pmView.state.selection.$from, mark.type, mark.attrs) || undefined
 
           break
         }
@@ -436,11 +386,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
       if (textNode) {
         switch (textNode.type.name) {
           case 'inline-embed':
-            if (
-              this.pmView.state.selection.to -
-                this.pmView.state.selection.from ===
-              1
-            ) {
+            if (this.pmView.state.selection.to - this.pmView.state.selection.from === 1) {
               this.selectedNode = textNode
               this.selectedNodeRange = {
                 from: this.pmView.state.selection.from,
@@ -471,24 +417,14 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     }
 
     if (this.selectedNode) {
-      const {container} = getGroupInfoFromPos(
-        this.selectedNodeRange!.from,
-        this.pmView.state,
-      )
-      const nodeRect = posToDOMRect(
-        this.pmView,
-        this.selectedNodeRange!.from,
-        this.selectedNodeRange!.to,
-      )
+      const {container} = getGroupInfoFromPos(this.selectedNodeRange!.from, this.pmView.state)
+      const nodeRect = posToDOMRect(this.pmView, this.selectedNodeRange!.from, this.selectedNodeRange!.to)
       if (this.selectedNode instanceof Mark) {
         nextState = {
           show: this.pmView.state.selection.empty,
           referencePos: nodeRect,
           url: this.selectedNode!.attrs.href,
-          text: this.pmView.state.doc.textBetween(
-            this.selectedNodeRange!.from,
-            this.selectedNodeRange!.to,
-          ),
+          text: this.pmView.state.doc.textBetween(this.selectedNodeRange!.from, this.selectedNodeRange!.to),
           type: 'link',
           id: container ? container.attrs.id : '',
         }
@@ -503,22 +439,15 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
             id: container ? container.attrs.id : '',
           }
         else if (this.selectedNode.type.name === 'button') {
-          const dom = this.pmView.domAtPos(this.selectedNodeRange!.from)
-            .node as HTMLElement
-          const buttonElement = dom.querySelector(
-            'button',
-          ) as HTMLElement | null
+          const dom = this.pmView.domAtPos(this.selectedNodeRange!.from).node as HTMLElement
+          const buttonElement = dom.querySelector('button') as HTMLElement | null
 
-          const buttonRect =
-            buttonElement?.getBoundingClientRect?.() ?? nodeRect
+          const buttonRect = buttonElement?.getBoundingClientRect?.() ?? nodeRect
 
           // console.log('~~~~~ UPDATING SELECTED BUTTON', this.selectedNode)
 
           const alignAttr = this.selectedNode!.attrs.alignment
-          const alignment =
-            typeof alignAttr === 'string' && alignAttr.length > 0
-              ? alignAttr
-              : 'flex-start'
+          const alignment = typeof alignAttr === 'string' && alignAttr.length > 0 ? alignAttr : 'flex-start'
 
           nextState = {
             show: true,
@@ -534,16 +463,10 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
           }
         } else if (this.selectedNode.type.name === 'embed') {
           if (!this.selectedNode.attrs.url.length) return null
-          const dom = this.pmView.domAtPos(this.selectedNodeRange!.from)
-            .node as HTMLElement
+          const dom = this.pmView.domAtPos(this.selectedNodeRange!.from).node as HTMLElement
           const embedElement = dom.querySelector('[data-content-type="embed"]')
           const embedRect = embedElement?.getBoundingClientRect?.() ?? nodeRect
-          const embedTopRightRect = new DOMRect(
-            embedRect.right - 162,
-            embedRect.top + 12,
-            1,
-            1,
-          )
+          const embedTopRightRect = new DOMRect(embedRect.right - 162, embedRect.top + 12, 1, 1)
           nextState = {
             show: true,
             referencePos: embedTopRightRect,
@@ -569,16 +492,10 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     if (this.hoveredId) {
       const {state} = this.editor._tiptapEditor
       try {
-        const {node: hoveredNode, posBeforeNode} = getNodeById(
-          this.hoveredId,
-          state.doc,
-        )
+        const {node: hoveredNode, posBeforeNode} = getNodeById(this.hoveredId, state.doc)
         const contentNode = hoveredNode.firstChild
         if (contentNode) {
-          if (
-            contentNode.type.name === 'embed' ||
-            contentNode.type.name === 'button'
-          ) {
+          if (contentNode.type.name === 'embed' || contentNode.type.name === 'button') {
             this.hoveredNode = contentNode
             this.hoveredNodeRange = {
               from: posBeforeNode + 1,
@@ -587,9 +504,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
           } else {
             // @ts-ignore
             contentNode.descendants((child, childPos) => {
-              const linkMark = child.marks?.find(
-                (mark) => mark.type.name === 'link',
-              )
+              const linkMark = child.marks?.find((mark) => mark.type.name === 'link')
               if (linkMark) {
                 this.hoveredNode = linkMark
                 this.hoveredNodeRange = {
@@ -628,24 +543,14 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     }
 
     if (this.hoveredNode) {
-      const {container} = getGroupInfoFromPos(
-        this.hoveredNodeRange!.from,
-        this.pmView.state,
-      )
-      const nodeRect = posToDOMRect(
-        this.pmView,
-        this.hoveredNodeRange!.from,
-        this.hoveredNodeRange!.to,
-      )
+      const {container} = getGroupInfoFromPos(this.hoveredNodeRange!.from, this.pmView.state)
+      const nodeRect = posToDOMRect(this.pmView, this.hoveredNodeRange!.from, this.hoveredNodeRange!.to)
       if (this.hoveredNode instanceof Mark) {
         nextState = {
           show: this.pmView.state.selection.empty,
           referencePos: nodeRect,
           url: this.hoveredNode!.attrs.href,
-          text: this.pmView.state.doc.textBetween(
-            this.hoveredNodeRange!.from,
-            this.hoveredNodeRange!.to,
-          ),
+          text: this.pmView.state.doc.textBetween(this.hoveredNodeRange!.from, this.hoveredNodeRange!.to),
           type: 'link',
           id: container ? container.attrs.id : '',
         }
@@ -660,20 +565,13 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
             id: container ? container.attrs.id : '',
           }
         else if (this.hoveredNode.type.name === 'button') {
-          const dom = this.pmView.domAtPos(this.hoveredNodeRange!.from)
-            .node as HTMLElement
-          const buttonElement = dom.querySelector(
-            'button',
-          ) as HTMLElement | null
+          const dom = this.pmView.domAtPos(this.hoveredNodeRange!.from).node as HTMLElement
+          const buttonElement = dom.querySelector('button') as HTMLElement | null
 
-          const buttonRect =
-            buttonElement?.getBoundingClientRect?.() ?? nodeRect
+          const buttonRect = buttonElement?.getBoundingClientRect?.() ?? nodeRect
 
           const alignAttr = this.hoveredNode!.attrs.alignment
-          const alignment =
-            typeof alignAttr === 'string' && alignAttr.length > 0
-              ? alignAttr
-              : 'flex-start'
+          const alignment = typeof alignAttr === 'string' && alignAttr.length > 0 ? alignAttr : 'flex-start'
 
           nextState = {
             show: true,
@@ -688,16 +586,10 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
             },
           }
         } else if (this.hoveredNode.type.name === 'embed') {
-          const dom = this.pmView.domAtPos(this.hoveredNodeRange!.from)
-            .node as HTMLElement
+          const dom = this.pmView.domAtPos(this.hoveredNodeRange!.from).node as HTMLElement
           const embedElement = dom.querySelector('[data-content-type="embed"]')
           const embedRect = embedElement?.getBoundingClientRect?.() ?? nodeRect
-          const embedTopRightRect = new DOMRect(
-            embedRect.right - 162,
-            embedRect.top + 12,
-            1,
-            1,
-          )
+          const embedTopRightRect = new DOMRect(embedRect.right - 162, embedRect.top + 12, 1, 1)
           nextState = {
             show: true,
             referencePos: embedTopRightRect,
@@ -734,12 +626,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     }
 
     // Hides menu.
-    if (
-      this.hyperlinkToolbarState?.show &&
-      !this.selectedNode &&
-      !this.hoveredId &&
-      !this.isHoveringToolbar
-    ) {
+    if (this.hyperlinkToolbarState?.show && !this.selectedNode && !this.hoveredId && !this.isHoveringToolbar) {
       const {markOrNode, range} = getNodeAndRange(
         undefined,
         undefined,
@@ -748,18 +635,10 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         this,
         this.hyperlinkToolbarState.url,
       )
-      if (
-        this.hyperlinkToolbarState.type === 'link' &&
-        markOrNode?.attrs?.href?.length === 0 &&
-        range
-      ) {
+      if (this.hyperlinkToolbarState.type === 'link' && markOrNode?.attrs?.href?.length === 0 && range) {
         this.pmView.dispatch(
           this.pmView.state.tr
-            .removeMark(
-              range.from,
-              range.to,
-              (markOrNode as Mark).type as MarkType,
-            )
+            .removeMark(range.from, range.to, (markOrNode as Mark).type as MarkType)
             .setMeta('preventAutolink', true),
         )
       }
@@ -777,9 +656,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
 
 export const hyperlinkToolbarPluginKey = new PluginKey('HyperlinkToolbarPlugin')
 
-export class HyperlinkToolbarProsemirrorPlugin<
-  BSchema extends BlockSchema,
-> extends EventEmitter<any> {
+export class HyperlinkToolbarProsemirrorPlugin<BSchema extends BlockSchema> extends EventEmitter<any> {
   private view: HyperlinkToolbarView<BSchema> | undefined
   public readonly plugin: Plugin
 
@@ -866,10 +743,7 @@ function getNodeAndRange(
       const contentNode = state.doc.nodeAt(posBeforeNode + 1)
 
       if (contentNode) {
-        if (
-          contentNode.type.name === 'embed' ||
-          contentNode.type.name === 'button'
-        ) {
+        if (contentNode.type.name === 'embed' || contentNode.type.name === 'button') {
           markOrNode = contentNode
           range = {
             from: posBeforeNode + 1,
@@ -879,17 +753,11 @@ function getNodeAndRange(
           let foundLink = false
           // @ts-ignore
           contentNode.descendants((child, childPos) => {
-            const linkMark = child.marks?.find(
-              (mark) => mark.type.name === 'link',
-            )
+            const linkMark = child.marks?.find((mark) => mark.type.name === 'link')
             if (linkMark) {
               const absolutePos = posBeforeNode + 2 + childPos
               const $pos = state.doc.resolve(absolutePos)
-              const markRange = getMarkRange(
-                $pos,
-                linkMark.type,
-                linkMark.attrs,
-              )
+              const markRange = getMarkRange($pos, linkMark.type, linkMark.attrs)
               if (markRange) {
                 markOrNode = linkMark
                 range = markRange

@@ -19,11 +19,7 @@ export type Profile = {
  * @param ts The timestamp
  * @returns The signed profile
  */
-export async function signProfileAlias(
-  kp: CryptoKeyPair,
-  alias: PublicKey,
-  ts: bigint,
-): Promise<Profile> {
+export async function signProfileAlias(kp: CryptoKeyPair, alias: PublicKey, ts: bigint): Promise<Profile> {
   const pubKey = await preparePublicKey(kp.publicKey)
 
   const unsigned: Profile = {
@@ -98,9 +94,7 @@ export async function signAgentCapability(
   }
 }
 
-export async function preparePublicKey(
-  publicKey: CryptoKey,
-): Promise<Uint8Array> {
+export async function preparePublicKey(publicKey: CryptoKey): Promise<Uint8Array> {
   if (publicKey.type !== 'public') {
     throw new Error('Can only stringify public keys')
   }

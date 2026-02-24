@@ -31,7 +31,6 @@ package sqlite
 // #cgo CFLAGS: -DSQLITE_DQS=0
 // #cgo CFLAGS: -DSQLITE_ENABLE_GEOPOLY
 // #cgo CFLAGS: -DSQLITE_CORE
-// #cgo windows LDFLAGS: -Wl,-Bstatic -lwinpthread -Wl,-Bdynamic
 // #cgo linux LDFLAGS: -ldl -lm
 // #cgo linux CFLAGS: -std=c99
 // #cgo openbsd LDFLAGS: -lm
@@ -51,7 +50,12 @@ package sqlite
 //	return sqlite3_bind_blob(stmt, col, p, n, SQLITE_TRANSIENT);
 // }
 //
-// extern void log_fn(void* pArg, int code, char* msg);
+// #ifdef _WIN32
+// #define SQLITE_GO_EXPORT __declspec(dllexport)
+// #else
+// #define SQLITE_GO_EXPORT
+// #endif
+// extern SQLITE_GO_EXPORT void log_fn(void* pArg, int code, char* msg);
 // static void enable_logging() {
 //	sqlite3_config(SQLITE_CONFIG_LOG, log_fn, NULL);
 // }
@@ -509,6 +513,14 @@ const (
 	txEnd     txEvent = 2
 )
 
+// ResetTxTracking clears any in-progress transaction tracking state.
+// This should be called when a connection is returned to a pool to prevent
+// stale state from a failed BEGIN IMMEDIATE from producing false SlowQuery
+// warnings on subsequent uses of the connection.
+func (conn *Conn) ResetTxTracking() {
+	conn.txStart = time.Time{}
+}
+
 func (conn *Conn) trackTransaction(query string) {
 	evt := parseTransactionEvent(query)
 
@@ -598,13 +610,17 @@ func parseTransactionEvent(sql string) txEvent {
 	}
 
 	// ROLLBACK → TxEnd unless it's a savepoint rollback.
+	// ROLLBACK TO is always a savepoint operation in SQLite regardless of
+	// whether the optional SAVEPOINT keyword is present. The savepoint.go
+	// code emits ROLLBACK TO "<name>" (without SAVEPOINT), so we must
+	// treat any ROLLBACK TO as a non-event.
 	if t0 == "ROLLBACK" {
-		// Case 1: ROLLBACK TO SAVEPOINT.
-		if t1 == "TO" && t2 == "SAVEPOINT" {
+		// Case 1: ROLLBACK TO [SAVEPOINT] <name>.
+		if t1 == "TO" {
 			return noTxEvent
 		}
 
-		// Case 2: ROLLBACK TRANSACTION TO SAVEPOINT.
+		// Case 2: ROLLBACK TRANSACTION TO [SAVEPOINT] <name>.
 		// We only have three tokens → "ROLLBACK", "TRANSACTION", "TO".
 		if t1 == "TRANSACTION" && t2 == "TO" {
 			return noTxEvent

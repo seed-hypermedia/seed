@@ -119,15 +119,7 @@ export function useExportWallet(walletId: string) {
 
 export function useCreateLocalInvoice() {
   return useMutation({
-    mutationFn: async ({
-      walletId,
-      amount,
-      description,
-    }: {
-      walletId: string
-      amount: bigint
-      description: string
-    }) => {
+    mutationFn: async ({walletId, amount, description}: {walletId: string; amount: bigint; description: string}) => {
       const result = await grpcClient.invoices.createInvoice({
         id: walletId,
         account: walletId,

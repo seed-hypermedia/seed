@@ -6,8 +6,7 @@ type KeyboardBindings = Record<string, KeyboardEventHandler>
 
 // This logic is ripped out of prosemirror-keymap
 
-const mac =
-  typeof navigator != 'undefined' ? /Mac/.test(navigator.platform) : false
+const mac = typeof navigator != 'undefined' ? /Mac/.test(navigator.platform) : false
 
 function normalizeKeyName(name: string): string {
   let parts = name.split(/-(?!$)/),
@@ -79,10 +78,7 @@ export function keydownHandler(bindings: KeyboardBindings) {
     if (direct && direct(event)) return true
     if (
       isChar &&
-      (event.shiftKey ||
-        event.altKey ||
-        event.metaKey ||
-        name.charCodeAt(0) > 127) &&
+      (event.shiftKey || event.altKey || event.metaKey || name.charCodeAt(0) > 127) &&
       (baseName = base[event.keyCode]) &&
       baseName != name
     ) {
@@ -139,10 +135,7 @@ export function useKeyboard(bindings: KeyboardBindings) {
   const ref = useRef(bindings)
   ref.current = bindings
 
-  const callback = useCallback(
-    (event: KeyboardEvent) => keydownHandler(ref.current)(event),
-    [],
-  )
+  const callback = useCallback((event: KeyboardEvent) => keydownHandler(ref.current)(event), [])
 
   useEffect(() => keyboardStack.add(callback), [])
 }

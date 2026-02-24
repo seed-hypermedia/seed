@@ -65,7 +65,7 @@ func TestPostGet(t *testing.T) {
 	lis, err := net.Listen("tcp", srv.Addr)
 	require.NoError(t, err)
 
-	go srv.Serve(lis)
+	go func() { _ = srv.Serve(lis) }()
 
 	t.Cleanup(func() {
 		require.NoError(t, srv.Shutdown(context.Background()))
@@ -99,7 +99,7 @@ func TestRangeRequests(t *testing.T) {
 	lis, err := net.Listen("tcp", srv.Addr)
 	require.NoError(t, err)
 
-	go srv.Serve(lis)
+	go func() { _ = srv.Serve(lis) }()
 
 	t.Cleanup(func() {
 		require.NoError(t, srv.Shutdown(context.Background()))

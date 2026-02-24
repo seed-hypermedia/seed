@@ -4,12 +4,7 @@ import {client} from '@/trpc'
 import {fileUpload} from '@/utils/file-upload'
 import {extractWords, isWordsValid} from '@/utils/onboarding'
 import {useNavigate} from '@/utils/useNavigate'
-import {
-  eventStream,
-  UnpackedHypermediaId,
-  useOpenUrl,
-  useUniversalAppContext,
-} from '@shm/shared'
+import {eventStream, UnpackedHypermediaId, useOpenUrl, useUniversalAppContext} from '@shm/shared'
 import {DocumentChange} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -19,12 +14,7 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {CheckboxField} from '@shm/ui/components/checkbox'
-import {
-  Dialog,
-  DialogContent,
-  DialogOverlay,
-  DialogPortal,
-} from '@shm/ui/components/dialog'
+import {Dialog, DialogContent, DialogOverlay, DialogPortal} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
@@ -74,8 +64,7 @@ interface ProfileFormData {
 }
 
 export const [dispatchEditPopover, editPopoverEvents] = eventStream<boolean>()
-export const [dispatchOnboardingDialog, onboardingDialogEvents] =
-  eventStream<boolean>()
+export const [dispatchOnboardingDialog, onboardingDialogEvents] = eventStream<boolean>()
 
 export function OnboardingDialog() {
   const [open, setOpen] = useState(false)
@@ -118,9 +107,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
   // Get the global state
   const globalState = getOnboardingState()
   const navigate = useNavigate('replace')
-  const [account, setAccount] = useState<UnpackedHypermediaId | undefined>(
-    undefined,
-  )
+  const [account, setAccount] = useState<UnpackedHypermediaId | undefined>(undefined)
   const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
 
   // Track if user is using existing account path
@@ -148,13 +135,8 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
   // Only check global state for completion in non-modal mode
   useEffect(() => {
     const state = modal ? localState : globalState
-    if (
-      !modal &&
-      (state.hasCompletedOnboarding || state.hasSkippedOnboarding)
-    ) {
-      console.log(
-        'Onboarding already completed or skipped, skipping to main app',
-      )
+    if (!modal && (state.hasCompletedOnboarding || state.hasSkippedOnboarding)) {
+      console.log('Onboarding already completed or skipped, skipping to main app')
       if (account) {
         // Ensure the account is selected when onboarding was previously completed
         setSelectedIdentity?.(account.uid)
@@ -358,12 +340,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
   }
 
   return (
-    <div
-      className={cn(
-        'bg-background window-drag flex flex-1 flex-col',
-        !modal && 'size-full',
-      )}
-    >
+    <div className={cn('bg-background window-drag flex flex-1 flex-col', !modal && 'size-full')}>
       {currentStep === 'welcome' && <WelcomeStep onNext={handleNext} />}
       {currentStep === 'profile' && (
         <ProfileStep
@@ -492,10 +469,7 @@ function ProfileStep({
     }
   })
 
-  const handleImageUpload = async (
-    file: File,
-    type: 'icon' | 'seedExperimentalLogo',
-  ) => {
+  const handleImageUpload = async (file: File, type: 'icon' | 'seedExperimentalLogo') => {
     try {
       const imageData = await fileToImageData(file)
       const newData = {
@@ -543,15 +517,11 @@ function ProfileStep({
     <StepWrapper onPrev={onPrev}>
       <StepTitle>CREATE YOUR SITE</StepTitle>
       <Text size="lg" className="text-muted-foreground text-center">
-        Your site is more than just a collection of pages, it's a reflection of
-        who you are or what your brand stands for. Whether it's personal,
-        professional, or creative, this is your space to shine.
+        Your site is more than just a collection of pages, it's a reflection of who you are or what your brand stands
+        for. Whether it's personal, professional, or creative, this is your space to shine.
       </Text>
 
-      <form
-        onSubmit={onNext}
-        className="no-window-drag flex w-full max-w-[400px] flex-1 flex-col gap-4 pt-4"
-      >
+      <form onSubmit={onNext} className="no-window-drag flex w-full max-w-[400px] flex-1 flex-col gap-4 pt-4">
         <div className="no-window-drag flex w-full flex-1 flex-col gap-4 pt-4">
           <div className="flex flex-col">
             <Label htmlFor="account-name">Account Name</Label>
@@ -607,12 +577,7 @@ function ProfileStep({
           </div>
         </div>
         <div className="no-window-drag flex flex-col gap-4 self-center">
-          <Button
-            id="profile-existing"
-            size="sm"
-            variant="link"
-            onClick={onExistingSite}
-          >
+          <Button id="profile-existing" size="sm" variant="link" onClick={onExistingSite}>
             I already have a Site
           </Button>
           <div className="no-window-drag mt-8 flex items-center justify-center gap-4">
@@ -621,12 +586,7 @@ function ProfileStep({
                 SKIP
               </Button>
             )}
-            <Button
-              id="profile-next"
-              disabled={!formData.name.trim()}
-              onClick={onNext}
-              variant="default"
-            >
+            <Button id="profile-next" disabled={!formData.name.trim()} onClick={onNext} variant="default">
               NEXT
             </Button>
           </div>
@@ -648,9 +608,8 @@ function ExistingStep({
   const [secretWords, setSecretWords] = useState('')
   const register = useRegisterKey()
   const saveWords = useMutation({
-    mutationFn: (
-      input: Parameters<typeof client.secureStorage.write.mutate>[0],
-    ) => client.secureStorage.write.mutate(input),
+    mutationFn: (input: Parameters<typeof client.secureStorage.write.mutate>[0]) =>
+      client.secureStorage.write.mutate(input),
   })
   const [shouldSaveWords, setShouldSaveWords] = useState(true)
 
@@ -665,9 +624,7 @@ function ExistingStep({
       // Validate mnemonic
       const validation = isWordsValid(secretWords)
       if (validation !== true) {
-        toast.error(
-          typeof validation === 'string' ? validation : 'Invalid mnemonic',
-        )
+        toast.error(typeof validation === 'string' ? validation : 'Invalid mnemonic')
         console.log('Invalid mnemonic', mnemonic)
         return
       }
@@ -725,10 +682,7 @@ function ExistingStep({
         Add the keys to your existing site.
       </Text>
 
-      <form
-        onSubmit={handleSubmit}
-        className="flex w-full max-w-[400px] flex-1 flex-col gap-4 pt-4"
-      >
+      <form onSubmit={handleSubmit} className="flex w-full max-w-[400px] flex-1 flex-col gap-4 pt-4">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Text size="sm" className="text-muted-foreground">
@@ -745,9 +699,7 @@ function ExistingStep({
           <CheckboxField
             id="save-existing-wordss"
             checked={shouldSaveWords}
-            onCheckedChange={(v) =>
-              setShouldSaveWords(v === 'indeterminate' ? false : v)
-            }
+            onCheckedChange={(v) => setShouldSaveWords(v === 'indeterminate' ? false : v)}
             variant="brand"
           >
             Store the Secret Recovery Phrase securely on this device.
@@ -755,11 +707,7 @@ function ExistingStep({
         </div>
         <div className="flex-1" />
         <div className="no-window-drag mt-8 flex items-center justify-center gap-4">
-          <Button
-            type="submit"
-            variant="default"
-            disabled={!secretWords.trim()}
-          >
+          <Button type="submit" variant="default" disabled={!secretWords.trim()}>
             NEXT
           </Button>
         </div>
@@ -780,9 +728,8 @@ function RecoveryStep({
   const register = useRegisterKey()
   const mnemonics = useMnemonics()
   const saveWords = useMutation({
-    mutationFn: (
-      input: Parameters<typeof client.secureStorage.write.mutate>[0],
-    ) => client.secureStorage.write.mutate(input),
+    mutationFn: (input: Parameters<typeof client.secureStorage.write.mutate>[0]) =>
+      client.secureStorage.write.mutate(input),
   })
   const [shouldSaveWords, setShouldSaveWords] = useState(true)
 
@@ -1004,9 +951,7 @@ function RecoveryStep({
         console.groupEnd()
       } catch (error) {
         console.error('❌ Failed to create document changes:', error)
-        throw new Error(
-          'Failed to create document changes: ' + (error as Error).message,
-        )
+        throw new Error('Failed to create document changes: ' + (error as Error).message)
       }
 
       // Clean up onboarding form data
@@ -1029,31 +974,19 @@ function RecoveryStep({
   return (
     <StepWrapper onPrev={onPrev}>
       <StepTitle>SAVE YOUR ACCOUNT</StepTitle>
-      <Text
-        size="xl"
-        className="no-window-drag text-muted-foreground text-center"
-      >
-        Store this Secret Recover Phrase somewhere safe. You'll need it to
-        recover your account if you lose access.
+      <Text size="xl" className="no-window-drag text-muted-foreground text-center">
+        Store this Secret Recover Phrase somewhere safe. You'll need it to recover your account if you lose access.
       </Text>
 
       <div className="no-window-drag flex w-full max-w-[400px] flex-1 flex-col gap-4">
         <Textarea
           className="flex-1 resize-none bg-white opacity-100!"
           disabled
-          value={
-            Array.isArray(mnemonics.data)
-              ? mnemonics.data.join(', ')
-              : mnemonics.data
-          }
+          value={Array.isArray(mnemonics.data) ? mnemonics.data.join(', ') : mnemonics.data}
         />
 
         <div className="flex gap-4">
-          <Button
-            size="sm"
-            className="flex-1"
-            onClick={() => mnemonics.refetch()}
-          >
+          <Button size="sm" className="flex-1" onClick={() => mnemonics.refetch()}>
             <Reload className="size-4" />
             Regenerate
           </Button>
@@ -1062,13 +995,11 @@ function RecoveryStep({
             className="flex-1"
             onClick={() => {
               if (mnemonics.data) {
-                copyTextToClipboard(
-                  Array.isArray(mnemonics.data)
-                    ? mnemonics.data.join(', ')
-                    : mnemonics.data,
-                ).then(() => {
-                  toast.success('Copied to clipboard')
-                })
+                copyTextToClipboard(Array.isArray(mnemonics.data) ? mnemonics.data.join(', ') : mnemonics.data).then(
+                  () => {
+                    toast.success('Copied to clipboard')
+                  },
+                )
               }
             }}
           >
@@ -1080,9 +1011,7 @@ function RecoveryStep({
         <CheckboxField
           checked={shouldSaveWords}
           id="register-save-words"
-          onCheckedChange={(v) =>
-            setShouldSaveWords(v === 'indeterminate' ? false : v)
-          }
+          onCheckedChange={(v) => setShouldSaveWords(v === 'indeterminate' ? false : v)}
         >
           Store the Secret Recovery Phrase on this device
         </CheckboxField>
@@ -1125,8 +1054,8 @@ function ReadyStep({onComplete}: {onComplete: () => void}) {
               All Content is Public
             </SizableText>
             <SizableText size="sm" className="text-muted-foreground">
-              all content created using Seed Hypermedia is public by default,
-              meaning it can be accessed and shared by others within the network
+              all content created using Seed Hypermedia is public by default, meaning it can be accessed and shared by
+              others within the network
             </SizableText>
           </div>
         </div>
@@ -1137,8 +1066,7 @@ function ReadyStep({onComplete}: {onComplete: () => void}) {
               Analytics
             </SizableText>
             <SizableText size="sm" className="text-muted-foreground">
-              We collect anonymous analytics to improve your experience and
-              enhance the platform.
+              We collect anonymous analytics to improve your experience and enhance the platform.
             </SizableText>
           </div>
         </div>
@@ -1172,11 +1100,7 @@ export function OnboardingDebugBox() {
           <Text size="md" style={{fontFamily: 'monospace'}}>
             Debug: Onboarding State
           </Text>
-          <Text
-            size="sm"
-            style={{fontFamily: 'monospace'}}
-            className="text-muted-foreground"
-          >
+          <Text size="sm" style={{fontFamily: 'monospace'}} className="text-muted-foreground">
             {JSON.stringify(state, null, 2)}
           </Text>
         </div>
@@ -1193,13 +1117,7 @@ function StepTitle({children}: {children: React.ReactNode}) {
   )
 }
 
-function StepWrapper({
-  children,
-  onPrev,
-}: {
-  children: React.ReactNode
-  onPrev?: () => void
-}) {
+function StepWrapper({children, onPrev}: {children: React.ReactNode; onPrev?: () => void}) {
   return (
     <>
       <div className="window-drag bg-primary flex flex-1 flex-col items-center justify-center gap-4 bg-gradient-to-b from-green-50 to-green-100 p-4">
@@ -1236,14 +1154,7 @@ function OnboardingProgress({currentStep}: {currentStep: OnboardingStep}) {
 }
 
 function OnboardingProgressStep({active}: {active: boolean}) {
-  return (
-    <div
-      className={cn(
-        'h-2 w-2 rounded-full',
-        active ? 'bg-primary' : 'bg-gray-300',
-      )}
-    />
-  )
+  return <div className={cn('h-2 w-2 rounded-full', active ? 'bg-primary' : 'bg-gray-300')} />
 }
 
 async function fileToImageData(file: File): Promise<ImageData> {
@@ -1308,11 +1219,7 @@ export function ResetOnboardingButton() {
 export function CreateAccountBanner() {
   const [show, setShow] = useState(() => {
     const obState = getOnboardingState()
-    return (
-      !obState.hasCompletedOnboarding &&
-      !obState.hasSkippedOnboarding &&
-      obState.initialAccountIdCount === 0
-    )
+    return !obState.hasCompletedOnboarding && !obState.hasSkippedOnboarding && obState.initialAccountIdCount === 0
   })
   if (!show) return null
 
@@ -1321,10 +1228,7 @@ export function CreateAccountBanner() {
       <SizableText size="2xl" weight="bold">
         Let's Get Started!
       </SizableText>
-      <SizableText>
-        Create an account to get started. It's free and takes less than a
-        minute.
-      </SizableText>
+      <SizableText>Create an account to get started. It's free and takes less than a minute.</SizableText>
       <div className="flex flex-col gap-2">
         <Button
           variant="default"

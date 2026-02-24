@@ -25,9 +25,7 @@ type RecentsState = {
   recents: RecentEntry[]
 }
 
-let recentsState: RecentsState = (appStore.get(
-  RECENTS_STORAGE_KEY,
-) as RecentsState) || {
+let recentsState: RecentsState = (appStore.get(RECENTS_STORAGE_KEY) as RecentsState) || {
   recents: [],
 }
 
@@ -56,9 +54,7 @@ export async function updateRecentRoute(route: NavRoute) {
   }
   if (!url) return
   updateRecents((state: RecentsState): RecentsState => {
-    let recents = state.recents
-      .filter((recent) => recent.id !== url)
-      .slice(0, MAX_RECENTS - 1)
+    let recents = state.recents.filter((recent) => recent.id !== url).slice(0, MAX_RECENTS - 1)
     return {
       recents: [{id: url, name, time}, ...recents],
     }

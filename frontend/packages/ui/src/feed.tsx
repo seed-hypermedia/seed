@@ -1,29 +1,13 @@
 import {useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
-import {
-  HMBlockNode,
-  HMTimestamp,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
-import {
-  HMListEventsParams,
-  LoadedCommentEvent,
-  LoadedEvent,
-} from '@shm/shared/models/activity-service'
+import {HMBlockNode, HMTimestamp, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {HMListEventsParams, LoadedCommentEvent, LoadedEvent} from '@shm/shared/models/activity-service'
 import {useResource} from '@shm/shared/models/entity'
 import {DocumentRoute, NavRoute} from '@shm/shared/routes'
 import {useRouteLink} from '@shm/shared/routing'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {useActivityFeed} from '@shm/shared/use-activity-feed'
-import {
-  AnyTimestamp,
-  formattedDateShort,
-  normalizeDate,
-} from '@shm/shared/utils/date'
-import {
-  createCommentUrl,
-  getCommentTargetId,
-  hmId,
-} from '@shm/shared/utils/entity-id-url'
+import {AnyTimestamp, formattedDateShort, normalizeDate} from '@shm/shared/utils/date'
+import {createCommentUrl, getCommentTargetId, hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import _ from 'lodash'
 import {CircleAlert, Link, Trash2} from 'lucide-react'
@@ -37,12 +21,7 @@ import {SizableText} from './components/text'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {HMIcon} from './hm-icon'
 import {ReplyArrow} from './icons'
-import {
-  AuthorNameLink,
-  DocumentNameLink,
-  InlineDescriptor,
-  Timestamp,
-} from './inline-descriptor'
+import {AuthorNameLink, DocumentNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
 import {DocumentCard} from './newspaper'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {ResourceToken} from './resource-token'
@@ -60,7 +39,6 @@ export function Feed({
   targetDomain,
   size = 'md',
   navigationContext,
-  centered,
 }: {
   size?: 'sm' | 'md'
   filterResource: HMListEventsParams['filterResource']
@@ -70,7 +48,6 @@ export function Feed({
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   targetDomain?: string
   navigationContext?: 'page' | 'panel'
-  centered?: boolean
 }) {
   const observerRef = useRef<IntersectionObserver>()
   const lastElementNodeRef = useRef<HTMLDivElement>(null)
@@ -84,15 +61,7 @@ export function Feed({
     return currentRoute.key === 'activity' || currentRoute.key === 'discussions'
   }, [navigationContext, currentRoute.key])
 
-  const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading,
-    error,
-    refetch,
-  } = useActivityFeed({
+  const {data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error, refetch} = useActivityFeed({
     filterResource,
     filterAuthors,
     filterEventType,
@@ -153,8 +122,7 @@ export function Feed({
   // Subscribe to author accounts for discovery (desktop only, no-op on web)
   useHackyAuthorsSubscriptions(authorIds)
 
-  const isSingleResource =
-    filterResource && !filterResource.endsWith('*') ? true : false
+  const isSingleResource = filterResource && !filterResource.endsWith('*') ? true : false
 
   if (error) {
     return (
@@ -176,12 +144,7 @@ export function Feed({
       <div className="m-4 flex flex-col items-center justify-center gap-2 p-3">
         <CircleAlert className="text-muted-foreground size-7" />
         <p className="text-muted-foreground text-sm">Error Loading Feed</p>
-        <Button
-          size="sm"
-          variant="default"
-          onClick={() => refetch()}
-          className="mt-2"
-        >
+        <Button size="sm" variant="default" onClick={() => refetch()} className="mt-2">
           retry
         </Button>
       </div>
@@ -189,7 +152,7 @@ export function Feed({
   }
 
   return (
-    <SelectionContent centered={centered}>
+    <SelectionContent>
       <div>
         {allEvents.map((e) => {
           const route = getEventRoute(e, useFullPageNavigation)
@@ -231,15 +194,9 @@ export function Feed({
         })}
         {!isLoading && <div className="h-20" ref={lastElementNodeRef} />}
       </div>
-      {isFetchingNextPage && (
-        <div className="text-muted-foreground py-3 text-center">
-          Loading more...
-        </div>
-      )}
+      {isFetchingNextPage && <div className="text-muted-foreground py-3 text-center">Loading more...</div>}
       {!hasNextPage && allEvents.length > 0 && (
-        <div className="text-muted-foreground py-3 text-center">
-          No more events
-        </div>
+        <div className="text-muted-foreground py-3 text-center">No more events</div>
       )}
     </SelectionContent>
   )
@@ -262,15 +219,10 @@ function EventHeaderContent({
 }) {
   const tx = useTxString()
   const currentRoute = useNavRoute()
-  const isDiscussionsView =
-    currentRoute.key === 'discussions' || currentRoute.key === 'activity'
+  const isDiscussionsView = currentRoute.key === 'discussions' || currentRoute.key === 'activity'
   if (event.type == 'comment') {
     const options: MenuItemType[] = []
-    if (
-      onCommentDelete &&
-      event.comment &&
-      currentAccount == event.comment.author
-    ) {
+    if (onCommentDelete && event.comment && currentAccount == event.comment.author) {
       options.push({
         icon: <Trash2 className="size-4" />,
         label: 'Delete',
@@ -287,11 +239,7 @@ function EventHeaderContent({
           <AuthorNameLink author={event.author} />{' '}
           {!isSingleResource && event.target ? (
             <>
-              <span>commented on</span>{' '}
-              <DocumentNameLink
-                metadata={event.target?.metadata}
-                id={event.target.id}
-              />
+              <span>commented on</span> <DocumentNameLink metadata={event.target?.metadata} id={event.target.id} />
             </>
           ) : null}
           <Timestamp time={event.time} route={route} />
@@ -360,10 +308,7 @@ function EventHeaderContent({
         {!isSingleResource && event.target?.id ? (
           <>
             <span>as a {event.capability.role} in</span>{' '}
-            <DocumentNameLink
-              metadata={event.target?.metadata}
-              id={event.target?.id}
-            />{' '}
+            <DocumentNameLink metadata={event.target?.metadata} id={event.target?.id} />{' '}
           </>
         ) : (
           <>
@@ -383,22 +328,15 @@ function EventHeaderContent({
           <>
             <span>
               {/* TODO: check if this is the correct way of getting the first ref update of a document */}
-              {event.document.version == event.document.genesis
-                ? 'created'
-                : 'updated'}
+              {event.document.version == event.document.genesis ? 'created' : 'updated'}
             </span>{' '}
-            <DocumentNameLink
-              metadata={event.document.metadata}
-              id={event.docId}
-            />{' '}
+            <DocumentNameLink metadata={event.document.metadata} id={event.docId} />{' '}
           </>
         ) : (
           <>
             <span>
               {/* TODO: check if this is the correct way of getting the first ref update of a document */}
-              {event.document.version == event.document.genesis
-                ? 'created the document'
-                : 'updated the document'}
+              {event.document.version == event.document.genesis ? 'created the document' : 'updated the document'}
             </span>{' '}
           </>
         )}
@@ -432,15 +370,10 @@ function EventHeaderContent({
   if (event.type == 'citation') {
     return (
       <InlineDescriptor>
-        <AuthorNameLink author={event.author} />{' '}
-        <span>{event.citationType === 'c' ? 'mentioned' : 'cited'}</span>{' '}
+        <AuthorNameLink author={event.author} /> <span>{event.citationType === 'c' ? 'mentioned' : 'cited'}</span>{' '}
         {!isSingleResource ? (
           <>
-            <DocumentNameLink
-              metadata={event.target?.metadata}
-              id={event.target?.id}
-              fallback="this document"
-            />{' '}
+            <DocumentNameLink metadata={event.target?.metadata} id={event.target?.id} fallback="this document" />{' '}
           </>
         ) : (
           <>
@@ -448,20 +381,13 @@ function EventHeaderContent({
           </>
         )}
         <span>{event.citationType === 'c' ? 'in a comment on' : 'in'}</span>{' '}
-        <DocumentNameLink
-          metadata={event.source?.metadata}
-          id={event.source?.id}
-          fallback="a document"
-        />{' '}
+        <DocumentNameLink metadata={event.source?.metadata} id={event.source?.id} fallback="a document" />{' '}
         <Timestamp time={event.time} route={route} />
       </InlineDescriptor>
     )
   }
 
-  console.error(
-    'EventHeaderContent: We must have ifs for all the event types:',
-    event,
-  )
+  console.error('EventHeaderContent: We must have ifs for all the event types:', event)
 
   return null
 }
@@ -508,29 +434,17 @@ function EventContent({
       return (
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1">
-            <span className="text-muted-foreground text-xs">
-              Source Document:
-            </span>
+            <span className="text-muted-foreground text-xs">Source Document:</span>
             <div className="text-sm">
-              <ResourceToken
-                id={event.source.id}
-                metadata={event.source.metadata}
-              />
+              <ResourceToken id={event.source.id} metadata={event.source.metadata} />
             </div>
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-muted-foreground text-xs">
-              Target Document:
-            </span>
+            <span className="text-muted-foreground text-xs">Target Document:</span>
             <div className="text-sm">
-              <ResourceToken
-                id={event.target.id}
-                metadata={event.target.metadata}
-              />
+              <ResourceToken id={event.target.id} metadata={event.target.metadata} />
               {event.targetFragment && (
-                <span className="text-muted-foreground ml-1 text-xs">
-                  (Block: {event.targetFragment})
-                </span>
+                <span className="text-muted-foreground ml-1 text-xs">(Block: {event.targetFragment})</span>
               )}
             </div>
           </div>
@@ -601,9 +515,7 @@ function EventCommentWithReply({
   return (
     <div
       key={`${event.type}-${event.id}-${event.time}`}
-      className={cn(
-        'hover:bg-background group p-2 transition-colors dark:hover:bg-black/10',
-      )}
+      className={cn('hover:bg-background group p-2 transition-colors dark:hover:bg-black/10')}
       {...(route ? linkProps : {})}
     >
       {/* replying comment */}
@@ -690,10 +602,7 @@ function EventCommentWithReply({
 }
 
 // Helper function to find a block by ID in the content tree
-function findContentBlock(
-  content: HMBlockNode[],
-  blockRef: string,
-): HMBlockNode | null {
+function findContentBlock(content: HMBlockNode[], blockRef: string): HMBlockNode | null {
   let block: HMBlockNode | null = null
   content.find((node) => {
     if (node.block.id === blockRef) {
@@ -744,13 +653,7 @@ function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
   )
 }
 
-function RouteEventRow({
-  children,
-  route,
-}: {
-  children: React.ReactNode
-  route: NavRoute | null
-}) {
+function RouteEventRow({children, route}: {children: React.ReactNode; route: NavRoute | null}) {
   const linkProps = useRouteLink(route)
   return (
     <div className="break-words" {...linkProps}>
@@ -759,13 +662,7 @@ function RouteEventRow({
   )
 }
 
-export function EventRowInline({
-  children,
-  route,
-}: {
-  children: React.ReactNode
-  route: NavRoute | null
-}) {
+export function EventRowInline({children, route}: {children: React.ReactNode; route: NavRoute | null}) {
   return <RouteEventRow route={route}>{children}</RouteEventRow>
 }
 
@@ -777,11 +674,7 @@ export function EventDescriptionText({children}: {children: React.ReactNode}) {
   )
 }
 
-export const EventTimestamp = memo(function EventTimestamp({
-  time,
-}: {
-  time: HMTimestamp | undefined
-}) {
+export const EventTimestamp = memo(function EventTimestamp({time}: {time: HMTimestamp | undefined}) {
   if (!time) return null
 
   const date = normalizeDate(time)
@@ -795,11 +688,7 @@ export const EventTimestamp = memo(function EventTimestamp({
   )
 })
 
-const EventTimestampWithTooltip = memo(function EventTimestampWithTooltip({
-  time,
-}: {
-  time: AnyTimestamp
-}) {
+const EventTimestampWithTooltip = memo(function EventTimestampWithTooltip({time}: {time: AnyTimestamp}) {
   if (!time) return null
 
   const date = normalizeDate(time)
@@ -825,10 +714,7 @@ function formatUTC(date: Date) {
   return `${year}-${month}-${day} ${hours}:${minutes} (UTC)`
 }
 
-function getEventRoute(
-  event: LoadedEvent,
-  useFullPageNavigation: boolean = false,
-): NavRoute | null {
+function getEventRoute(event: LoadedEvent, useFullPageNavigation: boolean = false): NavRoute | null {
   if (event.type == 'comment') {
     // Navigate to the target document with discussions open and the comment focused
     if (!event.target?.id || !event.comment) return null
@@ -953,14 +839,11 @@ function EventItem({
   size?: 'sm' | 'md'
 }) {
   const currentRoute = useNavRoute()
-  const linkProps = useRouteLink(
-    route ? _.merge({}, currentRoute, route) : currentRoute,
-    {
-      onClick: () => {
-        console.log('== link props clicked!!')
-      },
+  const linkProps = useRouteLink(route ? _.merge({}, currentRoute, route) : currentRoute, {
+    onClick: () => {
+      console.log('== link props clicked!!')
     },
-  )
+  })
 
   const tx = useTx()
   return (
@@ -997,13 +880,8 @@ function EventItem({
         <div className="relative flex gap-2">
           <div className={cn('w-[24px]')} />
           <div className="flex flex-1 flex-col gap-3">
-            <EventContent
-              size={size}
-              isSingleResource={isSingleResource}
-              event={event}
-            />
-            {event.type == 'comment' ||
-            (event.type == 'citation' && event.comment) ? (
+            <EventContent size={size} isSingleResource={isSingleResource} event={event} />
+            {event.type == 'comment' || (event.type == 'citation' && event.comment) ? (
               <div className="-ml-3">
                 <Button
                   size="xs"
@@ -1012,9 +890,7 @@ function EventItem({
                   <ReplyArrow className="size-3" />
                   {tx('Reply')}
                   {(event.type == 'comment' && event.replyCount > 0) ||
-                  (event.type == 'citation' &&
-                    event.replyCount !== undefined &&
-                    event.replyCount > 0)
+                  (event.type == 'citation' && event.replyCount !== undefined && event.replyCount > 0)
                     ? ` (${event.replyCount})`
                     : ''}
                 </Button>

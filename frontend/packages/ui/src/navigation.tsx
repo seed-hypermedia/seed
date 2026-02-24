@@ -41,21 +41,15 @@ export function DocumentSmallListItem({
   isPublished?: boolean
   visibility?: HMResourceVisibility
 }) {
-  const route: NavRoute | undefined = draftId
-    ? {key: 'draft', id: draftId}
-    : id && {key: 'document', id}
+  const route: NavRoute | undefined = draftId ? {key: 'draft', id: draftId} : id && {key: 'document', id}
   if (!route) {
-    throw new Error(
-      'No route for DocumentSmallListItem. Must provide either id or draftId',
-    )
+    throw new Error('No route for DocumentSmallListItem. Must provide either id or draftId')
   }
   const linkProps = useRouteLink(route, {onClick: onClick})
   const color = isPublished === false ? '$color11' : undefined
   const highlight = useHighlighter()
   const isPrivate = visibility === 'PRIVATE'
-  const icon = id ? (
-    <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />
-  ) : null
+  const icon = id ? <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} /> : null
 
   const privateBadge = isPrivate ? <PrivateBadge size="sm" /> : null
 
@@ -135,16 +129,9 @@ export function getSiteNavDirectory({
         visibility: item.visibility,
       }
     }) ?? []
-  unpublishedDraftItems
-    .sort((a, b) => (b.sortTime?.getTime() || 0) - (a.sortTime?.getTime() || 0))
-    .reverse()
-  publishedItems
-    .sort((a, b) => (b.sortTime?.getTime() || 0) - (a.sortTime?.getTime() || 0))
-    .reverse()
-  const directoryItems: DocNavigationItem[] = [
-    ...publishedItems,
-    ...unpublishedDraftItems,
-  ]
+  unpublishedDraftItems.sort((a, b) => (b.sortTime?.getTime() || 0) - (a.sortTime?.getTime() || 0)).reverse()
+  publishedItems.sort((a, b) => (b.sortTime?.getTime() || 0) - (a.sortTime?.getTime() || 0)).reverse()
+  const directoryItems: DocNavigationItem[] = [...publishedItems, ...unpublishedDraftItems]
   return directoryItems
 }
 
@@ -183,7 +170,7 @@ export function DocumentOutline({
         id: {
           ...id,
           blockRef: node.id,
-          blockRange: null,
+          blockRange: {expanded: true},
         },
       },
       {
@@ -280,7 +267,7 @@ function OutlineNode({
                   id: {
                     ...docId,
                     blockRef: child.id,
-                    blockRange: null,
+                    blockRange: {expanded: true},
                   },
                 },
                 {
@@ -332,9 +319,7 @@ export function DocNavigationWrapper({
       <HoverCard openDelay={100}>
         <HoverCardTrigger className="flex w-5 flex-col gap-3">
           {limitedOutline?.length
-            ? limitedOutline.map((node) => (
-                <CollapsedOutlineNode key={node.id} node={node} />
-              ))
+            ? limitedOutline.map((node) => <CollapsedOutlineNode key={node.id} node={node} />)
             : null}
         </HoverCardTrigger>
         <HoverCardContent
@@ -344,9 +329,7 @@ export function DocNavigationWrapper({
           collisionPadding={{bottom: 24}}
           className="z-50 p-1"
         >
-          <div className="h-full max-h-[80vh] w-full overflow-auto">
-            {children}
-          </div>
+          <div className="h-full max-h-[80vh] w-full overflow-auto">{children}</div>
         </HoverCardContent>
       </HoverCard>
     </div>
@@ -360,13 +343,7 @@ export function DocNavigationWrapper({
   )
 }
 
-function CollapsedOutlineNode({
-  node,
-  level = 1,
-}: {
-  node: NodeOutline
-  level?: number
-}) {
+function CollapsedOutlineNode({node, level = 1}: {node: NodeOutline; level?: number}) {
   const nodes =
     !node.children?.length || node.children.length < 2
       ? undefined
@@ -375,18 +352,11 @@ function CollapsedOutlineNode({
       : node.children.slice(0, 8)
   return (
     <>
-      <div
-        key={node.id}
-        className="bg-muted-foreground/40 h-0.5 w-full rounded-full"
-      />
+      <div key={node.id} className="bg-muted-foreground/40 h-0.5 w-full rounded-full" />
       {nodes ? (
         <div className={cn('flex flex-col gap-3', level < 3 && 'pl-[3px]')}>
           {nodes.map((child) => (
-            <CollapsedOutlineNode
-              key={child.id}
-              node={child}
-              level={level + 1}
-            />
+            <CollapsedOutlineNode key={child.id} node={child} level={level + 1} />
           ))}
         </div>
       ) : null}

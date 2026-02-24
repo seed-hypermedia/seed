@@ -1,10 +1,6 @@
 import {hasBlockContent} from '@shm/shared/content'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {
-  HMCommentDraft,
-  HMListedCommentDraft,
-  HMListedCommentDraftSchema,
-} from '@shm/shared/hm-types'
+import {HMCommentDraft, HMListedCommentDraft, HMListedCommentDraftSchema} from '@shm/shared/hm-types'
 import Store from 'electron-store'
 import fs from 'fs/promises'
 import {nanoid} from 'nanoid'
@@ -71,9 +67,7 @@ export async function initCommentDrafts() {
     await saveCommentDraftIndex()
   } else {
     const commentIndexJSON = await fs.readFile(commentDraftIndexPath, 'utf-8')
-    commentDraftIndex = z
-      .array(HMListedCommentDraftSchema)
-      .parse(JSON.parse(commentIndexJSON))
+    commentDraftIndex = z.array(HMListedCommentDraftSchema).parse(JSON.parse(commentIndexJSON))
   }
 
   // Clean up empty drafts on init
@@ -103,18 +97,13 @@ async function cleanupEmptyDrafts() {
   }
 
   if (draftsToRemove.length > 0) {
-    commentDraftIndex = commentDraftIndex.filter(
-      (d) => !draftsToRemove.includes(d.id),
-    )
+    commentDraftIndex = commentDraftIndex.filter((d) => !draftsToRemove.includes(d.id))
     await saveCommentDraftIndex()
   }
 }
 
 async function saveCommentDraftIndex() {
-  await fs.writeFile(
-    commentDraftIndexPath,
-    JSON.stringify(commentDraftIndex, null, 2),
-  )
+  await fs.writeFile(commentDraftIndexPath, JSON.stringify(commentDraftIndex, null, 2))
 }
 
 function getCommentStoreId(
@@ -148,12 +137,13 @@ export const commentsApi = t.router({
       if (!targetDocId) return null
 
       // Find existing draft matching these parameters
+      // When context is undefined, match any draft regardless of stored context
       const existingDraft = commentDraftIndex?.find(
         (d) =>
           d.targetDocId === targetDocId &&
           d.replyCommentId === replyCommentId &&
           d.quotingBlockId === quotingBlockId &&
-          d.context === context,
+          (context === undefined ? true : d.context === context),
       )
 
       if (!existingDraft) return null
@@ -189,20 +179,20 @@ export const commentsApi = t.router({
       }),
     )
     .mutation(async ({input}) => {
-      const {targetDocId, replyCommentId, quotingBlockId, context, blocks} =
-        input
+      const {targetDocId, replyCommentId, quotingBlockId, context, blocks} = input
 
       if (!commentDraftIndex) {
         throw Error('[COMMENT DRAFT]: Comment Draft Index not initialized')
       }
 
       // Find existing draft or create new one
+      // When context is undefined, match any draft regardless of stored context
       let existingDraft = commentDraftIndex.find(
         (d) =>
           d.targetDocId === targetDocId &&
           d.replyCommentId === replyCommentId &&
           d.quotingBlockId === quotingBlockId &&
-          d.context === context,
+          (context === undefined ? true : d.context === context),
       )
 
       const draftId = existingDraft?.id || nanoid(10)
@@ -241,19 +231,18 @@ export const commentsApi = t.router({
     .mutation(async ({input}) => {
       const {targetDocId, replyCommentId, quotingBlockId, context} = input
 
+      // When context is undefined, match any draft regardless of stored context
       const existingDraft = commentDraftIndex?.find(
         (d) =>
           d.targetDocId === targetDocId &&
           d.replyCommentId === replyCommentId &&
           d.quotingBlockId === quotingBlockId &&
-          d.context === context,
+          (context === undefined ? true : d.context === context),
       )
 
       if (!existingDraft) return
 
-      commentDraftIndex = commentDraftIndex?.filter(
-        (d) => d.id !== existingDraft.id,
-      )
+      commentDraftIndex = commentDraftIndex?.filter((d) => d.id !== existingDraft.id)
       await saveCommentDraftIndex()
 
       const draftPath = join(commentDraftsDir, `${existingDraft.id}.json`)

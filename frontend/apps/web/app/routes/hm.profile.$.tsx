@@ -1,18 +1,9 @@
 import {MyAccountBubble} from '@/account-bubble'
-import {
-  EditProfileDialog,
-  LinkKeysDialog,
-  LogoutButton,
-  useLocalKeyPair,
-} from '@/auth'
+import {EditProfileDialog, LinkKeysDialog, LogoutButton, useLocalKeyPair} from '@/auth'
 import {loadProfilePageData, ProfilePagePayload} from '@/loaders'
 import {defaultPageMeta, defaultSiteIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
-import {
-  getOptimizedImageUrl,
-  NavigationLoadingContent,
-  WebSiteProvider,
-} from '@/providers'
+import {getOptimizedImageUrl, NavigationLoadingContent, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {WebSiteHeader} from '@/web-site-header'
 import {unwrap} from '@/wrapping'
@@ -96,18 +87,13 @@ function ProfilePageContent({
                 metadata: account.data?.metadata || null,
                 hasSite: account.data?.hasSite,
               }}
-              onEditProfile={() =>
-                editProfileDialog.open({accountUid: profileId.uid})
-              }
+              onEditProfile={() => editProfileDialog.open({accountUid: profileId.uid})}
               currentAccount={currentAccount}
               headerButtons={
                 isCurrentAccount ? (
                   <>
                     <LogoutButton />
-                    <Button
-                      variant="outline"
-                      onClick={() => linkKeysDialog.open({})}
-                    >
+                    <Button variant="outline" onClick={() => linkKeysDialog.open({})}>
                       <KeySquare className="size-4" />
                       Link Keys
                     </Button>
@@ -126,19 +112,14 @@ function ProfilePageContent({
   )
 }
 export default function ProfilePage() {
-  const {originHomeId, origin, homeMetadata, profileId, dehydratedState} =
-    unwrap<ProfilePagePayload>(useLoaderData())
+  const {originHomeId, origin, homeMetadata, profileId, dehydratedState} = unwrap<ProfilePagePayload>(useLoaderData())
   const userKeyPair = useLocalKeyPair()
 
   if (!originHomeId) {
     return <h2>Invalid origin home id</h2>
   }
   return (
-    <WebSiteProvider
-      origin={origin}
-      originHomeId={originHomeId}
-      dehydratedState={dehydratedState}
-    >
+    <WebSiteProvider origin={origin} originHomeId={originHomeId} dehydratedState={dehydratedState}>
       <ProfilePageContent
         homeMetadata={homeMetadata}
         originHomeId={originHomeId}
@@ -150,12 +131,6 @@ export default function ProfilePage() {
   )
 }
 
-const PageContainer = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
-  <div
-    className={cn('flex flex-col items-center gap-5 rounded-sm p-4', className)}
-    {...props}
-  />
+const PageContainer = ({className, ...props}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn('flex flex-col items-center gap-5 rounded-sm p-4', className)} {...props} />
 )

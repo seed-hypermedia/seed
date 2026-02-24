@@ -33,9 +33,7 @@ describe('input-querystring', () => {
     it('serializes nested objects as JSON', () => {
       const input = {user: {name: 'John', age: 30}}
       const result = serializeQueryString(input)
-      expect(result).toBe(
-        '?user=%7B%22name%22%3A%22John%22%2C%22age%22%3A30%7D',
-      )
+      expect(result).toBe('?user=%7B%22name%22%3A%22John%22%2C%22age%22%3A30%7D')
     })
 
     it('serializes arrays as JSON', () => {
@@ -240,8 +238,7 @@ describe('input-querystring', () => {
     })
 
     it('round-trips string with slashes correctly', () => {
-      const original =
-        'z6MkgacSwts6XqFss1tygbJ3b5YJBpMkSEC8GCSVBBx8ef29/z6FR5iXwLvU8i8'
+      const original = 'z6MkgacSwts6XqFss1tygbJ3b5YJBpMkSEC8GCSVBBx8ef29/z6FR5iXwLvU8i8'
       const serialized = serializeQueryString(original as any)
       const deserialized = deserializeQueryString(serialized, z.string() as any)
       expect(deserialized).toBe(original)
@@ -254,8 +251,7 @@ describe('input-querystring', () => {
 
     it('Comment: string input round-trips through actual schema', () => {
       const inputSchema = HMCommentRequestSchema.shape.input
-      const commentId =
-        'z6MkgacSwts6XqFss1tygbJ3b5YJBpMkSEC8GCSVBBx8ef29/z6FR5iXwLvU8i8'
+      const commentId = 'z6MkgacSwts6XqFss1tygbJ3b5YJBpMkSEC8GCSVBBx8ef29/z6FR5iXwLvU8i8'
 
       // Client side: serialize
       const queryString = serializeQueryString(commentId)
@@ -290,10 +286,7 @@ describe('input-querystring', () => {
       }
 
       const queryString = serializeQueryString(input)
-      const deserialized = deserializeQueryString(
-        queryString,
-        HMListCommentsInputSchema,
-      )
+      const deserialized = deserializeQueryString(queryString, HMListCommentsInputSchema)
 
       expect(deserialized.targetId.uid).toBe(input.targetId.uid)
       expect(deserialized.targetId.version).toBeNull()
@@ -314,10 +307,7 @@ describe('input-querystring', () => {
       }
 
       const queryString = serializeQueryString(input)
-      const deserialized = deserializeQueryString(
-        queryString,
-        HMInteractionSummaryInputSchema,
-      )
+      const deserialized = deserializeQueryString(queryString, HMInteractionSummaryInputSchema)
 
       expect(deserialized.id.uid).toBe(input.id.uid)
       expect(deserialized.id.version).toBeNull()
@@ -338,18 +328,15 @@ describe('input-querystring', () => {
       const deserialized = deserializeQueryString(queryString, HMQuerySchema)
 
       expect(deserialized.includes).toHaveLength(1)
-      expect(deserialized.includes[0].space).toBe(input.includes[0].space)
-      expect(deserialized.includes[0].mode).toBe('Children')
+      expect(deserialized.includes![0]!.space).toBe(input.includes[0]!.space)
+      expect(deserialized.includes![0]!.mode).toBe('Children')
     })
 
     it('GetCommentReplyCount: object with string id round-trips correctly', () => {
       const input = {id: 'some-comment-id'}
 
       const queryString = serializeQueryString(input)
-      const deserialized = deserializeQueryString(
-        queryString,
-        HMGetCommentReplyCountInputSchema,
-      )
+      const deserialized = deserializeQueryString(queryString, HMGetCommentReplyCountInputSchema)
 
       expect(deserialized).toEqual(input)
     })
@@ -358,10 +345,7 @@ describe('input-querystring', () => {
       const input = {query: 'test', includeBody: true}
 
       const queryString = serializeQueryString(input)
-      const deserialized = deserializeQueryString(
-        queryString,
-        HMSearchInputSchema,
-      )
+      const deserialized = deserializeQueryString(queryString, HMSearchInputSchema)
 
       expect(deserialized.query).toBe('test')
       expect(deserialized.includeBody).toBe(true)

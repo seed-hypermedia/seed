@@ -31,8 +31,7 @@ export function useBookmarks() {
 export function useBookmark(id?: UnpackedHypermediaId) {
   const bookmarks = useBookmarks()
   const setBookmark = useMutation({
-    mutationFn: (input: {url: string; isBookmark: boolean}) =>
-      client.bookmarks.setBookmark.mutate(input),
+    mutationFn: (input: {url: string; isBookmark: boolean}) => client.bookmarks.setBookmark.mutate(input),
     onSuccess: () => {
       invalidateQueries([queryKeys.BOOKMARKS])
     },
@@ -43,9 +42,7 @@ export function useBookmark(id?: UnpackedHypermediaId) {
       removeBookmark: () => {},
       addBookmark: () => {},
     }
-  const isBookmarked = bookmarks?.some(
-    (bookmark) => bookmark && bookmark.id === id.id,
-  )
+  const isBookmarked = bookmarks?.some((bookmark) => bookmark && bookmark.id === id.id)
   return {
     isBookmarked,
     removeBookmark: () => {

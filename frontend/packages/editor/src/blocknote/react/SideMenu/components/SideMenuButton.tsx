@@ -8,8 +8,7 @@ export const SideMenuButton = (props: {children: JSX.Element}) => {
       size={24}
       sx={{
         '&:hover': {
-          backgroundColor:
-            theme.other.hovered?.background || theme.colors.gray[1],
+          backgroundColor: theme.other.hovered?.background || theme.colors.gray[1],
           color: theme.other.hovered?.text || theme.black,
         },
       }}

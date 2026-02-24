@@ -115,13 +115,7 @@ export function AppContextProvider({
   )
 }
 
-export function StyleProvider({
-  children,
-  darkMode,
-}: {
-  children: ReactNode
-  darkMode: boolean
-}) {
+export function StyleProvider({children, darkMode}: {children: ReactNode; darkMode: boolean}) {
   // Update document class when darkMode changes
   useEffect(() => {
     if (typeof document !== 'undefined') {

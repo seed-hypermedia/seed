@@ -34,13 +34,7 @@ import {
   Download,
   Upload,
 } from '@shm/ui/icons'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@shm/ui/select-dropdown'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {InfoListHeader, TableList} from '@shm/ui/table-list'
 import {SizableText} from '@shm/ui/text'
@@ -74,10 +68,7 @@ export function AccountWallet({
     )
   if (wallets.data.wallets.length) {
     return wallets.data.wallets.map((wallet) => (
-      <WalletButton
-        walletId={wallet.id}
-        onOpen={() => onOpenWallet(wallet.id)}
-      />
+      <WalletButton walletId={wallet.id} onOpen={() => onOpenWallet(wallet.id)} />
     ))
   }
   return (
@@ -97,20 +88,12 @@ export function AccountWallet({
   )
 }
 
-function WalletButton({
-  walletId,
-  onOpen,
-}: {
-  walletId: string
-  onOpen: () => void
-}) {
+function WalletButton({walletId, onOpen}: {walletId: string; onOpen: () => void}) {
   const wallet = useWallet(walletId)
   return (
     <Button onClick={onOpen}>
       <div className="flex flex-1 items-center justify-between">
-        <SizableText family="mono">
-          x{walletId.slice(-8).toUpperCase()}
-        </SizableText>
+        <SizableText family="mono">x{walletId.slice(-8).toUpperCase()}</SizableText>
         <div className="flex items-center gap-3">
           <Badge variant="outline">Account Wallet</Badge>
           {wallet.isLoading ? (
@@ -118,10 +101,7 @@ function WalletButton({
               <Spinner />
             </div>
           ) : wallet.data ? (
-            <SizableText
-              family="mono"
-              weight="bold"
-            >{`${wallet.data?.balance} SAT`}</SizableText>
+            <SizableText family="mono" weight="bold">{`${wallet.data?.balance} SAT`}</SizableText>
           ) : wallet.isError ? (
             <AlertCircle className="text-destructive size-4" />
           ) : null}
@@ -146,8 +126,7 @@ export function WalletPage({
   const invoices = useListInvoices(walletId)
   const exportDialog = useAppDialog(ExportWalletDialog)
   const exportWallet = useExportWallet(walletId)
-  const document =
-    accountDoc.data?.type === 'document' ? accountDoc.data.document : undefined
+  const document = accountDoc.data?.type === 'document' ? accountDoc.data.document : undefined
   const walletName = `${getAccountName(document)} Main Wallet`
   return (
     <div className="flex flex-col gap-4">
@@ -190,12 +169,7 @@ export function WalletPage({
             </SizableText>
           </div>
         ) : wallet.data ? (
-          <WalletDetails
-            wallet={wallet.data}
-            walletName={walletName}
-            walletId={walletId}
-            accountUid={accountUid}
-          />
+          <WalletDetails wallet={wallet.data} walletName={walletName} walletId={walletId} accountUid={accountUid} />
         ) : null // todo error view
       }
       <TableList>
@@ -205,8 +179,7 @@ export function WalletPage({
         ) : invoices.isError ? (
           <div className="m-4 flex flex-col">
             <SizableText className="text-destructive">
-              Error Loading Transaction History. May be disconnected from Seed
-              Lightning Server.
+              Error Loading Transaction History. May be disconnected from Seed Lightning Server.
             </SizableText>
           </div>
         ) : (
@@ -278,9 +251,7 @@ function WalletDetails({
             className="text-link"
           >
             <Copy className="size-4" />
-            <SizableText family="mono" className="text-current">{`x${wallet.id
-              .slice(-8)
-              .toUpperCase()}`}</SizableText>
+            <SizableText family="mono" className="text-current">{`x${wallet.id.slice(-8).toUpperCase()}`}</SizableText>
           </Button>
         </Tooltip>
         <SizableText family="mono" size="2xl">
@@ -342,12 +313,9 @@ function WithdrawDialog({
       <>
         <DialogTitle>Send {walletName}</DialogTitle>
         <DialogDescription>
-          Send <AmountSats amount={invoice.amount} /> to{' '}
-          <DestWallet walletIds={Object.keys(invoice.share)} />
+          Send <AmountSats amount={invoice.amount} /> to <DestWallet walletIds={Object.keys(invoice.share)} />
         </DialogDescription>
-        <DialogDescription color="$color10">
-          {invoice.description}
-        </DialogDescription>
+        <DialogDescription color="$color10">{invoice.description}</DialogDescription>
         <div className="my-4 flex justify-center">
           <Spinner hide={!payInvoice.isLoading} />
         </div>
@@ -389,8 +357,7 @@ function WithdrawDialog({
     <>
       <DialogTitle>Withdraw from {walletName}</DialogTitle>
       <DialogDescription>
-        Paste the invoice payment request here, and this wallet will send the
-        funds.
+        Paste the invoice payment request here, and this wallet will send the funds.
       </DialogDescription>
       <Field id="payreq" label="Payment Request">
         <Input value={payreqInput} onChangeText={setPayreqInput} />
@@ -421,9 +388,7 @@ function DestWallet({walletIds}: {walletIds: string[]}) {
           toast.success('Copied Destination Wallet Address to Clipboard')
         }}
       >
-        {walletIds
-          .map((walletId) => `x${walletId.slice(-8).toUpperCase()}`)
-          .join(', ')}
+        {walletIds.map((walletId) => `x${walletId.slice(-8).toUpperCase()}`).join(', ')}
       </Button>
     </Tooltip>
   )
@@ -526,8 +491,7 @@ function InvoiceInfo({
     <>
       <DialogTitle>Add Funds with External Wallet</DialogTitle>
       <DialogDescription>
-        Scan this code to pay with your lightning wallet, or copy and paste the
-        invoice text.
+        Scan this code to pay with your lightning wallet, or copy and paste the invoice text.
       </DialogDescription>
       <div className="flex flex-col items-center gap-4">
         <QRCode value={invoice.payload} />
@@ -549,19 +513,11 @@ function InvoiceInfo({
   )
 }
 
-function ExportWalletDialog({
-  input,
-  onClose,
-}: {
-  input: string
-  onClose: () => void
-}) {
+function ExportWalletDialog({input, onClose}: {input: string; onClose: () => void}) {
   return (
     <>
       <DialogTitle>Wallet Exported</DialogTitle>
-      <DialogDescription>
-        Your wallet has been exported. Here is the credentials: {input}
-      </DialogDescription>
+      <DialogDescription>Your wallet has been exported. Here is the credentials: {input}</DialogDescription>
       <Button onClick={onClose}>Done</Button>
     </>
   )
@@ -605,13 +561,9 @@ function InvoiceRow({invoice}: {invoice: PlainMessage<Invoice>}) {
   return (
     <div className="flex justify-between px-4 py-2">
       <div className="flex flex-col gap-1">
+        <SizableText>{formattedDateMedium(new Date(invoice.settledAt))}</SizableText>
         <SizableText>
-          {formattedDateMedium(new Date(invoice.settledAt))}
-        </SizableText>
-        <SizableText>
-          {invoice.description ? (
-            <SizableText weight="bold">{invoice.description} </SizableText>
-          ) : null}
+          {invoice.description ? <SizableText weight="bold">{invoice.description} </SizableText> : null}
           <Tooltip content="Click to Copy Destination Address">
             <Button
               variant="blue"
@@ -639,26 +591,16 @@ function InvoiceRow({invoice}: {invoice: PlainMessage<Invoice>}) {
 
 function WalletValue({amount}: {amount: number}) {
   const currencies = useCurrencyComparisons(amount || 0)
-  const [activeCurrency, setActiveCurrency] =
-    useState<(typeof currencies)[number]['code']>('usd')
+  const [activeCurrency, setActiveCurrency] = useState<(typeof currencies)[number]['code']>('usd')
   if (!currencies.length) return null
   const currency = currencies.find(({code}) => code === activeCurrency)
   const {value, precision, character} = currency || {value: 0, precision: 0}
-  const displayValue =
-    precision === 0 ? Math.round(value) : value.toFixed(precision)
+  const displayValue = precision === 0 ? Math.round(value) : value.toFixed(precision)
 
   return (
     <div className="flex items-center gap-3">
-      <SizableText
-        size="2xl"
-        family="mono"
-      >{`${character}${displayValue}`}</SizableText>
-      <Select
-        onValueChange={(value) =>
-          setActiveCurrency(value as typeof activeCurrency)
-        }
-        value={activeCurrency}
-      >
+      <SizableText size="2xl" family="mono">{`${character}${displayValue}`}</SizableText>
+      <Select onValueChange={(value) => setActiveCurrency(value as typeof activeCurrency)} value={activeCurrency}>
         <SelectTrigger className="w-[180px]">
           <SelectValue placeholder="Select a currency" />
         </SelectTrigger>

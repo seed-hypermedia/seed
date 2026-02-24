@@ -7,13 +7,7 @@ import {useEffect} from 'react'
 
 export function useLinkDevice() {
   return useMutation({
-    mutationFn: async ({
-      label,
-      accountUid,
-    }: {
-      label: string
-      accountUid: string
-    }) => {
+    mutationFn: async ({label, accountUid}: {label: string; accountUid: string}) => {
       const result = await grpcClient.daemon.createDeviceLinkSession({
         signingKeyName: accountUid,
         label,
@@ -21,9 +15,7 @@ export function useLinkDevice() {
 
       const {accountId, secretToken, addrInfo} = toPlainMessage(result)
       if (!addrInfo) {
-        throw new Error(
-          'No addrInfo returned from daemon.createDeviceLinkSession',
-        )
+        throw new Error('No addrInfo returned from daemon.createDeviceLinkSession')
       }
       return {
         accountId,

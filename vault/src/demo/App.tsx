@@ -1,11 +1,12 @@
 import * as dagCBOR from "@ipld/dag-cbor"
+import * as base64 from "@shm/shared/base64"
+import * as blobs from "@shm/shared/blobs"
+import type { AuthResult } from "@shm/shared/hmauth"
+import * as hmauth from "@shm/shared/hmauth"
 import { useEffect, useMemo, useState } from "react"
-import * as blobs from "../frontend/blobs"
-import * as localCrypto from "../frontend/crypto"
-import type { AuthResult } from "../sdk/hypermedia-auth"
-import * as hmauth from "../sdk/hypermedia-auth"
 
-const DEFAULT_VAULT_URL = "http://localhost:3000/vault"
+const DEFAULT_DELEGATE_URL = "http://localhost:3000/vault/delegate"
+const DEMO_CALLBACK_PATH = "/callback"
 
 function bytesToHex(bytes: Uint8Array): string {
 	return Array.from(bytes)
@@ -13,18 +14,34 @@ function bytesToHex(bytes: Uint8Array): string {
 		.join("")
 }
 
-function CapabilityField({ capability }: { capability: string }) {
+function encodeCallbackData(data: AuthResult): string {
+	return base64.encode(
+		new Uint8Array(
+			dagCBOR.encode({
+				accountPrincipal: data.accountPrincipal,
+				capability: data.capability,
+				profile: data.profile,
+			}),
+		),
+	)
+}
+
+function decodeCallbackData(encoded: string): AuthResult {
+	const decoded = dagCBOR.decode(base64.decode(encoded))
+	return decoded as unknown as AuthResult
+}
+
+function CapabilityField({ capability }: { capability: blobs.Capability }) {
 	const decoded = useMemo(() => {
 		try {
-			const bytes = localCrypto.base64urlDecode(capability)
 			return JSON.stringify(
-				dagCBOR.decode(bytes),
+				capability,
 				(_key, value) => {
 					if (value instanceof Uint8Array) {
 						if (value.length === 34 && value[0] === 0xed && value[1] === 0x01) {
 							return blobs.principalToString(value)
 						}
-						return localCrypto.base64urlEncode(value)
+						return base64.encode(value)
 					}
 					return value
 				},
@@ -46,10 +63,13 @@ function CapabilityField({ capability }: { capability: string }) {
 }
 
 export default function App() {
-	const [vaultUrl, setVaultUrl] = useState(DEFAULT_VAULT_URL)
+	const [vaultUrl, setVaultUrl] = useState(DEFAULT_DELEGATE_URL)
 	const [error, setError] = useState<string | null>(null)
 	const [authResult, setAuthResult] = useState<AuthResult | null>(null)
-	const [signResult, setSignResult] = useState<{ message: string; signature: string } | null>(null)
+	const [signResult, setSignResult] = useState<{
+		message: string
+		signature: string
+	} | null>(null)
 
 	// Load stored vault URL
 	useEffect(() => {
@@ -67,20 +87,15 @@ export default function App() {
 	// Initialize: check callback or existing session
 	useEffect(() => {
 		async function init() {
-			const currentVaultUrl = localStorage.getItem("vault_url") || DEFAULT_VAULT_URL
+			const currentVaultUrl = localStorage.getItem("vault_url") || DEFAULT_DELEGATE_URL
 			try {
 				// 1. Check for callback (delegation response)
-				const result = await hmauth.handleCallback({ vaultUrl: currentVaultUrl })
+				const result = await hmauth.handleCallback({
+					vaultUrl: currentVaultUrl,
+				})
 				if (result) {
-					// Persist profile info
-					localStorage.setItem(
-						"auth_result",
-						JSON.stringify({
-							accountPrincipal: result.accountPrincipal,
-							capability: result.capability,
-							profile: result.profile,
-						}),
-					)
+					// Persist callback data as CBOR
+					localStorage.setItem("auth_result", encodeCallbackData(result))
 					setAuthResult(result)
 					// Clean URL
 					window.history.replaceState({}, "", window.location.pathname)
@@ -98,7 +113,7 @@ export default function App() {
 
 				if (session && savedResult) {
 					try {
-						const parsed = JSON.parse(savedResult)
+						const parsed = decodeCallbackData(savedResult)
 						setAuthResult({ ...parsed, session })
 					} catch {
 						// Bad localStorage data, ignore
@@ -113,17 +128,14 @@ export default function App() {
 	}, [])
 
 	const handleSignIn = async () => {
-		// Open tab synchronously in the click handler to avoid popup blockers.
-		const tab = window.open("about:blank", "_blank")
 		try {
-			const authUrl = await hmauth.startAuth({ vaultUrl })
-			if (tab) {
-				tab.location.href = authUrl
-			} else {
-				window.location.href = authUrl
-			}
+			const redirectUri = new URL(DEMO_CALLBACK_PATH, window.location.origin).toString()
+			const authUrl = await hmauth.startAuth({
+				vaultUrl,
+				redirectUri,
+			})
+			window.location.href = authUrl
 		} catch (err) {
-			tab?.close()
 			setError(`Failed to start auth: ${err instanceof Error ? err.message : String(err)}`)
 		}
 	}
@@ -263,7 +275,13 @@ export default function App() {
 					{/* Signing demo */}
 					<div className="card">
 						<div className="card-title">Try Signing</div>
-						<p style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: "0.75rem" }}>
+						<p
+							style={{
+								fontSize: "0.85rem",
+								color: "var(--muted)",
+								marginBottom: "0.75rem",
+							}}
+						>
 							Sign arbitrary data with the session key stored in this browser. The private key is{" "}
 							<strong>unextractable</strong> — it never leaves WebCrypto.
 						</p>

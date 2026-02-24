@@ -65,9 +65,7 @@ describe('getNavigationChanges - update scenarios', () => {
   it('should add a new navigation item', () => {
     const oldNavigationBlockNode: HMBlockNode = {
       block: {id: 'navigation', type: 'Group'},
-      children: [
-        {block: {id: 'nav1', type: 'Link', text: 'Home', link: 'hm://home'}},
-      ],
+      children: [{block: {id: 'nav1', type: 'Link', text: 'Home', link: 'hm://home'}}],
     }
     const navigation: HMNavigationItem[] = [
       {id: 'nav1', text: 'Home', link: 'hm://home', type: 'Link'},
@@ -110,9 +108,7 @@ describe('getNavigationChanges - update scenarios', () => {
         {block: {id: 'nav2', type: 'Link', text: 'About', link: 'hm://about'}},
       ],
     }
-    const navigation: HMNavigationItem[] = [
-      {id: 'nav1', text: 'Home', link: 'hm://home', type: 'Link'},
-    ]
+    const navigation: HMNavigationItem[] = [{id: 'nav1', text: 'Home', link: 'hm://home', type: 'Link'}]
     const result = getNavigationChanges(navigation, oldNavigationBlockNode)
     expect(result).toHaveLength(2)
     // @ts-ignore
@@ -164,13 +160,9 @@ describe('getNavigationChanges - update scenarios', () => {
   it('should update a navigation item (replaceBlock)', () => {
     const oldNavigationBlockNode: HMBlockNode = {
       block: {id: 'navigation', type: 'Group'},
-      children: [
-        {block: {id: 'nav1', type: 'Link', text: 'Home', link: 'hm://home'}},
-      ],
+      children: [{block: {id: 'nav1', type: 'Link', text: 'Home', link: 'hm://home'}}],
     }
-    const navigation: HMNavigationItem[] = [
-      {id: 'nav1', text: 'Homepage', link: 'hm://home', type: 'Link'},
-    ]
+    const navigation: HMNavigationItem[] = [{id: 'nav1', text: 'Homepage', link: 'hm://home', type: 'Link'}]
     const result = getNavigationChanges(navigation, oldNavigationBlockNode)
     expect(result).toHaveLength(2)
     // @ts-ignore
@@ -195,13 +187,9 @@ describe('getNavigationChanges - update scenarios', () => {
   it('should do nothing if navigation is unchanged', () => {
     const oldNavigationBlockNode: HMBlockNode = {
       block: {id: 'navigation', type: 'Group'},
-      children: [
-        {block: {id: 'nav1', type: 'Link', text: 'Home', link: 'hm://home'}},
-      ],
+      children: [{block: {id: 'nav1', type: 'Link', text: 'Home', link: 'hm://home'}}],
     }
-    const navigation: HMNavigationItem[] = [
-      {id: 'nav1', text: 'Home', link: 'hm://home', type: 'Link'},
-    ]
+    const navigation: HMNavigationItem[] = [{id: 'nav1', text: 'Home', link: 'hm://home', type: 'Link'}]
     const result = getNavigationChanges(navigation, oldNavigationBlockNode)
     expect(result).toHaveLength(1)
     // @ts-ignore

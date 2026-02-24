@@ -1,8 +1,7 @@
 import {expect, test} from '../test/fixtures'
 
 // Helper to get the correct modifier key for the platform
-const getModifierKey = () =>
-  process.platform === 'darwin' ? 'Meta' : 'Control'
+const getModifierKey = () => (process.platform === 'darwin' ? 'Meta' : 'Control')
 
 test('Keyboard Shortcut: Cmd/Ctrl+B toggles sidebar', async ({homePage}) => {
   test.setTimeout(60000)
@@ -46,9 +45,7 @@ test('Keyboard Shortcut: Cmd/Ctrl+B toggles sidebar', async ({homePage}) => {
   })
 })
 
-test('Keyboard Shortcut: Cmd/Ctrl+1-5 toggle accessories on document page', async ({
-  homePage,
-}) => {
+test('Keyboard Shortcut: Cmd/Ctrl+1-5 toggle accessories on document page', async ({homePage}) => {
   test.setTimeout(90000)
   const {appWindow} = homePage.appData
   const modKey = getModifierKey()
@@ -146,9 +143,7 @@ test('Keyboard shortcuts work on draft page', async ({homePage}) => {
   })
 })
 
-test('Keyboard shortcuts handle no accessories gracefully', async ({
-  homePage,
-}) => {
+test('Keyboard shortcuts handle no accessories gracefully', async ({homePage}) => {
   test.setTimeout(60000)
   const {appWindow} = homePage.appData
   const modKey = getModifierKey()
@@ -253,9 +248,7 @@ test('Keyboard Shortcut: Cmd/Ctrl+B prioritizes editor bold over sidebar toggle 
       if (!prosemirror) return false
 
       // Check for bold formatting (could be <strong> or style)
-      const boldElements = prosemirror.querySelectorAll(
-        'strong, b, [style*="font-weight"]',
-      )
+      const boldElements = prosemirror.querySelectorAll('strong, b, [style*="font-weight"]')
       return boldElements.length > 0
     })
 

@@ -12,12 +12,7 @@ import {
   UnpackedHypermediaId,
 } from '../hm-types'
 import {RequestCache} from '../request-cache'
-import {
-  entityQueryPathToHmIdPath,
-  hmId,
-  parseFragment,
-  unpackHmId,
-} from '../utils'
+import {entityQueryPathToHmIdPath, hmId, normalizeDate, parseFragment, unpackHmId} from '../utils'
 
 export type HMListEventsParams = {
   pageSize?: number
@@ -142,6 +137,11 @@ export type LoadedEvent =
 //| LoadedDagPBEvent
 //| LoadedProfileEvent
 
+export type LoadedEventWithNotifMeta = LoadedEvent & {
+  feedEventId: string
+  eventAtMs: number
+}
+
 /**
  * Helper to get event type from either newBlob or newMention
  */
@@ -164,6 +164,29 @@ export function getEventType(event: HMActivityEvent): string | null {
   }
 
   return null
+}
+
+export function getFeedEventId(event: HMActivityEvent): string | null {
+  if ('newBlob' in event) {
+    return event.newBlob?.cid ? `blob-${event.newBlob.cid}` : null
+  }
+  if ('newMention' in event) {
+    const mention = event.newMention
+    const sourceCid = mention.sourceBlob?.cid || ''
+    return `mention-${sourceCid}-${mention.mentionType}-${mention.target}`
+  }
+  return null
+}
+
+export function getEventAtMs(event: HMActivityEvent): number {
+  const eventTime = normalizeDate(event.eventTime || undefined)
+  const observeTime = normalizeDate(event.observeTime || undefined)
+  if (eventTime && observeTime) {
+    return Math.max(eventTime.getTime(), observeTime.getTime())
+  }
+  if (eventTime) return eventTime.getTime()
+  if (observeTime) return observeTime.getTime()
+  return Date.now()
 }
 
 /**
@@ -225,9 +248,7 @@ export async function loadCommentEvent(
 
     const author = await cache.getAccount(comment.author, currentAccount)
 
-    const replyingComment = comment.replyParent
-      ? await cache.getComment(comment.replyParent)
-      : null
+    const replyingComment = comment.replyParent ? await cache.getComment(comment.replyParent) : null
 
     const replyParentAuthor = replyingComment?.author
       ? await cache.getAccount(replyingComment.author, currentAccount)
@@ -242,9 +263,7 @@ export async function loadCommentEvent(
     const replyCount = await cache.getCommentReplyCount(comment.id)
 
     const targetId = hmId(comment.targetAccount, {
-      path: comment.targetPath
-        ? comment.targetPath.split('/').filter(Boolean)
-        : null,
+      path: comment.targetPath ? comment.targetPath.split('/').filter(Boolean) : null,
       version: comment.targetVersion || null,
     })
 
@@ -261,9 +280,7 @@ export async function loadCommentEvent(
       type: 'comment',
       author,
       time: event.eventTime as any,
-      replyingComment: replyingComment
-        ? prepareHMComment(replyingComment)
-        : null,
+      replyingComment: replyingComment ? prepareHMComment(replyingComment) : null,
       replyParentAuthor,
       comment: comment ? prepareHMComment(comment) : null,
       commentId: unpackHmId(`hm://${comment.id}`)!,
@@ -298,10 +315,7 @@ export async function loadCapabilityEvent(
     const capId = unpackHmId(event.newBlob.resource)
 
     if (!capId) {
-      console.error(
-        'loadCapabilityEvent Error, unpacking resource id',
-        event.newBlob.resource,
-      )
+      console.error('loadCapabilityEvent Error, unpacking resource id', event.newBlob.resource)
 
       return null
     }
@@ -315,10 +329,7 @@ export async function loadCapabilityEvent(
       path: grpcCapability.path,
     })
 
-    const delegate = await cache.getAccount(
-      grpcCapability.delegate,
-      currentAccount,
-    )
+    const delegate = await cache.getAccount(grpcCapability.delegate, currentAccount)
     const role = HMRoleSchema.parse(
       (
         grpcCapability.toJson({
@@ -333,10 +344,7 @@ export async function loadCapabilityEvent(
     }
 
     if (!grpcCapability.createTime) {
-      throw new Error(
-        'Event: missing createTime for capability event:' +
-          JSON.stringify(event),
-      )
+      throw new Error('Event: missing createTime for capability event:' + JSON.stringify(event))
     }
     const capability: HMCapability = {
       role,
@@ -506,30 +514,34 @@ export async function loadCitationEvent(
     const citationType =
       sourceTypeLower.startsWith('doc/') || sourceTypeLower === 'ref'
         ? 'd'
-        : sourceTypeLower.startsWith('comment/') ||
-          sourceTypeLower === 'comment'
+        : sourceTypeLower.startsWith('comment/') || sourceTypeLower === 'comment'
         ? 'c'
         : null
 
     if (!citationType) {
-      console.error(
-        'Event: Could not determine citationType from sourceType:',
-        sourceTypeLower,
-      )
+      console.error('Event: Could not determine citationType from sourceType:', sourceTypeLower)
       return null
     }
 
+    const sourceHref =
+      citationType === 'c' ? event.newMention.sourceDocument || event.newMention.source : event.newMention.source
+
     // Create source UnpackedHmId from event.newMention.source
-    const sourceUnpacked = unpackHmId(event.newMention.source)
+    const sourceUnpacked = unpackHmId(sourceHref)
     if (!sourceUnpacked) {
-      console.error('Event: Could not unpack source:', event.newMention.source)
+      console.error('Event: Could not unpack source:', sourceHref)
       return null
     }
+
+    const sourceVersion =
+      citationType === 'd'
+        ? event.newMention.sourceBlob?.cid || sourceUnpacked.version || null
+        : sourceUnpacked.version || null
 
     const sourceId = hmId(sourceUnpacked.uid, {
       path: sourceUnpacked.path,
-      version: event.newMention.sourceBlob?.cid || null,
-      blockRef: event.newMention.sourceContext || null,
+      version: sourceVersion,
+      blockRef: citationType === 'd' ? event.newMention.sourceContext || null : null,
     })
 
     // Create target UnpackedHmId from event.newMention.target
@@ -556,50 +568,54 @@ export async function loadCitationEvent(
     const authorUid = event.newMention.sourceBlob?.author || event.account
     const author = await cache.getAccount(authorUid, currentAccount)
 
-    // Fetch source document metadata
-    let sourceDocument
+    // Fetch source document metadata (best effort; keep event if metadata fails)
+    let sourceMetadata: HMMetadata | undefined
     try {
-      sourceDocument = await cache.getDocument({
+      const sourceDocument = await cache.getDocument({
         account: sourceUnpacked.uid,
-        path: sourceUnpacked.path?.length
-          ? `/${sourceUnpacked.path.join('/')}`
-          : '',
-        version: event.newMention.sourceBlob?.cid || undefined,
+        path: sourceUnpacked.path?.length ? `/${sourceUnpacked.path.join('/')}` : '',
+        version: sourceVersion || undefined,
       })
+      sourceMetadata = sourceDocument?.metadata?.toJson({
+        emitDefaultValues: true,
+        enumAsInteger: false,
+      }) as HMMetadata | undefined
     } catch (error) {
-      console.error('Event: Failed to fetch source document:', error)
-      return null
+      console.warn('Event: Failed to fetch source document metadata', {
+        sourceHref,
+        sourceTypeLower,
+        error,
+      })
     }
 
     const source: HMContactItem = {
       id: sourceId,
-      metadata: sourceDocument?.metadata?.toJson({
-        emitDefaultValues: true,
-        enumAsInteger: false,
-      }) as HMMetadata | undefined,
+      metadata: sourceMetadata,
     }
 
-    // Fetch target document metadata
-    let targetDocument
+    // Fetch target document metadata (best effort; keep event if metadata fails)
+    let targetMetadata: HMMetadata | undefined
     try {
-      targetDocument = await cache.getDocument({
+      const targetDocument = await cache.getDocument({
         account: targetUnpacked.uid,
-        path: targetUnpacked.path?.length
-          ? `/${targetUnpacked.path.join('/')}`
-          : '',
+        path: targetUnpacked.path?.length ? `/${targetUnpacked.path.join('/')}` : '',
         version: event.newMention.targetVersion || undefined,
       })
+      targetMetadata = targetDocument?.metadata?.toJson({
+        emitDefaultValues: true,
+        enumAsInteger: false,
+      }) as HMMetadata | undefined
     } catch (error) {
-      console.error('Event: Failed to fetch target document:', error)
-      return null
+      console.warn('Event: Failed to fetch target document metadata', {
+        target: event.newMention.target,
+        sourceTypeLower,
+        error,
+      })
     }
 
     const target: HMContactItem = {
       id: targetId,
-      metadata: targetDocument?.metadata?.toJson({
-        emitDefaultValues: true,
-        enumAsInteger: false,
-      }) as HMMetadata | undefined,
+      metadata: targetMetadata,
     }
 
     // Generate unique event ID
@@ -617,7 +633,9 @@ export async function loadCitationEvent(
           const grpcComment = await cache.getComment(commentCid)
           comment = prepareHMComment(grpcComment)
 
-          replyCount = await cache.getCommentReplyCount(commentCid)
+          if (grpcComment.id) {
+            replyCount = await cache.getCommentReplyCount(grpcComment.id)
+          }
         }
       } catch (error) {
         console.error('Event: Failed to load comment for citation:', error)

@@ -5,9 +5,7 @@ import {webcrypto} from 'crypto'
  * @param compressedKey - Compressed public key in the format: [prefix (0x02 or 0x03), x-coordinate (32 bytes)]
  * @returns Uncompressed public key as CryptoKey
  */
-async function decompressPublicKey(
-  compressedKey: Uint8Array,
-): Promise<CryptoKey> {
+async function decompressPublicKey(compressedKey: Uint8Array): Promise<CryptoKey> {
   // Remove the varint prefix (128, 36) to get just the compressed key
   const actualCompressedKey = compressedKey.slice(2)
 
@@ -19,13 +17,9 @@ async function decompressPublicKey(
   const xBigInt = BigInt('0x' + Buffer.from(x).toString('hex'))
 
   // P-256 curve parameters
-  const p = BigInt(
-    '0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF',
-  )
+  const p = BigInt('0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF')
   const a = BigInt(-3)
-  const b = BigInt(
-    '0x5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B',
-  )
+  const b = BigInt('0x5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B')
 
   // Calculate y² = x³ + ax + b
   const ySquared = (xBigInt * xBigInt * xBigInt + a * xBigInt + b) % p

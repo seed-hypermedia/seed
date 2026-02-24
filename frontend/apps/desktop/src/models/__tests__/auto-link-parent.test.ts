@@ -1,9 +1,6 @@
 import {HMBlockNode, HMDocument, UnpackedHypermediaId, hmId} from '@shm/shared'
 import {describe, expect, it} from 'vitest'
-import {
-  documentContainsLinkToChild,
-  documentHasSelfQuery,
-} from '../auto-link-utils'
+import {documentContainsLinkToChild, documentHasSelfQuery} from '../auto-link-utils'
 
 // Helper to create a minimal HMDocument for testing
 function createDocument(content: HMBlockNode[]): HMDocument {
@@ -256,9 +253,7 @@ describe('documentHasSelfQuery', () => {
             banner: false,
             columnCount: 1,
             query: {
-              includes: [
-                {space: 'doc-uid', path: '/my/document', mode: 'Children'},
-              ],
+              includes: [{space: 'doc-uid', path: '/my/document', mode: 'Children'}],
             },
           },
         },
@@ -279,9 +274,7 @@ describe('documentHasSelfQuery', () => {
             banner: false,
             columnCount: 1,
             query: {
-              includes: [
-                {space: 'doc-uid', path: 'my/document', mode: 'Children'},
-              ],
+              includes: [{space: 'doc-uid', path: 'my/document', mode: 'Children'}],
             },
           },
         },
@@ -301,9 +294,7 @@ describe('documentHasSelfQuery', () => {
             banner: false,
             columnCount: 1,
             query: {
-              includes: [
-                {space: 'other-uid', path: 'some/path', mode: 'Children'},
-              ],
+              includes: [{space: 'other-uid', path: 'some/path', mode: 'Children'}],
             },
           },
         },
@@ -323,9 +314,7 @@ describe('documentHasSelfQuery', () => {
             banner: false,
             columnCount: 1,
             query: {
-              includes: [
-                {space: 'doc-uid', path: 'other/path', mode: 'Children'},
-              ],
+              includes: [{space: 'doc-uid', path: 'other/path', mode: 'Children'}],
             },
           },
         },

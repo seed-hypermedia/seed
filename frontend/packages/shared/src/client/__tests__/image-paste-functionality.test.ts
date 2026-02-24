@@ -18,22 +18,9 @@ describe('Image Paste Functionality', () => {
 
   describe('Image Detection Logic', () => {
     it('should correctly identify image MIME types', () => {
-      const imageTypes = [
-        'image/png',
-        'image/jpeg',
-        'image/jpg',
-        'image/gif',
-        'image/svg+xml',
-        'image/webp',
-      ]
+      const imageTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/svg+xml', 'image/webp']
 
-      const nonImageTypes = [
-        'text/plain',
-        'text/html',
-        'video/mp4',
-        'application/pdf',
-        'audio/mp3',
-      ]
+      const nonImageTypes = ['text/plain', 'text/html', 'video/mp4', 'application/pdf', 'audio/mp3']
 
       // Test that image types are detected (core logic from plugin)
       imageTypes.forEach((type) => {
@@ -99,8 +86,7 @@ describe('Image Paste Functionality', () => {
 
     it('should validate image URL patterns in HTML', () => {
       // Test patterns that would be found in HTML content
-      const htmlWithImages =
-        '<img src="https://example.com/image1.jpg" alt="test1">'
+      const htmlWithImages = '<img src="https://example.com/image1.jpg" alt="test1">'
       const htmlWithoutImages = '<p>No images here</p>'
 
       // Simple regex to simulate what the plugin looks for
@@ -164,12 +150,7 @@ describe('Image Paste Functionality', () => {
     })
 
     it('should handle file attachments for non-media types', () => {
-      const fileTypes = [
-        'application/pdf',
-        'text/plain',
-        'application/zip',
-        'application/json',
-      ]
+      const fileTypes = ['application/pdf', 'text/plain', 'application/zip', 'application/json']
 
       fileTypes.forEach((type) => {
         expect(type.startsWith('image/')).toBe(false)
@@ -189,9 +170,7 @@ describe('Image Paste Functionality', () => {
     it('should validate clipboard data processing logic', () => {
       // Test the first check in handlePaste - items array existence
       const emptyClipboard = Array.from([]) // Empty items
-      const validClipboard = Array.from([
-        {type: 'image/png', getAsFile: () => new File([], 'test.png')},
-      ])
+      const validClipboard = Array.from([{type: 'image/png', getAsFile: () => new File([], 'test.png')}])
 
       expect(emptyClipboard.length === 0).toBe(true) // Should return false
       expect(validClipboard.length > 0).toBe(true) // Should proceed
@@ -209,8 +188,7 @@ describe('Image Paste Functionality', () => {
 
       // Simulate the plugin's insertion position logic
       const insertPos =
-        mockSelection.$anchor.parent.type.name !== 'image' &&
-        mockSelection.$anchor.parent.nodeSize <= 2
+        mockSelection.$anchor.parent.type.name !== 'image' && mockSelection.$anchor.parent.nodeSize <= 2
           ? mockSelection.$anchor.start() - 2
           : mockSelection.$anchor.end() + 1
 

@@ -6,8 +6,8 @@ import {
   entityQueryPathToHmIdPath,
   extractQueryBlocks,
   extractRefs,
+  getBreadcrumbDocumentIds,
   getCommentTargetId,
-  getParentPaths,
   HMDocument,
   HMDocumentMetadataSchema,
   hmId,
@@ -20,13 +20,7 @@ import {
 } from '@shm/shared'
 import {SITE_BASE_URL, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
 import {prepareHMDocument} from '@shm/shared/document-utils'
-import {
-  HMAccountsMetadata,
-  HMComment,
-  HMCommentSchema,
-  HMDocumentInfo,
-  HMResource,
-} from '@shm/shared/hm-types'
+import {HMComment, HMCommentSchema, HMDocumentInfo, HMResource} from '@shm/shared/hm-types'
 import {
   documentMetadataParseAdjustments,
   getErrorMessage,
@@ -34,33 +28,19 @@ import {
   HMNotFoundError,
   HMRedirectError,
 } from '@shm/shared/models/entity'
-import {
-  queryAccount,
-  queryDirectory,
-  queryInteractionSummary,
-  queryResource,
-} from '@shm/shared/models/queries'
-import {
-  createResourceFetcher,
-  createResourceResolver,
-} from '@shm/shared/resource-loader'
+import {queryAccount, queryDirectory, queryInteractionSummary, queryResource} from '@shm/shared/models/queries'
+import {createResourceFetcher, createResourceResolver} from '@shm/shared/resource-loader'
 import {DehydratedState} from '@tanstack/react-query'
 import {grpcClient} from './client.server'
 import {instrument, InstrumentationContext} from './instrumentation.server'
-import {
-  createPrefetchContext,
-  dehydratePrefetchContext,
-  PrefetchContext,
-} from './queries.server'
+import {createPrefetchContext, dehydratePrefetchContext, PrefetchContext} from './queries.server'
 import {ParsedRequest} from './request'
 import {serverUniversalClient} from './server-universal-client'
 import {getConfig} from './site-config.server'
 import {discoverDocument} from './utils/discovery'
 import {wrapJSON, WrappedResponse} from './wrapping.server'
 
-export async function getMetadata(
-  id: UnpackedHypermediaId,
-): Promise<HMMetadataPayload> {
+export async function getMetadata(id: UnpackedHypermediaId): Promise<HMMetadataPayload> {
   try {
     const rawDoc = await grpcClient.documents.getDocument({
       account: id.uid,
@@ -119,9 +99,7 @@ export async function getComment(id: string): Promise<HMComment | null> {
     const rawDoc = await grpcClient.comments.getComment({
       id,
     })
-    return HMCommentSchema.parse(
-      rawDoc.toJson({emitDefaultValues: true, enumAsInteger: false}),
-    )
+    return HMCommentSchema.parse(rawDoc.toJson({emitDefaultValues: true, enumAsInteger: false}))
   } catch (error: any) {
     // Handle ConnectError for NotFound comments gracefully
     if (error?.code === 'not_found' || error?.message?.includes('not found')) {
@@ -143,11 +121,8 @@ export type WebResourcePayload = {
   // if the resource is a comment, this is the target document. Otherwise, it is the doc identified by the resource ID
   document: HMDocument
 
-  // supporting metadata for referenced accounts
-  accountsMetadata: HMAccountsMetadata
   siteHost: string | undefined
   isLatest: boolean
-  breadcrumbs: Array<HMMetadataPayload>
 
   // Icon from the document's home (for favicon in SSR)
   siteHomeIcon?: string | null
@@ -163,12 +138,7 @@ export async function getDocument(
   const {version, uid, latest} = resourceId
   if (discover && false) {
     // @ts-expect-error
-    return await discoverDocument(
-      uid,
-      resourceId.path || [],
-      version || undefined,
-      latest,
-    )
+    return await discoverDocument(uid, resourceId.path || [], version || undefined, latest)
   }
   const path = hmIdPathToEntityQueryPath(resourceId.path)
   const apiResponse = await grpcClient.documents
@@ -207,8 +177,7 @@ export async function resolveHMDocument(
 }
 
 export function getOriginRequestData(parsedRequest: ParsedRequest) {
-  const enableWebSigning =
-    WEB_SIGNING_ENABLED && parsedRequest.origin === SITE_BASE_URL
+  const enableWebSigning = WEB_SIGNING_ENABLED && parsedRequest.origin === SITE_BASE_URL
 
   return {
     enableWebSigning,
@@ -220,10 +189,7 @@ export function getOriginRequestData(parsedRequest: ParsedRequest) {
 async function getLatestDocument(resourceId: UnpackedHypermediaId) {
   const latestDocument =
     !!resourceId.version && !resourceId.latest
-      ? await getDocument(
-          {...resourceId, latest: true, version: null},
-          {discover: true},
-        )
+      ? await getDocument({...resourceId, latest: true, version: null}, {discover: true})
       : null
   return latestDocument
 }
@@ -259,6 +225,12 @@ async function prefetchResourceData(
   const client = serverUniversalClient
   const homeId = hmId(docId.uid, {latest: true})
   const noopCtx = createNoopInstrumentationContext()
+  const breadcrumbIds = getBreadcrumbDocumentIds(docId)
+  const baseResourceKeys = new Set([`${docId.id}:${docId.version || ''}`, `${homeId.id}:`])
+  const breadcrumbResourceIds = breadcrumbIds.filter((id) => {
+    const key = `${id.id}:${id.version || ''}`
+    return !baseResourceKeys.has(key)
+  })
 
   // Wave 1: Core navigation data (parallel, no dependencies)
   await instrument(ctx || noopCtx, 'prefetchWave1', () =>
@@ -269,38 +241,19 @@ async function prefetchResourceData(
       instrument(ctx || noopCtx, `prefetchResource(${packHmId(homeId)})`, () =>
         prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId)),
       ),
-      instrument(
-        ctx || noopCtx,
-        `prefetchDirectory(${packHmId(homeId)}, Children)`,
-        () =>
-          prefetchCtx.queryClient.prefetchQuery(
-            queryDirectory(client, homeId, 'Children'),
-          ),
+      instrument(ctx || noopCtx, `prefetchDirectory(${packHmId(homeId)}, Children)`, () =>
+        prefetchCtx.queryClient.prefetchQuery(queryDirectory(client, homeId, 'Children')),
       ),
-      // AllDescendants for breadcrumb metadata (covers all nested paths)
-      instrument(
-        ctx || noopCtx,
-        `prefetchDirectory(${packHmId(homeId)}, AllDescendants)`,
-        () =>
-          prefetchCtx.queryClient.prefetchQuery(
-            queryDirectory(client, homeId, 'AllDescendants'),
-          ),
+      instrument(ctx || noopCtx, `prefetchDirectory(${packHmId(docId)}, Children)`, () =>
+        prefetchCtx.queryClient.prefetchQuery(queryDirectory(client, docId, 'Children')),
       ),
-      instrument(
-        ctx || noopCtx,
-        `prefetchDirectory(${packHmId(docId)}, Children)`,
-        () =>
-          prefetchCtx.queryClient.prefetchQuery(
-            queryDirectory(client, docId, 'Children'),
-          ),
+      instrument(ctx || noopCtx, `prefetchInteractionSummary(${packHmId(docId)})`, () =>
+        prefetchCtx.queryClient.prefetchQuery(queryInteractionSummary(client, docId)),
       ),
-      instrument(
-        ctx || noopCtx,
-        `prefetchInteractionSummary(${packHmId(docId)})`,
-        () =>
-          prefetchCtx.queryClient.prefetchQuery(
-            queryInteractionSummary(client, docId),
-          ),
+      ...breadcrumbResourceIds.map((id) =>
+        instrument(ctx || noopCtx, `prefetchBreadcrumbResource(${packHmId(id)})`, () =>
+          prefetchCtx.queryClient.prefetchQuery(queryResource(client, id)),
+        ),
       ),
     ]),
   )
@@ -318,24 +271,14 @@ async function prefetchResourceData(
         const targetId = hmId(include.space, {
           path: entityQueryPathToHmIdPath(include.path),
         })
-        return instrument(
-          ctx || noopCtx,
-          `prefetchQueryDirectory(${packHmId(targetId)})`,
-          () =>
-            prefetchCtx.queryClient.prefetchQuery(
-              queryDirectory(client, targetId, include.mode),
-            ),
+        return instrument(ctx || noopCtx, `prefetchQueryDirectory(${packHmId(targetId)})`, () =>
+          prefetchCtx.queryClient.prefetchQuery(queryDirectory(client, targetId, include.mode)),
         )
       }),
       // Embedded document content
       ...refs.map((ref) =>
-        instrument(
-          ctx || noopCtx,
-          `prefetchEmbedResource(${packHmId(ref.refId)})`,
-          () =>
-            prefetchCtx.queryClient.prefetchQuery(
-              queryResource(client, ref.refId),
-            ),
+        instrument(ctx || noopCtx, `prefetchEmbedResource(${packHmId(ref.refId)})`, () =>
+          prefetchCtx.queryClient.prefetchQuery(queryResource(client, ref.refId)),
         ),
       ),
       // Author accounts
@@ -348,9 +291,7 @@ async function prefetchResourceData(
   )
 
   // Wave 3: Card-view query block resources (depends on Wave 2 directory data)
-  const cardViewQueryBlocks = queryBlocks.filter(
-    (block) => block.attributes.style === 'Card',
-  )
+  const cardViewQueryBlocks = queryBlocks.filter((block) => block.attributes.style === 'Card')
 
   if (cardViewQueryBlocks.length > 0) {
     await instrument(ctx || noopCtx, 'prefetchWave3', async () => {
@@ -381,8 +322,7 @@ async function prefetchResourceData(
             })
 
         const queryLimit = block.attributes.query.limit
-        const limited =
-          queryLimit && queryLimit > 0 ? sorted.slice(0, queryLimit) : sorted
+        const limited = queryLimit && queryLimit > 0 ? sorted.slice(0, queryLimit) : sorted
 
         // Collect resource IDs to prefetch
         limited.forEach((item) => resourceIds.push(item.id))
@@ -391,11 +331,8 @@ async function prefetchResourceData(
       // Prefetch all card resources in parallel
       await Promise.allSettled(
         resourceIds.map((id) =>
-          instrument(
-            ctx || noopCtx,
-            `prefetchCardResource(${packHmId(id)})`,
-            () =>
-              prefetchCtx.queryClient.prefetchQuery(queryResource(client, id)),
+          instrument(ctx || noopCtx, `prefetchCardResource(${packHmId(id)})`, () =>
+            prefetchCtx.queryClient.prefetchQuery(queryResource(client, id)),
           ),
         ),
       )
@@ -406,65 +343,10 @@ async function prefetchResourceData(
 /**
  * Extract home document from the prefetch cache.
  */
-function getHomeDocumentFromCache(
-  prefetchCtx: PrefetchContext,
-  homeId: UnpackedHypermediaId,
-): HMDocument | null {
+function getHomeDocumentFromCache(prefetchCtx: PrefetchContext, homeId: UnpackedHypermediaId): HMDocument | null {
   const client = serverUniversalClient
-  const resource = prefetchCtx.queryClient.getQueryData(
-    queryResource(client, homeId).queryKey,
-  ) as HMResource | null
+  const resource = prefetchCtx.queryClient.getQueryData(queryResource(client, homeId).queryKey) as HMResource | null
   return resource?.type === 'document' ? resource.document : null
-}
-
-/**
- * Build breadcrumbs from directory cache instead of individual metadata fetches.
- * Uses AllDescendants directory which contains all documents in the account.
- */
-function buildBreadcrumbsFromCache(
-  prefetchCtx: PrefetchContext,
-  docId: UnpackedHypermediaId,
-  document: HMDocument,
-): HMMetadataPayload[] {
-  const client = serverUniversalClient
-  const homeId = hmId(docId.uid, {latest: true})
-
-  // Use AllDescendants which contains all documents (including intermediate parents)
-  const allDescendants = prefetchCtx.queryClient.getQueryData(
-    queryDirectory(client, homeId, 'AllDescendants').queryKey,
-  ) as HMDocumentInfo[] | null
-
-  const crumbPaths = getParentPaths(docId.path).slice(0, -1)
-  const breadcrumbs = crumbPaths.map((crumbPath) => {
-    const id = hmId(docId.uid, {path: crumbPath})
-    const dirEntry = allDescendants?.find((d) => d.id.id === id.id)
-    return {
-      id,
-      metadata: dirEntry?.metadata || {},
-    }
-  })
-
-  // Add current document
-  breadcrumbs.push({id: docId, metadata: document.metadata})
-  return breadcrumbs
-}
-
-/**
- * Build accounts metadata from prefetch cache.
- */
-function buildAccountsMetadataFromCache(
-  prefetchCtx: PrefetchContext,
-  authorUids: string[],
-): HMAccountsMetadata {
-  const client = serverUniversalClient
-  return Object.fromEntries(
-    authorUids.map((uid) => {
-      const account = prefetchCtx.queryClient.getQueryData(
-        queryAccount(client, uid).queryKey,
-      ) as HMMetadataPayload | null
-      return [uid, account || {id: hmId(uid), metadata: {}}]
-    }),
-  )
 }
 
 /**
@@ -509,27 +391,18 @@ async function loadResourcePayload(
   // For comments, also prefetch the comment resource so useResource(commentId) has data
   if (commentId) {
     const client = serverUniversalClient
-    await prefetchCtx.queryClient.prefetchQuery(
-      queryResource(client, commentId),
-    )
+    await prefetchCtx.queryClient.prefetchQuery(queryResource(client, commentId))
   }
 
   // Extract data from cache for SSR response
   const homeDocument = getHomeDocumentFromCache(prefetchCtx, homeId)
-  const breadcrumbs = buildBreadcrumbsFromCache(prefetchCtx, docId, document)
-  const accountsMetadata = buildAccountsMetadataFromCache(
-    prefetchCtx,
-    document.authors,
-  )
 
   return {
     document,
     comment,
-    accountsMetadata,
     isLatest: !latestDocument || latestDocument.version === document.version,
     // For comments, return the comment's own ID so the client route uses it
     id: commentId || finalId,
-    breadcrumbs,
     siteHomeIcon: homeDocument?.metadata?.icon || null,
     dehydratedState: dehydratePrefetchContext(prefetchCtx),
     ...getOriginRequestData(parsedRequest),
@@ -556,20 +429,14 @@ export async function loadResource(
     current: {name: '', start: 0, children: []},
   } as InstrumentationContext
 
-  const resource = await instrument(
-    ctx || noopCtx,
-    `resolveResource(${packHmId(id)})`,
-    () => resolveResource(id),
-  )
+  const resource = await instrument(ctx || noopCtx, `resolveResource(${packHmId(id)})`, () => resolveResource(id))
   if (resource.type === 'comment') {
     const comment = resource.comment
     const commentId = resource.id
     const targetDocId = getCommentTargetId(comment)
     if (!targetDocId) throw new Error('targetDocId not found')
-    const document = await instrument(
-      ctx || noopCtx,
-      `getDocument(comment:${packHmId(targetDocId)})`,
-      () => getDocument(targetDocId, {discover: true}),
+    const document = await instrument(ctx || noopCtx, `getDocument(comment:${packHmId(targetDocId)})`, () =>
+      getDocument(targetDocId, {discover: true}),
     )
     return await loadResourcePayload(
       targetDocId,
@@ -587,10 +454,8 @@ export async function loadResource(
   }
   // resource.type === 'document'
   const document = resource.document
-  const latestDocument = await instrument(
-    ctx || noopCtx,
-    `getLatestDocument(${packHmId(id)})`,
-    () => getLatestDocument(id),
+  const latestDocument = await instrument(ctx || noopCtx, `getLatestDocument(${packHmId(id)})`, () =>
+    getLatestDocument(id),
   )
   return await loadResourcePayload(
     id,
@@ -621,16 +486,8 @@ export async function loadResourceWithDiscovery(
     return await loadResource(id, parsedRequest, ctx)
   } catch (e) {
     if (e instanceof HMNotFoundError) {
-      const discovered = await instrument(
-        ctx || noopCtx,
-        `discoverDocument(${packHmId(id)})`,
-        () =>
-          discoverDocument(
-            id.uid,
-            id.path || [],
-            id.version || undefined,
-            id.latest,
-          ),
+      const discovered = await instrument(ctx || noopCtx, `discoverDocument(${packHmId(id)})`, () =>
+        discoverDocument(id.uid, id.path || [], id.version || undefined, id.latest),
       )
       if (discovered) {
         return await loadResource(id, parsedRequest, ctx)
@@ -656,15 +513,11 @@ export type GRPCError = {
   code: Code
 }
 
-export async function loadSiteResource<
-  T extends Record<string, unknown> = Record<string, never>,
->(
+export async function loadSiteResource<T extends Record<string, unknown> = Record<string, never>>(
   parsedRequest: ParsedRequest,
   id: UnpackedHypermediaId,
   extraData?: T & {instrumentationCtx?: InstrumentationContext},
-): Promise<
-  WrappedResponse<SiteDocumentPayload & Omit<T, 'instrumentationCtx'>>
-> {
+): Promise<WrappedResponse<SiteDocumentPayload & Omit<T, 'instrumentationCtx'>>> {
   const {hostname, origin} = parsedRequest
   const ctx = extraData?.instrumentationCtx
   const noopCtx = {
@@ -684,20 +537,14 @@ export async function loadSiteResource<
   if (config.registeredAccountUid) {
     const homeId = hmId(config.registeredAccountUid)
     try {
-      const result = await instrument(
-        ctx || noopCtx,
-        `getHomeMetadata(${packHmId(homeId)})`,
-        () => getMetadata(homeId),
-      )
+      const result = await instrument(ctx || noopCtx, `getHomeMetadata(${packHmId(homeId)})`, () => getMetadata(homeId))
       homeMetadata = result.metadata
       originHomeId = result.id
     } catch (e) {}
   }
   try {
-    const resourceContent = await instrument(
-      ctx || noopCtx,
-      `loadResourceWithDiscovery(${packHmId(id)})`,
-      () => loadResourceWithDiscovery(id, parsedRequest, ctx),
+    const resourceContent = await instrument(ctx || noopCtx, `loadResourceWithDiscovery(${packHmId(id)})`, () =>
+      loadResourceWithDiscovery(id, parsedRequest, ctx),
     )
     const loadedSiteDocument = {
       ...(extraData || {}),
@@ -768,9 +615,7 @@ export type SiteHeaderPayload = {
  * Load site header data for utility pages.
  * Prefetches home document and directory for navigation rendering via React Query hydration.
  */
-export async function loadSiteHeaderData(
-  parsedRequest: ParsedRequest,
-): Promise<SiteHeaderPayload> {
+export async function loadSiteHeaderData(parsedRequest: ParsedRequest): Promise<SiteHeaderPayload> {
   const {hostname, origin} = parsedRequest
   const config = await getConfig(hostname)
 
@@ -791,17 +636,15 @@ export async function loadSiteHeaderData(
     // Prefetch home document and directory for navigation
     await Promise.allSettled([
       prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId)),
-      prefetchCtx.queryClient.prefetchQuery(
-        queryDirectory(client, homeId, 'Children'),
-      ),
+      prefetchCtx.queryClient.prefetchQuery(queryDirectory(client, homeId, 'Children')),
     ])
 
     // Read from cache
-    const homeResource = prefetchCtx.queryClient.getQueryData(
-      queryResource(client, homeId).queryKey,
-    ) as {type: 'document'; document: HMDocument} | null
-    const homeDocument =
-      homeResource?.type === 'document' ? homeResource.document : null
+    const homeResource = prefetchCtx.queryClient.getQueryData(queryResource(client, homeId).queryKey) as {
+      type: 'document'
+      document: HMDocument
+    } | null
+    const homeDocument = homeResource?.type === 'document' ? homeResource.document : null
 
     return {
       originHomeId: homeId,
@@ -847,9 +690,9 @@ export async function loadProfilePageData(
   await prefetchCtx.queryClient.prefetchQuery(queryAccount(client, profileUid))
 
   // Read profile data from cache for SSR meta tags
-  const profileData = prefetchCtx.queryClient.getQueryData(
-    queryAccount(client, profileUid).queryKey,
-  ) as {metadata?: {name?: string}} | null
+  const profileData = prefetchCtx.queryClient.getQueryData(queryAccount(client, profileUid).queryKey) as {
+    metadata?: {name?: string}
+  } | null
   const profileName = profileData?.metadata?.name || null
 
   if (!config?.registeredAccountUid) {
@@ -869,16 +712,14 @@ export async function loadProfilePageData(
   try {
     // Prefetch home document and directory for navigation
     await prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId))
-    await prefetchCtx.queryClient.prefetchQuery(
-      queryDirectory(client, homeId, 'Children'),
-    )
+    await prefetchCtx.queryClient.prefetchQuery(queryDirectory(client, homeId, 'Children'))
 
     // Read from cache
-    const homeResource = prefetchCtx.queryClient.getQueryData(
-      queryResource(client, homeId).queryKey,
-    ) as {type: 'document'; document: HMDocument} | null
-    const homeDocument =
-      homeResource?.type === 'document' ? homeResource.document : null
+    const homeResource = prefetchCtx.queryClient.getQueryData(queryResource(client, homeId).queryKey) as {
+      type: 'document'
+      document: HMDocument
+    } | null
+    const homeDocument = homeResource?.type === 'document' ? homeResource.document : null
 
     return {
       originHomeId: homeId,

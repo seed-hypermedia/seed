@@ -19,17 +19,14 @@ export function PageFooter({
 }) {
   const tx = useTx()
   return (
-    <div
-      className={cn(
-        'border-border border-t px-3 py-2 sm:px-4 sm:py-2',
-        className,
-      )}
-    >
-      <div className="flex flex-row-reverse flex-wrap items-center justify-between gap-4">
+    <div data-page-footer="true" className={cn('border-border border-t px-3 py-2 sm:px-4 sm:py-2', className)}>
+      <div className="flex flex-wrap items-center gap-4">
         <ClientOnly>
-          <AccountFooterActions hideDeviceLinkToast={hideDeviceLinkToast} />
+          <div>
+            <AccountFooterActions hideDeviceLinkToast={hideDeviceLinkToast} />
+          </div>
         </ClientOnly>
-        <div className="flex items-center gap-4">
+        <div className={cn('ml-auto flex items-center gap-4')}>
           <SizableText size="xs">
             {tx(
               'powered_by',
@@ -38,11 +35,7 @@ export function PageFooter({
               ),
               {
                 seedLink: (
-                  <a
-                    className="text-xs"
-                    href="https://seed.hyper.media"
-                    target="_blank"
-                  >
+                  <a className="text-xs" href="https://seed.hyper.media" target="_blank">
                     Seed Hypermedia
                   </a>
                 ),
@@ -50,12 +43,7 @@ export function PageFooter({
             )}
           </SizableText>
           {id ? (
-            <Button
-              className="hidden sm:flex"
-              size="sm"
-              variant="default"
-              asChild
-            >
+            <Button className="hidden sm:flex" size="sm" variant="default" asChild>
               <a href={createOSProtocolUrl(id)}>
                 <ExternalLink className="size-3" />
                 {tx('Open App')}

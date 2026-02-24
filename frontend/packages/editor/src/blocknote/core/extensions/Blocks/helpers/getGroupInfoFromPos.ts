@@ -9,10 +9,7 @@ export type GroupInfo = {
   $pos: ResolvedPos
 }
 
-export function getGroupInfoFromPos(
-  pos: number,
-  state: EditorState,
-): GroupInfo {
+export function getGroupInfoFromPos(pos: number, state: EditorState): GroupInfo {
   const $pos = state.doc.resolve(pos)
   const maxDepth = $pos.depth
   // Set group to first node found at position
@@ -47,11 +44,7 @@ export function getGroupInfoFromPos(
   }
 }
 
-export function getParentGroupInfoFromPos(
-  group: Node,
-  $pos: ResolvedPos,
-  depth: number,
-) {
+export function getParentGroupInfoFromPos(group: Node, $pos: ResolvedPos, depth: number) {
   for (let parentDepth = depth; parentDepth > 0; parentDepth--) {
     const node = $pos.node(parentDepth)
     if (node.type.name === 'blockChildren' && !node.eq(group)) {

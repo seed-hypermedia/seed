@@ -2,9 +2,7 @@ import {ActionFunction, json} from '@remix-run/node'
 import fs from 'fs/promises'
 import path from 'path'
 
-const CACHE_PATH = path.resolve(
-  path.join(process.env.DATA_DIR || process.cwd(), 'image-cache'),
-)
+const CACHE_PATH = path.resolve(path.join(process.env.DATA_DIR || process.cwd(), 'image-cache'))
 
 export const action: ActionFunction = async ({request}) => {
   if (request.method !== 'POST') {

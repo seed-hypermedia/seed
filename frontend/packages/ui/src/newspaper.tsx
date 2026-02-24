@@ -44,9 +44,7 @@ export function DocumentCard({
     return plainTextOfContent(entity?.document?.content)
   }, [entity?.document])
 
-  const coverImage = entity?.document
-    ? getDocumentImage(entity?.document)
-    : undefined
+  const coverImage = entity?.document ? getDocumentImage(entity?.document) : undefined
 
   const isPrivate = entity?.document?.visibility === 'PRIVATE'
 
@@ -62,17 +60,8 @@ export function DocumentCard({
     <>
       <div className="flex max-w-full flex-1 cursor-pointer flex-col @md:flex-row">
         {coverImage && (
-          <div
-            className={cn(
-              'relative h-40 w-full shrink-0 @md:h-auto @md:w-1/2',
-              banner && '@md:h-auto',
-            )}
-          >
-            <img
-              className="absolute top-0 left-0 h-full w-full object-cover"
-              src={imageUrl(coverImage, 'L')}
-              alt=""
-            />
+          <div className={cn('relative h-40 w-full shrink-0 @md:h-auto @md:w-1/2', banner && '@md:h-auto')}>
+            <img className="absolute top-0 left-0 h-full w-full object-cover" src={imageUrl(coverImage, 'L')} alt="" />
           </div>
         )}
         <div className={cn('flex min-h-0 flex-1 flex-col justify-between')}>
@@ -88,34 +77,19 @@ export function DocumentCard({
               </p>
               {isPrivate && <PrivateBadge size="sm" />}
             </div>
-            <p
-              className={cn(
-                'text-muted-foreground mt-2 line-clamp-3 font-sans',
-                !banner && 'text-sm',
-              )}
-            >
+            <p className={cn('text-muted-foreground mt-2 line-clamp-3 font-sans', !banner && 'text-sm')}>
               {textContent}
             </p>
           </div>
           <div className="flex items-center justify-between py-3 pr-2 pl-4">
-            {(entity?.document?.metadata?.displayPublishTime ||
-              entity?.document?.updateTime) && (
-              <SizableText
-                color="muted"
-                size="xs"
-                className="font-sans opacity-75 hover:cursor-default"
-              >
+            {(entity?.document?.metadata?.displayPublishTime || entity?.document?.updateTime) && (
+              <SizableText color="muted" size="xs" className="font-sans opacity-75 hover:cursor-default">
                 {entity?.document?.metadata?.displayPublishTime
-                  ? formattedDateDayOnly(
-                      new Date(entity.document.metadata.displayPublishTime),
-                    )
+                  ? formattedDateDayOnly(new Date(entity.document.metadata.displayPublishTime))
                   : formattedDateDayOnly(entity.document.updateTime)}
               </SizableText>
             )}
-            <FacePile
-              accounts={entity?.document?.authors || []}
-              accountsMetadata={accountsMetadata}
-            />
+            <FacePile accounts={entity?.document?.authors || []} accountsMetadata={accountsMetadata} />
           </div>
         </div>
       </div>

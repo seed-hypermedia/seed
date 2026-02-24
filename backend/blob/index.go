@@ -920,6 +920,62 @@ func (idx *Index) WalkCapabilitiesForDelegate(ctx context.Context, delegate core
 	return nil
 }
 
+// WalkAllAccountCapabilities walks through all capabilities for a given account across all document paths.
+// This is used when the caller wants to list site-wide collaborators.
+func (idx *Index) WalkAllAccountCapabilities(ctx context.Context, accountIRI IRI, author core.Principal, fn func(cid.Cid, *Capability) error) error {
+	conn, release, err := idx.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+
+	buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
+	if err := sqlitex.Exec(conn, qWalkAllAccountCapabilities(), func(stmt *sqlite.Stmt) error {
+		var (
+			codec = stmt.ColumnInt64(0)
+			hash  = stmt.ColumnBytesUnsafe(1)
+			data  = stmt.ColumnBytesUnsafe(2)
+		)
+
+		buf, err = idx.bs.decoder.DecodeAll(data, buf)
+		if err != nil {
+			return err
+		}
+
+		chcid := cid.NewCidV1(uint64(codec), hash)
+		cpb := &Capability{}
+		if err := cbornode.DecodeInto(buf, cpb); err != nil {
+			return fmt.Errorf("WalkAllAccountCapabilities: failed to decode capability %s for account %s: %w", chcid, accountIRI, err)
+		}
+
+		if err := fn(chcid, cpb); err != nil {
+			return err
+		}
+
+		buf = buf[:0] // reset the slice reusing the backing array
+
+		return nil
+	}, accountIRI, string(accountIRI)+"~~~~~~", author); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Reversed BETWEEN compared to qWalkCapabilities: finds capabilities at the account root and all descendant paths.
+var qWalkAllAccountCapabilities = dqb.Str(`
+	SELECT
+		b.codec,
+		b.multihash,
+		b.data
+	FROM structural_blobs sb
+	JOIN blobs b ON b.id = sb.id
+	WHERE sb.type = 'Capability'
+	AND sb.resource IN (SELECT id FROM resources WHERE iri BETWEEN :iri AND :iri_end)
+	AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
+	ORDER BY sb.ts
+`)
+
 var qWalkCapabilitiesForDelegate = dqb.Str(`
 	SELECT
 		b.codec,

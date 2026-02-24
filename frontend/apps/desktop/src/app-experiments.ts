@@ -5,8 +5,16 @@ import {t} from './app-trpc'
 
 const EXPERIMENTS_STORAGE_KEY = 'Experiments-v001'
 
-let experimentsState: AppExperiments =
-  appStore.get(EXPERIMENTS_STORAGE_KEY) || {}
+let experimentsState: AppExperiments = appStore.get(EXPERIMENTS_STORAGE_KEY) || {}
+
+/**
+ * Returns the stored embedding enabled setting.
+ * Used by main.ts to determine daemon startup flags before tRPC is ready.
+ */
+export function getStoredEmbeddingEnabled(): boolean {
+  const experiments = appStore.get(EXPERIMENTS_STORAGE_KEY) || {}
+  return experiments.embeddingEnabled || false
+}
 
 export const experimentsApi = t.router({
   get: t.procedure.query(async () => {

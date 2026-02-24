@@ -11,9 +11,7 @@ interface DocumentCoverProps {
 
 export function DocumentCover({cover, className}: DocumentCoverProps) {
   const imageUrl = useImageUrl()
-  const [modalState, setModalState] = useState<'closed' | 'opening' | 'open'>(
-    'closed',
-  )
+  const [modalState, setModalState] = useState<'closed' | 'opening' | 'open'>('closed')
 
   const handleDoubleClick = useCallback(() => {
     setModalState('opening')
@@ -70,12 +68,7 @@ export function DocumentCover({cover, className}: DocumentCoverProps) {
         <img
           alt="Document cover"
           src={imageUrl(cover, 'L')}
-          className={cn(
-            'object-contain',
-            modalState === 'opening'
-              ? 'animate-in zoom-in-50 duration-300'
-              : '',
-          )}
+          className={cn('object-contain', modalState === 'opening' ? 'animate-in zoom-in-50 duration-300' : '')}
           style={{
             maxWidth: '90vw',
             maxHeight: '90vh',

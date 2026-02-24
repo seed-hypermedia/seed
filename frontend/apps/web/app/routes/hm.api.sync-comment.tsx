@@ -2,12 +2,7 @@ import {grpcClient} from '@/client.server'
 import {withCors} from '@/utils/cors'
 import {discoverDocument} from '@/utils/discovery'
 import {ActionFunction, json, LoaderFunction} from '@remix-run/node'
-import {
-  hmIdPathToEntityQueryPath,
-  unpackedHmIdSchema,
-  UnpackedHypermediaId,
-  unpackHmId,
-} from '@shm/shared'
+import {hmIdPathToEntityQueryPath, unpackedHmIdSchema, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {z} from 'zod'
 
@@ -25,15 +20,12 @@ export const loader: LoaderFunction = async ({request}) => {
 
 export const action: ActionFunction = async ({request}) => {
   if (request.method !== 'POST') {
-    return withCors(
-      Response.json({message: 'Method not allowed'}, {status: 405}),
-    )
+    return withCors(Response.json({message: 'Method not allowed'}, {status: 405}))
   }
   try {
     const body = await request.json()
     console.log('sync comment body', body)
-    const {commentId, target, dependencies} =
-      syncCommentRequestSchema.parse(body)
+    const {commentId, target, dependencies} = syncCommentRequestSchema.parse(body)
     const targetId = unpackHmId(target)
     if (!targetId) {
       return json({message: 'Invalid target'}, {status: 400})
@@ -61,9 +53,7 @@ export const action: ActionFunction = async ({request}) => {
       }),
     )
   } catch (error: any) {
-    return withCors(
-      json({message: 'Error syncing comment:' + error.message}, {status: 500}),
-    )
+    return withCors(json({message: 'Error syncing comment:' + error.message}, {status: 500}))
   }
 }
 
@@ -83,13 +73,7 @@ async function getCommentExists(commentId: string) {
   }
 }
 
-async function syncComment({
-  commentId,
-  targetId,
-}: {
-  commentId: string
-  targetId: UnpackedHypermediaId
-}) {
+async function syncComment({commentId, targetId}: {commentId: string; targetId: UnpackedHypermediaId}) {
   console.log('syncing comment1', targetId)
   const discovered = await grpcClient.entities.discoverEntity({
     account: targetId.uid,
@@ -107,10 +91,7 @@ async function syncComment({
         return comment
       } catch (error: any) {
         // Handle ConnectError for NotFound comments gracefully
-        if (
-          error?.code === 'not_found' ||
-          error?.message?.includes('not found')
-        ) {
+        if (error?.code === 'not_found' || error?.message?.includes('not found')) {
           console.warn(`Comment ${commentId} not found during sync, will retry`)
           return null // This will cause tryUntilSuccess to retry
         }

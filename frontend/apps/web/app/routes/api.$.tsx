@@ -33,14 +33,10 @@ export async function loader({request, params}: LoaderFunctionArgs) {
   }
 
   // Find the matching request schema
-  const requestSchema = HMRequestSchema.options.find(
-    (schema) => schema.shape.key.value === key,
-  )
+  const requestSchema = HMRequestSchema.options.find((schema) => schema.shape.key.value === key)
 
   if (!requestSchema) {
-    return withCors(
-      new Response(`No schema found for key: ${key}`, {status: 500}),
-    )
+    return withCors(new Response(`No schema found for key: ${key}`, {status: 500}))
   }
 
   try {
@@ -55,18 +51,11 @@ export async function loader({request, params}: LoaderFunctionArgs) {
       })
       input = apiParams.paramsToInput(params)
     } else {
-      input = deserializeQueryString(
-        url.search,
-        requestSchema.shape.input as any,
-      )
+      input = deserializeQueryString(url.search, requestSchema.shape.input as any)
     }
 
     // Execute the API handler (type assertion needed due to discriminated union)
-    const output = await apiDefinition.getData(
-      grpcClient,
-      input as any,
-      queryDaemon,
-    )
+    const output = await apiDefinition.getData(grpcClient, input as any, queryDaemon)
 
     // Validate output with schema
     const validatedOutput = requestSchema.shape.output.parse(output)

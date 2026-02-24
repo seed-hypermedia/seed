@@ -1,10 +1,5 @@
 import {expect, test} from './fixtures'
-import {
-  htmlContent,
-  markdownContent,
-  plainTextContent,
-  seedBlockHTML,
-} from './test-content'
+import {htmlContent, markdownContent, plainTextContent, seedBlockHTML} from './test-content'
 
 /**
  * Copy-Paste E2E Tests
@@ -19,10 +14,7 @@ test.describe('Copy and Paste', () => {
   // PLAIN TEXT
   // ===========================================================================
   test.describe('Plain Text', () => {
-    test('Should copy and paste single line text within editor', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should copy and paste single line text within editor', async ({editorHelpers, page}) => {
       await editorHelpers.typeText('Hello World')
 
       // Select all and copy
@@ -43,10 +35,7 @@ test.describe('Copy and Paste', () => {
       expect(blocks[1].content[0].text).toBe('Hello World')
     })
 
-    test('Should copy and paste multi-line plain text within editor', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should copy and paste multi-line plain text within editor', async ({editorHelpers, page}) => {
       await editorHelpers.typeText('Line 1')
       await editorHelpers.pressKey('Shift+Enter')
       await editorHelpers.typeText('Line 2')
@@ -71,10 +60,7 @@ test.describe('Copy and Paste', () => {
       expect(blocks[1].content[0].text).toBe('Line 1\nLine 2\nLine 3')
     })
 
-    test('Should copy and paste multi-line plain text as three paragraph blocks', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should copy and paste multi-line plain text as three paragraph blocks', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardText(plainTextContent.multiParagraph)
       await editorHelpers.paste()
       await page.waitForTimeout(50)
@@ -86,10 +72,7 @@ test.describe('Copy and Paste', () => {
       expect(blocks[2].content[0].text).toBe('Third paragraph')
     })
 
-    test('Should paste plain text content inline', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should paste plain text content inline', async ({editorHelpers, page}) => {
       // Create a single paragraph block
       await editorHelpers.typeText('Hello ')
 
@@ -140,10 +123,7 @@ test.describe('Copy and Paste', () => {
       expect(text).toContain('Simple test')
     })
 
-    test('Should paste multiple HTML paragraphs as separate blocks', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should paste multiple HTML paragraphs as separate blocks', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardHTML(htmlContent.multiParagraphHTML)
       await editorHelpers.paste()
       await page.waitForTimeout(50)
@@ -191,10 +171,7 @@ test.describe('Copy and Paste', () => {
     //   expect(italicMarks[0].text).toBe('emphasized')
     // })
 
-    test('Should paste HTML with mixed formatting', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should paste HTML with mixed formatting', async ({editorHelpers, page}) => {
       // htmlContent.mixedFormatting has strong, emphasis, and underlined words
       await editorHelpers.setClipboardHTML(htmlContent.mixedFormatting)
       await editorHelpers.paste()
@@ -278,10 +255,7 @@ test.describe('Copy and Paste', () => {
   // ===========================================================================
   test.describe('Lists', () => {
     test.describe('From Editor', () => {
-      test('Should copy and paste list items created in editor', async ({
-        editorHelpers,
-        page,
-      }) => {
+      test('Should copy and paste list items created in editor', async ({editorHelpers, page}) => {
         // Create a paragraph with a list
         await editorHelpers.typeText('Parent')
         await editorHelpers.pressKey('Enter')
@@ -318,10 +292,7 @@ test.describe('Copy and Paste', () => {
     })
 
     test.describe('From External Sources', () => {
-      test('Should paste HTML unordered list', async ({
-        editorHelpers,
-        page,
-      }) => {
+      test('Should paste HTML unordered list', async ({editorHelpers, page}) => {
         await editorHelpers.setClipboardHTML(htmlContent.unorderedList)
         await editorHelpers.paste()
         await page.waitForTimeout(50)
@@ -363,12 +334,8 @@ test.describe('Copy and Paste', () => {
         expect(listBlock.props?.childrenType).toBe('Unordered')
         expect(listBlock.children[0].content[0].text).toBe('Parent item')
         expect(listBlock.children[0].props?.childrenType).toBe('Unordered')
-        expect(listBlock.children[0].children[0].content[0].text).toBe(
-          'Child item 1',
-        )
-        expect(listBlock.children[0].children[1].content[0].text).toBe(
-          'Child item 2',
-        )
+        expect(listBlock.children[0].children[0].content[0].text).toBe('Child item 1')
+        expect(listBlock.children[0].children[1].content[0].text).toBe('Child item 2')
         expect(listBlock.children[1].content[0].text).toBe('Another parent')
       })
 
@@ -381,15 +348,10 @@ test.describe('Copy and Paste', () => {
         const blockquoteBlock = blocks[0]
         expect(blockquoteBlock).toBeDefined()
         expect(blockquoteBlock.props?.childrenType).toBe('Blockquote')
-        expect(blockquoteBlock.children[0].content[0].text).toContain(
-          'quoted text',
-        )
+        expect(blockquoteBlock.children[0].content[0].text).toContain('quoted text')
       })
 
-      test('Should copy and paste a nested list created in editor', async ({
-        editorHelpers,
-        page,
-      }) => {
+      test('Should copy and paste a nested list created in editor', async ({editorHelpers, page}) => {
         // Create a list:
         // Parent
         // - Parent 1
@@ -466,10 +428,7 @@ test.describe('Copy and Paste', () => {
       expect(blocks[0].content[0].text).toBe('Main Heading')
     })
 
-    test('Should paste markdown with formatting', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should paste markdown with formatting', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardText(markdownContent.mixed)
       await editorHelpers.paste()
       await page.waitForTimeout(200)
@@ -494,10 +453,7 @@ test.describe('Copy and Paste', () => {
       // const blocks = await editorHelpers.getBlocks()
     })
 
-    test('Should paste complex markdown document', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should paste complex markdown document', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardText(markdownContent.complexDocument)
       await editorHelpers.paste()
       await page.waitForTimeout(50)
@@ -606,10 +562,7 @@ test.describe('Copy and Paste', () => {
   // CUT OPERATIONS
   // ===========================================================================
   test.describe('Cut Operations', () => {
-    test('Should cut text and remove from editor', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should cut text and remove from editor', async ({editorHelpers, page}) => {
       // Note: This test fails without timeout. Needs time to process the cut operation
       await editorHelpers.typeText('Cut this text')
       await page.waitForTimeout(100)
@@ -623,10 +576,7 @@ test.describe('Copy and Paste', () => {
       expect(text.trim()).toBe('')
     })
 
-    test('Should cut the text and paste it after cutting', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should cut the text and paste it after cutting', async ({editorHelpers, page}) => {
       await editorHelpers.typeText('Cut and paste me')
       await page.waitForTimeout(50)
 
@@ -649,10 +599,7 @@ test.describe('Copy and Paste', () => {
   test.describe('Seed Block Types', () => {
     // Skip: embed blocks need universalClient context which is not available
     // in the isolated test harness
-    test.skip('should paste Seed embed block (Card view)', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test.skip('should paste Seed embed block (Card view)', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardHTML(seedBlockHTML.embedCard)
       await editorHelpers.paste()
       await page.waitForTimeout(200)
@@ -663,10 +610,7 @@ test.describe('Copy and Paste', () => {
       expect(hasEmbed || blocks.length > 0).toBe(true)
     })
 
-    test.skip('should paste Seed embed block (Content view)', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test.skip('should paste Seed embed block (Content view)', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardHTML(seedBlockHTML.embedContent)
       await editorHelpers.paste()
       await page.waitForTimeout(200)
@@ -693,10 +637,7 @@ test.describe('Copy and Paste', () => {
   // EXTERNAL SOURCES
   // ===========================================================================
   test.describe('External Sources', () => {
-    test('Should paste content from Google Docs', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should paste content from Google Docs', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardHTML(htmlContent.googleDocs.formattedText)
       await editorHelpers.paste()
       await page.waitForTimeout(200)
@@ -706,10 +647,7 @@ test.describe('Copy and Paste', () => {
       expect(text).toContain('eyes are the window to the soul')
     })
 
-    test('Should paste list from Google Docs', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should paste list from Google Docs', async ({editorHelpers, page}) => {
       await editorHelpers.typeText('Parent for list')
       await editorHelpers.pressKey('Enter')
 
@@ -725,10 +663,7 @@ test.describe('Copy and Paste', () => {
 
       // Check that there's a nested unordered child list
       const hasNestedList = listBlock.children?.some((child: any) => {
-        if (
-          child.children?.length > 0 &&
-          child.props?.childrenType === 'Unordered'
-        ) {
+        if (child.children?.length > 0 && child.props?.childrenType === 'Unordered') {
           return child.children?.some((nested: any) => {
             return nested.content?.some((c: any) => c.text?.includes('Test 5'))
           })
@@ -738,10 +673,7 @@ test.describe('Copy and Paste', () => {
       expect(hasNestedList).toBe(true)
     })
 
-    test.skip('Should paste content from Notion', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test.skip('Should paste content from Notion', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardHTML(htmlContent.notion.formattedText)
       await editorHelpers.paste()
       await page.waitForTimeout(200)
@@ -767,10 +699,7 @@ test.describe('Copy and Paste', () => {
   // EDGE CASES
   // ===========================================================================
   test.describe('Edge Cases', () => {
-    test('Should replace selected text when pasting', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should replace selected text when pasting', async ({editorHelpers, page}) => {
       await editorHelpers.typeText('Original text')
       await page.waitForTimeout(50)
 

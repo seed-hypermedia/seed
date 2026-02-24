@@ -1,38 +1,21 @@
 import {focusDraftBlock} from '@/draft-focusing'
-import {
-  roleCanWrite,
-  useSelectedAccountCapability,
-} from '@/models/access-control'
+import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
-import {
-  useCreateDraft,
-  useDocumentEmbeds,
-  useListSite,
-} from '@/models/documents'
+import {useCreateDraft, useDocumentEmbeds, useListSite} from '@/models/documents'
 import {useNavigate} from '@/utils/useNavigate'
 import {BlockNoteEditor} from '@shm/editor/blocknote'
-import {
-  getDraftNodesOutline,
-  getNodesOutline,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {getDraftNodesOutline, getNodesOutline, UnpackedHypermediaId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Add} from '@shm/ui/icons'
 import {SmallListItem} from '@shm/ui/list-item'
-import {
-  DocNavigationWrapper,
-  DocumentOutline,
-  DraftOutline,
-  useNodesOutline,
-} from '@shm/ui/navigation'
+import {DocNavigationWrapper, DocumentOutline, DraftOutline, useNodesOutline} from '@shm/ui/navigation'
 import {ReactNode, useEffect, useMemo, useState} from 'react'
 
 export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
   const route = useNavRoute()
-  if (route.key !== 'document')
-    throw new Error('DocNavigation only supports document route')
+  if (route.key !== 'document') throw new Error('DocNavigation only supports document route')
   const {id} = route
   const entity = useResource(id, {subscribed: true, recursive: true}) // recursive subscriptions to make sure children get loaded
   const navigate = useNavigate('replace')
@@ -99,8 +82,7 @@ export function DocNavigationDraftLoader({
   editor?: BlockNoteEditor
 }) {
   const route = useNavRoute()
-  if (route.key !== 'draft')
-    throw new Error('DocNavigationDraftLoader only supports draft route')
+  if (route.key !== 'draft') throw new Error('DocNavigationDraftLoader only supports draft route')
   const draftQuery = useDraft(route.id)
   // const id = useMemo(() => {
   //   let uId = route.editUid || draftQuery.data?.editUid
@@ -124,16 +106,11 @@ export function DocNavigationDraftLoader({
   const entity = useResource(id)
   const draft = draftQuery?.data
   const metadata =
-    draftQuery?.data?.metadata ||
-    (entity.data?.type === 'document'
-      ? entity.data.document?.metadata
-      : undefined)
-  const document =
-    entity.data?.type === 'document' ? entity.data.document : undefined
+    draftQuery?.data?.metadata || (entity.data?.type === 'document' ? entity.data.document?.metadata : undefined)
+  const document = entity.data?.type === 'document' ? entity.data.document : undefined
 
   const siteList = useListSite(id)
-  const siteListQuery =
-    siteList?.data && id ? {in: hmId(id.uid), results: siteList.data} : null
+  const siteListQuery = siteList?.data && id ? {in: hmId(id.uid), results: siteList.data} : null
 
   // Only load embeds from the document if we're editing an existing document
   const embeds = isEditingExistingDoc ? useDocumentEmbeds(document) : []

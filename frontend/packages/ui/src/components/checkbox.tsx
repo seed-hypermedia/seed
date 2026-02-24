@@ -35,17 +35,9 @@ const checkboxVariants = cva(
   },
 )
 
-export function Checkbox({
-  className,
-  variant = 'brand',
-  ...props
-}: CheckboxProps) {
+export function Checkbox({className, variant = 'brand', ...props}: CheckboxProps) {
   return (
-    <CheckboxPrimitive.Root
-      data-slot="checkbox"
-      className={cn(checkboxVariants({variant}), className)}
-      {...props}
-    >
+    <CheckboxPrimitive.Root data-slot="checkbox" className={cn(checkboxVariants({variant}), className)} {...props}>
       <CheckboxPrimitive.Indicator
         data-slot="checkbox-indicator"
         className="flex items-center justify-center text-current transition-none"
@@ -56,10 +48,7 @@ export function Checkbox({
   )
 }
 
-export type CheckboxProps = React.ComponentProps<
-  typeof CheckboxPrimitive.Root
-> &
-  VariantProps<typeof checkboxVariants>
+export type CheckboxProps = React.ComponentProps<typeof CheckboxPrimitive.Root> & VariantProps<typeof checkboxVariants>
 
 export function CheckboxField({
   checked,
@@ -79,11 +68,7 @@ export function CheckboxField({
   CheckboxProps) {
   return (
     <div className={cn('flex items-center gap-3', className)}>
-      <Checkbox
-        checked={checked}
-        onCheckedChange={onCheckedChange}
-        variant={variant}
-      />
+      <Checkbox checked={checked} onCheckedChange={onCheckedChange} variant={variant} />
       <Label htmlFor={id} {...labelProps}>
         {children}
       </Label>

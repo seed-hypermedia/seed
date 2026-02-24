@@ -5,10 +5,7 @@ import {createResourceFetcher} from './resource-loader'
 import {packHmId, unpackHmId} from './utils'
 
 export const Resource: HMRequestImplementation<HMResourceRequest> = {
-  async getData(
-    grpcClient: GRPCClient,
-    input: UnpackedHypermediaId,
-  ): Promise<HMResource> {
+  async getData(grpcClient: GRPCClient, input: UnpackedHypermediaId): Promise<HMResource> {
     const fetchResource = createResourceFetcher(grpcClient)
     return await fetchResource(input)
   },

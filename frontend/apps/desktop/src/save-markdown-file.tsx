@@ -48,15 +48,7 @@ export async function saveMarkdownFile(
       message: filePath,
     }
 
-    const uploadMediaFile = ({
-      url,
-      filename,
-      placeholder,
-    }: {
-      url: string
-      filename: string
-      placeholder: string
-    }) => {
+    const uploadMediaFile = ({url, filename, placeholder}: {url: string; filename: string; placeholder: string}) => {
       return new Promise<void>((resolve, reject) => {
         const regex = /ipfs:\/\/(.+)/
         const match = url.match(regex)
@@ -90,10 +82,7 @@ export async function saveMarkdownFile(
                 fs.writeFileSync(mediaFilePath, data)
                 debug(`Media file successfully saved: ${mediaFilePath}`)
                 // Update the markdown content with the correct file name
-                updatedMarkdownContent = updatedMarkdownContent.replace(
-                  placeholder,
-                  filenameWithExt,
-                )
+                updatedMarkdownContent = updatedMarkdownContent.replace(placeholder, filenameWithExt)
                 resolve()
               } catch (e) {
                 error(`Failed to save media file ${filenameWithExt}`, e)

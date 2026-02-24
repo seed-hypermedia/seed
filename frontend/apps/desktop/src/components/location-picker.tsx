@@ -1,9 +1,4 @@
-import {
-  HMWritableDocument,
-  roleCanWrite,
-  useAllDocumentCapabilities,
-  useSelectedAccountWritableDocuments,
-} from '@/models/access-control'
+import {HMWritableDocument, roleCanWrite, useSelectedAccountWritableDocuments} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {client} from '@/trpc'
@@ -19,20 +14,12 @@ import {
   UnpackedHypermediaId,
   useSearch,
 } from '@shm/shared'
-import {
-  useDirectory,
-  useResource,
-  useResources,
-} from '@shm/shared/models/entity'
+import {useCapabilities, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@shm/ui/components/popover'
+import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Field} from '@shm/ui/form-fields'
 import {HMIcon} from '@shm/ui/hm-icon'
@@ -69,9 +56,7 @@ export function LocationPicker({
     const allAcctsWithWrite = writableDocuments.filter((d) => {
       if (isIdParentOfOrEqual(d.entity.id, location)) return true
     })
-    const thisAccountWithWrite =
-      account &&
-      allAcctsWithWrite.find((d) => d.accountsWithWrite.includes(account))
+    const thisAccountWithWrite = account && allAcctsWithWrite.find((d) => d.accountsWithWrite.includes(account))
     if (thisAccountWithWrite) {
       setLocation(location)
     } else {
@@ -90,9 +75,7 @@ export function LocationPicker({
 
   const newDestinationAlreadyResource = useResource(location)
   const newDestinationAlreadyDocument =
-    newDestinationAlreadyResource.data?.type === 'document'
-      ? newDestinationAlreadyResource.data.document
-      : undefined
+    newDestinationAlreadyResource.data?.type === 'document' ? newDestinationAlreadyResource.data.document : undefined
   useEffect(() => {
     if (onAvailable) {
       onAvailable(!newDestinationAlreadyDocument)
@@ -106,21 +89,13 @@ export function LocationPicker({
       {location ? (
         <Field label={`${capitalize(actionLabel)} to Location`} id="location">
           <div className="flex flex-wrap items-center justify-between">
-            {location ? (
-              <LocationPreview
-                location={location}
-                setLocation={handleSetLocation}
-              />
-            ) : null}
+            {location ? <LocationPreview location={location} setLocation={handleSetLocation} /> : null}
             <div className="flex gap-2">
               {(location.path?.length || 0) > 1 ? (
                 <Tooltip content={`Location to ${actionLabel} this document`}>
                   <Button
                     onClick={() => {
-                      const newPath = [
-                        ...(location.path?.slice(0, -2) || []),
-                        newUrlPath,
-                      ]
+                      const newPath = [...(location.path?.slice(0, -2) || []), newUrlPath]
                       handleSetLocation(hmId(location.uid, {path: newPath}))
                     }}
                     size="sm"
@@ -154,9 +129,7 @@ export function LocationPicker({
                   >
                     <div className="flex flex-1 flex-wrap justify-between">
                       <SizableText>{d.metadata.name}</SizableText>
-                      <SizableText className="text-muted-foreground text-right">
-                        {d.path?.at(-1)}
-                      </SizableText>
+                      <SizableText className="text-muted-foreground text-right">{d.path?.at(-1)}</SizableText>
                     </div>
                   </Button>
                 )
@@ -174,21 +147,14 @@ export function LocationPicker({
             if (!location) return
             handleSetLocation(
               hmId(location?.uid, {
-                path: [
-                  ...(location?.path?.slice(0, -1) || []),
-                  pathNameify(text),
-                ],
+                path: [...(location?.path?.slice(0, -1) || []), pathNameify(text)],
               }),
             )
           }}
         />
       </Field>
       {location && (
-        <URLPreview
-          location={location}
-          isUnavailable={!!newDestinationAlreadyDocument}
-          actionLabel={actionLabel}
-        />
+        <URLPreview location={location} isUnavailable={!!newDestinationAlreadyDocument} actionLabel={actionLabel} />
       )}
     </div>
   )
@@ -209,10 +175,7 @@ function LocationSearch({
       <PopoverTrigger className="no-window-drag">
         <Search className="size-4" />
       </PopoverTrigger>
-      <PopoverContent
-        className="p-2"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
+      <PopoverContent className="p-2" onOpenAutoFocus={(e) => e.preventDefault()}>
         <SearchContent
           writableDocuments={writableDocuments}
           onLocationSelected={(newParent) => {
@@ -249,9 +212,7 @@ function SearchContent({
     searchedLocations =
       search.data?.entities
         .filter((d) => {
-          return !!writableDocuments.find((writable) =>
-            isIdParentOfOrEqual(writable.entity.id, d.id),
-          )
+          return !!writableDocuments.find((writable) => isIdParentOfOrEqual(writable.entity.id, d.id))
         })
         .map((d) => ({
           id: d.id,
@@ -285,12 +246,7 @@ function SearchContent({
             className="justify-start px-2"
           >
             <div className="flex flex-1 items-center justify-start gap-2">
-              <HMIcon
-                id={d.id}
-                name={d.metadata?.name}
-                icon={d.metadata?.icon}
-                size={24}
-              />
+              <HMIcon id={d.id} name={d.metadata?.name} icon={d.metadata?.icon} size={24} />
               <SizableText>{d.metadata?.name}</SizableText>
             </div>
           </Button>
@@ -310,28 +266,19 @@ function LocationPreview({
   const newUrlPath = location?.path?.at(-1) || ''
   const siteId = hmId(location.uid, {latest: true})
   const siteResource = useResource(siteId)
-  const siteDocument =
-    siteResource.data?.type === 'document'
-      ? siteResource.data.document
-      : undefined
+  const siteDocument = siteResource.data?.type === 'document' ? siteResource.data.document : undefined
   const locationBreadcrumbIds = useMemo(() => {
     if (!location) return []
     return (
       location.path
         ?.slice(0, -1)
-        ?.map((_path, index) =>
-          hmId(location.uid, {path: location.path?.slice(0, index + 1)}),
-        ) || []
+        ?.map((_path, index) => hmId(location.uid, {path: location.path?.slice(0, index + 1)})) || []
     )
   }, [location.uid, location.path])
   const locationBreadcrumbs = useResources(locationBreadcrumbIds)
   return (
     <div className="flex max-w-full flex-wrap items-center gap-3 py-2">
-      <HMIcon
-        id={siteId}
-        name={siteDocument?.metadata?.name}
-        icon={siteDocument?.metadata?.icon}
-      />
+      <HMIcon id={siteId} name={siteDocument?.metadata?.name} icon={siteDocument?.metadata?.icon} />
       <SizableText
         weight="bold"
         className="hover:underline"
@@ -366,8 +313,7 @@ function LocationPreview({
 function useDocumentUrl(location: UnpackedHypermediaId) {
   const gatewayUrl = useGatewayUrl()
   const {data: siteResource} = useResource(hmId(location.uid, {latest: true}))
-  const siteDocument =
-    siteResource?.type === 'document' ? siteResource.document : undefined
+  const siteDocument = siteResource?.type === 'document' ? siteResource.document : undefined
   if (!siteDocument || !gatewayUrl.data) return null
   const siteUrl = siteDocument.metadata.siteUrl
   if (siteUrl) {
@@ -423,17 +369,9 @@ function URLPreview({
           >
             Branch Destination URL{extraLabel}
           </SizableText>
-          {isError ? (
-            <AlertCircle className="color-destructive size-3" />
-          ) : null}
+          {isError ? <AlertCircle className="color-destructive size-3" /> : null}
         </div>
-        <SizableText
-          size="sm"
-          className={cn(
-            'break-all',
-            isError ? 'text-destructive' : 'text-link',
-          )}
-        >
+        <SizableText size="sm" className={cn('break-all', isError ? 'text-destructive' : 'text-link')}>
           {url}
         </SizableText>
       </div>
@@ -441,47 +379,32 @@ function URLPreview({
   )
 }
 
-function useDefaultAccountId(
-  allowedAccounts?: string[],
-  defaultLocation?: UnpackedHypermediaId | null,
-): string | null {
+function useDefaultAccountId(allowedAccounts?: string[], defaultLocation?: UnpackedHypermediaId | null): string | null {
   const recentSigners = useQuery({
     queryKey: [queryKeys.RECENT_SIGNERS],
     queryFn: () => client.recentSigners.get.query(),
   })
   const {data: myAccountIds} = useMyAccountIds()
   const parentLocation = getParent(defaultLocation)
-  const allDocumentCapabilities = useAllDocumentCapabilities(
-    parentLocation || undefined,
-  )
+  const allDocumentCapabilities = useCapabilities(parentLocation || undefined)
   if (!myAccountIds?.length) return null
   const myAccounts = new Set(myAccountIds)
 
-  const allowedAccountsSet = allowedAccounts
-    ? new Set(allowedAccounts)
-    : myAccounts
+  const allowedAccountsSet = allowedAccounts ? new Set(allowedAccounts) : myAccounts
   const filteredAccounts = myAccountIds.filter((account) =>
     allowedAccountsSet ? allowedAccountsSet.has(account) : true,
   )
   if (!allDocumentCapabilities.data) return null
-  const writableCaps = allDocumentCapabilities.data?.filter((cap) =>
-    roleCanWrite(cap.role),
-  )
+  const writableCaps = allDocumentCapabilities.data?.filter((cap) => roleCanWrite(cap.role))
   if (defaultLocation && writableCaps?.length) {
-    const acctsWithCapsOfLocation: Set<string> = new Set(
-      writableCaps.map((cap) => cap.accountUid),
-    )
+    const acctsWithCapsOfLocation: Set<string> = new Set(writableCaps.map((cap) => cap.accountUid))
     if (acctsWithCapsOfLocation.size) {
-      const recentSigner = recentSigners.data?.recentSigners.find((signer) =>
-        acctsWithCapsOfLocation.has(signer),
-      )
+      const recentSigner = recentSigners.data?.recentSigners.find((signer) => acctsWithCapsOfLocation.has(signer))
       // @ts-ignore
       return recentSigner || writableCaps[0]?.accountUid
     }
   }
-  const recentSigner = recentSigners.data?.recentSigners.find((signer) =>
-    filteredAccounts.includes(signer),
-  )
+  const recentSigner = recentSigners.data?.recentSigners.find((signer) => filteredAccounts.includes(signer))
   if (recentSigner) return recentSigner
   return filteredAccounts[0] || null
 }

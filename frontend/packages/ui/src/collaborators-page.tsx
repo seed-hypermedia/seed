@@ -1,7 +1,6 @@
-import {HMRawCapability, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
+import {HMCapability, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
 import {useCapabilities, useResource} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {Users} from 'lucide-react'
 import {useMemo} from 'react'
 import {HMIcon} from './hm-icon'
@@ -23,33 +22,10 @@ export function CollaboratorsEmpty() {
 }
 
 function getRoleDisplayName(role: string | undefined): string {
-  if (role === 'WRITER' || role === 'writer') return 'Writer'
-  if (role === 'AGENT' || role === 'agent') return 'Device'
-  if (role === 'OWNER' || role === 'owner') return 'Owner'
+  if (role === 'writer') return 'Writer'
+  if (role === 'agent') return 'Device'
+  if (role === 'owner') return 'Owner'
   return role || 'Unknown'
-}
-
-/** Transformed capability with grantId for parent capability detection */
-export type CollaboratorCapability = {
-  id: string
-  accountUid: string
-  role: string
-  grantId: UnpackedHypermediaId
-}
-
-/** Transform raw capability to collaborator capability */
-function transformCapability(
-  raw: HMRawCapability,
-): CollaboratorCapability | null {
-  if (!raw.delegate || !raw.account) return null
-  return {
-    id: raw.id || '',
-    accountUid: raw.delegate,
-    role: raw.role || 'unknown',
-    grantId: hmId(raw.account, {
-      path: entityQueryPathToHmIdPath(raw.path),
-    }),
-  }
 }
 
 /** Shared hook to fetch and prepare collaborators data */
@@ -57,33 +33,18 @@ export function useCollaboratorsData(docId: UnpackedHypermediaId) {
   const capabilities = useCapabilities(docId)
 
   const processedData = useMemo(() => {
-    const rawCaps = capabilities.data?.capabilities || []
+    const allCaps = capabilities.data || []
 
-    // Transform and filter capabilities
-    const allCaps = rawCaps
-      .map(transformCapability)
-      .filter((cap): cap is CollaboratorCapability => cap !== null)
-
-    // Filter out agents (devices) and owners - matching desktop behavior
-    const filteredCaps = allCaps.filter(
-      (cap) =>
-        cap.role !== 'AGENT' &&
-        cap.role !== 'agent' &&
-        cap.role !== 'OWNER' &&
-        cap.role !== 'owner',
-    )
+    // Filter out agents (devices) and owners
+    const filteredCaps = allCaps.filter((cap) => cap.role !== 'agent' && cap.role !== 'owner')
 
     // Separate parent capabilities from direct grants
-    const parentCapabilities = filteredCaps.filter(
-      (cap) => cap.grantId.id !== docId.id,
-    )
-    const grantedCapabilities = filteredCaps.filter(
-      (cap) => cap.grantId.id === docId.id,
-    )
+    const parentCapabilities = filteredCaps.filter((cap) => cap.grantId.id !== docId.id)
+    const grantedCapabilities = filteredCaps.filter((cap) => cap.grantId.id === docId.id)
 
     // Deduplicate by accountUid
     const seen = new Set<string>()
-    const dedupeList = (list: CollaboratorCapability[]) =>
+    const dedupeList = (list: HMCapability[]) =>
       list.filter((cap) => {
         if (seen.has(cap.accountUid)) return false
         seen.add(cap.accountUid)
@@ -110,17 +71,11 @@ function PublisherCollaborator({uid}: {uid: string}) {
   const resource = useResource(publisherId)
   const linkProps = useRouteLink({key: 'document', id: publisherId})
 
-  const metadata =
-    resource.data?.type === 'document'
-      ? resource.data.document?.metadata
-      : undefined
+  const metadata = resource.data?.type === 'document' ? resource.data.document?.metadata : undefined
   const isLoading = resource.isLoading
 
   return (
-    <a
-      {...linkProps}
-      className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors"
-    >
+    <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
       <HMIcon
         id={publisherId}
         name={isLoading ? undefined : metadata?.name}
@@ -146,13 +101,12 @@ export function CollaboratorsListView({
   publisherUid,
   docId,
 }: {
-  parentCapabilities: CollaboratorCapability[]
-  grantedCapabilities: CollaboratorCapability[]
+  parentCapabilities: HMCapability[]
+  grantedCapabilities: HMCapability[]
   publisherUid: string
   docId: UnpackedHypermediaId
 }) {
-  const hasNoCollaborators =
-    parentCapabilities.length === 0 && grantedCapabilities.length === 0
+  const hasNoCollaborators = parentCapabilities.length === 0 && grantedCapabilities.length === 0
 
   return (
     <div className="flex flex-col gap-4">
@@ -163,11 +117,7 @@ export function CollaboratorsListView({
       {parentCapabilities.length > 0 && (
         <div className="flex flex-col gap-1">
           {parentCapabilities.map((cap) => (
-            <CollaboratorListItem
-              key={cap.accountUid}
-              capability={cap}
-              docId={docId}
-            />
+            <CollaboratorListItem key={cap.accountUid} capability={cap} docId={docId} />
           ))}
         </div>
       )}
@@ -179,11 +129,7 @@ export function CollaboratorsListView({
             Granted
           </SizableText>
           {grantedCapabilities.map((cap) => (
-            <CollaboratorListItem
-              key={cap.accountUid}
-              capability={cap}
-              docId={docId}
-            />
+            <CollaboratorListItem key={cap.accountUid} capability={cap} docId={docId} />
           ))}
         </div>
       )}
@@ -197,29 +143,17 @@ export function CollaboratorsListView({
   )
 }
 
-function CollaboratorListItem({
-  capability,
-  docId,
-}: {
-  capability: CollaboratorCapability
-  docId: UnpackedHypermediaId
-}) {
+function CollaboratorListItem({capability, docId}: {capability: HMCapability; docId: UnpackedHypermediaId}) {
   const collaboratorId = hmId(capability.accountUid)
   const resource = useResource(collaboratorId)
   const linkProps = useRouteLink({key: 'document', id: collaboratorId})
 
-  const metadata =
-    resource.data?.type === 'document'
-      ? resource.data.document?.metadata
-      : undefined
+  const metadata = resource.data?.type === 'document' ? resource.data.document?.metadata : undefined
   const isLoading = resource.isLoading
   const isParentCapability = capability.grantId.id !== docId.id
 
   return (
-    <a
-      {...linkProps}
-      className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors"
-    >
+    <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
       <HMIcon
         id={collaboratorId}
         name={isLoading ? undefined : metadata?.name}
@@ -241,12 +175,7 @@ function CollaboratorListItem({
 
 /** Full read-only collaborators content with data fetching */
 export function DocumentCollaborators({docId}: {docId: UnpackedHypermediaId}) {
-  const {
-    parentCapabilities,
-    grantedCapabilities,
-    publisherUid,
-    isInitialLoading,
-  } = useCollaboratorsData(docId)
+  const {parentCapabilities, grantedCapabilities, publisherUid, isInitialLoading} = useCollaboratorsData(docId)
 
   if (isInitialLoading) {
     return (

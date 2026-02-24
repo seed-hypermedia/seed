@@ -8,11 +8,7 @@ interface CommentDraft {
 }
 
 // Generate a unique key for storing drafts
-function getDraftKey(
-  docId: string,
-  replyCommentId?: string | null,
-  quotingBlockId?: string,
-): string {
+function getDraftKey(docId: string, replyCommentId?: string | null, quotingBlockId?: string): string {
   const parts = ['comment-draft', docId]
   if (replyCommentId) parts.push(`reply-${replyCommentId}`)
   if (quotingBlockId) parts.push(`quote-${quotingBlockId}`)
@@ -28,9 +24,7 @@ function cleanupOldDrafts() {
     const key = localStorage.key(i)
     if (key?.startsWith('comment-draft-')) {
       try {
-        const draft = JSON.parse(
-          localStorage.getItem(key) || '{}',
-        ) as CommentDraft
+        const draft = JSON.parse(localStorage.getItem(key) || '{}') as CommentDraft
 
         // Remove if older than 30 days
         if (draft.timestamp < thirtyDaysAgo) {
@@ -52,11 +46,7 @@ function cleanupOldDrafts() {
   keysToRemove.forEach((key) => localStorage.removeItem(key))
 }
 
-export function useCommentDraftPersistence(
-  docId: string,
-  replyCommentId?: string | null,
-  quotingBlockId?: string,
-) {
+export function useCommentDraftPersistence(docId: string, replyCommentId?: string | null, quotingBlockId?: string) {
   const draftKey = getDraftKey(docId, replyCommentId, quotingBlockId)
   const [draft, setDraftState] = useState<CommentDraft | null>(null)
   const [isLoading, setIsLoading] = useState(true)

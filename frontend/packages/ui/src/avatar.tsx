@@ -31,15 +31,7 @@ const Identicon = memo((props: {value: string; size: number}) => {
     }
   }, [props.value, props.size])
 
-  return (
-    <svg
-      data-jdenticon-value={props.value}
-      height={props.size}
-      width={props.size}
-      ref={icon}
-      {...props}
-    />
-  )
+  return <svg data-jdenticon-value={props.value} height={props.size} width={props.size} ref={icon} {...props} />
 })
 
 export type UIAvatarProps = {
@@ -53,14 +45,7 @@ export type UIAvatarProps = {
   | {url: string; id?: string}
 )
 
-export function UIAvatar({
-  url,
-  id,
-  label,
-  size = 20,
-  onPress,
-  className,
-}: UIAvatarProps) {
+export function UIAvatar({url, id, label, size = 20, onPress, className}: UIAvatarProps) {
   let text = label ? label[0] : id ? id[0] : '?'
 
   return (

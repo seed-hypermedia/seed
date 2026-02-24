@@ -8,12 +8,9 @@ import {HyperMediaEditorView} from '@/components/editor'
 import {OptionsPanel} from '@/components/options-panel'
 import PublishDraftButton from '@/components/publish-draft-button'
 import {subscribeDraftFocus} from '@/draft-focusing'
-import {
-  useAllDocumentCapabilities,
-  useSelectedAccountCapability,
-} from '@/models/access-control'
+import {useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
-import {useDraftEditor, useSiteNavigationItems} from '@/models/documents'
+import {useDeleteDraft, useDraftEditor, useSiteNavigationItems} from '@/models/documents'
 import {draftMachine, DraftMachineState} from '@/models/draft-machine'
 import {draftEditId, draftLocationId} from '@/models/drafts'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
@@ -23,16 +20,13 @@ import {useSelectedAccount} from '@/selected-account'
 import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {handleDragMedia} from '@/utils/media-drag'
+import {clearNavigationGuard, setNavigationGuard} from '@/utils/navigation-container'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {BlockNoteEditor} from '@shm/editor/blocknote'
 import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import '@shm/editor/editor.css'
-import {
-  chromiumSupportedImageMimeTypes,
-  chromiumSupportedVideoMimeTypes,
-  generateBlockId,
-} from '@shm/editor/utils'
+import {chromiumSupportedImageMimeTypes, chromiumSupportedVideoMimeTypes, generateBlockId} from '@shm/editor/utils'
 import {CommentsProvider} from '@shm/shared/comments-service-provider'
 import {
   HMDocument,
@@ -42,11 +36,7 @@ import {
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {
-  useDirectory,
-  useResource,
-  useResources,
-} from '@shm/shared/models/entity'
+import {useCapabilities, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {DraftRoute} from '@shm/shared/routes'
 import {useRouteLink} from '@shm/shared/routing'
@@ -57,13 +47,14 @@ import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {PanelContent} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
 import {DocumentCollaborators} from '@shm/ui/collaborators-page'
+import {AlertDialog, AlertDialogContent, AlertDialogFooter, AlertDialogTitle} from '@shm/ui/components/alert-dialog'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DirectoryPanel} from '@shm/ui/directory-panel'
 import {DocumentTools} from '@shm/ui/document-tools'
 import {Feed} from '@shm/ui/feed'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {HistoryIcon, Home, Trash} from '@shm/ui/icons'
+import {Home, Undo} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {DocNavigationItem} from '@shm/ui/navigation'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
@@ -77,7 +68,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {useMutation} from '@tanstack/react-query'
 import {useSelector} from '@xstate/react'
-import {Eye, Folder, Settings} from 'lucide-react'
+import {Eye, Settings} from 'lucide-react'
 import {Selection} from 'prosemirror-state'
 import {MouseEvent, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
@@ -96,8 +87,7 @@ export default function DraftPage() {
     if (route.key != 'draft') return undefined
     // @ts-expect-error
     if (data?.locationId) return data.locationId
-    if (route.locationUid)
-      return hmId(route.locationUid, {path: route.locationPath})
+    if (route.locationUid) return hmId(route.locationUid, {path: route.locationPath})
     if (data?.locationUid)
       return hmId(data.locationUid, {
         path: data.locationPath,
@@ -137,23 +127,14 @@ export default function DraftPage() {
   }, [locationId, editId])
 
   const homeEntity = useResource(homeId)
-  const homeDocument =
-    homeEntity.data?.type === 'document' ? homeEntity.data.document : undefined
+  const homeDocument = homeEntity.data?.type === 'document' ? homeEntity.data.document : undefined
 
-  const draftPanelOptions = [
-    'options',
-    'activity',
-    'discussions',
-    'collaborators',
-    'directory',
-  ] as const
+  const draftPanelOptions = ['options', 'activity', 'discussions', 'collaborators', 'directory'] as const
 
   useListenAppEvent('toggle_accessory', (event) => {
     const targetKey = draftPanelOptions[event.index]
     if (!targetKey) return
-    const id = route.editUid
-      ? hmId(route.editUid, {path: route.editPath})
-      : undefined
+    const id = route.editUid ? hmId(route.editUid, {path: route.editPath}) : undefined
     if (!id) return
     if (panelKey === targetKey) {
       replace({...route, panel: null})
@@ -205,14 +186,9 @@ export default function DraftPage() {
         //   console.log(node, pos)
         // })
         // From debugging positions, the last node is always resolved at position doc.content.size - 4, but it is possible to add exact position by calling doc.descendants
-        ttEditor.commands.setTextSelection(
-          editorView.state.doc.content.size - 4,
-        )
+        ttEditor.commands.setTextSelection(editorView.state.doc.content.size - 4)
         ttEditor.commands.focus()
-      } else
-        console.warn(
-          'No position found within the editor for the given mouse coordinates.',
-        )
+      } else console.warn('No position found within the editor for the given mouse coordinates.')
     }
   }
 
@@ -222,21 +198,55 @@ export default function DraftPage() {
   const headerDocId = headerDocIdRef.current
 
   // Layout: useDocumentLayout lives here so elementRef can wrap PanelLayout (matching resource-page-common.tsx)
-  const showOutline =
-    typeof state.context.metadata.showOutline == 'undefined' ||
-    state.context.metadata.showOutline
+  const showOutline = typeof state.context.metadata.showOutline == 'undefined' || state.context.metadata.showOutline
 
-  const {
-    showSidebars,
-    elementRef,
-    showCollapsed,
-    mainContentProps,
-    sidebarProps,
-    wrapperProps,
-  } = useDocumentLayout({
+  const {showSidebars, elementRef, showCollapsed, mainContentProps, sidebarProps, wrapperProps} = useDocumentLayout({
     contentWidth: state.context.metadata.contentWidth || 'M',
     showSidebars: showOutline && !isEditingHomeDoc,
   })
+
+  // Navigation guard: prompt user when navigating away from a draft that exists
+  const draftId = route.id
+  const draft = useDraft(draftId)
+  const [pendingProceed, setPendingProceed] = useState<(() => void) | null>(null)
+  const deleteDraft = useDeleteDraft()
+
+  useEffect(() => {
+    setNavigationGuard((action, proceed) => {
+      // Don't block if draft doesn't exist yet
+      if (!draft.data) return true
+      // Allow same-draft navigation (panel changes, etc.)
+      if ('route' in action) {
+        const targetRoute = (action as {route: any}).route
+        if (targetRoute.key === 'draft' && targetRoute.id === draftId) {
+          return true
+        }
+      }
+      // Block and show dialog
+      setPendingProceed(() => proceed)
+      return false
+    })
+
+    return () => clearNavigationGuard()
+  }, [draftId, draft.data])
+
+  const handleLeaveDraftDiscard = () => {
+    if (pendingProceed && draftId) {
+      const proceed = pendingProceed
+      setPendingProceed(null)
+      deleteDraft.mutate(draftId, {
+        onSettled: () => proceed(),
+      })
+    }
+  }
+
+  const handleLeaveDraftSave = () => {
+    if (pendingProceed) {
+      const proceed = pendingProceed
+      setPendingProceed(null)
+      proceed()
+    }
+  }
 
   const panelContent = panelKey ? (
     <ScrollArea className="flex-1">
@@ -272,26 +282,17 @@ export default function DraftPage() {
           toast.error('Not implemented draft CommentsProvider onReplyClick')
         }}
         onReplyCountClick={() => {
-          toast.error(
-            'Not implemented draft CommentsProvider onReplyCountClick',
-          )
+          toast.error('Not implemented draft CommentsProvider onReplyCountClick')
         }}
       >
-        <div
-          className={cn(
-            panelContainerStyles,
-            'dark:bg-background flex h-full flex-col bg-white',
-          )}
-        >
+        <div className={cn(panelContainerStyles, 'dark:bg-background flex h-full flex-col bg-white')}>
           {headerDocId ? (
             <DraftAppHeader
               siteHomeEntity={homeEntity.data}
               isEditingHomeDoc={isEditingHomeDoc}
               docId={headerDocId}
               document={homeDocument}
-              draftMetadata={
-                isEditingHomeDoc ? state.context.metadata : undefined
-              }
+              draftMetadata={isEditingHomeDoc ? state.context.metadata : undefined}
               onDocNav={(navigation) => {
                 send({
                   type: 'change.navigation',
@@ -301,19 +302,12 @@ export default function DraftPage() {
               actor={actor}
             />
           ) : null}
-          <div
-            ref={elementRef}
-            className="relative flex flex-1 flex-col overflow-hidden"
-          >
+          <div ref={elementRef} className="relative flex flex-1 flex-col overflow-hidden">
             <PanelLayout
               panelKey={panelKey ?? null}
               panelContent={panelContent}
               onPanelClose={handlePanelClose}
-              filterEventType={
-                route.panel?.key === 'activity'
-                  ? route.panel.filterEventType
-                  : undefined
-              }
+              filterEventType={route.panel?.key === 'activity' ? route.panel.filterEventType : undefined}
               onFilterChange={handleFilterChange}
             >
               <DraftRebaseBanner />
@@ -336,6 +330,18 @@ export default function DraftPage() {
           </div>
         </div>
       </CommentsProvider>
+      <AlertDialog open={!!pendingProceed}>
+        <AlertDialogContent>
+          <AlertDialogTitle>Leave Draft?</AlertDialogTitle>
+          <p className="text-muted-foreground text-sm">Do you want to save your draft before leaving?</p>
+          <AlertDialogFooter>
+            <Button variant="destructive" onClick={handleLeaveDraftDiscard}>
+              Discard
+            </Button>
+            <Button onClick={handleLeaveDraftSave}>Save</Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </ErrorBoundary>
   )
 }
@@ -399,11 +405,16 @@ function DraftPanelContent({
         />
       ) : null
     case 'discussions':
-      return route.panel?.key === 'discussions' && docId ? (
-        <DiscussionsPanel
-          docId={docId}
-          selection={{...route.panel, id: route.panel.id ?? docId}}
-        />
+      if (!docId) return null
+      if (isEditingHomeDoc) {
+        return (
+          <PanelContent>
+            <Feed size="sm" filterResource={`${docId.id}*`} filterEventType={['Comment']} />
+          </PanelContent>
+        )
+      }
+      return route.panel?.key === 'discussions' ? (
+        <DiscussionsPanel docId={docId} selection={{...route.panel, id: route.panel.id ?? docId}} />
       ) : null
     case 'activity':
       return (
@@ -411,11 +422,7 @@ function DraftPanelContent({
           <Feed
             size="sm"
             filterResource={docId?.id}
-            filterEventType={
-              route.panel?.key === 'activity'
-                ? route.panel.filterEventType || []
-                : []
-            }
+            filterEventType={route.panel?.key === 'activity' ? route.panel.filterEventType || [] : []}
           />
         </PanelContent>
       )
@@ -499,12 +506,7 @@ function DocumentEditor({
       return hmId(draftQuery.data.editUid, {path: draftQuery.data.editPath})
     }
     return undefined
-  }, [
-    route.editUid,
-    route.editPath,
-    draftQuery.data?.editUid,
-    draftQuery.data?.editPath,
-  ])
+  }, [route.editUid, route.editPath, draftQuery.data?.editUid, draftQuery.data?.editPath])
 
   // Breadcrumbs: compute parent paths from editId (existing doc) or id (new doc location)
   const breadcrumbParentIds = useMemo(() => {
@@ -531,8 +533,12 @@ function DocumentEditor({
   // Only fetch interaction summary for existing documents being edited, not new drafts.
   const interactionSummary = useInteractionSummary(editId)
 
-  const {data: collaborators} = useAllDocumentCapabilities(id)
+  const {data: collaborators} = useCapabilities(id)
   const directory = useChildrenActivity(id)
+
+  // Track when DocumentTools becomes sticky
+  const [isToolsSticky, setIsToolsSticky] = useState(false)
+  const toolsSentinelRef = useRef<HTMLDivElement>(null)
 
   const documentTools = editId ? (
     <DocumentTools
@@ -549,10 +555,6 @@ function DocumentEditor({
       }}
     />
   ) : null
-
-  // Track when DocumentTools becomes sticky
-  const [isToolsSticky, setIsToolsSticky] = useState(false)
-  const toolsSentinelRef = useRef<HTMLDivElement>(null)
 
   // @ts-expect-error
   const isEditing = state.matches('editing')
@@ -611,8 +613,8 @@ function DocumentEditor({
         {/* Floating action buttons - fade when tools are sticky */}
         <div
           className={cn(
-            'absolute top-4 right-4 z-20 flex items-center gap-1 rounded-sm transition-opacity',
-            isToolsSticky ? 'pointer-events-none opacity-0' : 'opacity-100',
+            'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
+            // isToolsSticky ? 'pointer-events-none opacity-0' : 'opacity-100',
           )}
           onClick={(e) => e.stopPropagation()}
         >
@@ -632,16 +634,8 @@ function DocumentEditor({
           {/* Title section - centered using wrapperProps layout */}
           {!isHomeDoc ? (
             <div {...wrapperProps} className={cn(wrapperProps.className)}>
-              {showSidebars && (
-                <div
-                  {...sidebarProps}
-                  className={cn(sidebarProps.className, '!h-auto')}
-                />
-              )}
-              <div
-                {...mainContentProps}
-                className={cn(mainContentProps.className, 'flex flex-col')}
-              >
+              {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
+              <div {...mainContentProps} className={cn(mainContentProps.className, 'flex flex-col')}>
                 <DraftMetadataEditor
                   draftActor={actor}
                   onEnter={() => {
@@ -655,13 +649,7 @@ function DocumentEditor({
                 />
               </div>
               {showSidebars && (
-                <div
-                  {...sidebarProps}
-                  className={cn(
-                    sidebarProps.className,
-                    'pointer-events-none !h-auto',
-                  )}
-                />
+                <div {...sidebarProps} className={cn(sidebarProps.className, 'pointer-events-none !h-auto')} />
               )}
             </div>
           ) : null}
@@ -704,11 +692,7 @@ function DocumentEditor({
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="sticky top-12 mt-4">
-                    <DocNavigationDraftLoader
-                      showCollapsed={showCollapsed}
-                      id={id}
-                      editor={editor}
-                    />
+                    <DocNavigationDraftLoader showCollapsed={showCollapsed} id={id} editor={editor} />
                   </div>
                 </div>
               ) : null}
@@ -721,9 +705,7 @@ function DocumentEditor({
                     e.stopPropagation()
                   }}
                 >
-                  {editor ? (
-                    <HyperMediaEditorView editor={editor} openUrl={openUrl} />
-                  ) : null}
+                  {editor ? <HyperMediaEditorView editor={editor} openUrl={openUrl} /> : null}
                 </Container>
               </div>
               {showSidebars ? <div {...sidebarProps} /> : null}
@@ -793,9 +775,7 @@ function DocumentEditor({
       return
     }
 
-    const urls = Array.from(
-      new Set(dataTransfer?.getData('text/plain')?.split('\n') || []),
-    ).map((u) => u.trim())
+    const urls = Array.from(new Set(dataTransfer?.getData('text/plain')?.split('\n') || [])).map((u) => u.trim())
 
     urls.forEach((url) => {
       if (url.startsWith('http://') || url.startsWith('https://')) {
@@ -888,9 +868,7 @@ function DraftAppHeader({
     actor,
     (s: DraftMachineState) => s.context.navigation,
   )
-  const navItems = useSiteNavigationItems(siteHomeEntity)?.filter(
-    (item) => !item.draftId,
-  )
+  const navItems = useSiteNavigationItems(siteHomeEntity)?.filter((item) => !item.draftId)
   const displayNavItems =
     currentDocNav !== undefined && isEditingHomeDoc
       ? currentDocNav.map((navItem: HMNavigationItem): DocNavigationItem => {
@@ -914,8 +892,7 @@ function DraftAppHeader({
       document={document}
       draftMetadata={draftMetadata}
       isCenterLayout={
-        draftMetadata?.theme?.headerLayout === 'Center' ||
-        draftMetadata?.layout === 'Seed/Experimental/Newspaper'
+        draftMetadata?.theme?.headerLayout === 'Center' || draftMetadata?.layout === 'Seed/Experimental/Newspaper'
       }
       editNavPane={
         isEditingHomeDoc ? (
@@ -961,8 +938,7 @@ function DraftMetadataEditor({
   breadcrumbs?: Array<{id: UnpackedHypermediaId; metadata: HMMetadata | null}>
 }) {
   const route = useNavRoute()
-  if (route.key !== 'draft')
-    throw new Error('DraftHeader must have draft route')
+  if (route.key !== 'draft') throw new Error('DraftHeader must have draft route')
 
   const [showIcon, setShowIcon] = useState(false)
 
@@ -1045,9 +1021,7 @@ function DraftMetadataEditor({
         }}
       >
         <div className="group-header z-1 flex flex-col gap-4">
-          {breadcrumbs && breadcrumbs.length > 0 ? (
-            <DraftBreadcrumbs breadcrumbs={breadcrumbs} />
-          ) : null}
+          {breadcrumbs && breadcrumbs.length > 0 ? <DraftBreadcrumbs breadcrumbs={breadcrumbs} /> : null}
           {visibility === 'PRIVATE' && <PrivateBadge />}
           <textarea
             disabled={disabled}
@@ -1068,8 +1042,7 @@ function DraftMetadataEditor({
               let newName = e.target.value
               // Replace two hyphens with a long dash
               if (name && newName.length > name.length) {
-                const isHyphen =
-                  name.slice(-1) === '-' && newName.slice(-1) === '-'
+                const isHyphen = name.slice(-1) === '-' && newName.slice(-1) === '-'
                 if (isHyphen) newName = newName.slice(0, -2) + '—'
               }
 
@@ -1101,8 +1074,7 @@ function DraftMetadataEditor({
               let newSummary = e.target.value
               // Replace two hyphens with a long dash
               if (summary && newSummary.length > summary.length) {
-                const isHyphen =
-                  summary.slice(-1) === '-' && newSummary.slice(-1) === '-'
+                const isHyphen = summary.slice(-1) === '-' && newSummary.slice(-1) === '-'
                 if (isHyphen) newSummary = newSummary.slice(0, -2) + '—'
               }
 
@@ -1134,8 +1106,7 @@ function DraftCover({
   setShowOutline?: (show: boolean) => void
 }) {
   const route = useNavRoute()
-  if (route.key !== 'draft')
-    throw new Error('DraftHeader must have draft route')
+  if (route.key !== 'draft') throw new Error('DraftHeader must have draft route')
 
   const cover = useSelector(draftActor, (s) => {
     return s.context.metadata.cover
@@ -1216,66 +1187,46 @@ function applyInputResize(target: HTMLTextAreaElement) {
 function DraftActionButtons({route}: {route: DraftRoute}) {
   const selectedAccount = useSelectedAccount()
   const replace = useNavigate('replace')
-  const push = useNavigate('push')
   const dispatch = useNavigationDispatch()
   const draftId = route.id
   const draft = useDraft(draftId)
   const editId = draftEditId(draft.data)
   const locationId = draftLocationId(draft.data)
-  const editIdWriteCap = useSelectedAccountCapability(
-    editId || locationId,
-    'writer',
-  )
+  const editIdWriteCap = useSelectedAccountCapability(editId || locationId, 'writer')
   const deleteDialog = useDeleteDraftDialog()
 
-  const targetId = editId || locationId
   const menuItems: MenuItemType[] = [
     {
+      key: 'options',
+      label: 'Document Options',
+      icon: <Settings className="size-4" />,
+      onClick: () => {
+        replace({
+          ...route,
+          panel: route.panel?.key === 'options' ? null : {key: 'options'},
+        })
+      },
+    },
+    {
       key: 'delete-draft',
-      label: 'Delete Draft',
-      icon: <Trash className="size-4" />,
+      label: 'Discard Changes',
+      icon: <Undo className="size-4" />,
       variant: 'destructive',
       onClick: () => {
         if (draftId) {
           deleteDialog.open({
             draftId,
             onSuccess: () => {
+              clearNavigationGuard()
               dispatch({type: 'closeBack'})
             },
           })
         } else {
+          clearNavigationGuard()
           dispatch({type: 'closeBack'})
         }
       },
     },
-    ...(targetId
-      ? [
-          {
-            key: 'versions',
-            label: 'Document Versions',
-            icon: <HistoryIcon className="size-4" />,
-            onClick: () => {
-              replace({
-                key: 'document',
-                id: targetId,
-                panel: {
-                  key: 'activity',
-                  id: targetId,
-                  filterEventType: ['Ref'],
-                },
-              } as any)
-            },
-          },
-          {
-            key: 'directory',
-            label: 'Directory',
-            icon: <Folder className="size-4" />,
-            onClick: () => {
-              push({key: 'directory', id: targetId})
-            },
-          },
-        ]
-      : []),
   ]
 
   if (!selectedAccount?.id) return null
@@ -1283,9 +1234,7 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
     return (
       <div className="flex items-center gap-2">
         <SizableText size="sm">
-          <span className="font-bold">
-            {selectedAccount?.document?.metadata.name}
-          </span>
+          <span className="font-bold">{selectedAccount?.document?.metadata.name}</span>
           {' - '}
           Not Allowed to Publish Here
         </SizableText>
@@ -1313,29 +1262,6 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
           </Button>
         </Tooltip>
       ) : null}
-      <Tooltip content="Toggle Draft Options">
-        <Button
-          className="hover:bg-hover dark:bg-background bg-white"
-          onClick={() => {
-            replace({
-              ...route,
-              panel:
-                route.key == 'draft' && route.panel?.key == 'options'
-                  ? null
-                  : {key: 'options'},
-            })
-          }}
-        >
-          <Settings
-            className={cn(
-              'size-4',
-              route.key == 'draft' &&
-                route.panel?.key == 'options' &&
-                'text-brand',
-            )}
-          />
-        </Button>
-      </Tooltip>
       <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />
       {deleteDialog.content}
     </div>
@@ -1361,24 +1287,14 @@ function DraftBreadcrumbs({
           <SizableText color="muted" key={`${crumb.id.id}-slash`} size="xs">
             /
           </SizableText>,
-          <DraftBreadcrumbLink
-            id={crumb.id}
-            metadata={crumb.metadata}
-            key={crumb.id.id}
-          />,
+          <DraftBreadcrumbLink id={crumb.id} metadata={crumb.metadata} key={crumb.id.id} />,
         ]
       })}
     </div>
   )
 }
 
-function DraftBreadcrumbLink({
-  id,
-  metadata,
-}: {
-  id: UnpackedHypermediaId
-  metadata: HMMetadata | null
-}) {
+function DraftBreadcrumbLink({id, metadata}: {id: UnpackedHypermediaId; metadata: HMMetadata | null}) {
   const linkProps = useRouteLink({key: 'document', id})
   return (
     <a

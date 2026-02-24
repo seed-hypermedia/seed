@@ -11,10 +11,8 @@ const inputVariants = cva(
   {
     variants: {
       variant: {
-        default:
-          'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
-        unstyled:
-          'focus-visible:border-transparent focus-visible:ring-[3px] focus-visible:ring-transparent',
+        default: 'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+        unstyled: 'focus-visible:border-transparent focus-visible:ring-[3px] focus-visible:ring-transparent',
       },
     },
     defaultVariants: {
@@ -24,10 +22,7 @@ const inputVariants = cva(
 )
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  (
-    {className, type, onChangeText, onChange, variant = 'default', ...props},
-    ref,
-  ) => {
+  ({className, type, onChangeText, onChange, variant = 'default', ...props}, ref) => {
     return (
       <input
         ref={ref}

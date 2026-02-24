@@ -2,22 +2,14 @@ import {grpcClient} from '@/grpc-client'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {Role} from '@shm/shared/client/.generated/documents/v3alpha/access_control_pb'
 import {BIG_INT} from '@shm/shared/constants'
-import {
-  HMCapability,
-  HMResourceFetchResult,
-  HMRole,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
-import {useResources} from '@shm/shared/models/entity'
+import {HMCapability, HMResourceFetchResult, HMRole, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useCapabilities, useResources} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId, isPathParentOfOrEqual} from '@shm/shared/utils/entity-id-url'
-import {
-  entityQueryPathToHmIdPath,
-  hmIdPathToEntityQueryPath,
-} from '@shm/shared/utils/path-api'
+import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {toast} from '@shm/ui/toast'
-import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
+import {useMutation, useQueries} from '@tanstack/react-query'
 import {useMyAccountIds} from './daemon'
 
 export function useAddCapabilities(id: UnpackedHypermediaId) {
@@ -46,8 +38,8 @@ export function useAddCapabilities(id: UnpackedHypermediaId) {
       )
     },
     onSuccess: (data, {collaboratorAccountIds: count}) => {
-      toast.success(`Capabilit${count?.length > 1 ? 'ies' : 'y'} added`),
-        invalidateQueries([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
+      toast.success(`Capabilit${count?.length > 1 ? 'ies' : 'y'} added`)
+      invalidateQueries([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
     },
   })
 }
@@ -86,11 +78,10 @@ function useAccountsCapabilities(accountIds: string[]) {
     queries: accountIds.map((accountId) => ({
       queryKey: [queryKeys.ACCOUNT_CAPABILITIES, accountId],
       queryFn: async () => {
-        const result =
-          await grpcClient.accessControl.listCapabilitiesForDelegate({
-            delegate: accountId,
-            pageSize: BIG_INT,
-          })
+        const result = await grpcClient.accessControl.listCapabilitiesForDelegate({
+          delegate: accountId,
+          pageSize: BIG_INT,
+        })
 
         return {
           accountId,
@@ -124,9 +115,7 @@ export type HMWritableDocument = {
 
 export function useSelectedAccountWritableDocuments(): HMWritableDocument[] {
   const selectedAccountId = useSelectedAccountId()
-  const accountsCaps = useAccountsCapabilities(
-    selectedAccountId ? [selectedAccountId] : [],
-  )
+  const accountsCaps = useAccountsCapabilities(selectedAccountId ? [selectedAccountId] : [])
   const writableDocumentIds: UnpackedHypermediaId[] = []
   function addWritableId(id: UnpackedHypermediaId) {
     // if writableDocumentIds already has this id, don't add it
@@ -187,7 +176,7 @@ export function useSelectedAccountCapability(
   minimumRole: HMRole = 'writer',
 ): HMCapability | null {
   const selectedAccount = useSelectedAccount()
-  const capabilities = useAllDocumentCapabilities(id)
+  const capabilities = useCapabilities(id)
   if (!id) return null
   if (selectedAccount?.id.uid === id.uid) {
     // owner is the highest role so we don't need to check for minimumRole
@@ -213,13 +202,10 @@ export function useSelectedAccountCapability(
   return myCapability || null
 }
 
-export function useMyCapability(
-  id?: UnpackedHypermediaId,
-  minimumRole: HMRole = 'writer',
-): HMCapability | null {
+export function useMyCapability(id?: UnpackedHypermediaId, minimumRole: HMRole = 'writer'): HMCapability | null {
   if (!id) return null
   const myAccounts = useMyAccountIds()
-  const capabilities = useAllDocumentCapabilities(id)
+  const capabilities = useCapabilities(id)
   if (myAccounts.data?.indexOf(id.uid) !== -1) {
     // owner is the highest role so we don't need to check for minimumRole
     return {
@@ -239,9 +225,7 @@ export function useMyCapability(
       return isGreaterOrEqualRole(minimumRole, cap.role)
     })
     .find((cap) => {
-      return !!myAccounts.data?.find(
-        (myAccountUid) => myAccountUid === cap.accountUid,
-      )
+      return !!myAccounts.data?.find((myAccountUid) => myAccountUid === cap.accountUid)
     })
   return myCapability || null
 }
@@ -251,7 +235,7 @@ export function useSelectedAccountCapabilities(
   minimumRole: HMRole = 'writer',
 ): HMCapability[] {
   if (!id) return []
-  const capabilities = useAllDocumentCapabilities(id)
+  const capabilities = useCapabilities(id)
   const selectedAccount = useSelectedAccount()
 
   const ownerCap: HMCapability[] =
@@ -280,62 +264,13 @@ export function useSelectedAccountCapabilities(
   return [...ownerCap, ...myCapabilities]
 }
 
-export function useMyAccountsWithWriteAccess(
-  id: UnpackedHypermediaId | undefined | null,
-) {
+export function useMyAccountsWithWriteAccess(id: UnpackedHypermediaId | undefined | null) {
   const myAccounts = useMyAccountIds()
-  const capabilities = useAllDocumentCapabilities(id)
+  const capabilities = useCapabilities(id)
 
   const myAccountIdsWithCapability = myAccounts.data?.filter((accountUid) => {
     return !!capabilities.data?.find((cap) => cap.accountUid === accountUid)
   })
-  const accountsWithCapabilities =
-    myAccountIdsWithCapability?.map((uid) => hmId(uid)) || []
+  const accountsWithCapabilities = myAccountIdsWithCapability?.map((uid) => hmId(uid)) || []
   return useResources(accountsWithCapabilities)
-}
-
-export function useAllDocumentCapabilities(
-  id: UnpackedHypermediaId | undefined | null,
-) {
-  return useQuery({
-    queryKey: [queryKeys.CAPABILITIES, id?.uid, ...(id?.path || [])],
-    queryFn: async () => {
-      if (!id) return []
-      const result = await grpcClient.accessControl.listCapabilities({
-        account: id.uid,
-        path: hmIdPathToEntityQueryPath(id.path),
-        pageSize: BIG_INT,
-      })
-      // Not sure why we do this deduplication here. It was here before ¯\_(ツ)_/¯.
-      const visitedCaps = new Set<string>()
-      const grantedCaps: HMCapability[] = []
-      for (const cap of result.capabilities) {
-        const key = `${cap.delegate}-${cap.role}`
-        if (visitedCaps.has(key)) continue
-        visitedCaps.add(key)
-        grantedCaps.push({
-          id: cap.id,
-          accountUid: cap.delegate,
-          grantId: hmId(cap.account, {
-            path: entityQueryPathToHmIdPath(cap.path),
-          }),
-          role: roleToHMRole(cap.role),
-          label: cap.label,
-          createTime: cap.createTime!,
-        })
-      }
-
-      return [
-        ...grantedCaps,
-        {
-          id: '_owner',
-          accountUid: id.uid,
-          grantId: hmId(id.uid),
-          role: 'owner',
-          label: 'Owner',
-          createTime: EMPTY_TIMESTAMP,
-        },
-      ] satisfies HMCapability[]
-    },
-  })
 }

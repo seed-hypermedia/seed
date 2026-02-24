@@ -28,8 +28,7 @@ function createFindInPageUI() {
 
   // Create container
   const container = document.createElement('div')
-  container.className =
-    'fixed inset-0 flex items-center justify-center gap-2 p-4'
+  container.className = 'fixed inset-0 flex items-center justify-center gap-2 p-4'
 
   // Create input wrapper
   const inputWrapper = document.createElement('div')
@@ -44,28 +43,24 @@ function createFindInPageUI() {
 
   // Create button container
   const buttonContainer = document.createElement('div')
-  buttonContainer.className =
-    'border-border bg-panel flex items-center overflow-hidden rounded-sm border'
+  buttonContainer.className = 'border-border bg-panel flex h-8 items-center overflow-hidden rounded-sm border'
 
   // Create up button
   const upButton = document.createElement('button')
   upButton.type = 'button'
-  upButton.className =
-    'flex size-8 items-center justify-center text-foreground hover:bg-muted'
+  upButton.className = 'flex size-8 items-center justify-center text-foreground hover:bg-muted'
   upButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>`
 
   // Create down button
   const downButton = document.createElement('button')
   downButton.type = 'button'
-  downButton.className =
-    'flex size-8 items-center justify-center text-foreground hover:bg-muted'
+  downButton.className = 'flex size-8 items-center justify-center text-foreground hover:bg-muted'
   downButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`
 
   // Create close button
   const closeButton = document.createElement('button')
   closeButton.type = 'button'
-  closeButton.className =
-    'flex size-8 items-center justify-center text-foreground hover:bg-muted'
+  closeButton.className = 'flex size-8 items-center justify-center text-foreground hover:bg-muted'
   closeButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`
 
   // State

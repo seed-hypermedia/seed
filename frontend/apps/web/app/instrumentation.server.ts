@@ -92,11 +92,7 @@ export function endSpan(ctx: InstrumentationContext): void {
  * handle parallel operations (Promise.all). Each parallel span becomes a sibling
  * rather than nesting incorrectly.
  */
-export async function instrument<T>(
-  ctx: InstrumentationContext,
-  name: string,
-  fn: () => Promise<T>,
-): Promise<T> {
+export async function instrument<T>(ctx: InstrumentationContext, name: string, fn: () => Promise<T>): Promise<T> {
   if (!ctx.enabled) {
     return fn()
   }
@@ -129,11 +125,7 @@ export async function instrument<T>(
 /**
  * Wrap a sync function with instrumentation.
  */
-export function instrumentSync<T>(
-  ctx: InstrumentationContext,
-  name: string,
-  fn: () => T,
-): T {
+export function instrumentSync<T>(ctx: InstrumentationContext, name: string, fn: () => T): T {
   if (!ctx.enabled) {
     return fn()
   }
@@ -172,11 +164,7 @@ export function printInstrumentationSummary(ctx: InstrumentationContext): void {
   console.log('')
 }
 
-function printSpanTree(
-  spans: InstrumentationSpan[],
-  totalMs: number,
-  indent: string,
-): void {
+function printSpanTree(spans: InstrumentationSpan[], totalMs: number, indent: string): void {
   spans.forEach((span, index) => {
     const isLast = index === spans.length - 1
     const duration = (span.end || performance.now()) - span.start
@@ -243,10 +231,7 @@ export async function instrumentParallel<T>(
  * Run a function with instrumentation context available via AsyncLocalStorage.
  * Use this to wrap the entire request handler.
  */
-export function runWithInstrumentation<T>(
-  ctx: InstrumentationContext,
-  fn: () => T,
-): T {
+export function runWithInstrumentation<T>(ctx: InstrumentationContext, fn: () => T): T {
   return instrumentationStorage.run(ctx, fn)
 }
 
@@ -254,9 +239,7 @@ export function runWithInstrumentation<T>(
  * Get the current instrumentation context from AsyncLocalStorage.
  * Returns undefined if not in an instrumented context.
  */
-export function getInstrumentationContext():
-  | InstrumentationContext
-  | undefined {
+export function getInstrumentationContext(): InstrumentationContext | undefined {
   return instrumentationStorage.getStore()
 }
 
@@ -264,10 +247,7 @@ export function getInstrumentationContext():
  * Store the context for SSR phase access.
  * This is called from the loader to make context available to entry.server.
  */
-export function setRequestInstrumentationContext(
-  requestUrl: string,
-  ctx: InstrumentationContext,
-): void {
+export function setRequestInstrumentationContext(requestUrl: string, ctx: InstrumentationContext): void {
   if (!isInstrumentationEnabled()) return
   requestContextMap.set(requestUrl, ctx)
 }
@@ -275,9 +255,7 @@ export function setRequestInstrumentationContext(
 /**
  * Get context for SSR phase.
  */
-export function getRequestInstrumentationContext(
-  requestUrl: string,
-): InstrumentationContext | undefined {
+export function getRequestInstrumentationContext(requestUrl: string): InstrumentationContext | undefined {
   return requestContextMap.get(requestUrl)
 }
 

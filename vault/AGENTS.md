@@ -103,6 +103,7 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 - Don't use relative imports outside the current directory. Don't import from `../../../something` — use workspace imports.
 - When asked to fix bugs, always try to write a test that fails to reproduce the bug before fixing it. Unless asked otherwise.
 - When finished coding run `bun run biome check --write` and `bun run check` to ensure the code doesn't raise any issues.
+- Never suppress biome warnings with `biome-ignore` just to avoid fixing them. Only suppress when the warning is genuinely a false positive and add a meaningful justification.
 - We use `tsgo` for typechecking, and `biome` for formatting and linting.
 - Prefer whole module imports (aka namespace imports, e.g. `import * as X from "x"`) over very granular imports for individual symbols with destructuring.
   - It's OK to use import destructuring for common third-party libraries like React, e.g. when importing hooks, but for our own code, prefer namespace imports.
@@ -115,5 +116,15 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 - Avoid global state. Prefer dependency injection. Can only use global state at the very top layer of the application.
 - Make sure to remove rambling "stream of consciousness" (a.k.a. thinking out loud) comments in the final code.
 - Prefer broader integration-style tests. Avoid excessive mocking.
+- Test actual implementation, do not duplicate logic into tests.
+- When extracting code to a new module, update all call sites directly. Don't leave re-exports in the old module as "backward compatibility" — this creates unnecessary indirection and confusion.
 - Consult files in `docs/` to see if there's anything relevant for your current job.
 - Flags are the primary way to configure this application, and they are the source of truth, with the benefit of being self-documenting. Environment variables are layered on top of flags. See @src/config.ts for how configuration is managed.
+- Avoid unnecessary destructuring. Use dot notation to preserve context.
+- Avoid else statements. Prefer early returns.
+- Use the modern built-in API for base64 operations (always use url-safe variant):
+  - Encode: `bytes.toBase64({ alphabet: "base64url" })`.
+  - Decode: `Uint8Array.fromBase64(str, { alphabet: "base64url" })`.
+  - On the client-side, a polyfill already exists in `@/frontend/base64.ts` that checks for native support first and falls back to a manual implementation. Import as `import * as base64 from "@/frontend/base64"` and use `base64.encode`/`base64.decode` — never reimplement base64 logic.
+  - On the server (Bun), the native API is available directly.
+  - Never use `btoa`/`atob`, `Buffer`, or third-party base64 libraries directly.

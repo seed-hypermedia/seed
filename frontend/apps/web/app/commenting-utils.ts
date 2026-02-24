@@ -17,17 +17,11 @@ export function redirectToWebIdentityCommenting(
   } = {},
 ) {
   const url = new URL(`${WEB_IDENTITY_ORIGIN}/hm/comment`)
-  url.searchParams.set(
-    'target',
-    `${targetDocId.uid}${hmIdPathToEntityQueryPath(targetDocId.path)}`,
-  )
+  url.searchParams.set('target', `${targetDocId.uid}${hmIdPathToEntityQueryPath(targetDocId.path)}`)
   url.searchParams.set('targetVersion', targetDocId.version || '')
   url.searchParams.set('replyId', replyCommentId || '')
   url.searchParams.set('replyVersion', replyCommentVersion || '')
-  url.searchParams.set(
-    'rootReplyVersion',
-    rootReplyCommentVersion || replyCommentVersion || '',
-  )
+  url.searchParams.set('rootReplyVersion', rootReplyCommentVersion || replyCommentVersion || '')
   url.searchParams.set('quoteBlock', quotingBlockId || '')
   url.searchParams.set('originUrl', window.location.toString())
   window.open(url.toString(), '_blank')

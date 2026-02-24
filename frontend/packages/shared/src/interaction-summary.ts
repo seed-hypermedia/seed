@@ -32,12 +32,7 @@ export function processMentionsToCitations(
       if (!sourceId) return null
 
       // Map both Ref (document) and Comment types
-      const sourceType =
-        mention.sourceType === 'Ref'
-          ? 'd'
-          : mention.sourceType === 'Comment'
-          ? 'c'
-          : null
+      const sourceType = mention.sourceType === 'Ref' ? 'd' : mention.sourceType === 'Comment' ? 'c' : null
       if (!sourceType) return null
 
       const targetId = hmId(targetDocId.uid, {
@@ -117,9 +112,7 @@ export function calculateInteractionSummary(
   // Count distinct comment sources, not all comment citations
   // A single comment can cite multiple blocks, but should only count as one comment
   const uniqueCommentSources = new Set(
-    dedupedCitations
-      .filter((citation) => citation.source.type === 'c')
-      .map((citation) => citation.source.id.id),
+    dedupedCitations.filter((citation) => citation.source.type === 'c').map((citation) => citation.source.id.id),
   )
 
   return {

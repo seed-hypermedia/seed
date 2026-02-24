@@ -22,8 +22,7 @@ export function MaximizeOrRestoreButton() {
 
   if (isMaximized) {
     name = 'restore'
-    path =
-      'm 2,1e-5 0,2 -2,0 0,8 8,0 0,-2 2,0 0,-8 z m 1,1 6,0 0,6 -1,0 0,-5 -5,0 z m -2,2 6,0 0,6 -6,0 z'
+    path = 'm 2,1e-5 0,2 -2,0 0,8 8,0 0,-2 2,0 0,-8 z m 1,1 6,0 0,6 -1,0 0,-5 -5,0 z m -2,2 6,0 0,6 -6,0 z'
     cb = unmaximize
   } else {
     name = 'maximize'
@@ -38,12 +37,7 @@ export function MaximizeOrRestoreButton() {
 
   return (
     <ButtonWrapper aria-label={name} title={title} tabIndex={-1} onClick={cb}>
-      <svg
-        aria-hidden="true"
-        version="1.1"
-        viewBox="0 0 10 10"
-        className="size-2"
-      >
+      <svg aria-hidden="true" version="1.1" viewBox="0 0 10 10" className="size-2">
         <path fill="currentColor" d={path} />
       </svg>
     </ButtonWrapper>
@@ -55,13 +49,7 @@ export function MinimizeButton() {
 
   return (
     <ButtonWrapper aria-label="minize" tabIndex={-1} onClick={minimize}>
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 10 10"
-        width={10}
-        height={10}
-        className="size-3"
-      >
+      <svg aria-hidden="true" viewBox="0 0 10 10" width={10} height={10} className="size-3">
         <path fill="currentColor" d="M 0,5 10,5 10,6 0,6 Z" />
       </svg>
     </ButtonWrapper>

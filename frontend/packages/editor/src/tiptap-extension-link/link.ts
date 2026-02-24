@@ -48,17 +48,11 @@ declare module '@tiptap/core' {
       /**
        * Set a link mark
        */
-      setLink: (attributes: {
-        href: string
-        target?: string | null
-      }) => ReturnType
+      setLink: (attributes: {href: string; target?: string | null}) => ReturnType
       /**
        * Toggle a link mark
        */
-      toggleLink: (attributes: {
-        href: string
-        target?: string | null
-      }) => ReturnType
+      toggleLink: (attributes: {href: string; target?: string | null}) => ReturnType
       /**
        * Unset a link mark
        */
@@ -149,10 +143,7 @@ export const Link = Mark.create<LinkOptions>({
       setLink:
         (attributes) =>
         ({chain}) => {
-          return chain()
-            .setMark(this.name, attributes)
-            .setMeta('preventAutolink', true)
-            .run()
+          return chain().setMark(this.name, attributes).setMeta('preventAutolink', true).run()
         },
 
       toggleLink:
@@ -167,10 +158,7 @@ export const Link = Mark.create<LinkOptions>({
       unsetLink:
         () =>
         ({chain}) => {
-          return chain()
-            .unsetMark(this.name, {extendEmptyMarkRange: true})
-            .setMeta('preventAutolink', true)
-            .run()
+          return chain().unsetMark(this.name, {extendEmptyMarkRange: true}).setMeta('preventAutolink', true).run()
         },
     }
   },

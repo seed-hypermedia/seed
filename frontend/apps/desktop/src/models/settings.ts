@@ -10,8 +10,7 @@ export function useSystemThemeWriter() {
     queryFn: () => client.appSettings.getSetting.query('theme'),
   })
   const setThemeMutation = useMutation({
-    mutationFn: (input: {key: string; value: string}) =>
-      client.appSettings.setSetting.mutate(input),
+    mutationFn: (input: {key: string; value: string}) => client.appSettings.setSetting.mutate(input),
     onSuccess: () => {
       invalidateQueries([queryKeys.SETTINGS, 'theme'])
     },

@@ -2,33 +2,25 @@ import {useAppContext} from '@/app-context'
 import {BranchDialog} from '@/components/branch-dialog'
 import {AddCollaboratorForm} from '@/components/collaborators-panel'
 import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
-import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {CreateDocumentButton} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
+import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
 import {MoveDialog} from '@/components/move-dialog'
-import {
-  roleCanWrite,
-  useSelectedAccountCapability,
-} from '@/models/access-control'
+import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
+import {useChildDrafts, useCreateInlineDraft} from '@/models/documents'
 import {useExistingDraft} from '@/models/drafts'
-import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmId} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
-import {
-  CommentsProvider,
-  isRouteEqualToCommentTarget,
-} from '@shm/shared/comments-service-provider'
-import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
 import {HMBlockNode, HMComment} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
-import {displayHostname} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute, useNavigationDispatch} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
-import {Download, HistoryIcon, Link, Trash} from '@shm/ui/icons'
+import {Download, Trash} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {ResourcePage} from '@shm/ui/resource-page-common'
 import {SizableText} from '@shm/ui/text'
@@ -36,9 +28,9 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {Folder, ForwardIcon, GitFork, Pencil} from 'lucide-react'
+import {ForwardIcon, GitFork, Pencil} from 'lucide-react'
 import {nanoid} from 'nanoid'
-import {useCallback} from 'react'
+import {useCallback, useMemo, useState} from 'react'
 
 export default function DesktopResourcePage() {
   const route = useNavRoute()
@@ -46,13 +38,7 @@ export default function DesktopResourcePage() {
   const replace = useNavigate('replace')
 
   // Only handle document-related routes
-  const supportedKeys = [
-    'document',
-    'directory',
-    'collaborators',
-    'activity',
-    'discussions',
-  ]
+  const supportedKeys = ['document', 'directory', 'collaborators', 'activity', 'discussions']
   if (!supportedKeys.includes(route.key)) {
     throw new Error(`DesktopResourcePage: unsupported route ${route.key}`)
   }
@@ -70,22 +56,29 @@ export default function DesktopResourcePage() {
   // Get site URL for CreateDocumentButton
   const siteHomeResource = useResource(hmId(docId.uid), {subscribed: true})
   const siteUrl =
-    siteHomeResource.data?.type === 'document'
-      ? siteHomeResource.data.document?.metadata?.siteUrl
-      : undefined
+    siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document?.metadata?.siteUrl : undefined
 
   // Hooks for options dropdown
   const resource = useResource(docId)
-  const doc =
-    resource.data?.type === 'document' ? resource.data.document : undefined
+  const doc = resource.data?.type === 'document' ? resource.data.document : undefined
   const isPrivate = doc?.visibility === 'PRIVATE'
+
+  // Inline document creation
+  const childDrafts = useChildDrafts(docId)
+  const createInlineDraft = useCreateInlineDraft(docId)
+  const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)
+  const inlineCards = useMemo(() => {
+    if (!childDrafts.length) return null
+    return (
+      <div className="mt-6 grid grid-cols-1 gap-4 px-4 sm:grid-cols-2 lg:grid-cols-3">
+        {childDrafts.map((draft) => (
+          <InlineNewDocumentCard key={draft.id} draft={draft} autoFocus={draft.id === lastCreatedDraftId} />
+        ))}
+      </div>
+    )
+  }, [childDrafts, lastCreatedDraftId])
+
   const {exportDocument, openDirectory} = useAppContext()
-  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
-  const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
-  const [copySiteUrlContent, onCopySiteUrl] = useCopyReferenceUrl(
-    siteUrl || gwUrl,
-    siteUrl ? hmId(docId.uid) : undefined,
-  )
   const deleteEntity = useDeleteDialog()
   const branchDialog = useAppDialog(BranchDialog)
   const moveDialog = useAppDialog(MoveDialog)
@@ -100,22 +93,6 @@ export default function DesktopResourcePage() {
       onClick: () => moveDialog.open({id: docId}),
     })
   }
-
-  if (siteUrl) {
-    menuItems.push({
-      key: 'link-site',
-      label: `Copy ${displayHostname(siteUrl)} Link`,
-      icon: <Link className="size-4" />,
-      onClick: () => onCopySiteUrl(route),
-    })
-  }
-
-  menuItems.push({
-    key: 'link',
-    label: `Copy ${displayHostname(gwUrl)} Link`,
-    icon: <Link className="size-4" />,
-    onClick: () => onCopyGateway(route),
-  })
 
   menuItems.push({
     key: 'export',
@@ -135,8 +112,7 @@ export default function DesktopResourcePage() {
           toast.success(
             <div className="flex max-w-[700px] flex-col gap-1.5">
               <SizableText className="text-wrap break-all">
-                Successfully exported document &quot;{title}&quot; to:{' '}
-                <b>{`${res}`}</b>.
+                Successfully exported document &quot;{title}&quot; to: <b>{`${res}`}</b>.
               </SizableText>
               <SizableText
                 className="text-current underline"
@@ -164,28 +140,6 @@ export default function DesktopResourcePage() {
       onClick: () => branchDialog.open(docId),
     })
   }
-
-  menuItems.push({
-    key: 'versions',
-    label: 'Document Versions',
-    icon: <HistoryIcon className="size-4" />,
-    onClick: () => {
-      replace({
-        key: 'document',
-        id: docId,
-        panel: {key: 'activity', id: docId, filterEventType: ['Ref']},
-      })
-    },
-  })
-
-  menuItems.push({
-    key: 'directory',
-    label: 'Directory',
-    icon: <Folder className="size-4" />,
-    onClick: () => {
-      navigate({key: 'directory', id: docId})
-    },
-  })
 
   if (canEdit && docId.path?.length) {
     menuItems.push({
@@ -218,9 +172,7 @@ export default function DesktopResourcePage() {
         <Button
           size="sm"
           variant="outline"
-          className={cn(
-            existingDraft ? 'bg-yellow-200' : 'bg-background dark:bg-black',
-          )}
+          className={cn(existingDraft ? 'bg-yellow-200' : 'bg-background dark:bg-black')}
           onClick={() => {
             if (existingDraft) {
               navigate({
@@ -244,7 +196,20 @@ export default function DesktopResourcePage() {
         </Button>
       </Tooltip>
       {!isPrivate && (
-        <CreateDocumentButton locationId={docId} siteUrl={siteUrl} />
+        <CreateDocumentButton
+          locationId={docId}
+          siteUrl={siteUrl}
+          onInlineCreate={(opts) => {
+            createInlineDraft.mutate(
+              {visibility: opts?.visibility},
+              {
+                onSuccess: ({draftId}) => {
+                  setLastCreatedDraftId(draftId)
+                },
+              },
+            )
+          }}
+        />
       )}
     </>
   ) : null
@@ -327,14 +292,13 @@ export default function DesktopResourcePage() {
         <ResourcePage
           docId={docId}
           CommentEditor={CommentBox}
-          optionsMenuItems={menuItems}
+          extraMenuItems={menuItems}
           editActions={editActions}
           existingDraft={existingDraft}
           collaboratorForm={<AddCollaboratorForm id={docId} />}
+          inlineCards={inlineCards}
         />
       </CommentsProvider>
-      {copyGatewayContent}
-      {copySiteUrlContent}
       {deleteEntity.content}
       {branchDialog.content}
       {moveDialog.content}

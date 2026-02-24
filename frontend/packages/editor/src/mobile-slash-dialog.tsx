@@ -1,10 +1,5 @@
 import {Button} from '@shm/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@shm/ui/components/dialog'
+import {Dialog, DialogContent, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {X} from '@shm/ui/icons'
 import {SizableText} from '@shm/ui/text'
 import {BlockNoteEditor} from './blocknote/core'
@@ -17,11 +12,7 @@ interface MobileSlashDialogProps {
   editor: BlockNoteEditor<HMBlockSchema>
 }
 
-export function MobileSlashDialog({
-  isOpen,
-  onClose,
-  editor,
-}: MobileSlashDialogProps) {
+export function MobileSlashDialog({isOpen, onClose, editor}: MobileSlashDialogProps) {
   const slashMenuItems = getSlashMenuItems()
 
   const handleSelectBlockType = (item: any) => {
@@ -45,20 +36,12 @@ export function MobileSlashDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
-        className="h-full max-h-full w-full max-w-full rounded-none p-0"
-        showCloseButton={false}
-      >
+      <DialogContent className="h-full max-h-full w-full max-w-full rounded-none p-0" showCloseButton={false}>
         <div className="flex h-full flex-col">
           <DialogHeader className="border-b p-4">
             <div className="flex items-center justify-between">
               <DialogTitle>Insert Block</DialogTitle>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={onClose}
-                className="h-8 w-8"
-              >
+              <Button size="icon" variant="ghost" onClick={onClose} className="h-8 w-8">
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -69,11 +52,7 @@ export function MobileSlashDialog({
             {Object.entries(groupedItems).map(([groupName, items]) => (
               <div key={groupName} className="py-2">
                 {groupName && (
-                  <SizableText
-                    size="xs"
-                    weight="medium"
-                    className="text-muted-foreground px-4 py-2"
-                  >
+                  <SizableText size="xs" weight="medium" className="text-muted-foreground px-4 py-2">
                     {groupName}
                   </SizableText>
                 )}
@@ -92,10 +71,7 @@ export function MobileSlashDialog({
                         <div className="flex flex-col items-start">
                           <SizableText weight="medium">{item.name}</SizableText>
                           {item.hint && (
-                            <SizableText
-                              size="sm"
-                              className="text-muted-foreground"
-                            >
+                            <SizableText size="sm" className="text-muted-foreground">
                               {item.hint}
                             </SizableText>
                           )}

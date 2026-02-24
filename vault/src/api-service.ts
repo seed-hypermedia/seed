@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite"
+import * as base64 from "@shm/shared/base64"
 import * as webauthn from "@simplewebauthn/server"
 import * as challenge from "@/challenge"
 import type * as config from "@/config"
@@ -51,25 +52,6 @@ interface Challenge {
 	new_email: string | null
 	verified: number
 	expire_time: number
-}
-
-// ============================================================================
-// Crypto utilities
-// ============================================================================
-
-// Hardcoded Argon2 parameters (Bitwarden defaults).
-const DEFAULT_ARGON2_PARAMS = {
-	memoryCost: 65536,
-	timeCost: 3,
-	parallelism: 4,
-}
-
-function base64urlEncode(bytes: Uint8Array): string {
-	return bytes.toBase64({ alphabet: "base64url" })
-}
-
-function base64urlDecode(str: string): Uint8Array {
-	return Uint8Array.fromBase64(str, { alphabet: "base64url" })
 }
 
 function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
@@ -190,8 +172,8 @@ export class Service implements api.ServerInterface {
 		// Generate high-entropy token (256-bit) for the magic link.
 		const tokenBytes = new Uint8Array(32)
 		crypto.getRandomValues(tokenBytes)
-		const token = base64urlEncode(tokenBytes)
-		const tokenHash = base64urlEncode(sha256Hash(tokenBytes))
+		const token = base64.encode(tokenBytes)
+		const tokenHash = base64.encode(sha256Hash(tokenBytes))
 		const challengeId = sess.randomId()
 
 		// Clean up any existing registration challenges for this email.
@@ -289,9 +271,9 @@ export class Service implements api.ServerInterface {
 		}
 
 		// Verify the token by comparing its hash with the stored hash.
-		const tokenBytes = base64urlDecode(req.token)
+		const tokenBytes = base64.decode(req.token)
 		const providedHash = sha256Hash(tokenBytes)
-		const storedHash = base64urlDecode(challenge.token_hash)
+		const storedHash = base64.decode(challenge.token_hash)
 
 		if (!timingSafeEqual(providedHash, storedHash)) {
 			throw new APIError("Invalid or expired link", 400)
@@ -347,7 +329,7 @@ export class Service implements api.ServerInterface {
 				credentialId,
 				session.user_id,
 				"password",
-				base64urlDecode(req.encryptedDEK),
+				base64.decode(req.encryptedDEK),
 				JSON.stringify(passwordMetadata),
 				now,
 			],
@@ -387,7 +369,7 @@ export class Service implements api.ServerInterface {
 		if (existingPasswordCredential) {
 			// Update existing credential.
 			this.db.run(`UPDATE credentials SET encrypted_dek = ?, metadata = ? WHERE id = ?`, [
-				base64urlDecode(req.encryptedDEK),
+				base64.decode(req.encryptedDEK),
 				JSON.stringify(passwordMetadata),
 				existingPasswordCredential.id,
 			])
@@ -402,7 +384,7 @@ export class Service implements api.ServerInterface {
 					credentialId,
 					session.user_id,
 					"password",
-					base64urlDecode(req.encryptedDEK),
+					base64.decode(req.encryptedDEK),
 					JSON.stringify(passwordMetadata),
 					now,
 				],
@@ -434,8 +416,8 @@ export class Service implements api.ServerInterface {
 		}
 
 		const passwordMetadata = JSON.parse(passwordCredential.metadata) as PasswordMetadata
-		const providedHash = base64urlDecode(req.authHash)
-		const storedHash = base64urlDecode(passwordMetadata.authHash)
+		const providedHash = base64.decode(req.authHash)
+		const storedHash = base64.decode(passwordMetadata.authHash)
 
 		if (!timingSafeEqual(providedHash, storedHash)) {
 			throw new APIError("Invalid credentials", 401)
@@ -452,7 +434,7 @@ export class Service implements api.ServerInterface {
 			success: true,
 			userId: user.id,
 			vault: {
-				encryptedDEK: base64urlEncode(new Uint8Array(passwordCredential.encrypted_dek)),
+				encryptedDEK: base64.encode(new Uint8Array(passwordCredential.encrypted_dek)),
 			},
 		}
 	}
@@ -482,7 +464,7 @@ export class Service implements api.ServerInterface {
 		}
 
 		if (user.encrypted_data) {
-			response.encryptedData = base64urlEncode(new Uint8Array(user.encrypted_data))
+			response.encryptedData = base64.encode(new Uint8Array(user.encrypted_data))
 		}
 
 		return response
@@ -504,7 +486,7 @@ export class Service implements api.ServerInterface {
 
 		const result = this.db.run(
 			`UPDATE users SET encrypted_data = ?, version = version + 1 WHERE id = ? AND version = ?`,
-			[base64urlDecode(req.encryptedData), session.user_id, req.version],
+			[base64.decode(req.encryptedData), session.user_id, req.version],
 		)
 
 		if (result.changes === 0) {
@@ -525,12 +507,12 @@ export class Service implements api.ServerInterface {
 
 	async getSession(ctx: api.ServerContext): Promise<api.GetSessionResponse> {
 		if (!ctx.sessionId) {
-			return { authenticated: false }
+			return { authenticated: false, relyingPartyOrigin: this.rp.origin }
 		}
 
 		const session = this.sessions.getSession(ctx.sessionId)
 		if (!session) {
-			return { authenticated: false }
+			return { authenticated: false, relyingPartyOrigin: this.rp.origin }
 		}
 
 		const user = this.db
@@ -538,7 +520,7 @@ export class Service implements api.ServerInterface {
 			.get(session.user_id)
 
 		if (!user) {
-			return { authenticated: false }
+			return { authenticated: false, relyingPartyOrigin: this.rp.origin }
 		}
 
 		const passwordCredential = this.db
@@ -551,6 +533,7 @@ export class Service implements api.ServerInterface {
 
 		return {
 			authenticated: true,
+			relyingPartyOrigin: this.rp.origin,
 			userId: user.id,
 			email: user.email,
 			hasPassword: passwordCredential !== null,
@@ -606,8 +589,8 @@ export class Service implements api.ServerInterface {
 		// Generate high-entropy token for the magic link.
 		const tokenBytes = new Uint8Array(32)
 		crypto.getRandomValues(tokenBytes)
-		const token = base64urlEncode(tokenBytes)
-		const tokenHash = base64urlEncode(sha256Hash(tokenBytes))
+		const token = base64.encode(tokenBytes)
+		const tokenHash = base64.encode(sha256Hash(tokenBytes))
 		const challengeId = sess.randomId()
 
 		// Clean up any existing email change challenges for this user.
@@ -704,9 +687,9 @@ export class Service implements api.ServerInterface {
 		}
 
 		// Verify the token by comparing its hash with the stored hash.
-		const tokenBytes = base64urlDecode(req.token)
+		const tokenBytes = base64.decode(req.token)
 		const providedHash = sha256Hash(tokenBytes)
-		const storedHash = base64urlDecode(challenge.token_hash)
+		const storedHash = base64.decode(challenge.token_hash)
 
 		if (!timingSafeEqual(providedHash, storedHash)) {
 			throw new APIError("Invalid or expired link", 400)
@@ -782,7 +765,7 @@ export class Service implements api.ServerInterface {
 				residentKey: "preferred",
 				userVerification: "preferred",
 			},
-			challenge: base64urlEncode(crypto.getRandomValues(new Uint8Array(32))),
+			challenge: base64.encode(crypto.getRandomValues(new Uint8Array(32))),
 		})
 
 		const hmac = challenge.computeHmac(this.hmacSecret, "webauthn-register", options.challenge, ctx.sessionId)
@@ -810,7 +793,7 @@ export class Service implements api.ServerInterface {
 
 		// Extract the challenge from the response's clientDataJSON.
 		const clientDataJSON = JSON.parse(
-			new TextDecoder().decode(base64urlDecode(req.response.response.clientDataJSON)),
+			new TextDecoder().decode(base64.decode(req.response.response.clientDataJSON)),
 		) as { challenge: string }
 
 		const valid = challenge.verifyHmac(
@@ -850,11 +833,11 @@ export class Service implements api.ServerInterface {
 			}
 
 			const credentialIdStr =
-				typeof credential.id === "string" ? credential.id : base64urlEncode(credential.id as unknown as Uint8Array)
+				typeof credential.id === "string" ? credential.id : base64.encode(credential.id as unknown as Uint8Array)
 
 			const metadata: PasskeyMetadata = {
 				credentialId: credentialIdStr,
-				publicKey: base64urlEncode(credential.publicKey as unknown as Uint8Array),
+				publicKey: base64.encode(credential.publicKey as unknown as Uint8Array),
 				counter: credential.counter,
 				transports: req.response.response.transports,
 				backupEligible,
@@ -864,11 +847,10 @@ export class Service implements api.ServerInterface {
 				prfEnabled: true,
 			}
 
-			const credentialDbId = sess.randomId()
 			const now = Date.now()
 
 			this.db.run(`INSERT INTO credentials (id, user_id, type, metadata, create_time) VALUES (?, ?, ?, ?, ?)`, [
-				credentialDbId,
+				credentialIdStr,
 				session.user_id,
 				"passkey",
 				JSON.stringify(metadata),
@@ -962,15 +944,10 @@ export class Service implements api.ServerInterface {
 			throw new APIError("Response required", 400)
 		}
 
-		// Find the credential by the WebAuthn credential ID from the response.
-		const allPasskeys = this.db.query<Credential, [string]>(`SELECT * FROM credentials WHERE type = ?`).all("passkey")
-
-		const webAuthnCredentialId = req.response.id
-		const passkey = allPasskeys.find((p) => {
-			if (!p.metadata) return false
-			const metadata = JSON.parse(p.metadata) as PasskeyMetadata
-			return metadata.credentialId === webAuthnCredentialId
-		})
+		// Look up passkey directly by primary key (WebAuthn credential ID).
+		const passkey = this.db
+			.query<Credential, [string, string]>(`SELECT * FROM credentials WHERE id = ? AND type = ?`)
+			.get(req.response.id, "passkey")
 
 		if (!passkey || !passkey.metadata) {
 			throw new APIError("Credential not found", 401)
@@ -982,7 +959,7 @@ export class Service implements api.ServerInterface {
 		// Extract the challenge from the response's clientDataJSON so we can
 		// verify against the cookie.
 		const clientDataJSON = JSON.parse(
-			new TextDecoder().decode(base64urlDecode(req.response.response.clientDataJSON)),
+			new TextDecoder().decode(base64.decode(req.response.response.clientDataJSON)),
 		) as { challenge: string }
 
 		if (!ctx.challengeCookie) {
@@ -1003,7 +980,7 @@ export class Service implements api.ServerInterface {
 				expectedRPID: this.rp.id,
 				credential: {
 					id: metadata.credentialId,
-					publicKey: base64urlDecode(metadata.publicKey) as Uint8Array<ArrayBuffer>,
+					publicKey: base64.decode(metadata.publicKey) as Uint8Array<ArrayBuffer>,
 					counter: metadata.counter,
 					transports: metadata.transports as AuthenticatorTransport[],
 				},
@@ -1024,7 +1001,7 @@ export class Service implements api.ServerInterface {
 			let vault: { encryptedDEK: string } | null = null
 			if (passkey.encrypted_dek) {
 				vault = {
-					encryptedDEK: base64urlEncode(new Uint8Array(passkey.encrypted_dek)),
+					encryptedDEK: base64.encode(new Uint8Array(passkey.encrypted_dek)),
 				}
 			}
 
@@ -1056,23 +1033,19 @@ export class Service implements api.ServerInterface {
 			throw new APIError("Missing required fields", 400)
 		}
 
-		// Find the credential by matching the WebAuthn credential ID in metadata.
-		const credentials = this.db
-			.query<Credential, [string, string]>(`SELECT * FROM credentials WHERE user_id = ? AND type = ?`)
-			.all(session.user_id, "passkey")
-
-		const credential = credentials.find((c) => {
-			if (!c.metadata) return false
-			const metadata = JSON.parse(c.metadata) as PasskeyMetadata
-			return metadata.credentialId === req.credentialId
-		})
+		// Look up passkey directly by primary key (WebAuthn credential ID) and verify ownership.
+		const credential = this.db
+			.query<Credential, [string, string, string]>(
+				`SELECT * FROM credentials WHERE id = ? AND user_id = ? AND type = ?`,
+			)
+			.get(req.credentialId, session.user_id, "passkey")
 
 		if (!credential) {
 			throw new APIError("Invalid credential", 400)
 		}
 
 		this.db.run(`UPDATE credentials SET encrypted_dek = ? WHERE id = ?`, [
-			base64urlDecode(req.encryptedDEK),
+			base64.decode(req.encryptedDEK),
 			credential.id,
 		])
 
@@ -1082,8 +1055,3 @@ export class Service implements api.ServerInterface {
 	// ==========================================================================
 	// Identity Endpoints
 }
-
-/**
- * Exported for use in client code that needs to know the default Argon2 params.
- */
-export { DEFAULT_ARGON2_PARAMS }

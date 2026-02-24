@@ -62,13 +62,7 @@ export default defineConfig(({isSsrBuild}) => {
       exclude:
         process.env.NODE_ENV === 'production'
           ? []
-          : [
-              'expo-linear-gradient',
-              'react-icons',
-              '@shm/editor',
-              '@shm/shared',
-              '@remix-run/react',
-            ],
+          : ['expo-linear-gradient', 'react-icons', '@shm/editor', '@shm/shared', '@remix-run/react'],
     },
     plugins: [
       remix({
@@ -81,7 +75,7 @@ export default defineConfig(({isSsrBuild}) => {
         },
       }),
       envOnlyMacros(),
-      tsconfigPaths(),
+      tsconfigPaths({root: path.resolve(__dirname, '../..')}),
       commonjs({
         filter(id) {
           if (id.includes('node_modules/@react-native/normalize-color')) {

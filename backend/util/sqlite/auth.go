@@ -2,7 +2,12 @@ package sqlite
 
 // #include <stdint.h>
 // #include <sqlite3.h>
-// extern int go_sqlite_auth_tramp(uintptr_t, int, char*, char*, char*, char*);
+// #ifdef _WIN32
+// #define SQLITE_GO_EXPORT __declspec(dllexport)
+// #else
+// #define SQLITE_GO_EXPORT
+// #endif
+// extern SQLITE_GO_EXPORT int go_sqlite_auth_tramp(uintptr_t, int, char*, char*, char*, char*);
 // static int c_auth_tramp(void *userData, int action, const char* arg1, const char* arg2, const char* db, const char* trigger) {
 //   return go_sqlite_auth_tramp((uintptr_t)userData, action, (char*)arg1, (char*)arg2, (char*)db, (char*)trigger);
 // }

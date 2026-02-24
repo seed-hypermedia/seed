@@ -53,10 +53,7 @@ export default async function handleRequest(
   }
 
   // Handle trailing slash redirects
-  if (
-    parsedRequest.pathParts.length > 1 &&
-    parsedRequest.pathParts.find((part) => part === '') == ''
-  ) {
+  if (parsedRequest.pathParts.length > 1 && parsedRequest.pathParts.find((part) => part === '') == '') {
     const newPathParts = parsedRequest.pathParts.filter((part) => part !== '')
     const newUrl = new URL(SITE_BASE_URL + '/' + newPathParts.join('/'))
     for (const [key, value] of parsedRequest.url.searchParams.entries()) {
@@ -75,13 +72,7 @@ export default async function handleRequest(
   responseHeaders.set('Permissions-Policy', 'storage-access=*')
 
   // Always use full render for notify app (no caching like web app)
-  return handleFullRequest(
-    request,
-    responseStatusCode,
-    responseHeaders,
-    remixContext,
-    loadContext,
-  )
+  return handleFullRequest(request, responseStatusCode, responseHeaders, remixContext, loadContext)
 }
 
 export function handleFullRequest(
@@ -91,22 +82,11 @@ export function handleFullRequest(
   remixContext: EntryContext,
   loadContext: AppLoadContext,
 ) {
-  let prohibitOutOfOrderStreaming =
-    isBotRequest(request.headers.get('user-agent')) || remixContext.isSpaMode
+  let prohibitOutOfOrderStreaming = isBotRequest(request.headers.get('user-agent')) || remixContext.isSpaMode
 
   return prohibitOutOfOrderStreaming
-    ? handleBotRequest(
-        request,
-        responseStatusCode,
-        responseHeaders,
-        remixContext,
-      )
-    : handleBrowserRequest(
-        request,
-        responseStatusCode,
-        responseHeaders,
-        remixContext,
-      )
+    ? handleBotRequest(request, responseStatusCode, responseHeaders, remixContext)
+    : handleBrowserRequest(request, responseStatusCode, responseHeaders, remixContext)
 }
 
 // We have some Remix apps in the wild already running with isbot@3 so we need
@@ -140,11 +120,7 @@ function handleBotRequest(
   return new Promise((resolve, reject) => {
     let shellRendered = false
     const {pipe, abort} = renderToPipeableStream(
-      <RemixServer
-        context={remixContext}
-        url={request.url}
-        abortDelay={ABORT_DELAY}
-      />,
+      <RemixServer context={remixContext} url={request.url} abortDelay={ABORT_DELAY} />,
       {
         onAllReady() {
           shellRendered = true
@@ -191,11 +167,7 @@ function handleBrowserRequest(
   return new Promise((resolve, reject) => {
     let shellRendered = false
     const {pipe, abort} = renderToPipeableStream(
-      <RemixServer
-        context={remixContext}
-        url={request.url}
-        abortDelay={ABORT_DELAY}
-      />,
+      <RemixServer context={remixContext} url={request.url} abortDelay={ABORT_DELAY} />,
       {
         onShellReady() {
           shellRendered = true

@@ -49,13 +49,7 @@ const DeviceLinking = () => {
 
   return (
     <section>
-      <section>
-        {keyPair ? (
-          <span>Generated {keyPair.id}</span>
-        ) : (
-          <span>Generating P256 Key...</span>
-        )}
-      </section>
+      <section>{keyPair ? <span>Generated {keyPair.id}</span> : <span>Generating P256 Key...</span>}</section>
 
       <form onSubmit={handleSubmit}>
         <div>
@@ -72,9 +66,7 @@ const DeviceLinking = () => {
         {parsedSession && (
           <div>
             <h3>Parsed Session Data</h3>
-            <pre style={{padding: '20px'}}>
-              {JSON.stringify(parsedSession, null, 2)}
-            </pre>
+            <pre style={{padding: '20px'}}>{JSON.stringify(parsedSession, null, 2)}</pre>
           </div>
         )}
 
@@ -85,9 +77,7 @@ const DeviceLinking = () => {
 
       <section hidden={!linkingState}>
         <h3>Linking State</h3>
-        <pre style={{padding: '20px'}}>
-          {JSON.stringify(linkingState, null, 2)}
-        </pre>
+        <pre style={{padding: '20px'}}>{JSON.stringify(linkingState, null, 2)}</pre>
       </section>
     </section>
   )

@@ -16,6 +16,7 @@ describe('prepareHMDocument', () => {
         account: 'test-account',
         authors: ['author1'],
         genesis: 'genesis-id',
+        visibility: 'PUBLIC',
         createTime: '2024-01-01T00:00:00Z',
         updateTime: '2024-01-01T00:00:00Z',
       }),
@@ -61,10 +62,7 @@ describe('prepareHMDocument', () => {
     expect(result.content).toBeDefined()
 
     // Should have logged the error
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Error parsing document'),
-      expect.any(Object),
-    )
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Error parsing document'), expect.any(Object))
 
     consoleSpy.mockRestore()
   })
@@ -126,6 +124,7 @@ describe('prepareHMComment', () => {
         author: 'test-author',
         targetAccount: 'target-account',
         targetVersion: 'target-version',
+        visibility: 'PUBLIC',
         createTime: '2024-01-01T00:00:00Z',
         updateTime: '2024-01-01T00:00:00Z',
       }),
@@ -165,10 +164,7 @@ describe('prepareHMComment', () => {
     expect(result.content).toBeDefined()
 
     // Should have logged the error
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Error parsing comment'),
-      expect.any(Object),
-    )
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Error parsing comment'), expect.any(Object))
 
     consoleSpy.mockRestore()
   })

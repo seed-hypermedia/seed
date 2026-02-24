@@ -17,13 +17,22 @@ import {Home} from './icons'
 import {PrivateBadge} from './private-badge'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
+import {Tooltip} from './tooltip'
 
 export type AuthorPayload = HMMetadataPayload & {
   isDiscovering?: boolean
 }
 
 export type BreadcrumbEntry =
-  | {id: UnpackedHypermediaId; metadata: HMMetadata}
+  | {
+      id: UnpackedHypermediaId
+      metadata: HMMetadata
+      isLoading?: boolean
+      isNotFound?: boolean
+      isTombstone?: boolean
+      isError?: boolean
+      fallbackName?: string
+    }
   | {label: string}
 
 export function DocumentHeader({
@@ -69,17 +78,10 @@ export function DocumentHeader({
               marginTop: hasCover ? -80 : 0,
             }}
           >
-            <HMIcon
-              size={100}
-              id={docId}
-              name={docMetadata?.name}
-              icon={docMetadata?.icon}
-            />
+            <HMIcon size={100} id={docId} name={docMetadata?.name} icon={docMetadata?.icon} />
           </div>
         ) : null}
-        {breadcrumbs && breadcrumbs.length > 0 ? (
-          <Breadcrumbs breadcrumbs={breadcrumbs} />
-        ) : null}
+        {breadcrumbs && breadcrumbs.length > 0 ? <Breadcrumbs breadcrumbs={breadcrumbs} /> : null}
         {isPrivate && <PrivateBadge />}
         {showTitle && (
           <SizableText size="4xl" weight="bold" {...highlighter(docId)}>
@@ -87,9 +89,7 @@ export function DocumentHeader({
           </SizableText>
         )}
         {docMetadata?.summary ? (
-          <span className="font-body text-muted-foreground text-xl">
-            {docMetadata?.summary}
-          </span>
+          <span className="font-body text-muted-foreground text-xl">{docMetadata?.summary}</span>
         ) : null}
         <div className="border-border flex flex-col gap-2 border-b pb-4">
           {siteUrl ? <SiteURLButton siteUrl={siteUrl} /> : null}
@@ -108,27 +108,15 @@ export function DocumentHeader({
                             </span>
                           </span>
                         ) : (
-                          <AuthorLink
-                            name={getMetadataName(a.metadata)}
-                            id={a.id}
-                            key={a.id.id}
-                          />
+                          <AuthorLink name={getMetadataName(a.metadata)} id={a.id} key={a.id.id} />
                         ),
                         index !== authors.length - 1 ? (
                           index === authors.length - 2 ? (
-                            <SizableText
-                              key={`${a.id.id}-and`}
-                              size="xs"
-                              weight="bold"
-                            >
+                            <SizableText key={`${a.id.id}-and`} size="xs" weight="bold">
                               {' & '}
                             </SizableText>
                           ) : (
-                            <SizableText
-                              size="xs"
-                              key={`${a.id.id}-comma`}
-                              weight="bold"
-                            >
+                            <SizableText size="xs" key={`${a.id.id}-comma`} weight="bold">
                               {', '}
                             </SizableText>
                           )
@@ -139,12 +127,7 @@ export function DocumentHeader({
                   <div className="bg-border h-6 w-px" />
                 </>
               ) : null}
-              {updateTime ? (
-                <DocumentDate
-                  metadata={docMetadata || undefined}
-                  updateTime={updateTime}
-                />
-              ) : null}
+              {updateTime ? <DocumentDate metadata={docMetadata || undefined} updateTime={updateTime} /> : null}
             </div>
           </div>
         </div>
@@ -157,11 +140,7 @@ export function DocumentHeader({
 function AuthorLink({name, id}: {name: string; id: UnpackedHypermediaId}) {
   const linkProps = useRouteLink({key: 'profile', id})
   return (
-    <a
-      {...linkProps}
-      className="no-underline underline-offset-4 hover:underline"
-      style={{}}
-    >
+    <a {...linkProps} className="no-underline underline-offset-4 hover:underline" style={{}}>
       {name}
     </a>
   )
@@ -172,11 +151,7 @@ function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
 
   return (
     <div className="text-muted-foreground flex flex-1 items-center gap-2">
-      {first && 'id' in first ? (
-        <div className="flex items-center gap-1">
-          <Home className="size-3" />
-        </div>
-      ) : null}
+      {first && 'id' in first ? <HomeBreadcrumb crumb={first} /> : null}
       {rest.flatMap((crumb, i) => {
         const key = 'id' in crumb ? crumb.id.id : `label-${i}`
         return [
@@ -184,12 +159,9 @@ function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
             {'>'}
           </SizableText>,
           'id' in crumb ? (
-            <BreadcrumbLink id={crumb.id} metadata={crumb.metadata} key={key} />
+            <BreadcrumbLink key={key} crumb={crumb} />
           ) : (
-            <span
-              key={key}
-              className="max-w-[15ch] truncate text-xs whitespace-nowrap"
-            >
+            <span key={key} className="max-w-[15ch] truncate text-xs whitespace-nowrap">
               {crumb.label}
             </span>
           ),
@@ -199,31 +171,76 @@ function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
   )
 }
 
-function BreadcrumbLink({
-  id,
-  metadata,
-}: {
-  id: UnpackedHypermediaId
-  metadata: HMMetadata
-}) {
-  const linkProps = useRouteLink({key: 'document', id})
+function HomeBreadcrumb({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
+  const linkProps = useRouteLink({key: 'document', id: crumb.id})
+  return (
+    <a {...linkProps} className="text-muted-foreground flex items-center gap-1 no-underline hover:underline">
+      <Home className="size-3" />
+    </a>
+  )
+}
+
+function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
+  const linkProps = useRouteLink({key: 'document', id: crumb.id})
+
+  if (crumb.isLoading) {
+    return (
+      <span className="text-muted-foreground flex items-center gap-1 text-xs whitespace-nowrap">
+        {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
+        <Spinner size="small" />
+      </span>
+    )
+  }
+
+  if (crumb.isTombstone) {
+    return (
+      <Tooltip content="This document has been deleted">
+        <span className="max-w-[15ch] truncate text-xs whitespace-nowrap text-red-500">
+          {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
+        </span>
+      </Tooltip>
+    )
+  }
+
+  if (crumb.isNotFound) {
+    return (
+      <Tooltip content="Document not found on the network">
+        <span className="max-w-[15ch] truncate text-xs whitespace-nowrap text-red-500">
+          {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
+        </span>
+      </Tooltip>
+    )
+  }
+
+  if (crumb.isError) {
+    return (
+      <Tooltip content="Failed to load this document">
+        <span className="max-w-[15ch] truncate text-xs whitespace-nowrap text-red-500">
+          {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
+        </span>
+      </Tooltip>
+    )
+  }
+
+  if (!crumb.metadata?.name) {
+    return (
+      <span className="text-muted-foreground max-w-[15ch] truncate text-xs whitespace-nowrap">
+        {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
+      </span>
+    )
+  }
+
   return (
     <a
       {...linkProps}
       className="max-w-[15ch] truncate overflow-hidden text-xs whitespace-nowrap no-underline hover:underline"
     >
-      {metadata?.name}
+      {crumb.metadata.name}
     </a>
   )
 }
 
-function SiteURLButton({
-  siteUrl,
-  onSiteUrlClick,
-}: {
-  siteUrl: string
-  onSiteUrlClick?: (url: string) => void
-}) {
+function SiteURLButton({siteUrl, onSiteUrlClick}: {siteUrl: string; onSiteUrlClick?: (url: string) => void}) {
   return (
     <SizableText
       size="sm"

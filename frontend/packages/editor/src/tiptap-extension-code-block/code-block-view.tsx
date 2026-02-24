@@ -13,18 +13,10 @@ mermaid.initialize({
   securityLevel: 'loose',
 })
 
-export const CodeBlockView = ({
-  props,
-  languages,
-}: {
-  props: NodeViewProps
-  languages: string[]
-}) => {
+export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languages: string[]}) => {
   const {node, updateAttributes} = props
   const [hovered, setHovered] = useState(false)
-  const [language, setLanguage] = useState(
-    node.attrs.language ? node.attrs.language : 'plaintext',
-  )
+  const [language, setLanguage] = useState(node.attrs.language ? node.attrs.language : 'plaintext')
   const [open, setOpen] = useState(false)
   const [dropdownPosition, setDropdownPosition] = useState({top: 0, left: 0})
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -102,8 +94,7 @@ export const CodeBlockView = ({
 
     // When opening dropdown, calculate position from event target or ref
     if (isOpening) {
-      const buttonElement =
-        (e?.currentTarget as HTMLElement) || buttonRef.current
+      const buttonElement = (e?.currentTarget as HTMLElement) || buttonRef.current
       if (buttonElement) {
         const rect = buttonElement.getBoundingClientRect()
         setDropdownPosition({
@@ -186,11 +177,7 @@ export const CodeBlockView = ({
                 type="button"
                 title={showMermaidPreview ? 'Hide Preview' : 'Preview Diagram'}
               >
-                {showMermaidPreview ? (
-                  <EyeOff className="h-3 w-3" />
-                ) : (
-                  <Eye className="h-3 w-3" />
-                )}
+                {showMermaidPreview ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                 <span>{showMermaidPreview ? 'Hide' : 'Preview'}</span>
               </Button>
             </>
@@ -239,9 +226,7 @@ export const CodeBlockView = ({
                   className="hover:bg-accent dark:hover:bg-accent flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm"
                 >
                   <span className="truncate">{item}</span>
-                  {language === item && (
-                    <Check className="text-primary h-4 w-4" />
-                  )}
+                  {language === item && <Check className="text-primary h-4 w-4" />}
                 </Button>
               ))}
             </div>,
@@ -252,10 +237,7 @@ export const CodeBlockView = ({
 
       {/* Mermaid preview area */}
       {isMermaid && showMermaidPreview && (
-        <div
-          className="border-border bg-muted/30 mb-2 rounded-md border p-3"
-          contentEditable={false}
-        >
+        <div className="border-border bg-muted/30 mb-2 rounded-md border p-3" contentEditable={false}>
           {mermaidError ? (
             <div className="rounded-md bg-red-100 p-3 text-red-600 dark:bg-red-900/30 dark:text-red-400">
               <p className="font-mono text-sm">Error: {mermaidError}</p>
@@ -266,9 +248,7 @@ export const CodeBlockView = ({
               dangerouslySetInnerHTML={{__html: mermaidSvg}}
             />
           ) : (
-            <p className="text-muted-foreground text-center text-sm">
-              Enter diagram code to preview
-            </p>
+            <p className="text-muted-foreground text-center text-sm">Enter diagram code to preview</p>
           )}
         </div>
       )}
@@ -276,10 +256,7 @@ export const CodeBlockView = ({
       <div className="relative w-full max-w-full touch-pan-x touch-pan-y overflow-x-auto overflow-y-auto overscroll-x-contain">
         <pre className="m-0 rounded-md bg-transparent px-3 py-3">
           <code className={`hljs language-${language} block`}>
-            <div
-              className="inline-block min-w-full pr-6"
-              style={{whiteSpace: 'pre'}}
-            >
+            <div className="inline-block min-w-full pr-6" style={{whiteSpace: 'pre'}}>
               <NodeViewContent style={{whiteSpace: 'pre'}} />
             </div>
           </code>

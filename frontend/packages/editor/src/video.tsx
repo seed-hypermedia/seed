@@ -15,9 +15,7 @@ import {isValidUrl, youtubeParser} from './utils'
 
 export const getSourceType = (name: string) => {
   const nameArray = name.split('.')
-  return nameArray[nameArray.length - 1]
-    ? `video/${nameArray[nameArray.length - 1]}`
-    : undefined
+  return nameArray[nameArray.length - 1] ? `video/${nameArray[nameArray.length - 1]}` : undefined
 }
 
 function getVideoIframeSrc(link: string) {
@@ -61,13 +59,8 @@ export const VideoBlock = createReactBlockSpec({
   },
   containsInlineContent: true,
   // @ts-ignore
-  render: ({
-    block,
-    editor,
-  }: {
-    block: Block<HMBlockSchema>
-    editor: BlockNoteEditor<HMBlockSchema>
-  }) => Render(block, editor),
+  render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) =>
+    Render(block, editor),
 
   parseHTML: [
     {
@@ -87,10 +80,7 @@ export const VideoBlock = createReactBlockSpec({
   ],
 })
 
-const Render = (
-  block: Block<HMBlockSchema>,
-  editor: BlockNoteEditor<HMBlockSchema>,
-) => {
+const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSchema>) => {
   const submitVideo = (url: string, assign: any, setFileName: any) => {
     if (isValidUrl(url)) {
       let embedUrl = 'https://www.youtube.com/embed/'
@@ -104,9 +94,7 @@ const Render = (
         }
       } else if (url.includes('vimeo')) {
         const urlArray = url.split('/')
-        embedUrl = `https://player.vimeo.com/video/${
-          urlArray[urlArray.length - 1]
-        }`
+        embedUrl = `https://player.vimeo.com/video/${urlArray[urlArray.length - 1]}`
       } else {
         setFileName({name: 'Unsupported video source.', color: 'red'})
         return
@@ -116,18 +104,10 @@ const Render = (
     const cursorPosition = editor.getTextCursorPosition()
     editor.focus()
     if (cursorPosition.block.id === block.id) {
-      if (cursorPosition.nextBlock)
-        editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
+      if (cursorPosition.nextBlock) editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
       else {
-        editor.insertBlocks(
-          [{type: 'paragraph', content: ''}],
-          block.id,
-          'after',
-        )
-        editor.setTextCursorPosition(
-          editor.getTextCursorPosition().nextBlock!,
-          'start',
-        )
+        editor.insertBlocks([{type: 'paragraph', content: ''}], block.id, 'after')
+        editor.setTextCursorPosition(editor.getTextCursorPosition().nextBlock!, 'start')
       }
     }
   }
@@ -148,21 +128,13 @@ const Render = (
 
 function validateFile(file: File) {
   if (file.type === 'video/quicktime') {
-    toast.error(
-      'This video file format is not supported. Upload as a file, or convert the video to .mp4',
-    )
+    toast.error('This video file format is not supported. Upload as a file, or convert the video to .mp4')
     return false
   }
   return true
 }
 
-const display = ({
-  editor,
-  block,
-  selected,
-  setSelected,
-  assign,
-}: DisplayComponentProps) => {
+const display = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
   const getFileUrl = useFileUrl()
 
   // Determine video source
@@ -190,8 +162,7 @@ const display = ({
   const minWidth = 256
   let width: number =
     // @ts-ignore
-    parseFloat(block.props.width) ||
-    editor.domElement.firstElementChild!.clientWidth
+    parseFloat(block.props.width) || editor.domElement.firstElementChild!.clientWidth
   const [currentWidth, setCurrentWidth] = useState(width)
   const [showHandle, setShowHandle] = useState(false)
   const resizeParamsRef = useRef<{
@@ -274,9 +245,7 @@ const display = ({
 
   // Sets the resize params, allowing the user to begin resizing the video by
   // moving the cursor left or right.
-  const leftResizeHandleMouseDownHandler = (
-    event: React.MouseEvent<HTMLDivElement>,
-  ) => {
+  const leftResizeHandleMouseDownHandler = (event: React.MouseEvent<HTMLDivElement>) => {
     event.preventDefault()
 
     setShowHandle(true)
@@ -290,9 +259,7 @@ const display = ({
     editor.setTextCursorPosition(block.id, 'start')
   }
 
-  const rightResizeHandleMouseDownHandler = (
-    event: React.MouseEvent<HTMLDivElement>,
-  ) => {
+  const rightResizeHandleMouseDownHandler = (event: React.MouseEvent<HTMLDivElement>) => {
     event.preventDefault()
 
     setShowHandle(true)
@@ -326,14 +293,8 @@ const display = ({
       <div className="relative aspect-[16/9] w-full">
         {showHandle && (
           <>
-            <ResizeHandle
-              style={{left: 4}}
-              onMouseDown={leftResizeHandleMouseDownHandler}
-            />
-            <ResizeHandle
-              style={{right: 4}}
-              onMouseDown={rightResizeHandleMouseDownHandler}
-            />
+            <ResizeHandle style={{left: 4}} onMouseDown={leftResizeHandleMouseDownHandler} />
+            <ResizeHandle style={{right: 4}} onMouseDown={rightResizeHandleMouseDownHandler} />
           </>
         )}
         {block.props.displaySrc ? (
@@ -361,11 +322,7 @@ const display = ({
             className="absolute top-0 left-0 h-full w-full"
           >
             <source
-              src={
-                block.props.url
-                  ? getFileUrl(block.props.url)
-                  : getDaemonFileUrl(block.props.url)
-              }
+              src={block.props.url ? getFileUrl(block.props.url) : getDaemonFileUrl(block.props.url)}
               // @ts-ignore
               type={getSourceType(block.props.name)}
             />

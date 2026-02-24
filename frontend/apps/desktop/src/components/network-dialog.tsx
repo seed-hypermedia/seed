@@ -41,13 +41,7 @@ export function NetworkDialog() {
       <div className="h-[500px] overflow-hidden">
         <ScrollArea>
           {peers.data && peers.data.length ? (
-            peers.data.map((peer) => (
-              <PeerRow
-                key={peer.id}
-                peer={peer}
-                myProtocol={deviceInfo?.protocolId || ''}
-              />
-            ))
+            peers.data.map((peer) => <PeerRow key={peer.id} peer={peer} myProtocol={deviceInfo?.protocolId || ''} />)
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-4 p-4">
               <NoConnection className="text-muted-foreground size-25" />
@@ -70,13 +64,7 @@ function getProtocolMessage(peer: HMPeerInfo, myProtocol: string) {
   return ` (Protocol: ${peer.protocol})`
 }
 
-const PeerRow = React.memo(function PeerRow({
-  peer,
-  myProtocol,
-}: {
-  peer: HMPeerInfo
-  myProtocol: string
-}) {
+const PeerRow = React.memo(function PeerRow({peer, myProtocol}: {peer: HMPeerInfo; myProtocol: string}) {
   const {id, addrs, connectionStatus, protocol} = peer
   // const isSite =
   //   account?.profile?.bio === 'Hypermedia Site. Powered by Mintter.'
@@ -95,28 +83,15 @@ const PeerRow = React.memo(function PeerRow({
     copyTextToClipboard(id)
     toast.success('Copied Peer ID')
   }
-  const isConnected =
-    connectionStatus === ConnectionStatus.CONNECTED && protocol === myProtocol
+  const isConnected = connectionStatus === ConnectionStatus.CONNECTED && protocol === myProtocol
   return (
     <div className="group flex min-h-8 flex-1 items-center justify-between p-2">
       <div className="flex items-center gap-2">
-        <Tooltip
-          content={
-            getPeerStatus(connectionStatus) +
-            getProtocolMessage(peer, myProtocol)
-          }
-        >
-          <div
-            className={cn(
-              'h-3 w-3 rounded-md',
-              getPeerStatusIndicator(peer, myProtocol),
-            )}
-          />
+        <Tooltip content={getPeerStatus(connectionStatus) + getProtocolMessage(peer, myProtocol)}>
+          <div className={cn('h-3 w-3 rounded-md', getPeerStatusIndicator(peer, myProtocol))} />
         </Tooltip>
         <Tooltip content="Copy Peer ID">
-          <SizableText onClick={handleCopyPeerId}>
-            {id.substring(id.length - 10)}
-          </SizableText>
+          <SizableText onClick={handleCopyPeerId}>{id.substring(id.length - 10)}</SizableText>
         </Tooltip>
       </div>
       <div className="group mx-3 flex gap-3">
@@ -143,20 +118,12 @@ const PeerRow = React.memo(function PeerRow({
           </ButtonText>
         </XStack> */}
         {isConnected && (
-          <SizableText
-            size="xs"
-            color="muted"
-            className="opacity-0 group-hover/item:opacity-100"
-          >
+          <SizableText size="xs" color="muted" className="opacity-0 group-hover/item:opacity-100">
             Connected
           </SizableText>
         )}
         {peer.protocol && peer.protocol !== myProtocol && (
-          <SizableText
-            size="xs"
-            color="muted"
-            className="opacity-0 group-hover/item:opacity-100"
-          >
+          <SizableText size="xs" color="muted" className="opacity-0 group-hover/item:opacity-100">
             Protocol: {peer.protocol.slice(12)}
           </SizableText>
         )}
@@ -208,28 +175,16 @@ function getPeerStatusIndicator(peer: HMPeerInfo, myProtocol: string): string {
     return 'bg-transparent border border-dotted border-green-500'
   if (peer.connectionStatus === ConnectionStatus.CANNOT_CONNECT)
     return 'bg-transparent border border-dotted border-red-500'
-  if (peer.connectionStatus === ConnectionStatus.LIMITED)
-    return 'bg-transparent border border-dashed border-green-500'
+  if (peer.connectionStatus === ConnectionStatus.LIMITED) return 'bg-transparent border border-dashed border-green-500'
 
   return 'bg-muted-foreground'
 }
 
 function IndicationStatus({color}: {color: ColorValue}) {
-  return (
-    <div
-      className="h-3 w-3 rounded-md"
-      style={{backgroundColor: color as string}}
-    />
-  )
+  return <div className="h-3 w-3 rounded-md" style={{backgroundColor: color as string}} />
 }
 
-function IndicationTag({
-  label,
-  status,
-}: {
-  label: string
-  status: null | 0 | 1 | 2
-}) {
+function IndicationTag({label, status}: {label: string; status: null | 0 | 1 | 2}) {
   let statusDot = (
     <div className="flex items-center justify-center">
       <Spinner />

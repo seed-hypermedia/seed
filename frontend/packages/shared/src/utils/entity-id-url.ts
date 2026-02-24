@@ -1,5 +1,5 @@
-import {BlockRange, HMComment, ParsedFragment, UnpackedHypermediaId} from '..'
-import {DEFAULT_GATEWAY_URL, HYPERMEDIA_SCHEME} from '../constants'
+import type {BlockRange, HMComment, ParsedFragment, UnpackedHypermediaId} from '../hm-types'
+import {DEFAULT_GATEWAY_URL, HYPERMEDIA_SCHEME, OS_PROTOCOL_SCHEME} from '../constants'
 import {NavRoute} from '../routes'
 import {entityQueryPathToHmIdPath} from './path-api'
 import {StateStream} from './stream'
@@ -13,15 +13,10 @@ export const ACTIVITY_FILTER_SLUGS: Record<string, string[]> = {
   citations: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
 }
 
-export function activityFilterToSlug(
-  filterEventType?: string[],
-): string | null {
+export function activityFilterToSlug(filterEventType?: string[]): string | null {
   if (!filterEventType?.length) return null
   for (const [slug, types] of Object.entries(ACTIVITY_FILTER_SLUGS)) {
-    if (
-      types.length === filterEventType.length &&
-      types.every((t, i) => t === filterEventType[i])
-    ) {
+    if (types.length === filterEventType.length && types.every((t, i) => t === filterEventType[i])) {
       return slug
     }
   }
@@ -33,30 +28,14 @@ export function activitySlugToFilter(slug: string): string[] | undefined {
 }
 
 // View terms for URL paths (e.g., /:activity, /:directory)
-export const VIEW_TERMS = [
-  ':activity',
-  ':discussions',
-  ':collaborators',
-  ':directory',
-  ':feed',
-] as const
+export const VIEW_TERMS = [':activity', ':discussions', ':collaborators', ':directory', ':feed'] as const
 export type ViewTerm = (typeof VIEW_TERMS)[number]
 
 // Route keys that correspond to view terms (excludes 'options' which is panel-only)
-export type ViewRouteKey =
-  | 'activity'
-  | 'discussions'
-  | 'collaborators'
-  | 'directory'
-  | 'feed'
+export type ViewRouteKey = 'activity' | 'discussions' | 'collaborators' | 'directory' | 'feed'
 
 // Panel keys that can be encoded in URL query param
-export type PanelQueryKey =
-  | 'activity'
-  | 'discussions'
-  | 'collaborators'
-  | 'directory'
-  | 'options'
+export type PanelQueryKey = 'activity' | 'discussions' | 'collaborators' | 'directory' | 'options'
 
 /**
  * Extract view term from URL path and return cleaned URL + view term
@@ -94,9 +73,7 @@ export function extractViewTermFromUrl(url: string): {
 /**
  * Convert view term to route key for navigation
  */
-export function viewTermToRouteKey(
-  viewTerm: ViewTerm | null,
-): ViewRouteKey | null {
+export function viewTermToRouteKey(viewTerm: ViewTerm | null): ViewRouteKey | null {
   if (!viewTerm) return null
   const mapping: Record<ViewTerm, ViewRouteKey> = {
     ':activity': 'activity',
@@ -189,9 +166,7 @@ export function createCommentUrl({
   })
 }
 
-export function getCommentTargetId(
-  comment: HMComment | undefined,
-): UnpackedHypermediaId | undefined {
+export function getCommentTargetId(comment: HMComment | undefined): UnpackedHypermediaId | undefined {
   if (!comment) return undefined
   return hmId(comment.targetAccount, {
     path: entityQueryPathToHmIdPath(comment.targetPath || ''),
@@ -208,14 +183,7 @@ export function commentIdToHmId(commentId: string): UnpackedHypermediaId {
   })
 }
 
-export function hmIdToURL({
-  uid,
-  path,
-  version,
-  latest,
-  blockRef,
-  blockRange,
-}: UnpackedHypermediaId) {
+export function hmIdToURL({uid, path, version, latest, blockRef, blockRange}: UnpackedHypermediaId) {
   let res = `${HYPERMEDIA_SCHEME}://${uid}`
 
   if (path && path.length) {
@@ -234,16 +202,7 @@ export function hmIdToURL({
  * Uses 'hm://'
  * This is separate from hmIdToURL which creates document URLs.
  */
-export function createOSProtocolUrl({
-  uid,
-  path,
-  version,
-  latest,
-  blockRef,
-  blockRange,
-}: UnpackedHypermediaId) {
-  // Import at runtime to avoid circular dependency
-  const {OS_PROTOCOL_SCHEME} = require('../constants')
+export function createOSProtocolUrl({uid, path, version, latest, blockRef, blockRange}: UnpackedHypermediaId) {
   let res = `${OS_PROTOCOL_SCHEME}://${uid}`
 
   if (path && path.length) {
@@ -300,9 +259,7 @@ export function getRoutePanelParam(route: NavRoute): string | null {
 
   // Encode activity filter slug into panel param
   if (panel.key === 'activity') {
-    const filterSlug = activityFilterToSlug(
-      (panel as {filterEventType?: string[]}).filterEventType,
-    )
+    const filterSlug = activityFilterToSlug((panel as {filterEventType?: string[]}).filterEventType)
     if (filterSlug) return `activity/${filterSlug}`
   }
 
@@ -345,20 +302,25 @@ export function routeToUrl(
     }
     // For discussions with openComment, include it in the panel param
     let effectivePanelParam = panelParam
-    if (
-      !effectivePanelParam &&
-      route.key === 'discussions' &&
-      route.openComment
-    ) {
+    if (!effectivePanelParam && route.key === 'discussions' && route.openComment) {
       effectivePanelParam = `comment/${route.openComment}`
     }
+    // View-term URLs only need uid + path, not version/blockRef/latest
     return createWebHMUrl(route.id.uid, {
-      ...route.id,
+      path: route.id.path,
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
       viewTerm: viewTermPath,
       panel: effectivePanelParam,
     })
+  }
+  if (route.key === 'profile') {
+    const urlHost = opts?.hostname ?? DEFAULT_GATEWAY_URL
+    return `${urlHost}/hm/profile/${route.id.uid}`
+  }
+  if (route.key === 'contact') {
+    const urlHost = opts?.hostname ?? DEFAULT_GATEWAY_URL
+    return `${urlHost}/hm/contact/${route.id.uid}`
   }
   return 'TODO'
 }
@@ -391,12 +353,7 @@ export function createWebHMUrl(
   if (originHomeId?.uid === uid) {
     webPath = ''
   }
-  const urlHost =
-    hostname === undefined
-      ? DEFAULT_GATEWAY_URL
-      : hostname === null
-      ? ''
-      : hostname
+  const urlHost = hostname === undefined ? DEFAULT_GATEWAY_URL : hostname === null ? '' : hostname
   let res = `${urlHost}${webPath}`
   if (path && path.length) {
     res += `/${path.join('/')}`
@@ -527,13 +484,7 @@ export function hmId(
 }
 
 // Special static paths that should not be treated as Hypermedia document UIDs
-const STATIC_HM_PATHS = new Set([
-  'download',
-  'connect',
-  'register',
-  'device-link',
-  'profile',
-])
+const STATIC_HM_PATHS = new Set(['download', 'connect', 'register', 'device-link', 'profile', 'contact'])
 
 export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
   if (!hypermediaId) return null
@@ -562,9 +513,7 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
   // When blockRef is present, version takes precedence over latest
   // because the block only exists in a specific version
   const hasBlockRef = !!fragment?.blockId
-  const latest = hasBlockRef
-    ? false
-    : parsed.query.l === null || parsed.query.l === '' || !version
+  const latest = hasBlockRef ? false : parsed.query.l === null || parsed.query.l === '' || !version
 
   let blockRange = null
   if (fragment) {
@@ -593,9 +542,7 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
 }
 
 export function isHypermediaScheme(url?: string) {
-  return (
-    !!url?.startsWith(`${HYPERMEDIA_SCHEME}://`) || !!url?.startsWith('hm://')
-  )
+  return !!url?.startsWith(`${HYPERMEDIA_SCHEME}://`) || !!url?.startsWith('hm://')
 }
 
 export function isPublicGatewayLink(text: string, gwUrl: StateStream<string>) {
@@ -622,10 +569,7 @@ export function idToUrl(
   })
 }
 
-export function normalizeHmId(
-  urlMaybe: string,
-  gwUrl: StateStream<string>,
-): string | undefined {
+export function normalizeHmId(urlMaybe: string, gwUrl: StateStream<string>): string | undefined {
   if (isHypermediaScheme(urlMaybe)) return urlMaybe
   if (isPublicGatewayLink(urlMaybe, gwUrl)) {
     const unpacked = unpackHmId(urlMaybe)
@@ -675,9 +619,7 @@ export function hmIdWithVersion(
   )
 }
 
-export function extractBlockRefOfUrl(
-  url: string | null | undefined,
-): string | null {
+export function extractBlockRefOfUrl(url: string | null | undefined): string | null {
   const fragment = url?.match(/#(.*)$/)?.[1] || null
 
   if (fragment) {
@@ -687,9 +629,7 @@ export function extractBlockRefOfUrl(
   }
 }
 
-export function extractBlockRangeOfUrl(
-  url: string | null | undefined,
-): BlockRange | null {
+export function extractBlockRangeOfUrl(url: string | null | undefined): BlockRange | null {
   const fragment = url?.match(/#(.*)$/)?.[1] || null
 
   if (fragment) {
@@ -721,10 +661,7 @@ export function parseFragment(input: string | null): ParsedFragment | null {
         blockId,
         expanded: true,
       }
-    } else if (
-      typeof rangeStart !== 'undefined' &&
-      typeof rangeEnd !== 'undefined'
-    ) {
+    } else if (typeof rangeStart !== 'undefined' && typeof rangeEnd !== 'undefined') {
       return {
         blockId,
         start: parseInt(rangeStart),
@@ -744,9 +681,7 @@ export function parseFragment(input: string | null): ParsedFragment | null {
   }
 }
 
-export function serializeBlockRange(
-  range: BlockRange | null | undefined,
-): string {
+export function serializeBlockRange(range: BlockRange | null | undefined): string {
   let res = ''
   if (range) {
     if ('expanded' in range && range.expanded) {
@@ -766,17 +701,11 @@ export function displayHostname(fullHost: string): string {
 export function hmIdMatches(a: UnpackedHypermediaId, b: UnpackedHypermediaId) {
   return (
     // @ts-expect-error
-    a.type === b.type &&
-    a.uid === b.uid &&
-    a.version == b.version &&
-    pathMatches(a.path, b.path)
+    a.type === b.type && a.uid === b.uid && a.version == b.version && pathMatches(a.path, b.path)
   )
 }
 
-export function pathMatches(
-  a: string[] | null,
-  b: string[] | null | undefined,
-) {
+export function pathMatches(a: string[] | null, b: string[] | null | undefined) {
   // Handle cases where either value is null/undefined and the other is empty array
   if (!a && (!b || b.length === 0)) return true
   if (!b && (!a || a.length === 0)) return true
@@ -786,20 +715,14 @@ export function pathMatches(
   return a.length === b.length && a.every((v, i) => v === b[i])
 }
 
-export function isIdParentOfOrEqual(
-  parent: UnpackedHypermediaId,
-  possibleChild: UnpackedHypermediaId,
-) {
+export function isIdParentOfOrEqual(parent: UnpackedHypermediaId, possibleChild: UnpackedHypermediaId) {
   if (parent.uid !== possibleChild.uid) return false
   if (!parent.path?.length && !possibleChild.path?.length) return true
   if (!parent.path) return true
   return parent.path?.every((v, i) => v === possibleChild.path?.[i])
 }
 
-export function isPathParentOfOrEqual(
-  parentPath?: string[] | null,
-  possibleChildPath?: string[] | null,
-) {
+export function isPathParentOfOrEqual(parentPath?: string[] | null, possibleChildPath?: string[] | null) {
   if (!parentPath?.length && !possibleChildPath?.length) return true
   if (!parentPath) return true
   return parentPath?.every((v, i) => v === possibleChildPath?.[i])
@@ -813,9 +736,7 @@ export function latestId(id: UnpackedHypermediaId): UnpackedHypermediaId {
   }
 }
 
-export function getParent(
-  id: UnpackedHypermediaId | null | undefined,
-): UnpackedHypermediaId | null {
+export function getParent(id: UnpackedHypermediaId | null | undefined): UnpackedHypermediaId | null {
   if (!id) return null
   const parentPath = id.path?.slice(0, -1) || []
   return hmId(id.uid, {

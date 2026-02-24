@@ -46,24 +46,13 @@ function cleanUrlStorage(url: string): string {
   }
 }
 
-function getFilePath(
-  storage: StorageContext,
-  url: string,
-  type: 'html' | 'image' = 'html',
-): string {
+function getFilePath(storage: StorageContext, url: string, type: 'html' | 'image' = 'html'): string {
   const hash = crypto.createHash('md5').update(url).digest('hex')
   const ext = type === 'image' ? path.extname(url) || '.jpg' : '.html'
-  return path.join(
-    storage.cacheDir,
-    type === 'image' ? 'images' : '',
-    `${hash}${ext}`,
-  )
+  return path.join(storage.cacheDir, type === 'image' ? 'images' : '', `${hash}${ext}`)
 }
 
-async function downloadAsset(
-  storage: StorageContext,
-  url: string,
-): Promise<string | null> {
+async function downloadAsset(storage: StorageContext, url: string): Promise<string | null> {
   const assetPath = path.join(storage.cacheDir, 'assets', path.basename(url))
   try {
     try {
@@ -86,10 +75,7 @@ async function downloadAsset(
   }
 }
 
-async function downloadImage(
-  storage: StorageContext,
-  url: string,
-): Promise<string | null> {
+async function downloadImage(storage: StorageContext, url: string): Promise<string | null> {
   const imagePath = getFilePath(storage, url, 'image')
   try {
     try {
@@ -127,10 +113,7 @@ async function saveMetadata(storage: StorageContext) {
   await fs.writeFile(storage.metadataFile, JSON.stringify(entries, null, 2))
 }
 
-async function getCachedContent(
-  storage: StorageContext,
-  url: string,
-): Promise<string | null> {
+async function getCachedContent(storage: StorageContext, url: string): Promise<string | null> {
   const cleaned = cleanUrlStorage(url)
   const metadata = storage.metadata.get(cleaned)
 
@@ -192,28 +175,19 @@ async function exportToFolder(
 
   const images = await fs.readdir(imagesDir)
   for (const image of images) {
-    await fs.copyFile(
-      path.join(imagesDir, image),
-      path.join(outputPath, 'images', image),
-    )
+    await fs.copyFile(path.join(imagesDir, image), path.join(outputPath, 'images', image))
   }
 
   const assets = await fs.readdir(assetsDir)
   for (const asset of assets) {
-    await fs.copyFile(
-      path.join(assetsDir, asset),
-      path.join(outputPath, 'assets', asset),
-    )
+    await fs.copyFile(path.join(assetsDir, asset), path.join(outputPath, 'assets', asset))
   }
 
   // Copy WordPress metadata files
   try {
     const wpMetadataFiles = await fs.readdir(wpMetadataDir)
     for (const file of wpMetadataFiles) {
-      await fs.copyFile(
-        path.join(wpMetadataDir, file),
-        path.join(outputPath, 'metadata', file),
-      )
+      await fs.copyFile(path.join(wpMetadataDir, file), path.join(outputPath, 'metadata', file))
     }
   } catch (error) {
     // Ignore if wp-metadata directory doesn't exist
@@ -251,9 +225,7 @@ async function exportToFolder(
     const mainContent = $('.entry-content').html() || content
     const topImageHtml = $('.read-img').html() || ''
 
-    let topImage = topImageHtml
-      ? `<div class="main-image">${topImageHtml}</div>`
-      : ''
+    let topImage = topImageHtml ? `<div class="main-image">${topImageHtml}</div>` : ''
     let processedContent = `<html>\n<body>\n${topImage}\n${mainContent}\n</body>\n</html>`
 
     // Use Cheerio to only rewrite <img> src attributes
@@ -273,22 +245,16 @@ async function exportToFolder(
     processedContent = $processed.html() || processedContent
 
     const assetRegex = /href="([^"]+\.pdf)"/g
-    processedContent = processedContent.replace(
-      assetRegex,
-      (match, assetUrl) => {
-        try {
-          const assetName = path.basename(assetUrl)
-          return `href="../assets/${assetName}"`
-        } catch {
-          return match
-        }
-      },
-    )
+    processedContent = processedContent.replace(assetRegex, (match, assetUrl) => {
+      try {
+        const assetName = path.basename(assetUrl)
+        return `href="../assets/${assetName}"`
+      } catch {
+        return match
+      }
+    })
 
-    await fs.writeFile(
-      path.join(outputPath, 'pages', filename),
-      processedContent,
-    )
+    await fs.writeFile(path.join(outputPath, 'pages', filename), processedContent)
   }
 }
 
@@ -378,15 +344,10 @@ function isProbablyWordPress(html: string): boolean {
   return patterns.some((p) => p.test(html))
 }
 
-function extractWordPressSlugFromHTML(
-  url: string,
-  html: string,
-): string | undefined {
+function extractWordPressSlugFromHTML(url: string, html: string): string | undefined {
   const $ = cheerio.load(html)
 
-  const canonical =
-    $('link[rel="canonical"]').attr('href') ||
-    $('meta[property="og:url"]').attr('content')
+  const canonical = $('link[rel="canonical"]').attr('href') || $('meta[property="og:url"]').attr('content')
   if (!canonical) {
     // find the slug from the last non-empty path term
     const path = new URL(url).pathname
@@ -414,13 +375,7 @@ async function crawlPage(
   }
 }> {
   try {
-    const {
-      content,
-      statusCode,
-      responseHeaders,
-      fetchedContent,
-      cachedContent,
-    } = await getUrlContent(crawler, url)
+    const {content, statusCode, responseHeaders, fetchedContent, cachedContent} = await getUrlContent(crawler, url)
 
     let postWPMeta: any | null = null
 
@@ -496,9 +451,7 @@ async function crawlPage(
     const urlObj = new URL(url)
     if (
       urlObj.pathname !== '/' &&
-      !urlObj.pathname.match(
-        /^\/(tag|page|author|category|sample-page|\d{4})/,
-      ) &&
+      !urlObj.pathname.match(/^\/(tag|page|author|category|sample-page|\d{4})/) &&
       responseHeaders['content-type']?.includes('text/html')
     ) {
       const title = $('h1.entry-title').text().trim()
@@ -513,16 +466,9 @@ async function crawlPage(
         })
         // Save WordPress metadata separately if it exists
         if (postWPMeta) {
-          const wpMetadataPath = path.join(
-            crawler.storage.cacheDir,
-            'wp-metadata',
-            `${hash}-wp.json`,
-          )
+          const wpMetadataPath = path.join(crawler.storage.cacheDir, 'wp-metadata', `${hash}-wp.json`)
           await fs.mkdir(path.dirname(wpMetadataPath), {recursive: true})
-          await fs.writeFile(
-            wpMetadataPath,
-            JSON.stringify(postWPMeta, null, 2),
-          )
+          await fs.writeFile(wpMetadataPath, JSON.stringify(postWPMeta, null, 2))
         }
       }
     }
@@ -534,10 +480,7 @@ async function crawlPage(
   }
 }
 
-async function crawl(
-  baseUrl: string,
-  onStatus: (status: ScrapeStatus) => void,
-): Promise<Crawler> {
+async function crawl(baseUrl: string, onStatus: (status: ScrapeStatus) => void): Promise<Crawler> {
   const crawler: Crawler = {
     visited: new Set<string>(),
     queue: [baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl],
@@ -586,10 +529,7 @@ async function crawl(
 
       for (const link of newLinks) {
         const cleanedLink = cleanUrl(link)
-        if (
-          !crawler.visited.has(cleanedLink) &&
-          !crawler.queue.includes(link)
-        ) {
+        if (!crawler.visited.has(cleanedLink) && !crawler.queue.includes(link)) {
           crawler.queue.push(link)
         }
       }
@@ -619,11 +559,7 @@ export type PostsFile = {
   wordpressMetadataFile?: string
 }[]
 
-export async function scrapeUrl(
-  targetSite: string,
-  scrapeId: string,
-  onStatus: (status: ScrapeStatus) => void,
-) {
+export async function scrapeUrl(targetSite: string, scrapeId: string, onStatus: (status: ScrapeStatus) => void) {
   const cacheDays = 7
   const outputDir = path.join(userDataPath, 'importer', 'scrapes', scrapeId)
 
@@ -715,16 +651,10 @@ export async function scrapeUrl(
   // console.log('posts', posts)
   // console.log('assets', assets)
 
-  await fs.writeFile(
-    path.join(outputDir, 'assets.json'),
-    JSON.stringify(assets, null, 2),
-  )
+  await fs.writeFile(path.join(outputDir, 'assets.json'), JSON.stringify(assets, null, 2))
   // console.log(`\nFound ${assets.length} assets saved to output/assets.json`)
 
-  await fs.writeFile(
-    path.join(outputDir, 'posts.json'),
-    JSON.stringify(crawler.posts, null, 2),
-  )
+  await fs.writeFile(path.join(outputDir, 'posts.json'), JSON.stringify(crawler.posts, null, 2))
   // console.log(`\nFound ${posts.length} posts saved to output/posts.json`)
   return {posts: crawler.posts, assets, summary}
 }

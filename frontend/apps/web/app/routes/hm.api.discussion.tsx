@@ -2,11 +2,7 @@ import {grpcClient} from '@/client.server'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {Params} from '@remix-run/react'
 import {createDiscussionThreadResolver, unpackHmId} from '@shm/shared'
-import {
-  HMAccountsMetadata,
-  HMComment,
-  HMCommentGroup,
-} from '@shm/shared/hm-types'
+import {HMAccountsMetadata, HMComment, HMCommentGroup} from '@shm/shared/hm-types'
 
 const loadDiscussionThread = createDiscussionThreadResolver(grpcClient)
 

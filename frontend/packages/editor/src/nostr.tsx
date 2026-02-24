@@ -1,9 +1,4 @@
-import {
-  Block,
-  BlockNoteEditor,
-  defaultProps,
-  getBlockInfoFromPos,
-} from '@shm/editor/blocknote'
+import {Block, BlockNoteEditor, defaultProps, getBlockInfoFromPos} from '@shm/editor/blocknote'
 import {createReactBlockSpec} from './blocknote/react/ReactBlockSpec'
 import {DAEMON_FILE_UPLOAD_URL, DAEMON_FILE_URL} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
@@ -12,14 +7,7 @@ import {Tabs, TabsContent, TabsList, TabsTrigger} from '@shm/ui/components/tabs'
 import {SizableText, Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
-import {
-  Event as NostrEvent,
-  nip19,
-  nip21,
-  relayInit,
-  validateEvent,
-  verifySignature,
-} from 'nostr-tools'
+import {Event as NostrEvent, nip19, nip21, relayInit, validateEvent, verifySignature} from 'nostr-tools'
 import {useEffect, useState} from 'react'
 import {HMBlockSchema} from './schema'
 
@@ -54,13 +42,8 @@ export const NostrBlock = createReactBlockSpec({
   },
   containsInlineContent: true,
   // @ts-ignore
-  render: ({
-    block,
-    editor,
-  }: {
-    block: Block<HMBlockSchema>
-    editor: BlockNoteEditor<HMBlockSchema>
-  }) => Render(block, editor),
+  render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) =>
+    Render(block, editor),
 })
 
 type NostrType = {
@@ -78,24 +61,15 @@ type NostrType = {
 
 const boolRegex = new RegExp('true')
 
-const Render = (
-  block: Block<HMBlockSchema>,
-  editor: BlockNoteEditor<HMBlockSchema>,
-) => {
+const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSchema>) => {
   const [selected, setSelected] = useState(false)
   const tiptapEditor = editor._tiptapEditor
   const selection = tiptapEditor.state.selection
 
   useEffect(() => {
-    const selectedNode = getBlockInfoFromPos(
-      tiptapEditor.state,
-      tiptapEditor.state.selection.from,
-    )
+    const selectedNode = getBlockInfoFromPos(tiptapEditor.state, tiptapEditor.state.selection.from)
     if (selectedNode && selectedNode.block.node.attrs.id) {
-      if (
-        selectedNode.block.node.attrs.id === block.id &&
-        selectedNode.block.beforePos === selection.$anchor.pos
-      ) {
+      if (selectedNode.block.node.attrs.id === block.id && selectedNode.block.beforePos === selection.$anchor.pos) {
         setSelected(true)
       } else if (selectedNode.block.node.attrs.id !== block.id) {
         setSelected(false)
@@ -214,18 +188,10 @@ function NostrComponent({
                 {'Public Key: '}
                 {nip21.test(uri) ? <a href={uri}>{header}</a> : header}
               </Text>
-              <Tooltip
-                content={verified ? 'Signature verified' : 'Invalid signature'}
-              >
+              <Tooltip content={verified ? 'Signature verified' : 'Invalid signature'}>
                 <Button
                   disabled
-                  variant={
-                    verified === undefined
-                      ? 'blue'
-                      : verified
-                      ? 'green'
-                      : 'orange'
-                  }
+                  variant={verified === undefined ? 'blue' : verified ? 'green' : 'orange'}
                   size="sm"
                 ></Button>
               </Tooltip>
@@ -267,10 +233,7 @@ function NostrForm({
     await new Promise((resolve) => setTimeout(resolve, t))
   }
 
-  const searchRelay = async (
-    relayUrl: string,
-    noteId: string,
-  ): Promise<void> => {
+  const searchRelay = async (relayUrl: string, noteId: string): Promise<void> => {
     const relay = relayInit(relayUrl)
     relay.on('connect', () => {
       setState({name: `Searching in ${relayUrl}`, color: 'green'})
@@ -406,9 +369,7 @@ function NostrForm({
             value="search"
             className={cn(
               'h-auto flex-1 rounded-none border-b-0 bg-transparent px-4 py-2 text-sm font-medium hover:bg-black/5 data-[state=active]:shadow-none dark:hover:bg-white/10',
-              tabState === 'search'
-                ? 'border-foreground border-b'
-                : 'border-b-0',
+              tabState === 'search' ? 'border-foreground border-b' : 'border-b-0',
             )}
           >
             <SizableText size="sm">Search</SizableText>
@@ -417,9 +378,7 @@ function NostrForm({
             value="manual"
             className={cn(
               'h-auto flex-1 rounded-none border-b-0 bg-transparent px-4 py-2 text-sm font-medium hover:bg-black/5 data-[state=active]:shadow-none dark:hover:bg-white/10',
-              tabState === 'manual'
-                ? 'border-foreground border-b'
-                : 'border-b-0',
+              tabState === 'manual' ? 'border-foreground border-b' : 'border-b-0',
             )}
           >
             <SizableText size="sm">Manual</SizableText>
@@ -439,11 +398,7 @@ function NostrForm({
                 <Button type="submit">SEARCH</Button>
               </div>
               {state.name && (
-                <SizableText
-                  size="sm"
-                  style={{color: state.color}}
-                  className="pt-2"
-                >
+                <SizableText size="sm" style={{color: state.color}} className="pt-2">
                   {state.name}
                 </SizableText>
               )}
@@ -464,11 +419,7 @@ function NostrForm({
                 <Button type="submit">EMBED</Button>
               </div>
               {state.name && (
-                <SizableText
-                  size="sm"
-                  style={{color: state.color}}
-                  className="pt-2"
-                >
+                <SizableText size="sm" style={{color: state.color}} className="pt-2">
                   {state.name}
                 </SizableText>
               )}

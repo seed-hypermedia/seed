@@ -1,6 +1,6 @@
 import {PanelSelectionOptions} from '@shm/shared'
 import {X} from 'lucide-react'
-import {useLayoutEffect, useRef} from 'react'
+import {useRef} from 'react'
 import {
   ImperativePanelGroupHandle,
   ImperativePanelHandle,
@@ -8,6 +8,7 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
+import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {Button} from './button'
 import {FeedFilters} from './feed-filters'
 import {Text} from './text'
@@ -72,7 +73,7 @@ export function PanelLayout({
   const prevPanelKey = useRef<PanelSelectionOptions | null>(panelKey)
 
   // Always open panel at DEFAULT_PANEL_PX, capped at MAX_PANEL_PERCENT
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const isOpening = prevPanelKey.current === null && panelKey !== null
 
     if (isOpening) {
@@ -82,10 +83,7 @@ export function PanelLayout({
         if (containerWidth) {
           const targetPercent = Math.min(
             MAX_OPEN_PERCENT,
-            Math.max(
-              MIN_PANEL_PERCENT,
-              (DEFAULT_PANEL_PX / containerWidth) * 100,
-            ),
+            Math.max(MIN_PANEL_PERCENT, (DEFAULT_PANEL_PX / containerWidth) * 100),
           )
           accessoryPanelRef.current?.resize(targetPercent)
           onPanelWidthChange?.(targetPercent)
@@ -124,11 +122,7 @@ export function PanelLayout({
               className="border-l"
             >
               <div className="h-full rounded-lg">
-                <div
-                  className={cn(
-                    'dark:bg-background flex h-full flex-col bg-white',
-                  )}
-                >
+                <div className={cn('dark:bg-background flex h-full flex-col bg-white')}>
                   <div className="border-border border-b px-5 py-3">
                     <div className="flex items-center justify-between gap-2">
                       <Text weight="semibold" size="lg" className="flex-1">
@@ -139,15 +133,10 @@ export function PanelLayout({
                       </Button>
                     </div>
                     {panelKey === 'activity' && onFilterChange && (
-                      <FeedFilters
-                        filterEventType={filterEventType}
-                        onFilterChange={onFilterChange}
-                      />
+                      <FeedFilters filterEventType={filterEventType} onFilterChange={onFilterChange} />
                     )}
                   </div>
-                  <div className="flex-1 overflow-hidden pt-4">
-                    {panelContent}
-                  </div>
+                  <div className="flex-1 overflow-hidden">{panelContent}</div>
                 </div>
               </div>
             </Panel>

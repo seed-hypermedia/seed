@@ -1,27 +1,10 @@
 import {Comment, Document} from './client'
-import {
-  HMComment,
-  HMCommentSchema,
-  HMDocument,
-  HMDocumentSchema,
-} from './hm-types'
+import {HMComment, HMCommentSchema, HMDocument, HMDocumentSchema} from './hm-types'
 import {documentMetadataParseAdjustments} from './models/entity'
 
-const REQUIRES_LINK_TYPES = new Set([
-  'Link',
-  'Image',
-  'Video',
-  'File',
-  'WebEmbed',
-  'Nostr',
-  'Embed',
-  'Button',
-])
+const REQUIRES_LINK_TYPES = new Set(['Link', 'Image', 'Video', 'File', 'WebEmbed', 'Nostr', 'Embed', 'Button'])
 
-function sanitizeBlockNode(
-  node: any,
-  isNavigationChild: boolean = false,
-): any | null {
+function sanitizeBlockNode(node: any, isNavigationChild: boolean = false): any | null {
   if (!node || typeof node !== 'object') return null
   const block = node.block
   if (!block || typeof block !== 'object') return null
@@ -79,10 +62,7 @@ function sanitizeDocumentStructure(docJSON: any) {
   return next
 }
 
-function sanitizeBlockNodes(
-  nodes: any[],
-  isNavigationChild: boolean = false,
-): any[] {
+function sanitizeBlockNodes(nodes: any[], isNavigationChild: boolean = false): any[] {
   if (!Array.isArray(nodes)) return []
 
   const sanitizeNode = (node: any): any | null => {
@@ -93,16 +73,7 @@ function sanitizeBlockNodes(
     const type = block.type
 
     // Drop clearly invalid blocks that require a link
-    const requiresLinkTypes = new Set([
-      'Link',
-      'Image',
-      'Video',
-      'File',
-      'WebEmbed',
-      'Nostr',
-      'Embed',
-      'Button',
-    ])
+    const requiresLinkTypes = new Set(['Link', 'Image', 'Video', 'File', 'WebEmbed', 'Nostr', 'Embed', 'Button'])
 
     if (requiresLinkTypes.has(type)) {
       // Special handling for navigation Link blocks - provide defaults instead of dropping
@@ -150,9 +121,7 @@ function sanitizeBlockNodes(
       // Only create a new block if annotations changed
       if (
         sanitizedAnnotations.length !== block.annotations.length ||
-        sanitizedAnnotations.some(
-          (a: any, i: number) => a !== block.annotations[i],
-        )
+        sanitizedAnnotations.some((a: any, i: number) => a !== block.annotations[i])
       ) {
         block = {...block, annotations: sanitizedAnnotations}
       }
@@ -191,10 +160,7 @@ export function prepareHMDocument(apiDoc: Document): HMDocument {
     const document = HMDocumentSchema.parse(docJSON)
     return document
   } catch (error) {
-    console.error(
-      '~~ Error parsing document, returning unvalidated document',
-      error,
-    )
+    console.error('~~ Error parsing document, returning unvalidated document', error)
     console.error(JSON.stringify(docJSON, null, 2))
     // Return the document as-is even if schema validation fails
     // This prevents the entire website from crashing due to parsing errors
@@ -212,10 +178,7 @@ export function prepareHMComment(apiComment: Comment): HMComment {
     const comment = HMCommentSchema.parse(commentJSON)
     return comment
   } catch (error) {
-    console.error(
-      '~~ Error parsing comment, returning unvalidated comment',
-      error,
-    )
+    console.error('~~ Error parsing comment, returning unvalidated comment', error)
     console.error(JSON.stringify(commentJSON, null, 2))
     // Return the document as-is even if schema validation fails
     // This prevents the entire website from crashing due to parsing errors

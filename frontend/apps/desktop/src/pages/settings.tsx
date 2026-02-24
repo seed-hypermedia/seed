@@ -1,16 +1,11 @@
 import {useIPC} from '@/app-context'
-import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
+import {grpcClient} from '@/grpc-client'
 import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
-import {useAllDocumentCapabilities} from '@/models/access-control'
 import {useAutoUpdatePreference} from '@/models/app-settings'
-import {
-  useDaemonInfo,
-  useDeleteKey,
-  useMyAccountIds,
-  useSavedMnemonics,
-} from '@/models/daemon'
-import {useWriteExperiments} from '@/models/experiments'
+import {useDaemonInfo, useDeleteKey, useMyAccountIds, useSavedMnemonics} from '@/models/daemon'
+import {useExperiments, useWriteExperiments} from '@/models/experiments'
+import {NotificationSigner, useNotificationConfig, useSetNotificationConfig} from '@shm/shared/models/notifications'
 import {
   useGatewayUrl,
   useNotifyServiceHost,
@@ -25,18 +20,12 @@ import {usePeerInfo} from '@/models/networking'
 import {useSystemThemeWriter} from '@/models/settings'
 import {useOpenUrl} from '@/open-url'
 import {client} from '@/trpc'
-import {queryKeys} from '@shm/shared/models/query-keys'
-import {useMutation, useQuery} from '@tanstack/react-query'
 import {useUniversalAppContext} from '@shm/shared'
-import {
-  COMMIT_HASH,
-  LIGHTNING_API_URL,
-  SEED_HOST_URL,
-  VERSION,
-} from '@shm/shared/constants'
+import {COMMIT_HASH, LIGHTNING_API_URL, SEED_HOST_URL, VERSION} from '@shm/shared/constants'
 import {getMetadataName} from '@shm/shared/content'
-import {useResource} from '@shm/shared/models/entity'
+import {useCapabilities, useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {formattedDateLong} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
@@ -62,13 +51,7 @@ import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Field} from '@shm/ui/form-fields'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Copy, ExternalLink} from '@shm/ui/icons'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@shm/ui/select-dropdown'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {InfoListHeader, InfoListItem, TableList} from '@shm/ui/table-list'
@@ -77,8 +60,10 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
+import {useMutation, useQuery} from '@tanstack/react-query'
 import {
   AtSign,
+  Biohazard,
   Check,
   Code2,
   Cog,
@@ -90,17 +75,13 @@ import {
   Trash,
   UserRoundPlus,
 } from 'lucide-react'
+import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useId, useMemo, useState} from 'react'
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('accounts')
   return (
-    <div
-      className={cn(
-        windowContainerStyles,
-        'h-full max-h-full min-h-0 w-full overflow-hidden pt-0',
-      )}
-    >
+    <div className={cn(windowContainerStyles, 'h-full max-h-full min-h-0 w-full overflow-hidden pt-0')}>
       <div className={panelContainerStyles}>
         <Tabs
           onValueChange={(v) => setActiveTab(v)}
@@ -111,42 +92,12 @@ export default function Settings() {
             aria-label="Manage your account"
             className="flex h-auto w-full flex-none shrink-0 items-center justify-center rounded-none bg-transparent p-0"
           >
-            <Tab
-              value="accounts"
-              active={activeTab === 'accounts'}
-              icon={AtSign}
-              label="Accounts"
-            />
-            <Tab
-              value="general"
-              active={activeTab === 'general'}
-              icon={Cog}
-              label="General"
-            />
-            <Tab
-              value="gateway"
-              active={activeTab === 'gateway'}
-              icon={RadioTower}
-              label="Gateway"
-            />
-            <Tab
-              value="app-info"
-              active={activeTab === 'app-info'}
-              icon={Info}
-              label="App Info"
-            />
-            {/* <Tab
-              value="experiments"
-              active={activeTab === 'experiments'}
-              icon={Biohazard}
-              label="Experiments"
-            /> */}
-            <Tab
-              value="developer"
-              active={activeTab === 'developer'}
-              icon={Code2}
-              label="Developers"
-            />
+            <Tab value="accounts" active={activeTab === 'accounts'} icon={AtSign} label="Accounts" />
+            <Tab value="general" active={activeTab === 'general'} icon={Cog} label="General" />
+            <Tab value="gateway" active={activeTab === 'gateway'} icon={RadioTower} label="Gateway" />
+            <Tab value="app-info" active={activeTab === 'app-info'} icon={Info} label="App Info" />
+            <Tab value="experiments" active={activeTab === 'experiments'} icon={Biohazard} label="Experiments" />
+            <Tab value="developer" active={activeTab === 'developer'} icon={Code2} label="Developers" />
           </TabsList>
           <Separator />
           <CustomTabsContent value="accounts">
@@ -161,9 +112,9 @@ export default function Settings() {
           <CustomTabsContent value="app-info">
             <AppSettings />
           </CustomTabsContent>
-          {/* <CustomTabsContent value="experiments">
+          <CustomTabsContent value="experiments">
             <ExperimentsSettings />
-          </CustomTabsContent> */}
+          </CustomTabsContent>
           <CustomTabsContent value="developer">
             <DeveloperSettings />
           </CustomTabsContent>
@@ -264,10 +215,7 @@ function GeneralSettings() {
         </div>
       )}
       <SettingsSection title="Recent Items">
-        <SizableText>
-          Clear all recent documents from your search history. This action
-          cannot be undone.
-        </SizableText>
+        <SizableText>Clear all recent documents from your search history. This action cannot be undone.</SizableText>
         <div className="flex justify-end">
           <DeleteAllRecents />
         </div>
@@ -281,15 +229,91 @@ export function DeveloperSettings() {
   const writeExperiments = useWriteExperiments()
   const enabledDevTools = experiments?.developerTools
   const enabledPubContentDevMenu = experiments?.pubContentDevMenu
+  const embeddingEnabled = experiments?.embeddingEnabled
+  const [showEmbeddingConfirm, setShowEmbeddingConfirm] = useState(false)
+  const [pendingEmbeddingState, setPendingEmbeddingState] = useState(false)
+  const restartDaemon = useMutation({
+    mutationFn: (enabled: boolean) => client.restartDaemonWithEmbedding.mutate({embeddingEnabled: enabled}),
+    onSuccess: () => {
+      toast.success(
+        pendingEmbeddingState ? 'Embedding enabled. Daemon restarted.' : 'Embedding disabled. Daemon restarted.',
+      )
+    },
+    onError: (error: unknown) => {
+      toast.error('Failed to restart daemon: ' + String(error))
+    },
+  })
   const openDraftLogs = useMutation({
     mutationFn: () => client.diagnosis.openDraftLogFolder.mutate(),
   })
+
+  function handleEmbeddingToggle() {
+    const newState = !embeddingEnabled
+    setPendingEmbeddingState(newState)
+    setShowEmbeddingConfirm(true)
+  }
+
+  function confirmEmbeddingChange() {
+    setShowEmbeddingConfirm(false)
+    writeExperiments.mutate({embeddingEnabled: pendingEmbeddingState})
+    restartDaemon.mutate(pendingEmbeddingState)
+  }
+
   return (
     <>
+      <SettingsSection title="Embedding / AI Features">
+        <SizableText>
+          Enable AI-powered document embeddings for semantic search and related content features. This will restart the
+          background service.
+        </SizableText>
+        <div className="flex justify-between">
+          {embeddingEnabled ? <EnabledTag /> : <div />}
+          <Button
+            size="sm"
+            variant={embeddingEnabled ? 'destructive' : 'default'}
+            onClick={handleEmbeddingToggle}
+            disabled={restartDaemon.isLoading}
+          >
+            {restartDaemon.isLoading ? (
+              <>
+                <Spinner size="small" className="mr-2" />
+                Restarting...
+              </>
+            ) : embeddingEnabled ? (
+              'Disable Embedding'
+            ) : (
+              'Enable Embedding'
+            )}
+          </Button>
+        </div>
+      </SettingsSection>
+      <AlertDialog open={showEmbeddingConfirm} onOpenChange={setShowEmbeddingConfirm}>
+        <AlertDialogPortal>
+          <AlertDialogContent className="max-w-[500px] gap-4">
+            <AlertDialogTitle className="text-xl font-bold">
+              {pendingEmbeddingState ? 'Enable Embedding?' : 'Disable Embedding?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingEmbeddingState
+                ? 'This will restart the background service with AI embedding features enabled. The app may be briefly unresponsive during restart.'
+                : 'This will restart the background service with AI embedding features disabled. The app may be briefly unresponsive during restart.'}
+            </AlertDialogDescription>
+            <div className="flex justify-end gap-3">
+              <AlertDialogCancel asChild>
+                <Button variant="ghost">Cancel</Button>
+              </AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Button variant={pendingEmbeddingState ? 'default' : 'destructive'} onClick={confirmEmbeddingChange}>
+                  {pendingEmbeddingState ? 'Enable & Restart' : 'Disable & Restart'}
+                </Button>
+              </AlertDialogAction>
+            </div>
+          </AlertDialogContent>
+        </AlertDialogPortal>
+      </AlertDialog>
       <SettingsSection title="Developer Tools">
         <SizableText>
-          Adds features across the app for helping diagnose issues. Mostly
-          useful for Seed Developers.
+          Adds features across the app for helping diagnose issues. Mostly useful for Seed Developers.
         </SizableText>
         <div className="flex justify-between">
           {enabledDevTools ? <EnabledTag /> : <div />}
@@ -305,9 +329,7 @@ export function DeveloperSettings() {
         </div>
       </SettingsSection>
       <SettingsSection title="Publication Content Dev Tools">
-        <SizableText>
-          Debug options for the formatting of all publication content
-        </SizableText>
+        <SizableText>Debug options for the formatting of all publication content</SizableText>
         <div className="flex justify-between">
           {enabledPubContentDevMenu ? <EnabledTag /> : <div />}
           <Button
@@ -319,9 +341,7 @@ export function DeveloperSettings() {
               })
             }}
           >
-            {enabledPubContentDevMenu
-              ? 'Disable Publication Debug Panel'
-              : `Enable Publication Debug Panel`}
+            {enabledPubContentDevMenu ? 'Disable Publication Debug Panel' : `Enable Publication Debug Panel`}
           </Button>
         </div>
       </SettingsSection>
@@ -351,23 +371,19 @@ function AccountKeys() {
     mutationFn: (name: string) => client.secureStorage.delete.mutate(name),
   })
   const [walletId, setWalletId] = useState<string | undefined>(undefined)
-  const [selectedAccount, setSelectedAccount] = useState<undefined | string>(
-    () => {
-      if (keys.data && keys.data.length) {
-        return keys.data[0]
-      }
-      return undefined
-    },
-  )
+  const [selectedAccount, setSelectedAccount] = useState<undefined | string>(() => {
+    if (keys.data && keys.data.length) {
+      return keys.data[0]
+    }
+    return undefined
+  })
 
-  const {data: mnemonics, refetch: mnemonicsRefetch} =
-    useSavedMnemonics(selectedAccount)
+  const {data: mnemonics, refetch: mnemonicsRefetch} = useSavedMnemonics(selectedAccount)
 
   const selectedAccountId = selectedAccount ? hmId(selectedAccount) : undefined
 
   const {data: profile} = useResource(selectedAccountId)
-  const profileDocument =
-    profile?.type === 'document' ? profile.document : undefined
+  const profileDocument = profile?.type === 'document' ? profile.document : undefined
 
   const [showWords, setShowWords] = useState<boolean>(false)
 
@@ -405,19 +421,11 @@ function AccountKeys() {
       <div className="flex max-w-[25%] flex-1 flex-col gap-2">
         <div className="flex flex-1 flex-col">
           {keys.data?.map((key) => (
-            <KeyItem
-              item={key}
-              isActive={key == selectedAccount}
-              onSelect={() => setSelectedAccount(key)}
-            />
+            <KeyItem item={key} isActive={key == selectedAccount} onSelect={() => setSelectedAccount(key)} />
           ))}
         </div>
       </div>
-      <div
-        className={cn(
-          'border-border dark:bg-background bg-muted flex flex-[3] flex-col rounded-lg border',
-        )}
-      >
+      <div className={cn('border-border dark:bg-background bg-muted flex flex-[3] flex-col rounded-lg border')}>
         <div className="flex flex-col gap-4 p-4">
           <div className="mb-4 flex gap-4">
             {selectedAccountId ? (
@@ -430,10 +438,7 @@ function AccountKeys() {
             ) : null}
             <div className="mt-2 flex flex-1 flex-col gap-3">
               <Field id="username" label="Profile Name">
-                <Input
-                  disabled
-                  value={getMetadataName(profileDocument?.metadata)}
-                />
+                <Input disabled value={getMetadataName(profileDocument?.metadata)} />
               </Field>
               <Field id="accountid" label="Account ID">
                 <Input disabled value={selectedAccount} />
@@ -457,16 +462,8 @@ function AccountKeys() {
                     }
                   />
                   <div className="flex flex-col gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setShowWords((v) => !v)}
-                    >
-                      {showWords ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
+                    <Button size="sm" variant="outline" onClick={() => setShowWords((v) => !v)}>
+                      {showWords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                     <Button
                       size="sm"
@@ -490,13 +487,10 @@ function AccountKeys() {
                       </Tooltip>
                       <AlertDialogPortal>
                         <AlertDialogContent className="max-w-[600px] gap-4">
-                          <AlertDialogTitle className="text-2xl font-bold">
-                            Delete Words
-                          </AlertDialogTitle>
+                          <AlertDialogTitle className="text-2xl font-bold">Delete Words</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Are you really sure? you cant recover the secret
-                            words after you delete them. please save them
-                            securely in another place before you delete
+                            Are you really sure? you cant recover the secret words after you delete them. please save
+                            them securely in another place before you delete
                           </AlertDialogDescription>
                           <div className="flex justify-end gap-3">
                             <AlertDialogCancel asChild>
@@ -506,14 +500,10 @@ function AccountKeys() {
                               <Button
                                 variant="destructive"
                                 onClick={() =>
-                                  deleteWords
-                                    .mutateAsync(selectedAccount)
-                                    .then(() => {
-                                      toast.success('Words deleted!')
-                                      invalidateQueries([
-                                        queryKeys.SECURE_STORAGE,
-                                      ])
-                                    })
+                                  deleteWords.mutateAsync(selectedAccount).then(() => {
+                                    toast.success('Words deleted!')
+                                    invalidateQueries([queryKeys.SECURE_STORAGE])
+                                  })
                                 }
                               >
                                 Delete Permanently
@@ -539,23 +529,17 @@ function AccountKeys() {
             </Tooltip>
             <AlertDialogPortal>
               <AlertDialogContent className="max-w-[600px] gap-4">
-                <AlertDialogTitle className="text-2xl font-bold">
-                  Delete Account
-                </AlertDialogTitle>
+                <AlertDialogTitle className="text-2xl font-bold">Delete Account</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Are you sure? This account will be removed. Make sure you have
-                  saved the Secret Recovery Phrase for this account if you want
-                  to recover it later.
+                  Are you sure? This account will be removed. Make sure you have saved the Secret Recovery Phrase for
+                  this account if you want to recover it later.
                 </AlertDialogDescription>
                 <div className="flex justify-end gap-3">
                   <AlertDialogCancel asChild>
                     <Button variant="ghost">Cancel</Button>
                   </AlertDialogCancel>
                   <AlertDialogAction asChild>
-                    <Button
-                      variant="destructive"
-                      onClick={handleDeleteCurrentAccount}
-                    >
+                    <Button variant="destructive" onClick={handleDeleteCurrentAccount}>
                       Delete Permanently
                     </Button>
                   </AlertDialogAction>
@@ -568,16 +552,10 @@ function AccountKeys() {
             accountName={getMetadataName(profileDocument?.metadata)}
           />
           <SettingsSection title="Wallets">
-            <AccountWallet
-              accountUid={selectedAccount}
-              onOpenWallet={(walletId) => setWalletId(walletId)}
-            />
+            <AccountWallet accountUid={selectedAccount} onOpenWallet={(walletId) => setWalletId(walletId)} />
           </SettingsSection>
           <SettingsSection title="Linked Devices">
-            <LinkedDevices
-              accountUid={selectedAccount}
-              accountName={getMetadataName(profileDocument?.metadata)}
-            />
+            <LinkedDevices accountUid={selectedAccount} accountName={getMetadataName(profileDocument?.metadata)} />
           </SettingsSection>
         </div>
       </div>
@@ -589,8 +567,7 @@ function AccountKeys() {
       </div>
       <SizableText size="xl">No Accounts Found</SizableText>
       <p className="text-muted-foreground max-w-lg text-center">
-        Create a new profile to get started with Seed. You'll need to create a
-        profile to use all the features.
+        Create a new profile to get started with Seed. You'll need to create a profile to use all the features.
       </p>
       <Button
         className="mt-4"
@@ -607,66 +584,100 @@ function AccountKeys() {
   )
 }
 
-function EmailNotificationsSettings({
-  accountUid,
-  accountName,
-}: {
-  accountUid: string
-  accountName: string
-}) {
-  const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
-  const notifyServiceHost =
-    useNotifyServiceHost() || 'https://notify.seed.hyper.media'
+function EmailNotificationsSettings({accountUid, accountName}: {accountUid: string; accountName: string}) {
+  const {data: experiments} = useExperiments()
+  if (!experiments?.notifications) return null
+  return <AccountNotifSettings accountUid={accountUid} accountName={accountName} />
+}
+
+function AccountNotifSettings({accountUid}: {accountUid: string; accountName: string}) {
+  const notifyServiceHost = useNotifyServiceHost() || 'https://notify.seed.hyper.media'
+  const signer = useMemo((): NotificationSigner => {
+    const publicKey = new Uint8Array(base58btc.decode(accountUid))
+    return {
+      publicKey,
+      sign: async (data: Uint8Array) => {
+        const res = await grpcClient.daemon.signData({
+          signingKeyName: accountUid,
+          data: new Uint8Array(data),
+        })
+        return new Uint8Array(res.signature)
+      },
+    }
+  }, [accountUid])
+  const {data: config, isLoading} = useNotificationConfig(notifyServiceHost, signer)
+  const setConfig = useSetNotificationConfig(notifyServiceHost, signer)
+  const [emailInput, setEmailInput] = useState('')
+  const [isEditing, setIsEditing] = useState(false)
+  const currentEmail = config?.email ?? null
 
   return (
     <SettingsSection title="Email Notifications">
-      <Button
-        variant="inverse"
-        onClick={() => {
-          notifSettingsDialog.open({
-            accountUid: accountUid,
-            title: `Notifications for ${accountName}`,
-            notifyServiceHost,
-          })
-        }}
-      >
-        Subscribe with email address
-      </Button>
-      {notifSettingsDialog.content}
+      {isLoading ? (
+        <Spinner />
+      ) : isEditing || !currentEmail ? (
+        <form
+          className="flex flex-col gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!emailInput) return
+            setConfig.mutate(
+              {email: emailInput},
+              {
+                onSuccess: () => {
+                  setIsEditing(false)
+                  toast.success('Email updated')
+                },
+              },
+            )
+          }}
+        >
+          <Input
+            type="email"
+            placeholder="you@example.com"
+            value={emailInput}
+            onChange={(e) => setEmailInput(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button type="submit" disabled={!emailInput || setConfig.isLoading}>
+              {setConfig.isLoading ? 'Saving...' : 'Save'}
+            </Button>
+            {currentEmail ? (
+              <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
+                Cancel
+              </Button>
+            ) : null}
+          </div>
+        </form>
+      ) : (
+        <div className="flex items-center gap-2">
+          <SizableText className="flex-1">{currentEmail}</SizableText>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setEmailInput(currentEmail)
+              setIsEditing(true)
+            }}
+          >
+            Change
+          </Button>
+        </div>
+      )}
     </SettingsSection>
   )
 }
 
-function CheckmarkRow({checked, label}: {checked: boolean; label: string}) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="w-6">
-        {checked ? <Check className="text-primary size-4" /> : null}
-      </div>
-      <SizableText weight={checked ? 'bold' : 'normal'}>{label}</SizableText>
-    </div>
-  )
-}
-
-function LinkedDevices({
-  accountUid,
-  accountName,
-}: {
-  accountUid: string
-  accountName: string
-}) {
+function LinkedDevices({accountUid, accountName}: {accountUid: string; accountName: string}) {
   const linkDevice = useAppDialog(LinkDeviceDialog)
-  const {data: capabilities} = useAllDocumentCapabilities(hmId(accountUid))
+  const {data: capabilities} = useCapabilities(hmId(accountUid))
   const devices = capabilities?.filter((c) => c.role === 'agent')
   return (
     <div className="flex flex-col gap-3">
       {devices?.length ? (
         <div className="flex flex-col gap-2">
           {devices.map((d) => (
-            <div
-              key={d.accountUid}
-              className="flex flex-row items-center gap-2"
-            >
+            <div key={d.accountUid} className="flex flex-row items-center gap-2">
               <Tooltip side="left" content={`Copy Account ID of ${d.label}`}>
                 <Button
                   size="sm"
@@ -682,10 +693,7 @@ function LinkedDevices({
               </Tooltip>
               <p className="text-muted-foreground text-sm">
                 {/* Removing the timezone name in the timestamp. */}
-                {formattedDateLong(d.createTime).replace(
-                  /\s+[A-Z]{2,4}[+-]?\d*$/,
-                  '',
-                )}
+                {formattedDateLong(d.createTime).replace(/\s+[A-Z]{2,4}[+-]?\d*$/, '')}
               </p>
             </div>
           ))}
@@ -706,36 +714,15 @@ function LinkedDevices({
   )
 }
 
-function KeyItem({
-  item,
-  isActive,
-  onSelect,
-}: {
-  item: string
-  isActive: boolean
-  onSelect: () => void
-}) {
+function KeyItem({item, isActive, onSelect}: {item: string; isActive: boolean; onSelect: () => void}) {
   const id = hmId(item)
   const entity = useResource(id)
-  const document =
-    entity.data?.type === 'document' ? entity.data.document : undefined
+  const document = entity.data?.type === 'document' ? entity.data.document : undefined
   return (
-    <Button
-      variant={isActive ? 'secondary' : 'ghost'}
-      onClick={onSelect}
-      className="h-auto w-full items-start"
-    >
-      <HMIcon
-        id={id}
-        name={document?.metadata?.name}
-        icon={document?.metadata?.icon}
-        size={24}
-      />
+    <Button variant={isActive ? 'secondary' : 'ghost'} onClick={onSelect} className="h-auto w-full items-start">
+      <HMIcon id={id} name={document?.metadata?.name} icon={document?.metadata?.icon} size={24} />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <SizableText
-          weight={isActive ? 'bold' : 'normal'}
-          className="h-6 truncate text-left"
-        >
+        <SizableText weight={isActive ? 'bold' : 'normal'} className="h-6 truncate text-left">
           {document?.metadata.name || item}
         </SizableText>
         <SizableText color="muted" size="xs" className="text-left">
@@ -757,11 +744,7 @@ export function ExperimentSection({
   value: boolean
 }) {
   return (
-    <div
-      className={cn(
-        'dark:bg-background bg-muted flex items-center gap-6 rounded border p-3 px-6',
-      )}
-    >
+    <div className={cn('dark:bg-background bg-muted flex items-center gap-6 rounded border p-3 px-6')}>
       <SizableText size="2xl">{experiment.emoji}</SizableText>
       <div className="flex flex-1 flex-col gap-3">
         <div className="flex flex-1 gap-3">
@@ -796,27 +779,19 @@ function EnabledTag() {
 }
 
 type ExperimentType = {
-  key: string
+  key: keyof NonNullable<ReturnType<typeof useUniversalAppContext>['experiments']>
   label: string
   emoji: string
   description: string
 }
-const EXPERIMENTS = //: ExperimentType[]
-  [
-    // {
-    //   key: 'webImporting',
-    //   label: 'Web Importing',
-    //   emoji: '🛰️',
-    //   description:
-    //     'When opening a Web URL from the Quick Switcher, automatically convert to a Hypermedia Document.',
-    // },
-    // {
-    //   key: 'nostr',
-    //   label: 'Nostr Embeds',
-    //   emoji: '🍀',
-    //   description: 'Embed Nostr notes into documents for permanent referencing.',
-    // },
-  ] as const
+const EXPERIMENTS: ExperimentType[] = [
+  {
+    key: 'notifications',
+    label: 'Notifications',
+    emoji: '🔔',
+    description: 'Enable desktop notifications for activity on your documents.',
+  },
+]
 
 function GatewaySettings({}: {}) {
   const gatewayUrl = useGatewayUrl()
@@ -863,11 +838,7 @@ function GatewaySettings({}: {}) {
         <InfoListHeader title="Notify Service Host" />
         <TableList.Item>
           <div className="flex w-full gap-3">
-            <Input
-              className="flex-1"
-              value={notifyHost}
-              onChangeText={setNotifyHost}
-            />
+            <Input className="flex-1" value={notifyHost} onChangeText={setNotifyHost} />
             <Button
               size="sm"
               onClick={() => {
@@ -917,11 +888,7 @@ function PushOnCopySetting({}: {}) {
         <TableList.Item>
           <div className="flex flex-col">
             <p className="text-destructive">Error loading settings.</p>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => pushOnCopy.refetch()}
-            >
+            <Button variant="destructive" size="sm" onClick={() => pushOnCopy.refetch()}>
               Retry
             </Button>
           </div>
@@ -939,10 +906,7 @@ function PushOnCopySetting({}: {}) {
           onValueChange={(value) => {
             try {
               // Type guard to ensure we only pass valid values
-              const validValue =
-                value === 'always' || value === 'never' || value === 'ask'
-                  ? value
-                  : 'always'
+              const validValue = value === 'always' || value === 'never' || value === 'ask' ? value : 'always'
 
               setPushOnCopy.mutate(validValue, {
                 onSuccess: () => {
@@ -966,10 +930,7 @@ function PushOnCopySetting({}: {}) {
           ].map((option) => {
             return (
               <div className="flex items-center gap-2" key={option.value}>
-                <RadioGroupItem
-                  value={option.value}
-                  id={`${id}-${option.value}`}
-                />
+                <RadioGroupItem value={option.value} id={`${id}-${option.value}`} />
 
                 <Label htmlFor={`${id}-${option.value}`}>{option.label}</Label>
               </div>
@@ -1011,11 +972,7 @@ function PushOnPublishSetting({}: {}) {
         <TableList.Item>
           <div className="flex flex-col">
             <p className="text-destructive">Error loading settings.</p>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => pushOnPublish.refetch()}
-            >
+            <Button variant="destructive" size="sm" onClick={() => pushOnPublish.refetch()}>
               Retry
             </Button>
           </div>
@@ -1033,20 +990,14 @@ function PushOnPublishSetting({}: {}) {
           onValueChange={(value) => {
             try {
               // Type guard to ensure we only pass valid values
-              const validValue =
-                value === 'always' || value === 'never' || value === 'ask'
-                  ? value
-                  : 'always'
+              const validValue = value === 'always' || value === 'never' || value === 'ask' ? value : 'always'
 
               setPushOnPublish.mutate(validValue, {
                 onSuccess: () => {
                   toast.success('Push on publish changed!')
                 },
                 onError: (error) => {
-                  console.error(
-                    'Failed to update push on publish setting:',
-                    error,
-                  )
+                  console.error('Failed to update push on publish setting:', error)
                   toast.error('Failed to update setting. Please try again.')
                 },
               })
@@ -1063,10 +1014,7 @@ function PushOnPublishSetting({}: {}) {
           ].map((option) => {
             return (
               <div className="flex items-center gap-2" key={option.value}>
-                <RadioGroupItem
-                  value={option.value}
-                  id={`${id}-${option.value}`}
-                />
+                <RadioGroupItem value={option.value} id={`${id}-${option.value}`} />
 
                 <Label htmlFor={`${id}-${option.value}`}>{option.label}</Label>
               </div>
@@ -1078,30 +1026,29 @@ function PushOnPublishSetting({}: {}) {
   )
 }
 
-// function ExperimentsSettings({}: {}) {
-//   const experiments = useUniversalAppContext().experiments
-//   const writeExperiments = useWriteExperiments()
-//   return (
-//     <div className="flex flex-col gap-3">
-//       <div className="flex flex-col self-stretch my-4 space-y-4">
-//         {EXPERIMENTS.map((experiment) => {
-//           return (
-//             <ExperimentSection
-//               key={experiment.key}
-//               id={experiment.key}
-//               value={!!experiments.data?.[experiment.key]}
-//               experiment={experiment}
-//               onValue={(isEnabled) => {
-//                 console.log(experiment.key, 'isEnabled', isEnabled)
-//                 writeExperiments.mutate({[experiment.key]: isEnabled})
-//               }}
-//             />
-//           )
-//         })}
-//       </div>
-//     </div>
-//   )
-// }
+function ExperimentsSettings() {
+  const experiments = useUniversalAppContext().experiments
+  const writeExperiments = useWriteExperiments()
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="my-4 flex flex-col space-y-4 self-stretch">
+        {EXPERIMENTS.map((experiment) => {
+          return (
+            <ExperimentSection
+              key={experiment.key}
+              id={experiment.key}
+              value={!!experiments?.[experiment.key]}
+              experiment={experiment}
+              onValue={(isEnabled) => {
+                writeExperiments.mutate({[experiment.key]: isEnabled})
+              }}
+            />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 function DeviceItem({id}: {id: string}) {
   let {data} = usePeerInfo(id)
@@ -1297,9 +1244,7 @@ function AppSettings() {
           label="Commit Hash"
           value={COMMIT_HASH}
           onOpen={() => {
-            openUrl(
-              `https://github.com/seed-hypermedia/seed/commit/${COMMIT_HASH}`,
-            )
+            openUrl(`https://github.com/seed-hypermedia/seed/commit/${COMMIT_HASH}`)
           }}
         />
         <Separator />
@@ -1315,14 +1260,9 @@ function AppSettings() {
 
 const CustomTabsContent = (props: React.ComponentProps<typeof TabsContent>) => {
   return (
-    <TabsContent
-      className="flex flex-1 flex-col gap-3 overflow-hidden"
-      {...props}
-    >
+    <TabsContent className="flex flex-1 flex-col gap-3 overflow-hidden" {...props}>
       <ScrollArea>
-        <div className="flex flex-1 flex-col gap-4 p-4 pb-5">
-          {props.children}
-        </div>
+        <div className="flex flex-1 flex-col gap-4 p-4 pb-5">{props.children}</div>
       </ScrollArea>
     </TabsContent>
   )
@@ -1342,35 +1282,17 @@ function Tab(
       className="flex h-auto cursor-default flex-col items-center justify-center gap-2 rounded-none border-0 bg-transparent p-4 pb-3 text-sm font-medium hover:bg-black/5 data-[state=active]:shadow-none dark:hover:bg-white/10"
       {...rest}
     >
-      <Icon
-        className={cn(
-          'size-5',
-          active ? 'text-brand-2' : 'text-muted-foreground',
-        )}
-      />
-      <SizableText
-        size="xs"
-        className={cn(
-          'flex-1',
-          active ? 'text-brand-2' : 'text-muted-foreground',
-        )}
-      >
+      <Icon className={cn('size-5', active ? 'text-brand-2' : 'text-muted-foreground')} />
+      <SizableText size="xs" className={cn('flex-1', active ? 'text-brand-2' : 'text-muted-foreground')}>
         {label}
       </SizableText>
     </TabsTrigger>
   )
 }
 
-function SettingsSection({
-  title,
-  children,
-}: React.PropsWithChildren<{title: string}>) {
+function SettingsSection({title, children}: React.PropsWithChildren<{title: string}>) {
   return (
-    <div
-      className={cn(
-        'dark:bg-background bg-muted flex flex-col gap-3 rounded p-3',
-      )}
-    >
+    <div className={cn('dark:bg-background bg-muted flex flex-col gap-3 rounded p-3')}>
       <SizableText size="2xl">{title}</SizableText>
       {children}
     </div>

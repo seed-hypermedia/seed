@@ -1,9 +1,7 @@
 import {BlockRange, hmId, UnpackedHypermediaId} from '@shm/shared'
-import {MessageSquare} from 'lucide-react'
 import {ReactNode} from 'react'
 import {BlockDiscussions, CommentDiscussions, Discussions} from './comments'
 import {PageLayout} from './page-layout'
-import {SizableText} from './text'
 
 export interface DiscussionsPageContentProps {
   docId: UnpackedHypermediaId
@@ -62,7 +60,6 @@ export function DiscussionsPageContent({
         targetDomain={targetDomain}
         currentAccountId={currentAccountId}
         onCommentDelete={onCommentDelete}
-        centered
       />
     )
   } else if (openComment) {
@@ -74,10 +71,8 @@ export function DiscussionsPageContent({
         targetDomain={targetDomain}
         currentAccountId={currentAccountId}
         onCommentDelete={onCommentDelete}
-        selection={
-          blockId ? {blockId, blockRange: blockRange || undefined} : undefined
-        }
-        centered
+        isEntirelyHighlighted={!blockId}
+        selection={blockId ? {blockId, blockRange: blockRange || undefined} : undefined}
       />
     )
   } else {
@@ -89,34 +84,17 @@ export function DiscussionsPageContent({
           targetDomain={targetDomain}
           currentAccountId={currentAccountId}
           onCommentDelete={onCommentDelete}
-          centered
         />
       </>
     )
   }
 
   return (
-    <PageLayout
-      title={showTitle ? 'Discussions' : undefined}
-      centered
-      contentMaxWidth={contentMaxWidth}
-    >
-      {deleteCommentDialogContent}
-      {content}
-    </PageLayout>
-  )
-}
-
-export function DiscussionsEmpty() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-4 py-16">
-      <MessageSquare className="text-muted-foreground size-16" />
-      <SizableText color="muted" weight="medium" size="xl">
-        No discussions yet
-      </SizableText>
-      <SizableText color="muted" size="sm">
-        Start a conversation by leaving a comment
-      </SizableText>
+    <div className="p-4">
+      <PageLayout title={showTitle ? 'Discussions' : undefined} contentMaxWidth={contentMaxWidth}>
+        {deleteCommentDialogContent}
+        {content}
+      </PageLayout>
     </div>
   )
 }

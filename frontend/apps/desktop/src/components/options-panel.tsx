@@ -1,9 +1,5 @@
 import {ImageForm} from '@/pages/image-form'
-import {
-  HMBlockNode,
-  HMMetadata,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+import {HMBlockNode, HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {PanelContent} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
 import {DatePicker} from '@shm/ui/components/date-picker'
@@ -11,13 +7,7 @@ import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {SwitchField} from '@shm/ui/form-fields'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@shm/ui/select-dropdown'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {SizableText} from '@shm/ui/text'
 import {useEffect, useRef, useState} from 'react'
 import {IconForm} from './icon-form'
@@ -41,11 +31,7 @@ export function OptionsPanel({
         {isHomeDoc ? (
           <>
             <NameInput metadata={metadata} onMetadata={onMetadata} />
-            <DocumentIconForm
-              draftId={draftId}
-              metadata={metadata}
-              onMetadata={onMetadata}
-            />
+            <DocumentIconForm draftId={draftId} metadata={metadata} onMetadata={onMetadata} />
             <HeaderLogo
               // @ts-expect-error
               draftId={draftId}
@@ -54,18 +40,10 @@ export function OptionsPanel({
             />
             <HeaderLayout metadata={metadata} onMetadata={onMetadata} />
 
-            <SizableText
-              className="mt-4 flex-1 px-1 select-none"
-              size="md"
-              weight="semibold"
-            >
+            <SizableText className="mt-4 flex-1 px-1 select-none" size="md" weight="semibold">
               Document Options
             </SizableText>
-            <CoverImage
-              draftId={draftId}
-              metadata={metadata}
-              onMetadata={onMetadata}
-            />
+            <CoverImage draftId={draftId} metadata={metadata} onMetadata={onMetadata} />
             <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
             <ContentWidth metadata={metadata} onMetadata={onMetadata} />
             <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
@@ -74,16 +52,8 @@ export function OptionsPanel({
           <>
             <NameInput metadata={metadata} onMetadata={onMetadata} />
             <SummaryInput metadata={metadata} onMetadata={onMetadata} />
-            <DocumentIconForm
-              draftId={draftId}
-              metadata={metadata}
-              onMetadata={onMetadata}
-            />
-            <CoverImage
-              draftId={draftId}
-              metadata={metadata}
-              onMetadata={onMetadata}
-            />
+            <DocumentIconForm draftId={draftId} metadata={metadata} onMetadata={onMetadata} />
+            <CoverImage draftId={draftId} metadata={metadata} onMetadata={onMetadata} />
             <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
             <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
             <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
@@ -95,13 +65,7 @@ export function OptionsPanel({
   )
 }
 
-function NameInput({
-  metadata,
-  onMetadata,
-}: {
-  metadata: HMMetadata
-  onMetadata: (values: Partial<HMMetadata>) => void
-}) {
+function NameInput({metadata, onMetadata}: {metadata: HMMetadata; onMetadata: (values: Partial<HMMetadata>) => void}) {
   return (
     <div className="flex flex-col gap-1">
       <Label size="sm" className="text-muted-foreground">
@@ -129,9 +93,7 @@ function SummaryInput({
 
   const adjustHeight = (textarea: HTMLTextAreaElement) => {
     textarea.style.height = 'auto'
-    textarea.style.height = `${
-      textarea.scrollHeight > 150 ? 150 : textarea.scrollHeight
-    }px`
+    textarea.style.height = `${textarea.scrollHeight > 150 ? 150 : textarea.scrollHeight}px`
 
     if (textarea.scrollHeight > 150) {
       textarea.style.overflow = 'auto'
@@ -263,9 +225,7 @@ function ContentWidth({
         Content Width
       </Label>
       <Select
-        onValueChange={(contentWidth: 'S' | 'M' | 'L') =>
-          onMetadata({contentWidth})
-        }
+        onValueChange={(contentWidth: 'S' | 'M' | 'L') => onMetadata({contentWidth})}
         value={metadata.contentWidth || 'M'}
       >
         <SelectTrigger>
@@ -332,11 +292,7 @@ function HeaderLogo({
         height={100}
         id={`logo-${draftId.id}`}
         label={metadata.seedExperimentalLogo}
-        url={
-          metadata.seedExperimentalLogo
-            ? getDaemonFileUrl(metadata.seedExperimentalLogo)
-            : ''
-        }
+        url={metadata.seedExperimentalLogo ? getDaemonFileUrl(metadata.seedExperimentalLogo) : ''}
         onImageUpload={(imgageCid) => {
           if (imgageCid) {
             onMetadata({
@@ -399,8 +355,7 @@ function OutlineVisibility({
   metadata: HMMetadata
   onMetadata: (values: Partial<HMMetadata>) => void
 }) {
-  const checked =
-    typeof metadata.showOutline == 'undefined' || metadata.showOutline
+  const checked = typeof metadata.showOutline == 'undefined' || metadata.showOutline
   return (
     <div className="flex flex-col gap-1">
       <SwitchField

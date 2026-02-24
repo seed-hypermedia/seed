@@ -13,15 +13,17 @@ import (
 	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
 	"seed/backend/core"
-	entities "seed/backend/genproto/entities/v1alpha"
+	entpb "seed/backend/genproto/entities/v1alpha"
 	"seed/backend/hlc"
 	"seed/backend/hmnet/syncing"
+	"seed/backend/llm"
+	"seed/backend/util/apiutil"
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -35,6 +37,7 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -47,23 +50,34 @@ type Discoverer interface {
 
 // Server implements Entities API.
 type Server struct {
-	entities.UnimplementedEntitiesServer
+	entpb.UnimplementedEntitiesServer
 
-	db   *sqlitex.Pool
-	disc Discoverer
+	db       *sqlitex.Pool
+	disc     Discoverer
+	embedder llm.LightEmbedder
+	log      *zap.Logger
 }
 
 // NewServer creates a new entities server.
-func NewServer(db *sqlitex.Pool, disc Discoverer) *Server {
+func NewServer(db *sqlitex.Pool, disc Discoverer, embedder llm.LightEmbedder, log *zap.Logger) *Server {
 	return &Server{
-		db:   db,
-		disc: disc,
+		db:       db,
+		disc:     disc,
+		embedder: embedder,
+		log:      log,
 	}
 }
 
 // RegisterServer registers the server with the gRPC server.
 func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
-	entities.RegisterEntitiesServer(rpc, srv)
+	entpb.RegisterEntitiesServer(rpc, srv)
+}
+
+// validIriFilterRe validates iri_filter to prevent GLOB injection.
+var validIriFilterRe = regexp.MustCompile(`^hm://[a-zA-Z0-9_\-./\*\?\[\]]*$`)
+
+func isValidIriFilter(s string) bool {
+	return validIriFilterRe.MatchString(s)
 }
 
 const (
@@ -72,8 +86,8 @@ const (
 )
 
 // DiscoverEntity implements the Entities server.
-func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEntityRequest) (*entities.DiscoverEntityResponse, error) {
-	if api.disc == nil {
+func (srv *Server) DiscoverEntity(_ context.Context, in *entpb.DiscoverEntityRequest) (*entpb.DiscoverEntityResponse, error) {
+	if srv.disc == nil {
 		return nil, status.Errorf(codes.FailedPrecondition, "discovery is not enabled")
 	}
 
@@ -101,9 +115,9 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 	v := blob.Version(in.Version)
 
 	// Delegate to syncing service for task management.
-	info := api.disc.TouchHotTask(iri, v, in.Recursive)
+	info := srv.disc.TouchHotTask(iri, v, in.Recursive)
 
-	resp := &entities.DiscoverEntityResponse{
+	resp := &entpb.DiscoverEntityResponse{
 		Version:  info.Result.String(),
 		State:    stateToProto(info.State),
 		Progress: progressToProto(info.Progress),
@@ -121,24 +135,24 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 	return resp, nil
 }
 
-func stateToProto(state syncing.TaskState) entities.DiscoveryTaskState {
+func stateToProto(state syncing.TaskState) entpb.DiscoveryTaskState {
 	switch state {
 	case syncing.TaskStateIdle:
-		return entities.DiscoveryTaskState_DISCOVERY_TASK_STARTED
+		return entpb.DiscoveryTaskState_DISCOVERY_TASK_STARTED
 	case syncing.TaskStateInProgress:
-		return entities.DiscoveryTaskState_DISCOVERY_TASK_IN_PROGRESS
+		return entpb.DiscoveryTaskState_DISCOVERY_TASK_IN_PROGRESS
 	case syncing.TaskStateCompleted:
-		return entities.DiscoveryTaskState_DISCOVERY_TASK_COMPLETED
+		return entpb.DiscoveryTaskState_DISCOVERY_TASK_COMPLETED
 	default:
-		return entities.DiscoveryTaskState_DISCOVERY_TASK_STARTED
+		return entpb.DiscoveryTaskState_DISCOVERY_TASK_STARTED
 	}
 }
 
-func progressToProto(prog *syncing.Progress) *entities.DiscoveryProgress {
+func progressToProto(prog *syncing.Progress) *entpb.DiscoveryProgress {
 	if prog == nil {
-		return &entities.DiscoveryProgress{}
+		return &entpb.DiscoveryProgress{}
 	}
-	return &entities.DiscoveryProgress{
+	return &entpb.DiscoveryProgress{
 		PeersFound:      prog.PeersFound.Load(),
 		PeersSyncedOk:   prog.PeersSyncedOK.Load(),
 		PeersFailed:     prog.PeersFailed.Load(),
@@ -150,12 +164,15 @@ func progressToProto(prog *syncing.Progress) *entities.DiscoveryProgress {
 
 var qGetLatestBlockChange = dqb.Str(`
 SELECT
-  blob_id,
+  fts_index.blob_id,
   version,
   block_id,
   ts,
-  type
-  from fts_index
+  type,
+  b.codec,
+  b.multihash
+  FROM fts_index
+  JOIN blobs b ON b.id = fts_index.blob_id
   WHERE genesis_blob = :genesisBlobID
   AND ts >= :Ts
   AND type IN ('title', 'document', 'meta')
@@ -187,8 +204,7 @@ SELECT
   AND sb.genesis_blob IN (SELECT value FROM json_each(:genesisBlobJson));
 `)
 
-// get the extra_attrs->>'redirect' != ” for the same genesis blob and if its not null then put that as a iri
-var qGetFTS = dqb.Str(`
+var qGetFTSByIDs = dqb.Str(`
 WITH fts_data AS (
   SELECT
     fts.raw_content,
@@ -198,7 +214,6 @@ WITH fts_data AS (
     fts.blob_id,
     structural_blobs.genesis_blob,
 	structural_blobs.extra_attrs->>'tsid' AS tsid,
-    fts.rank,
 	fts.rowid
   FROM fts
     JOIN structural_blobs
@@ -209,12 +224,8 @@ WITH fts_data AS (
       ON public_keys.id = structural_blobs.author
     LEFT JOIN resources
       ON resources.id = structural_blobs.resource
-  WHERE fts.raw_content MATCH :ftsStr
-    AND fts.type IN (:entityTitle, :entityContact, :entityDoc, :entityComment)
+  WHERE fts.rowid IN (SELECT value FROM json_each(?))
 	AND blobs.size > 0
-  ORDER BY
-  (fts.type = 'contact' || fts.type = 'title') ASC, -- prioritize contacts then titles, comments and documents are mixed based on rank
-  fts.rank ASC
 )
 
 SELECT
@@ -266,7 +277,7 @@ FROM fts_data AS f
            AND structural_blobs.type = 'Comment')
 	  OR (f.blob_id       = structural_blobs.id
            AND structural_blobs.type = 'Contact'
-           AND structural_blobs.author = :loggedAccountID)
+           AND structural_blobs.author = ?)
      limit 1)
 
   JOIN document_generations
@@ -278,13 +289,328 @@ FROM fts_data AS f
   LEFT JOIN public_keys pk_subject
     ON pk_subject.id = structural_blobs.extra_attrs->>'subject'
 
-WHERE resources.iri IS NOT NULL AND resources.iri GLOB :iriGlob
-AND document_generations.is_deleted = False
-ORDER BY
-  (f.type = 'contact' || f.type = 'title') ASC, -- prioritize contacts then titles, comments and documents are mixed based on rank
-  f.rank ASC
-LIMIT :limit
+WHERE document_generations.is_deleted = False
 `)
+
+var qKeywordSearch = dqb.Str(`
+SELECT
+    fts.rowid,
+    fts.rank
+FROM fts
+JOIN fts_index fi ON fi.rowid = fts.rowid
+JOIN structural_blobs sb ON sb.id = fts.blob_id
+JOIN blobs ON blobs.id = fts.blob_id
+LEFT JOIN resources r1 ON r1.id = sb.resource
+LEFT JOIN blob_links bl ON bl.target = fts.blob_id AND bl.type = 'ref/head'
+LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
+LEFT JOIN resources r2 ON r2.id = sb_ref.resource
+WHERE fts.raw_content MATCH ?
+  AND fts.type IN (?, ?, ?, ?)
+  AND blobs.size > 0
+  AND COALESCE(r1.iri, r2.iri) IS NOT NULL
+  AND COALESCE(r1.iri, r2.iri) GLOB ?
+ORDER BY
+  (fts.type = 'contact' OR fts.type = 'title') DESC,
+  fts.rank ASC
+LIMIT ?
+`)
+
+// keywordSearch performs minimal FTS search returning SearchResultMap.
+// This is a standalone function (not Server method) used for hybrid search.
+func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[string]bool, iriGlob string) (llm.SearchResultMap, error) {
+	results := make(llm.SearchResultMap)
+	var entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment interface{}
+	supportedType := false
+	if ok, val := contentTypes["title"]; ok && val {
+		entityTypeTitle = "title"
+		supportedType = true
+	}
+	if ok, val := contentTypes["contact"]; ok && val {
+		entityTypeContact = "contact"
+		supportedType = true
+	}
+	if ok, val := contentTypes["document"]; ok && val {
+		entityTypeDoc = "document"
+		supportedType = true
+	}
+	if ok, val := contentTypes["comment"]; ok && val {
+		entityTypeComment = "comment"
+		supportedType = true
+	}
+	if !supportedType {
+		return nil, fmt.Errorf("invalid content type filter: at least one of title, contact, document, comment must be specified")
+	}
+	if len(contentTypes) == 0 {
+		return nil, errors.New("at least one content type is required. Otherwise there is nothing to search :)")
+	}
+	score := float32(999999.9)
+	if err := sqlitex.Exec(conn, qKeywordSearch(), func(stmt *sqlite.Stmt) error {
+		// The query alredy handles proper ordering and limit. The order depends on type and rank.
+		// We assign scores in decreasing order to be consistent with other search methods.
+		results[stmt.ColumnInt64(0)] = score
+		score--
+		return nil
+	}, query, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob, limit); err != nil {
+		return nil, fmt.Errorf("keyword search failed: %w", err)
+	}
+
+	return results, nil
+}
+
+type blendedResult struct {
+	result       llm.SearchResult
+	semanticRank *int
+	keywordRank  *int
+}
+
+// blendSearchResults uses RRF (Reciprocal Rank Fusion) to blend semantic and keyword results.
+// For single-word queries, keyword results are weighted higher (60%) since semantic embeddings
+// are less reliable for short queries. For multi-word queries, equal weights (50/50) are used.
+func blendSearchResults(semanticResults, keywordResults llm.SearchResultMap, limit int, query string) llm.SearchResultMap {
+	const rrfK = 60
+
+	// Single-word queries: favor keyword (60%) over semantic (40%).
+	// Multi-word queries: equal weight (50/50).
+	wordCount := len(strings.Fields(query))
+	semanticWeight := float32(0.5)
+	if wordCount <= 1 {
+		semanticWeight = 0.4
+	}
+
+	resultMap := make(map[int64]*blendedResult)
+	semanticResultsOrdered := semanticResults.ToList(true)
+	keywordResultsOrdered := keywordResults.ToList(true)
+	// Map semantic results
+	for rank, result := range semanticResultsOrdered {
+		r := rank + 1
+		resultMap[result.RowID] = &blendedResult{
+			result:       result,
+			semanticRank: &r,
+			keywordRank:  nil,
+		}
+	}
+
+	// Map keyword results
+	for rank, result := range keywordResultsOrdered {
+		r := rank + 1
+		if existing, ok := resultMap[result.RowID]; ok {
+			existing.keywordRank = &r
+		} else {
+			resultMap[result.RowID] = &blendedResult{
+				result:       result,
+				semanticRank: nil,
+				keywordRank:  &r,
+			}
+		}
+	}
+
+	resultList := make([]llm.SearchResult, 0, len(resultMap))
+	// Calculate RRF combined scores
+	for _, br := range resultMap {
+		semanticRRF := float32(0.0)
+		keywordRRF := float32(0.0)
+
+		if br.semanticRank != nil {
+			semanticRRF = 1.0 / float32(rrfK+*br.semanticRank)
+		}
+		if br.keywordRank != nil {
+			keywordRRF = 1.0 / float32(rrfK+*br.keywordRank)
+		}
+
+		combinedScore := semanticWeight*semanticRRF + (1-semanticWeight)*keywordRRF
+		resultList = append(resultList, llm.SearchResult{Score: combinedScore, RowID: br.result.RowID})
+	}
+
+	// Sort by combined score with RowID as tie-breaker for deterministic ordering.
+	slices.SortFunc(resultList, func(a, b llm.SearchResult) int {
+		if a.Score < b.Score {
+			return 1
+		} else if a.Score > b.Score {
+			return -1
+		}
+		// Tie-breaker: sort by RowID for deterministic ordering.
+		if a.RowID < b.RowID {
+			return -1
+		} else if a.RowID > b.RowID {
+			return 1
+		}
+		return 0
+	})
+
+	// Take top winners
+	winners := resultList[:min(limit, len(resultList))]
+	return llm.SearchResultList(winners).ToMap()
+}
+
+// Document citation count: how many times each resource is linked to by others.
+var qDocAuthority = dqb.Str(`
+SELECT r.iri, COUNT(*) AS mention_count
+FROM resource_links rl
+JOIN resources r ON r.id = rl.target
+WHERE r.iri IN (SELECT value FROM json_each(?))
+GROUP BY rl.target
+`)
+
+// Author external citation count with self-citation filtering.
+// Uses CTE to deduplicate authors, then counts external citations per author.
+var qAuthorAuthority = dqb.Str(`
+WITH doc_authors AS (
+	SELECT DISTINCT doc.owner AS author_id
+	FROM json_each(?) je
+	JOIN resources doc ON doc.iri = je.value
+	WHERE doc.owner IS NOT NULL
+),
+author_scores AS (
+	SELECT da.author_id,
+		   COUNT(*) AS external_citations
+	FROM doc_authors da
+	JOIN resources r ON r.owner = da.author_id
+	JOIN resource_links rl ON rl.target = r.id
+	JOIN structural_blobs sb ON sb.id = rl.source
+	WHERE sb.author IS NULL OR sb.author <> da.author_id
+	GROUP BY da.author_id
+)
+SELECT doc.iri AS doc_iri,
+	   COALESCE(s.external_citations, 0) AS author_external_citations
+FROM json_each(?) je
+JOIN resources doc ON doc.iri = je.value
+LEFT JOIN author_scores s ON s.author_id = doc.owner
+`)
+
+// buildRankMap creates a map from IRI to 1-based rank, sorted by score desc.
+func buildRankMap(results []fullDataSearchResult, scoreFn func(fullDataSearchResult) int) map[string]int {
+	type entry struct {
+		iri   string
+		score int
+	}
+	seen := make(map[string]bool)
+	var entries []entry
+	for _, r := range results {
+		if !seen[r.iri] {
+			seen[r.iri] = true
+			entries = append(entries, entry{r.iri, scoreFn(r)})
+		}
+	}
+	slices.SortFunc(entries, func(a, b entry) int {
+		if a.score > b.score {
+			return -1
+		}
+		if a.score < b.score {
+			return 1
+		}
+		return 0
+	})
+	ranks := make(map[string]int, len(entries))
+	for i, e := range entries {
+		ranks[e.iri] = i + 1
+	}
+	return ranks
+}
+
+// applyAuthorityRanking re-scores results using citation-based authority signals.
+// The weight parameter controls the balance between text relevance and authority.
+func applyAuthorityRanking(ctx context.Context, db *sqlitex.Pool,
+	results []fullDataSearchResult, bodyMatches []fuzzy.Match,
+	weight float32,
+) ([]fullDataSearchResult, []fuzzy.Match, error) {
+	if len(results) == 0 {
+		return results, bodyMatches, nil
+	}
+
+	// Collect unique IRIs.
+	iris := make([]string, 0, len(results))
+	seen := make(map[string]bool)
+	for _, r := range results {
+		if !seen[r.iri] {
+			seen[r.iri] = true
+			iris = append(iris, r.iri)
+		}
+	}
+	irisJSON, err := json.Marshal(iris)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Run both authority queries in a single DB connection.
+	docCitations := make(map[string]int)
+	authorCitations := make(map[string]int)
+
+	if err := db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn, qDocAuthority(), func(stmt *sqlite.Stmt) error {
+			docCitations[stmt.ColumnText(0)] = stmt.ColumnInt(1)
+			return nil
+		}, string(irisJSON)); err != nil {
+			return err
+		}
+		return sqlitex.Exec(conn, qAuthorAuthority(), func(stmt *sqlite.Stmt) error {
+			authorCitations[stmt.ColumnText(0)] = stmt.ColumnInt(1)
+			return nil
+		}, string(irisJSON), string(irisJSON))
+	}); err != nil {
+		return nil, nil, err
+	}
+
+	// Build rank maps from citation counts.
+	docAuthRanks := buildRankMap(results, func(r fullDataSearchResult) int { return docCitations[r.iri] })
+	authorAuthRanks := buildRankMap(results, func(r fullDataSearchResult) int { return authorCitations[r.iri] })
+
+	// Re-score each result.
+	const rrfK = 60
+	textWeight := 1.0 - weight
+	docAuthWeight := 0.7 * weight
+	authorAuthWeight := 0.3 * weight
+
+	for i := range results {
+		textRank := i + 1 // Current position is the text rank (results are already sorted by score).
+		textRRF := 1.0 / float32(rrfK+textRank)
+
+		var docRRF float32
+		if r, ok := docAuthRanks[results[i].iri]; ok {
+			docRRF = 1.0 / float32(rrfK+r)
+		}
+
+		var authRRF float32
+		if r, ok := authorAuthRanks[results[i].iri]; ok {
+			authRRF = 1.0 / float32(rrfK+r)
+		}
+
+		results[i].score = textWeight*textRRF + docAuthWeight*docRRF + authorAuthWeight*authRRF
+	}
+
+	// Re-sort results and bodyMatches together by new score.
+	// Use rowID as tie-breaker for deterministic ordering when scores are equal.
+	indices := make([]int, len(results))
+	for i := range indices {
+		indices[i] = i
+	}
+	slices.SortFunc(indices, func(a, b int) int {
+		if results[a].score > results[b].score {
+			return -1
+		}
+		if results[a].score < results[b].score {
+			return 1
+		}
+		// Tie-breaker: sort by rowID for deterministic ordering.
+		if results[a].rowID < results[b].rowID {
+			return -1
+		}
+		if results[a].rowID > results[b].rowID {
+			return 1
+		}
+		return 0
+	})
+
+	sorted := make([]fullDataSearchResult, len(results))
+	sortedMatches := make([]fuzzy.Match, len(bodyMatches))
+	for newIdx, oldIdx := range indices {
+		sorted[newIdx] = results[oldIdx]
+		bm := bodyMatches[oldIdx]
+		bm.Index = newIdx
+		sortedMatches[newIdx] = bm
+	}
+
+	return sorted, sortedMatches, nil
+}
 
 var qIsDeletedComment = dqb.Str(`
     SELECT
@@ -317,7 +643,7 @@ type commentIdentifier struct {
 	tsid     string
 }
 
-type searchResult struct {
+type fullDataSearchResult struct {
 	content       string
 	rawContent    string
 	icon          string
@@ -335,8 +661,12 @@ type searchResult struct {
 	version       string
 	versionTime   *timestamppb.Timestamp
 	latestVersion string
+	latestBlobCID string // CID of the latest blob (first head), used for version upgrade.
 	commentKey    commentIdentifier
 	isDeleted     bool
+	score         float32
+	parentTitles  []string
+	id            string
 }
 
 // MovedResource represents a resource that has been relocated.
@@ -354,13 +684,8 @@ type MovedResource struct {
 	LatestVersion string
 }
 
-// SearchEntities implements the Fuzzy search of entities.
-func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntitiesRequest) (*entities.SearchEntitiesResponse, error) {
-	//start := time.Now()
-	//defer func() {
-	//	fmt.Println("SearchEntities duration:", time.Since(start))
-	//}()
-	searchResults := []searchResult{}
+// SearchEntities implements the Fuzzy search of entpb.
+func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesRequest) (*entpb.SearchEntitiesResponse, error) {
 	type value struct {
 		Value string `json:"v"`
 	}
@@ -383,12 +708,29 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		return nil, nil
 	}
 	var bodyMatches []fuzzy.Match
-	const entityTypeTitle = "title"
-	var entityTypeContact, entityTypeDoc, entityTypeComment interface{}
+	contentTypes := map[string]bool{}
+	if len(in.ContentTypeFilter) > 0 {
+		for _, ct := range in.ContentTypeFilter {
+			switch ct {
+			case entpb.ContentTypeFilter_CONTENT_TYPE_TITLE:
+				contentTypes["title"] = true
+			case entpb.ContentTypeFilter_CONTENT_TYPE_DOCUMENT:
+				contentTypes["document"] = true
+			case entpb.ContentTypeFilter_CONTENT_TYPE_COMMENT:
+				contentTypes["comment"] = true
+			case entpb.ContentTypeFilter_CONTENT_TYPE_CONTACT:
+				contentTypes["contact"] = true
+			}
+		}
+	} else {
+		// Legacy fallback.
+		contentTypes["title"] = true
+		contentTypes["contact"] = true
+		if in.IncludeBody {
+			contentTypes["document"] = true
+			contentTypes["comment"] = true
 
-	if in.IncludeBody {
-		entityTypeDoc = "document"
-		entityTypeComment = "comment"
+		}
 	}
 	var loggedAccountID int64 = 0
 	if in.LoggedAccountUid != "" {
@@ -398,65 +740,155 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		}
 		ppalHex := hex.EncodeToString(ppal)
 		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-			return sqlitex.ExecTransient(conn, qGetAccountID(), func(stmt *sqlite.Stmt) error {
+			return sqlitex.Exec(conn, qGetAccountID(), func(stmt *sqlite.Stmt) error {
 				loggedAccountID = stmt.ColumnInt64(0)
 				return nil
 			}, strings.ToUpper(ppalHex))
 		}); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "Problem getting logged account ID %s: %v", in.LoggedAccountUid, err)
 		}
-		entityTypeContact = "contact"
+		// TODO: Remove auto-include of contacts once frontend uses content_type_filter explicitly.
+		contentTypes["contact"] = true
 	}
-	resultsLmit := 1000
-
-	if len(cleanQuery) < 3 {
+	// Adjust results limit based on search type
+	resultsLmit := 300
+	if in.SearchType == entpb.SearchType_SEARCH_HYBRID || in.SearchType == entpb.SearchType_SEARCH_SEMANTIC {
 		resultsLmit = 200
+	} else if len(cleanQuery) < 3 {
+		resultsLmit = 100
 	}
-	ftsStr := strings.ReplaceAll(cleanQuery, " ", "+")
-	if ftsStr[len(ftsStr)-1] == '+' {
-		ftsStr = ftsStr[:len(ftsStr)-1]
+	ftsStrKeySearch := strings.ReplaceAll(cleanQuery, " ", "+")
+	if ftsStrKeySearch[len(ftsStrKeySearch)-1] == '+' {
+		ftsStrKeySearch = ftsStrKeySearch[:len(ftsStrKeySearch)-1]
 	}
-	ftsStr += "*"
+	ftsStrKeySearch += "*"
 	if in.ContextSize < 2 {
 		in.ContextSize = 48
 	}
-	//fmt.Println("context size:", in.ContextSize)
-	var iriGlob string = "hm://" + in.AccountUid + "*"
+
+	var iriGlob string
+	if in.IriFilter != "" {
+		if !isValidIriFilter(in.IriFilter) {
+			return nil, status.Errorf(codes.InvalidArgument, "iri_filter contains invalid characters")
+		}
+		iriGlob = in.IriFilter
+	} else if in.AccountUid != "" {
+		iriGlob = "hm://" + in.AccountUid + "*"
+	} else {
+		iriGlob = "hm://*"
+	}
 	contextBefore := int(math.Ceil(float64(in.ContextSize) / 2.0))
 	contextAfter := int(in.ContextSize) - contextBefore
 	var numResults int = 0
-	//before := time.Now()
-	//fmt.Println("BeforeFTS Elapsed time:", time.Since(start))
+
+	// Prepare variables for semantic/hybrid search
+	query := cleanQuery
+
+	winners := llm.SearchResultMap{}
+	const semanticThreshold = 0.45 // 0.55 Minimum similarity for relevant results with granite-embedding-107m-multilingual model.
+
+	// Check if semantic search is requested but embedder is not available.
+	if srv.embedder == nil {
+		switch in.SearchType {
+		case entpb.SearchType_SEARCH_SEMANTIC:
+			return nil, status.Errorf(codes.Unavailable, "semantic search is not available: embedding service is disabled")
+		case entpb.SearchType_SEARCH_HYBRID:
+			// Degrade to keyword-only when embedding service is not available.
+			srv.log.Warn("Embedding service disabled, hybrid search falling back to keyword-only")
+			in.SearchType = entpb.SearchType_SEARCH_KEYWORD
+		}
+	}
+
+	switch in.SearchType {
+	case entpb.SearchType_SEARCH_HYBRID:
+		// Hybrid search: run semantic + keyword concurrently, blend with RRF
+		var semanticResults, keywordResults llm.SearchResultMap
+		var semanticErr, keywordErr error
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			semanticResults, semanticErr = srv.embedder.SemanticSearch(ctx, query, resultsLmit*3, contentTypes, iriGlob, semanticThreshold)
+		}()
+		go func() {
+			defer wg.Done()
+			keywordErr = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+				var err error
+				keywordResults, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit*3, contentTypes, iriGlob)
+				return err
+			})
+		}()
+		wg.Wait()
+		if keywordErr != nil {
+			return nil, fmt.Errorf("keyword search failed: %w", keywordErr)
+		}
+
+		// On any semantic failure, fall back to keyword-only results instead of
+		// failing the entire search. The keyword leg still provides useful results.
+		if semanticErr != nil {
+			srv.log.Warn("Semantic search failed in hybrid mode, falling back to keyword-only results",
+				zap.Error(semanticErr), zap.String("query", query))
+			winners = keywordResults
+		} else {
+			// Blend results with RRF.
+			winners = blendSearchResults(semanticResults, keywordResults, resultsLmit*2, query)
+		}
+
+	case entpb.SearchType_SEARCH_SEMANTIC:
+		// Semantic-only search. Any failure is surfaced to the caller since there
+		// is no keyword leg to fall back to.
+		var err error
+		winners, err = srv.embedder.SemanticSearch(ctx, query, resultsLmit*2, contentTypes, iriGlob, semanticThreshold)
+		if err != nil {
+			return nil, fmt.Errorf("semantic search failed: %w", err)
+		}
+
+	default:
+		// Keyword only search:
+		err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+			var err error
+			winners, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit, contentTypes, iriGlob)
+			return err
+		})
+		if err != nil {
+			return nil, fmt.Errorf("keyword search failed: %w", err)
+		}
+	}
+
+	// Short-circuit when there are no results to avoid running the expensive
+	// entity resolution query with an empty input set.
+	if len(winners) == 0 {
+		return &entpb.SearchEntitiesResponse{}, nil
+	}
+
+	winnerIDsJSON, err := json.Marshal(winners.Keys())
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal winner IDs: %w", err)
+	}
+	searchResults := []fullDataSearchResult{}
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.ExecTransient(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
-			var res searchResult
+		return sqlitex.Exec(conn, qGetFTSByIDs(), func(stmt *sqlite.Stmt) error {
+			var res fullDataSearchResult
 			var icon icon
 			var heads []head
 			res.rawContent = stmt.ColumnText(0)
+
+			// Semantic results may not contain the query pattern (fuzzy match).
+			// So we find the first occurrence of the query pattern for context extraction.
 			firstRuneOffset, _, matchedRunes, _ := indexOfQueryPattern(res.rawContent, cleanQuery)
-			if firstRuneOffset == -1 {
-				return nil
-			}
-			// before extracting matchStr, convert fullMatchStr to runes
 			fullRunes := []rune(res.rawContent)
 			nRunes := len(fullRunes)
-
 			var contextStart, contextEndRune int
-			// default to full slice
 			contextEndRune = nRunes
-
 			if firstRuneOffset > contextBefore {
 				contextStart = firstRuneOffset - contextBefore
 			}
 			if firstRuneOffset+matchedRunes < nRunes-contextAfter {
 				contextEndRune = firstRuneOffset + matchedRunes + contextAfter
 			}
-
-			// build substring on rune boundaries
 			res.content = string(fullRunes[contextStart:contextEndRune])
 
 			res.blobCID = cid.NewCidV1(uint64(stmt.ColumnInt64(9)), stmt.ColumnBytesUnsafe(10)).String()
-
 			res.contentType = stmt.ColumnText(1)
 			res.blockID = stmt.ColumnText(2)
 			res.version = stmt.ColumnText(3)
@@ -482,6 +914,9 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				cids[i] = cid.NewCidV1(h.Codec, mhBinary)
 			}
 			res.latestVersion = docmodel.NewVersion(cids...).String()
+			if len(cids) > 0 {
+				res.latestBlobCID = cids[0].String()
+			}
 
 			ts := hlc.Timestamp(stmt.ColumnInt64(14) * 1000).Time()
 			res.versionTime = timestamppb.New(ts)
@@ -490,41 +925,40 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				res.genesisBlobID = res.blobID
 			}
 			res.rowID = stmt.ColumnInt64(16)
-			if res.contentType == "comment" {
+			res.score = winners[res.rowID]
+			switch res.contentType {
+			case "comment":
 				res.iri = "hm://" + res.owner + "/" + res.tsid
 				res.commentKey = commentIdentifier{
 					authorID: stmt.ColumnInt64(17),
 					tsid:     res.tsid,
 				}
-			} else if res.contentType == "contact" {
+			case "contact":
 				res.iri = "hm://" + subjectID + "/" + res.tsid
 				if err := json.Unmarshal(stmt.ColumnBytes(12), &icon); err != nil {
 					icon.Icon.Value = ""
 				}
-			} else {
+			default:
 				res.iri = res.docID
 			}
 			res.icon = icon.Icon.Value
-			offsets := []int{firstRuneOffset}
-			for i := firstRuneOffset + 1; i < firstRuneOffset+matchedRunes; i++ {
-				offsets = append(offsets, i)
-			}
+
+			// For semantic, no fuzzy matching offsets
 			bodyMatches = append(bodyMatches, fuzzy.Match{
 				Str:            res.content,
 				Index:          numResults,
 				Score:          1,
-				MatchedIndexes: offsets,
+				MatchedIndexes: []int{},
 			})
 			searchResults = append(searchResults, res)
 			numResults++
 			return nil
-		}, ftsStr, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, loggedAccountID, iriGlob, resultsLmit)
+		}, string(winnerIDsJSON), loggedAccountID)
 	}); err != nil {
 		return nil, err
 	}
-
 	seen := make(map[string]int)
-	var uniqueResults []searchResult
+	var uniqueResults []fullDataSearchResult
 	var uniqueBodyMatches []fuzzy.Match
 	for i, res := range searchResults {
 		key := fmt.Sprintf("%s|%s|%s|%s", res.iri, res.blockID, res.rawContent, res.contentType)
@@ -545,46 +979,83 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			uniqueBodyMatches = append(uniqueBodyMatches, bm)
 		}
 	}
-	//fmt.Println("unique results:", len(uniqueResults), "out of", len(searchResults))
 	bodyMatches = uniqueBodyMatches
 	searchResults = uniqueResults
 
-	//after := time.Now()
-	//elapsed := after.Sub(before)
-	//fmt.Printf("qGetFTS took %.3f s and returned %d results\n", elapsed.Seconds(), len(bodyMatches))
-	matchingEntities := []*entities.Entity{}
-	//fmt.Println("BeforeParents Elapsed time:", time.Since(start))
-	getParentsFcn := func(match fuzzy.Match) ([]string, error) {
-		parents := make(map[string]interface{})
-		breadcrum := strings.Split(strings.TrimPrefix(searchResults[match.Index].iri, "hm://"), "/")
-		var root string
-		for i, _ := range breadcrum {
-			parents["hm://"+strings.Join(breadcrum[:i+1], "/")] = nil
-			if i == 0 {
-				root = "hm://" + strings.Join(breadcrum[:i+1], "") + "*"
+	// Authority-based re-ranking.
+	if in.AuthorityWeight > 0 {
+		if in.AuthorityWeight > 1 {
+			return nil, status.Errorf(codes.InvalidArgument, "authority_weight must be between 0 and 1")
+		}
+
+		// Sort results by score before authority ranking.
+		// applyAuthorityRanking uses position as textRank, so results must be sorted by
+		// text relevance first. Use rowID as tie-breaker for deterministic ordering.
+		indices := make([]int, len(searchResults))
+		for i := range indices {
+			indices[i] = i
+		}
+		slices.SortFunc(indices, func(a, b int) int {
+			if searchResults[a].score > searchResults[b].score {
+				return -1
+			}
+			if searchResults[a].score < searchResults[b].score {
+				return 1
+			}
+			if searchResults[a].rowID < searchResults[b].rowID {
+				return -1
+			}
+			if searchResults[a].rowID > searchResults[b].rowID {
+				return 1
+			}
+			return 0
+		})
+
+		// Reorder searchResults and bodyMatches according to sorted indices.
+		sortedResults := make([]fullDataSearchResult, len(searchResults))
+		sortedMatches := make([]fuzzy.Match, len(bodyMatches))
+		for newIdx, oldIdx := range indices {
+			sortedResults[newIdx] = searchResults[oldIdx]
+			bm := bodyMatches[oldIdx]
+			bm.Index = newIdx
+			sortedMatches[newIdx] = bm
+		}
+		searchResults = sortedResults
+		bodyMatches = sortedMatches
+
+		var err error
+		searchResults, bodyMatches, err = applyAuthorityRanking(ctx, srv.db, searchResults, bodyMatches, in.AuthorityWeight)
+		if err != nil {
+			return nil, fmt.Errorf("authority ranking failed: %w", err)
+		}
+	}
+
+	matchingEntities := []*entpb.Entity{}
+	// Pre-fetch all parent metadata in a single query instead of per-result.
+	parentTitleMap := make(map[string]string) // iri -> title
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, qGetParentsMetadata(), func(stmt *sqlite.Stmt) error {
+			var t title
+			if err := json.Unmarshal(stmt.ColumnBytes(0), &t); err != nil {
+				return nil
+			}
+			parentTitleMap[stmt.ColumnText(1)] = t.Name.Value
+			return nil
+		}, iriGlob)
+	}); err != nil {
+		return nil, err
+	}
+
+	getParentsFcn := func(match fuzzy.Match) []string {
+		breadcrumb := strings.Split(strings.TrimPrefix(searchResults[match.Index].iri, "hm://"), "/")
+		var parentTitles []string
+		for i := range breadcrumb {
+			parentIRI := "hm://" + strings.Join(breadcrumb[:i+1], "/")
+			if t, ok := parentTitleMap[parentIRI]; ok && t != match.Str {
+				parentTitles = append(parentTitles, t)
 			}
 		}
-		var parentTitles []string
-		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-			return sqlitex.ExecTransient(conn, qGetParentsMetadata(), func(stmt *sqlite.Stmt) error {
-				var title title
-				iri := stmt.ColumnText(1)
-				if _, ok := parents[iri]; !ok {
-					return nil
-				}
-				if err := json.Unmarshal(stmt.ColumnBytes(0), &title); err != nil {
-					return nil
-				}
-				if title.Name.Value == match.Str {
-					return nil
-				}
-				parentTitles = append(parentTitles, title.Name.Value)
-				return nil
-			}, root)
-		}); err != nil {
-			return nil, err
-		}
-		return parentTitles, nil
+		return parentTitles
 	}
 	totalLatestBlockTime := time.Duration(0)
 	timesCalled, timesCalled2 := 0, 0
@@ -597,9 +1068,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 
 	var movedResources []MovedResource
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
-	//fmt.Println("BeforeMovedBlocks Elapsed time:", time.Since(start))
-	err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.ExecTransient(conn, QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
+	err = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
 			var heads []head
 			if err := json.Unmarshal(stmt.ColumnBytes(3), &heads); err != nil {
 				return err
@@ -637,26 +1107,22 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			}
 		}
 	}
-	//fmt.Println("BeforeUnrelated Elapsed time:", time.Since(start))
 	startParents := time.Now()
 	totalGetParentsTime := time.Duration(0)
 	totalDeletedTime := time.Duration(0)
 	totalCommentsTime := time.Duration(0)
 	totalNonCommentsTime := time.Duration(0)
+	finalResults := []fullDataSearchResult{}
 	for _, match := range bodyMatches {
 		totalGetParentsTime += time.Since(startParents)
 		startParents = time.Now()
-		var parentTitles []string
-		var err error
 		if searchResults[match.Index].isDeleted {
 			// Skip deleted resources
 			totalDeletedTime += time.Since(startParents)
 			continue
 		}
 		if searchResults[match.Index].contentType != "contact" {
-			if parentTitles, err = getParentsFcn(match); err != nil {
-				return nil, err
-			}
+			searchResults[match.Index].parentTitles = getParentsFcn(match)
 		}
 
 		offsets := make([]int64, len(match.MatchedIndexes))
@@ -665,16 +1131,47 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		}
 		id := searchResults[match.Index].iri
 
+		// Version Upgrade Heuristic:
+		//
+		// Search results are indexed at specific versions (when content was added/modified).
+		// To provide useful deep links, we upgrade versions to show the "best" version:
+		//
+		// 1. If the indexed version IS already in the document's latest version, keep it
+		//    and mark with "&l" (latest) suffix.
+		//
+		// 2. If the indexed version is NOT the latest:
+		//    a. Query for all changes after the indexed version (qGetLatestBlockChange).
+		//    b. Iterate through changes in chronological order:
+		//       - If the SAME BLOCK (same type + blockID) was modified, stop iteration.
+		//         This means the content has changed, so keep the original version.
+		//       - Otherwise, track this change as the latest "unrelated" change.
+		//    c. If no same-block change was found (relatedFound=false):
+		//       - Upgrade to the latest unrelated change's version (content still exists).
+		//       - If that's still not the document's latest, upgrade to latest version.
+		//    d. If same-block change WAS found (relatedFound=true):
+		//       - Keep the original indexed version (content may have changed).
+		//
+		// Special cases:
+		// - Titles have empty blockID, so any title change triggers "same block" detection.
+		// - Multi-block commits: Multiple blocks modified in same commit share a version.
+		//   We must check for same-block BEFORE updating latestUnrelated to avoid
+		//   incorrectly using a sibling block's version from the same commit.
+		//
+		// Fields updated: version, blobID, blobCID, versionTime.
+		// The "&l" suffix is added later if the final version is in latestVersion.
 		if searchResults[match.Index].version != "" && searchResults[match.Index].contentType != "comment" {
-
 			startLatestBlockTime := time.Now()
+
+			// Change tracks version info during the upgrade heuristic iteration.
 			type Change struct {
 				blobID  int64
+				blobCID string
 				version string
 				ts      *timestamppb.Timestamp
 			}
 			latestUnrelated := Change{
 				blobID:  searchResults[match.Index].blobID,
+				blobCID: searchResults[match.Index].blobCID,
 				version: searchResults[match.Index].version,
 				ts:      searchResults[match.Index].versionTime,
 			}
@@ -685,13 +1182,14 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				//prevIter = iter
 				relatedFound := false
 				err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-					return sqlitex.ExecTransient(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
+					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
 						iter++
 						ts := hlc.Timestamp(stmt.ColumnInt64(3) * 1000).Time()
 						blockID := stmt.ColumnText(2)
 						changeType := stmt.ColumnText(4)
 						currentChange := Change{
 							blobID:  stmt.ColumnInt64(0),
+							blobCID: cid.NewCidV1(uint64(stmt.ColumnInt64(5)), stmt.ColumnBytesUnsafe(6)).String(),
 							version: stmt.ColumnText(1),
 							ts:      timestamppb.New(ts),
 						}
@@ -700,36 +1198,34 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 						}
 						latestUnrelated = currentChange
 						return nil
-					}, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].rowID)
+					}, searchResults[match.Index].genesisBlobID, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].rowID)
 				})
 				if err != nil && !errors.Is(err, errSameBlockChangeDetected) {
-					//fmt.Println("Error getting latest block change:", err, "blockID:", searchResults[match.Index].blockID, "genesisBlobID:", searchResults[match.Index].genesisBlobID, "rowID:", searchResults[match.Index].rowID)
 					return nil, err
 				} else if err != nil && errors.Is(err, errSameBlockChangeDetected) {
 					relatedFound = true
-					//fmt.Println("Found related change:", currentChange, "BlockID:", searchResults[match.Index].blockID)
 				}
+				// If the latest unrelated change is still not the document's latest version,
+				// upgrade to the document's latest version and use the latest blob CID.
 				if !relatedFound && !slices.Contains(strings.Split(searchResults[match.Index].latestVersion, "."), latestUnrelated.version) {
-					//fmt.Println("Found unrelated change:", latestUnrelated, "for:", searchResults[match.Index])
 					latestUnrelated.version = searchResults[match.Index].latestVersion
+					latestUnrelated.blobCID = searchResults[match.Index].latestBlobCID
 				}
-				/*
-					if iter == prevIter {
-						fmt.Println("No iteration", searchResults[match.Index].contentType, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].blockID, searchResults[match.Index].blobID)
-					}
-					fmt.Println("Latest: ", searchResults[match.Index].latestVersion)
-					fmt.Println("Latest unrelated: ", latestUnrelated.version)
-					fmt.Println("Params: ", searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].rowID)
-				*/
+
+				// Only update version if no same-block change was detected.
+				// When relatedFound is true, the block was modified after the indexed version,
+				// so we keep the original version (where the content existed).
+				if !relatedFound {
+					searchResults[match.Index].version = latestUnrelated.version
+					searchResults[match.Index].blobID = latestUnrelated.blobID
+					searchResults[match.Index].blobCID = latestUnrelated.blobCID
+					searchResults[match.Index].versionTime = latestUnrelated.ts
+				}
 			}
-			searchResults[match.Index].version = latestUnrelated.version
-			searchResults[match.Index].blobID = latestUnrelated.blobID
-			searchResults[match.Index].versionTime = latestUnrelated.ts
 			totalLatestBlockTime += time.Since(startLatestBlockTime)
 			if slices.Contains(strings.Split(searchResults[match.Index].latestVersion, "."), searchResults[match.Index].version) {
 				searchResults[match.Index].version += "&l"
 			}
-
 			if searchResults[match.Index].version != "" {
 				id += "?v=" + searchResults[match.Index].version
 			}
@@ -745,13 +1241,12 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			var isDeleted bool
 			timesCalled2++
 			err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-				return sqlitex.ExecTransient(conn, qIsDeletedComment(), func(stmt *sqlite.Stmt) error {
+				return sqlitex.Exec(conn, qIsDeletedComment(), func(stmt *sqlite.Stmt) error {
 					isDeleted = stmt.ColumnInt(0) == 1
 					return nil
 				}, searchResults[match.Index].commentKey.authorID, searchResults[match.Index].commentKey.tsid)
 			})
 			if err != nil {
-				//fmt.Println("Error getting latest block change:", err, "blockID:", searchResults[match.Index].blockID, "genesisBlobID:", searchResults[match.Index].genesisBlobID, "rowID:", searchResults[match.Index].rowID)
 				return nil, err
 			}
 			totalCommentsTime += time.Since(startParents)
@@ -760,67 +1255,111 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				continue
 			}
 		}
-
-		matchingEntities = append(matchingEntities, &entities.Entity{
-			DocId:       searchResults[match.Index].docID,
-			Id:          id,
-			BlobId:      searchResults[match.Index].blobCID,
-			Type:        searchResults[match.Index].contentType,
-			VersionTime: searchResults[match.Index].versionTime,
-			Content:     match.Str,
-			ParentNames: parentTitles,
-			Icon:        searchResults[match.Index].icon,
-			Owner:       searchResults[match.Index].owner,
-			Metadata:    searchResults[match.Index].metadata,
-		})
+		searchResults[match.Index].id = id
+		searchResults[match.Index].content = match.Str
+		finalResults = append(finalResults, searchResults[match.Index])
 	}
 	//after = time.Now()
-	//fmt.Println("BeforeSortingElapsed time:", time.Since(start))
 	//fmt.Printf("getParentsFcn took %.3f s\n", totalGetParentsTime.Seconds())
 	//fmt.Printf("totalDeletedTime took %.3f s\n", totalDeletedTime.Seconds())
 	//fmt.Printf("totalNonCommentsTime took %.3f s\n", totalNonCommentsTime.Seconds())
 	//fmt.Printf("totalCommentsTime took %.3f s and called %d times\n", totalCommentsTime.Seconds(), timesCalled2)
 
 	//fmt.Printf("qGetLatestBlockChange took %.3f s and was called %d times and iterated over %d records\n", totalLatestBlockTime.Seconds(), timesCalled, iter)
+	slices.SortFunc(finalResults, orderBySimilarity)
+	for _, match := range finalResults {
+		matchingEntities = append(matchingEntities, &entpb.Entity{
+			DocId:       match.docID,
+			Id:          match.id,
+			BlobId:      match.blobCID,
+			Type:        match.contentType,
+			VersionTime: match.versionTime,
+			Content:     match.content,
+			ParentNames: match.parentTitles,
+			Icon:        match.icon,
+			Owner:       match.owner,
+			Metadata:    match.metadata,
+		})
+	}
 
-	sort.Slice(matchingEntities, func(i, j int) bool {
-		a, b := matchingEntities[i], matchingEntities[j]
-
-		// 1) contacts first
-		isContactA := a.Type == "contact"
-		isContactB := b.Type == "contact"
-		if isContactA != isContactB {
-			return isContactA
+	// Paginate if page_size is set. When 0, return everything (backwards compatible).
+	var nextPageToken string
+	if in.PageSize > 0 {
+		var cursor struct {
+			Offset int `json:"o"`
 		}
-
-		// 2) then titles
-		isTitleA := a.Type == "title"
-		isTitleB := b.Type == "title"
-		if isTitleA != isTitleB {
-			return isTitleA
-		}
-		if isTitleA && isTitleB {
-			lenA := utf8.RuneCountInString(a.Content)
-			lenB := utf8.RuneCountInString(b.Content)
-			if lenA != lenB {
-				return lenA < lenB
+		if in.PageToken != "" {
+			if err := apiutil.DecodePageToken(in.PageToken, &cursor, nil); err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "invalid page_token: %v", err)
 			}
 		}
-
-		// 3) then by DocId (lexicographically)
-		if a.DocId != b.DocId {
-			return a.DocId < b.DocId
+		if cursor.Offset >= len(matchingEntities) {
+			matchingEntities = nil
+		} else {
+			end := cursor.Offset + int(in.PageSize)
+			if end < len(matchingEntities) {
+				nextCursor := struct {
+					Offset int `json:"o"`
+				}{Offset: end}
+				nextPageToken = apiutil.EncodePageToken(nextCursor, nil)
+				matchingEntities = matchingEntities[cursor.Offset:end]
+			} else {
+				matchingEntities = matchingEntities[cursor.Offset:]
+			}
 		}
+	}
 
-		// 4) finally by VersionTime descending
-		return a.VersionTime.AsTime().After(b.VersionTime.AsTime())
-	})
+	return &entpb.SearchEntitiesResponse{
+		Entities:      matchingEntities,
+		NextPageToken: nextPageToken,
+	}, nil
+}
 
-	return &entities.SearchEntitiesResponse{Entities: matchingEntities}, nil
+func orderByTitle(a, b fullDataSearchResult) int {
+	// 1) contacts first
+	isContactA := a.contentType == "contact"
+	isContactB := b.contentType == "contact"
+	if isContactA != isContactB {
+		if isContactA {
+			return -1
+		}
+		return 1
+	}
+
+	// 2) then titles
+	isTitleA := a.contentType == "title"
+	isTitleB := b.contentType == "title"
+	if isTitleA != isTitleB {
+		if isTitleA {
+			return -1
+		}
+		return 1
+	}
+
+	// 3) everything else (including within contacts and titles) by Score descending (higher first)
+	if a.score != b.score {
+		if a.score > b.score {
+			return -1 // a comes first (higher score)
+		}
+		return 1 // b comes first (higher score)
+	}
+	return 0
+}
+
+// orderBySimilarity sorts entities by similarity score descending (higher scores first).
+func orderBySimilarity(a, b fullDataSearchResult) int {
+	// Higher scores first (descending order)
+	if a.score > b.score {
+		return -1
+	} else if a.score < b.score {
+		return 1
+	}
+	// If scores are equal, fall back to title ordering
+	return orderByTitle(a, b)
 }
 
 // DeleteEntity implements the corresponding gRPC method.
-// func (api *Server) DeleteEntity(ctx context.Context, in *entities.DeleteEntityRequest) (*emptypb.Empty, error) {
+// func (api *Server) DeleteEntity(ctx context.Context, in *entpb.DeleteEntityRequest) (*emptypb.Empty, error) {
 // 	var meta string
 // 	var qGetResourceMetadata = dqb.Str(`
 //   	SELECT meta from meta_view
@@ -834,7 +1373,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 // 	eid := hyper.EntityID(in.Id)
 
 // 	err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
-// 		return sqlitex.ExecTransient(conn, qGetResourceMetadata(), func(stmt *sqlite.Stmt) error {
+// 		return sqlitex.Exec(conn, qGetResourceMetadata(), func(stmt *sqlite.Stmt) error {
 // 			meta = stmt.ColumnText(0)
 // 			return nil
 // 		}, in.Id)
@@ -902,7 +1441,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 // }
 
 // // UndeleteEntity implements the corresponding gRPC method.
-// func (api *Server) UndeleteEntity(ctx context.Context, in *entities.UndeleteEntityRequest) (*emptypb.Empty, error) {
+// func (api *Server) UndeleteEntity(ctx context.Context, in *entpb.UndeleteEntityRequest) (*emptypb.Empty, error) {
 // 	if in.Id == "" {
 // 		return nil, status.Errorf(codes.InvalidArgument, "must specify entity ID to restore")
 // 	}
@@ -915,9 +1454,9 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 // }
 
 // // ListDeletedEntities implements the corresponding gRPC method.
-// func (api *Server) ListDeletedEntities(ctx context.Context, _ *entities.ListDeletedEntitiesRequest) (*entities.ListDeletedEntitiesResponse, error) {
-// 	resp := &entities.ListDeletedEntitiesResponse{
-// 		DeletedEntities: make([]*entities.DeletedEntity, 0),
+// func (api *Server) ListDeletedEntities(ctx context.Context, _ *entpb.ListDeletedEntitiesRequest) (*entpb.ListDeletedEntitiesResponse, error) {
+// 	resp := &entpb.ListDeletedEntitiesResponse{
+// 		DeletedEntities: make([]*entpb.DeletedEntity, 0),
 // 	}
 
 // 	err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
@@ -926,7 +1465,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 // 			return err
 // 		}
 // 		for _, entity := range list {
-// 			resp.DeletedEntities = append(resp.DeletedEntities, &entities.DeletedEntity{
+// 			resp.DeletedEntities = append(resp.DeletedEntities, &entpb.DeletedEntity{
 // 				Id:            entity.DeletedResourcesIRI,
 // 				DeleteTime:    &timestamppb.Timestamp{Seconds: entity.DeletedResourcesDeleteTime},
 // 				DeletedReason: entity.DeletedResourcesReason,
@@ -940,7 +1479,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 // }
 
 // ListEntityMentions implements listing mentions of an entity in other resources.
-func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEntityMentionsRequest) (*entities.ListEntityMentionsResponse, error) {
+func (srv *Server) ListEntityMentions(ctx context.Context, in *entpb.ListEntityMentionsRequest) (*entpb.ListEntityMentionsResponse, error) {
 	if in.Id == "" {
 		return nil, errutil.MissingArgument("id")
 	}
@@ -963,15 +1502,14 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 		in.PageSize = 10
 	}
 
-	resp := &entities.ListEntityMentionsResponse{}
+	resp := &entpb.ListEntityMentionsResponse{}
 	var genesisBlobIDs []string
 	var deletedList []string
-	if err := api.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		var eid int64
-		if err := sqlitex.ExecTransient(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
+		if err := sqlitex.Exec(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
 			eid = stmt.ColumnInt64(0)
 			return nil
-
 		}, in.Id); err != nil {
 			return err
 		}
@@ -983,7 +1521,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 		var lastCursor mentionsCursor
 
 		var count int32
-		if err := sqlitex.ExecTransient(conn, qListMentions(in.ReverseOrder), func(stmt *sqlite.Stmt) error {
+		if err := sqlitex.Exec(conn, qListMentions(in.ReverseOrder), func(stmt *sqlite.Stmt) error {
 			// We query for pageSize + 1 items to know if there's more items on the next page,
 			// because if not we don't need to return the page token in the response.
 			if count == in.PageSize {
@@ -1026,11 +1564,11 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 				deletedList = append(deletedList, source)
 			}
 
-			resp.Mentions = append(resp.Mentions, &entities.Mention{
+			resp.Mentions = append(resp.Mentions, &entpb.Mention{
 				Source:        source,
 				SourceType:    blobType,
 				SourceContext: anchor,
-				SourceBlob: &entities.Mention_BlobInfo{
+				SourceBlob: &entpb.Mention_BlobInfo{
 					Cid:        sourceBlob,
 					Author:     author,
 					CreateTime: timestamppb.New(ts),
@@ -1054,8 +1592,8 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 	}
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
 	var movedResources []MovedResource
-	err := api.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.ExecTransient(conn, QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
+	err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
 			movedResources = append(movedResources, MovedResource{
 				NewIri:    stmt.ColumnText(0),
 				OldIri:    stmt.ColumnText(1),
@@ -1076,7 +1614,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 	}
 
 	seenMentions := make(map[string]bool)
-	uniqueMentions := make([]*entities.Mention, 0, len(resp.Mentions))
+	uniqueMentions := make([]*entpb.Mention, 0, len(resp.Mentions))
 	for _, m := range resp.Mentions {
 		key := fmt.Sprintf("%s|%s|%s|%s|%t", m.Source, m.SourceType, m.TargetVersion, m.TargetFragment, m.IsExactVersion)
 		if !seenMentions[key] && !slices.Contains(deletedList, m.Source) {
@@ -1251,7 +1789,7 @@ func indexOfQueryPattern(haystack, pattern string) (startRunes, startChars, matc
 	re := regexp.MustCompile(regexPattern)
 	loc := re.FindStringIndex(haystack)
 	if loc == nil {
-		return -1, -1, 0, 0
+		return 0, 0, 0, 0
 	}
 	// The start index in runes.
 	startRunes = utf8.RuneCountInString(haystack[:loc[0]])

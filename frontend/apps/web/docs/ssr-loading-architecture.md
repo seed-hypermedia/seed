@@ -2,17 +2,15 @@
 
 ## Overview
 
-The web app uses React Query for data fetching on both server and client. The
-server prefetches data into a QueryClient, dehydrates it, and sends it to the
-client. The client hydrates the cache and renders instantly without refetching.
+The web app uses React Query for data fetching on both server and client. The server prefetches data into a QueryClient,
+dehydrates it, and sends it to the client. The client hydrates the cache and renders instantly without refetching.
 
 ## Core Principle
 
 **The server prefetches exactly what the client will query.**
 
-Components use React Query hooks (`useResource`, `useDirectory`, `useResources`,
-`useAccount`). The server's job is to prefetch those same queries so the client
-renders instantly from cache.
+Components use React Query hooks (`useResource`, `useDirectory`, `useResources`, `useAccount`). The server's job is to
+prefetch those same queries so the client renders instantly from cache.
 
 ## Data Flow
 
@@ -75,9 +73,8 @@ renders instantly from cache.
 
 ## Query Definitions
 
-Queries are defined in `@shm/shared/models/queries.ts`. Each returns a
-`{queryKey, queryFn}` object compatible with both `useQuery()` and
-`prefetchQuery()`.
+Queries are defined in `@shm/shared/models/queries.ts`. Each returns a `{queryKey, queryFn}` object compatible with both
+`useQuery()` and `prefetchQuery()`.
 
 | Query                         | Purpose                        | Used By               |
 | ----------------------------- | ------------------------------ | --------------------- |
@@ -90,9 +87,8 @@ Queries are defined in `@shm/shared/models/queries.ts`. Each returns a
 
 ## Deduplication
 
-React Query automatically deduplicates queries by `queryKey`. If the same query
-is prefetched twice (e.g., an embed references the home document), only one
-fetch occurs.
+React Query automatically deduplicates queries by `queryKey`. If the same query is prefetched twice (e.g., an embed
+references the home document), only one fetch occurs.
 
 ```typescript
 // These result in ONE fetch, not two:
@@ -131,8 +127,7 @@ Prefetches are grouped into waves based on data dependencies:
 
 ## Query Block Rendering
 
-Query blocks (lists of child documents) render from directory metadata, not full
-documents:
+Query blocks (lists of child documents) render from directory metadata, not full documents:
 
 ```typescript
 // BlockContentQuery in blocks-content.tsx
@@ -145,9 +140,8 @@ const directoryItems = useDirectory(queryIncludeId, {mode})
 // Renders cards from metadata - no need to fetch full documents
 ```
 
-For query blocks, we prefetch the directory listing. The client renders cards
-from `HMDocumentInfo` metadata. Full document content is only fetched if a user
-clicks through.
+For query blocks, we prefetch the directory listing. The client renders cards from `HMDocumentInfo` metadata. Full
+document content is only fetched if a user clicks through.
 
 ## Embedded Document Rendering
 
@@ -163,8 +157,7 @@ refs.forEach((ref) => prefetchQuery(queryResource(client, ref.refId)))
 
 ## Error Handling
 
-- Use `Promise.allSettled()` for prefetches - one failure shouldn't break the
-  page
+- Use `Promise.allSettled()` for prefetches - one failure shouldn't break the page
 - Missing data is handled gracefully - client will fetch on demand
 - Log errors for debugging but don't throw
 
@@ -177,8 +170,7 @@ refs.forEach((ref) => prefetchQuery(queryResource(client, ref.refId)))
 | Document with 10 embeds             | ~15        | <100ms  |
 | Complex page (embeds + queries)     | ~20        | <150ms  |
 
-All calls are local (same machine), so latency is dominated by database queries,
-not network.
+All calls are local (same machine), so latency is dominated by database queries, not network.
 
 ## Files
 

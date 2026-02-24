@@ -7,19 +7,12 @@ export function useMediaDialog() {
   return useAppDialog(MediaDialog, {isAlert: true})
 }
 
-function MediaDialog({
-  onClose,
-  input,
-}: {
-  onClose: () => void
-  input: {draftId: string | undefined; publish: any}
-}) {
+function MediaDialog({onClose, input}: {onClose: () => void; input: {draftId: string | undefined; publish: any}}) {
   return (
     <div className="bg-background flex flex-col gap-2 rounded-md p-4">
       <Text className="text-lg font-semibold">Commit Document</Text>
       <Text className="text-muted-foreground text-sm">
-        All empty media elements will be deleted in your publication. Do you
-        wish to proceed?
+        All empty media elements will be deleted in your publication. Do you wish to proceed?
       </Text>
 
       <div className="flex justify-end gap-3">

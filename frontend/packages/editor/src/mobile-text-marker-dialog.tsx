@@ -1,10 +1,5 @@
 import {Button} from '@shm/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@shm/ui/components/dialog'
+import {Dialog, DialogContent, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {Check, OrderedList, Quote, UnorderedList, X} from '@shm/ui/icons'
 import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
@@ -39,12 +34,7 @@ const textMarkerOptions = [
   },
 ]
 
-export function MobileTextMarkerDialog({
-  isOpen,
-  onClose,
-  currentValue,
-  onChange,
-}: MobileTextMarkerDialogProps) {
+export function MobileTextMarkerDialog({isOpen, onClose, currentValue, onChange}: MobileTextMarkerDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
       <DialogContent
@@ -63,12 +53,7 @@ export function MobileTextMarkerDialog({
           <DialogHeader className="border-b p-4">
             <div className="flex items-center justify-between">
               <DialogTitle>Text Marker</DialogTitle>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={onClose}
-                className="h-8 w-8"
-              >
+              <Button size="icon" variant="ghost" onClick={onClose} className="h-8 w-8">
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -80,10 +65,7 @@ export function MobileTextMarkerDialog({
                 <Button
                   key={option.value}
                   variant="ghost"
-                  className={cn(
-                    'h-auto w-full justify-start px-4 py-4',
-                    currentValue === option.value && 'bg-muted',
-                  )}
+                  className={cn('h-auto w-full justify-start px-4 py-4', currentValue === option.value && 'bg-muted')}
                   onClick={() => onChange(option.value)}
                 >
                   <div className="flex w-full items-center justify-between">
@@ -93,9 +75,7 @@ export function MobileTextMarkerDialog({
                       </div>
                       <SizableText weight="medium">{option.label}</SizableText>
                     </div>
-                    {currentValue === option.value && (
-                      <Check size={20} color="currentColor" />
-                    )}
+                    {currentValue === option.value && <Check size={20} color="currentColor" />}
                   </div>
                 </Button>
               ))}

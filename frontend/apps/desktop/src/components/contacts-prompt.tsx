@@ -1,11 +1,7 @@
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {Button} from '@shm/ui/button'
-import {
-  DialogClose,
-  DialogDescription,
-  DialogTitle,
-} from '@shm/ui/components/dialog'
+import {DialogClose, DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {Textarea} from '@shm/ui/components/textarea'
 import {CopyUrlField} from '@shm/ui/copy-url-field'
 import {UserPlus} from '@shm/ui/icons'
@@ -18,13 +14,7 @@ import {useConnectPeer} from '../models/contacts'
 import {useDaemonInfo} from '../models/daemon'
 import {usePeerInfo} from '../models/networking'
 
-export function AddConnectionDialog({
-  input,
-  onClose,
-}: {
-  onClose: () => void
-  input: true
-}) {
+export function AddConnectionDialog({input, onClose}: {onClose: () => void; input: true}) {
   const [peerText, setPeer] = useState('')
   const daemonInfo = useDaemonInfo()
   const deviceId = daemonInfo.data?.peerId
@@ -61,18 +51,10 @@ export function AddConnectionDialog({
       <DialogClose />
 
       <DialogDescription>
-        Share your device connection URL with someone who you want to connect
-        with:{' '}
+        Share your device connection URL with someone who you want to connect with:{' '}
       </DialogDescription>
-      {deviceId && (
-        <CopyUrlField
-          label="Device Connection URL"
-          url={`${gatewayUrl.data}/hm/connect#${connectInfo}`}
-        />
-      )}
-      <DialogDescription>
-        Paste other people&apos;s connection URL here:
-      </DialogDescription>
+      {deviceId && <CopyUrlField label="Device Connection URL" url={`${gatewayUrl.data}/hm/connect#${connectInfo}`} />}
+      <DialogDescription>Paste other people&apos;s connection URL here:</DialogDescription>
       <Textarea
         value={peerText}
         onChange={(e) => setPeer(e.target.value)}
@@ -80,17 +62,10 @@ export function AddConnectionDialog({
         data-testid="add-contact-input"
         className="max-h-40"
       />
-      <DialogDescription>
-        You can also paste the full peer address here.
-      </DialogDescription>
+      <DialogDescription>You can also paste the full peer address here.</DialogDescription>
 
       <div className="flex justify-between">
-        <Button
-          onClick={() => connect.mutate(peerText)}
-          disabled={!peerText}
-          variant="default"
-          size="sm"
-        >
+        <Button onClick={() => connect.mutate(peerText)} disabled={!peerText} variant="default" size="sm">
           <UserPlus className="size-3" />
           Connect to Peer
         </Button>

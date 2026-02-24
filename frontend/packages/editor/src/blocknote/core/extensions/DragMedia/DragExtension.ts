@@ -85,9 +85,7 @@ export const DragExtension = Extension.create<DragOptions>({
                             let blockNode
                             const newId = generateBlockId()
 
-                            if (
-                              chromiumSupportedImageMimeTypes.has(file.type)
-                            ) {
+                            if (chromiumSupportedImageMimeTypes.has(file.type)) {
                               blockNode = {
                                 id: newId,
                                 type: 'image',
@@ -96,9 +94,7 @@ export const DragExtension = Extension.create<DragOptions>({
                                   name: props.name,
                                 },
                               }
-                            } else if (
-                              chromiumSupportedVideoMimeTypes.has(file.type)
-                            ) {
+                            } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
                               blockNode = {
                                 id: newId,
                                 type: 'video',
@@ -117,25 +113,16 @@ export const DragExtension = Extension.create<DragOptions>({
                               }
                             }
 
-                            const blockInfo = getBlockInfoFromPos(
-                              state,
-                              pos.pos,
-                            )
+                            const blockInfo = getBlockInfoFromPos(state, pos.pos)
 
                             if (index === 0) {
                               this.options.editor.insertBlocks(
                                 [blockNode],
                                 blockInfo.block.node.attrs.id,
-                                blockInfo.block.node.textContent
-                                  ? 'after'
-                                  : 'before',
+                                blockInfo.block.node.textContent ? 'after' : 'before',
                               )
                             } else {
-                              this.options.editor.insertBlocks(
-                                [blockNode],
-                                lastId,
-                                'after',
-                              )
+                              this.options.editor.insertBlocks([blockNode], lastId, 'after')
                             }
 
                             lastId = newId
@@ -202,8 +189,7 @@ async function handleDragMedia(file: File) {
 }
 
 function generateBlockId(length: number = 8): string {
-  const characters =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
   let result = ''
   for (let i = 0; i < length; i++) {
     result += characters.charAt(Math.floor(Math.random() * characters.length))

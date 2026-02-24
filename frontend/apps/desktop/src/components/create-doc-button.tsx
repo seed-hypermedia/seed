@@ -1,10 +1,7 @@
-import {
-  roleCanWrite,
-  useSelectedAccountCapability,
-} from '@/models/access-control'
+import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
-import {UnpackedHypermediaId} from '@shm/shared'
+import {HMResourceVisibility, UnpackedHypermediaId} from '@shm/shared'
 import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
@@ -27,10 +24,7 @@ function ImportMenuItem({
   children,
 }: {
   locationId: UnpackedHypermediaId
-  children: (props: {
-    openImportDialog: () => void
-    content: ReactNode
-  }) => ReactNode
+  children: (props: {openImportDialog: () => void; content: ReactNode}) => ReactNode
 }) {
   const importing = useImporting(locationId)
   const importDialog = useImportDialog()
@@ -52,12 +46,19 @@ function ImportMenuItem({
   )
 }
 
+/**
+ * When `onInlineCreate` is provided, menu items call it to create a draft
+ * inline (card at bottom of current page). When omitted, falls back to
+ * `createDraft()` which navigates to a new draft page.
+ */
 export function CreateDocumentButton({
   locationId,
   siteUrl,
+  onInlineCreate,
 }: {
   locationId?: UnpackedHypermediaId
   siteUrl?: string
+  onInlineCreate?: (opts?: {visibility?: HMResourceVisibility}) => void
 }) {
   const capability = useSelectedAccountCapability(locationId)
   const canEdit = roleCanWrite(capability?.role)
@@ -90,14 +91,12 @@ export function CreateDocumentButton({
             <DropdownMenuContent align="end" className="w-56">
               {isHomeDoc ? (
                 <>
-                  <DropdownMenuItem onClick={() => createDraft()}>
+                  <DropdownMenuItem onClick={() => (onInlineCreate ? onInlineCreate() : createDraft())}>
                     <FilePlus2 className="size-4" />
                     Public Document
                   </DropdownMenuItem>
                   {hasSiteUrl ? (
-                    <DropdownMenuItem
-                      onClick={() => createDraft({visibility: 'PRIVATE'})}
-                    >
+                    <DropdownMenuItem onClick={() => createDraft({visibility: 'PRIVATE'})}>
                       <Lock className="size-4" />
                       Private Document
                     </DropdownMenuItem>
@@ -115,18 +114,10 @@ export function CreateDocumentButton({
                           </DropdownMenuItem>
                         </div>
                       </HoverCardTrigger>
-                      <HoverCardContent
-                        side="right"
-                        sideOffset={12}
-                        className="w-64"
-                      >
+                      <HoverCardContent side="right" sideOffset={12} className="w-64">
                         <div className="flex flex-col gap-3">
-                          <SizableText
-                            size="sm"
-                            className="text-muted-foreground"
-                          >
-                            To create private documents, you need to configure
-                            your web domain first.
+                          <SizableText size="sm" className="text-muted-foreground">
+                            To create private documents, you need to configure your web domain first.
                           </SizableText>
                           <Button
                             size="sm"
@@ -145,7 +136,7 @@ export function CreateDocumentButton({
                   )}
                 </>
               ) : (
-                <DropdownMenuItem onClick={() => createDraft()}>
+                <DropdownMenuItem onClick={() => (onInlineCreate ? onInlineCreate() : createDraft())}>
                   <FilePlus2 className="size-4" />
                   New Document
                 </DropdownMenuItem>

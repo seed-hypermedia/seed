@@ -4,13 +4,7 @@ import {SquareChevronRight} from 'lucide-react'
 import {Button} from './button'
 import {Tooltip} from './tooltip'
 
-export function OpenInPanelButton({
-  id,
-  panelRoute,
-}: {
-  id: UnpackedHypermediaId
-  panelRoute: DocumentPanelRoute
-}) {
+export function OpenInPanelButton({id, panelRoute}: {id: UnpackedHypermediaId; panelRoute: DocumentPanelRoute}) {
   const replace = useNavigate('replace')
 
   return (

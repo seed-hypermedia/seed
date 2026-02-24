@@ -20,9 +20,7 @@ export const TextColorExtension = Extension.create({
           textColor: {
             default: 'default',
             parseHTML: (element) =>
-              element.hasAttribute('data-text-color')
-                ? element.getAttribute('data-text-color')
-                : 'default',
+              element.hasAttribute('data-text-color') ? element.getAttribute('data-text-color') : 'default',
             renderHTML: (attributes) =>
               attributes.textColor !== 'default' && {
                 'data-text-color': attributes.textColor,
@@ -43,11 +41,7 @@ export const TextColorExtension = Extension.create({
             return false
           }
 
-          state.tr.setNodeAttribute(
-            blockInfo.block.beforePos,
-            'textColor',
-            color,
-          )
+          state.tr.setNodeAttribute(blockInfo.block.beforePos, 'textColor', color)
 
           view.focus()
 

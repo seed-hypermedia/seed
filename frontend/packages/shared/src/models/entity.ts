@@ -1,16 +1,6 @@
-import {
-  PlainMessage,
-  Struct,
-  Timestamp,
-  toPlainMessage,
-} from '@bufbuild/protobuf'
+import {PlainMessage, Struct, Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
-import {
-  useInfiniteQuery,
-  useQueries,
-  useQuery,
-  UseQueryOptions,
-} from '@tanstack/react-query'
+import {useInfiniteQuery, useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {DocumentInfo, RedirectErrorDetails} from '../client'
 import {DISCOVERY_TIMEOUT_MS} from '../constants'
@@ -43,7 +33,6 @@ import {
 import {useUniversalAppContext, useUniversalClient} from '../routing'
 import {useStream} from '../use-stream'
 import {entityQueryPathToHmIdPath, hmId, unpackHmId} from '../utils'
-import {queryKeys} from './query-keys'
 import {
   queryAccount,
   queryCapabilities,
@@ -53,6 +42,7 @@ import {
   queryDirectory,
   queryResource,
 } from './queries'
+import {queryKeys} from './query-keys'
 
 export function documentMetadataParseAdjustments(metadata: any) {
   if (metadata?.theme === '[object Object]') {
@@ -60,18 +50,13 @@ export function documentMetadataParseAdjustments(metadata: any) {
   }
 }
 
-export function prepareHMDocumentMetadata(
-  metadata: Struct | undefined,
-): HMMetadata {
-  const docMeta =
-    metadata?.toJson({emitDefaultValues: true, enumAsInteger: false}) || {}
+export function prepareHMDocumentMetadata(metadata: Struct | undefined): HMMetadata {
+  const docMeta = metadata?.toJson({emitDefaultValues: true, enumAsInteger: false}) || {}
   documentMetadataParseAdjustments(docMeta)
   return HMDocumentMetadataSchema.parse(docMeta)
 }
 
-export function prepareHMDate(
-  date: PlainMessage<Timestamp> | undefined,
-): HMTimestamp | undefined {
+export function prepareHMDate(date: PlainMessage<Timestamp> | undefined): HMTimestamp | undefined {
   if (!date) return undefined
   const d = toPlainMessage(date)
   return HMTimestampSchema.parse(d)
@@ -87,17 +72,13 @@ export function prepareHMDocumentInfo(doc: DocumentInfo): HMDocumentInfo {
   } else if (typeof createTime === 'string') {
     sortTime = new Date(createTime)
   } else {
-    sortTime = new Date(
-      Number(createTime.seconds) * 1000 + createTime.nanos / 1000000,
-    )
+    sortTime = new Date(Number(createTime.seconds) * 1000 + createTime.nanos / 1000000)
   }
 
   // Transform redirectInfo from proto format to frontend format
   let redirectInfo
   if (docInfo.redirectInfo) {
-    const target = `${docInfo.redirectInfo.account}${
-      docInfo.redirectInfo.path ? `/${docInfo.redirectInfo.path}` : ''
-    }`
+    const target = `${docInfo.redirectInfo.account}${docInfo.redirectInfo.path ? `/${docInfo.redirectInfo.path}` : ''}`
     redirectInfo = {
       type: 'redirect' as const,
       target,
@@ -123,15 +104,11 @@ export function documentParseAdjustments(document: any) {
 
 export function useDiscoveryState(entityId: string | undefined) {
   const client = useUniversalClient()
-  const stream = entityId
-    ? client.discovery?.getDiscoveryStream(entityId)
-    : undefined
+  const stream = entityId ? client.discovery?.getDiscoveryStream(entityId) : undefined
   const discoveryState = useStream(stream)
 
   // Check if discovery has timed out
-  const isTimedOut = discoveryState
-    ? Date.now() - discoveryState.startedAt > DISCOVERY_TIMEOUT_MS
-    : false
+  const isTimedOut = discoveryState ? Date.now() - discoveryState.startedAt > DISCOVERY_TIMEOUT_MS : false
 
   return {
     isDiscovering: discoveryState?.isDiscovering && !isTimedOut,
@@ -146,15 +123,11 @@ export function useResource(
   options?: UseQueryOptions<HMResource | null> & {
     subscribed?: boolean
     recursive?: boolean
-    onRedirectOrDeleted?: (opts: {
-      isDeleted: boolean
-      redirectTarget: UnpackedHypermediaId | null
-    }) => void
+    onRedirectOrDeleted?: (opts: {isDeleted: boolean; redirectTarget: UnpackedHypermediaId | null}) => void
   },
 ) {
   const client = useUniversalClient()
-  const {subscribed, recursive, onRedirectOrDeleted, ...queryOptions} =
-    options ?? {}
+  const {subscribed, recursive, onRedirectOrDeleted, ...queryOptions} = options ?? {}
 
   // Discovery subscription (desktop only)
   useEffect(() => {
@@ -188,8 +161,7 @@ export function useResource(
     (!!discoveryInProgress || result.isFetching)
 
   // Redirect handling
-  const redirectTarget =
-    result.data?.type === 'redirect' ? result.data.redirectTarget : null
+  const redirectTarget = result.data?.type === 'redirect' ? result.data.redirectTarget : null
   const onRedirectOrDeletedRef = useRef(onRedirectOrDeleted)
   onRedirectOrDeletedRef.current = onRedirectOrDeleted
   const handledRedirectRef = useRef<string | null>(null)
@@ -207,10 +179,7 @@ export function useResource(
   }
 }
 
-export function useAccount(
-  id: string | null | undefined,
-  options?: UseQueryOptions<HMMetadataPayload | null>,
-) {
+export function useAccount(id: string | null | undefined, options?: UseQueryOptions<HMMetadataPayload | null>) {
   const client = useUniversalClient()
   return useQuery({
     ...queryAccount(client, id),
@@ -230,9 +199,7 @@ export function useResolvedResource(
     queryFn: async (): Promise<HMResolvedResource | null> => {
       if (!id) return null
 
-      async function loadResolvedResource(
-        id: UnpackedHypermediaId,
-      ): Promise<HMResolvedResource | null> {
+      async function loadResolvedResource(id: UnpackedHypermediaId): Promise<HMResolvedResource | null> {
         let resource = await client.request<HMResourceRequest>('Resource', id)
         if (resource?.type === 'redirect') {
           return await loadResolvedResource(resource.redirectTarget)
@@ -254,9 +221,7 @@ type DiscoveryStateInfo = {
 }
 
 // Hook to get discovery states for multiple entity IDs
-function useDiscoveryStates(
-  entityIds: (string | undefined)[],
-): DiscoveryStateInfo[] {
+function useDiscoveryStates(entityIds: (string | undefined)[]): DiscoveryStateInfo[] {
   const client = useUniversalClient()
 
   // Create a stable key for the ids array
@@ -265,18 +230,14 @@ function useDiscoveryStates(
   // Subscribe to all discovery streams
   const streams = useMemo(() => {
     if (!client.discovery) return []
-    return entityIds.map((id) =>
-      id ? client.discovery!.getDiscoveryStream(id) : undefined,
-    )
+    return entityIds.map((id) => (id ? client.discovery!.getDiscoveryStream(id) : undefined))
   }, [client.discovery, idsKey])
 
   // Get current values from all streams
   const [states, setStates] = useState<DiscoveryStateInfo[]>(() =>
     streams.map((stream) => {
       const state = stream?.get()
-      const isTimedOut = state
-        ? Date.now() - state.startedAt > DISCOVERY_TIMEOUT_MS
-        : false
+      const isTimedOut = state ? Date.now() - state.startedAt > DISCOVERY_TIMEOUT_MS : false
       return {
         isDiscovering: (state?.isDiscovering && !isTimedOut) ?? false,
         isTombstone: state?.isTombstone ?? false,
@@ -293,9 +254,7 @@ function useDiscoveryStates(
       return stream.subscribe((state) => {
         setStates((prev) => {
           const next = [...prev]
-          const isTimedOut = state
-            ? Date.now() - state.startedAt > DISCOVERY_TIMEOUT_MS
-            : false
+          const isTimedOut = state ? Date.now() - state.startedAt > DISCOVERY_TIMEOUT_MS : false
           next[index] = {
             isDiscovering: (state?.isDiscovering && !isTimedOut) ?? false,
             isTombstone: state?.isTombstone ?? false,
@@ -329,12 +288,7 @@ export function useResources(
       .filter((id): id is UnpackedHypermediaId => !!id)
       .map((id) => client.subscribeEntity!({id, recursive}))
     return () => cleanups.forEach((cleanup) => cleanup())
-  }, [
-    subscribed,
-    recursive,
-    ids.map((id) => id?.id).join(','),
-    client.subscribeEntity,
-  ])
+  }, [subscribed, recursive, ids.map((id) => id?.id).join(','), client.subscribeEntity])
 
   // Get discovery states - only when subscribed to avoid unnecessary re-renders
   const entityIdStrings = subscribed ? ids.map((id) => id?.id) : []
@@ -374,10 +328,7 @@ export function useResources(
   })
 }
 
-export function useAccounts(
-  ids: (string | null | undefined)[],
-  options?: UseQueryOptions<HMMetadataPayload | null>,
-) {
+export function useAccounts(ids: (string | null | undefined)[], options?: UseQueryOptions<HMMetadataPayload | null>) {
   const client = useUniversalClient()
   return useQueries({
     queries: ids.map((id) => ({
@@ -422,13 +373,8 @@ export function useResolvedResources(
         queryFn: async (): Promise<HMResolvedResource | null> => {
           if (!id) return null
 
-          async function loadResolvedResource(
-            id: UnpackedHypermediaId,
-          ): Promise<HMResolvedResource | null> {
-            let resource = await client.request<HMResourceRequest>(
-              'Resource',
-              id,
-            )
+          async function loadResolvedResource(id: UnpackedHypermediaId): Promise<HMResolvedResource | null> {
+            let resource = await client.request<HMResourceRequest>('Resource', id)
             if (resource?.type === 'redirect') {
               return await loadResolvedResource(resource.redirectTarget)
             }
@@ -476,10 +422,7 @@ export function getErrorMessage(err: any) {
       return new HMNotFoundError()
     }
     const firstDetail = e.details[0] // what if there are more than one detail?
-    if (
-      e.code === Code.FailedPrecondition &&
-      e.message.match('marked as deleted')
-    ) {
+    if (e.code === Code.FailedPrecondition && e.message.match('marked as deleted')) {
       return new HMResourceTombstoneError()
     }
     if (e.code === Code.Unknown && e.message.match('ipld: could not find')) {
@@ -519,10 +462,7 @@ export function useAccountContacts(accountUid: string | null | undefined) {
     queryKey: [queryKeys.CONTACTS_ACCOUNT, accountUid],
     queryFn: async (): Promise<HMContactRecord[]> => {
       if (!accountUid) return []
-      return await client.request<HMAccountContactsRequest>(
-        'AccountContacts',
-        accountUid,
-      )
+      return await client.request<HMAccountContactsRequest>('AccountContacts', accountUid)
     },
   })
 }
@@ -539,11 +479,7 @@ export function useContacts(accountUids: string[]) {
         data: account.data
           ? {
               id: account.data.id,
-              metadata: getContactMetadata(
-                account.data.id.uid,
-                account.data.metadata,
-                contacts.data,
-              ),
+              metadata: getContactMetadata(account.data.id.uid, account.data.metadata, contacts.data),
             }
           : undefined,
       }
@@ -601,10 +537,7 @@ export function useRootDocuments() {
   return useQuery({
     queryKey: [queryKeys.ROOT_DOCUMENTS],
     queryFn: async (): Promise<HMListAccountsOutput> => {
-      return await client.request<HMListAccountsRequest>(
-        'ListAccounts',
-        undefined,
-      )
+      return await client.request<HMListAccountsRequest>('ListAccounts', undefined)
     },
   })
 }
@@ -625,19 +558,14 @@ export function useComments(id: UnpackedHypermediaId | null | undefined) {
   return useQuery(queryComments(client, id))
 }
 
-export function useAuthoredComments(
-  id: UnpackedHypermediaId | null | undefined,
-) {
+export function useAuthoredComments(id: UnpackedHypermediaId | null | undefined) {
   const client = useUniversalClient()
   const isRootAccount = !id?.path?.filter((p) => !!p).length
   return useQuery({
     queryKey: [queryKeys.AUTHORED_COMMENTS, id?.id],
     queryFn: async (): Promise<HMListCommentsByAuthorOutput> => {
       if (!id) throw new Error('ID required')
-      return await client.request<HMListCommentsByAuthorRequest>(
-        'ListCommentsByAuthor',
-        {authorId: id},
-      )
+      return await client.request<HMListCommentsByAuthorRequest>('ListCommentsByAuthor', {authorId: id})
     },
     enabled: !!id && isRootAccount,
   })
@@ -729,14 +657,11 @@ export async function search(input: string): Promise<HypermediaSearchResult> {
     const version = result.headers.get('x-hypermedia-version')
     if (unpackedId) {
       return {
-        destination: `/hm/${unpackedId.uid}/${unpackedId.path?.join(
-          '/',
-        )}?v=${version}`,
+        destination: `/hm/${unpackedId.uid}/${unpackedId.path?.join('/')}?v=${version}`,
       }
     }
   }
   return {
-    errorMessage:
-      'Invalid input. Please enter a valid hypermedia URL or IPFS url.',
+    errorMessage: 'Invalid input. Please enter a valid hypermedia URL or IPFS url.',
   }
 }

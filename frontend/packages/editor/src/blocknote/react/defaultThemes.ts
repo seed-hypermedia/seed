@@ -11,18 +11,7 @@ export const defaultColorScheme: readonly [
   string,
   string,
   string,
-] = [
-  '#FFFFFF',
-  '#EFEFEF',
-  '#CFCFCF',
-  '#AFAFAF',
-  '#7F7F7F',
-  '#3F3F3F',
-  '#1F1F1F',
-  '#161616',
-  '#0F0F0F',
-  '#000000',
-]
+] = ['#FFFFFF', '#EFEFEF', '#CFCFCF', '#AFAFAF', '#7F7F7F', '#3F3F3F', '#1F1F1F', '#161616', '#0F0F0F', '#000000']
 
 export const lightDefaultTheme: Theme = {
   colors: {

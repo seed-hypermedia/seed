@@ -10,37 +10,18 @@ import {
   NavRoute,
   UnpackedHypermediaId,
   unpackHmId,
+  useUniversalAppContext,
 } from '@shm/shared'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
-import {
-  useAccountsMetadata,
-  useDirectory,
-  useResource,
-  useResources,
-} from '@shm/shared/models/entity'
+import {useAccountsMetadata, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
-import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
-import {
-  createSiteUrl,
-  createWebHMUrl,
-  getCommentTargetId,
-  parseFragment,
-} from '@shm/shared/utils/entity-id-url'
+import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
+import {createSiteUrl, createWebHMUrl, getCommentTargetId, parseFragment} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {
-  ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
-import {
-  BlockRangeSelectOptions,
-  BlocksContent,
-  BlocksContentProvider,
-} from './blocks-content'
+import {Folder} from 'lucide-react'
+import {CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {BlockRangeSelectOptions, BlocksContent, BlocksContentProvider} from './blocks-content'
 import {DocumentCollaborators} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
@@ -51,6 +32,7 @@ import {AuthorPayload, BreadcrumbEntry, DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
 import {FeedFilters} from './feed-filters'
+import {HistoryIcon, Link} from './icons'
 import {useDocumentLayout} from './layout'
 import {MobilePanelSheet} from './mobile-panel-sheet'
 import {
@@ -72,18 +54,67 @@ import {useBlockScroll} from './use-block-scroll'
 import {useMedia} from './use-media'
 import {cn} from './utils'
 
+/** Common menu items generated internally for all document views */
+export function useCommonMenuItems(docId: UnpackedHypermediaId): MenuItemType[] {
+  const navigate = useNavigate()
+  const media = useMedia()
+  const isMobile = media.xs
+  const {onCopyReference} = useUniversalAppContext()
+
+  return useMemo(
+    () => [
+      {
+        key: 'copy-link',
+        label: 'Copy Link',
+        icon: <Link className="size-4" />,
+        onClick: () => {
+          if (onCopyReference) {
+            onCopyReference(docId)
+          } else if (typeof window !== 'undefined') {
+            copyUrlToClipboardWithFeedback(window.location.href, 'Link')
+          }
+        },
+      },
+      {
+        key: 'versions',
+        label: 'Document Versions',
+        icon: <HistoryIcon className="size-4" />,
+        onClick: () => {
+          if (isMobile) {
+            navigate({
+              key: 'activity',
+              id: docId,
+              filterEventType: ['Ref'],
+            })
+          } else {
+            navigate({
+              key: 'document',
+              id: docId,
+              panel: {key: 'activity', id: docId, filterEventType: ['Ref']},
+            })
+          }
+        },
+      },
+      {
+        key: 'directory',
+        label: 'Directory',
+        icon: <Folder className="size-4" />,
+        onClick: () => {
+          navigate({key: 'directory', id: docId})
+        },
+      },
+    ],
+    [navigate, docId, isMobile, onCopyReference],
+  )
+}
+
 /** Extract panel route from a view route, stripping top-level-only fields */
 function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
   const {panel, width, ...params} = route as any
   return params as DocumentPanelRoute
 }
 
-export type ActiveView =
-  | 'content'
-  | 'activity'
-  | 'discussions'
-  | 'directory'
-  | 'collaborators'
+export type ActiveView = 'content' | 'activity' | 'discussions' | 'directory' | 'collaborators'
 
 function getActiveView(routeKey: string): ActiveView {
   switch (routeKey) {
@@ -104,6 +135,7 @@ export interface CommentEditorProps {
   docId: UnpackedHypermediaId
   quotingBlockId?: string
   commentId?: string
+  isReplying?: boolean
   autoFocus?: boolean
 }
 
@@ -111,16 +143,20 @@ export interface ResourcePageProps {
   docId: UnpackedHypermediaId
   /** Factory to create comment editor - platform-specific (web vs desktop) */
   CommentEditor?: React.ComponentType<CommentEditorProps>
-  /** Menu items for the options dropdown (three dots) - always visible */
-  optionsMenuItems?: MenuItemType[]
+  /** Additional platform-specific menu items for the options dropdown */
+  extraMenuItems?: MenuItemType[]
   /** Edit/create action buttons - platform-specific (desktop only) */
   editActions?: ReactNode
   /** Existing draft info for showing draft indicator in toolbar */
   existingDraft?: HMExistingDraft | false
   /** Platform-specific collaborator form (e.g. invite form on desktop) */
   collaboratorForm?: ReactNode
+  /** Platform-specific page footer (web only) */
+  pageFooter?: ReactNode
 
   floatingButtons?: ReactNode
+  /** Inline child draft cards rendered after document content */
+  inlineCards?: ReactNode
 }
 
 /** Get panel title for display */
@@ -142,11 +178,13 @@ function getPanelTitle(panelKey: string | null): string {
 export function ResourcePage({
   docId,
   CommentEditor,
-  optionsMenuItems,
+  extraMenuItems,
   editActions,
   existingDraft,
   floatingButtons,
   collaboratorForm,
+  pageFooter,
+  inlineCards,
 }: ResourcePageProps) {
   // Load document data via React Query (hydrated from SSR prefetch)
   const resource = useResource(docId, {
@@ -159,29 +197,19 @@ export function ResourcePage({
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
   const homeDirectory = useDirectory(siteHomeId)
 
-  const siteHomeDocument =
-    siteHomeResource.data?.type === 'document'
-      ? siteHomeResource.data.document
-      : null
+  const siteHomeDocument = siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
 
   // Compute header data
-  const headerData = computeHeaderData(
-    siteHomeId,
-    siteHomeDocument,
-    homeDirectory.data,
-  )
+  const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data)
 
   // Loading state - should not show during SSR if data was prefetched
   if (resource.isInitialLoading) {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={docId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
+        {pageFooter}
       </PageWrapper>
     )
   }
@@ -189,12 +217,9 @@ export function ResourcePage({
   // Handle discovery state
   if (resource.isDiscovering) {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={docId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
         <PageDiscovery />
+        {pageFooter}
       </PageWrapper>
     )
   }
@@ -202,12 +227,9 @@ export function ResourcePage({
   // Handle not-found
   if (!resource.data || resource.data.type === 'not-found') {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={docId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
         <PageNotFound />
+        {pageFooter}
       </PageWrapper>
     )
   }
@@ -215,12 +237,9 @@ export function ResourcePage({
   // Handle tombstone (deleted)
   if (resource.isTombstone || resource.data.type === 'tombstone') {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={docId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
         <PageDeleted />
+        {pageFooter}
       </PageWrapper>
     )
   }
@@ -228,14 +247,11 @@ export function ResourcePage({
   // Handle error
   if (resource.data.type === 'error') {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={docId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
         <div className="flex flex-1 items-center justify-center p-8">
           <div className="text-destructive">{resource.data.message}</div>
         </div>
+        {pageFooter}
       </PageWrapper>
     )
   }
@@ -243,12 +259,9 @@ export function ResourcePage({
   // Handle redirect - for now just show not found, redirect handling comes later
   if (resource.data.type === 'redirect') {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={docId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
         <PageNotFound />
+        {pageFooter}
       </PageWrapper>
     )
   }
@@ -260,6 +273,7 @@ export function ResourcePage({
         comment={resource.data.comment}
         commentId={docId}
         CommentEditor={CommentEditor}
+        pageFooter={pageFooter}
       />
     )
   }
@@ -267,34 +281,28 @@ export function ResourcePage({
   // Success: render document
   if (resource.data.type !== 'document') {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={docId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
         <PageNotFound />
+        {pageFooter}
       </PageWrapper>
     )
   }
   const document = resource.data.document
 
   return (
-    <PageWrapper
-      siteHomeId={siteHomeId}
-      docId={docId}
-      headerData={headerData}
-      document={document}
-    >
+    <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} document={document}>
       <DocumentBody
         docId={docId}
         document={document}
         siteUrl={siteHomeDocument?.metadata?.siteUrl}
         CommentEditor={CommentEditor}
-        optionsMenuItems={optionsMenuItems}
+        extraMenuItems={extraMenuItems}
         editActions={editActions}
         existingDraft={existingDraft}
         floatingButtons={floatingButtons}
         collaboratorForm={collaboratorForm}
+        pageFooter={pageFooter}
+        inlineCards={inlineCards}
       />
     </PageWrapper>
   )
@@ -305,10 +313,12 @@ function CommentResourcePage({
   comment,
   commentId,
   CommentEditor,
+  pageFooter,
 }: {
   comment: HMComment
   commentId: UnpackedHypermediaId
   CommentEditor?: React.ComponentType<CommentEditorProps>
+  pageFooter?: ReactNode
 }) {
   const targetDocId = getCommentTargetId(comment)
 
@@ -316,15 +326,8 @@ function CommentResourcePage({
   const siteHomeId = targetDocId ? hmId(targetDocId.uid) : hmId(commentId.uid)
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
   const homeDirectory = useDirectory(siteHomeId)
-  const siteHomeDocument =
-    siteHomeResource.data?.type === 'document'
-      ? siteHomeResource.data.document
-      : null
-  const headerData = computeHeaderData(
-    siteHomeId,
-    siteHomeDocument,
-    homeDirectory.data,
-  )
+  const siteHomeDocument = siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
+  const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data)
 
   // Load target document
   const targetResource = useResource(targetDocId, {
@@ -334,38 +337,29 @@ function CommentResourcePage({
 
   if (!targetDocId) {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={commentId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={commentId} headerData={headerData}>
         <PageNotFound />
+        {pageFooter}
       </PageWrapper>
     )
   }
 
   if (targetResource.isInitialLoading) {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={targetDocId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={targetDocId} headerData={headerData}>
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
+        {pageFooter}
       </PageWrapper>
     )
   }
 
   if (targetResource.data?.type !== 'document') {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={targetDocId}
-        headerData={headerData}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={targetDocId} headerData={headerData}>
         <PageNotFound />
+        {pageFooter}
       </PageWrapper>
     )
   }
@@ -374,12 +368,7 @@ function CommentResourcePage({
   const isHomeDoc = !targetDocId.path?.length
 
   return (
-    <PageWrapper
-      siteHomeId={siteHomeId}
-      docId={targetDocId}
-      headerData={headerData}
-      document={document}
-    >
+    <PageWrapper siteHomeId={siteHomeId} docId={targetDocId} headerData={headerData} document={document}>
       <CommentPageBody
         docId={targetDocId}
         document={document}
@@ -387,6 +376,7 @@ function CommentResourcePage({
         openComment={comment.id}
         CommentEditor={CommentEditor}
         siteUrl={siteHomeDocument?.metadata?.siteUrl}
+        pageFooter={pageFooter}
       />
     </PageWrapper>
   )
@@ -400,6 +390,7 @@ function CommentPageBody({
   openComment,
   CommentEditor,
   siteUrl,
+  pageFooter,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
@@ -407,22 +398,32 @@ function CommentPageBody({
   openComment: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
   siteUrl?: string
+  pageFooter?: ReactNode
 }) {
   const interactionSummary = useInteractionSummary(docId)
 
   const breadcrumbIds = useMemo(() => {
     if (isHomeDoc) return []
-    return getParentPaths(docId.path).map((path) => hmId(docId.uid, {path}))
-  }, [docId.uid, docId.path, isHomeDoc])
+    return getBreadcrumbDocumentIds(docId)
+  }, [docId, isHomeDoc])
 
   const breadcrumbResults = useResources(breadcrumbIds)
   const breadcrumbs = useMemo((): BreadcrumbEntry[] | undefined => {
     if (isHomeDoc) return undefined
     const items: BreadcrumbEntry[] = breadcrumbIds.map((id, i) => {
-      const data = breadcrumbResults[i]?.data
-      const metadata =
-        data?.type === 'document' ? data.document?.metadata || {} : {}
-      return {id, metadata}
+      const result = breadcrumbResults[i]
+      const data = result?.data
+      const metadata = data?.type === 'document' ? data.document?.metadata || {} : {}
+      const fallbackName = id.path?.at(-1) || id.uid.slice(0, 8)
+      return {
+        id,
+        metadata,
+        fallbackName,
+        isLoading: result?.isDiscovering || result?.isLoading,
+        isTombstone: result?.isTombstone,
+        isNotFound: data?.type === 'not-found' && !result?.isDiscovering,
+        isError: result?.isError && !result?.isDiscovering && !result?.isTombstone,
+      }
     })
     items.push({label: 'Comments'})
     return items
@@ -450,12 +451,15 @@ function CommentPageBody({
   }, [document.authors, commentAccountsMetadata.data])
 
   return (
-    <>
+    <div
+      className={cn(
+        'flex flex-1 flex-col',
+        pageFooter &&
+          'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]',
+      )}
+    >
       <DocumentCover cover={document.metadata?.cover} />
-      <div
-        className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
-        style={{maxWidth: contentMaxWidth}}
-      >
+      <div className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')} style={{maxWidth: contentMaxWidth}}>
         {!isHomeDoc && (
           <DocumentHeader
             docId={docId}
@@ -466,7 +470,6 @@ function CommentPageBody({
           />
         )}
       </div>
-      {/* <div className="h-3" /> */}
       <div className="dark:bg-background sticky top-0 z-10 bg-white py-1">
         <DocumentTools
           id={docId}
@@ -491,11 +494,10 @@ function CommentPageBody({
         openComment={openComment}
         contentMaxWidth={contentMaxWidth}
         targetDomain={siteUrl}
-        commentEditor={
-          CommentEditor ? <CommentEditor docId={docId} autoFocus /> : undefined
-        }
+        commentEditor={CommentEditor ? <CommentEditor docId={docId} autoFocus /> : undefined}
       />
-    </>
+      {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
+    </div>
   )
 }
 
@@ -538,8 +540,7 @@ export function computeHeaderData(
     directory: directory ?? undefined,
   })
 
-  const items =
-    homeNavigationItems.length > 0 ? homeNavigationItems : directoryItems
+  const items = homeNavigationItems.length > 0 ? homeNavigationItems : directoryItems
 
   const isCenterLayout =
     siteHomeDocument?.metadata?.theme?.headerLayout === 'Center' ||
@@ -577,6 +578,11 @@ export function PageWrapper({
 
   return (
     <div
+      style={
+        {
+          '--site-header-default-h': headerData.isCenterLayout ? '96px' : '60px',
+        } as CSSProperties
+      }
       className={cn(
         'dark:bg-background flex max-h-full flex-col bg-white',
         // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)
@@ -607,21 +613,25 @@ function DocumentBody({
   document,
   siteUrl,
   CommentEditor,
-  optionsMenuItems,
+  extraMenuItems,
   editActions,
   existingDraft,
   floatingButtons,
   collaboratorForm,
+  pageFooter,
+  inlineCards,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
   siteUrl?: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
-  optionsMenuItems?: MenuItemType[]
+  extraMenuItems?: MenuItemType[]
   editActions?: ReactNode
   existingDraft?: HMExistingDraft | false
   floatingButtons?: ReactNode
   collaboratorForm?: ReactNode
+  pageFooter?: ReactNode
+  inlineCards?: ReactNode
 }) {
   const route = useNavRoute()
   const navigate = useNavigate()
@@ -639,12 +649,12 @@ function DocumentBody({
           targetBlockId: route.targetBlockId,
           blockId: route.blockId,
           blockRange: route.blockRange,
+          autoFocus: route.autoFocus,
         }
       : undefined
 
   // Extract blockRef from route for scroll-to-block and highlighting
-  const routeBlockRef =
-    'id' in route && typeof route.id === 'object' ? route.id.blockRef : null
+  const routeBlockRef = 'id' in route && typeof route.id === 'object' ? route.id.blockRef : null
   const {scrollToBlock} = useBlockScroll(routeBlockRef)
 
   // On mount, sync URL hash (#blockId) into route if not already present
@@ -665,6 +675,8 @@ function DocumentBody({
         blockRange:
           'start' in fragment && 'end' in fragment
             ? {start: fragment.start, end: fragment.end}
+            : 'expanded' in fragment && fragment.expanded
+            ? {expanded: true}
             : null,
       },
     })
@@ -677,18 +689,27 @@ function DocumentBody({
   // Breadcrumbs: fetch parent documents for non-home docs
   const breadcrumbIds = useMemo(() => {
     if (isHomeDoc) return []
-    return getParentPaths(docId.path).map((path) => hmId(docId.uid, {path}))
-  }, [docId.uid, docId.path, isHomeDoc])
+    return getBreadcrumbDocumentIds(docId)
+  }, [docId, isHomeDoc])
 
   const breadcrumbResults = useResources(breadcrumbIds)
 
   const breadcrumbs = useMemo((): BreadcrumbEntry[] | undefined => {
     if (isHomeDoc) return undefined
     const items: BreadcrumbEntry[] = breadcrumbIds.map((id, i) => {
-      const data = breadcrumbResults[i]?.data
-      const metadata =
-        data?.type === 'document' ? data.document?.metadata || {} : {}
-      return {id, metadata}
+      const result = breadcrumbResults[i]
+      const data = result?.data
+      const metadata = data?.type === 'document' ? data.document?.metadata || {} : {}
+      const fallbackName = id.path?.at(-1) || id.uid.slice(0, 8)
+      return {
+        id,
+        metadata,
+        fallbackName,
+        isLoading: result?.isDiscovering || result?.isLoading,
+        isTombstone: result?.isTombstone,
+        isNotFound: data?.type === 'not-found' && !result?.isDiscovering,
+        isError: result?.isError && !result?.isDiscovering && !result?.isTombstone,
+      }
     })
 
     // Append active panel name when not on content/draft view
@@ -707,14 +728,9 @@ function DocumentBody({
       const blockNode = findContentBlock(document.content, routeBlockRef)
       if (blockNode?.block) {
         let text = getBlockText(blockNode.block)
-        const routeId =
-          'id' in route && typeof route.id === 'object' ? route.id : null
+        const routeId = 'id' in route && typeof route.id === 'object' ? route.id : null
         const blockRange = routeId?.blockRange ?? null
-        if (
-          blockRange &&
-          typeof blockRange.start === 'number' &&
-          typeof blockRange.end === 'number'
-        ) {
+        if (blockRange && typeof blockRange.start === 'number' && typeof blockRange.end === 'number') {
           text = text.slice(blockRange.start, blockRange.end)
         }
         const truncated = text.length > 40 ? text.slice(0, 40) + '...' : text
@@ -723,15 +739,7 @@ function DocumentBody({
     }
 
     return items
-  }, [
-    isHomeDoc,
-    breadcrumbIds,
-    breadcrumbResults,
-    activeView,
-    routeBlockRef,
-    document.content,
-    route,
-  ])
+  }, [isHomeDoc, breadcrumbIds, breadcrumbResults, activeView, routeBlockRef, document.content, route])
 
   // Track when DocumentTools becomes sticky
   const [isToolsSticky, setIsToolsSticky] = useState(false)
@@ -758,21 +766,11 @@ function DocumentBody({
     return () => observer.disconnect()
   }, [])
 
-  const {
-    showSidebars,
-    showCollapsed,
-    sidebarProps,
-    mainContentProps,
-    elementRef,
-    wrapperProps,
-    contentMaxWidth,
-  } = useDocumentLayout({
-    contentWidth: document.metadata?.contentWidth,
-    showSidebars:
-      !isHomeDoc &&
-      document.metadata?.showOutline !== false &&
-      activeView === 'content',
-  })
+  const {showSidebars, showCollapsed, sidebarProps, mainContentProps, elementRef, wrapperProps, contentMaxWidth} =
+    useDocumentLayout({
+      contentWidth: document.metadata?.contentWidth,
+      showSidebars: !isHomeDoc && document.metadata?.showOutline !== false && activeView === 'content',
+    })
 
   // Fetch author metadata for document header
   const accountsMetadata = useAccountsMetadata(document.authors || [])
@@ -793,10 +791,7 @@ function DocumentBody({
   const isMobile = media.xs
 
   // Block tools handlers
-  const blockCitations = useMemo(
-    () => interactionSummary.data?.blocks || null,
-    [interactionSummary.data?.blocks],
-  )
+  const blockCitations = useMemo(() => interactionSummary.data?.blocks || null, [interactionSummary.data?.blocks])
 
   const handleBlockCitationClick = useCallback(
     (blockId?: string | null) => {
@@ -819,20 +814,12 @@ function DocumentBody({
   )
 
   const handleBlockCommentClick = useCallback(
-    (
-      blockId?: string | null,
-      blockRangeInput?: BlockRange | undefined,
-      _startCommentingNow?: boolean,
-    ) => {
+    (blockId?: string | null, blockRangeInput?: BlockRange | undefined, _startCommentingNow?: boolean) => {
       if (route.key !== 'document' && route.key !== 'feed') return
       if (!blockId) return
       // Validate blockRange has proper structure
       const blockRange =
-        blockRangeInput &&
-        'start' in blockRangeInput &&
-        'end' in blockRangeInput
-          ? blockRangeInput
-          : null
+        blockRangeInput && 'start' in blockRangeInput && 'end' in blockRangeInput ? blockRangeInput : null
       navigate({
         ...route,
         id: {
@@ -859,6 +846,8 @@ function DocumentBody({
       const blockRange =
         opts && 'start' in opts && 'end' in opts
           ? {start: opts.start, end: opts.end}
+          : opts && 'expanded' in opts && opts.expanded
+          ? {expanded: true}
           : null
       const blockRoute = {
         ...route,
@@ -898,9 +887,7 @@ function DocumentBody({
   )
 
   // Activity filter change handler (main page)
-  const handleMainActivityFilterChange = (filter: {
-    filterEventType?: string[]
-  }) => {
+  const handleMainActivityFilterChange = (filter: {filterEventType?: string[]}) => {
     if (route.key === 'activity') {
       navigate({
         ...route,
@@ -909,42 +896,38 @@ function DocumentBody({
     }
   }
 
-  // Combined action buttons: options dropdown + edit actions
-  const hasOptions = optionsMenuItems && optionsMenuItems.length > 0
+  // Options dropdown: common items + platform extras
+  const commonMenuItems = useCommonMenuItems(docId)
+  const allMenuItems = useMemo(() => {
+    const extras = extraMenuItems || []
+    return [...extras, ...commonMenuItems]
+  }, [extraMenuItems, commonMenuItems])
+
+  const hasOptions = allMenuItems.length > 0
   const hasActionButtons = hasOptions || editActions
   const actionButtons = hasActionButtons ? (
     <>
-      {hasOptions && (
-        <OptionsDropdown
-          menuItems={optionsMenuItems}
-          align="end"
-          side="bottom"
-        />
-      )}
+      {hasOptions && <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />}
       {editActions}
     </>
   ) : null
 
   // Main page content (used in both mobile and desktop layouts)
   const mainPageContent = (
-    <>
+    <div
+      className={cn(
+        'flex flex-col',
+        pageFooter &&
+          'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]',
+        !pageFooter && 'min-h-full',
+      )}
+    >
       <DocumentCover cover={document.metadata?.cover} />
 
       {!isMobile ? (
-        <div
-          {...wrapperProps}
-          className={cn(wrapperProps.className, isHomeDoc && 'mt-6')}
-        >
-          {showSidebars && (
-            <div
-              {...sidebarProps}
-              className={cn(sidebarProps.className, '!h-auto')}
-            />
-          )}
-          <div
-            {...mainContentProps}
-            className={cn(mainContentProps.className, 'flex flex-col')}
-          >
+        <div style={wrapperProps.style} className={cn('mx-auto flex w-full justify-between', isHomeDoc && 'mt-6')}>
+          {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
+          <div {...mainContentProps} className={cn(mainContentProps.className, 'flex flex-col')}>
             {!isHomeDoc && (
               <DocumentHeader
                 docId={docId}
@@ -955,19 +938,11 @@ function DocumentBody({
               />
             )}
           </div>
-          {showSidebars && (
-            <div
-              {...sidebarProps}
-              className={cn(sidebarProps.className, '!h-auto')}
-            />
-          )}
+          {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
         </div>
       ) : (
         <div
-          className={cn(
-            'mx-auto flex w-full flex-col px-4',
-            isHomeDoc && 'mt-6',
-          )}
+          className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
           style={{maxWidth: contentMaxWidth}}
         >
           {!isHomeDoc && (
@@ -982,8 +957,8 @@ function DocumentBody({
         </div>
       )}
 
-      {/* Sentinel element - also provides top spacing before tools */}
-      <div ref={toolsSentinelRef} className="h-3" />
+      {/* Sentinel element - important for doc tools sticky checking */}
+      <div ref={toolsSentinelRef} />
 
       {/* DocumentTools - sticky with compact padding */}
       <div
@@ -995,11 +970,7 @@ function DocumentBody({
       >
         <DocumentTools
           id={docId}
-          activeTab={
-            activeView === 'activity' || activeView === 'directory'
-              ? undefined
-              : activeView
-          }
+          activeTab={activeView === 'activity' || activeView === 'directory' ? undefined : activeView}
           currentPanel={panelRoute}
           existingDraft={existingDraft}
           commentsCount={interactionSummary.data?.comments || 0}
@@ -1015,42 +986,27 @@ function DocumentBody({
           }
           rightActions={
             <div className="flex items-center gap-1 pr-2 md:pr-0">
+              {hasOptions && (
+                <div className="md:hidden">
+                  <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
+                </div>
+              )}
               {activeView !== 'content' && !isMobile && (
                 <OpenInPanelButton
                   id={docId}
-                  panelRoute={
-                    route.key === activeView
-                      ? extractPanelRoute(route)
-                      : {key: activeView, id: docId}
-                  }
+                  panelRoute={route.key === activeView ? extractPanelRoute(route) : {key: activeView, id: docId}}
                 />
               )}
-              {actionButtons ? (
-                <div
-                  className={cn(
-                    'flex items-center gap-1 transition-opacity',
-                    isMobile
-                      ? 'opacity-100'
-                      : isToolsSticky
-                      ? 'opacity-100'
-                      : 'pointer-events-none opacity-0',
-                  )}
-                >
-                  {actionButtons}
-                </div>
-              ) : null}
             </div>
           }
         />
       </div>
 
       {/* Main content based on activeView */}
-      <div className="pt-4">
+      <div className="px-4">
         <MainContent
           docId={docId}
-          resourceId={
-            'id' in route && typeof route.id === 'object' ? route.id : docId
-          }
+          resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
           document={document}
           activeView={activeView}
           contentMaxWidth={contentMaxWidth}
@@ -1060,9 +1016,7 @@ function DocumentBody({
           showSidebars={showSidebars}
           showCollapsed={showCollapsed}
           discussionsParams={discussionsParams}
-          activityFilterEventType={
-            route.key === 'activity' ? route.filterEventType : undefined
-          }
+          activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
           onActivityFilterChange={handleMainActivityFilterChange}
           blockCitations={blockCitations}
           onBlockCitationClick={handleBlockCitationClick}
@@ -1072,9 +1026,11 @@ function DocumentBody({
           directory={directory.data}
           collaboratorForm={collaboratorForm}
           siteUrl={siteUrl}
+          inlineCards={inlineCards}
         />
       </div>
-    </>
+      {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
+    </div>
   )
 
   // Close panel handler
@@ -1086,10 +1042,7 @@ function DocumentBody({
 
   // Activity filter change handler (panel)
   const handleFilterChange = (filter: {filterEventType?: string[]}) => {
-    if (
-      (route.key === 'document' || route.key === 'feed') &&
-      route.panel?.key === 'activity'
-    ) {
+    if ((route.key === 'document' || route.key === 'feed') && route.panel?.key === 'activity') {
       navigate({
         ...route,
         panel: {...route.panel, filterEventType: filter.filterEventType},
@@ -1117,11 +1070,7 @@ function DocumentBody({
               showOpenInPanel={false}
               contentMaxWidth={contentMaxWidth}
               targetDomain={siteUrl}
-              commentEditor={
-                CommentEditor ? (
-                  <CommentEditor docId={docId} autoFocus />
-                ) : undefined
-              }
+              commentEditor={CommentEditor ? <CommentEditor docId={docId} autoFocus /> : undefined}
             />
           </MobilePanelSheet>
         )}
@@ -1143,33 +1092,31 @@ function DocumentBody({
   ) : null
 
   return (
-    <div
-      className="relative flex flex-1 flex-col overflow-hidden"
-      ref={elementRef}
-    >
+    <div className="relative flex flex-1 flex-col overflow-hidden" ref={elementRef}>
       <PanelLayout
         panelKey={panelKey}
         panelContent={panelContent}
         onPanelClose={handlePanelClose}
-        filterEventType={
-          panelRoute?.key === 'activity'
-            ? panelRoute.filterEventType
-            : undefined
-        }
+        filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
       >
         {/* Floating action buttons - visible when DocumentTools is NOT sticky */}
-        {activeView === 'content' && actionButtons && !isMobile ? (
+        {actionButtons ? (
           <div
             className={cn(
-              'absolute top-4 right-4 z-20 mt-[2px] flex items-center gap-1 rounded-sm transition-opacity',
-              isToolsSticky ? 'pointer-events-none opacity-0' : 'opacity-100',
+              'absolute top-2 right-2 z-40 hidden items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4 md:flex',
             )}
           >
             {actionButtons}
           </div>
         ) : null}
-        <ScrollArea className="h-full">{mainPageContent}</ScrollArea>
+        <ScrollArea
+          className="h-full"
+          viewportClassName="[&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
+          fillViewportContent
+        >
+          {mainPageContent}
+        </ScrollArea>
       </PanelLayout>
     </div>
   )
@@ -1192,16 +1139,12 @@ function PanelContentRenderer({
   switch (panelRoute.key) {
     case 'activity':
       return (
-        <div className="p-4">
-          <Feed
-            size="sm"
-            filterResource={docId.id}
-            filterEventType={panelRoute.filterEventType}
-            targetDomain={siteUrl}
-          />
-        </div>
+        <Feed size="sm" filterResource={docId.id} filterEventType={panelRoute.filterEventType} targetDomain={siteUrl} />
       )
     case 'discussions':
+      if (!docId.path?.length) {
+        return <Feed size="sm" filterResource={`${docId.id}*`} filterEventType={['Comment']} targetDomain={siteUrl} />
+      }
       return (
         <DiscussionsPageContent
           docId={docId}
@@ -1219,6 +1162,7 @@ function PanelContentRenderer({
                 docId={docId}
                 quotingBlockId={panelRoute.targetBlockId}
                 commentId={panelRoute.openComment}
+                isReplying={!!panelRoute.openComment}
                 autoFocus
               />
             ) : undefined
@@ -1226,13 +1170,7 @@ function PanelContentRenderer({
         />
       )
     case 'directory':
-      return (
-        <DirectoryPageContent
-          docId={docId}
-          showTitle={false}
-          contentMaxWidth={contentMaxWidth}
-        />
-      )
+      return <DirectoryPageContent docId={docId} showTitle={false} contentMaxWidth={contentMaxWidth} />
     case 'collaborators':
       return (
         <div className="p-4">
@@ -1266,6 +1204,7 @@ function MainContent({
   directory,
   collaboratorForm,
   siteUrl,
+  inlineCards,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1282,6 +1221,7 @@ function MainContent({
     targetBlockId?: string
     blockId?: string
     blockRange?: import('@shm/shared').BlockRange | null
+    autoFocus?: boolean
   }
   activityFilterEventType?: string[]
   onActivityFilterChange?: (filter: {filterEventType?: string[]}) => void
@@ -1297,20 +1237,15 @@ function MainContent({
   directory?: import('@shm/shared').HMDocumentInfo[]
   collaboratorForm?: ReactNode
   siteUrl?: string
+  inlineCards?: ReactNode
 }) {
   switch (activeView) {
     case 'directory':
-      return (
-        <DirectoryPageContent
-          docId={docId}
-          showTitle
-          contentMaxWidth={contentMaxWidth}
-        />
-      )
+      return <DirectoryPageContent docId={docId} showTitle contentMaxWidth={contentMaxWidth} />
 
     case 'collaborators':
       return (
-        <PageLayout centered contentMaxWidth={contentMaxWidth}>
+        <PageLayout contentMaxWidth={contentMaxWidth}>
           {collaboratorForm}
           <DocumentCollaborators docId={docId} />
         </PageLayout>
@@ -1318,14 +1253,10 @@ function MainContent({
 
     case 'activity':
       return (
-        <PageLayout centered contentMaxWidth={contentMaxWidth}>
-          <FeedFilters
-            filterEventType={activityFilterEventType}
-            onFilterChange={onActivityFilterChange}
-          />
+        <PageLayout contentMaxWidth={contentMaxWidth}>
+          <FeedFilters filterEventType={activityFilterEventType} onFilterChange={onActivityFilterChange} />
           <Feed
             size="md"
-            centered
             filterResource={docId.id}
             filterEventType={activityFilterEventType || []}
             targetDomain={siteUrl}
@@ -1334,6 +1265,13 @@ function MainContent({
       )
 
     case 'discussions':
+      if (!docId.path?.length) {
+        return (
+          <PageLayout contentMaxWidth={contentMaxWidth}>
+            <Feed filterResource={`${docId.id}*`} filterEventType={['Comment']} targetDomain={siteUrl} />
+          </PageLayout>
+        )
+      }
       return (
         <DiscussionsPageContent
           docId={docId}
@@ -1351,6 +1289,8 @@ function MainContent({
                 docId={docId}
                 quotingBlockId={discussionsParams?.targetBlockId}
                 commentId={discussionsParams?.openComment}
+                isReplying={!!discussionsParams?.openComment}
+                autoFocus={discussionsParams?.autoFocus}
               />
             ) : undefined
           }
@@ -1374,6 +1314,7 @@ function MainContent({
           onBlockCommentClick={onBlockCommentClick}
           onBlockSelect={onBlockSelect}
           directory={directory}
+          inlineCards={inlineCards}
         />
       )
   }
@@ -1393,6 +1334,7 @@ function ContentViewWithOutline({
   onBlockCommentClick,
   onBlockSelect,
   directory,
+  inlineCards,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1411,6 +1353,7 @@ function ContentViewWithOutline({
   ) => void
   onBlockSelect?: (blockId: string, opts?: BlockRangeSelectOptions) => void
   directory?: import('@shm/shared').HMDocumentInfo[]
+  inlineCards?: ReactNode
 }) {
   const outline = useNodesOutline(document, docId)
 
@@ -1420,10 +1363,7 @@ function ContentViewWithOutline({
         <div {...sidebarProps}>
           {outline.length > 0 && (
             <div className="sticky top-24 mt-4">
-              <DocNavigationWrapper
-                showCollapsed={showCollapsed}
-                outline={outline}
-              >
+              <DocNavigationWrapper showCollapsed={showCollapsed} outline={outline}>
                 <DocumentOutline
                   onActivateBlock={(blockId) => {
                     const el = window.document.getElementById(blockId)
@@ -1451,11 +1391,8 @@ function ContentViewWithOutline({
         >
           <BlocksContent blocks={document.content} />
         </BlocksContentProvider>
-        <UnreferencedDocuments
-          docId={docId}
-          content={document.content}
-          directory={directory}
-        />
+        {inlineCards}
+        <UnreferencedDocuments docId={docId} content={document.content} directory={directory} />
       </div>
 
       {showSidebars && <div {...sidebarProps} />}

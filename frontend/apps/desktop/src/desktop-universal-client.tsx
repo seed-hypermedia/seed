@@ -1,15 +1,8 @@
-import {
-  addSubscribedEntity,
-  getDiscoveryStream,
-  removeSubscribedEntity,
-} from '@/models/entities'
+import {addSubscribedEntity, getDiscoveryStream, removeSubscribedEntity} from '@/models/entities'
 import {deleteRecent, fetchRecents} from '@/models/recents'
 import {client as trpcClient} from '@/trpc'
 import type {UnpackedHypermediaId} from '@shm/shared'
-import type {
-  DeleteCommentInput,
-  UniversalClient,
-} from '@shm/shared/universal-client'
+import type {DeleteCommentInput, UniversalClient} from '@shm/shared/universal-client'
 import {CommentBox} from './components/commenting'
 import {desktopRequest} from './desktop-api'
 import {grpcClient} from './grpc-client'
@@ -22,9 +15,7 @@ async function deleteComment(input: DeleteCommentInput): Promise<void> {
 }
 
 export const desktopUniversalClient: UniversalClient = {
-  CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => (
-    <CommentBox docId={docId} context="document-content" />
-  ),
+  CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => <CommentBox docId={docId} context="document-content" />,
 
   fetchRecents: fetchRecents,
   deleteRecent: deleteRecent,
@@ -43,7 +34,6 @@ export const desktopUniversalClient: UniversalClient = {
   },
 
   drafts: {
-    listAccountDrafts: (accountUid) =>
-      trpcClient.drafts.listAccount.query(accountUid),
+    listAccountDrafts: (accountUid) => trpcClient.drafts.listAccount.query(accountUid),
   },
 }

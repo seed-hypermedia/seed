@@ -1,7 +1,4 @@
-import {
-  AlertDialogDescription,
-  AlertDialogTitle,
-} from '@radix-ui/react-alert-dialog'
+import {AlertDialogDescription, AlertDialogTitle} from '@radix-ui/react-alert-dialog'
 import {
   BlockRange,
   commentIdToHmId,
@@ -34,28 +31,12 @@ import {useResource} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Link, MessageSquare, Trash2} from 'lucide-react'
-import {
-  memo,
-  ReactNode,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import {memo, ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {toast} from 'sonner'
 import {SelectionContent} from './accessories'
-import {
-  BlockRangeSelectOptions,
-  BlocksContent,
-  BlocksContentProvider,
-  getBlockNodeById,
-} from './blocks-content'
+import {BlockRangeSelectOptions, BlocksContent, BlocksContentProvider, getBlockNodeById} from './blocks-content'
 import {Button} from './button'
-import {
-  copyTextToClipboard,
-  copyUrlToClipboardWithFeedback,
-} from './copy-to-clipboard'
+import {copyTextToClipboard, copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
 import {AuthorNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
@@ -66,22 +47,21 @@ import {Tooltip} from './tooltip'
 import {useAppDialog} from './universal-dialog'
 import {cn} from './utils'
 
-const avatarSize = 18
-
 export function CommentDiscussions({
   targetId,
+  isEntirelyHighlighted = false,
   commentId,
   commentEditor,
   targetDomain,
   currentAccountId,
   onCommentDelete,
   selection,
-  centered,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
   commentEditor?: ReactNode
   onStartDiscussion?: () => void
+  isEntirelyHighlighted?: boolean
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
@@ -89,8 +69,6 @@ export function CommentDiscussions({
     blockId?: string
     blockRange?: BlockRange
   }
-  /** When true, constrains content width and centers it */
-  centered?: boolean
 }) {
   const focusedCommentRef = useRef<HTMLDivElement>(null)
   const [showParents, setShowParents] = useState(false)
@@ -101,14 +79,8 @@ export function CommentDiscussions({
   // Fetch all comments for the document
   const commentsService = useCommentsService({targetId} as any)
 
-  const parentThread = useCommentParents(
-    commentsService.data?.comments,
-    commentId,
-  )
-  const commentGroupReplies = useCommentGroups(
-    commentsService.data?.comments,
-    commentId,
-  )
+  const parentThread = useCommentParents(commentsService.data?.comments, commentId)
+  const commentGroupReplies = useCommentGroups(commentsService.data?.comments, commentId)
 
   // Subscribe to all authors in this discussion
   const allAuthorIds = useMemo(() => {
@@ -130,9 +102,7 @@ export function CommentDiscussions({
 
   useHackyAuthorsSubscriptions(allAuthorIds)
 
-  const commentFound = commentsService.data?.comments?.some(
-    (c) => c.id === commentId,
-  )
+  const commentFound = commentsService.data?.comments?.some((c) => c.id === commentId)
 
   // Find the actual focused comment
   const focusedComment = useMemo(() => {
@@ -155,7 +125,7 @@ export function CommentDiscussions({
 
   if (commentsService.error) {
     return (
-      <SelectionContent centered={centered}>
+      <SelectionContent>
         <div className="flex flex-col items-center gap-2 p-4">
           <SizableText color="muted" size="sm">
             Failed to load comment thread
@@ -167,7 +137,7 @@ export function CommentDiscussions({
 
   if (commentsService.isLoading && !commentsService.data) {
     return (
-      <SelectionContent centered={centered}>
+      <SelectionContent>
         <div className="flex items-center justify-center p-4">
           <Spinner />
         </div>
@@ -178,7 +148,7 @@ export function CommentDiscussions({
   // If comment not found in the list, show a message
   if (!commentFound && commentsService.data) {
     return (
-      <SelectionContent centered={centered}>
+      <SelectionContent>
         <div className="flex flex-col items-center gap-2 p-4">
           <SizableText color="muted" size="sm">
             This comment is not available in the current document version
@@ -192,24 +162,16 @@ export function CommentDiscussions({
   const hasParents = parentThread?.thread && parentThread.thread.length > 1
 
   return (
-    <SelectionContent centered={centered}>
+    <SelectionContent>
       {/* Render parent thread above focused comment when ready */}
       {hasParents && showParents && (
         <div ref={parentsRef}>
           {parentThread.thread.slice(0, -1).map((comment, index, list) => (
-            <div
-              key={comment.id}
-              className={cn(
-                'p-2',
-                index != list.length - 1 && 'border-border border-b',
-              )}
-            >
+            <div key={comment.id} className={cn('p-2', index != list.length - 1 && 'border-border border-b')}>
               <Comment
                 comment={comment}
                 authorId={comment.author}
-                authorMetadata={
-                  commentsService.data?.authors?.[comment.author]?.metadata
-                }
+                authorMetadata={commentsService.data?.authors?.[comment.author]?.metadata}
                 targetDomain={targetDomain}
                 currentAccountId={currentAccountId}
                 onCommentDelete={onCommentDelete}
@@ -223,16 +185,11 @@ export function CommentDiscussions({
 
       {/* Render the focused comment */}
       {focusedComment && (
-        <div
-          ref={focusedCommentRef}
-          className={cn('border-border border-b p-2')}
-        >
+        <div ref={focusedCommentRef} className={cn('p-2')}>
           <Comment
             comment={focusedComment}
             authorId={focusedComment.author}
-            authorMetadata={
-              commentsService.data?.authors?.[focusedComment.author]?.metadata
-            }
+            authorMetadata={commentsService.data?.authors?.[focusedComment.author]?.metadata}
             targetDomain={targetDomain}
             currentAccountId={currentAccountId}
             onCommentDelete={onCommentDelete}
@@ -244,36 +201,34 @@ export function CommentDiscussions({
         </div>
       )}
 
-      <div className="border-border relative max-h-1/2 border-b py-4">
+      <div className="relative max-h-1/2 py-4">
         <div
           className="bg-border absolute w-px"
           style={{
-            height: 40,
-            top: -16,
-            left: avatarSize + 4,
+            height: isEntirelyHighlighted ? 40 : 56,
+            top: isEntirelyHighlighted ? -16 : -32,
+            left: 26,
           }}
         />
-        <div className="px-2 pr-4">{commentEditor}</div>
+        <div className="px-2 pr-4 pl-3">{commentEditor}</div>
       </div>
 
-      {commentGroupReplies.data?.length > 0 ? (
-        commentGroupReplies.data.map((cg) => {
-          return (
-            <div key={cg.id} className={cn('border-border border-b p-2')}>
-              <CommentGroup
-                key={cg.id}
-                commentGroup={cg}
-                authors={commentsService.data?.authors}
-                onCommentDelete={onCommentDelete}
-                targetDomain={targetDomain}
-                currentAccountId={currentAccountId}
-              />
-            </div>
-          )
-        })
-      ) : (
-        <EmptyDiscussions emptyReplies />
-      )}
+      {commentGroupReplies.data?.length > 0
+        ? commentGroupReplies.data.map((cg) => {
+            return (
+              <div key={cg.id} className={cn('p-2')}>
+                <CommentGroup
+                  key={cg.id}
+                  commentGroup={cg}
+                  authors={commentsService.data?.authors}
+                  onCommentDelete={onCommentDelete}
+                  targetDomain={targetDomain}
+                  currentAccountId={currentAccountId}
+                />
+              </div>
+            )
+          })
+        : null}
     </SelectionContent>
   )
 }
@@ -284,14 +239,12 @@ export const Discussions = memo(function Discussions({
   targetDomain,
   currentAccountId,
   onCommentDelete,
-  centered,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
-  centered?: boolean
 }) {
   const discussionsService = useDiscussionsService({targetId, commentId})
 
@@ -313,10 +266,7 @@ export const Discussions = memo(function Discussions({
       })
     }
     return Array.from(authors)
-  }, [
-    discussionsService.data?.discussions,
-    discussionsService.data?.citingDiscussions,
-  ])
+  }, [discussionsService.data?.discussions, discussionsService.data?.citingDiscussions])
 
   useHackyAuthorsSubscriptions(allAuthorIds)
 
@@ -337,8 +287,7 @@ export const Discussions = memo(function Discussions({
     )
   } else if (discussionsService.data) {
     const totalCount =
-      (discussionsService.data.discussions?.length ?? 0) +
-      (discussionsService.data.citingDiscussions?.length ?? 0)
+      (discussionsService.data.discussions?.length ?? 0) + (discussionsService.data.citingDiscussions?.length ?? 0)
     panelContent =
       totalCount > 0 ? (
         <>
@@ -376,11 +325,11 @@ export const Discussions = memo(function Discussions({
           })}
         </>
       ) : (
-        <EmptyDiscussions />
+        <NoComments />
       )
   }
 
-  return <SelectionContent centered={centered}>{panelContent}</SelectionContent>
+  return <SelectionContent>{panelContent}</SelectionContent>
 })
 
 export function BlockDiscussions({
@@ -389,14 +338,12 @@ export function BlockDiscussions({
   targetDomain,
   currentAccountId,
   onCommentDelete,
-  centered,
 }: {
   targetId: UnpackedHypermediaId
   commentEditor?: ReactNode
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
-  centered?: boolean
 }) {
   const commentsService = useBlockDiscussionsService({targetId})
   const doc = useResource(targetId)
@@ -420,13 +367,7 @@ export function BlockDiscussions({
   if (!targetId) return null
 
   if (targetId.blockRef && doc.data?.type == 'document' && doc.data.document) {
-    quotedContent = (
-      <QuotedDocBlock
-        docId={targetId}
-        blockId={targetId.blockRef}
-        doc={doc.data.document}
-      />
-    )
+    quotedContent = <QuotedDocBlock docId={targetId} blockId={targetId.blockRef} doc={doc.data.document} />
   } else if (doc.isInitialLoading) {
     quotedContent = (
       <div className="flex items-center justify-center">
@@ -449,25 +390,19 @@ export function BlockDiscussions({
         </SizableText>
       </div>
     )
-  } else if (
-    commentsService.data &&
-    commentsService.data.comments &&
-    commentsService.data.comments.length
-  ) {
+  } else if (commentsService.data && commentsService.data.comments && commentsService.data.comments.length) {
     panelContent = (
       <>
         {commentsService.data.comments.map((comment) => {
           return (
-            <div key={comment.id} className={cn('border-border border-b p-2')}>
+            <div key={comment.id} className={cn('p-2')}>
               <Comment
                 isFirst
                 isLast
                 key={comment.id}
                 comment={comment}
                 authorId={comment.author}
-                authorMetadata={
-                  commentsService.data.authors[comment.author]?.metadata
-                }
+                authorMetadata={commentsService.data.authors[comment.author]?.metadata}
                 targetDomain={targetDomain}
                 currentAccountId={currentAccountId}
                 onCommentDelete={onCommentDelete}
@@ -480,10 +415,10 @@ export function BlockDiscussions({
   }
 
   return (
-    <SelectionContent centered={centered}>
+    <SelectionContent>
       {quotedContent}
       <div className="px-2 pr-4">{commentEditor}</div>
-      <div className="border-border mt-2 border-t pt-2">{panelContent}</div>
+      <div className="mt-2 pt-2">{panelContent}</div>
     </SelectionContent>
   )
 }
@@ -524,10 +459,7 @@ function LazyCommentGroup({children}: {children: ReactNode}) {
   }, [])
 
   return (
-    <div
-      ref={ref}
-      style={isNearViewport ? undefined : {minHeight: heightRef.current}}
-    >
+    <div ref={ref} style={isNearViewport ? undefined : {minHeight: heightRef.current}}>
       {isNearViewport ? children : null}
     </div>
   )
@@ -574,16 +506,11 @@ export const CommentGroup = memo(function CommentGroup({
             isLast={isLastCommentInGroup}
             isFirst={isFirstCommentInGroup}
             externalTarget={
-              isFirstCommentInGroup &&
-              commentGroup.type === 'externalCommentGroup'
-                ? commentGroup.target
-                : undefined
+              isFirstCommentInGroup && commentGroup.type === 'externalCommentGroup' ? commentGroup.target : undefined
             }
             key={comment.id}
             comment={comment}
-            authorMetadata={
-              comment.author ? authors?.[comment.author]?.metadata : null
-            }
+            authorMetadata={comment.author ? authors?.[comment.author]?.metadata : null}
             authorId={comment.author}
             enableReplies={enableReplies}
             highlight={highlightLastComment && isLastCommentInGroup}
@@ -636,16 +563,11 @@ export const Comment = memo(function Comment({
   const commentsContext = useCommentsServiceContext()
   const {data: replyCount} = useCommentReplyCount({id: comment.id})
 
-  const authorHmId =
-    comment.author || authorId ? hmId(authorId || comment.author) : null
+  const authorHmId = comment.author || authorId ? hmId(authorId || comment.author) : null
 
-  const authorLink = useRouteLink(
-    authorHmId ? {key: 'profile', id: authorHmId} : null,
-  )
+  const authorLink = useRouteLink(authorHmId ? {key: 'profile', id: authorHmId} : null)
 
-  const externalTargetLink = useRouteLink(
-    externalTarget ? {key: 'document', id: externalTarget.id} : null,
-  )
+  const externalTargetLink = useRouteLink(externalTarget ? {key: 'document', id: externalTarget.id} : null)
 
   useEffect(() => {
     if (defaultExpandReplies !== showReplies) {
@@ -653,8 +575,7 @@ export const Comment = memo(function Comment({
     }
   }, [defaultExpandReplies])
   const currentRoute = useNavRoute()
-  const isDiscussionsView =
-    currentRoute.key === 'discussions' || currentRoute.key === 'activity'
+  const isDiscussionsView = currentRoute.key === 'discussions' || currentRoute.key === 'activity'
   const docId = getCommentTargetId(comment)
   const options: MenuItemType[] = []
   if (onCommentDelete) {
@@ -669,17 +590,10 @@ export const Comment = memo(function Comment({
   }
   const isEntirelyHighlighted = highlight && !selection
   return (
-    <div
-      className={cn(
-        'group relative flex gap-1 rounded-lg p-2',
-        isEntirelyHighlighted && 'bg-accent',
-      )}
-    >
+    <div className={cn('group relative flex gap-1 rounded-lg p-2', isEntirelyHighlighted && 'bg-accent')}>
       {heading ? null : (
         <div className="relative mt-0.5 flex min-w-5 flex-col items-center">
-          {isFirst ? null : (
-            <div className="bg-border absolute top-[-40px] left-1/2 h-[40px] w-px" />
-          )}
+          {isFirst ? null : <div className="bg-border absolute top-[-40px] left-1/2 h-[40px] w-px" />}
           <div
             className={cn(
               'absolute top-0 left-0 z-2 size-5 rounded-full bg-transparent transition-all duration-200 ease-in-out',
@@ -691,15 +605,10 @@ export const Comment = memo(function Comment({
           />
           {authorHmId && (
             <div className="size-5">
-              <HMIcon
-                id={authorHmId}
-                name={authorMetadata?.name}
-                icon={authorMetadata?.icon}
-                size={20}
-              />
+              <HMIcon id={authorHmId} name={authorMetadata?.name} icon={authorMetadata?.icon} size={20} />
             </div>
           )}
-          {!isLast ? <div className="bg-border h-full w-px" /> : null}
+          {!isLast || (highlight && selection?.blockId) ? <div className="bg-border h-full w-px" /> : null}
         </div>
       )}
 
@@ -775,13 +684,8 @@ export const Comment = memo(function Comment({
 
         <CommentContent comment={comment} selection={selection} />
 
-        {!highlight && (
-          <div
-            className={cn(
-              '-ml-1 flex items-center gap-2 py-1',
-              !heading && 'mb-2',
-            )}
-          >
+        {!isEntirelyHighlighted && (
+          <div className={cn('-ml-1 flex items-center gap-2 py-1', !heading && 'mb-2')}>
             {enableReplies || commentsContext.onReplyClick ? (
               <Button
                 variant="ghost"
@@ -835,20 +739,13 @@ export function CommentContent({
   const replaceNavigate = useNavigate('replace')
   const currentRoute = useNavRoute()
   const targetHomeEntity = useResource(hmId(comment.targetAccount))
-  const targetHomeDoc =
-    targetHomeEntity.data?.type === 'document'
-      ? targetHomeEntity.data.document
-      : undefined
+  const targetHomeDoc = targetHomeEntity.data?.type === 'document' ? targetHomeEntity.data.document : undefined
   const targetDocId = getCommentTargetId(comment)
   const siteUrl = targetHomeDoc?.metadata?.siteUrl as string | undefined
-  const isDiscussionsView =
-    currentRoute.key === 'discussions' || currentRoute.key === 'activity'
+  const isDiscussionsView = currentRoute.key === 'discussions' || currentRoute.key === 'activity'
   const textUnit = size === 'sm' ? 12 : 14
   const layoutUnit = size === 'sm' ? 14 : 16
-  const onBlockSelect = (
-    blockId: string,
-    opts?: BlockRangeSelectOptions,
-  ): boolean => {
+  const onBlockSelect = (blockId: string, opts?: BlockRangeSelectOptions): boolean => {
     let blockRange: BlockRange | null = null
     if (opts) {
       const {copyToClipboard, ...br} = opts
@@ -857,9 +754,7 @@ export function CommentContent({
     if (opts?.copyToClipboard) {
       if (targetDocId) {
         const routeLatest =
-          currentRoute.key === 'document' ||
-          currentRoute.key === 'discussions' ||
-          currentRoute.key === 'activity'
+          currentRoute.key === 'document' || currentRoute.key === 'discussions' || currentRoute.key === 'activity'
             ? currentRoute.id.latest
             : undefined
         const fullUrl = createCommentUrl({
@@ -906,9 +801,7 @@ export function CommentContent({
             blockRef: blockId || null,
             blockRange: blockRange || null,
           }
-          const useFullPageNavigation =
-            currentRoute.key === 'activity' ||
-            currentRoute.key === 'discussions'
+          const useFullPageNavigation = currentRoute.key === 'activity' || currentRoute.key === 'discussions'
           navigate(
             useFullPageNavigation
               ? {
@@ -940,9 +833,7 @@ export function CommentContent({
     blockRef: selection?.blockId || null,
     blockRange: selection?.blockRange || null,
   }
-  const zoomedBlock = zoomBlockRef
-    ? getBlockNodeById(comment.content, zoomBlockRef)
-    : null
+  const zoomedBlock = zoomBlockRef ? getBlockNodeById(comment.content, zoomBlockRef) : null
   const zoomedContent = zoomedBlock ? [zoomedBlock] : comment.content
   return (
     <BlocksContentProvider
@@ -953,11 +844,7 @@ export function CommentContent({
       onBlockSelect={onBlockSelect}
       openOnClick={openOnClick}
     >
-      <BlocksContent
-        hideCollapseButtons
-        allowHighlight={allowHighlight}
-        blocks={zoomedContent}
-      />
+      <BlocksContent hideCollapseButtons allowHighlight={allowHighlight} blocks={zoomedContent} />
     </BlocksContentProvider>
   )
 }
@@ -965,8 +852,7 @@ export function CommentContent({
 function CommentDate({comment}: {comment: HMComment}) {
   const targetId = getCommentTargetId(comment)
   const currentRoute = useNavRoute()
-  const useFullPageNavigation =
-    currentRoute.key === 'activity' || currentRoute.key === 'discussions'
+  const useFullPageNavigation = currentRoute.key === 'activity' || currentRoute.key === 'discussions'
   const commentEntityId = commentIdToHmId(comment.id)
   const destRoute: NavRoute = useFullPageNavigation
     ? {key: 'document', id: commentEntityId}
@@ -978,15 +864,7 @@ function CommentDate({comment}: {comment: HMComment}) {
   return <Timestamp time={comment.createTime} route={destRoute} />
 }
 
-export function QuotedDocBlock({
-  docId,
-  blockId,
-  doc,
-}: {
-  docId: UnpackedHypermediaId
-  blockId: string
-  doc: HMDocument
-}) {
+export function QuotedDocBlock({docId, blockId, doc}: {docId: UnpackedHypermediaId; blockId: string; doc: HMDocument}) {
   const blockContent = useMemo(() => {
     if (!doc.content) return null
     return getBlockNodeById(doc.content, blockId)
@@ -1018,21 +896,12 @@ export function useDeleteCommentDialog() {
   return useAppDialog(DeleteCommentDialog, {isAlert: true})
 }
 
-function DeleteCommentDialog({
-  input,
-  onClose,
-}: {
-  input: {onConfirm: () => void}
-  onClose: () => void
-}) {
+function DeleteCommentDialog({input, onClose}: {input: {onConfirm: () => void}; onClose: () => void}) {
   return (
     <>
-      <AlertDialogTitle className="text-xl font-bold">
-        Really Delete?
-      </AlertDialogTitle>
+      <AlertDialogTitle className="text-xl font-bold">Really Delete?</AlertDialogTitle>
       <AlertDialogDescription>
-        You will publicly delete this comment, although other peers may have
-        already archived it.
+        You will publicly delete this comment, although other peers may have already archived it.
       </AlertDialogDescription>
       <Button
         variant="destructive"
@@ -1047,18 +916,12 @@ function DeleteCommentDialog({
   )
 }
 
-export function EmptyDiscussions({
-  emptyReplies = false,
-}: {
-  emptyReplies?: boolean
-}) {
+function NoComments({}: {}) {
   const tx = useTxString()
   return (
     <div className="flex flex-col items-center gap-4 py-4">
       <MessageSquare className="size-25 text-gray-200" size={48} />
-      <SizableText size="md">
-        {tx(emptyReplies ? 'Be the first on replying' : 'No discussions')}
-      </SizableText>
+      <SizableText size="md">{tx('No comments here, yet!')}</SizableText>
     </div>
   )
 }

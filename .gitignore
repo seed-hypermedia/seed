@@ -105,3 +105,12 @@ scratch.*.*
 data
 
 .yarn/cache
+
+# llama-go (submodule) build artifacts
+backend/util/llama-go/build
+backend/util/llama-go/**/*.a
+backend/util/llama-go/**/*.o
+.cache/
+
+# GGUF models (downloaded at setup time)
+*.gguf

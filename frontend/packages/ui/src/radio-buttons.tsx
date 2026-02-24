@@ -50,10 +50,7 @@ function RadioButton({
       <Button
         size={size}
         disabled={!active}
-        className={cn(
-          'rounded-none border-b-2 border-b-transparent font-bold',
-          active && 'border-b-current',
-        )}
+        className={cn('rounded-none border-b-2 border-b-transparent font-bold', active && 'border-b-current')}
         onClick={onPress}
       >
         {icon}

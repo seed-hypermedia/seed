@@ -1,13 +1,5 @@
-import {
-  HMDocument,
-  HMResourceVisibility,
-  UnpackedHypermediaId,
-  hmIdPathToEntityQueryPath,
-} from '@shm/shared'
-import {
-  documentContainsLinkToChild,
-  documentHasSelfQuery,
-} from '../models/auto-link-utils'
+import {HMDocument, HMResourceVisibility, UnpackedHypermediaId, hmIdPathToEntityQueryPath} from '@shm/shared'
+import {documentContainsLinkToChild, documentHasSelfQuery} from '../models/auto-link-utils'
 import {pathNameify} from './path'
 
 /**
@@ -15,11 +7,7 @@ import {pathNameify} from './path'
  * Private docs keep their random ID path as-is.
  * Public docs append a pathNameified version of the doc name.
  */
-export function computePublishPath(
-  isPrivate: boolean,
-  basePath: string[],
-  docName: string,
-): string[] {
+export function computePublishPath(isPrivate: boolean, basePath: string[], docName: string): string[] {
   if (isPrivate) return basePath
   const pathifiedName = pathNameify(docName || 'Untitled Document')
   return [...basePath, pathifiedName]

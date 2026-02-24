@@ -1,12 +1,11 @@
+import * as blobs from "@shm/shared/blobs"
+import * as hmauth from "@shm/shared/hmauth"
 import { ExternalLink, Plus, Shield, User } from "lucide-react"
-import { useEffect } from "react"
 import { Navigate, useSearchParams } from "react-router-dom"
-import * as blobs from "@/frontend/blobs"
 import { CreateAccountDialog } from "@/frontend/components/CreateAccountDialog"
 import { ErrorMessage } from "@/frontend/components/ErrorMessage"
 import { Button } from "@/frontend/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/frontend/components/ui/card"
-import * as delegation from "@/frontend/delegation"
 import { useActions, useAppState } from "@/frontend/store"
 
 /**
@@ -15,44 +14,13 @@ import { useActions, useAppState } from "@/frontend/store"
  * authorize or deny the delegation request.
  */
 export function DelegateView() {
-	const { delegationRequest, vaultData, selectedAccountIndex, loading, error, decryptedDEK } = useAppState()
+	const { delegationRequest, vaultData, selectedAccountIndex, loading, error } = useAppState()
 	const actions = useActions()
-	const [searchParams, setSearchParams] = useSearchParams()
+	const [searchParams] = useSearchParams()
 
 	const accounts = vaultData?.accounts ?? []
 
-	// Sync delegation params between URL and store.
-	// URL has params → parse into store. Store has params but URL doesn't → push to URL.
-	useEffect(() => {
-		const urlRequest = delegation.parseDelegationRequest(new URL(window.location.href))
-		if (urlRequest && !delegationRequest) {
-			actions.parseDelegationFromUrl(new URL(window.location.href))
-		} else if (!urlRequest && delegationRequest) {
-			setSearchParams(
-				{
-					[delegation.PARAM_CLIENT_ID]: delegationRequest.clientId,
-					[delegation.PARAM_REDIRECT_URI]: delegationRequest.redirectUri,
-					[delegation.PARAM_SESSION_KEY]: delegationRequest.sessionKeyPrincipal,
-				},
-				{ replace: true },
-			)
-		}
-	}, [actions, delegationRequest, setSearchParams])
-
-	useEffect(() => {
-		if (decryptedDEK) {
-			actions.loadVaultData()
-		}
-	}, [decryptedDEK, actions])
-
-	// Auto-select the first account if none is selected and there's exactly one.
-	useEffect(() => {
-		if (accounts.length === 1 && selectedAccountIndex !== 0) {
-			actions.selectAccount(0)
-		}
-	}, [accounts.length, selectedAccountIndex, actions])
-
-	if (!delegationRequest && !searchParams.has(delegation.PARAM_CLIENT_ID)) {
+	if (!delegationRequest && !searchParams.has(hmauth.PARAM_CLIENT_ID)) {
 		return <Navigate to="/" replace />
 	}
 
@@ -123,7 +91,7 @@ export function DelegateView() {
 						<p className="text-sm font-medium">Select an account</p>
 						<div className="space-y-1">
 							{accounts.map((account, index) => {
-								const principal = blobs.principalToString(account.profile.signer)
+								const principal = blobs.principalToString(account.profile.decoded.signer)
 								const isSelected = index === selectedAccountIndex
 								return (
 									<button
@@ -140,10 +108,8 @@ export function DelegateView() {
 											<User className="size-4 text-primary" />
 										</div>
 										<div className="min-w-0">
-											<div className="text-sm font-medium truncate">{account.profile.name || "Unnamed"}</div>
-											<div className="text-xs text-muted-foreground font-mono truncate">
-												{principal.slice(0, 16)}\u2026
-											</div>
+											<div className="text-sm font-medium truncate">{account.profile.decoded.name || "Unnamed"}</div>
+											<div className="text-xs text-muted-foreground font-mono truncate">{principal}</div>
 										</div>
 									</button>
 								)

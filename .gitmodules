@@ -1,0 +1,3 @@
+[submodule "backend/util/llama-go"]
+	path = backend/util/llama-go
+	url = https://github.com/seed-hypermedia/llama-go.git

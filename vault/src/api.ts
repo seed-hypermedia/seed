@@ -83,6 +83,7 @@ export type SaveVaultDataResponse = {
 // Get session.
 export type GetSessionResponse = {
 	authenticated: boolean
+	relyingPartyOrigin: string
 	userId?: string
 	email?: string
 	hasPassword?: boolean

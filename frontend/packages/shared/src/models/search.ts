@@ -1,5 +1,6 @@
 import {Timestamp} from '@bufbuild/protobuf'
 import {useQuery} from '@tanstack/react-query'
+import {SearchType} from '../client/.generated/entities/v1alpha/entities_pb'
 import {HMDocument, HMSearchRequest, UnpackedHypermediaId} from '../hm-types'
 import {packHmId} from '../utils/entity-id-url'
 import {queryKeys} from './query-keys'
@@ -29,12 +30,14 @@ export function useSearch(
     includeBody = false,
     contextSize = 48,
     perspectiveAccountUid,
+    searchType,
   }: {
     enabled?: boolean
     accountUid?: string
     includeBody?: boolean
     contextSize?: number
     perspectiveAccountUid?: string
+    searchType?: SearchType
   } = {},
 ) {
   const client = useUniversalClient()
@@ -46,6 +49,7 @@ export function useSearch(
       query,
       includeBody,
       contextSize,
+      searchType,
     ],
     queryFn: async () => {
       const out = await client.request<HMSearchRequest>('Search', {
@@ -54,6 +58,7 @@ export function useSearch(
         accountUid: accountUid || undefined,
         includeBody: includeBody || false,
         contextSize: contextSize || 48,
+        searchType,
       })
       const alreadySeenIds = new Set<string>()
       const entities: SearchResultItem[] = []

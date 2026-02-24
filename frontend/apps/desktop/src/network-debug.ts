@@ -3,10 +3,7 @@ import * as log from './logger'
 // Connection monitoring utility
 export class ConnectionMonitor {
   private static instance: ConnectionMonitor
-  private pendingRequests = new Map<
-    string,
-    {startTime: number; method: string}
-  >()
+  private pendingRequests = new Map<string, {startTime: number; method: string}>()
   private connectionStats = {
     totalRequests: 0,
     pendingCount: 0,
@@ -29,9 +26,7 @@ export class ConnectionMonitor {
     this.connectionStats.totalRequests++
     this.connectionStats.pendingCount++
 
-    log.debug(
-      `📊 Request tracking: ${method} (${requestId}) - ${this.connectionStats.pendingCount} pending`,
-    )
+    log.debug(`📊 Request tracking: ${method} (${requestId}) - ${this.connectionStats.pendingCount} pending`)
   }
 
   completeRequest(requestId: string, success: boolean = true) {
@@ -46,25 +41,20 @@ export class ConnectionMonitor {
       }
 
       // Update average response time
-      this.connectionStats.avgResponseTime =
-        (this.connectionStats.avgResponseTime + duration) / 2
+      this.connectionStats.avgResponseTime = (this.connectionStats.avgResponseTime + duration) / 2
 
-      log.debug(
-        `📈 Request completed: ${request.method} (${requestId}) - ${duration}ms`,
-      )
+      log.debug(`📈 Request completed: ${request.method} (${requestId}) - ${duration}ms`)
     }
   }
 
   getStats() {
     return {
       ...this.connectionStats,
-      pendingRequests: Array.from(this.pendingRequests.entries()).map(
-        ([id, req]) => ({
-          id,
-          method: req.method,
-          duration: Date.now() - req.startTime,
-        }),
-      ),
+      pendingRequests: Array.from(this.pendingRequests.entries()).map(([id, req]) => ({
+        id,
+        method: req.method,
+        duration: Date.now() - req.startTime,
+      })),
     }
   }
 

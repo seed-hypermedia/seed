@@ -22,10 +22,6 @@ export async function desktopRequest<K extends keyof typeof APIRouter>(
   // When indexing APIRouter[key] with a generic K, TypeScript treats the result
   // as a union of all possible implementations, even though K is constrained.
   // The types are guaranteed correct at the call site through the function signature.
-  const result = await apiDefinition.getData(
-    grpcClient,
-    input as never,
-    queryDaemon,
-  )
+  const result = await apiDefinition.getData(grpcClient, input as never, queryDaemon)
   return result as Awaited<ReturnType<(typeof APIRouter)[K]['getData']>>
 }

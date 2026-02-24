@@ -6,12 +6,7 @@ import {ListEvents} from './api-activity'
 import {ListCapabilities, ListCapabilitiesParams} from './api-capabilities'
 import {ListChanges, ListChangesParams} from './api-changes'
 import {ListCitations, ListCitationsParams} from './api-citations'
-import {
-  GetCommentReplyCount,
-  ListComments,
-  ListCommentsByReference,
-  ListDiscussions,
-} from './api-comments'
+import {GetCommentReplyCount, ListComments, ListCommentsByReference, ListDiscussions} from './api-comments'
 import {GetCID} from './api-get-cid'
 import {InteractionSummary} from './api-interaction-summary'
 import {ListAccounts} from './api-list-accounts'

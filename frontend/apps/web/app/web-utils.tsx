@@ -1,15 +1,15 @@
 import {hmId, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
-import {createWebHMUrl, displayHostname} from '@shm/shared/utils/entity-id-url'
-import {useNavigate} from '@shm/shared/utils/navigation'
+import {displayHostname, routeToUrl} from '@shm/shared/utils/entity-id-url'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
-import {useMedia} from '@shm/ui/use-media'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {HistoryIcon, Link} from '@shm/ui/icons'
+import {Link} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
-import {CircleUser, Folder} from 'lucide-react'
-import {ReactNode, useMemo} from 'react'
+import {cn} from '@shm/ui/utils'
+import {CircleUser} from 'lucide-react'
+import {ReactNode, useEffect, useMemo, useState} from 'react'
 import {useCreateAccount, useLocalKeyPair} from './auth'
 
 export function useWebAccountButton() {
@@ -17,8 +17,7 @@ export function useWebAccountButton() {
 
   const myAccount = useAccount(keyPair?.id || undefined, {
     retry: 3,
-    retryDelay: (attemptIndex: number) =>
-      Math.min(1000 * 2 ** attemptIndex, 30000),
+    retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
     refetchOnWindowFocus: false,
   })
 
@@ -49,12 +48,7 @@ export function useWebAccountButton() {
 
   const accountButton = account?.id ? (
     <a {...profileLinkProps} className="flex rounded-full shadow-lg">
-      <HMIcon
-        id={account.id}
-        name={account.metadata?.name}
-        icon={account.metadata?.icon}
-        size={32}
-      />
+      <HMIcon id={account.id} name={account.metadata?.name} icon={account.metadata?.icon} size={32} />
     </a>
   ) : (
     <button
@@ -72,31 +66,10 @@ export function useWebAccountButton() {
   }
 }
 
-export function useWebMenuItems(docId: UnpackedHypermediaId): MenuItemType[] {
+export function useWebMenuItems(): MenuItemType[] {
+  const route = useNavRoute()
   const gwUrl = DEFAULT_GATEWAY_URL
-  const navigate = useNavigate()
-  const media = useMedia()
-  const isMobile = media.xs
-  const gatewayLink = useMemo(
-    () =>
-      createWebHMUrl(docId.uid, {
-        path: docId.path,
-        hostname: gwUrl,
-        version: docId.version,
-        blockRef: docId.blockRef,
-        blockRange: docId.blockRange,
-        latest: docId.latest,
-      }),
-    [
-      docId.uid,
-      docId.path,
-      docId.version,
-      docId.blockRef,
-      docId.blockRange,
-      docId.latest,
-      gwUrl,
-    ],
-  )
+  const gatewayLink = useMemo(() => routeToUrl(route, {hostname: gwUrl}), [route, gwUrl])
 
   return useMemo(
     () => [
@@ -120,45 +93,92 @@ export function useWebMenuItems(docId: UnpackedHypermediaId): MenuItemType[] {
           }
         },
       },
-      {
-        key: 'versions',
-        label: 'Document Versions',
-        icon: <HistoryIcon className="size-4" />,
-        onClick: () => {
-          if (isMobile) {
-            navigate({
-              key: 'activity',
-              id: docId,
-              filterEventType: ['Ref'],
-            })
-          } else {
-            navigate({
-              key: 'document',
-              id: docId,
-              panel: {key: 'activity', id: docId, filterEventType: ['Ref']},
-            })
-          }
-        },
-      },
-      {
-        key: 'directory',
-        label: 'Directory',
-        icon: <Folder className="size-4" />,
-        onClick: () => {
-          navigate({key: 'directory', id: docId})
-        },
-      },
     ],
-    [gwUrl, gatewayLink, navigate, docId, isMobile],
+    [gwUrl, gatewayLink],
   )
 }
 
-export function WebAccountFooter({children}: {children?: ReactNode}) {
+export function WebAccountFooter({
+  children,
+  liftForPageFooter = false,
+}: {
+  children?: ReactNode
+  liftForPageFooter?: boolean
+}) {
   const {accountButton, extraContent} = useWebAccountButton()
+  const [footerLiftPx, setFooterLiftPx] = useState(0)
+
+  useEffect(() => {
+    if (!liftForPageFooter || typeof window === 'undefined') {
+      setFooterLiftPx(0)
+      return
+    }
+
+    let pageFooter: HTMLElement | null = null
+    let intersectionObserver: IntersectionObserver | null = null
+    let resizeObserver: ResizeObserver | null = null
+
+    const cleanupObservers = () => {
+      intersectionObserver?.disconnect()
+      resizeObserver?.disconnect()
+      intersectionObserver = null
+      resizeObserver = null
+    }
+
+    const attachToFooter = () => {
+      const nextFooter = document.querySelector<HTMLElement>('[data-page-footer="true"]')
+      if (!nextFooter || nextFooter === pageFooter) return
+
+      cleanupObservers()
+      pageFooter = nextFooter
+
+      const updateLift = (isVisible: boolean) => {
+        if (!pageFooter || !isVisible) {
+          setFooterLiftPx(0)
+          return
+        }
+        // Keep the floating account button above the currently visible footer.
+        setFooterLiftPx(Math.ceil(pageFooter.getBoundingClientRect().height) + 8)
+      }
+
+      intersectionObserver = new IntersectionObserver((entries) => {
+        const entry = entries[0]
+        updateLift(!!entry?.isIntersecting)
+      })
+      intersectionObserver.observe(pageFooter)
+
+      resizeObserver = new ResizeObserver(() => {
+        const rect = pageFooter?.getBoundingClientRect()
+        if (!rect) return
+        if (rect.top < window.innerHeight && rect.bottom > 0) {
+          updateLift(true)
+        }
+      })
+      resizeObserver.observe(pageFooter)
+    }
+
+    attachToFooter()
+
+    const mutationObserver = new MutationObserver(() => {
+      attachToFooter()
+    })
+    mutationObserver.observe(document.body, {childList: true, subtree: true})
+
+    return () => {
+      mutationObserver.disconnect()
+      cleanupObservers()
+    }
+  }, [liftForPageFooter])
+
   return (
     <>
       {children}
-      <div className="fixed bottom-4 left-4 z-30">{accountButton}</div>
+      <div
+        style={{bottom: `calc(1rem + ${footerLiftPx}px)`}}
+        className={cn('fixed left-4 z-30 transition-[bottom] duration-200')}
+      >
+        {accountButton}
+      </div>
       {extraContent}
     </>
   )

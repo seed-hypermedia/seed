@@ -1,17 +1,7 @@
-import {
-  BlockNoteEditor,
-  BlockSchema,
-  DefaultProps,
-  PartialBlock,
-} from '../../../../core'
+import {BlockNoteEditor, BlockSchema, DefaultProps, PartialBlock} from '../../../../core'
 import {useCallback, useMemo, useState} from 'react'
 import {IconType} from 'react-icons'
-import {
-  RiAlignCenter,
-  RiAlignJustify,
-  RiAlignLeft,
-  RiAlignRight,
-} from 'react-icons/ri'
+import {RiAlignCenter, RiAlignJustify, RiAlignLeft, RiAlignRight} from 'react-icons/ri'
 import {ToolbarButton} from '../../../SharedComponents/Toolbar/components/ToolbarButton'
 import {useEditorContentChange} from '../../../hooks/useEditorContentChange'
 import {useEditorSelectionChange} from '../../../hooks/useEditorSelectionChange'
@@ -109,9 +99,7 @@ export const TextAlignButton = <BSchema extends BlockSchema>(props: {
       mainTooltip={
         props.textAlignment === 'justify'
           ? 'Justify Text'
-          : 'Align Text ' +
-            props.textAlignment.slice(0, 1).toUpperCase() +
-            props.textAlignment.slice(1)
+          : 'Align Text ' + props.textAlignment.slice(0, 1).toUpperCase() + props.textAlignment.slice(1)
       }
       icon={icons[props.textAlignment]}
     />

@@ -43,13 +43,8 @@ export const ImageBlock = createReactBlockSpec({
   },
   containsInlineContent: true,
 
-  render: ({
-    block,
-    editor,
-  }: {
-    block: Block<HMBlockSchema>
-    editor: BlockNoteEditor<HMBlockSchema>
-  }) => Render(block, editor),
+  render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) =>
+    Render(block, editor),
 
   parseHTML: [
     {
@@ -76,16 +71,8 @@ export const ImageBlock = createReactBlockSpec({
   ],
 })
 
-const Render = (
-  block: Block<HMBlockSchema>,
-  editor: BlockNoteEditor<HMBlockSchema>,
-) => {
-  const submitImage = (
-    url: string,
-    assign: any,
-    setFileName: any,
-    setLoading: any,
-  ) => {
+const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSchema>) => {
+  const submitImage = (url: string, assign: any, setFileName: any, setLoading: any) => {
     if (!editor.importWebFile) {
       setFileName({
         name: 'Image import is not configured.',
@@ -147,18 +134,10 @@ const Render = (
     const cursorPosition = editor.getTextCursorPosition()
     editor.focus()
     if (cursorPosition.block.id === block.id) {
-      if (cursorPosition.nextBlock)
-        editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
+      if (cursorPosition.nextBlock) editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
       else {
-        editor.insertBlocks(
-          [{type: 'paragraph', content: ''}],
-          block.id,
-          'after',
-        )
-        editor.setTextCursorPosition(
-          editor.getTextCursorPosition().nextBlock!,
-          'start',
-        )
+        editor.insertBlocks([{type: 'paragraph', content: ''}], block.id, 'after')
+        editor.setTextCursorPosition(editor.getTextCursorPosition().nextBlock!, 'start')
       }
     }
   }
@@ -176,13 +155,7 @@ const Render = (
   )
 }
 
-const display = ({
-  editor,
-  block,
-  selected,
-  setSelected,
-  assign,
-}: DisplayComponentProps) => {
+const display = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
   const getImageUrl = useImageUrl()
 
   useEffect(() => {
@@ -190,11 +163,7 @@ const display = ({
     const url = block.props.url
     // Skip if this is a draft media (has mediaRef), a binary URL or an IPFS URL
     // @ts-ignore
-    if (
-      block.props.displaySrc ||
-      block.props.mediaRef ||
-      (url && url.startsWith('ipfs://'))
-    ) {
+    if (block.props.displaySrc || block.props.mediaRef || (url && url.startsWith('ipfs://'))) {
       return
     }
     // Also skip invalid blob URLs from old drafts
@@ -231,12 +200,7 @@ const display = ({
           console.error('Could not fetch image from URL:', e)
         })
     }
-  }, [
-    editor.importWebFile,
-    block.props.displaySrc,
-    block.props.mediaRef,
-    block.props.url,
-  ])
+  }, [editor.importWebFile, block.props.displaySrc, block.props.mediaRef, block.props.url])
   // Determine image source:
   // 1. Use displaySrc if available
   // 2. Otherwise use url if it's an IPFS URL
@@ -285,8 +249,7 @@ const display = ({
 
   let width: number =
     // @ts-ignore
-    parseFloat(block.props.width) ||
-    editor.domElement.firstElementChild!.clientWidth
+    parseFloat(block.props.width) || editor.domElement.firstElementChild!.clientWidth
   const [currentWidth, setCurrentWidth] = useState(width)
   const [showHandle, setShowHandle] = useState(false)
   // Track image natural dimensions for aspect ratio calculation
@@ -401,9 +364,7 @@ const display = ({
 
   // Sets the resize params, allowing the user to begin resizing the image by
   // moving the cursor left or right.
-  const leftResizeHandleMouseDownHandler = (
-    event: React.MouseEvent<HTMLDivElement>,
-  ) => {
+  const leftResizeHandleMouseDownHandler = (event: React.MouseEvent<HTMLDivElement>) => {
     event.preventDefault()
 
     setShowHandle(true)
@@ -417,9 +378,7 @@ const display = ({
     editor.setTextCursorPosition(block.id, 'start')
   }
 
-  const rightResizeHandleMouseDownHandler = (
-    event: React.MouseEvent<HTMLDivElement>,
-  ) => {
+  const rightResizeHandleMouseDownHandler = (event: React.MouseEvent<HTMLDivElement>) => {
     event.preventDefault()
     setShowHandle(true)
 
@@ -450,14 +409,8 @@ const display = ({
     >
       {showHandle && (
         <>
-          <ResizeHandle
-            style={{left: 4}}
-            onMouseDown={leftResizeHandleMouseDownHandler}
-          />
-          <ResizeHandle
-            style={{right: 4}}
-            onMouseDown={rightResizeHandleMouseDownHandler}
-          />
+          <ResizeHandle style={{left: 4}} onMouseDown={leftResizeHandleMouseDownHandler} />
+          <ResizeHandle style={{right: 4}} onMouseDown={rightResizeHandleMouseDownHandler} />
         </>
       )}
       {imageSrc && (

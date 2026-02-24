@@ -14,20 +14,10 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {BIG_INT} from '@shm/shared/constants'
-import {
-  useAccount,
-  useAccounts,
-  useAccountsMetadata,
-  useResources,
-} from '@shm/shared/models/entity'
+import {useAccount, useAccounts, useAccountsMetadata, useResources} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {fullInvalidate, queryKeys} from '@shm/shared/models/query-keys'
-import {
-  useMutation,
-  UseMutationOptions,
-  useQueries,
-  useQuery,
-} from '@tanstack/react-query'
+import {useMutation, UseMutationOptions, useQueries, useQuery} from '@tanstack/react-query'
 import {base58btc} from 'multiformats/bases/base58'
 import {useDaemonInfo, useMyAccountIds} from './daemon'
 import {useConnectedPeers} from './networking'
@@ -135,12 +125,7 @@ export function useAllAccountsWithContacts() {
 
 export function useSaveContact() {
   return useMutation({
-    mutationFn: async (contact: {
-      accountUid: string
-      name: string
-      subjectUid: string
-      editId?: string
-    }) => {
+    mutationFn: async (contact: {accountUid: string; name: string; subjectUid: string; editId?: string}) => {
       if (contact.editId) {
         await grpcClient.documents.updateContact({
           signingKeyName: contact.accountUid,
@@ -170,11 +155,7 @@ export function useSaveContact() {
 export function useDeleteContact() {
   const selectedAccount = useSelectedAccountId()
   return useMutation({
-    mutationFn: async (contact: {
-      id: string
-      account: string
-      subject: string
-    }) => {
+    mutationFn: async (contact: {id: string; account: string; subject: string}) => {
       if (!selectedAccount) throw new Error('No selected account')
       await grpcClient.documents.deleteContact({
         id: contact.id,
@@ -234,9 +215,7 @@ export function useConnectPeer(
         const decodedBinary = base58btc.decode(encodedPayload)
         const decoded = cborDecode(decodedBinary)
         const connectPayload = HMPeerConnectionRequestSchema.parse(decoded)
-        addrs = connectPayload.a.map(
-          (shortAddr: string) => `${shortAddr}/p2p/${connectPayload.d}`,
-        )
+        addrs = connectPayload.a.map((shortAddr: string) => `${shortAddr}/p2p/${connectPayload.d}`)
       }
       if (!addrs && peer.match(/^(https?:\/\/)/)) {
         // in this case, the "peer" input is not https://site/hm/connect#x url, but it is a web url. So lets try to connect to this site via its well known peer id.
@@ -300,11 +279,7 @@ export function useContacts(accountUids: string[]) {
       data: account.data
         ? {
             id: account.data.id,
-            metadata: getContactMetadata(
-              account.data.id.uid,
-              account.data.metadata,
-              contacts.data,
-            ),
+            metadata: getContactMetadata(account.data.id.uid, account.data.metadata, contacts.data),
           }
         : undefined,
     }
@@ -320,11 +295,7 @@ export function useContactsMetadata(ids: string[]): HMAccountsMetadata {
         uid,
         {
           id: account.id,
-          metadata: getContactMetadata(
-            account.id.uid,
-            account.metadata,
-            contacts.data,
-          ),
+          metadata: getContactMetadata(account.id.uid, account.metadata, contacts.data),
         },
       ]
     }),
@@ -345,11 +316,7 @@ export function useContactList() {
       accounts: accounts.data.accounts.map((account) => {
         return {
           ...account,
-          metadata: getContactMetadata(
-            account.id,
-            account.metadata,
-            contacts.data,
-          ),
+          metadata: getContactMetadata(account.id, account.metadata, contacts.data),
         }
       }),
       accountsMetadata: Object.fromEntries(
@@ -360,11 +327,7 @@ export function useContactList() {
               id,
               {
                 ...account,
-                metadata: getContactMetadata(
-                  id,
-                  account.metadata,
-                  contacts.data,
-                ),
+                metadata: getContactMetadata(id, account.metadata, contacts.data),
               },
             ]
           })

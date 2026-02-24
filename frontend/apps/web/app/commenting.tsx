@@ -32,29 +32,19 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {ClientOnly} from './client-lazy'
 import {useCommentDraftPersistence} from './comment-draft-utils'
 import {EmailNotificationsForm} from './email-notifications'
-import {
-  hasPromptedEmailNotifications,
-  setHasPromptedEmailNotifications,
-} from './local-db'
-import type {
-  CommentPayload,
-  CommentResponsePayload,
-} from './routes/hm.api.comment'
+import {hasPromptedEmailNotifications, setHasPromptedEmailNotifications} from './local-db'
+import type {CommentPayload, CommentResponsePayload} from './routes/hm.api.comment'
 
 export type WebCommentingProps = {
   docId: UnpackedHypermediaId
   /** Comment ID from CommentEditorProps - used to resolve reply parent */
   commentId?: string | null
+  isReplying?: boolean
   replyCommentVersion?: string | null
   replyCommentId?: string | null
   rootReplyCommentVersion?: string | null
   quotingBlockId?: string
-  onDiscardDraft?: () => void
-  onSuccess?: (successData: {
-    id: string
-    response: CommentResponsePayload
-    commentPayload: CommentPayload
-  }) => void
+  onSuccess?: (successData: {id: string; response: CommentResponsePayload; commentPayload: CommentPayload}) => void
   commentingOriginUrl?: string
   autoFocus?: boolean
 }
@@ -62,11 +52,11 @@ export type WebCommentingProps = {
 export default function WebCommenting({
   docId,
   commentId,
+  isReplying,
   replyCommentVersion: replyCommentVersionProp,
   rootReplyCommentVersion: rootReplyCommentVersionProp,
   replyCommentId: replyCommentIdProp,
   quotingBlockId,
-  onDiscardDraft,
   onSuccess,
   commentingOriginUrl,
   autoFocus,
@@ -90,10 +80,9 @@ export default function WebCommenting({
   }, [replyCommentIdProp, commentId, commentsService.data?.comments])
 
   const replyCommentId = replyCommentIdProp || resolvedReply?.replyCommentId
-  const replyCommentVersion =
-    replyCommentVersionProp || resolvedReply?.replyCommentVersion
-  const rootReplyCommentVersion =
-    rootReplyCommentVersionProp || resolvedReply?.rootReplyCommentVersion
+  const replyCommentVersion = replyCommentVersionProp || resolvedReply?.replyCommentVersion
+  const rootReplyCommentVersion = rootReplyCommentVersionProp || resolvedReply?.rootReplyCommentVersion
+  const isReplyEditor = isReplying || !!replyCommentId || !!commentId
 
   // Use draft persistence
   const {
@@ -116,21 +105,13 @@ export default function WebCommenting({
     if (typeof window !== 'undefined') {
       import('./draft-media-db')
         .then(({cleanupOldDraftMedia}) => cleanupOldDraftMedia())
-        .catch((err) =>
-          console.error('Failed to cleanup old draft media:', err),
-        )
+        .catch((err) => console.error('Failed to cleanup old draft media:', err))
     }
   }, [])
 
   const postComment = useMutation({
-    mutationFn: async (commentPayload: {
-      comment: Uint8Array
-      blobs: {cid: string; data: Uint8Array}[]
-    }) => {
-      const result = await postCBOR(
-        '/hm/api/comment',
-        cborEncode(commentPayload),
-      )
+    mutationFn: async (commentPayload: {comment: Uint8Array; blobs: {cid: string; data: Uint8Array}[]}) => {
+      const result = await postCBOR('/hm/api/comment', cborEncode(commentPayload))
       return result as CommentResponsePayload
     },
     onSuccess: (result, commentPayload) => {
@@ -184,10 +165,8 @@ export default function WebCommenting({
 
   const myAccount = useAccount(userKeyPair?.id || undefined)
 
-  const {
-    content: emailNotificationsPromptContent,
-    open: openEmailNotificationsPrompt,
-  } = useAppDialog(EmailNotificationsPrompt)
+  const {content: emailNotificationsPromptContent, open: openEmailNotificationsPrompt} =
+    useAppDialog(EmailNotificationsPrompt)
 
   function promptEmailNotifications() {
     console.log('🔔 promptEmailNotifications called', {
@@ -249,9 +228,7 @@ export default function WebCommenting({
           commentingOriginUrl,
         )
         await postComment.mutateAsync(commentPayload)
-        console.log(
-          '✅ Comment posted successfully, calling promptEmailNotifications',
-        )
+        console.log('✅ Comment posted successfully, calling promptEmailNotifications')
         reset()
         removeDraft() // Remove draft after successful submission
         // Clean up associated media from IndexedDB after successful publish
@@ -262,12 +239,9 @@ export default function WebCommenting({
               if (draft) revokeHMBlockObjectURLs(draft)
               return deleteAllDraftMediaForDraft(draftId)
             })
-            .catch((err) =>
-              console.error('Failed to cleanup draft media:', err),
-            )
+            .catch((err) => console.error('Failed to cleanup draft media:', err))
         }
-        onDiscardDraft?.()
-        await promptEmailNotifications()
+        promptEmailNotifications()
       } finally {
         setIsSubmitting(false)
       }
@@ -284,7 +258,6 @@ export default function WebCommenting({
       createAccount,
       postComment,
       removeDraft,
-      onDiscardDraft,
       promptEmailNotifications,
     ],
   )
@@ -294,21 +267,6 @@ export default function WebCommenting({
     }
     return undefined
   }, [userKeyPair])
-
-  const handleDiscardDraft = useCallback(() => {
-    removeDraft()
-    // Clean up associated media from IndexedDB
-    if (typeof window !== 'undefined') {
-      import('./draft-media-db')
-        .then(({deleteAllDraftMediaForDraft, revokeHMBlockObjectURLs}) => {
-          // Revoke object URLs before cleanup to free memory
-          if (draft) revokeHMBlockObjectURLs(draft)
-          return deleteAllDraftMediaForDraft(draftId)
-        })
-        .catch((err) => console.error('Failed to cleanup draft media:', err))
-    }
-    onDiscardDraft?.()
-  }, [removeDraft, onDiscardDraft, draftId, draft])
 
   const publishButtonEventClass = userKeyPair
     ? 'plausible-event-name=Publish+Comment'
@@ -324,11 +282,11 @@ export default function WebCommenting({
       <ClientOnly>
         <CommentEditor
           autoFocus={autoFocus}
+          isReplying={isReplyEditor}
           handleSubmit={handleSubmit}
           initialBlocks={draft || undefined}
           onContentChange={saveDraft}
           onAvatarPress={onAvatarPress}
-          onDiscardDraft={handleDiscardDraft}
           importWebFile={importWebFile}
           handleFileAttachment={(file) => handleFileAttachment(file, draftId)}
           getDraftMediaBlob={async (draftId, mediaId) => {
@@ -337,9 +295,7 @@ export default function WebCommenting({
               const {getDraftMedia} = await import('./draft-media-db')
               const mediaData = await getDraftMedia(draftId, mediaId)
               if (!mediaData) {
-                console.warn(
-                  `Media not found in IndexedDB: ${draftId}/${mediaId}`,
-                )
+                console.warn(`Media not found in IndexedDB: ${draftId}/${mediaId}`)
               }
               return mediaData?.blob || null
             } catch (error) {
@@ -352,8 +308,7 @@ export default function WebCommenting({
               <Tooltip
                 content={tx(
                   'publish_comment_as',
-                  ({name}: {name: string | undefined}) =>
-                    name ? `Publish Comment as ${name}` : 'Publish Comment',
+                  ({name}: {name: string | undefined}) => (name ? `Publish Comment as ${name}` : 'Publish Comment'),
                   {name: myAccount.data?.metadata?.name},
                 )}
               >
@@ -382,10 +337,7 @@ export default function WebCommenting({
   )
 }
 
-async function prepareAttachment(
-  binary: Uint8Array,
-  blockstore: MemoryBlockstore,
-): Promise<CID> {
+async function prepareAttachment(binary: Uint8Array, blockstore: MemoryBlockstore): Promise<CID> {
   // const fileBlock = await encodeBlock(fileBinary, rawCodec)
   const results = unixFSImporter([{content: binary}], blockstore)
 
@@ -415,8 +367,7 @@ async function prepareAttachments(binaries: Uint8Array[]) {
 }
 
 function generateBlockId(length: number = 8): string {
-  const characters =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
   let result = ''
   for (let i = 0; i < length; i++) {
     result += characters.charAt(Math.floor(Math.random() * characters.length))
@@ -444,8 +395,7 @@ async function prepareComment(
   },
   commentingOriginUrl: string | undefined,
 ): Promise<CommentPayload> {
-  const {blockNodes: rawBlockNodes, blobs} =
-    await getContent(prepareAttachments)
+  const {blockNodes: rawBlockNodes, blobs} = await getContent(prepareAttachments)
   const blockNodes = trimTrailingEmptyBlocks(rawBlockNodes)
 
   // If quotingBlockId is provided, wrap content in an embed block like desktop version
@@ -488,18 +438,12 @@ async function prepareComment(
 // UUID v4 with safe fallback for browsers without crypto.randomUUID (Safari < 15.4)
 function generateUUID(): string {
   // Native UUID
-  if (
-    typeof crypto !== 'undefined' &&
-    typeof crypto.randomUUID === 'function'
-  ) {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
   }
 
   // Fallback to crypto.getRandomValues
-  if (
-    typeof crypto !== 'undefined' &&
-    typeof crypto.getRandomValues === 'function'
-  ) {
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
     const bytes = new Uint8Array(16)
     crypto.getRandomValues(bytes)
 
@@ -507,19 +451,12 @@ function generateUUID(): string {
     bytes[6] = (bytes[6]! & 0x0f) | 0x40
     bytes[8] = (bytes[8]! & 0x3f) | 0x80
 
-    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join(
-      '',
-    )
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(
-      12,
-      16,
-    )}-${hex.slice(16, 20)}-${hex.slice(20)}`
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
   }
 
   // Last resort fallback. Not cryptographically strong, but avoids hard failure
-  return `fallback-${Date.now().toString(16)}-${Math.random()
-    .toString(16)
-    .slice(2)}`
+  return `fallback-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`
 }
 
 async function handleFileAttachment(
@@ -565,10 +502,7 @@ async function handleFileAttachment(
       const errorName = error instanceof Error ? error.name : 'Unknown'
       const errorMsg = error instanceof Error ? error.message : String(error)
 
-      console.warn(
-        `IndexedDB storage failed (${errorName}), falling back to binary:`,
-        errorMsg,
-      )
+      console.warn(`IndexedDB storage failed (${errorName}), falling back to binary:`, errorMsg)
 
       // Log specific Safari issues
       if (errorName === 'QuotaExceededError') {
@@ -601,8 +535,7 @@ const importWebFile: (url: string) => Promise<{
       throw new Error(`Failed to fetch: ${res.status} ${res.statusText}`)
     }
 
-    const contentType =
-      res.headers.get('content-type') || 'application/octet-stream'
+    const contentType = res.headers.get('content-type') || 'application/octet-stream'
     const blob = await res.blob()
 
     const result = await handleFileAttachment(blob)
@@ -653,8 +586,7 @@ function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
       <>
         <DialogTitle>Email Notifications</DialogTitle>
         <SizableText>
-          Do you want to receive an email when someone mentions your or replies
-          to your comments?
+          Do you want to receive an email when someone mentions your or replies to your comments?
         </SizableText>
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={() => onClose()}>

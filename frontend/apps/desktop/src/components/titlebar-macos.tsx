@@ -1,12 +1,7 @@
 import {useSidebarWidth} from '@/sidebar-context'
 import {TitleText, TitlebarWrapper} from '@shm/ui/titlebar'
 import {TitleBarProps} from './titlebar'
-import {
-  NavMenuButton,
-  NavigationButtons,
-  Omnibar,
-  PageActionButtons,
-} from './titlebar-common'
+import {NavMenuButton, NavigationButtons, Omnibar, PageActionButtons} from './titlebar-common'
 
 export default function TitleBarMacos(props: TitleBarProps) {
   const {clean, cleanTitle, ...restProps} = props

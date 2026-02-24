@@ -1,11 +1,6 @@
 import {zodResolver} from '@hookform/resolvers/zod'
 import {encode as cborEncode} from '@ipld/dag-cbor'
-import {
-  hmId,
-  hostnameStripProtocol,
-  queryKeys,
-  useUniversalAppContext,
-} from '@shm/shared'
+import {hmId, hostnameStripProtocol, queryKeys, useUniversalAppContext} from '@shm/shared'
 import {HMDocument, HMDocumentOperation} from '@shm/shared/hm-types'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {useTx, useTxString} from '@shm/shared/translation'
@@ -24,14 +19,7 @@ import {BlockView} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
 import {CID} from 'multiformats/cid'
 import {useEffect, useState, useSyncExternalStore} from 'react'
-import {
-  Control,
-  FieldValues,
-  Path,
-  SubmitHandler,
-  useController,
-  useForm,
-} from 'react-hook-form'
+import {Control, FieldValues, Path, SubmitHandler, useController, useForm} from 'react-hook-form'
 import {z} from 'zod'
 import {
   blockReference,
@@ -45,12 +33,7 @@ import {
 } from './api'
 import {preparePublicKey} from './auth-utils'
 import {createDefaultAccountName} from './default-account-name'
-import {
-  deleteLocalKeys,
-  getStoredLocalKeys,
-  setHasPromptedEmailNotifications,
-  writeLocalKeys,
-} from './local-db'
+import {deleteLocalKeys, getStoredLocalKeys, setHasPromptedEmailNotifications, writeLocalKeys} from './local-db'
 import type {CreateAccountPayload} from './routes/hm.api.create-account'
 import type {UpdateDocumentPayload} from './routes/hm.api.document-update'
 
@@ -135,9 +118,7 @@ export async function createAccount({
     keyPair,
   })
   const genesisChangeBlock = await encodeBlock(genesisChange)
-  const iconBlock = icon
-    ? await encodeBlock(await icon.arrayBuffer(), rawCodec)
-    : null
+  const iconBlock = icon ? await encodeBlock(await icon.arrayBuffer(), rawCodec) : null
   const operations: HMDocumentOperation[] = [
     {
       type: 'SetAttributes',
@@ -286,15 +267,11 @@ export function useCreateAccount(options?: {onClose?: () => void}) {
       'w-full sm:max-w-xl',
       'max-sm:w-[calc(100%-1.5rem)]',
       'max-sm:translate-y-0',
-      isMobileKeyboardOpen
-        ? 'max-sm:top-[1.5vh] max-sm:max-h-[55vh]'
-        : 'max-sm:top-[4vh] max-sm:max-h-[85vh]',
+      isMobileKeyboardOpen ? 'max-sm:top-[1.5vh] max-sm:max-h-[55vh]' : 'max-sm:top-[4vh] max-sm:max-h-[85vh]',
     ].join(' '),
     contentClassName: [
       'max-sm:scroll-py-4',
-      isMobileKeyboardOpen
-        ? 'max-sm:gap-3 max-sm:p-4'
-        : 'max-sm:gap-4 max-sm:p-5',
+      isMobileKeyboardOpen ? 'max-sm:gap-3 max-sm:p-4' : 'max-sm:gap-4 max-sm:p-5',
     ].join(' '),
   })
   return {
@@ -316,8 +293,7 @@ function useIsMobileKeyboardOpen() {
 
     const handleResize = () => {
       const layoutViewportHeight = window.innerHeight
-      const visualViewportHeight =
-        window.visualViewport?.height ?? layoutViewportHeight
+      const visualViewportHeight = window.visualViewport?.height ?? layoutViewportHeight
       setIsOpen(layoutViewportHeight - visualViewportHeight > 150)
     }
 
@@ -337,13 +313,7 @@ function useIsMobileKeyboardOpen() {
   return isOpen
 }
 
-function CreateAccountDialog({
-  input,
-  onClose,
-}: {
-  input: {}
-  onClose: () => void
-}) {
+function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void}) {
   const {origin} = useUniversalAppContext()
   const isMobileKeyboardOpen = useIsMobileKeyboardOpen()
   const onSubmit: SubmitHandler<SiteMetaFields> = (data) => {
@@ -354,11 +324,7 @@ function CreateAccountDialog({
   return (
     <>
       <DialogTitle className="max-sm:text-base">
-        {tx(
-          'create_account_title',
-          ({siteName}: {siteName: string}) => `Create Account on ${siteName}`,
-          {siteName},
-        )}
+        {tx('create_account_title', ({siteName}: {siteName: string}) => `Create Account on ${siteName}`, {siteName})}
       </DialogTitle>
       <DialogDescription className="max-sm:text-sm">
         {tx(
@@ -371,11 +337,9 @@ function CreateAccountDialog({
           onClose()
           onSubmit(values)
         }}
-        submitLabel={tx(
-          'create_account_submit',
-          ({siteName}: {siteName: string}) => `Create ${siteName} Account`,
-          {siteName},
-        )}
+        submitLabel={tx('create_account_submit', ({siteName}: {siteName: string}) => `Create ${siteName} Account`, {
+          siteName,
+        })}
       />
     </>
   )
@@ -407,18 +371,10 @@ function EditProfileForm({
     <form onSubmit={form.handleSubmit(onSubmit)}>
       <div className="flex flex-col gap-2">
         <Field id="name" label={tx('Account Name')}>
-          <FormInput
-            control={form.control}
-            name="name"
-            placeholder={tx('My New Public Name')}
-          />
+          <FormInput control={form.control} name="name" placeholder={tx('My New Public Name')} />
         </Field>
         <Field id="icon" label={tx('Profile Icon')}>
-          <ImageField
-            control={form.control}
-            name="icon"
-            label={tx('Profile Icon')}
-          />
+          <ImageField control={form.control} name="icon" label={tx('Profile Icon')} />
         </Field>
         <div className="flex justify-center">
           <Button
@@ -487,10 +443,7 @@ function ImageField<Fields extends FieldValues>({
       />
       {!c.field.value && (
         <div className="pointer-events-none absolute inset-0 flex h-full w-full items-center justify-center bg-neutral-100 dark:bg-neutral-800">
-          <SizableText
-            size="xs"
-            className="text-center text-neutral-600 dark:text-neutral-400"
-          >
+          <SizableText size="xs" className="text-center text-neutral-600 dark:text-neutral-400">
             {tx('add', ({what}: {what: string}) => `Add ${what}`, {
               what: label,
             })}
@@ -498,11 +451,7 @@ function ImageField<Fields extends FieldValues>({
         </div>
       )}
       {c.field.value && (
-        <img
-          src={currentImgURL || undefined}
-          alt={label}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
+        <img src={currentImgURL || undefined} alt={label} className="absolute inset-0 h-full w-full object-cover" />
       )}
       {c.field.value && (
         <div className="pointer-events-none absolute inset-0 flex h-full w-full items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
@@ -532,10 +481,7 @@ function LogoutDialog({onClose}: {onClose: () => void}) {
       <DialogTitle>{tx('Really Logout?')}</DialogTitle>
       <DialogDescription>
         {isAccountAliased
-          ? tx(
-              'logout_account_saved',
-              'This account will remain accessible on other devices.',
-            )
+          ? tx('logout_account_saved', 'This account will remain accessible on other devices.')
           : tx(
               'logout_account_not_saved',
               'This account key is not saved anywhere else. By logging out, you will lose access to this identity forever. You can always create a new account later.',
@@ -554,22 +500,13 @@ function LogoutDialog({onClose}: {onClose: () => void}) {
   )
 }
 
-export function EditProfileDialog({
-  onClose,
-  input,
-}: {
-  onClose: () => void
-  input: {accountUid: string}
-}) {
+export function EditProfileDialog({onClose, input}: {onClose: () => void; input: {accountUid: string}}) {
   const keyPair = useLocalKeyPair()
   const id = hmId(input.accountUid)
   const tx = useTx()
   const account = useAccount(input.accountUid)
   const accountDocument = useResource(account.data?.id)
-  const document =
-    accountDocument?.data?.type === 'document'
-      ? accountDocument.data.document
-      : undefined
+  const document = accountDocument?.data?.type === 'document' ? accountDocument.data.document : undefined
   const queryClient = useQueryClient()
   const update = useMutation({
     mutationFn: (updates: SiteMetaFields) => {
@@ -638,13 +575,12 @@ export function LinkKeysDialog() {
               return (
                 <>
                   <p>
-                    Hypermedia accounts are based on public key cryptography.
-                    Your private key is securely stored, but is only available
-                    in this browser, on this device.
+                    Hypermedia accounts are based on public key cryptography. Your private key is securely stored, but
+                    is only available in this browser, on this device.
                   </p>
                   <p>
-                    To stay logged in in the future, you should link this
-                    signing key to your account using one of the options below.
+                    To stay logged in in the future, you should link this signing key to your account using one of the
+                    options below.
                   </p>
                 </>
               )
@@ -695,10 +631,7 @@ export function AccountFooterActions(props: {hideDeviceLinkToast?: boolean}) {
   // TODO(burdiyan): this is not a very robust solution to check whether we need to link keys.
   // For now we request the account info from the backend, which would follow identity redirects to return the final account,
   // in which case the ID of the final account will be different from the requested ID. When it happens, it means we have already linked this key to some other account.
-  const needsKeyLinking =
-    !props.hideDeviceLinkToast &&
-    userKeyPair &&
-    myAccount.data?.id?.uid === userKeyPair?.id
+  const needsKeyLinking = !props.hideDeviceLinkToast && userKeyPair && myAccount.data?.id?.uid === userKeyPair?.id
 
   useEffect(() => {
     if (!needsKeyLinking) {

@@ -207,10 +207,7 @@ describe('URL Detection', () => {
 
 describe('Route ID extraction', () => {
   // Simulate getRouteId logic
-  function getRouteId(route: {
-    key: string
-    id?: {uid: string}
-  }): {uid: string} | null {
+  function getRouteId(route: {key: string; id?: {uid: string}}): {uid: string} | null {
     if (
       route.key === 'document' ||
       route.key === 'feed' ||
@@ -329,10 +326,7 @@ describe('URL displayable route detection', () => {
 
 describe('View term for route', () => {
   // Simulate getViewTermForRoute logic
-  function getViewTermForRoute(route: {
-    key: string
-    panel?: {key: string}
-  }): string | null {
+  function getViewTermForRoute(route: {key: string; panel?: {key: string}}): string | null {
     // First-class view routes
     if (route.key === 'activity') return '/:activity'
     if (route.key === 'discussions') return '/:discussions'
@@ -362,9 +356,7 @@ describe('View term for route', () => {
     })
 
     it('should return /:collaborators for collaborators route', () => {
-      expect(getViewTermForRoute({key: 'collaborators'})).toBe(
-        '/:collaborators',
-      )
+      expect(getViewTermForRoute({key: 'collaborators'})).toBe('/:collaborators')
     })
 
     it('should return /:directory for directory route', () => {
@@ -378,27 +370,19 @@ describe('View term for route', () => {
 
   describe('document routes with panel', () => {
     it('should return /:activity for document with activity panel', () => {
-      expect(
-        getViewTermForRoute({key: 'document', panel: {key: 'activity'}}),
-      ).toBe('/:activity')
+      expect(getViewTermForRoute({key: 'document', panel: {key: 'activity'}})).toBe('/:activity')
     })
 
     it('should return /:discussions for document with discussions panel', () => {
-      expect(
-        getViewTermForRoute({key: 'document', panel: {key: 'discussions'}}),
-      ).toBe('/:discussions')
+      expect(getViewTermForRoute({key: 'document', panel: {key: 'discussions'}})).toBe('/:discussions')
     })
 
     it('should return /:collaborators for document with collaborators panel', () => {
-      expect(
-        getViewTermForRoute({key: 'document', panel: {key: 'collaborators'}}),
-      ).toBe('/:collaborators')
+      expect(getViewTermForRoute({key: 'document', panel: {key: 'collaborators'}})).toBe('/:collaborators')
     })
 
     it('should return /:directory for document with directory panel', () => {
-      expect(
-        getViewTermForRoute({key: 'document', panel: {key: 'directory'}}),
-      ).toBe('/:directory')
+      expect(getViewTermForRoute({key: 'document', panel: {key: 'directory'}})).toBe('/:directory')
     })
   })
 

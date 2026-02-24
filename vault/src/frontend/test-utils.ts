@@ -49,7 +49,7 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
 		getVault: async () => ({}),
 		saveVaultData: async () => ({ success: true }),
 		logout: async () => ({ success: true }),
-		getSession: async () => ({ authenticated: false }),
+		getSession: async () => ({ authenticated: false, relyingPartyOrigin: "https://vault.example.com" }),
 		changeEmailStart: async () => ({ message: "ok", challengeId: "change-challenge" }),
 		changeEmailPoll: async () => ({ verified: false }),
 		changeEmailVerifyLink: async () => ({ verified: true, newEmail: "new@example.com" }),

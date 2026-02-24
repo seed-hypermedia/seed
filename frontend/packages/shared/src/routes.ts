@@ -1,10 +1,5 @@
 import {z} from 'zod'
-import {
-  BlockRangeSchema,
-  HMResourceVisibilitySchema,
-  UnpackedHypermediaId,
-  unpackedHmIdSchema,
-} from './hm-types'
+import {BlockRangeSchema, HMResourceVisibilitySchema, UnpackedHypermediaId, unpackedHmIdSchema} from './hm-types'
 import {activitySlugToFilter} from './utils/entity-id-url'
 import type {ViewRouteKey} from './utils/entity-id-url'
 
@@ -181,6 +176,11 @@ export type DraftsRoute = z.infer<typeof draftsSchema>
 export const settingsRouteSchema = z.object({key: z.literal('settings')})
 export type SettingsRoute = z.infer<typeof settingsRouteSchema>
 
+export const notificationsRouteSchema = z.object({
+  key: z.literal('notifications'),
+})
+export type NotificationsRoute = z.infer<typeof notificationsRouteSchema>
+
 export const deletedContentRouteSchema = z.object({
   key: z.literal('deleted-content'),
 })
@@ -207,6 +207,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   profileRouteSchema,
   contactRouteSchema,
   settingsRouteSchema,
+  notificationsRouteSchema,
   documentRouteSchema,
   draftRouteSchema,
   draftRebaseRouteSchema,
@@ -296,10 +297,7 @@ export function routeToPanelRoute(route: NavRoute): DocumentPanelRoute | null {
  * - "comment/COMMENT_ID" for specific comment open in panel
  * - "discussions/BLOCKID" for block-specific discussions
  */
-function createPanelRoute(
-  panelParam: string,
-  docId: UnpackedHypermediaId,
-): DocumentPanelRoute {
+function createPanelRoute(panelParam: string, docId: UnpackedHypermediaId): DocumentPanelRoute {
   // Check for comment/COMMENT_ID format (most specific)
   if (panelParam.startsWith('comment/')) {
     const openComment = panelParam.slice('comment/'.length)

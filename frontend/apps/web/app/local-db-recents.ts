@@ -6,11 +6,7 @@ const RECENTS_STORE_NAME = 'recents-01'
 const DB_VERSION = 1
 const MAX_RECENTS = 20
 
-function upgradeStore(
-  db: IDBDatabase,
-  storeName: string,
-  options?: IDBObjectStoreParameters,
-): IDBObjectStore | null {
+function upgradeStore(db: IDBDatabase, storeName: string, options?: IDBObjectStoreParameters): IDBObjectStore | null {
   if (db.objectStoreNames.contains(storeName)) {
     return null
   }
@@ -137,10 +133,7 @@ function storeIndexGetAll<T>(store: IDBObjectStore | IDBIndex): Promise<T[]> {
  * @param name The name of the recent item
  * @returns The created recent item
  */
-export async function addRecent(
-  id: string,
-  name: string,
-): Promise<RecentsResult> {
+export async function addRecent(id: string, name: string): Promise<RecentsResult> {
   const time = Date.now()
 
   // Store the string ID in the database
@@ -213,8 +206,7 @@ export async function getRecents(): Promise<RecentsResult[]> {
   return new Promise<RecentsResult[]>((resolve, reject) => {
     const request = index.openCursor(null, 'prev')
     request.onsuccess = (event) => {
-      const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>)
-        .result
+      const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result
       if (cursor) {
         const dbItem = cursor.value as {
           id: string

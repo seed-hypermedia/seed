@@ -9,12 +9,7 @@ import {
   HMResourceTombstone,
   UnpackedHypermediaId,
 } from './hm-types'
-import {
-  getErrorMessage,
-  HMNotFoundError,
-  HMRedirectError,
-  HMResourceTombstoneError,
-} from './models/entity'
+import {getErrorMessage, HMNotFoundError, HMRedirectError, HMResourceTombstoneError} from './models/entity'
 import {packHmId} from './utils'
 
 /**
@@ -85,9 +80,7 @@ export function createResourceFetcher(grpcClient: GRPCClient) {
 export function createResourceResolver(grpcClient: GRPCClient) {
   const fetchResource = createResourceFetcher(grpcClient)
 
-  async function resolveResource(
-    id: UnpackedHypermediaId,
-  ): Promise<HMResolvedResource> {
+  async function resolveResource(id: UnpackedHypermediaId): Promise<HMResolvedResource> {
     const resource = await fetchResource(id)
     if (resource.type === 'redirect') {
       return resolveResource(resource.redirectTarget)

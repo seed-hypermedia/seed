@@ -16,22 +16,12 @@ export const UnknownBlock = createReactBlockSpec({
     },
   },
   containsInlineContent: true,
-  render: ({
-    block,
-    editor,
-  }: {
-    block: Block<HMBlockSchema>
-    editor: BlockNoteEditor<HMBlockSchema>
-  }) => <UnknownBlockRender block={block} editor={editor} />,
+  render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) => (
+    <UnknownBlockRender block={block} editor={editor} />
+  ),
 })
 
-function UnknownBlockRender({
-  block,
-  editor,
-}: {
-  block: Block<HMBlockSchema>
-  editor: BlockNoteEditor<HMBlockSchema>
-}) {
+function UnknownBlockRender({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) {
   const [expanded, setExpanded] = useState(false)
   const originalType = (block.props as any).originalType || 'Unknown'
   const originalData = (block.props as any).originalData || '{}'
@@ -65,9 +55,7 @@ function UnknownBlockRender({
           className="rounded-md border border-gray-200 bg-gray-100 p-2 dark:border-gray-700 dark:bg-gray-800"
           contentEditable={false}
         >
-          <code className="font-mono text-xs wrap-break-word">
-            {JSON.stringify(parsedData, null, 2)}
-          </code>
+          <code className="font-mono text-xs wrap-break-word">{JSON.stringify(parsedData, null, 2)}</code>
         </pre>
       )}
     </div>

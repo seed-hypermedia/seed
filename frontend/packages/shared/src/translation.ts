@@ -24,15 +24,10 @@ export function useTx() {
       enTextOrGetText?: string | ((args: TranslationArgs) => ReactNode),
       args?: TranslationArgs,
     ): ReactNode => {
-      const def =
-        languagePack?.translations?.[enTextOrKey] ??
-        enTextOrGetText ??
-        enTextOrKey
+      const def = languagePack?.translations?.[enTextOrKey] ?? enTextOrGetText ?? enTextOrKey
       if (def && typeof def === 'function') {
         if (!args) {
-          throw new Error(
-            'args are required when using a function as a translation',
-          )
+          throw new Error('args are required when using a function as a translation')
         }
         return (def as any)(args)
       }
@@ -50,15 +45,10 @@ export function useTxString() {
       enTextOrGetText?: string | ((args: TranslationArgs) => string),
       args?: TranslationArgs,
     ): string => {
-      const def =
-        languagePack?.translations?.[enTextOrKey] ??
-        enTextOrGetText ??
-        enTextOrKey
+      const def = languagePack?.translations?.[enTextOrKey] ?? enTextOrGetText ?? enTextOrKey
       if (def && typeof def === 'function') {
         if (!args) {
-          throw new Error(
-            'args are required when using a function as a translation',
-          )
+          throw new Error('args are required when using a function as a translation')
         }
         return (def as any)(args)
       }
@@ -70,14 +60,10 @@ export function useTxString() {
 
 export function useTxUtils() {
   const {languagePack} = useUniversalAppContext()
-  const formattedDateLong =
-    languagePack?.formattedDateLong || defaultFormattedDateLong
-  const formattedDateMedium =
-    languagePack?.formattedDateMedium || defaultFormattedDateMedium
-  const formattedDateShort =
-    languagePack?.formattedDateShort || defaultFormattedDateShort
-  const formattedDateDayOnly =
-    languagePack?.formattedDateDayOnly || defaultFormattedDateDayOnly
+  const formattedDateLong = languagePack?.formattedDateLong || defaultFormattedDateLong
+  const formattedDateMedium = languagePack?.formattedDateMedium || defaultFormattedDateMedium
+  const formattedDateShort = languagePack?.formattedDateShort || defaultFormattedDateShort
+  const formattedDateDayOnly = languagePack?.formattedDateDayOnly || defaultFormattedDateDayOnly
   return {
     formattedDateDayOnly,
     formattedDateMedium,

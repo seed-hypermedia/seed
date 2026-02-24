@@ -1,9 +1,7 @@
 import {lazy, useEffect, useState} from 'react'
 import {WebCommentingProps} from './commenting'
 
-function clientLazy<ComponentProps extends {}>(
-  doImport: () => Promise<{default: React.FC<ComponentProps>}>,
-) {
+function clientLazy<ComponentProps extends {}>(doImport: () => Promise<{default: React.FC<ComponentProps>}>) {
   const ClientComponent = lazy(doImport)
   function ClientAwokenComponent(props: ComponentProps) {
     const [isClientAwake, setIsClientAwake] = useState(false)

@@ -55,10 +55,7 @@ function extractAuthorUids(comments: HMComment[]): Set<string> {
  * @param id - Unpacked hypermedia ID
  * @returns HMMetadataPayload or empty metadata on error
  */
-async function loadDocumentMetadata(
-  client: GRPCClient,
-  id: UnpackedHypermediaId,
-): Promise<HMMetadataPayload> {
+async function loadDocumentMetadata(client: GRPCClient, id: UnpackedHypermediaId): Promise<HMMetadataPayload> {
   try {
     const rawDoc = await client.documents.getDocument({
       account: id.uid,
@@ -72,10 +69,7 @@ async function loadDocumentMetadata(
     documentMetadataParseAdjustments(metadataJSON)
     const parsed = HMDocumentMetadataSchema.safeParse(metadataJSON)
     if (!parsed.success) {
-      console.error(
-        `Failed to parse document metadata for ${id.id}:`,
-        parsed.error,
-      )
+      console.error(`Failed to parse document metadata for ${id.id}:`, parsed.error)
       return {id, metadata: {}}
     }
     return {
@@ -118,10 +112,7 @@ export function createCommentsResolver(client: GRPCClient) {
       const authorUids = extractAuthorUids(comments)
       const authorAccountUids = Array.from(authorUids)
 
-      const authors =
-        authorAccountUids.length > 0
-          ? await loadAccounts(client, authorAccountUids)
-          : {}
+      const authors = authorAccountUids.length > 0 ? await loadAccounts(client, authorAccountUids) : {}
 
       return {
         comments,
@@ -163,28 +154,18 @@ export function createDiscussionsResolver(client: GRPCClient) {
           pageSize: BIG_INT,
         })
         .catch(() => null),
-      client.entities
-        .listEntityMentions({id: targetId.id, pageSize: BIG_INT})
-        .catch(() => null),
+      client.entities.listEntityMentions({id: targetId.id, pageSize: BIG_INT}).catch(() => null),
     ])
 
     // Process direct comments
-    const allComments =
-      directCommentsResult?.comments
-        .map(parseComment)
-        .filter((c): c is HMComment => c !== null) ?? []
+    const allComments = directCommentsResult?.comments.map(parseComment).filter((c): c is HMComment => c !== null) ?? []
     const discussions = getCommentGroups(allComments, commentId)
     discussions.forEach((g) => g.comments.forEach(addAuthor))
 
     // Process citing discussions - group by doc to dedupe listComments calls
-    const mentionsByDoc = new Map<
-      string,
-      {mention: any; id: UnpackedHypermediaId}[]
-    >()
+    const mentionsByDoc = new Map<string, {mention: any; id: UnpackedHypermediaId}[]>()
     citationsResult?.mentions
-      .filter(
-        (m) => m.sourceType === 'Comment' && m.sourceDocument !== targetId.id,
-      )
+      .filter((m) => m.sourceType === 'Comment' && m.sourceDocument !== targetId.id)
       .forEach((mention) => {
         const id = unpackHmId(mention.sourceDocument)
         if (!id) return
@@ -209,9 +190,7 @@ export function createDiscussionsResolver(client: GRPCClient) {
         ])
         if (!commentsRes) return []
 
-        const comments = commentsRes.comments
-          .map(parseComment)
-          .filter((c): c is HMComment => c !== null)
+        const comments = commentsRes.comments.map(parseComment).filter((c): c is HMComment => c !== null)
 
         return mentions.map(({mention}): HMExternalCommentGroup | null => {
           const citingCommentId = mention.source.slice(5)
@@ -219,8 +198,7 @@ export function createDiscussionsResolver(client: GRPCClient) {
           if (!citingComment) return null
 
           addAuthor(citingComment)
-          const replies =
-            getCommentGroups(comments, citingCommentId)[0]?.comments ?? []
+          const replies = getCommentGroups(comments, citingCommentId)[0]?.comments ?? []
           replies.forEach(addAuthor)
 
           return {
@@ -234,16 +212,10 @@ export function createDiscussionsResolver(client: GRPCClient) {
       }),
     )
 
-    const citingDiscussions = citingResults
-      .flat()
-      .filter((d): d is HMExternalCommentGroup => d !== null)
+    const citingDiscussions = citingResults.flat().filter((d): d is HMExternalCommentGroup => d !== null)
 
     const authors =
-      authorAccounts.size > 0
-        ? await loadAccounts(client, Array.from(authorAccounts)).catch(
-            () => ({}),
-          )
-        : {}
+      authorAccounts.size > 0 ? await loadAccounts(client, Array.from(authorAccounts)).catch(() => ({})) : {}
 
     return {discussions, authors, citingDiscussions}
   }
@@ -298,14 +270,8 @@ export function createCommentsByReferenceResolver(client: GRPCClient) {
 
       const comments: HMComment[] = res.comments
         .sort((a, b) => {
-          const aTime =
-            a?.updateTime && typeof a?.updateTime == 'string'
-              ? new Date(a?.updateTime).getTime()
-              : 0
-          const bTime =
-            b?.updateTime && typeof b?.updateTime == 'string'
-              ? new Date(b?.updateTime).getTime()
-              : 1
+          const aTime = a?.updateTime && typeof a?.updateTime == 'string' ? new Date(a?.updateTime).getTime() : 0
+          const bTime = b?.updateTime && typeof b?.updateTime == 'string' ? new Date(b?.updateTime).getTime() : 1
           return aTime - bTime
         })
         .map((c) => {
@@ -317,20 +283,14 @@ export function createCommentsByReferenceResolver(client: GRPCClient) {
         .filter((c): c is HMComment => c !== null)
 
       const authorAccountUids = Array.from(authorAccounts)
-      const authors =
-        authorAccountUids.length > 0
-          ? await loadAccounts(client, authorAccountUids)
-          : {}
+      const authors = authorAccountUids.length > 0 ? await loadAccounts(client, authorAccountUids) : {}
 
       return {
         comments,
         authors,
       }
     } catch (e) {
-      console.error(
-        `Failed to load comments by reference for ${targetId.id}#${blockRef}:`,
-        e,
-      )
+      console.error(`Failed to load comments by reference for ${targetId.id}#${blockRef}:`, e)
       return {
         comments: [],
         authors: {},
@@ -367,14 +327,8 @@ export function createCommentsByIdResolver(client: GRPCClient) {
 
       const comments: HMComment[] = res.comments
         .sort((a, b) => {
-          const aTime =
-            a?.updateTime && typeof a?.updateTime == 'string'
-              ? new Date(a?.updateTime).getTime()
-              : 0
-          const bTime =
-            b?.updateTime && typeof b?.updateTime == 'string'
-              ? new Date(b?.updateTime).getTime()
-              : 1
+          const aTime = a?.updateTime && typeof a?.updateTime == 'string' ? new Date(a?.updateTime).getTime() : 0
+          const bTime = b?.updateTime && typeof b?.updateTime == 'string' ? new Date(b?.updateTime).getTime() : 1
           return aTime - bTime
         })
         .map((c) => {
@@ -386,10 +340,7 @@ export function createCommentsByIdResolver(client: GRPCClient) {
         .filter((c): c is HMComment => c !== null)
 
       const authorAccountUids = Array.from(authorAccounts)
-      const authors =
-        authorAccountUids.length > 0
-          ? await loadAccounts(client, authorAccountUids)
-          : {}
+      const authors = authorAccountUids.length > 0 ? await loadAccounts(client, authorAccountUids) : {}
 
       return {
         comments,
@@ -446,9 +397,7 @@ export function createDiscussionThreadResolver(client: GRPCClient) {
       const thread: HMComment[] = [focusedComment]
       let selectedComment = focusedComment
       while (selectedComment?.replyParent) {
-        const parentComment = allComments.find(
-          (c) => c.id === selectedComment.replyParent,
-        )
+        const parentComment = allComments.find((c) => c.id === selectedComment.replyParent)
         if (!parentComment) break
         thread.unshift(parentComment)
         selectedComment = parentComment
@@ -470,10 +419,7 @@ export function createDiscussionThreadResolver(client: GRPCClient) {
       })
 
       const authorAccountUids = Array.from(authorAccounts)
-      const authors =
-        authorAccountUids.length > 0
-          ? await loadAccounts(client, authorAccountUids)
-          : {}
+      const authors = authorAccountUids.length > 0 ? await loadAccounts(client, authorAccountUids) : {}
 
       return {
         thread,
@@ -481,10 +427,7 @@ export function createDiscussionThreadResolver(client: GRPCClient) {
         authors,
       }
     } catch (e) {
-      console.error(
-        `Failed to load discussion thread for ${targetId.id}#${commentId}:`,
-        e,
-      )
+      console.error(`Failed to load discussion thread for ${targetId.id}#${commentId}:`, e)
       throw e
     }
   }

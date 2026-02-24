@@ -2,10 +2,7 @@ import {Plugin, PluginKey} from 'prosemirror-state'
 
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {EventEmitter} from '../../shared/EventEmitter'
-import {
-  SuggestionsMenuState,
-  setupSuggestionsMenu,
-} from '../../shared/plugins/suggestion/SuggestionPlugin'
+import {SuggestionsMenuState, setupSuggestionsMenu} from '../../shared/plugins/suggestion/SuggestionPlugin'
 import {BlockSchema} from '../Blocks/api/blockTypes'
 import {BaseSlashMenuItem} from './BaseSlashMenuItem'
 
@@ -18,10 +15,7 @@ export class SlashMenuProsemirrorPlugin<
   public readonly plugin: Plugin
   public readonly itemCallback: (item: SlashMenuItem) => void
 
-  constructor(
-    editor: BlockNoteEditor<BSchema>,
-    getItems: () => SlashMenuItem[],
-  ) {
+  constructor(editor: BlockNoteEditor<BSchema>, getItems: () => SlashMenuItem[]) {
     super()
     const suggestions = setupSuggestionsMenu<SlashMenuItem, BSchema>(
       editor,
@@ -34,10 +28,7 @@ export class SlashMenuProsemirrorPlugin<
         getItems().filter(
           ({name, aliases}: SlashMenuItem) =>
             name.toLowerCase().startsWith(query.toLowerCase()) ||
-            (aliases &&
-              aliases.filter((alias) =>
-                alias.toLowerCase().startsWith(query.toLowerCase()),
-              ).length !== 0),
+            (aliases && aliases.filter((alias) => alias.toLowerCase().startsWith(query.toLowerCase())).length !== 0),
         ),
       ({item, editor}) => item.execute(editor),
     )
@@ -46,9 +37,7 @@ export class SlashMenuProsemirrorPlugin<
     this.itemCallback = suggestions.itemCallback
   }
 
-  public onUpdate(
-    callback: (state: SuggestionsMenuState<SlashMenuItem>) => void,
-  ) {
+  public onUpdate(callback: (state: SuggestionsMenuState<SlashMenuItem>) => void) {
     return this.on('update', callback)
   }
 }

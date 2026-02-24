@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
+import * as base64 from "@shm/shared/base64"
 import { Cookie } from "bun"
 
 export function getCookieName(isProd: boolean): string {
@@ -29,7 +30,7 @@ export function computeHmac(
 		hmac.update(sessionId)
 	}
 
-	return hmac.digest("base64url")
+	return base64.encode(new Uint8Array(hmac.digest()))
 }
 
 /**
@@ -49,8 +50,8 @@ export function verifyHmac(
 	// Recompute the HMAC with the expected inputs.
 	const expectedHmacString = computeHmac(secret, purpose, challenge, sessionId)
 
-	const a = Buffer.from(cookieValue)
-	const b = Buffer.from(expectedHmacString)
+	const a = new TextEncoder().encode(cookieValue)
+	const b = new TextEncoder().encode(expectedHmacString)
 
 	if (a.length !== b.length) {
 		return false

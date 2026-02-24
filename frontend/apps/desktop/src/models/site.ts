@@ -13,8 +13,7 @@ import {useMutation} from '@tanstack/react-query'
 export function useSiteRegistration(accountUid: string) {
   const accountId = hmId(accountUid)
   const entity = useResource(accountId)
-  const document =
-    entity.data?.type === 'document' ? entity.data.document : undefined
+  const document = entity.data?.type === 'document' ? entity.data.document : undefined
   return useMutation({
     mutationFn: async (input: {url: string}) => {
       // http://localhost:5175/hm/register?secret=abc
@@ -27,10 +26,7 @@ export function useSiteRegistration(accountUid: string) {
       console.log('siteConfig', siteConfig)
       if (!siteConfig) throw new Error('Site is not set up.')
 
-      if (
-        siteConfig.registeredAccountUid &&
-        siteConfig.registeredAccountUid !== accountUid
-      ) {
+      if (siteConfig.registeredAccountUid && siteConfig.registeredAccountUid !== accountUid) {
         throw new Error('Site already registered to another account')
       }
       if (!siteConfig.registeredAccountUid) {
@@ -61,18 +57,13 @@ export function useSiteRegistration(accountUid: string) {
         })
         try {
           for await (const progress of pushProgress) {
-            console.log(
-              `== publish progress`,
-              JSON.stringify(toPlainMessage(progress)),
-            )
+            console.log(`== publish progress`, JSON.stringify(toPlainMessage(progress)))
           }
           console.log('push progress: done')
         } catch (error) {
           // error is not a dealbreaker for this workflow, we still want to move to the next step
           console.error('Failed pushing resources to site', error)
-          toast.error(
-            'Failed to push resources to the new site. Sync can be attempted again later.',
-          )
+          toast.error('Failed to push resources to the new site. Sync can be attempted again later.')
         }
       }
 
@@ -104,8 +95,7 @@ export function useSiteRegistration(accountUid: string) {
 
 export function useRemoveSite(id: UnpackedHypermediaId) {
   const entity = useResource(id)
-  const document =
-    entity.data?.type === 'document' ? entity.data.document : undefined
+  const document = entity.data?.type === 'document' ? entity.data.document : undefined
   return useMutation({
     mutationFn: async () => {
       await grpcClient.documents.createDocumentChange({

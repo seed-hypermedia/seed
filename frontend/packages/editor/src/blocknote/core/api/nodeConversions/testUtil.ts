@@ -1,17 +1,7 @@
-import {
-  Block,
-  BlockSchema,
-  PartialBlock,
-} from '../../extensions/Blocks/api/blockTypes'
-import {
-  InlineContent,
-  PartialInlineContent,
-  StyledText,
-} from '../../extensions/Blocks/api/inlineContentTypes'
+import {Block, BlockSchema, PartialBlock} from '../../extensions/Blocks/api/blockTypes'
+import {InlineContent, PartialInlineContent, StyledText} from '../../extensions/Blocks/api/inlineContentTypes'
 
-function textShorthandToStyledText(
-  content: string | StyledText[] = '',
-): StyledText[] {
+function textShorthandToStyledText(content: string | StyledText[] = ''): StyledText[] {
   if (typeof content === 'string') {
     return [
       {
@@ -24,9 +14,7 @@ function textShorthandToStyledText(
   return content
 }
 
-function partialContentToInlineContent(
-  content: string | PartialInlineContent[] = '',
-): InlineContent[] {
+function partialContentToInlineContent(content: string | PartialInlineContent[] = ''): InlineContent[] {
   if (typeof content === 'string') {
     return textShorthandToStyledText(content)
   }

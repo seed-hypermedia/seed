@@ -110,10 +110,7 @@ export async function putDraftMedia(
 }
 
 // Retrieve a media blob for a draft
-export async function getDraftMedia(
-  draftId: string,
-  mediaId: string,
-): Promise<DraftMediaValue | null> {
+export async function getDraftMedia(draftId: string, mediaId: string): Promise<DraftMediaValue | null> {
   try {
     const db = await initDB()
     const key = getMediaKey(draftId, mediaId)
@@ -138,10 +135,7 @@ export async function getDraftMedia(
 }
 
 // Delete a specific media item
-export async function deleteDraftMedia(
-  draftId: string,
-  mediaId: string,
-): Promise<void> {
+export async function deleteDraftMedia(draftId: string, mediaId: string): Promise<void> {
   try {
     const db = await initDB()
     const key = getMediaKey(draftId, mediaId)
@@ -163,9 +157,7 @@ export async function deleteDraftMedia(
 }
 
 // Delete all media for a specific draft
-export async function deleteAllDraftMediaForDraft(
-  draftId: string,
-): Promise<void> {
+export async function deleteAllDraftMediaForDraft(draftId: string): Promise<void> {
   try {
     const db = await initDB()
     const prefix = `draft:${draftId}:media:`
@@ -180,10 +172,7 @@ export async function deleteAllDraftMediaForDraft(
       }
 
       transaction.onerror = () => {
-        console.error(
-          'Transaction error deleting draft media:',
-          transaction.error,
-        )
+        console.error('Transaction error deleting draft media:', transaction.error)
         reject(transaction.error)
       }
 
@@ -238,10 +227,7 @@ export async function cleanupOldDraftMedia(
       }
 
       transaction.onerror = () => {
-        console.error(
-          'Transaction error cleaning up old draft media:',
-          transaction.error,
-        )
+        console.error('Transaction error cleaning up old draft media:', transaction.error)
         reject(transaction.error)
       }
 
@@ -262,10 +248,7 @@ export async function cleanupOldDraftMedia(
       }
 
       request.onerror = () => {
-        console.error(
-          'Cursor error cleaning up old draft media:',
-          request.error,
-        )
+        console.error('Cursor error cleaning up old draft media:', request.error)
         reject(request.error)
       }
     })

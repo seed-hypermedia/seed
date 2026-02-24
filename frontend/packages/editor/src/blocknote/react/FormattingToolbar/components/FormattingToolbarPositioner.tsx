@@ -5,15 +5,11 @@ import {BlockNoteEditor, BlockSchema, DefaultBlockSchema} from '../../../core'
 
 import {DefaultFormattingToolbar} from './DefaultFormattingToolbar'
 
-export type FormattingToolbarProps<
-  BSchema extends BlockSchema = DefaultBlockSchema,
-> = {
+export type FormattingToolbarProps<BSchema extends BlockSchema = DefaultBlockSchema> = {
   editor: BlockNoteEditor<BSchema>
 }
 
-export const FormattingToolbarPositioner = <
-  BSchema extends BlockSchema = DefaultBlockSchema,
->(props: {
+export const FormattingToolbarPositioner = <BSchema extends BlockSchema = DefaultBlockSchema>(props: {
   editor: BlockNoteEditor<BSchema>
   formattingToolbar?: FC<FormattingToolbarProps<BSchema>>
 }) => {
@@ -37,8 +33,7 @@ export const FormattingToolbarPositioner = <
   }, [referencePos.current])
 
   const formattingToolbarElement = useMemo(() => {
-    const FormattingToolbar =
-      props.formattingToolbar || DefaultFormattingToolbar
+    const FormattingToolbar = props.formattingToolbar || DefaultFormattingToolbar
 
     return <FormattingToolbar editor={props.editor} />
   }, [props.editor, props.formattingToolbar])

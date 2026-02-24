@@ -13,18 +13,7 @@ export const ColorPicker = (props: {
   return (
     <>
       <Menu.Label>Text</Menu.Label>
-      {[
-        'default',
-        'gray',
-        'brown',
-        'red',
-        'orange',
-        'yellow',
-        'green',
-        'blue',
-        'purple',
-        'pink',
-      ].map((color) => (
+      {['default', 'gray', 'brown', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink'].map((color) => (
         <Menu.Item
           onClick={() => {
             props.onClick && props.onClick()
@@ -46,18 +35,7 @@ export const ColorPicker = (props: {
         </Menu.Item>
       ))}
       <Menu.Label>Background</Menu.Label>
-      {[
-        'default',
-        'gray',
-        'brown',
-        'red',
-        'orange',
-        'yellow',
-        'green',
-        'blue',
-        'purple',
-        'pink',
-      ].map((color) => (
+      {['default', 'gray', 'brown', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink'].map((color) => (
         <Menu.Item
           onClick={() => {
             props.onClick && props.onClick()

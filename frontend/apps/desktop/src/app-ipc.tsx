@@ -1,10 +1,7 @@
 export type AppIPC = {
   invoke: (cmd: string, data?: any) => Promise<any>
   send: (cmd: string, data?: any) => Promise<any>
-  listen: <T = unknown>(
-    cmd: string,
-    handler: (value: T) => void,
-  ) => Promise<() => void>
+  listen: <T = unknown>(cmd: string, handler: (value: T) => void) => Promise<() => void>
 }
 
 export type Event<T> = {

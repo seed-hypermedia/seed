@@ -55,22 +55,14 @@ export function AutoUpdater() {
           <Button variant="default" onClick={handleDownloadAndInstall}>
             Download and Install
           </Button>
-          <Button
-            variant="ghost"
-            className="text-muted-foreground"
-            onClick={() => handleLater()}
-          >
+          <Button variant="ghost" className="text-muted-foreground" onClick={() => handleLater()}>
             Later
           </Button>
-          {updateStatus?.type == 'update-available' &&
-            updateStatus.updateInfo.release_notes && (
-              <Button
-                variant="outline"
-                onClick={() => window.autoUpdate?.releaseNotes()}
-              >
-                Release Notes
-              </Button>
-            )}
+          {updateStatus?.type == 'update-available' && updateStatus.updateInfo.release_notes && (
+            <Button variant="outline" onClick={() => window.autoUpdate?.releaseNotes()}>
+              Release Notes
+            </Button>
+          )}
         </div>
       ) : updateStatus?.type == 'downloading' ? (
         <div className="flex flex-col gap-2">

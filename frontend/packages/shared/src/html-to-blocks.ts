@@ -24,10 +24,7 @@ export async function htmlToBlocks(
   }
 
   // Helper function to check if a paragraph should be treated as a heading
-  function shouldTreatAsHeading(
-    el: any,
-    context?: {hasNewlinesBefore?: boolean},
-  ): boolean {
+  function shouldTreatAsHeading(el: any, context?: {hasNewlinesBefore?: boolean}): boolean {
     // Check if the paragraph contains only em/strong/b tags and/or whitespace
     if (!el.children) return false
 
@@ -47,11 +44,7 @@ export async function htmlToBlocks(
           hasWhitespaceOutsideFormatting = true
         }
       } else if (child.type === 'tag') {
-        if (
-          child.name === 'em' ||
-          child.name === 'strong' ||
-          child.name === 'b'
-        ) {
+        if (child.name === 'em' || child.name === 'strong' || child.name === 'b') {
           hasFormattingTag = true
           formattingTagCount++
         } else {
@@ -67,8 +60,7 @@ export async function htmlToBlocks(
     return (
       hasOnlyFormattingAndWhitespace &&
       hasFormattingTag &&
-      (hasWhitespaceOutsideFormatting ||
-        (formattingTagCount === 1 && context?.hasNewlinesBefore === true))
+      (hasWhitespaceOutsideFormatting || (formattingTagCount === 1 && context?.hasNewlinesBefore === true))
     )
   }
 
@@ -191,18 +183,13 @@ export async function htmlToBlocks(
     await walk(node, 0, {})
 
     const trimmedText = normalizedText.trim()
-    const leadingWhitespaceLength =
-      normalizedText.length - normalizedText.trimStart().length
+    const leadingWhitespaceLength = normalizedText.length - normalizedText.trimStart().length
 
     // Adjust annotation positions to account for trimmed leading whitespace
     const adjustedAnnotations = annotations.map((annotation) => ({
       ...annotation,
-      starts: annotation.starts.map((pos) =>
-        Math.max(0, pos - leadingWhitespaceLength),
-      ),
-      ends: annotation.ends.map((pos) =>
-        Math.max(0, pos - leadingWhitespaceLength),
-      ),
+      starts: annotation.starts.map((pos) => Math.max(0, pos - leadingWhitespaceLength)),
+      ends: annotation.ends.map((pos) => Math.max(0, pos - leadingWhitespaceLength)),
     }))
 
     adjustedAnnotations.sort((a, b) => {
@@ -316,8 +303,7 @@ export async function htmlToBlocks(
         const src = img.attr('src')
         if (src) {
           const absoluteImageUrl = resolve(htmlPath, '..', src)
-          const uploadedCID =
-            uploadLocalFile && (await uploadLocalFile(absoluteImageUrl))
+          const uploadedCID = uploadLocalFile && (await uploadLocalFile(absoluteImageUrl))
           if (uploadedCID) {
             let imageBlockNode: HMBlockNode = {
               block: {
@@ -359,8 +345,7 @@ export async function htmlToBlocks(
       const src = $el.attr('src')
       if (src) {
         const absoluteImageUrl = resolve(htmlPath, '..', src)
-        const uploadedCID =
-          uploadLocalFile && (await uploadLocalFile(absoluteImageUrl))
+        const uploadedCID = uploadLocalFile && (await uploadLocalFile(absoluteImageUrl))
         if (uploadedCID) {
           processedElements.push({
             type: 'content',
@@ -387,8 +372,7 @@ export async function htmlToBlocks(
         const src = img.attr('src')
         if (src) {
           const absoluteImageUrl = resolve(htmlPath, '..', src)
-          const uploadedCID =
-            uploadLocalFile && (await uploadLocalFile(absoluteImageUrl))
+          const uploadedCID = uploadLocalFile && (await uploadLocalFile(absoluteImageUrl))
           if (uploadedCID) {
             imageBlockNode = {
               block: {
@@ -457,11 +441,7 @@ export async function htmlToBlocks(
       let link = null
       $el.find('a[href]').each((_, a) => {
         const href = $(a).attr('href')
-        if (
-          href &&
-          (/twitter.com\/[^/]+\/status\//.test(href) ||
-            /x.com\/[^/]+\/status\//.test(href))
-        ) {
+        if (href && (/twitter.com\/[^/]+\/status\//.test(href) || /x.com\/[^/]+\/status\//.test(href))) {
           link = href
         }
       })

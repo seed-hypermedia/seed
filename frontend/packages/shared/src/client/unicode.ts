@@ -8,12 +8,7 @@ export class AnnotationSet {
     this.annotations = new Map()
   }
 
-  addSpan(
-    type: string,
-    attributes: {[key: string]: string} | null,
-    start: number,
-    end: number,
-  ) {
+  addSpan(type: string, attributes: {[key: string]: string} | null, start: number, end: number) {
     const id = this._annotationId(type, attributes)
 
     let annotation = this.annotations.get(id)
@@ -93,11 +88,7 @@ export class AnnotationSet {
   }
 }
 
-export function addSpanToAnnotation(
-  annotation: Annotation,
-  start: number,
-  end: number,
-) {
+export function addSpanToAnnotation(annotation: Annotation, start: number, end: number) {
   // We don't need to use any fancy range set data structure here, because we know specifics of our environment,
   // i.e. we know that we'll only ever iterate over the Slate leaves in order, only going forward and never backwards.
   // So, all the possible derived spans will always be sorted.
@@ -130,11 +121,7 @@ export function addSpanToAnnotation(
   pushSpanToAnnotation(annotation, start, end)
 }
 
-export function pushSpanToAnnotation(
-  annotation: Annotation,
-  start: number,
-  end: number,
-) {
+export function pushSpanToAnnotation(annotation: Annotation, start: number, end: number) {
   annotation.starts.push(start)
   annotation.ends.push(end)
 }

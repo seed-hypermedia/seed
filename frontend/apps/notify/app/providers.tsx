@@ -1,20 +1,9 @@
 import {useNavigate} from '@remix-run/react'
-import {
-  NavRoute,
-  OptimizedImageSize,
-  routeToHref,
-  UniversalAppProvider,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {NavRoute, OptimizedImageSize, routeToHref, UniversalAppProvider, UnpackedHypermediaId} from '@shm/shared'
 import {DAEMON_FILE_URL, SEED_ASSET_HOST} from '@shm/shared/constants'
 import {languagePacks} from '@shm/shared/language-packs'
 import {defaultRoute} from '@shm/shared/routes'
-import {
-  NavAction,
-  NavContextProvider,
-  NavState,
-  navStateReducer,
-} from '@shm/shared/utils/navigation'
+import {NavAction, NavContextProvider, NavState, navStateReducer} from '@shm/shared/utils/navigation'
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
@@ -54,9 +43,7 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     // Check system preference on initial load
     if (typeof window !== 'undefined') {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light'
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
     }
     return 'light'
   })
@@ -190,9 +177,7 @@ export function WebSiteProvider(props: {
         }
       }}
     >
-      <NavContextProvider value={navigation}>
-        {props.children}
-      </NavContextProvider>
+      <NavContextProvider value={navigation}>{props.children}</NavContextProvider>
     </UniversalAppProvider>
   )
 }

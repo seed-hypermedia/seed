@@ -1,8 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {
-  getSelectedIdentityFromWindowState,
-  type WindowNavState,
-} from '../utils/account-selection'
+import {getSelectedIdentityFromWindowState, type WindowNavState} from '../utils/account-selection'
 
 describe('getSelectedIdentityFromWindowState', () => {
   it('returns null when windowId is null', () => {
@@ -49,10 +46,7 @@ describe('getSelectedIdentityFromWindowState', () => {
       },
     }
 
-    const result = getSelectedIdentityFromWindowState(
-      windowNavState,
-      'window-2',
-    )
+    const result = getSelectedIdentityFromWindowState(windowNavState, 'window-2')
     expect(result).toBe(null)
   })
 
@@ -68,10 +62,7 @@ describe('getSelectedIdentityFromWindowState', () => {
       },
     }
 
-    const result = getSelectedIdentityFromWindowState(
-      windowNavState,
-      'window-1',
-    )
+    const result = getSelectedIdentityFromWindowState(windowNavState, 'window-1')
     expect(result).toBe(null)
   })
 
@@ -87,10 +78,7 @@ describe('getSelectedIdentityFromWindowState', () => {
       },
     }
 
-    const result = getSelectedIdentityFromWindowState(
-      windowNavState,
-      'window-1',
-    )
+    const result = getSelectedIdentityFromWindowState(windowNavState, 'window-1')
     expect(result).toBe('account-1')
   })
 
@@ -122,24 +110,15 @@ describe('getSelectedIdentityFromWindowState', () => {
       },
     }
 
-    expect(getSelectedIdentityFromWindowState(windowNavState, 'window-1')).toBe(
-      'account-1',
-    )
-    expect(getSelectedIdentityFromWindowState(windowNavState, 'window-2')).toBe(
-      'account-2',
-    )
-    expect(getSelectedIdentityFromWindowState(windowNavState, 'window-3')).toBe(
-      null,
-    )
+    expect(getSelectedIdentityFromWindowState(windowNavState, 'window-1')).toBe('account-1')
+    expect(getSelectedIdentityFromWindowState(windowNavState, 'window-2')).toBe('account-2')
+    expect(getSelectedIdentityFromWindowState(windowNavState, 'window-3')).toBe(null)
   })
 
   it('returns null when windowNavState is empty', () => {
     const windowNavState: Record<string, WindowNavState> = {}
 
-    const result = getSelectedIdentityFromWindowState(
-      windowNavState,
-      'window-1',
-    )
+    const result = getSelectedIdentityFromWindowState(windowNavState, 'window-1')
     expect(result).toBe(null)
   })
 
@@ -155,10 +134,7 @@ describe('getSelectedIdentityFromWindowState', () => {
       } as any,
     }
 
-    const result = getSelectedIdentityFromWindowState(
-      windowNavState,
-      'window-1',
-    )
+    const result = getSelectedIdentityFromWindowState(windowNavState, 'window-1')
     expect(result).toBe(null)
   })
 })

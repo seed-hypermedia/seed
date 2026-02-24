@@ -30,9 +30,7 @@ export function useHackyAuthorsSubscriptions(authorIds: string[]) {
   // Subscribe directly without useResources to avoid re-render cascade
   useEffect(() => {
     if (!client.subscribeEntity) return
-    const cleanups = hmIds
-      .filter((id) => !!id)
-      .map((id) => client.subscribeEntity!({id}))
+    const cleanups = hmIds.filter((id) => !!id).map((id) => client.subscribeEntity!({id}))
     return () => cleanups.forEach((cleanup) => cleanup())
   }, [idsKey, client.subscribeEntity])
 }

@@ -7,11 +7,7 @@ import {Feed} from './feed'
 import {useDocumentLayout} from './layout'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {PageLayout} from './page-layout'
-import {
-  CommentEditorProps,
-  computeHeaderData,
-  PageWrapper,
-} from './resource-page-common'
+import {CommentEditorProps, computeHeaderData, PageWrapper} from './resource-page-common'
 import {Separator} from './separator'
 import {Spinner} from './spinner'
 import {Text} from './text'
@@ -20,42 +16,26 @@ import {useMedia} from './use-media'
 export interface FeedPageProps {
   docId: UnpackedHypermediaId
   CommentEditor?: React.ComponentType<CommentEditorProps>
-  optionsMenuItems?: MenuItemType[]
+  extraMenuItems?: MenuItemType[]
   currentAccountUid?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
 }
 
-export function FeedPage({
-  docId,
-  optionsMenuItems,
-  currentAccountUid,
-  onCommentDelete,
-}: FeedPageProps) {
+export function FeedPage({docId, extraMenuItems, currentAccountUid, onCommentDelete}: FeedPageProps) {
   const siteHomeId = hmId(docId.uid)
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
   const homeDirectory = useDirectory(siteHomeId)
 
   const siteHomeDocument: HMDocument | null =
-    siteHomeResource.data?.type === 'document'
-      ? siteHomeResource.data.document
-      : null
+    siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
 
-  const headerData = computeHeaderData(
-    siteHomeId,
-    siteHomeDocument,
-    homeDirectory.data,
-  )
+  const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data)
 
   const targetDomain = siteHomeDocument?.metadata?.siteUrl || undefined
 
   if (siteHomeResource.isInitialLoading) {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={docId}
-        headerData={headerData}
-        isMainFeedVisible
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} isMainFeedVisible>
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
@@ -73,7 +53,7 @@ export function FeedPage({
     >
       <FeedBody
         siteHomeId={siteHomeId}
-        optionsMenuItems={optionsMenuItems}
+        extraMenuItems={extraMenuItems}
         currentAccountUid={currentAccountUid}
         onCommentDelete={onCommentDelete}
         targetDomain={targetDomain}
@@ -84,13 +64,13 @@ export function FeedPage({
 
 function FeedBody({
   siteHomeId,
-  optionsMenuItems,
+  extraMenuItems,
   currentAccountUid,
   onCommentDelete,
   targetDomain,
 }: {
   siteHomeId: UnpackedHypermediaId
-  optionsMenuItems?: MenuItemType[]
+  extraMenuItems?: MenuItemType[]
   currentAccountUid?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   targetDomain?: string
@@ -112,22 +92,16 @@ function FeedBody({
   const media = useMedia()
   const isMobile = media.xs
 
-  const hasOptions = optionsMenuItems && optionsMenuItems.length > 0
+  const menuItems = extraMenuItems || []
 
   const feedContent = (
-    <PageLayout centered contentMaxWidth={contentMaxWidth}>
+    <PageLayout contentMaxWidth={contentMaxWidth}>
       <div className="flex flex-col gap-4 pt-8">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between px-4">
           <Text weight="bold" size="3xl">
             What's New
           </Text>
-          {hasOptions && (
-            <OptionsDropdown
-              menuItems={optionsMenuItems!}
-              align="end"
-              side="bottom"
-            />
-          )}
+          {menuItems.length > 0 && <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />}
         </div>
         <Separator />
         <Feed
@@ -136,7 +110,6 @@ function FeedBody({
           onCommentDelete={onCommentDelete}
           targetDomain={targetDomain}
           size="md"
-          centered
           filterEventType={filterEventType}
         />
       </div>

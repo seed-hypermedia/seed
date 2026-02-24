@@ -27,9 +27,7 @@ function editorBlocksToBlockNodes(editorBlocks: EditorBlock[]): HMBlockNode[] {
       try {
         return {
           block: editorBlockToHMBlock(block),
-          children: block.children
-            ? editorBlocksToBlockNodes(block.children)
-            : undefined,
+          children: block.children ? editorBlocksToBlockNodes(block.children) : undefined,
         }
       } catch (error) {
         // Return a fallback paragraph block for unsupported types
@@ -42,9 +40,7 @@ function editorBlocksToBlockNodes(editorBlocks: EditorBlock[]): HMBlockNode[] {
             annotations: [],
             attributes: {},
           },
-          children: block.children
-            ? editorBlocksToBlockNodes(block.children)
-            : undefined,
+          children: block.children ? editorBlocksToBlockNodes(block.children) : undefined,
         }
       }
     })
@@ -53,16 +49,13 @@ function editorBlocksToBlockNodes(editorBlocks: EditorBlock[]): HMBlockNode[] {
 
 export default function PreviewPage() {
   const route = useNavRoute() as PreviewRoute
-  if (route.key !== 'preview')
-    throw new Error('PreviewPage requires preview route')
+  if (route.key !== 'preview') throw new Error('PreviewPage requires preview route')
 
   const {data: draft, isLoading} = useDraft(route.draftId)
 
   if (isLoading) {
     return (
-      <div
-        className={cn(panelContainerStyles, 'flex items-center justify-center')}
-      >
+      <div className={cn(panelContainerStyles, 'flex items-center justify-center')}>
         <Spinner className="size-8" />
       </div>
     )
@@ -70,9 +63,7 @@ export default function PreviewPage() {
 
   if (!draft) {
     return (
-      <div
-        className={cn(panelContainerStyles, 'flex items-center justify-center')}
-      >
+      <div className={cn(panelContainerStyles, 'flex items-center justify-center')}>
         <SizableText>Draft not found</SizableText>
       </div>
     )

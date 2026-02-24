@@ -1,16 +1,7 @@
-import {
-  BlockRange,
-  HMComment,
-  HMDocument,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+import {BlockRange, HMComment, HMDocument, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {PanelContent} from '@shm/ui/accessories'
-import {
-  BlockDiscussions,
-  CommentDiscussions,
-  Discussions,
-} from '@shm/ui/comments'
+import {BlockDiscussions, CommentDiscussions, Discussions} from '@shm/ui/comments'
 import React from 'react'
 // import {useScrollRestoration} from './use-scroll-restoration'
 
@@ -32,15 +23,7 @@ type DiscussionsPanelProps = {
 export const WebDiscussionsPanel = React.memo(_WebDiscussionsPanel)
 
 function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
-  const {
-    comment,
-    blockId,
-    blockRef,
-    blockRange,
-    commentEditor,
-    targetDomain,
-    docId,
-  } = props
+  const {comment, blockId, blockRef, blockRange, commentEditor, targetDomain, docId} = props
 
   // TODO: Re-enable scroll restoration for web
   // const scrollRef = useScrollRestoration(`discussions-${docId.id}`)
@@ -53,6 +36,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
           commentEditor={commentEditor}
           targetId={props.docId}
           targetDomain={targetDomain}
+          isEntirelyHighlighted={!blockRef}
           selection={
             blockRef
               ? {
@@ -73,11 +57,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
     })
     return (
       <PanelContent>
-        <BlockDiscussions
-          targetId={targetId}
-          commentEditor={commentEditor}
-          targetDomain={targetDomain}
-        />
+        <BlockDiscussions targetId={targetId} commentEditor={commentEditor} targetDomain={targetDomain} />
       </PanelContent>
     )
   }

@@ -66,9 +66,7 @@ export function SlashMenuItem(props: SlashMenuItemProps) {
         }, 1)
       }}
       ref={itemRef}
-      rightSection={
-        props.shortcut && <Badge size={'xs'}>{props.shortcut}</Badge>
-      }
+      rightSection={props.shortcut && <Badge size={'xs'}>{props.shortcut}</Badge>}
     >
       <Stack>
         {/*Might need separate classes.*/}

@@ -62,9 +62,7 @@ const prodInter: Interceptor = (next) => async (req) => {
 
     if (!isGrpcReady) throw e
     if (e.message.match('fetch failed') && e.stack?.join('').match('undici')) {
-      log.error(
-        '🚨 Mysterious Undici Error via ConnectWeb - possible connection pool issue',
-      )
+      log.error('🚨 Mysterious Undici Error via ConnectWeb - possible connection pool issue')
       log.error('Undici error details', {error: e})
       // Consider restarting daemon connection here
     }

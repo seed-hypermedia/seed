@@ -3,13 +3,7 @@ import {useSubscribeToNotifications} from '@shm/shared/models/email-notification
 import {useEffect, useState} from 'react'
 import {Button} from './button'
 import {CheckboxField} from './components/checkbox'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from './components/dialog'
+import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from './components/dialog'
 import {Input} from './components/input'
 import {Label} from './components/label'
 import {cn} from './utils'
@@ -22,23 +16,13 @@ interface SubscribeDialogProps {
   notifyServiceHost?: string
 }
 
-export function SubscribeDialog({
-  open,
-  onOpenChange,
-  accountId,
-  accountMeta,
-  notifyServiceHost,
-}: SubscribeDialogProps) {
+export function SubscribeDialog({open, onOpenChange, accountId, accountMeta, notifyServiceHost}: SubscribeDialogProps) {
   const [email, setEmail] = useState('')
   const [isChecked, setIsChecked] = useState(true)
   const [isMobileKeyboardOpen, setIsMobileKeyboardOpen] = useState(false)
   const [successEmail, setSuccessEmail] = useState<string | null>(null)
 
-  const {
-    mutate,
-    isPending,
-    error: mutationError,
-  } = useSubscribeToNotifications()
+  const {mutate, isPending, error: mutationError} = useSubscribeToNotifications()
 
   const error = mutationError instanceof Error ? mutationError.message : null
 
@@ -49,8 +33,7 @@ export function SubscribeDialog({
     const handleResize = () => {
       // Detect if mobile keyboard is open
       const initialViewportHeight = window.innerHeight
-      const currentViewportHeight =
-        window.visualViewport?.height || window.innerHeight
+      const currentViewportHeight = window.visualViewport?.height || window.innerHeight
       const heightDifference = initialViewportHeight - currentViewportHeight
 
       setIsMobileKeyboardOpen(heightDifference > 150)
@@ -111,13 +94,10 @@ export function SubscribeDialog({
       </DialogHeader>
       <p>
         <span className="font-bold">{successEmail}</span> will be notified when{' '}
-        <span className="font-bold">{accountMeta?.name || 'this site'}</span> is
-        updated, and when new discussions are created.
+        <span className="font-bold">{accountMeta?.name || 'this site'}</span> is updated, and when new discussions are
+        created.
       </p>
-      <p>
-        You can unsubscribe or change notification settings by clicking the link
-        included in every email.
-      </p>
+      <p>You can unsubscribe or change notification settings by clicking the link included in every email.</p>
       <DialogFooter>
         <Button
           onClick={() => {
@@ -137,11 +117,7 @@ export function SubscribeDialog({
       </DialogHeader>
 
       <div className="space-y-4">
-        {error && (
-          <div className="rounded-md bg-red-50 p-3 text-sm text-red-600">
-            {error}
-          </div>
-        )}
+        {error && <div className="rounded-md bg-red-50 p-3 text-sm text-red-600">{error}</div>}
 
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
@@ -161,8 +137,8 @@ export function SubscribeDialog({
           onCheckedChange={(checked: boolean) => setIsChecked(checked === true)}
           variant="primary"
         >
-          Get notified about site activity (discussions, document changes) and
-          user activity (mentions, replies, comments).
+          Get notified about site activity (discussions, document changes) and user activity (mentions, replies,
+          comments).
         </CheckboxField>
       </div>
 

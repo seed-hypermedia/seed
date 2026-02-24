@@ -1,14 +1,12 @@
 import {UnpackedHypermediaId, useUniversalAppContext} from '@shm/shared'
-import {
-  CommentsProvider,
-  isRouteEqualToCommentTarget,
-} from '@shm/shared/comments-service-provider'
+import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
 import {HMComment} from '@shm/shared/hm-types'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
 import {useCallback} from 'react'
-import {WebAccountFooter, useWebMenuItems} from './web-utils'
+import {PageFooter} from './page-footer'
+import {WebAccountFooter} from './web-utils'
 
 export interface WebResourcePageProps {
   docId: UnpackedHypermediaId
@@ -25,8 +23,6 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
   const route = useNavRoute()
   const navigate = useNavigate()
   const replaceRoute = useNavigate('replace')
-
-  const menuItems = useWebMenuItems(docId)
 
   // Show banner when viewing content from a different site than the host
   const siteUid = docId.uid
@@ -99,16 +95,13 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
   )
 
   return (
-    <WebAccountFooter>
+    <WebAccountFooter liftForPageFooter={true}>
       {showBanner && <HypermediaHostBanner origin={origin} />}
-      <CommentsProvider
-        onReplyClick={onReplyClick}
-        onReplyCountClick={onReplyCountClick}
-      >
+      <CommentsProvider onReplyClick={onReplyClick} onReplyCountClick={onReplyCountClick}>
         <ResourcePage
           docId={docId}
           CommentEditor={CommentEditor}
-          optionsMenuItems={menuItems}
+          pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />}
         />
       </CommentsProvider>
     </WebAccountFooter>

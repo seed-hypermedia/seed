@@ -76,7 +76,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		iri += "?v=" + vstr
 	}
 
-	if version != "" {
+	if version != "" && s.resources != nil {
 		res, err := s.resources.GetResource(ctxLocalPeers, &docspb.GetResourceRequest{
 			Iri: iri,
 		})
@@ -153,7 +153,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		}
 
 		res := s.syncWithManyPeers(ctxLocalPeers, subsMap, store, prog, auth)
-		if res.NumSyncOK > 0 {
+		if res.NumSyncOK > 0 && s.resources != nil {
 			doc, err := s.resources.GetResource(ctxLocalPeers, &docspb.GetResourceRequest{
 				Iri: iri,
 			})
@@ -190,7 +190,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	}
 
 	res := s.syncWithManyPeers(ctxDHT, subsMap, store, prog, auth)
-	if res.NumSyncOK > 0 {
+	if res.NumSyncOK > 0 && s.resources != nil {
 		doc, err := s.resources.GetResource(ctxDHT, &docspb.GetResourceRequest{
 			Iri: iri,
 		})

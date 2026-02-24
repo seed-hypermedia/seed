@@ -10,8 +10,7 @@ export function useAutoUpdatePreference() {
     queryFn: () => client.appSettings.getAutoUpdatePreference.query(),
   })
   const setVal = useMutation({
-    mutationFn: (preference: 'true' | 'false') =>
-      client.appSettings.setAutoUpdatePreference.mutate(preference),
+    mutationFn: (preference: 'true' | 'false') => client.appSettings.setAutoUpdatePreference.mutate(preference),
     onError() {
       toast.error('Could not save this change :(')
     },

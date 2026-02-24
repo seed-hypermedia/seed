@@ -31,15 +31,9 @@ export type EditorTestHelpers = {
   /** Select all text */
   selectAll: () => Promise<void>
   /** Select range between elements */
-  selectRangeBetweenElements: (
-    startEl: Locator,
-    endEl: Locator,
-  ) => Promise<void>
+  selectRangeBetweenElements: (startEl: Locator, endEl: Locator) => Promise<void>
   /** Select nested list under item */
-  selectNestedList: (
-    itemText: string,
-    listType: 'Unordered' | 'Ordered' | 'Blockquote',
-  ) => Promise<void>
+  selectNestedList: (itemText: string, listType: 'Unordered' | 'Ordered' | 'Blockquote') => Promise<void>
   /** Select text by dragging */
   dragSelectText: (fromText: string, toText: string) => Promise<void>
   /** Open slash menu by typing '/' */
@@ -83,10 +77,7 @@ export const test = base.extend<{
 
   clipboardPermissions: [true, {option: true}],
 
-  editorHelpers: async (
-    {page, context, editorFixture, clipboardPermissions},
-    use,
-  ) => {
+  editorHelpers: async ({page, context, editorFixture, clipboardPermissions}, use) => {
     // Grant clipboard permissions by default
     if (clipboardPermissions) {
       await context.grantPermissions(['clipboard-read', 'clipboard-write'])
@@ -117,9 +108,7 @@ export const test = base.extend<{
       },
 
       getContentArea() {
-        return page
-          .locator('[data-testid="editor-container"] [contenteditable="true"]')
-          .first()
+        return page.locator('[data-testid="editor-container"] [contenteditable="true"]').first()
       },
 
       async getBlockCount() {
@@ -178,8 +167,7 @@ export const test = base.extend<{
       async selectRangeBetweenElements(startEl: Locator, endEl: Locator) {
         const startHandle = await startEl.elementHandle()
         const endHandle = await endEl.elementHandle()
-        if (!startHandle || !endHandle)
-          throw new Error('Missing element handle')
+        if (!startHandle || !endHandle) throw new Error('Missing element handle')
 
         await page.evaluate(
           ([start, end]) => {
@@ -200,23 +188,16 @@ export const test = base.extend<{
         )
       },
 
-      async selectNestedList(
-        parentText: string,
-        listType: 'Unordered' | 'Ordered' | 'Blockquote' = 'Unordered',
-      ) {
+      async selectNestedList(parentText: string, listType: 'Unordered' | 'Ordered' | 'Blockquote' = 'Unordered') {
         const contentArea = this.getContentArea()
 
         // Find the blockContainer that contains the parent list item text
-        const parentItem = contentArea
-          .locator('[data-node-type="blockContainer"]', {hasText: parentText})
-          .first()
+        const parentItem = contentArea.locator('[data-node-type="blockContainer"]', {hasText: parentText}).first()
 
         // The nested list under that item is the child blockGroup inside that blockContainer.
         const nestedGroup = parentItem
           .locator(
-            `[data-node-type="blockGroup"][data-list-type="${listType}"], ${
-              listType === 'Unordered' ? 'ul' : 'ol'
-            }`,
+            `[data-node-type="blockGroup"][data-list-type="${listType}"], ${listType === 'Unordered' ? 'ul' : 'ol'}`,
           )
           .last()
 
@@ -234,10 +215,7 @@ export const test = base.extend<{
           const view = tiptap.view
 
           let from = view.posAtDOM(groupEl as any, 0)
-          let to = view.posAtDOM(
-            groupEl as any,
-            (groupEl as any).childNodes.length,
-          )
+          let to = view.posAtDOM(groupEl as any, (groupEl as any).childNodes.length)
 
           // Swap from and to if reversed
           if (from > to) [from, to] = [to, from]
@@ -275,16 +253,11 @@ export const test = base.extend<{
 
       async openSlashMenu() {
         await this.typeText('/')
-        await page.waitForSelector(
-          '.mantine-Menu-dropdown, [class*="mantine-"][class*="Menu"]',
-          {timeout: 5000},
-        )
+        await page.waitForSelector('.mantine-Menu-dropdown, [class*="mantine-"][class*="Menu"]', {timeout: 5000})
       },
 
       async clickSlashMenuItem(name: string) {
-        const menuItem = page.locator(
-          `.mantine-Menu-dropdown >> text="${name}"`,
-        )
+        const menuItem = page.locator(`.mantine-Menu-dropdown >> text="${name}"`)
         await menuItem.click()
       },
 
@@ -352,18 +325,13 @@ export const test = base.extend<{
 
         await page.evaluate(
           ({el, word, occurrence}) => {
-            const textNode = Array.from(el.childNodes).find(
-              (n) => n.nodeType === Node.TEXT_NODE,
-            ) as Text | undefined
-            if (!textNode || !textNode.nodeValue)
-              throw new Error('Paragraph has no text node')
+            const textNode = Array.from(el.childNodes).find((n) => n.nodeType === Node.TEXT_NODE) as Text | undefined
+            if (!textNode || !textNode.nodeValue) throw new Error('Paragraph has no text node')
 
             const txt = textNode.nodeValue
-            const idx =
-              occurrence === 'last' ? txt.lastIndexOf(word) : txt.indexOf(word)
+            const idx = occurrence === 'last' ? txt.lastIndexOf(word) : txt.indexOf(word)
 
-            if (idx === -1)
-              throw new Error(`Word "${word}" not found in paragraph: "${txt}"`)
+            if (idx === -1) throw new Error(`Word "${word}" not found in paragraph: "${txt}"`)
 
             const range = document.createRange()
             range.setStart(textNode, idx)

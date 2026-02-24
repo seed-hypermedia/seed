@@ -34,9 +34,7 @@ describe('extractAllContentRefs', () => {
         type: 'Paragraph',
         id: 'p1',
         text: 'hello world',
-        annotations: [
-          {type: 'Embed', link: 'hm://uid1/doc-a', starts: [0], ends: [5]},
-        ],
+        annotations: [{type: 'Embed', link: 'hm://uid1/doc-a', starts: [0], ends: [5]}],
       }),
     ]
     const refs = extractAllContentRefs(blocks)
@@ -51,9 +49,7 @@ describe('extractAllContentRefs', () => {
         type: 'Paragraph',
         id: 'p1',
         text: 'click here',
-        annotations: [
-          {type: 'Link', link: 'hm://uid2/linked-doc', starts: [0], ends: [10]},
-        ],
+        annotations: [{type: 'Link', link: 'hm://uid2/linked-doc', starts: [0], ends: [10]}],
       }),
     ]
     const refs = extractAllContentRefs(blocks)
@@ -68,9 +64,7 @@ describe('extractAllContentRefs', () => {
         type: 'Paragraph',
         id: 'p1',
         text: 'external',
-        annotations: [
-          {type: 'Link', link: 'https://example.com', starts: [0], ends: [8]},
-        ],
+        annotations: [{type: 'Link', link: 'https://example.com', starts: [0], ends: [8]}],
       }),
     ]
     const refs = extractAllContentRefs(blocks)
@@ -114,11 +108,7 @@ describe('extractAllContentRefs', () => {
     const refs = extractAllContentRefs(blocks)
     expect(refs).toHaveLength(3)
     const links = refs.map((r) => r.link).sort()
-    expect(links).toEqual([
-      'hm://uid/doc-a',
-      'hm://uid/doc-b',
-      'hm://uid/doc-c',
-    ])
+    expect(links).toEqual(['hm://uid/doc-a', 'hm://uid/doc-b', 'hm://uid/doc-c'])
   })
 
   it('ignores blocks without links', () => {
@@ -137,9 +127,7 @@ describe('hasQueryBlockTargetingSelf', () => {
   })
 
   it('returns false when no Query blocks exist', () => {
-    const blocks: HMBlockNode[] = [
-      makeBlock({type: 'Paragraph', id: 'p1', text: 'hello'}),
-    ]
+    const blocks: HMBlockNode[] = [makeBlock({type: 'Paragraph', id: 'p1', text: 'hello'})]
     expect(hasQueryBlockTargetingSelf(blocks, 'uid', ['path'])).toBe(false)
   })
 
@@ -155,9 +143,7 @@ describe('hasQueryBlockTargetingSelf', () => {
         },
       }),
     ]
-    expect(hasQueryBlockTargetingSelf(blocks, 'myuid', ['my', 'path'])).toBe(
-      true,
-    )
+    expect(hasQueryBlockTargetingSelf(blocks, 'myuid', ['my', 'path'])).toBe(true)
   })
 
   it('returns true for root doc with empty path Query', () => {
@@ -203,9 +189,7 @@ describe('hasQueryBlockTargetingSelf', () => {
         },
       }),
     ]
-    expect(hasQueryBlockTargetingSelf(blocks, 'uid1', ['my', 'path'])).toBe(
-      false,
-    )
+    expect(hasQueryBlockTargetingSelf(blocks, 'uid1', ['my', 'path'])).toBe(false)
   })
 
   it('detects Query block in nested children', () => {

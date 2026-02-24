@@ -20,9 +20,7 @@ export function insertContentAt<BSchema extends BlockSchema>(
   // }
 
   let {from, to} =
-    typeof position === 'number'
-      ? {from: position, to: position}
-      : {from: position.from, to: position.to}
+    typeof position === 'number' ? {from: position, to: position} : {from: position.from, to: position.to}
 
   let isOnlyTextContent = true
   let isOnlyBlockContent = true
@@ -50,8 +48,7 @@ export function insertContentAt<BSchema extends BlockSchema>(
   // instead of inserting the image below the paragraph
   if (from === to && isOnlyBlockContent) {
     const {parent} = tr.doc.resolve(from)
-    const isEmptyTextBlock =
-      parent.isTextblock && !parent.type.spec.code && !parent.childCount
+    const isEmptyTextBlock = parent.isTextblock && !parent.type.spec.code && !parent.childCount
 
     if (isEmptyTextBlock) {
       from -= 1

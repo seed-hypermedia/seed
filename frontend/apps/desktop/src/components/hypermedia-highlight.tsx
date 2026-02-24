@@ -13,9 +13,7 @@ interface HypermediaHighlightProps {
  * Component that manages highlighting elements with specific hypermedia IDs
  * across all windows in the Electron application.
  */
-export function HypermediaHighlight({
-  highlightColor = DEFAULT_HIGHLIGHT_COLOR,
-}: HypermediaHighlightProps) {
+export function HypermediaHighlight({highlightColor = DEFAULT_HIGHLIGHT_COLOR}: HypermediaHighlightProps) {
   const styleRef = useRef<HTMLStyleElement | null>(null)
 
   // Create the style element on mount
@@ -56,9 +54,7 @@ export function HypermediaHighlight({
       .join(',')
 
     const blockHighlightSelectors = selectors
-      .map(
-        (selector) => `${selector}:not(.block-paragraph):not(.block-heading)`,
-      )
+      .map((selector) => `${selector}:not(.block-paragraph):not(.block-heading)`)
       .join(',')
 
     return `

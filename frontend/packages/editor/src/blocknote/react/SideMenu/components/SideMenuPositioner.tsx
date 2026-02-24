@@ -1,10 +1,4 @@
-import {
-  Block,
-  BlockNoteEditor,
-  BlockSchema,
-  DefaultBlockSchema,
-  SideMenuProsemirrorPlugin,
-} from '../../../core'
+import {Block, BlockNoteEditor, BlockSchema, DefaultBlockSchema, SideMenuProsemirrorPlugin} from '../../../core'
 import {getGroupInfoFromPos} from '../../../core/extensions/Blocks/helpers/getGroupInfoFromPos'
 import {scrollEvents} from '../../../../editor-on-scroll-stream'
 import Tippy from '@tippyjs/react'
@@ -12,23 +6,16 @@ import {FC, useEffect, useMemo, useRef, useState} from 'react'
 import {DefaultSideMenu} from './DefaultSideMenu'
 import {DragHandleMenuProps} from './DragHandleMenu/DragHandleMenu'
 
-export type SideMenuProps<BSchema extends BlockSchema = DefaultBlockSchema> =
-  Pick<
-    SideMenuProsemirrorPlugin<BSchema>,
-    | 'blockDragStart'
-    | 'blockDragEnd'
-    | 'addBlock'
-    | 'freezeMenu'
-    | 'unfreezeMenu'
-  > & {
-    block: Block<BSchema>
-    editor: BlockNoteEditor<BSchema>
-    dragHandleMenu?: FC<DragHandleMenuProps<BSchema>>
-  }
+export type SideMenuProps<BSchema extends BlockSchema = DefaultBlockSchema> = Pick<
+  SideMenuProsemirrorPlugin<BSchema>,
+  'blockDragStart' | 'blockDragEnd' | 'addBlock' | 'freezeMenu' | 'unfreezeMenu'
+> & {
+  block: Block<BSchema>
+  editor: BlockNoteEditor<BSchema>
+  dragHandleMenu?: FC<DragHandleMenuProps<BSchema>>
+}
 
-export const SideMenuPositioner = <
-  BSchema extends BlockSchema = DefaultBlockSchema,
->(props: {
+export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSchema>(props: {
   editor: BlockNoteEditor<BSchema>
   sideMenu?: FC<SideMenuProps<BSchema>>
   placement?: 'left' | 'right'

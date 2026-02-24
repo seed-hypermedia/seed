@@ -252,7 +252,7 @@ func (fm *FileManager) UploadFile(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	w.Header().Add("Content-Type", "text/plain")
-	w.Write([]byte(n.Cid().String()))
+	_, _ = w.Write([]byte(n.Cid().String()))
 }
 
 // addFile chunks and adds content to the DAGService from a reader. The content

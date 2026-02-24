@@ -1,19 +1,7 @@
 import react from '@vitejs/plugin-react'
 import {defineConfig} from 'vite'
 
-const extensions = [
-  '.web.tsx',
-  '.tsx',
-  '.web.ts',
-  '.ts',
-  '.web.jsx',
-  '.jsx',
-  '.web.js',
-  '.js',
-  '.css',
-  '.json',
-  '.mjs',
-]
+const extensions = ['.web.tsx', '.tsx', '.web.ts', '.ts', '.web.jsx', '.jsx', '.web.js', '.js', '.css', '.json', '.mjs']
 
 // Minimal config for loading window - no tsConfigPaths, no tailwind, no sentry
 export default defineConfig(() => ({

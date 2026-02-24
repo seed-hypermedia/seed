@@ -6,9 +6,7 @@ export function remarkImageWidth() {
   return (tree: Node<Data>) => {
     visit(tree, 'image', (node: any) => {
       if (node.title && node.title.includes('|')) {
-        const [titleText, widthPart] = node.title
-          .split('|')
-          .map((part: string) => part.trim())
+        const [titleText, widthPart] = node.title.split('|').map((part: string) => part.trim())
         const widthMatch = widthPart.match(/width=(\d+)/)
         if (widthMatch) {
           node.data = {

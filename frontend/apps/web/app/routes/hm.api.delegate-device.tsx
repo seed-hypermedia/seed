@@ -27,21 +27,12 @@ export const action: ActionFunction = async ({request}) => {
     return json({message: 'Method not allowed'}, {status: 405})
   }
   if (request.headers.get('Content-Type') !== 'application/cbor') {
-    return json(
-      {message: 'Content-Type must be application/cbor'},
-      {status: 400},
-    )
+    return json({message: 'Content-Type must be application/cbor'}, {status: 400})
   }
   const cborData = await request.arrayBuffer()
-  const delegateDevicePayload = cborDecode(
-    new Uint8Array(cborData),
-  ) as DelegateDevicePayload
-  const browserToAppCapCid = await storeBlob(
-    delegateDevicePayload.browserToAppCap,
-  )
-  const appToBrowserCapCid = await storeBlob(
-    delegateDevicePayload.appToBrowserCap,
-  )
+  const delegateDevicePayload = cborDecode(new Uint8Array(cborData)) as DelegateDevicePayload
+  const browserToAppCapCid = await storeBlob(delegateDevicePayload.browserToAppCap)
+  const appToBrowserCapCid = await storeBlob(delegateDevicePayload.appToBrowserCap)
   const profileAliasCid = await storeBlob(delegateDevicePayload.profileAlias)
 
   return json({

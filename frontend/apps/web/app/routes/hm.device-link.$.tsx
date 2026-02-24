@@ -3,11 +3,7 @@ import {ClientOnly} from '@/client-lazy'
 import {loadSiteHeaderData, SiteHeaderPayload} from '@/loaders'
 import {defaultSiteIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
-import {
-  getOptimizedImageUrl,
-  NavigationLoadingContent,
-  WebSiteProvider,
-} from '@/providers'
+import {getOptimizedImageUrl, NavigationLoadingContent, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {WebSiteHeader} from '@/web-site-header'
 import {unwrap} from '@/wrapping'
@@ -16,17 +12,8 @@ import * as cbor from '@ipld/dag-cbor'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
 import {MetaDescriptor, useLoaderData} from '@remix-run/react'
-import {
-  DeviceLinkSessionSchema,
-  useRouteLink,
-  useUniversalAppContext,
-} from '@shm/shared'
-import {
-  DeviceLinkSession,
-  HMMetadata,
-  HMMetadataPayload,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+import {DeviceLinkSessionSchema, useRouteLink, useUniversalAppContext} from '@shm/shared'
+import {DeviceLinkSession, HMMetadata, HMMetadataPayload, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useAccount} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {Button} from '@shm/ui/button'
@@ -37,22 +24,9 @@ import {Close} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {Scanner, type IDetectedBarcode} from '@yudiel/react-qr-scanner'
-import {
-  ArrowRight,
-  Check,
-  KeySquare,
-  Link as LinkIcon,
-  Monitor,
-  Smartphone,
-} from 'lucide-react'
+import {ArrowRight, Check, KeySquare, Link as LinkIcon, Monitor, Smartphone} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-} from 'react'
+import {useCallback, useEffect, useMemo, useState, useSyncExternalStore} from 'react'
 import {postCBOR} from '../api'
 import {LocalWebIdentity} from '../auth'
 import {linkDevice, LinkingEvent, LinkingResult} from '../device-linking'
@@ -63,9 +37,7 @@ type DeviceLinkPagePayload = SiteHeaderPayload
 export const meta: MetaFunction = ({data}) => {
   const {homeMetadata} = unwrap<DeviceLinkPagePayload>(data)
   const meta: MetaDescriptor[] = []
-  const homeIcon = homeMetadata?.icon
-    ? getOptimizedImageUrl(extractIpfsUrlCid(homeMetadata.icon), 'S')
-    : null
+  const homeIcon = homeMetadata?.icon ? getOptimizedImageUrl(extractIpfsUrlCid(homeMetadata.icon), 'S') : null
   meta.push({
     tagName: 'link',
     rel: 'icon',
@@ -86,18 +58,12 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
 }
 
 export default function DeviceLinkPage() {
-  const {originHomeId, siteHost, origin, homeMetadata, dehydratedState} =
-    unwrap<DeviceLinkPagePayload>(useLoaderData())
+  const {originHomeId, siteHost, origin, homeMetadata, dehydratedState} = unwrap<DeviceLinkPagePayload>(useLoaderData())
   if (!originHomeId) {
     return <h2>Invalid origin home id</h2>
   }
   return (
-    <WebSiteProvider
-      origin={origin}
-      originHomeId={originHomeId}
-      siteHost={siteHost}
-      dehydratedState={dehydratedState}
-    >
+    <WebSiteProvider origin={origin} originHomeId={originHomeId} siteHost={siteHost} dehydratedState={dehydratedState}>
       <div className="flex h-dvh flex-col">
         <WebSiteHeader
           homeMetadata={homeMetadata}
@@ -129,9 +95,7 @@ export function HMDeviceLink() {
       return {session: null, parseError: false}
     }
     try {
-      const parsed = DeviceLinkSessionSchema.parse(
-        cborDecode(base58btc.decode(hash)),
-      )
+      const parsed = DeviceLinkSessionSchema.parse(cborDecode(base58btc.decode(hash)))
       return {session: parsed, parseError: false}
     } catch (e) {
       console.error('Failed to parse device link session from hash:', e)
@@ -142,9 +106,7 @@ export function HMDeviceLink() {
   // TODO(burdiyan): this is not the most robust way to check if the key is linked.
   // We ask the server for the profile info of the current key ID, and if it returns a profile with a different ID,
   // we assume this key is already linked to this profile. We trust the server to follow the identity redirects.
-  const isAlreadyLinked = Boolean(
-    keyPair && myAccount.data && keyPair.id !== myAccount.data.id.uid,
-  )
+  const isAlreadyLinked = Boolean(keyPair && myAccount.data && keyPair.id !== myAccount.data.id.uid)
 
   return (
     <div className="bg-card text-card-foreground my-auto w-full max-w-2xl space-y-4 rounded-xl p-8 shadow">
@@ -179,8 +141,8 @@ function InvalidTokenView({onBack}: {onBack: () => void}) {
         </div>
         <h1 className="text-2xl font-semibold">Invalid Session Token</h1>
         <p className="text-muted-foreground text-sm">
-          The session token in the URL is invalid or malformed. Please check
-          that you copied the entire token correctly, or scan the QR code again.
+          The session token in the URL is invalid or malformed. Please check that you copied the entire token correctly,
+          or scan the QR code again.
         </p>
       </div>
       <Button variant="default" onClick={onBack} className="w-full">
@@ -203,8 +165,7 @@ function KeyPairRequiredView() {
       <div className="flex flex-col space-y-2 text-center">
         <h1 className="text-2xl font-semibold">Create your web identity</h1>
         <p className="text-muted-foreground text-sm">
-          You don't have a key pair on this web site yet. Please create one
-          first to continue.
+          You don't have a key pair on this web site yet. Please create one first to continue.
         </p>
       </div>
 
@@ -219,19 +180,13 @@ function KeyPairRequiredView() {
 }
 
 function isMobileDevice() {
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent,
-  )
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 }
 
 /**
  * This is the main view with device linking instructions and buttons.
  */
-function LinkingInstructionsView({
-  accountInfo,
-}: {
-  accountInfo: HMMetadataPayload
-}) {
+function LinkingInstructionsView({accountInfo}: {accountInfo: HMMetadataPayload}) {
   const [showCamera, setShowCamera] = useState(false)
   const [showDesktopAppLinking, setShowDesktopAppLinking] = useState(false)
   const isMobile = isMobileDevice()
@@ -243,34 +198,25 @@ function LinkingInstructionsView({
   }
 
   if (showDesktopAppLinking) {
-    return (
-      <DesktopAppLinkingView onBack={() => setShowDesktopAppLinking(false)} />
-    )
+    return <DesktopAppLinkingView onBack={() => setShowDesktopAppLinking(false)} />
   }
 
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
       <div className="flex flex-col items-center justify-center gap-4">
-        <h1 className="text-center text-2xl font-semibold">
-          Link this browser to your identity
-        </h1>
+        <h1 className="text-center text-2xl font-semibold">Link this browser to your identity</h1>
         <div className="flex flex-row items-center justify-center gap-2">
-          <span className="text-muted-foreground text-sm font-medium">
-            Current profile:
-          </span>
+          <span className="text-muted-foreground text-sm font-medium">Current profile:</span>
           <HMIcon id={accountInfo.id} icon={accountInfo.metadata?.icon} />
-          <span className="text-sm">
-            {accountInfo.metadata?.name || accountInfo.id.uid}
-          </span>
+          <span className="text-sm">{accountInfo.metadata?.name || accountInfo.id.uid}</span>
         </div>
       </div>
 
       {/* Instructions */}
       <div className="flex flex-col gap-4">
         <p>
-          You need a computer with the Seed desktop app installed. You can
-          download the app from{' '}
+          You need a computer with the Seed desktop app installed. You can download the app from{' '}
           <a
             href="https://seed.hyper.media"
             target="_blank"
@@ -286,8 +232,7 @@ function LinkingInstructionsView({
         {!isMobile && (
           <div className="flex flex-col gap-3">
             <p className="font-medium">
-              If you're on the same device where the app is installed, just
-              click this button:
+              If you're on the same device where the app is installed, just click this button:
             </p>
 
             <Button variant="default" className="w-full" asChild>
@@ -306,23 +251,16 @@ function LinkingInstructionsView({
 
         <div className="flex flex-col gap-3">
           <p className="font-medium">
-            {isMobile
-              ? 'Follow these steps:'
-              : "If you're on a different device, follow these steps:"}
+            {isMobile ? 'Follow these steps:' : "If you're on a different device, follow these steps:"}
           </p>
           <ol className="list-decimal space-y-2 pl-5">
             <li>Open the Seed desktop app on your computer.</li>
             <li>
-              Choose the account you want to link with in the account picker in
-              the sidebar, then click on the key icon [
-              {<KeySquare className="inline-block size-4 align-text-bottom" />}]
-              next to the account name. Follow the instructions to start a
-              linking session.
+              Choose the account you want to link with in the account picker in the sidebar, then click on the key icon
+              [{<KeySquare className="inline-block size-4 align-text-bottom" />}] next to the account name. Follow the
+              instructions to start a linking session.
             </li>
-            <li>
-              Use one of the options below to connect this browser to your
-              desktop app.
-            </li>
+            <li>Use one of the options below to connect this browser to your desktop app.</li>
           </ol>
         </div>
       </div>
@@ -378,21 +316,18 @@ function DesktopAppLinkingView({onBack}: {onBack: () => void}) {
         >
           <ArrowRight className="h-4 w-4 rotate-180" />
         </button>
-        <h1 className="text-center text-2xl font-semibold">
-          Complete linking in desktop app
-        </h1>
+        <h1 className="text-center text-2xl font-semibold">Complete linking in desktop app</h1>
       </div>
 
       {/* Instructions */}
       <div className="flex flex-col gap-2">
         <p>
-          Follow the instructions in the Seed desktop app to start the linking
-          process, then copy the session token and paste it in the form below.
+          Follow the instructions in the Seed desktop app to start the linking process, then copy the session token and
+          paste it in the form below.
         </p>
 
         <p className="text-muted-foreground text-sm">
-          If you didn't follow through with the process, you can start over by
-          pressing the back button.
+          If you didn't follow through with the process, you can start over by pressing the back button.
         </p>
       </div>
 
@@ -409,8 +344,7 @@ function ScanQRCodeCard({onClick}: {onClick: () => void}) {
         <div>
           <h2 className="font-medium">Scan QR Code</h2>
           <p className="text-muted-foreground text-sm">
-            If your device has a camera, you can scan the QR code shown in the
-            desktop app.
+            If your device has a camera, you can scan the QR code shown in the desktop app.
           </p>
         </div>
         <Button variant="inverse" onClick={onClick} className="w-full">
@@ -421,11 +355,7 @@ function ScanQRCodeCard({onClick}: {onClick: () => void}) {
   )
 }
 
-function CopyPasteSessionCard({
-  hideDescription = false,
-}: {
-  hideDescription?: boolean
-}) {
+function CopyPasteSessionCard({hideDescription = false}: {hideDescription?: boolean}) {
   const [token, setToken] = useState('')
   const [hash, setHash] = useURLHash()
 
@@ -437,9 +367,8 @@ function CopyPasteSessionCard({
           <h2 className="font-medium">Copy-Paste Session Token</h2>
           {!hideDescription && (
             <p className="text-muted-foreground text-sm">
-              If your device doesn't have a camera, or you have problems
-              scanning the QR code — paste the session token here manually. You
-              can email it to yourself, or transfer it by any means you prefer.
+              If your device doesn't have a camera, or you have problems scanning the QR code — paste the session token
+              here manually. You can email it to yourself, or transfer it by any means you prefer.
             </p>
           )}
         </div>
@@ -457,12 +386,7 @@ function CopyPasteSessionCard({
             onChange={(e) => setToken(e.target.value)}
             className="flex-1 rounded-l-lg rounded-r-none border px-3 py-2 text-base focus:outline-none"
           />
-          <Button
-            variant="default"
-            className="rounded-l-none"
-            type="submit"
-            disabled={!token.trim()}
-          >
+          <Button variant="default" className="rounded-l-none" type="submit" disabled={!token.trim()}>
             Link
           </Button>
         </form>
@@ -487,11 +411,7 @@ function QRCodeScanner({onClose}: {onClose: () => void}) {
   }
 
   return (
-    <Scanner
-      components={{torch: false, finder: false}}
-      sound={false}
-      onScan={parseQRCode}
-    >
+    <Scanner components={{torch: false, finder: false}} sound={false} onScan={parseQRCode}>
       <div className="relative flex min-h-full flex-col items-center justify-center">
         <button
           type="button"
@@ -538,13 +458,7 @@ function DeviceLinkStatus({currentState}: {currentState: LinkingState}) {
 /**
  * View shown when user needs to approve device linking.
  */
-function ConfirmationView({
-  keyPair,
-  session,
-}: {
-  keyPair: LocalWebIdentity
-  session: DeviceLinkSession
-}) {
+function ConfirmationView({keyPair, session}: {keyPair: LocalWebIdentity; session: DeviceLinkSession}) {
   const [completion, setCompletion] = useState<Completion | null>(null)
   const [hash, setHash] = useURLHash()
 
@@ -570,12 +484,9 @@ function ConfirmationView({
 
   return (
     <div className="flex w-full flex-col items-center gap-5">
-      <h1 className="overflow-wrap-anywhere text-2xl font-semibold break-words">
-        Confirm Key Linking
-      </h1>
+      <h1 className="overflow-wrap-anywhere text-2xl font-semibold break-words">Confirm Key Linking</h1>
       <p className="text-muted-foreground overflow-visible text-sm text-wrap break-all">
-        After confirming, the current profile will become linked with the target
-        profile.
+        After confirming, the current profile will become linked with the target profile.
       </p>
       <div className="flex w-full flex-col justify-center gap-4 sm:flex-row">
         <ProfileCard title="Current profile" account={browserAccount.data} />
@@ -601,10 +512,7 @@ function ConfirmationView({
           className="w-full"
         >
           Confirm
-          <Check
-            className="absolute ml-1 h-4 w-4"
-            style={{left: 'calc(50% + 2rem)'}}
-          />
+          <Check className="absolute ml-1 h-4 w-4" style={{left: 'calc(50% + 2rem)'}} />
         </Button>
         <Button
           variant="outline"
@@ -631,29 +539,18 @@ function CompletionView({accountInfo}: {accountInfo: HMMetadataPayload}) {
         </div>
         <h1 className="text-2xl font-semibold">Successfully Linked!</h1>
         <p className="text-muted-foreground text-sm">
-          The signing key in this browser is already linked. From now on, you
-          will be acting on behalf of this account:
+          The signing key in this browser is already linked. From now on, you will be acting on behalf of this account:
         </p>
       </div>
       <div className="bg-muted flex flex-col items-center gap-1 rounded-lg border p-6">
-        <HMIcon
-          id={accountInfo.id}
-          icon={accountInfo.metadata?.icon}
-          name={accountInfo.metadata?.name}
-          size={64}
-        />
+        <HMIcon id={accountInfo.id} icon={accountInfo.metadata?.icon} name={accountInfo.metadata?.name} size={64} />
         <div className="text-center">
-          <p className="font-semibold">
-            {accountInfo.metadata?.name || 'Unknown Account'}
-          </p>
-          <p className="text-muted-foreground truncate text-xs">
-            {accountInfo.id.uid}
-          </p>
+          <p className="font-semibold">{accountInfo.metadata?.name || 'Unknown Account'}</p>
+          <p className="text-muted-foreground truncate text-xs">{accountInfo.id.uid}</p>
         </div>
       </div>
       <p className="text-muted-foreground text-center text-sm">
-        You can close this window now or click the button below to go back to
-        the home page.
+        You can close this window now or click the button below to go back to the home page.
       </p>
       <GoHomeButton />
     </div>
@@ -672,23 +569,12 @@ function ProfileCard({
 }) {
   return (
     <div className="bg-muted min-w-0 flex-1 rounded-lg border p-4">
-      <div className="text-muted-foreground mb-3 text-xs font-medium tracking-wide uppercase">
-        {title}
-      </div>
+      <div className="text-muted-foreground mb-3 text-xs font-medium tracking-wide uppercase">{title}</div>
       <div className="flex items-center gap-3">
-        <HMIcon
-          id={account.id}
-          icon={account.metadata?.icon}
-          name={account.metadata?.name}
-          size={40}
-        />
+        <HMIcon id={account.id} icon={account.metadata?.icon} name={account.metadata?.name} size={40} />
         <div className="min-w-0 flex-1">
-          <div className="truncate font-medium">
-            {account.metadata?.name || 'Unnamed Profile'}
-          </div>
-          <div className="text-muted-foreground truncate font-mono text-sm">
-            {account.id.uid}
-          </div>
+          <div className="truncate font-medium">{account.metadata?.name || 'Unnamed Profile'}</div>
+          <div className="text-muted-foreground truncate font-mono text-sm">{account.id.uid}</div>
         </div>
       </div>
     </div>
@@ -749,16 +635,12 @@ function useLinkDevice(localIdentity: LocalWebIdentity) {
     state: linkingState,
     mutation: useMutation({
       mutationFn: async (session: DeviceLinkSession) => {
-        const result = await linkDevice(
-          session,
-          localIdentity,
-          (e: LinkingEvent) => {
-            setLinkingState({
-              state: 'event',
-              event: e,
-            })
-          },
-        )
+        const result = await linkDevice(session, localIdentity, (e: LinkingEvent) => {
+          setLinkingState({
+            state: 'event',
+            event: e,
+          })
+        })
         setLinkingState({
           state: 'result',
           result: result,
@@ -813,11 +695,7 @@ function useURLHash() {
 
   const setHash = useCallback((value: string) => {
     if (value === '' || value === '#') {
-      history.replaceState(
-        null,
-        '',
-        window.location.pathname + window.location.search,
-      )
+      history.replaceState(null, '', window.location.pathname + window.location.search)
       // Firing the event manually to trigger the re-render,
       // because replacing the state does not trigger the event.
       // We don't simply set the value, because setting an empty string

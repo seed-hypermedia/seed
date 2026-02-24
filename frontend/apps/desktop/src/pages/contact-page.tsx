@@ -34,16 +34,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {
-  ArrowUpRight,
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-  Pencil,
-  ShieldCheck,
-  ShieldPlus,
-  Trash,
-} from 'lucide-react'
+import {ArrowUpRight, ChevronDown, ChevronRight, ChevronUp, Pencil, ShieldCheck, ShieldPlus, Trash} from 'lucide-react'
 import {useState} from 'react'
 import {useForm} from 'react-hook-form'
 import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
@@ -56,11 +47,7 @@ export default function ContactPage() {
   return <ContactListPage contactId={contactRoute.id} />
 }
 
-export function ContactListPage({
-  contactId,
-}: {
-  contactId?: UnpackedHypermediaId | undefined
-}) {
+export function ContactListPage({contactId}: {contactId?: UnpackedHypermediaId | undefined}) {
   return (
     <PanelContainer>
       <PanelGroup direction="horizontal" autoSaveId="contact-page">
@@ -68,23 +55,13 @@ export function ContactListPage({
           <ContactPageSidebar contactId={contactId} />
         </Panel>
         <PanelResizeHandle className="panel-resize-handle visible" />
-        <Panel>
-          {contactId ? <ContactPageMain contactId={contactId} /> : null}
-        </Panel>
+        <Panel>{contactId ? <ContactPageMain contactId={contactId} /> : null}</Panel>
       </PanelGroup>
     </PanelContainer>
   )
 }
 
-function Tab({
-  label,
-  isActive,
-  onPress,
-}: {
-  label: string
-  isActive: boolean
-  onPress: () => void
-}) {
+function Tab({label, isActive, onPress}: {label: string; isActive: boolean; onPress: () => void}) {
   return (
     <button
       className={cn(
@@ -102,11 +79,7 @@ function Tab({
   )
 }
 
-function ContactPageSidebar({
-  contactId,
-}: {
-  contactId?: UnpackedHypermediaId | undefined
-}) {
+function ContactPageSidebar({contactId}: {contactId?: UnpackedHypermediaId | undefined}) {
   const selectedAccountContacts = useSelectedAccountContacts()
   const [tab, setTab] = useState<'all' | 'saved'>('saved')
   const allAccounts = useAllAccountsWithContacts()
@@ -114,23 +87,13 @@ function ContactPageSidebar({
     tab === 'all'
       ? allAccounts.data
       : allAccounts.data?.filter((account) => {
-          return !!selectedAccountContacts.data?.find(
-            (c) => c.subject === account.id,
-          )
+          return !!selectedAccountContacts.data?.find((c) => c.subject === account.id)
         })
   return (
     <div className="flex h-full flex-col items-stretch">
       <div className="mt-4 flex flex-shrink-0 px-2">
-        <Tab
-          label="Saved Contacts"
-          isActive={tab === 'saved'}
-          onPress={() => setTab('saved')}
-        />
-        <Tab
-          label="All Contacts"
-          isActive={tab === 'all'}
-          onPress={() => setTab('all')}
-        />
+        <Tab label="Saved Contacts" isActive={tab === 'saved'} onPress={() => setTab('saved')} />
+        <Tab label="All Contacts" isActive={tab === 'all'} onPress={() => setTab('all')} />
       </div>
       <div className="flex flex-1 flex-col items-stretch overflow-y-auto">
         {displayContacts?.map((account) => {
@@ -140,9 +103,7 @@ function ContactPageSidebar({
               key={account.id}
               account={account}
               active={account.id === contactId?.uid}
-              savedContact={selectedAccountContacts.data?.find(
-                (c) => c.subject === account.id,
-              )}
+              savedContact={selectedAccountContacts.data?.find((c) => c.subject === account.id)}
             />
           )
         })}
@@ -170,25 +131,14 @@ function ContactListItem({
         navigate({key: 'contact', id})
       }}
     >
-      <HMIcon
-        size={28}
-        id={id}
-        name={account.metadata?.name}
-        icon={account.metadata?.icon}
-      />
+      <HMIcon size={28} id={id} name={account.metadata?.name} icon={account.metadata?.icon} />
       <span className="text-foreground flex-1 truncate overflow-hidden pl-2 text-left whitespace-nowrap">
         {savedContact ? savedContact.name : getMetadataName(account.metadata)}
       </span>
 
       <BookmarkButton active={active} hideUntilItemHover id={id} />
 
-      <ShieldCheck
-        className={cn(
-          'size-4',
-          'text-primary dark:text-brand-5',
-          !savedContact && 'opacity-0',
-        )}
-      />
+      <ShieldCheck className={cn('size-4', 'text-primary dark:text-brand-5', !savedContact && 'opacity-0')} />
     </Button>
   )
 }
@@ -200,9 +150,7 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
   const navigate = useNavigate()
   const selectedAccountContacts = useSelectedAccountContacts()
   const accounts = useContactList()
-  const myContact = selectedAccountContacts.data?.find(
-    (c) => c.subject === contactId?.uid,
-  )
+  const myContact = selectedAccountContacts.data?.find((c) => c.subject === contactId?.uid)
   let primaryTitle = contact.data?.metadata?.name
   let primaryTooltip = 'Self-Published Name'
   let secondaryTitle = null
@@ -221,28 +169,16 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
     <div className="h-full overflow-y-auto">
       <div className="flex min-h-full flex-1 flex-row justify-center p-4">
         <div className="border-border bg-background mx-auto flex w-full max-w-lg flex-col items-center gap-3 rounded-lg border p-4 py-7 dark:bg-black">
-          <HMIcon
-            id={contactId}
-            name={contact.data?.metadata?.name}
-            icon={contact.data?.metadata?.icon}
-            size={80}
-          />
+          <HMIcon id={contactId} name={contact.data?.metadata?.name} icon={contact.data?.metadata?.icon} size={80} />
           <Tooltip content={primaryTooltip}>
             <h2 className="text-3xl font-bold break-all">{primaryTitle}</h2>
           </Tooltip>
           {secondaryTitle && (
             <Tooltip content={secondaryTooltip}>
-              <h3 className="text-2xl text-gray-600 dark:text-gray-300">
-                {secondaryTitle}
-              </h3>
+              <h3 className="text-2xl text-gray-600 dark:text-gray-300">{secondaryTitle}</h3>
             </Tooltip>
           )}
-          {contact.data ? (
-            <ContactEdgeNames
-              contact={contact.data}
-              accounts={accounts.data?.accountsMetadata}
-            />
-          ) : null}
+          {contact.data ? <ContactEdgeNames contact={contact.data} accounts={accounts.data?.accountsMetadata} /> : null}
           <div className="flex items-center justify-center gap-3">
             <Button
               variant="outline"
@@ -298,12 +234,7 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
               </Button>
             )}
           </div>
-          {contact.data ? (
-            <AccountContacts
-              contact={contact.data}
-              ownerLabel={primaryTitle || 'Untitled'}
-            />
-          ) : null}
+          {contact.data ? <AccountContacts contact={contact.data} ownerLabel={primaryTitle || 'Untitled'} /> : null}
           {contactFormDialog.content}
           {deleteContactDialog.content}
         </div>
@@ -312,20 +243,12 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
   )
 }
 
-function DeleteContactDialog({
-  input,
-  onClose,
-}: {
-  input: {contact: PlainMessage<Contact>}
-  onClose: () => void
-}) {
+function DeleteContactDialog({input, onClose}: {input: {contact: PlainMessage<Contact>}; onClose: () => void}) {
   const deleteContact = useDeleteContact()
   return (
     <div className="flex flex-col gap-4">
       <DialogTitle>Delete Contact?</DialogTitle>
-      <div>
-        You will publicly delete this contact named "{input.contact.name}".
-      </div>
+      <div>You will publicly delete this contact named "{input.contact.name}".</div>
       <div className="flex flex-row items-center justify-between gap-2">
         <Spinner hide={!deleteContact.isLoading} />
         <Button
@@ -345,18 +268,10 @@ function DeleteContactDialog({
   )
 }
 
-function ContactEdgeNames({
-  contact,
-  accounts,
-}: {
-  contact: HMContact
-  accounts: HMAccountsMetadata
-}) {
+function ContactEdgeNames({contact, accounts}: {contact: HMContact; accounts: HMAccountsMetadata}) {
   const [isExpanded, setIsExpanded] = useState(false)
   const navigate = useNavigate()
-  const buttonLabel = isExpanded
-    ? 'Collapse List of Edge Names'
-    : 'Expand List of Edge Names'
+  const buttonLabel = isExpanded ? 'Collapse List of Edge Names' : 'Expand List of Edge Names'
   const buttonIcon = isExpanded ? ChevronDown : ChevronRight
 
   return (
@@ -364,16 +279,8 @@ function ContactEdgeNames({
       {contact.subjectContacts?.length ? (
         <>
           <div className="flex justify-center">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsExpanded((v) => !v)}
-            >
-              {isExpanded ? (
-                <ChevronUp className="size-4" />
-              ) : (
-                <ChevronDown className="size-4" />
-              )}
+            <Button variant="ghost" size="sm" onClick={() => setIsExpanded((v) => !v)}>
+              {isExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
               {buttonLabel}
             </Button>
           </div>
@@ -385,9 +292,7 @@ function ContactEdgeNames({
                   <div className="flex flex-row items-center justify-between gap-2">
                     <span className="font-bold">{contact.name}</span>
                     {account ? (
-                      <Tooltip
-                        content={account.metadata?.name || 'Unknown Account'}
-                      >
+                      <Tooltip content={account.metadata?.name || 'Unknown Account'}>
                         <button
                           onClick={() => {
                             navigate({
@@ -412,45 +317,27 @@ function ContactEdgeNames({
           ) : null}
         </>
       ) : (
-        <span className="text-foreground block w-full text-center text-sm">
-          No Edge Names
-        </span>
+        <span className="text-foreground block w-full text-center text-sm">No Edge Names</span>
       )}
     </div>
   )
 }
 
-function AccountContacts({
-  contact,
-  ownerLabel,
-}: {
-  contact: HMContact
-  ownerLabel: string
-}) {
-  const subjectAccounts = useResources(
-    contact.contacts?.map((c) => hmId(c.subject)) || [],
-    {subscribed: true},
-  )
+function AccountContacts({contact, ownerLabel}: {contact: HMContact; ownerLabel: string}) {
+  const subjectAccounts = useResources(contact.contacts?.map((c) => hmId(c.subject)) || [], {subscribed: true})
   const navigate = useNavigate()
   return (
     <div className="border-border dark:bg-background mt-4 self-stretch rounded-md border bg-white p-2">
       <h3 className="text-l p-3 font-bold break-words">
-        {contact.contacts?.length
-          ? `${ownerLabel}'s Contacts`
-          : `${ownerLabel} has no Contacts`}
+        {contact.contacts?.length ? `${ownerLabel}'s Contacts` : `${ownerLabel} has no Contacts`}
       </h3>
       <div className="flex flex-col">
         {contact.contacts?.map((contact) => {
-          const subjectAccountResult = subjectAccounts.find(
-            (a) => a.data?.id?.uid === contact.subject,
-          )
+          const subjectAccountResult = subjectAccounts.find((a) => a.data?.id?.uid === contact.subject)
           const subjectAccount = subjectAccountResult?.data
           const isDiscovering = subjectAccountResult?.isDiscovering
           const contactName = contact.name
-          const subjectName =
-            subjectAccount?.type === 'document'
-              ? subjectAccount.document?.metadata?.name
-              : undefined
+          const subjectName = subjectAccount?.type === 'document' ? subjectAccount.document?.metadata?.name : undefined
 
           return (
             <div
@@ -465,28 +352,16 @@ function AccountContacts({
               {subjectAccount ? (
                 <HMIcon
                   id={subjectAccount.id}
-                  name={
-                    subjectAccount.type === 'document'
-                      ? subjectAccount.document?.metadata?.name
-                      : undefined
-                  }
-                  icon={
-                    subjectAccount.type === 'document'
-                      ? subjectAccount.document?.metadata?.icon
-                      : undefined
-                  }
+                  name={subjectAccount.type === 'document' ? subjectAccount.document?.metadata?.name : undefined}
+                  icon={subjectAccount.type === 'document' ? subjectAccount.document?.metadata?.icon : undefined}
                   size={32}
                 />
               ) : (
                 <HMIcon id={hmId(contact.subject)} size={32} />
               )}
-              <span className="font-bold">
-                {isDiscovering ? 'Loading...' : subjectName}
-              </span>
+              <span className="font-bold">{isDiscovering ? 'Loading...' : subjectName}</span>
               {subjectName !== contactName ? (
-                <span className="text-gray-500 dark:text-gray-300">
-                  | {contactName}
-                </span>
+                <span className="text-gray-500 dark:text-gray-300">| {contactName}</span>
               ) : null}
             </div>
           )
@@ -544,9 +419,7 @@ function ContactFormDialog({
   return (
     <div className="flex flex-col gap-6">
       <DialogTitle>Save Contact</DialogTitle>
-      <p className="text-foreground italic">
-        This contact will be saved publicly for others to see.
-      </p>
+      <p className="text-foreground italic">This contact will be saved publicly for others to see.</p>
 
       <form
         onSubmit={(e) => {
@@ -555,16 +428,8 @@ function ContactFormDialog({
         }}
         className="flex flex-col gap-4"
       >
-        <FormField
-          name="name"
-          label="New Name for this Contact"
-          errors={errors}
-        >
-          <FormInput
-            control={control}
-            name="name"
-            placeholder="What you will publicly name this contact"
-          />
+        <FormField name="name" label="New Name for this Contact" errors={errors}>
+          <FormInput control={control} name="name" placeholder="What you will publicly name this contact" />
         </FormField>
 
         <Button type="submit" variant="default">

@@ -4,12 +4,12 @@ import {FeedPage} from '@shm/ui/feed-page-common'
 import {WebAccountFooter, useWebMenuItems} from './web-utils'
 
 export function WebFeedPage({docId}: {docId: UnpackedHypermediaId}) {
-  const menuItems = useWebMenuItems(docId)
+  const menuItems = useWebMenuItems()
 
   return (
     <WebAccountFooter>
       <CommentsProvider>
-        <FeedPage docId={docId} optionsMenuItems={menuItems} />
+        <FeedPage docId={docId} extraMenuItems={menuItems} />
       </CommentsProvider>
     </WebAccountFooter>
   )

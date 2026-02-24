@@ -1,7 +1,4 @@
-import {
-  AutocompletePopup,
-  createAutoCompletePlugin,
-} from '@shm/editor/autocomplete'
+import {AutocompletePopup, createAutoCompletePlugin} from '@shm/editor/autocomplete'
 import {useUniversalAppContext} from '@shm/shared'
 import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
@@ -47,13 +44,7 @@ export function createInlineEmbedNode(bnEditor: any) {
     renderPopup: (state, actions) => {
       const root = getOrCreatePopupElement()
       if (root) {
-        root.render(
-          <AutocompletePopup
-            editor={bnEditor}
-            state={state}
-            actions={actions}
-          />,
-        )
+        root.render(<AutocompletePopup editor={bnEditor} state={state} actions={actions} />)
       }
     },
   })
@@ -67,10 +58,7 @@ export function createInlineEmbedNode(bnEditor: any) {
       return ReactNodeViewRenderer(InlineEmbedNodeComponent)
     },
     renderHTML({HTMLAttributes}) {
-      return [
-        'span',
-        {...HTMLAttributes, 'data-inline-embed': HTMLAttributes.link},
-      ]
+      return ['span', {...HTMLAttributes, 'data-inline-embed': HTMLAttributes.link}]
     },
     parseHTML() {
       return [
@@ -127,13 +115,7 @@ export function MentionToken(props: {value: string; selected?: boolean}) {
   }
 }
 
-function DocumentMention({
-  unpackedRef,
-  selected,
-}: {
-  unpackedRef: UnpackedHypermediaId
-  selected?: boolean
-}) {
+function DocumentMention({unpackedRef, selected}: {unpackedRef: UnpackedHypermediaId; selected?: boolean}) {
   const entity = useResource(unpackedRef)
   const highlight = useHighlighter()
   return (
@@ -145,23 +127,14 @@ function DocumentMention({
   )
 }
 
-function ContactMention({
-  unpackedRef,
-  selected,
-}: {
-  unpackedRef: UnpackedHypermediaId
-  selected?: boolean
-}) {
+function ContactMention({unpackedRef, selected}: {unpackedRef: UnpackedHypermediaId; selected?: boolean}) {
   const {contacts} = useUniversalAppContext()
   const highlight = useHighlighter()
   const entity = useAccount(unpackedRef.uid)
 
   return (
     <MentionText selected={selected} {...highlight(unpackedRef)}>
-      {
-        getContactMetadata(unpackedRef.uid, entity.data?.metadata, contacts)
-          .name
-      }
+      {getContactMetadata(unpackedRef.uid, entity.data?.metadata, contacts).name}
     </MentionText>
   )
 }

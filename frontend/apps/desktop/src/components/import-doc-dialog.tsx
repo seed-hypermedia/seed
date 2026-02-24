@@ -22,10 +22,7 @@ function ImportConfirmDialog({
     documents: ImportedDocument[]
     documentCount: number
     docMap: Map<string, {name: string; path: string}>
-    onSuccess: (
-      documents: ImportedDocument[],
-      docMap: Map<string, {name: string; path: string}>,
-    ) => Promise<void>
+    onSuccess: (documents: ImportedDocument[], docMap: Map<string, {name: string; path: string}>) => Promise<void>
   }
 }) {
   const {documents, documentCount, docMap, onSuccess} = input

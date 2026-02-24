@@ -1,10 +1,5 @@
 import {PartialMessage} from '@bufbuild/protobuf'
-import {
-  hmId,
-  hmIdPathToEntityQueryPath,
-  packHmId,
-  unpackHmId,
-} from '@shm/shared'
+import {hmId, hmIdPathToEntityQueryPath, packHmId, unpackHmId} from '@shm/shared'
 import {DocumentChange} from '@shm/shared/client/grpc-types'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {HMBlockNode} from '@shm/shared/hm-types'
@@ -94,10 +89,7 @@ type ImportStatus =
       result: Awaited<ReturnType<typeof scrapeUrl>>
     }
 
-let importingStatus: Record<
-  string,
-  (ScrapeStatus & {mode: 'scraping'}) | ImportStatus
-> = {}
+let importingStatus: Record<string, (ScrapeStatus & {mode: 'scraping'}) | ImportStatus> = {}
 
 async function importSite(url: string, importId: string) {
   return await scrapeUrl(url, importId, (status) => {
@@ -132,27 +124,12 @@ async function importPost({
   if (!destinationHmId) {
     throw new Error('Invalid destination id')
   }
-  const postHtmlPath = join(
-    userDataPath,
-    'importer',
-    'scrapes',
-    importId,
-    'pages',
-    post.htmlFile,
-  )
+  const postHtmlPath = join(userDataPath, 'importer', 'scrapes', importId, 'pages', post.htmlFile)
   const postHtml = await readFile(postHtmlPath, {encoding: 'utf-8'})
   const postWpMetadataJsonPath = post.wordpressMetadataFile
-    ? join(
-        userDataPath,
-        'importer',
-        'scrapes',
-        importId,
-        'metadata',
-        post.wordpressMetadataFile,
-      )
+    ? join(userDataPath, 'importer', 'scrapes', importId, 'metadata', post.wordpressMetadataFile)
     : null
-  const postWpMetadataJson =
-    postWpMetadataJsonPath && (await readFile(postWpMetadataJsonPath))
+  const postWpMetadataJson = postWpMetadataJsonPath && (await readFile(postWpMetadataJsonPath))
   const postWpMetadata = postWpMetadataJson
     ? (JSON.parse(postWpMetadataJson.toString()) as {
         id?: number
@@ -193,10 +170,7 @@ async function importPost({
     throw new Error('Invalid destination id')
   }
   const postUrl = new URL(post.path)
-  const docPath = [
-    ...(parentId.path || []),
-    ...postUrl.pathname.split('/').filter((s) => !!s),
-  ]
+  const docPath = [...(parentId.path || []), ...postUrl.pathname.split('/').filter((s) => !!s)]
   let displayPublishTime: string | null = postWpMetadata?.[0]?.date_gmt
     ? new Date(postWpMetadata?.[0]?.date_gmt).toDateString()
     : null
@@ -237,13 +211,11 @@ async function importPost({
 }
 
 export const webImportingApi = t.router({
-  importWebSite: t.procedure
-    .input(z.object({url: z.string()}).strict())
-    .mutation(async ({input}) => {
-      const importId = nanoid(10)
-      startImport(input.url, importId)
-      return {importId}
-    }),
+  importWebSite: t.procedure.input(z.object({url: z.string()}).strict()).mutation(async ({input}) => {
+    const importId = nanoid(10)
+    startImport(input.url, importId)
+    return {importId}
+  }),
   importWebSiteStatus: t.procedure.input(z.string()).query(async ({input}) => {
     return importingStatus[input]
   }),
@@ -259,9 +231,7 @@ export const webImportingApi = t.router({
     )
     .mutation(async ({input}) => {
       const {importId, destinationId, signAccountUid} = input
-      const postsData = await readFile(
-        join(userDataPath, 'importer', 'scrapes', importId, 'posts.json'),
-      )
+      const postsData = await readFile(join(userDataPath, 'importer', 'scrapes', importId, 'posts.json'))
       const posts = JSON.parse(postsData.toString()) as PostsFile
       for (const post of posts) {
         await importPost({
@@ -284,13 +254,9 @@ export const webImportingApi = t.router({
     })
     if (res.ok) {
       const contentType = res.headers.get('content-type')
-      const parts = contentType
-        ? contentType.split(';').map((part) => part.trim())
-        : null
+      const parts = contentType ? contentType.split(';').map((part) => part.trim()) : null
       const mimeType = parts?.[0]
-      const charsetPart = parts?.find((part) =>
-        part.toLowerCase().startsWith('charset='),
-      )
+      const charsetPart = parts?.find((part) => part.toLowerCase().startsWith('charset='))
       const charset = charsetPart ? charsetPart.split('=')[1] : null
       const headers = Object.fromEntries(res.headers.entries())
       let metaTags = {}
@@ -302,9 +268,7 @@ export const webImportingApi = t.router({
       return {
         contentType,
         mimeType,
-        contentLength: headers['content-length']
-          ? Number(headers['content-length'])
-          : null,
+        contentLength: headers['content-length'] ? Number(headers['content-length']) : null,
         charset,
         headers,
         metaTags,
@@ -314,10 +278,7 @@ export const webImportingApi = t.router({
   }),
 })
 
-function changesForBlockNodes(
-  nodes: HMBlockNode[],
-  parentId: string,
-): DocumentChange[] {
+function changesForBlockNodes(nodes: HMBlockNode[], parentId: string): DocumentChange[] {
   const changes: DocumentChange[] = []
 
   let lastPlacedBlockId = ''

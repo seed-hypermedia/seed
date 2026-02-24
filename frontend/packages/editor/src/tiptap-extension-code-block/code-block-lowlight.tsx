@@ -1,10 +1,6 @@
 import {mergeCSSClasses} from '../blocknote'
 import styles from '../blocknote/core/extensions/Blocks/nodes/Block.module.css'
-import {
-  NodeViewProps,
-  NodeViewWrapper,
-  ReactNodeViewRenderer,
-} from '@tiptap/react'
+import {NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer} from '@tiptap/react'
 import {FC} from 'react'
 import {CodeBlock, CodeBlockOptions} from './code-block'
 import {CodeBlockView} from './code-block-view'
@@ -27,17 +23,12 @@ export const CodeBlockLowlight = CodeBlock.extend<CodeBlockLowlightOptions>({
   addNodeView() {
     const BlockContent: FC<NodeViewProps> = (props: NodeViewProps) => {
       const Content = CodeBlockView
-      const blockContentDOMAttributes =
-        this.options.domAttributes?.blockContent || {}
+      const blockContentDOMAttributes = this.options.domAttributes?.blockContent || {}
       const language = props.node.attrs.language
 
       return (
         <NodeViewWrapper
-          {...Object.fromEntries(
-            Object.entries(blockContentDOMAttributes).filter(
-              ([key]) => key !== 'class',
-            ),
-          )}
+          {...Object.fromEntries(Object.entries(blockContentDOMAttributes).filter(([key]) => key !== 'class'))}
           className={mergeCSSClasses(
             // @ts-ignore
             styles.blockContent,
@@ -48,9 +39,7 @@ export const CodeBlockLowlight = CodeBlock.extend<CodeBlockLowlightOptions>({
         >
           <Content
             props={props}
-            languages={[...this.options.lowlight.listLanguages(), 'html'].sort(
-              (a, b) => a.localeCompare(b),
-            )}
+            languages={[...this.options.lowlight.listLanguages(), 'html'].sort((a, b) => a.localeCompare(b))}
           />
         </NodeViewWrapper>
       )

@@ -1,10 +1,4 @@
-import {
-  getMetadataName,
-  HMDocument,
-  HMMetadata,
-  HMMetadataPayload,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {getMetadataName, HMDocument, HMMetadata, HMMetadataPayload, UnpackedHypermediaId} from '@shm/shared'
 import {Container} from '@shm/ui/container'
 import {DocumentDate} from '@shm/ui/document-date'
 import {DonateButton} from '@shm/ui/donate-button'
@@ -39,12 +33,7 @@ export function PageHeader({
         <div className="flex flex-col gap-4">
           {!isHomeDoc && docId && hasIcon ? (
             <div className={`mt-[${hasCover ? -80 : 0}px]`}>
-              <HMIcon
-                size={100}
-                id={docId}
-                name={docMetadata?.name}
-                icon={docMetadata?.icon}
-              />
+              <HMIcon size={100} id={docId} name={docMetadata?.name} icon={docMetadata?.icon} />
             </div>
           ) : null}
           {/* @ts-expect-error */}
@@ -53,20 +42,14 @@ export function PageHeader({
             {docMetadata?.name}
           </SizableText>
           {docMetadata?.summary ? (
-            <span className="font-body text-muted-foreground text-xl">
-              {docMetadata?.summary}
-            </span>
+            <span className="font-body text-muted-foreground text-xl">{docMetadata?.summary}</span>
           ) : null}
           <div className="flex flex-1 flex-wrap items-center gap-4">
             {authors?.length ? (
               <div className="flex max-w-full flex-wrap items-center gap-1">
                 {authors.flatMap((a, index) => {
                   return [
-                    <a
-                      key={a.id.id}
-                      href={getHref(originHomeId, a.id)}
-                      className="cursor-pointer text-sm font-bold"
-                    >
+                    <a key={a.id.id} href={getHref(originHomeId, a.id)} className="cursor-pointer text-sm font-bold">
                       {getMetadataName(a.metadata)}
                     </a>,
                     index !== authors.length - 1 ? (
@@ -85,12 +68,7 @@ export function PageHeader({
               </div>
             ) : null}
             {authors?.length ? <div className="bg-border h-6 w-px" /> : null}
-            {updateTime ? (
-              <DocumentDate
-                metadata={docMetadata || undefined}
-                updateTime={updateTime}
-              />
-            ) : null}
+            {updateTime ? <DocumentDate metadata={docMetadata || undefined} updateTime={updateTime} /> : null}
             <div className="flex-1" />
             {docId && <DonateButton docId={docId} authors={authors} />}
           </div>
@@ -137,10 +115,7 @@ function Breadcrumbs({
             size="xs"
             className="max-w-[15ch] truncate overflow-hidden whitespace-nowrap no-underline hover:underline"
           >
-            <a
-              key={first.id.id}
-              href={originHomeId ? getHref(originHomeId, first.id) : undefined}
-            >
+            <a key={first.id.id} href={originHomeId ? getHref(originHomeId, first.id) : undefined}>
               {first.metadata?.name}
             </a>
           </SizableText>
@@ -158,11 +133,7 @@ function Breadcrumbs({
             key={crumb.id.id}
             className="max-w-[15ch] truncate overflow-hidden whitespace-nowrap no-underline hover:underline"
           >
-            <a
-              href={originHomeId ? getHref(originHomeId, crumb.id) : undefined}
-            >
-              {crumb.metadata?.name}
-            </a>
+            <a href={originHomeId ? getHref(originHomeId, crumb.id) : undefined}>{crumb.metadata?.name}</a>
           </SizableText>,
         ]
       })}

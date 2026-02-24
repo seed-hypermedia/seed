@@ -67,9 +67,7 @@ export function useWaitForPublication(url: string, secondsUntilTimeout = 120) {
 //   }
 // }
 
-export async function fetchWebLinkMeta(
-  url: string,
-): Promise<Record<string, string>> {
+export async function fetchWebLinkMeta(url: string): Promise<Record<string, string>> {
   const queried = await client.web.queryMeta.query(url)
   return queried.meta
 }

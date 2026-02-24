@@ -1,8 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useRef} from 'react'
 
 // Use useLayoutEffect on client, useEffect on server (SSR safe)
-const useIsomorphicLayoutEffect =
-  typeof window !== 'undefined' ? useLayoutEffect : useEffect
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
 export type BlockScrollOptions = {
   /** Block position when scrolling ('start' | 'center') */
@@ -39,10 +38,7 @@ const defaultOptions: BlockScrollOptions = {
  *   navigate({...route, id: {...id, blockRef: blockId}})
  * }
  */
-export function useBlockScroll(
-  blockRef: string | null | undefined,
-  options: BlockScrollOptions = {},
-) {
+export function useBlockScroll(blockRef: string | null | undefined, options: BlockScrollOptions = {}) {
   const {block, behavior} = {...defaultOptions, ...options}
   const lastScrolledBlockRef = useRef<string | null>(null)
 
@@ -65,10 +61,7 @@ export function useBlockScroll(
       while (parent) {
         const style = window.getComputedStyle(parent)
         const overflowY = style.overflowY
-        if (
-          (overflowY === 'auto' || overflowY === 'scroll') &&
-          parent.scrollHeight > parent.clientHeight
-        ) {
+        if ((overflowY === 'auto' || overflowY === 'scroll') && parent.scrollHeight > parent.clientHeight) {
           scrollContainer = parent
           break
         }
@@ -79,11 +72,7 @@ export function useBlockScroll(
         // Scroll the container directly
         const containerRect = scrollContainer.getBoundingClientRect()
         const elementRect = element.getBoundingClientRect()
-        const scrollTop =
-          scrollContainer.scrollTop +
-          elementRect.top -
-          containerRect.top -
-          STICKY_HEADER_OFFSET
+        const scrollTop = scrollContainer.scrollTop + elementRect.top - containerRect.top - STICKY_HEADER_OFFSET
         scrollContainer.scrollTo({top: scrollTop, behavior})
       } else {
         // No scroll container, use standard scrollIntoView
@@ -133,10 +122,7 @@ export function useBlockScroll(
       while (parent) {
         const style = window.getComputedStyle(parent)
         const overflowY = style.overflowY
-        if (
-          (overflowY === 'auto' || overflowY === 'scroll') &&
-          parent.scrollHeight > parent.clientHeight
-        ) {
+        if ((overflowY === 'auto' || overflowY === 'scroll') && parent.scrollHeight > parent.clientHeight) {
           scrollContainer = parent
           break
         }
@@ -146,11 +132,7 @@ export function useBlockScroll(
       if (scrollContainer) {
         const containerRect = scrollContainer.getBoundingClientRect()
         const elementRect = element.getBoundingClientRect()
-        const scrollTop =
-          scrollContainer.scrollTop +
-          elementRect.top -
-          containerRect.top -
-          STICKY_HEADER_OFFSET
+        const scrollTop = scrollContainer.scrollTop + elementRect.top - containerRect.top - STICKY_HEADER_OFFSET
         scrollContainer.scrollTo({top: scrollTop, behavior})
       } else {
         element.scrollIntoView({behavior, block})

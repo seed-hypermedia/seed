@@ -11,10 +11,7 @@ export type SubscribePayload = {
   notifySiteDiscussions: boolean
 }
 
-async function subscribeToNotifications({
-  notifyServiceHost,
-  ...payload
-}: SubscribePayload): Promise<void> {
+async function subscribeToNotifications({notifyServiceHost, ...payload}: SubscribePayload): Promise<void> {
   const response = await fetch(`${notifyServiceHost}/hm/api/public-subscribe`, {
     method: 'POST',
     headers: {
@@ -29,9 +26,7 @@ async function subscribeToNotifications({
   }
 }
 
-export function useSubscribeToNotifications(
-  opts?: UseMutationOptions<void, Error, SubscribePayload>,
-) {
+export function useSubscribeToNotifications(opts?: UseMutationOptions<void, Error, SubscribePayload>) {
   return useMutation({
     mutationFn: subscribeToNotifications,
     ...opts,

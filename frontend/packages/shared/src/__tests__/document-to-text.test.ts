@@ -9,17 +9,11 @@ const createMockGrpcClient = (mockDocs: Record<string, any>) => {
     documents: {
       getDocument: vi.fn(async ({account, path}) => {
         // Normalize path by removing leading/trailing slashes and double slashes
-        const normalizedPath = path
-          ? path.replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/')
-          : ''
+        const normalizedPath = path ? path.replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/') : ''
         const key = `${account}${normalizedPath ? '/' + normalizedPath : ''}`
         const doc = mockDocs[key]
         if (!doc) {
-          throw new Error(
-            `Document not found: ${key} (available: ${Object.keys(
-              mockDocs,
-            ).join(', ')})`,
-          )
+          throw new Error(`Document not found: ${key} (available: ${Object.keys(mockDocs).join(', ')})`)
         }
         return doc
       }),

@@ -35,8 +35,7 @@ export function useGatewayHost_DEPRECATED() {
 
 export function useSetGatewayUrl() {
   const setGatewayUrl = useMutation({
-    mutationFn: (url: string) =>
-      client.gatewaySettings.setGatewayUrl.mutate(url),
+    mutationFn: (url: string) => client.gatewaySettings.setGatewayUrl.mutate(url),
     onSuccess: () => {
       invalidateQueries([queryKeys.GATEWAY_URL])
     },
@@ -54,8 +53,7 @@ export function useNotifyServiceHost() {
 
 export function useSetNotifyServiceHost() {
   const setNotifyServiceHost = useMutation({
-    mutationFn: (host: string) =>
-      client.gatewaySettings.setNotifyServiceHost.mutate(host),
+    mutationFn: (host: string) => client.gatewaySettings.setNotifyServiceHost.mutate(host),
     onSuccess: () => {
       invalidateQueries([queryKeys.NOTIFY_SERVICE_HOST])
     },
@@ -79,8 +77,7 @@ export function usePushOnCopy() {
 
 export function useSetPushOnCopy() {
   const setPushOnCopy = useMutation({
-    mutationFn: (value: 'always' | 'never' | 'ask') =>
-      client.gatewaySettings.setPushOnCopy.mutate(value),
+    mutationFn: (value: 'always' | 'never' | 'ask') => client.gatewaySettings.setPushOnCopy.mutate(value),
     onSuccess: () => {
       invalidateQueries([queryKeys.PUSH_ON_COPY])
     },
@@ -108,8 +105,7 @@ export function usePushOnPublish() {
 
 export function useSetPushOnPublish() {
   const setPushOnPublish = useMutation({
-    mutationFn: (value: 'always' | 'never' | 'ask') =>
-      client.gatewaySettings.setPushOnPublish.mutate(value),
+    mutationFn: (value: 'always' | 'never' | 'ask') => client.gatewaySettings.setPushOnPublish.mutate(value),
     onSuccess: () => {
       invalidateQueries([queryKeys.PUSH_ON_PUBLISH])
     },

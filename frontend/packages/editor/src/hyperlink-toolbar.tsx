@@ -46,9 +46,7 @@ export function HypermediaLinkToolbar(
       onMouseEnter={props.stopHideTimer}
       onMouseLeave={props.startHideTimer}
     >
-      <SizableText weight="bold">{`${
-        props.type.charAt(0).toUpperCase() + props.type.slice(1)
-      } settings`}</SizableText>
+      <SizableText weight="bold">{`${props.type.charAt(0).toUpperCase() + props.type.slice(1)} settings`}</SizableText>
       <HypermediaLinkForm
         url={props.url}
         text={props.text}

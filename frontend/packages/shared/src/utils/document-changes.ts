@@ -1,18 +1,11 @@
 import _ from 'lodash'
 import {DocumentChange_SetAttribute} from '../client'
-import {
-  Block,
-  DocumentChange,
-} from '../client/.generated/documents/v3alpha/documents_pb'
+import {Block, DocumentChange} from '../client/.generated/documents/v3alpha/documents_pb'
 import {editorBlockToHMBlock} from '../client/editorblock-to-hmblock'
 import {EditorBlock} from '../editor-types'
 import {HMBlock, HMBlockNode, HMMetadata, HMQuery} from '../hm-types'
 
-export type AttributeValueType =
-  | 'boolValue'
-  | 'nullValue'
-  | 'intValue'
-  | 'stringValue'
+export type AttributeValueType = 'boolValue' | 'nullValue' | 'intValue' | 'stringValue'
 
 export type BlocksMap = Record<string, BlocksMapItem>
 
@@ -24,70 +17,36 @@ export type BlocksMapItem = {
 
 export function getDocAttributeChanges(metadata: HMMetadata) {
   const changes = []
-  if (metadata.name !== undefined)
-    changes.push(docAttributeChangeString(['name'], metadata.name))
-  if (metadata.summary !== undefined)
-    changes.push(docAttributeChangeString(['summary'], metadata.summary))
-  if (metadata.icon !== undefined)
-    changes.push(docAttributeChangeString(['icon'], metadata.icon))
-  if (metadata.thumbnail !== undefined)
-    changes.push(docAttributeChangeString(['thumbnail'], metadata.thumbnail))
-  if (metadata.cover !== undefined)
-    changes.push(docAttributeChangeString(['cover'], metadata.cover))
-  if (metadata.siteUrl !== undefined)
-    changes.push(docAttributeChangeString(['siteUrl'], metadata.siteUrl))
-  if (metadata.layout !== undefined)
-    changes.push(docAttributeChangeString(['layout'], metadata.layout))
+  if (metadata.name !== undefined) changes.push(docAttributeChangeString(['name'], metadata.name))
+  if (metadata.summary !== undefined) changes.push(docAttributeChangeString(['summary'], metadata.summary))
+  if (metadata.icon !== undefined) changes.push(docAttributeChangeString(['icon'], metadata.icon))
+  if (metadata.thumbnail !== undefined) changes.push(docAttributeChangeString(['thumbnail'], metadata.thumbnail))
+  if (metadata.cover !== undefined) changes.push(docAttributeChangeString(['cover'], metadata.cover))
+  if (metadata.siteUrl !== undefined) changes.push(docAttributeChangeString(['siteUrl'], metadata.siteUrl))
+  if (metadata.layout !== undefined) changes.push(docAttributeChangeString(['layout'], metadata.layout))
   if (metadata.displayPublishTime !== undefined)
-    changes.push(
-      docAttributeChangeString(
-        ['displayPublishTime'],
-        metadata.displayPublishTime,
-      ),
-    )
+    changes.push(docAttributeChangeString(['displayPublishTime'], metadata.displayPublishTime))
   if (metadata.seedExperimentalLogo !== undefined)
-    changes.push(
-      docAttributeChangeString(
-        ['seedExperimentalLogo'],
-        metadata.seedExperimentalLogo,
-      ),
-    )
+    changes.push(docAttributeChangeString(['seedExperimentalLogo'], metadata.seedExperimentalLogo))
   if (metadata.seedExperimentalHomeOrder !== undefined)
-    changes.push(
-      docAttributeChangeString(
-        ['seedExperimentalHomeOrder'],
-        metadata.seedExperimentalHomeOrder,
-      ),
-    )
-  if (metadata.showOutline !== undefined)
-    changes.push(docAttributeChangeBool(['showOutline'], metadata.showOutline))
+    changes.push(docAttributeChangeString(['seedExperimentalHomeOrder'], metadata.seedExperimentalHomeOrder))
+  if (metadata.showOutline !== undefined) changes.push(docAttributeChangeBool(['showOutline'], metadata.showOutline))
   if (metadata.theme !== undefined) {
     if (metadata.theme.headerLayout !== undefined)
-      changes.push(
-        docAttributeChangeString(
-          ['theme', 'headerLayout'],
-          metadata.theme.headerLayout,
-        ),
-      )
+      changes.push(docAttributeChangeString(['theme', 'headerLayout'], metadata.theme.headerLayout))
   }
   if (metadata.contentWidth !== undefined) {
-    changes.push(
-      docAttributeChangeString(['contentWidth'], metadata.contentWidth),
-    )
+    changes.push(docAttributeChangeString(['contentWidth'], metadata.contentWidth))
   }
   if (metadata.showActivity !== undefined) {
-    changes.push(
-      docAttributeChangeBool(['showActivity'], metadata.showActivity),
-    )
+    changes.push(docAttributeChangeBool(['showActivity'], metadata.showActivity))
   }
   return changes
 }
 
 type PrimitiveValue = string | number | boolean | null | undefined
 
-export function extractMetaEntries(
-  jsonObject: Record<string, unknown>,
-): [string[], PrimitiveValue][] {
+export function extractMetaEntries(jsonObject: Record<string, unknown>): [string[], PrimitiveValue][] {
   return Object.entries(jsonObject).flatMap(([key, value]) => {
     if (typeof value === 'object' && value !== null) {
       return extractMetaEntries(value as Record<string, unknown>).map(
@@ -144,10 +103,7 @@ function docAttributeChangeBool(key: string[], value: boolean) {
   })
 }
 
-export function createBlocksMap(
-  blockNodes: Array<HMBlockNode> = [],
-  parentId: string,
-) {
+export function createBlocksMap(blockNodes: Array<HMBlockNode> = [], parentId: string) {
   let result: BlocksMap = {}
   blockNodes.forEach((bn, idx) => {
     if (bn.block?.id) {
@@ -156,8 +112,7 @@ export function createBlocksMap(
       if (bn.block) {
         result[bn.block.id] = {
           parent: parentId,
-          left:
-            prevBlockNode && prevBlockNode.block ? prevBlockNode.block.id : '',
+          left: prevBlockNode && prevBlockNode.block ? prevBlockNode.block.id : '',
           block: bn.block,
         }
       }
@@ -172,11 +127,7 @@ export function createBlocksMap(
   return result
 }
 
-export function compareBlocksWithMap(
-  blocksMap: BlocksMap,
-  blocks: Array<EditorBlock>,
-  parentId: string,
-) {
+export function compareBlocksWithMap(blocksMap: BlocksMap, blocks: Array<EditorBlock>, parentId: string) {
   let changes: Array<DocumentChange> = []
   let touchedBlocks: Array<string> = []
 
@@ -195,10 +146,7 @@ export function compareBlocksWithMap(
     const prevAttrs = prevBlockState?.block as BlockWithAttributes | undefined
     const currAttrs = currentBlockState as BlockWithAttributes
 
-    if (
-      !prevBlockState ||
-      prevAttrs?.attributes?.listLevel !== currAttrs.attributes?.listLevel
-    ) {
+    if (!prevBlockState || prevAttrs?.attributes?.listLevel !== currAttrs.attributes?.listLevel) {
       const serverBlock = editorBlockToHMBlock(block)
 
       // add moveBlock change by default to all blocks
@@ -251,11 +199,7 @@ export function compareBlocksWithMap(
     }
 
     if (block.children.length) {
-      let nestedResults = compareBlocksWithMap(
-        blocksMap,
-        block.children,
-        block.id,
-      )
+      let nestedResults = compareBlocksWithMap(blocksMap, block.children, block.id)
       changes = [...changes, ...nestedResults.changes]
       touchedBlocks = [...touchedBlocks, ...nestedResults.touchedBlocks]
     }
@@ -267,13 +211,8 @@ export function compareBlocksWithMap(
   }
 }
 
-export function extractDeletes(
-  blocksMap: BlocksMap,
-  touchedBlocks: Array<string>,
-) {
-  let deletedIds = Object.keys(blocksMap).filter(
-    (id) => !touchedBlocks.includes(id),
-  )
+export function extractDeletes(blocksMap: BlocksMap, touchedBlocks: Array<string>) {
+  let deletedIds = Object.keys(blocksMap).filter((id) => !touchedBlocks.includes(id))
 
   return deletedIds.map(
     (dId) =>
@@ -364,12 +303,8 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
 }
 
 function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
-  const a1 = (b1 as GenericBlockFields).attributes as
-    | Record<string, unknown>
-    | undefined
-  const a2 = (b2 as GenericBlockFields).attributes as
-    | Record<string, unknown>
-    | undefined
+  const a1 = (b1 as GenericBlockFields).attributes as Record<string, unknown> | undefined
+  const a2 = (b2 as GenericBlockFields).attributes as Record<string, unknown> | undefined
 
   if (!a1 && !a2) return true
   if (!a1 || !a2) {
@@ -403,15 +338,9 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
   // Helper function to check if a single attribute is equal
   const isAttributeEqual = (attr: string) => {
     if (attr === 'query') {
-      return isQueryEqual(
-        a1.query as HMQuery | undefined,
-        a2.query as HMQuery | undefined,
-      )
+      return isQueryEqual(a1.query as HMQuery | undefined, a2.query as HMQuery | undefined)
     }
-    return (
-      (a1[attr] === undefined && a2[attr] === undefined) ||
-      a1[attr] === a2[attr]
-    )
+    return (a1[attr] === undefined && a2[attr] === undefined) || a1[attr] === a2[attr]
   }
 
   const result = attributesToCompare.every(isAttributeEqual)

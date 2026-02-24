@@ -1,9 +1,4 @@
-import {
-  getEmailWithToken,
-  getSubscription,
-  setEmailUnsubscribed,
-  setSubscription,
-} from '@/db'
+import {getEmailWithToken, getSubscription, setEmailUnsubscribed, setSubscription} from '@/db'
 import {ActionFunction, LoaderFunction} from '@remix-run/node'
 import {json} from '@remix-run/react'
 import {z} from 'zod'
@@ -61,17 +56,12 @@ export const action: ActionFunction = async ({request, params}) => {
     const subscriberEmail = email.email
     const current = getSubscription(accountId, subscriberEmail)
 
-    const nextNotifyOwnedDocChange =
-      body.notifyOwnedDocChange ?? current?.notifyOwnedDocChange ?? false
-    const nextNotifySiteDiscussions =
-      body.notifySiteDiscussions ?? current?.notifySiteDiscussions ?? false
+    const nextNotifyOwnedDocChange = body.notifyOwnedDocChange ?? current?.notifyOwnedDocChange ?? false
+    const nextNotifySiteDiscussions = body.notifySiteDiscussions ?? current?.notifySiteDiscussions ?? false
 
-    const nextNotifyAllMentions =
-      body.notifyAllMentions ?? current?.notifyAllMentions ?? false
-    const nextNotifyAllReplies =
-      body.notifyAllReplies ?? current?.notifyAllReplies ?? false
-    const nextNotifyAllComments =
-      body.notifyAllComments ?? current?.notifyAllComments ?? false
+    const nextNotifyAllMentions = body.notifyAllMentions ?? current?.notifyAllMentions ?? false
+    const nextNotifyAllReplies = body.notifyAllReplies ?? current?.notifyAllReplies ?? false
+    const nextNotifyAllComments = body.notifyAllComments ?? current?.notifyAllComments ?? false
 
     setSubscription({
       id: accountId,

@@ -80,10 +80,7 @@ export function getIconForRoute(routeKey: string): BreadcrumbIconKey {
   }
 }
 
-export function getWindowTitle(
-  routeKey: string,
-  activeName?: string,
-): string | null {
+export function getWindowTitle(routeKey: string, activeName?: string): string | null {
   switch (routeKey) {
     case 'contacts':
       return 'Contacts'
@@ -203,11 +200,7 @@ export function computeEntityBreadcrumbs(params: {
     if (id.path?.length) {
       name = getDocumentTitle(contents?.entity?.document) || ''
     } else {
-      name = getContactMetadata(
-        id.uid,
-        contents?.entity?.document?.metadata,
-        contacts ?? undefined,
-      ).name
+      name = getContactMetadata(id.uid, contents?.entity?.document?.metadata, contacts ?? undefined).name
     }
     const isNotFound = contents?.entity?.isNotFound || false
     const isTombstone = contents?.entity?.isTombstone || false
@@ -216,11 +209,7 @@ export function computeEntityBreadcrumbs(params: {
       {
         name,
         fallbackName: id.path?.at(-1) || id.uid.slice(0, 8),
-        isError:
-          contents?.entity &&
-          !contents.entity.document &&
-          !isTombstone &&
-          !isNotFound,
+        isError: contents?.entity && !contents.entity.document && !isTombstone && !isNotFound,
         isTombstone,
         isNotFound,
         isLoading,
@@ -246,13 +235,9 @@ export function computeEntityBreadcrumbs(params: {
   }
 
   if (!panel?.key && blockRef) {
-    const blockNode = activeDocContent
-      ? findContentBlock(activeDocContent, blockRef)
-      : null
-    const blockText =
-      (blockNode?.block && getBlockText(blockNode?.block)) || 'Block'
-    const truncatedBlockText =
-      blockText.length > 50 ? blockText.slice(0, 50) + '...' : blockText
+    const blockNode = activeDocContent ? findContentBlock(activeDocContent, blockRef) : null
+    const blockText = (blockNode?.block && getBlockText(blockNode?.block)) || 'Block'
+    const truncatedBlockText = blockText.length > 50 ? blockText.slice(0, 50) + '...' : blockText
     crumbs.push({
       name: truncatedBlockText,
       id: null,
@@ -299,8 +284,7 @@ export function computeDraftEntityParams(
   editId: UnpackedHypermediaId | undefined,
   editDocName: string | undefined,
 ): DraftEntityParams {
-  const isPrivate =
-    route.visibility === 'PRIVATE' || draftData?.visibility === 'PRIVATE'
+  const isPrivate = route.visibility === 'PRIVATE' || draftData?.visibility === 'PRIVATE'
   const displayName = draftData?.metadata?.name || editDocName
 
   if (locationId) {

@@ -9,9 +9,7 @@ type PromptingState = {
   promptedKeys: string[]
 }
 
-let state: PromptingState = (appStore.get(
-  PROMPTING_STORAGE_KEY,
-) as PromptingState) || {promptedKeys: []}
+let state: PromptingState = (appStore.get(PROMPTING_STORAGE_KEY) as PromptingState) || {promptedKeys: []}
 
 async function writePrompting(newState: PromptingState) {
   state = newState
@@ -26,18 +24,14 @@ export const promptingApi = t.router({
   getPromptedKey: t.procedure.input(z.string()).query(async ({input}) => {
     return state.promptedKeys.includes(input)
   }),
-  markPromptedKey: t.procedure
-    .input(z.object({key: z.string(), isPrompted: z.boolean()}))
-    .mutation(async ({input}) => {
-      const newPromptedKeys = state.promptedKeys.filter(
-        (key) => key !== input.key,
-      )
-      if (input.isPrompted) {
-        newPromptedKeys.push(input.key)
-      }
-      await writePrompting({
-        ...state,
-        promptedKeys: newPromptedKeys,
-      })
-    }),
+  markPromptedKey: t.procedure.input(z.object({key: z.string(), isPrompted: z.boolean()})).mutation(async ({input}) => {
+    const newPromptedKeys = state.promptedKeys.filter((key) => key !== input.key)
+    if (input.isPrompted) {
+      newPromptedKeys.push(input.key)
+    }
+    await writePrompting({
+      ...state,
+      promptedKeys: newPromptedKeys,
+    })
+  }),
 })

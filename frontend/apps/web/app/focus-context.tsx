@@ -1,11 +1,4 @@
-import {
-  createContext,
-  ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from 'react'
+import {createContext, ReactNode, useCallback, useContext, useEffect, useState} from 'react'
 
 export type FocusTarget = 'main' | 'panel'
 
@@ -18,13 +11,7 @@ interface FocusContextValue {
 
 const FocusContext = createContext<FocusContextValue | null>(null)
 
-export function FocusProvider({
-  children,
-  defaultFocus = 'main',
-}: {
-  children: ReactNode
-  defaultFocus?: FocusTarget
-}) {
+export function FocusProvider({children, defaultFocus = 'main'}: {children: ReactNode; defaultFocus?: FocusTarget}) {
   const [focus, setFocus] = useState<FocusTarget>(defaultFocus)
 
   // Sync focus state when defaultFocus changes (e.g., panel opens/closes)
@@ -36,9 +23,7 @@ export function FocusProvider({
     (target: FocusTarget, e: React.MouseEvent) => {
       // Don't change focus if clicking on an interactive element
       const htmlTarget = e.target as HTMLElement
-      const isInteractive = htmlTarget.closest(
-        'button, a, input, textarea, select, [role="button"], [data-no-focus]',
-      )
+      const isInteractive = htmlTarget.closest('button, a, input, textarea, select, [role="button"], [data-no-focus]')
       if (isInteractive) return
 
       if (focus !== target) {
@@ -48,11 +33,7 @@ export function FocusProvider({
     [focus],
   )
 
-  return (
-    <FocusContext.Provider value={{focus, setFocus, handleFocusClick}}>
-      {children}
-    </FocusContext.Provider>
-  )
+  return <FocusContext.Provider value={{focus, setFocus, handleFocusClick}}>{children}</FocusContext.Provider>
 }
 
 export function useFocusContext() {

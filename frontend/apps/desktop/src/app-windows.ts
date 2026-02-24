@@ -3,15 +3,7 @@ import type {AppWindowEvent} from '@/utils/window-events'
 import {getRouteWindowType} from '@/utils/window-types'
 import {defaultRoute} from '@shm/shared/routes'
 import type {NavState} from '@shm/shared/utils/navigation'
-import {
-  BrowserWindow,
-  WebContentsView,
-  app,
-  globalShortcut,
-  nativeTheme,
-  screen,
-  shell,
-} from 'electron'
+import {BrowserWindow, WebContentsView, app, globalShortcut, nativeTheme, screen, shell} from 'electron'
 import path from 'node:path'
 import {z} from 'zod'
 import {updateRecentRoute} from './app-recents'
@@ -36,12 +28,7 @@ export function getFocusedWindow(): BrowserWindow | null | undefined {
 }
 
 // Routes that should prevent duplicate windows
-const SINGLE_INSTANCE_ROUTES = new Set([
-  'library',
-  'contacts',
-  'settings',
-  'drafts',
-])
+const SINGLE_INSTANCE_ROUTES = new Set(['library', 'contacts', 'settings', 'drafts'])
 
 // Check if a route key should prevent duplicate windows
 function shouldPreventDuplicateWindow(routeKey: string): boolean {
@@ -105,8 +92,7 @@ export function ensureFocusedWindowVisible() {
     if (focusedWindow.isMinimized()) focusedWindow.restore()
     focusedWindow.focus()
   } else {
-    let mssg =
-      'did not have the focused window. we should create a window or refocus another window from allWindows'
+    let mssg = 'did not have the focused window. we should create a window or refocus another window from allWindows'
     appError(mssg)
     console.error(mssg)
   }
@@ -118,16 +104,11 @@ nativeTheme.addListener('updated', () => {
 
 export function broadcastUseDarkColors() {
   const settingsTheme = getAppTheme()
-  const darkColors =
-    settingsTheme === 'system'
-      ? nativeTheme.shouldUseDarkColors
-      : settingsTheme === 'dark'
+  const darkColors = settingsTheme === 'system' ? nativeTheme.shouldUseDarkColors : settingsTheme === 'dark'
   allWindows.forEach((window) => {
     window.webContents.send('darkMode', darkColors)
     // Also send to find-in-page view if it exists
-    const findView = window.contentView.children[0] as
-      | WebContentsView
-      | undefined
+    const findView = window.contentView.children[0] as WebContentsView | undefined
     if (findView) {
       findView.webContents.send('darkMode', darkColors)
     }
@@ -159,8 +140,7 @@ const WINDOW_STATE_STORAGE_KEY = 'WindowState-v004'
 const initalizedWindows = new Set<string>()
 
 let windowsState =
-  (appStore.get(WINDOW_STATE_STORAGE_KEY) as Record<string, AppWindow>) ||
-  ({} as Record<string, AppWindow>)
+  (appStore.get(WINDOW_STATE_STORAGE_KEY) as Record<string, AppWindow>) || ({} as Record<string, AppWindow>)
 
 export function getWindowsState() {
   return windowsState || {}
@@ -189,12 +169,12 @@ function getValidWindowForInheritance(): BrowserWindow | null {
  * Validates and adjusts window position to ensure it's visible on a display.
  * Returns adjusted bounds if the window would be off-screen.
  */
-function validateWindowPosition(bounds: {
+function validateWindowPosition(bounds: {x: number; y: number; width: number; height: number}): {
   x: number
   y: number
   width: number
   height: number
-}): {x: number; y: number; width: number; height: number} {
+} {
   const displays = screen.getAllDisplays()
 
   // Check if window would be visible on any display
@@ -292,10 +272,7 @@ function setWindowState(windowId: string, window: AppWindow) {
   newWindows[windowId] = window
   setWindowsState(newWindows)
 }
-export function updateWindowState(
-  windowId: string,
-  updater: (window: AppWindow) => AppWindow,
-) {
+export function updateWindowState(windowId: string, updater: (window: AppWindow) => AppWindow) {
   const newWindows = {...windowsState}
   const winState = newWindows[windowId]
   if (winState) {
@@ -317,9 +294,7 @@ export function dispatchAllWindowsAppEvent(event: AppWindowEvent) {
   })
 }
 
-export function createAppWindow(
-  input: Partial<AppWindow> & {id?: string},
-): BrowserWindow {
+export function createAppWindow(input: Partial<AppWindow> & {id?: string}): BrowserWindow {
   if (!app.isReady()) {
     throw new Error('Cannot create BrowserWindow before app is ready')
   }
@@ -364,10 +339,7 @@ export function createAppWindow(
     let width: number
     let height: number
 
-    if (
-      input.bounds?.width !== undefined &&
-      input.bounds?.height !== undefined
-    ) {
+    if (input.bounds?.width !== undefined && input.bounds?.height !== undefined) {
       // Use provided width/height from bounds (e.g., inherited from focused window)
       width = input.bounds.width
       height = input.bounds.height
@@ -442,31 +414,26 @@ export function createAppWindow(
   debug('Window created', {windowId})
 
   const windowLogger = childLogger(`seed/${windowId}`)
-  browserWindow.webContents.on(
-    'console-message',
-    (e, level, message, line, sourceId) => {
-      if (level === 0) windowLogger.verbose(message)
-      else if (level === 1) windowLogger.info(message)
-      else if (level === 2) windowLogger.warn(message)
-      else windowLogger.error(message)
-    },
-  )
+  browserWindow.webContents.on('console-message', (e, level, message, line, sourceId) => {
+    if (level === 0) windowLogger.verbose(message)
+    else if (level === 1) windowLogger.info(message)
+    else if (level === 2) windowLogger.warn(message)
+    else windowLogger.error(message)
+  })
 
   // Handle links from embedded content (Twitter, YouTube, etc.) that try to open new windows
-  browserWindow.webContents.setWindowOpenHandler(
-    ({url, frameName, features}) => {
-      // Log for debugging
-      debug('Window open request', {url, frameName, features})
+  browserWindow.webContents.setWindowOpenHandler(({url, frameName, features}) => {
+    // Log for debugging
+    debug('Window open request', {url, frameName, features})
 
-      // Open all external URLs in the default browser
-      if (url.startsWith('http://') || url.startsWith('https://')) {
-        shell.openExternal(url)
-      }
+    // Open all external URLs in the default browser
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      shell.openExternal(url)
+    }
 
-      // Deny the window creation - we've handled it by opening in default browser
-      return {action: 'deny'}
-    },
-  )
+    // Deny the window creation - we've handled it by opening in default browser
+    return {action: 'deny'}
+  })
 
   // Handle navigation attempts within the main frame
   browserWindow.webContents.on('will-navigate', (event, url) => {
@@ -497,9 +464,7 @@ export function createAppWindow(
         'cdninstagram.com',
       ]
 
-      const isAllowedEmbed = allowedEmbedDomains.some((domain) =>
-        url.includes(domain),
-      )
+      const isAllowedEmbed = allowedEmbedDomains.some((domain) => url.includes(domain))
 
       if (!isAllowedEmbed) {
         // If it's not an allowed embed domain, open in external browser
@@ -525,16 +490,12 @@ export function createAppWindow(
   })
 
   const selectedIdentity =
-    input.selectedIdentity ||
-    (lastFocusedWindowId &&
-      windowNavState[lastFocusedWindowId]?.selectedIdentity) ||
-    null
+    input.selectedIdentity || (lastFocusedWindowId && windowNavState[lastFocusedWindowId]?.selectedIdentity) || null
 
   const initNavState = {
     routes: initRoutes,
     routeIndex: initRouteIndex,
-    sidebarLocked:
-      typeof input.sidebarLocked === 'boolean' ? input.sidebarLocked : true,
+    sidebarLocked: typeof input.sidebarLocked === 'boolean' ? input.sidebarLocked : true,
     sidebarWidth: input.sidebarWidth || 15,
     accessoryWidth: input.accessoryWidth || 20,
     selectedIdentity,
@@ -599,14 +560,7 @@ export function createAppWindow(
   // IPC handler for window nav state - defined as const for cleanup reference
   const windowNavStateHandler = (
     info: any,
-    {
-      routes,
-      routeIndex,
-      sidebarLocked,
-      sidebarWidth,
-      accessoryWidth,
-      selectedIdentity,
-    }: NavState,
+    {routes, routeIndex, sidebarLocked, sidebarWidth, accessoryWidth, selectedIdentity}: NavState,
   ) => {
     windowNavState[windowId] = {
       routes,
@@ -630,10 +584,7 @@ export function createAppWindow(
   }
 
   // Note: The initWindow data is sent via the synchronous IPC handler above
-  browserWindow.webContents.ipc.addListener(
-    'windowNavState',
-    windowNavStateHandler,
-  )
+  browserWindow.webContents.ipc.addListener('windowNavState', windowNavStateHandler)
 
   // First render trick: https://getlotus.app/21-making-electron-apps-feel-native-on-mac
   browserWindow.on('ready-to-show', () => {
@@ -660,10 +611,7 @@ export function createAppWindow(
     }
 
     // Remove IPC listener to prevent memory leak
-    browserWindow.webContents.ipc.removeListener(
-      'windowNavState',
-      windowNavStateHandler,
-    )
+    browserWindow.webContents.ipc.removeListener('windowNavState', windowNavStateHandler)
 
     // Clean up window state
     allWindows.delete(windowId)
@@ -686,9 +634,7 @@ export function createAppWindow(
     lastFocusedWindowId = windowId
     windowFocused(windowId)
     const navState = windowNavState[windowId]
-    const activeRoute = navState
-      ? navState.routes[navState.routeIndex]
-      : undefined
+    const activeRoute = navState ? navState.routes[navState.routeIndex] : undefined
     if (activeRoute) {
       updateRecentRoute(activeRoute)
     }
@@ -696,9 +642,7 @@ export function createAppWindow(
     globalShortcut.register('CommandOrControl+F', () => {
       const focusedWindow = getLastFocusedWindow()
       if (focusedWindow) {
-        let findInPageView = focusedWindow.contentView.children[0] as
-          | WebContentsView
-          | undefined
+        let findInPageView = focusedWindow.contentView.children[0] as WebContentsView | undefined
 
         info(`== ~ globalShortcut.register ~ findInPageView:`)
 
@@ -709,9 +653,7 @@ export function createAppWindow(
           info('[CMD+F]: no view present')
           createFindView(focusedWindow)
           // Get the newly created view and show it after it loads
-          findInPageView = focusedWindow.contentView.children[0] as
-            | WebContentsView
-            | undefined
+          findInPageView = focusedWindow.contentView.children[0] as WebContentsView | undefined
           if (findInPageView) {
             findInPageView.webContents.once('did-finish-load', () => {
               // Send dark mode state to the view
@@ -790,17 +732,11 @@ export function createAppWindow(
     // Use local server to avoid file:// CORS restrictions with iframes
     const serverPort = (global as any).localServerPort
     if (serverPort) {
-      browserWindow.loadURL(
-        `http://127.0.0.1:${serverPort}/${MAIN_WINDOW_VITE_NAME}/index.html`,
-      )
+      browserWindow.loadURL(`http://127.0.0.1:${serverPort}/${MAIN_WINDOW_VITE_NAME}/index.html`)
     } else {
       // Fallback to file:// if server not available (embeds won't work)
-      browserWindow.loadFile(
-        path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-      )
-      warn(
-        '[APP-WINDOWS]: Local server not available, using file:// protocol - embeds will not work',
-      )
+      browserWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`))
+      warn('[APP-WINDOWS]: Local server not available, using file:// protocol - embeds will not work')
     }
   }
 
@@ -841,12 +777,9 @@ function createFindView(win: BrowserWindow) {
   })
 
   // Log errors from the find view
-  findView.webContents.on(
-    'did-fail-load',
-    (event, errorCode, errorDescription) => {
-      warn('[FIND-VIEW]: Failed to load', {errorCode, errorDescription})
-    },
-  )
+  findView.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    warn('[FIND-VIEW]: Failed to load', {errorCode, errorDescription})
+  })
   findView.webContents.on('console-message', (event, level, message) => {
     info('[FIND-VIEW console]:', {level, message})
   })
@@ -861,10 +794,7 @@ function createFindView(win: BrowserWindow) {
     info('[FIND-VIEW]: Loading URL', {url})
     findView.webContents.loadURL(url)
   } else {
-    const filePath = path.join(
-      __dirname,
-      `../renderer/${FIND_IN_PAGE_VITE_NAME}/find.html`,
-    )
+    const filePath = path.join(__dirname, `../renderer/${FIND_IN_PAGE_VITE_NAME}/find.html`)
     info('[FIND-VIEW]: Loading file', {filePath})
     findView.webContents.loadFile(filePath)
   }
@@ -918,9 +848,7 @@ export function createLoadingWindow(): BrowserWindow {
   loadingWindow.webContents.ipc.on('initWindow', (e) => {
     e.returnValue = {
       daemonState: getDaemonState(),
-      forceLoadingWindow:
-        typeof __FORCE_LOADING_WINDOW__ !== 'undefined' &&
-        __FORCE_LOADING_WINDOW__ === 'true',
+      forceLoadingWindow: typeof __FORCE_LOADING_WINDOW__ !== 'undefined' && __FORCE_LOADING_WINDOW__ === 'true',
     }
   })
 
@@ -954,32 +882,23 @@ export function createLoadingWindow(): BrowserWindow {
   // Debug: log what constants we have
   info(
     `LOADING_WINDOW_VITE_DEV_SERVER_URL: ${
-      typeof LOADING_WINDOW_VITE_DEV_SERVER_URL !== 'undefined'
-        ? LOADING_WINDOW_VITE_DEV_SERVER_URL
-        : 'undefined'
+      typeof LOADING_WINDOW_VITE_DEV_SERVER_URL !== 'undefined' ? LOADING_WINDOW_VITE_DEV_SERVER_URL : 'undefined'
     }`,
   )
   info(
     `LOADING_WINDOW_VITE_NAME: ${
-      typeof LOADING_WINDOW_VITE_NAME !== 'undefined'
-        ? LOADING_WINDOW_VITE_NAME
-        : 'undefined'
+      typeof LOADING_WINDOW_VITE_NAME !== 'undefined' ? LOADING_WINDOW_VITE_NAME : 'undefined'
     }`,
   )
   info(
     `MAIN_WINDOW_VITE_DEV_SERVER_URL: ${
-      typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined'
-        ? MAIN_WINDOW_VITE_DEV_SERVER_URL
-        : 'undefined'
+      typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined' ? MAIN_WINDOW_VITE_DEV_SERVER_URL : 'undefined'
     }`,
   )
 
   // In development mode, Electron Forge might not start a separate dev server for loading_window
   // So we load loading.html directly from the source directory
-  if (
-    typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined' &&
-    MAIN_WINDOW_VITE_DEV_SERVER_URL
-  ) {
+  if (typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined' && MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     // Development mode - load loading.html directly
     const loadingHtmlPath = path.join(__dirname, '../../loading.html')
     info(`Development: Loading from file: ${loadingHtmlPath}`)
@@ -989,9 +908,7 @@ export function createLoadingWindow(): BrowserWindow {
     const prodPath = path.join(
       __dirname,
       `../renderer/${
-        typeof LOADING_WINDOW_VITE_NAME !== 'undefined'
-          ? LOADING_WINDOW_VITE_NAME
-          : 'loading_window'
+        typeof LOADING_WINDOW_VITE_NAME !== 'undefined' ? LOADING_WINDOW_VITE_NAME : 'loading_window'
       }/loading.html`,
     )
     info(`Production: Loading from: ${prodPath}`)

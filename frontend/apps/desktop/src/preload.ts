@@ -4,11 +4,7 @@ import {contextBridge, ipcRenderer} from 'electron'
 import {exposeElectronTRPC} from 'electron-trpc/main'
 // import directly from this deep path for shared/utils/stream! Bad things happen if you try to directly import from @shm/shared
 import {eventStream, writeableStateStream} from '@shm/shared/utils/stream'
-import type {
-  OnboardingFormData,
-  OnboardingState,
-  OnboardingStep,
-} from './app-onboarding'
+import type {OnboardingFormData, OnboardingState, OnboardingStep} from './app-onboarding'
 import {GoDaemonState} from './daemon'
 import {UpdateStatus} from './types/updater-types'
 
@@ -43,14 +39,10 @@ contextBridge.exposeInMainWorld('windowId', windowInfo.windowId)
 contextBridge.exposeInMainWorld('windowType', windowInfo.windowType)
 contextBridge.exposeInMainWorld('initNavState', windowInfo.navState)
 
-const [updateDarkMode, darkMode] = writeableStateStream<GoDaemonState>(
-  windowInfo.darkMode,
-)
+const [updateDarkMode, darkMode] = writeableStateStream<GoDaemonState>(windowInfo.darkMode)
 contextBridge.exposeInMainWorld('darkMode', darkMode)
 
-const [updateDaemonState, daemonState] = writeableStateStream<GoDaemonState>(
-  windowInfo.daemonState,
-)
+const [updateDaemonState, daemonState] = writeableStateStream<GoDaemonState>(windowInfo.daemonState)
 contextBridge.exposeInMainWorld('daemonState', daemonState)
 
 contextBridge.exposeInMainWorld('windowIsReady', () => {
@@ -104,16 +96,13 @@ contextBridge.exposeInMainWorld('docImport', {
 
   openLatexDirectories: (accountId: string) => {
     return new Promise((resolve, reject) => {
-      ipcRenderer.once(
-        'latex-directories-content-response',
-        (event, response) => {
-          if (response.success) {
-            resolve(response.result)
-          } else {
-            reject(response.error)
-          }
-        },
-      )
+      ipcRenderer.once('latex-directories-content-response', (event, response) => {
+        if (response.success) {
+          resolve(response.result)
+        } else {
+          reject(response.error)
+        }
+      })
 
       ipcRenderer.send('open-latex-directory', accountId)
     })
@@ -197,23 +186,19 @@ ipcRenderer.addListener('find_in_page', (info, event) => {
 })
 
 // Add a state stream for window maximized state
-const [updateWindowMaximizedState, windowMaximizedState] =
-  writeableStateStream<boolean>(false)
+const [updateWindowMaximizedState, windowMaximizedState] = writeableStateStream<boolean>(false)
 contextBridge.exposeInMainWorld('windowMaximizedState', windowMaximizedState)
 
 // Add listener for window-state-change event
-ipcRenderer.addListener(
-  'window-state-change',
-  (info, state: {isMaximized: boolean}) => {
-    dispatchAppWindow({type: 'window_state_changed'})
-    // Update the window maximized state
-    updateWindowMaximizedState(state.isMaximized)
-    // Also expose the state directly
-    if (typeof state === 'object' && state !== null && 'isMaximized' in state) {
-      window.isWindowMaximized = state.isMaximized
-    }
-  },
-)
+ipcRenderer.addListener('window-state-change', (info, state: {isMaximized: boolean}) => {
+  dispatchAppWindow({type: 'window_state_changed'})
+  // Update the window maximized state
+  updateWindowMaximizedState(state.isMaximized)
+  // Also expose the state directly
+  if (typeof state === 'object' && state !== null && 'isMaximized' in state) {
+    window.isWindowMaximized = state.isMaximized
+  }
+})
 
 contextBridge.exposeInMainWorld('ipc', {
   send: (cmd: string, args: any) => {
@@ -259,17 +244,12 @@ contextBridge.exposeInMainWorld('autoUpdate', {
 // Expose onboarding methods
 const onboarding = {
   getState: (): OnboardingState => ipcRenderer.sendSync('get-onboarding-state'),
-  setCompleted: (value: boolean) =>
-    ipcRenderer.send('set-onboarding-completed', value),
-  setSkipped: (value: boolean) =>
-    ipcRenderer.send('set-onboarding-skipped', value),
-  setStep: (step: OnboardingStep) =>
-    ipcRenderer.send('set-onboarding-step', step),
-  setFormData: (data: Partial<OnboardingFormData>) =>
-    ipcRenderer.send('set-onboarding-form-data', data),
+  setCompleted: (value: boolean) => ipcRenderer.send('set-onboarding-completed', value),
+  setSkipped: (value: boolean) => ipcRenderer.send('set-onboarding-skipped', value),
+  setStep: (step: OnboardingStep) => ipcRenderer.send('set-onboarding-step', step),
+  setFormData: (data: Partial<OnboardingFormData>) => ipcRenderer.send('set-onboarding-form-data', data),
   resetState: () => ipcRenderer.send('reset-onboarding-state'),
-  setInitialAccountIdCount: (count: number) =>
-    ipcRenderer.send('set-onboarding-initial-account-id-count', count),
+  setInitialAccountIdCount: (count: number) => ipcRenderer.send('set-onboarding-initial-account-id-count', count),
 }
 
 contextBridge.exposeInMainWorld('onboarding', onboarding)
@@ -278,12 +258,10 @@ contextBridge.exposeInMainWorld('onboarding', onboarding)
 const memoryMonitor = {
   getReport: () => ipcRenderer.invoke('memory:getReport'),
   takeSnapshot: () => ipcRenderer.invoke('memory:takeSnapshot'),
-  takeHeapSnapshot: (filename?: string) =>
-    ipcRenderer.invoke('memory:takeHeapSnapshot', filename),
+  takeHeapSnapshot: (filename?: string) => ipcRenderer.invoke('memory:takeHeapSnapshot', filename),
   forceGC: () => ipcRenderer.invoke('memory:forceGC'),
   getHeapStats: () => ipcRenderer.invoke('memory:getHeapStats'),
-  startTracking: (intervalMs?: number) =>
-    ipcRenderer.invoke('memory:startTracking', intervalMs),
+  startTracking: (intervalMs?: number) => ipcRenderer.invoke('memory:startTracking', intervalMs),
   stopTracking: () => ipcRenderer.invoke('memory:stopTracking'),
   clearHistory: () => ipcRenderer.invoke('memory:clearHistory'),
   getListenerSummary: () => ipcRenderer.invoke('memory:getListenerSummary'),

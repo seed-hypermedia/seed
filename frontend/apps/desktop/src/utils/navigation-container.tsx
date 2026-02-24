@@ -1,21 +1,21 @@
 import {desktopUniversalClient} from '@/desktop-universal-client'
 import {ipc} from '@/ipc'
 import {useSelectedAccountContacts} from '@/models/contacts'
-import {useGatewayUrl} from '@/models/gateway-settings'
+import {pushResource} from '@/models/documents'
+import {useGatewayUrl, usePushOnCopy} from '@/models/gateway-settings'
 import {client} from '@/trpc'
 import {useExperiments} from '@/models/experiments'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {DAEMON_FILE_URL, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {NavRoute} from '@shm/shared/routes'
 import {AppEvent, UniversalAppProvider} from '@shm/shared/routing'
-import {
-  NavAction,
-  NavContextProvider,
-  NavState,
-  navStateReducer,
-  useNavRoute,
-} from '@shm/shared/utils/navigation'
+import {routeToUrl} from '@shm/shared/utils/entity-id-url'
+import {NavAction, NavContextProvider, NavState, navStateReducer, useNavRoute} from '@shm/shared/utils/navigation'
 import {streamSelector, writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
+import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {CopiedToast, PushResourceStatus} from '@shm/ui/push-toast'
+import {toast} from '@shm/ui/toast'
 import {dialogBoxShadow, useAppDialog} from '@shm/ui/universal-dialog'
 import {ReactQueryDevtools} from '@tanstack/react-query-devtools'
 import {ReactNode} from 'react'
@@ -25,8 +25,31 @@ import {AppWindowEvent} from './window-events'
 
 const [updateNavState, navState] = writeableStateStream(window.initNavState)
 
+// Navigation guard: blocks route-changing actions until confirmed
+type NavigationGuard = (action: NavAction, proceed: () => void) => boolean
+let navigationGuard: NavigationGuard | null = null
+
+export function setNavigationGuard(guard: NavigationGuard) {
+  navigationGuard = guard
+}
+
+export function clearNavigationGuard() {
+  navigationGuard = null
+}
+
+const ROUTE_CHANGING_ACTIONS = new Set(['push', 'replace', 'backplace', 'pop', 'forward', 'closeBack'])
+
 const navigation = {
   dispatch(action: NavAction) {
+    if (navigationGuard && ROUTE_CHANGING_ACTIONS.has(action.type)) {
+      const guard = navigationGuard
+      const shouldProceed = guard(action, () => {
+        clearNavigationGuard()
+        navigation.dispatch(action)
+      })
+      if (!shouldProceed) return
+    }
+
     const prevState = navState.get()
     const newState = navStateReducer(prevState, action)
     if (prevState !== newState) {
@@ -37,10 +60,7 @@ const navigation = {
     }
   },
   state: navState,
-  selectedIdentity: streamSelector<NavState, string | null>(
-    navState,
-    (state) => state.selectedIdentity || null,
-  ),
+  selectedIdentity: streamSelector<NavState, string | null>(navState, (state) => state.selectedIdentity || null),
 }
 
 navigation.state.subscribe(() => {
@@ -75,6 +95,7 @@ export function NavigationContainer({children}: {children: ReactNode}) {
   const experiments = useExperiments().data
 
   const contacts = useSelectedAccountContacts()
+  const pushOnCopy = usePushOnCopy()
 
   return (
     <UniversalAppProvider
@@ -113,6 +134,18 @@ export function NavigationContainer({children}: {children: ReactNode}) {
         // @ts-expect-error
         window.ipc?.broadcast(event)
       }}
+      onCopyReference={async (id: UnpackedHypermediaId) => {
+        const url = routeToUrl({key: 'document', id}, {hostname: gwUrl})
+        await copyTextToClipboard(url)
+        if (pushOnCopy.data === 'never') return
+        const [setPushStatus, pushStatus] = writeableStateStream<PushResourceStatus | null>(null)
+        const pushPromise = pushResource(desktopUniversalClient, gwUrl, id, gwUrl, setPushStatus)
+        toast.promise(pushPromise, {
+          loading: <CopiedToast pushStatus={pushStatus} status="loading" />,
+          success: <CopiedToast pushStatus={pushStatus} status="success" />,
+          error: (err) => <CopiedToast pushStatus={pushStatus} status="error" errorMessage={err.message} />,
+        })
+      }}
     >
       <NavContextProvider value={navigation}>
         {children}
@@ -147,9 +180,5 @@ function DevTools() {
 }
 
 function RouteDialog({input}: {input: NavRoute}) {
-  return (
-    <code style={{whiteSpace: 'pre-wrap'}}>
-      {JSON.stringify(input, null, 2)}
-    </code>
-  )
+  return <code style={{whiteSpace: 'pre-wrap'}}>{JSON.stringify(input, null, 2)}</code>
 }

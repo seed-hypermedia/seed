@@ -17,10 +17,19 @@ const result = await Bun.build({
 	},
 	publicPath: "/vault/",
 	root: "./src",
-	plugins: [tailwind],
-	// mjml's transitive dep uglify-js has CJS that Bun's bundler can't handle.
-	// Keep these as runtime imports from node_modules instead.
-	external: ["mjml", "uglify-js"],
+	plugins: [
+		tailwind,
+		// Stub out uglify-js: it's a transitive dep of mjml via html-minifier,
+		// loaded eagerly via side-effects, but never actually called (minify is off).
+		{
+			name: "stub-uglify-js",
+			setup(build) {
+				build.onResolve({ filter: /^uglify-js$/ }, () => ({
+					path: new URL("./uglify-js.ts", import.meta.url).pathname,
+				}))
+			},
+		},
+	],
 })
 
 if (!result.success) {

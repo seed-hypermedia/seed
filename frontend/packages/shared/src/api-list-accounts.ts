@@ -1,17 +1,11 @@
 import {HMRequestImplementation} from './api-types'
 import {BIG_INT} from './constants'
 import {GRPCClient} from './grpc-client'
-import {
-  HMDocumentMetadataSchema,
-  HMListAccountsRequest,
-  HMMetadataPayload,
-} from './hm-types'
+import {HMDocumentMetadataSchema, HMListAccountsRequest, HMMetadataPayload} from './hm-types'
 import {hmId} from './utils'
 
 export const ListAccounts: HMRequestImplementation<HMListAccountsRequest> = {
-  async getData(
-    grpcClient: GRPCClient,
-  ): Promise<HMListAccountsRequest['output']> {
+  async getData(grpcClient: GRPCClient): Promise<HMListAccountsRequest['output']> {
     const rootDocs = await grpcClient.documents.listRootDocuments({
       pageSize: BIG_INT,
     })

@@ -10,9 +10,7 @@ const {fromBuffer} = fileTypePkg as {
   fromBuffer: (buf: Buffer) => Promise<{ext: string; mime: string} | undefined>
 }
 
-const CACHE_PATH = path.resolve(
-  path.join(process.env.DATA_DIR || process.cwd(), 'image-cache'),
-)
+const CACHE_PATH = path.resolve(path.join(process.env.DATA_DIR || process.cwd(), 'image-cache'))
 const IMG_SIZE_WIDTHS: Record<OptimizedImageSize, number> = {
   S: 120, // larger than any "icon" representations in the UI, so far
   M: 650, // width of the newspaper cards
@@ -29,10 +27,7 @@ export const loader: LoaderFunction = async ({params, request}) => {
   if (!CID) return new Response('No CID provided', {status: 400})
   const width = IMG_SIZE_WIDTHS[size]
   if (!width) {
-    return new Response(
-      `Invalid size, must be ${Object.keys(IMG_SIZE_WIDTHS).join(', ')}`,
-      {status: 400},
-    )
+    return new Response(`Invalid size, must be ${Object.keys(IMG_SIZE_WIDTHS).join(', ')}`, {status: 400})
   }
 
   // NOTE: We cannot know the extension until we fetch, so keep two cache paths:
@@ -86,10 +81,7 @@ export const loader: LoaderFunction = async ({params, request}) => {
           }
         } catch (migrationErr) {
           // If migration check fails, just serve the cached PNG
-          console.warn(
-            'Failed to check original file type for migration:',
-            migrationErr,
-          )
+          console.warn('Failed to check original file type for migration:', migrationErr)
         }
       }
     }
@@ -135,10 +127,7 @@ export const loader: LoaderFunction = async ({params, request}) => {
       })
     }
 
-    const resizedImage = await sharp(imageBuffer)
-      .resize({width, withoutEnlargement: true})
-      .png()
-      .toBuffer()
+    const resizedImage = await sharp(imageBuffer).resize({width, withoutEnlargement: true}).png().toBuffer()
 
     await fs.writeFile(pngCachePath, resizedImage)
 
