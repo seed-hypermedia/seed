@@ -28,8 +28,16 @@ export function activitySlugToFilter(slug: string): string[] | undefined {
 }
 
 // View terms for URL paths (e.g., /:activity, /:directory)
-// ':discussions' kept for backward compat URL parsing
-export const VIEW_TERMS = [':activity', ':comments', ':discussions', ':collaborators', ':directory', ':feed'] as const
+// ':discussions' and ':comment' kept for backward compat URL parsing
+export const VIEW_TERMS = [
+  ':activity',
+  ':comments',
+  ':comment',
+  ':discussions',
+  ':collaborators',
+  ':directory',
+  ':feed',
+] as const
 export type ViewTerm = (typeof VIEW_TERMS)[number]
 
 // Route keys that correspond to view terms (excludes 'options' which is panel-only)
@@ -48,8 +56,8 @@ export function extractViewTermFromUrl(url: string): {
   activityFilter?: string
   commentId?: string
 } {
-  // Check for :comments/UID/TSID pattern (2 path segments after :comments)
-  const commentsPattern = /\/\:comments\/([^/?#]+\/[^/?#]+)(?=[?#]|$)/
+  // Check for :comments/UID/TSID or :comment/UID/TSID pattern (2 path segments)
+  const commentsPattern = /\/\:comments?\/([^/?#]+\/[^/?#]+)(?=[?#]|$)/
   const commentsMatch = url.match(commentsPattern)
   if (commentsMatch) {
     return {
@@ -91,6 +99,7 @@ export function viewTermToRouteKey(viewTerm: ViewTerm | null): ViewRouteKey | nu
   const mapping: Record<ViewTerm, ViewRouteKey> = {
     ':activity': 'activity',
     ':comments': 'comments',
+    ':comment': 'comments', // backward compat
     ':discussions': 'comments', // backward compat
     ':collaborators': 'collaborators',
     ':directory': 'directory',

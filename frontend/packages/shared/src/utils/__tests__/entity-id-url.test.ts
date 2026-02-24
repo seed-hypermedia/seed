@@ -696,6 +696,20 @@ describe('extractViewTermFromUrl', () => {
     const result = extractViewTermFromUrl('https://site.com/path/:discussions')
     expect(result).toEqual({url: 'https://site.com/path', viewTerm: ':discussions'})
   })
+
+  test('backward compat: :comment/UID/TSID maps to :comments with commentId', () => {
+    const result = extractViewTermFromUrl('https://site.com/path/:comment/z6Mk123/z6FC456')
+    expect(result).toEqual({
+      url: 'https://site.com/path',
+      viewTerm: ':comments',
+      commentId: 'z6Mk123/z6FC456',
+    })
+  })
+
+  test('backward compat: bare :comment maps to :comment', () => {
+    const result = extractViewTermFromUrl('https://site.com/path/:comment')
+    expect(result).toEqual({url: 'https://site.com/path', viewTerm: ':comment'})
+  })
 })
 
 describe('createSiteUrl with viewTerm and panel', () => {

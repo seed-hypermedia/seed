@@ -57,7 +57,7 @@ function extractViewTermFromPath(pathParts: string[]): {
   // Check for :comments/UID/TSID pattern (3 segments from end)
   if (pathParts.length >= 3) {
     const thirdToLast = pathParts[pathParts.length - 3]
-    if (thirdToLast === ':comments' || thirdToLast === ':discussions') {
+    if (thirdToLast === ':comments' || thirdToLast === ':comment' || thirdToLast === ':discussions') {
       return {
         path: pathParts.slice(0, -3),
         viewTerm: 'comments',
