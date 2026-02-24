@@ -1,13 +1,12 @@
-import {grpcClient} from '@/grpc-client'
 import {useCommentDraft} from '@/models/comments'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {handleDragMedia} from '@/utils/media-drag'
 import {useNavigate} from '@/utils/useNavigate'
+import {createComment} from '@seed-hypermedia/client'
 import {CommentEditor} from '@shm/editor/comment-editor'
 import {queryClient, queryKeys} from '@shm/shared'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
-import {prepareComment} from '@shm/shared/comment-creation'
 import {useCommentsService} from '@shm/shared/comments-service-provider'
 import {HMBlockNode, HMCommentGroup, HMListDiscussionsOutput, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useContacts, useResource} from '@shm/shared/models/entity'
@@ -53,11 +52,11 @@ function _CommentBox(props: {
   const account = useSelectedAccount()
   const selectedAccountId = useSelectedAccountId()
   const targetEntity = useResource(docId)
-  const {getSigner} = useUniversalClient()
+  const {getSigner, publish} = useUniversalClient()
   const route = useNavRoute()
   const navigate = useNavigate('replace')
 
-  // Resolve reply parent: commentId is an ID like "author/path", but prepareComment needs CID versions
+  // Resolve reply parent: commentId is an ID like "author/path", but publishing uses CID versions
   const commentsService = useCommentsService({targetId: docId})
   const resolvedReply = useMemo(() => {
     if (!commentId) return null
@@ -158,44 +157,20 @@ function _CommentBox(props: {
       const targetVersion = targetDoc?.version
 
       const signer = getSigner(signingKeyName)
-      console.log('~~ prepareComment start', {signingKeyName, docId: docId.id, docVersion: targetVersion || docId.version || '', replyCommentVersion: resolvedReply?.replyCommentVersion, rootReplyCommentVersion: resolvedReply?.rootReplyCommentVersion, quotingBlockId})
-      const commentPayload = await prepareComment(getContent, {
-        docId,
-        docVersion: targetVersion || docId.version || '',
-        signer,
-        replyCommentVersion: resolvedReply?.replyCommentVersion,
-        rootReplyCommentVersion: resolvedReply?.rootReplyCommentVersion,
-        quotingBlockId,
-      })
-      console.log('~~ prepareComment done', {
-        commentBytes: commentPayload.comment.length,
-        blobCount: commentPayload.blobs.length,
-        commentHex: Array.from(commentPayload.comment.slice(0, 64)).map(b => b.toString(16).padStart(2, '0')).join(''),
-      })
-
-      // Decode the CBOR blob to inspect the signed comment
-      try {
-        const {decode} = await import('@ipld/dag-cbor')
-        const decoded = decode(commentPayload.comment)
-        console.log('~~ signed comment decoded:', JSON.stringify(decoded, (_k, v) => {
-          if (v instanceof Uint8Array || (v && v.type === 'Buffer')) return `<Uint8Array(${v.length || v.data?.length})>`
-          if (typeof v === 'bigint') return v.toString() + 'n'
-          return v
-        }, 2))
-      } catch (e) {
-        console.log('~~ failed to decode comment CBOR:', e)
-      }
-
-      await grpcClient.daemon.storeBlobs({
-        blobs: [
-          {cid: '', data: new Uint8Array(commentPayload.comment)},
-          ...commentPayload.blobs.map((b) => ({
-            cid: b.cid,
-            data: new Uint8Array(b.data),
-          })),
-        ],
-      })
-      console.log('~~ storeBlobs success')
+      const response = await publish(
+        await createComment(
+          {
+            getContent,
+            docId,
+            docVersion: targetVersion || docId.version || '',
+            replyCommentVersion: resolvedReply?.replyCommentVersion,
+            rootReplyCommentVersion: resolvedReply?.rootReplyCommentVersion,
+            quotingBlockId,
+          },
+          signer,
+        ),
+      )
+      if (!response.cids[0]) throw new Error('Failed to publish comment blob')
 
       writeRecentSigner.mutateAsync(signingKeyName).then(() => {
         invalidateQueries([queryKeys.RECENT_SIGNERS])

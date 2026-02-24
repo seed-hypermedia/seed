@@ -1,4 +1,4 @@
-import {GRPCClient} from '.'
+import {GRPCClient} from './grpc-client'
 import {HMMetadataPayload, HMRequest, UnpackedHypermediaId} from './hm-types'
 
 export type ListAPIResponse = {

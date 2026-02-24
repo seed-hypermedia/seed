@@ -1,7 +1,6 @@
 export * from './citation-deduplication'
 export * from './client'
 export * from './interaction-summary'
-export * from './comment-creation'
 export * from './comments'
 export * from './content'
 export * from './create-web-universal-client'

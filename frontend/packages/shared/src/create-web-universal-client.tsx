@@ -3,10 +3,10 @@ import type {UniversalClient} from './universal-client'
 
 export type WebClientDependencies = {
   // Type-safe request function (from createSeedClient or compatible)
-  request: <Req extends HMRequest>(
-    key: Req['key'],
-    input: Req['input'],
-  ) => Promise<Req['output']>
+  request: <Req extends HMRequest>(key: Req['key'], input: Req['input']) => Promise<Req['output']>
+  publish: (
+    input: Extract<HMRequest, {key: 'PublishBlobs'}>['input'],
+  ) => Promise<Extract<HMRequest, {key: 'PublishBlobs'}>['output']>
 
   // POST CBOR-encoded data to an API endpoint
   postCBOR?: (url: string, data: any) => Promise<any>
@@ -31,5 +31,6 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
     getSigner: deps.getSigner,
 
     request: deps.request,
+    publish: deps.publish,
   }
 }

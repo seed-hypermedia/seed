@@ -5,18 +5,8 @@
  */
 
 import type {Command} from 'commander'
-import {
-  formatOutput,
-  printError,
-  printSuccess,
-  printInfo,
-  printWarning,
-} from '../output'
-import {
-  generateMnemonic,
-  validateMnemonic,
-  deriveKeyPairFromMnemonic,
-} from '../utils/key-derivation'
+import {formatOutput, printError, printSuccess, printInfo, printWarning} from '../output'
+import {generateMnemonic, validateMnemonic, deriveKeyPairFromMnemonic} from '../utils/key-derivation'
 import {
   listKeys as keyringListKeys,
   getKey as keyringGetKey,
@@ -29,7 +19,10 @@ import {setConfigValue} from '../config'
 import {getOutputFormat} from '../index'
 
 export function registerKeyCommands(program: Command) {
-  const key = program.command('key').description('Manage signing keys')
+  const key = program.command('key').alias('keys').description('Manage signing keys')
+  key.action(() => {
+    key.outputHelp()
+  })
 
   key
     .command('generate')
@@ -37,10 +30,7 @@ export function registerKeyCommands(program: Command) {
     .option('-n, --name <name>', 'Name for the key', 'main')
     .option('-w, --words <count>', 'Mnemonic word count (12 or 24)', '12')
     .option('--passphrase <pass>', 'Optional passphrase', '')
-    .option(
-      '--show-mnemonic',
-      'Display the mnemonic (DANGER: write it down securely)',
-    )
+    .option('--show-mnemonic', 'Display the mnemonic (DANGER: write it down securely)')
     .action(async (options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
       const dev = !!globalOpts.dev
@@ -114,9 +104,7 @@ export function registerKeyCommands(program: Command) {
         const keys = keyringListKeys(dev)
 
         if (keys.length === 0) {
-          printInfo(
-            'No keys stored. Use "seed-cli key generate" to create one.',
-          )
+          printInfo('No keys stored. Use "seed-cli key generate" to create one.')
           return
         }
 
@@ -140,23 +128,14 @@ export function registerKeyCommands(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const stored = nameOrId
-          ? keyringGetKey(nameOrId, dev)
-          : keyringGetDefaultKey(dev)
+        const stored = nameOrId ? keyringGetKey(nameOrId, dev) : keyringGetDefaultKey(dev)
 
         if (!stored) {
-          printError(
-            nameOrId ? `Key "${nameOrId}" not found` : 'No keys stored',
-          )
+          printError(nameOrId ? `Key "${nameOrId}" not found` : 'No keys stored')
           process.exit(1)
         }
 
-        console.log(
-          formatOutput(
-            {name: stored.name, accountId: stored.accountId},
-            format,
-          ),
-        )
+        console.log(formatOutput({name: stored.name, accountId: stored.accountId}, format))
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)
@@ -180,9 +159,7 @@ export function registerKeyCommands(program: Command) {
         }
 
         if (!options.force) {
-          printWarning(
-            `This will permanently delete key "${stored.name}" (${stored.accountId})`,
-          )
+          printWarning(`This will permanently delete key "${stored.name}" (${stored.accountId})`)
           printInfo('Use --force to confirm')
           process.exit(1)
         }
@@ -227,9 +204,7 @@ export function registerKeyCommands(program: Command) {
         if (!nameOrId) {
           const defaultKey = keyringGetDefaultKey(dev)
           if (defaultKey) {
-            printInfo(
-              `Default key: ${defaultKey.name} (${defaultKey.accountId})`,
-            )
+            printInfo(`Default key: ${defaultKey.name} (${defaultKey.accountId})`)
           } else {
             printInfo('No keys stored')
           }

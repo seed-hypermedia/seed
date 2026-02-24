@@ -4,39 +4,13 @@
 
 import type {Command} from 'commander'
 import {readFileSync} from 'fs'
-import {CID} from 'multiformats/cid'
-import {base58btc} from 'multiformats/bases/base58'
+import * as ed25519 from '@noble/ed25519'
+import {createComment, createSeedClient} from '@seed-hypermedia/client'
+import type {HMAnnotation, HMBlockNode, HMSigner, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {getClient, getOutputFormat} from '../index'
 import {formatOutput, printError, printSuccess, printInfo} from '../output'
 import {resolveKey} from '../utils/keyring'
-import {signBlob, encodeBlock, blockReference} from '../utils/signing'
 import {unpackHmId, packHmId} from '../utils/hm-id'
-
-// Ed25519 multicodec prefix.
-const ED25519_MULTICODEC_PREFIX = new Uint8Array([0xed, 0x01])
-
-type CommentBlock = {
-  id: string
-  type: string
-  text: string
-  annotations: unknown[]
-  attributes?: Record<string, string>
-  link?: string
-  children?: CommentBlock[]
-}
-
-type SignedComment = {
-  type: 'Comment'
-  signer: Uint8Array
-  sig: Uint8Array
-  ts: bigint
-  space: Uint8Array
-  path: string
-  version: CID[]
-  body: CommentBlock[]
-  replyParent?: CID
-  threadRoot?: CID
-}
 
 export function registerCommentCommands(program: Command) {
   const comment = program.command('comment').description('Manage comments (get, list, create, discussions)')
@@ -129,9 +103,6 @@ export function registerCommentCommands(program: Command) {
         }
 
         const doc = resource.document
-        const space = base58btc.decode(doc.account)
-        const path = doc.path || ''
-        const versionCids = doc.version.split('.').map((v) => CID.parse(v))
 
         let body = textToBlocks(text)
 
@@ -146,59 +117,67 @@ export function registerCommentCommands(program: Command) {
           })
           body = [
             {
-              id: generateBlockId(),
-              type: 'Embed',
-              text: '',
-              annotations: [],
-              attributes: {childrenType: 'Group', view: 'Content'},
-              link: embedLink,
+              block: {
+                id: generateBlockId(),
+                type: 'Embed',
+                text: '',
+                annotations: [],
+                attributes: {childrenType: 'Group', view: 'Content'},
+                link: embedLink,
+              },
               children: body,
             },
           ]
         }
 
-        let replyParent: CID | undefined
-        let threadRoot: CID | undefined
+        let replyParent: string | undefined
+        let threadRoot: string | undefined
 
         if (options.reply) {
           const parentComment = await client.getComment(options.reply)
-          if (parentComment.id) {
-            replyParent = CID.parse(parentComment.version || parentComment.id)
-          }
+          const parentVersion = parentComment.version || parentComment.id
+          if (parentVersion) replyParent = parentVersion
           if (parentComment.threadRoot) {
-            threadRoot = CID.parse(parentComment.threadRoot)
+            threadRoot = parentComment.threadRoot
           } else if (parentComment.version) {
-            threadRoot = CID.parse(parentComment.version)
+            threadRoot = parentComment.version
           }
         }
 
-        const unsigned: SignedComment = {
-          type: 'Comment',
-          signer: key.publicKeyWithPrefix,
-          sig: new Uint8Array(64),
-          ts: BigInt(Date.now()),
-          space,
-          path,
-          version: versionCids,
-          body,
+        const signer: HMSigner = {
+          getPublicKey: async () => key.publicKeyWithPrefix,
+          sign: async (data: Uint8Array) => ed25519.signAsync(data, key.privateKey),
         }
 
-        if (replyParent) unsigned.replyParent = replyParent
-        if (threadRoot) unsigned.threadRoot = threadRoot
+        const publishClient = createSeedClient(client.server)
+        const result = await publishClient.publish(
+          await createComment(
+            {
+              content: body,
+              docId: {
+                ...unpacked,
+                blockRef: null,
+                version: null,
+              } as UnpackedHypermediaId,
+              docVersion: doc.version,
+              blobs: [],
+              replyCommentVersion: replyParent || undefined,
+              rootReplyCommentVersion: threadRoot || undefined,
+            },
+            signer,
+          ),
+        )
 
-        const signed = await signBlob(unsigned, key.privateKey)
-        const commentBlock = await encodeBlock(signed)
-
-        await client.createComment({
-          comment: commentBlock.bytes,
-          blobs: [],
-        })
+        const commentId = result.cids[0]
+        if (!commentId) {
+          throw new Error('Failed to publish comment blob')
+        }
 
         printSuccess('Comment created')
         if (globalOpts.quiet) {
-          console.log(commentBlock.cid.toString())
+          console.log(commentId)
         } else {
-          printInfo(`Comment CID: ${commentBlock.cid.toString()}`)
+          printInfo(`Comment CID: ${commentId}`)
         }
       } catch (error) {
         printError((error as Error).message)
@@ -229,22 +208,15 @@ export function registerCommentCommands(program: Command) {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-type InlineAnnotation = {
-  type: string
-  starts: number[]
-  ends: number[]
-  link: string
-}
-
 /**
  * Parse a line of text, extracting inline mentions of the form
  * `@[DisplayName](hm://accountId)`. Each mention is replaced with
  * U+FFFC (object replacement character) in the output text and an
  * Embed annotation is created spanning that single character.
  */
-function parseMentions(line: string): {text: string; annotations: InlineAnnotation[]} {
+function parseMentions(line: string): {text: string; annotations: HMAnnotation[]} {
   const mentionRe = /@\[([^\]]*)\]\((hm:\/\/[^)]+)\)/g
-  const annotations: InlineAnnotation[] = []
+  const annotations: HMAnnotation[] = []
   let result = ''
   let lastIndex = 0
   let match: RegExpExecArray | null
@@ -269,16 +241,20 @@ function parseMentions(line: string): {text: string; annotations: InlineAnnotati
   return {text: result, annotations}
 }
 
-function textToBlocks(text: string): CommentBlock[] {
+function textToBlocks(text: string): HMBlockNode[] {
   const lines = text.split('\n').filter((line) => line.trim().length > 0)
 
   if (lines.length === 0) {
     return [
       {
-        id: generateBlockId(),
-        type: 'Paragraph',
-        text: '',
-        annotations: [],
+        block: {
+          id: generateBlockId(),
+          type: 'Paragraph',
+          text: '',
+          attributes: {},
+          annotations: [],
+        },
+        children: [],
       },
     ]
   }
@@ -286,10 +262,14 @@ function textToBlocks(text: string): CommentBlock[] {
   return lines.map((line) => {
     const {text: parsedText, annotations} = parseMentions(line)
     return {
-      id: generateBlockId(),
-      type: 'Paragraph',
-      text: parsedText,
-      annotations,
+      block: {
+        id: generateBlockId(),
+        type: 'Paragraph',
+        text: parsedText,
+        attributes: {},
+        annotations,
+      },
+      children: [],
     }
   })
 }

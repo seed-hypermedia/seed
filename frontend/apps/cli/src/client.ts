@@ -152,10 +152,6 @@ export function createClient(config?: Partial<ClientConfig>) {
     return postCbor<{cids: string[]}>('/hm/api/document-update', payload)
   }
 
-  async function createComment(payload: CreateCommentPayload) {
-    return postCbor<CommentResponse>('/hm/api/comment', payload)
-  }
-
   return {
     server,
     request,
@@ -181,7 +177,6 @@ export function createClient(config?: Partial<ClientConfig>) {
     storeBlob,
     createAccount,
     updateDocument,
-    createComment,
   }
 }
 
@@ -349,11 +344,6 @@ export type UpdateDocumentPayload = {
   change: {data: Uint8Array; cid: string}
   ref: {data: Uint8Array; cid: string}
   icon?: {data: Uint8Array; cid: string} | null
-}
-
-export type CreateCommentPayload = {
-  comment: Uint8Array
-  blobs: Array<{cid: string; data: Uint8Array}>
 }
 
 // Data types

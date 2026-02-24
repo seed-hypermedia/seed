@@ -11,6 +11,7 @@
     "isolatedModules": true,
     "types": ["bun-types"],
     "paths": {
+      "@seed-hypermedia/client": ["../../packages/client/src/index.ts"],
       "@shm/shared": ["../../packages/shared/src"],
       "@shm/shared/*": ["../../packages/shared/src/*"]
     }

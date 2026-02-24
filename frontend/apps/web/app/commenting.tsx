@@ -1,9 +1,9 @@
-import {postCBOR} from '@/api'
 import {useCreateAccount} from '@/auth'
-import {encode as cborEncode} from '@ipld/dag-cbor'
+import {createComment} from '@seed-hypermedia/client'
 import {CommentEditor} from '@shm/editor/comment-editor'
 import {
   HMBlockNode,
+  HMPublishBlobsOutput,
   idToUrl,
   queryKeys,
   UnpackedHypermediaId,
@@ -11,7 +11,6 @@ import {
   useUniversalAppContext,
   useUniversalClient,
 } from '@shm/shared'
-import {prepareComment} from '@shm/shared/comment-creation'
 import {useCommentsService} from '@shm/shared/comments-service-provider'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
@@ -33,7 +32,8 @@ import {ClientOnly} from './client-lazy'
 import {useCommentDraftPersistence} from './comment-draft-utils'
 import {EmailNotificationsForm} from './email-notifications'
 import {hasPromptedEmailNotifications, setHasPromptedEmailNotifications} from './local-db'
-import type {CommentPayload, CommentResponsePayload} from './routes/hm.api.comment'
+
+type PublishCommentInput = Awaited<ReturnType<typeof createComment>>
 
 export type WebCommentingProps = {
   docId: UnpackedHypermediaId
@@ -44,8 +44,7 @@ export type WebCommentingProps = {
   replyCommentId?: string | null
   rootReplyCommentVersion?: string | null
   quotingBlockId?: string
-  onSuccess?: (successData: {id: string; response: CommentResponsePayload; commentPayload: CommentPayload}) => void
-  commentingOriginUrl?: string
+  onSuccess?: (successData: {id: string; response: HMPublishBlobsOutput; commentPayload: PublishCommentInput}) => void
   autoFocus?: boolean
 }
 
@@ -58,13 +57,11 @@ export default function WebCommenting({
   replyCommentId: replyCommentIdProp,
   quotingBlockId,
   onSuccess,
-  commentingOriginUrl,
   autoFocus,
 }: WebCommentingProps) {
-  const openUrl = useOpenUrlWeb()
   const queryClient = useQueryClient()
   const tx = useTxString()
-  const {getSigner} = useUniversalClient()
+  const {getSigner, publish} = useUniversalClient()
 
   // Resolve reply parent from commentId when explicit version props aren't provided
   const commentsService = useCommentsService({targetId: docId})
@@ -111,15 +108,17 @@ export default function WebCommenting({
   }, [])
 
   const postComment = useMutation({
-    mutationFn: async (commentPayload: {comment: Uint8Array; blobs: {cid: string; data: Uint8Array}[]}) => {
-      const result = await postCBOR('/hm/api/comment', cborEncode(commentPayload))
-      return result as CommentResponsePayload
+    mutationFn: async (commentPayload: PublishCommentInput) => {
+      const response = await publish(commentPayload)
+      const commentId = response.cids[0]
+      if (!commentId) throw new Error('Failed to publish comment blob')
+      return {response, commentId, commentPayload}
     },
-    onSuccess: (result, commentPayload) => {
+    onSuccess: ({response, commentId, commentPayload}) => {
       onSuccess?.({
-        response: result,
+        response,
         commentPayload: commentPayload,
-        id: result.commentId,
+        id: commentId,
       })
       queryClient.invalidateQueries({
         queryKey: [queryKeys.DOCUMENT_ACTIVITY], // all docs
@@ -218,18 +217,17 @@ export default function WebCommenting({
         setIsSubmitting(true)
         if (!getSigner) throw new Error('getSigner not available')
         const signer = getSigner(userKeyPair.id)
-        const commentPayload = await prepareComment(
-          getContent,
+        const commentPayload = await createComment(
           {
+            getContent,
             docId,
             docVersion,
-            signer,
             replyCommentVersion,
             rootReplyCommentVersion,
             quotingBlockId,
             prepareAttachments,
           },
-          commentingOriginUrl,
+          signer,
         )
         await postComment.mutateAsync(commentPayload)
         console.log('✅ Comment posted successfully, calling promptEmailNotifications')
@@ -258,7 +256,6 @@ export default function WebCommenting({
       replyCommentVersion,
       rootReplyCommentVersion,
       quotingBlockId,
-      commentingOriginUrl,
       createAccount,
       postComment,
       removeDraft,

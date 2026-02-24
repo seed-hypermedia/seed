@@ -2,8 +2,8 @@
 
 ## Overview
 
-A Bun+TypeScript CLI for interacting with Seed Hypermedia servers via HTTP API.
-Default server: `https://dev.hyper.media`
+A Bun+TypeScript CLI for interacting with Seed Hypermedia servers via HTTP API. Default server:
+`https://dev.hyper.media`
 
 ## Architecture
 
@@ -58,7 +58,7 @@ Examples:
 Write ops require signing and use separate endpoints:
 
 - `POST /hm/api/document-update` - Create/update documents
-- `POST /hm/api/comment` - Create comments
+- `POST /api/PublishBlobs` - Publish signed comment + attachment blobs
 
 Payload format: CBOR-encoded with signed blobs
 
@@ -209,8 +209,7 @@ API responses:
 
 ### Key Derivation (Ed25519 via BIP-39)
 
-The CLI uses Ed25519 keys derived from BIP-39 mnemonics, matching the Go daemon
-implementation.
+The CLI uses Ed25519 keys derived from BIP-39 mnemonics, matching the Go daemon implementation.
 
 ```typescript
 // Derivation flow (from tests/key-derivation.ts):
@@ -233,10 +232,7 @@ function deriveKeyPairFromMnemonic(mnemonic: string, passphrase = '') {
   const derivedKey = masterKey.derive(KEY_DERIVATION_PATH)
   const privateKey = derivedKey.key
   const publicKey = ed25519.getPublicKey(privateKey)
-  const publicKeyWithPrefix = new Uint8Array([
-    ...ED25519_MULTICODEC_PREFIX,
-    ...publicKey,
-  ])
+  const publicKeyWithPrefix = new Uint8Array([...ED25519_MULTICODEC_PREFIX, ...publicKey])
   const accountId = base58btc.encode(publicKeyWithPrefix)
   return {privateKey, publicKey, accountId}
 }
@@ -373,14 +369,13 @@ Body: CBOR({
 })
 ```
 
-### `/hm/api/comment`
+### `/api/PublishBlobs`
 
 ```
-POST /hm/api/comment
+POST /api/PublishBlobs
 Content-Type: application/cbor
 Body: CBOR({
-  comment: Uint8Array,
-  blobs: Array<{cid: string, data: Uint8Array}>
+  blobs: Array<{cid?: string, data: Uint8Array}>
 })
 ```
 

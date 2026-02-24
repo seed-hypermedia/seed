@@ -61,6 +61,7 @@ const mockUniversalClient = {
     }
     throw new Error(`mockUniversalClient: unsupported method ${method}`)
   },
+  publish: async () => ({cids: []}),
 }
 
 // Editor initial content fixtures for link tests

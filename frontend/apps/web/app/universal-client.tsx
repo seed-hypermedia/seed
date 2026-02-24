@@ -11,6 +11,7 @@ const seedClient = createSeedClient('')
 
 export const webUniversalClient = createWebUniversalClient({
   request: seedClient.request,
+  publish: seedClient.publish,
   postCBOR: (url: string, data: any) => rawPostCBOR(url, cborEncode(data)),
   CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => {
     return <WebCommenting docId={docId} />

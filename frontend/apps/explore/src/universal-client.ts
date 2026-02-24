@@ -9,6 +9,10 @@ export const exploreUniversalClient = createWebUniversalClient({
     const client = createSeedClient(getApiHost())
     return client.request<Req>(key, input)
   },
+  publish: (input) => {
+    const client = createSeedClient(getApiHost())
+    return client.publish(input)
+  },
   // Explore app doesn't need comment editing
   CommentEditor: () => null as unknown as JSX.Element,
 })

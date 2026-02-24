@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit --project tsconfig.app.json"
   },
   "dependencies": {
+    "@ipld/dag-cbor": "^9.2.5",
     "@shm/shared": "workspace:*",
+    "multiformats": "^13.4.1",
     "superjson": "2.2.1"
   },
   "devDependencies": {

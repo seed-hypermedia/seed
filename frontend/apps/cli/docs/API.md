@@ -6,8 +6,7 @@ Default: `https://dev.hyper.media`
 
 ## Authentication
 
-Read operations: None required
-Write operations: Signed CBOR blobs (see Write Operations section)
+Read operations: None required Write operations: Signed CBOR blobs (see Write Operations section)
 
 ## Request Format
 
@@ -44,11 +43,15 @@ GET /api/Resource?id={hm_id}
 ```
 
 **Input:**
+
 ```typescript
-{id: "hm://uid/path?v=version#block"}
+{
+  id: 'hm://uid/path?v=version#block'
+}
 ```
 
 **Output:**
+
 ```typescript
 | {type: 'document', id, document}
 | {type: 'comment', id, comment}
@@ -59,6 +62,7 @@ GET /api/Resource?id={hm_id}
 ```
 
 **Example:**
+
 ```bash
 curl "https://dev.hyper.media/api/Resource?id=hm%3A%2F%2Fz6Mkh..."
 ```
@@ -74,6 +78,7 @@ GET /api/ResourceMetadata?id={hm_id}
 ```
 
 **Output:**
+
 ```typescript
 {
   id: UnpackedHypermediaId,
@@ -93,11 +98,15 @@ GET /api/Account?uid={uid}
 ```
 
 **Input:**
+
 ```typescript
-{uid: "z6Mkh..."}  // base58 account UID
+{
+  uid: 'z6Mkh...'
+} // base58 account UID
 ```
 
 **Output:**
+
 ```typescript
 | {type: 'account', id, metadata, hasSite?}
 | {type: 'account-not-found', uid}
@@ -114,11 +123,12 @@ GET /api/ListAccounts
 ```
 
 **Output:**
+
 ```typescript
 {
   accounts: Array<{
-    id: UnpackedHypermediaId,
-    metadata: HMMetadata | null,
+    id: UnpackedHypermediaId
+    metadata: HMMetadata | null
     hasSite?: boolean
   }>
 }
@@ -135,6 +145,7 @@ GET /api/Query?includes=[...]&sort=[...]&limit=N
 ```
 
 **Input:**
+
 ```typescript
 {
   includes: Array<{
@@ -151,6 +162,7 @@ GET /api/Query?includes=[...]&sort=[...]&limit=N
 ```
 
 **Output:**
+
 ```typescript
 {
   in: UnpackedHypermediaId,
@@ -160,6 +172,7 @@ GET /api/Query?includes=[...]&sort=[...]&limit=N
 ```
 
 **Example:**
+
 ```bash
 # List children of root
 curl "https://dev.hyper.media/api/Query?includes=%5B%7B%22space%22%3A%22z6Mkh...%22%2C%22mode%22%3A%22Children%22%7D%5D"
@@ -176,6 +189,7 @@ GET /api/Search?query=...&accountUid=...
 ```
 
 **Input:**
+
 ```typescript
 {
   query: string,
@@ -187,6 +201,7 @@ GET /api/Search?query=...&accountUid=...
 ```
 
 **Output:**
+
 ```typescript
 {
   entities: Array<{
@@ -213,11 +228,15 @@ GET /api/ListComments?targetId={...}
 ```
 
 **Input:**
+
 ```typescript
-{targetId: UnpackedHypermediaId}
+{
+  targetId: UnpackedHypermediaId
+}
 ```
 
 **Output:**
+
 ```typescript
 {
   comments: HMComment[],
@@ -236,6 +255,7 @@ GET /api/ListDiscussions?targetId={...}&commentId=...
 ```
 
 **Input:**
+
 ```typescript
 {
   targetId: UnpackedHypermediaId,
@@ -244,6 +264,7 @@ GET /api/ListDiscussions?targetId={...}&commentId=...
 ```
 
 **Output:**
+
 ```typescript
 {
   discussions: Array<{
@@ -292,11 +313,15 @@ GET /api/ListCommentsByAuthor?authorId={...}
 ```
 
 **Input:**
+
 ```typescript
-{authorId: UnpackedHypermediaId}
+{
+  authorId: UnpackedHypermediaId
+}
 ```
 
 **Output:**
+
 ```typescript
 {
   comments: HMComment[],
@@ -327,13 +352,14 @@ GET /api/AccountContacts?uid={account_uid}
 ```
 
 **Output:**
+
 ```typescript
 Array<{
-  id: string,
-  subject: string,
-  name: string,
-  account: string,
-  createTime?: HMTimestamp,
+  id: string
+  subject: string
+  name: string
+  account: string
+  createTime?: HMTimestamp
   updateTime?: HMTimestamp
 }>
 ```
@@ -349,6 +375,7 @@ GET /api/ListChanges?targetId={...}
 ```
 
 **Output:**
+
 ```typescript
 {
   changes: Array<{
@@ -372,13 +399,14 @@ GET /api/ListCitations?targetId={...}
 ```
 
 **Output:**
+
 ```typescript
 {
   citations: Array<{
-    source: string,
-    sourceType?: string,
-    sourceDocument?: string,
-    targetFragment?: string,
+    source: string
+    sourceType?: string
+    sourceDocument?: string
+    targetFragment?: string
     isExact?: boolean
   }>
 }
@@ -395,15 +423,16 @@ GET /api/ListCapabilities?targetId={...}
 ```
 
 **Output:**
+
 ```typescript
 {
   capabilities: Array<{
-    id?: string,
-    issuer?: string,
-    delegate?: string,
-    account?: string,
-    path?: string,
-    role?: string,
+    id?: string
+    issuer?: string
+    delegate?: string
+    account?: string
+    path?: string
+    role?: string
     noRecursive?: boolean
   }>
 }
@@ -420,6 +449,7 @@ GET /api/InteractionSummary?id={...}
 ```
 
 **Output:**
+
 ```typescript
 {
   citations: number,
@@ -444,6 +474,7 @@ GET /api/ListEvents?pageSize=N&pageToken=...
 ```
 
 **Input:**
+
 ```typescript
 {
   pageSize?: number,
@@ -457,6 +488,7 @@ GET /api/ListEvents?pageSize=N&pageToken=...
 ```
 
 **Output:**
+
 ```typescript
 {
   events: Array<LoadedEvent>,
@@ -475,8 +507,11 @@ GET /api/GetCID?cid={cid}
 ```
 
 **Output:**
+
 ```typescript
-{value: any}  // Decoded IPLD block
+{
+  value: any
+} // Decoded IPLD block
 ```
 
 ---
@@ -495,6 +530,7 @@ Content-Type: application/cbor
 **Payload:** Raw CBOR-encoded blob bytes
 
 **Response:**
+
 ```typescript
 {message: 'Success', cid: string}
 ```
@@ -511,6 +547,7 @@ Content-Type: application/cbor
 ```
 
 **Payload (CBOR):**
+
 ```typescript
 {
   genesis: {data: Uint8Array, cid: string},   // Genesis change blob
@@ -521,8 +558,11 @@ Content-Type: application/cbor
 ```
 
 **Response:**
+
 ```typescript
-{message: 'Success'}
+{
+  message: 'Success'
+}
 ```
 
 ---
@@ -535,6 +575,7 @@ Content-Type: application/cbor
 ```
 
 **Payload (CBOR):**
+
 ```typescript
 {
   change: {data: Uint8Array, cid: string},
@@ -544,26 +585,29 @@ Content-Type: application/cbor
 ```
 
 **Response:**
+
 ```typescript
 {cids: string[]}
 ```
 
 ---
 
-### Comment Create
+### Blob Publish (Comments + Attachments)
 
 ```
-POST /hm/api/comment
+POST /api/PublishBlobs
 Content-Type: application/cbor
 ```
 
 **Payload (CBOR):**
+
 ```typescript
 {
-  comment: Uint8Array,  // Signed comment blob
-  blobs: Array<{cid: string, data: Uint8Array}>
+  blobs: Array<{cid?: string; data: Uint8Array}>
 }
 ```
+
+For comment creation, the first blob is the signed comment blob and subsequent blobs are optional attachment DAG nodes.
 
 ---
 
@@ -588,7 +632,7 @@ const publicKey = ed25519.getPublicKey(privateKey)
 // Public key format: multicodec prefix + key bytes
 const ED25519_PREFIX = new Uint8Array([0xed, 0x01])
 const publicKeyWithPrefix = new Uint8Array([...ED25519_PREFIX, ...publicKey])
-const accountId = base58btc.encode(publicKeyWithPrefix)  // starts with 'z6Mk'
+const accountId = base58btc.encode(publicKeyWithPrefix) // starts with 'z6Mk'
 
 // Sign CBOR data
 const signature = await ed25519.sign(cborEncodedData, privateKey)
@@ -599,16 +643,12 @@ const signature = await ed25519.sign(cborEncodedData, privateKey)
 Web browsers use WebCrypto P-256 for ephemeral web identities:
 
 ```typescript
-const keyPair = await crypto.subtle.generateKey(
-  {name: 'ECDSA', namedCurve: 'P-256'},
-  false,
-  ['sign', 'verify']
-)
+const keyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, ['sign', 'verify'])
 
 const signature = await crypto.subtle.sign(
   {name: 'ECDSA', hash: {name: 'SHA-256'}},
   keyPair.privateKey,
-  cborEncodedData
+  cborEncodedData,
 )
 ```
 
@@ -618,14 +658,15 @@ P-256 public key format: `[128, 36, prefix, ...x]` (compressed)
 
 ## Error Codes
 
-| Status | Meaning |
-|--------|---------|
-| 200 | Success |
-| 400 | Invalid request / missing params |
-| 404 | Resource not found / unknown API key |
-| 500 | Server error |
+| Status | Meaning                              |
+| ------ | ------------------------------------ |
+| 200    | Success                              |
+| 400    | Invalid request / missing params     |
+| 404    | Resource not found / unknown API key |
+| 500    | Server error                         |
 
 Special response types:
+
 - `{type: 'not-found'}` - Resource doesn't exist
 - `{type: 'redirect', redirectTarget}` - Follow redirect
 - `{type: 'tombstone'}` - Resource was deleted
