@@ -340,9 +340,11 @@ export function routeToUrl(
       viewTermPath = `:comments/${route.openComment}`
     }
     let effectivePanelParam = panelParam
-    // View-term URLs only need uid + path, not version/blockRef/latest
+    // View-term URLs need uid + path + blockRef for fragment
     return createWebHMUrl(route.id.uid, {
       path: route.id.path,
+      blockRef: route.id.blockRef,
+      blockRange: route.id.blockRange,
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
       viewTerm: viewTermPath,
