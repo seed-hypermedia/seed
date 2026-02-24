@@ -191,13 +191,13 @@ export const test = base.extend<{
       async selectNestedList(parentText: string, listType: 'Unordered' | 'Ordered' | 'Blockquote' = 'Unordered') {
         const contentArea = this.getContentArea()
 
-        // Find the blockContainer that contains the parent list item text
-        const parentItem = contentArea.locator('[data-node-type="blockContainer"]', {hasText: parentText}).first()
+        // Find the blockNode that contains the parent list item text
+        const parentItem = contentArea.locator('[data-node-type="blockNode"]', {hasText: parentText}).first()
 
-        // The nested list under that item is the child blockGroup inside that blockContainer.
+        // The nested list under that item is the child blockChildren inside that blockNode.
         const nestedGroup = parentItem
           .locator(
-            `[data-node-type="blockGroup"][data-list-type="${listType}"], ${listType === 'Unordered' ? 'ul' : 'ol'}`,
+            `[data-node-type="blockChildren"][data-list-type="${listType}"], ${listType === 'Unordered' ? 'ul' : 'ol'}`,
           )
           .last()
 
