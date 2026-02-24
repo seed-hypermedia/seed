@@ -7,9 +7,10 @@
  */
 
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {accountMetadataFromAccount} from './account-metadata'
 import {Comment, Document} from './client'
 import {GRPCClient} from './grpc-client'
-import {HMContactItem, HMMetadata} from './hm-types'
+import {HMContactItem} from './hm-types'
 import {hmId} from './utils'
 import {abbreviateUid} from './utils/abbreviate'
 
@@ -165,11 +166,7 @@ async function resolveAccountWithCache(
     return cache.getAccount(grpcAccount.aliasAccount, currentAccount)
   }
 
-  // Get the account's metadata
-  const metadata = grpcAccount.metadata?.toJson({
-    emitDefaultValues: true,
-    enumAsInteger: false,
-  }) as HMMetadata | undefined
+  const metadata = accountMetadataFromAccount(grpcAccount)
 
   // Check if current user has a contact for this account (using cache)
   const contactsList = currentAccount ? await cache.getContacts(currentAccount) : null

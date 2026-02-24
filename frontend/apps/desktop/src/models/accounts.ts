@@ -4,8 +4,9 @@ import {client} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {ListAccountsRequest} from '@shm/shared'
+import {accountMetadataFromAccount} from '@shm/shared/account-metadata'
 import {GRPCClient} from '@shm/shared/grpc-client'
-import {HMDocumentMetadataSchema, HMDraft, hmMetadataJsonCorrection} from '@shm/shared/hm-types'
+import {HMDraft} from '@shm/shared/hm-types'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
@@ -22,14 +23,7 @@ export function useAccountList({queryOptions}: {queryOptions?: Partial<ListAccou
 
       const accounts = res.accounts.map((account) => ({
         ...toPlainMessage(account),
-        metadata: HMDocumentMetadataSchema.parse(
-          hmMetadataJsonCorrection(
-            account.metadata?.toJson({
-              emitDefaultValues: true,
-              enumAsInteger: false,
-            }),
-          ),
-        ),
+        metadata: accountMetadataFromAccount(account),
       }))
       const accountsMetadata = Object.fromEntries(
         accounts.map((account) => [

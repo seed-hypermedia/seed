@@ -3,7 +3,10 @@
 .plz-cache
 plz-out
 node_modules
+**/node_modules
 target
 .pnpm-store
 dist
+**/dist
 .vite
+**/.vite

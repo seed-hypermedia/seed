@@ -5,6 +5,10 @@ env = "BUN_PUBLIC_*"
 [test]
 preload = ["./src/setupTests.ts"]
 
+[install]
+linker = "isolated"
+auto = "force"
+
 [run]
 # Always use `bun` instead of `node`, even if scripts call `node`.
 bun = true

@@ -1,6 +1,6 @@
 import {afterAll, afterEach, beforeAll, describe, expect, test} from 'vitest'
-import * as blobs from './blobs'
 import * as base64 from './base64'
+import * as blobs from './blobs'
 import * as SDK from './hmauth'
 
 const hasWebCryptoEd25519 = await (async () => {
@@ -330,10 +330,10 @@ describe('delegation request protocol', () => {
 
 describe('delegation callback protocol', () => {
   test('echoes state in callback URL', async () => {
-    const issuer = blobs.generateKeyPair()
-    const delegate = blobs.generateKeyPair()
-    const capability = blobs.createCapability(issuer, delegate.principal, 'AGENT', Date.now()).decoded
-    const profile = blobs.createProfile(issuer, {name: 'Alice'}, Date.now()).decoded
+    const issuer = await blobs.generateKeyPair()
+    const delegate = await blobs.generateKeyPair()
+    const capability = await blobs.createCapability(issuer, delegate.principal, 'AGENT', Date.now())
+    const profile = await blobs.createProfile(issuer, {name: 'Alice'}, Date.now())
     const url = await SDK.buildCallbackUrl(
       'https://example.com/callback',
       'AAAAAAAAAAAAAAAAAAAAAA',

@@ -1,6 +1,6 @@
-import {toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {redirect} from '@remix-run/react'
+import {accountMetadataFromAccount} from '@shm/shared/account-metadata'
 import {
   createWebHMUrl,
   entityQueryPathToHmIdPath,
@@ -74,16 +74,10 @@ export async function getAccount(
     const grpcAccount = await grpcClient.documents.getAccount({
       id: accountUid,
     })
-    const serverAccount = toPlainMessage(grpcAccount)
-    if (serverAccount.aliasAccount) {
-      return await getAccount(serverAccount.aliasAccount)
+    if (grpcAccount.aliasAccount) {
+      return await getAccount(grpcAccount.aliasAccount)
     }
-    const serverMetadata =
-      grpcAccount.metadata?.toJson({
-        emitDefaultValues: true,
-        enumAsInteger: false,
-      }) || {}
-    const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
+    const metadata = accountMetadataFromAccount(grpcAccount)
     return {
       id: hmId(accountUid),
       metadata,

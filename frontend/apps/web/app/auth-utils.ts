@@ -103,6 +103,13 @@ export async function preparePublicKey(publicKey: CryptoKey): Promise<Uint8Array
   const raw = await crypto.subtle.exportKey('raw', publicKey)
   const bytes = new Uint8Array(raw)
 
+  if (publicKey.algorithm.name === 'Ed25519') {
+    const out = new Uint8Array(34)
+    out.set([0xed, 0x01], 0)
+    out.set(bytes, 2)
+    return out
+  }
+
   // Raw format is 65 bytes: 0x04 + x (32) + y (32)
   const x = bytes.slice(1, 33)
   const y = bytes.slice(33)
