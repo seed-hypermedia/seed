@@ -1,11 +1,15 @@
 import {zodResolver} from '@hookform/resolvers/zod'
 import {encode as cborEncode} from '@ipld/dag-cbor'
+import {useNavigate} from '@remix-run/react'
 import {hmId, hostnameStripProtocol, queryKeys, useUniversalAppContext} from '@shm/shared'
+import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
 import {HMDocument, HMDocumentOperation} from '@shm/shared/hm-types'
+import * as hmauth from '@shm/shared/hmauth'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
+import {DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from '@shm/ui/components/dropdown-menu'
 import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
@@ -14,11 +18,11 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
-import {LogOut, Monitor, Smartphone} from 'lucide-react'
+import {ChevronDown, LogOut, Monitor, Smartphone} from 'lucide-react'
 import {BlockView} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
 import {CID} from 'multiformats/cid'
-import {useEffect, useState, useSyncExternalStore} from 'react'
+import {useEffect, useRef, useState, useSyncExternalStore} from 'react'
 import {Control, FieldValues, Path, SubmitHandler, useController, useForm} from 'react-hook-form'
 import {z} from 'zod'
 import {
@@ -41,11 +45,13 @@ let AccountWithImage: boolean = false
 
 export type LocalWebIdentity = CryptoKeyPair & {
   id: string
+  isDelegated?: boolean
+  vaultUrl?: string
 }
 let keyPair: LocalWebIdentity | null = null
 const keyPairHandlers = new Set<() => void>()
 
-const keyPairStore = {
+export const keyPairStore = {
   get: () => keyPair,
   set: (kp: LocalWebIdentity | null) => {
     keyPair = kp
@@ -54,6 +60,32 @@ const keyPairStore = {
 }
 
 function updateKeyPair() {
+  const activeVaultUrl = typeof window !== 'undefined' ? localStorage.getItem('hm_active_vault_url') : null
+  if (activeVaultUrl) {
+    hmauth
+      .getSession(activeVaultUrl)
+      .then(async (session) => {
+        if (!session) return null
+        const webIdentity: LocalWebIdentity = {
+          privateKey: session.keyPair.privateKey,
+          publicKey: session.keyPair.publicKey,
+          id: session.principal,
+          isDelegated: true,
+          vaultUrl: session.vaultUrl,
+        }
+        return webIdentity
+      })
+      .then((newKeyPair) => {
+        if ((!newKeyPair && keyPair) || newKeyPair?.id !== keyPair?.id) {
+          keyPairStore.set(newKeyPair)
+        }
+      })
+      .catch((err) => {
+        console.error(err)
+      })
+    return
+  }
+
   getStoredLocalKeys()
     .then(async (kp) => {
       if (!kp) return null
@@ -72,8 +104,18 @@ function updateKeyPair() {
 }
 
 export function logout() {
-  Promise.all([deleteLocalKeys(), setHasPromptedEmailNotifications(false)])
+  const vaultUrl = keyPairStore.get()?.vaultUrl
+  Promise.all([
+    deleteLocalKeys(),
+    setHasPromptedEmailNotifications(false),
+    vaultUrl ? hmauth.clearSession(vaultUrl) : Promise.resolve(),
+  ])
     .then(() => {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('hm_active_vault_url')
+        localStorage.removeItem('hm_delegation_return_url')
+        localStorage.removeItem('hm_delegation_vault_url')
+      }
       keyPairStore.set(null)
       console.log('Logged out')
     })
@@ -315,16 +357,41 @@ function useIsMobileKeyboardOpen() {
 
 function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void}) {
   const {origin} = useUniversalAppContext()
-  const isMobileKeyboardOpen = useIsMobileKeyboardOpen()
+  const tx = useTxString()
+  const siteName = hostnameStripProtocol(origin)
+
+  const defaultVaultOrigin = WEB_IDENTITY_ORIGIN || origin || 'http://localhost'
+  const defaultVaultUrl = `${defaultVaultOrigin}/vault/delegate`
+  const [customVaultUrl, setCustomVaultUrl] = useState('')
+  const [showCustomVaultInput, setShowCustomVaultInput] = useState(false)
+  const customVaultInputRef = useRef<HTMLInputElement>(null)
+
+  const handleVaultSignIn = async (urlOverride?: string) => {
+    const vaultUrl = urlOverride || defaultVaultUrl
+    localStorage.setItem('hm_delegation_return_url', window.location.pathname)
+    localStorage.setItem('hm_delegation_vault_url', vaultUrl)
+    try {
+      const authUrl = await hmauth.startAuth({
+        vaultUrl,
+        clientId: origin || window.location.origin,
+        redirectUri: `${origin || window.location.origin}/hm/auth/callback`,
+      })
+      window.location.href = authUrl
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    }
+  }
+
   const onSubmit: SubmitHandler<SiteMetaFields> = (data) => {
     createAccount({name: data.name, icon: data.icon}).then(() => onClose())
   }
-  const tx = useTxString()
-  const siteName = hostnameStripProtocol(origin)
+
   return (
     <>
       <DialogTitle className="max-sm:text-base">
-        {tx('create_account_title', ({siteName}: {siteName: string}) => `Create Account on ${siteName}`, {siteName})}
+        {tx('create_account_title', ({siteName}: {siteName: string}) => `Create Account on ${siteName}`, {
+          siteName: siteName || 'this site',
+        })}
       </DialogTitle>
       <DialogDescription className="max-sm:text-sm">
         {tx(
@@ -341,6 +408,71 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
           siteName,
         })}
       />
+
+      {/* Divider. */}
+      <div className="flex items-center gap-1">
+        <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
+        <span className="text-xs text-neutral-400 dark:text-neutral-500">or</span>
+        <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
+      </div>
+
+      {/* Split button: main part triggers vault sign-in, chevron opens dropdown for custom URL. */}
+      <div className="flex flex-col gap-1">
+        <div className="flex items-stretch">
+          <Button
+            variant="outline"
+            size="lg"
+            className="flex-1 rounded-r-none border-r-0"
+            onClick={() => handleVaultSignIn()}
+          >
+            Sign in with Hypermedia
+          </Button>
+          <DropdownMenu
+            open={showCustomVaultInput}
+            onOpenChange={(open) => {
+              setShowCustomVaultInput(open)
+              if (open) {
+                // Focus the input after the dropdown renders.
+                setTimeout(() => customVaultInputRef.current?.focus(), 50)
+              }
+            }}
+          >
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="lg" className="rounded-l-none border-l px-2">
+                <ChevronDown className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80 p-3">
+              <div className="flex flex-col gap-2">
+                <SizableText size="sm" className="font-medium">
+                  Custom Vault URL
+                </SizableText>
+                <input
+                  ref={customVaultInputRef}
+                  className="rounded border px-2 py-1.5 text-sm dark:bg-neutral-900"
+                  value={customVaultUrl}
+                  onChange={(e) => setCustomVaultUrl(e.target.value)}
+                  placeholder={defaultVaultUrl}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && customVaultUrl.trim()) {
+                      handleVaultSignIn(customVaultUrl.trim())
+                    }
+                  }}
+                />
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="self-end"
+                  disabled={!customVaultUrl.trim()}
+                  onClick={() => handleVaultSignIn(customVaultUrl.trim())}
+                >
+                  Connect
+                </Button>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
     </>
   )
 }
@@ -376,11 +508,12 @@ function EditProfileForm({
         <Field id="icon" label={tx('Profile Icon')}>
           <ImageField control={form.control} name="icon" label={tx('Profile Icon')} />
         </Field>
-        <div className="flex justify-center">
+        <div>
           <Button
             type="submit"
             variant="default"
-            className={`plausible-event-name=finish-create-account plausible-event-image=${
+            size="lg"
+            className={`plausible-event-name=finish-create-account w-full plausible-event-image=${
               AccountWithImage || 'false'
             }`}
           >
@@ -467,6 +600,7 @@ function ImageField<Fields extends FieldValues>({
 function LogoutDialog({onClose}: {onClose: () => void}) {
   const keyPair = useLocalKeyPair()
   const account = useAccount(keyPair?.id)
+  const navigate = useNavigate()
   const tx = useTx()
   if (!keyPair) return <DialogTitle>No session found</DialogTitle>
   if (account.isLoading)
@@ -475,7 +609,7 @@ function LogoutDialog({onClose}: {onClose: () => void}) {
         <Spinner />
       </div>
     )
-  const isAccountAliased = account.data?.id.uid !== keyPair.id
+  const isAccountAliased = keyPair.isDelegated || account.data?.id.uid !== keyPair.id
   return (
     <>
       <DialogTitle>{tx('Really Logout?')}</DialogTitle>
@@ -492,6 +626,7 @@ function LogoutDialog({onClose}: {onClose: () => void}) {
         onClick={() => {
           logout()
           onClose()
+          navigate('/', {replace: true})
         }}
       >
         {isAccountAliased ? tx('Log out') : tx('Log out Forever')}
@@ -631,7 +766,9 @@ export function AccountFooterActions(props: {hideDeviceLinkToast?: boolean}) {
   // TODO(burdiyan): this is not a very robust solution to check whether we need to link keys.
   // For now we request the account info from the backend, which would follow identity redirects to return the final account,
   // in which case the ID of the final account will be different from the requested ID. When it happens, it means we have already linked this key to some other account.
-  const needsKeyLinking = !props.hideDeviceLinkToast && userKeyPair && myAccount.data?.id?.uid === userKeyPair?.id
+  // Delegated sessions are already linked via the vault, so they never need legacy key linking.
+  const needsKeyLinking =
+    !props.hideDeviceLinkToast && userKeyPair && !userKeyPair.isDelegated && myAccount.data?.id?.uid === userKeyPair?.id
 
   useEffect(() => {
     if (!needsKeyLinking) {

@@ -1,7 +1,7 @@
 import {vitePlugin as remix} from '@remix-run/dev'
 // @ts-ignore
-import tailwindcss from '@tailwindcss/vite'
 import {sentryVitePlugin} from '@sentry/vite-plugin'
+import tailwindcss from '@tailwindcss/vite'
 
 import * as path from 'path'
 import {defineConfig} from 'vite'
@@ -51,12 +51,13 @@ export default defineConfig(({isSsrBuild}) => {
     define: isSsrBuild
       ? {}
       : {
-          'process.env': {
-            NODE_ENV: process.env.NODE_ENV,
-            NODE_DEBUG: process.env.NODE_DEBUG,
-            SEED_ENABLE_STATISTICS: process.env.SEED_ENABLE_STATISTICS,
-            SITE_SENTRY_DSN: process.env.SITE_SENTRY_DSN,
-          },
+          // Define individual keys instead of replacing the entire `process.env` object.
+          // Replacing the whole object breaks SSR modules in dev mode that read env vars
+          // not listed here (e.g. SEED_IDENTITY_DEFAULT_ORIGIN) via process.env at runtime.
+          'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+          'process.env.NODE_DEBUG': JSON.stringify(process.env.NODE_DEBUG),
+          'process.env.SEED_ENABLE_STATISTICS': JSON.stringify(process.env.SEED_ENABLE_STATISTICS),
+          'process.env.SITE_SENTRY_DSN': JSON.stringify(process.env.SITE_SENTRY_DSN),
         },
     optimizeDeps: {
       exclude:

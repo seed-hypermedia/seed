@@ -1,5 +1,6 @@
 import { rm } from "node:fs/promises"
 import tailwind from "bun-plugin-tailwind"
+import uglify from "./uglify-js"
 
 const OUTDIR = "./dist"
 
@@ -17,19 +18,7 @@ const result = await Bun.build({
 	},
 	publicPath: "/vault/",
 	root: "./src",
-	plugins: [
-		tailwind,
-		// Stub out uglify-js: it's a transitive dep of mjml via html-minifier,
-		// loaded eagerly via side-effects, but never actually called (minify is off).
-		{
-			name: "stub-uglify-js",
-			setup(build) {
-				build.onResolve({ filter: /^uglify-js$/ }, () => ({
-					path: new URL("./uglify-js.ts", import.meta.url).pathname,
-				}))
-			},
-		},
-	],
+	plugins: [tailwind, uglify],
 })
 
 if (!result.success) {

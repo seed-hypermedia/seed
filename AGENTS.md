@@ -9,6 +9,11 @@
 - `proto/` holds the canonical protocol buffers; scripts and automation live in `scripts/`.
 - `.local/` directory is a gitignored scratchpad directory for any files you might want to keep around. Use this for storing plans files, todos, memory, and anything useful. You can list and modify files in this directory as usual, despite it being gitignored.
 - Tests follow source: Go `_test.go` files sit beside implementations, while web specs live in `__tests__` or `*.test.ts[x]` folders within each workspace.
+- `vault` directory is a Bun workspace for the Vault-related code.
+
+## PNPM vs. Bun
+
+This repo mixes pnpm workspace which covers most of the code in `frontend/*` and it's using Bun for `vault`. These are separate codebases, not part of the same pnpm workspace, so don't mix them up. They also have different typecheck and test commands. See their respective package.json files for details.
 
 ## Commit & Pull Request Guidelines
 

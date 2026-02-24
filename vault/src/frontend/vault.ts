@@ -3,24 +3,15 @@
  * Defines the structured format for storing Hypermedia identity accounts.
  */
 
-import * as dagCBOR from "@ipld/dag-cbor"
 import type * as blobs from "@shm/shared/blobs"
-import type { CID } from "multiformats/cid"
-
-/** A decoded hypermedia blob stored alongside its CID. */
-export interface StoredBlob<T extends blobs.Blob> {
-	/** Content-addressable ID natively encoded by dag-cbor. */
-	cid: CID
-	/** The decoded payload data. */
-	decoded: T
-}
+import * as cbor from "@shm/shared/cbor"
 
 /** A single Hypermedia account stored in the vault. */
 export interface Account {
 	/** 32-byte Ed25519 private key seed. */
 	seed: Uint8Array
 	/** Signed profile blob. */
-	profile: StoredBlob<blobs.Profile>
+	profile: blobs.StoredBlob<blobs.Profile>
 	/** Unix timestamp ms when account was created. */
 	createTime: number
 	/** List of delegations issued to third-party sites by this account. */
@@ -32,9 +23,9 @@ export interface DelegatedSession {
 	/** The origin (client_id) the delegation was issued to, e.g. "https://example.com". */
 	clientId: string
 	/** Type of device that requested the session. */
-	deviceType?: "desktop" | "mobile" | "tablet" | "unknown"
+	deviceType?: "desktop" | "mobile" | "tablet"
 	/** The capability blob delegating rights to the session key. */
-	capability: StoredBlob<blobs.Capability>
+	capability: blobs.StoredBlob<blobs.Capability>
 	/** Unix timestamp ms when the delegation was created. */
 	createTime: number
 }
@@ -54,14 +45,14 @@ export function createEmpty(): State {
 
 /** Serialize vault data: CBOR encode → gzip compress. Returns compressed bytes. */
 export async function serialize(data: State): Promise<Uint8Array> {
-	const cbor = dagCBOR.encode(data)
-	return compress(new Uint8Array(cbor))
+	const encodedCb = cbor.encode(data)
+	return compress(new Uint8Array(encodedCb))
 }
 
 /** Deserialize vault data: gzip decompress → CBOR decode. */
 export async function deserialize(compressed: Uint8Array): Promise<State> {
-	const cbor = await decompress(compressed)
-	return dagCBOR.decode(cbor) as State
+	const decodedCb = await decompress(compressed)
+	return cbor.decode(decodedCb) as State
 }
 
 /** Compress data using gzip. */
