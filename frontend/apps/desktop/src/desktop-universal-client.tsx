@@ -26,6 +26,7 @@ export const desktopUniversalClient: UniversalClient = {
   deleteComment: deleteComment,
 
   request: seedClient.request,
+  publish: seedClient.publish,
 
   subscribeEntity: ({id, recursive}) => {
     const sub = {id, recursive}

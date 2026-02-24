@@ -49,7 +49,7 @@ type UniversalAppContextValue = {
   languagePack?: LanguagePack
   selectedIdentity?: StateStream<string | null>
   setSelectedIdentity?: (keyId: string | null) => void
-  universalClient?: UniversalClient
+  universalClient: UniversalClient
 
   experiments?: AppExperiments
   contacts?: HMContactRecord[]
@@ -61,6 +61,18 @@ export const UniversalAppContext = createContext<UniversalAppContextValue>({
   ipfsFileUrl: DAEMON_FILE_URL,
   openUrl: () => {
     console.error('UniversalAppContext not set. Can not openUrl')
+  },
+  universalClient: {
+    request: (async () => {
+      throw new Error(
+        'universalClient not found in UniversalAppContext. Ensure your platform sets universalClient in UniversalAppProvider.',
+      )
+    }) as UniversalClient['request'],
+    publish: (async () => {
+      throw new Error(
+        'universalClient not found in UniversalAppContext. Ensure your platform sets universalClient in UniversalAppProvider.',
+      )
+    }) as UniversalClient['publish'],
   },
 })
 
@@ -88,7 +100,7 @@ export function UniversalAppProvider(props: {
   languagePack?: LanguagePack
   selectedIdentity?: StateStream<string | null>
   setSelectedIdentity?: (keyId: string | null) => void
-  universalClient?: UniversalClient
+  universalClient: UniversalClient
   experiments?: AppExperiments
   contacts?: HMContactRecord[]
   broadcastEvent?: (event: AppEvent) => void
@@ -130,13 +142,7 @@ export function useUniversalAppContext() {
 }
 
 export function useUniversalClient() {
-  const {universalClient} = useUniversalAppContext()
-  if (!universalClient) {
-    throw new Error(
-      'universalClient not found in UniversalAppContext. Ensure your platform sets universalClient in UniversalAppProvider.',
-    )
-  }
-  return universalClient
+  return useUniversalAppContext().universalClient
 }
 
 export function useOpenUrl() {

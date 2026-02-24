@@ -12,6 +12,7 @@ function NotifyCommentEditor({docId}: {docId: UnpackedHypermediaId}) {
 
 export const notifyUniversalClient = createWebUniversalClient({
   request: seedClient.request,
+  publish: seedClient.publish,
   CommentEditor: NotifyCommentEditor,
   // Notify app doesn't have recents
   fetchRecents: async () => [],

@@ -33,6 +33,13 @@ export async function serverRequest<K extends keyof typeof APIRouter>(
   return result as Awaited<ReturnType<(typeof APIRouter)[K]['getData']>>
 }
 
+type PublishBlobsInput = Extract<HMRequest, {key: 'PublishBlobs'}>['input']
+type PublishBlobsOutput = Extract<HMRequest, {key: 'PublishBlobs'}>['output']
+
+export async function serverPublish(input: PublishBlobsInput): Promise<PublishBlobsOutput> {
+  return serverRequest('PublishBlobs', input) as Promise<PublishBlobsOutput>
+}
+
 /**
  * Server universal client for SSR prefetching.
  * Implements the same request interface as the client-side universal client.
@@ -42,4 +49,5 @@ export const serverUniversalClient: UniversalClient = {
     key: Request['key'],
     input: Request['input'],
   ) => Promise<Request['output']>,
+  publish: serverPublish,
 }

@@ -33,6 +33,9 @@ export type UniversalClient = {
   deleteComment?: (input: DeleteCommentInput) => Promise<void>
 
   request<Request extends HMRequest>(key: Request['key'], input: Request['input']): Promise<Request['output']>
+  publish: (
+    input: Extract<HMRequest, {key: 'PublishBlobs'}>['input'],
+  ) => Promise<Extract<HMRequest, {key: 'PublishBlobs'}>['output']>
 
   // Discovery subscription (desktop only - no-op on web)
   subscribeEntity?: (opts: {id: UnpackedHypermediaId; recursive?: boolean}) => () => void

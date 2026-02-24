@@ -37,9 +37,7 @@ export async function handleApiRequest(
     return {status: 404, body: JSON.stringify({error: `Unknown API key: ${key}`}), headers: CORS_HEADERS}
   }
 
-  const requestSchema = HMRequestSchema.options.find(
-    (schema) => schema.shape.key.value === key,
-  )
+  const requestSchema = HMRequestSchema.options.find((schema) => schema.shape.key.value === key)
   if (!requestSchema) {
     return {status: 500, body: JSON.stringify({error: `No schema found for key: ${key}`}), headers: CORS_HEADERS}
   }
@@ -54,10 +52,7 @@ export async function handleApiRequest(
       })
       input = apiParams.paramsToInput(params)
     } else {
-      input = deserializeQueryString(
-        url.search,
-        requestSchema.shape.input as any,
-      )
+      input = deserializeQueryString(url.search, requestSchema.shape.input as any)
     }
 
     const output = await apiDefinition.getData(grpcClient, input as any, queryDaemon)
@@ -89,13 +84,34 @@ export async function handleApiAction(
     return {status: 404, body: JSON.stringify({error: `Unknown API key: ${key}`}), headers: CORS_HEADERS}
   }
 
-  const requestSchema = HMRequestSchema.options.find(
-    (schema) => schema.shape.key.value === key,
-  )
+  const requestSchema = HMRequestSchema.options.find((schema) => schema.shape.key.value === key)
 
   try {
-    const input = cborDecode(body)
-    const output = await apiDefinition.getData(grpcClient, input as any, queryDaemon)
+    const decodedInput = cborDecode(body)
+    let validatedInput = decodedInput
+
+    if (key === 'PublishBlobs') {
+      if (!requestSchema) {
+        return {
+          status: 500,
+          body: JSON.stringify({error: `No schema found for key: ${key}`}),
+          headers: CORS_HEADERS,
+        }
+      }
+      try {
+        validatedInput = requestSchema.shape.input.parse(decodedInput)
+      } catch (error) {
+        return {
+          status: 400,
+          body: JSON.stringify({
+            error: error instanceof Error ? error.message : 'Invalid request input',
+          }),
+          headers: CORS_HEADERS,
+        }
+      }
+    }
+
+    const output = await apiDefinition.getData(grpcClient, validatedInput as any, queryDaemon)
 
     if (requestSchema) {
       const validatedOutput = requestSchema.shape.output.parse(output)
