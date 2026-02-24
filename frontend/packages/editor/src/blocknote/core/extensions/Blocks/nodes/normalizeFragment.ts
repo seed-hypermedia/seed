@@ -12,28 +12,18 @@ function wrapBlockContentInContainer(blockContentNode: any, schema: any): any {
  * If a previous blockNode exists and doesn't have a child blockChildren,
  * merges the blockChildren into it instead of creating a new container.
  */
-function wrapBlockGroupInContainer(
-  blockGroupNode: any,
-  schema: any,
-  previousNode: any,
-): any {
+function wrapBlockGroupInContainer(blockGroupNode: any, schema: any, previousNode: any): any {
   if (
     previousNode &&
     previousNode.type.name === 'blockNode' &&
     previousNode.childCount === 1 &&
     previousNode.firstChild?.type.spec?.group === 'block'
   ) {
-    return schema.nodes['blockNode']!.create(previousNode.attrs, [
-      previousNode.firstChild,
-      blockGroupNode,
-    ])
+    return schema.nodes['blockNode']!.create(previousNode.attrs, [previousNode.firstChild, blockGroupNode])
   }
 
   const placeholderParagraph = schema.nodes['paragraph']!.create()
-  return schema.nodes['blockNode']!.create(null, [
-    placeholderParagraph,
-    blockGroupNode,
-  ])
+  return schema.nodes['blockNode']!.create(null, [placeholderParagraph, blockGroupNode])
 }
 
 /**
@@ -118,10 +108,7 @@ export function normalizeFragment(fragment: Fragment, schema?: any): Fragment {
       if (groupNode.attrs?.listType === 'Group') {
         let hasNestedLists = false
         groupContent.forEach((child: any) => {
-          if (
-            child.type?.name === 'blockNode' &&
-            child.lastChild?.type?.name === 'blockChildren'
-          ) {
+          if (child.type?.name === 'blockNode' && child.lastChild?.type?.name === 'blockChildren') {
             hasNestedLists = true
           }
         })
@@ -134,18 +121,11 @@ export function normalizeFragment(fragment: Fragment, schema?: any): Fragment {
         }
       }
 
-      const normalizedGroup = groupNode.type.create(
-        groupNode.attrs,
-        groupContent,
-      )
+      const normalizedGroup = groupNode.type.create(groupNode.attrs, groupContent)
 
       if (schema) {
         const prevNode = nodes[nodes.length - 1]
-        const wrappedContainer = wrapBlockGroupInContainer(
-          normalizedGroup,
-          schema,
-          prevNode,
-        )
+        const wrappedContainer = wrapBlockGroupInContainer(normalizedGroup, schema, prevNode)
         if (prevNode && wrappedContainer !== normalizedGroup) {
           nodes[nodes.length - 1] = wrappedContainer
         } else {
@@ -185,12 +165,7 @@ export function normalizeBlockContainer(node: any, schema?: any) {
   node.forEach((child: any, index: number) => {
     // If the child is a blockChildren, normalize it and add it to the children array
     if (child.type?.name === 'blockChildren') {
-      children.push(
-        child.type.create(
-          child.attrs,
-          normalizeFragment(child.content, schema),
-        ),
-      )
+      children.push(child.type.create(child.attrs, normalizeFragment(child.content, schema)))
     } else if (child.content && child.content.size > 0) {
       children.push(child.copy(normalizeFragment(child.content, schema)))
     } else {
@@ -199,14 +174,8 @@ export function normalizeBlockContainer(node: any, schema?: any) {
   })
 
   // Add an empty paragraph if the blockChildren is the only child (invalid structure)
-  if (
-    children.length === 1 &&
-    children[0].type.name === 'blockChildren' &&
-    schema
-  ) {
-    children.unshift(
-      schema.nodes.paragraph.createAndFill() ?? schema.nodes.paragraph.create(),
-    )
+  if (children.length === 1 && children[0].type.name === 'blockChildren' && schema) {
+    children.unshift(schema.nodes.paragraph.createAndFill() ?? schema.nodes.paragraph.create())
   }
 
   return node.type.create(node.attrs, children)

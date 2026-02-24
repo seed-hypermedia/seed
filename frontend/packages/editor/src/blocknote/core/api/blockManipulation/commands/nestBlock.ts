@@ -4,14 +4,8 @@ import {Fragment, NodeType, Slice} from '@tiptap/pm/model'
 import {ReplaceAroundStep} from '@tiptap/pm/transform'
 import {EditorState, TextSelection} from 'prosemirror-state'
 import {BlockNoteEditor} from '../../../BlockNoteEditor'
-import {
-  getBlockInfoFromPos,
-  getBlockInfoFromSelection,
-} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
-import {
-  getGroupInfoFromPos,
-  getParentGroupInfoFromPos,
-} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
+import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
+import {getGroupInfoFromPos, getParentGroupInfoFromPos} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
 import {updateGroupChildrenCommand} from './updateGroup'
 
 function liftListItem(editor: Editor, posInBlock: number) {
@@ -23,11 +17,7 @@ function liftListItem(editor: Editor, posInBlock: number) {
       // into block's children to avoid the range error.
       if (blockInfo.block.node.childCount > 1) {
         const blockChildren = state.tr.doc
-          .resolve(
-            blockInfo.block.beforePos +
-              blockInfo.blockContent.node.nodeSize +
-              2,
-          )
+          .resolve(blockInfo.block.beforePos + blockInfo.blockContent.node.nodeSize + 2)
           .node().content
 
         const parentBlockInfo = getBlockInfoFromPos(
@@ -42,13 +32,9 @@ function liftListItem(editor: Editor, posInBlock: number) {
 
         // If last child or the only child, just lift list item.
         if (Fragment.empty.eq(siblingBlocksAfter)) {
-          const {group, container, $pos, depth} = getGroupInfoFromPos(
-            state.selection.from,
-            state,
-          )
+          const {group, container, $pos, depth} = getGroupInfoFromPos(state.selection.from, state)
 
-          const {node: parentGroup, pos: parentGroupPos} =
-            getParentGroupInfoFromPos(group, $pos, depth)
+          const {node: parentGroup, pos: parentGroupPos} = getParentGroupInfoFromPos(group, $pos, depth)
 
           setTimeout(() => {
             editor
@@ -84,22 +70,15 @@ function liftListItem(editor: Editor, posInBlock: number) {
         // of the parent. Otherwise, only delete the
         // children after the block.
         if (
-          parentBlockInfo.block.beforePos +
-            parentBlockInfo.blockContent.node.nodeSize +
-            2 ===
+          parentBlockInfo.block.beforePos + parentBlockInfo.blockContent.node.nodeSize + 2 ===
           blockInfo.block.beforePos
         ) {
           state.tr.delete(
-            parentBlockInfo.block.beforePos +
-              parentBlockInfo.blockContent.node.nodeSize +
-              1,
+            parentBlockInfo.block.beforePos + parentBlockInfo.blockContent.node.nodeSize + 1,
             parentBlockInfo.block.afterPos - 1,
           )
         } else {
-          state.tr.delete(
-            blockInfo.block.beforePos,
-            parentBlockInfo.block.afterPos - 2,
-          )
+          state.tr.delete(blockInfo.block.beforePos, parentBlockInfo.block.afterPos - 2)
         }
 
         const blockContent = [blockInfo.blockContent.node]
@@ -124,17 +103,12 @@ function liftListItem(editor: Editor, posInBlock: number) {
         // Create and insert the manually built block instead of
         // using tiptap's liftListItem command.
         // @ts-ignore
-        const block = state.schema.nodes['blockNode'].create(
-          blockInfo.block.node.attrs,
-          blockContent,
-        )
+        const block = state.schema.nodes['blockNode'].create(blockInfo.block.node.attrs, blockContent)
 
         const insertPos = state.tr.mapping.map(parentBlockInfo.block.afterPos)
 
         state.tr.insert(insertPos, block)
-        state.tr.setSelection(
-          new TextSelection(state.tr.doc.resolve(insertPos + 2)),
-        )
+        state.tr.setSelection(new TextSelection(state.tr.doc.resolve(insertPos + 2)))
 
         dispatch(state.tr)
 
@@ -176,20 +150,11 @@ export function sinkListItem(
       return false
     }
     if (dispatch) {
-      const nestedBefore =
-        nodeBefore.lastChild && nodeBefore.lastChild.type === groupType // change necessary to check groupType instead of parent.type
+      const nestedBefore = nodeBefore.lastChild && nodeBefore.lastChild.type === groupType // change necessary to check groupType instead of parent.type
       const inner = Fragment.from(nestedBefore ? itemType.create() : null)
       const slice = new Slice(
         Fragment.from(
-          itemType.create(
-            null,
-            Fragment.from(
-              groupType.create(
-                {listType: listType, listLevel: listLevel},
-                inner,
-              ),
-            ),
-          ), // change necessary to create "groupType" instead of parent.type
+          itemType.create(null, Fragment.from(groupType.create({listType: listType, listLevel: listLevel}, inner))), // change necessary to create "groupType" instead of parent.type
         ),
         nestedBefore ? 3 : 1,
         0,
@@ -199,17 +164,7 @@ export function sinkListItem(
       const after = range.end
       dispatch(
         state.tr
-          .step(
-            new ReplaceAroundStep(
-              before - (nestedBefore ? 3 : 1),
-              after,
-              before,
-              after,
-              slice,
-              1,
-              true,
-            ),
-          )
+          .step(new ReplaceAroundStep(before - (nestedBefore ? 3 : 1), after, before, after, slice, 1, true))
           .scrollIntoView(),
       )
     }
@@ -217,11 +172,7 @@ export function sinkListItem(
   }
 }
 
-export function nestBlock(
-  editor: BlockNoteEditor<any>,
-  listType: HMBlockChildrenType,
-  listLevel: string,
-) {
+export function nestBlock(editor: BlockNoteEditor<any>, listType: HMBlockChildrenType, listLevel: string) {
   return editor._tiptapEditor.commands.command(
     sinkListItem(
       editor._tiptapEditor.schema.nodes['blockNode'],
@@ -237,22 +188,13 @@ export function unnestBlock(editor: Editor, posInBlock: number) {
 }
 
 export function canNestBlock(editor: BlockNoteEditor<any>) {
-  const {block: blockContainer} = getBlockInfoFromSelection(
-    editor._tiptapEditor.state,
-  )
+  const {block: blockContainer} = getBlockInfoFromSelection(editor._tiptapEditor.state)
 
-  return (
-    editor._tiptapEditor.state.doc.resolve(blockContainer.beforePos)
-      .nodeBefore !== null
-  )
+  return editor._tiptapEditor.state.doc.resolve(blockContainer.beforePos).nodeBefore !== null
 }
 
 export function canUnnestBlock(editor: BlockNoteEditor<any>) {
-  const {block: blockContainer} = getBlockInfoFromSelection(
-    editor._tiptapEditor.state,
-  )
+  const {block: blockContainer} = getBlockInfoFromSelection(editor._tiptapEditor.state)
 
-  return (
-    editor._tiptapEditor.state.doc.resolve(blockContainer.beforePos).depth > 1
-  )
+  return editor._tiptapEditor.state.doc.resolve(blockContainer.beforePos).depth > 1
 }

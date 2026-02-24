@@ -1,20 +1,15 @@
 # Editor Schema Refactoring — Complete Implementation Guide
 
-> **Purpose**: Self-contained guide for implementing the ProseMirror node
-> rename + DOM simplification refactoring. Can be executed by any developer or
-> LLM session without additional context.
+> **Purpose**: Self-contained guide for implementing the ProseMirror node rename + DOM simplification refactoring. Can
+> be executed by any developer or LLM session without additional context.
 
 ## What This Refactoring Does
 
-The editor's ProseMirror schema produces deeply nested DOM (~7 levels for a
-paragraph). This refactoring:
+The editor's ProseMirror schema produces deeply nested DOM (~7 levels for a paragraph). This refactoring:
 
-1. **Renames ProseMirror nodes** — `blockGroup` → `blockChildren`,
-   `blockContainer` → `blockNode`
-2. **Renames ProseMirror groups** — `blockContent` group → `block`,
-   `blockGroupChild` group → `blockNodeChild`
-3. **Simplifies DOM output** — removes wrapper divs so block content renders as
-   semantic HTML
+1. **Renames ProseMirror nodes** — `blockGroup` → `blockChildren`, `blockContainer` → `blockNode`
+2. **Renames ProseMirror groups** — `blockContent` group → `block`, `blockGroupChild` group → `blockNodeChild`
+3. **Simplifies DOM output** — removes wrapper divs so block content renders as semantic HTML
 4. **PM node depth stays the same** — only names and HTML output change
 5. **HMBlock server format is NOT modified** — conversion layers are untouched
 
@@ -48,17 +43,13 @@ paragraph). This refactoring:
 
 ## Scope & Non-Goals
 
-**Modified**: ~44 files in `frontend/packages/editor/` and
-`frontend/apps/desktop/` **NOT modified**:
+**Modified**: ~44 files in `frontend/packages/editor/` and `frontend/apps/desktop/` **NOT modified**:
 
-- `frontend/packages/shared/src/client/editorblock-to-hmblock.ts` — HMBlock
-  format unchanged
-- `frontend/packages/shared/src/client/hmblock-to-editorblock.ts` — HMBlock
-  format unchanged
+- `frontend/packages/shared/src/client/editorblock-to-hmblock.ts` — HMBlock format unchanged
+- `frontend/packages/shared/src/client/hmblock-to-editorblock.ts` — HMBlock format unchanged
 - `frontend/packages/shared/src/editor-types.ts` — EditorBlock types unchanged
 - `frontend/packages/ui/src/blocks-content.tsx` — renders from HMBlock, not PM
-- `frontend/packages/ui/src/blocks-content.css` — styles published content, not
-  editor
+- `frontend/packages/ui/src/blocks-content.css` — styles published content, not editor
 
 ## Global String Replacement Reference
 
@@ -78,8 +69,8 @@ paragraph). This refactoring:
 | `BlockGroup` (export name)         | `BlockChildren`                  | Import/export identifiers                           |
 | `BlockContainer` (export name)     | `BlockNode`                      | Import/export identifiers                           |
 
-**DO NOT rename**: `blockContent` as a DOM attributes key (in
-`domAttributes?.blockContent`). This is a public API surface — keep it as-is.
+**DO NOT rename**: `blockContent` as a DOM attributes key (in `domAttributes?.blockContent`). This is a public API
+surface — keep it as-is.
 
 ---
 
@@ -98,8 +89,7 @@ Update all import paths that reference these files.
 
 **File: `blockTypes.ts`**
 
-- `BlockNoteDOMElement`: `'blockContainer'` → `'blockNode'`, `'blockGroup'` →
-  `'blockChildren'`
+- `BlockNoteDOMElement`: `'blockContainer'` → `'blockNode'`, `'blockGroup'` → `'blockChildren'`
 - `TipTapNode` type: `group: 'blockContent'` → `group: 'block'`
 - Update JSDoc comments
 
@@ -109,8 +99,7 @@ Update all import paths that reference these files.
 
 **renderHTML**: `data-node-type: 'blockChildren'`
 
-**parseHTML**: Match both `'blockChildren'` and `'blockGroup'` for backward
-compat paste.
+**parseHTML**: Match both `'blockChildren'` and `'blockGroup'` for backward compat paste.
 
 **All helper functions** — replace throughout:
 
@@ -120,8 +109,7 @@ compat paste.
 
 ### Step 4: Core Schema — BlockNode.ts (was BlockContainer.ts)
 
-**Node definition:** `name: 'blockNode'`, `group: 'blockNodeChild block'`,
-`content: 'block blockChildren?'`
+**Node definition:** `name: 'blockNode'`, `group: 'blockNodeChild block'`, `content: 'block blockChildren?'`
 
 **renderHTML — flatten 2 divs to 1:**
 
@@ -130,14 +118,12 @@ compat paste.
 // AFTER:  ['div', {blockNode attrs}, 0]
 ```
 
-**parseHTML**: Match both `'blockNode'` and `'blockContainer'` for backward
-compat.
+**parseHTML**: Match both `'blockNode'` and `'blockContainer'` for backward compat.
 
 ### Step 5: Core Schema — block.ts
 
 - `createTipTapBlock`: `group: 'block'` (was `'blockContent'`)
-- `createBlockSpec`'s `addNodeView()`: Remove `blockContent` wrapper div. Apply
-  attributes directly to `rendered.dom`.
+- `createBlockSpec`'s `addNodeView()`: Remove `blockContent` wrapper div. Apply attributes directly to `rendered.dom`.
 
 ### Step 6: Blocks/index.ts
 
@@ -146,10 +132,8 @@ compat.
 
 ### Step 7: Block Content Rendering
 
-- **ParagraphBlockContent.ts**: Flatten `['div', ..., ['p', ..., 0]]` to
-  `['p', ..., 0]`
-- **heading-component-plugin.tsx**: Flatten `['div', ..., ['h2', ..., 0]]` to
-  `['h2', ..., 0]`
+- **ParagraphBlockContent.ts**: Flatten `['div', ..., ['p', ..., 0]]` to `['p', ..., 0]`
+- **heading-component-plugin.tsx**: Flatten `['div', ..., ['h2', ..., 0]]` to `['h2', ..., 0]`
 - **code-block.ts**: Remove blockContent wrapper
 - **code-block-lowlight.tsx**: Update `styles.blockContent` refs
 - **image-placeholder.ts**: Update `styles.blockContent` refs
@@ -161,30 +145,25 @@ compat.
 
 ### Step 9: Helpers
 
-- **getBlockInfoFromPos.ts**: `spec.group === 'block'`,
-  `name === 'blockChildren'`
+- **getBlockInfoFromPos.ts**: `spec.group === 'block'`, `name === 'blockChildren'`
 - **getGroupInfoFromPos.ts**: `'blockChildren'`, `'blockNode'`
 - **findBlock.ts**: `'blockNode'`
 
 ### Step 10: Commands (all files)
 
-Apply: `'blockContainer'` → `'blockNode'`, `'blockGroup'` → `'blockChildren'`,
-`schema.nodes['blockContainer']` → `schema.nodes['blockNode']`,
-`.sinkListItem('blockNode')`, `.liftListItem('blockNode')`
+Apply: `'blockContainer'` → `'blockNode'`, `'blockGroup'` → `'blockChildren'`, `schema.nodes['blockContainer']` →
+`schema.nodes['blockNode']`, `.sinkListItem('blockNode')`, `.liftListItem('blockNode')`
 
-Files: nestBlock.ts, splitBlock.ts, mergeBlocks.ts, updateBlock.ts,
-updateGroup.ts, replaceBlocks.ts, insertBlocks.ts, blockManipulation.ts,
-nodeConversions.ts, getBlock.ts, nodeUtil.ts
+Files: nestBlock.ts, splitBlock.ts, mergeBlocks.ts, updateBlock.ts, updateGroup.ts, replaceBlocks.ts, insertBlocks.ts,
+blockManipulation.ts, nodeConversions.ts, getBlock.ts, nodeUtil.ts
 
 ### Step 11: Extensions
 
-- **BlockNoteExtensions.ts**: Import `BlockNode`/`BlockChildren`,
-  `UniqueID types: ['blockNode']`
+- **BlockNoteExtensions.ts**: Import `BlockNode`/`BlockChildren`, `UniqueID types: ['blockNode']`
 - **BlockNoteEditor.ts**: String refs
 - **TrailingNodeExtension.ts**: String refs
 - **KeyboardShortcutsExtension.ts**: String refs
-- **DraggableBlocksPlugin.ts**: `spec.group === 'block'`,
-  `data-node-type === 'blockNode'`
+- **DraggableBlocksPlugin.ts**: `spec.group === 'block'`, `data-node-type === 'blockNode'`
 - **SideMenuPlugin.ts**: Same as DraggableBlocks
 - **BlockManipulationExtension.ts**: String refs
 - **MarkdownExtension.ts**: String refs
@@ -196,24 +175,21 @@ nodeConversions.ts, getBlock.ts, nodeUtil.ts
 
 ### Step 12: simplifyBlocksRehypePlugin.ts — HIGH RISK
 
-DOM traversal rewrite. Before: 3 levels of unwrapping (blockOuter →
-blockContainer → blockContent). After: 1 level (blockNode → blockContent
-directly).
+DOM traversal rewrite. Before: 3 levels of unwrapping (blockOuter → blockContainer → blockContent). After: 1 level
+(blockNode → blockContent directly).
 
 ```ts
 // BEFORE:
 const blockOuter = tree.children[i]
 const blockContainer = blockOuter.children[0]
 const blockContent = blockContainer.children[0]
-const blockGroup =
-  blockContainer.children.length === 2 ? blockContainer.children[1] : null
+const blockGroup = blockContainer.children.length === 2 ? blockContainer.children[1] : null
 // extraction: blockContent.children[0]
 
 // AFTER:
 const blockNode = tree.children[i]
 const blockContent = blockNode.children[0]
-const blockGroup =
-  blockNode.children.length === 2 ? blockNode.children[1] : null
+const blockGroup = blockNode.children.length === 2 ? blockNode.children[1] : null
 // extraction: blockContent (IS the semantic element now)
 ```
 
@@ -226,13 +202,11 @@ const blockGroup =
 
 ### Step 14: CSS
 
-- **Block.module.css**: `.blockOuter` → `.blockNode`, remove `.block`,
-  `.blockGroup` → `.blockChildren`, update placeholder selectors (remove
-  `.inlineContent` nesting)
-- **editor.css**: `block-outer` → `blockNode`, `node-blockContainer` →
-  `node-blockNode`, simplify heading margin `:has()` selectors
-- **document.css**: Add `blockNode` selectors alongside `blockContainer` (dual
-  context)
+- **Block.module.css**: `.blockOuter` → `.blockNode`, remove `.block`, `.blockGroup` → `.blockChildren`, update
+  placeholder selectors (remove `.inlineContent` nesting)
+- **editor.css**: `block-outer` → `blockNode`, `node-blockContainer` → `node-blockNode`, simplify heading margin
+  `:has()` selectors
+- **document.css**: Add `blockNode` selectors alongside `blockContainer` (dual context)
 
 ### Step 15: Desktop App
 

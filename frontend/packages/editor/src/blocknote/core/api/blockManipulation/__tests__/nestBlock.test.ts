@@ -2,11 +2,7 @@ import {Schema} from 'prosemirror-model'
 import {EditorState, TextSelection} from 'prosemirror-state'
 import {beforeEach, describe, expect, it} from 'vitest'
 import {sinkListItem} from '../commands/nestBlock'
-import {
-  buildDoc,
-  createMinimalSchema,
-  findPosInBlock,
-} from './test-helpers-prosemirror'
+import {buildDoc, createMinimalSchema, findPosInBlock} from './test-helpers-prosemirror'
 
 describe('nestBlock - custom sinkListItem', () => {
   let schema: Schema
@@ -16,11 +12,7 @@ describe('nestBlock - custom sinkListItem', () => {
   })
 
   // Helper: call custom sinkListItem and return new state
-  function runSink(
-    state: EditorState,
-    listType: string,
-    listLevel: string,
-  ): EditorState | undefined {
+  function runSink(state: EditorState, listType: string, listLevel: string): EditorState | undefined {
     const itemType = schema.nodes['blockNode']!
     const groupType = schema.nodes['blockChildren']!
     const cmd = sinkListItem(itemType, groupType, listType as any, listLevel)

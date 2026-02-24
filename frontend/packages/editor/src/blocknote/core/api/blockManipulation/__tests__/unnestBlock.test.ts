@@ -2,12 +2,7 @@ import {Node as PMNode, Schema} from 'prosemirror-model'
 import {EditorState, TextSelection} from 'prosemirror-state'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {unnestBlock} from '../commands/nestBlock'
-import {
-  buildDoc,
-  createMinimalSchema,
-  createMockEditor,
-  findPosInBlock,
-} from './test-helpers-prosemirror'
+import {buildDoc, createMinimalSchema, createMockEditor, findPosInBlock} from './test-helpers-prosemirror'
 
 describe('unnestBlock - liftListItem', () => {
   let schema: Schema

@@ -106,14 +106,9 @@ export function getNearestBlockPos(doc: Node, pos: number) {
  * @param blockBeforePosOffset the position just before the
  * `blockNode` node in the document.
  */
-export function getBlockInfoWithManualOffset(
-  node: Node,
-  blockBeforePosOffset: number,
-): BlockInfo {
+export function getBlockInfoWithManualOffset(node: Node, blockBeforePosOffset: number): BlockInfo {
   if (!node.type.isInGroup('blockNodeChild')) {
-    throw new Error(
-      `Attempted to get block node at position but found node of different type ${node.type}`,
-    )
+    throw new Error(`Attempted to get block node at position but found node of different type ${node.type}`)
   }
 
   const blockNode = node
@@ -154,9 +149,7 @@ export function getBlockInfoWithManualOffset(
   })
 
   if (!blockContent) {
-    throw new Error(
-      `blockNode does not contain a block content node in its children: ${blockNode}`,
-    )
+    throw new Error(`blockNode does not contain a block content node in its children: ${blockNode}`)
   }
 
   return {

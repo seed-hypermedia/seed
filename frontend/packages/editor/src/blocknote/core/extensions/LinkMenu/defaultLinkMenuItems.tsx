@@ -229,8 +229,7 @@ export function getLinkMenuItems({
         instagram: 'Instagram embed',
       }
       const mediaItem = {
-        name:
-          mediaNames[media] ?? media.charAt(0).toUpperCase() + media.slice(1),
+        name: mediaNames[media] ?? media.charAt(0).toUpperCase() + media.slice(1),
         disabled: false,
         icon: mediaIcon,
         execute: (editor: BlockNoteEditor<HMBlockSchema>, link: string) => {
@@ -249,9 +248,7 @@ export function getLinkMenuItems({
               }
             } else if (videoUrl.includes('vimeo')) {
               const urlArray = videoUrl.split('/')
-              videoUrl =
-                'https://player.vimeo.com/video/' +
-                urlArray[urlArray.length - 1]
+              videoUrl = 'https://player.vimeo.com/video/' + urlArray[urlArray.length - 1]
             }
             embedUrl = videoUrl
           }
@@ -279,11 +276,7 @@ export function getLinkMenuItems({
   return linkMenuItems
 }
 
-function insertNode(
-  editor: BlockNoteEditor<HMBlockSchema>,
-  ref: string,
-  node: Node,
-) {
+function insertNode(editor: BlockNoteEditor<HMBlockSchema>, ref: string, node: Node) {
   const {state, schema, view} = editor._tiptapEditor
   const {selection} = state
   const {$from} = selection
@@ -302,12 +295,9 @@ function insertNode(
     const cursorPos = $from.pos
     // @ts-ignore
     $pos.parent.descendants((childNode, pos, _parent, index) => {
-      const linkMark = childNode.marks?.find(
-        (mark: Mark) => mark.type.name === 'link' && mark.attrs.href === ref,
-      )
+      const linkMark = childNode.marks?.find((mark: Mark) => mark.type.name === 'link' && mark.attrs.href === ref)
 
-      const childStartPos =
-        index === 0 ? $pos.start() + pos - 2 : $pos.start() + pos
+      const childStartPos = index === 0 ? $pos.start() + pos - 2 : $pos.start() + pos
       const childEndPos = childStartPos + (childNode.text?.length || 0)
 
       // Check if this link contains the cursor position
@@ -329,11 +319,7 @@ function insertNode(
         if (childNode.type.name === 'text') {
           beforeLinkContent.push(childNode)
         }
-      } else if (
-        linkStartPos !== null &&
-        linkEndPos !== null &&
-        childStartPos >= linkEndPos
-      ) {
+      } else if (linkStartPos !== null && linkEndPos !== null && childStartPos >= linkEndPos) {
         // Content after the link
         if (childNode.type.name === 'text') {
           afterLinkContent.push(childNode)
@@ -349,27 +335,15 @@ function insertNode(
       // Replace the current block content with only text before the link
       const beforeLinkNode =
         beforeLinkContent.length > 0
-          ? schema.node(
-              blockInfo.blockContentType,
-              blockInfo.blockContent.node.attrs,
-              beforeLinkContent,
-            )
+          ? schema.node(blockInfo.blockContentType, blockInfo.blockContent.node.attrs, beforeLinkContent)
           : null
 
       if (beforeLinkNode) {
-        tr = tr.replaceWith(
-          blockContentStartPos,
-          blockContentEndPos,
-          beforeLinkNode,
-        )
+        tr = tr.replaceWith(blockContentStartPos, blockContentEndPos, beforeLinkNode)
       } else {
         // If no content before, replace with empty paragraph
         const paragraphNode = schema.nodes.paragraph.create()
-        tr = tr.replaceWith(
-          blockContentStartPos,
-          blockContentEndPos,
-          paragraphNode,
-        )
+        tr = tr.replaceWith(blockContentStartPos, blockContentEndPos, paragraphNode)
       }
 
       // Insert the embed block after the current block
@@ -381,11 +355,7 @@ function insertNode(
       // Resolve position in the updated document to insert the embed node
       const $embedBlockPos = tr.doc.resolve(mappedNextBlockPos + 1)
       const embedBlockContentPos = $embedBlockPos.pos
-      tr = tr.replaceWith(
-        $embedBlockPos.before($embedBlockPos.depth),
-        embedBlockContentPos + 1,
-        node,
-      )
+      tr = tr.replaceWith($embedBlockPos.before($embedBlockPos.depth), embedBlockContentPos + 1, node)
 
       // If there's text after the link, insert it in a new block after the embed
       if (afterLinkContent.length > 0) {
@@ -399,10 +369,8 @@ function insertNode(
         const currentDoc = tr.doc
         const insertedEmbedBlock = tr.doc.nodeAt(mappedNextBlockPos)
         if (insertedEmbedBlock) {
-          const embedBlockAfterPos =
-            mappedNextBlockPos + insertedEmbedBlock.nodeSize
-          const afterTextBlock =
-            state.schema.nodes['blockNode'].createAndFill()!
+          const embedBlockAfterPos = mappedNextBlockPos + insertedEmbedBlock.nodeSize
+          const afterTextBlock = state.schema.nodes['blockNode'].createAndFill()!
           tr = tr.insert(embedBlockAfterPos, afterTextBlock)
 
           // Insert the after-link text into the new block (resolve position after inserting afterTextBlock)
@@ -428,12 +396,7 @@ function insertNode(
   view.dispatch(tr)
 }
 
-function insertMentionNode(
-  editor: BlockNoteEditor<HMBlockSchema>,
-  link: string,
-  title: string,
-  node: Node,
-) {
+function insertMentionNode(editor: BlockNoteEditor<HMBlockSchema>, link: string, title: string, node: Node) {
   const {state, view} = editor._tiptapEditor
   const {selection} = state
   const {$from} = selection

@@ -4,9 +4,7 @@ import {getBlockInfoFromPos} from '../Blocks/helpers/getBlockInfoFromPos'
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     textAlignment: {
-      setTextAlignment: (
-        textAlignment: 'left' | 'center' | 'right' | 'justify',
-      ) => ReturnType
+      setTextAlignment: (textAlignment: 'left' | 'center' | 'right' | 'justify') => ReturnType
     }
   }
 }

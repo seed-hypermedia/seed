@@ -1,11 +1,6 @@
 import {Node} from 'prosemirror-model'
 import {BlockNoteEditor} from '../../../BlockNoteEditor'
-import {
-  Block,
-  BlockIdentifier,
-  BlockSchema,
-  PartialBlock,
-} from '../../../extensions/Blocks/api/blockTypes'
+import {Block, BlockIdentifier, BlockSchema, PartialBlock} from '../../../extensions/Blocks/api/blockTypes'
 import {blockToNode, nodeToBlock} from '../../nodeConversions/nodeConversions'
 
 export function removeAndInsertBlocks<BSchema extends BlockSchema>(
@@ -27,9 +22,7 @@ export function removeAndInsertBlocks<BSchema extends BlockSchema>(
   }
 
   const idsOfBlocksToRemove = new Set<string>(
-    blocksToRemove.map((block) =>
-      typeof block === 'string' ? block : block.id,
-    ),
+    blocksToRemove.map((block) => (typeof block === 'string' ? block : block.id)),
   )
   const removedBlocks: Block<BSchema>[] = []
 
@@ -48,10 +41,7 @@ export function removeAndInsertBlocks<BSchema extends BlockSchema>(
     }
 
     // Keeps traversing nodes if block with target ID has not been found.
-    if (
-      !node.type.isInGroup('blockNodeChild') ||
-      !idsOfBlocksToRemove.has(node.attrs.id)
-    ) {
+    if (!node.type.isInGroup('blockNodeChild') || !idsOfBlocksToRemove.has(node.attrs.id)) {
       return true
     }
 
@@ -92,10 +82,7 @@ export function removeAndInsertBlocks<BSchema extends BlockSchema>(
     // @ts-ignore
     const notFoundIds = [...idsOfBlocksToRemove].join('\n')
 
-    throw Error(
-      'Blocks with the following IDs could not be found in the editor: ' +
-        notFoundIds,
-    )
+    throw Error('Blocks with the following IDs could not be found in the editor: ' + notFoundIds)
   }
 
   editor.dispatch(tr)

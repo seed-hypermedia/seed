@@ -3,22 +3,10 @@ import {ReplaceStep} from '@tiptap/pm/transform'
 import {Node as PMNode} from 'prosemirror-model'
 import {EditorState, TextSelection} from 'prosemirror-state'
 import {BlockNoteEditor} from '../../../BlockNoteEditor'
-import {
-  Block,
-  BlockIdentifier,
-  BlockSchema,
-  PartialBlock,
-} from '../../../extensions/Blocks/api/blockTypes'
-import {
-  BlockInfo,
-  getBlockInfoFromPos,
-} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
+import {Block, BlockIdentifier, BlockSchema, PartialBlock} from '../../../extensions/Blocks/api/blockTypes'
+import {BlockInfo, getBlockInfoFromPos} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
 import {UnreachableCaseError} from '../../../shared/utils'
-import {
-  blockToNode,
-  inlineContentToNodes,
-  nodeToBlock,
-} from '../../nodeConversions/nodeConversions'
+import {blockToNode, inlineContentToNodes, nodeToBlock} from '../../nodeConversions/nodeConversions'
 import {getNodeById} from '../../util/nodeUtil'
 
 export const updateBlockCommand =
@@ -28,23 +16,14 @@ export const updateBlockCommand =
     block: PartialBlock<BSchema>,
     keepSelection?: boolean,
   ) =>
-  ({
-    state,
-    dispatch,
-  }: {
-    state: EditorState
-    dispatch: ((args?: any) => any) | undefined
-  }) => {
+  ({state, dispatch}: {state: EditorState; dispatch: ((args?: any) => any) | undefined}) => {
     const blockInfo = getBlockInfoFromPos(state, posBeforeBlock)
 
     if (dispatch) {
       // Adds blockGroup node with child blocks if necessary.
       const oldNodeType = state.schema.nodes[blockInfo.blockContentType]
-      const newNodeType =
-        state.schema.nodes[block.type || blockInfo.blockContentType]
-      const newBlockNodeType = newNodeType.isInGroup('blockNodeChild')
-        ? newNodeType
-        : state.schema.nodes['blockNode']
+      const newNodeType = state.schema.nodes[block.type || blockInfo.blockContentType]
+      const newBlockNodeType = newNodeType.isInGroup('blockNodeChild') ? newNodeType : state.schema.nodes['blockNode']
 
       if (newNodeType.spec.group === 'block') {
         updateChildren(block, state, blockInfo)
@@ -80,9 +59,7 @@ function updateBlockContentNode<BSchema extends BlockSchema>(
   oldNodeType: NodeType,
   newNodeType: NodeType,
   blockInfo: {
-    childContainer?:
-      | {node: PMNode; beforePos: number; afterPos: number}
-      | undefined
+    childContainer?: {node: PMNode; beforePos: number; afterPos: number} | undefined
     blockContent: {node: PMNode; beforePos: number; afterPos: number}
   },
   keepSelection?: boolean,
@@ -118,11 +95,7 @@ function updateBlockContentNode<BSchema extends BlockSchema>(
       // marks allowed changed (e.g. paragraph→code-block), strip marks from content
       const stripped: PMNode[] = []
       blockInfo.blockContent.node.content.forEach((child) => {
-        stripped.push(
-          child.mark(
-            child.marks.filter((m) => newNodeType.allowsMarkType(m.type)),
-          ),
-        )
+        stripped.push(child.mark(child.marks.filter((m) => newNodeType.allowsMarkType(m.type))))
       })
       content = stripped
     } else {
@@ -162,10 +135,7 @@ function updateBlockContentNode<BSchema extends BlockSchema>(
         content,
       ),
     )
-    if (keepSelection)
-      state.tr.setSelection(
-        new TextSelection(state.tr.doc.resolve(selectionPos.pos)),
-      )
+    if (keepSelection) state.tr.setSelection(new TextSelection(state.tr.doc.resolve(selectionPos.pos)))
   }
 }
 
@@ -211,8 +181,7 @@ export function updateBlock<BSchema extends BlockSchema>(
 ): Block<BSchema> {
   const ttEditor = editor._tiptapEditor
 
-  const id =
-    typeof blockToUpdate === 'string' ? blockToUpdate : blockToUpdate.id
+  const id = typeof blockToUpdate === 'string' ? blockToUpdate : blockToUpdate.id
 
   const posInfo = getNodeById(id, ttEditor.state.doc)
   if (!posInfo) {
@@ -221,11 +190,7 @@ export function updateBlock<BSchema extends BlockSchema>(
 
   // @ts-ignore
   ttEditor.commands.command(({state, dispatch}) => {
-    updateBlockCommand(
-      posInfo.posBeforeNode,
-      update,
-      keepSelection,
-    )({state, dispatch})
+    updateBlockCommand(posInfo.posBeforeNode, update, keepSelection)({state, dispatch})
     return true
   })
 

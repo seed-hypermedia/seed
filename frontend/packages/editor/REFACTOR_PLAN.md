@@ -2,10 +2,9 @@
 
 ## Context
 
-The editor's ProseMirror schema currently produces deeply nested DOM with
-excessive wrapper divs. A simple paragraph generates ~8 levels of DOM nesting.
-This refactoring renames nodes, eliminates wrapper divs, and produces semantic
-HTML while keeping the HMBlock server format unchanged.
+The editor's ProseMirror schema currently produces deeply nested DOM with excessive wrapper divs. A simple paragraph
+generates ~8 levels of DOM nesting. This refactoring renames nodes, eliminates wrapper divs, and produces semantic HTML
+while keeping the HMBlock server format unchanged.
 
 **Current schema:**
 
@@ -21,16 +20,13 @@ doc → blockChildren → blockNode → paragraph → inline*
          ↑ renders: <ul>         ↑ renders: <div>    ↑ renders: <p>
 ```
 
-**Critical insight: ProseMirror node depth does NOT change** — only node names
-and HTML output change. This means position offset arithmetic in commands stays
-mostly identical, dramatically reducing risk.
+**Critical insight: ProseMirror node depth does NOT change** — only node names and HTML output change. This means
+position offset arithmetic in commands stays mostly identical, dramatically reducing risk.
 
 ## Scope
 
-- **Editor-only change** — HMBlock server format, `blocks-content.tsx`, and
-  `blocks-content.css` are NOT modified
-- `editorblock-to-hmblock.ts` and `hmblock-to-editorblock.ts` stay unchanged
-  (EditorBlock types unchanged)
+- **Editor-only change** — HMBlock server format, `blocks-content.tsx`, and `blocks-content.css` are NOT modified
+- `editorblock-to-hmblock.ts` and `hmblock-to-editorblock.ts` stay unchanged (EditorBlock types unchanged)
 - The conversion layer already maps between editor types and HM types
 
 ## Naming Changes
@@ -46,9 +42,8 @@ mostly identical, dramatically reducing risk.
 
 ## Phase 1: Rename Nodes + Simplify DOM (Single Atomic Change)
 
-Since PM node depth stays the same, we can do the rename AND DOM simplification
-together. This is a big-bang change within the editor package — the editor won't
-work until all references are updated, but it's mostly mechanical.
+Since PM node depth stays the same, we can do the rename AND DOM simplification together. This is a big-bang change
+within the editor package — the editor won't work until all references are updated, but it's mostly mechanical.
 
 ### 1A. Core node definitions
 
@@ -57,26 +52,19 @@ work until all references are updated, but it's mostly mechanical.
 - `name: 'blockChildren'`
 - `content: 'blockNodeChild+'`
 - `group: 'childContainer'`
-- `renderHTML`: render DIRECTLY as `<ul>/<ol>/<div>/<blockquote>` (remove inner
-  wrapper div)
-- `parseHTML`: update `data-node-type` checks to `'blockChildren'`, keep
-  `ul/ol/blockquote/div` parsing
-- Update `normalizeFragment`, `wrapBlockContentInContainer`,
-  `wrapBlockGroupInContainer`, `splitBlockContainerNode` — replace all
-  `'blockContainer'`→`'blockNode'`, `'blockGroup'`→`'blockChildren'`,
-  `'blockContent'`→`'block'`
+- `renderHTML`: render DIRECTLY as `<ul>/<ol>/<div>/<blockquote>` (remove inner wrapper div)
+- `parseHTML`: update `data-node-type` checks to `'blockChildren'`, keep `ul/ol/blockquote/div` parsing
+- Update `normalizeFragment`, `wrapBlockContentInContainer`, `wrapBlockGroupInContainer`, `splitBlockContainerNode` —
+  replace all `'blockContainer'`→`'blockNode'`, `'blockGroup'`→`'blockChildren'`, `'blockContent'`→`'block'`
 
 **`BlockContainer.ts` → rename to `BlockNode.ts`**
 
 - `name: 'blockNode'`
 - `group: 'blockNodeChild block'`
 - `content: 'block blockChildren?'`
-- `renderHTML`: emit SINGLE `<div>` instead of
-  `<div.blockOuter><div.blockContainer>` (drop one wrapper level)
-- `parseHTML`: update `data-node-type` to `'blockNode'`, keep `li` and `div`
-  parsing
-- Update all internal references: `'blockContainer'`→`'blockNode'`,
-  `'blockGroup'`→`'blockChildren'`
+- `renderHTML`: emit SINGLE `<div>` instead of `<div.blockOuter><div.blockContainer>` (drop one wrapper level)
+- `parseHTML`: update `data-node-type` to `'blockNode'`, keep `li` and `div` parsing
+- Update all internal references: `'blockContainer'`→`'blockNode'`, `'blockGroup'`→`'blockChildren'`
 
 **`Blocks/index.ts`**
 
@@ -89,9 +77,8 @@ work until all references are updated, but it's mostly mechanical.
 
 ### 1B. Block content rendering simplification
 
-Each block content node currently renders
-`<div.blockContent><p.inlineContent>0</p></div>`. Simplify to just the semantic
-element.
+Each block content node currently renders `<div.blockContent><p.inlineContent>0</p></div>`. Simplify to just the
+semantic element.
 
 | File                           | Current renderHTML                                                    | New renderHTML                                                         |
 | ------------------------------ | --------------------------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -106,8 +93,7 @@ element.
 
 - `node.type.spec.group === 'blockContent'` → `'block'`
 - `node.type.name === 'blockGroup'` → `'blockChildren'`
-- `isInGroup('block')` already works (blockContainer is already in group
-  `'block'`)
+- `isInGroup('block')` already works (blockContainer is already in group `'block'`)
 - Update comments/JSDoc
 
 **`getGroupInfoFromPos.ts`**
@@ -122,13 +108,11 @@ element.
 
 ### 1D. All command files (string replacements)
 
-These files need `'blockContainer'`→`'blockNode'`,
-`'blockGroup'`→`'blockChildren'`, `'blockContent'`→`'block'` (group checks
-only):
+These files need `'blockContainer'`→`'blockNode'`, `'blockGroup'`→`'blockChildren'`, `'blockContent'`→`'block'` (group
+checks only):
 
 - `nestBlock.ts` — also references `sinkListItem`/`liftListItem` with type names
-- `splitBlock.ts` — `split(posInBlock, 2, types)` stays depth 2 (blockNode +
-  block)
+- `splitBlock.ts` — `split(posInBlock, 2, types)` stays depth 2 (blockNode + block)
 - `mergeBlocks.ts`
 - `updateBlock.ts`
 - `updateGroup.ts`
@@ -139,12 +123,9 @@ only):
 
 ### 1E. Extension files
 
-- `BlockNoteExtensions.ts` — update imports,
-  `UniqueID.configure({types: ['blockNode']})`
-- `BlockNoteEditor.ts` — `'blockContainer'`→`'blockNode'`,
-  `'blockGroup'`→`'blockChildren'`
-- `TrailingNodeExtension.ts` — `'blockContainer'`→`'blockNode'`,
-  `'blockGroup'`→`'blockChildren'`
+- `BlockNoteExtensions.ts` — update imports, `UniqueID.configure({types: ['blockNode']})`
+- `BlockNoteEditor.ts` — `'blockContainer'`→`'blockNode'`, `'blockGroup'`→`'blockChildren'`
+- `TrailingNodeExtension.ts` — `'blockContainer'`→`'blockNode'`, `'blockGroup'`→`'blockChildren'`
 - `KeyboardShortcutsExtension.ts` — all string references
 - `DraggableBlocksPlugin.ts` — group checks `'blockContent'`→`'block'`
 - `SideMenuPlugin.ts` — `'blockContainer'`→`'blockNode'`
@@ -206,20 +187,16 @@ Manual test checklist:
 - [ ] Copy/paste blocks within editor
 - [ ] Drag blocks
 - [ ] Undo/redo
-- [ ] All block types: image, video, file, embed, code, math, button, web-embed,
-      query
+- [ ] All block types: image, video, file, embed, code, math, button, web-embed, query
 - [ ] Placeholder text shows correctly
 - [ ] Side menu appears on hover
 
 ### Risks — Phase 1
 
 1. **Missing a string reference** — mitigate with thorough grep for old names
-2. **CSS selectors breaking** — fewer wrapper divs changes specificity; test
-   visually
-3. **parseHTML not matching on paste** — new DOM structure needs updated parse
-   rules
-4. **React nodeViews** — `ReactBlockSpec.tsx` creates DOM structure that may
-   assume wrapper divs
+2. **CSS selectors breaking** — fewer wrapper divs changes specificity; test visually
+3. **parseHTML not matching on paste** — new DOM structure needs updated parse rules
+4. **React nodeViews** — `ReactBlockSpec.tsx` creates DOM structure that may assume wrapper divs
 
 ---
 
@@ -253,10 +230,8 @@ pnpm format:write
 
 ### Must modify (~35 files):
 
-- `frontend/packages/editor/src/blocknote/core/extensions/Blocks/nodes/BlockGroup.ts`
-  → `BlockChildren.ts`
-- `frontend/packages/editor/src/blocknote/core/extensions/Blocks/nodes/BlockContainer.ts`
-  → `BlockNode.ts`
+- `frontend/packages/editor/src/blocknote/core/extensions/Blocks/nodes/BlockGroup.ts` → `BlockChildren.ts`
+- `frontend/packages/editor/src/blocknote/core/extensions/Blocks/nodes/BlockContainer.ts` → `BlockNode.ts`
 - `frontend/packages/editor/src/blocknote/core/extensions/Blocks/index.ts`
 - `frontend/packages/editor/src/blocknote/core/extensions/Blocks/api/block.ts`
 - `frontend/packages/editor/src/blocknote/core/extensions/Blocks/api/blockTypes.ts`
@@ -297,14 +272,11 @@ pnpm format:write
 
 ### NOT modified:
 
-- `frontend/packages/shared/src/client/editorblock-to-hmblock.ts` — HMBlock
-  format unchanged
-- `frontend/packages/shared/src/client/hmblock-to-editorblock.ts` — HMBlock
-  format unchanged
+- `frontend/packages/shared/src/client/editorblock-to-hmblock.ts` — HMBlock format unchanged
+- `frontend/packages/shared/src/client/hmblock-to-editorblock.ts` — HMBlock format unchanged
 - `frontend/packages/shared/src/editor-types.ts` — EditorBlock types unchanged
 - `frontend/packages/ui/src/blocks-content.tsx` — renders from HMBlock, not PM
-- `frontend/packages/ui/src/blocks-content.css` — styles published content, not
-  editor
+- `frontend/packages/ui/src/blocks-content.css` — styles published content, not editor
 
 ---
 
@@ -427,24 +399,20 @@ group: 'childContainer',
 content: 'blockNodeChild+',
 ```
 
-**renderHTML (line 202-221):** Currently renders with
-`data-node-type: 'blockGroup'`. Change to `'blockChildren'`. The `listNode()`
-function (returns ul/ol/blockquote/div) stays unchanged.
+**renderHTML (line 202-221):** Currently renders with `data-node-type: 'blockGroup'`. Change to `'blockChildren'`. The
+`listNode()` function (returns ul/ol/blockquote/div) stays unchanged.
 
-**parseHTML (line 137-199):** The `div` rule checks
-`data-node-type === 'blockGroup'` at line 190. Change to `'blockChildren'`. The
-`ul/ol/blockquote` rules stay as-is (they parse external HTML).
+**parseHTML (line 137-199):** The `div` rule checks `data-node-type === 'blockGroup'` at line 190. Change to
+`'blockChildren'`. The `ul/ol/blockquote` rules stay as-is (they parse external HTML).
 
 **normalizeFragment (line 327-426):** Contains these string references:
 
 - Line 331: `node.type.name === 'blockContainer'` → `'blockNode'`
 - Line 339: `node.type.name === 'blockGroup'` → `'blockChildren'`
-- Line 247-248: `node.type.name !== 'blockContainer'` and
-  `node.type.name !== 'blockGroup'` → update both
+- Line 247-248: `node.type.name !== 'blockContainer'` and `node.type.name !== 'blockGroup'` → update both
 - Line 296: `child.type.spec.group === 'blockContent'` → `'block'`
 - Line 298: `child.type.name === 'blockGroup'` → `'blockChildren'`
-- Line 350/355: `firstChild.type?.name === 'blockContainer'`/`'blockGroup'` →
-  update
+- Line 350/355: `firstChild.type?.name === 'blockContainer'`/`'blockGroup'` → update
 - Line 369/370: `child.type?.name === 'blockContainer'`/`'blockGroup'` → update
 - Line 408: `node.type.spec?.group === 'blockContent'` → `'block'`
 
@@ -497,8 +465,7 @@ group: 'blockNodeChild block',
 content: 'block blockChildren?',
 ```
 
-**renderHTML (line 230-253):** CRITICAL CHANGE — currently renders TWO nested
-divs:
+**renderHTML (line 230-253):** CRITICAL CHANGE — currently renders TWO nested divs:
 
 ```ts
 // BEFORE (2 divs):
@@ -534,8 +501,7 @@ return [
 ]
 ```
 
-**parseHTML (line 200-228):** Line 221: `data-node-type === 'blockContainer'` →
-`'blockNode'`
+**parseHTML (line 200-228):** Line 221: `data-node-type === 'blockContainer'` → `'blockNode'`
 
 **BNCreateBlock command (line 262):**
 
@@ -549,8 +515,7 @@ state.schema.nodes['blockNode'].createAndFill()!
 **BNSplitHeadingBlock (line 289-369):**
 
 - Line 303: `.sinkListItem('blockContainer')` → `.sinkListItem('blockNode')`
-- Line 324: `state.schema.nodes['blockContainer'].createAndFill()!` →
-  `'blockNode'`
+- Line 324: `state.schema.nodes['blockContainer'].createAndFill()!` → `'blockNode'`
 
 **getNearestHeadingFromPos (line 150-174):**
 
@@ -572,30 +537,25 @@ return Node.create<Options, Storage>({
 })
 ```
 
-This affects ALL block content types (paragraph, heading, image, video, etc.)
-since they all use `createTipTapBlock`.
+This affects ALL block content types (paragraph, heading, image, video, etc.) since they all use `createTipTapBlock`.
 
 ### C4. `createBlockSpec` in `block.ts` (line 130-260)
 
-The `addNodeView` function at line 168-253 creates a DOM element with class
-`styles.blockContent`. After refactoring, the block content IS the top-level
-element, so:
+The `addNodeView` function at line 168-253 creates a DOM element with class `styles.blockContent`. After refactoring,
+the block content IS the top-level element, so:
 
-- Line 171-189: Remove the outer `blockContent` div wrapper. The `dom` returned
-  by the block's render function becomes the top-level DOM.
-- Line 183-185: `styles.blockContent` → need a replacement class or just use
-  `data-content-type` for styling
+- Line 171-189: Remove the outer `blockContent` div wrapper. The `dom` returned by the block's render function becomes
+  the top-level DOM.
+- Line 183-185: `styles.blockContent` → need a replacement class or just use `data-content-type` for styling
 
-The `render` function (line 86-126) also creates a `blockContent` div at
-line 100. After refactoring, the element should directly be the content type
-element.
+The `render` function (line 86-126) also creates a `blockContent` div at line 100. After refactoring, the element should
+directly be the content type element.
 
 ### C5. `ReactBlockSpec.tsx` (line 89-206)
 
 The React version of createBlockSpec. Same pattern:
 
-- Line 170-191: `NodeViewWrapper` gets class `bnBlockStyles.blockContent` —
-  change to appropriate class
+- Line 170-191: `NodeViewWrapper` gets class `bnBlockStyles.blockContent` — change to appropriate class
 - Line 178-179: `bnBlockStyles.blockContent` → remove or replace
 
 ### C6. `nodeConversions.ts` — blockToNode (line 143-204)
@@ -625,10 +585,9 @@ if (node.type.name !== 'blockNode') {
 }
 ```
 
-The children iteration at line 468-476 reads `node.lastChild` (the
-blockGroup/blockChildren) and `node.childCount === 2`. This stays the same since
-the PM structure is unchanged (blockNode still has 1-2 children: block content +
-optional blockChildren).
+The children iteration at line 468-476 reads `node.lastChild` (the blockGroup/blockChildren) and
+`node.childCount === 2`. This stays the same since the PM structure is unchanged (blockNode still has 1-2 children:
+block content + optional blockChildren).
 
 ### C8. `nestBlock.ts` — liftListItem (line 17-156)
 
@@ -717,10 +676,7 @@ return [
   mergeAttributes(
     {
       ...blockContentDOMAttributes,
-      class: mergeCSSClasses(
-        styles.blockContent,
-        blockContentDOMAttributes.class,
-      ),
+      class: mergeCSSClasses(styles.blockContent, blockContentDOMAttributes.class),
       'data-content-type': this.name,
     },
     HTMLAttributes,
@@ -729,10 +685,7 @@ return [
     'p',
     {
       ...inlineContentDOMAttributes,
-      class: mergeCSSClasses(
-        styles.inlineContent,
-        inlineContentDOMAttributes.class,
-      ),
+      class: mergeCSSClasses(styles.inlineContent, inlineContentDOMAttributes.class),
     },
     0,
   ],
@@ -745,11 +698,7 @@ return [
     {
       ...blockContentDOMAttributes,
       ...inlineContentDOMAttributes,
-      class: mergeCSSClasses(
-        'block-paragraph',
-        blockContentDOMAttributes.class,
-        inlineContentDOMAttributes.class,
-      ),
+      class: mergeCSSClasses('block-paragraph', blockContentDOMAttributes.class, inlineContentDOMAttributes.class),
       'data-content-type': this.name,
     },
     HTMLAttributes,
@@ -806,9 +755,7 @@ return [
 [data-node-type='blockGroup'] [data-content-type='heading'] {
   --level: 30px;
 }
-[data-node-type='blockGroup']
-  [data-node-type='blockGroup']
-  [data-content-type='heading'] {
+[data-node-type='blockGroup'] [data-node-type='blockGroup'] [data-content-type='heading'] {
   --level: 24px;
 }
 /* ... etc ... */
@@ -817,9 +764,7 @@ return [
 [data-node-type='blockChildren'] [data-content-type='heading'] {
   --level: 30px;
 }
-[data-node-type='blockChildren']
-  [data-node-type='blockChildren']
-  [data-content-type='heading'] {
+[data-node-type='blockChildren'] [data-node-type='blockChildren'] [data-content-type='heading'] {
   --level: 24px;
 }
 /* ... etc ... */
@@ -827,18 +772,14 @@ return [
 
 ### Block.module.css — Placeholder selectors (lines 465-575)
 
-The placeholder styles use
-`.blockContent.isEmpty.hasAnchor .inlineContent:before`. After refactoring:
+The placeholder styles use `.blockContent.isEmpty.hasAnchor .inlineContent:before`. After refactoring:
 
-- If we keep `.blockContent` class on the block content element → selectors stay
-  similar
-- If we remove `.blockContent` class → need
-  `[data-content-type].isEmpty.hasAnchor:before`
+- If we keep `.blockContent` class on the block content element → selectors stay similar
+- If we remove `.blockContent` class → need `[data-content-type].isEmpty.hasAnchor:before`
 - The `.inlineContent` nesting level goes away since there's no inner element
 
-**Recommendation:** Keep a `.blockContent` class on all block content elements
-for backwards-compatible placeholder styling. The class no longer corresponds to
-a wrapper div, but it provides a stable hook for CSS.
+**Recommendation:** Keep a `.blockContent` class on all block content elements for backwards-compatible placeholder
+styling. The class no longer corresponds to a wrapper div, but it provides a stable hook for CSS.
 
 ### editor.css — Key changes
 
@@ -897,18 +838,13 @@ ol > [data-node-type='blockNode']::marker { ... }
 </div>
 ```
 
-**7 levels of nesting** (ProseMirror > blockGroup > blockOuter > block >
-blockContent > p > text)
+**7 levels of nesting** (ProseMirror > blockGroup > blockOuter > block > blockContent > p > text)
 
 ### Target DOM (same paragraph):
 
 ```html
 <div class="ProseMirror">
-  <div
-    class="blockChildren"
-    data-node-type="blockChildren"
-    data-list-type="Group"
-  >
+  <div class="blockChildren" data-node-type="blockChildren" data-list-type="Group">
     <div class="blockNode" data-node-type="blockNode" data-id="abc123">
       <p class="blockContent" data-content-type="paragraph">Hello world</p>
     </div>
@@ -928,11 +864,7 @@ blockContent > p > text)
         <div class="blockContent" data-content-type="paragraph">
           <p class="inlineContent">Parent</p>
         </div>
-        <ul
-          class="blockGroup"
-          data-node-type="blockGroup"
-          data-list-type="Unordered"
-        >
+        <ul class="blockGroup" data-node-type="blockGroup" data-list-type="Unordered">
           <div class="blockOuter" data-node-type="block-outer" data-id="def">
             <div class="block" data-node-type="blockContainer" data-id="def">
               <div class="blockContent" data-content-type="paragraph">
@@ -951,18 +883,10 @@ blockContent > p > text)
 
 ```html
 <div class="ProseMirror">
-  <div
-    class="blockChildren"
-    data-node-type="blockChildren"
-    data-list-type="Group"
-  >
+  <div class="blockChildren" data-node-type="blockChildren" data-list-type="Group">
     <div class="blockNode" data-node-type="blockNode" data-id="abc">
       <p class="blockContent" data-content-type="paragraph">Parent</p>
-      <ul
-        class="blockChildren"
-        data-node-type="blockChildren"
-        data-list-type="Unordered"
-      >
+      <ul class="blockChildren" data-node-type="blockChildren" data-list-type="Unordered">
         <div class="blockNode" data-node-type="blockNode" data-id="def">
           <p class="blockContent" data-content-type="paragraph">Child item</p>
         </div>
@@ -990,16 +914,14 @@ doc(0)
 /doc
 ```
 
-Position offsets like `block.beforePos + 2` (to reach inside the block content
-node) remain correct because the relative depth between blockNode and its first
-child (the block content) is still 1.
+Position offsets like `block.beforePos + 2` (to reach inside the block content node) remain correct because the relative
+depth between blockNode and its first child (the block content) is still 1.
 
-The `split(posInBlock, 2, types)` call in `splitBlock.ts` stays depth 2 because
-it splits through blockNode + block content type — same as before.
+The `split(posInBlock, 2, types)` call in `splitBlock.ts` stays depth 2 because it splits through blockNode + block
+content type — same as before.
 
-The `level: Math.ceil((maxDepth - 1) / 2)` calculation in
-`getGroupInfoFromPos.ts` remains correct since each nesting level still adds 2
-to the PM depth (blockChildren + blockNode = 2 levels per nesting).
+The `level: Math.ceil((maxDepth - 1) / 2)` calculation in `getGroupInfoFromPos.ts` remains correct since each nesting
+level still adds 2 to the PM depth (blockChildren + blockNode = 2 levels per nesting).
 
 ---
 

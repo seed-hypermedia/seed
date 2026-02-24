@@ -3,12 +3,7 @@ import {EditorState, TextSelection} from 'prosemirror-state'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {getGroupInfoFromPos} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
 import {updateGroupCommand} from '../commands/updateGroup'
-import {
-  buildDoc,
-  createMinimalSchema,
-  createMockEditor,
-  findPosInBlock,
-} from './test-helpers-prosemirror'
+import {buildDoc, createMinimalSchema, createMockEditor, findPosInBlock} from './test-helpers-prosemirror'
 
 describe('updateGroup command', () => {
   let schema: Schema
@@ -81,11 +76,7 @@ describe('updateGroup command', () => {
 
       const pos = findPosInBlock(doc, 'test-1')
       const groupInfo = getGroupInfoFromPos(pos, state)
-      const command = updateGroupCommand(
-        groupInfo.$pos.start(),
-        'Unordered',
-        false,
-      )
+      const command = updateGroupCommand(groupInfo.$pos.start(), 'Unordered', false)
 
       const newState = runCommand(state, editor, command)
       expect(newState).toBeDefined()
@@ -113,11 +104,7 @@ describe('updateGroup command', () => {
 
       const pos = findPosInBlock(doc, 'test-1')
       const groupInfo = getGroupInfoFromPos(pos, state)
-      const command = updateGroupCommand(
-        groupInfo.$pos.start(),
-        'Ordered',
-        false,
-      )
+      const command = updateGroupCommand(groupInfo.$pos.start(), 'Ordered', false)
 
       const newState = runCommand(state, editor, command)
       expect(newState).toBeDefined()
@@ -161,11 +148,7 @@ describe('updateGroup command', () => {
       const editor = createMockEditor(state)
 
       const groupInfo = getGroupInfoFromPos(pos, state)
-      const command = updateGroupCommand(
-        groupInfo.$pos.start(),
-        'Unordered',
-        false,
-      )
+      const command = updateGroupCommand(groupInfo.$pos.start(), 'Unordered', false)
 
       const newState = runDeferredCommand(state, editor, command)
 
@@ -260,13 +243,7 @@ describe('updateGroup command', () => {
 
       const pos = findPosInBlock(doc, 'test-1')
       const groupInfo = getGroupInfoFromPos(pos, state)
-      const command = updateGroupCommand(
-        groupInfo.$pos.start(),
-        'Ordered',
-        false,
-        undefined,
-        true,
-      )
+      const command = updateGroupCommand(groupInfo.$pos.start(), 'Ordered', false, undefined, true)
 
       const newState = runCommand(state, editor, command)
       expect(newState).toBeDefined()
@@ -315,11 +292,7 @@ describe('updateGroup command', () => {
       const editor = createMockEditor(state)
 
       const groupInfo = getGroupInfoFromPos(pos, state)
-      const command = updateGroupCommand(
-        groupInfo.$pos.start(),
-        'Ordered',
-        false,
-      )
+      const command = updateGroupCommand(groupInfo.$pos.start(), 'Ordered', false)
 
       const newState = runDeferredCommand(state, editor, command)
 

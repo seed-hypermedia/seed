@@ -17,17 +17,12 @@ export function transformPastedCodeBlockHTML(html: string): string {
 
   // Find <code> elements that look like code blocks (not inline code)
   const codeEls = Array.from(
-    doc.querySelectorAll(
-      'code[data-ch-lang], code[class*="language-"], code[class*="ch-code"]',
-    ),
+    doc.querySelectorAll('code[data-ch-lang], code[class*="language-"], code[class*="ch-code"]'),
   )
   for (let i = 0; i < codeEls.length; i++) {
     const code = codeEls[i]!
     // Get the language from data attributes or class
-    const lang =
-      code.getAttribute('data-ch-lang') ||
-      code.className.match(/language-(\w+)/)?.[1] ||
-      ''
+    const lang = code.getAttribute('data-ch-lang') || code.className.match(/language-(\w+)/)?.[1] || ''
 
     // Extract text preserving line breaks from block elements/br tags
     const extractText = (el: Element): string => {

@@ -11,12 +11,7 @@ import {useBlockNote} from '@shm/editor/blocknote'
 import {BlockNoteEditor} from '@shm/editor/blocknote/core'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {getSlashMenuItems} from '@shm/editor/slash-menu-items'
-import {
-  getCommentTargetId,
-  getParentPaths,
-  HMAnnotation,
-  useUniversalClient,
-} from '@shm/shared'
+import {getCommentTargetId, getParentPaths, HMAnnotation, UniversalClient, useUniversalClient} from '@shm/shared'
 import {
   Block,
   CreateDocumentChangeRequest,
@@ -37,18 +32,22 @@ import {
   HMDraft,
   HMDraftContent,
   HMDraftMeta,
+  HMListedDraft,
   HMNavigationItem,
   HMResourceFetchResult,
   HMResourceRequest,
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {
-  prepareHMDocumentInfo,
-  useDirectory,
-  useResource,
-  useResources,
-} from '@shm/shared/models/entity'
+/**
+ * Extended draft type returned by app-drafts.ts listAccount/list endpoints.
+ * These endpoints compute locationId/editId from the raw uid+path fields.
+ */
+export type HMListedDraftWithLocation = HMListedDraft & {
+  locationId?: UnpackedHypermediaId
+  editId?: UnpackedHypermediaId
+}
+import {prepareHMDocumentInfo, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -58,18 +57,9 @@ import {
   extractDeletes,
   getDocAttributeChanges,
 } from '@shm/shared/utils/document-changes'
-import {
-  createWebHMUrl,
-  hmId,
-  hmIdToURL,
-  packHmId,
-  unpackHmId,
-} from '@shm/shared/utils/entity-id-url'
+import {createWebHMUrl, hmId, hmIdToURL, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
-import {
-  entityQueryPathToHmIdPath,
-  hmIdPathToEntityQueryPath,
-} from '@shm/shared/utils/path-api'
+import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {eventStream} from '@shm/shared/utils/stream'
 import {DocNavigationItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {PushResourceStatus} from '@shm/ui/push-toast'
@@ -126,9 +116,7 @@ export function useAccountDraftList(accountUid?: string) {
   })
 }
 
-export function useDeleteDraft(
-  opts?: UseMutationOptions<void, unknown, string>,
-) {
+export function useDeleteDraft(opts?: UseMutationOptions<void, unknown, string>) {
   const deleteDraft = useMutation({
     mutationFn: (draftId: string) => client.drafts.delete.mutate(draftId),
     onSuccess: (data, input, ctx) => {
@@ -140,6 +128,65 @@ export function useDeleteDraft(
     ...opts,
   })
   return deleteDraft
+}
+
+export function useChildDrafts(parentId?: UnpackedHypermediaId) {
+  const drafts = useAccountDraftList(parentId?.uid)
+  return useMemo(() => {
+    if (!drafts.data || !parentId) return []
+    return drafts.data.filter((draft) => {
+      const locationId = (draft as HMListedDraftWithLocation).locationId
+      if (!locationId) return false
+      return locationId.id === parentId.id
+    })
+  }, [drafts.data, parentId])
+}
+
+export function useCreateInlineDraft(parentId: UnpackedHypermediaId | undefined) {
+  return useMutation({
+    mutationFn: async ({visibility}: {visibility?: HMResourceVisibility} = {}) => {
+      if (!parentId) throw new Error('No parent ID')
+      const draftId = nanoid(10)
+      await client.drafts.write.mutate({
+        id: draftId,
+        locationUid: parentId.uid,
+        locationPath: parentId.path || [],
+        metadata: {name: ''},
+        content: [],
+        deps: [],
+        visibility: visibility ?? 'PUBLIC',
+      })
+      return {draftId}
+    },
+    onSuccess: () => {
+      invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, parentId?.uid])
+      invalidateQueries([queryKeys.DRAFTS_LIST])
+    },
+  })
+}
+
+export function useUpdateDraftMetadata() {
+  return useMutation({
+    mutationFn: async ({draftId, metadata}: {draftId: string; metadata: Partial<HMDraft['metadata']>}) => {
+      const draft = await client.drafts.get.query(draftId)
+      if (!draft) throw new Error(`Draft ${draftId} not found`)
+      await client.drafts.write.mutate({
+        id: draft.id,
+        locationUid: draft.locationUid,
+        locationPath: draft.locationPath,
+        editUid: draft.editUid,
+        editPath: draft.editPath,
+        metadata: {...draft.metadata, ...metadata},
+        content: draft.content,
+        deps: draft.deps,
+        navigation: draft.navigation,
+        visibility: draft.visibility,
+      })
+      invalidateQueries([queryKeys.DRAFT, draftId])
+      invalidateQueries([queryKeys.DRAFTS_LIST])
+      invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
+    },
+  })
 }
 
 export type EmbedsContent = HMResourceFetchResult[]
@@ -169,26 +216,20 @@ export function sortDocuments(a?: Timestamp, b?: Timestamp) {
   return dateB - dateA
 }
 
-export function getDefaultShortname(
-  docTitle: string | undefined,
-  docId: string,
-) {
+export function getDefaultShortname(docTitle: string | undefined, docId: string) {
   const unpackedId = unpackHmId(docId)
   const idShortname = unpackedId ? unpackedId.uid.slice(0, 5).toLowerCase() : ''
   const kebabName = docTitle ? pathNameify(docTitle) : idShortname
-  const shortName =
-    kebabName.length > 40 ? kebabName.substring(0, 40) : kebabName
+  const shortName = kebabName.length > 40 ? kebabName.substring(0, 40) : kebabName
   return shortName
 }
 
 function useDraftDiagnosis() {
   const appendDraft = useMutation({
-    mutationFn: (input: {draftId: string; event: unknown}) =>
-      client.diagnosis.appendDraftLog.mutate(input),
+    mutationFn: (input: {draftId: string; event: unknown}) => client.diagnosis.appendDraftLog.mutate(input),
   })
   const completeDraft = useMutation({
-    mutationFn: (input: {draftId: string; event: unknown}) =>
-      client.diagnosis.completeDraftLog.mutate(input),
+    mutationFn: (input: {draftId: string; event: unknown}) => client.diagnosis.completeDraftLog.mutate(input),
   })
   return {
     append(draftId: string, event: unknown) {
@@ -211,21 +252,13 @@ export function usePublishResource(
 ) {
   const accts = useMyAccountIds()
   const editEntity = useResource(editId)
-  const editDocument =
-    editEntity.data?.type === 'document' ? editEntity.data.document : undefined
+  const editDocument = editEntity.data?.type === 'document' ? editEntity.data.document : undefined
   const writeRecentSigner = useMutation({
-    mutationFn: (signingKeyName: string) =>
-      client.recentSigners.writeRecentSigner.mutate(signingKeyName),
+    mutationFn: (signingKeyName: string) => client.recentSigners.writeRecentSigner.mutate(signingKeyName),
   })
   return useMutation<HMDocument, any, PublishDraftInput>({
-    mutationFn: async ({
-      draft,
-      destinationId,
-      accountId,
-    }: PublishDraftInput): Promise<HMDocument> => {
-      const blocksMap = editId
-        ? createBlocksMap(editDocument?.content || [], '')
-        : {}
+    mutationFn: async ({draft, destinationId, accountId}: PublishDraftInput): Promise<HMDocument> => {
+      const blocksMap = editId ? createBlocksMap(editDocument?.content || [], '') : {}
       let newContent = removeTrailingBlocks(draft.content || [])
 
       // Fill query blocks for new documents
@@ -237,10 +270,7 @@ export function usePublishResource(
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
 
-      const navigationChanges = getNavigationChanges(
-        draft.navigation,
-        editDocument?.detachedBlocks?.navigation,
-      )
+      const navigationChanges = getNavigationChanges(draft.navigation, editDocument?.detachedBlocks?.navigation)
 
       if (accts.data?.length == 0) {
         dispatchOnboardingDialog(true)
@@ -256,19 +286,13 @@ export function usePublishResource(
 
             let capabilityId = ''
             if (accountId !== destinationId.uid) {
-              const capabilities =
-                await grpcClient.accessControl.listCapabilities({
-                  account: destinationId.uid,
-                  path: hmIdPathToEntityQueryPath(destinationId.path || []),
-                })
+              const capabilities = await grpcClient.accessControl.listCapabilities({
+                account: destinationId.uid,
+                path: hmIdPathToEntityQueryPath(destinationId.path || []),
+              })
 
-              const capability = capabilities.capabilities.find(
-                (cap) => cap.delegate === accountId,
-              )
-              if (!capability)
-                throw new Error(
-                  'Could not find capability for this draft signing account',
-                )
+              const capability = capabilities.capabilities.find((cap) => cap.delegate === accountId)
+              if (!capability) throw new Error('Could not find capability for this draft signing account')
               capabilityId = capability.id
             }
             writeRecentSigner.mutateAsync(accountId).then(() => {
@@ -295,8 +319,7 @@ export function usePublishResource(
               req.visibility = ResourceVisibility.UNSPECIFIED
             }
 
-            const publishedDoc =
-              await grpcClient.documents.createDocumentChange(req)
+            const publishedDoc = await grpcClient.documents.createDocumentChange(req)
             const resultDoc: HMDocument = prepareHMDocument(publishedDoc)
             return resultDoc
           } else {
@@ -305,9 +328,7 @@ export function usePublishResource(
         } catch (error) {
           const connectErr = ConnectError.from(error)
           if (connectErr.rawMessage.includes('path already exists')) {
-            toast.error(
-              `Can't publish to this path. You already have a document at this location.`,
-            )
+            toast.error(`Can't publish to this path. You already have a document at this location.`)
           } else {
             toast.error(`Publish error: ${connectErr.rawMessage}`)
           }
@@ -317,11 +338,7 @@ export function usePublishResource(
       }
       throw new Error('Unhandled publish')
     },
-    onSuccess: (
-      result: HMDocument,
-      variables: PublishDraftInput,
-      context: unknown,
-    ) => {
+    onSuccess: (result: HMDocument, variables: PublishDraftInput, context: unknown) => {
       const resultDocId = hmId(result.account, {
         path: entityQueryPathToHmIdPath(result.path),
       })
@@ -338,16 +355,10 @@ export function usePublishResource(
         invalidateQueries([queryKeys.SITE_LIBRARY, resultDocId.uid])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
         invalidateQueries([queryKeys.DOC_CITATIONS])
-        invalidateQueries([
-          queryKeys.DOCUMENT_INTERACTION_SUMMARY,
-          resultDocId.id,
-        ])
+        invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, resultDocId.id])
         getParentPaths(resultDocId.path).forEach((path) => {
           const parentId = hmId(resultDocId.uid, {path})
-          invalidateQueries([
-            queryKeys.DOCUMENT_INTERACTION_SUMMARY,
-            parentId.id,
-          ])
+          invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentId.id])
         })
       }
     },
@@ -485,19 +496,13 @@ export function useDraftEditor() {
   }, [route, data])
 
   const editEntity = useResource(editId)
-  const editDocument =
-    editEntity.data?.type === 'document' ? editEntity.data.document : undefined
+  const editDocument = editEntity.data?.type === 'document' ? editEntity.data.document : undefined
   const editHomeEntity = useResource(editId ? hmId(editId?.uid) : undefined)
-  const getResourceUrl = useRef<
-    (blockId?: string | null) => string | undefined
-  >(() => undefined)
+  const getResourceUrl = useRef<(blockId?: string | null) => string | undefined>(() => undefined)
   useEffect(() => {
     getResourceUrl.current = (blockId?: string | null) => {
       if (!editId) return undefined
-      const siteHomeDoc =
-        editHomeEntity.data?.type === 'document'
-          ? editHomeEntity.data.document
-          : undefined
+      const siteHomeDoc = editHomeEntity.data?.type === 'document' ? editHomeEntity.data.document : undefined
       const siteHomeUrl = siteHomeDoc?.metadata?.siteUrl
       // When copying a block link, include the version to ensure
       // the block can be found in the correct document version
@@ -519,15 +524,13 @@ export function useDraftEditor() {
     mutationFn: (url: string) => client.webImporting.checkWebUrl.mutate(url),
   })
   const saveDraft = useMutation({
-    mutationFn: (input: Parameters<typeof client.drafts.write.mutate>[0]) =>
-      client.drafts.write.mutate(input),
+    mutationFn: (input: Parameters<typeof client.drafts.write.mutate>[0]) => client.drafts.write.mutate(input),
   })
   const selectedAccountId = useSelectedAccountId()
   const {onMentionsQuery} = useInlineMentions(selectedAccountId)
   const importWebFile = useMutation({
-    mutationFn: (
-      input: Parameters<typeof client.webImporting.importWebFile.mutate>[0],
-    ) => client.webImporting.importWebFile.mutate(input),
+    mutationFn: (input: Parameters<typeof client.webImporting.importWebFile.mutate>[0]) =>
+      client.webImporting.importWebFile.mutate(input),
   })
 
   const editor = useBlockNote<typeof hmBlockSchema>({
@@ -548,11 +551,7 @@ export function useDraftEditor() {
     onTextCursorPositionChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
       const {view} = editor._tiptapEditor
       const {selection} = view.state
-      if (
-        selection.from !== selection.to &&
-        !(selection instanceof NodeSelection)
-      )
-        return
+      if (selection.from !== selection.to && !(selection instanceof NodeSelection)) return
       const domAtPos = view.domAtPos(selection.from)
       try {
         const node = domAtPos.node as HTMLElement
@@ -561,8 +560,7 @@ export function useDraftEditor() {
         // if (rect && (rect.top < 0 || rect.top > window.innerHeight)) {
         if (rect && rect.top > window.innerHeight) {
           // Scroll the cursor into view if not caused by media drag
-          if (!(editor as any).sideMenu?.sideMenuView?.isDragging)
-            node.scrollIntoView({block: 'center'})
+          if (!(editor as any).sideMenu?.sideMenuView?.isDragging) node.scrollIntoView({block: 'center'})
         }
       } catch {}
       return
@@ -687,9 +685,7 @@ export function useDraftEditor() {
                 // @ts-expect-error
                 signingAccount: context.signingAccount,
                 content,
-                deps: event.payload.data.document?.version
-                  ? [event.payload.data.document?.version]
-                  : undefined,
+                deps: event.payload.data.document?.version ? [event.payload.data.document?.version] : undefined,
               }
             }
           }
@@ -763,13 +759,11 @@ export function useDraftEditor() {
 
   // this updates the draft with the correct signing account
   useEffect(() => {
-    draftEvents.subscribe(
-      (value: {type: 'change'; signingAccount?: string} | null) => {
-        if (value) {
-          send(value)
-        }
-      },
-    )
+    draftEvents.subscribe((value: {type: 'change'; signingAccount?: string} | null) => {
+      if (value) {
+        send(value)
+      }
+    })
   }, [])
 
   return {
@@ -783,14 +777,9 @@ export function useDraftEditor() {
   }
 }
 
-export type HyperMediaEditor = Exclude<
-  ReturnType<typeof useDraftEditor>['editor'],
-  null
->
+export type HyperMediaEditor = Exclude<ReturnType<typeof useDraftEditor>['editor'], null>
 
-export const findBlock = findParentNode(
-  (node) => node.type.name === 'blockNode',
-)
+export const findBlock = findParentNode((node) => node.type.name === 'blockContainer')
 
 export function useDocTextContent(doc?: HMDocument | null) {
   return useMemo(() => {
@@ -835,265 +824,243 @@ export type BlocksMapItem = {
   block: HMBlock
 }
 
-export function usePushResource() {
-  const universalClient = useUniversalClient()
-  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
+export async function pushResource(
+  universalClient: UniversalClient,
+  gwUrl: string,
+  id: UnpackedHypermediaId,
+  onlyPushToHost?: string,
+  onStatusChange?: (status: PushResourceStatus) => void,
+): Promise<boolean> {
+  const resource = await universalClient.request<HMResourceRequest>('Resource', id)
+  // step 1. find all the site IDs that will be affected by this resource.
+  // console.log('== publish 1', id, resource, gwUrl)
+  let destinationSiteUids = new Set<string>()
 
-  return async (
-    id: UnpackedHypermediaId,
-    onlyPushToHost?: string,
-    onStatusChange?: (status: PushResourceStatus) => void,
-  ): Promise<boolean> => {
-    const resource = await universalClient.request<HMResourceRequest>(
-      'Resource',
-      id,
-    )
-    // step 1. find all the site IDs that will be affected by this resource.
-    // console.log('== publish 1', id, resource, gwUrl)
-    let destinationSiteUids = new Set<string>()
-
-    function extractBNReferences(blockNodes: HMBlockNode[]) {
-      blockNodes.forEach(async (node) => {
-        node.children && extractBNReferences(node.children || [])
-        if (node.block.type === 'Query') {
-          const query = node.block.attributes.query
-          query.includes.forEach((include) => {
-            destinationSiteUids.add(include.space)
-          })
-        }
-        if (node.block.type === 'Embed') {
-          const id = unpackHmId(node.block.link)
-          if (id) {
-            destinationSiteUids.add(id.uid)
-          }
-        }
-        const annotations = getAnnotations(node.block)
-        annotations?.forEach((annotation: HMAnnotation) => {
-          const id = unpackHmId(annotation.link)
-          if (id) {
-            destinationSiteUids.add(id.uid)
-          }
+  function extractBNReferences(blockNodes: HMBlockNode[]) {
+    blockNodes.forEach(async (node) => {
+      node.children && extractBNReferences(node.children || [])
+      if (node.block.type === 'Query') {
+        const query = node.block.attributes.query
+        query.includes.forEach((include) => {
+          destinationSiteUids.add(include.space)
         })
-      })
-    }
-
-    // for documents:
-    // - the site that the document is in
-    // - each author of the document
-    // - all the sites that the document directly references through embeds,links,mentions, and queries
-
-    if (resource.type === 'document') {
-      destinationSiteUids.add(resource.id.uid)
-      resource.document.authors.forEach((authorUid: string) => {
-        destinationSiteUids.add(authorUid)
-      })
-      extractBNReferences(resource.document.content)
-    }
-
-    // for comments:
-    // - the site that the comment's target document is in
-    // - the author of the comment
-    // - all the sites that the comment's target document directly references through embeds,links,mentions, and queries
-
-    if (resource.type === 'comment') {
-      destinationSiteUids.add(resource.comment.targetAccount)
-
-      // in theory, these two are the same, but we'll add both to be safe and because it doesn't cost anything:
-      destinationSiteUids.add(resource.comment.author)
-      destinationSiteUids.add(resource.id.uid)
-
-      extractBNReferences(resource.comment.content)
-    }
-
-    // step 2. find all the hosts for these destination sites
-    // console.log('== publish 2', destinationSiteUids)
-
-    let destinationHosts = new Set<string>([
-      // always push to the gateway url
-      gwUrl,
-    ])
-
-    // when copying the URL, we don't need to push to every host. just the one whose URL we're copying.
-    // TODO: skip the previous steps if onlyPushToHost is provided
-    if (onlyPushToHost) {
-      destinationHosts = new Set([onlyPushToHost])
-    }
-
-    await Promise.all(
-      Array.from(destinationSiteUids).map(async (uid) => {
-        try {
-          const resource = await universalClient.request<HMResourceRequest>(
-            'Resource',
-            hmId(uid),
-          )
-          if (resource.type === 'document') {
-            const siteUrl = resource.document.metadata?.siteUrl
-            if (siteUrl) destinationHosts.add(siteUrl)
-          }
-        } catch (error) {
-          console.error(
-            'Error loading site resource for pushing to the siteUrl',
-            uid,
-            error,
-          )
-        }
-      }),
-    )
-
-    // console.log('== publish 3 == destinationHosts', destinationHosts)
-
-    let status: PushResourceStatus = {
-      hosts: Array.from(destinationHosts).map((host) => ({
-        host,
-        status: 'pending',
-        message: undefined,
-      })),
-    }
-
-    onStatusChange?.(status)
-
-    function updateHostStatus(
-      host: string,
-      newStatus: 'success' | 'error' | 'pending',
-      message: string,
-      peerId?: string,
-    ) {
-      const hostStatus = status.hosts.find((h) => h.host === host)
-      if (hostStatus) {
-        status = {
-          ...status,
-          hosts: status.hosts.map((h) => {
-            if (h.host === host) {
-              return {
-                ...h,
-                status: newStatus,
-                message: message,
-                peerId: peerId,
-              }
-            }
-            return h
-          }),
+      }
+      if (node.block.type === 'Embed') {
+        const id = unpackHmId(node.block.link)
+        if (id) {
+          destinationSiteUids.add(id.uid)
         }
       }
-      onStatusChange?.(status)
-    }
-    function updatePeerStatus(
-      peerId: string,
-      newStatus: 'success' | 'error' | 'pending',
-      message: string,
-    ) {
+      const annotations = getAnnotations(node.block)
+      annotations?.forEach((annotation: HMAnnotation) => {
+        const id = unpackHmId(annotation.link)
+        if (id) {
+          destinationSiteUids.add(id.uid)
+        }
+      })
+    })
+  }
+
+  // for documents:
+  // - the site that the document is in
+  // - each author of the document
+  // - all the sites that the document directly references through embeds,links,mentions, and queries
+
+  if (resource.type === 'document') {
+    destinationSiteUids.add(resource.id.uid)
+    resource.document.authors.forEach((authorUid: string) => {
+      destinationSiteUids.add(authorUid)
+    })
+    extractBNReferences(resource.document.content)
+  }
+
+  // for comments:
+  // - the site that the comment's target document is in
+  // - the author of the comment
+  // - all the sites that the comment's target document directly references through embeds,links,mentions, and queries
+
+  if (resource.type === 'comment') {
+    destinationSiteUids.add(resource.comment.targetAccount)
+
+    // in theory, these two are the same, but we'll add both to be safe and because it doesn't cost anything:
+    destinationSiteUids.add(resource.comment.author)
+    destinationSiteUids.add(resource.id.uid)
+
+    extractBNReferences(resource.comment.content)
+  }
+
+  // step 2. find all the hosts for these destination sites
+  // console.log('== publish 2', destinationSiteUids)
+
+  let destinationHosts = new Set<string>([
+    // always push to the gateway url
+    gwUrl,
+  ])
+
+  // when copying the URL, we don't need to push to every host. just the one whose URL we're copying.
+  // TODO: skip the previous steps if onlyPushToHost is provided
+  if (onlyPushToHost) {
+    destinationHosts = new Set([onlyPushToHost])
+  }
+
+  await Promise.all(
+    Array.from(destinationSiteUids).map(async (uid) => {
+      try {
+        const resource = await universalClient.request<HMResourceRequest>('Resource', hmId(uid))
+        if (resource.type === 'document') {
+          const siteUrl = resource.document.metadata?.siteUrl
+          if (siteUrl) destinationHosts.add(siteUrl)
+        }
+      } catch (error) {
+        console.error('Error loading site resource for pushing to the siteUrl', uid, error)
+      }
+    }),
+  )
+
+  // console.log('== publish 3 == destinationHosts', destinationHosts)
+
+  let status: PushResourceStatus = {
+    hosts: Array.from(destinationHosts).map((host) => ({
+      host,
+      status: 'pending',
+      message: undefined,
+    })),
+  }
+
+  onStatusChange?.(status)
+
+  function updateHostStatus(
+    host: string,
+    newStatus: 'success' | 'error' | 'pending',
+    message: string,
+    peerId?: string,
+  ) {
+    const hostStatus = status.hosts.find((h) => h.host === host)
+    if (hostStatus) {
       status = {
         ...status,
         hosts: status.hosts.map((h) => {
-          if (h.peerId === peerId) {
+          if (h.host === host) {
             return {
               ...h,
               status: newStatus,
               message: message,
+              peerId: peerId,
             }
           }
           return h
         }),
       }
-      onStatusChange?.(status)
     }
-
-    const addrsForPeer = new Map<string, string[]>()
-    // step 3. gather all the peerIds for these sites.
-    await Promise.all(
-      Array.from(destinationHosts).map(async (host) => {
-        try {
-          updateHostStatus(host, 'pending', 'Connecting...')
-          const config = await client.web.configOfHost.query({
-            host,
-            timeout: 10_000,
-          })
-          if (config.peerId) {
-            addrsForPeer.set(config.peerId, config.addrs)
-            // technically this is not connected via libp2p yet, but the user doesn't need to know that. If the peerId is found, we can assume that the connection is successful for UX purposes.
-            updateHostStatus(host, 'pending', 'Pushing...', config.peerId)
-          }
-        } catch (error) {
-          console.error('Error getting peerId for host', host, error)
-          updateHostStatus(host, 'error', (error as Error).message)
-        }
-      }),
-    )
-
-    // step 4. push this resource to all the sites.
-    // - the daemon will automatically connect, and will push all the relevant materials to the destination peers
-    // console.log('== publish 4 == pushing to peers', peerIds)
-    const resourceIdToPush =
-      resource.type === 'comment' ? getCommentTargetId(resource.comment) : id
-    if (!resourceIdToPush) {
-      console.error('Could not determine resource ID to push', resource)
-      throw new Error('Could not determine resource ID to push')
-    }
-
-    const peerIdsToPush = new Set<string>()
-    status.hosts.forEach(({peerId}) => {
-      if (peerId) peerIdsToPush.add(peerId)
-    })
-
-    if (!peerIdsToPush.size) {
-      console.error('No peers found to push to', {
-        resource,
-        destinationHosts,
-      })
-      throw new Error('Failed to connect to any sites.')
-    }
-
-    const pushResourceUrl = hmIdToURL({
-      ...resourceIdToPush,
-      blockRef: null,
-      blockRange: null,
-    })
-    // console.log('== publish 4 == pushing to peers', pushResourceUrl, peerIds)
-
-    await Promise.all(
-      Array.from(peerIdsToPush).map(async (peerId, syncDebugId) => {
-        let lastProgress: AnnounceBlobsProgress | undefined = undefined
-        const addrs = addrsForPeer.get(peerId)
-        if (!addrs) {
-          updatePeerStatus(peerId, 'error', 'No addresses found for peer')
-        }
-        try {
-          const pushProgress = grpcClient.resources.pushResourcesToPeer({
-            addrs,
-            recursive: true,
-            resources: [pushResourceUrl],
-          })
-          for await (const progress of pushProgress) {
-            console.log(
-              `== publish ${syncDebugId} == progress`,
-              JSON.stringify(toPlainMessage(progress)),
-            )
-            updatePeerStatus(
-              peerId,
-              'pending',
-              `Pushing ${progress.blobsProcessed}/${progress.blobsWanted}`,
-            )
-            lastProgress = progress
-          }
-          console.log(`== publish ${syncDebugId} == DONE =====`)
-          updatePeerStatus(peerId, 'success', 'Done')
-        } catch (error) {
-          console.error(
-            `== publish ${syncDebugId} == Error pushing to peer`,
-            peerId,
-            error,
-          )
-          updatePeerStatus(peerId, 'error', (error as Error).message)
-        }
-        console.log(`== publish ${syncDebugId} == lastProgress`, lastProgress)
-        // if (lastProgress?.peersFailed ?? 0 > 0) {
-        //   updatePeerStatus(peerId, 'error', 'Failed to push to site.')
-        // }
-      }),
-    )
-
-    return true
+    onStatusChange?.(status)
   }
+  function updatePeerStatus(peerId: string, newStatus: 'success' | 'error' | 'pending', message: string) {
+    status = {
+      ...status,
+      hosts: status.hosts.map((h) => {
+        if (h.peerId === peerId) {
+          return {
+            ...h,
+            status: newStatus,
+            message: message,
+          }
+        }
+        return h
+      }),
+    }
+    onStatusChange?.(status)
+  }
+
+  const addrsForPeer = new Map<string, string[]>()
+  // step 3. gather all the peerIds for these sites.
+  await Promise.all(
+    Array.from(destinationHosts).map(async (host) => {
+      try {
+        updateHostStatus(host, 'pending', 'Connecting...')
+        const config = await client.web.configOfHost.query({
+          host,
+          timeout: 10_000,
+        })
+        if (config.peerId) {
+          addrsForPeer.set(config.peerId, config.addrs)
+          // technically this is not connected via libp2p yet, but the user doesn't need to know that. If the peerId is found, we can assume that the connection is successful for UX purposes.
+          updateHostStatus(host, 'pending', 'Pushing...', config.peerId)
+        }
+      } catch (error) {
+        console.error('Error getting peerId for host', host, error)
+        updateHostStatus(host, 'error', (error as Error).message)
+      }
+    }),
+  )
+
+  // step 4. push this resource to all the sites.
+  // - the daemon will automatically connect, and will push all the relevant materials to the destination peers
+  // console.log('== publish 4 == pushing to peers', peerIds)
+  const resourceIdToPush = resource.type === 'comment' ? getCommentTargetId(resource.comment) : id
+  if (!resourceIdToPush) {
+    console.error('Could not determine resource ID to push', resource)
+    throw new Error('Could not determine resource ID to push')
+  }
+
+  const peerIdsToPush = new Set<string>()
+  status.hosts.forEach(({peerId}) => {
+    if (peerId) peerIdsToPush.add(peerId)
+  })
+
+  if (!peerIdsToPush.size) {
+    console.error('No peers found to push to', {
+      resource,
+      destinationHosts,
+    })
+    throw new Error('Failed to connect to any sites.')
+  }
+
+  const pushResourceUrl = hmIdToURL({
+    ...resourceIdToPush,
+    blockRef: null,
+    blockRange: null,
+  })
+  // console.log('== publish 4 == pushing to peers', pushResourceUrl, peerIds)
+
+  await Promise.all(
+    Array.from(peerIdsToPush).map(async (peerId, syncDebugId) => {
+      let lastProgress: AnnounceBlobsProgress | undefined = undefined
+      const addrs = addrsForPeer.get(peerId)
+      if (!addrs) {
+        updatePeerStatus(peerId, 'error', 'No addresses found for peer')
+      }
+      try {
+        const pushProgress = grpcClient.resources.pushResourcesToPeer({
+          addrs,
+          recursive: true,
+          resources: [pushResourceUrl],
+        })
+        for await (const progress of pushProgress) {
+          console.log(`== publish ${syncDebugId} == progress`, JSON.stringify(toPlainMessage(progress)))
+          updatePeerStatus(peerId, 'pending', `Pushing ${progress.blobsProcessed}/${progress.blobsWanted}`)
+          lastProgress = progress
+        }
+        console.log(`== publish ${syncDebugId} == DONE =====`)
+        updatePeerStatus(peerId, 'success', 'Done')
+      } catch (error) {
+        console.error(`== publish ${syncDebugId} == Error pushing to peer`, peerId, error)
+        updatePeerStatus(peerId, 'error', (error as Error).message)
+      }
+      console.log(`== publish ${syncDebugId} == lastProgress`, lastProgress)
+      // if (lastProgress?.peersFailed ?? 0 > 0) {
+      //   updatePeerStatus(peerId, 'error', 'Failed to push to site.')
+      // }
+    }),
+  )
+
+  return true
+}
+
+export function usePushResource() {
+  const universalClient = useUniversalClient()
+  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
+  return (id: UnpackedHypermediaId, onlyPushToHost?: string, onStatusChange?: (status: PushResourceStatus) => void) =>
+    pushResource(universalClient, gwUrl, id, onlyPushToHost, onStatusChange)
 }
 
 // ============================================================================
@@ -1101,20 +1068,14 @@ export function usePushResource() {
 // ============================================================================
 
 // Re-export utility functions from auto-link-utils.ts for easier testing
-export {
-  documentContainsLinkToChild,
-  documentHasSelfQuery,
-} from './auto-link-utils'
+export {documentContainsLinkToChild, documentHasSelfQuery} from './auto-link-utils'
 
 /**
  * Add an embed link to a parent draft file
  * TODO: If user discards this draft later, the auto-link will be lost.
  * Discuss with team whether we should warn user or handle this differently.
  */
-export async function addLinkToParentDraft(
-  parentDraftId: string,
-  childId: UnpackedHypermediaId,
-): Promise<void> {
+export async function addLinkToParentDraft(parentDraftId: string, childId: UnpackedHypermediaId): Promise<void> {
   const draft = await client.drafts.get.query(parentDraftId)
   if (!draft) {
     throw new Error(`Draft ${parentDraftId} not found`)
@@ -1206,13 +1167,9 @@ export async function publishLinkToParentDocument(
       account: parentId.uid,
       path: hmIdPathToEntityQueryPath(parentId.path || []),
     })
-    const capability = capabilities.capabilities.find(
-      (cap) => cap.delegate === signingKeyName,
-    )
+    const capability = capabilities.capabilities.find((cap) => cap.delegate === signingKeyName)
     if (!capability) {
-      throw new Error(
-        'Could not find capability for signing account to update parent document',
-      )
+      throw new Error('Could not find capability for signing account to update parent document')
     }
     capabilityId = capability.id
   }
@@ -1319,16 +1276,10 @@ export function useListProfileDocuments() {
   })
 }
 
-function fillEmptyQueryBlocks(
-  blocks: EditorBlock[],
-  destinationId: UnpackedHypermediaId,
-): EditorBlock[] {
+function fillEmptyQueryBlocks(blocks: EditorBlock[], destinationId: UnpackedHypermediaId): EditorBlock[] {
   return blocks.map((block) => {
     if (block.type === 'query') {
-      const queryIncludes = JSON.parse(
-        block.props.queryIncludes ||
-          '[{"space":"","path":"","mode":"Children"}]',
-      )
+      const queryIncludes = JSON.parse(block.props.queryIncludes || '[{"space":"","path":"","mode":"Children"}]')
 
       // Fill empty space with destination
       if (!queryIncludes[0]?.space || queryIncludes[0]?.space === '') {
@@ -1365,11 +1316,7 @@ function removeTrailingBlocks(blocks: Array<EditorBlock>) {
   while (true) {
     let lastBlock = trailedBlocks[trailedBlocks.length - 1]
     if (!lastBlock) break
-    if (
-      lastBlock.type == 'paragraph' &&
-      lastBlock.content.length == 0 &&
-      lastBlock.children.length == 0
-    ) {
+    if (lastBlock.type == 'paragraph' && lastBlock.content.length == 0 && lastBlock.children.length == 0) {
       trailedBlocks.pop()
     } else {
       break

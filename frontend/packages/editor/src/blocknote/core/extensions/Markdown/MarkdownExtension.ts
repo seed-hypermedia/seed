@@ -170,10 +170,7 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
               const selectedNode = view.state.selection.$from.parent
 
               // Don't proceed if pasting into code block
-              if (
-                selectedNode.type.name === 'code-block' ||
-                selectedNode.firstChild?.type.name === 'code-block'
-              ) {
+              if (selectedNode.type.name === 'code-block' || selectedNode.firstChild?.type.name === 'code-block') {
                 return false
               }
 
@@ -190,10 +187,7 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
                 selection.$from.parent.content.content.length > 0
               if (isInlineTextPaste) return false
 
-              const isRichHtml =
-                /<(ul|ol|table|pre|h1|h2|h3|h4|h5|h6|blockquote|img)\b/i.test(
-                  pastedHtml,
-                )
+              const isRichHtml = /<(ul|ol|table|pre|h1|h2|h3|h4|h5|h6|blockquote|img)\b/i.test(pastedHtml)
 
               // Prefer HTML handling when there are rich html tags
               if (isRichHtml) return false

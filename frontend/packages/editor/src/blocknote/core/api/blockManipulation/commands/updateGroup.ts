@@ -3,10 +3,7 @@ import {Editor} from '@tiptap/core'
 import {ResolvedPos} from '@tiptap/pm/model'
 import {Node as PMNode} from 'prosemirror-model'
 import {EditorState} from 'prosemirror-state'
-import {
-  getGroupInfoFromPos,
-  getParentGroupInfoFromPos,
-} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
+import {getGroupInfoFromPos, getParentGroupInfoFromPos} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
 
 export const updateGroupCommand = (
   posInBlock: number,
@@ -32,10 +29,7 @@ export const updateGroupCommand = (
       depth,
       level: groupLevel,
       $pos,
-    } = getGroupInfoFromPos(
-      posInBlock < 0 ? state.selection.from : posInBlock,
-      state,
-    )
+    } = getGroupInfoFromPos(posInBlock < 0 ? state.selection.from : posInBlock, state)
 
     if (isSank && group.attrs.listType === listType) return true
 
@@ -53,36 +47,18 @@ export const updateGroupCommand = (
 
       // Update children levels asynchronously
       setTimeout(() => {
-        editor.commands.command(
-          updateGroupChildrenCommand(
-            group,
-            container,
-            $pos,
-            0,
-            group.attrs.listType,
-            false,
-          ),
-        )
+        editor.commands.command(updateGroupChildrenCommand(group, container, $pos, 0, group.attrs.listType, false))
       })
 
       return true
     }
 
     // If block is first block in the document do nothing
-    if (
-      $pos.node(depth - 1).type.name === 'doc' &&
-      container &&
-      group.firstChild?.attrs.id === container.attrs.id
-    )
+    if ($pos.node(depth - 1).type.name === 'doc' && container && group.firstChild?.attrs.id === container.attrs.id)
       return false
 
     // If block is not the first in its' group, sink list item and then update group
-    if (
-      group.firstChild &&
-      container &&
-      group.firstChild.attrs.id !== container.attrs.id &&
-      !tab
-    ) {
+    if (group.firstChild && container && group.firstChild.attrs.id !== container.attrs.id && !tab) {
       setTimeout(() => {
         editor
           .chain()
@@ -121,8 +97,7 @@ export const updateGroupCommand = (
       let level = '1'
       // Set new level based on the level of the previous group, if any.
       if (depth >= 5) {
-        const {node: parentGroup, pos: parentGroupPos} =
-          getParentGroupInfoFromPos(group, $pos, depth)
+        const {node: parentGroup, pos: parentGroupPos} = getParentGroupInfoFromPos(group, $pos, depth)
         if (parentGroup && parentGroup.attrs.listType === listType) {
           level = `${parseInt(parentGroup.attrs.listLevel) + 1}`
         }
@@ -165,13 +140,7 @@ export const updateGroupChildrenCommand = (
   listType: HMBlockChildrenType,
   indent: boolean,
 ) => {
-  return ({
-    state,
-    dispatch,
-  }: {
-    state: EditorState
-    dispatch: ((args?: any) => any) | undefined
-  }) => {
+  return ({state, dispatch}: {state: EditorState; dispatch: ((args?: any) => any) | undefined}) => {
     if (dispatch) {
       let beforeSelectedContainer = true
       let tr = state.tr
@@ -186,10 +155,7 @@ export const updateGroupChildrenCommand = (
           }
           childContainer.descendants((childGroup, pos, _parent, index) => {
             // If the child has a group, update group's list level attribute.
-            if (
-              childGroup.type.name === 'blockChildren' &&
-              childGroup.attrs.listType === 'Unordered'
-            ) {
+            if (childGroup.type.name === 'blockChildren' && childGroup.attrs.listType === 'Unordered') {
               const $pos = childContainer.resolve(pos)
               let newLevel: string
               // Set new level based on depth and indent.
@@ -200,9 +166,7 @@ export const updateGroupChildrenCommand = (
                 let numericLevel = $pos.depth / 2 + groupLevel
                 newLevel = numericLevel < 3 ? numericLevel.toString() : '3'
               }
-              const maybeContainer = state.doc.resolve(
-                groupPos.start() + pos - 1,
-              ).parent
+              const maybeContainer = state.doc.resolve(groupPos.start() + pos - 1).parent
 
               // Position adjustment based on where the node is in the group.
               let posAddition =
@@ -210,9 +174,7 @@ export const updateGroupChildrenCommand = (
                   ? indent && group.attrs.listType === listType
                     ? -3
                     : -1
-                  : group.lastChild &&
-                    childContainer.eq(group.lastChild) &&
-                    !childContainer.eq(group.firstChild!)
+                  : group.lastChild && childContainer.eq(group.lastChild) && !childContainer.eq(group.firstChild!)
                   ? 1
                   : 0
 
@@ -228,11 +190,7 @@ export const updateGroupChildrenCommand = (
               if (group.attrs.listType !== listType) posAddition += offset
 
               if (newLevel !== childGroup.attrs.listLevel) {
-                tr = tr.setNodeAttribute(
-                  groupPos.start() + pos + posAddition,
-                  'listLevel',
-                  newLevel,
-                )
+                tr = tr.setNodeAttribute(groupPos.start() + pos + posAddition, 'listLevel', newLevel)
               }
             }
           })

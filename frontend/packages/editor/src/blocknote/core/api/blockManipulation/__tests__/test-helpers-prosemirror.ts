@@ -60,11 +60,7 @@ export type BlockDef = {
 /**
  * Declarative document builder
  */
-export function buildDoc(
-  schema: Schema,
-  blocks: BlockDef[],
-  opts?: {listType?: string; listLevel?: string},
-): PMNode {
+export function buildDoc(schema: Schema, blocks: BlockDef[], opts?: {listType?: string; listLevel?: string}): PMNode {
   function buildBlockNode(def: BlockDef): PMNode {
     const paragraph = def.text
       ? schema.nodes['paragraph']!.create(null, schema.text(def.text))
@@ -76,10 +72,7 @@ export function buildDoc(
     return schema.nodes['blockNode']!.create({id: def.id ?? null}, content)
   }
 
-  function buildBlockChildren(
-    defs: BlockDef[],
-    groupOpts?: {listType?: string; listLevel?: string},
-  ): PMNode {
+  function buildBlockChildren(defs: BlockDef[], groupOpts?: {listType?: string; listLevel?: string}): PMNode {
     return schema.nodes['blockChildren']!.create(
       {
         listType: groupOpts?.listType ?? 'Group',
@@ -116,8 +109,7 @@ export function printDoc(doc: PMNode): string {
 
   function traverse(node: PMNode, depth: number = 0) {
     const pad = '  '.repeat(depth)
-    const attrs =
-      Object.keys(node.attrs).length > 0 ? ` ${JSON.stringify(node.attrs)}` : ''
+    const attrs = Object.keys(node.attrs).length > 0 ? ` ${JSON.stringify(node.attrs)}` : ''
     const text = node.isText ? ` "${node.text}"` : ''
     lines.push(`${pad}${node.type.name}${attrs}${text}`)
 
@@ -135,11 +127,7 @@ export function printDoc(doc: PMNode): string {
 export function findPosInBlock(doc: PMNode, blockId: string): number {
   let found = -1
   doc.descendants((node, pos) => {
-    if (
-      found === -1 &&
-      node.type.name === 'blockNode' &&
-      node.attrs.id === blockId
-    ) {
+    if (found === -1 && node.type.name === 'blockNode' && node.attrs.id === blockId) {
       // pos = start of blockNode, +1 = inside blockNode, +1 = inside paragraph
       found = pos + 2
     }

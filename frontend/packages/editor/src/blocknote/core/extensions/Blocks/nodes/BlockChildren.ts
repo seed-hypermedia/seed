@@ -55,9 +55,7 @@ export const BlockChildren = Node.create<{
         find: new RegExp(`^>\\s$`),
         handler: ({state, chain, range}) => {
           chain()
-            .command(
-              updateGroupCommand(state.selection.from, 'Blockquote', false),
-            )
+            .command(updateGroupCommand(state.selection.from, 'Blockquote', false))
             // Removes the ">" character used to set the list.
             .deleteRange({from: range.from, to: range.to})
         },
@@ -70,9 +68,7 @@ export const BlockChildren = Node.create<{
             return
           }
           chain()
-            .command(
-              updateGroupCommand(state.selection.from, 'Unordered', false),
-            )
+            .command(updateGroupCommand(state.selection.from, 'Unordered', false))
             // Removes the "-", "+", or "*" character used to set the list.
             .deleteRange({from: range.from, to: range.to})
         },
@@ -168,8 +164,7 @@ export const BlockChildren = Node.create<{
   },
 
   renderHTML({node, HTMLAttributes}) {
-    const blockChildrenDOMAttributes =
-      this.options.domAttributes?.blockChildren || {}
+    const blockChildrenDOMAttributes = this.options.domAttributes?.blockChildren || {}
 
     return [
       listNode(node.attrs.listType),
@@ -212,22 +207,13 @@ export const BlockChildren = Node.create<{
             // If all wrapper nodes are properly structured, close the slice boundaries to indicate it's a complete slice.
             let allTopLevelNodesAreStructured = true
             normalizedContent.forEach((node: any) => {
-              if (
-                node.type.name !== 'blockNode' &&
-                node.type.name !== 'blockChildren'
-              ) {
+              if (node.type.name !== 'blockNode' && node.type.name !== 'blockChildren') {
                 allTopLevelNodesAreStructured = false
               }
             })
 
-            const openStart =
-              allTopLevelNodesAreStructured && normalizedContent.childCount > 0
-                ? 0
-                : slice.openStart
-            const openEnd =
-              allTopLevelNodesAreStructured && normalizedContent.childCount > 0
-                ? 0
-                : slice.openEnd
+            const openStart = allTopLevelNodesAreStructured && normalizedContent.childCount > 0 ? 0 : slice.openStart
+            const openEnd = allTopLevelNodesAreStructured && normalizedContent.childCount > 0 ? 0 : slice.openEnd
 
             const finalSlice = new Slice(normalizedContent, openStart, openEnd)
 

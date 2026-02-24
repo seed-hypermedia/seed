@@ -2,28 +2,12 @@ import {Node as PMNode, Schema} from 'prosemirror-model'
 import {EditorState, TextSelection} from 'prosemirror-state'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 
-vi.mock(
-  '../../../extensions/BlockManipulation/BlockManipulationExtension',
-  () => ({
-    selectableNodeTypes: [
-      'image',
-      'file',
-      'embed',
-      'video',
-      'web-embed',
-      'math',
-      'button',
-      'query',
-    ],
-  }),
-)
+vi.mock('../../../extensions/BlockManipulation/BlockManipulationExtension', () => ({
+  selectableNodeTypes: ['image', 'file', 'embed', 'video', 'web-embed', 'math', 'button', 'query'],
+}))
 
 import {splitBlockCommand} from '../commands/splitBlock'
-import {
-  buildDoc,
-  createMinimalSchema,
-  findPosInBlock,
-} from './test-helpers-prosemirror'
+import {buildDoc, createMinimalSchema, findPosInBlock} from './test-helpers-prosemirror'
 
 describe('splitBlockCommand', () => {
   let schema: Schema
@@ -33,19 +17,18 @@ describe('splitBlockCommand', () => {
   })
 
   // Helper: create state, run splitBlock, return new state
-  function runSplit(
-    doc: PMNode,
-    pos: number,
-    keepType?: boolean,
-    keepProps?: boolean,
-  ): EditorState {
+  function runSplit(doc: PMNode, pos: number, keepType?: boolean, keepProps?: boolean): EditorState {
     const state = EditorState.create({
       doc,
       schema,
       selection: TextSelection.create(doc, pos),
     })
     let newState = state
-    splitBlockCommand(pos, keepType, keepProps)({
+    splitBlockCommand(
+      pos,
+      keepType,
+      keepProps,
+    )({
       state,
       dispatch: (tr: any) => {
         newState = state.apply(tr)
@@ -123,11 +106,7 @@ describe('splitBlockCommand', () => {
   //
   describe('split in Unordered list', () => {
     it('both blocks remain in the same list', () => {
-      const doc = buildDoc(
-        schema,
-        [{id: 'item-1', text: 'Hello World'}],
-        {listType: 'Unordered'},
-      )
+      const doc = buildDoc(schema, [{id: 'item-1', text: 'Hello World'}], {listType: 'Unordered'})
       const splitPos = findPosInBlock(doc, 'item-1') + 5
       const newState = runSplit(doc, splitPos)
 

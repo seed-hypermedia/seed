@@ -509,10 +509,7 @@ test.describe('Copy and Paste', () => {
       // TODO: Check language
     })
 
-    test('Should paste CH.Code custom code block as code-block with line breaks', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should paste CH.Code custom code block as code-block with line breaks', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardHTML(
         htmlContent.customCodeBlock.chCode,
         "Component rendering\nSome text before the code.\nimport { test, expect } from 'vitest'\nimport { page } from 'vitest/browser'\n\ntest('example', async () => {\n  console.log('hello')\n})\nSome text after the code.",
@@ -535,10 +532,7 @@ test.describe('Copy and Paste', () => {
       expect(codeText).toContain('\n')
     })
 
-    test('Should paste Shiki/language-* code block as code-block', async ({
-      editorHelpers,
-      page,
-    }) => {
+    test('Should paste Shiki/language-* code block as code-block', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardHTML(
         htmlContent.customCodeBlock.shikiCode,
         'Example code:\nconst x = 1\nconst y = 2\nconsole.log(x + y)',

@@ -16,9 +16,7 @@ describe('normalizeFragment — paste normalization', () => {
 
   // Helpers
   function para(text?: string) {
-    return text
-      ? schema.nodes['paragraph']!.create(null, schema.text(text))
-      : schema.nodes['paragraph']!.create()
+    return text ? schema.nodes['paragraph']!.create(null, schema.text(text)) : schema.nodes['paragraph']!.create()
   }
 
   function bn(attrs: any, ...children: any[]) {
@@ -55,10 +53,7 @@ describe('normalizeFragment — paste normalization', () => {
     //   [blockNode(paragraph "First"), blockNode(paragraph "Second")]
     //
     it('splits blockNode with multiple paragraphs', () => {
-      const node = schema.nodes['blockNode']!.create({id: 'test'}, [
-        para('First'),
-        para('Second'),
-      ])
+      const node = schema.nodes['blockNode']!.create({id: 'test'}, [para('First'), para('Second')])
       const result = splitBlockContainerNode(node)
       expect(result).toHaveLength(2)
       expect(result[0].firstChild.textContent).toBe('First')
@@ -80,11 +75,7 @@ describe('normalizeFragment — paste normalization', () => {
     //
     it('assigns blockChildren to last split node', () => {
       const children = group([bn({id: null}, para('Child'))])
-      const node = schema.nodes['blockNode']!.create({id: null}, [
-        para('First'),
-        para('Second'),
-        children,
-      ])
+      const node = schema.nodes['blockNode']!.create({id: null}, [para('First'), para('Second'), children])
       const result = splitBlockContainerNode(node)
       expect(result).toHaveLength(2)
       expect(result[0].childCount).toBe(1) // just paragraph
@@ -104,9 +95,7 @@ describe('normalizeFragment — paste normalization', () => {
     //     blockChildren (Group)
     //
     it('prepends empty paragraph when blockNode has only blockChildren', () => {
-      const node = schema.nodes['blockNode']!.create({id: null}, [
-        group([bn({id: null}, para('Child'))]),
-      ])
+      const node = schema.nodes['blockNode']!.create({id: null}, [group([bn({id: null}, para('Child'))])])
       const result = normalizeBlockContainer(node, schema)
       expect(result.childCount).toBe(2)
       expect(result.firstChild.type.name).toBe('paragraph')
@@ -136,9 +125,7 @@ describe('normalizeFragment — paste normalization', () => {
     //     blockNode (B)
     //
     it('extracts children from Group blockChildren', () => {
-      const fragment = Fragment.from([
-        group([bn({id: 'a'}, para('A')), bn({id: 'b'}, para('B'))]),
-      ])
+      const fragment = Fragment.from([group([bn({id: 'a'}, para('A')), bn({id: 'b'}, para('B'))])])
       const result = normalizeFragment(fragment, schema)
       expect(result.childCount).toBe(2)
       expect(result.child(0).type.name).toBe('blockNode')
@@ -163,10 +150,7 @@ describe('normalizeFragment — paste normalization', () => {
     //
     it('does NOT flatten Group with nested lists', () => {
       const fragment = Fragment.from([
-        group([
-          bn({id: 'a'}, para('A'), group([bn({id: 'c'}, para('C'))])),
-          bn({id: 'b'}, para('B')),
-        ]),
+        group([bn({id: 'a'}, para('A'), group([bn({id: 'c'}, para('C'))])), bn({id: 'b'}, para('B'))]),
       ])
       const result = normalizeFragment(fragment, schema)
       expect(result.childCount).toBe(1)
@@ -232,10 +216,7 @@ describe('normalizeFragment — paste normalization', () => {
     //         blockNode (paragraph "Item")
     //
     it('merges blockChildren into preceding blockNode', () => {
-      const fragment = Fragment.from([
-        bn({id: 'a'}, para('A')),
-        ulist([bn({id: null}, para('Item'))]),
-      ])
+      const fragment = Fragment.from([bn({id: 'a'}, para('A')), ulist([bn({id: null}, para('Item'))])])
       const result = normalizeFragment(fragment, schema)
       expect(result.childCount).toBe(1)
       const merged = result.child(0)
@@ -290,9 +271,7 @@ describe('normalizeFragment — paste normalization', () => {
 
     // Group flattening works without schema too
     it('flattens Group blockChildren', () => {
-      const fragment = Fragment.from([
-        group([bn({id: 'a'}, para('A')), bn({id: 'b'}, para('B'))]),
-      ])
+      const fragment = Fragment.from([group([bn({id: 'a'}, para('A')), bn({id: 'b'}, para('B'))])])
       const result = normalizeFragment(fragment)
       expect(result.childCount).toBe(2)
       expect(result.child(0).firstChild!.textContent).toBe('A')
