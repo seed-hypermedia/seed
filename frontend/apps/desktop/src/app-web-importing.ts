@@ -17,19 +17,10 @@ import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
 import {PostsFile, ScrapeStatus, scrapeUrl} from './web-scraper'
 import {extractUniqueAuthors, parseWXR} from './wxr-parser'
-import {
-  cancelWXRImport,
-  getImportStatus,
-  hasActiveImport,
-  resumeWXRImport,
-  startWXRImport,
-} from './wxr-import'
+import {cancelWXRImport, getImportStatus, hasActiveImport, resumeWXRImport, startWXRImport} from './wxr-import'
 import {serializeImportFile} from './wxr-crypto'
 import {getImportFile, getImportState} from './wxr-import-store'
-import {
-  isEmailUsableForAuthored,
-  normalizeAuthorLogin,
-} from './wxr-import-utils'
+import {isEmailUsableForAuthored, normalizeAuthorLogin} from './wxr-import-utils'
 
 export async function uploadFile(file: Blob | string) {
   const formData = new FormData()
@@ -296,12 +287,7 @@ export const webImportingApi = t.router({
   wxrParseFile: t.procedure.input(z.string()).mutation(async ({input}) => {
     const result = parseWXR(input)
     const allCreators = extractUniqueAuthors([...result.posts, ...result.pages])
-    const authorByLogin = new Map(
-      result.authors.map((author) => [
-        normalizeAuthorLogin(author.login),
-        author,
-      ]),
-    )
+    const authorByLogin = new Map(result.authors.map((author) => [normalizeAuthorLogin(author.login), author]))
 
     const authoredFallbackAuthors = Array.from(allCreators)
       .map((login) => normalizeAuthorLogin(login))
@@ -316,9 +302,7 @@ export const webImportingApi = t.router({
           login,
           displayName: author?.displayName || login,
           email: author?.email || '',
-          reason: (author ? 'missing_email' : 'missing_author_profile') as
-            | 'missing_email'
-            | 'missing_author_profile',
+          reason: (author ? 'missing_email' : 'missing_author_profile') as 'missing_email' | 'missing_author_profile',
         }
       })
 
@@ -354,12 +338,10 @@ export const webImportingApi = t.router({
       return {importId}
     }),
 
-  wxrResumeImport: t.procedure
-    .input(z.object({password: z.string().optional()}))
-    .mutation(async ({input}) => {
-      await resumeWXRImport(input.password)
-      return {success: true}
-    }),
+  wxrResumeImport: t.procedure.input(z.object({password: z.string().optional()})).mutation(async ({input}) => {
+    await resumeWXRImport(input.password)
+    return {success: true}
+  }),
 
   wxrCancelImport: t.procedure.mutation(async () => {
     cancelWXRImport()
@@ -392,9 +374,7 @@ export const webImportingApi = t.router({
         throw new Error('No authored import keys are available to export.')
       }
 
-      const fileName =
-        input?.defaultFileName ||
-        `seed-import-authors-${state.importId.slice(0, 8)}.json`
+      const fileName = input?.defaultFileName || `seed-import-authors-${state.importId.slice(0, 8)}.json`
       const {canceled, filePath} = await dialog.showSaveDialog({
         title: 'Export Author Keys File',
         defaultPath: join(app.getPath('downloads'), fileName),

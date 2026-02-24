@@ -18,9 +18,7 @@ describe('normalizeAuthorLogin', () => {
   })
 
   it('normalizes malformed cdata and angle-bracket logins', () => {
-    expect(normalizeAuthorLogin('<![CDATA[ThemeReviewer]]>')).toBe(
-      'themereviewer',
-    )
+    expect(normalizeAuthorLogin('<![CDATA[ThemeReviewer]]>')).toBe('themereviewer')
     expect(normalizeAuthorLogin('>themereviewteam')).toBe('themereviewteam')
     expect(normalizeAuthorLogin('themereviewteam>')).toBe('themereviewteam')
   })
@@ -59,25 +57,19 @@ describe('createAuthorKeyName', () => {
 
 describe('extractSlugFromLink', () => {
   it('extracts last segment from full URL with date path', () => {
-    expect(
-      extractSlugFromLink(
-        'https://wpthemetestdata.wordpress.com/2018/10/20/keyboard-navigation/',
-      ),
-    ).toBe('keyboard-navigation')
+    expect(extractSlugFromLink('https://wpthemetestdata.wordpress.com/2018/10/20/keyboard-navigation/')).toBe(
+      'keyboard-navigation',
+    )
   })
 
   it('extracts last segment from flat URL', () => {
-    expect(
-      extractSlugFromLink(
-        'https://wpthemetestdata.wordpress.com/wp-6-1-font-size-scale/',
-      ),
-    ).toBe('wp-6-1-font-size-scale')
+    expect(extractSlugFromLink('https://wpthemetestdata.wordpress.com/wp-6-1-font-size-scale/')).toBe(
+      'wp-6-1-font-size-scale',
+    )
   })
 
   it('handles URL without trailing slash', () => {
-    expect(
-      extractSlugFromLink('https://example.com/2010/09/10/post-format-gallery'),
-    ).toBe('post-format-gallery')
+    expect(extractSlugFromLink('https://example.com/2010/09/10/post-format-gallery')).toBe('post-format-gallery')
   })
 
   it('returns null for empty or nullish input', () => {
@@ -92,19 +84,15 @@ describe('extractSlugFromLink', () => {
   })
 
   it('handles percent-encoded unicode slugs', () => {
-    expect(
-      extractSlugFromLink(
-        'https://example.com/greek/%CE%B5%CF%80%CE%AF%CF%80%CE%B5%CE%B4%CE%BF-2/',
-      ),
-    ).toBe('%CE%B5%CF%80%CE%AF%CF%80%CE%B5%CE%B4%CE%BF-2')
+    expect(extractSlugFromLink('https://example.com/greek/%CE%B5%CF%80%CE%AF%CF%80%CE%B5%CE%B4%CE%BF-2/')).toBe(
+      '%CE%B5%CF%80%CE%AF%CF%80%CE%B5%CE%B4%CE%BF-2',
+    )
   })
 })
 
 describe('normalizeWXRSlug', () => {
   it('decodes percent-encoded unicode slugs', () => {
-    expect(
-      normalizeWXRSlug('%CE%B5%CF%80%CE%B9%CE%B5%CE%AF%CE%BE%CE%B7', 7),
-    ).toBe('επιείξη')
+    expect(normalizeWXRSlug('%CE%B5%CF%80%CE%B9%CE%B5%CE%AF%CE%BE%CE%B7', 7)).toBe('επιείξη')
   })
 
   it('falls back to post id when slug is empty', () => {

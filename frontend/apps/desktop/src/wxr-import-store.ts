@@ -83,10 +83,7 @@ export function setImportFile(file: SeedImportFileV1): void {
 /**
  * Update progress in both state and import data.
  */
-export function updateImportProgress(
-  postId: number,
-  importedCount: number,
-): void {
+export function updateImportProgress(postId: number, importedCount: number): void {
   const state = getImportState()
   if (state) {
     state.importedPosts = importedCount
@@ -133,8 +130,6 @@ export function hasResumableImport(): boolean {
 /**
  * Calculate remaining posts to import.
  */
-export function getRemainingPosts(
-  data: SeedImportData,
-): SeedImportData['posts'] {
+export function getRemainingPosts(data: SeedImportData): SeedImportData['posts'] {
   return data.posts.filter((p) => !p.imported)
 }

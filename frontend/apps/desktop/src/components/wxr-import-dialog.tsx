@@ -7,22 +7,12 @@ import {client} from '@/trpc'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {Button} from '@shm/ui/button'
 import {CheckboxField} from '@shm/ui/components/checkbox'
-import {
-  DialogClose,
-  DialogDescription,
-  DialogTitle,
-} from '@shm/ui/components/dialog'
+import {DialogClose, DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {Label} from '@shm/ui/components/label'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Upload} from '@shm/ui/icons'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@shm/ui/select-dropdown'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -41,13 +31,7 @@ interface WXRImportDialogInput {
 
 type ImportStep = 'upload' | 'preview' | 'options' | 'importing' | 'complete'
 
-function WXRImportDialog({
-  input,
-  onClose,
-}: {
-  input: WXRImportDialogInput
-  onClose: () => void
-}) {
+function WXRImportDialog({input, onClose}: {input: WXRImportDialogInput; onClose: () => void}) {
   const [step, setStep] = useState<ImportStep>('upload')
   const [wxrContent, setWxrContent] = useState<string | null>(null)
   const [parseResult, setParseResult] = useState<{
@@ -64,9 +48,7 @@ function WXRImportDialog({
       reason: 'missing_email' | 'missing_author_profile'
     }>
   } | null>(null)
-  const [importMode, setImportMode] = useState<'ghostwritten' | 'authored'>(
-    'ghostwritten',
-  )
+  const [importMode, setImportMode] = useState<'ghostwritten' | 'authored'>('ghostwritten')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [overwriteExisting, setOverwriteExisting] = useState(false)
@@ -82,8 +64,7 @@ function WXRImportDialog({
   }, [selectedAccount, accounts])
 
   const parseWXR = useMutation({
-    mutationFn: (content: string) =>
-      client.webImporting.wxrParseFile.mutate(content),
+    mutationFn: (content: string) => client.webImporting.wxrParseFile.mutate(content),
     onSuccess: (result) => {
       setParseResult(result)
       setStep('preview')
@@ -111,9 +92,7 @@ function WXRImportDialog({
     },
   })
 
-  const handleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
@@ -139,18 +118,9 @@ function WXRImportDialog({
   return (
     <>
       <DialogClose />
-      {step === 'upload' && (
-        <UploadStep
-          onFileUpload={handleFileUpload}
-          isLoading={parseWXR.isPending}
-        />
-      )}
+      {step === 'upload' && <UploadStep onFileUpload={handleFileUpload} isLoading={parseWXR.isPending} />}
       {step === 'preview' && parseResult && (
-        <PreviewStep
-          result={parseResult}
-          onContinue={() => setStep('options')}
-          onBack={() => setStep('upload')}
-        />
+        <PreviewStep result={parseResult} onContinue={() => setStep('options')} onBack={() => setStep('upload')} />
       )}
       {step === 'options' && (
         <OptionsStep
@@ -183,9 +153,7 @@ function WXRImportDialog({
           }}
         />
       )}
-      {step === 'complete' && (
-        <CompleteStep onClose={onClose} results={importResults} />
-      )}
+      {step === 'complete' && <CompleteStep onClose={onClose} results={importResults} />}
     </>
   )
 }
@@ -200,9 +168,7 @@ function UploadStep({
   return (
     <div className="flex flex-col gap-4">
       <DialogTitle>Import WordPress Export (WXR)</DialogTitle>
-      <DialogDescription>
-        Upload a WordPress export file (.xml) to import posts and pages.
-      </DialogDescription>
+      <DialogDescription>Upload a WordPress export file (.xml) to import posts and pages.</DialogDescription>
       <div className="flex flex-col items-center gap-4 py-8">
         {isLoading ? (
           <>
@@ -213,12 +179,7 @@ function UploadStep({
           <>
             <Upload className="text-muted-foreground size-12" />
             <label className="cursor-pointer">
-              <input
-                type="file"
-                accept=".xml"
-                onChange={onFileUpload}
-                className="hidden"
-              />
+              <input type="file" accept=".xml" onChange={onFileUpload} className="hidden" />
               <Button variant="outline" asChild>
                 <span>Select WXR File</span>
               </Button>
@@ -258,9 +219,7 @@ function PreviewStep({
   return (
     <div className="flex flex-col gap-4">
       <DialogTitle>Preview Import</DialogTitle>
-      <DialogDescription>
-        Review the content that will be imported from {result.siteTitle}.
-      </DialogDescription>
+      <DialogDescription>Review the content that will be imported from {result.siteTitle}.</DialogDescription>
 
       <div className="space-y-3 rounded-lg border p-4">
         <div className="flex justify-between">
@@ -349,30 +308,24 @@ function OptionsStep({
   onBack: () => void
   isLoading: boolean
 }) {
-  const [showFallbackAuthors, setShowFallbackAuthors] = useState(
-    () => authoredFallbackAuthors.length <= 2,
-  )
+  const [showFallbackAuthors, setShowFallbackAuthors] = useState(() => authoredFallbackAuthors.length <= 2)
 
   useEffect(() => {
     setShowFallbackAuthors(authoredFallbackAuthors.length <= 2)
   }, [authoredFallbackAuthors.length])
 
   const passwordsMatch = password === confirmPassword
-  const showPasswordError =
-    importMode === 'authored' && confirmPassword.length > 0 && !passwordsMatch
+  const showPasswordError = importMode === 'authored' && confirmPassword.length > 0 && !passwordsMatch
 
   const canStart =
     !isLoading &&
     selectedAccount &&
-    (importMode === 'ghostwritten' ||
-      (password.length > 0 && confirmPassword.length > 0 && passwordsMatch))
+    (importMode === 'ghostwritten' || (password.length > 0 && confirmPassword.length > 0 && passwordsMatch))
 
   return (
     <div className="flex flex-col gap-4">
       <DialogTitle>Import Options</DialogTitle>
-      <DialogDescription>
-        Configure how the content should be imported.
-      </DialogDescription>
+      <DialogDescription>Configure how the content should be imported.</DialogDescription>
 
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-3">
@@ -409,17 +362,11 @@ function OptionsStep({
           <Label>Import Mode</Label>
           <RadioGroup
             value={importMode}
-            onValueChange={(v) =>
-              setImportMode(v as 'ghostwritten' | 'authored')
-            }
+            onValueChange={(v) => setImportMode(v as 'ghostwritten' | 'authored')}
             className="flex flex-col gap-3"
           >
             <div className="flex items-start gap-3">
-              <RadioGroupItem
-                value="ghostwritten"
-                id="mode-ghostwritten"
-                className="mt-0.5"
-              />
+              <RadioGroupItem value="ghostwritten" id="mode-ghostwritten" className="mt-0.5" />
               <div className="flex flex-col gap-1">
                 <Label htmlFor="mode-ghostwritten" className="cursor-pointer">
                   Ghostwritten
@@ -430,12 +377,7 @@ function OptionsStep({
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <RadioGroupItem
-                value="authored"
-                id="mode-authored"
-                className="mt-0.5"
-                disabled
-              />
+              <RadioGroupItem value="authored" id="mode-authored" className="mt-0.5" disabled />
               <div className="flex flex-col gap-1 opacity-50">
                 <Label htmlFor="mode-authored" className="cursor-not-allowed">
                   Authored
@@ -452,9 +394,8 @@ function OptionsStep({
           <div className="flex flex-col gap-3">
             <Label>Author Keys Password</Label>
             <SizableText size="xs" color="muted">
-              Encrypts the author keys file. Share this password with authors so
-              they can import their identity, or use it to load keys into a site
-              vault.
+              Encrypts the author keys file. Share this password with authors so they can import their identity, or use
+              it to load keys into a site vault.
             </SizableText>
             <input
               type="password"
@@ -483,27 +424,21 @@ function OptionsStep({
                   Some writers are missing author profile metadata.
                 </SizableText>
                 <SizableText size="xs" color="muted">
-                  These posts will be publisher-signed and keep writer credit
-                  via displayAuthor.
+                  These posts will be publisher-signed and keep writer credit via displayAuthor.
                 </SizableText>
                 <button
                   type="button"
                   className="text-muted-foreground mt-2 text-left text-xs underline underline-offset-2"
-                  onClick={() =>
-                    setShowFallbackAuthors((expanded) => !expanded)
-                  }
+                  onClick={() => setShowFallbackAuthors((expanded) => !expanded)}
                 >
-                  {showFallbackAuthors ? 'Hide' : 'Show'} affected writers (
-                  {authoredFallbackAuthors.length})
+                  {showFallbackAuthors ? 'Hide' : 'Show'} affected writers ({authoredFallbackAuthors.length})
                 </button>
                 {showFallbackAuthors && (
                   <div className="mt-2 space-y-1">
                     {authoredFallbackAuthors.map((author) => (
                       <SizableText key={author.login} size="xs" color="muted">
                         {author.displayName} ({author.login}) -{' '}
-                        {author.reason === 'missing_email'
-                          ? 'missing email'
-                          : 'missing author profile'}
+                        {author.reason === 'missing_email' ? 'missing email' : 'missing author profile'}
                       </SizableText>
                     ))}
                   </div>
@@ -514,11 +449,7 @@ function OptionsStep({
         )}
 
         <div className="flex flex-col gap-2">
-          <CheckboxField
-            id="overwrite-existing"
-            checked={overwriteExisting}
-            onCheckedChange={setOverwriteExisting}
-          >
+          <CheckboxField id="overwrite-existing" checked={overwriteExisting} onCheckedChange={setOverwriteExisting}>
             Overwrite existing documents at same path
           </CheckboxField>
           <SizableText size="xs" color="muted" className="ml-7">
@@ -539,11 +470,7 @@ function OptionsStep({
   )
 }
 
-function ImportingStep({
-  onComplete,
-}: {
-  onComplete: (results: ImportResults | null) => void
-}) {
+function ImportingStep({onComplete}: {onComplete: (results: ImportResults | null) => void}) {
   const {data: status} = useQuery({
     queryKey: ['WXR_IMPORT_STATUS'],
     queryFn: () => client.webImporting.wxrGetStatus.query(),
@@ -559,16 +486,12 @@ function ImportingStep({
 
   const progress = status?.status
   const percent =
-    progress && progress.totalPosts > 0
-      ? Math.round((progress.importedPosts / progress.totalPosts) * 100)
-      : 0
+    progress && progress.totalPosts > 0 ? Math.round((progress.importedPosts / progress.totalPosts) * 100) : 0
 
   return (
     <div className="flex flex-col gap-4">
       <DialogTitle>Importing...</DialogTitle>
-      <DialogDescription>
-        Please wait while your content is being imported.
-      </DialogDescription>
+      <DialogDescription>Please wait while your content is being imported.</DialogDescription>
 
       <div className="flex flex-col items-center gap-4 py-8">
         <Spinner size="small" />
@@ -576,10 +499,7 @@ function ImportingStep({
         {progress && (
           <>
             <div className="h-2 w-full rounded-full bg-gray-200">
-              <div
-                className="h-2 rounded-full bg-blue-600 transition-all"
-                style={{width: `${percent}%`}}
-              />
+              <div className="h-2 rounded-full bg-blue-600 transition-all" style={{width: `${percent}%`}} />
             </div>
             <SizableText>
               {progress.importedPosts} / {progress.totalPosts} posts imported
@@ -590,9 +510,7 @@ function ImportingStep({
           </>
         )}
 
-        {progress?.error && (
-          <SizableText color="destructive">Error: {progress.error}</SizableText>
-        )}
+        {progress?.error && <SizableText color="destructive">Error: {progress.error}</SizableText>}
       </div>
     </div>
   )
@@ -600,13 +518,7 @@ function ImportingStep({
 
 const MAX_DISPLAY_ITEMS = 5
 
-function CompleteStep({
-  onClose,
-  results,
-}: {
-  onClose: () => void
-  results: ImportResults | null
-}) {
+function CompleteStep({onClose, results}: {onClose: () => void; results: ImportResults | null}) {
   const {data: statusData} = useQuery({
     queryKey: ['WXR_IMPORT_STATUS'],
     queryFn: () => client.webImporting.wxrGetStatus.query(),
@@ -620,11 +532,7 @@ function CompleteStep({
       toast.success(`Author keys exported to ${result.filePath}`)
     },
     onError: (error) => {
-      toast.error(
-        `Failed to export author keys file: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`,
-      )
+      toast.error(`Failed to export author keys file: ${error instanceof Error ? error.message : 'Unknown error'}`)
     },
   })
 
@@ -662,8 +570,7 @@ function CompleteStep({
               </div>
               <SizableText>
                 {results.skipped.length} document
-                {results.skipped.length !== 1 ? 's' : ''} skipped (already
-                exist)
+                {results.skipped.length !== 1 ? 's' : ''} skipped (already exist)
               </SizableText>
             </div>
             <div className="ml-11 space-y-1">
@@ -722,15 +629,10 @@ function CompleteStep({
             onClick={() => exportAuthorKeysMutation.mutate()}
             disabled={exportAuthorKeysMutation.isLoading}
           >
-            {exportAuthorKeysMutation.isLoading
-              ? 'Exporting...'
-              : 'Export Author Keys'}
+            {exportAuthorKeysMutation.isLoading ? 'Exporting...' : 'Export Author Keys'}
           </Button>
         )}
-        <Button
-          onClick={onClose}
-          className={canExportAuthorKeys ? 'flex-1' : 'w-full'}
-        >
+        <Button onClick={onClose} className={canExportAuthorKeys ? 'flex-1' : 'w-full'}>
           Done
         </Button>
       </div>

@@ -19,17 +19,12 @@ export function fallbackAuthorLogin(postId: number): string {
   return `unknown-author-${postId}`
 }
 
-export function getAuthorDisplayName(
-  login: string,
-  displayName?: string,
-): string {
+export function getAuthorDisplayName(login: string, displayName?: string): string {
   const normalizedDisplayName = (displayName || '').trim()
   return normalizedDisplayName || login
 }
 
-export function isEmailUsableForAuthored(
-  email: string | null | undefined,
-): boolean {
+export function isEmailUsableForAuthored(email: string | null | undefined): boolean {
   const normalizedEmail = (email || '').trim()
   return AUTHOR_EMAIL_REGEX.test(normalizedEmail)
 }
@@ -44,10 +39,7 @@ export function createAuthorKeyName(scope: string, login: string): string {
     .slice(0, 32)
 
   const base = slug || 'author'
-  const digest = createHash('sha1')
-    .update(`${normalizedScope}:${normalized}`)
-    .digest('hex')
-    .slice(0, 8)
+  const digest = createHash('sha1').update(`${normalizedScope}:${normalized}`).digest('hex').slice(0, 8)
   return `wxr-author-${base}-${digest}`
 }
 
@@ -56,9 +48,7 @@ export function createAuthorKeyName(scope: string, login: string): string {
  * E.g. "https://example.com/2018/10/20/my-post/" -> "my-post"
  * Returns null if the URL is empty or unparseable.
  */
-export function extractSlugFromLink(
-  link: string | null | undefined,
-): string | null {
+export function extractSlugFromLink(link: string | null | undefined): string | null {
   const trimmed = (link || '').trim()
   if (!trimmed) return null
 
@@ -80,10 +70,7 @@ export function extractSlugFromLink(
   }
 }
 
-export function normalizeWXRSlug(
-  slug: string | null | undefined,
-  postId: number,
-): string {
+export function normalizeWXRSlug(slug: string | null | undefined, postId: number): string {
   const raw = (slug || '').trim()
 
   let decoded = raw
