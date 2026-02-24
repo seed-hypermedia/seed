@@ -7,6 +7,9 @@ import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
+import {useNotificationInbox} from '@/models/notification-inbox'
+import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
+import {useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {pathNameify} from '@/utils/path'
@@ -298,16 +301,38 @@ function NotificationButton() {
   const experiments = useUniversalAppContext().experiments
   const navigate = useNavigate()
   const route = useNavRoute()
+  const accountUid = useSelectedAccountId()
+  const inbox = useNotificationInbox(experiments?.notifications ? accountUid : null)
+  const readState = useLocalNotificationReadState(experiments?.notifications ? accountUid : null)
+
+  const unreadCount = useMemo(() => {
+    if (!inbox.data || !readState.data) return 0
+    return inbox.data.filter(
+      (item) =>
+        !isNotificationEventRead({
+          readState: readState.data,
+          eventId: item.event.feedEventId,
+          eventAtMs: item.event.eventAtMs,
+        }),
+    ).length
+  }, [inbox.data, readState.data])
+
   if (!experiments?.notifications) return null
   return (
     <Tooltip content="Notifications" asChild>
       <Button
-        size="icon"
-        variant={route.key === 'notifications' ? 'brand' : 'ghost'}
-        className="window-no-drag"
+        className={cn(
+          'window-no-drag relative h-8 rounded-full border-1 p-0',
+          route.key === 'notifications' ? 'bg-white dark:bg-white' : 'border-transparent',
+        )}
         onClick={() => navigate({key: 'notifications'})}
       >
         <Bell className="size-4" />
+        {unreadCount > 0 ? (
+          <span className="flex h-5 min-w-5 items-center justify-center rounded-lg bg-red-500 px-1 text-[12px] font-bold text-white">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        ) : null}
       </Button>
     </Tooltip>
   )
