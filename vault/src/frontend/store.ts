@@ -904,7 +904,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				state.vaultVersion++
 			} catch (e) {
 				console.error("Failed to save vault:", e)
-				state.error = (e as Error).message || "Failed to save vault"
+				state.error = (e instanceof Error ? e.message : "") || "Failed to save vault"
+				throw e
 			}
 		},
 
@@ -917,13 +918,20 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 			state.loading = true
 			state.error = ""
 
+			const previousSelectedAccountIndex = state.selectedAccountIndex
+			const previousCreatingAccount = state.creatingAccount
+
 			try {
-				const kp = blobs.generateKeyPair()
+				const kp = blobs.generateNobleKeyPair()
 				const ts = Date.now()
-				const encoded = blobs.createProfile(kp, { name, description }, ts)
+				const profileOptions: { name: string; description?: string } = { name }
+				if (description) {
+					profileOptions.description = description
+				}
+				const encoded = await blobs.createProfile(kp, profileOptions, ts)
 
 				const account: vault.Account = {
-					seed: kp.privateKey,
+					seed: kp.seed,
 					profile: {
 						cid: encoded.cid,
 						decoded: encoded.decoded,
@@ -938,8 +946,15 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				await actions.saveVaultData()
 			} catch (e) {
+				// Rollback the optimistic state changes.
+				if (state.vaultData && state.vaultData.accounts.length > previousSelectedAccountIndex + 1) {
+					state.vaultData.accounts.pop()
+				}
+				state.selectedAccountIndex = previousSelectedAccountIndex
+				state.creatingAccount = previousCreatingAccount
+
 				console.error("Failed to create account:", e)
-				state.error = (e as Error).message || "Failed to create account"
+				state.error = (e instanceof Error ? e.message : "") || "Failed to create account"
 			} finally {
 				state.loading = false
 			}
@@ -1203,9 +1218,13 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				}
 				await hmauth.verifyDelegationRequestProof(state.delegationRequest, configuredVaultOrigin)
 
-				const issuerKeyPair = blobs.keyPairFromPrivateKey(account.seed)
+				const issuerKeyPair = blobs.nobleKeyPairFromSeed(account.seed)
 				const sessionKeyPrincipal = blobs.principalFromString(state.delegationRequest.sessionKeyPrincipal)
-				const encoded = hmauth.createDelegation(issuerKeyPair, sessionKeyPrincipal, state.delegationRequest.clientId)
+				const encoded = await hmauth.createDelegation(
+					issuerKeyPair,
+					sessionKeyPrincipal,
+					state.delegationRequest.clientId,
+				)
 
 				const delegatedSession: vault.DelegatedSession = {
 					clientId: state.delegationRequest.clientId,
@@ -1220,12 +1239,15 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				await actions.saveVaultData()
 
+				// The profile is stored as decoded blob + CID. Re-encode it to get the raw CBOR bytes.
+				const profileEncoded = blobs.encode(account.profile.decoded)
+
 				const callbackUrl = await hmauth.buildCallbackUrl(
 					state.delegationRequest.redirectUri,
 					state.delegationRequest.state,
 					issuerKeyPair.principal,
-					encoded.decoded,
-					account.profile.decoded,
+					encoded,
+					profileEncoded,
 				)
 
 				state.delegationRequest = null
@@ -1343,7 +1365,7 @@ export function useActions(): StoreActions {
 }
 
 function getDeviceType(): vault.DelegatedSession["deviceType"] {
-	if (typeof navigator === "undefined") return "unknown"
+	if (typeof navigator === "undefined") return undefined
 
 	if ("userAgentData" in navigator) {
 		const uaData = navigator.userAgentData as { mobile: boolean }

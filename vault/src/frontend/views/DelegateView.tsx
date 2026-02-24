@@ -36,9 +36,9 @@ export function DelegateView() {
 			<>
 				<Card>
 					<CardHeader>
-						<div className="flex items-center justify-center mb-2">
-							<div className="size-12 rounded-full bg-primary/10 flex items-center justify-center">
-								<User className="size-6 text-primary" />
+						<div className="mb-2 flex items-center justify-center">
+							<div className="bg-primary/10 flex size-12 items-center justify-center rounded-full">
+								<User className="text-primary size-6" />
 							</div>
 						</div>
 						<CardTitle className="text-center">No Accounts</CardTitle>
@@ -68,18 +68,16 @@ export function DelegateView() {
 	return (
 		<Card>
 			<CardHeader>
-				<div className="flex items-center justify-center mb-2">
-					<div className="size-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+				<div className="mb-2 flex items-center justify-center">
+					<div className="flex size-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
 						<Shield className="size-6 text-amber-600 dark:text-amber-400" />
 					</div>
 				</div>
 				<CardTitle className="text-center">Authorize Access</CardTitle>
 				<CardDescription className="text-center">
-					<span className="inline-flex items-center gap-1.5">
-						<ExternalLink className="size-3.5" />
-						<span className="font-medium text-foreground">{delegationRequest.clientId}</span>
-					</span>{" "}
-					is requesting access to act on behalf of your account.
+					<ExternalLink className="inline size-3.5 align-text-bottom" />{" "}
+					<span className="text-foreground font-medium">{delegationRequest.clientId}</span> is requesting access to act
+					on behalf of your account.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-6">
@@ -97,19 +95,19 @@ export function DelegateView() {
 									<button
 										type="button"
 										key={principal}
-										className={`w-full text-left px-3 py-2.5 rounded-md flex items-center gap-3 transition-colors cursor-pointer border ${
+										className={`flex w-full cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 text-left transition-colors ${
 											isSelected
-												? "border-primary bg-primary/5 ring-1 ring-primary/20"
-												: "border-transparent hover:bg-muted/50"
+												? "border-primary bg-primary/5 ring-primary/20 ring-1"
+												: "hover:bg-muted/50 border-transparent"
 										}`}
 										onClick={() => actions.selectAccount(index)}
 									>
-										<div className="size-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-											<User className="size-4 text-primary" />
+										<div className="bg-primary/10 flex size-8 shrink-0 items-center justify-center rounded-full">
+											<User className="text-primary size-4" />
 										</div>
 										<div className="min-w-0">
-											<div className="text-sm font-medium truncate">{account.profile.decoded.name || "Unnamed"}</div>
-											<div className="text-xs text-muted-foreground font-mono truncate">{principal}</div>
+											<div className="truncate text-sm font-medium">{account.profile.decoded.name || "Unnamed"}</div>
+											<div className="text-muted-foreground truncate font-mono text-xs">{principal}</div>
 										</div>
 									</button>
 								)
@@ -119,7 +117,7 @@ export function DelegateView() {
 				)}
 
 				{/* Delegation details */}
-				<div className="rounded-md bg-muted/50 p-3 space-y-2 text-sm">
+				<div className="bg-muted/50 space-y-2 rounded-md p-3 text-sm">
 					<div className="flex justify-between">
 						<span className="text-muted-foreground">Session key</span>
 						<code className="font-mono text-xs">{sessionKeyTruncated}</code>

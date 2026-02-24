@@ -23,7 +23,7 @@ import {DialogClose, DialogDescription, DialogTitle} from '@shm/ui/components/di
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {File, FileInput, Folder, FolderInput} from '@shm/ui/icons'
+import {File, FileInput, Folder, FolderInput, Globe} from '@shm/ui/icons'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
@@ -52,7 +52,7 @@ export function ImportDialog({
     onImportDirectory: () => void
     onImportLatexFile: () => void
     onImportLatexDirectory: () => void
-    // onImportWebSite: () => void
+    onImportWebSite: () => void
   }
   onClose: () => void
 }) {
@@ -106,13 +106,24 @@ export function ImportDialog({
           <Folder className="size-3" />
           Import LaTeX Directory
         </Button>
+        <Button
+          className="border-border border"
+          variant="ghost"
+          onClick={() => {
+            onClose()
+            input.onImportWebSite()
+          }}
+        >
+          <Globe className="size-3" />
+          Import Web Site
+        </Button>
       </div>
     </>
   )
 }
 
 export function ImportDropdownButton({id, button}: {id: UnpackedHypermediaId; button: ReactElement}) {
-  const {importFile, importDirectory, importLatexFile, importLatexDirectory, content} = useImporting(id)
+  const {importFile, importDirectory, importLatexFile, importLatexDirectory, importWebSite, content} = useImporting(id)
 
   return (
     <>
@@ -142,6 +153,12 @@ export function ImportDropdownButton({id, button}: {id: UnpackedHypermediaId; bu
             label: 'Import LaTeX Folder',
             onClick: () => importLatexDirectory(),
             icon: <FolderInput className="size-4" />,
+          },
+          {
+            key: 'website',
+            label: 'Import Web Site',
+            onClick: () => importWebSite(),
+            icon: <Globe className="size-4" />,
           },
         ]}
       />

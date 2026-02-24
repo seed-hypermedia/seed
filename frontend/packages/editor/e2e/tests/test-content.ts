@@ -57,6 +57,14 @@ export const htmlContent = {
   inlineCode: '<p>Use the <code>console.log()</code> function</p>',
   codeBlock: '<pre><code>function hello() {\n  return "world";\n}</code></pre>',
 
+  // Custom code renderers (no <pre> tags, e.g. CH.Code, Shiki)
+  customCodeBlock: {
+    // CH.Code style: <code data-ch-lang="tsx"> with <div> per line
+    chCode: `<h2>Component rendering</h2><p>Some text before the code.</p><div style="white-space: pre;"><code class="ch-code-scroll-parent" data-ch-lang="tsx"><div><span style="color: #89DDFF;">import</span><span> { test, expect } </span><span style="color: #89DDFF;">from</span><span> </span><span style="color: #C3E88D;">'vitest'</span></div><div><span style="color: #89DDFF;">import</span><span> { page } </span><span style="color: #89DDFF;">from</span><span> </span><span style="color: #C3E88D;">'vitest/browser'</span></div><div></div><div><span>test(</span><span style="color: #C3E88D;">'example'</span><span>, async () =&gt; {</span></div><div><span>  console.log(</span><span style="color: #C3E88D;">'hello'</span><span>)</span></div><div><span>})</span></div></code></div><p>Some text after the code.</p>`,
+    // Shiki/language-* style: <code class="language-js"> with <span> lines
+    shikiCode: `<p>Example code:</p><div><code class="language-js"><span class="line"><span>const</span><span> x = </span><span>1</span></span><br><span class="line"><span>const</span><span> y = </span><span>2</span></span><br><span class="line"><span>console.log(x + y)</span></span></code></div>`,
+  },
+
   complexDocument:
     '<h2>Project Overview</h2><p>This is a <strong>complex</strong> document.</p><p>Learn more at our website.</p>',
 

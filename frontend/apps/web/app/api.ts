@@ -86,6 +86,16 @@ export async function getChangesDepth(deps: string[]) {
 
 export async function signObject(keyPair: CryptoKeyPair, data: any): Promise<ArrayBuffer> {
   const cborData = cborEncode(data)
+
+  if (keyPair.privateKey.algorithm.name === 'Ed25519') {
+    const signature = await crypto.subtle.sign(
+      'Ed25519' as unknown as AlgorithmIdentifier,
+      keyPair.privateKey,
+      cborData,
+    )
+    return signature
+  }
+
   const signature = await crypto.subtle.sign(
     {
       name: 'ECDSA',

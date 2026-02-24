@@ -215,7 +215,7 @@ function insertNode(
 
     tr = tr.replaceRangeWith(startPos, endPos, node)
 
-    // const newBlock = state.schema.nodes['blockContainer'].createAndFill()!
+    // const newBlock = state.schema.nodes['blockNode'].createAndFill()!
     // const nextBlockPos = $pos.end() + 2
     // const nextBlockContentPos = nextBlockPos + 2
     // const $nextBlockPos = state.doc.resolve(nextBlockContentPos)

@@ -1,6 +1,7 @@
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {accountMetadataFromAccount} from './account-metadata'
 import {GRPCClient} from './grpc-client'
-import {HMContactItem, HMMetadata} from './hm-types'
+import {HMContactItem} from './hm-types'
 import {hmId} from './utils'
 import {abbreviateUid} from './utils/abbreviate'
 
@@ -45,11 +46,7 @@ export async function resolveAccount(
     return resolveAccount(grpcClient, grpcAccount.aliasAccount, currentAccount, maxDepth - 1)
   }
 
-  // Get the account's metadata
-  const metadata = grpcAccount.metadata?.toJson({
-    emitDefaultValues: true,
-    enumAsInteger: false,
-  }) as HMMetadata | undefined
+  const metadata = accountMetadataFromAccount(grpcAccount)
 
   // Check if current user has a contact for this account
   const contactsResponse = currentAccount

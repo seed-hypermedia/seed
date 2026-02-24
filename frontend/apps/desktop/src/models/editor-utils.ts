@@ -14,7 +14,7 @@ export function setGroupTypes(tiptap: Editor, blocks: Array<Partial<HMBlock>>) {
       ) {
         // @ts-ignore
         node.descendants((child: Node, childPos: number) => {
-          if (child.type.name === 'blockGroup') {
+          if (child.type.name === 'blockChildren') {
             setTimeout(() => {
               let tr = tiptap.state.tr
               // @ts-expect-error

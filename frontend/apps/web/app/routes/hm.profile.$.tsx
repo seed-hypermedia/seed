@@ -69,6 +69,8 @@ function ProfilePageContent({
   const account = useAccount(profileId.uid)
   const isCurrentAccount = currentAccount === profileId.uid
   const linkKeysDialog = useAppDialog(LinkKeysDialog)
+  const userKeyPair = useLocalKeyPair()
+  const isDelegated = userKeyPair?.isDelegated === true
   return (
     <>
       <div className="flex min-h-screen flex-1 flex-col items-center">
@@ -92,11 +94,13 @@ function ProfilePageContent({
               headerButtons={
                 isCurrentAccount ? (
                   <>
+                    {!isDelegated && (
+                      <Button variant="outline" onClick={() => linkKeysDialog.open({})}>
+                        <KeySquare className="size-4" />
+                        Link Keys
+                      </Button>
+                    )}
                     <LogoutButton />
-                    <Button variant="outline" onClick={() => linkKeysDialog.open({})}>
-                      <KeySquare className="size-4" />
-                      Link Keys
-                    </Button>
                   </>
                 ) : null
               }

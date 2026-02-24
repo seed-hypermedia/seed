@@ -91,8 +91,8 @@ function blockPositionsFromSelection(selection: Selection, doc: Node) {
   // the same blocks again. If this happens, the anchor & head move out of the block content node they were originally
   // in. If the anchor should update but the head shouldn't and vice versa, it means the user selection is outside a
   // block content node, which should never happen.
-  const selectionStartInBlockContent = doc.resolve(selection.from).node().type.spec.group === 'blockContent'
-  const selectionEndInBlockContent = doc.resolve(selection.to).node().type.spec.group === 'blockContent'
+  const selectionStartInBlockContent = doc.resolve(selection.from).node().type.spec.group === 'block'
+  const selectionEndInBlockContent = doc.resolve(selection.to).node().type.spec.group === 'block'
 
   // Ensures that entire outermost nodes are selected if the selection spans multiple nesting levels.
   const minDepth = Math.min(selection.$anchor.depth, selection.$head.depth)
@@ -422,7 +422,7 @@ export class SideMenuView<BSchema extends BlockSchema> implements PluginView {
       // @ts-expect-error
       !block.node?.hasAttribute('data-node-type') &&
       // @ts-expect-error
-      !block.node?.getAttribute('data-node-type') == 'blockContainer'
+      !block.node?.getAttribute('data-node-type') == 'blockNode'
     ) {
       return
     }

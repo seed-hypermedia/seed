@@ -19,6 +19,7 @@ import { Check, Copy, GripVertical, Link, Monitor, Plus, Settings, Smartphone, T
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { CreateAccountDialog } from "@/frontend/components/CreateAccountDialog"
+import { ErrorMessage } from "@/frontend/components/ErrorMessage"
 import { Button } from "@/frontend/components/ui/button"
 import { Separator } from "@/frontend/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/frontend/components/ui/tooltip"
@@ -31,7 +32,7 @@ import type * as vault from "@/frontend/vault"
  * Vault-level settings (credentials, email) live in a separate SettingsView.
  */
 export function VaultView() {
-	const { vaultData, selectedAccountIndex } = useAppState()
+	const { vaultData, selectedAccountIndex, error } = useAppState()
 	const actions = useActions()
 	const navigate = useNavigate()
 
@@ -60,6 +61,7 @@ export function VaultView() {
 	if (!hasAccounts) {
 		return (
 			<>
+				<ErrorMessage message={error} />
 				<EmptyState />
 				<CreateAccountDialog />
 			</>
@@ -68,6 +70,7 @@ export function VaultView() {
 
 	return (
 		<>
+			<ErrorMessage message={error} />
 			<div className="flex min-h-[480px] rounded-xl border bg-card overflow-hidden">
 				{/* Left sidebar */}
 				<div className="w-[280px] shrink-0 border-r flex flex-col">

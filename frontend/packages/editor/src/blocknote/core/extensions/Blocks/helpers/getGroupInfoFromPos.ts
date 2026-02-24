@@ -23,11 +23,11 @@ export function getGroupInfoFromPos(pos: number, state: EditorState): GroupInfo 
       break
     }
 
-    if (group.type.name === 'blockGroup') {
+    if (group.type.name === 'blockChildren') {
       break
     }
 
-    if (group.type.name === 'blockContainer') {
+    if (group.type.name === 'blockNode') {
       container = group
     }
 
@@ -47,7 +47,7 @@ export function getGroupInfoFromPos(pos: number, state: EditorState): GroupInfo 
 export function getParentGroupInfoFromPos(group: Node, $pos: ResolvedPos, depth: number) {
   for (let parentDepth = depth; parentDepth > 0; parentDepth--) {
     const node = $pos.node(parentDepth)
-    if (node.type.name === 'blockGroup' && !node.eq(group)) {
+    if (node.type.name === 'blockChildren' && !node.eq(group)) {
       return {node, pos: $pos.before(depth)}
     }
   }

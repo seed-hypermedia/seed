@@ -5,7 +5,7 @@ import { Database } from "bun:sqlite"
  * When the stored version doesn't match, the server will refuse to start
  * and ask the operator to drop the database file manually.
  */
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 5
 
 /** Result of opening the database. */
 export type OpenResult = { ok: true; db: Database } | { ok: false; current: number; desired: number }

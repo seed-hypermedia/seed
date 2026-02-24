@@ -3,6 +3,17 @@
   "version": "0.1.0",
   "main": "src/index.ts",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "bun": "./src/*.ts",
+      "default": "./src/*.ts"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "format:check": "prettier --check .",
     "format:write": "prettier --write .",
@@ -26,12 +37,13 @@
     "@noble/hashes": "^2.0.1",
     "@tanstack/react-query": "^4.36.1",
     "@xstate/react": "4.1.3",
+    "cborg": "^4.5.8",
     "cheerio": "^1.0.0",
     "core-js": "^3.48.0",
     "katex": "0.16.9",
     "lowlight": "3.1.0",
     "multiformats": "^13.4.1",
-    "nanoid": "4.0.2",
+    "nanoid": "^5.1.6",
     "react": "18.2.0",
     "react-tweet": "3.2.0",
     "xstate": "5.19.2"

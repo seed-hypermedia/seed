@@ -2,17 +2,13 @@
 BASIC STYLES
 */
 
-.blockOuter {
-  line-height: 1.5;
-  transition: margin 0.2s;
-  /* padding-left: 0.5em; */
-}
-
-/*Ensures blocks & block content spans editor width*/
-.block {
+.blockNode {
   display: flex;
   flex-direction: column;
   position: relative;
+  line-height: 1.5;
+  transition: margin 0.2s;
+  /* padding-left: 0.5em; */
 }
 
 /*Ensures block content inside React node views spans editor width*/
@@ -46,15 +42,15 @@ BASIC STYLES
 NESTED BLOCKS
 */
 
-.blockGroup .blockGroup {
+.blockChildren .blockChildren {
   margin-left: 1.5em;
 }
 
-.blockGroup .blockGroup > .blockOuter {
+.blockChildren .blockChildren > .blockNode {
   position: relative;
 }
 
-.blockGroup .blockGroup > .blockOuter:not([data-prev-depth-changed])::before {
+.blockChildren .blockChildren > .blockNode:not([data-prev-depth-changed])::before {
   content: ' ';
   display: inline;
   position: absolute;
@@ -63,51 +59,51 @@ NESTED BLOCKS
   transition: all 0.2s 0.1s;
 }
 
-.blockGroup[data-list-type='Blockquote'] {
+.blockChildren[data-list-type='Blockquote'] {
   border-left: 3px solid var(--border);
   padding-left: 15px;
   margin: 1em 0;
   /* font-style: italic; */
 }
-.blockGroup[data-list-type='Unordered'],
-.blockGroup[data-list-type='Ordered'] {
+.blockChildren[data-list-type='Unordered'],
+.blockChildren[data-list-type='Ordered'] {
   margin-top: 0;
   margin-bottom: 0;
   padding: 0;
   padding-inline-start: 1em;
 }
 
-.blockGroup[data-list-type='Unordered'] {
+.blockChildren[data-list-type='Unordered'] {
   margin-left: 0;
   list-style-type: disc;
 }
 
-.blockGroup[data-list-level='2'] {
+.blockChildren[data-list-level='2'] {
   list-style-type: circle;
 }
 
-.blockGroup[data-list-level='3'] {
+.blockChildren[data-list-level='3'] {
   list-style-type: square;
 }
 
-.blockGroup[data-list-type='Ordered'] {
+.blockChildren[data-list-type='Ordered'] {
   margin-left: 0;
   list-style-type: decimal;
 }
 
-.blockGroup[data-list-type='Unordered'] > .blockOuter {
+.blockChildren[data-list-type='Unordered'] > .blockNode {
   display: list-item !important;
 }
 
-.blockGroup[data-list-type='Ordered'] > .blockOuter {
+.blockChildren[data-list-type='Ordered'] > .blockNode {
   display: list-item !important;
 }
 
-.blockGroup[data-list-type='Unordered'] > span[data-decoration-type='link-dropdown'] {
+.blockChildren[data-list-type='Unordered'] > span[data-decoration-type='link-dropdown'] {
   display: list-item !important;
 }
 
-.blockGroup[data-list-type='Ordered'] > span[data-decoration-type='link-dropdown'] {
+.blockChildren[data-list-type='Ordered'] > span[data-decoration-type='link-dropdown'] {
   display: list-item !important;
 }
 
@@ -141,20 +137,20 @@ NESTED BLOCKS
 }
 
 /* [data-theme='light']
-  .blockGroup
-  .blockGroup
-  > .blockOuter:not([data-prev-depth-changed])::before {
+  .blockChildren
+  .blockChildren
+  > .blockNode:not([data-prev-depth-changed])::before {
   border-left: 1px solid #cccccc;
 }
 
 [data-theme='dark']
-  .blockGroup
-  .blockGroup
-  > .blockOuter:not([data-prev-depth-changed])::before {
+  .blockChildren
+  .blockChildren
+  > .blockNode:not([data-prev-depth-changed])::before {
   border-left: 1px solid #999999;
 } */
 
-.blockGroup .blockGroup > .blockOuter[data-prev-depth-change='-2']::before {
+.blockChildren .blockChildren > .blockNode[data-prev-depth-change='-2']::before {
   height: 0;
 }
 
@@ -192,11 +188,11 @@ NESTED BLOCKS
   --x: -5;
 } */
 
-.blockOuter[data-prev-depth-change] {
+.blockNode[data-prev-depth-change] {
   margin-left: calc(10px * var(--x));
 }
 
-.blockOuter[data-prev-depth-change] .blockOuter[data-prev-depth-change] {
+.blockNode[data-prev-depth-change] .blockNode[data-prev-depth-change] {
   margin-left: 0;
 }
 
@@ -247,44 +243,44 @@ NESTED BLOCKS
   --prev-level: 18px;
 } */
 
-/* .blockOuter[data-prev-type='heading'] > .block .blockContent {
+/* .blockNode[data-prev-type='heading'] > .blockContent {
   font-size: var(--prev-level);
   font-weight: bold;
 } */
 
-[data-node-type='blockGroup'] [data-content-type='heading'] {
+[data-node-type='blockChildren'] [data-content-type='heading'] {
   --level: 30px;
 }
 
-[data-node-type='blockGroup'] [data-node-type='blockGroup'] [data-content-type='heading'] {
+[data-node-type='blockChildren'] [data-node-type='blockChildren'] [data-content-type='heading'] {
   --level: 24px;
 }
 
-[data-node-type='blockGroup']
-  [data-node-type='blockGroup']
-  [data-node-type='blockGroup']
+[data-node-type='blockChildren']
+  [data-node-type='blockChildren']
+  [data-node-type='blockChildren']
   [data-content-type='heading'] {
   --level: 20px;
 }
 
-[data-node-type='blockGroup']
-  [data-node-type='blockGroup']
-  [data-node-type='blockGroup']
-  [data-node-type='blockGroup']
+[data-node-type='blockChildren']
+  [data-node-type='blockChildren']
+  [data-node-type='blockChildren']
+  [data-node-type='blockChildren']
   [data-content-type='heading'] {
   --level: 18px;
 }
 
-[data-node-type='blockGroup']
-  [data-node-type='blockGroup']
-  [data-node-type='blockGroup']
-  [data-node-type='blockGroup']
-  [data-node-type='blockGroup']
+[data-node-type='blockChildren']
+  [data-node-type='blockChildren']
+  [data-node-type='blockChildren']
+  [data-node-type='blockChildren']
+  [data-node-type='blockChildren']
   [data-content-type='heading'] {
   --level: 16px;
 }
 
-.blockOuter:not([data-prev-type]) > .block .blockContent[data-content-type='heading'] {
+.blockNode:not([data-prev-type]) > .blockContent[data-content-type='heading'] {
   font-size: var(--level);
   line-height: 1.2;
   /* margin-top: 0.6em; */
@@ -352,12 +348,12 @@ NESTED BLOCKS
   --prev-index: attr(data-prev-index);
 }
 
-.blockOuter[data-prev-type='numberedListItem']:not([data-prev-index='none']) > .block > .blockContent::before {
+.blockNode[data-prev-type='numberedListItem']:not([data-prev-index='none']) > .blockContent::before {
   margin-right: 1.2em;
   content: var(--prev-index) '.';
 }
 
-.blockOuter:not([data-prev-type]) > .block > .blockContent[data-content-type='numberedListItem']::before {
+.blockNode:not([data-prev-type]) > .blockContent[data-content-type='numberedListItem']::before {
   margin-right: 1.2em;
   content: var(--index) '.';
 }
@@ -365,18 +361,18 @@ NESTED BLOCKS
 /* Safari only fix. Safari handles list items display differently than other browsers when there's 
   padding on the content. The padding pushes text down while markers stay at top */
 @supports (-webkit-hyphens: none) and (not (overflow: -webkit-marquee)) and (not (-ms-ime-align: auto)) {
-  .blockGroup[data-list-type='Unordered'] > .blockOuter > .block > .blockContent,
-  .blockGroup[data-list-type='Ordered'] > .blockOuter > .block > .blockContent {
+  .blockChildren[data-list-type='Unordered'] > .blockNode > .blockContent,
+  .blockChildren[data-list-type='Ordered'] > .blockNode > .blockContent {
     display: flex !important;
     align-items: flex-start !important;
   }
 
-  .blockGroup[data-list-type='Unordered'] > .blockOuter > .block > .blockContent .inlineContent {
+  .blockChildren[data-list-type='Unordered'] > .blockNode > .blockContent .inlineContent {
     margin-top: 3px !important;
     margin-left: -0.5em !important;
   }
 
-  .blockGroup[data-list-type='Ordered'] > .blockOuter > .block > .blockContent .inlineContent {
+  .blockChildren[data-list-type='Ordered'] > .blockNode > .blockContent .inlineContent {
     margin-top: 3px !important;
     margin-left: -1em !important;
   }
@@ -386,53 +382,48 @@ NESTED BLOCKS
 /* No list nesting */
 
 /*
-.blockOuter[data-prev-type='bulletListItem'] > .block > .blockContent::before {
+.blockNode[data-prev-type='bulletListItem'] > .blockContent::before {
   margin-right: 1.2em;
   content: '•';
 }
 
-.blockOuter:not([data-prev-type])
-  > .block
+.blockNode:not([data-prev-type])
   > .blockContent[data-content-type='bulletListItem']::before {
   margin-right: 1.2em;
   content: '•';
 }
 
 [data-content-type='bulletListItem']
-  ~ .blockGroup
-  > .blockOuter[data-prev-type='bulletListItem']
-  > .block
+  ~ .blockChildren
+  > .blockNode[data-prev-type='bulletListItem']
   > .blockContent::before {
   margin-right: 1.2em;
   content: '◦';
 }
 
 [data-content-type='bulletListItem']
-  ~ .blockGroup
-  > .blockOuter:not([data-prev-type])
-  > .block
+  ~ .blockChildren
+  > .blockNode:not([data-prev-type])
   > .blockContent[data-content-type='bulletListItem']::before {
   margin-right: 1.2em;
   content: '◦';
 }
 
 [data-content-type='bulletListItem']
-  ~ .blockGroup
+  ~ .blockChildren
   [data-content-type='bulletListItem']
-  ~ .blockGroup
-  > .blockOuter[data-prev-type='bulletListItem']
-  > .block
+  ~ .blockChildren
+  > .blockNode[data-prev-type='bulletListItem']
   > .blockContent::before {
   margin-right: 1.2em;
   content: '▪';
 }
 
 [data-content-type='bulletListItem']
-  ~ .blockGroup
+  ~ .blockChildren
   [data-content-type='bulletListItem']
-  ~ .blockGroup
-  > .blockOuter:not([data-prev-type])
-  > .block
+  ~ .blockChildren
+  > .blockNode:not([data-prev-type])
   > .blockContent[data-content-type='bulletListItem']::before {
   margin-right: 1.2em;
   content: '▪';
@@ -441,8 +432,8 @@ NESTED BLOCKS
 
 /* PLACEHOLDERS*/
 
-.isEmpty .inlineContent:before,
-.isFilter .inlineContent:before {
+.isEmpty:before,
+.isFilter:before {
   /*float: left; */
   content: '';
   pointer-events: none;
@@ -452,8 +443,8 @@ NESTED BLOCKS
   font-style: italic;
 }
 
-.isEmpty .inlineContent:before,
-.isFilter .inlineContent:before {
+.isEmpty:before,
+.isFilter:before {
   opacity: 0.5;
 }
 
@@ -464,7 +455,7 @@ NESTED BLOCKS
 
 /* TODO: would be nicer if defined from code */
 
-.blockContent.isEmpty.hasAnchor .inlineContent:before {
+.blockContent.isEmpty.hasAnchor:before {
   font-size: 0.9em;
   font-family:
     'Inter',
@@ -484,7 +475,7 @@ NESTED BLOCKS
   content: "Enter text or type '/' for commands";
 }
 
-.blockContent.isFilter.hasAnchor .inlineContent:before {
+.blockContent.isFilter.hasAnchor:before {
   font-family:
     'Inter',
     'SF Pro Display',
@@ -503,7 +494,7 @@ NESTED BLOCKS
   content: 'Type to filter';
 }
 
-.blockContent[data-content-type='heading'].isEmpty.hasAnchor .inlineContent:before {
+.blockContent[data-content-type='heading'].isEmpty.hasAnchor:before {
   font-family:
     'Inter',
     'SF Pro Display',
@@ -522,7 +513,7 @@ NESTED BLOCKS
   content: 'Heading';
 }
 
-.blockContent[data-content-type='code-block'].isEmpty.hasAnchor .inlineContent:before {
+.blockContent[data-content-type='code-block'].isEmpty.hasAnchor:before {
   font-family:
     'Inter',
     'SF Pro Display',
@@ -671,15 +662,8 @@ NESTED BLOCKS
   padding: 3px 0;
 }
 
-:global(.comment-editor) .blockContent.isEmpty.hasAnchor .inlineContent:before {
+:global(.comment-editor) .blockContent.isEmpty.hasAnchor:before {
   font-size: 1em !important;
-  color: var(--muted-foreground, rgb(99 104 118));
-  opacity: 1;
-}
-
-:global(.comment-editor) .blockContent.isFilter.hasAnchor .inlineContent:before {
-  color: var(--muted-foreground, rgb(99 104 118));
-  opacity: 1;
 }
 
 :global(.comment-editor) .blockContent[data-content-type='code-block'] {
@@ -695,13 +679,13 @@ NESTED BLOCKS
   font-size: 1em;
 }
 
-:global(.comment-editor) .blockGroup[data-list-type='Blockquote'] {
+:global(.comment-editor) .blockChildren[data-list-type='Blockquote'] {
   border-left: 3px solid rgb(0 0 0 / 0.2) !important;
   padding-left: 15px;
   margin: 1em 0;
 }
 
-:global(.dark) :global(.comment-editor) .blockGroup[data-list-type='Blockquote'] {
+:global(.dark) :global(.comment-editor) .blockChildren[data-list-type='Blockquote'] {
   border-left: 3px solid rgb(255 255 255 / 0.3) !important;
 }
 

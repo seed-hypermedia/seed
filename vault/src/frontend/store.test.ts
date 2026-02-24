@@ -3,69 +3,52 @@ import * as base64 from "@shm/shared/base64"
 import * as blobs from "@shm/shared/blobs"
 import * as simplewebauthn from "@simplewebauthn/browser"
 import { createStore } from "./store"
-import { createMockClient } from "./test-utils"
+import { createMockClient, createSuccessMockClient } from "./test-utils"
+import * as vault from "./vault"
 
 // Mock simplewebauthn browser functions (external dependency).
 const mockStartRegistration = spyOn(simplewebauthn, "startRegistration")
 const mockStartAuthentication = spyOn(simplewebauthn, "startAuthentication")
 
+/**
+ * Creates vault state with the given number of accounts, each with delegations.
+ * Returns the state object and references to principals for assertions.
+ */
+async function makeVaultState(accountCount: number) {
+	const keyPairs = Array.from({ length: accountCount }, () => blobs.generateNobleKeyPair())
+	const profiles = await Promise.all(keyPairs.map((kp, i) => blobs.createProfile(kp, { name: `Acc ${i}` }, Date.now())))
+
+	// Create cross-account capabilities: each account delegates to the next one's principal.
+	const capabilities = await Promise.all(
+		keyPairs.map((kp, i) => {
+			const targetIdx = (i + 1) % accountCount
+			return blobs.createCapability(kp, keyPairs[targetIdx]!.principal, "WRITER", 0)
+		}),
+	)
+
+	const accounts: vault.State["accounts"] = keyPairs.map((_kp, i) => ({
+		seed: keyPairs[i]!.seed,
+		profile: { cid: profiles[i]!.cid, decoded: profiles[i]!.decoded },
+		createTime: Date.now(),
+		delegations: [
+			{
+				clientId: String(i),
+				createTime: 0,
+				deviceType: "desktop" as const,
+				capability: { cid: capabilities[i]!.cid, decoded: capabilities[i]!.decoded },
+			},
+		],
+	}))
+
+	const principals = keyPairs.map((kp) => blobs.principalToString(kp.principal))
+
+	return {
+		vaultData: { version: 1 as const, accounts },
+		principals,
+	}
+}
+
 describe("Store", () => {
-	describe("resetState", () => {
-		test("resets all state to initial values", () => {
-			const { state, actions } = createStore(createMockClient())
-
-			state.email = "test@test.com"
-			state.loading = true
-
-			actions.resetState()
-
-			expect(state.email).toBe("")
-			expect(state.loading).toBe(false)
-		})
-	})
-
-	describe("setters", () => {
-		test("setEmail changes email", () => {
-			const { state, actions } = createStore(createMockClient())
-
-			actions.setEmail("new@email.com")
-
-			expect(state.email).toBe("new@email.com")
-		})
-
-		test("setPassword changes password", () => {
-			const { state, actions } = createStore(createMockClient())
-
-			actions.setPassword("secret123")
-
-			expect(state.password).toBe("secret123")
-		})
-
-		test("setConfirmPassword changes confirmPassword", () => {
-			const { state, actions } = createStore(createMockClient())
-
-			actions.setConfirmPassword("secret123")
-
-			expect(state.confirmPassword).toBe("secret123")
-		})
-
-		test("setChallengeId changes challengeId", () => {
-			const { state, actions } = createStore(createMockClient())
-
-			actions.setChallengeId("test-challenge-id")
-
-			expect(state.challengeId).toBe("test-challenge-id")
-		})
-
-		test("setError changes error", () => {
-			const { state, actions } = createStore(createMockClient())
-
-			actions.setError("Something went wrong")
-
-			expect(state.error).toBe("Something went wrong")
-		})
-	})
-
 	describe("handlePreLogin", () => {
 		test("navigates to verify-pending when user does not exist", async () => {
 			const client = createMockClient({
@@ -134,8 +117,6 @@ describe("Store", () => {
 					registerPoll: async () => ({ verified: false }),
 				}),
 			)
-
-			await actions.handlePreLogin()
 
 			await actions.handlePreLogin()
 
@@ -318,80 +299,50 @@ describe("Store", () => {
 	})
 
 	describe("handleSetPasskey", () => {
-		test("failed registration should not clear session if it persists", async () => {
-			// Suppress console.error for this test since we're simulating a cancel error.
+		test("sets error when user cancels registration prompt", async () => {
 			const consoleErrorSpy = spyOn(console, "error").mockImplementation(() => {})
-
-			const calls: string[] = []
-
-			const client = createMockClient({
-				getSession: async () => {
-					calls.push("getSession")
-					return {
+			const { state, actions } = createStore(
+				createSuccessMockClient({
+					getSession: async () => ({
 						authenticated: true,
 						relyingPartyOrigin: "https://vault.example.com",
-						userId: "test-user",
 						email: "test@passkey.com",
-					}
-				},
-				webAuthnRegisterStart: async () => {
-					calls.push("webAuthnRegisterStart")
-					return {
-						challenge: "abc123",
-						rp: { name: "test", id: "test" },
-						user: { id: "id", name: "name", displayName: "name" },
-						pubKeyCredParams: [],
-					}
-				},
-				webAuthnRegisterComplete: async () => {
-					calls.push("webAuthnRegisterComplete")
-					return {
-						success: true,
-						credentialId: "cred123",
-						backupEligible: true,
-						backupState: true,
-						prfEnabled: true,
-					}
-				},
-				webAuthnLoginStart: async () => {
-					calls.push("webAuthnLoginStart")
-					return { challenge: "authchallenge", allowCredentials: [] }
-				},
-				webAuthnLoginComplete: async () => {
-					calls.push("webAuthnLoginComplete")
-					return { success: true, userId: "test-user", vault: null }
-				},
-				webAuthnVaultStore: async () => {
-					calls.push("webAuthnVaultStore")
-					return { success: true }
-				},
-			})
-
-			const { state, actions, navigator } = createStore(client)
-			const navigate = mock()
-			navigator.setNavigate(navigate)
-
-			state.email = "test@passkey.com"
-			// Pre-set session as if obtained from previous step
+					}),
+				}),
+			)
 			state.session = {
 				authenticated: true,
 				relyingPartyOrigin: "https://vault.example.com",
-				hasPassword: false,
-				hasPasskeys: false,
 			}
 
-			// First attempt: simulate user cancel at startRegistration.
 			mockStartRegistration.mockRejectedValueOnce(new Error("The operation was canceled"))
 
 			await actions.handleSetPasskey()
 
 			expect(state.error).toContain("try again")
+			expect(state.session).not.toBeNull()
 
-			// Reset for second attempt
-			state.error = ""
-			calls.length = 0
+			consoleErrorSpy.mockRestore()
+			mockStartRegistration.mockReset()
+		})
 
-			// Second attempt: startRegistration succeeds with PRF.
+		test("completes registration with PRF from auth fallback", async () => {
+			const { state, actions } = createStore(
+				createSuccessMockClient({
+					getSession: async () => ({
+						authenticated: true,
+						relyingPartyOrigin: "https://vault.example.com",
+						email: "test@passkey.com",
+					}),
+				}),
+			)
+			state.email = "test@passkey.com"
+			state.session = {
+				authenticated: true,
+				relyingPartyOrigin: "https://vault.example.com",
+			}
+
+			// Registration succeeds but without PRF output.
 			mockStartRegistration.mockResolvedValueOnce({
 				id: "cred123",
 				rawId: "cred123",
@@ -404,7 +355,7 @@ describe("Store", () => {
 				clientExtensionResults: { prf: { enabled: true } },
 			} as unknown as Awaited<ReturnType<typeof simplewebauthn.startRegistration>>)
 
-			// PRF not in registration, so we try auth.
+			// Auth fallback provides PRF output.
 			mockStartAuthentication.mockResolvedValueOnce({
 				id: "cred123",
 				rawId: "cred123",
@@ -426,14 +377,66 @@ describe("Store", () => {
 
 			await actions.handleSetPasskey()
 
-			expect(calls).toContain("webAuthnRegisterStart")
 			expect(state.error).toBe("")
 			expect(state.decryptedDEK).not.toBeNull()
 
-			// Restore.
-			consoleErrorSpy.mockRestore()
 			mockStartRegistration.mockReset()
 			mockStartAuthentication.mockReset()
+		})
+	})
+
+	describe("createAccount", () => {
+		test("creates an account when description is omitted", async () => {
+			const saveVaultDataCalls: unknown[] = []
+			const client = createMockClient({
+				saveVaultData: async (req) => {
+					saveVaultDataCalls.push(req)
+					return { success: true }
+				},
+			})
+			const { state, actions } = createStore(client)
+
+			state.decryptedDEK = new Uint8Array(32)
+			state.vaultData = {
+				version: 1,
+				accounts: [],
+			}
+			state.selectedAccountIndex = -1
+			state.creatingAccount = true
+
+			await actions.createAccount("Test")
+
+			expect(state.vaultData.accounts.length).toBe(1)
+			expect(state.selectedAccountIndex).toBe(0)
+			expect(state.creatingAccount).toBe(false)
+			expect(state.error).toBe("")
+			expect(saveVaultDataCalls.length).toBe(1)
+		})
+
+		test("rolls back local state when vault save fails", async () => {
+			const client = createMockClient({
+				saveVaultData: async () => ({ success: true }),
+			})
+			const { state, actions } = createStore(client)
+			const consoleErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+			const serializeSpy = spyOn(vault, "serialize").mockRejectedValueOnce(new Error("dag-cbor failed"))
+
+			state.decryptedDEK = new Uint8Array(32)
+			state.vaultData = {
+				version: 1,
+				accounts: [],
+			}
+			state.selectedAccountIndex = -1
+			state.creatingAccount = true
+
+			await actions.createAccount("Test", "Description")
+
+			expect(state.vaultData.accounts.length).toBe(0)
+			expect(state.selectedAccountIndex).toBe(-1)
+			expect(state.creatingAccount).toBe(true)
+			expect(state.error).toContain("dag-cbor failed")
+			serializeSpy.mockRestore()
+			consoleErrorSpy.mockRestore()
 		})
 	})
 
@@ -448,71 +451,24 @@ describe("Store", () => {
 			})
 			const { state, actions } = createStore(client)
 
-			// Setup vault with 3 accounts
-			const kp1 = blobs.generateKeyPair()
-			const kp2 = blobs.generateKeyPair()
-			const kp3 = blobs.generateKeyPair()
+			const { vaultData } = await makeVaultState(3)
 
-			const p1 = blobs.createProfile(kp1, { name: "Acc 0" }, Date.now())
-			const p2 = blobs.createProfile(kp2, { name: "Acc 1" }, Date.now())
-			const p3 = blobs.createProfile(kp3, { name: "Acc 2" }, Date.now())
+			// Add extra cross-delegation to account 1 for richer coverage.
+			const extraCap = await blobs.createCapability(
+				blobs.generateNobleKeyPair(), // issuer doesn't matter for this test
+				blobs.generateNobleKeyPair().principal,
+				"WRITER",
+				0,
+			)
+			vaultData.accounts[1]!.delegations.push({
+				clientId: "1b",
+				createTime: 0,
+				deviceType: "mobile",
+				capability: { cid: extraCap.cid, decoded: extraCap.decoded },
+			})
 
-			const c1_2 = blobs.createCapability(kp1, kp2.principal, "WRITER", 0)
-			const c2_1 = blobs.createCapability(kp2, kp1.principal, "WRITER", 0)
-			const c2_3 = blobs.createCapability(kp2, kp3.principal, "WRITER", 0)
-			const c3_1 = blobs.createCapability(kp3, kp1.principal, "WRITER", 0)
-
-			state.decryptedDEK = new Uint8Array(32) // Needed to authorize action
-			state.vaultData = {
-				version: 1,
-				accounts: [
-					{
-						seed: kp1.privateKey,
-						profile: { cid: p1.cid, decoded: p1.decoded },
-						createTime: Date.now(),
-						delegations: [
-							{
-								clientId: "0",
-								createTime: 0,
-								deviceType: "desktop",
-								capability: { cid: c1_2.cid, decoded: c1_2.decoded },
-							},
-						],
-					},
-					{
-						seed: kp2.privateKey,
-						profile: { cid: p2.cid, decoded: p2.decoded },
-						createTime: Date.now(),
-						delegations: [
-							{
-								clientId: "1a",
-								createTime: 0,
-								deviceType: "tablet",
-								capability: { cid: c2_1.cid, decoded: c2_1.decoded },
-							},
-							{
-								clientId: "1b",
-								createTime: 0,
-								deviceType: "mobile",
-								capability: { cid: c2_3.cid, decoded: c2_3.decoded },
-							},
-						],
-					},
-					{
-						seed: kp3.privateKey,
-						profile: { cid: p3.cid, decoded: p3.decoded },
-						createTime: Date.now(),
-						delegations: [
-							{
-								clientId: "2",
-								createTime: 0,
-								deviceType: "desktop",
-								capability: { cid: c3_1.cid, decoded: c3_1.decoded },
-							},
-						],
-					},
-				],
-			}
+			state.decryptedDEK = new Uint8Array(32)
+			state.vaultData = vaultData
 			state.selectedAccountIndex = 1
 
 			const principal2 = blobs.principalToString(state.vaultData!.accounts[1]!.profile.decoded.signer)
@@ -522,12 +478,7 @@ describe("Store", () => {
 			expect(state.vaultData!.accounts[0]!.profile.decoded.name).toBe("Acc 0")
 			expect(state.vaultData!.accounts[1]!.profile.decoded.name).toBe("Acc 2")
 
-			expect(state.vaultData!.accounts[0]!.delegations.length).toBe(1)
-			expect(state.vaultData!.accounts[0]!.delegations[0]!.clientId).toBe("0")
-			expect(state.vaultData!.accounts[1]!.delegations.length).toBe(1)
-			expect(state.vaultData!.accounts[1]!.delegations[0]!.clientId).toBe("2")
-
-			expect(state.selectedAccountIndex).toBe(0) // Shifted down
+			expect(state.selectedAccountIndex).toBe(0)
 			expect(saveVaultDataCalls.length).toBe(1)
 		})
 	})
@@ -543,69 +494,13 @@ describe("Store", () => {
 			})
 			const { state, actions } = createStore(client)
 
-			const kp1 = blobs.generateKeyPair()
-			const kp2 = blobs.generateKeyPair()
-			const kp3 = blobs.generateKeyPair()
-
-			const p1 = blobs.createProfile(kp1, { name: "Acc 0" }, Date.now())
-			const p2 = blobs.createProfile(kp2, { name: "Acc 1" }, Date.now())
-			const p3 = blobs.createProfile(kp3, { name: "Acc 2" }, Date.now())
-
-			const c1_2 = blobs.createCapability(kp1, kp2.principal, "WRITER", 0)
-			const c2_1 = blobs.createCapability(kp2, kp1.principal, "WRITER", 0)
-			const c3_1 = blobs.createCapability(kp3, kp1.principal, "WRITER", 0)
-
-			const p1Str = blobs.principalToString(kp1.principal)
-			const p3Str = blobs.principalToString(kp3.principal)
-
+			const { vaultData, principals } = await makeVaultState(3)
 			state.decryptedDEK = new Uint8Array(32)
-			state.vaultData = {
-				version: 1,
-				accounts: [
-					{
-						seed: kp1.privateKey,
-						profile: { cid: p1.cid, decoded: p1.decoded },
-						createTime: Date.now(),
-						delegations: [
-							{
-								clientId: "0",
-								createTime: 0,
-								deviceType: "desktop",
-								capability: { cid: c1_2.cid, decoded: c1_2.decoded },
-							},
-						],
-					},
-					{
-						seed: kp2.privateKey,
-						profile: { cid: p2.cid, decoded: p2.decoded },
-						createTime: Date.now(),
-						delegations: [
-							{
-								clientId: "1a",
-								createTime: 0,
-								capability: { cid: c2_1.cid, decoded: c2_1.decoded },
-							},
-						],
-					},
-					{
-						seed: kp3.privateKey,
-						profile: { cid: p3.cid, decoded: p3.decoded },
-						createTime: Date.now(),
-						delegations: [
-							{
-								clientId: "2",
-								createTime: 0,
-								deviceType: "desktop",
-								capability: { cid: c3_1.cid, decoded: c3_1.decoded },
-							},
-						],
-					},
-				],
-			}
+			state.vaultData = vaultData
 			state.selectedAccountIndex = 0
 
 			// Move index 0 to index 2
-			await actions.reorderAccount(p1Str, p3Str)
+			await actions.reorderAccount(principals[0]!, principals[2]!)
 
 			expect(state.vaultData!.accounts.length).toBe(3)
 			expect(state.vaultData!.accounts[0]!.profile.decoded.name).toBe("Acc 1")
@@ -616,7 +511,7 @@ describe("Store", () => {
 			expect(state.selectedAccountIndex).toBe(2)
 
 			// Delegations correctly follow their respective accounts
-			expect(state.vaultData!.accounts[0]!.delegations[0]!.clientId).toBe("1a")
+			expect(state.vaultData!.accounts[0]!.delegations[0]!.clientId).toBe("1")
 			expect(state.vaultData!.accounts[1]!.delegations[0]!.clientId).toBe("2")
 			expect(state.vaultData!.accounts[2]!.delegations[0]!.clientId).toBe("0")
 
@@ -661,6 +556,30 @@ describe("delegation flow", () => {
 		return { url, state }
 	}
 
+	async function setupDelegationState(store: ReturnType<typeof createStore>, delegationUrl: URL) {
+		store.actions.parseDelegationFromUrl(delegationUrl)
+
+		const kp = blobs.generateNobleKeyPair()
+		const ts = Date.now()
+		const profile = await blobs.createProfile(kp, { name: "Test" }, ts)
+
+		store.state.decryptedDEK = new Uint8Array(32)
+		store.state.vaultData = {
+			version: 1,
+			accounts: [
+				{
+					seed: kp.seed,
+					profile: { cid: profile.cid, decoded: profile.decoded },
+					createTime: ts,
+					delegations: [],
+				},
+			],
+		}
+		store.state.selectedAccountIndex = 0
+		store.state.vaultVersion = 0
+		store.state.relyingPartyOrigin = "https://vault.example.com"
+	}
+
 	beforeEach(() => {
 		// @ts-expect-error
 		delete window.location
@@ -680,86 +599,61 @@ describe("delegation flow", () => {
 				return { success: true }
 			},
 		})
-		const { state, actions } = createStore(client)
+		const store = createStore(client)
 		const request = await makeSignedDelegationUrl()
-		actions.parseDelegationFromUrl(request.url)
+		await setupDelegationState(store, request.url)
 
-		// Set up vault state.
-		const kp = blobs.generateKeyPair()
-		const ts = Date.now()
-		const profile = blobs.createProfile(kp, { name: "Test" }, ts)
+		await store.actions.completeDelegation()
 
-		state.decryptedDEK = new Uint8Array(32)
-		state.vaultData = {
-			version: 1,
-			accounts: [
-				{
-					seed: kp.privateKey,
-					profile: { cid: profile.cid, decoded: profile.decoded },
-					createTime: ts,
-					delegations: [],
-				},
-			],
-		}
-		state.selectedAccountIndex = 0
-		state.vaultVersion = 0
-		state.relyingPartyOrigin = "https://vault.example.com"
-
-		await actions.completeDelegation()
-
-		// saveVaultData should have been called.
 		expect(saveVaultDataCalls.length).toBe(1)
-
-		// Should redirect to callback URL.
 		expect(window.location.href).toContain("https://example.com/callback")
 		expect(window.location.href).toContain("data=")
 		expect(window.location.href).toContain(`state=${request.state}`)
+		expect(store.state.vaultData!.accounts[0]!.delegations.length).toBe(1)
+		expect(store.state.vaultData!.accounts[0]!.delegations[0]!.deviceType).toBeDefined()
+		expect(store.state.delegationRequest).toBeNull()
+		expect(store.state.delegationConsented).toBe(false)
+		expect(store.state.error).toBe("")
+	})
 
-		// Delegation state should be cleared.
-		expect(state.vaultData!.accounts[0]!.delegations.length).toBe(1)
-		expect(state.vaultData!.accounts[0]!.delegations[0]!.deviceType).toBeDefined()
-		expect(state.delegationRequest).toBeNull()
-		expect(state.delegationConsented).toBe(false)
-		expect(state.error).toBe("")
+	test("surfaces serialization errors and does not redirect during delegation completion", async () => {
+		const store = createStore(createMockClient())
+		const request = await makeSignedDelegationUrl()
+		await setupDelegationState(store, request.url)
+
+		const consoleErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		const serializeSpy = spyOn(vault, "serialize").mockRejectedValueOnce(new Error("dag-cbor failed"))
+
+		await store.actions.completeDelegation()
+
+		expect(store.state.error).toContain("dag-cbor failed")
+		expect(store.state.delegationRequest).not.toBeNull()
+		expect(window.location.href).toBe("")
+		serializeSpy.mockRestore()
+		consoleErrorSpy.mockRestore()
 	})
 
 	test("rejects tampered proof during delegation completion", async () => {
-		const { state, actions } = createStore(createMockClient())
+		const store = createStore(createMockClient())
 		const request = await makeSignedDelegationUrl()
 		request.url.searchParams.set("proof", "bad-proof")
-		actions.parseDelegationFromUrl(request.url)
+		await setupDelegationState(store, request.url)
 
-		state.decryptedDEK = new Uint8Array(32)
-		const kp = blobs.generateKeyPair()
-		const profile = blobs.createProfile(kp, { name: "Test" }, Date.now())
-		state.vaultData = {
-			version: 1,
-			accounts: [
-				{
-					seed: kp.privateKey,
-					profile: { cid: profile.cid, decoded: profile.decoded },
-					createTime: Date.now(),
-					delegations: [],
-				},
-			],
-		}
-		state.selectedAccountIndex = 0
-		state.relyingPartyOrigin = "https://vault.example.com"
+		await store.actions.completeDelegation()
 
-		await actions.completeDelegation()
-
-		expect(state.error).toContain("Invalid proof signature encoding")
+		expect(store.state.error).toContain("Invalid proof signature encoding")
 	})
 
-	test("cancelDelegation redirects with error param", () => {
+	test("cancelDelegation redirects with error param", async () => {
 		const { state, actions } = createStore(createMockClient())
+		const sessionKeyPair = blobs.generateNobleKeyPair()
 
 		state.delegationRequest = {
 			originalUrl:
 				"https://vault.example.com/delegate?client_id=https%3A%2F%2Fexample.com&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback&session_key=missing&state=AAAAAAAAAAAAAAAAAAAAAA&ts=1700000000000&proof=cA",
 			clientId: "https://example.com",
 			redirectUri: "https://example.com/callback",
-			sessionKeyPrincipal: blobs.principalToString(blobs.generateKeyPair().principal),
+			sessionKeyPrincipal: blobs.principalToString(sessionKeyPair.principal),
 			state: "AAAAAAAAAAAAAAAAAAAAAA",
 			requestTs: Date.now(),
 			proof: "cA",

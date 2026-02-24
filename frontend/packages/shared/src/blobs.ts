@@ -1,15 +1,19 @@
 /**
  * Blob types and signing infrastructure for the Seed Hypermedia protocol.
  * Port of the Go blob and core packages, supporting Profile and Capability blob types.
+ *
+ * Provides two signing implementations:
+ * - NobleKeyPair: uses @noble/curves/ed25519 directly. For vault keys where raw seed storage is needed.
+ * - WebCryptoKeyPair: uses crypto.subtle with unexportable keys. For browser session keys.
  */
 
-import * as dagCBOR from '@ipld/dag-cbor'
 import {ed25519} from '@noble/curves/ed25519.js'
 import {sha256 as sha256hash} from '@noble/hashes/sha2.js'
 import {base58btc} from 'multiformats/bases/base58'
 import {CID} from 'multiformats/cid'
 import * as Digest from 'multiformats/hashes/digest'
 import {sha256 as sha256hasher} from 'multiformats/hashes/sha2'
+import * as cbor from './cbor'
 
 // Ed25519 multicodec (0xed) varint prefix. No existing JS library exports this constant.
 export const ED25519_VARINT_PREFIX = new Uint8Array([0xed, 0x01])
@@ -29,32 +33,104 @@ export type Timestamp = number
 /** Role values for capability blobs. */
 export type Role = 'WRITER' | 'AGENT'
 
-/** Ed25519 key pair for signing blobs. */
-export interface KeyPair {
-  /** Raw 32-byte Ed25519 private key. */
-  readonly privateKey: Uint8Array
-  /** Raw 32-byte Ed25519 public key. */
-  readonly publicKey: Uint8Array
-  /** Multicodec-prefixed principal (34 bytes). */
+// ---- Signer / Verifier interfaces (mirrors Go core.Signer / core.Verifier) ----
+
+/** Signs data and produces a cryptographic signature. */
+export interface Signer {
   readonly principal: Principal
+  sign(data: Uint8Array): Promise<Signature>
 }
 
-/** Generate a random Ed25519 key pair. */
-export function generateKeyPair(): KeyPair {
-  const privateKey = crypto.getRandomValues(new Uint8Array(32))
-  const publicKey = ed25519.getPublicKey(privateKey)
-  return {privateKey, publicKey, principal: principalFromEd25519(publicKey)}
+/** Verifies a signature against data. */
+export interface Verifier {
+  verify(data: Uint8Array, sig: Signature): Promise<boolean>
 }
 
-/** Create a KeyPair from an existing Ed25519 private key (32 bytes). */
-export function keyPairFromPrivateKey(rawPrivateKey: Uint8Array): KeyPair {
-  const publicKey = ed25519.getPublicKey(rawPrivateKey)
-  return {
-    privateKey: rawPrivateKey,
-    publicKey,
-    principal: principalFromEd25519(publicKey),
+// ---- Implementations ----
+
+/**
+ * Ed25519 key pair using @noble/curves. Stores the raw 32-byte private key seed,
+ * suitable for vault keys that need to persist the seed in encrypted storage.
+ */
+export class NobleKeyPair implements Signer {
+  readonly principal: Principal
+  readonly publicKey: Uint8Array
+  /** Raw 32-byte Ed25519 private key seed. Needed for vault storage. */
+  readonly seed: Uint8Array
+
+  constructor(seed: Uint8Array) {
+    this.seed = new Uint8Array(seed)
+    this.publicKey = new Uint8Array(ed25519.getPublicKey(this.seed))
+    this.principal = principalFromEd25519(this.publicKey)
+  }
+
+  async sign(data: Uint8Array): Promise<Signature> {
+    return new Uint8Array(ed25519.sign(data, this.seed))
   }
 }
+
+/** Generate a random Ed25519 key pair with an accessible raw seed. */
+export function generateNobleKeyPair(): NobleKeyPair {
+  return new NobleKeyPair(crypto.getRandomValues(new Uint8Array(32)))
+}
+
+/** Restore a NobleKeyPair from a stored 32-byte seed. */
+export function nobleKeyPairFromSeed(seed: Uint8Array): NobleKeyPair {
+  return new NobleKeyPair(seed)
+}
+
+/**
+ * Ed25519 key pair using Web Crypto. The private key is **non-exportable**,
+ * suitable for browser session keys that must not leave the browser's crypto subsystem.
+ */
+export class WebCryptoKeyPair implements Signer {
+  readonly principal: Principal
+  readonly publicKey: Uint8Array
+  /** The Web Crypto key pair. Exposed for LocalWebIdentity compatibility. */
+  readonly keyPair: CryptoKeyPair
+
+  constructor(keyPair: CryptoKeyPair, publicKeyRaw: Uint8Array) {
+    this.keyPair = keyPair
+    this.publicKey = new Uint8Array(publicKeyRaw)
+    this.principal = principalFromEd25519(this.publicKey)
+  }
+
+  async sign(data: Uint8Array): Promise<Signature> {
+    const sig = await crypto.subtle.sign('Ed25519', this.keyPair.privateKey, data as ArrayBufferView<ArrayBuffer>)
+    return new Uint8Array(sig)
+  }
+}
+
+/** Generate a random Ed25519 key pair with an unexportable private key. */
+export async function generateWebCryptoKeyPair(): Promise<WebCryptoKeyPair> {
+  const keyPair = (await crypto.subtle.generateKey('Ed25519', false, ['sign', 'verify'])) as CryptoKeyPair
+  const publicKeyRaw = new Uint8Array(await crypto.subtle.exportKey('raw', keyPair.publicKey))
+  return new WebCryptoKeyPair(keyPair, publicKeyRaw)
+}
+
+// ---- Verification (always uses noble — just raw bytes, no key object needed) ----
+
+/**
+ * Verify the signature of a blob against its embedded signer Principal.
+ * Uses @noble/curves/ed25519 directly — works with any blob regardless of how it was signed.
+ */
+export function verify(blob: Blob): boolean {
+  if (blob.signer[0] !== ED25519_VARINT_PREFIX[0] || blob.signer[1] !== ED25519_VARINT_PREFIX[1]) return false
+  const rawPubKey = blob.signer.slice(ED25519_VARINT_PREFIX.length)
+  if (rawPubKey.length !== ED25519_PUBLIC_KEY_SIZE) return false
+
+  const sigCopy = new Uint8Array(blob.sig)
+  const unsigned = {...blob, sig: new Uint8Array(ED25519_SIGNATURE_SIZE)}
+  const data = new Uint8Array(cbor.encode(unsigned))
+
+  try {
+    return ed25519.verify(sigCopy, data, rawPubKey)
+  } catch {
+    return false
+  }
+}
+
+// ---- Principal helpers ----
 
 /** Create a Principal from a raw Ed25519 public key (32 bytes). */
 export function principalFromEd25519(rawPublicKey: Uint8Array): Principal {
@@ -123,8 +199,8 @@ export interface Profile extends Blob {
 }
 
 /** Create a signed and encoded Profile blob. */
-export function createProfile(
-  kp: KeyPair,
+export async function createProfile(
+  signer: Signer,
   opts: {
     /** Display name (required for non-alias profiles). */
     name: string
@@ -136,36 +212,47 @@ export function createProfile(
     account?: Principal
   },
   ts: Timestamp,
-): EncodedBlob<Profile> {
-  // Omit account when it equals the signer (matches Go behavior).
-  const account = opts.account && !principalEqual(kp.principal, opts.account) ? opts.account : undefined
+): Promise<EncodedBlob<Profile>> {
+  opts = {...opts} // Copying opts to avoid mutating the original object.
 
-  // Build blob without undefined values (DAG-CBOR does not support undefined).
-  const blob: Profile = {
-    type: 'Profile',
-    signer: kp.principal,
-    sig: new Uint8Array(ED25519_SIGNATURE_SIZE),
-    ts,
-    ...(opts.name != null ? {name: opts.name} : {}),
-    ...(opts.avatar != null ? {avatar: opts.avatar} : {}),
-    ...(opts.description != null ? {description: opts.description} : {}),
-    ...(account != null ? {account} : {}),
+  if (opts.account && principalEqual(opts.account, signer.principal)) {
+    delete opts.account
   }
 
-  return encode(sign(kp, blob))
+  if (opts.avatar === undefined) {
+    delete opts.avatar
+  }
+
+  if (opts.description === undefined) {
+    delete opts.description
+  }
+
+  const blob: Profile = {
+    type: 'Profile',
+    signer: signer.principal,
+    sig: new Uint8Array(ED25519_SIGNATURE_SIZE),
+    ts,
+    ...opts,
+  }
+
+  return encode(await sign(signer, blob))
 }
 
 /** Create a signed and encoded alias Profile blob (identity redirect). */
-export function createProfileAlias(kp: KeyPair, alias: Principal, ts: Timestamp): EncodedBlob<Profile> {
+export async function createProfileAlias(
+  signer: Signer,
+  alias: Principal,
+  ts: Timestamp,
+): Promise<EncodedBlob<Profile>> {
   const blob: Profile = {
     type: 'Profile',
-    signer: kp.principal,
+    signer: signer.principal,
     sig: new Uint8Array(ED25519_SIGNATURE_SIZE),
     ts,
     alias,
   }
 
-  return encode(sign(kp, blob))
+  return encode(await sign(signer, blob))
 }
 
 /** Capability blob granting rights from issuer to delegate. */
@@ -184,8 +271,8 @@ export interface Capability extends Blob {
 }
 
 /** Create a signed and encoded Capability blob. */
-export function createCapability(
-  issuer: KeyPair,
+export async function createCapability(
+  issuer: Signer,
   delegate: Principal,
   role: Role,
   ts: Timestamp,
@@ -197,7 +284,7 @@ export function createCapability(
     /** Audience principal for direct auth. */
     audience?: Principal
   } = {},
-): EncodedBlob<Capability> {
+): Promise<EncodedBlob<Capability>> {
   const blob: Capability = {
     type: 'Capability',
     signer: issuer.principal,
@@ -208,52 +295,74 @@ export function createCapability(
     ...opts,
   }
 
-  return encode(sign(issuer, blob))
+  return encode(await sign(issuer, blob))
 }
 
-/** A blob with its DAG-CBOR encoding and content-addressed CID. */
-export interface EncodedBlob<T extends Blob> {
+/** A decoded blob stored alongside its content-addressed CID. */
+export interface StoredBlob<T extends Blob> {
   readonly cid: CID
-  readonly data: Uint8Array
   readonly decoded: T
 }
 
-/**
- * Sign a blob with an Ed25519 key pair.
- * Mirrors the Go Sign function: fills sig with zeros, CBOR-encodes, signs, replaces sig.
- */
-export function sign<T extends Blob>(kp: KeyPair, blob: T): T {
-  const unsigned = {...blob, sig: new Uint8Array(ED25519_SIGNATURE_SIZE)}
-  const data = dagCBOR.encode(unsigned)
-  const sig = ed25519.sign(data, kp.privateKey)
-  return {...unsigned, sig}
+/** A blob with its DAG-CBOR encoding in addition to cid and decoded data. */
+export interface EncodedBlob<T extends Blob> extends StoredBlob<T> {
+  readonly data: Uint8Array
 }
 
 /**
- * Verify the signature of a blob against its embedded signer Principal.
- * Returns true if the signature is valid.
+ * Sign a blob with a Signer.
+ * Fills sig with zeros, CBOR-encodes, signs, replaces sig.
  */
-export function verify(blob: Blob): boolean {
-  if (blob.signer[0] !== ED25519_VARINT_PREFIX[0] || blob.signer[1] !== ED25519_VARINT_PREFIX[1]) return false
-  const rawPubKey = blob.signer.slice(ED25519_VARINT_PREFIX.length)
-  if (rawPubKey.length !== ED25519_PUBLIC_KEY_SIZE) return false
-
-  const sigCopy = new Uint8Array(blob.sig)
+export async function sign<T extends Blob>(signer: Signer, blob: T): Promise<T> {
   const unsigned = {...blob, sig: new Uint8Array(ED25519_SIGNATURE_SIZE)}
-  const data = dagCBOR.encode(unsigned)
-
-  try {
-    return ed25519.verify(sigCopy, data, rawPubKey)
-  } catch {
-    return false
-  }
+  const data = new Uint8Array(cbor.encode(unsigned))
+  const sig = await signer.sign(data)
+  return {...unsigned, sig}
 }
 
 /** Encode a signed blob to DAG-CBOR and compute its content-addressed CID. */
 export function encode<T extends Blob>(blob: T): EncodedBlob<T> {
-  const data = dagCBOR.encode(blob)
+  const data = new Uint8Array(cbor.encode(blob))
   const hash = sha256hash(data)
   const digest = Digest.create(sha256hasher.code, hash)
-  const cid = CID.createV1(dagCBOR.code, digest)
-  return {cid, data: new Uint8Array(data), decoded: blob}
+  const cid = CID.createV1(cbor.code, digest)
+  return {cid, data, decoded: blob}
+}
+
+/**
+ * Decode raw CBOR bytes into a blob, verifying the CID matches.
+ * Throws if the recomputed CID doesn't match the expected one.
+ */
+export function decodeBlob<T extends Blob>(data: Uint8Array, expectedCid: CID): EncodedBlob<T> {
+  const decoded = cbor.decode<T>(data)
+  const reencoded = encode(decoded)
+  if (reencoded.cid.toString() !== expectedCid.toString()) {
+    throw new Error(`CID mismatch: expected ${expectedCid}, got ${reencoded.cid}`)
+  }
+  return {cid: expectedCid, data, decoded}
+}
+
+// ---- Legacy aliases for backward compatibility ----
+
+/**
+ * @deprecated Use `NobleKeyPair` or `WebCryptoKeyPair` directly.
+ * Kept temporarily for consumers that haven't migrated yet.
+ */
+export type KeyPair = Signer & {
+  readonly publicKey: Uint8Array
+  readonly keyPair?: CryptoKeyPair
+}
+
+/**
+ * @deprecated Use `generateNobleKeyPair()` instead.
+ */
+export async function generateKeyPair(): Promise<NobleKeyPair> {
+  return generateNobleKeyPair()
+}
+
+/**
+ * @deprecated Use `nobleKeyPairFromSeed()` instead.
+ */
+export async function keyPairFromPrivateKey(rawPrivateKey: Uint8Array): Promise<NobleKeyPair> {
+  return nobleKeyPairFromSeed(rawPrivateKey)
 }

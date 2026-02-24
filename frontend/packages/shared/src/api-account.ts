@@ -1,8 +1,8 @@
-import {toPlainMessage} from '@bufbuild/protobuf'
 import {HMRequestImplementation, HMRequestParams} from './api-types'
+import {accountMetadataFromAccount} from './account-metadata'
 import {GRPCClient} from './grpc-client'
 import {HMAccountNotFound, HMAccountPayload, HMAccountRequest, HMAccountResult, HMMetadataPayload} from './hm-types'
-import {getErrorMessage, HMNotFoundError, prepareHMDocumentMetadata} from './models/entity'
+import {getErrorMessage, HMNotFoundError} from './models/entity'
 import {hmId} from './utils'
 
 export const AccountParams: HMRequestParams<HMAccountRequest> = {
@@ -11,20 +11,18 @@ export const AccountParams: HMRequestParams<HMAccountRequest> = {
 }
 
 /**
- * Load a single account with alias resolution
+ * Load a single account with alias resolution.
  */
 export async function loadAccount(client: GRPCClient, uid: string): Promise<HMAccountResult> {
   try {
     const grpcAccount = await client.documents.getAccount({id: uid})
-    const serverAccount = toPlainMessage(grpcAccount)
-    if (serverAccount.aliasAccount) {
-      return await loadAccount(client, serverAccount.aliasAccount)
+    if (grpcAccount.aliasAccount) {
+      return await loadAccount(client, grpcAccount.aliasAccount)
     }
-    const metadata = prepareHMDocumentMetadata(grpcAccount.metadata)
     return {
       type: 'account',
-      id: hmId(uid, {version: serverAccount.homeDocumentInfo?.version}),
-      metadata,
+      id: hmId(uid, {version: grpcAccount.homeDocumentInfo?.version}),
+      metadata: accountMetadataFromAccount(grpcAccount),
     } satisfies HMAccountPayload
   } catch (e) {
     const err = getErrorMessage(e)
@@ -43,7 +41,7 @@ export async function loadAccount(client: GRPCClient, uid: string): Promise<HMAc
 }
 
 /**
- * Load multiple accounts individually
+ * Load multiple accounts individually.
  */
 export async function loadAccounts(client: GRPCClient, uids: string[]): Promise<Record<string, HMMetadataPayload>> {
   const results = await Promise.all(uids.map((uid) => loadAccount(client, uid)))

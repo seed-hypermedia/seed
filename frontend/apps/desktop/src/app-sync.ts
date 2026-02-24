@@ -14,7 +14,7 @@ import {AggregatedDiscoveryState, DiscoveryProgress, DiscoveryState, UnpackedHyp
 import {getErrorMessage, HMRedirectError, HMResourceTombstoneError} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {createResourceFetcher} from '@shm/shared/resource-loader'
-import {Event} from '@shm/shared/src/client/.generated/activity/v1alpha/activity_pb'
+import {Event} from '@shm/shared/client/.generated/activity/v1alpha/activity_pb'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'

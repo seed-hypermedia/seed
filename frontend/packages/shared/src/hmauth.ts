@@ -19,9 +19,10 @@
  * ```
  */
 
-import * as dagCBOR from '@ipld/dag-cbor'
-import * as blobs from './blobs'
+import {CID} from 'multiformats/cid'
 import * as base64 from './base64'
+import * as blobs from './blobs'
+import * as cbor from './cbor'
 
 /** Configuration for the Hypermedia auth client. */
 export interface HypermediaAuthConfig {
@@ -61,12 +62,12 @@ export interface AccountProfile {
 export interface AuthResult {
   /** The account principal (base58btc) that authorized this session. */
   accountPrincipal: string
-  /** The signed capability blob. */
-  capability: blobs.Capability
+  /** The signed capability blob with raw CBOR bytes and CID. */
+  capability: blobs.EncodedBlob<blobs.Capability>
   /** The stored session with the unextractable signing key. */
   session: StoredSession
-  /** The profile blob of the account. */
-  profile: blobs.Profile
+  /** The profile blob with raw CBOR bytes and CID. */
+  profile: blobs.EncodedBlob<blobs.Profile>
 }
 
 /** URL parameter name for the client ID (origin of the requesting site). */
@@ -550,10 +551,14 @@ export async function startAuth(config: HypermediaAuthConfig): Promise<string> {
 export interface CallbackData {
   /** Account principal (the issuer of the capability). */
   account: blobs.Principal
-  /** Signed capability blob granting authority to the session key. */
+  /** Signed capability blob (decoded object). */
   capability: blobs.Capability
-  /** Profile blob of the account. */
+  /** Content-addressed CID of the capability blob. */
+  capabilityCid: CID
+  /** Profile blob of the account (decoded object). */
   profile: blobs.Profile
+  /** Content-addressed CID of the profile blob. */
+  profileCid: CID
 }
 
 /**
@@ -565,17 +570,19 @@ export async function buildCallbackUrl(
   redirectUri: string,
   state: string,
   accountPrincipal: blobs.Principal,
-  capability: blobs.Capability,
-  profile: blobs.Profile,
+  capability: blobs.EncodedBlob<blobs.Capability>,
+  profile: blobs.EncodedBlob<blobs.Profile>,
 ): Promise<string> {
   const url = new URL(redirectUri)
   const callbackData: CallbackData = {
     account: accountPrincipal,
-    capability,
-    profile,
+    capability: capability.decoded,
+    capabilityCid: capability.cid,
+    profile: profile.decoded,
+    profileCid: profile.cid,
   }
-  const cbor = dagCBOR.encode(callbackData)
-  const compressed = await compress(new Uint8Array(cbor))
+  const encodedCbor = cbor.encode(callbackData)
+  const compressed = await compress(new Uint8Array(encodedCbor))
   url.searchParams.set(PARAM_DATA, base64.encode(compressed))
   url.searchParams.set(PARAM_STATE, state)
   return url.toString()
@@ -585,12 +592,12 @@ export async function buildCallbackUrl(
  * Create a signed delegation capability for a session key.
  * Returns an encoded Capability blob with role "AGENT" and a label identifying the client.
  */
-export function createDelegation(
-  issuerKeyPair: blobs.KeyPair,
+export async function createDelegation(
+  issuer: blobs.Signer,
   sessionKeyPrincipal: blobs.Principal,
   clientId: string,
-): blobs.EncodedBlob<blobs.Capability> {
-  return blobs.createCapability(issuerKeyPair, sessionKeyPrincipal, 'AGENT', Date.now() as blobs.Timestamp, {
+): Promise<blobs.EncodedBlob<blobs.Capability>> {
+  return await blobs.createCapability(issuer, sessionKeyPrincipal, 'AGENT', Date.now() as blobs.Timestamp, {
     label: `Session key for ${clientId}`,
   })
 }
@@ -653,22 +660,31 @@ export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Pr
     createdAt: record.createTime,
   }
 
-  // Decode callback data: base64url → gzip decompress → CBOR decode
+  // Decode callback data: base64url → gzip decompress → CBOR decode.
   const compressed = base64.decode(dataParam)
-  const cbor = await decompress(compressed)
-  const callbackData = dagCBOR.decode<CallbackData>(cbor)
+  const decodedCbor = await decompress(compressed)
+  const callbackData = cbor.decode<CallbackData>(decodedCbor)
 
-  // Verify signatures on capability and profile
-  const capabilityValid = blobs.verify(callbackData.capability)
-  if (!capabilityValid) {
-    throw new Error('Invalid capability signature')
+  // Re-encode the decoded blobs to verify CID integrity.
+  const capability = blobs.encode(callbackData.capability)
+  if (capability.cid.toString() !== callbackData.capabilityCid.toString()) {
+    throw new Error('Capability CID mismatch: data was corrupted in transit')
   }
 
-  const profileValid = blobs.verify(callbackData.profile)
-  if (!profileValid) {
+  const profile = blobs.encode(callbackData.profile)
+  if (profile.cid.toString() !== callbackData.profileCid.toString()) {
+    throw new Error('Profile CID mismatch: data was corrupted in transit')
+  }
+
+  // Verify signatures.
+  if (!blobs.verify(callbackData.capability)) {
+    throw new Error('Invalid capability signature')
+  }
+  if (!blobs.verify(callbackData.profile)) {
     throw new Error('Invalid profile signature')
   }
 
+  // Cross-blob coherence checks.
   const expectedDelegate = blobs.principalFromString(session.principal)
   if (!blobs.principalEqual(callbackData.capability.delegate, expectedDelegate)) {
     throw new Error('Capability delegate does not match local session key')
@@ -689,9 +705,9 @@ export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Pr
 
   return {
     accountPrincipal: blobs.principalToString(callbackData.account),
-    capability: callbackData.capability,
+    capability,
     session,
-    profile: callbackData.profile,
+    profile,
   }
 }
 

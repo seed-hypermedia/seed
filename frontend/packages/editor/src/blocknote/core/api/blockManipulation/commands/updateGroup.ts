@@ -35,24 +35,19 @@ export const updateGroupCommand = (
 
     // Change group type to div
     if (group.attrs.listType !== 'Group' && listType === 'Group' && container) {
+      if (dispatch) {
+        const tr = state.tr
+        tr.setNodeMarkup($pos.before(depth), null, {
+          ...group.attrs,
+          listType: 'Group',
+          listLevel: '1',
+        })
+        dispatch(tr)
+      }
+
+      // Update children levels asynchronously
       setTimeout(() => {
-        editor
-          .chain()
-          .command(({state, dispatch}) => {
-            if (dispatch) {
-              // setTimeout(() => {
-              state.tr.setNodeMarkup($pos.before(depth), null, {
-                ...group.attrs,
-                listType: 'Group',
-                listLevel: '1',
-              })
-              // })
-              return true
-            }
-            return false
-          })
-          .command(updateGroupChildrenCommand(group, container, $pos, 0, group.attrs.listType, false))
-          .run()
+        editor.commands.command(updateGroupChildrenCommand(group, container, $pos, 0, group.attrs.listType, false))
       })
 
       return true
@@ -67,7 +62,7 @@ export const updateGroupCommand = (
       setTimeout(() => {
         editor
           .chain()
-          .sinkListItem('blockContainer')
+          .sinkListItem('blockNode')
           .command(updateGroupCommand(-1, listType, tab, true))
           .run()
 
@@ -89,7 +84,7 @@ export const updateGroupCommand = (
       setTimeout(() => {
         editor
           .chain()
-          .sinkListItem('blockContainer')
+          .sinkListItem('blockNode')
           .command(updateGroupCommand(-1, listType, tab, true))
           .run()
 
@@ -98,7 +93,7 @@ export const updateGroupCommand = (
       return false
     }
 
-    if (dispatch && group.type.name === 'blockGroup') {
+    if (dispatch && group.type.name === 'blockChildren') {
       let level = '1'
       // Set new level based on the level of the previous group, if any.
       if (depth >= 5) {
@@ -108,20 +103,15 @@ export const updateGroupCommand = (
         }
       }
 
-      // start
-      //   ? state.tr.setNodeMarkup($pos.before(depth), null, {
-      //       ...group.attrs,
-      //       listType: listType,
-      //       listLevel: level,
-      //       start: parseInt(start),
-      //     })
-      //   :
-      state.tr.setNodeMarkup($pos.before(depth), null, {
+      const tr = state.tr
+      tr.setNodeMarkup($pos.before(depth), null, {
         ...group.attrs,
         listType: listType,
         listLevel: level,
       })
+      dispatch(tr)
 
+      // Update children levels asynchronously
       if (container) {
         setTimeout(() => {
           editor.commands.command(
@@ -156,7 +146,7 @@ export const updateGroupChildrenCommand = (
       let tr = state.tr
       // Update children level of each child of the group.
       group.content.forEach((childContainer, offset) => {
-        if (childContainer.type.name === 'blockContainer') {
+        if (childContainer.type.name === 'blockNode') {
           if (childContainer.attrs.id === container.attrs.id) {
             beforeSelectedContainer = false
           }
@@ -165,7 +155,7 @@ export const updateGroupChildrenCommand = (
           }
           childContainer.descendants((childGroup, pos, _parent, index) => {
             // If the child has a group, update group's list level attribute.
-            if (childGroup.type.name === 'blockGroup' && childGroup.attrs.listType === 'Unordered') {
+            if (childGroup.type.name === 'blockChildren' && childGroup.attrs.listType === 'Unordered') {
               const $pos = childContainer.resolve(pos)
               let newLevel: string
               // Set new level based on depth and indent.
@@ -180,7 +170,7 @@ export const updateGroupChildrenCommand = (
 
               // Position adjustment based on where the node is in the group.
               let posAddition =
-                maybeContainer.type.name === 'blockContainer'
+                maybeContainer.type.name === 'blockNode'
                   ? indent && group.attrs.listType === listType
                     ? -3
                     : -1

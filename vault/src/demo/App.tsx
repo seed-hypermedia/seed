@@ -1,11 +1,12 @@
-import * as dagCBOR from "@ipld/dag-cbor"
 import * as base64 from "@shm/shared/base64"
 import * as blobs from "@shm/shared/blobs"
+import * as cbor from "@shm/shared/cbor"
 import type { AuthResult } from "@shm/shared/hmauth"
 import * as hmauth from "@shm/shared/hmauth"
 import { useEffect, useMemo, useState } from "react"
 
-const DEFAULT_DELEGATE_URL = "http://localhost:3000/vault/delegate"
+const VAULT_ORIGIN = process.env.SEED_VAULT_RP_ORIGIN
+const DEFAULT_DELEGATE_URL = `${VAULT_ORIGIN}/vault/delegate`
 const DEMO_CALLBACK_PATH = "/callback"
 
 function bytesToHex(bytes: Uint8Array): string {
@@ -17,7 +18,7 @@ function bytesToHex(bytes: Uint8Array): string {
 function encodeCallbackData(data: AuthResult): string {
 	return base64.encode(
 		new Uint8Array(
-			dagCBOR.encode({
+			cbor.encode({
 				accountPrincipal: data.accountPrincipal,
 				capability: data.capability,
 				profile: data.profile,
@@ -27,7 +28,7 @@ function encodeCallbackData(data: AuthResult): string {
 }
 
 function decodeCallbackData(encoded: string): AuthResult {
-	const decoded = dagCBOR.decode(base64.decode(encoded))
+	const decoded = cbor.decode(base64.decode(encoded))
 	return decoded as unknown as AuthResult
 }
 
@@ -221,15 +222,15 @@ export default function App() {
 					<div className="card">
 						<div className="profile-header">
 							<div className="avatar" id="profile-avatar">
-								{authResult.profile.name ? authResult.profile.name.charAt(0).toUpperCase() : "?"}
+								{authResult.profile.decoded.name ? authResult.profile.decoded.name.charAt(0).toUpperCase() : "?"}
 							</div>
 							<div>
 								<div className="profile-name" id="profile-name">
-									{authResult.profile.name || "Anonymous"}
+									{authResult.profile.decoded.name || "Anonymous"}
 								</div>
-								{authResult.profile.description && (
+								{authResult.profile.decoded.description && (
 									<div className="profile-description" id="profile-description">
-										{authResult.profile.description}
+										{authResult.profile.decoded.description}
 									</div>
 								)}
 								<div className="profile-principal" id="profile-principal">
@@ -269,7 +270,7 @@ export default function App() {
 								{authResult.session.principal}
 							</div>
 						</div>
-						<CapabilityField capability={authResult.capability} />
+						<CapabilityField capability={authResult.capability.decoded} />
 					</div>
 
 					{/* Signing demo */}

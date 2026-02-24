@@ -39,7 +39,7 @@ function liftListItem(editor: Editor, posInBlock: number) {
           setTimeout(() => {
             editor
               .chain()
-              .liftListItem('blockContainer')
+              .liftListItem('blockNode')
               .command(
                 updateGroupChildrenCommand(
                   group,
@@ -86,11 +86,14 @@ function liftListItem(editor: Editor, posInBlock: number) {
         // create a new group for them and attach to block content.
         if (children) {
           // @ts-ignore
-          const blockGroup = state.schema.nodes['blockGroup'].create(
+          const blockGroup = state.schema.nodes['blockChildren'].create(
             childGroup
               ? {
                   listType: childGroup.group.attrs.listType,
-                  listLevel: childGroup.group.attrs.listLevel > 1 ? childGroup.group.attrs.listLevel - 1 : 1,
+                  listLevel:
+                    parseInt(childGroup.group.attrs.listLevel) > 1
+                      ? String(parseInt(childGroup.group.attrs.listLevel) - 1)
+                      : '1',
                 }
               : null,
             children,
@@ -100,19 +103,19 @@ function liftListItem(editor: Editor, posInBlock: number) {
         // Create and insert the manually built block instead of
         // using tiptap's liftListItem command.
         // @ts-ignore
-        const block = state.schema.nodes['blockContainer'].create(blockInfo.block.node.attrs, blockContent)
+        const block = state.schema.nodes['blockNode'].create(blockInfo.block.node.attrs, blockContent)
 
-        const insertPos = state.tr.selection.from - (childGroup.group.attrs.listLevel === '3' ? 4 : 2)
+        const insertPos = state.tr.mapping.map(parentBlockInfo.block.afterPos)
 
         state.tr.insert(insertPos, block)
-        state.tr.setSelection(new TextSelection(state.tr.doc.resolve(state.tr.selection.from - block.nodeSize)))
+        state.tr.setSelection(new TextSelection(state.tr.doc.resolve(insertPos + 2)))
 
         dispatch(state.tr)
 
         return true
       } else {
         setTimeout(() => {
-          editor.commands.liftListItem('blockContainer')
+          editor.commands.liftListItem('blockNode')
         })
         return true
       }
@@ -122,12 +125,17 @@ function liftListItem(editor: Editor, posInBlock: number) {
   }
 }
 
-function sinkListItem(itemType: NodeType, groupType: NodeType, listType: HMBlockChildrenType, listLevel: string) {
+export function sinkListItem(
+  itemType: NodeType,
+  groupType: NodeType,
+  listType: HMBlockChildrenType,
+  listLevel: string,
+) {
   return function ({state, dispatch}: {state: EditorState; dispatch: any}) {
     const {$from, $to} = state.selection
     const range = $from.blockRange(
       $to,
-      (node) => node.childCount > 0 && node.type.name === 'blockGroup', // change necessary to not look at first item child type
+      (node) => node.childCount > 0 && node.type.name === 'blockChildren', // change necessary to not look at first item child type
     )
     if (!range) {
       return false
@@ -167,8 +175,8 @@ function sinkListItem(itemType: NodeType, groupType: NodeType, listType: HMBlock
 export function nestBlock(editor: BlockNoteEditor<any>, listType: HMBlockChildrenType, listLevel: string) {
   return editor._tiptapEditor.commands.command(
     sinkListItem(
-      editor._tiptapEditor.schema.nodes['blockContainer'],
-      editor._tiptapEditor.schema.nodes['blockGroup'],
+      editor._tiptapEditor.schema.nodes['blockNode'],
+      editor._tiptapEditor.schema.nodes['blockChildren'],
       listType,
       listLevel,
     ),

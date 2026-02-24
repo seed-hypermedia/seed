@@ -1,5 +1,5 @@
-## Code Generation
+# Proto Rules
 
-Whenever you touch proto files, always run `./dev gen //proto/...` from the root of the repository to generate the code.
-
-Don't use `buf` or `protoc` directly, only the `./dev` script.
+- Applies to `proto/**`.
+- When editing proto definitions, run `./dev gen //proto/...` from the repository root.
+- Do not run `buf` or `protoc` directly.

@@ -10,7 +10,7 @@ import {updateGroupChildrenCommand, updateGroupCommand} from '../../api/blockMan
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../Blocks/helpers/getBlockInfoFromPos'
 import {getGroupInfoFromPos} from '../Blocks/helpers/getGroupInfoFromPos'
-import {SelectionPluginKey} from '../Blocks/nodes/BlockContainer'
+import {SelectionPluginKey} from '../Blocks/nodes/BlockNode'
 
 export const KeyboardShortcutsExtension = Extension.create<{
   editor: BlockNoteEditor<any>
@@ -214,7 +214,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
               // the selected block is not the first block of the child
               groupData.group.firstChild?.attrs.id != blockInfo.block.node.attrs.id &&
               // previous block is a blockContainer
-              prevBlockInfo.block.node.type.name == 'blockContainer' &&
+              prevBlockInfo.block.node.type.name == 'blockNode' &&
               // prev block is empty
               prevBlockInfo.block.node.textContent.length == 0
             ) {
@@ -245,7 +245,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
               // the selected block is not the first block of the group
               groupData.group.firstChild?.attrs.id != blockInfo.block.node.attrs.id &&
               // previous block is a blockContainer
-              prevBlockInfo.block.node.type.name == 'blockContainer'
+              prevBlockInfo.block.node.type.name == 'blockNode'
             ) {
               return commands.command(mergeBlocksCommand(blockInfo.block.beforePos))
             }
@@ -479,7 +479,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
             const blockIndented = depth > 1
 
             if (selectionAtBlockStart && selectionEmpty && blockEmpty && blockIndented) {
-              return commands.liftListItem('blockContainer')
+              return commands.liftListItem('blockNode')
             }
 
             return false
@@ -503,7 +503,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
               if (dispatch) {
                 const newBlock =
                   // @ts-ignore
-                  state.schema.nodes['blockContainer'].createAndFill()!
+                  state.schema.nodes['blockNode'].createAndFill()!
 
                 state.tr.insert(newBlockInsertionPos, newBlock).scrollIntoView()
                 state.tr.setSelection(new TextSelection(state.doc.resolve(newBlockContentPos)))
@@ -545,7 +545,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
             // Find block group, block container, and depth it is at
             const {group, container, $pos} = getGroupInfoFromPos(state.selection.from, state)
 
-            if (group.type.name === 'blockGroup' && group.attrs.listType !== 'Group') {
+            if (group.type.name === 'blockChildren' && group.attrs.listType !== 'Group') {
               setTimeout(() => {
                 // Try nesting the list item
                 const isNested = nestBlock(
@@ -580,7 +580,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
 
             if (container) {
               // Try sinking the list item.
-              const result = chain().sinkListItem('blockContainer').run()
+              const result = chain().sinkListItem('blockNode').run()
               // Update group children if sinking was successful.
               if (result) {
                 setTimeout(() => {
@@ -607,7 +607,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
               return true
             } else {
               // Just sink the list item if not a list.
-              commands.sinkListItem('blockContainer')
+              commands.sinkListItem('blockNode')
               return true
             }
           }),
@@ -641,10 +641,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
           let currentPos = selection.from - 1
           let currentNode = state.doc.resolve(currentPos).parent
           let currentId = getBlockInfoFromPos(state, currentPos).block.node.attrs.id
-          while (
-            block.node.attrs.id === currentId ||
-            ['blockContainer', 'blockGroup'].includes(currentNode.type.name)
-          ) {
+          while (block.node.attrs.id === currentId || ['blockNode', 'blockChildren'].includes(currentNode.type.name)) {
             currentPos--
             currentNode = state.doc.resolve(currentPos).parent
             currentId = getBlockInfoFromPos(state, currentPos).block.node.attrs.id

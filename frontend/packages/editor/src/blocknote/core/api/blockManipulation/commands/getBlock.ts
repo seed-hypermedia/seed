@@ -73,7 +73,7 @@ export function getParentBlock<BSchema extends BlockSchema>(
   const grandparentNode = $posBeforeNode.node(-1)
   const nodeToConvert =
     grandparentNode.type.name !== 'doc'
-      ? parentNode.type.name === 'blockGroup'
+      ? parentNode.type.name === 'blockChildren'
         ? grandparentNode
         : parentNode
       : undefined

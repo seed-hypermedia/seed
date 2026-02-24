@@ -100,7 +100,10 @@ export const SEED_ASSET_HOST = WEB_ENV.SEED_ASSET_HOST || process.env.SEED_ASSET
 export const DAEMON_FILE_URL = `${SEED_ASSET_HOST || DAEMON_HTTP_URL}/ipfs`
 
 export const WEB_IDENTITY_ORIGIN =
-  WEB_ENV.WEB_IDENTITY_ORIGIN || process.env.SEED_IDENTITY_DEFAULT_ORIGIN || 'https://hyper.media'
+  WEB_ENV.WEB_IDENTITY_ORIGIN ||
+  process.env.WEB_IDENTITY_ORIGIN ||
+  process.env.SEED_IDENTITY_DEFAULT_ORIGIN ||
+  'https://hyper.media'
 
 // when web identity is enabled, we will REDIRECT to web identity origin to sign comments
 // this will be enabled on all origins

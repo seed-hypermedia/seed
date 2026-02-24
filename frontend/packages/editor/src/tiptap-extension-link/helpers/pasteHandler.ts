@@ -582,30 +582,30 @@ function getPastedNodes(parent: any, editor: any): any[] {
   const nodes: any[] = []
 
   parent.forEach((node: any) => {
-    if (node.type.name === 'blockGroup') {
+    if (node.type.name === 'blockChildren') {
       const prevContainer = nodes.pop()
       if (prevContainer) {
         // @ts-ignore
-        const container = editor.schema.nodes['blockContainer'].create(
+        const container = editor.schema.nodes['blockNode'].create(
           prevContainer.attrs,
           prevContainer.content.addToEnd(node),
         )
         nodes.push(container)
       }
-    } else if (node.type.name !== 'blockContainer') {
+    } else if (node.type.name !== 'blockNode') {
       let nodeToInsert = node
       if (node.type.name === 'text') {
         // @ts-ignore
         nodeToInsert = editor.schema.nodes.paragraph.create({}, node)
       }
       // @ts-ignore
-      const container = editor.schema.nodes['blockContainer'].create(null, nodeToInsert)
+      const container = editor.schema.nodes['blockNode'].create(null, nodeToInsert)
       nodes.push(container)
-    } else if (node.firstChild?.type.name === 'blockGroup') {
+    } else if (node.firstChild?.type.name === 'blockChildren') {
       const prevContainer = nodes.pop()
       if (prevContainer) {
         // @ts-ignore
-        const container = editor.schema.nodes['blockContainer'].create(
+        const container = editor.schema.nodes['blockNode'].create(
           prevContainer.attrs,
           prevContainer.content.addToEnd(node.firstChild!),
         )

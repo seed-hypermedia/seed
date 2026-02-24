@@ -20,7 +20,6 @@ const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
         const files = Array.from(event.clipboardData?.files || [])
 
         if (items.length === 0 && files.length === 0) {
-          console.log('No items or files in clipboard')
           return false
         }
 
@@ -29,86 +28,13 @@ const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
             ? view.state.selection.$anchor.start() - 2
             : view.state.selection.$anchor.end() + 1
 
-        // Check if there are any images in the clipboard
-        let hasProcessed = false
-
-        // Try to find images from the clipboard items
+        // Handle direct image file pastes
         for (const item of items) {
-          console.log('Checking clipboard item:', item.type)
           if (item.type.startsWith('image/')) {
             const img = item.getAsFile()
             if (img) {
-              console.log('Got image file from clipboard item')
-              hasProcessed = true
               processImage(img, view, insertPos, blockNoteEditor)
               return true
-            } else {
-              console.warn('getAsFile() returned null for image item')
-            }
-          }
-        }
-
-        if (!hasProcessed) {
-          console.log('No direct image items found, will check HTML content')
-        }
-
-        // If no images found, check if any items have representation as images
-        if (!hasProcessed) {
-          for (const item of items) {
-            // Handle pasted images from the web by trying to get an image representation
-            if (item.type === 'text/html') {
-              // Get HTML representation to extract images
-              // @ts-ignore
-              item.getAsString((html) => {
-                const tempEl = document.createElement('div')
-                tempEl.innerHTML = html
-                const images = tempEl.querySelectorAll('img')
-
-                if (images.length > 0) {
-                  for (const imgEl of Array.from(images)) {
-                    // Skip images that are inside an image block container
-                    // They are handled by parseHTML rule
-                    if (imgEl.closest('[data-content-type="image"]')) {
-                      continue
-                    }
-                    const src = imgEl.getAttribute('src')
-                    if (src) {
-                      // Check if it's a data URL (base64 image)
-                      if (src.startsWith('data:')) {
-                        // Convert data URL to blob
-                        fetch(src)
-                          .then((response) => response.blob())
-                          .then((blob) => {
-                            const imgFile = new File([blob], `pasted-image-${Date.now()}.png`, {
-                              type: blob.type || 'image/png',
-                            })
-                            processImage(imgFile, view, insertPos, blockNoteEditor)
-                          })
-                          .catch((error) => {
-                            console.error('Error processing data URL:', error)
-                          })
-                        hasProcessed = true
-                      } else {
-                        // Fetch the image from the URL
-                        fetch(src)
-                          .then((response) => response.blob())
-                          .then((blob) => {
-                            const imgFile = new File([blob], `pasted-image-${Date.now()}.png`, {
-                              type: blob.type || 'image/png',
-                            })
-                            processImage(imgFile, view, insertPos, blockNoteEditor)
-                          })
-                          .catch((error) => {
-                            console.error('Error fetching image from web paste:', error)
-                          })
-
-                        hasProcessed = true
-                      }
-                    }
-                  }
-                  if (hasProcessed) return true
-                }
-              })
             }
           }
         }
@@ -157,7 +83,6 @@ const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
           }
         }
 
-        console.log('Paste handler finished - no media was processed')
         return false
       },
     },

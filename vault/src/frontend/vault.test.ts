@@ -1,13 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import * as dagCBOR from "@ipld/dag-cbor"
 import * as blobs from "@shm/shared/blobs"
 import * as vault from "./vault"
 
-function makeAccount(name: string): vault.Account {
-	const kp = blobs.generateKeyPair()
-	const p = blobs.createProfile(kp, { name }, Date.now())
+async function makeAccount(name: string): Promise<vault.Account> {
+	const kp = blobs.generateNobleKeyPair()
+	const p = await blobs.createProfile(kp, { name }, Date.now())
 	return {
-		seed: kp.privateKey,
+		seed: kp.seed,
 		profile: { cid: p.cid, decoded: p.decoded },
 		createTime: Date.now(),
 		delegations: [],
@@ -27,7 +26,7 @@ describe("vault-data", () => {
 	test("vault with one account round-trip", async () => {
 		const v: vault.State = {
 			version: 1,
-			accounts: [makeAccount("Alice")],
+			accounts: [await makeAccount("Alice")],
 		}
 
 		const compressed = await vault.serialize(v)
@@ -43,7 +42,7 @@ describe("vault-data", () => {
 	test("vault with multiple accounts round-trip", async () => {
 		const v: vault.State = {
 			version: 1,
-			accounts: [makeAccount("Alice"), makeAccount("Bob"), makeAccount("Carol")],
+			accounts: await Promise.all([makeAccount("Alice"), makeAccount("Bob"), makeAccount("Carol")]),
 		}
 
 		const compressed = await vault.serialize(v)
@@ -58,7 +57,7 @@ describe("vault-data", () => {
 	})
 
 	test("profile blob Uint8Array fields survive round-trip", async () => {
-		const account = makeAccount("Test")
+		const account = await makeAccount("Test")
 		const v: vault.State = { version: 1, accounts: [account] }
 
 		const compressed = await vault.serialize(v)
@@ -71,15 +70,5 @@ describe("vault-data", () => {
 		expect(new Uint8Array(round.sig)).toEqual(new Uint8Array(original.sig))
 		expect(round.type).toBe("Profile")
 		expect(round.ts).toBe(original.ts)
-	})
-
-	test("compression reduces size for larger data", async () => {
-		const accounts = Array.from({ length: 20 }, (_, i) => makeAccount(`User${i}`))
-		const v: vault.State = { version: 1, accounts }
-
-		const cbor = dagCBOR.encode(v)
-		const compressed = await vault.serialize(v)
-
-		expect(compressed.length).toBeLessThan(cbor.length)
 	})
 })

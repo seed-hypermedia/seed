@@ -1,5 +1,14 @@
-// Stub for uglify-js. It's pulled in via html-minifier (a transitive dep of mjml),
-// which does a top-level require("uglify-js") as a side-effect.
-// MJML never calls it because minify is off by default.
-export const minify = () => ({ code: "", error: null })
-export const FILES = []
+const stubPath = `${import.meta.dirname}/uglify-js-stub.ts`
+
+/**
+ * Redirects html-minifier's top-level "uglify-js" import to a local stub so
+ * Bun can bundle MJML without pulling in the CommonJS uglify-js package.
+ */
+export default {
+	name: "stub-uglify-js",
+	setup(build) {
+		build.onResolve({ filter: /^uglify-js$/ }, () => ({
+			path: stubPath,
+		}))
+	},
+} satisfies Bun.BunPlugin
