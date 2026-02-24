@@ -594,6 +594,29 @@ describe('routeToUrl', () => {
     expect(url).toBe('https://gw.com/hm/uid1/:comments/comment123')
   })
 
+  test('comments route with openComment and blockRef includes fragment', () => {
+    const url = routeToUrl(
+      {
+        key: 'comments',
+        id: hmId('uid1', {blockRef: 'blk1', blockRange: {expanded: true}}),
+        openComment: 'comment123',
+      },
+      {hostname: 'https://gw.com'},
+    )
+    expect(url).toBe('https://gw.com/hm/uid1/:comments/comment123#blk1+')
+  })
+
+  test('view-term route with blockRef includes fragment', () => {
+    const url = routeToUrl(
+      {
+        key: 'activity',
+        id: hmId('uid1', {blockRef: 'blk2'}),
+      },
+      {hostname: 'https://gw.com'},
+    )
+    expect(url).toBe('https://gw.com/hm/uid1/:activity#blk2')
+  })
+
   test('feed route includes :feed viewTerm', () => {
     const url = routeToUrl(
       {
