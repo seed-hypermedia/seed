@@ -123,8 +123,12 @@ export function getBlockGroup(
   return undefined
 }
 
-export function serverBlockNodesFromEditorBlocks(editor: BlockNoteEditor, editorBlocks: EditorBlock[]): BlockNode[] {
+export function serverBlockNodesFromEditorBlocks(
+  editor: BlockNoteEditor,
+  editorBlocks: EditorBlock[],
+): BlockNode[] {
   if (!editorBlocks) return []
+
   return editorBlocks.map((block: EditorBlock) => {
     const childGroup = getBlockGroup(editor, block.id)
     const serverBlock = editorBlockToHMBlock(block)
@@ -146,10 +150,11 @@ export function serverBlockNodesFromEditorBlocks(editor: BlockNoteEditor, editor
         // @ts-expect-error
         serverBlock.attributes.start = childGroup.start.toString()
     }
-    return new BlockNode({
+    const blockNode = new BlockNode({
       block: Block.fromJson(serverBlock),
       children: serverBlockNodesFromEditorBlocks(editor, block.children),
     })
+    return blockNode
   })
 }
 
