@@ -279,7 +279,7 @@ function SubscriptionsSection() {
   if (!sortedSubs.length) return null
 
   return (
-    <SidebarSection title="Subscriptions">
+    <SidebarSection title="Joined Sites">
       {sortedSubs.map((sub, index) => {
         const entity = subscriptionEntities[index]
         if (!entity?.data) return null
