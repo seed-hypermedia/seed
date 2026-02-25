@@ -14,7 +14,7 @@ export function notificationRouteForEvent(event: LoadedEventWithNotifMeta): NavR
   if (event.type === 'comment') {
     if (!event.target?.id || !event.comment) return null
     return {
-      key: 'discussions',
+      key: 'comments',
       id: event.target.id,
       openComment: event.comment.id,
     }
@@ -24,7 +24,7 @@ export function notificationRouteForEvent(event: LoadedEventWithNotifMeta): NavR
     if (!event.source?.id) return null
     if (event.citationType === 'c' && event.comment) {
       return {
-        key: 'discussions',
+        key: 'comments',
         id: event.source.id,
         openComment: event.comment.id,
       }

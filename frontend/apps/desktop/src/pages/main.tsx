@@ -284,7 +284,7 @@ function getPageComponent(navRoute: NavRoute) {
         PageComponent: Document,
         Fallback: DocumentPlaceholder,
       }
-    case 'discussions':
+    case 'comments':
       return {
         PageComponent: Document,
         Fallback: DocumentPlaceholder,

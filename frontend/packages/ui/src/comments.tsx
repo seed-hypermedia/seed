@@ -575,7 +575,7 @@ export const Comment = memo(function Comment({
     }
   }, [defaultExpandReplies])
   const currentRoute = useNavRoute()
-  const isDiscussionsView = currentRoute.key === 'discussions' || currentRoute.key === 'activity'
+  const isDiscussionsView = currentRoute.key === 'comments' || currentRoute.key === 'activity'
   const docId = getCommentTargetId(comment)
   const options: MenuItemType[] = []
   if (onCommentDelete) {
@@ -652,7 +652,7 @@ export const Comment = memo(function Comment({
                   if (docId) {
                     const routeLatest =
                       currentRoute.key === 'document' ||
-                      currentRoute.key === 'discussions' ||
+                      currentRoute.key === 'comments' ||
                       currentRoute.key === 'activity'
                         ? currentRoute.id.latest
                         : undefined
@@ -742,7 +742,7 @@ export function CommentContent({
   const targetHomeDoc = targetHomeEntity.data?.type === 'document' ? targetHomeEntity.data.document : undefined
   const targetDocId = getCommentTargetId(comment)
   const siteUrl = targetHomeDoc?.metadata?.siteUrl as string | undefined
-  const isDiscussionsView = currentRoute.key === 'discussions' || currentRoute.key === 'activity'
+  const isDiscussionsView = currentRoute.key === 'comments' || currentRoute.key === 'activity'
   const textUnit = size === 'sm' ? 12 : 14
   const layoutUnit = size === 'sm' ? 14 : 16
   const onBlockSelect = (blockId: string, opts?: BlockRangeSelectOptions): boolean => {
@@ -754,7 +754,7 @@ export function CommentContent({
     if (opts?.copyToClipboard) {
       if (targetDocId) {
         const routeLatest =
-          currentRoute.key === 'document' || currentRoute.key === 'discussions' || currentRoute.key === 'activity'
+          currentRoute.key === 'document' || currentRoute.key === 'comments' || currentRoute.key === 'activity'
             ? currentRoute.id.latest
             : undefined
         const fullUrl = createCommentUrl({
@@ -801,11 +801,11 @@ export function CommentContent({
             blockRef: blockId || null,
             blockRange: blockRange || null,
           }
-          const useFullPageNavigation = currentRoute.key === 'activity' || currentRoute.key === 'discussions'
+          const useFullPageNavigation = currentRoute.key === 'activity' || currentRoute.key === 'comments'
           navigate(
             useFullPageNavigation
               ? {
-                  key: 'discussions',
+                  key: 'comments',
                   id: idWithBlock,
                   openComment: comment.id,
                   blockId: blockId || undefined,
@@ -815,7 +815,7 @@ export function CommentContent({
                   key: 'document',
                   id: targetId,
                   panel: {
-                    key: 'discussions',
+                    key: 'comments',
                     id: idWithBlock,
                     openComment: comment.id,
                     blockId: blockId || undefined,
@@ -852,14 +852,14 @@ export function CommentContent({
 function CommentDate({comment}: {comment: HMComment}) {
   const targetId = getCommentTargetId(comment)
   const currentRoute = useNavRoute()
-  const useFullPageNavigation = currentRoute.key === 'activity' || currentRoute.key === 'discussions'
+  const useFullPageNavigation = currentRoute.key === 'activity' || currentRoute.key === 'comments'
   const commentEntityId = commentIdToHmId(comment.id)
   const destRoute: NavRoute = useFullPageNavigation
     ? {key: 'document', id: commentEntityId}
     : {
         key: 'document',
         id: targetId!,
-        panel: {key: 'discussions', id: targetId!, openComment: comment.id},
+        panel: {key: 'comments', id: targetId!, openComment: comment.id},
       }
   return <Timestamp time={comment.createTime} route={destRoute} />
 }

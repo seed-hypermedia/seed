@@ -36,7 +36,8 @@ import {SizableText} from '@shm/ui/text'
 // Extended payload with view term and panel param for page routing
 type ExtendedSitePayload = SiteDocumentPayload & {
   viewTerm?: ViewRouteKey | null
-  panelParam?: string | null // Supports extended format like "discussions/BLOCKID" or "comment/COMMENT_ID"
+  panelParam?: string | null // Supports extended format like "comments/BLOCKID" or "comments/COMMENT_ID"
+  openComment?: string | null
 }
 
 type DocumentPayload = ExtendedSitePayload | 'unregistered' | 'no-site'
@@ -49,8 +50,21 @@ function extractViewTermFromPath(pathParts: string[]): {
   path: string[]
   viewTerm: ViewRouteKey | null
   activityFilter?: string
+  commentId?: string
 } {
   if (pathParts.length === 0) return {path: [], viewTerm: null}
+
+  // Check for :comments/UID/TSID pattern (3 segments from end)
+  if (pathParts.length >= 3) {
+    const thirdToLast = pathParts[pathParts.length - 3]
+    if (thirdToLast === ':comments' || thirdToLast === ':comment' || thirdToLast === ':discussions') {
+      return {
+        path: pathParts.slice(0, -3),
+        viewTerm: 'comments',
+        commentId: `${pathParts[pathParts.length - 2]}/${pathParts[pathParts.length - 1]}`,
+      }
+    }
+  }
 
   // Check for :activity/<slug> pattern (second-to-last + last)
   if (pathParts.length >= 2) {
@@ -239,6 +253,7 @@ export const loader = async ({params, request}: {params: Params; request: Reques
   let viewTerm: ViewRouteKey | null = null
   // Merge activity filter slug from path into panelParam for createDocumentNavRoute
   let effectivePanelParam = panelParam
+  let openComment: string | null = null
 
   // Determine document type based on URL pattern
   if (pathParts[0] === 'hm' && pathParts.length > 1) {
@@ -247,6 +262,9 @@ export const loader = async ({params, request}: {params: Params; request: Reques
     viewTerm = extracted.viewTerm
     if (extracted.activityFilter) {
       effectivePanelParam = `activity/${extracted.activityFilter}`
+    }
+    if (extracted.commentId) {
+      openComment = extracted.commentId
     }
     documentId = hmId(pathParts[1], {
       path: extracted.path,
@@ -261,6 +279,9 @@ export const loader = async ({params, request}: {params: Params; request: Reques
     if (extracted.activityFilter) {
       effectivePanelParam = `activity/${extracted.activityFilter}`
     }
+    if (extracted.commentId) {
+      openComment = extracted.commentId
+    }
     documentId = hmId(registeredAccountUid, {
       path: extracted.path,
       version,
@@ -273,6 +294,7 @@ export const loader = async ({params, request}: {params: Params; request: Reques
       prefersLanguages: parsedRequest.prefersLanguages,
       viewTerm,
       panelParam: effectivePanelParam,
+      openComment,
       instrumentationCtx: ctx,
     }),
   )
@@ -302,7 +324,7 @@ export default function UnifiedDocumentPage() {
   }
 
   // Render unified ResourcePage or FeedPage with WebSiteProvider for navigation context
-  const initialRoute = createDocumentNavRoute(data.id, data.viewTerm, data.panelParam)
+  const initialRoute = createDocumentNavRoute(data.id, data.viewTerm, data.panelParam, data.openComment)
 
   return (
     <WebSiteProvider

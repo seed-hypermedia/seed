@@ -101,7 +101,7 @@ export function getWindowTitle(routeKey: string, activeName?: string): string | 
     case 'directory':
     case 'collaborators':
     case 'activity':
-    case 'discussions':
+    case 'comments':
       return activeName || 'Document'
     default:
       return null
@@ -248,7 +248,7 @@ export function computeEntityBreadcrumbs(params: {
   if (panel?.key === 'collaborators') {
     crumbs.push({name: 'Collaborators', id: null, crumbKey: 'collaborators'})
   }
-  if (panel?.key === 'discussions') {
+  if (panel?.key === 'comments') {
     if (panel.openComment) {
       crumbs.push({
         name: commentAuthorName ? `Comment by ${commentAuthorName}` : 'Comment',
@@ -257,7 +257,7 @@ export function computeEntityBreadcrumbs(params: {
         crumbKey: 'comment',
       })
     } else {
-      crumbs.push({name: 'Discussions', id: null, crumbKey: 'discussions'})
+      crumbs.push({name: 'Discussions', id: null, crumbKey: 'comments'})
     }
   }
   if (panel?.key === 'directory') {

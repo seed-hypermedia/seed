@@ -70,7 +70,7 @@ import {SubscriptionButton} from './subscription'
 import {TitleBarProps} from './titlebar'
 
 // Route keys that have an id and support DocOptionsButton
-const DOC_OPTIONS_ROUTE_KEYS = ['document', 'feed', 'activity', 'discussions', 'directory', 'collaborators'] as const
+const DOC_OPTIONS_ROUTE_KEYS = ['document', 'feed', 'activity', 'comments', 'directory', 'collaborators'] as const
 
 type DocOptionsRouteKey = (typeof DOC_OPTIONS_ROUTE_KEYS)[number]
 
@@ -625,7 +625,7 @@ function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
     route.key === 'activity' ||
     route.key === 'directory' ||
     route.key === 'collaborators' ||
-    route.key === 'discussions' ||
+    route.key === 'comments' ||
     route.key === 'profile' ||
     route.key === 'contact'
   ) {
@@ -655,7 +655,7 @@ function isUrlDisplayableRoute(route: NavRoute): boolean {
     route.key === 'activity' ||
     route.key === 'directory' ||
     route.key === 'collaborators' ||
-    route.key === 'discussions'
+    route.key === 'comments'
   )
 }
 
@@ -763,13 +763,16 @@ export function Omnibar() {
   const handleUrlNavigation = useCallback(
     async (url: string): Promise<boolean> => {
       // Extract view term (e.g., /:activity) from URL before processing
-      const {url: cleanUrl, viewTerm, activityFilter} = extractViewTermFromUrl(url)
+      const {url: cleanUrl, viewTerm, activityFilter, commentId} = extractViewTermFromUrl(url)
       const routeKey = viewTermToRouteKey(viewTerm)
 
       // Helper to apply view term to route
       const applyViewTerm = (route: NavRoute): NavRoute => {
         if (!routeKey) return route
         if (route.key === 'document') {
+          if (routeKey === 'comments' && commentId) {
+            return {key: 'comments', id: route.id, openComment: commentId}
+          }
           const viewRoute: NavRoute = {key: routeKey, id: route.id}
           if (routeKey === 'activity' && activityFilter && viewRoute.key === 'activity') {
             viewRoute.filterEventType = activitySlugToFilter(activityFilter)

@@ -18,7 +18,8 @@ export const loader = async ({params, request}: {params: Params; request: Reques
 
 type ExtendedSitePayload = SiteDocumentPayload & {
   viewTerm?: ViewRouteKey | null
-  panelParam?: string | null // Supports extended format like "discussions/BLOCKID" or "comment/COMMENT_ID"
+  panelParam?: string | null // Supports extended format like "comments/BLOCKID" or "comments/COMMENT_ID"
+  openComment?: string | null
 }
 
 type DocumentPayload = ExtendedSitePayload | 'unregistered' | 'no-site'
@@ -46,7 +47,7 @@ export default function IndexPage() {
       originHomeId={data.originHomeId}
       siteHost={data.siteHost}
       dehydratedState={data.dehydratedState}
-      initialRoute={createDocumentNavRoute(data.id, data.viewTerm, data.panelParam)}
+      initialRoute={createDocumentNavRoute(data.id, data.viewTerm, data.panelParam, data.openComment)}
     >
       <InnerResourcePage docId={data.id} />
     </WebSiteProvider>

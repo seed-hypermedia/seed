@@ -43,7 +43,7 @@ function getPanelTitle(panelKey: PanelSelectionOptions | null): string {
   switch (panelKey) {
     case 'activity':
       return 'Document Activity'
-    case 'discussions':
+    case 'comments':
       return 'Discussions'
     case 'directory':
       return 'Directory'

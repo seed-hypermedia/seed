@@ -67,7 +67,7 @@ export default function DesktopFeedPage() {
           key: route.key,
           id: targetRoute,
           panel: {
-            key: 'discussions',
+            key: 'comments',
             id: targetRoute,
             openComment: replyComment.id,
             isReplying: true,
@@ -77,7 +77,7 @@ export default function DesktopFeedPage() {
         replace({
           ...route,
           panel: {
-            key: 'discussions',
+            key: 'comments',
             id: docId,
             openComment: replyComment.id,
             isReplying: true,
@@ -100,7 +100,7 @@ export default function DesktopFeedPage() {
           key: route.key,
           id: targetRoute,
           panel: {
-            key: 'discussions',
+            key: 'comments',
             id: targetRoute,
             openComment: replyComment.id,
           },
@@ -109,7 +109,7 @@ export default function DesktopFeedPage() {
         replace({
           ...route,
           panel: {
-            key: 'discussions',
+            key: 'comments',
             id: docId,
             openComment: replyComment.id,
           },

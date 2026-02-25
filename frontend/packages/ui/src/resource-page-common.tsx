@@ -114,14 +114,14 @@ function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
   return params as DocumentPanelRoute
 }
 
-export type ActiveView = 'content' | 'activity' | 'discussions' | 'directory' | 'collaborators'
+export type ActiveView = 'content' | 'activity' | 'comments' | 'directory' | 'collaborators'
 
 function getActiveView(routeKey: string): ActiveView {
   switch (routeKey) {
     case 'activity':
       return 'activity'
-    case 'discussions':
-      return 'discussions'
+    case 'comments':
+      return 'comments'
     case 'directory':
       return 'directory'
     case 'collaborators':
@@ -164,7 +164,7 @@ function getPanelTitle(panelKey: string | null): string {
   switch (panelKey) {
     case 'activity':
       return 'Activity'
-    case 'discussions':
+    case 'comments':
       return 'Discussions'
     case 'directory':
       return 'Directory'
@@ -429,7 +429,7 @@ function CommentPageBody({
     return items
   }, [isHomeDoc, breadcrumbIds, breadcrumbResults])
 
-  const {contentMaxWidth} = useDocumentLayout({
+  const {contentMaxWidth, wrapperProps, sidebarProps, mainContentProps, showSidebars} = useDocumentLayout({
     contentWidth: document.metadata?.contentWidth,
     showSidebars: false,
   })
@@ -451,52 +451,67 @@ function CommentPageBody({
   }, [document.authors, commentAccountsMetadata.data])
 
   return (
-    <div
-      className={cn(
-        'flex flex-1 flex-col',
-        pageFooter &&
-          'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]',
-      )}
-    >
-      <DocumentCover cover={document.metadata?.cover} />
-      <div className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')} style={{maxWidth: contentMaxWidth}}>
-        {!isHomeDoc && (
-          <DocumentHeader
-            docId={docId}
-            docMetadata={document.metadata}
-            authors={commentAuthorPayloads}
-            updateTime={document.updateTime}
-            breadcrumbs={breadcrumbs}
-          />
+    <div className="flex flex-1 flex-col overflow-auto">
+      <div
+        className={cn(
+          'flex flex-1 flex-col',
+          pageFooter &&
+            'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]',
         )}
-      </div>
-      <div className="dark:bg-background sticky top-0 z-10 bg-white py-1">
-        <DocumentTools
-          id={docId}
-          activeTab="discussions"
-          commentsCount={interactionSummary.data?.comments || 0}
-          rightActions={
-            !isMobile ? (
-              <OpenInPanelButton
-                id={docId}
-                panelRoute={{
-                  key: 'discussions',
-                  id: docId,
-                  openComment,
-                }}
-              />
-            ) : undefined
-          }
+      >
+        <DocumentCover cover={document.metadata?.cover} />
+        <div
+          className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
+          style={{maxWidth: contentMaxWidth}}
+        >
+          {!isHomeDoc && (
+            <DocumentHeader
+              docId={docId}
+              docMetadata={document.metadata}
+              authors={commentAuthorPayloads}
+              updateTime={document.updateTime}
+              breadcrumbs={breadcrumbs}
+            />
+          )}
+        </div>
+        <div className="dark:bg-background sticky top-0 z-10 bg-white py-1">
+          <DocumentTools
+            id={docId}
+            activeTab="comments"
+            commentsCount={interactionSummary.data?.comments || 0}
+            layoutProps={
+              isMobile
+                ? undefined
+                : {
+                    wrapperProps,
+                    sidebarProps,
+                    mainContentProps,
+                    showSidebars,
+                  }
+            }
+            rightActions={
+              !isMobile ? (
+                <OpenInPanelButton
+                  id={docId}
+                  panelRoute={{
+                    key: 'comments',
+                    id: docId,
+                    openComment,
+                  }}
+                />
+              ) : undefined
+            }
+          />
+        </div>
+        <DiscussionsPageContent
+          docId={docId}
+          openComment={openComment}
+          contentMaxWidth={contentMaxWidth}
+          targetDomain={siteUrl}
+          commentEditor={CommentEditor ? <CommentEditor docId={docId} autoFocus /> : undefined}
         />
+        {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
       </div>
-      <DiscussionsPageContent
-        docId={docId}
-        openComment={openComment}
-        contentMaxWidth={contentMaxWidth}
-        targetDomain={siteUrl}
-        commentEditor={CommentEditor ? <CommentEditor docId={docId} autoFocus /> : undefined}
-      />
-      {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
     </div>
   )
 }
@@ -643,7 +658,7 @@ function DocumentBody({
 
   // Extract discussions-specific params from route
   const discussionsParams =
-    route.key === 'discussions'
+    route.key === 'comments'
       ? {
           openComment: route.openComment,
           targetBlockId: route.targetBlockId,
@@ -661,23 +676,35 @@ function DocumentBody({
   const replaceRoute = useNavigate('replace')
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (routeBlockRef) return // already have blockRef from route
     const hash = window.location.hash
     if (!hash) return
     const fragment = parseFragment(hash.substring(1))
     if (!fragment?.blockId) return
+    const blockRange =
+      'start' in fragment && 'end' in fragment
+        ? {start: fragment.start, end: fragment.end}
+        : 'expanded' in fragment && fragment.expanded
+        ? {expanded: true}
+        : null
+    // For comments routes, sync fragment into blockId/blockRange (comment block selection)
+    if (route.key === 'comments') {
+      if (route.blockId) return // already have block selection
+      replaceRoute({
+        ...route,
+        id: {...route.id, blockRef: fragment.blockId, blockRange},
+        blockId: fragment.blockId,
+        blockRange,
+      })
+      return
+    }
     if (route.key !== 'document' && route.key !== 'feed') return
+    if (routeBlockRef) return // already have blockRef from route
     replaceRoute({
       ...route,
       id: {
         ...route.id,
         blockRef: fragment.blockId,
-        blockRange:
-          'start' in fragment && 'end' in fragment
-            ? {start: fragment.start, end: fragment.end}
-            : 'expanded' in fragment && fragment.expanded
-            ? {expanded: true}
-            : null,
+        blockRange,
       },
     })
   }, []) // only on mount
@@ -714,7 +741,7 @@ function DocumentBody({
 
     // Append active panel name when not on content/draft view
     const panelLabels: Record<string, string> = {
-      discussions: 'Comments',
+      comments: 'Comments',
       collaborators: 'People',
       directory: 'Directory',
       activity: 'Activity',
@@ -804,7 +831,7 @@ function DocumentBody({
           blockRange: null,
         },
         panel: {
-          key: 'discussions',
+          key: 'comments',
           id: route.id,
           blockId: blockId || undefined,
         },
@@ -828,7 +855,7 @@ function DocumentBody({
           blockRange,
         },
         panel: {
-          key: 'discussions',
+          key: 'comments',
           id: route.id,
           targetBlockId: blockId,
           blockRange,
@@ -1061,7 +1088,7 @@ function DocumentBody({
         {mobilePanelOpen && (
           <MobilePanelSheet
             isOpen={mobilePanelOpen}
-            title={getPanelTitle('discussions')}
+            title={getPanelTitle('comments')}
             onClose={() => setMobilePanelOpen(false)}
           >
             <DiscussionsPageContent
@@ -1141,10 +1168,7 @@ function PanelContentRenderer({
       return (
         <Feed size="sm" filterResource={docId.id} filterEventType={panelRoute.filterEventType} targetDomain={siteUrl} />
       )
-    case 'discussions':
-      if (!docId.path?.length) {
-        return <Feed size="sm" filterResource={`${docId.id}*`} filterEventType={['Comment']} targetDomain={siteUrl} />
-      }
+    case 'comments':
       return (
         <DiscussionsPageContent
           docId={docId}
@@ -1264,14 +1288,7 @@ function MainContent({
         </PageLayout>
       )
 
-    case 'discussions':
-      if (!docId.path?.length) {
-        return (
-          <PageLayout contentMaxWidth={contentMaxWidth}>
-            <Feed filterResource={`${docId.id}*`} filterEventType={['Comment']} targetDomain={siteUrl} />
-          </PageLayout>
-        )
-      }
+    case 'comments':
       return (
         <DiscussionsPageContent
           docId={docId}

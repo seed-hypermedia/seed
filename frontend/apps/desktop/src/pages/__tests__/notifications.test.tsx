@@ -175,7 +175,7 @@ describe('notifications page helpers', () => {
   it('creates route for reply notifications', () => {
     const event = createReplyEvent()
     expect(notificationRouteForEvent(event)).toEqual({
-      key: 'discussions',
+      key: 'comments',
       id: hmId('site', ['post']),
       openComment: 'comment-version-cid',
     })

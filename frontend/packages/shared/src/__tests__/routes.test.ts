@@ -1,5 +1,6 @@
 import {describe, expect, test} from 'vitest'
 import {createDocumentNavRoute} from '../routes'
+import {routeToHref} from '../routing'
 import {hmId} from '../utils/entity-id-url'
 
 const testDocId = hmId('testuid123')
@@ -27,12 +28,21 @@ describe('createDocumentNavRoute', () => {
       })
     })
 
-    test('discussions panel', () => {
+    test('comments panel', () => {
+      const route = createDocumentNavRoute(testDocId, null, 'comments')
+      expect(route).toEqual({
+        key: 'document',
+        id: testDocId,
+        panel: {key: 'comments', id: testDocId},
+      })
+    })
+
+    test('discussions panel (backward compat)', () => {
       const route = createDocumentNavRoute(testDocId, null, 'discussions')
       expect(route).toEqual({
         key: 'document',
         id: testDocId,
-        panel: {key: 'discussions', id: testDocId},
+        panel: {key: 'comments', id: testDocId},
       })
     })
 
@@ -65,21 +75,57 @@ describe('createDocumentNavRoute', () => {
   })
 
   describe('extended panel formats', () => {
-    test('discussions with targetBlockId', () => {
+    test('comments panel opens document with comments right panel', () => {
+      const route = createDocumentNavRoute(testDocId, null, 'comments/block123')
+      expect(route).toEqual({
+        key: 'document',
+        id: testDocId,
+        panel: {key: 'comments', id: testDocId, openComment: 'block123'},
+      })
+    })
+
+    test('discussions/BLOCKID backward compat', () => {
       const route = createDocumentNavRoute(testDocId, null, 'discussions/block123')
       expect(route).toEqual({
         key: 'document',
         id: testDocId,
-        panel: {key: 'discussions', id: testDocId, targetBlockId: 'block123'},
+        panel: {key: 'comments', id: testDocId, targetBlockId: 'block123'},
       })
     })
 
-    test('comment opens main discussions view with openComment', () => {
+    test('comments/ panel opens document with comments right panel + openComment', () => {
+      const route = createDocumentNavRoute(testDocId, null, 'comments/uid123/path/to/comment')
+      expect(route).toEqual({
+        key: 'document',
+        id: testDocId,
+        panel: {key: 'comments', id: testDocId, openComment: 'uid123/path/to/comment'},
+      })
+    })
+
+    test('comment/ backward compat opens document with comments right panel', () => {
       const route = createDocumentNavRoute(testDocId, null, 'comment/uid123/path/to/comment')
       expect(route).toEqual({
-        key: 'discussions',
+        key: 'document',
         id: testDocId,
-        openComment: 'uid123/path/to/comment',
+        panel: {key: 'comments', id: testDocId, openComment: 'uid123/path/to/comment'},
+      })
+    })
+
+    test('comments viewTerm + comments panel → comments main + right panel', () => {
+      const route = createDocumentNavRoute(testDocId, 'comments', 'comments/uid123/tsid456')
+      expect(route).toEqual({
+        key: 'comments',
+        id: testDocId,
+        panel: {key: 'comments', id: testDocId, openComment: 'uid123/tsid456'},
+      })
+    })
+
+    test('comments viewTerm + openComment → comments main with highlight', () => {
+      const route = createDocumentNavRoute(testDocId, 'comments', null, 'uid123/tsid456')
+      expect(route).toEqual({
+        key: 'comments',
+        id: testDocId,
+        openComment: 'uid123/tsid456',
       })
     })
 
@@ -134,9 +180,9 @@ describe('createDocumentNavRoute', () => {
       })
     })
 
-    test('discussions viewTerm returns discussions route', () => {
-      const route = createDocumentNavRoute(testDocId, 'discussions', null)
-      expect(route).toEqual({key: 'discussions', id: testDocId})
+    test('comments viewTerm returns comments route', () => {
+      const route = createDocumentNavRoute(testDocId, 'comments', null)
+      expect(route).toEqual({key: 'comments', id: testDocId})
     })
 
     test('directory viewTerm returns directory route', () => {
@@ -169,5 +215,57 @@ describe('createDocumentNavRoute', () => {
         panel: {key: 'collaborators', id: docWithPath},
       })
     })
+  })
+})
+
+describe('routeToHref', () => {
+  const originHome = hmId('uid1')
+
+  test('comments route generates view-term href', () => {
+    const href = routeToHref({key: 'comments', id: hmId('uid1')}, {originHomeId: originHome})
+    expect(href).toBe('/:comments')
+  })
+
+  test('comments route with openComment includes commentId in path', () => {
+    const href = routeToHref({key: 'comments', id: hmId('uid1'), openComment: 'z6Mk/z6FC'}, {originHomeId: originHome})
+    expect(href).toBe('/:comments/z6Mk/z6FC')
+  })
+
+  test('comments route with blockRef includes fragment', () => {
+    const href = routeToHref(
+      {key: 'comments', id: hmId('uid1', {blockRef: 'blk1', blockRange: {expanded: true}}), openComment: 'z6Mk/z6FC'},
+      {originHomeId: originHome},
+    )
+    expect(href).toBe('/:comments/z6Mk/z6FC#blk1+')
+  })
+
+  test('comments route with blockRef range includes fragment', () => {
+    const href = routeToHref(
+      {
+        key: 'comments',
+        id: hmId('uid1', {blockRef: 'blk1', blockRange: {start: 5, end: 10}}),
+        openComment: 'z6Mk/z6FC',
+      },
+      {originHomeId: originHome},
+    )
+    expect(href).toBe('/:comments/z6Mk/z6FC#blk1[5:10]')
+  })
+
+  test('activity route with blockRef includes fragment', () => {
+    const href = routeToHref({key: 'activity', id: hmId('uid1', {blockRef: 'blk2'})}, {originHomeId: originHome})
+    expect(href).toBe('/:activity#blk2')
+  })
+
+  test('comments route with doc path generates correct href', () => {
+    const href = routeToHref(
+      {key: 'comments', id: hmId('uid1', {path: ['docs', 'intro']}), openComment: 'z6Mk/z6FC'},
+      {originHomeId: originHome},
+    )
+    expect(href).toBe('/docs/intro/:comments/z6Mk/z6FC')
+  })
+
+  test('comments route with different uid generates /hm/ href', () => {
+    const href = routeToHref({key: 'comments', id: hmId('uid2'), openComment: 'z6Mk/z6FC'}, {originHomeId: originHome})
+    expect(href).toBe('/hm/uid2/:comments/z6Mk/z6FC')
   })
 })

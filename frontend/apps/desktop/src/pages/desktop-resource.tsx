@@ -38,7 +38,7 @@ export default function DesktopResourcePage() {
   const replace = useNavigate('replace')
 
   // Only handle document-related routes
-  const supportedKeys = ['document', 'directory', 'collaborators', 'activity', 'discussions']
+  const supportedKeys = ['document', 'directory', 'collaborators', 'activity', 'comments']
   if (!supportedKeys.includes(route.key)) {
     throw new Error(`DesktopResourcePage: unsupported route ${route.key}`)
   }
@@ -172,7 +172,9 @@ export default function DesktopResourcePage() {
         <Button
           size="sm"
           variant="outline"
-          className={cn(existingDraft ? 'bg-yellow-200' : 'bg-background dark:bg-black')}
+          className={cn(
+            existingDraft ? 'bg-yellow-200 hover:bg-yellow-300' : 'hover:bg-hover dark:bg-background bg-white',
+          )}
           onClick={() => {
             if (existingDraft) {
               navigate({
@@ -225,20 +227,20 @@ export default function DesktopResourcePage() {
           key: 'document',
           id: targetRoute,
           panel: {
-            key: 'discussions',
+            key: 'comments',
             id: targetRoute,
             openComment: replyComment.id,
             isReplying: true,
           },
         })
-      } else if (route.key === 'discussions') {
+      } else if (route.key === 'comments') {
         // Already viewing discussions in main — update in place
         replace({...route, openComment: replyComment.id, isReplying: true})
       } else {
         replace({
           ...route,
           panel: {
-            key: 'discussions',
+            key: 'comments',
             id: docId,
             openComment: replyComment.id,
             isReplying: true,
@@ -261,18 +263,18 @@ export default function DesktopResourcePage() {
           key: 'document',
           id: targetRoute,
           panel: {
-            key: 'discussions',
+            key: 'comments',
             id: targetRoute,
             openComment: replyComment.id,
           },
         })
-      } else if (route.key === 'discussions') {
+      } else if (route.key === 'comments') {
         replace({...route, openComment: replyComment.id})
       } else {
         replace({
           ...route,
           panel: {
-            key: 'discussions',
+            key: 'comments',
             id: docId,
             openComment: replyComment.id,
           },

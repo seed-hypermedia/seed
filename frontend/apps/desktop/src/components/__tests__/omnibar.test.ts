@@ -214,7 +214,7 @@ describe('Route ID extraction', () => {
       route.key === 'activity' ||
       route.key === 'directory' ||
       route.key === 'collaborators' ||
-      route.key === 'discussions'
+      route.key === 'comments'
     ) {
       return route.id || null
     }
@@ -283,7 +283,7 @@ describe('URL displayable route detection', () => {
       route.key === 'activity' ||
       route.key === 'directory' ||
       route.key === 'collaborators' ||
-      route.key === 'discussions'
+      route.key === 'comments'
     )
   }
 
@@ -307,8 +307,8 @@ describe('URL displayable route detection', () => {
     expect(isUrlDisplayableRoute({key: 'collaborators'})).toBe(true)
   })
 
-  it('should return true for discussions route', () => {
-    expect(isUrlDisplayableRoute({key: 'discussions'})).toBe(true)
+  it('should return true for comments route', () => {
+    expect(isUrlDisplayableRoute({key: 'comments'})).toBe(true)
   })
 
   it('should return false for draft route', () => {
@@ -329,7 +329,7 @@ describe('View term for route', () => {
   function getViewTermForRoute(route: {key: string; panel?: {key: string}}): string | null {
     // First-class view routes
     if (route.key === 'activity') return '/:activity'
-    if (route.key === 'discussions') return '/:discussions'
+    if (route.key === 'comments') return '/:comments'
     if (route.key === 'collaborators') return '/:collaborators'
     if (route.key === 'directory') return '/:directory'
     if (route.key === 'feed') return '/:feed'
@@ -338,7 +338,7 @@ describe('View term for route', () => {
     if (route.key === 'document' && route.panel) {
       const panelKey = route.panel.key
       if (panelKey === 'activity') return '/:activity'
-      if (panelKey === 'discussions') return '/:discussions'
+      if (panelKey === 'comments') return '/:comments'
       if (panelKey === 'collaborators') return '/:collaborators'
       if (panelKey === 'directory') return '/:directory'
     }
@@ -351,8 +351,8 @@ describe('View term for route', () => {
       expect(getViewTermForRoute({key: 'activity'})).toBe('/:activity')
     })
 
-    it('should return /:discussions for discussions route', () => {
-      expect(getViewTermForRoute({key: 'discussions'})).toBe('/:discussions')
+    it('should return /:comments for comments route', () => {
+      expect(getViewTermForRoute({key: 'comments'})).toBe('/:comments')
     })
 
     it('should return /:collaborators for collaborators route', () => {
@@ -373,8 +373,8 @@ describe('View term for route', () => {
       expect(getViewTermForRoute({key: 'document', panel: {key: 'activity'}})).toBe('/:activity')
     })
 
-    it('should return /:discussions for document with discussions panel', () => {
-      expect(getViewTermForRoute({key: 'document', panel: {key: 'discussions'}})).toBe('/:discussions')
+    it('should return /:comments for document with comments panel', () => {
+      expect(getViewTermForRoute({key: 'document', panel: {key: 'comments'}})).toBe('/:comments')
     })
 
     it('should return /:collaborators for document with collaborators panel', () => {

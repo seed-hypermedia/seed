@@ -129,7 +129,7 @@ export default function DraftPage() {
   const homeEntity = useResource(homeId)
   const homeDocument = homeEntity.data?.type === 'document' ? homeEntity.data.document : undefined
 
-  const draftPanelOptions = ['options', 'activity', 'discussions', 'collaborators', 'directory'] as const
+  const draftPanelOptions = ['options', 'activity', 'comments', 'collaborators', 'directory'] as const
 
   useListenAppEvent('toggle_accessory', (event) => {
     const targetKey = draftPanelOptions[event.index]
@@ -404,7 +404,7 @@ function DraftPanelContent({
           }}
         />
       ) : null
-    case 'discussions':
+    case 'comments':
       if (!docId) return null
       if (isEditingHomeDoc) {
         return (
@@ -413,7 +413,7 @@ function DraftPanelContent({
           </PanelContent>
         )
       }
-      return route.panel?.key === 'discussions' ? (
+      return route.panel?.key === 'comments' ? (
         <DiscussionsPanel docId={docId} selection={{...route.panel, id: route.panel.id ?? docId}} />
       ) : null
     case 'activity':

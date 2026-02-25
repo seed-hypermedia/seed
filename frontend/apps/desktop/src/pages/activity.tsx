@@ -109,7 +109,7 @@ function _ActivityContent({id, route}: {id: UnpackedHypermediaId; route: Activit
       <ActivitySiteHeader siteHomeEntity={siteHomeEntityData} docId={id} document={document} />
       <DocumentTools
         id={id}
-        activeTab={route.panel ? (route.panel.key as 'discussions' | 'collaborators') : undefined}
+        activeTab={route.panel ? (route.panel.key as 'comments' | 'collaborators') : undefined}
         commentsCount={interactionSummary.data?.comments || 0}
         collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
       />

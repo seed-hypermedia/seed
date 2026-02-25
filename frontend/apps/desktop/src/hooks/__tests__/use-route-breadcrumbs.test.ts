@@ -347,10 +347,10 @@ describe('computeEntityBreadcrumbs', () => {
       entityIds: [id],
       entityContents: [makeEntityContent(id, {metadata: {name: 'Root'}})],
       contacts: [],
-      panel: {key: 'discussions'},
+      panel: {key: 'comments'},
     })
     expect(items.at(-1)?.name).toBe('Discussions')
-    expect(items.at(-1)?.crumbKey).toBe('discussions')
+    expect(items.at(-1)?.crumbKey).toBe('comments')
   })
 
   it('discussions with openComment and author name', () => {
@@ -359,7 +359,7 @@ describe('computeEntityBreadcrumbs', () => {
       entityIds: [id],
       entityContents: [makeEntityContent(id, {metadata: {name: 'Root'}})],
       contacts: [],
-      panel: {key: 'discussions', openComment: 'someComment'},
+      panel: {key: 'comments', openComment: 'someComment'},
       commentAuthorName: 'Alice',
     })
     expect(items.at(-1)?.name).toBe('Comment by Alice')
@@ -372,7 +372,7 @@ describe('computeEntityBreadcrumbs', () => {
       entityIds: [id],
       entityContents: [makeEntityContent(id, {metadata: {name: 'Root'}})],
       contacts: [],
-      panel: {key: 'discussions', openComment: 'someComment'},
+      panel: {key: 'comments', openComment: 'someComment'},
     })
     expect(items.at(-1)?.name).toBe('Comment')
   })
@@ -383,7 +383,7 @@ describe('computeEntityBreadcrumbs', () => {
       entityIds: [id],
       entityContents: [makeEntityContent(id, {metadata: {name: 'Root'}})],
       contacts: [],
-      panel: {key: 'discussions', openComment: 'someComment'},
+      panel: {key: 'comments', openComment: 'someComment'},
       commentIsLoading: true,
     })
     expect(items.at(-1)?.isLoading).toBe(true)

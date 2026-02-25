@@ -2,7 +2,7 @@ import {useSelectedAccount} from '@/selected-account'
 import {useDeleteComment} from '@shm/shared/comments-service-provider'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
-import {DiscussionsRoute} from '@shm/shared/routes'
+import {CommentsRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {PanelContent} from '@shm/ui/accessories'
 import {BlockDiscussions, CommentDiscussions, Discussions, useDeleteCommentDialog} from '@shm/ui/comments'
@@ -11,7 +11,7 @@ import {CommentBox} from './commenting'
 
 export const DiscussionsPanel = memo(_DiscussionsPanel)
 
-function _DiscussionsPanel(props: {docId: UnpackedHypermediaId; selection: DiscussionsRoute}) {
+function _DiscussionsPanel(props: {docId: UnpackedHypermediaId; selection: CommentsRoute}) {
   const {docId, selection} = props
   // Use selection.id if available (panel's own target), otherwise fall back to docId
   const targetDocId = selection.id ?? docId
