@@ -79,13 +79,13 @@ export function formattedDateShort(
 
   // if within the last year, show the month and day
   if (date.getTime() > Date.now() - 365 * 24 * 60 * 60 * 1000) {
-    return format(date, 'MMM d', {
+    return format(date, 'MMM d, HH:mm', {
       locale: options?.locale,
     })
   }
 
   // otherwise, show the full date with year
-  return format(date, 'MMM d, yyyy', {
+  return format(date, 'MMM d yyyy, HH:mm', {
     locale: options?.locale,
   })
 }
