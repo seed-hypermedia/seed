@@ -6,6 +6,7 @@ import {
   useLocalNotificationReadState,
   useMarkAllNotificationsRead,
   useMarkNotificationEventRead,
+  useMarkNotificationEventUnread,
   useNotificationSyncStatus,
   useSyncNotificationReadState,
 } from '@/models/notification-read-state'
@@ -23,7 +24,8 @@ import {Container, PanelContainer} from '@shm/ui/container'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
-import {Bell} from 'lucide-react'
+import {Tooltip} from '@shm/ui/tooltip'
+import {Bell, Check} from 'lucide-react'
 import {useEffect, useMemo} from 'react'
 
 export default function NotificationsPage() {
@@ -78,6 +80,7 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
   const readState = useLocalNotificationReadState(accountUid)
   const syncStatus = useNotificationSyncStatus(accountUid)
   const markEventRead = useMarkNotificationEventRead()
+  const markEventUnread = useMarkNotificationEventUnread()
   const markAllRead = useMarkAllNotificationsRead()
   const syncNow = useSyncNotificationReadState()
   const inbox = useNotificationInbox(accountUid)
@@ -141,7 +144,7 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
                 return (
                   <button
                     key={item.event.feedEventId}
-                    className="hover:bg-muted/40 flex w-full items-start gap-3 p-4 text-left"
+                    className="group hover:bg-muted/40 flex w-full items-center gap-3 p-4 text-left"
                     onClick={async () => {
                       await markNotificationReadAndNavigate({
                         accountUid,
@@ -168,8 +171,40 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
                         {!isRead ? <span className="bg-brand inline-block h-2 w-2 rounded-full" /> : null}
                         <p className="truncate text-sm">{notificationTitle(item)}</p>
                       </div>
-                      <p className="text-muted-foreground text-xs">{formattedDateShort(new Date(item.event.eventAtMs))}</p>
+                      <p className="text-muted-foreground text-xs">
+                        {formattedDateShort(new Date(item.event.eventAtMs))}
+                      </p>
                     </div>
+                    <Tooltip content={isRead ? 'Mark as unread' : 'Mark as read'}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          e.preventDefault()
+                          if (isRead) {
+                            markEventUnread.mutate({
+                              accountUid,
+                              eventId: item.event.feedEventId,
+                              eventAtMs: item.event.eventAtMs,
+                              otherLoadedEvents: notifications.map((n) => ({
+                                eventId: n.event.feedEventId,
+                                eventAtMs: n.event.eventAtMs,
+                              })),
+                            })
+                          } else {
+                            markEventRead.mutate({
+                              accountUid,
+                              eventId: item.event.feedEventId,
+                              eventAtMs: item.event.eventAtMs,
+                            })
+                          }
+                        }}
+                      >
+                        <Check size={16} className={isRead ? 'text-brand' : 'text-muted-foreground'} />
+                      </Button>
+                    </Tooltip>
                   </button>
                 )
               })}

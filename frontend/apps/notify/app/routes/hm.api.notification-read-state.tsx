@@ -23,6 +23,7 @@ const notificationReadStateAction = z.discriminatedUnion('action', [
     time: z.number(),
     sig: z.instanceof(Uint8Array),
     markAllReadAtMs: z.number().nullable(),
+    stateUpdatedAtMs: z.number(),
     readEvents: z.array(
       z.object({
         eventId: z.string(),
@@ -37,6 +38,7 @@ export type NotificationReadStateAction = z.infer<typeof notificationReadStateAc
 export type NotificationReadStateResponse = {
   accountId: string
   markAllReadAtMs: number | null
+  stateUpdatedAtMs: number
   readEvents: NotificationReadEvent[]
   updatedAt: string
 }
@@ -54,6 +56,7 @@ function toResponse(state: NotificationReadStateRow): NotificationReadStateRespo
   return {
     accountId: state.accountId,
     markAllReadAtMs: state.markAllReadAtMs,
+    stateUpdatedAtMs: state.stateUpdatedAtMs,
     readEvents: sanitizeReadEvents(state.readEvents),
     updatedAt: state.updatedAt,
   }
@@ -82,6 +85,7 @@ export const action = cborApiAction<NotificationReadStateAction, any>(async (sig
   if (restPayload.action === 'merge-notification-read-state') {
     const state = mergeNotificationReadState(accountId, {
       markAllReadAtMs: restPayload.markAllReadAtMs,
+      stateUpdatedAtMs: restPayload.stateUpdatedAtMs,
       readEvents: sanitizeReadEvents(restPayload.readEvents),
     })
     return toResponse(state)

@@ -47,6 +47,21 @@ export function useMarkNotificationEventRead() {
   })
 }
 
+export function useMarkNotificationEventUnread() {
+  return useMutation({
+    mutationFn: (input: {
+      accountUid: string
+      eventId: string
+      eventAtMs: number
+      otherLoadedEvents: Array<{eventId: string; eventAtMs: number}>
+    }) => client.notificationRead.markEventUnread.mutate(input),
+    onSuccess: (result) => {
+      invalidateQueries([queryKeys.NOTIFICATION_READ_STATE, result.accountId])
+      invalidateQueries([queryKeys.NOTIFICATION_SYNC_STATUS, result.accountId])
+    },
+  })
+}
+
 export function useMarkAllNotificationsRead() {
   return useMutation({
     mutationFn: (input: {accountUid: string; markAllReadAtMs: number}) =>

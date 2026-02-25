@@ -90,6 +90,7 @@ describe('notification-read-state signing flow', () => {
 
     const merged = mergeNotificationReadState(accountId, {
       markAllReadAtMs: mergePayload.markAllReadAtMs,
+      stateUpdatedAtMs: Date.now(),
       readEvents: mergePayload.readEvents,
     })
     expect(merged.markAllReadAtMs).toBe(1000)

@@ -46,6 +46,7 @@ type DBEmail = {
 type DBNotificationReadStateRow = {
   accountId: string
   markAllReadAtMs: number | null
+  stateUpdatedAtMs: number
   updatedAt: string
 }
 
@@ -215,6 +216,16 @@ export async function initDatabase(): Promise<void> {
     version = 6
   }
 
+  if (version === 6) {
+    db.exec(`
+    BEGIN;
+    ALTER TABLE notification_read_state ADD COLUMN stateUpdatedAtMs INTEGER NOT NULL DEFAULT 0;
+    PRAGMA user_version = 7;
+    COMMIT;
+  `)
+    version = 7
+  }
+
   // Initialize all prepared statements
   stmtInsertEmail = db.prepare('INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)')
   stmtInsertSubscription = db.prepare(
@@ -282,15 +293,20 @@ export async function initDatabase(): Promise<void> {
   `)
   stmtGetNotificationReadState = db.prepare('SELECT * FROM notification_read_state WHERE accountId = ?')
   stmtUpsertNotificationReadState = db.prepare(`
-    INSERT INTO notification_read_state (accountId, markAllReadAtMs, updatedAt)
-    VALUES (?, ?, CURRENT_TIMESTAMP)
+    INSERT INTO notification_read_state (accountId, markAllReadAtMs, stateUpdatedAtMs, updatedAt)
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(accountId) DO UPDATE SET
       markAllReadAtMs = CASE
-        WHEN excluded.markAllReadAtMs IS NULL THEN notification_read_state.markAllReadAtMs
-        WHEN notification_read_state.markAllReadAtMs IS NULL THEN excluded.markAllReadAtMs
-        WHEN excluded.markAllReadAtMs > notification_read_state.markAllReadAtMs THEN excluded.markAllReadAtMs
-        ELSE notification_read_state.markAllReadAtMs
+        WHEN excluded.stateUpdatedAtMs > notification_read_state.stateUpdatedAtMs THEN excluded.markAllReadAtMs
+        WHEN excluded.stateUpdatedAtMs < notification_read_state.stateUpdatedAtMs THEN notification_read_state.markAllReadAtMs
+        ELSE CASE
+          WHEN excluded.markAllReadAtMs IS NULL THEN notification_read_state.markAllReadAtMs
+          WHEN notification_read_state.markAllReadAtMs IS NULL THEN excluded.markAllReadAtMs
+          WHEN excluded.markAllReadAtMs > notification_read_state.markAllReadAtMs THEN excluded.markAllReadAtMs
+          ELSE notification_read_state.markAllReadAtMs
+        END
       END,
+      stateUpdatedAtMs = MAX(excluded.stateUpdatedAtMs, notification_read_state.stateUpdatedAtMs),
       updatedAt = CURRENT_TIMESTAMP
   `)
   stmtGetNotificationReadEvents = db.prepare(`
@@ -555,6 +571,7 @@ export type NotificationReadEvent = {
 export type NotificationReadStateRow = {
   accountId: string
   markAllReadAtMs: number | null
+  stateUpdatedAtMs: number
   readEvents: NotificationReadEvent[]
   updatedAt: string
 }
@@ -580,6 +597,7 @@ export function getNotificationReadState(accountId: string): NotificationReadSta
   return {
     accountId,
     markAllReadAtMs: row?.markAllReadAtMs ?? null,
+    stateUpdatedAtMs: row?.stateUpdatedAtMs ?? 0,
     readEvents: readEvents.map((evt) => ({
       eventId: evt.eventId,
       eventAtMs: evt.eventAtMs,
@@ -592,6 +610,7 @@ export function mergeNotificationReadState(
   accountId: string,
   snapshot: {
     markAllReadAtMs: number | null
+    stateUpdatedAtMs: number
     readEvents: NotificationReadEvent[]
   },
 ): NotificationReadStateRow {
@@ -603,7 +622,7 @@ export function mergeNotificationReadState(
     }))
 
   const transaction = db.transaction(() => {
-    stmtUpsertNotificationReadState.run(accountId, snapshot.markAllReadAtMs)
+    stmtUpsertNotificationReadState.run(accountId, snapshot.markAllReadAtMs, snapshot.stateUpdatedAtMs)
 
     for (const evt of normalizedReadEvents) {
       stmtUpsertNotificationReadEvent.run(accountId, evt.eventId, evt.eventAtMs)

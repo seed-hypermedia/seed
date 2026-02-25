@@ -20,6 +20,7 @@ type NotificationReadEvent = {
 
 type AccountNotificationReadState = {
   markAllReadAtMs: number | null
+  stateUpdatedAtMs: number
   readEvents: Record<string, number>
   dirty: boolean
   lastSyncAtMs: number | null
@@ -34,6 +35,7 @@ type NotificationReadStore = {
 type NotificationReadStateResponse = {
   accountId: string
   markAllReadAtMs: number | null
+  stateUpdatedAtMs: number
   readEvents: NotificationReadEvent[]
   updatedAt: string
 }
@@ -54,10 +56,13 @@ function getNowMs() {
 function loadStore(): NotificationReadStore {
   const raw = appStore.get(NOTIFICATION_READ_STATE_KEY) as NotificationReadStore | undefined
   if (raw?.version === 1 && raw.accounts && typeof raw.accounts === 'object') {
-    // Sanitize each account's readEvents to ensure it's a plain object
+    // Sanitize each account's readEvents to ensure they're plain objects
     for (const [uid, state] of Object.entries(raw.accounts)) {
       if (!state || typeof state.readEvents !== 'object' || Array.isArray(state.readEvents)) {
         raw.accounts[uid] = {...state, readEvents: {}}
+      }
+      if (typeof state.stateUpdatedAtMs !== 'number') {
+        raw.accounts[uid] = {...raw.accounts[uid], stateUpdatedAtMs: 0}
       }
     }
     return raw
@@ -126,6 +131,7 @@ function getOrCreateAccountState(accountUid: string): AccountNotificationReadSta
 
   state = {
     markAllReadAtMs: getNowMs(),
+    stateUpdatedAtMs: getNowMs(),
     readEvents: {},
     dirty: true,
     lastSyncAtMs: null,
@@ -217,18 +223,40 @@ async function signedNotificationReadStatePost(accountUid: string, host: string,
 function mergeLocalAndRemoteState(
   local: AccountNotificationReadState,
   remote: NotificationReadStateResponse,
-): {markAllReadAtMs: number | null; readEvents: NotificationReadEvent[]} {
-  const mergedMarkAllReadAtMs = maxNullable(local.markAllReadAtMs, remote.markAllReadAtMs)
+): {markAllReadAtMs: number | null; stateUpdatedAtMs: number; readEvents: NotificationReadEvent[]} {
+  // LWW: most recent stateUpdatedAtMs wins; tie falls back to max watermark
+  let mergedMarkAllReadAtMs: number | null
+  if (local.stateUpdatedAtMs > remote.stateUpdatedAtMs) {
+    mergedMarkAllReadAtMs = local.markAllReadAtMs
+  } else if (remote.stateUpdatedAtMs > local.stateUpdatedAtMs) {
+    mergedMarkAllReadAtMs = remote.markAllReadAtMs
+  } else {
+    mergedMarkAllReadAtMs = maxNullable(local.markAllReadAtMs, remote.markAllReadAtMs)
+  }
+  const mergedWatermarkUpdatedAtMs = Math.max(local.stateUpdatedAtMs, remote.stateUpdatedAtMs)
+
   const remoteEvents = Array.isArray(remote?.readEvents) ? remote.readEvents : []
 
-  const mergedReadEventsMap = {
-    ...readEventsListToMap(remoteEvents),
-    ...local.readEvents,
-  }
+  // Start with local readEvents as base (reflects user's latest intent)
+  const mergedReadEventsMap = {...local.readEvents}
+
+  // When local state is at least as new as remote (stateUpdatedAtMs is bumped
+  // on ALL local changes, not just watermark moves), local readEvents are authoritative.
+  // Don't re-add remote events above local watermark that local doesn't have —
+  // they were either never needed or deliberately removed (marked unread).
+  const localIsAuthoritative = local.stateUpdatedAtMs >= remote.stateUpdatedAtMs
 
   for (const evt of remoteEvents) {
-    const current = mergedReadEventsMap[evt.eventId]
     const normalized = Math.max(0, Math.floor(evt.eventAtMs))
+    if (
+      localIsAuthoritative &&
+      local.markAllReadAtMs !== null &&
+      normalized > local.markAllReadAtMs &&
+      !(evt.eventId in local.readEvents)
+    ) {
+      continue
+    }
+    const current = mergedReadEventsMap[evt.eventId]
     mergedReadEventsMap[evt.eventId] = current === undefined ? normalized : Math.max(current, normalized)
   }
 
@@ -236,6 +264,7 @@ function mergeLocalAndRemoteState(
 
   return {
     markAllReadAtMs: mergedMarkAllReadAtMs,
+    stateUpdatedAtMs: mergedWatermarkUpdatedAtMs,
     readEvents: readEventsMapToList(prunedReadEvents),
   }
 }
@@ -256,27 +285,45 @@ async function runSync(accountUid: string, notifyServiceHost: string | undefined
     return toAccountStateView(accountUid)
   }
 
-  const localState = getOrCreateAccountState(accountUid)
   const syncStart = getNowMs()
 
   try {
     const remoteState = await signedNotificationReadStatePost(accountUid, host, {
       action: 'get-notification-read-state',
     })
+    // Snapshot AFTER the GET so we merge with the freshest local state.
+    // Any user changes during the GET are captured here.
+    const localState = getOrCreateAccountState(accountUid)
     const mergedInput = mergeLocalAndRemoteState(localState, remoteState)
     const mergedRemote = await signedNotificationReadStatePost(accountUid, host, {
       action: 'merge-notification-read-state',
       markAllReadAtMs: mergedInput.markAllReadAtMs,
+      stateUpdatedAtMs: mergedInput.stateUpdatedAtMs,
       readEvents: mergedInput.readEvents,
     })
 
-    updateAccountState(accountUid, () => ({
-      markAllReadAtMs: mergedRemote.markAllReadAtMs,
-      readEvents: pruneReadEvents(readEventsListToMap(mergedRemote.readEvents), mergedRemote.markAllReadAtMs),
-      dirty: false,
-      lastSyncAtMs: syncStart,
-      lastSyncError: null,
-    }))
+    updateAccountState(accountUid, (current) => {
+      // Re-merge server response with current local state to preserve
+      // any changes the user made while the POST was in flight.
+      // Since stateUpdatedAtMs is bumped on ALL local changes, the merge
+      // naturally skips stale remote readEvents when local is newer.
+      const reMerged = mergeLocalAndRemoteState(current, mergedRemote)
+      const stateChangedDuringSync =
+        current.stateUpdatedAtMs !== localState.stateUpdatedAtMs
+      return {
+        markAllReadAtMs: reMerged.markAllReadAtMs,
+        stateUpdatedAtMs: reMerged.stateUpdatedAtMs,
+        readEvents: pruneReadEvents(readEventsListToMap(reMerged.readEvents), reMerged.markAllReadAtMs),
+        dirty: stateChangedDuringSync,
+        lastSyncAtMs: syncStart,
+        lastSyncError: null,
+      }
+    })
+
+    const currentState = getOrCreateAccountState(accountUid)
+    if (currentState.dirty) {
+      scheduleSync(accountUid)
+    }
 
     log.info('Notification read-state sync completed', {
       accountUid,
@@ -351,6 +398,45 @@ function markEventRead(input: {accountUid: string; eventId: string; eventAtMs: n
         ...current.readEvents,
         [input.eventId]: nextEventAtMs,
       },
+      stateUpdatedAtMs: getNowMs(),
+      dirty: true,
+      lastSyncError: null,
+    }
+  })
+  scheduleSync(input.accountUid)
+  return toAccountStateView(input.accountUid)
+}
+
+function markEventUnread(input: {
+  accountUid: string
+  eventId: string
+  eventAtMs: number
+  otherLoadedEvents: Array<{eventId: string; eventAtMs: number}>
+}) {
+  updateAccountState(input.accountUid, (current) => {
+    const targetAtMs = Math.max(0, Math.floor(input.eventAtMs))
+    // If event is individually read (not covered by watermark), just remove it
+    if (current.markAllReadAtMs === null || targetAtMs > current.markAllReadAtMs) {
+      const {[input.eventId]: _, ...restReadEvents} = current.readEvents
+      return {...current, readEvents: restReadEvents, stateUpdatedAtMs: getNowMs(), dirty: true, lastSyncError: null}
+    }
+    // Event is covered by watermark — lower watermark and mark other events individually
+    const newWatermark = targetAtMs - 1
+    const newReadEvents = {...current.readEvents}
+    delete newReadEvents[input.eventId]
+    for (const other of input.otherLoadedEvents) {
+      if (other.eventId === input.eventId) continue
+      const otherAtMs = Math.max(0, Math.floor(other.eventAtMs))
+      if (otherAtMs <= current.markAllReadAtMs && otherAtMs > newWatermark) {
+        const existing = newReadEvents[other.eventId]
+        newReadEvents[other.eventId] = existing === undefined ? otherAtMs : Math.max(existing, otherAtMs)
+      }
+    }
+    return {
+      ...current,
+      markAllReadAtMs: newWatermark,
+      readEvents: newReadEvents,
+      stateUpdatedAtMs: getNowMs(),
       dirty: true,
       lastSyncError: null,
     }
@@ -369,6 +455,7 @@ function markAllRead(input: {accountUid: string; markAllReadAtMs: number}) {
     return {
       ...current,
       markAllReadAtMs: nextMarkAllReadAtMs,
+      stateUpdatedAtMs: getNowMs(),
       readEvents: pruneReadEvents(current.readEvents, nextMarkAllReadAtMs),
       dirty: true,
       lastSyncError: null,
@@ -392,6 +479,23 @@ export const notificationReadApi = t.router({
     )
     .mutation(async ({input}) => {
       return markEventRead(input)
+    }),
+  markEventUnread: t.procedure
+    .input(
+      z.object({
+        accountUid: z.string(),
+        eventId: z.string(),
+        eventAtMs: z.number(),
+        otherLoadedEvents: z.array(
+          z.object({
+            eventId: z.string(),
+            eventAtMs: z.number(),
+          }),
+        ),
+      }),
+    )
+    .mutation(async ({input}) => {
+      return markEventUnread(input)
     }),
   markAllRead: t.procedure
     .input(

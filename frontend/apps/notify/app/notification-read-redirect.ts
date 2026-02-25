@@ -55,6 +55,7 @@ export function applyNotificationReadFromEmailLink(input: {
 
   mergeNotificationReadState(input.accountId, {
     markAllReadAtMs: null,
+    stateUpdatedAtMs: 0,
     readEvents: [{eventId: input.eventId, eventAtMs: input.eventAtMs}],
   })
 

@@ -100,7 +100,7 @@ describe('Database', () => {
     it('should handle database version correctly', async () => {
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
       const version = db.pragma('user_version', {simple: true})
-      expect(version).toBe(6)
+      expect(version).toBe(7)
       db.close()
     })
   })
@@ -497,14 +497,16 @@ describe('Database', () => {
       expect(state.updatedAt).toBeDefined()
     })
 
-    it('should merge mark-all watermark monotonically', () => {
+    it('should merge mark-all watermark monotonically at same stateUpdatedAtMs', () => {
       const accountId = 'account-read-1'
       mergeNotificationReadState(accountId, {
         markAllReadAtMs: 1000,
+        stateUpdatedAtMs: 0,
         readEvents: [],
       })
       mergeNotificationReadState(accountId, {
         markAllReadAtMs: 500,
+        stateUpdatedAtMs: 0,
         readEvents: [],
       })
 
@@ -512,10 +514,29 @@ describe('Database', () => {
       expect(state.markAllReadAtMs).toBe(1000)
     })
 
+    it('should accept lower watermark when stateUpdatedAtMs is newer', () => {
+      const accountId = 'account-read-lww'
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: 1000,
+        stateUpdatedAtMs: 100,
+        readEvents: [],
+      })
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: 500,
+        stateUpdatedAtMs: 200,
+        readEvents: [],
+      })
+
+      const state = getNotificationReadState(accountId)
+      expect(state.markAllReadAtMs).toBe(500)
+      expect(state.stateUpdatedAtMs).toBe(200)
+    })
+
     it('should union read events and keep max timestamp per event id', () => {
       const accountId = 'account-read-2'
       mergeNotificationReadState(accountId, {
         markAllReadAtMs: null,
+        stateUpdatedAtMs: 0,
         readEvents: [
           {eventId: 'event-a', eventAtMs: 100},
           {eventId: 'event-b', eventAtMs: 200},
@@ -523,6 +544,7 @@ describe('Database', () => {
       })
       mergeNotificationReadState(accountId, {
         markAllReadAtMs: null,
+        stateUpdatedAtMs: 0,
         readEvents: [
           {eventId: 'event-a', eventAtMs: 300},
           {eventId: 'event-c', eventAtMs: 250},
@@ -541,6 +563,7 @@ describe('Database', () => {
       const accountId = 'account-read-3'
       mergeNotificationReadState(accountId, {
         markAllReadAtMs: null,
+        stateUpdatedAtMs: 0,
         readEvents: [
           {eventId: 'event-old', eventAtMs: 1000},
           {eventId: 'event-new', eventAtMs: 2000},
@@ -549,6 +572,7 @@ describe('Database', () => {
 
       mergeNotificationReadState(accountId, {
         markAllReadAtMs: 1500,
+        stateUpdatedAtMs: 0,
         readEvents: [],
       })
 
@@ -561,6 +585,7 @@ describe('Database', () => {
       const accountId = 'account-read-4'
       const payload = {
         markAllReadAtMs: 5000,
+        stateUpdatedAtMs: 0,
         readEvents: [
           {eventId: 'event-1', eventAtMs: 6000},
           {eventId: 'event-2', eventAtMs: 7000},
@@ -580,10 +605,12 @@ describe('Database', () => {
     it('should keep read states isolated per account', () => {
       mergeNotificationReadState('account-a', {
         markAllReadAtMs: 100,
+        stateUpdatedAtMs: 0,
         readEvents: [{eventId: 'event-a', eventAtMs: 101}],
       })
       mergeNotificationReadState('account-b', {
         markAllReadAtMs: 200,
+        stateUpdatedAtMs: 0,
         readEvents: [{eventId: 'event-b', eventAtMs: 201}],
       })
 
