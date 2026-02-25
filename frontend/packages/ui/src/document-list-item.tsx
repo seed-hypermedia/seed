@@ -211,9 +211,7 @@ export function DocumentListItem({
               {!!draftId && <DraftBadge />}
               {isPrivate && <PrivateBadge size="sm" />}
             </div>
-            {commentCount > 0 && !hasActions && (
-              <DocumentListItemCommentCount count={commentCount} />
-            )}
+            {commentCount > 0 && !hasActions && <DocumentListItemCommentCount count={commentCount} />}
             {!itemActivitySummary && 'updateTime' in item && (
               <SizableText size="xs" color="muted" className="font-sans">
                 {formattedDate(item.updateTime)}
