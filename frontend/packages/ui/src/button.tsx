@@ -58,8 +58,8 @@ export const buttonVariants = cva(
         sm: 'h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5 text-sm',
         default: 'h-9 px-4 py-2 has-[>svg]:px-3',
         lg: 'h-10 rounded-md px-6 has-[>svg]:px-4',
-        icon: 'h-8 w-8 rounded-md has-[>svg]:px-2',
-        iconSm: 'h-6 w-6 rounded-md has-[>svg]:px-1',
+        icon: 'h-8 min-w-8 rounded-md has-[>svg]:px-2',
+        iconSm: 'h-6 min-w-6 rounded-md has-[>svg]:px-1',
       },
     },
 

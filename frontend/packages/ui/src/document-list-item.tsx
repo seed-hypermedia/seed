@@ -6,20 +6,27 @@ import {
   HMBreadcrumb,
   HMComment,
   HMDocumentInfo,
+  hmId,
   HMLibraryDocument,
   InteractionSummaryPayload,
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
-import {MessageSquare} from 'lucide-react'
+import {useDocumentActions} from '@shm/shared/document-actions-context'
+import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
+import {useNavigate} from '@shm/shared/utils/navigation'
+import {Bookmark, Forward, GitFork, Link, MessageSquare, Pencil} from 'lucide-react'
+import {useMemo} from 'react'
 import {LibraryEntryUpdateSummary} from './activity'
 import {Button} from './button'
 import {DraftBadge} from './draft-badge'
-import {FacePile} from './face-pile'
 import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
+import {Download, Trash} from './icons'
+import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {PrivateBadge} from './private-badge'
 import {SizableText} from './text'
+import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
 export type DocumentListItemData = HMDocumentInfo | (HMLibraryDocument & {breadcrumbs?: HMBreadcrumb[]})
@@ -64,8 +71,6 @@ export function DocumentListItem({
   const itemBreadcrumbs = breadcrumbs !== undefined ? breadcrumbs : 'breadcrumbs' in item ? item.breadcrumbs : null
   const computedIsRead = isRead !== undefined ? isRead : !itemActivitySummary?.isUnread
 
-  const showAuthors = !!accountsMetadata && Object.keys(accountsMetadata).length > 0
-
   const route = draftId ? {key: 'draft' as const, id: draftId} : {key: 'document' as const, id}
   const linkProps = useRouteLink(route)
 
@@ -81,6 +86,92 @@ export function DocumentListItem({
   }
 
   const highlighter = useHighlighter()
+  const actions = useDocumentActions()
+  const navigate = useNavigate()
+
+  const summaryId = useMemo(() => hmId(id.uid, {path: id.path}), [id.uid, id.path])
+  const interactionSummaryData = useInteractionSummary(summaryId)
+  const commentCount = interactionSummary?.comments ?? interactionSummaryData.data?.comments ?? 0
+
+  const bookmarked = actions.isBookmarked?.(id) ?? false
+  const isOwner = actions.selectedAccountUid === id.uid
+  const isLoggedIn = !!actions.myAccountIds?.length
+  const hasPath = !!id.path?.length
+  const doc = 'document' in item ? (item as any).document : undefined
+
+  const menuItems = useMemo(() => {
+    const items: MenuItemType[] = []
+    if (actions.onEditDocument && isOwner) {
+      items.push({
+        key: 'edit',
+        label: draftId ? 'Resume Editing' : 'Edit',
+        icon: <Pencil className="size-3.5" />,
+        onClick: (e) => {
+          e?.stopPropagation()
+          actions.onEditDocument!(id, draftId)
+        },
+      })
+    }
+    if (actions.onCopyLink) {
+      items.push({
+        key: 'copy-link',
+        label: 'Copy Link',
+        icon: <Link className="size-3.5" />,
+        onClick: (e) => {
+          e?.stopPropagation()
+          actions.onCopyLink!(id)
+        },
+      })
+    }
+    if (actions.onMoveDocument && isOwner && hasPath) {
+      items.push({
+        key: 'move',
+        label: 'Move Document',
+        icon: <Forward className="size-3.5" />,
+        onClick: (e) => {
+          e?.stopPropagation()
+          actions.onMoveDocument!(id)
+        },
+      })
+    }
+    if (actions.onBranchDocument && isLoggedIn) {
+      items.push({
+        key: 'branch',
+        label: 'Create Document Branch',
+        icon: <GitFork className="size-3.5" />,
+        onClick: (e) => {
+          e?.stopPropagation()
+          actions.onBranchDocument!(id)
+        },
+      })
+    }
+    if (actions.onExportDocument && doc) {
+      items.push({
+        key: 'export',
+        label: 'Export',
+        icon: <Download className="size-3.5" />,
+        onClick: (e) => {
+          e?.stopPropagation()
+          actions.onExportDocument!(doc)
+        },
+      })
+    }
+    if (actions.onDeleteDocument && isOwner && hasPath) {
+      items.push({
+        key: 'delete',
+        label: 'Delete Document',
+        icon: <Trash className="size-3.5" />,
+        variant: 'destructive' as const,
+        onClick: (e) => {
+          e?.stopPropagation()
+          actions.onDeleteDocument!(id)
+        },
+      })
+    }
+    return items
+  }, [actions, id, doc, draftId, isOwner, isLoggedIn, hasPath])
+
+  const hasActions = !!actions.onBookmarkToggle || commentCount > 0 || menuItems.length > 0
 
   return (
     <Button
@@ -88,7 +179,7 @@ export function DocumentListItem({
       variant="ghost"
       {...highlighter(id)}
       className={cn(
-        'h-auto w-full items-center justify-start border-none bg-transparent bg-white px-4 py-2 shadow-sm hover:shadow-md dark:bg-black',
+        'group/item h-auto w-full items-center justify-start border-none bg-transparent bg-white px-4 py-2 shadow-sm hover:shadow-md dark:bg-black',
         className,
       )}
     >
@@ -107,16 +198,51 @@ export function DocumentListItem({
               {!!draftId && <DraftBadge />}
               {isPrivate && <PrivateBadge size="sm" />}
             </div>
-            {interactionSummary && interactionSummary.comments > 0 && (
+            {interactionSummary && interactionSummary.comments > 0 && !hasActions && (
               <DocumentListItemCommentCount count={interactionSummary.comments} />
             )}
-            {showAuthors && 'authors' in item && (
-              <FacePile accounts={item.authors} accountsMetadata={accountsMetadata} />
-            )}
-            {!showAuthors && !itemActivitySummary && 'updateTime' in item && (
+            {!itemActivitySummary && 'updateTime' in item && (
               <SizableText size="xs" color="muted" className="font-sans">
                 {formattedDate(item.updateTime)}
               </SizableText>
+            )}
+            {hasActions && (
+              <div className="flex items-center gap-1">
+                {actions.onBookmarkToggle && (
+                  <Tooltip content={bookmarked ? 'Remove from Bookmarks' : 'Add to Bookmarks'}>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="no-window-drag"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        actions.onBookmarkToggle!(id)
+                      }}
+                    >
+                      {bookmarked ? <Bookmark className="size-3.5 fill-current" /> : <Bookmark className="size-3.5" />}
+                    </Button>
+                  </Tooltip>
+                )}
+                {commentCount > 0 && (
+                  <Tooltip content="View discussions">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="no-window-drag flex items-center gap-1"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        navigate({key: 'comments', id})
+                      }}
+                    >
+                      <MessageSquare className="size-3.5" />
+                      <SizableText size="xs">{commentCount}</SizableText>
+                    </Button>
+                  </Tooltip>
+                )}
+                {menuItems.length > 0 && <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />}
+              </div>
             )}
           </div>
           {itemActivitySummary && (
@@ -166,7 +292,7 @@ function DocumentListItemCommentCount({count}: {count: number}) {
   if (!count) return null
   return (
     <div className="flex items-center gap-1">
-      <MessageSquare className="text-muted-foreground size-3" />
+      <MessageSquare className="text-muted-foreground size-3.5" />
       <SizableText className="text-muted-foreground text-[10px]">{count}</SizableText>
     </div>
   )
