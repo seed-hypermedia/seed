@@ -2586,7 +2586,7 @@ export function DocumentCardGrid({
   firstItem: HMDocumentInfo | undefined
   items: Array<HMDocumentInfo>
   getEntity: (id: UnpackedHypermediaId) => HMResourceFetchResult | null
-  accountsMetadata: HMAccountsMetadata
+  accountsMetadata?: HMAccountsMetadata
   columnCount?: number
   isDiscovering?: boolean
 }) {

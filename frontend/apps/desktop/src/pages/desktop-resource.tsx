@@ -4,6 +4,7 @@ import {AddCollaboratorForm} from '@/components/collaborators-panel'
 import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
 import {CreateDocumentButton} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
+import {DesktopDocumentActionsProvider} from '@/components/document-actions-provider'
 import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
 import {MoveDialog} from '@/components/move-dialog'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
@@ -171,11 +172,9 @@ export default function DesktopResourcePage() {
     <>
       <Tooltip content={existingDraft ? 'Resume Editing' : 'Edit'}>
         <Button
-          size="sm"
+          size="icon"
           variant="outline"
-          className={cn(
-            existingDraft ? 'bg-yellow-200 hover:bg-yellow-300' : 'hover:bg-hover dark:bg-background bg-white',
-          )}
+          className={cn(existingDraft ? 'bg-yellow-200 hover:bg-yellow-300' : '')}
           onClick={() => {
             if (existingDraft) {
               navigate({
@@ -195,7 +194,7 @@ export default function DesktopResourcePage() {
             }
           }}
         >
-          <Pencil className="size-4" />
+          <Pencil className="size-3.5" />
         </Button>
       </Tooltip>
       {!isPrivate && (
@@ -292,16 +291,18 @@ export default function DesktopResourcePage() {
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
       >
-        <ResourcePage
-          docId={docId}
-          CommentEditor={CommentBox}
-          extraMenuItems={menuItems}
-          editActions={editActions}
-          existingDraft={existingDraft}
-          collaboratorForm={<AddCollaboratorForm id={docId} />}
-          inlineCards={inlineCards}
-          rightActions={<SubscriptionButton id={docId} />}
-        />
+        <DesktopDocumentActionsProvider>
+          <ResourcePage
+            docId={docId}
+            CommentEditor={CommentBox}
+            extraMenuItems={menuItems}
+            editActions={editActions}
+            existingDraft={existingDraft}
+            collaboratorForm={<AddCollaboratorForm id={docId} />}
+            inlineCards={inlineCards}
+            rightActions={<SubscriptionButton id={docId} />}
+          />
+        </DesktopDocumentActionsProvider>
       </CommentsProvider>
       {deleteEntity.content}
       {branchDialog.content}
