@@ -47,15 +47,8 @@ export function OptionsDropdown({
       )}
     >
       <DropdownMenu open={popoverState.open} onOpenChange={popoverState.onOpenChange}>
-        <DropdownMenuTrigger
-          className={cn(
-            buttonVariants({variant: 'outline'}),
-            'no-window-drag',
-            'hover:bg-hover dark:bg-background bg-white',
-          )}
-          style={{width: '32px', height: '32px', padding: 0}}
-        >
-          <MoreHorizontal className="size-4" />
+        <DropdownMenuTrigger className={cn(buttonVariants({variant: 'outline', size: 'icon'}), 'no-window-drag')}>
+          <MoreHorizontal className="size-3.5" />
         </DropdownMenuTrigger>
         <DropdownMenuContent className="p-1" side={side} align={align}>
           <div className="flex flex-col">
