@@ -1,9 +1,9 @@
 import {EditorBlock, useOpenUrl, writeableStateStream} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {HMBlockNode, HMMetadata} from '@shm/shared/hm-types'
+import {useAccount} from '@shm/shared/models/entity'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {queryClient} from '@shm/shared/models/query-client'
-import {useAccount} from '@shm/shared/models/entity'
 import {useTx} from '@shm/shared/translation'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
@@ -840,7 +840,7 @@ export function CommentEditor({
         <div className="bg-muted w-full min-w-0 flex-1 rounded-lg">
           <div
             className={cn(
-              'comment-editor max-h-[160px] min-h-8 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto md:max-h-full',
+              'comment-editor max-h-[160px] min-h-20 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto md:max-h-full',
               isEditorFocused ? 'justify-start px-3 pt-1 pb-2' : 'justify-center',
             )}
             // marginTop="$1"

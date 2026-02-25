@@ -28,6 +28,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
+import {SubscriptionButton} from '@/components/subscription'
 import {ForwardIcon, GitFork, Pencil} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback, useMemo, useState} from 'react'
@@ -299,6 +300,7 @@ export default function DesktopResourcePage() {
           existingDraft={existingDraft}
           collaboratorForm={<AddCollaboratorForm id={docId} />}
           inlineCards={inlineCards}
+          rightActions={<SubscriptionButton id={docId} />}
         />
       </CommentsProvider>
       {deleteEntity.content}

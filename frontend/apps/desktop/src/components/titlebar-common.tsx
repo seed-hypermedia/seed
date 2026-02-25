@@ -66,7 +66,6 @@ import {useImportDialog, useImporting} from './import-doc-button'
 import {MoveDialog} from './move-dialog'
 import {usePublishSite, useRemoveSiteDialog, useSeedHostDialog} from './publish-site'
 import {SearchInput, SearchInputHandle} from './search-input'
-import {SubscriptionButton} from './subscription'
 import {TitleBarProps} from './titlebar'
 
 // Route keys that have an id and support DocOptionsButton
@@ -375,7 +374,6 @@ function DocumentTitlebarButtons({route}: {route: DocumentRoute | FeedRoute}) {
           <UploadCloud className="size-4" />
         </Button>
       ) : null}
-      <SubscriptionButton id={route.id} />
       {isLatest ? null : <GoToLatestVersionButton route={route} />}
       {publishSite.content}
     </TitlebarSection>

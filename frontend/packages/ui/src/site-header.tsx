@@ -55,6 +55,7 @@ export function SiteHeader({
   wrapperClassName,
   notifyServiceHost,
   routeType,
+  rightActions,
 }: {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId | null
@@ -75,6 +76,7 @@ export function SiteHeader({
   wrapperClassName?: string
   notifyServiceHost?: string
   routeType?: NavRoute['key']
+  rightActions?: React.ReactNode
 }) {
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
   const [isMobileSearchActive, setIsMobileSearchActive] = useState(false)
@@ -173,14 +175,15 @@ export function SiteHeader({
           <div className="flex flex-1 justify-center overflow-hidden">
             <SiteLogo id={headerHomeId} metadata={draftMetadata || homeDoc.document?.metadata} />
           </div>
-          {routeType != 'draft' && isCenterLayout && !IS_DESKTOP ? (
+          {routeType != 'draft' && isCenterLayout ? (
             <div className="flex items-center gap-2 md:absolute md:right-0">
-              {headerSearch}
-              {notifyServiceHost && (
+              {!IS_DESKTOP && headerSearch}
+              {!IS_DESKTOP && notifyServiceHost && (
                 <Button variant="brand" size="sm" className="text-white" onClick={() => setIsSubscribeDialogOpen(true)}>
                   Subscribe
                 </Button>
               )}
+              {rightActions}
             </div>
           ) : null}
         </div>
@@ -212,6 +215,7 @@ export function SiteHeader({
               Subscribe
             </Button>
           )}
+          {!isCenterLayout && rightActions}
         </div>
         <MobileMenu
           open={isMobileMenuOpen}
