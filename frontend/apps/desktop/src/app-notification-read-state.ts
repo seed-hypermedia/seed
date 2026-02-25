@@ -2,8 +2,8 @@ import {encode as cborEncode} from '@ipld/dag-cbor'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {base58btc} from 'multiformats/bases/base58'
 import z from 'zod'
-// @ts-expect-error ignore this import error
 import {grpcClient} from './app-grpc'
+// @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 import * as log from './logger'
