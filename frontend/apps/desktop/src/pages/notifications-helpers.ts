@@ -48,6 +48,11 @@ export function notificationTitle(item: NotificationItem): string {
     return `${authorName} mentioned you${sourceName ? ` in ${sourceName}` : ''}`
   }
 
+  if (item.reason === 'discussion') {
+    const targetName = item.event.type === 'comment' ? item.event.target?.metadata?.name : null
+    return `${authorName} started a discussion${targetName ? ` on ${targetName}` : ''}`
+  }
+
   const targetName = item.event.type === 'comment' ? item.event.target?.metadata?.name : null
   return `${authorName} replied to your comment${targetName ? ` in ${targetName}` : ''}`
 }

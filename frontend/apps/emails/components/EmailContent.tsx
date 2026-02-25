@@ -114,6 +114,8 @@ function NotificationContent({notification}: {notification: Notification}) {
       return <ReplyContent notification={notification} />
     case 'site-new-discussion':
       return <NewDiscussionContent notification={notification} />
+    case 'discussion':
+      return <DiscussionContent notification={notification} />
     case 'user-comment':
       return <UserCommentContent notification={notification} />
     default:
@@ -204,6 +206,45 @@ function NewDiscussionContent({
             notification.comment.content,
             notification.url,
             notification.resolvedNames,
+          )}
+        </MjmlColumn>
+      </MjmlSection>
+      <MjmlSection padding="0 0 16px 0">
+        <MjmlColumn>
+          <MjmlText fontSize="14px" color="#888">
+            on:{' '}
+            <span
+              style={{
+                backgroundColor: '#eee',
+                borderRadius: '4px',
+                padding: '2px 6px',
+                display: 'inline-block',
+              }}
+            >
+              {notification.targetMeta?.name ?? 'Untitled Document'}
+            </span>
+          </MjmlText>
+        </MjmlColumn>
+      </MjmlSection>
+    </MjmlColumn>
+  )
+}
+
+function DiscussionContent({
+  notification,
+}: {
+  notification: Extract<Notification, {reason: 'discussion'}>
+}) {
+  return (
+    <MjmlColumn width="100%" verticalAlign="middle">
+      <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
+        Started a discussion:
+      </MjmlText>
+      <MjmlSection padding="0 0 8px 23px">
+        <MjmlColumn border-left="1px solid #20C997">
+          {renderBlocks(
+            notification.comment.content,
+            notification.url,
           )}
         </MjmlColumn>
       </MjmlSection>
@@ -631,7 +672,8 @@ function getNotificationMeta(notification: Notification) {
   const createdAt = (() => {
     if (
       notification.reason === 'site-new-discussion' ||
-      notification.reason === 'reply'
+      notification.reason === 'reply' ||
+      notification.reason === 'discussion'
     ) {
       return formattedDateShort(notification.comment.createTime)
     }

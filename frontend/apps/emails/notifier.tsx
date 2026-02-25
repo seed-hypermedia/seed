@@ -30,7 +30,7 @@ function getNotifyServiceHost() {
 
 function getNotificationActionUrl(notification: Notification) {
   if (
-    (notification.reason === 'mention' || notification.reason === 'reply') &&
+    (notification.reason === 'mention' || notification.reason === 'reply' || notification.reason === 'discussion') &&
     notification.actionUrl
   ) {
     return notification.actionUrl
@@ -52,6 +52,7 @@ export async function createNotificationsEmail(
     'site-new-discussion': {},
     mention: {},
     reply: {},
+    discussion: {},
     'user-comment': {},
   }
 
@@ -137,6 +138,12 @@ ${docNotifs
           } comment on ${getNotificationActionUrl(notif)}`
         }
 
+        if (notif.reason === 'discussion') {
+          return `${
+            notif.authorMeta?.name || notif.comment.author
+          } started a discussion on ${getNotificationActionUrl(notif)}`
+        }
+
         return ''
       })
       .join('\n')
@@ -170,6 +177,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
           [
             'site-doc-update',
             'site-new-discussion',
+            'discussion',
             'mention',
             'reply',
           ] as const
@@ -185,6 +193,8 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
             switch (reason) {
               case 'site-new-discussion':
                 return `New comment${totalCount === 1 ? '' : 's'}`
+              case 'discussion':
+                return `New discussion${totalCount === 1 ? '' : 's'}`
               case 'mention':
                 return `Mention${totalCount === 1 ? '' : 's'}`
               case 'reply':
@@ -215,10 +225,10 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
                     <MjmlSection padding="0px 0px 10px">
                       <MjmlColumn>
                         <MjmlText fontSize="14px" color="#888">
-                          {reason === 'site-new-discussion' ? (
+                          {reason === 'site-new-discussion' || reason === 'discussion' ? (
                             <>
                               {docNotifs.length}{' '}
-                              {docNotifs.length === 1 ? 'comment' : 'comments'}{' '}
+                              {docNotifs.length === 1 ? 'discussion' : 'discussions'}{' '}
                               on{' '}
                               <span
                                 style={{
@@ -290,8 +300,8 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
                           href={docUrl}
                           backgroundColor="#008060"
                         >
-                          {reason === 'site-new-discussion'
-                            ? 'View Comment'
+                          {reason === 'site-new-discussion' || reason === 'discussion'
+                            ? 'View Discussion'
                             : reason === 'mention'
                             ? 'View Mention'
                             : reason === 'reply'
@@ -316,7 +326,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
   return {email, subject, text, html: emailHtml, subscriberNames}
 }
 
-type ImmediateReason = 'mention' | 'reply'
+type ImmediateReason = 'mention' | 'reply' | 'discussion'
 type ImmediateNotification = FullNotification & {
   notif: Extract<Notification, {reason: ImmediateReason}>
 }
@@ -329,7 +339,8 @@ export async function createDesktopNotificationsEmail(
   const immediate = notifications.filter(
     (notification): notification is ImmediateNotification =>
       notification.notif.reason === 'mention' ||
-      notification.notif.reason === 'reply',
+      notification.notif.reason === 'reply' ||
+      notification.notif.reason === 'discussion',
   )
   if (!immediate.length) return
 
@@ -391,6 +402,8 @@ Manage notification emails: ${notifSettingsUrl}`
           const actionLabel =
             notification.notif.reason === 'mention'
               ? 'Open Mention'
+              : notification.notif.reason === 'discussion'
+              ? 'Open Discussion'
               : 'Open Reply'
           const timeLabel = formatDesktopNotificationTime(
             notification.notif.eventAtMs,
@@ -499,6 +512,18 @@ export type Notification =
       resolvedNames?: Record<string, string>
     }
   | {
+      reason: 'discussion'
+      comment: HMComment
+      parentComments: HMComment[]
+      authorMeta: HMMetadata | null
+      targetMeta: HMMetadata | null
+      targetId: UnpackedHypermediaId
+      url: string
+      actionUrl?: string
+      eventId?: string
+      eventAtMs?: number
+    }
+  | {
       reason: 'user-comment'
       comment: HMComment
       parentComments: HMComment[]
@@ -539,6 +564,13 @@ function getDesktopNotificationText(notification: ImmediateNotification) {
     }`
   }
 
+  if (notif.reason === 'discussion') {
+    const targetName = notif.targetMeta?.name
+    return `${actor} started a discussion${
+      targetName ? ` on ${targetName}` : ''
+    }`
+  }
+
   const targetName = notif.targetMeta?.name
   const commentOwner = subjectName ? `${subjectName}'s` : 'your'
   return `${actor} replied to ${commentOwner} comment${
@@ -556,6 +588,11 @@ function getNotificationSummary(
     }.`
   }
   if (notification.reason === 'site-new-discussion') {
+    return `${
+      notification.authorMeta?.name || 'Someone'
+    } started a discussion on ${notification.targetMeta?.name || 'a document'}.`
+  }
+  if (notification.reason === 'discussion') {
     return `${
       notification.authorMeta?.name || 'Someone'
     } started a discussion on ${notification.targetMeta?.name || 'a document'}.`

@@ -3,7 +3,7 @@ import {HMBlockNode, HMComment} from '@shm/shared/hm-types'
 import {LoadedEventWithNotifMeta} from '@shm/shared/models/activity-service'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 
-export type NotificationReason = 'mention' | 'reply'
+export type NotificationReason = 'mention' | 'reply' | 'discussion'
 
 function blockMentionsAccount(block: HMBlockNode, accountUid: string): boolean {
   const annotations = getAnnotations(block.block)
@@ -29,13 +29,27 @@ export function classifyNotificationEvent(
   accountUid: string,
 ): NotificationReason | null {
   if (event.type === 'citation') {
-    // Treat mentions to any path under the selected account as account mentions.
-    if (event.target?.id?.uid === accountUid) return 'mention'
+    if (event.target?.id?.uid === accountUid) {
+      // Comment citation targeting a document (has path) rather than an account @mention (no path).
+      // Classify top-level comments as 'discussion'; suppress replies (handled by blob event).
+      if (event.citationType === 'c' && event.target.id.path?.length) {
+        const isSelfAuthored = event.author?.id?.uid === accountUid
+        if (!isSelfAuthored && event.comment && !event.comment.threadRoot) {
+          return 'discussion'
+        }
+        return null
+      }
+      return 'mention'
+    }
   }
 
   if (event.type === 'comment') {
-    if (event.replyParentAuthor?.id?.uid === accountUid) return 'reply'
     const isSelfAuthored = event.author?.id?.uid === accountUid
+    if (event.replyParentAuthor?.id?.uid === accountUid) return 'reply'
+    // Top-level comment on a doc in this account's site (takes priority over mention)
+    if (!isSelfAuthored && !event.comment?.threadRoot && event.target?.id?.uid === accountUid) {
+      return 'discussion'
+    }
     if (!isSelfAuthored && commentMentionsAccount(event.comment, accountUid)) {
       return 'mention'
     }

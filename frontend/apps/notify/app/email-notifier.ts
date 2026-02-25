@@ -58,7 +58,7 @@ const handleImmediateEmailNotificationsIntervalSeconds = 15
 
 type NotifReason = Notification['reason']
 
-const notifReasonsImmediate = new Set<NotifReason>(['mention', 'reply'])
+const notifReasonsImmediate = new Set<NotifReason>(['mention', 'reply', 'discussion'])
 const notifReasonsBatch = new Set<NotifReason>(['site-doc-update', 'site-new-discussion'])
 
 const adminEmail = process.env.SEED_DEV_ADMIN_EMAIL || 'eric@seedhypermedia.com'
@@ -410,7 +410,7 @@ async function handleEmailNotifs(events: PlainMessage<Event>[], includedNotifRea
     const adminToken = firstNotification.adminToken
     const notificationsWithActions = notifications.map((notification) => {
       if (
-        (notification.notif.reason === 'mention' || notification.notif.reason === 'reply') &&
+        (notification.notif.reason === 'mention' || notification.notif.reason === 'reply' || notification.notif.reason === 'discussion') &&
         notification.notif.eventId &&
         notification.notif.eventAtMs &&
         notificationEmailHost
@@ -518,7 +518,7 @@ function getEventAtMs(event: PlainMessage<Event>): number {
 
 function shouldUseDesktopEmailTemplate(includedNotifReasons: Set<NotifReason>) {
   if (includedNotifReasons.size === 0) return false
-  return Array.from(includedNotifReasons).every((reason) => reason === 'mention' || reason === 'reply')
+  return Array.from(includedNotifReasons).every((reason) => reason === 'mention' || reason === 'reply' || reason === 'discussion')
 }
 
 async function evaluateEventForNotifications(
@@ -937,6 +937,20 @@ async function evaluateNewCommentForNotifications(
         targetMeta: targetMeta,
         targetId: targetDocId,
         url: commentUrl,
+      })
+    }
+    // Notify site owner immediately when a new top-level comment (discussion) is created on their doc
+    if (!comment.threadRoot && comment.author !== sub.id && sub.id === comment.targetAccount) {
+      appendNotification(sub, {
+        reason: 'discussion',
+        comment: comment,
+        parentComments: parentComments,
+        authorMeta: commentAuthorMeta,
+        targetMeta: targetMeta,
+        targetId: targetDocId,
+        url: commentUrl,
+        eventId: eventMeta.eventId,
+        eventAtMs: eventMeta.eventAtMs,
       })
     }
     if (sub.notifyAllComments && sub.id === comment.author) {
