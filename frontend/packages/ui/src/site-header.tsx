@@ -661,7 +661,7 @@ function GotoLatestBanner({
         <Button variant="ghost" size="icon" onClick={() => setHideVersionBanner(true)}>
           <X color="var(--color-muted-foreground)" size={20} />
         </Button>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-muted-foreground text-sm" suppressHydrationWarning>
           {tx('version_from', ({date}: {date: string}) => `Version from ${date}`, {
             date: formattedDateLong(document.updateTime),
           })}

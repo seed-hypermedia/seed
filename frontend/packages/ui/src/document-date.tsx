@@ -33,7 +33,7 @@ export function DocumentDate({
     ? formattedDateDayOnly(new Date(metadata.displayPublishTime))
     : formattedDateMedium(updateTime)
   const content: React.ReactNode[] = [
-    <SizableText size="sm" color="muted" key="last-update">
+    <SizableText size="sm" color="muted" key="last-update" suppressHydrationWarning>
       {tx('Last Update')}: {formattedDateLong(updateTime)}
     </SizableText>,
     // // Disabled because this is always 1969 because the backend looks at the deterministic genesis blob instead of the actual creation time
