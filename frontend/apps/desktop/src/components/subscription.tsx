@@ -31,7 +31,7 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
 
   const isSubscribed = ['space', 'document'].includes(subscription.subscription)
 
-  if (docIsInMyAccount) {
+  if (docIsInMyAccount || isSubscribed) {
     return null
   }
 
@@ -46,15 +46,8 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
           }
         >
           <PopoverTrigger asChild>
-            <Button size="xs" variant={isSubscribed ? 'outline' : 'brand'}>
-              {subscription.subscription == 'space' ? (
-                // @ts-expect-error
-                <SubscribeSpace size={20} className="text-brand-5" />
-              ) : subscription.subscription == 'document' ? (
-                // @ts-expect-error
-                <Subscribe size={20} className="text-brand-5" />
-              ) : undefined}
-              {subscription.subscription == 'none' ? 'Subscribe' : 'Subscribed'}
+            <Button size="sm" variant="brand">
+              Subscribe
               <ChevronDown className="size-4" />
             </Button>
           </PopoverTrigger>

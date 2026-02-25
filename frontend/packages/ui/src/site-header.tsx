@@ -55,6 +55,7 @@ export function SiteHeader({
   wrapperClassName,
   notifyServiceHost,
   routeType,
+  rightActions,
 }: {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId | null
@@ -75,6 +76,7 @@ export function SiteHeader({
   wrapperClassName?: string
   notifyServiceHost?: string
   routeType?: NavRoute['key']
+  rightActions?: React.ReactNode
 }) {
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
   const [isMobileSearchActive, setIsMobileSearchActive] = useState(false)
@@ -212,6 +214,7 @@ export function SiteHeader({
               Subscribe
             </Button>
           )}
+          {rightActions}
         </div>
         <MobileMenu
           open={isMobileMenuOpen}

@@ -157,6 +157,8 @@ export interface ResourcePageProps {
   floatingButtons?: ReactNode
   /** Inline child draft cards rendered after document content */
   inlineCards?: ReactNode
+  /** Platform-specific actions rendered in the site header right side */
+  rightActions?: ReactNode
 }
 
 /** Get panel title for display */
@@ -185,6 +187,7 @@ export function ResourcePage({
   collaboratorForm,
   pageFooter,
   inlineCards,
+  rightActions,
 }: ResourcePageProps) {
   // Load document data via React Query (hydrated from SSR prefetch)
   const resource = useResource(docId, {
@@ -205,7 +208,7 @@ export function ResourcePage({
   // Loading state - should not show during SSR if data was prefetched
   if (resource.isInitialLoading) {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
@@ -217,7 +220,7 @@ export function ResourcePage({
   // Handle discovery state
   if (resource.isDiscovering) {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <PageDiscovery />
         {pageFooter}
       </PageWrapper>
@@ -227,7 +230,7 @@ export function ResourcePage({
   // Handle not-found
   if (!resource.data || resource.data.type === 'not-found') {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <PageNotFound />
         {pageFooter}
       </PageWrapper>
@@ -237,7 +240,7 @@ export function ResourcePage({
   // Handle tombstone (deleted)
   if (resource.isTombstone || resource.data.type === 'tombstone') {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <PageDeleted />
         {pageFooter}
       </PageWrapper>
@@ -247,7 +250,7 @@ export function ResourcePage({
   // Handle error
   if (resource.data.type === 'error') {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <div className="flex flex-1 items-center justify-center p-8">
           <div className="text-destructive">{resource.data.message}</div>
         </div>
@@ -259,7 +262,7 @@ export function ResourcePage({
   // Handle redirect - for now just show not found, redirect handling comes later
   if (resource.data.type === 'redirect') {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <PageNotFound />
         {pageFooter}
       </PageWrapper>
@@ -281,7 +284,7 @@ export function ResourcePage({
   // Success: render document
   if (resource.data.type !== 'document') {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <PageNotFound />
         {pageFooter}
       </PageWrapper>
@@ -290,7 +293,13 @@ export function ResourcePage({
   const document = resource.data.document
 
   return (
-    <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} document={document}>
+    <PageWrapper
+      siteHomeId={siteHomeId}
+      docId={docId}
+      headerData={headerData}
+      document={document}
+      rightActions={rightActions}
+    >
       <DocumentBody
         docId={docId}
         document={document}
@@ -578,6 +587,7 @@ export function PageWrapper({
   document,
   children,
   isMainFeedVisible = false,
+  rightActions,
 }: {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId
@@ -585,6 +595,7 @@ export function PageWrapper({
   document?: HMDocument
   children: React.ReactNode
   isMainFeedVisible?: boolean
+  rightActions?: React.ReactNode
 }) {
   // Mobile: let content flow naturally (document scroll)
   // Desktop: fixed height container (element scroll via ScrollArea in children)
@@ -616,6 +627,7 @@ export function PageWrapper({
         siteHomeDocument={headerData.siteHomeDocument}
         isMainFeedVisible={isMainFeedVisible}
         notifyServiceHost={NOTIFY_SERVICE_HOST}
+        rightActions={rightActions}
       />
       {children}
     </div>

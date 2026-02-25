@@ -2,7 +2,7 @@ import {useBookmarks} from '@/models/bookmarks'
 import {useComments} from '@/models/comments'
 import {useContactList, useSelectedAccountContacts} from '@/models/contacts'
 import {useSubscribedDocuments} from '@/models/library'
-import {useListSubscriptions} from '@/models/subscription'
+import {useListSubscriptions, useSubscription} from '@/models/subscription'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {useRouteLink} from '@shm/shared'
@@ -41,6 +41,7 @@ import {
 } from '@shm/ui/components/sidebar'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {CircleOff} from '@shm/ui/icons'
 import {SmallListItem} from '@shm/ui/list-item'
 import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
@@ -367,6 +368,7 @@ function SubscriptionListItem({
   accountsMetadata?: HMAccountsMetadata
 }) {
   const linkProps = useRouteLink({key: 'document', id})
+  const subscription = useSubscription(id)
   return (
     <>
       <SidebarMenuButton isActive={active} className="min-h-10 items-start pr-8" onClick={linkProps.onClick}>
@@ -393,9 +395,16 @@ function SubscriptionListItem({
             <MoreHorizontal className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent side="right" align="start">
-            <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Mute notifications</DropdownMenuItem>
-            <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Unsubscribe</DropdownMenuItem>
-            <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Copy link</DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={(e) => {
+                e.stopPropagation()
+                subscription.setSubscription('none')
+              }}
+            >
+              <CircleOff className="size-4" />
+              Unsubscribe
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuAction>
