@@ -15,9 +15,11 @@ import {
   processMediaMarkdown,
 } from '@shm/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
-import {HMResourceFetchResult, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {HMResourceFetchResult, HMResourceVisibility, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {DialogClose, DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {FormInput} from '@shm/ui/form-input'
@@ -186,6 +188,13 @@ export function useImporting(parentId: UnpackedHypermediaId) {
     mutationFn: (url: string) => client.webImporting.checkWebUrl.mutate(url),
   })
 
+  // Private documents require a site URL and must be at the home doc level
+  const siteHomeResource = useResource(hmId(parentId.uid), {subscribed: true})
+  const siteUrl =
+    siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document?.metadata?.siteUrl : undefined
+  const isHomeDoc = !parentId.path?.length
+  const canCreatePrivateDoc = Boolean(siteUrl) && isHomeDoc
+
   const importDialog = useImportConfirmDialog()
 
   function startImport(
@@ -202,6 +211,7 @@ export function useImporting(parentId: UnpackedHypermediaId) {
             documents: docs,
             documentCount: docs.length,
             docMap: result.docMap,
+            canCreatePrivateDoc,
             onSuccess: handleConfirm,
           })
         } else {
@@ -214,7 +224,11 @@ export function useImporting(parentId: UnpackedHypermediaId) {
       })
   }
 
-  const handleConfirm = async (documents: ImportedDocument[], docMap: Map<string, {name: string; path: string}>) => {
+  const handleConfirm = async (
+    documents: ImportedDocument[],
+    docMap: Map<string, {name: string; path: string}>,
+    visibility: HMResourceVisibility,
+  ) => {
     const editor = new BlockNoteEditor<BlockSchema>({
       linkExtensionOptions: {
         // @ts-expect-error
@@ -244,13 +258,15 @@ export function useImporting(parentId: UnpackedHypermediaId) {
     // const subDirs: string[] = []
 
     toast.promise(
-      ImportDocumentsWithFeedback(parentId, createDraft, signingAccount, documents, docMap, editor).then((draftIds) => {
-        if (draftIds.draftIds.length === 1) {
-          // @ts-ignore
-          navigate({key: 'draft', id: draftIds.draftIds[0]})
-        }
-        return draftIds.draftIds.length
-      }),
+      ImportDocumentsWithFeedback(parentId, createDraft, signingAccount, documents, docMap, editor, visibility).then(
+        (draftIds) => {
+          if (draftIds.draftIds.length === 1) {
+            // @ts-ignore
+            navigate({key: 'draft', id: draftIds.draftIds[0]})
+          }
+          return draftIds.draftIds.length
+        },
+      ),
       {
         loading: 'Importing documents...',
         success: `Imported ${documents.length} documents.`,
@@ -281,6 +297,7 @@ export function useImporting(parentId: UnpackedHypermediaId) {
             documents: docs,
             documentCount: docs.length,
             docMap: result.docMap,
+            canCreatePrivateDoc,
             onSuccess: handleConfirm,
           })
         } else {
@@ -527,6 +544,7 @@ const ImportDocumentsWithFeedback = (
   documents: ImportedDocument[],
   docMap: Map<string, {name: string; path: string}>,
   editor: BlockNoteEditor,
+  visibility: HMResourceVisibility = 'PUBLIC',
 ) => {
   const pathCounter: {[key: string]: number} = {}
   return new Promise<{draftIds: string[]}>(async (resolve, reject) => {
@@ -649,6 +667,7 @@ const ImportDocumentsWithFeedback = (
             cover: cover ?? undefined,
           },
           signingAccount: signingAccount?.document?.account || undefined,
+          visibility,
         })
         draftIds.push(draftId)
       }

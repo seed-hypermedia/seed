@@ -1,4 +1,3 @@
-import {hmBlockSchema} from '../../../../full-schema'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {DOMParser as ProseMirrorDOMParser} from '@tiptap/pm/model'
 import rehypeStringify from 'rehype-stringify'
@@ -6,6 +5,7 @@ import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import {unified} from 'unified'
 import {Block, BlockNoteEditor, BlockSchema, BNLink, nodeToBlock, StyledText, Styles} from '../..'
+import {hmBlockSchema} from '../../../../full-schema'
 import {remarkCodeClass} from './RemarkCodeClass'
 import {remarkImageWidth} from './RemarkImageWidth'
 
@@ -148,6 +148,10 @@ export const processMediaMarkdown = async (markdownContent: string, directoryPat
       try {
         const filePath = directoryPath + '/' + url
         const fileResponse = await readMediaFile(filePath)
+        if (!fileResponse || !fileResponse.content) {
+          console.warn(`Failed to read media file: ${url}`)
+          continue
+        }
         const fileContent = Uint8Array.from(atob(fileResponse.content), (c) => c.charCodeAt(0))
         const file = new File([fileContent], fileResponse.fileName, {
           type: fileResponse.mimeType,
