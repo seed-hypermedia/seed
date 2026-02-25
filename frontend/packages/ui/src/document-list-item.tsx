@@ -169,7 +169,20 @@ export function DocumentListItem({
       })
     }
     return items
-  }, [actions, id, doc, draftId, isOwner, isLoggedIn, hasPath])
+  }, [
+    actions.onEditDocument,
+    actions.onCopyLink,
+    actions.onMoveDocument,
+    actions.onBranchDocument,
+    actions.onExportDocument,
+    actions.onDeleteDocument,
+    id,
+    doc,
+    draftId,
+    isOwner,
+    isLoggedIn,
+    hasPath,
+  ])
 
   const hasActions = !!actions.onBookmarkToggle || commentCount > 0 || menuItems.length > 0
 
@@ -198,8 +211,8 @@ export function DocumentListItem({
               {!!draftId && <DraftBadge />}
               {isPrivate && <PrivateBadge size="sm" />}
             </div>
-            {interactionSummary && interactionSummary.comments > 0 && !hasActions && (
-              <DocumentListItemCommentCount count={interactionSummary.comments} />
+            {commentCount > 0 && !hasActions && (
+              <DocumentListItemCommentCount count={commentCount} />
             )}
             {!itemActivitySummary && 'updateTime' in item && (
               <SizableText size="xs" color="muted" className="font-sans">
