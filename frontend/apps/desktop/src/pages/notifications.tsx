@@ -17,41 +17,19 @@ import {
 } from '@/pages/notifications-helpers'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
-import {useUniversalAppContext} from '@shm/shared'
-import {formattedDateShort} from '@shm/shared/utils/date'
+import {formattedDateShort} from '@shm/shared'
 import {Button} from '@shm/ui/button'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
-import {Bell, Check} from 'lucide-react'
+import {Bell, Check, Info} from 'lucide-react'
 import {useEffect, useMemo} from 'react'
 
 export default function NotificationsPage() {
-  const {experiments} = useUniversalAppContext()
   const selectedAccount = useSelectedAccount()
   const accountUid = selectedAccount?.id.uid
-
-  if (!experiments?.notifications) {
-    return (
-      <PanelContainer>
-        <MainWrapper scrollable>
-          <Container centered className="h-full">
-            <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
-              <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
-                <Bell size={50} className="text-muted-foreground" />
-              </div>
-              <SizableText size="xl">Notifications are experimental</SizableText>
-              <p className="text-muted-foreground max-w-lg text-center">
-                Enable the Notifications experiment in settings to use this page.
-              </p>
-            </div>
-          </Container>
-        </MainWrapper>
-      </PanelContainer>
-    )
-  }
 
   if (!accountUid) {
     return (
@@ -101,7 +79,15 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
       <MainWrapper scrollable>
         <Container centered className="gap-4">
           <div className="flex items-center justify-between">
-            <SizableText size="xl">Notifications</SizableText>
+            <div className="flex items-center gap-2">
+              <SizableText size="xl">Notifications</SizableText>
+              {syncNow.isLoading ? <Spinner /> : null}
+              {syncStatus.data?.lastSyncError ? (
+                <Tooltip content={syncStatus.data.lastSyncError}>
+                  <Info size={16} className="text-muted-foreground" />
+                </Tooltip>
+              ) : null}
+            </div>
             <Button
               size="sm"
               variant="outline"
@@ -116,10 +102,6 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
               {markAllRead.isLoading ? 'Marking...' : 'Mark all as read'}
             </Button>
           </div>
-
-          {syncStatus.data?.lastSyncError ? (
-            <p className="text-muted-foreground text-sm">Sync pending: {syncStatus.data.lastSyncError}</p>
-          ) : null}
 
           {inbox.isLoading ? (
             <div className="flex flex-1 items-center justify-center">

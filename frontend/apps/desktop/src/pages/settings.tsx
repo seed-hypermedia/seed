@@ -4,7 +4,7 @@ import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {useDaemonInfo, useDeleteKey, useMyAccountIds, useSavedMnemonics} from '@/models/daemon'
-import {useExperiments, useWriteExperiments} from '@/models/experiments'
+import {useWriteExperiments} from '@/models/experiments'
 import {NotificationSigner, useNotificationConfig, useSetNotificationConfig} from '@shm/shared/models/notifications'
 import {
   useGatewayUrl,
@@ -61,20 +61,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {useMutation, useQuery} from '@tanstack/react-query'
-import {
-  AtSign,
-  Biohazard,
-  Check,
-  Code2,
-  Cog,
-  Eye,
-  EyeOff,
-  Info,
-  Plus,
-  RadioTower,
-  Trash,
-  UserRoundPlus,
-} from 'lucide-react'
+import {AtSign, Check, Code2, Cog, Eye, EyeOff, Info, Plus, RadioTower, Trash, UserRoundPlus} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useId, useMemo, useState} from 'react'
 
@@ -96,7 +83,6 @@ export default function Settings() {
             <Tab value="general" active={activeTab === 'general'} icon={Cog} label="General" />
             <Tab value="gateway" active={activeTab === 'gateway'} icon={RadioTower} label="Gateway" />
             <Tab value="app-info" active={activeTab === 'app-info'} icon={Info} label="App Info" />
-            <Tab value="experiments" active={activeTab === 'experiments'} icon={Biohazard} label="Experiments" />
             <Tab value="developer" active={activeTab === 'developer'} icon={Code2} label="Developers" />
           </TabsList>
           <Separator />
@@ -111,9 +97,6 @@ export default function Settings() {
           </CustomTabsContent>
           <CustomTabsContent value="app-info">
             <AppSettings />
-          </CustomTabsContent>
-          <CustomTabsContent value="experiments">
-            <ExperimentsSettings />
           </CustomTabsContent>
           <CustomTabsContent value="developer">
             <DeveloperSettings />
@@ -585,8 +568,6 @@ function AccountKeys() {
 }
 
 function EmailNotificationsSettings({accountUid, accountName}: {accountUid: string; accountName: string}) {
-  const {data: experiments} = useExperiments()
-  if (!experiments?.notifications) return null
   return <AccountNotifSettings accountUid={accountUid} accountName={accountName} />
 }
 
@@ -784,14 +765,7 @@ type ExperimentType = {
   emoji: string
   description: string
 }
-const EXPERIMENTS: ExperimentType[] = [
-  {
-    key: 'notifications',
-    label: 'Notifications',
-    emoji: '🔔',
-    description: 'Enable desktop notifications for activity on your documents.',
-  },
-]
+const EXPERIMENTS: ExperimentType[] = []
 
 function GatewaySettings({}: {}) {
   const gatewayUrl = useGatewayUrl()
@@ -1023,30 +997,6 @@ function PushOnPublishSetting({}: {}) {
         </RadioGroup>
       </TableList.Item>
     </TableList>
-  )
-}
-
-function ExperimentsSettings() {
-  const experiments = useUniversalAppContext().experiments
-  const writeExperiments = useWriteExperiments()
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="my-4 flex flex-col space-y-4 self-stretch">
-        {EXPERIMENTS.map((experiment) => {
-          return (
-            <ExperimentSection
-              key={experiment.key}
-              id={experiment.key}
-              value={!!experiments?.[experiment.key]}
-              experiment={experiment}
-              onValue={(isEnabled) => {
-                writeExperiments.mutate({[experiment.key]: isEnabled})
-              }}
-            />
-          )
-        })}
-      </div>
-    </div>
   )
 }
 

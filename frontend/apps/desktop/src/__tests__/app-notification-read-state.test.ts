@@ -122,9 +122,7 @@ describe('app notification read state', () => {
           accountId: accountUid,
           markAllReadAtMs: 1200,
           stateUpdatedAtMs: 1000,
-          readEvents: [
-            {eventId: 'local-event', eventAtMs: 1300},
-          ],
+          readEvents: [{eventId: 'local-event', eventAtMs: 1300}],
           updatedAt: '2026-01-01T00:00:01.000Z',
         }),
       )
@@ -138,9 +136,7 @@ describe('app notification read state', () => {
     const stateAfterFirstSync = await caller.getLocalState(accountUid)
     expect(stateAfterFirstSync.markAllReadAtMs).toBe(1200)
     // Only local-event survives; remote-event was skipped by LWW
-    expect(stateAfterFirstSync.readEvents).toEqual([
-      {eventId: 'local-event', eventAtMs: 1300},
-    ])
+    expect(stateAfterFirstSync.readEvents).toEqual([{eventId: 'local-event', eventAtMs: 1300}])
 
     // Second sync is idempotent
     fetchMock
@@ -149,9 +145,7 @@ describe('app notification read state', () => {
           accountId: accountUid,
           markAllReadAtMs: 1200,
           stateUpdatedAtMs: 1000,
-          readEvents: [
-            {eventId: 'local-event', eventAtMs: 1300},
-          ],
+          readEvents: [{eventId: 'local-event', eventAtMs: 1300}],
           updatedAt: '2026-01-01T00:00:02.000Z',
         }),
       )
@@ -160,9 +154,7 @@ describe('app notification read state', () => {
           accountId: accountUid,
           markAllReadAtMs: 1200,
           stateUpdatedAtMs: 1000,
-          readEvents: [
-            {eventId: 'local-event', eventAtMs: 1300},
-          ],
+          readEvents: [{eventId: 'local-event', eventAtMs: 1300}],
           updatedAt: '2026-01-01T00:00:03.000Z',
         }),
       )
@@ -229,7 +221,7 @@ describe('app notification read state', () => {
 
     const failedStatus = await caller.getSyncStatus(accountUid)
     expect(failedStatus.dirty).toBe(true)
-    expect(failedStatus.lastSyncError).toContain('offline')
+    expect(failedStatus.lastSyncError).toContain('You are not connected')
 
     fetchMock
       .mockImplementationOnce(() =>
@@ -464,8 +456,18 @@ describe('app notification read state', () => {
     let resolveGet!: (v: Response) => void
     let resolvePost!: (v: Response) => void
     fetchMock
-      .mockImplementationOnce(() => new Promise((resolve) => { resolveGet = resolve }))
-      .mockImplementationOnce(() => new Promise((resolve) => { resolvePost = resolve }))
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveGet = resolve
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolvePost = resolve
+          }),
+      )
 
     const sync1Promise = caller.syncNow({accountUid, notifyServiceHost: 'https://notify.example'})
 
@@ -483,30 +485,34 @@ describe('app notification read state', () => {
     // State: watermark=1999, readEvents={}
 
     // Step 4: Sync GET returns old server state
-    resolveGet(new Response(
-      JSON.stringify({
-        accountId: accountUid,
-        markAllReadAtMs: 5000,
-        stateUpdatedAtMs: 100,
-        readEvents: [],
-        updatedAt: '2026-01-01T00:00:02.000Z',
-      }),
-      {status: 200, headers: {'Content-Type': 'application/json'}},
-    ))
+    resolveGet(
+      new Response(
+        JSON.stringify({
+          accountId: accountUid,
+          markAllReadAtMs: 5000,
+          stateUpdatedAtMs: 100,
+          readEvents: [],
+          updatedAt: '2026-01-01T00:00:02.000Z',
+        }),
+        {status: 200, headers: {'Content-Type': 'application/json'}},
+      ),
+    )
     await vi.advanceTimersByTimeAsync(0)
 
     // Sync merges stale snapshot (which had A) and POSTs it.
     // POST returns with A in readEvents (server accepted our stale data)
-    resolvePost(new Response(
-      JSON.stringify({
-        accountId: accountUid,
-        markAllReadAtMs: 1999,
-        stateUpdatedAtMs: 200,
-        readEvents: [{eventId: 'A', eventAtMs: 3000}],
-        updatedAt: '2026-01-01T00:00:03.000Z',
-      }),
-      {status: 200, headers: {'Content-Type': 'application/json'}},
-    ))
+    resolvePost(
+      new Response(
+        JSON.stringify({
+          accountId: accountUid,
+          markAllReadAtMs: 1999,
+          stateUpdatedAtMs: 200,
+          readEvents: [{eventId: 'A', eventAtMs: 3000}],
+          updatedAt: '2026-01-01T00:00:03.000Z',
+        }),
+        {status: 200, headers: {'Content-Type': 'application/json'}},
+      ),
+    )
     await sync1Promise
 
     // After sync 1: A must be unread (deletedEventIds should prevent re-add)

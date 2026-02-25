@@ -3,10 +3,10 @@ import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {base58btc} from 'multiformats/bases/base58'
 import z from 'zod'
 // @ts-expect-error ignore this import error
-import {appStore} from './app-store.mts'
 import {grpcClient} from './app-grpc'
-import * as log from './logger'
+import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
+import * as log from './logger'
 
 const NOTIFICATION_READ_STATE_KEY = 'NotificationReadState-v001'
 const NOTIFY_SERVICE_HOST_KEY = 'NotifyServiceHost'
@@ -195,19 +195,33 @@ async function signedNotificationReadStatePost(accountUid: string, host: string,
     time: getNowMs(),
   }
   const encoded = cborEncode(unsigned)
-  const signed = await grpcClient.daemon.signData({
-    signingKeyName: accountUid,
-    data: new Uint8Array(encoded),
-  })
+
+  let signed
+  try {
+    signed = await grpcClient.daemon.signData({
+      signingKeyName: accountUid,
+      data: new Uint8Array(encoded),
+    })
+  } catch (err) {
+    throw new NotificationSyncError('Local daemon is not available.', err)
+  }
+
   const body = cborEncode({
     ...unsigned,
     sig: new Uint8Array(signed.signature),
   })
-  const response = await fetch(`${normalizeHost(host)}/hm/api/notification-read-state`, {
-    method: 'POST',
-    body,
-    headers: {'Content-Type': 'application/cbor'},
-  })
+
+  let response: Response
+  try {
+    response = await fetch(`${normalizeHost(host)}/hm/api/notification-read-state`, {
+      method: 'POST',
+      body: Buffer.from(body),
+      headers: {'Content-Type': 'application/cbor'},
+    })
+  } catch (err) {
+    throw new NotificationSyncError('You are not connected to the notification server.', err)
+  }
+
   const json = await response.json()
   if (!response.ok) {
     throw new Error(json?.error || 'Notification read-state request failed')
@@ -277,6 +291,16 @@ function updateSyncError(accountUid: string, error: string) {
   }))
 }
 
+class NotificationSyncError extends Error {
+  constructor(
+    public readonly userMessage: string,
+    public readonly originalError: unknown,
+  ) {
+    super(userMessage)
+    this.name = 'NotificationSyncError'
+  }
+}
+
 async function runSync(accountUid: string, notifyServiceHost: string | undefined): Promise<AccountStateView> {
   const host = notifyServiceHost || getNotifyServiceHostDefault()
   if (!host) {
@@ -308,8 +332,7 @@ async function runSync(accountUid: string, notifyServiceHost: string | undefined
       // Since stateUpdatedAtMs is bumped on ALL local changes, the merge
       // naturally skips stale remote readEvents when local is newer.
       const reMerged = mergeLocalAndRemoteState(current, mergedRemote)
-      const stateChangedDuringSync =
-        current.stateUpdatedAtMs !== localState.stateUpdatedAtMs
+      const stateChangedDuringSync = current.stateUpdatedAtMs !== localState.stateUpdatedAtMs
       return {
         markAllReadAtMs: reMerged.markAllReadAtMs,
         stateUpdatedAtMs: reMerged.stateUpdatedAtMs,
@@ -331,12 +354,13 @@ async function runSync(accountUid: string, notifyServiceHost: string | undefined
       mergedEvents: mergedRemote.readEvents.length,
     })
   } catch (error: any) {
-    const message = error?.message || String(error)
+    const message = error instanceof NotificationSyncError ? error.userMessage : error?.message || String(error)
     updateSyncError(accountUid, message)
     log.warn('Notification read-state sync failed', {
       accountUid,
       host,
       error: message,
+      originalError: error instanceof NotificationSyncError ? String(error.originalError) : undefined,
     })
   }
 
@@ -353,9 +377,8 @@ function scheduleSync(accountUid: string, delayMs: number = SYNC_DEBOUNCE_MS) {
   syncDebounceTimers.set(accountUid, handle)
 }
 
-function syncDirtyAccountsInBackground() {
-  for (const [accountUid, accountState] of Object.entries(store.accounts)) {
-    if (!accountState.dirty) continue
+function syncAllAccountsInBackground() {
+  for (const accountUid of Object.keys(store.accounts)) {
     void syncAccount(accountUid)
   }
 }
@@ -365,7 +388,7 @@ export function startNotificationReadBackgroundSync() {
   hasStartedSyncLoop = true
 
   if (!syncIntervalHandle) {
-    syncIntervalHandle = setInterval(syncDirtyAccountsInBackground, SYNC_INTERVAL_MS)
+    syncIntervalHandle = setInterval(syncAllAccountsInBackground, SYNC_INTERVAL_MS)
   }
 
   for (const accountUid of Object.keys(store.accounts)) {

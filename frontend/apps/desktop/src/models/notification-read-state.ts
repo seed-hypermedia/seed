@@ -33,6 +33,7 @@ export function useNotificationSyncStatus(accountUid: string | null | undefined)
     queryKey: [queryKeys.NOTIFICATION_SYNC_STATUS, accountUid],
     queryFn: () => client.notificationRead.getSyncStatus.query(accountUid!),
     enabled: !!accountUid,
+    refetchInterval: 5_000,
   })
 }
 

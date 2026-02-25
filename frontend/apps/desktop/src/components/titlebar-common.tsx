@@ -15,7 +15,7 @@ import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
-import {hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
+import {hostnameStripProtocol} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
@@ -298,12 +298,11 @@ export function DocOptionsButton({
 }
 
 function NotificationButton() {
-  const experiments = useUniversalAppContext().experiments
   const navigate = useNavigate()
   const route = useNavRoute()
   const accountUid = useSelectedAccountId()
-  const inbox = useNotificationInbox(experiments?.notifications ? accountUid : null)
-  const readState = useLocalNotificationReadState(experiments?.notifications ? accountUid : null)
+  const inbox = useNotificationInbox(accountUid)
+  const readState = useLocalNotificationReadState(accountUid)
 
   const unreadCount = useMemo(() => {
     if (!inbox.data || !readState.data) return 0
@@ -317,7 +316,6 @@ function NotificationButton() {
     ).length
   }, [inbox.data, readState.data])
 
-  if (!experiments?.notifications) return null
   return (
     <Tooltip content="Notifications" asChild>
       <Button

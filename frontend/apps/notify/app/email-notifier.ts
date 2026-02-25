@@ -410,7 +410,9 @@ async function handleEmailNotifs(events: PlainMessage<Event>[], includedNotifRea
     const adminToken = firstNotification.adminToken
     const notificationsWithActions = notifications.map((notification) => {
       if (
-        (notification.notif.reason === 'mention' || notification.notif.reason === 'reply' || notification.notif.reason === 'discussion') &&
+        (notification.notif.reason === 'mention' ||
+          notification.notif.reason === 'reply' ||
+          notification.notif.reason === 'discussion') &&
         notification.notif.eventId &&
         notification.notif.eventAtMs &&
         notificationEmailHost
@@ -518,7 +520,9 @@ function getEventAtMs(event: PlainMessage<Event>): number {
 
 function shouldUseDesktopEmailTemplate(includedNotifReasons: Set<NotifReason>) {
   if (includedNotifReasons.size === 0) return false
-  return Array.from(includedNotifReasons).every((reason) => reason === 'mention' || reason === 'reply' || reason === 'discussion')
+  return Array.from(includedNotifReasons).every(
+    (reason) => reason === 'mention' || reason === 'reply' || reason === 'discussion',
+  )
 }
 
 async function evaluateEventForNotifications(
