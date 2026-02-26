@@ -324,7 +324,6 @@ export function ResourcePage({
       docId={docId}
       headerData={headerData}
       document={document}
-      isLatest={isLatest}
       rightActions={rightActions}
     >
       <DocumentBody
@@ -635,7 +634,6 @@ export function PageWrapper({
   headerData,
   document,
   children,
-  isLatest,
   isMainFeedVisible = false,
   rightActions,
 }: {
@@ -644,7 +642,6 @@ export function PageWrapper({
   headerData: HeaderData
   document?: HMDocument
   children: React.ReactNode
-  isLatest?: boolean
   isMainFeedVisible?: boolean
   rightActions?: React.ReactNode
 }) {
@@ -676,7 +673,6 @@ export function PageWrapper({
         isCenterLayout={headerData.isCenterLayout}
         document={document}
         siteHomeDocument={headerData.siteHomeDocument}
-        isLatest={isLatest}
         isMainFeedVisible={isMainFeedVisible}
         notifyServiceHost={NOTIFY_SERVICE_HOST}
         rightActions={rightActions}
