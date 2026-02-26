@@ -15,7 +15,7 @@ import {
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Bookmark, Forward, GitFork, Link, MessageSquare, Pencil} from 'lucide-react'
+import {Bookmark, Copy, Forward, GitFork, Link, MessageSquare, Pencil} from 'lucide-react'
 import {useMemo} from 'react'
 import {LibraryEntryUpdateSummary} from './activity'
 import {Button} from './button'
@@ -112,6 +112,17 @@ export function DocumentListItem({
         },
       })
     }
+    if (actions.onDuplicateDocument && isOwner && hasPath) {
+      items.push({
+        key: 'duplicate',
+        label: 'Duplicate Document',
+        icon: <Copy className="size-3.5" />,
+        onClick: (e) => {
+          e?.stopPropagation()
+          actions.onDuplicateDocument!(id)
+        },
+      })
+    }
     if (actions.onCopyLink) {
       items.push({
         key: 'copy-link',
@@ -171,6 +182,7 @@ export function DocumentListItem({
     return items
   }, [
     actions.onEditDocument,
+    actions.onDuplicateDocument,
     actions.onCopyLink,
     actions.onMoveDocument,
     actions.onBranchDocument,

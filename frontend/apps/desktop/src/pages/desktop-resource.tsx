@@ -11,6 +11,7 @@ import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-contro
 import {useMyAccountIds} from '@/models/daemon'
 import {useChildDrafts, useCreateInlineDraft} from '@/models/documents'
 import {useExistingDraft} from '@/models/drafts'
+import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
@@ -30,7 +31,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {SubscriptionButton} from '@/components/subscription'
-import {ForwardIcon, GitFork, Pencil} from 'lucide-react'
+import {Copy, ForwardIcon, GitFork, Pencil} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback, useMemo, useState} from 'react'
 
@@ -93,6 +94,41 @@ export default function DesktopResourcePage() {
       label: 'Move Document',
       icon: <ForwardIcon className="size-4" />,
       onClick: () => moveDialog.open({id: docId}),
+    })
+  }
+
+  if (canEdit && docId.path?.length) {
+    menuItems.push({
+      key: 'duplicate',
+      label: 'Duplicate Document',
+      icon: <Copy className="size-4" />,
+      onClick: async () => {
+        if (!doc) return
+        try {
+          const editorContent = hmBlocksToEditorContent(doc.content || [], {childrenType: 'Group'})
+          const sourceName = doc.metadata?.name || 'Untitled'
+          const copyName = `${sourceName} Copy`
+          const draftId = nanoid(10)
+          const parentPath = docId.path?.slice(0, -1) || []
+
+          await client.drafts.write.mutate({
+            id: draftId,
+            locationUid: docId.uid,
+            locationPath: parentPath,
+            metadata: {...doc.metadata, name: copyName},
+            content: editorContent,
+            deps: [],
+            visibility: doc.visibility,
+          })
+
+          sessionStorage.setItem('duplicate-draft-focus', draftId)
+          navigate({key: 'draft', id: draftId, panel: null})
+          toast.success(`Duplicated "${sourceName}"`)
+        } catch (error) {
+          console.error('Error duplicating document:', error)
+          toast.error('Failed to duplicate document')
+        }
+      },
     })
   }
 

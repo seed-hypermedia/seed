@@ -10,12 +10,13 @@ import {HMBlockNode, HMDocument, HMListedDraft, UnpackedHypermediaId} from '@shm
 import {pathMatches} from '@shm/shared/utils/entity-id-url'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
-import {useUniversalAppContext} from '@shm/shared'
+import {useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {useAppContext} from '@/app-context'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {client} from '@/trpc'
-import {invalidateQueries} from '@shm/shared/models/query-client'
+import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {queryResource} from '@shm/shared/models/queries'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {nanoid} from 'nanoid'
 import {PropsWithChildren, useCallback, useMemo} from 'react'
@@ -30,6 +31,7 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
   const navigate = useNavigate()
   const {exportDocument, openDirectory} = useAppContext()
   const {onCopyReference} = useUniversalAppContext()
+  const universalClient = useUniversalClient()
   const drafts = useAccountDraftList(selectedAccountId ?? undefined)
 
   const moveDialog = useAppDialog(MoveDialog)
@@ -129,6 +131,43 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
     [exportDocument, openDirectory],
   )
 
+  const onDuplicateDocument = useCallback(
+    async (id: UnpackedHypermediaId) => {
+      try {
+        const resource = await queryClient.fetchQuery(queryResource(universalClient, id))
+        const doc = resource?.type === 'document' ? resource.document : null
+        if (!doc) {
+          toast.error('Could not load document to duplicate')
+          return
+        }
+
+        const editorContent = hmBlocksToEditorContent(doc.content || [], {childrenType: 'Group'})
+        const sourceName = doc.metadata?.name || 'Untitled'
+        const copyName = `${sourceName} Copy`
+        const draftId = nanoid(10)
+        const parentPath = id.path?.slice(0, -1) || []
+
+        await client.drafts.write.mutate({
+          id: draftId,
+          locationUid: id.uid,
+          locationPath: parentPath,
+          metadata: {...doc.metadata, name: copyName},
+          content: editorContent,
+          deps: [],
+          visibility: doc.visibility,
+        })
+
+        sessionStorage.setItem('duplicate-draft-focus', draftId)
+        navigate({key: 'draft', id: draftId, panel: null})
+        toast.success(`Duplicated "${sourceName}"`)
+      } catch (error) {
+        console.error('Error duplicating document:', error)
+        toast.error('Failed to duplicate document')
+      }
+    },
+    [navigate, universalClient],
+  )
+
   const onCopyLink = useCallback(
     (id: UnpackedHypermediaId) => {
       onCopyReference?.(id)
@@ -157,6 +196,7 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
       onMoveDocument,
       onDeleteDocument,
       onBranchDocument,
+      onDuplicateDocument,
       onExportDocument,
       onCopyLink,
       getDraftId,
@@ -170,6 +210,7 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
       onMoveDocument,
       onDeleteDocument,
       onBranchDocument,
+      onDuplicateDocument,
       onExportDocument,
       onCopyLink,
       getDraftId,
