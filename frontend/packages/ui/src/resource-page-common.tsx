@@ -17,7 +17,13 @@ import {useAccountsMetadata, useDirectory, useResource, useResources} from '@shm
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
-import {createSiteUrl, createWebHMUrl, getCommentTargetId, latestId, parseFragment} from '@shm/shared/utils/entity-id-url'
+import {
+  createSiteUrl,
+  createWebHMUrl,
+  getCommentTargetId,
+  latestId,
+  parseFragment,
+} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Folder} from 'lucide-react'
 import {CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'

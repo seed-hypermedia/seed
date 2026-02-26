@@ -654,11 +654,7 @@ export function GotoLatestBanner({
   })
 
   return show ? (
-    <div
-      className={cn(
-        'pointer-events-none absolute right-0 left-0 z-50 flex w-full justify-center px-4 top-3',
-      )}
-    >
+    <div className={cn('pointer-events-none absolute top-3 right-0 left-0 z-50 flex w-full justify-center px-4')}>
       <div className="bg-background border-border pointer-events-auto flex max-w-xl items-center gap-4 rounded-sm border p-2 shadow-lg">
         <Button variant="ghost" size="icon" onClick={() => setHideVersionBanner(true)}>
           <X color="var(--color-muted-foreground)" size={20} />

@@ -92,7 +92,6 @@ export function CopyReferenceButton({
   openIcon = ExternalLink,
   iconPosition = 'before',
   showIconOnHover = false,
-
   ...props
 }: PropsWithChildren<
   ButtonProps & {
