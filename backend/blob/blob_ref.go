@@ -400,7 +400,10 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 		// We have to apply changes in causal order to ensure correct heads tracking.
 		pendingChanges := slices.Collect(maps.Values(pendingChangesMap))
 		slices.SortFunc(pendingChanges, func(a, b changeMetadata) int {
-			return cmp.Compare(a.Ts, b.Ts)
+			if c := cmp.Compare(a.Ts, b.Ts); c != 0 {
+				return c
+			}
+			return cmp.Compare(a.ID, b.ID)
 		})
 
 		for _, cm := range pendingChanges {
@@ -780,14 +783,9 @@ func (m DocIndexedAttrs) set(k string, v any, ts int64) {
 		return
 	}
 
-	if vv.Ts == ts {
-		// 1. We enforce that a given change only sets one value for the same key.
-		// 2. We use millisecond timestamps in Changes, so we expect no 2 changes having the same ts.
-		// 3. If they do, it's not an error in principle, but we don't handle this case right now.
-		panic("TODO/BUG: setting value for the same key with duplicate ts")
-	}
-
-	if ts > vv.Ts {
+	// TODO(julio): when timestamps are equal, we should use a deterministic tiebreaker
+	// (e.g. blob ID) instead of relying on processing order. For now, the last-processed value wins.
+	if ts >= vv.Ts {
 		m[k] = IndexedValue{Value: v, Ts: ts}
 	}
 }
