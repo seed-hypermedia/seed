@@ -397,7 +397,8 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 			queue = append(queue, cm.Deps...)
 		}
 
-		// We have to apply changes in causal order to ensure correct heads tracking.
+		// We have to apply changes in causal order (not necessarily total order)
+		// to ensure correct heads tracking.
 		pendingChanges := slices.Collect(maps.Values(pendingChangesMap))
 		slices.SortFunc(pendingChanges, func(a, b changeMetadata) int {
 			if c := cmp.Compare(a.Ts, b.Ts); c != 0 {
@@ -777,16 +778,38 @@ type IndexedValue struct {
 type DocIndexedAttrs map[string]IndexedValue
 
 func (m DocIndexedAttrs) set(k string, v any, ts int64) {
-	vv, ok := m[k]
+	vNew := IndexedValue{Value: v, Ts: ts}
+	vOld, ok := m[k]
 	if !ok {
-		m[k] = IndexedValue{Value: v, Ts: ts}
+		m[k] = vNew
 		return
 	}
 
-	// TODO(julio): when timestamps are equal, we should use a deterministic tiebreaker
-	// (e.g. blob ID) instead of relying on processing order. For now, the last-processed value wins.
-	if ts >= vv.Ts {
-		m[k] = IndexedValue{Value: v, Ts: ts}
+	switch {
+	case vNew.Ts > vOld.Ts:
+		m[k] = vNew
+	case vNew.Ts == vOld.Ts:
+		// When timestamps are equal, we use values as tie-breaker.
+		// To deterministically compare unknown values we simply encode them as deterministic CBOR,
+		// and compare the resulting byte slices. If new value is greater — it wins.
+
+		newValue, err := cbornode.DumpObject(vNew.Value)
+		if err != nil {
+			panic(fmt.Errorf("BUG: invalid CBOR new value to set %T: %w", v, err))
+		}
+
+		oldValue, err := cbornode.DumpObject(vOld.Value)
+		if err != nil {
+			panic(fmt.Errorf("BUG: invalid CBOR old value to set %T: %w", v, err))
+		}
+
+		if bytes.Compare(newValue, oldValue) > 0 {
+			m[k] = vNew
+		}
+	case vNew.Ts < vOld.Ts:
+		break // Leaving the old value.
+	default:
+		panic("BUG: unreachable")
 	}
 }
 
