@@ -449,7 +449,6 @@ export function getErrorMessage(err: any) {
     if (e.code === Code.NotFound) {
       return new HMNotFoundError()
     }
-    const firstDetail = e.details[0] // what if there are more than one detail?
     if (e.code === Code.FailedPrecondition && e.message.match('marked as deleted')) {
       return new HMResourceTombstoneError()
     }
@@ -463,7 +462,9 @@ export function getErrorMessage(err: any) {
       return new HMNotFoundError()
     }
 
+    const firstDetail = e.details[0]
     if (
+      firstDetail &&
       // @ts-expect-error
       firstDetail.type === 'com.seed.documents.v3alpha.RedirectErrorDetails'
     ) {
@@ -472,6 +473,22 @@ export function getErrorMessage(err: any) {
         firstDetail.value as Uint8Array,
       )
       return new HMRedirectError(redirect)
+    }
+
+    // Fallback: detect redirect from message when error details are missing
+    if (e.code === Code.FailedPrecondition && e.message.match('has a redirect to')) {
+      const match = e.message.match(/has a redirect to (hm:\/\/\S+)/)
+      if (match) {
+        const targetId = unpackHmId(match[1])
+        if (targetId) {
+          return new HMRedirectError(
+            new RedirectErrorDetails({
+              targetAccount: targetId.uid,
+              targetPath: targetId.path ? `/${targetId.path.join('/')}` : '',
+            }),
+          )
+        }
+      }
     }
   } catch (e) {
     return e
