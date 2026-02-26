@@ -784,8 +784,8 @@ function DocumentBody({
   const [isToolsSticky, setIsToolsSticky] = useState(false)
   const toolsSentinelRef = useRef<HTMLDivElement>(null)
 
-  // Mobile panel state
-  const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
+  // Mobile panel open state derived from URL panel route
+  const mobilePanelOpen = !!panelKey
 
   useEffect(() => {
     const sentinel = toolsSentinelRef.current
@@ -1098,18 +1098,28 @@ function DocumentBody({
         </div>
         {floatingButtons}
         {mobilePanelOpen && (
-          <MobilePanelSheet
-            isOpen={mobilePanelOpen}
-            title={getPanelTitle('comments')}
-            onClose={() => setMobilePanelOpen(false)}
-          >
+          <MobilePanelSheet isOpen={mobilePanelOpen} title={getPanelTitle(panelKey)} onClose={handlePanelClose}>
             <DiscussionsPageContent
               docId={docId}
               showTitle={false}
               showOpenInPanel={false}
               contentMaxWidth={contentMaxWidth}
               targetDomain={siteUrl}
-              commentEditor={CommentEditor ? <CommentEditor docId={docId} autoFocus /> : undefined}
+              openComment={panelRoute?.key === 'comments' ? panelRoute.openComment : undefined}
+              targetBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
+              blockId={panelRoute?.key === 'comments' ? panelRoute.blockId : undefined}
+              blockRange={panelRoute?.key === 'comments' ? panelRoute.blockRange : undefined}
+              commentEditor={
+                CommentEditor ? (
+                  <CommentEditor
+                    docId={docId}
+                    quotingBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
+                    commentId={panelRoute?.key === 'comments' ? panelRoute.openComment : undefined}
+                    isReplying={panelRoute?.key === 'comments' ? !!panelRoute.openComment : false}
+                    autoFocus
+                  />
+                ) : undefined
+              }
             />
           </MobilePanelSheet>
         )}

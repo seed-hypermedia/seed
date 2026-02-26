@@ -1,4 +1,5 @@
-import {ReactNode} from 'react'
+import {ReactNode, useCallback, useEffect} from 'react'
+import {createPortal} from 'react-dom'
 import {Button} from './button'
 import {Close} from './icons'
 import {Text} from './text'
@@ -16,7 +17,35 @@ export interface MobilePanelSheetProps {
 }
 
 export function MobilePanelSheet({isOpen, title, onClose, children}: MobilePanelSheetProps) {
-  return (
+  // Lock body scroll while the sheet is open, and clean up on unmount
+  // to prevent the user from getting stuck with a non-scrollable page.
+  useEffect(() => {
+    if (!isOpen) return
+    const html = document.documentElement
+    const prevOverflow = html.style.overflow
+    html.style.overflow = 'hidden'
+    return () => {
+      html.style.overflow = prevOverflow
+    }
+  }, [isOpen])
+
+  // Close on Escape key so the user is never stuck with the panel open
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    },
+    [onClose],
+  )
+
+  useEffect(() => {
+    if (!isOpen) return
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, handleKeyDown])
+
+  // Portal to document.body to escape ancestor transforms (e.g. transform-gpu on SiteHeader)
+  // which break position:fixed by creating a new containing block.
+  return createPortal(
     <div
       className={cn(
         'bg-background fixed inset-0 z-50 flex h-dvh max-h-dvh flex-1 flex-col overflow-hidden',
@@ -37,6 +66,7 @@ export function MobilePanelSheet({isOpen, title, onClose, children}: MobilePanel
 
       {/* Content */}
       <div className="flex flex-1 flex-col overflow-y-auto">{children}</div>
-    </div>
+    </div>,
+    document.body,
   )
 }
