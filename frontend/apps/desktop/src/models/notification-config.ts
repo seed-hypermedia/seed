@@ -3,6 +3,8 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useMutation, useQuery} from '@tanstack/react-query'
 
+const UNVERIFIED_NOTIFICATION_CONFIG_REFETCH_MS = 5_000
+
 export type NotificationConfig = {
   accountId: string
   email: string | null
@@ -21,6 +23,7 @@ export function useNotificationConfig(
   accountUid: string | undefined,
   options?: {enabled?: boolean},
 ) {
+  const enabled = !!accountUid && (options?.enabled ?? true)
   return useQuery({
     queryKey: [queryKeys.NOTIFICATION_CONFIG, notifyServiceHost, accountUid],
     queryFn: () =>
@@ -28,7 +31,13 @@ export function useNotificationConfig(
         accountUid: accountUid!,
         notifyServiceHost,
       }),
-    enabled: !!accountUid && (options?.enabled ?? true),
+    enabled,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: enabled ? 'always' : false,
+    refetchOnReconnect: enabled ? 'always' : false,
+    refetchInterval: (config) =>
+      enabled && config?.email && !config?.verifiedTime ? UNVERIFIED_NOTIFICATION_CONFIG_REFETCH_MS : false,
   })
 }
 

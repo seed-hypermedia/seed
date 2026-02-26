@@ -215,7 +215,7 @@ function NotificationEmailSettingsDialog({accountUid}: {accountUid: string}) {
   const [emailInput, setEmailInput] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
-  const {data: config, isLoading} = useNotificationConfig(notifyServiceHost, accountUid, {enabled: isOpen})
+  const {data: config, isLoading} = useNotificationConfig(notifyServiceHost, accountUid)
   const setConfig = useSetNotificationConfig(notifyServiceHost, accountUid)
   const removeConfig = useRemoveNotificationConfig(notifyServiceHost, accountUid)
   const resendVerification = useResendNotificationConfigVerification(notifyServiceHost, accountUid)
