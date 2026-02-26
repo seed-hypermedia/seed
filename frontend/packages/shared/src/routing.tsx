@@ -200,6 +200,12 @@ export function routeToHref(
       viewTerm += `/${route.openComment}`
     }
     let href = basePath ? `${basePath}/${viewTerm}` : `/${viewTerm}`
+    // Append panel query param if present
+    const panelParam = getRoutePanelParam(route)
+    if (panelParam) {
+      const separator = href.includes('?') ? '&' : '?'
+      href += `${separator}panel=${panelParam}`
+    }
     // Append block fragment if present
     if (route.id.blockRef) {
       href += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`

@@ -268,4 +268,63 @@ describe('routeToHref', () => {
     const href = routeToHref({key: 'comments', id: hmId('uid2'), openComment: 'z6Mk/z6FC'}, {originHomeId: originHome})
     expect(href).toBe('/hm/uid2/:comments/z6Mk/z6FC')
   })
+
+  describe('view-term routes preserve panel query param', () => {
+    test('collaborators route with comments panel preserves panel', () => {
+      const href = routeToHref(
+        {key: 'collaborators', id: hmId('uid1'), panel: {key: 'comments', id: hmId('uid1'), openComment: 'abc123'}},
+        {originHomeId: originHome},
+      )
+      expect(href).toBe('/:collaborators?panel=comments/abc123')
+    })
+
+    test('comments route with activity panel preserves panel', () => {
+      const href = routeToHref(
+        {key: 'comments', id: hmId('uid1'), panel: {key: 'activity', id: hmId('uid1')}},
+        {originHomeId: originHome},
+      )
+      expect(href).toBe('/:comments?panel=activity')
+    })
+
+    test('activity route with collaborators panel preserves panel', () => {
+      const href = routeToHref(
+        {key: 'activity', id: hmId('uid1'), panel: {key: 'collaborators', id: hmId('uid1')}},
+        {originHomeId: originHome},
+      )
+      expect(href).toBe('/:activity?panel=collaborators')
+    })
+
+    test('directory route with comments panel preserves panel', () => {
+      const href = routeToHref(
+        {key: 'directory', id: hmId('uid1'), panel: {key: 'comments', id: hmId('uid1')}},
+        {originHomeId: originHome},
+      )
+      expect(href).toBe('/:directory?panel=comments')
+    })
+
+    test('feed route with collaborators panel preserves panel', () => {
+      const href = routeToHref(
+        {key: 'feed', id: hmId('uid1'), panel: {key: 'collaborators', id: hmId('uid1')}},
+        {originHomeId: originHome},
+      )
+      expect(href).toBe('/:feed?panel=collaborators')
+    })
+
+    test('view-term route with panel and blockRef preserves both', () => {
+      const href = routeToHref(
+        {
+          key: 'collaborators',
+          id: hmId('uid1', {blockRef: 'blk1'}),
+          panel: {key: 'comments', id: hmId('uid1'), openComment: 'abc123'},
+        },
+        {originHomeId: originHome},
+      )
+      expect(href).toBe('/:collaborators?panel=comments/abc123#blk1')
+    })
+
+    test('view-term route without panel does not add query param', () => {
+      const href = routeToHref({key: 'collaborators', id: hmId('uid1')}, {originHomeId: originHome})
+      expect(href).toBe('/:collaborators')
+    })
+  })
 })
