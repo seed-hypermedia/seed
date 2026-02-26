@@ -1,4 +1,5 @@
 import {MainWrapper} from '@/components/main-wrapper'
+import {grpcClient} from '@/grpc-client'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead} from '@/models/notification-read-logic'
@@ -18,14 +19,19 @@ import {
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {formattedDateShort} from '@shm/shared'
+import {NotificationSigner, useNotificationConfig, useSetNotificationConfig} from '@shm/shared/models/notifications'
 import {Button} from '@shm/ui/button'
+import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger} from '@shm/ui/components/dialog'
+import {Input} from '@shm/ui/components/input'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
-import {Bell, Check, Info} from 'lucide-react'
-import {useEffect, useMemo} from 'react'
+import {Bell, Check, Info, Settings} from 'lucide-react'
+import {base58btc} from 'multiformats/bases/base58'
+import {useEffect, useMemo, useState} from 'react'
 
 export default function NotificationsPage() {
   const selectedAccount = useSelectedAccount()
@@ -88,19 +94,22 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
                 </Tooltip>
               ) : null}
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!notifications.length || markAllRead.isLoading}
-              onClick={() =>
-                markAllRead.mutate({
-                  accountUid,
-                  markAllReadAtMs: maxLoadedEventAtMs,
-                })
-              }
-            >
-              {markAllRead.isLoading ? 'Marking...' : 'Mark all as read'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <NotificationEmailSettingsDialog accountUid={accountUid} />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!notifications.length || markAllRead.isLoading}
+                onClick={() =>
+                  markAllRead.mutate({
+                    accountUid,
+                    markAllReadAtMs: maxLoadedEventAtMs,
+                  })
+                }
+              >
+                {markAllRead.isLoading ? 'Marking...' : 'Mark all as read'}
+              </Button>
+            </div>
           </div>
 
           {inbox.isLoading ? (
@@ -195,5 +204,86 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
         </Container>
       </MainWrapper>
     </PanelContainer>
+  )
+}
+
+function NotificationEmailSettingsDialog({accountUid}: {accountUid: string}) {
+  const notifyServiceHost = useNotifyServiceHost() || 'https://notify.seed.hyper.media'
+  const signer = useMemo((): NotificationSigner => {
+    const publicKey = new Uint8Array(base58btc.decode(accountUid))
+    return {
+      publicKey,
+      sign: async (data: Uint8Array) => {
+        const res = await grpcClient.daemon.signData({
+          signingKeyName: accountUid,
+          data: new Uint8Array(data),
+        })
+        return new Uint8Array(res.signature)
+      },
+    }
+  }, [accountUid])
+  const {data: config, isLoading} = useNotificationConfig(notifyServiceHost, signer)
+  const setConfig = useSetNotificationConfig(notifyServiceHost, signer)
+  const [emailInput, setEmailInput] = useState('')
+  const [isOpen, setIsOpen] = useState(false)
+  const currentEmail = config?.email ?? null
+
+  return (
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        setIsOpen(open)
+        if (open) setEmailInput(currentEmail || '')
+      }}
+    >
+      <Tooltip content="Email notification settings">
+        <DialogTrigger asChild>
+          <Button size="sm" variant="ghost">
+            <Settings size={16} />
+          </Button>
+        </DialogTrigger>
+      </Tooltip>
+      <DialogContent className="max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle>Email Notifications</DialogTitle>
+        </DialogHeader>
+        {isLoading ? (
+          <Spinner />
+        ) : (
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!emailInput) return
+              setConfig.mutate(
+                {email: emailInput},
+                {
+                  onSuccess: () => {
+                    setIsOpen(false)
+                    toast.success('Email updated')
+                  },
+                },
+              )
+            }}
+          >
+            <Input
+              type="email"
+              placeholder="you@example.com"
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!emailInput || setConfig.isLoading}>
+                {setConfig.isLoading ? 'Saving...' : 'Save'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

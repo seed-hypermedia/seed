@@ -1,4 +1,5 @@
 import {base58btc} from 'multiformats/bases/base58'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 const storeData: Record<string, any> = {}
@@ -13,6 +14,7 @@ const appStoreMock = {
 const signDataMock = vi.fn(async () => ({
   signature: new Uint8Array([1, 2, 3, 4]),
 }))
+const appInvalidateQueriesMock = vi.fn()
 
 vi.mock('../app-store.mts', () => ({
   appStore: appStoreMock,
@@ -24,6 +26,10 @@ vi.mock('../app-grpc', () => ({
       signData: signDataMock,
     },
   },
+}))
+
+vi.mock('../app-invalidation', () => ({
+  appInvalidateQueries: appInvalidateQueriesMock,
 }))
 
 vi.mock('../logger', () => ({
@@ -201,6 +207,8 @@ describe('app notification read state', () => {
 
     const state = await caller.getLocalState(accountUid)
     expect(state.readEvents).toEqual([{eventId: 'remote-event', eventAtMs: 1400}])
+    expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.NOTIFICATION_READ_STATE, accountUid])
+    expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.NOTIFICATION_SYNC_STATUS, accountUid])
   })
 
   it('keeps local mutations offline and retries sync later', async () => {

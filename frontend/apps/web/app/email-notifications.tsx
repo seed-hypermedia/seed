@@ -24,8 +24,6 @@ export function EmailNotificationsForm({
       action: 'subscribe',
       email: formData.email,
       accountId: account.data.id.uid,
-      notifyAllMentions: formData.notifyAllMentions,
-      notifyAllReplies: formData.notifyAllReplies,
       notifyOwnedDocChange: formData.notifyOwnedDocChange,
       notifySiteDiscussions: formData.notifySiteDiscussions,
     })

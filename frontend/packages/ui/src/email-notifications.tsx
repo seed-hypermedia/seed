@@ -11,8 +11,6 @@ import {SizableText} from './text'
 
 const emailNotificationsSchema = z.object({
   email: z.string().email(),
-  notifyAllMentions: z.boolean(),
-  notifyAllReplies: z.boolean(),
   notifyOwnedDocChange: z.boolean(),
   notifySiteDiscussions: z.boolean(),
 })
@@ -40,8 +38,6 @@ export function UIEmailNotificationsForm({
     resolver: zodResolver(emailNotificationsSchema),
     defaultValues: {
       email: '',
-      notifyAllMentions: true,
-      notifyAllReplies: true,
       notifyOwnedDocChange: true,
       notifySiteDiscussions: true,
     },
@@ -61,8 +57,6 @@ export function UIEmailNotificationsForm({
       </FormField>
       <div className="flex flex-col gap-3">
         <SizableText>{tx('Notify me when')}:</SizableText>
-        <FormCheckbox name="notifyAllMentions" label={tx('Someone mentions me')} control={control} />
-        <FormCheckbox name="notifyAllReplies" label={tx('Someone replies to me')} control={control} />
         <FormCheckbox name="notifyOwnedDocChange" label={tx('Someone changes a document I own')} control={control} />
         <FormCheckbox
           name="notifySiteDiscussions"
@@ -95,14 +89,6 @@ export function UIEmailNotificationsForm({
 
 function EmptyNotifWarning({control}: {control: Control<z.infer<typeof emailNotificationsSchema>>}) {
   const tx = useTxString()
-  const {field: notifyAllMentionsField} = useController({
-    control,
-    name: 'notifyAllMentions',
-  })
-  const {field: notifyAllRepliesField} = useController({
-    control,
-    name: 'notifyAllReplies',
-  })
   const {field: notifyOwnedDocChangeField} = useController({
     control,
     name: 'notifyOwnedDocChange',
@@ -111,13 +97,7 @@ function EmptyNotifWarning({control}: {control: Control<z.infer<typeof emailNoti
     control,
     name: 'notifySiteDiscussions',
   })
-  if (
-    notifyAllMentionsField.value ||
-    notifyAllRepliesField.value ||
-    notifyOwnedDocChangeField.value ||
-    notifySiteDiscussions.value
-  )
-    return null
+  if (notifyOwnedDocChangeField.value || notifySiteDiscussions.value) return null
   return <SizableText className="text-red-500">{tx('You will not receive any notifications.')}</SizableText>
 }
 

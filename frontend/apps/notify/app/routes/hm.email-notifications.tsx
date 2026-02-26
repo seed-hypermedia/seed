@@ -1,11 +1,12 @@
 import {SizableText} from '@shm/ui/text'
 
-import type {Email} from '@/db'
 import {
   useEmailNotificationsWithToken,
   useSetAccountOptions,
   useSetEmailUnsubscribed,
+  useUnsubscribeMyNotification,
 } from '@/email-notifications-token-models'
+import type {EmailNotifTokenLoaderResponse} from '@/routes/hm.api.email-notif-token'
 import {useSearchParams} from '@remix-run/react'
 import {abbreviateUid, hmId, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
@@ -90,6 +91,7 @@ export function EmailNotificationsContent() {
                   ))}
                 </div>
               </div>
+              <MyNotificationsSection myNotifications={notifSettings.myNotifications} token={token} />
               <Button
                 variant="default"
                 onClick={() => {
@@ -102,9 +104,14 @@ export function EmailNotificationsContent() {
           ) : (
             <>
               <div className="space-y-6">
-                {notifSettings.subscriptions.map((sub) => (
-                  <EmailNotificationSubscription key={sub.id} subscription={sub} token={token} />
-                ))}
+                {notifSettings.subscriptions.length ? (
+                  notifSettings.subscriptions.map((sub) => (
+                    <EmailNotificationSubscription key={sub.id} subscription={sub} token={token} />
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-600">No site subscriptions configured for this email yet.</p>
+                )}
+                <MyNotificationsSection myNotifications={notifSettings.myNotifications} token={token} />
               </div>
 
               <div className="border-t pt-4">
@@ -125,6 +132,61 @@ export function EmailNotificationsContent() {
           <Spinner />
         </div>
       )}
+    </div>
+  )
+}
+
+function MyNotificationsSection({
+  myNotifications,
+  token,
+}: {
+  myNotifications: EmailNotifTokenLoaderResponse['myNotifications']
+  token: string
+}) {
+  if (!myNotifications.length) return null
+  return (
+    <div className="space-y-3 border-t pt-4">
+      <h4 className="font-bold text-gray-800">My Notifications</h4>
+      <p className="text-sm text-gray-600">
+        These accounts are configured via signed account settings and receive immediate mention/reply notifications.
+      </p>
+      <div className="space-y-2">
+        {myNotifications.map((config) => (
+          <MyNotificationConfigRow
+            key={`notification-config-${config.accountId}`}
+            accountId={config.accountId}
+            token={token}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function MyNotificationConfigRow({accountId, token}: {accountId: string; token: string}) {
+  const {data: account} = useResource(hmId(accountId))
+  const {mutate: unsubscribeMyNotification, isLoading} = useUnsubscribeMyNotification(token)
+
+  const accountResource = account?.type === 'document' ? account : null
+  const iconId = accountResource?.id || hmId(accountId)
+  const displayName = accountResource?.document?.metadata?.name || abbreviateUid(accountId)
+
+  return (
+    <div className="flex items-center gap-3 border-t border-gray-300 pt-2">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <HMIcon size={24} id={iconId} />
+        <p className="truncate text-lg font-bold">{displayName}</p>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={isLoading}
+        onClick={() => {
+          unsubscribeMyNotification(accountId)
+        }}
+      >
+        {isLoading ? 'Removing...' : 'Unsubscribe'}
+      </Button>
     </div>
   )
 }
@@ -151,7 +213,7 @@ function EmailNotificationSubscription({
   subscription,
   token,
 }: {
-  subscription: Email['subscriptions'][number]
+  subscription: EmailNotifTokenLoaderResponse['subscriptions'][number]
   token: string
 }) {
   const {data: account} = useResource(hmId(subscription.id))
@@ -186,33 +248,6 @@ function EmailNotificationSubscription({
             />
           </div>
         </div>
-
-        <div className="space-y-3">
-          <h4 className="font-bold text-gray-800">User Activity</h4>
-          <p className="text-sm text-gray-600">
-            Get notified about activity related to this user. Notify me immediately when:
-          </p>
-          <div className="space-y-3 pl-4">
-            <AccountValueSwitch
-              token={token}
-              label="This user is mentioned"
-              field="notifyAllMentions"
-              subscription={subscription}
-            />
-            <AccountValueSwitch
-              token={token}
-              label="Someone replies to this user's comments"
-              field="notifyAllReplies"
-              subscription={subscription}
-            />
-            <AccountValueSwitch
-              token={token}
-              label="This user creates a comment"
-              field="notifyAllComments"
-              subscription={subscription}
-            />
-          </div>
-        </div>
       </div>
     </div>
   )
@@ -226,13 +261,8 @@ function AccountValueSwitch({
 }: {
   token: string
   label: string
-  field:
-    | 'notifyOwnedDocChange'
-    | 'notifySiteDiscussions'
-    | 'notifyAllMentions'
-    | 'notifyAllReplies'
-    | 'notifyAllComments'
-  subscription: Email['subscriptions'][number]
+  field: 'notifyOwnedDocChange' | 'notifySiteDiscussions'
+  subscription: EmailNotifTokenLoaderResponse['subscriptions'][number]
 }) {
   const {mutate: setAccount, isLoading} = useSetAccountOptions(token)
   return (

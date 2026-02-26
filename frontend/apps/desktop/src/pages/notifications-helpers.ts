@@ -1,7 +1,7 @@
 import {LoadedEventWithNotifMeta} from '@shm/shared/models/activity-service'
+import {classifyNotificationEvent, NotificationReason} from '@shm/shared/models/notification-event-classifier'
 import {NavRoute} from '@shm/shared/routes'
 import {abbreviateUid} from '@shm/shared/utils'
-import {classifyNotificationEvent, NotificationReason} from '@/models/notification-event-classifier'
 export {classifyNotificationEvent}
 export type {NotificationReason}
 

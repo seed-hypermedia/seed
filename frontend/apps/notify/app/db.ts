@@ -6,11 +6,8 @@ export type BaseSubscription = {
   id: string
   email: string
   createdAt: string
-  notifyAllMentions: boolean
-  notifyAllReplies: boolean
   notifyOwnedDocChange: boolean
   notifySiteDiscussions: boolean
-  notifyAllComments: boolean
 }
 
 type BaseEmail = {
@@ -29,11 +26,8 @@ type DBSubscription = {
   id: string
   email: string
   createdAt: string
-  notifyAllMentions: number
-  notifyAllReplies: number
   notifyOwnedDocChange: number
   notifySiteDiscussions: number
-  notifyAllComments: number
 }
 
 type DBEmail = {
@@ -74,7 +68,9 @@ let stmtEnsureEmail: Database.Statement
 let stmtUpsertSubscription: Database.Statement
 let stmtGetNotificationConfig: Database.Statement
 let stmtGetAllNotificationConfigs: Database.Statement
+let stmtGetNotificationConfigsForEmail: Database.Statement
 let stmtUpsertNotificationConfig: Database.Statement
+let stmtDeleteNotificationConfigForAccountEmail: Database.Statement
 let stmtGetNotificationReadState: Database.Statement
 let stmtUpsertNotificationReadState: Database.Statement
 let stmtGetNotificationReadEvents: Database.Statement
@@ -226,10 +222,46 @@ export async function initDatabase(): Promise<void> {
     version = 7
   }
 
+  if (version === 7) {
+    db.exec(`
+    BEGIN;
+    ALTER TABLE email_subscriptions RENAME TO email_subscriptions_old;
+
+    CREATE TABLE email_subscriptions (
+      id TEXT NOT NULL,
+      email TEXT NOT NULL REFERENCES emails(email),
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      notifyOwnedDocChange BOOLEAN NOT NULL DEFAULT FALSE,
+      notifySiteDiscussions BOOLEAN NOT NULL DEFAULT FALSE,
+      PRIMARY KEY (id, email)
+    ) WITHOUT ROWID;
+
+    INSERT INTO email_subscriptions (
+      id,
+      email,
+      createdAt,
+      notifyOwnedDocChange,
+      notifySiteDiscussions
+    )
+    SELECT
+      id,
+      email,
+      createdAt,
+      notifyOwnedDocChange,
+      notifySiteDiscussions
+    FROM email_subscriptions_old;
+
+    DROP TABLE email_subscriptions_old;
+    PRAGMA user_version = 8;
+    COMMIT;
+  `)
+    version = 8
+  }
+
   // Initialize all prepared statements
   stmtInsertEmail = db.prepare('INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)')
   stmtInsertSubscription = db.prepare(
-    'INSERT INTO email_subscriptions (id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange, notifySiteDiscussions, notifyAllComments) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO email_subscriptions (id, email, notifyOwnedDocChange, notifySiteDiscussions) VALUES (?, ?, ?, ?)',
   )
   stmtGetSubscription = db.prepare(`
     SELECT * FROM email_subscriptions WHERE id = ? AND email = ?
@@ -246,7 +278,7 @@ export async function initDatabase(): Promise<void> {
     SELECT value FROM notifier_status WHERE field = ?
   `)
   stmtUpdateSubscription = db.prepare(`
-    UPDATE email_subscriptions SET notifyAllMentions = ?, notifyAllReplies = ?, notifyOwnedDocChange = ?, notifySiteDiscussions = ?, notifyAllComments = ? WHERE id = ?
+    UPDATE email_subscriptions SET notifyOwnedDocChange = ?, notifySiteDiscussions = ? WHERE id = ?
   `)
   stmtGetEmail = db.prepare(`
     SELECT emails.*
@@ -273,17 +305,17 @@ export async function initDatabase(): Promise<void> {
   stmtEnsureEmail = db.prepare('INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)')
   stmtUpsertSubscription = db.prepare(`
     INSERT INTO email_subscriptions (
-      id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange, notifySiteDiscussions, notifyAllComments
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      id, email, notifyOwnedDocChange, notifySiteDiscussions
+    ) VALUES (?, ?, ?, ?)
     ON CONFLICT(id, email) DO UPDATE SET
-      notifyAllMentions     = excluded.notifyAllMentions,
-      notifyAllReplies      = excluded.notifyAllReplies,
       notifyOwnedDocChange  = excluded.notifyOwnedDocChange,
-      notifySiteDiscussions = excluded.notifySiteDiscussions,
-      notifyAllComments     = excluded.notifyAllComments
+      notifySiteDiscussions = excluded.notifySiteDiscussions
   `)
   stmtGetNotificationConfig = db.prepare('SELECT * FROM notification_config WHERE accountId = ?')
   stmtGetAllNotificationConfigs = db.prepare('SELECT * FROM notification_config')
+  stmtGetNotificationConfigsForEmail = db.prepare(
+    'SELECT * FROM notification_config WHERE email = ? ORDER BY updatedAt DESC, accountId ASC',
+  )
   stmtUpsertNotificationConfig = db.prepare(`
     INSERT INTO notification_config (accountId, email, updatedAt)
     VALUES (?, ?, CURRENT_TIMESTAMP)
@@ -291,6 +323,9 @@ export async function initDatabase(): Promise<void> {
       email = excluded.email,
       updatedAt = CURRENT_TIMESTAMP
   `)
+  stmtDeleteNotificationConfigForAccountEmail = db.prepare(
+    'DELETE FROM notification_config WHERE accountId = ? AND email = ?',
+  )
   stmtGetNotificationReadState = db.prepare('SELECT * FROM notification_read_state WHERE accountId = ?')
   stmtUpsertNotificationReadState = db.prepare(`
     INSERT INTO notification_read_state (accountId, markAllReadAtMs, stateUpdatedAtMs, updatedAt)
@@ -347,32 +382,16 @@ export function cleanup(): void {
 export function createSubscription({
   id,
   email,
-  notifyAllMentions = false,
-  notifyAllReplies = false,
   notifyOwnedDocChange = false,
   notifySiteDiscussions = false,
-  notifyAllComments = false,
 }: {
   id: string
-  email?: string
-  notifyAllMentions?: boolean
-  notifyAllReplies?: boolean
+  email: string
   notifyOwnedDocChange?: boolean
   notifySiteDiscussions?: boolean
-  notifyAllComments?: boolean
 }): void {
-  if (email) {
-    stmtInsertEmail.run(email, crypto.randomBytes(32).toString('hex'))
-  }
-  stmtInsertSubscription.run(
-    id,
-    email,
-    notifyAllMentions ? 1 : 0,
-    notifyAllReplies ? 1 : 0,
-    notifyOwnedDocChange ? 1 : 0,
-    notifySiteDiscussions ? 1 : 0,
-    notifyAllComments ? 1 : 0,
-  )
+  stmtInsertEmail.run(email, crypto.randomBytes(32).toString('hex'))
+  stmtInsertSubscription.run(id, email, notifyOwnedDocChange ? 1 : 0, notifySiteDiscussions ? 1 : 0)
 }
 
 export function getSubscription(id: string, email: string): BaseSubscription | null {
@@ -381,11 +400,8 @@ export function getSubscription(id: string, email: string): BaseSubscription | n
 
   return {
     ...result,
-    notifyAllMentions: Boolean(result.notifyAllMentions),
-    notifyAllReplies: Boolean(result.notifyAllReplies),
     notifyOwnedDocChange: Boolean(result.notifyOwnedDocChange),
     notifySiteDiscussions: Boolean(result.notifySiteDiscussions),
-    notifyAllComments: Boolean(result.notifyAllComments),
   }
 }
 
@@ -394,11 +410,8 @@ export function getSubscriptionsForAccount(id: string): BaseSubscription[] {
 
   return rows.map((r) => ({
     ...r,
-    notifyAllMentions: Boolean(r.notifyAllMentions),
-    notifyAllReplies: Boolean(r.notifyAllReplies),
     notifyOwnedDocChange: Boolean(r.notifyOwnedDocChange),
     notifySiteDiscussions: Boolean(r.notifySiteDiscussions),
-    notifyAllComments: Boolean(r.notifyAllComments),
   }))
 }
 
@@ -433,27 +446,14 @@ export function setBatchNotifierLastSendTime(time: Date): void {
 export function updateSubscription(
   id: string,
   {
-    notifyAllMentions,
-    notifyAllReplies,
     notifyOwnedDocChange,
     notifySiteDiscussions,
-    notifyAllComments,
   }: {
-    notifyAllMentions?: boolean
-    notifyAllReplies?: boolean
     notifyOwnedDocChange?: boolean
     notifySiteDiscussions?: boolean
-    notifyAllComments?: boolean
   },
 ): void {
-  stmtUpdateSubscription.run(
-    notifyAllMentions ? 1 : 0,
-    notifyAllReplies ? 1 : 0,
-    notifyOwnedDocChange ? 1 : 0,
-    notifySiteDiscussions ? 1 : 0,
-    notifyAllComments ? 1 : 0,
-    id,
-  )
+  stmtUpdateSubscription.run(notifyOwnedDocChange ? 1 : 0, notifySiteDiscussions ? 1 : 0, id)
 }
 
 export function getEmail(email: string): BaseEmail | null {
@@ -478,11 +478,8 @@ export function getEmailWithToken(emailAdminToken: string): Email | null {
     isUnsubscribed: Boolean(email.isUnsubscribed),
     subscriptions: subs.map((sub) => ({
       ...sub,
-      notifyAllMentions: Boolean(sub.notifyAllMentions),
-      notifyAllReplies: Boolean(sub.notifyAllReplies),
       notifyOwnedDocChange: Boolean(sub.notifyOwnedDocChange),
       notifySiteDiscussions: Boolean(sub.notifySiteDiscussions),
-      notifyAllComments: Boolean(sub.notifyAllComments),
     })),
   }
 }
@@ -502,11 +499,8 @@ export function getAllEmails(): Email[] {
       isUnsubscribed: Boolean(email.isUnsubscribed),
       subscriptions: subs.map((sub) => ({
         ...sub,
-        notifyAllMentions: Boolean(sub.notifyAllMentions),
-        notifyAllReplies: Boolean(sub.notifyAllReplies),
         notifyOwnedDocChange: Boolean(sub.notifyOwnedDocChange),
         notifySiteDiscussions: Boolean(sub.notifySiteDiscussions),
-        notifyAllComments: Boolean(sub.notifyAllComments),
       })),
     }
   })
@@ -515,19 +509,13 @@ export function getAllEmails(): Email[] {
 export function setSubscription({
   id,
   email,
-  notifyAllMentions,
-  notifyAllReplies,
   notifyOwnedDocChange,
   notifySiteDiscussions,
-  notifyAllComments,
 }: {
   id: string
   email: string
-  notifyAllMentions?: boolean
-  notifyAllReplies?: boolean
   notifyOwnedDocChange?: boolean
   notifySiteDiscussions?: boolean
-  notifyAllComments?: boolean
 }): void {
   if (!email) {
     throw new Error('setSubscription requires an email for the (id,email) key')
@@ -539,21 +527,9 @@ export function setSubscription({
 
   const toInt = (next: boolean | undefined, curr: boolean | undefined) => (next ?? curr ?? false ? 1 : 0)
 
-  const nextNotifyAllMentions = toInt(notifyAllMentions, current?.notifyAllMentions)
-  const nextNotifyAllReplies = toInt(notifyAllReplies, current?.notifyAllReplies)
   const nextNotifyOwnedDocChange = toInt(notifyOwnedDocChange, current?.notifyOwnedDocChange)
   const nextNotifySiteDiscussions = toInt(notifySiteDiscussions, current?.notifySiteDiscussions)
-  const nextNotifyAllComments = toInt(notifyAllComments, current?.notifyAllComments)
-
-  stmtUpsertSubscription.run(
-    id,
-    email,
-    nextNotifyAllMentions,
-    nextNotifyAllReplies,
-    nextNotifyOwnedDocChange,
-    nextNotifySiteDiscussions,
-    nextNotifyAllComments,
-  )
+  stmtUpsertSubscription.run(id, email, nextNotifyOwnedDocChange, nextNotifySiteDiscussions)
 }
 
 export type NotificationConfigRow = {
@@ -585,9 +561,18 @@ export function getAllNotificationConfigs(): NotificationConfigRow[] {
   return stmtGetAllNotificationConfigs.all() as NotificationConfigRow[]
 }
 
+export function getNotificationConfigsForEmail(email: string): NotificationConfigRow[] {
+  return stmtGetNotificationConfigsForEmail.all(email) as NotificationConfigRow[]
+}
+
 export function setNotificationConfig(accountId: string, email: string): void {
   stmtEnsureEmail.run(email, crypto.randomBytes(32).toString('hex'))
   stmtUpsertNotificationConfig.run(accountId, email)
+}
+
+export function unsetNotificationConfig(accountId: string, email: string): boolean {
+  const result = stmtDeleteNotificationConfigForAccountEmail.run(accountId, email) as {changes?: number}
+  return (result.changes || 0) > 0
 }
 
 export function getNotificationReadState(accountId: string): NotificationReadStateRow {
@@ -639,69 +624,3 @@ export function mergeNotificationReadState(
 
   return transaction()
 }
-
-// export function setAccount({
-//   id,
-//   email,
-//   notifyAllMentions,
-//   notifyAllReplies,
-//   notifyOwnedDocChange,
-//   notifySiteDiscussions,
-// }: {
-//   id: string
-//   email?: string
-//   notifyAllMentions?: boolean
-//   notifyAllReplies?: boolean
-//   notifyOwnedDocChange?: boolean
-//   notifySiteDiscussions?: boolean
-// }): void {
-//   const existingAccount = getAccount(id)
-
-//   if (!existingAccount) {
-//     createAccount({
-//       id,
-//       email,
-//       notifyAllMentions,
-//       notifyAllReplies,
-//       notifyOwnedDocChange,
-//       notifySiteDiscussions,
-//     })
-//     return
-//   }
-
-//   // If email is being changed, create new email entry
-//   if (email && email !== existingAccount.email) {
-//     const emailStmt = db.prepare(
-//       'INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)',
-//     )
-//     emailStmt.run(email, crypto.randomBytes(32).toString('hex'))
-//   }
-
-//   // Update account with new values
-//   const stmt = db.prepare(`
-//     UPDATE accounts
-//     SET email = ?,
-//         notifyAllMentions = ?,
-//         notifyAllReplies = ?,
-//         notifyOwnedDocChange = ?,
-//         notifySiteDiscussions = ?
-//     WHERE id = ?
-//   `)
-
-//   const getBooleanValue = (
-//     newValue: boolean | undefined,
-//     currentValue: boolean,
-//   ) => (newValue !== undefined ? (newValue ? 1 : 0) : currentValue ? 1 : 0)
-
-//   stmt.run(
-//     email ?? existingAccount.email,
-//     getBooleanValue(notifyAllMentions, existingAccount.notifyAllMentions),
-//     getBooleanValue(notifyAllReplies, existingAccount.notifyAllReplies),
-//     getBooleanValue(notifyOwnedDocChange, existingAccount.notifyOwnedDocChange),
-//     getBooleanValue(
-//       notifySiteDiscussions,
-//       existingAccount.notifySiteDiscussions,
-//     ),
-//     id,
-//   )
-// }

@@ -1,4 +1,10 @@
-import {getEmailWithToken, getNotificationConfig, getSubscription, mergeNotificationReadState} from './db'
+import {
+  getEmailWithToken,
+  getNotificationConfig,
+  getNotificationReadState,
+  getSubscription,
+  mergeNotificationReadState,
+} from './db'
 
 export const EMAIL_NOTIFICATION_REDIRECT_PATH = '/hm/notification-read-redirect'
 
@@ -48,14 +54,23 @@ export function applyNotificationReadFromEmailLink(input: {
 
   const subscription = getSubscription(input.accountId, email.email)
   const notificationConfig = getNotificationConfig(input.accountId)
-  const isLinkedToAccount = Boolean(subscription) || notificationConfig?.email === email.email
+  const hasLegacySubscription = Boolean(subscription)
+  const hasNotificationConfigLink = notificationConfig?.email === email.email
+  const isLinkedToAccount = hasLegacySubscription || hasNotificationConfigLink
   if (!isLinkedToAccount) {
-    return {applied: false, reason: 'subscription-not-found' as const}
+    return {
+      applied: false,
+      reason: 'subscription-not-found' as const,
+      hasLegacySubscription,
+      hasNotificationConfigLink,
+    }
   }
 
-  mergeNotificationReadState(input.accountId, {
-    markAllReadAtMs: null,
-    stateUpdatedAtMs: 0,
+  const currentReadState = getNotificationReadState(input.accountId)
+  const nextStateUpdatedAtMs = Math.max(Date.now(), currentReadState.stateUpdatedAtMs + 1)
+  const mergedReadState = mergeNotificationReadState(input.accountId, {
+    markAllReadAtMs: currentReadState.markAllReadAtMs,
+    stateUpdatedAtMs: nextStateUpdatedAtMs,
     readEvents: [{eventId: input.eventId, eventAtMs: input.eventAtMs}],
   })
 
@@ -64,5 +79,8 @@ export function applyNotificationReadFromEmailLink(input: {
     reason: 'ok' as const,
     email: email.email,
     accountId: input.accountId,
+    linkType: hasLegacySubscription ? ('legacy-subscription' as const) : ('notification-config' as const),
+    stateUpdatedAtMs: mergedReadState.stateUpdatedAtMs,
+    markAllReadAtMs: mergedReadState.markAllReadAtMs,
   }
 }

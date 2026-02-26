@@ -28,8 +28,6 @@ export function NotifSettingsDialog({
       action: 'subscribe',
       email: formData.email,
       accountId: input.accountUid,
-      notifyAllMentions: formData.notifyAllMentions,
-      notifyAllReplies: formData.notifyAllReplies,
       notifyOwnedDocChange: formData.notifyOwnedDocChange,
       notifySiteDiscussions: formData.notifySiteDiscussions,
     })

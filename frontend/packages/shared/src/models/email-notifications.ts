@@ -5,8 +5,6 @@ export type SubscribePayload = {
   action: 'subscribe'
   email: string
   accountId: string
-  notifyAllMentions: boolean
-  notifyAllReplies: boolean
   notifyOwnedDocChange: boolean
   notifySiteDiscussions: boolean
 }

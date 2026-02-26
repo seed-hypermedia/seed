@@ -1,5 +1,6 @@
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {LoadedEventWithNotifMeta} from '@shm/shared/models/activity-service'
+import {classifyNotificationEvent, NotificationReason} from '@shm/shared/models/notification-event-classifier'
 import {ListEvents} from '@shm/shared/api-activity'
 import {Event} from '@shm/shared/src/client/.generated/activity/v1alpha/activity_pb'
 import z from 'zod'
@@ -9,7 +10,6 @@ import {t} from './app-trpc'
 import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
 import * as log from './logger'
-import {classifyNotificationEvent, NotificationReason} from '@/models/notification-event-classifier'
 
 const NOTIFICATION_INBOX_STORE_KEY = 'NotificationInbox-v001'
 const NOTIFICATION_POLL_INTERVAL_MS = 5_000

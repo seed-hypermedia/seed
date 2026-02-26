@@ -64,30 +64,67 @@ function toResponse(state: NotificationReadStateRow): NotificationReadStateRespo
 
 export const action = cborApiAction<NotificationReadStateAction, any>(async (signedPayload) => {
   const {sig, ...restPayload} = signedPayload
+  const accountId = base58btc.encode(signedPayload.signer)
+  const now = Date.now()
+  const requestAgeMs = now - restPayload.time
+
   const isValid = await validateSignature(signedPayload.signer, signedPayload.sig, cborEncode(restPayload))
   if (!isValid) {
+    console.warn('[notification-read-state] invalid signature', {
+      accountId,
+      action: restPayload.action,
+      requestAgeMs,
+    })
     throw new BadRequestError('Invalid signature')
   }
 
-  const now = Date.now()
   const timeDiff = Math.abs(now - restPayload.time)
   if (timeDiff > 20_000) {
+    console.warn('[notification-read-state] invalid request time', {
+      accountId,
+      action: restPayload.action,
+      requestAgeMs,
+      requestTime: restPayload.time,
+      now,
+    })
     throw new BadRequestError('Request time invalid')
   }
 
-  const accountId = base58btc.encode(signedPayload.signer)
+  // console.info('[notification-read-state] request accepted', {
+  //   accountId,
+  //   action: restPayload.action,
+  //   requestAgeMs,
+  // })
 
   if (restPayload.action === 'get-notification-read-state') {
     const state = getNotificationReadState(accountId)
+    // console.info('[notification-read-state] get state', {
+    //   accountId,
+    //   markAllReadAtMs: state.markAllReadAtMs,
+    //   stateUpdatedAtMs: state.stateUpdatedAtMs,
+    //   readEventsCount: state.readEvents.length,
+    // })
     return toResponse(state)
   }
 
   if (restPayload.action === 'merge-notification-read-state') {
+    // console.info('[notification-read-state] merge request', {
+    //   accountId,
+    //   markAllReadAtMs: restPayload.markAllReadAtMs,
+    //   stateUpdatedAtMs: restPayload.stateUpdatedAtMs,
+    //   readEventsCount: restPayload.readEvents.length,
+    // })
     const state = mergeNotificationReadState(accountId, {
       markAllReadAtMs: restPayload.markAllReadAtMs,
       stateUpdatedAtMs: restPayload.stateUpdatedAtMs,
       readEvents: sanitizeReadEvents(restPayload.readEvents),
     })
+    // console.info('[notification-read-state] merge result', {
+    //   accountId,
+    //   markAllReadAtMs: state.markAllReadAtMs,
+    //   stateUpdatedAtMs: state.stateUpdatedAtMs,
+    //   readEventsCount: state.readEvents.length,
+    // })
     return toResponse(state)
   }
 

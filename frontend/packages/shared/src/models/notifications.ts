@@ -1,6 +1,7 @@
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 import {base58btc} from 'multiformats/bases/base58'
+import {IS_DESKTOP} from '../constants'
 import {queryKeys} from './query-keys'
 
 export type NotificationConfig = {
@@ -64,6 +65,9 @@ export function useNotificationConfig(notifyServiceHost: string | undefined, sig
       })
     },
     enabled: !!notifyServiceHost && !!signer && !!accountId,
+    refetchOnMount: 'always',
+    refetchInterval: IS_DESKTOP ? 30_000 : false,
+    refetchIntervalInBackground: IS_DESKTOP,
   })
 }
 

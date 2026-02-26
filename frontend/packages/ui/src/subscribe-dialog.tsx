@@ -69,8 +69,6 @@ export function SubscribeDialog({open, onOpenChange, accountId, accountMeta, not
         action: 'subscribe',
         email,
         accountId,
-        notifyAllMentions: isChecked,
-        notifyAllReplies: isChecked,
         notifyOwnedDocChange: isChecked,
         notifySiteDiscussions: isChecked,
       },
@@ -137,8 +135,7 @@ export function SubscribeDialog({open, onOpenChange, accountId, accountMeta, not
           onCheckedChange={(checked: boolean) => setIsChecked(checked === true)}
           variant="primary"
         >
-          Get notified about site activity (discussions, document changes) and user activity (mentions, replies,
-          comments).
+          Get notified about site activity (discussions, document changes).
         </CheckboxField>
       </div>
 

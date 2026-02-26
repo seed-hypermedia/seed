@@ -126,11 +126,8 @@ export async function sendNotificationWelcomeEmail(
   accountMeta: HMMetadata,
   opts: {
     adminToken: string
-    notifyAllMentions: boolean
-    notifyAllReplies: boolean
     notifyOwnedDocChange: boolean
     notifySiteDiscussions: boolean
-    notifyAllComments?: boolean
   },
 ) {
   if (!NOTIFY_SERVICE_HOST) {
@@ -138,11 +135,8 @@ export async function sendNotificationWelcomeEmail(
   }
   const notifSettingsUrl = `${NOTIFY_SERVICE_HOST.replace(/\/$/, '')}/hm/email-notifications?token=${opts.adminToken}`
   let notificationTypes = []
-  if (opts.notifyAllMentions) notificationTypes.push('mentions')
-  if (opts.notifyAllReplies) notificationTypes.push('replies')
   if (opts.notifyOwnedDocChange) notificationTypes.push('document updates')
   if (opts.notifySiteDiscussions) notificationTypes.push('discussions')
-  if (opts.notifyAllComments) notificationTypes.push('comments')
 
   if (notificationTypes.length === 0) {
     return // no notifications enabled

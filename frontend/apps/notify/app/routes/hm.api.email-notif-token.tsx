@@ -1,4 +1,12 @@
-import {getEmailWithToken, getSubscription, setEmailUnsubscribed, setSubscription} from '@/db'
+import {
+  getEmailWithToken,
+  getNotificationConfigsForEmail,
+  getSubscription,
+  setEmailUnsubscribed,
+  setSubscription,
+  unsetNotificationConfig,
+} from '@/db'
+import type {Email, NotificationConfigRow} from '@/db'
 import {ActionFunction, LoaderFunction} from '@remix-run/node'
 import {json} from '@remix-run/react'
 import {z} from 'zod'
@@ -13,7 +21,11 @@ export const loader: LoaderFunction = async ({request, params}) => {
   if (!email) {
     return json({error: 'Invalid token'}, {status: 400})
   }
-  return json(email)
+  const myNotifications = getNotificationConfigsForEmail(email.email)
+  return json({
+    ...email,
+    myNotifications,
+  } satisfies EmailNotifTokenLoaderResponse)
 }
 
 const emailNotifTokenAction = z.discriminatedUnion('action', [
@@ -26,13 +38,17 @@ const emailNotifTokenAction = z.discriminatedUnion('action', [
     accountId: z.string(),
     notifyOwnedDocChange: z.boolean().optional(),
     notifySiteDiscussions: z.boolean().optional(),
-    notifyAllMentions: z.boolean().optional(),
-    notifyAllReplies: z.boolean().optional(),
-    notifyAllComments: z.boolean().optional(),
+  }),
+  z.object({
+    action: z.literal('unsubscribe-my-notification'),
+    accountId: z.string(),
   }),
 ])
 
 export type EmailNotifTokenAction = z.infer<typeof emailNotifTokenAction>
+export type EmailNotifTokenLoaderResponse = Email & {
+  myNotifications: NotificationConfigRow[]
+}
 
 export const action: ActionFunction = async ({request, params}) => {
   const url = new URL(request.url)
@@ -59,21 +75,18 @@ export const action: ActionFunction = async ({request, params}) => {
     const nextNotifyOwnedDocChange = body.notifyOwnedDocChange ?? current?.notifyOwnedDocChange ?? false
     const nextNotifySiteDiscussions = body.notifySiteDiscussions ?? current?.notifySiteDiscussions ?? false
 
-    const nextNotifyAllMentions = body.notifyAllMentions ?? current?.notifyAllMentions ?? false
-    const nextNotifyAllReplies = body.notifyAllReplies ?? current?.notifyAllReplies ?? false
-    const nextNotifyAllComments = body.notifyAllComments ?? current?.notifyAllComments ?? false
-
     setSubscription({
       id: accountId,
       email: subscriberEmail,
-      notifyAllMentions: nextNotifyAllMentions,
-      notifyAllReplies: nextNotifyAllReplies,
       notifyOwnedDocChange: nextNotifyOwnedDocChange,
       notifySiteDiscussions: nextNotifySiteDiscussions,
-      notifyAllComments: nextNotifyAllComments,
     })
 
     return json({})
+  }
+  if (body.action === 'unsubscribe-my-notification') {
+    const removed = unsetNotificationConfig(body.accountId, email.email)
+    return json({removed})
   }
   return json({error: 'Invalid action'}, {status: 400})
 }

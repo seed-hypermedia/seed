@@ -1,6 +1,13 @@
 import {mkdtempSync, rmSync} from 'fs'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
-import {getEmail, getNotificationReadState, initDatabase, setNotificationConfig, setSubscription} from './db'
+import {
+  getEmail,
+  getNotificationReadState,
+  initDatabase,
+  mergeNotificationReadState,
+  setNotificationConfig,
+  setSubscription,
+} from './db'
 import {
   applyNotificationReadFromEmailLink,
   buildNotificationReadRedirectUrl,
@@ -26,8 +33,6 @@ describe('notification read redirect helpers', () => {
     setSubscription({
       id: accountId,
       email,
-      notifyAllMentions: true,
-      notifyAllReplies: true,
     })
     const record = getEmail(email)
     if (!record) throw new Error('Expected email record to exist')
@@ -109,5 +114,29 @@ describe('notification read redirect helpers', () => {
     expect(result.applied).toBe(true)
     const state = getNotificationReadState(accountId)
     expect(state.readEvents).toEqual([{eventId: 'mention-event-id', eventAtMs: 67890}])
+  })
+
+  it('preserves watermark and bumps stateUpdatedAtMs when applying redirect read', () => {
+    const accountId = 'z-account-watermark'
+    const token = createTokenForAccount(accountId, 'watermark@example.com')
+    mergeNotificationReadState(accountId, {
+      markAllReadAtMs: 10_000,
+      stateUpdatedAtMs: 10_000,
+      readEvents: [],
+    })
+    const before = getNotificationReadState(accountId)
+
+    const result = applyNotificationReadFromEmailLink({
+      token,
+      accountId,
+      eventId: 'new-mention-event',
+      eventAtMs: 12_345,
+    })
+
+    expect(result.applied).toBe(true)
+    const state = getNotificationReadState(accountId)
+    expect(state.markAllReadAtMs).toBe(10_000)
+    expect(state.stateUpdatedAtMs).toBeGreaterThan(before.stateUpdatedAtMs)
+    expect(state.readEvents).toEqual([{eventId: 'new-mention-event', eventAtMs: 12_345}])
   })
 })
