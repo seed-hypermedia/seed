@@ -833,6 +833,16 @@ async function getAccountSiteBaseUrl(accountId: string): Promise<string> {
   return fallbackSiteBaseUrl
 }
 
+async function getAccountMetadata(accountId: string): Promise<HMMetadata | null> {
+  try {
+    const accountResult = await requestAPI('Account', accountId)
+    return accountResult.type === 'account' ? accountResult.metadata : null
+  } catch (error: any) {
+    reportError(`Error getting account metadata ${accountId}: ${error.message}`)
+    return null
+  }
+}
+
 function normalizeSiteBaseUrl(siteUrl?: string | null): string | null {
   const normalized = siteUrl?.replace(/\/$/, '') || null
   return normalized || null
@@ -886,6 +896,16 @@ async function evaluateMentionEventForNotifications(
     targetMeta = (await requestAPI('ResourceMetadata', sourceDocId)).metadata
   } catch (error: any) {
     reportError(`Error getting source metadata for mention ${sourceDocId.id}: ${error.message}`)
+  }
+
+  if (!targetMeta?.name && !sourceDocId.path?.length) {
+    const sourceAccountMeta = await getAccountMetadata(sourceDocId.uid)
+    if (sourceAccountMeta?.name) {
+      targetMeta = {
+        ...(targetMeta || {}),
+        name: sourceAccountMeta.name,
+      }
+    }
   }
 
   const authorAccountId = mentionEvent.sourceBlob?.author || fallbackAuthorAccountId
@@ -997,6 +1017,9 @@ async function evaluateNewCommentForNotifications(
   let targetMeta: HMMetadata | null = null
   let targetDocumentSiteUrl: string | null = null
   let targetAccountSiteUrl: string | null = null
+  const targetDocId = hmId(comment.targetAccount, {
+    path: entityQueryPathToHmIdPath(comment.targetPath),
+  })
 
   try {
     const authorResult = await requestAPI('Account', comment.author)
@@ -1017,6 +1040,16 @@ async function evaluateNewCommentForNotifications(
     targetDocumentSiteUrl = normalizeSiteBaseUrl(targetMeta?.siteUrl)
   } catch (error: any) {
     reportError(`Error getting target metadata for ${comment.targetAccount}: ${error.message}`)
+  }
+
+  if (!targetMeta?.name && !targetDocId.path?.length) {
+    const targetAccountMeta = await getAccountMetadata(comment.targetAccount)
+    if (targetAccountMeta?.name) {
+      targetMeta = {
+        ...(targetMeta || {}),
+        name: targetAccountMeta.name,
+      }
+    }
   }
 
   if (!targetDocumentSiteUrl) {
@@ -1041,10 +1074,6 @@ async function evaluateNewCommentForNotifications(
   const commentUrl = createWebHMUrl(comment.author, {
     path: [commentTSID],
     hostname: commentBaseUrl,
-  })
-
-  const targetDocId = hmId(comment.targetAccount, {
-    path: entityQueryPathToHmIdPath(comment.targetPath),
   })
 
   // Get all mentioned users in this comment

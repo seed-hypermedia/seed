@@ -6,6 +6,7 @@ import {
   getMaxLoadedNotificationEventAtMs,
   markNotificationReadAndNavigate,
   notificationRouteForEvent,
+  notificationTitle,
 } from '../notifications-helpers'
 
 function hmId(uid: string, path: string[] | null = null) {
@@ -206,6 +207,21 @@ describe('notifications page helpers', () => {
       },
     })
     expect(callOrder).toEqual(['mark', 'navigate'])
+  })
+
+  it('includes document name for mention notifications from comment events', () => {
+    const event = createReplyEvent()
+    expect(notificationTitle({reason: 'mention', event})).toBe('Bob mentioned you in Post')
+  })
+
+  it('falls back to source path when mention source metadata is missing', () => {
+    const event = createMentionEvent({
+      source: {
+        id: hmId('source', ['fallback-doc']),
+        metadata: {},
+      } as any,
+    })
+    expect(notificationTitle({reason: 'mention', event})).toBe('Alice mentioned you in fallback-doc')
   })
 
   it('computes mark-all timestamp from latest loaded event', () => {

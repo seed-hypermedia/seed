@@ -1,5 +1,6 @@
 import {LoadedEventWithNotifMeta} from '@shm/shared/models/activity-service'
 import {classifyNotificationEvent, NotificationReason} from '@shm/shared/models/notification-event-classifier'
+import {getMentionNotificationTitle, getNotificationDocumentName} from '@shm/shared/models/notification-titles'
 import {NavRoute} from '@shm/shared/routes'
 import {abbreviateUid} from '@shm/shared/utils'
 export {classifyNotificationEvent}
@@ -44,8 +45,17 @@ export function notificationTitle(item: NotificationItem): string {
     (item.event.author?.id?.uid ? abbreviateUid(item.event.author.id.uid) : 'Someone')
 
   if (item.reason === 'mention') {
-    const sourceName = item.event.type === 'citation' ? item.event.source?.metadata?.name : null
-    return `${authorName} mentioned you${sourceName ? ` in ${sourceName}` : ''}`
+    const mentionTarget =
+      item.event.type === 'citation' ? item.event.source : item.event.type === 'comment' ? item.event.target : null
+    const sourceName = getNotificationDocumentName({
+      targetMeta: mentionTarget?.metadata,
+      targetId: mentionTarget?.id,
+    })
+    return getMentionNotificationTitle({
+      actorName: authorName,
+      subjectName: 'you',
+      documentName: sourceName,
+    })
   }
 
   if (item.reason === 'discussion') {

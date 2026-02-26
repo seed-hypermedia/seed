@@ -11,6 +11,7 @@ import {
 } from '@faire/mjml-react'
 import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
 import {HMComment, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {getMentionNotificationTitle, getNotificationDocumentName} from '@shm/shared/models/notification-titles'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import mjml2html from 'mjml'
 import {MJMLParseResults} from 'mjml-core'
@@ -535,8 +536,15 @@ function getDesktopNotificationText(notification: ImmediateNotification) {
   const subject = subjectName || 'you'
 
   if (notif.reason === 'mention') {
-    const targetName = notif.targetMeta?.name
-    return `${actor} mentioned ${subject}${targetName ? ` in ${targetName}` : ''}`
+    const targetName = getNotificationDocumentName({
+      targetMeta: notif.targetMeta,
+      targetId: notif.targetId,
+    })
+    return getMentionNotificationTitle({
+      actorName: actor,
+      subjectName: subject,
+      documentName: targetName,
+    })
   }
 
   if (notif.reason === 'discussion') {
