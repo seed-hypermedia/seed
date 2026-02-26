@@ -12,6 +12,7 @@ import {renderToPipeableStream} from 'react-dom/server'
 import {initDatabase} from './db'
 import {initEmailNotifier} from './email-notifier'
 import {parseRequest} from './request'
+import {preflightCorsResponse} from './utils/cors'
 
 const ABORT_DELAY = 5_000
 
@@ -36,6 +37,10 @@ export default async function handleRequest(
   remixContext: EntryContext,
   loadContext: AppLoadContext,
 ) {
+  if (request.method === 'OPTIONS') {
+    return preflightCorsResponse()
+  }
+
   const parsedRequest = parseRequest(request)
   const {url, pathParts} = parsedRequest
 

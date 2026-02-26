@@ -1,6 +1,11 @@
 import {MainWrapper} from '@/components/main-wrapper'
-import {grpcClient} from '@/grpc-client'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
+import {
+  useNotificationConfig,
+  useRemoveNotificationConfig,
+  useResendNotificationConfigVerification,
+  useSetNotificationConfig,
+} from '@/models/notification-config'
 import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead} from '@/models/notification-read-logic'
 import {
@@ -19,13 +24,6 @@ import {
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {formattedDateShort} from '@shm/shared'
-import {
-  NotificationSigner,
-  useNotificationConfig,
-  useRemoveNotificationConfig,
-  useResendNotificationConfigVerification,
-  useSetNotificationConfig,
-} from '@shm/shared/models/notifications'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
@@ -36,7 +34,6 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {Bell, Check, Info, Settings} from 'lucide-react'
-import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useMemo, useState} from 'react'
 
 export default function NotificationsPage() {
@@ -215,23 +212,10 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
 
 function NotificationEmailSettingsDialog({accountUid}: {accountUid: string}) {
   const notifyServiceHost = useNotifyServiceHost() || 'https://notify.seed.hyper.media'
-  const signer = useMemo((): NotificationSigner => {
-    const publicKey = new Uint8Array(base58btc.decode(accountUid))
-    return {
-      publicKey,
-      sign: async (data: Uint8Array) => {
-        const res = await grpcClient.daemon.signData({
-          signingKeyName: accountUid,
-          data: new Uint8Array(data),
-        })
-        return new Uint8Array(res.signature)
-      },
-    }
-  }, [accountUid])
-  const {data: config, isLoading} = useNotificationConfig(notifyServiceHost, signer)
-  const setConfig = useSetNotificationConfig(notifyServiceHost, signer)
-  const removeConfig = useRemoveNotificationConfig(notifyServiceHost, signer)
-  const resendVerification = useResendNotificationConfigVerification(notifyServiceHost, signer)
+  const {data: config, isLoading} = useNotificationConfig(notifyServiceHost, accountUid)
+  const setConfig = useSetNotificationConfig(notifyServiceHost, accountUid)
+  const removeConfig = useRemoveNotificationConfig(notifyServiceHost, accountUid)
+  const resendVerification = useResendNotificationConfigVerification(notifyServiceHost, accountUid)
   const [emailInput, setEmailInput] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
