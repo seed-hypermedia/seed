@@ -126,6 +126,7 @@ describe('createDocumentNavRoute', () => {
         key: 'comments',
         id: testDocId,
         openComment: 'uid123/tsid456',
+        panel: null,
       })
     })
 
@@ -162,12 +163,13 @@ describe('createDocumentNavRoute', () => {
   })
 
   describe('with viewTerm', () => {
-    test('activity viewTerm ignores panel, returns activity route', () => {
+    test('activity viewTerm without panel returns activity route', () => {
       const route = createDocumentNavRoute(testDocId, 'activity', null)
       expect(route).toEqual({
         key: 'activity',
         id: testDocId,
         filterEventType: undefined,
+        panel: null,
       })
     })
 
@@ -182,17 +184,17 @@ describe('createDocumentNavRoute', () => {
 
     test('comments viewTerm returns comments route', () => {
       const route = createDocumentNavRoute(testDocId, 'comments', null)
-      expect(route).toEqual({key: 'comments', id: testDocId})
+      expect(route).toEqual({key: 'comments', id: testDocId, panel: null})
     })
 
     test('directory viewTerm returns directory route', () => {
       const route = createDocumentNavRoute(testDocId, 'directory', null)
-      expect(route).toEqual({key: 'directory', id: testDocId})
+      expect(route).toEqual({key: 'directory', id: testDocId, panel: null})
     })
 
     test('collaborators viewTerm returns collaborators route', () => {
       const route = createDocumentNavRoute(testDocId, 'collaborators', null)
-      expect(route).toEqual({key: 'collaborators', id: testDocId})
+      expect(route).toEqual({key: 'collaborators', id: testDocId, panel: null})
     })
 
     test('feed viewTerm with panel preserves panel', () => {
@@ -201,6 +203,43 @@ describe('createDocumentNavRoute', () => {
         key: 'feed',
         id: testDocId,
         panel: {key: 'collaborators', id: testDocId},
+      })
+    })
+
+    test('collaborators viewTerm with panel preserves panel', () => {
+      const route = createDocumentNavRoute(testDocId, 'collaborators', 'comments/abc123')
+      expect(route).toEqual({
+        key: 'collaborators',
+        id: testDocId,
+        panel: {key: 'comments', id: testDocId, openComment: 'abc123'},
+      })
+    })
+
+    test('directory viewTerm with panel preserves panel', () => {
+      const route = createDocumentNavRoute(testDocId, 'directory', 'comments')
+      expect(route).toEqual({
+        key: 'directory',
+        id: testDocId,
+        panel: {key: 'comments', id: testDocId},
+      })
+    })
+
+    test('activity viewTerm with non-activity panel preserves panel', () => {
+      const route = createDocumentNavRoute(testDocId, 'activity', 'collaborators')
+      expect(route).toEqual({
+        key: 'activity',
+        id: testDocId,
+        filterEventType: undefined,
+        panel: {key: 'collaborators', id: testDocId},
+      })
+    })
+
+    test('comments viewTerm with non-comments panel preserves panel', () => {
+      const route = createDocumentNavRoute(testDocId, 'comments', 'activity')
+      expect(route).toEqual({
+        key: 'comments',
+        id: testDocId,
+        panel: {key: 'activity', id: testDocId},
       })
     })
   })
@@ -267,5 +306,64 @@ describe('routeToHref', () => {
   test('comments route with different uid generates /hm/ href', () => {
     const href = routeToHref({key: 'comments', id: hmId('uid2'), openComment: 'z6Mk/z6FC'}, {originHomeId: originHome})
     expect(href).toBe('/hm/uid2/:comments/z6Mk/z6FC')
+  })
+
+  describe('view-term routes preserve panel query param', () => {
+    test('collaborators route with comments panel preserves panel', () => {
+      const href = routeToHref(
+        {key: 'collaborators', id: hmId('uid1'), panel: {key: 'comments', id: hmId('uid1'), openComment: 'abc123'}},
+        {originHomeId: originHome},
+      )
+      expect(href).toBe('/:collaborators?panel=comments/abc123')
+    })
+
+    test('comments route with activity panel preserves panel', () => {
+      const href = routeToHref(
+        {key: 'comments', id: hmId('uid1'), panel: {key: 'activity', id: hmId('uid1')}},
+        {originHomeId: originHome},
+      )
+      expect(href).toBe('/:comments?panel=activity')
+    })
+
+    test('activity route with collaborators panel preserves panel', () => {
+      const href = routeToHref(
+        {key: 'activity', id: hmId('uid1'), panel: {key: 'collaborators', id: hmId('uid1')}},
+        {originHomeId: originHome},
+      )
+      expect(href).toBe('/:activity?panel=collaborators')
+    })
+
+    test('directory route with comments panel preserves panel', () => {
+      const href = routeToHref(
+        {key: 'directory', id: hmId('uid1'), panel: {key: 'comments', id: hmId('uid1')}},
+        {originHomeId: originHome},
+      )
+      expect(href).toBe('/:directory?panel=comments')
+    })
+
+    test('feed route with collaborators panel preserves panel', () => {
+      const href = routeToHref(
+        {key: 'feed', id: hmId('uid1'), panel: {key: 'collaborators', id: hmId('uid1')}},
+        {originHomeId: originHome},
+      )
+      expect(href).toBe('/:feed?panel=collaborators')
+    })
+
+    test('view-term route with panel and blockRef preserves both', () => {
+      const href = routeToHref(
+        {
+          key: 'collaborators',
+          id: hmId('uid1', {blockRef: 'blk1'}),
+          panel: {key: 'comments', id: hmId('uid1'), openComment: 'abc123'},
+        },
+        {originHomeId: originHome},
+      )
+      expect(href).toBe('/:collaborators?panel=comments/abc123#blk1')
+    })
+
+    test('view-term route without panel does not add query param', () => {
+      const href = routeToHref({key: 'collaborators', id: hmId('uid1')}, {originHomeId: originHome})
+      expect(href).toBe('/:collaborators')
+    })
   })
 })

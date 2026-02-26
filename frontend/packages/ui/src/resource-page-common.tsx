@@ -17,7 +17,13 @@ import {useAccountsMetadata, useDirectory, useResource, useResources} from '@shm
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
-import {createSiteUrl, createWebHMUrl, getCommentTargetId, parseFragment} from '@shm/shared/utils/entity-id-url'
+import {
+  createSiteUrl,
+  createWebHMUrl,
+  getCommentTargetId,
+  latestId,
+  parseFragment,
+} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Folder} from 'lucide-react'
 import {CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -47,7 +53,7 @@ import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {PageLayout} from './page-layout'
 import {PageDeleted, PageDiscovery, PageNotFound} from './page-message-states'
 import {PanelLayout} from './panel-layout'
-import {SiteHeader} from './site-header'
+import {GotoLatestBanner, SiteHeader} from './site-header'
 import {Spinner} from './spinner'
 import {UnreferencedDocuments} from './unreferenced-documents'
 import {useBlockScroll} from './use-block-scroll'
@@ -208,6 +214,14 @@ export function ResourcePage({
   const siteHomeId = hmId(docId.uid)
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
   const homeDirectory = useDirectory(siteHomeId)
+  const latestDoc = useResource(latestId(docId), {subscribed: true})
+
+  // Determine if we're viewing the latest version
+  // Only consider it "latest" if we can confirm it (to avoid banner flashing during load)
+  const isLatest =
+    !docId.version ||
+    docId.latest ||
+    (latestDoc.data?.id?.version != null && latestDoc.data.id.version === docId.version)
 
   const siteHomeDocument = siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
 
@@ -315,6 +329,7 @@ export function ResourcePage({
       <DocumentBody
         docId={docId}
         document={document}
+        isLatest={isLatest}
         siteUrl={siteHomeDocument?.metadata?.siteUrl}
         CommentEditor={CommentEditor}
         extraMenuItems={extraMenuItems}
@@ -671,6 +686,7 @@ export function PageWrapper({
 function DocumentBody({
   docId,
   document,
+  isLatest = true,
   siteUrl,
   CommentEditor,
   extraMenuItems,
@@ -686,6 +702,7 @@ function DocumentBody({
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
+  isLatest?: boolean
   siteUrl?: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
   extraMenuItems?: MenuItemType[]
@@ -1136,6 +1153,7 @@ function DocumentBody({
     return (
       <>
         <div className="relative flex flex-1 flex-col pb-20" ref={elementRef}>
+          <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
           {mainPageContent}
         </div>
         {floatingButtons}
@@ -1197,6 +1215,7 @@ function DocumentBody({
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
       >
+        <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
         {/* Floating action buttons - visible when DocumentTools is NOT sticky */}
         {actionButtons ? (
           <div

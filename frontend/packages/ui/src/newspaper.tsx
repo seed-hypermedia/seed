@@ -190,7 +190,7 @@ export function DocumentCard({
                       actions.onBookmarkToggle!(docId)
                     }}
                   >
-                    {bookmarked ? <Bookmark className="size-4 fill-current" /> : <Bookmark className="size-4" />}
+                    {bookmarked ? <Bookmark className="size-3.5 fill-current" /> : <Bookmark className="size-3.5" />}
                   </Button>
                 </Tooltip>
               )}

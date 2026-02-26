@@ -1269,6 +1269,8 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
       {draft.data ? (
         <Tooltip content="Preview Document">
           <Button
+            size="icon"
+            variant="outline"
             onClick={() => {
               client.createAppWindow.mutate({
                 routes: [{key: 'preview', draftId: route.id}],
@@ -1277,9 +1279,8 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
                 accessoryWidth: 0,
               })
             }}
-            className="hover:bg-hover dark:bg-background bg-white"
           >
-            <Eye className="size-4" />
+            <Eye className="size-3.5" />
           </Button>
         </Tooltip>
       ) : null}

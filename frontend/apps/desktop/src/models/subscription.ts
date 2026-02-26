@@ -26,6 +26,7 @@ export function useSubscription(id: UnpackedHypermediaId) {
   }
   const setSubscription = useSetSubscription()
   return {
+    isLoading: allSubs.isLoading,
     parentSubscription,
     exactSubscription,
     unsubscribeParent: () => {

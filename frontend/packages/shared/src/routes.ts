@@ -350,19 +350,26 @@ export function createDocumentNavRoute(
   panelParam?: string | null,
   openComment?: string | null,
 ): NavRoute {
-  // Create properly typed panel route if panelParam provided
-  const panel = panelParam ? createPanelRoute(panelParam, docId) : null
+  // Create properly typed panel route if panelParam provided.
+  // Cast needed: each route schema has a narrow panel union (excluding itself),
+  // but createPanelRoute returns the broader DocumentPanelRoute.
+  // Same pattern used in document-tools.tsx panelFor().
+  const panel = (panelParam ? createPanelRoute(panelParam, docId) : null) as any
 
   switch (viewTerm) {
     case 'activity': {
       // When activity is the main view, parse filter slug from panelParam
       // URL format: /:activity?panel=activity/versions -> panelParam="activity/versions"
       let filterEventType: string[] | undefined
+      // Only use panelParam as activity filter when the panel itself is activity-type
       if (panelParam?.startsWith('activity/')) {
         const slug = panelParam.slice('activity/'.length)
         filterEventType = activitySlugToFilter(slug)
+        // Activity filter consumed as filterEventType, no side panel
+        return {key: 'activity', id: docId, filterEventType}
       }
-      return {key: 'activity', id: docId, filterEventType}
+      // Non-activity panel preserved as side panel
+      return {key: 'activity', id: docId, filterEventType, panel}
     }
     case 'comments':
       // /:comments?panel=comments/COMMENT_ID → comments main + comments right panel
@@ -372,13 +379,14 @@ export function createDocumentNavRoute(
       }
       // /:comments/UID/TSID → comments main with openComment
       if (openComment) {
-        return {key: 'comments', id: docId, openComment}
+        return {key: 'comments', id: docId, openComment, panel}
       }
-      return {key: 'comments', id: docId}
+      // Preserve non-comments panel (e.g. activity, collaborators)
+      return {key: 'comments', id: docId, panel}
     case 'directory':
-      return {key: 'directory', id: docId}
+      return {key: 'directory', id: docId, panel}
     case 'collaborators':
-      return {key: 'collaborators', id: docId}
+      return {key: 'collaborators', id: docId, panel}
     case 'feed':
       return {key: 'feed', id: docId, panel}
     default: {

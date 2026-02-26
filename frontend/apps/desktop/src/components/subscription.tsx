@@ -31,6 +31,7 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
 
   const isSubscribed = ['space', 'document'].includes(subscription.subscription)
 
+  if (myAccountIds.isLoading || subscription.isLoading) return null
   if (docIsInMyAccount || isSubscribed) {
     return null
   }
