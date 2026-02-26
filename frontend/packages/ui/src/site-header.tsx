@@ -151,8 +151,6 @@ export function SiteHeader({
   if (!headerHomeId) return null
   return (
     <>
-      {docId && document ? <GotoLatestBanner isLatest={isLatest} id={docId} document={document} /> : null}
-
       <header
         ref={headerRef}
         className={cn(
@@ -628,7 +626,7 @@ export function MobileMenu({
   )
 }
 
-function GotoLatestBanner({
+export function GotoLatestBanner({
   isLatest = true,
   id,
   document,
@@ -658,7 +656,7 @@ function GotoLatestBanner({
   return show ? (
     <div
       className={cn(
-        'pointer-events-none absolute top-[calc(var(--site-header-h)+12px)] right-0 left-0 z-50 flex w-full justify-center px-4',
+        'pointer-events-none absolute right-0 left-0 z-50 flex w-full justify-center px-4 top-3',
       )}
     >
       <div className="bg-background border-border pointer-events-auto flex max-w-xl items-center gap-4 rounded-sm border p-2 shadow-lg">
