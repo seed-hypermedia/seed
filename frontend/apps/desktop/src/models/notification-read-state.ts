@@ -8,9 +8,6 @@ export type LocalNotificationReadState = {
   accountId: string
   markAllReadAtMs: number | null
   readEvents: Array<{eventId: string; eventAtMs: number}>
-  dirty: boolean
-  lastSyncAtMs: number | null
-  lastSyncError: string | null
 }
 
 export type NotificationSyncStatus = {
@@ -18,6 +15,21 @@ export type NotificationSyncStatus = {
   dirty: boolean
   lastSyncAtMs: number | null
   lastSyncError: string | null
+}
+
+type NotificationReadMutationResult = {
+  accountId: string
+  readStateChanged?: boolean
+  syncStatusChanged?: boolean
+}
+
+function invalidateChangedNotificationQueries(result: NotificationReadMutationResult) {
+  if (result.readStateChanged ?? true) {
+    invalidateQueries([queryKeys.NOTIFICATION_READ_STATE, result.accountId])
+  }
+  if (result.syncStatusChanged ?? true) {
+    invalidateQueries([queryKeys.NOTIFICATION_SYNC_STATUS, result.accountId])
+  }
 }
 
 export function useLocalNotificationReadState(accountUid: string | null | undefined) {
@@ -42,8 +54,7 @@ export function useMarkNotificationEventRead() {
     mutationFn: (input: {accountUid: string; eventId: string; eventAtMs: number}) =>
       client.notificationRead.markEventRead.mutate(input),
     onSuccess: (result) => {
-      invalidateQueries([queryKeys.NOTIFICATION_READ_STATE, result.accountId])
-      invalidateQueries([queryKeys.NOTIFICATION_SYNC_STATUS, result.accountId])
+      invalidateChangedNotificationQueries(result)
     },
   })
 }
@@ -57,8 +68,7 @@ export function useMarkNotificationEventUnread() {
       otherLoadedEvents: Array<{eventId: string; eventAtMs: number}>
     }) => client.notificationRead.markEventUnread.mutate(input),
     onSuccess: (result) => {
-      invalidateQueries([queryKeys.NOTIFICATION_READ_STATE, result.accountId])
-      invalidateQueries([queryKeys.NOTIFICATION_SYNC_STATUS, result.accountId])
+      invalidateChangedNotificationQueries(result)
     },
   })
 }
@@ -68,8 +78,7 @@ export function useMarkAllNotificationsRead() {
     mutationFn: (input: {accountUid: string; markAllReadAtMs: number}) =>
       client.notificationRead.markAllRead.mutate(input),
     onSuccess: (result) => {
-      invalidateQueries([queryKeys.NOTIFICATION_READ_STATE, result.accountId])
-      invalidateQueries([queryKeys.NOTIFICATION_SYNC_STATUS, result.accountId])
+      invalidateChangedNotificationQueries(result)
     },
   })
 }
@@ -78,9 +87,5 @@ export function useSyncNotificationReadState() {
   return useMutation({
     mutationFn: (input: {accountUid: string; notifyServiceHost?: string}) =>
       client.notificationRead.syncNow.mutate(input),
-    onSuccess: (result) => {
-      invalidateQueries([queryKeys.NOTIFICATION_READ_STATE, result.accountId])
-      invalidateQueries([queryKeys.NOTIFICATION_SYNC_STATUS, result.accountId])
-    },
   })
 }

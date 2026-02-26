@@ -99,6 +99,24 @@ describe('app notification read state', () => {
     expect(afterMarkAll.readEvents).toEqual([])
   })
 
+  it('returns no change flags when mark-read is a no-op', async () => {
+    const caller = await loadCaller()
+
+    await caller.markAllRead({
+      accountUid,
+      markAllReadAtMs: 2000,
+    })
+
+    const result = await caller.markEventRead({
+      accountUid,
+      eventId: 'event-under-watermark',
+      eventAtMs: 1500,
+    })
+
+    expect(result.readStateChanged).toBe(false)
+    expect(result.syncStatusChanged).toBe(false)
+  })
+
   it('merges local and remote state with LWW and remains idempotent', async () => {
     const caller = await loadCaller()
 
@@ -208,6 +226,65 @@ describe('app notification read state', () => {
     const state = await caller.getLocalState(accountUid)
     expect(state.readEvents).toEqual([{eventId: 'remote-event', eventAtMs: 1400}])
     expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.NOTIFICATION_READ_STATE, accountUid])
+    expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.NOTIFICATION_SYNC_STATUS, accountUid])
+  })
+
+  it('invalidates read-state only when read-state data changes', async () => {
+    const caller = await loadCaller()
+
+    await caller.getLocalState(accountUid)
+    await caller.markEventRead({
+      accountUid,
+      eventId: 'stable-event',
+      eventAtMs: 1300,
+    })
+
+    fetchMock
+      .mockImplementationOnce(() =>
+        jsonResponse({
+          accountId: accountUid,
+          markAllReadAtMs: 1200,
+          stateUpdatedAtMs: 900,
+          readEvents: [],
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        }),
+      )
+      .mockImplementationOnce(() =>
+        jsonResponse({
+          accountId: accountUid,
+          markAllReadAtMs: 1200,
+          stateUpdatedAtMs: 1000,
+          readEvents: [{eventId: 'stable-event', eventAtMs: 1300}],
+          updatedAt: '2026-01-01T00:00:01.000Z',
+        }),
+      )
+    await caller.syncNow({accountUid, notifyServiceHost: 'https://notify.example'})
+
+    appInvalidateQueriesMock.mockClear()
+    vi.setSystemTime(new Date(2_000))
+
+    fetchMock
+      .mockImplementationOnce(() =>
+        jsonResponse({
+          accountId: accountUid,
+          markAllReadAtMs: 1200,
+          stateUpdatedAtMs: 1000,
+          readEvents: [{eventId: 'stable-event', eventAtMs: 1300}],
+          updatedAt: '2026-01-01T00:00:02.000Z',
+        }),
+      )
+      .mockImplementationOnce(() =>
+        jsonResponse({
+          accountId: accountUid,
+          markAllReadAtMs: 1200,
+          stateUpdatedAtMs: 1000,
+          readEvents: [{eventId: 'stable-event', eventAtMs: 1300}],
+          updatedAt: '2026-01-01T00:00:03.000Z',
+        }),
+      )
+    await caller.syncNow({accountUid, notifyServiceHost: 'https://notify.example'})
+
+    expect(appInvalidateQueriesMock).not.toHaveBeenCalledWith([queryKeys.NOTIFICATION_READ_STATE, accountUid])
     expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.NOTIFICATION_SYNC_STATUS, accountUid])
   })
 

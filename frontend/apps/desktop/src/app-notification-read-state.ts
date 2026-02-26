@@ -51,6 +51,13 @@ type AccountStateView = {
   lastSyncError: string | null
 }
 
+type NotificationStateChange = {
+  readStateChanged: boolean
+  syncStatusChanged: boolean
+}
+
+type AccountStateMutationResult = AccountStateView & NotificationStateChange
+
 function getNowMs() {
   return Date.now()
 }
@@ -69,7 +76,7 @@ function areReadEventsEqual(left: Record<string, number>, right: Record<string, 
   return true
 }
 
-function hasStateChanged(previous: AccountNotificationReadState, next: AccountNotificationReadState) {
+function hasAccountStateChanged(previous: AccountNotificationReadState, next: AccountNotificationReadState) {
   if (previous.markAllReadAtMs !== next.markAllReadAtMs) return true
   if (previous.stateUpdatedAtMs !== next.stateUpdatedAtMs) return true
   if (previous.dirty !== next.dirty) return true
@@ -79,9 +86,48 @@ function hasStateChanged(previous: AccountNotificationReadState, next: AccountNo
   return false
 }
 
-function invalidateNotificationReadQueries(accountUid: string) {
-  appInvalidateQueries([queryKeys.NOTIFICATION_READ_STATE, accountUid])
-  appInvalidateQueries([queryKeys.NOTIFICATION_SYNC_STATUS, accountUid])
+function hasReadStateChanged(previous: AccountNotificationReadState, next: AccountNotificationReadState) {
+  if (previous.markAllReadAtMs !== next.markAllReadAtMs) return true
+  if (!areReadEventsEqual(previous.readEvents, next.readEvents)) return true
+  return false
+}
+
+function hasSyncStatusChanged(previous: AccountNotificationReadState, next: AccountNotificationReadState) {
+  if (previous.dirty !== next.dirty) return true
+  if (previous.lastSyncAtMs !== next.lastSyncAtMs) return true
+  if (previous.lastSyncError !== next.lastSyncError) return true
+  return false
+}
+
+function getStateChanges(
+  previous: AccountNotificationReadState,
+  next: AccountNotificationReadState,
+): NotificationStateChange {
+  return {
+    readStateChanged: hasReadStateChanged(previous, next),
+    syncStatusChanged: hasSyncStatusChanged(previous, next),
+  }
+}
+
+function hasAnyStateChange(changes: NotificationStateChange) {
+  return changes.readStateChanged || changes.syncStatusChanged
+}
+
+function invalidateNotificationReadQueries(accountUid: string, changes: NotificationStateChange) {
+  if (changes.readStateChanged) {
+    appInvalidateQueries([queryKeys.NOTIFICATION_READ_STATE, accountUid])
+  }
+  if (changes.syncStatusChanged) {
+    appInvalidateQueries([queryKeys.NOTIFICATION_SYNC_STATUS, accountUid])
+  }
+}
+
+function snapshotAccountState(accountUid: string): AccountNotificationReadState {
+  const state = getOrCreateAccountState(accountUid)
+  return {
+    ...state,
+    readEvents: {...state.readEvents},
+  }
 }
 
 function loadStore(): NotificationReadStore {
@@ -103,7 +149,7 @@ function loadStore(): NotificationReadStore {
 
 let store = loadStore()
 const syncDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
-const syncInFlight = new Map<string, Promise<AccountStateView>>()
+const syncInFlight = new Map<string, Promise<AccountStateMutationResult>>()
 let syncIntervalHandle: ReturnType<typeof setInterval> | null = null
 let hasStartedSyncLoop = false
 
@@ -198,12 +244,22 @@ function toAccountStateView(accountUid: string): AccountStateView {
   }
 }
 
+function toAccountMutationResult(accountUid: string, changes: NotificationStateChange): AccountStateMutationResult {
+  return {
+    ...toAccountStateView(accountUid),
+    ...changes,
+  }
+}
+
 function updateAccountState(
   accountUid: string,
   updater: (current: AccountNotificationReadState) => AccountNotificationReadState,
 ) {
   const current = getOrCreateAccountState(accountUid)
   const next = updater(current)
+  if (!hasAccountStateChanged(current, next)) {
+    return current
+  }
   store = {
     ...store,
     accounts: {
@@ -338,21 +394,21 @@ class NotificationSyncError extends Error {
   }
 }
 
-async function runSync(accountUid: string, notifyServiceHost: string | undefined): Promise<AccountStateView> {
+async function runSync(accountUid: string, notifyServiceHost: string | undefined): Promise<AccountStateMutationResult> {
+  const localStateBeforeSync = snapshotAccountState(accountUid)
   const host = notifyServiceHost || getNotifyServiceHostDefault()
   if (!host) {
     const message = 'Notify service host is not configured'
-    const previousState = getOrCreateAccountState(accountUid)
     updateSyncError(accountUid, message)
-    const nextState = getOrCreateAccountState(accountUid)
-    if (hasStateChanged(previousState, nextState)) {
-      invalidateNotificationReadQueries(accountUid)
+    const localStateAfterSync = snapshotAccountState(accountUid)
+    const changes = getStateChanges(localStateBeforeSync, localStateAfterSync)
+    if (hasAnyStateChange(changes)) {
+      invalidateNotificationReadQueries(accountUid, changes)
     }
-    return toAccountStateView(accountUid)
+    return toAccountMutationResult(accountUid, changes)
   }
 
   const syncStart = getNowMs()
-  const localStateBeforeSync = getOrCreateAccountState(accountUid)
   log.info('Notification read-state sync started', {
     accountUid,
     host,
@@ -431,12 +487,7 @@ async function runSync(accountUid: string, notifyServiceHost: string | undefined
     })
   } catch (error: any) {
     const message = error instanceof NotificationSyncError ? error.userMessage : error?.message || String(error)
-    const previousState = getOrCreateAccountState(accountUid)
     updateSyncError(accountUid, message)
-    const nextState = getOrCreateAccountState(accountUid)
-    if (hasStateChanged(previousState, nextState)) {
-      invalidateNotificationReadQueries(accountUid)
-    }
     log.warn('Notification read-state sync failed', {
       accountUid,
       host,
@@ -445,11 +496,12 @@ async function runSync(accountUid: string, notifyServiceHost: string | undefined
     })
   }
 
-  const result = toAccountStateView(accountUid)
-  if (hasStateChanged(localStateBeforeSync, getOrCreateAccountState(accountUid))) {
-    invalidateNotificationReadQueries(accountUid)
+  const localStateAfterSync = snapshotAccountState(accountUid)
+  const changes = getStateChanges(localStateBeforeSync, localStateAfterSync)
+  if (hasAnyStateChange(changes)) {
+    invalidateNotificationReadQueries(accountUid, changes)
   }
-  return result
+  return toAccountMutationResult(accountUid, changes)
 }
 
 function scheduleSync(accountUid: string, delayMs: number = SYNC_DEBOUNCE_MS, reason: string = 'unspecified') {
@@ -495,7 +547,7 @@ export function startNotificationReadBackgroundSync() {
   }
 }
 
-async function syncAccount(accountUid: string, notifyServiceHost?: string): Promise<AccountStateView> {
+async function syncAccount(accountUid: string, notifyServiceHost?: string): Promise<AccountStateMutationResult> {
   const existing = syncInFlight.get(accountUid)
   if (existing) return existing
 
@@ -506,13 +558,17 @@ async function syncAccount(accountUid: string, notifyServiceHost?: string): Prom
   return task
 }
 
-function markEventRead(input: {accountUid: string; eventId: string; eventAtMs: number}) {
+function markEventRead(input: {accountUid: string; eventId: string; eventAtMs: number}): AccountStateMutationResult {
+  const previousState = snapshotAccountState(input.accountUid)
   const nextState = updateAccountState(input.accountUid, (current) => {
     const eventAtMs = Math.max(0, Math.floor(input.eventAtMs))
     if (current.markAllReadAtMs !== null && eventAtMs <= current.markAllReadAtMs) {
       return current
     }
     const currentEventAtMs = current.readEvents[input.eventId]
+    if (currentEventAtMs !== undefined && currentEventAtMs >= eventAtMs) {
+      return current
+    }
     const nextEventAtMs = currentEventAtMs === undefined ? eventAtMs : Math.max(currentEventAtMs, eventAtMs)
     return {
       ...current,
@@ -525,16 +581,19 @@ function markEventRead(input: {accountUid: string; eventId: string; eventAtMs: n
       lastSyncError: null,
     }
   })
-  log.info('Notification read-state marked event read locally', {
-    accountUid: input.accountUid,
-    eventId: input.eventId,
-    eventAtMs: input.eventAtMs,
-    localMarkAllReadAtMs: nextState.markAllReadAtMs,
-    localStateUpdatedAtMs: nextState.stateUpdatedAtMs,
-    localReadEventsCount: getReadEventCount(nextState),
-  })
-  scheduleSync(input.accountUid, SYNC_DEBOUNCE_MS, 'mark-event-read')
-  return toAccountStateView(input.accountUid)
+  const changes = getStateChanges(previousState, nextState)
+  if (hasAnyStateChange(changes)) {
+    log.info('Notification read-state marked event read locally', {
+      accountUid: input.accountUid,
+      eventId: input.eventId,
+      eventAtMs: input.eventAtMs,
+      localMarkAllReadAtMs: nextState.markAllReadAtMs,
+      localStateUpdatedAtMs: nextState.stateUpdatedAtMs,
+      localReadEventsCount: getReadEventCount(nextState),
+    })
+    scheduleSync(input.accountUid, SYNC_DEBOUNCE_MS, 'mark-event-read')
+  }
+  return toAccountMutationResult(input.accountUid, changes)
 }
 
 function markEventUnread(input: {
@@ -542,11 +601,15 @@ function markEventUnread(input: {
   eventId: string
   eventAtMs: number
   otherLoadedEvents: Array<{eventId: string; eventAtMs: number}>
-}) {
+}): AccountStateMutationResult {
+  const previousState = snapshotAccountState(input.accountUid)
   const nextState = updateAccountState(input.accountUid, (current) => {
     const targetAtMs = Math.max(0, Math.floor(input.eventAtMs))
     // If event is individually read (not covered by watermark), just remove it
     if (current.markAllReadAtMs === null || targetAtMs > current.markAllReadAtMs) {
+      if (!(input.eventId in current.readEvents)) {
+        return current
+      }
       const {[input.eventId]: _, ...restReadEvents} = current.readEvents
       return {...current, readEvents: restReadEvents, stateUpdatedAtMs: getNowMs(), dirty: true, lastSyncError: null}
     }
@@ -571,43 +634,56 @@ function markEventUnread(input: {
       lastSyncError: null,
     }
   })
-  log.info('Notification read-state marked event unread locally', {
-    accountUid: input.accountUid,
-    eventId: input.eventId,
-    eventAtMs: input.eventAtMs,
-    localMarkAllReadAtMs: nextState.markAllReadAtMs,
-    localStateUpdatedAtMs: nextState.stateUpdatedAtMs,
-    localReadEventsCount: getReadEventCount(nextState),
-  })
-  scheduleSync(input.accountUid, SYNC_DEBOUNCE_MS, 'mark-event-unread')
-  return toAccountStateView(input.accountUid)
+  const changes = getStateChanges(previousState, nextState)
+  if (hasAnyStateChange(changes)) {
+    log.info('Notification read-state marked event unread locally', {
+      accountUid: input.accountUid,
+      eventId: input.eventId,
+      eventAtMs: input.eventAtMs,
+      localMarkAllReadAtMs: nextState.markAllReadAtMs,
+      localStateUpdatedAtMs: nextState.stateUpdatedAtMs,
+      localReadEventsCount: getReadEventCount(nextState),
+    })
+    scheduleSync(input.accountUid, SYNC_DEBOUNCE_MS, 'mark-event-unread')
+  }
+  return toAccountMutationResult(input.accountUid, changes)
 }
 
-function markAllRead(input: {accountUid: string; markAllReadAtMs: number}) {
+function markAllRead(input: {accountUid: string; markAllReadAtMs: number}): AccountStateMutationResult {
+  const previousState = snapshotAccountState(input.accountUid)
   const nextState = updateAccountState(input.accountUid, (current) => {
-    const nextMarkAllReadAtMs = Math.max(
-      current.markAllReadAtMs ?? 0,
-      Math.floor(input.markAllReadAtMs || 0),
-      getNowMs(),
-    )
+    const nowMs = getNowMs()
+    const nextMarkAllReadAtMs = Math.max(current.markAllReadAtMs ?? 0, Math.floor(input.markAllReadAtMs || 0), nowMs)
+    const nextReadEvents = pruneReadEvents(current.readEvents, nextMarkAllReadAtMs)
+    if (
+      nextMarkAllReadAtMs === current.markAllReadAtMs &&
+      current.dirty &&
+      current.lastSyncError === null &&
+      areReadEventsEqual(current.readEvents, nextReadEvents)
+    ) {
+      return current
+    }
     return {
       ...current,
       markAllReadAtMs: nextMarkAllReadAtMs,
-      stateUpdatedAtMs: getNowMs(),
-      readEvents: pruneReadEvents(current.readEvents, nextMarkAllReadAtMs),
+      stateUpdatedAtMs: nowMs,
+      readEvents: nextReadEvents,
       dirty: true,
       lastSyncError: null,
     }
   })
-  log.info('Notification read-state marked all read locally', {
-    accountUid: input.accountUid,
-    requestedMarkAllReadAtMs: input.markAllReadAtMs,
-    localMarkAllReadAtMs: nextState.markAllReadAtMs,
-    localStateUpdatedAtMs: nextState.stateUpdatedAtMs,
-    localReadEventsCount: getReadEventCount(nextState),
-  })
-  scheduleSync(input.accountUid, SYNC_DEBOUNCE_MS, 'mark-all-read')
-  return toAccountStateView(input.accountUid)
+  const changes = getStateChanges(previousState, nextState)
+  if (hasAnyStateChange(changes)) {
+    log.info('Notification read-state marked all read locally', {
+      accountUid: input.accountUid,
+      requestedMarkAllReadAtMs: input.markAllReadAtMs,
+      localMarkAllReadAtMs: nextState.markAllReadAtMs,
+      localStateUpdatedAtMs: nextState.stateUpdatedAtMs,
+      localReadEventsCount: getReadEventCount(nextState),
+    })
+    scheduleSync(input.accountUid, SYNC_DEBOUNCE_MS, 'mark-all-read')
+  }
+  return toAccountMutationResult(input.accountUid, changes)
 }
 
 export const notificationReadApi = t.router({
