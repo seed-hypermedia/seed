@@ -33,6 +33,8 @@ import {
   setNotifierLastProcessedEventId,
 } from './db'
 import {sendEmail} from './mailer'
+import {getDiscussionNotificationReason, getNotificationDeliveryKind} from './notification-routing'
+import type {NotificationDeliveryKind} from './notification-routing'
 import {buildNotificationReadRedirectUrl} from './notification-read-redirect'
 import {grpcClient, requestAPI} from './notify-request'
 
@@ -58,9 +60,6 @@ const emailBatchNotifIntervalHours = isProd ? 4 : 0.1 // 6 minute batching for d
 
 const handleImmediateEmailNotificationsIntervalSeconds = 15
 
-type NotifReason = Notification['reason']
-type NotificationDeliveryKind = 'immediate' | 'batch'
-
 const adminEmail = process.env.SEED_DEV_ADMIN_EMAIL || 'eric@seedhypermedia.com'
 const notificationEmailHost = (NOTIFY_SERVICE_HOST || SITE_BASE_URL).replace(/\/$/, '')
 const fallbackSiteBaseUrl = SITE_BASE_URL.replace(/\/$/, '')
@@ -82,6 +81,7 @@ type NotificationSubscription = {
   createdAt: string
   notifyAllMentions: boolean
   notifyAllReplies: boolean
+  notifyAllDiscussions: boolean
   notifyOwnedDocChange: boolean
   notifySiteDiscussions: boolean
 }
@@ -388,6 +388,7 @@ function getImmediateSubscriptions(emailIdentityMap: Map<string, EmailIdentity>)
       createdAt: config.createdAt,
       notifyAllMentions: true,
       notifyAllReplies: true,
+      notifyAllDiscussions: true,
       notifyOwnedDocChange: false,
       notifySiteDiscussions: false,
     }))
@@ -406,16 +407,11 @@ function getBatchSubscriptions(
         ...subscription,
         notifyAllMentions: false,
         notifyAllReplies: false,
+        notifyAllDiscussions: false,
       })
     }
   }
   return subscriptions
-}
-
-function getNotificationDeliveryKind(reason: NotifReason): NotificationDeliveryKind | null {
-  if (reason === 'mention' || reason === 'reply') return 'immediate'
-  if (reason === 'site-doc-update' || reason === 'site-new-discussion') return 'batch'
-  return null
 }
 
 async function collectNotificationsForEvents({
@@ -483,7 +479,11 @@ async function collectNotificationsForEvents({
 }
 
 function withImmediateActionUrl(notification: QueuedNotification): QueuedNotification {
-  if (notification.notif.reason !== 'mention' && notification.notif.reason !== 'reply') {
+  if (
+    notification.notif.reason !== 'mention' &&
+    notification.notif.reason !== 'reply' &&
+    notification.notif.reason !== 'discussion'
+  ) {
     return notification
   }
 
@@ -1151,20 +1151,37 @@ async function evaluateNewCommentForNotifications(
       })
       continue
     }
-    if (commentReason === 'discussion' && sub.notifySiteDiscussions) {
-      await appendNotification(sub, {
-        reason: 'site-new-discussion',
-        comment: comment,
-        parentComments: parentComments,
-        authorMeta: commentAuthorMeta,
-        targetMeta: targetMeta,
-        targetId: targetDocId,
-        url: commentUrl,
-      })
-      logNotifDebug('site discussion notification queued', {
+    if (commentReason === 'discussion') {
+      const discussionReason = getDiscussionNotificationReason(sub)
+      if (!discussionReason) continue
+      if (discussionReason === 'discussion') {
+        await appendNotification(sub, {
+          reason: 'discussion',
+          comment: comment,
+          parentComments: parentComments,
+          authorMeta: commentAuthorMeta,
+          targetMeta: targetMeta,
+          targetId: targetDocId,
+          url: commentUrl,
+          eventId: eventMeta.eventId,
+          eventAtMs: eventMeta.eventAtMs,
+        })
+      } else {
+        await appendNotification(sub, {
+          reason: 'site-new-discussion',
+          comment: comment,
+          parentComments: parentComments,
+          authorMeta: commentAuthorMeta,
+          targetMeta: targetMeta,
+          targetId: targetDocId,
+          url: commentUrl,
+        })
+      }
+      logNotifDebug('discussion notification queued', {
         eventId: eventMeta.eventId,
         subscriptionAccountId: sub.id,
         subscriptionEmail: sub.email,
+        reason: discussionReason,
         commentId: comment.id,
       })
     }
