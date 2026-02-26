@@ -3,4 +3,4 @@ min_version = "2025.12.12"
 experimental = true
 
 [tools]
-bun = "1.3.9"
+bun = "1.3.10"

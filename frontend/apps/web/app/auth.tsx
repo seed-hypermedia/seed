@@ -38,6 +38,7 @@ import {
 import {preparePublicKey} from './auth-utils'
 import {createDefaultAccountName} from './default-account-name'
 import {deleteLocalKeys, getStoredLocalKeys, setHasPromptedEmailNotifications, writeLocalKeys} from './local-db'
+import {queryAPI} from './models'
 import type {CreateAccountPayload} from './routes/hm.api.create-account'
 import type {UpdateDocumentPayload} from './routes/hm.api.document-update'
 
@@ -50,6 +51,8 @@ export type LocalWebIdentity = CryptoKeyPair & {
 }
 let keyPair: LocalWebIdentity | null = null
 const keyPairHandlers = new Set<() => void>()
+const VAULT_SIGN_IN_UNLOCK_TAPS = 7
+const VAULT_SIGN_IN_UNLOCK_WINDOW_MS = 3500
 
 export const keyPairStore = {
   get: () => keyPair,
@@ -59,48 +62,50 @@ export const keyPairStore = {
   },
 }
 
+async function loadLocalWebIdentity(): Promise<LocalWebIdentity | null> {
+  const kp = await getStoredLocalKeys()
+  if (!kp) return null
+  const id = await preparePublicKey(kp.publicKey)
+  return {
+    ...kp,
+    id: base58btc.encode(id),
+  }
+}
+
+function syncKeyPair(newKeyPair: LocalWebIdentity | null) {
+  if ((!newKeyPair && keyPair) || newKeyPair?.id !== keyPair?.id) {
+    keyPairStore.set(newKeyPair)
+  }
+}
+
 function updateKeyPair() {
   const activeVaultUrl = typeof window !== 'undefined' ? localStorage.getItem('hm_active_vault_url') : null
   if (activeVaultUrl) {
     hmauth
       .getSession(activeVaultUrl)
       .then(async (session) => {
-        if (!session) return null
-        const webIdentity: LocalWebIdentity = {
-          privateKey: session.keyPair.privateKey,
-          publicKey: session.keyPair.publicKey,
-          id: session.principal,
-          isDelegated: true,
-          vaultUrl: session.vaultUrl,
+        if (session) {
+          return {
+            privateKey: session.keyPair.privateKey,
+            publicKey: session.keyPair.publicKey,
+            id: session.principal,
+            isDelegated: true,
+            vaultUrl: session.vaultUrl,
+          } satisfies LocalWebIdentity
         }
-        return webIdentity
+        localStorage.removeItem('hm_active_vault_url')
+        return await loadLocalWebIdentity()
       })
-      .then((newKeyPair) => {
-        if ((!newKeyPair && keyPair) || newKeyPair?.id !== keyPair?.id) {
-          keyPairStore.set(newKeyPair)
-        }
-      })
+      .then(syncKeyPair)
       .catch((err) => {
         console.error(err)
+        localStorage.removeItem('hm_active_vault_url')
+        loadLocalWebIdentity().then(syncKeyPair).catch(console.error)
       })
     return
   }
 
-  getStoredLocalKeys()
-    .then(async (kp) => {
-      if (!kp) return null
-      const id = await preparePublicKey(kp.publicKey)
-      const webIdentity: LocalWebIdentity = {
-        ...kp,
-        id: base58btc.encode(id),
-      }
-      return webIdentity
-    })
-    .then((newKeyPair) => {
-      if ((!newKeyPair && keyPair) || newKeyPair?.id !== keyPair?.id) {
-        keyPairStore.set(newKeyPair)
-      }
-    })
+  loadLocalWebIdentity().then(syncKeyPair).catch(console.error)
 }
 
 export function logout() {
@@ -147,15 +152,42 @@ export async function createAccount({
   if (typeof icon === 'string') {
     throw new Error('Must provide an image or null for account creation')
   }
+
+  const activeVaultUrl = typeof window !== 'undefined' ? localStorage.getItem('hm_active_vault_url') : null
+  if (activeVaultUrl) {
+    localStorage.removeItem('hm_active_vault_url')
+    await hmauth.clearSession(activeVaultUrl).catch((err) => {
+      console.error('Failed to clear delegated session while creating local account', err)
+    })
+  }
+
   const existingKeyPair = await getStoredLocalKeys()
+  let keyPair = existingKeyPair
+
   if (existingKeyPair) {
     const id = await preparePublicKey(existingKeyPair.publicKey)
-    return {
-      ...existingKeyPair,
-      id: base58btc.encode(id),
+    const uid = base58btc.encode(id)
+
+    try {
+      const accountResult = await queryAPI<{type?: string}>(`/api/Account?id=${encodeURIComponent(uid)}`)
+      if (accountResult?.type === 'account') {
+        const webIdentity = {
+          ...existingKeyPair,
+          id: uid,
+        }
+        keyPairStore.set(webIdentity)
+        return webIdentity
+      }
+    } catch (err) {
+      console.warn('Failed to verify existing local account, proceeding with account creation', err)
     }
+  } else {
+    keyPair = await generateAndStoreKeyPair()
   }
-  const keyPair = await generateAndStoreKeyPair()
+
+  if (!keyPair) {
+    throw new Error('Failed to initialize local key pair')
+  }
   const genesisChange = await createDocumentGenesisChange({
     keyPair,
   })
@@ -364,7 +396,47 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
   const defaultVaultUrl = `${defaultVaultOrigin}/vault/delegate`
   const [customVaultUrl, setCustomVaultUrl] = useState('')
   const [showCustomVaultInput, setShowCustomVaultInput] = useState(false)
+  const [vaultSignInUnlocked, setVaultSignInUnlocked] = useState(false)
   const customVaultInputRef = useRef<HTMLInputElement>(null)
+  const unlockTapCountRef = useRef(0)
+  const unlockTapTimeoutRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (unlockTapTimeoutRef.current) {
+        window.clearTimeout(unlockTapTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const unlockVaultSignIn = () => {
+    setVaultSignInUnlocked(true)
+    unlockTapCountRef.current = 0
+    if (unlockTapTimeoutRef.current) {
+      window.clearTimeout(unlockTapTimeoutRef.current)
+      unlockTapTimeoutRef.current = null
+    }
+    toast.success('Hypermedia sign-in unlocked for this session')
+  }
+
+  const handleSecretTitleTap = () => {
+    if (vaultSignInUnlocked) return
+
+    unlockTapCountRef.current += 1
+
+    if (unlockTapTimeoutRef.current) {
+      window.clearTimeout(unlockTapTimeoutRef.current)
+    }
+
+    unlockTapTimeoutRef.current = window.setTimeout(() => {
+      unlockTapCountRef.current = 0
+      unlockTapTimeoutRef.current = null
+    }, VAULT_SIGN_IN_UNLOCK_WINDOW_MS)
+
+    if (unlockTapCountRef.current >= VAULT_SIGN_IN_UNLOCK_TAPS) {
+      unlockVaultSignIn()
+    }
+  }
 
   const handleVaultSignIn = async (urlOverride?: string) => {
     const vaultUrl = urlOverride || defaultVaultUrl
@@ -382,13 +454,18 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
     }
   }
 
-  const onSubmit: SubmitHandler<SiteMetaFields> = (data) => {
-    createAccount({name: data.name, icon: data.icon}).then(() => onClose())
+  const onSubmit: SubmitHandler<SiteMetaFields> = async (data) => {
+    try {
+      await createAccount({name: data.name, icon: data.icon})
+      onClose()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    }
   }
 
   return (
     <>
-      <DialogTitle className="max-sm:text-base">
+      <DialogTitle className="max-sm:text-base" onClick={handleSecretTitleTap}>
         {tx('create_account_title', ({siteName}: {siteName: string}) => `Create Account on ${siteName}`, {
           siteName: siteName || 'this site',
         })}
@@ -409,70 +486,74 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
         })}
       />
 
-      {/* Divider. */}
-      <div className="flex items-center gap-1">
-        <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
-        <span className="text-xs text-neutral-400 dark:text-neutral-500">or</span>
-        <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
-      </div>
+      {vaultSignInUnlocked ? (
+        <>
+          {/* Divider. */}
+          <div className="flex items-center gap-1">
+            <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
+            <span className="text-xs text-neutral-400 dark:text-neutral-500">or</span>
+            <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
+          </div>
 
-      {/* Split button: main part triggers vault sign-in, chevron opens dropdown for custom URL. */}
-      <div className="flex flex-col gap-1">
-        <div className="flex items-stretch">
-          <Button
-            variant="outline"
-            size="lg"
-            className="flex-1 rounded-r-none border-r-0"
-            onClick={() => handleVaultSignIn()}
-          >
-            Sign in with Hypermedia
-          </Button>
-          <DropdownMenu
-            open={showCustomVaultInput}
-            onOpenChange={(open) => {
-              setShowCustomVaultInput(open)
-              if (open) {
-                // Focus the input after the dropdown renders.
-                setTimeout(() => customVaultInputRef.current?.focus(), 50)
-              }
-            }}
-          >
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="lg" className="rounded-l-none border-l px-2">
-                <ChevronDown className="size-4" />
+          {/* Split button: main part triggers vault sign-in, chevron opens dropdown for custom URL. */}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-stretch">
+              <Button
+                variant="outline"
+                size="lg"
+                className="flex-1 rounded-r-none border-r-0"
+                onClick={() => handleVaultSignIn()}
+              >
+                Sign in with Hypermedia
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 p-3">
-              <div className="flex flex-col gap-2">
-                <SizableText size="sm" className="font-medium">
-                  Custom Vault URL
-                </SizableText>
-                <input
-                  ref={customVaultInputRef}
-                  className="rounded border px-2 py-1.5 text-sm dark:bg-neutral-900"
-                  value={customVaultUrl}
-                  onChange={(e) => setCustomVaultUrl(e.target.value)}
-                  placeholder={defaultVaultUrl}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && customVaultUrl.trim()) {
-                      handleVaultSignIn(customVaultUrl.trim())
-                    }
-                  }}
-                />
-                <Button
-                  variant="default"
-                  size="sm"
-                  className="self-end"
-                  disabled={!customVaultUrl.trim()}
-                  onClick={() => handleVaultSignIn(customVaultUrl.trim())}
-                >
-                  Connect
-                </Button>
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
+              <DropdownMenu
+                open={showCustomVaultInput}
+                onOpenChange={(open) => {
+                  setShowCustomVaultInput(open)
+                  if (open) {
+                    // Focus the input after the dropdown renders.
+                    setTimeout(() => customVaultInputRef.current?.focus(), 50)
+                  }
+                }}
+              >
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="lg" className="rounded-l-none border-l px-2">
+                    <ChevronDown className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-80 p-3">
+                  <div className="flex flex-col gap-2">
+                    <SizableText size="sm" className="font-medium">
+                      Custom Vault URL
+                    </SizableText>
+                    <input
+                      ref={customVaultInputRef}
+                      className="rounded border px-2 py-1.5 text-sm dark:bg-neutral-900"
+                      value={customVaultUrl}
+                      onChange={(e) => setCustomVaultUrl(e.target.value)}
+                      placeholder={defaultVaultUrl}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && customVaultUrl.trim()) {
+                          handleVaultSignIn(customVaultUrl.trim())
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="self-end"
+                      disabled={!customVaultUrl.trim()}
+                      onClick={() => handleVaultSignIn(customVaultUrl.trim())}
+                    >
+                      Connect
+                    </Button>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </>
+      ) : null}
     </>
   )
 }

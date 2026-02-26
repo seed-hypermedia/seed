@@ -19,7 +19,7 @@
  * ```
  */
 
-import {CID} from 'multiformats/cid'
+import type {CID} from 'multiformats/cid'
 import * as base64 from './base64'
 import * as blobs from './blobs'
 import * as cbor from './cbor'

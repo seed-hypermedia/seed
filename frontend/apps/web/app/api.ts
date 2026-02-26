@@ -23,7 +23,7 @@ export * as rawCodec from 'multiformats/codecs/raw'
 export async function postCBOR(path: string, body: Uint8Array) {
   const response = await fetch(`${path}`, {
     method: 'POST',
-    body: Buffer.from(body),
+    body,
     headers: {
       'Content-Type': 'application/cbor',
     },

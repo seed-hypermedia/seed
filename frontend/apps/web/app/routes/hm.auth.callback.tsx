@@ -1,5 +1,5 @@
 import {cborEncode} from '@/api'
-import {keyPairStore, LocalWebIdentity} from '@/auth'
+import {keyPairStore, type LocalWebIdentity} from '@/auth'
 import {useNavigate} from '@remix-run/react'
 import {useUniversalAppContext} from '@shm/shared'
 import * as blobs from '@shm/shared/blobs'
@@ -125,7 +125,7 @@ export default function AuthCallbackRoute() {
 
     handleAuth()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [origin, navigate])
 
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4">

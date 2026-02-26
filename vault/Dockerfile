@@ -1,6 +1,6 @@
 # Build from the repo root with `docker build -t seedhypermedia/vault:dev . -f ./vault/Dockerfile`.
 
-FROM oven/bun:1.3.9 AS base
+FROM oven/bun:1.3.10 AS base
 WORKDIR /build
 
 FROM base AS build
@@ -11,7 +11,7 @@ RUN cd vault && bun install --frozen-lockfile --production
 COPY vault ./vault/
 RUN cd vault && bun run build
 
-FROM oven/bun:1.3.9
+FROM oven/bun:1.3.10
 WORKDIR /app
 COPY --from=build /build/vault/dist/ .
 VOLUME /data
