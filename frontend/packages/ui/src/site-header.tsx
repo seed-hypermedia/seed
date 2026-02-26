@@ -49,7 +49,7 @@ export function SiteHeader({
   onBlockFocus,
   onShowMobileMenu,
   hideSiteBarClassName,
-  isLatest = true,
+  isLatest: _isLatest,
   editNavPane,
   isMainFeedVisible = false,
   wrapperClassName,

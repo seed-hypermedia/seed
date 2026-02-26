@@ -318,12 +318,12 @@ export function ResourcePage({
       docId={docId}
       headerData={headerData}
       document={document}
-      isLatest={isLatest}
       rightActions={rightActions}
     >
       <DocumentBody
         docId={docId}
         document={document}
+        isLatest={isLatest}
         siteUrl={siteHomeDocument?.metadata?.siteUrl}
         CommentEditor={CommentEditor}
         extraMenuItems={extraMenuItems}
@@ -628,7 +628,6 @@ export function PageWrapper({
   headerData,
   document,
   children,
-  isLatest,
   isMainFeedVisible = false,
   rightActions,
 }: {
@@ -637,7 +636,6 @@ export function PageWrapper({
   headerData: HeaderData
   document?: HMDocument
   children: React.ReactNode
-  isLatest?: boolean
   isMainFeedVisible?: boolean
   rightActions?: React.ReactNode
 }) {
@@ -669,7 +667,6 @@ export function PageWrapper({
         isCenterLayout={headerData.isCenterLayout}
         document={document}
         siteHomeDocument={headerData.siteHomeDocument}
-        isLatest={isLatest}
         isMainFeedVisible={isMainFeedVisible}
         notifyServiceHost={NOTIFY_SERVICE_HOST}
         rightActions={rightActions}
@@ -683,6 +680,7 @@ export function PageWrapper({
 function DocumentBody({
   docId,
   document,
+  isLatest = true,
   siteUrl,
   CommentEditor,
   extraMenuItems,
@@ -698,6 +696,7 @@ function DocumentBody({
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
+  isLatest?: boolean
   siteUrl?: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
   extraMenuItems?: MenuItemType[]
@@ -1148,6 +1147,7 @@ function DocumentBody({
     return (
       <>
         <div className="relative flex flex-1 flex-col pb-20" ref={elementRef}>
+          <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
           {mainPageContent}
         </div>
         {floatingButtons}
@@ -1209,6 +1209,7 @@ function DocumentBody({
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
       >
+        <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
         {/* Floating action buttons - visible when DocumentTools is NOT sticky */}
         {actionButtons ? (
           <div
