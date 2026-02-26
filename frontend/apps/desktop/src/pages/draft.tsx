@@ -696,11 +696,10 @@ function DocumentEditor({
                   </div>
                 </div>
               ) : null}
-              <div {...mainContentProps}>
+              <div {...mainContentProps} className={cn(mainContentProps.className, 'pb-60')}>
                 <Container
                   // @ts-expect-error
                   paddingLeft="$4"
-                  marginBottom={300}
                   onClick={(e: MouseEvent<HTMLDivElement>) => {
                     e.stopPropagation()
                   }}

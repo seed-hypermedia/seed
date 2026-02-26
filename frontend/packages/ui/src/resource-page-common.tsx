@@ -1085,7 +1085,7 @@ function DocumentBody({
       </div>
 
       {/* Main content based on activeView */}
-      <div className="px-4">
+      <div className="px-4 pb-60">
         <MainContent
           docId={docId}
           resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
