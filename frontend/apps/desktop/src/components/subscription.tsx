@@ -29,7 +29,7 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
     isAlert: true,
   })
 
-  const isSubscribed = ['space', 'document'].includes(subscription.subscription)
+  const isSubscribed = ['space', 'document', 'parent'].includes(subscription.subscription)
 
   if (myAccountIds.isLoading || subscription.isLoading) return null
   if (docIsInMyAccount || isSubscribed) {
