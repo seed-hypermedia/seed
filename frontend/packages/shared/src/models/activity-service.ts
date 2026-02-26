@@ -103,6 +103,8 @@ export type LoadedCommentEvent = {
   // deprecate
   targetId?: UnpackedHypermediaId | null
   target: HMContactItem | null
+  // collaborators who have authored the target document
+  targetAuthorUids?: string[]
   replyCount: number
 }
 
@@ -123,6 +125,8 @@ export type LoadedCitationEvent = {
   time: HMTimestamp
   source: HMContactItem // The document/comment containing the citation
   target: HMContactItem // The document being cited (with fragment)
+  // collaborators who have authored the target document
+  targetAuthorUids?: string[]
   targetFragment?: string // Block ID or fragment being cited
   comment?: HMComment | null // The comment content (when citationType === 'c')
   replyCount?: number // Reply count for comment citations (when citationType === 'c')
@@ -187,6 +191,12 @@ export function getEventAtMs(event: HMActivityEvent): number {
   if (eventTime) return eventTime.getTime()
   if (observeTime) return observeTime.getTime()
   return Date.now()
+}
+
+function normalizeAuthorUids(authors: unknown): string[] | undefined {
+  if (!Array.isArray(authors) || !authors.length) return undefined
+  const authorUids = authors.filter((author): author is string => typeof author === 'string' && author.length > 0)
+  return authorUids.length ? authorUids : undefined
 }
 
 /**
@@ -274,6 +284,7 @@ export async function loadCommentEvent(
         enumAsInteger: false,
       }) as HMMetadata | undefined,
     }
+    const targetAuthorUids = normalizeAuthorUids((targetDoc as any)?.authors)
 
     return {
       id: event.newBlob.cid,
@@ -285,6 +296,7 @@ export async function loadCommentEvent(
       comment: comment ? prepareHMComment(comment) : null,
       commentId: unpackHmId(`hm://${comment.id}`)!,
       target,
+      targetAuthorUids,
       replyCount,
     }
   } catch (error) {
@@ -595,6 +607,7 @@ export async function loadCitationEvent(
 
     // Fetch target document metadata (best effort; keep event if metadata fails)
     let targetMetadata: HMMetadata | undefined
+    let targetAuthorUids: string[] | undefined
     try {
       const targetDocument = await cache.getDocument({
         account: targetUnpacked.uid,
@@ -605,6 +618,7 @@ export async function loadCitationEvent(
         emitDefaultValues: true,
         enumAsInteger: false,
       }) as HMMetadata | undefined
+      targetAuthorUids = normalizeAuthorUids((targetDocument as any)?.authors)
     } catch (error) {
       console.warn('Event: Failed to fetch target document metadata', {
         target: event.newMention.target,
@@ -650,6 +664,7 @@ export async function loadCitationEvent(
       time: event.eventTime || '',
       source,
       target,
+      targetAuthorUids,
       targetFragment: event.newMention.targetFragment || undefined,
       comment,
       replyCount,

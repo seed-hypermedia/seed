@@ -1015,6 +1015,7 @@ async function evaluateNewCommentForNotifications(
   }
   let commentAuthorMeta: HMMetadata | null = null
   let targetMeta: HMMetadata | null = null
+  let targetAuthorUids: string[] = []
   let targetDocumentSiteUrl: string | null = null
   let targetAccountSiteUrl: string | null = null
   const targetDocId = hmId(comment.targetAccount, {
@@ -1029,17 +1030,14 @@ async function evaluateNewCommentForNotifications(
   }
 
   try {
-    targetMeta = (
-      await requestAPI(
-        'ResourceMetadata',
-        hmId(comment.targetAccount, {
-          path: entityQueryPathToHmIdPath(comment.targetPath),
-        }),
-      )
-    ).metadata
+    const targetDocument = await getDocument(targetDocId)
+    targetMeta = targetDocument.metadata || null
+    targetAuthorUids = Array.isArray(targetDocument.authors)
+      ? targetDocument.authors.filter((author): author is string => typeof author === 'string' && author.length > 0)
+      : []
     targetDocumentSiteUrl = normalizeSiteBaseUrl(targetMeta?.siteUrl)
   } catch (error: any) {
-    reportError(`Error getting target metadata for ${comment.targetAccount}: ${error.message}`)
+    reportError(`Error getting target document for ${targetDocId.id}: ${error.message}`)
   }
 
   if (!targetMeta?.name && !targetDocId.path?.length) {
@@ -1099,6 +1097,7 @@ async function evaluateNewCommentForNotifications(
       subscriptionAccountUid: sub.id,
       commentAuthorUid: comment.author,
       targetAccountUid: comment.targetAccount,
+      targetAuthorUids,
       isTopLevelComment: !comment.threadRoot,
       parentCommentAuthorUid: parentCommentAuthor,
       mentionedAccountUids: mentionedUsers,

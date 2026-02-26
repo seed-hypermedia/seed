@@ -38,6 +38,7 @@ export function classifyCommentNotificationForAccount(input: {
   subscriptionAccountUid: string
   commentAuthorUid: string | null | undefined
   targetAccountUid: string | null | undefined
+  targetAuthorUids?: string[] | null | undefined
   isTopLevelComment: boolean
   parentCommentAuthorUid: string | null | undefined
   mentionedAccountUids: Set<string>
@@ -45,7 +46,8 @@ export function classifyCommentNotificationForAccount(input: {
   const isSelfAuthored = input.commentAuthorUid === input.subscriptionAccountUid
   if (isSelfAuthored) return null
   if (input.parentCommentAuthorUid === input.subscriptionAccountUid) return 'reply'
-  if (input.isTopLevelComment && input.targetAccountUid === input.subscriptionAccountUid) {
+  const isTargetAuthor = Boolean(input.targetAuthorUids?.includes(input.subscriptionAccountUid))
+  if (input.isTopLevelComment && (input.targetAccountUid === input.subscriptionAccountUid || isTargetAuthor)) {
     return 'discussion'
   }
   if (input.mentionedAccountUids.has(input.subscriptionAccountUid)) return 'mention'
@@ -57,16 +59,13 @@ export function classifyNotificationEvent(
   accountUid: string,
 ): NotificationReason | null {
   if (event.type === 'citation') {
+    // Comment citations that target documents are mirrored by comment blob events.
+    // Suppress them here to avoid duplicate discussion notifications in desktop inbox.
+    if (event.citationType === 'c' && event.target?.id?.path?.length) {
+      return null
+    }
+
     if (event.target?.id?.uid === accountUid) {
-      // Comment citation targeting a document (has path) rather than an account @mention (no path).
-      // Classify top-level comments as 'discussion'; suppress replies (handled by blob event).
-      if (event.citationType === 'c' && event.target.id.path?.length) {
-        const isSelfAuthored = event.author?.id?.uid === accountUid
-        if (!isSelfAuthored && event.comment && !event.comment.threadRoot) {
-          return 'discussion'
-        }
-        return null
-      }
       return 'mention'
     }
   }
@@ -77,6 +76,7 @@ export function classifyNotificationEvent(
       subscriptionAccountUid: accountUid,
       commentAuthorUid: event.author?.id?.uid,
       targetAccountUid: event.target?.id?.uid,
+      targetAuthorUids: event.targetAuthorUids,
       isTopLevelComment: !event.comment?.threadRoot,
       parentCommentAuthorUid: event.replyParentAuthor?.id?.uid,
       mentionedAccountUids,

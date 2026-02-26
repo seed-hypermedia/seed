@@ -17,6 +17,7 @@ const notificationConfigResponseSchema = z.object({
   verifiedTime: z.string().nullable(),
   verificationSendTime: z.string().nullable(),
   verificationExpired: z.boolean(),
+  isNotifyServerConnected: z.boolean().default(true),
 })
 
 const notificationConfigMutationResponseSchema = notificationConfigResponseSchema.extend({
@@ -113,11 +114,22 @@ const notificationConfigInputSchema = z.object({
 
 export const notificationConfigApi = t.router({
   getConfig: t.procedure.input(notificationConfigInputSchema).query(async ({input}) => {
-    const notifyServiceHost = resolveNotifyHost(input.notifyServiceHost)
-    const response = await signedNotificationConfigPost(input.accountUid, notifyServiceHost, {
-      action: 'get-notification-config',
-    })
-    return notificationConfigResponseSchema.parse(response)
+    try {
+      const notifyServiceHost = resolveNotifyHost(input.notifyServiceHost)
+      const response = await signedNotificationConfigPost(input.accountUid, notifyServiceHost, {
+        action: 'get-notification-config',
+      })
+      return notificationConfigResponseSchema.parse(response)
+    } catch (error) {
+      return notificationConfigResponseSchema.parse({
+        accountId: input.accountUid,
+        email: null,
+        verifiedTime: null,
+        verificationSendTime: null,
+        verificationExpired: false,
+        isNotifyServerConnected: false,
+      })
+    }
   }),
   setConfig: t.procedure
     .input(
