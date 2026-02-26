@@ -63,6 +63,10 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Reindexing to fix convergence of duplicate-timestamp metadata.
+	{Version: "2026-02-26.235349", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return scheduleReindex(conn)
+	}},
 	// Reindexing the database after private documents fix.
 	{Version: "2026-02-20.101920", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return scheduleReindex(conn)
