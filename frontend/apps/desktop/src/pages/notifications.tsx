@@ -239,9 +239,14 @@ function NotificationEmailSettingsDialog({accountUid}: {accountUid: string}) {
     >
       <div className="flex min-w-0 items-center gap-2">
         {!isLoading && currentEmail ? (
-          <div className="flex min-w-0 flex-col">
+          <div className="flex min-w-0 flex-col items-end">
             <p className="text-muted-foreground max-w-[260px] truncate text-sm">{currentEmail}</p>
-            {needsVerification ? <p className="text-xs text-amber-600">Email not verified</p> : null}
+            {needsVerification ? (
+              <div className="flex gap-1 text-amber-600">
+                <p className="text-xs text-amber-600">Email not verified</p>
+                <Spinner size="small" />
+              </div>
+            ) : null}
           </div>
         ) : null}
         <Tooltip content="Email notification settings">
