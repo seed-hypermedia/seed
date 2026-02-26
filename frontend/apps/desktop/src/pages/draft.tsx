@@ -957,6 +957,7 @@ function DraftMetadataEditor({
   })
   const inputName = useRef<HTMLTextAreaElement | null>(null)
   const inputSummary = useRef<HTMLTextAreaElement | null>(null)
+  const duplicateFocusTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const target = inputName.current
@@ -967,6 +968,26 @@ function DraftMetadataEditor({
       applyInputResize(target)
     }
   }, [name])
+
+  // Focus and select the title when navigating from a duplicate action.
+  // Uses a ref-held timer so React re-renders don't cancel it via effect cleanup.
+  useEffect(() => {
+    if (!name) return
+    const flagDraftId = sessionStorage.getItem('duplicate-draft-focus')
+    if (!flagDraftId || route.id !== flagDraftId) return
+    sessionStorage.removeItem('duplicate-draft-focus')
+
+    if (duplicateFocusTimer.current) {
+      clearTimeout(duplicateFocusTimer.current)
+    }
+    duplicateFocusTimer.current = setTimeout(() => {
+      duplicateFocusTimer.current = null
+      const target = inputName.current
+      if (!target) return
+      target.focus()
+      target.select()
+    }, 300)
+  }, [name, route.id])
 
   useEffect(() => {
     const target = inputSummary.current

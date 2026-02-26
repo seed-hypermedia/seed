@@ -9,7 +9,7 @@ import {
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Bookmark, Forward, GitFork, Link, MessageSquare, Pencil} from 'lucide-react'
+import {Bookmark, Copy, Forward, GitFork, Link, MessageSquare, Pencil} from 'lucide-react'
 import {HTMLAttributes, useMemo} from 'react'
 import {Button} from './button'
 import {DraftBadge} from './draft-badge'
@@ -72,6 +72,17 @@ export function DocumentCard({
         onClick: (e) => {
           e?.stopPropagation()
           actions.onEditDocument!(docId, draftId)
+        },
+      })
+    }
+    if (actions.onDuplicateDocument && isOwner && hasPath) {
+      items.push({
+        key: 'duplicate',
+        label: 'Duplicate Document',
+        icon: <Copy className="size-4" />,
+        onClick: (e) => {
+          e?.stopPropagation()
+          actions.onDuplicateDocument!(docId)
         },
       })
     }
