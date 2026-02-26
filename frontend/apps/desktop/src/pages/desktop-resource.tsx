@@ -24,7 +24,7 @@ import {useResource} from '@shm/shared/models/entity'
 import {useNavRoute, useNavigationDispatch} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {useDeleteCommentDialog} from '@shm/ui/comments'
-import {Download, Trash} from '@shm/ui/icons'
+import {Download, SubscribeSpace, Trash} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {ResourcePage} from '@shm/ui/resource-page-common'
 import {SizableText} from '@shm/ui/text'
@@ -33,6 +33,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {SubscriptionButton} from '@/components/subscription'
+import {useSubscription} from '@/models/subscription'
 import {Copy, ForwardIcon, GitFork, Pencil} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback, useMemo, useState} from 'react'
@@ -67,6 +68,10 @@ export default function DesktopResourcePage() {
   const resource = useResource(docId)
   const doc = resource.data?.type === 'document' ? resource.data.document : undefined
   const isPrivate = doc?.visibility === 'PRIVATE'
+  const siteId = hmId(docId.uid)
+  const subscription = useSubscription(siteId)
+  const docIsInMyAccount = myAccountIds.data?.includes(docId.uid)
+  const isSubscribedToSite = subscription.subscription === 'space' || subscription.subscription === 'parent'
 
   // Inline document creation
   const childDrafts = useChildDrafts(docId)
@@ -199,6 +204,17 @@ export default function DesktopResourcePage() {
       label: 'Create Document Branch',
       icon: <GitFork className="size-4" />,
       onClick: () => branchDialog.open(docId),
+    })
+  }
+
+  if (!docIsInMyAccount && !isSubscribedToSite && !subscription.isLoading) {
+    menuItems.push({
+      key: 'subscribe-site',
+      label: 'Subscribe to Site',
+      icon: <SubscribeSpace size={16} />,
+      onClick: () => {
+        subscription.setSubscription('space')
+      },
     })
   }
 
