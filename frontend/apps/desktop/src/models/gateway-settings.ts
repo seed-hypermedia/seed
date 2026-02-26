@@ -56,6 +56,9 @@ export function useSetNotifyServiceHost() {
     mutationFn: (host: string) => client.gatewaySettings.setNotifyServiceHost.mutate(host),
     onSuccess: () => {
       invalidateQueries([queryKeys.NOTIFY_SERVICE_HOST])
+      invalidateQueries([queryKeys.NOTIFICATION_CONFIG])
+      invalidateQueries([queryKeys.NOTIFICATION_READ_STATE])
+      invalidateQueries([queryKeys.NOTIFICATION_SYNC_STATUS])
     },
   })
   return setNotifyServiceHost

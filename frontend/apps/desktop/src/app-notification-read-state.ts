@@ -558,6 +558,29 @@ async function syncAccount(accountUid: string, notifyServiceHost?: string): Prom
   return task
 }
 
+export function handleNotifyServiceHostChanged(notifyServiceHost: string) {
+  const trimmedHost = notifyServiceHost.trim()
+  const host = trimmedHost ? trimmedHost : undefined
+  const accountUids = Object.keys(store.accounts)
+  if (!accountUids.length) return
+
+  log.info('Notification read-state host changed, scheduling sync for known accounts', {
+    accountCount: accountUids.length,
+    host: host ?? null,
+  })
+
+  for (const accountUid of accountUids) {
+    const existing = syncInFlight.get(accountUid)
+    if (existing) {
+      void existing.finally(() => {
+        void syncAccount(accountUid, host)
+      })
+      continue
+    }
+    void syncAccount(accountUid, host)
+  }
+}
+
 function markEventRead(input: {accountUid: string; eventId: string; eventAtMs: number}): AccountStateMutationResult {
   const previousState = snapshotAccountState(input.accountUid)
   const nextState = updateAccountState(input.accountUid, (current) => {

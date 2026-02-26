@@ -746,6 +746,127 @@ describe('app notification read state', () => {
     expect(afterSync.readEvents).toEqual([])
   })
 
+  it('host change schedules immediate sync for known accounts', async () => {
+    const mod = await import('../app-notification-read-state')
+    const caller = mod.notificationReadApi.createCaller({})
+
+    await caller.getLocalState(accountUid)
+    vi.clearAllTimers()
+
+    fetchMock
+      .mockImplementationOnce(() =>
+        jsonResponse({
+          accountId: accountUid,
+          markAllReadAtMs: 1000,
+          stateUpdatedAtMs: 1000,
+          readEvents: [],
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        }),
+      )
+      .mockImplementationOnce(() =>
+        jsonResponse({
+          accountId: accountUid,
+          markAllReadAtMs: 1000,
+          stateUpdatedAtMs: 1000,
+          readEvents: [],
+          updatedAt: '2026-01-01T00:00:01.000Z',
+        }),
+      )
+
+    mod.handleNotifyServiceHostChanged('https://notify.new')
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://notify.new/hm/api/notification-read-state')
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('https://notify.new/hm/api/notification-read-state')
+  })
+
+  it('host change queues a follow-up sync when one is already in-flight', async () => {
+    const mod = await import('../app-notification-read-state')
+    const caller = mod.notificationReadApi.createCaller({})
+
+    await caller.getLocalState(accountUid)
+    vi.clearAllTimers()
+
+    let resolveOldGet!: (value: Response) => void
+    let resolveOldPost!: (value: Response) => void
+
+    fetchMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveOldGet = resolve
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveOldPost = resolve
+          }),
+      )
+      .mockImplementationOnce(() =>
+        jsonResponse({
+          accountId: accountUid,
+          markAllReadAtMs: 1000,
+          stateUpdatedAtMs: 1000,
+          readEvents: [],
+          updatedAt: '2026-01-01T00:00:02.000Z',
+        }),
+      )
+      .mockImplementationOnce(() =>
+        jsonResponse({
+          accountId: accountUid,
+          markAllReadAtMs: 1000,
+          stateUpdatedAtMs: 1000,
+          readEvents: [],
+          updatedAt: '2026-01-01T00:00:03.000Z',
+        }),
+      )
+
+    const syncPromise = caller.syncNow({accountUid, notifyServiceHost: 'https://notify.old'})
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://notify.old/hm/api/notification-read-state')
+
+    mod.handleNotifyServiceHostChanged('https://notify.new')
+
+    resolveOldGet(
+      new Response(
+        JSON.stringify({
+          accountId: accountUid,
+          markAllReadAtMs: 1000,
+          stateUpdatedAtMs: 1000,
+          readEvents: [],
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        }),
+        {status: 200, headers: {'Content-Type': 'application/json'}},
+      ),
+    )
+    await vi.advanceTimersByTimeAsync(0)
+
+    resolveOldPost(
+      new Response(
+        JSON.stringify({
+          accountId: accountUid,
+          markAllReadAtMs: 1000,
+          stateUpdatedAtMs: 1000,
+          readEvents: [],
+          updatedAt: '2026-01-01T00:00:01.000Z',
+        }),
+        {status: 200, headers: {'Content-Type': 'application/json'}},
+      ),
+    )
+    await syncPromise
+    await vi.advanceTimersByTimeAsync(0)
+
+    const requestedHosts = fetchMock.mock.calls.map((call) => String(call[0]))
+    const oldHostRequests = requestedHosts.filter((url) => url === 'https://notify.old/hm/api/notification-read-state')
+    const newHostRequests = requestedHosts.filter((url) => url === 'https://notify.new/hm/api/notification-read-state')
+
+    expect(oldHostRequests.length).toBe(2)
+    expect(newHostRequests.length).toBe(2)
+  })
+
   it('persists read state across module reload', async () => {
     const caller = await loadCaller()
     await caller.getLocalState(accountUid)

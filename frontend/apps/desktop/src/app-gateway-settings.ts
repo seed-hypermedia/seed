@@ -1,5 +1,8 @@
 import {DEFAULT_GATEWAY_URL, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import z from 'zod'
+import {appInvalidateQueries} from './app-invalidation'
+import {handleNotifyServiceHostChanged} from './app-notification-read-state'
 // @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
@@ -17,6 +20,13 @@ let notifyServiceHost: string = storedNotifyHost !== undefined ? storedNotifyHos
 function writeNotifyServiceHost(url: string) {
   notifyServiceHost = url
   appStore.set(NOTIFY_SERVICE_HOST_KEY, url)
+}
+
+function invalidateNotifyServiceHostDependentQueries() {
+  appInvalidateQueries([queryKeys.NOTIFY_SERVICE_HOST])
+  appInvalidateQueries([queryKeys.NOTIFICATION_CONFIG])
+  appInvalidateQueries([queryKeys.NOTIFICATION_READ_STATE])
+  appInvalidateQueries([queryKeys.NOTIFICATION_SYNC_STATUS])
 }
 
 const DependsType = z.literal('always').or(z.literal('never')).or(z.literal('ask'))
@@ -48,7 +58,10 @@ export const gatewaySettingsApi = t.router({
     return notifyServiceHost
   }),
   setNotifyServiceHost: t.procedure.input(z.string()).mutation(async ({input = NOTIFY_SERVICE_HOST || ''}) => {
-    return writeNotifyServiceHost(input)
+    if (input === notifyServiceHost) return
+    writeNotifyServiceHost(input)
+    invalidateNotifyServiceHostDependentQueries()
+    handleNotifyServiceHostChanged(input)
   }),
 
   getPushOnCopy: t.procedure.query(async () => {
