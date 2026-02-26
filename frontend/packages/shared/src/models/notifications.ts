@@ -4,9 +4,15 @@ import {base58btc} from 'multiformats/bases/base58'
 import {IS_DESKTOP} from '../constants'
 import {queryKeys} from './query-keys'
 
+const DESKTOP_NOTIFICATION_CONFIG_REFETCH_MS = 30_000
+const DESKTOP_UNVERIFIED_NOTIFICATION_CONFIG_REFETCH_MS = 5_000
+
 export type NotificationConfig = {
   accountId: string
   email: string | null
+  verifiedTime: string | null
+  verificationSendTime: string | null
+  verificationExpired: boolean
 }
 
 export type NotificationReadEvent = {
@@ -66,7 +72,12 @@ export function useNotificationConfig(notifyServiceHost: string | undefined, sig
     },
     enabled: !!notifyServiceHost && !!signer && !!accountId,
     refetchOnMount: 'always',
-    refetchInterval: IS_DESKTOP ? 30_000 : false,
+    refetchInterval: IS_DESKTOP
+      ? (config) =>
+          config?.email && !config.verifiedTime
+            ? DESKTOP_UNVERIFIED_NOTIFICATION_CONFIG_REFETCH_MS
+            : DESKTOP_NOTIFICATION_CONFIG_REFETCH_MS
+      : false,
     refetchIntervalInBackground: IS_DESKTOP,
   })
 }
@@ -89,6 +100,52 @@ export function useSetNotificationConfig(
       return signedNotifPost(notifyServiceHost, '/hm/api/notification-config', signer, {
         action: 'set-notification-config',
         ...input,
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.NOTIFICATION_CONFIG, notifyServiceHost, accountId],
+      })
+    },
+  })
+}
+
+export function useResendNotificationConfigVerification(
+  notifyServiceHost: string | undefined,
+  signer: NotificationSigner | undefined,
+) {
+  const queryClient = useQueryClient()
+  const accountId = accountIdFromSigner(signer)
+  return useMutation({
+    mutationFn: async () => {
+      if (!notifyServiceHost || !signer) {
+        throw new Error('Missing notifyServiceHost or signer')
+      }
+      return signedNotifPost(notifyServiceHost, '/hm/api/notification-config', signer, {
+        action: 'resend-notification-config-verification',
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.NOTIFICATION_CONFIG, notifyServiceHost, accountId],
+      })
+    },
+  })
+}
+
+export function useRemoveNotificationConfig(
+  notifyServiceHost: string | undefined,
+  signer: NotificationSigner | undefined,
+) {
+  const queryClient = useQueryClient()
+  const accountId = accountIdFromSigner(signer)
+  return useMutation({
+    mutationFn: async () => {
+      if (!notifyServiceHost || !signer) {
+        throw new Error('Missing notifyServiceHost or signer')
+      }
+      return signedNotifPost(notifyServiceHost, '/hm/api/notification-config', signer, {
+        action: 'remove-notification-config',
       })
     },
     onSuccess: () => {

@@ -379,7 +379,7 @@ function getImmediateSubscriptions(emailIdentityMap: Map<string, EmailIdentity>)
   return getAllNotificationConfigs()
     .filter((config) => {
       const identity = emailIdentityMap.get(config.email)
-      return Boolean(identity && !identity.isUnsubscribed)
+      return Boolean(identity && !identity.isUnsubscribed && config.verifiedTime)
     })
     .map((config) => ({
       id: config.accountId,

@@ -49,6 +49,14 @@ type DBNotificationReadEventRow = {
   eventAtMs: number
 }
 
+type DBNotificationEmailVerificationRow = {
+  accountId: string
+  email: string
+  token: string
+  sendTime: string
+  createdAt: string
+}
+
 let db: Database.Database
 
 // Prepared statements - initialized after db is ready
@@ -71,6 +79,12 @@ let stmtGetAllNotificationConfigs: Database.Statement
 let stmtGetNotificationConfigsForEmail: Database.Statement
 let stmtUpsertNotificationConfig: Database.Statement
 let stmtDeleteNotificationConfigForAccountEmail: Database.Statement
+let stmtDeleteNotificationConfigForAccount: Database.Statement
+let stmtGetNotificationEmailVerificationForAccount: Database.Statement
+let stmtGetNotificationEmailVerificationByToken: Database.Statement
+let stmtUpsertNotificationEmailVerification: Database.Statement
+let stmtDeleteNotificationEmailVerificationForAccount: Database.Statement
+let stmtMarkNotificationConfigVerified: Database.Statement
 let stmtGetNotificationReadState: Database.Statement
 let stmtUpsertNotificationReadState: Database.Statement
 let stmtGetNotificationReadEvents: Database.Statement
@@ -258,6 +272,23 @@ export async function initDatabase(): Promise<void> {
     version = 8
   }
 
+  if (version === 8) {
+    db.exec(`
+    BEGIN;
+    ALTER TABLE notification_config ADD COLUMN verifiedTime DATETIME NULL;
+    CREATE TABLE notification_email_verifications (
+      accountId TEXT PRIMARY KEY NOT NULL,
+      email TEXT NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      sendTime DATETIME NOT NULL,
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    PRAGMA user_version = 9;
+    COMMIT;
+  `)
+    version = 9
+  }
+
   // Initialize all prepared statements
   stmtInsertEmail = db.prepare('INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)')
   stmtInsertSubscription = db.prepare(
@@ -317,15 +348,43 @@ export async function initDatabase(): Promise<void> {
     'SELECT * FROM notification_config WHERE email = ? ORDER BY updatedAt DESC, accountId ASC',
   )
   stmtUpsertNotificationConfig = db.prepare(`
-    INSERT INTO notification_config (accountId, email, updatedAt)
-    VALUES (?, ?, CURRENT_TIMESTAMP)
+    INSERT INTO notification_config (accountId, email, verifiedTime, updatedAt)
+    VALUES (?, ?, NULL, CURRENT_TIMESTAMP)
     ON CONFLICT(accountId) DO UPDATE SET
       email = excluded.email,
+      verifiedTime = CASE
+        WHEN notification_config.email = excluded.email THEN notification_config.verifiedTime
+        ELSE NULL
+      END,
       updatedAt = CURRENT_TIMESTAMP
   `)
   stmtDeleteNotificationConfigForAccountEmail = db.prepare(
     'DELETE FROM notification_config WHERE accountId = ? AND email = ?',
   )
+  stmtDeleteNotificationConfigForAccount = db.prepare('DELETE FROM notification_config WHERE accountId = ?')
+  stmtGetNotificationEmailVerificationForAccount = db.prepare(
+    'SELECT * FROM notification_email_verifications WHERE accountId = ?',
+  )
+  stmtGetNotificationEmailVerificationByToken = db.prepare(
+    'SELECT * FROM notification_email_verifications WHERE token = ?',
+  )
+  stmtUpsertNotificationEmailVerification = db.prepare(`
+    INSERT INTO notification_email_verifications (accountId, email, token, sendTime)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(accountId) DO UPDATE SET
+      email = excluded.email,
+      token = excluded.token,
+      sendTime = excluded.sendTime
+  `)
+  stmtDeleteNotificationEmailVerificationForAccount = db.prepare(
+    'DELETE FROM notification_email_verifications WHERE accountId = ?',
+  )
+  stmtMarkNotificationConfigVerified = db.prepare(`
+    UPDATE notification_config
+    SET verifiedTime = CURRENT_TIMESTAMP,
+        updatedAt = CURRENT_TIMESTAMP
+    WHERE accountId = ? AND email = ?
+  `)
   stmtGetNotificationReadState = db.prepare('SELECT * FROM notification_read_state WHERE accountId = ?')
   stmtUpsertNotificationReadState = db.prepare(`
     INSERT INTO notification_read_state (accountId, markAllReadAtMs, stateUpdatedAtMs, updatedAt)
@@ -535,8 +594,17 @@ export function setSubscription({
 export type NotificationConfigRow = {
   accountId: string
   email: string
+  verifiedTime: string | null
   createdAt: string
   updatedAt: string
+}
+
+export type NotificationEmailVerificationRow = {
+  accountId: string
+  email: string
+  token: string
+  sendTime: string
+  createdAt: string
 }
 
 export type NotificationReadEvent = {
@@ -572,6 +640,58 @@ export function setNotificationConfig(accountId: string, email: string): void {
 
 export function unsetNotificationConfig(accountId: string, email: string): boolean {
   const result = stmtDeleteNotificationConfigForAccountEmail.run(accountId, email) as {changes?: number}
+  if ((result.changes || 0) > 0) {
+    stmtDeleteNotificationEmailVerificationForAccount.run(accountId)
+  }
+  return (result.changes || 0) > 0
+}
+
+export function removeNotificationConfig(accountId: string): boolean {
+  const result = stmtDeleteNotificationConfigForAccount.run(accountId) as {changes?: number}
+  if ((result.changes || 0) > 0) {
+    stmtDeleteNotificationEmailVerificationForAccount.run(accountId)
+  }
+  return (result.changes || 0) > 0
+}
+
+export function getNotificationEmailVerificationForAccount(accountId: string): NotificationEmailVerificationRow | null {
+  const row = stmtGetNotificationEmailVerificationForAccount.get(accountId) as
+    | DBNotificationEmailVerificationRow
+    | undefined
+  return row ?? null
+}
+
+export function getNotificationEmailVerificationByToken(token: string): NotificationEmailVerificationRow | null {
+  const row = stmtGetNotificationEmailVerificationByToken.get(token) as DBNotificationEmailVerificationRow | undefined
+  return row ?? null
+}
+
+export function setNotificationEmailVerification({
+  accountId,
+  email,
+  sendTime = new Date().toISOString(),
+  token = crypto.randomBytes(32).toString('hex'),
+}: {
+  accountId: string
+  email: string
+  sendTime?: string
+  token?: string
+}): NotificationEmailVerificationRow {
+  stmtUpsertNotificationEmailVerification.run(accountId, email, token, sendTime)
+  const stored = getNotificationEmailVerificationForAccount(accountId)
+  if (!stored) {
+    throw new Error('Failed to save notification email verification')
+  }
+  return stored
+}
+
+export function clearNotificationEmailVerificationForAccount(accountId: string): boolean {
+  const result = stmtDeleteNotificationEmailVerificationForAccount.run(accountId) as {changes?: number}
+  return (result.changes || 0) > 0
+}
+
+export function markNotificationConfigVerified(accountId: string, email: string): boolean {
+  const result = stmtMarkNotificationConfigVerified.run(accountId, email) as {changes?: number}
   return (result.changes || 0) > 0
 }
 

@@ -19,7 +19,13 @@ import {
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {formattedDateShort} from '@shm/shared'
-import {NotificationSigner, useNotificationConfig, useSetNotificationConfig} from '@shm/shared/models/notifications'
+import {
+  NotificationSigner,
+  useNotificationConfig,
+  useRemoveNotificationConfig,
+  useResendNotificationConfigVerification,
+  useSetNotificationConfig,
+} from '@shm/shared/models/notifications'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
@@ -224,25 +230,44 @@ function NotificationEmailSettingsDialog({accountUid}: {accountUid: string}) {
   }, [accountUid])
   const {data: config, isLoading} = useNotificationConfig(notifyServiceHost, signer)
   const setConfig = useSetNotificationConfig(notifyServiceHost, signer)
+  const removeConfig = useRemoveNotificationConfig(notifyServiceHost, signer)
+  const resendVerification = useResendNotificationConfigVerification(notifyServiceHost, signer)
   const [emailInput, setEmailInput] = useState('')
   const [isOpen, setIsOpen] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
   const currentEmail = config?.email ?? null
+  const isVerified = Boolean(config?.verifiedTime)
+  const verificationSendTime = config?.verificationSendTime ?? null
+  const verificationExpired = Boolean(config?.verificationExpired)
+  const needsVerification = Boolean(currentEmail && !isVerified)
+  const canResendVerification = needsVerification && (verificationExpired || !verificationSendTime)
 
   return (
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {
         setIsOpen(open)
-        if (open) setEmailInput(currentEmail || '')
+        if (open) {
+          setEmailInput(currentEmail || '')
+          setIsEditing(false)
+        }
       }}
     >
-      <Tooltip content="Email notification settings">
-        <DialogTrigger asChild>
-          <Button size="sm" variant="ghost">
-            <Settings size={16} />
-          </Button>
-        </DialogTrigger>
-      </Tooltip>
+      <div className="flex min-w-0 items-center gap-2">
+        {!isLoading && currentEmail ? (
+          <div className="flex min-w-0 flex-col">
+            <p className="text-muted-foreground max-w-[260px] truncate text-sm">{currentEmail}</p>
+            {needsVerification ? <p className="text-xs text-amber-600">Email not verified</p> : null}
+          </div>
+        ) : null}
+        <Tooltip content="Email notification settings">
+          <DialogTrigger asChild>
+            <Button size="sm" variant="ghost">
+              <Settings size={16} />
+            </Button>
+          </DialogTrigger>
+        </Tooltip>
+      </div>
       <DialogContent className="max-w-[400px]">
         <DialogHeader>
           <DialogTitle>Email Notifications</DialogTitle>
@@ -250,38 +275,131 @@ function NotificationEmailSettingsDialog({accountUid}: {accountUid: string}) {
         {isLoading ? (
           <Spinner />
         ) : (
-          <form
-            className="flex flex-col gap-3"
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (!emailInput) return
-              setConfig.mutate(
-                {email: emailInput},
-                {
-                  onSuccess: () => {
-                    setIsOpen(false)
-                    toast.success('Email updated')
-                  },
-                },
-              )
-            }}
-          >
-            <Input
-              type="email"
-              placeholder="you@example.com"
-              value={emailInput}
-              onChange={(e) => setEmailInput(e.target.value)}
-              autoFocus
-            />
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={!emailInput || setConfig.isLoading}>
-                {setConfig.isLoading ? 'Saving...' : 'Save'}
+          <div className="flex flex-col gap-3">
+            {needsVerification ? (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                <p>
+                  {verificationSendTime && !verificationExpired
+                    ? 'Email verification is pending. Click the link in your inbox to activate notification emails.'
+                    : verificationExpired
+                    ? 'Your verification link expired. Request a new verification email.'
+                    : 'Notification emails are paused until you verify this email address.'}
+                </p>
+                {canResendVerification ? (
+                  <div className="mt-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={resendVerification.isLoading}
+                      onClick={() => {
+                        resendVerification.mutate(undefined, {
+                          onSuccess: () => {
+                            toast.success('Verification email sent. Check your inbox.')
+                          },
+                        })
+                      }}
+                    >
+                      {resendVerification.isLoading ? 'Sending...' : 'Resend verification email'}
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {currentEmail && !isEditing ? (
+              <>
+                <div className="rounded-md border p-3">
+                  <p className="text-sm font-medium">{currentEmail}</p>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setEmailInput(currentEmail)
+                      setIsEditing(true)
+                    }}
+                  >
+                    Edit Email
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={removeConfig.isLoading}
+                    onClick={() => {
+                      removeConfig.mutate(undefined, {
+                        onSuccess: () => {
+                          setEmailInput('')
+                          setIsEditing(false)
+                          toast.success('Notification email removed')
+                        },
+                      })
+                    }}
+                  >
+                    {removeConfig.isLoading ? 'Removing...' : 'Remove Email'}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <form
+                className="flex flex-col gap-3"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (!emailInput) return
+                  setConfig.mutate(
+                    {email: emailInput},
+                    {
+                      onSuccess: (result: any) => {
+                        setIsOpen(false)
+                        setIsEditing(false)
+                        if (result?.verifiedTime) {
+                          toast.success('Email updated')
+                        } else {
+                          toast.success(
+                            'Verification email sent. Click the link in your inbox to activate notifications.',
+                          )
+                        }
+                      },
+                    },
+                  )
+                }}
+              >
+                <Input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2">
+                  {currentEmail ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setEmailInput(currentEmail)
+                        setIsEditing(false)
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  ) : (
+                    <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+                      Cancel
+                    </Button>
+                  )}
+                  <Button type="submit" disabled={!emailInput || setConfig.isLoading}>
+                    {setConfig.isLoading ? 'Saving...' : currentEmail ? 'Save Email' : 'Set Email'}
+                  </Button>
+                </div>
+              </form>
+            )}
+            <div className="flex justify-end">
+              <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>
+                Close
               </Button>
             </div>
-          </form>
+          </div>
         )}
       </DialogContent>
     </Dialog>

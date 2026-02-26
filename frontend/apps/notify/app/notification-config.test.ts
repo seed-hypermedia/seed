@@ -62,6 +62,32 @@ describe('notification-config signing flow', () => {
     expect(isValid).toBe(true)
   })
 
+  it('should produce valid signed payload for resend-notification-config-verification', async () => {
+    const signer = await generateTestSigner()
+    const payload = {
+      action: 'resend-notification-config-verification' as const,
+      signer: signer.compressedKey,
+      time: Date.now(),
+    }
+    const encoded = cborEncode(payload)
+    const sig = await signer.sign(new Uint8Array(encoded))
+    const isValid = await validateSignature(signer.compressedKey, sig, new Uint8Array(encoded))
+    expect(isValid).toBe(true)
+  })
+
+  it('should produce valid signed payload for remove-notification-config', async () => {
+    const signer = await generateTestSigner()
+    const payload = {
+      action: 'remove-notification-config' as const,
+      signer: signer.compressedKey,
+      time: Date.now(),
+    }
+    const encoded = cborEncode(payload)
+    const sig = await signer.sign(new Uint8Array(encoded))
+    const isValid = await validateSignature(signer.compressedKey, sig, new Uint8Array(encoded))
+    expect(isValid).toBe(true)
+  })
+
   it('should reject signature with wrong data', async () => {
     const signer = await generateTestSigner()
     const payload = {

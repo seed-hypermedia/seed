@@ -19,10 +19,7 @@ import {EmailContent} from './components/EmailContent'
 import {EmailHeader} from './components/EmailHeader'
 import {NotifSettings} from './components/NotifSettings'
 
-type GroupedNotifications = Record<
-  Notification['reason'],
-  Record<string, FullNotification[]>
->
+type GroupedNotifications = Record<Notification['reason'], Record<string, FullNotification[]>>
 
 function getNotifyServiceHost() {
   return (NOTIFY_SERVICE_HOST || 'https://hyper.media').replace(/\/$/, '')
@@ -36,6 +33,52 @@ function getNotificationActionUrl(notification: Notification) {
     return notification.actionUrl
   }
   return notification.url
+}
+
+export function createNotificationVerificationEmail(input: {verificationUrl: string}) {
+  const subject = 'Verify your email for Seed notifications'
+  const text = `Verify your email for Seed notifications
+
+Click the link below to verify this address:
+${input.verificationUrl}
+
+This link expires in 2 hours.
+
+If you did not request notification emails, you can ignore this message.`
+
+  const {html: emailHtml} = renderReactToMjml(
+    <Mjml>
+      <MjmlHead>
+        <MjmlTitle>{subject}</MjmlTitle>
+        <MjmlPreview>Confirm your email to receive mention and reply notifications</MjmlPreview>
+      </MjmlHead>
+      <MjmlBody width={500}>
+        <EmailHeader />
+        <MjmlSection padding="8px 0px">
+          <MjmlColumn>
+            <MjmlText fontSize="20px" fontWeight="bold">
+              Verify your email
+            </MjmlText>
+            <MjmlText fontSize="15px" lineHeight="1.6">
+              Confirm this email address to enable notification emails for mentions and replies.
+            </MjmlText>
+            <MjmlButton align="left" href={input.verificationUrl} backgroundColor="#0d9488" padding="6px 0px 0px">
+              Verify Email
+            </MjmlButton>
+            <MjmlText fontSize="13px" color="#6b7280" lineHeight="1.5" padding="12px 0px 0px">
+              This link expires in 2 hours.
+            </MjmlText>
+          </MjmlColumn>
+        </MjmlSection>
+      </MjmlBody>
+    </Mjml>,
+  )
+
+  return {
+    subject,
+    text,
+    html: emailHtml,
+  }
 }
 
 export async function createNotificationsEmail(
@@ -73,15 +116,11 @@ export async function createNotificationsEmail(
     subscriberNames.add(notification.accountMeta?.name || 'Subscriber')
   }
   const docNotifs = Object.values(notificationsByDocument)
-  const baseNotifsSubject =
-    notifications?.length > 1
-      ? `${notifications?.length} Notifications`
-      : 'Notification'
+  const baseNotifsSubject = notifications?.length > 1 ? `${notifications?.length} Notifications` : 'Notification'
   let subject = baseNotifsSubject
 
   const singleDocumentTitle = notifications.every(
-    (n) =>
-      n.notif.targetMeta?.name === firstNotification.notif.targetMeta?.name,
+    (n) => n.notif.targetMeta?.name === firstNotification.notif.targetMeta?.name,
   )
     ? firstNotification.notif.targetMeta?.name
     : undefined
@@ -94,17 +133,14 @@ export async function createNotificationsEmail(
 
     firstNotification.accountMeta,
   )
-  const notifSettingsUrl = `${getNotifyServiceHost()}/hm/email-notifications?token=${
-    opts.adminToken
-  }`
+  const notifSettingsUrl = `${getNotifyServiceHost()}/hm/email-notifications?token=${opts.adminToken}`
 
   const text = `${baseNotifsSubject}
 
 ${docNotifs
 
   .map((notifications) => {
-    const docName =
-      notifications?.[0]?.notif?.targetMeta?.name || 'Untitled Document'
+    const docName = notifications?.[0]?.notif?.targetMeta?.name || 'Untitled Document'
 
     const lines = notifications
       .map((notification) => {
@@ -123,34 +159,28 @@ ${docNotifs
         }
 
         if (notif.reason === 'mention') {
-          return `${
-            notif.authorMeta?.name || notif.authorAccountId
-          } mentioned ${
+          return `${notif.authorMeta?.name || notif.authorAccountId} mentioned ${
             notification.accountMeta?.name || 'an account you are subscribed to'
           } on ${getNotificationActionUrl(notif)}`
         }
 
         if (notif.reason === 'reply') {
-          return `${
-            notif.authorMeta?.name || notif.comment.author
-          } replied to ${
+          return `${notif.authorMeta?.name || notif.comment.author} replied to ${
             notification.accountMeta?.name || 'an account you are subscribed to'
           } comment on ${getNotificationActionUrl(notif)}`
         }
 
         if (notif.reason === 'discussion') {
-          return `${
-            notif.authorMeta?.name || notif.comment.author
-          } started a discussion on ${getNotificationActionUrl(notif)}`
+          return `${notif.authorMeta?.name || notif.comment.author} started a discussion on ${getNotificationActionUrl(
+            notif,
+          )}`
         }
 
         return ''
       })
       .join('\n')
 
-    return `${docName}\n\n${lines}\n\n${getNotificationActionUrl(
-      notifications?.[0]?.notif!,
-    )}`
+    return `${docName}\n\n${lines}\n\n${getNotificationActionUrl(notifications?.[0]?.notif!)}`
   })
   .join('\n')}
 
@@ -165,23 +195,13 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
         <MjmlTitle>{subject}</MjmlTitle>
         {/* This preview is visible from the email client before the user clicks on the email */}
         <MjmlPreview>
-          {notifications.length > 1
-            ? `${firstNotificationSummary} and more`
-            : firstNotificationSummary}
+          {notifications.length > 1 ? `${firstNotificationSummary} and more` : firstNotificationSummary}
         </MjmlPreview>
       </MjmlHead>
       <MjmlBody width={500}>
         <EmailHeader />
 
-        {(
-          [
-            'site-doc-update',
-            'site-new-discussion',
-            'discussion',
-            'mention',
-            'reply',
-          ] as const
-        ).map((reason) => {
+        {(['site-doc-update', 'site-new-discussion', 'discussion', 'mention', 'reply'] as const).map((reason) => {
           const docs = grouped[reason]
           const docEntries = Object.entries(docs)
 
@@ -216,8 +236,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
               </MjmlSection>
 
               {docEntries.map(([docId, docNotifs]) => {
-                const targetName =
-                  docNotifs?.[0]?.notif?.targetMeta?.name || 'Untitled Document'
+                const targetName = docNotifs?.[0]?.notif?.targetMeta?.name || 'Untitled Document'
                 const docUrl = getNotificationActionUrl(docNotifs?.[0]?.notif!)
 
                 return (
@@ -227,9 +246,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
                         <MjmlText fontSize="14px" color="#888">
                           {reason === 'site-new-discussion' || reason === 'discussion' ? (
                             <>
-                              {docNotifs.length}{' '}
-                              {docNotifs.length === 1 ? 'discussion' : 'discussions'}{' '}
-                              on{' '}
+                              {docNotifs.length} {docNotifs.length === 1 ? 'discussion' : 'discussions'} on{' '}
                               <span
                                 style={{
                                   fontWeight: 'bold',
@@ -242,9 +259,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
                             </>
                           ) : reason === 'mention' ? (
                             <>
-                              {docNotifs.length}{' '}
-                              {docNotifs.length === 1 ? 'mention' : 'mentions'}{' '}
-                              on{' '}
+                              {docNotifs.length} {docNotifs.length === 1 ? 'mention' : 'mentions'} on{' '}
                               <span
                                 style={{
                                   fontWeight: 'bold',
@@ -257,8 +272,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
                             </>
                           ) : reason === 'reply' ? (
                             <>
-                              {docNotifs.length}{' '}
-                              {totalCount === 1 ? 'reply' : 'replies'} on{' '}
+                              {docNotifs.length} {totalCount === 1 ? 'reply' : 'replies'} on{' '}
                               <span
                                 style={{
                                   fontWeight: 'bold',
@@ -275,10 +289,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
                     </MjmlSection>
 
                     {docNotifs.map(({notif}) => {
-                      const key =
-                        'comment' in notif && notif.comment
-                          ? notif.comment.id
-                          : Math.random()
+                      const key = 'comment' in notif && notif.comment ? notif.comment.id : Math.random()
                       return (
                         <React.Fragment key={key}>
                           <EmailContent notification={notif} />
@@ -295,11 +306,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
 
                     <MjmlSection>
                       <MjmlColumn>
-                        <MjmlButton
-                          align="left"
-                          href={docUrl}
-                          backgroundColor="#008060"
-                        >
+                        <MjmlButton align="left" href={docUrl} backgroundColor="#008060">
                           {reason === 'site-new-discussion' || reason === 'discussion'
                             ? 'View Discussion'
                             : reason === 'mention'
@@ -355,16 +362,10 @@ export async function createDesktopNotificationsEmail(
 
   const first = sorted[0]!
   const firstText = getDesktopNotificationText(first)
-  const subject =
-    sorted.length === 1 ? firstText : `${sorted.length} new notifications`
-  const preview =
-    sorted.length === 1
-      ? firstText
-      : `${firstText} and ${sorted.length - 1} more`
+  const subject = sorted.length === 1 ? firstText : `${sorted.length} new notifications`
+  const preview = sorted.length === 1 ? firstText : `${firstText} and ${sorted.length - 1} more`
 
-  const notifSettingsUrl = `${getNotifyServiceHost()}/hm/email-notifications?token=${
-    opts.adminToken
-  }`
+  const notifSettingsUrl = `${getNotifyServiceHost()}/hm/email-notifications?token=${opts.adminToken}`
 
   const textLines = sorted
     .map((notification) => {
@@ -405,48 +406,24 @@ Manage notification emails: ${notifSettingsUrl}`
               : notification.notif.reason === 'discussion'
               ? 'Open Discussion'
               : 'Open Reply'
-          const timeLabel = formatDesktopNotificationTime(
-            notification.notif.eventAtMs,
-          )
+          const timeLabel = formatDesktopNotificationTime(notification.notif.eventAtMs)
           const key =
             notification.notif.reason === 'mention'
-              ? `${notification.accountId}:${
-                  notification.notif.eventId || notification.notif.url
-                }`
-              : `${notification.accountId}:${
-                  notification.notif.comment?.id || notification.notif.url
-                }`
+              ? `${notification.accountId}:${notification.notif.eventId || notification.notif.url}`
+              : `${notification.accountId}:${notification.notif.comment?.id || notification.notif.url}`
 
           return (
             <MjmlSection key={key} padding="0px 0px 12px">
-              <MjmlColumn
-                backgroundColor="#f6f8f8"
-                border="1px solid #e6ebeb"
-                borderRadius="8px"
-                padding="12px 14px"
-              >
-                <MjmlText
-                  fontSize="15px"
-                  fontWeight="bold"
-                  padding="0px 0px 6px"
-                >
+              <MjmlColumn backgroundColor="#f6f8f8" border="1px solid #e6ebeb" borderRadius="8px" padding="12px 14px">
+                <MjmlText fontSize="15px" fontWeight="bold" padding="0px 0px 6px">
                   {getDesktopNotificationText(notification)}
                 </MjmlText>
                 {timeLabel ? (
-                  <MjmlText
-                    fontSize="12px"
-                    color="#6b7280"
-                    padding="0px 0px 8px"
-                  >
+                  <MjmlText fontSize="12px" color="#6b7280" padding="0px 0px 8px">
                     {timeLabel}
                   </MjmlText>
                 ) : null}
-                <MjmlButton
-                  align="left"
-                  href={actionUrl}
-                  backgroundColor="#0d9488"
-                  padding="4px 0px 0px"
-                >
+                <MjmlButton align="left" href={actionUrl} backgroundColor="#0d9488" padding="4px 0px 0px">
                   {actionLabel}
                 </MjmlButton>
               </MjmlColumn>
@@ -559,43 +536,34 @@ function getDesktopNotificationText(notification: ImmediateNotification) {
 
   if (notif.reason === 'mention') {
     const targetName = notif.targetMeta?.name
-    return `${actor} mentioned ${subject}${
-      targetName ? ` in ${targetName}` : ''
-    }`
+    return `${actor} mentioned ${subject}${targetName ? ` in ${targetName}` : ''}`
   }
 
   if (notif.reason === 'discussion') {
     const targetName = notif.targetMeta?.name
-    return `${actor} started a discussion${
-      targetName ? ` on ${targetName}` : ''
-    }`
+    return `${actor} started a discussion${targetName ? ` on ${targetName}` : ''}`
   }
 
   const targetName = notif.targetMeta?.name
   const commentOwner = subjectName ? `${subjectName}'s` : 'your'
-  return `${actor} replied to ${commentOwner} comment${
-    targetName ? ` in ${targetName}` : ''
-  }`
+  return `${actor} replied to ${commentOwner} comment${targetName ? ` in ${targetName}` : ''}`
 }
 
-function getNotificationSummary(
-  notification: Notification,
-  accountMeta: HMMetadata | null,
-): string {
+function getNotificationSummary(notification: Notification, accountMeta: HMMetadata | null): string {
   if (notification.reason === 'site-doc-update') {
     return `${notification.authorMeta?.name || 'Someone'} made changes to ${
       notification.targetMeta?.name || 'a document'
     }.`
   }
   if (notification.reason === 'site-new-discussion') {
-    return `${
-      notification.authorMeta?.name || 'Someone'
-    } started a discussion on ${notification.targetMeta?.name || 'a document'}.`
+    return `${notification.authorMeta?.name || 'Someone'} started a discussion on ${
+      notification.targetMeta?.name || 'a document'
+    }.`
   }
   if (notification.reason === 'discussion') {
-    return `${
-      notification.authorMeta?.name || 'Someone'
-    } started a discussion on ${notification.targetMeta?.name || 'a document'}.`
+    return `${notification.authorMeta?.name || 'Someone'} started a discussion on ${
+      notification.targetMeta?.name || 'a document'
+    }.`
   }
   if (notification.reason === 'mention') {
     if (notification.source === 'comment') {

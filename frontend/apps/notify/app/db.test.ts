@@ -3,19 +3,25 @@ import {mkdtempSync, rmSync} from 'fs'
 import {join} from 'path'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {
+  clearNotificationEmailVerificationForAccount,
   cleanup,
   createSubscription,
   getAllEmails,
   getEmailWithToken,
   getNotificationConfig,
   getNotificationConfigsForEmail,
+  getNotificationEmailVerificationByToken,
+  getNotificationEmailVerificationForAccount,
   getNotificationReadState,
   getNotifierLastProcessedEventId,
   getSubscription,
   initDatabase,
+  markNotificationConfigVerified,
   mergeNotificationReadState,
+  removeNotificationConfig,
   setEmailUnsubscribed,
   setNotificationConfig,
+  setNotificationEmailVerification,
   setNotifierLastProcessedEventId,
   setSubscription,
   unsetNotificationConfig,
@@ -61,6 +67,7 @@ describe('Database', () => {
           'email_subscriptions',
           'notifier_status',
           'notification_config',
+          'notification_email_verifications',
           'notification_read_state',
           'notification_read_events',
         ]),
@@ -91,7 +98,7 @@ describe('Database', () => {
     it('should handle database version correctly', async () => {
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
       const version = db.pragma('user_version', {simple: true})
-      expect(version).toBe(8)
+      expect(version).toBe(9)
       db.close()
     })
   })
@@ -240,8 +247,41 @@ describe('Database', () => {
       expect(config).not.toBeNull()
       expect(config!.accountId).toBe('account-1')
       expect(config!.email).toBe('user@example.com')
+      expect(config!.verifiedTime).toBeNull()
       expect(config!.createdAt).toBeDefined()
       expect(config!.updatedAt).toBeDefined()
+    })
+
+    it('should mark notification config as verified', () => {
+      setNotificationConfig('account-verify', 'verified@example.com')
+      const marked = markNotificationConfigVerified('account-verify', 'verified@example.com')
+      expect(marked).toBe(true)
+      expect(getNotificationConfig('account-verify')?.verifiedTime).not.toBeNull()
+    })
+
+    it('should preserve verifiedTime when setting the same email', () => {
+      const accountId = 'account-same-email'
+      const email = 'same@example.com'
+      setNotificationConfig(accountId, email)
+      expect(markNotificationConfigVerified(accountId, email)).toBe(true)
+      const before = getNotificationConfig(accountId)
+      expect(before?.verifiedTime).toBeTruthy()
+
+      setNotificationConfig(accountId, email)
+      const after = getNotificationConfig(accountId)
+      expect(after?.verifiedTime).toBe(before?.verifiedTime)
+    })
+
+    it('should reset verifiedTime when changing email', () => {
+      const accountId = 'account-email-change'
+      setNotificationConfig(accountId, 'before@example.com')
+      expect(markNotificationConfigVerified(accountId, 'before@example.com')).toBe(true)
+      expect(getNotificationConfig(accountId)?.verifiedTime).toBeTruthy()
+
+      setNotificationConfig(accountId, 'after@example.com')
+      const changed = getNotificationConfig(accountId)
+      expect(changed?.email).toBe('after@example.com')
+      expect(changed?.verifiedTime).toBeNull()
     })
 
     it('should list notification configs by email', () => {
@@ -269,6 +309,45 @@ describe('Database', () => {
       expect(unsetNotificationConfig('account-a', 'shared@example.com')).toBe(true)
       expect(getNotificationConfig('account-a')).toBeNull()
       expect(getNotificationConfig('account-b')?.email).toBe('shared@example.com')
+    })
+
+    it('should remove notification config by account id', () => {
+      setNotificationConfig('account-remove-by-id', 'remove@example.com')
+      expect(removeNotificationConfig('account-remove-by-id')).toBe(true)
+      expect(getNotificationConfig('account-remove-by-id')).toBeNull()
+    })
+
+    it('should create and clear notification email verification rows', () => {
+      const created = setNotificationEmailVerification({
+        accountId: 'account-verification',
+        email: 'verify@example.com',
+        sendTime: '2026-01-01T00:00:00.000Z',
+        token: 'token-123',
+      })
+      expect(created.accountId).toBe('account-verification')
+      expect(created.token).toBe('token-123')
+
+      const byAccount = getNotificationEmailVerificationForAccount('account-verification')
+      expect(byAccount?.token).toBe('token-123')
+      const byToken = getNotificationEmailVerificationByToken('token-123')
+      expect(byToken?.accountId).toBe('account-verification')
+
+      expect(clearNotificationEmailVerificationForAccount('account-verification')).toBe(true)
+      expect(getNotificationEmailVerificationForAccount('account-verification')).toBeNull()
+      expect(getNotificationEmailVerificationByToken('token-123')).toBeNull()
+    })
+
+    it('should clear verification row when notification config is removed', () => {
+      setNotificationConfig('account-clear-verification', 'clear@example.com')
+      setNotificationEmailVerification({
+        accountId: 'account-clear-verification',
+        email: 'clear@example.com',
+        token: 'token-clear',
+      })
+      expect(getNotificationEmailVerificationForAccount('account-clear-verification')).not.toBeNull()
+
+      expect(unsetNotificationConfig('account-clear-verification', 'clear@example.com')).toBe(true)
+      expect(getNotificationEmailVerificationForAccount('account-clear-verification')).toBeNull()
     })
   })
 

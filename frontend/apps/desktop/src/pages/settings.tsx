@@ -1,11 +1,9 @@
 import {useIPC} from '@/app-context'
-import {grpcClient} from '@/grpc-client'
 import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {useDaemonInfo, useDeleteKey, useMyAccountIds, useSavedMnemonics} from '@/models/daemon'
 import {useWriteExperiments} from '@/models/experiments'
-import {NotificationSigner, useNotificationConfig, useSetNotificationConfig} from '@shm/shared/models/notifications'
 import {
   useGatewayUrl,
   useNotifyServiceHost,
@@ -62,7 +60,6 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {AtSign, Check, Code2, Cog, Eye, EyeOff, Info, Plus, RadioTower, Trash, UserRoundPlus} from 'lucide-react'
-import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useId, useMemo, useState} from 'react'
 
 export default function Settings() {
@@ -530,10 +527,6 @@ function AccountKeys() {
               </AlertDialogContent>
             </AlertDialogPortal>
           </AlertDialog>
-          <EmailNotificationsSettings
-            accountUid={selectedAccount}
-            accountName={getMetadataName(profileDocument?.metadata)}
-          />
           <SettingsSection title="Wallets">
             <AccountWallet accountUid={selectedAccount} onOpenWallet={(walletId) => setWalletId(walletId)} />
           </SettingsSection>
@@ -564,88 +557,6 @@ function AccountKeys() {
         Create a new Profile
       </Button>
     </div>
-  )
-}
-
-function EmailNotificationsSettings({accountUid, accountName}: {accountUid: string; accountName: string}) {
-  return <AccountNotifSettings accountUid={accountUid} accountName={accountName} />
-}
-
-function AccountNotifSettings({accountUid}: {accountUid: string; accountName: string}) {
-  const notifyServiceHost = useNotifyServiceHost() || 'https://notify.seed.hyper.media'
-  const signer = useMemo((): NotificationSigner => {
-    const publicKey = new Uint8Array(base58btc.decode(accountUid))
-    return {
-      publicKey,
-      sign: async (data: Uint8Array) => {
-        const res = await grpcClient.daemon.signData({
-          signingKeyName: accountUid,
-          data: new Uint8Array(data),
-        })
-        return new Uint8Array(res.signature)
-      },
-    }
-  }, [accountUid])
-  const {data: config, isLoading} = useNotificationConfig(notifyServiceHost, signer)
-  const setConfig = useSetNotificationConfig(notifyServiceHost, signer)
-  const [emailInput, setEmailInput] = useState('')
-  const [isEditing, setIsEditing] = useState(false)
-  const currentEmail = config?.email ?? null
-
-  return (
-    <SettingsSection title="Email Notifications">
-      {isLoading ? (
-        <Spinner />
-      ) : isEditing || !currentEmail ? (
-        <form
-          className="flex flex-col gap-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (!emailInput) return
-            setConfig.mutate(
-              {email: emailInput},
-              {
-                onSuccess: () => {
-                  setIsEditing(false)
-                  toast.success('Email updated')
-                },
-              },
-            )
-          }}
-        >
-          <Input
-            type="email"
-            placeholder="you@example.com"
-            value={emailInput}
-            onChange={(e) => setEmailInput(e.target.value)}
-          />
-          <div className="flex gap-2">
-            <Button type="submit" disabled={!emailInput || setConfig.isLoading}>
-              {setConfig.isLoading ? 'Saving...' : 'Save'}
-            </Button>
-            {currentEmail ? (
-              <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
-                Cancel
-              </Button>
-            ) : null}
-          </div>
-        </form>
-      ) : (
-        <div className="flex items-center gap-2">
-          <SizableText className="flex-1">{currentEmail}</SizableText>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setEmailInput(currentEmail)
-              setIsEditing(true)
-            }}
-          >
-            Change
-          </Button>
-        </div>
-      )}
-    </SettingsSection>
   )
 }
 
