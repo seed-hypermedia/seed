@@ -63,6 +63,7 @@ type NotificationDeliveryKind = 'immediate' | 'batch'
 
 const adminEmail = process.env.SEED_DEV_ADMIN_EMAIL || 'eric@seedhypermedia.com'
 const notificationEmailHost = (NOTIFY_SERVICE_HOST || SITE_BASE_URL).replace(/\/$/, '')
+const fallbackSiteBaseUrl = SITE_BASE_URL.replace(/\/$/, '')
 const notifDebugEnabled = process.env.NOTIFY_DEBUG === '1' || process.env.NODE_ENV !== 'production'
 
 // Error batching for reportError
@@ -824,12 +825,17 @@ async function getAccountSiteBaseUrl(accountId: string): Promise<string> {
   try {
     const accountResult = await requestAPI('Account', accountId)
     if (accountResult.type === 'account') {
-      return accountResult.metadata?.siteUrl?.replace(/\/$/, '') || SITE_BASE_URL.replace(/\/$/, '')
+      return normalizeSiteBaseUrl(accountResult.metadata?.siteUrl) || fallbackSiteBaseUrl
     }
   } catch (error: any) {
     reportError(`Error getting account site url ${accountId}: ${error.message}`)
   }
-  return SITE_BASE_URL.replace(/\/$/, '')
+  return fallbackSiteBaseUrl
+}
+
+function normalizeSiteBaseUrl(siteUrl?: string | null): string | null {
+  const normalized = siteUrl?.replace(/\/$/, '') || null
+  return normalized || null
 }
 
 async function evaluateMentionEventForNotifications(
@@ -891,7 +897,10 @@ async function evaluateMentionEventForNotifications(
     reportError(`Error getting mention author ${authorAccountId}: ${error.message}`)
   }
 
-  const siteBaseUrl = await getAccountSiteBaseUrl(sourceDocId.uid)
+  let siteBaseUrl = normalizeSiteBaseUrl(targetMeta?.siteUrl)
+  if (!siteBaseUrl) {
+    siteBaseUrl = await getAccountSiteBaseUrl(sourceDocId.uid)
+  }
 
   let mentionUrl: string
   let mentionComment: HMComment | undefined
@@ -986,6 +995,7 @@ async function evaluateNewCommentForNotifications(
   }
   let commentAuthorMeta: HMMetadata | null = null
   let targetMeta: HMMetadata | null = null
+  let targetDocumentSiteUrl: string | null = null
   let targetAccountSiteUrl: string | null = null
 
   try {
@@ -993,16 +1003,6 @@ async function evaluateNewCommentForNotifications(
     commentAuthorMeta = authorResult.type === 'account' ? authorResult.metadata : null
   } catch (error: any) {
     reportError(`Error getting comment author ${comment.author}: ${error.message}`)
-  }
-
-  // Get target account metadata to get siteUrl for email links
-  try {
-    const targetAccountResult = await requestAPI('Account', comment.targetAccount)
-    if (targetAccountResult.type === 'account') {
-      targetAccountSiteUrl = targetAccountResult.metadata?.siteUrl?.replace(/\/$/, '') || null
-    }
-  } catch (error: any) {
-    reportError(`Error getting target account ${comment.targetAccount}: ${error.message}`)
   }
 
   try {
@@ -1014,18 +1014,30 @@ async function evaluateNewCommentForNotifications(
         }),
       )
     ).metadata
+    targetDocumentSiteUrl = normalizeSiteBaseUrl(targetMeta?.siteUrl)
   } catch (error: any) {
     reportError(`Error getting target metadata for ${comment.targetAccount}: ${error.message}`)
   }
 
+  if (!targetDocumentSiteUrl) {
+    try {
+      const targetAccountResult = await requestAPI('Account', comment.targetAccount)
+      if (targetAccountResult.type === 'account') {
+        targetAccountSiteUrl = normalizeSiteBaseUrl(targetAccountResult.metadata?.siteUrl)
+      }
+    } catch (error: any) {
+      reportError(`Error getting target account ${comment.targetAccount}: ${error.message}`)
+    }
+  }
+
   // Create comment-specific URL for comment-related notifications
-  // Use the target account's siteUrl if available, otherwise fall back to SITE_BASE_URL
+  // Prefer the target document's siteUrl; fall back to account siteUrl, then default site base URL.
   const commentIdParts = comment.id.split('/')
   const commentTSID = commentIdParts[1]
   if (!commentTSID) {
     throw new Error('Invalid comment ID format: ' + comment.id)
   }
-  const commentBaseUrl = targetAccountSiteUrl || SITE_BASE_URL.replace(/\/$/, '')
+  const commentBaseUrl = targetDocumentSiteUrl || targetAccountSiteUrl || fallbackSiteBaseUrl
   const commentUrl = createWebHMUrl(comment.author, {
     path: [commentTSID],
     hostname: commentBaseUrl,
@@ -1296,12 +1308,19 @@ async function loadRefEvent(event: PlainMessage<Event>) {
 
   const changedDoc = await getDocument(id)
 
-  // Get the home account's siteUrl to use in email links
-  const homeAccountResult = await requestAPI('Account', id.uid)
-  const siteUrl = homeAccountResult.type === 'account' ? homeAccountResult.metadata?.siteUrl?.replace(/\/$/, '') : null
-  const baseUrl = siteUrl || SITE_BASE_URL.replace(/\/$/, '')
+  const documentSiteUrl = normalizeSiteBaseUrl(changedDoc.metadata?.siteUrl)
+  let accountSiteUrl: string | null = null
+  if (!documentSiteUrl) {
+    const homeAccountResult = await requestAPI('Account', id.uid)
+    accountSiteUrl =
+      homeAccountResult.type === 'account' ? normalizeSiteBaseUrl(homeAccountResult.metadata?.siteUrl) : null
+  }
+  const baseUrl = documentSiteUrl || accountSiteUrl || fallbackSiteBaseUrl
 
-  const openUrl = `${baseUrl}/hm/${id.uid}/${(id.path || []).join('/')}`
+  const openUrl = createWebHMUrl(id.uid, {
+    path: id.path,
+    hostname: baseUrl,
+  })
 
   const prevVersionId = {
     ...id,
