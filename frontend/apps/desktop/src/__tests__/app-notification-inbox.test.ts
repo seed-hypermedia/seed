@@ -96,6 +96,38 @@ function createReplyEvent(input: {eventId: string; accountUid: string}) {
   } as any
 }
 
+function createCollaboratorDiscussionEvent(input: {eventId: string; collaboratorUid: string}) {
+  return {
+    type: 'comment',
+    id: input.eventId,
+    feedEventId: input.eventId,
+    eventAtMs: 2600,
+    time: '2026-02-17T00:00:01.500Z',
+    author: {id: {uid: 'author-c', path: null}, metadata: {name: 'Commenter'}},
+    replyParentAuthor: null,
+    comment: {id: 'collab-comment-version', threadRoot: undefined},
+    target: {id: {uid: 'site-owner', path: ['shared-doc']}, metadata: {name: 'Shared Doc'}},
+    targetAuthorUids: ['site-owner', input.collaboratorUid],
+  } as any
+}
+
+function createCitationDiscussionEvent(input: {eventId: string; collaboratorUid: string}) {
+  return {
+    type: 'citation',
+    id: input.eventId,
+    feedEventId: input.eventId,
+    eventAtMs: 2601,
+    time: '2026-02-17T00:00:01.600Z',
+    author: {id: {uid: 'author-c', path: null}, metadata: {name: 'Commenter'}},
+    source: {id: {uid: 'site-owner', path: ['shared-doc']}, metadata: {name: 'Shared Doc'}},
+    target: {id: {uid: 'site-owner', path: ['shared-doc']}, metadata: {name: 'Shared Doc'}},
+    citationType: 'c',
+    targetAuthorUids: ['site-owner', input.collaboratorUid],
+    comment: {id: 'collab-comment-version', threadRoot: undefined},
+    replyCount: 0,
+  } as any
+}
+
 async function loadInboxCaller() {
   const mod = await import('../app-notification-inbox')
   return {
@@ -204,5 +236,104 @@ describe('app notification inbox', () => {
 
     expect(appInvalidateQueriesMock).toHaveBeenCalledWith(['NOTIFICATION_INBOX', 'account-a'])
     expect(appInvalidateQueriesMock).toHaveBeenCalledWith(['NOTIFICATION_INBOX', 'account-b'])
+  })
+
+  it('ingests discussion notifications for collaborator accounts', async () => {
+    storeData['NotificationInbox-v001'] = {
+      version: 1,
+      cursorEventId: 'blob-old-cursor',
+      accounts: {},
+      lastPollAtMs: null,
+      lastError: null,
+    }
+
+    listKeysMock.mockResolvedValue({
+      keys: [{publicKey: 'account-a'}],
+    })
+    listRawEventsMock.mockResolvedValue({
+      events: [rawNewBlobEvent('latest-cid')],
+    })
+    listResolvedEventsMock.mockResolvedValue({
+      events: [
+        createCollaboratorDiscussionEvent({
+          eventId: 'discussion-event',
+          collaboratorUid: 'account-a',
+        }),
+        {
+          type: 'comment',
+          feedEventId: 'blob-old-cursor',
+          eventAtMs: 1000,
+          time: '2026-02-17T00:00:02.000Z',
+          author: null,
+          comment: null,
+          replyParentAuthor: null,
+          target: null,
+        },
+      ],
+      nextPageToken: '',
+    })
+
+    const {caller, start} = await loadInboxCaller()
+    start()
+
+    await flushAsyncWork()
+
+    const inbox = await caller.getLocalInbox({accountUid: 'account-a'})
+    expect(inbox[0]).toMatchObject({
+      reason: 'discussion',
+      event: {feedEventId: 'discussion-event'},
+    })
+  })
+
+  it('does not duplicate discussion notifications when citation mirror event exists', async () => {
+    storeData['NotificationInbox-v001'] = {
+      version: 1,
+      cursorEventId: 'blob-old-cursor',
+      accounts: {},
+      lastPollAtMs: null,
+      lastError: null,
+    }
+
+    listKeysMock.mockResolvedValue({
+      keys: [{publicKey: 'account-a'}],
+    })
+    listRawEventsMock.mockResolvedValue({
+      events: [rawNewBlobEvent('latest-cid')],
+    })
+    listResolvedEventsMock.mockResolvedValue({
+      events: [
+        createCollaboratorDiscussionEvent({
+          eventId: 'discussion-event',
+          collaboratorUid: 'account-a',
+        }),
+        createCitationDiscussionEvent({
+          eventId: 'discussion-citation-event',
+          collaboratorUid: 'account-a',
+        }),
+        {
+          type: 'comment',
+          feedEventId: 'blob-old-cursor',
+          eventAtMs: 1000,
+          time: '2026-02-17T00:00:02.000Z',
+          author: null,
+          comment: null,
+          replyParentAuthor: null,
+          target: null,
+        },
+      ],
+      nextPageToken: '',
+    })
+
+    const {caller, start} = await loadInboxCaller()
+    start()
+
+    await flushAsyncWork()
+
+    const inbox = await caller.getLocalInbox({accountUid: 'account-a'})
+    expect(inbox).toHaveLength(1)
+    expect(inbox[0]).toMatchObject({
+      reason: 'discussion',
+      event: {feedEventId: 'discussion-event'},
+    })
   })
 })

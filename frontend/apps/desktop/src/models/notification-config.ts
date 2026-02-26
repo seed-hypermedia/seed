@@ -9,13 +9,18 @@ export type NotificationConfig = {
   verifiedTime: string | null
   verificationSendTime: string | null
   verificationExpired: boolean
+  isNotifyServerConnected: boolean
 }
 
 export type SetNotificationConfigInput = {
   email: string
 }
 
-export function useNotificationConfig(notifyServiceHost: string | undefined, accountUid: string | undefined) {
+export function useNotificationConfig(
+  notifyServiceHost: string | undefined,
+  accountUid: string | undefined,
+  options?: {enabled?: boolean},
+) {
   return useQuery({
     queryKey: [queryKeys.NOTIFICATION_CONFIG, notifyServiceHost, accountUid],
     queryFn: () =>
@@ -23,7 +28,7 @@ export function useNotificationConfig(notifyServiceHost: string | undefined, acc
         accountUid: accountUid!,
         notifyServiceHost,
       }),
-    enabled: !!accountUid,
+    enabled: !!accountUid && (options?.enabled ?? true),
   })
 }
 

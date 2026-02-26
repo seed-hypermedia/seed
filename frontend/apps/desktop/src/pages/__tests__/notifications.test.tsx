@@ -133,6 +133,38 @@ describe('notifications page helpers', () => {
     expect(classifyNotificationEvent(event, 'target-account')).toBe('mention')
   })
 
+  it('classifies discussion notifications when selected account authored the target document', () => {
+    const event = createReplyEvent({
+      replyParentAuthor: null,
+      target: {
+        id: hmId('site-owner', ['post']),
+        metadata: {name: 'Post'},
+      } as any,
+      targetAuthorUids: ['target-account'],
+      comment: {
+        id: 'comment-version-cid',
+        threadRoot: undefined,
+      } as any,
+    })
+    expect(classifyNotificationEvent(event, 'target-account')).toBe('discussion')
+  })
+
+  it('suppresses citation discussion notifications to avoid duplicates', () => {
+    const event = createMentionEvent({
+      citationType: 'c',
+      target: {
+        id: hmId('site-owner', ['post']),
+        metadata: {name: 'Post'},
+      } as any,
+      targetAuthorUids: ['target-account'],
+      comment: {
+        id: 'comment-version-cid',
+        threadRoot: undefined,
+      } as any,
+    })
+    expect(classifyNotificationEvent(event, 'target-account')).toBeNull()
+  })
+
   it('ignores self-authored comment body mentions', () => {
     const event = createReplyEvent({
       replyParentAuthor: null,

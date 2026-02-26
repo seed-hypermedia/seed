@@ -212,13 +212,14 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
 
 function NotificationEmailSettingsDialog({accountUid}: {accountUid: string}) {
   const notifyServiceHost = useNotifyServiceHost() || 'https://notify.seed.hyper.media'
-  const {data: config, isLoading} = useNotificationConfig(notifyServiceHost, accountUid)
-  const setConfig = useSetNotificationConfig(notifyServiceHost, accountUid)
-  const removeConfig = useRemoveNotificationConfig(notifyServiceHost, accountUid)
-  const resendVerification = useResendNotificationConfigVerification(notifyServiceHost, accountUid)
   const [emailInput, setEmailInput] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const {data: config, isLoading} = useNotificationConfig(notifyServiceHost, accountUid, {enabled: isOpen})
+  const setConfig = useSetNotificationConfig(notifyServiceHost, accountUid)
+  const removeConfig = useRemoveNotificationConfig(notifyServiceHost, accountUid)
+  const resendVerification = useResendNotificationConfigVerification(notifyServiceHost, accountUid)
+  const isNotifyServerConnected = config?.isNotifyServerConnected !== false
   const currentEmail = config?.email ?? null
   const isVerified = Boolean(config?.verifiedTime)
   const verificationSendTime = config?.verificationSendTime ?? null
@@ -265,6 +266,11 @@ function NotificationEmailSettingsDialog({accountUid}: {accountUid: string}) {
           <Spinner />
         ) : (
           <div className="flex flex-col gap-3">
+            {!isNotifyServerConnected ? (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                You are not connected to the notification server.
+              </div>
+            ) : null}
             {needsVerification ? (
               <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
                 <p>
@@ -295,7 +301,7 @@ function NotificationEmailSettingsDialog({accountUid}: {accountUid: string}) {
                 ) : null}
               </div>
             ) : null}
-            {currentEmail && !isEditing ? (
+            {isNotifyServerConnected && currentEmail && !isEditing ? (
               <>
                 <div className="rounded-md border p-3">
                   <p className="text-sm font-medium">{currentEmail}</p>
@@ -329,7 +335,7 @@ function NotificationEmailSettingsDialog({accountUid}: {accountUid: string}) {
                   </Button>
                 </div>
               </>
-            ) : (
+            ) : isNotifyServerConnected ? (
               <form
                 className="flex flex-col gap-3"
                 onSubmit={(e) => {
@@ -382,7 +388,7 @@ function NotificationEmailSettingsDialog({accountUid}: {accountUid: string}) {
                   </Button>
                 </div>
               </form>
-            )}
+            ) : null}
             <div className="flex justify-end">
               <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>
                 Close
