@@ -32,7 +32,7 @@ import {
 } from '../hm-types'
 import {useUniversalAppContext, useUniversalClient} from '../routing'
 import {useStream} from '../use-stream'
-import {entityQueryPathToHmIdPath, hmId, unpackHmId} from '../utils'
+import {entityQueryPathToHmIdPath, hmId, latestId, unpackHmId} from '../utils'
 import {
   queryAccount,
   queryCapabilities,
@@ -177,6 +177,34 @@ export function useResource(
     isDiscovering,
     isTombstone,
   }
+}
+
+/**
+ * Determines whether the given ID is viewing the latest version of a document.
+ * Always compares actual document versions from the server rather than
+ * relying on URL parameters.
+ *
+ * Returns `true` while data is loading (to avoid banner flash).
+ */
+export function useIsLatest(
+  id: UnpackedHypermediaId | null | undefined,
+  currentResource?: ReturnType<typeof useResource>,
+): boolean {
+  const latestResource = useResource(id ? latestId(id) : null, {subscribed: true})
+
+  if (!id) return true
+
+  // While latest is loading, default to true to prevent banner flash
+  if (latestResource.isLoading) return true
+
+  if (!latestResource.data || latestResource.data.type !== 'document') return true
+
+  // Prefer the version from the already-fetched resource data over the URL id
+  const currentVersion = currentResource?.data?.type === 'document' ? currentResource.data.document.version : id.version
+
+  if (!currentVersion) return true
+
+  return latestResource.data.document.version === currentVersion
 }
 
 export function useAccount(id: string | null | undefined, options?: UseQueryOptions<HMMetadataPayload | null>) {

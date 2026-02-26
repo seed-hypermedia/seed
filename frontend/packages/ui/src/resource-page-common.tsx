@@ -13,17 +13,11 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
-import {useAccountsMetadata, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
+import {useAccountsMetadata, useDirectory, useIsLatest, useResource, useResources} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
-import {
-  createSiteUrl,
-  createWebHMUrl,
-  getCommentTargetId,
-  latestId,
-  parseFragment,
-} from '@shm/shared/utils/entity-id-url'
+import {createSiteUrl, createWebHMUrl, getCommentTargetId, parseFragment} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Folder} from 'lucide-react'
 import {CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -214,14 +208,7 @@ export function ResourcePage({
   const siteHomeId = hmId(docId.uid)
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
   const homeDirectory = useDirectory(siteHomeId)
-  const latestDoc = useResource(latestId(docId), {subscribed: true})
-
-  // Determine if we're viewing the latest version
-  // Only consider it "latest" if we can confirm it (to avoid banner flashing during load)
-  const isLatest =
-    !docId.version ||
-    docId.latest ||
-    (latestDoc.data?.id?.version != null && latestDoc.data.id.version === docId.version)
+  const isLatest = useIsLatest(docId, resource)
 
   const siteHomeDocument = siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
 

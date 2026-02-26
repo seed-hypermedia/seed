@@ -183,13 +183,18 @@ function createHydratedQueryClient(docId: ReturnType<typeof hmId>, document: HMD
   })
 
   // Pre-populate the cache with document data at the correct query key
-  // Query key format: [queryKeys.ENTITY, id.id, version]
-  const queryKey = [queryKeys.ENTITY, docId.id, docId.version]
+  // Query key format: [queryKeys.ENTITY, id.id, version, latest]
+  const queryKey = [queryKeys.ENTITY, docId.id, docId.version || undefined, docId.latest || false]
   queryClient.setQueryData(queryKey, createDocumentResource(document, docId))
+
+  // Also prefetch the "latest" version for the useIsLatest hook
+  const latestId = hmId(docId.uid, {path: docId.path || undefined, latest: true})
+  const latestQueryKey = [queryKeys.ENTITY, latestId.id, latestId.version || undefined, latestId.latest || false]
+  queryClient.setQueryData(latestQueryKey, createDocumentResource(document, latestId))
 
   // Also prefetch the home document for the header
   const homeId = hmId(docId.uid, {latest: true})
-  const homeQueryKey = [queryKeys.ENTITY, homeId.id, homeId.version]
+  const homeQueryKey = [queryKeys.ENTITY, homeId.id, homeId.version || undefined, homeId.latest || false]
   queryClient.setQueryData(homeQueryKey, createDocumentResource(document, homeId))
 
   return queryClient

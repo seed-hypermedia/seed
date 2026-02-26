@@ -3,7 +3,7 @@ import {useContact, useSelectedAccountContacts} from '@/models/contacts'
 import {draftEditId, draftLocationId} from '@/models/drafts'
 import {commentIdToHmId, getParentPaths, hmId, UnpackedHypermediaId} from '@shm/shared'
 import {getDocumentTitle} from '@shm/shared/content'
-import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
+import {useAccount, useIsLatest, useResource, useResources} from '@shm/shared/models/entity'
 import {ContactRoute, DocumentPanelRoute, DraftRoute, ProfileRoute} from '@shm/shared/routes'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useMemo} from 'react'
@@ -120,11 +120,7 @@ export function useRouteBreadcrumbs(): RouteBreadcrumbsResult {
 
   // --- Entity data (noop when entityId is undefined) ---
   const contacts = useSelectedAccountContacts()
-  const latestDoc = useResource(entityId ? {...entityId, version: null, latest: true} : null)
-  const isLatest =
-    !entityId ||
-    entityId.latest ||
-    entityId.version === (latestDoc.data?.type === 'document' ? latestDoc.data.document?.version : undefined)
+  const isLatest = useIsLatest(entityId)
 
   const isNewDraft = isDraft ? draftParams?.isNewDraft ?? false : false
 

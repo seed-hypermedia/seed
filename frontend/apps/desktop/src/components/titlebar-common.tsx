@@ -19,7 +19,7 @@ import {hostnameStripProtocol} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useResource} from '@shm/shared/models/entity'
+import {useIsLatest, useResource} from '@shm/shared/models/entity'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {createDocumentNavRoute, DocumentRoute, DraftRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
@@ -29,7 +29,6 @@ import {
   displayHostname,
   extractViewTermFromUrl,
   hmId,
-  latestId,
   routeToUrl,
   unpackHmId,
   viewTermToRouteKey,
@@ -347,17 +346,7 @@ export function PageActionButtons(props: TitleBarProps) {
 
 function DocumentTitlebarButtons({route}: {route: DocumentRoute | FeedRoute}) {
   const {id} = route
-  const latestDoc = useResource(latestId(id), {subscribed: true})
-
-  // Determine if we're viewing the latest version
-  // Only consider it "latest" if we can confirm it (to avoid button flashing during load)
-  const isLatest =
-    !route.id.version ||
-    route.id.latest ||
-    // Only hide the button if we've loaded the latest doc and versions match
-    (latestDoc.data?.id?.version != null &&
-      // @ts-ignore
-      latestDoc.data?.id?.version == route.id.version)
+  const isLatest = useIsLatest(id)
 
   const publishSite = usePublishSite()
   const isHomeDoc = !id.path?.length

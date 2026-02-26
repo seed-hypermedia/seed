@@ -64,8 +64,9 @@ function rawCapToHMCapability(raw: HMRawCapability): HMCapability | null {
  */
 export function queryResource(client: UniversalClient, id: UnpackedHypermediaId | null | undefined) {
   const version = id?.version || undefined
+  const latest = id?.latest || false
   return {
-    queryKey: [queryKeys.ENTITY, id?.id, version] as const,
+    queryKey: [queryKeys.ENTITY, id?.id, version, latest] as const,
     queryFn: async (): Promise<HMResource | null> => {
       if (!id) return null
       try {
