@@ -1265,12 +1265,33 @@ func TestPublicOnlyGetPrivateDocument(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, codes.PermissionDenied, st.Code(), "error should be PermissionDenied")
 
-	// Try to get the resource via GetResource with URL - expect PermissionDenied.
+	// Try to get the private document resource via GetResource - expect PermissionDenied.
 	resourceURL := "hm://" + alice.me.Account.PublicKey.String() + "/private-doc"
 	_, err = alice.GetResource(ctx, &documents.GetResourceRequest{
 		Iri: resourceURL,
 	})
 	require.Error(t, err, "GetResource for private doc should fail when PublicOnly=true")
+	st, ok = status.FromError(err)
+	require.True(t, ok)
+	require.Equal(t, codes.PermissionDenied, st.Code(), "error should be PermissionDenied")
+
+	// Create a private comment on the private document.
+	comment, err := alice.CreateComment(ctx, &documents.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  privateDoc.Account,
+		TargetPath:     privateDoc.Path,
+		TargetVersion:  privateDoc.Version,
+		Content: []*documents.BlockNode{
+			{Block: &documents.Block{Id: "b1", Type: "paragraph", Text: "Private comment"}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, string(blob.VisibilityPrivate), comment.Visibility)
+
+	// Try to get the private comment resource via GetResource - expect PermissionDenied.
+	commentIRI := "hm://" + comment.Id
+	_, err = alice.GetResource(ctx, &documents.GetResourceRequest{Iri: commentIRI})
+	require.Error(t, err, "GetResource for private comment should fail when PublicOnly=true")
 	st, ok = status.FromError(err)
 	require.True(t, ok)
 	require.Equal(t, codes.PermissionDenied, st.Code(), "error should be PermissionDenied")

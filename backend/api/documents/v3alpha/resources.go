@@ -234,6 +234,10 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 
 			switch v := blb.Blob.(type) {
 			case *blob.Comment:
+				if srv.cfg.PublicOnly && v.Visibility == blob.VisibilityPrivate {
+					return nil, status.Errorf(codes.PermissionDenied, "access to private comments is not allowed")
+				}
+
 				var cmt *documents.Comment
 				if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 					lc := blob.NewLookupCache(conn)
