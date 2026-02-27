@@ -372,3 +372,42 @@ export async function createComment(input: CreateCommentInput, signer: HMSigner)
   })
   return toPublishInput(comment, blobs)
 }
+
+export type DeleteCommentInput = {
+  commentId: string // record ID: "authority/tsid"
+  targetAccount: string // space uid
+  targetPath: string // path (e.g., "/doc1")
+  targetVersion: string // version string (e.g., "cid1.cid2")
+}
+
+export async function deleteComment(input: DeleteCommentInput, signer: HMSigner): Promise<HMPublishBlobsInput> {
+  // Extract TSID from comment ID (format: "authority/tsid")
+  const parts = input.commentId.split('/')
+  const tsid = parts[1]
+  if (!tsid) {
+    throw new Error(`Invalid comment ID format: ${input.commentId}`)
+  }
+
+  const signerKey = await signer.getPublicKey()
+
+  // Create the tombstone comment object for signing
+  // Empty body signals deletion, zeroed thread/reply refs, same TSID as original
+  const tombstone: Record<string, unknown> = {
+    type: 'Comment',
+    id: tsid,
+    body: [],
+    space: new Uint8Array(base58btc.decode(input.targetAccount)),
+    path: input.targetPath,
+    version: input.targetVersion.split('.').map((v) => CID.parse(v)),
+    signer: new Uint8Array(signerKey),
+    ts: BigInt(Date.now()),
+    sig: new Uint8Array(64),
+  }
+
+  // Sign the tombstone (CBOR-encode with zeroed sig, then sign)
+  tombstone.sig = await signObject(signer, tombstone)
+
+  // Encode to CBOR and return as publish input
+  const encoded = cborEncode(tombstone)
+  return toPublishInput(encoded, [])
+}

@@ -17,8 +17,18 @@ import {Spinner} from '@shm/ui/spinner'
 import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {DehydratedState, hydrate, QueryClient, QueryClientProvider, useQueryClient} from '@tanstack/react-query'
+import type {StateStream} from '@shm/shared/utils/stream'
 import {createContext, useContext, useEffect, useMemo, useState} from 'react'
+import {keyPairStore} from './auth'
 import {webUniversalClient} from './universal-client'
+
+const selectedIdentity: StateStream<string | null> = {
+  get: () => keyPairStore.get()?.id ?? null,
+  subscribe: (handler) => {
+    const wrapped = () => handler(keyPairStore.get()?.id ?? null)
+    return keyPairStore.subscribe(wrapped)
+  },
+}
 
 function createQueryClient() {
   return new QueryClient({
@@ -256,6 +266,7 @@ export function WebSiteProvider(props: {
         window.open(url, '_blank')
       }}
       universalClient={webUniversalClient}
+      selectedIdentity={selectedIdentity}
       openRoute={(route: NavRoute, replace?: boolean) => {
         // Update navigation state
         if (replace) {

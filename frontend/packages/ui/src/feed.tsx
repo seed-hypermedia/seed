@@ -1,7 +1,7 @@
-import {useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
+import {useDeleteComment, useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
 import {HMBlockNode, HMTimestamp, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {HMListEventsParams, LoadedCommentEvent, LoadedEvent} from '@shm/shared/models/activity-service'
-import {useResource} from '@shm/shared/models/entity'
+import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
 import {DocumentRoute, NavRoute} from '@shm/shared/routes'
 import {useRouteLink} from '@shm/shared/routing'
 import {useTx, useTxString} from '@shm/shared/translation'
@@ -16,7 +16,7 @@ import {toast} from 'sonner'
 import {SelectionContent} from './accessories'
 import {BlocksContent, BlocksContentProvider} from './blocks-content'
 import {Button} from './button'
-import {CommentContent} from './comments'
+import {CommentContent, useDeleteCommentDialog} from './comments'
 import {SizableText} from './components/text'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {HMIcon} from './hm-icon'
@@ -34,8 +34,6 @@ export function Feed({
   filterResource,
   filterAuthors,
   filterEventType,
-  currentAccount = '',
-  onCommentDelete,
   targetDomain,
   size = 'md',
   navigationContext,
@@ -44,8 +42,6 @@ export function Feed({
   filterResource: HMListEventsParams['filterResource']
   filterAuthors?: HMListEventsParams['filterAuthors']
   filterEventType?: HMListEventsParams['filterEventType']
-  currentAccount?: string
-  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   targetDomain?: string
   navigationContext?: 'page' | 'panel'
 }) {
@@ -65,7 +61,6 @@ export function Feed({
     filterResource,
     filterAuthors,
     filterEventType,
-    currentAccount,
   })
 
   // Setup and cleanup observer whenever dependencies change
@@ -165,8 +160,6 @@ export function Feed({
                     isSingleResource={isSingleResource}
                     event={e}
                     route={route}
-                    onCommentDelete={onCommentDelete}
-                    currentAccount={currentAccount}
                     targetDomain={targetDomain}
                     size={size}
                   />
@@ -183,8 +176,6 @@ export function Feed({
                 key={`${e.type}-${e.id}-${e.time}`}
                 event={e}
                 route={route}
-                onCommentDelete={onCommentDelete}
-                currentAccount={currentAccount}
                 targetDomain={targetDomain}
                 size={size}
               />
@@ -204,15 +195,11 @@ export function Feed({
 
 function EventHeaderContent({
   event,
-  onCommentDelete,
-  currentAccount,
   targetDomain,
   isSingleResource,
   route,
 }: {
   event: LoadedEvent
-  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
-  currentAccount?: string
   targetDomain?: string
   isSingleResource?: boolean
   route?: NavRoute | null
@@ -220,74 +207,87 @@ function EventHeaderContent({
   const tx = useTxString()
   const currentRoute = useNavRoute()
   const isDiscussionsView = currentRoute.key === 'comments' || currentRoute.key === 'activity'
+  const currentAccount = useSelectedAccountId()
+  const deleteCommentMutation = useDeleteComment()
+  const deleteCommentDialog = useDeleteCommentDialog()
   if (event.type == 'comment') {
     const options: MenuItemType[] = []
-    if (onCommentDelete && event.comment && currentAccount == event.comment.author) {
+    if (event.comment && currentAccount && currentAccount == event.comment.author) {
       options.push({
         icon: <Trash2 className="size-4" />,
         label: 'Delete',
         onClick: () => {
-          onCommentDelete(event.comment!.id, currentAccount)
+          deleteCommentDialog.open({
+            onConfirm: () => {
+              deleteCommentMutation.mutate({
+                comment: event.comment!,
+                signingAccountId: currentAccount,
+              })
+            },
+          })
         },
         key: 'delete',
       })
     }
 
     return (
-      <div className="group flex w-full items-center justify-between gap-2">
-        <InlineDescriptor>
-          <AuthorNameLink author={event.author} />{' '}
-          {!isSingleResource && event.target ? (
-            <>
-              <span>commented on</span> <DocumentNameLink metadata={event.target?.metadata} id={event.target.id} />
-            </>
-          ) : null}
-          <Timestamp time={event.time} route={route} />
-        </InlineDescriptor>
-        {event.comment && (
-          <div className="flex items-center gap-2">
-            <Tooltip content={tx('Copy Comment Link')}>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  const targetDocId = getCommentTargetId(event.comment!)
-                  if (targetDocId && event.comment) {
-                    const routeLatest =
-                      currentRoute.key === 'document' ||
-                      currentRoute.key === 'comments' ||
-                      currentRoute.key === 'activity'
-                        ? currentRoute.id.latest
-                        : undefined
-                    const url = createCommentUrl({
-                      docId: targetDocId,
-                      commentId: event.comment.id,
-                      siteUrl: targetDomain,
-                      isDiscussionsView,
-                      latest: routeLatest,
-                    })
-                    copyTextToClipboard(url)
-                    toast.success('Copied Comment URL')
-                  }
-                }}
-              >
-                <Link className="size-3" />
-              </Button>
-            </Tooltip>
-            {options.length > 0 && (
-              <OptionsDropdown
-                side="bottom"
-                align="end"
-                className="hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
-                menuItems={options}
-              />
-            )}
-          </div>
-        )}
-      </div>
+      <>
+        {deleteCommentDialog.content}
+        <div className="group flex w-full items-center justify-between gap-2">
+          <InlineDescriptor>
+            <AuthorNameLink author={event.author} />{' '}
+            {!isSingleResource && event.target ? (
+              <>
+                <span>commented on</span> <DocumentNameLink metadata={event.target?.metadata} id={event.target.id} />
+              </>
+            ) : null}
+            <Timestamp time={event.time} route={route} />
+          </InlineDescriptor>
+          {event.comment && (
+            <div className="flex items-center gap-2">
+              <Tooltip content={tx('Copy Comment Link')}>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    const targetDocId = getCommentTargetId(event.comment!)
+                    if (targetDocId && event.comment) {
+                      const routeLatest =
+                        currentRoute.key === 'document' ||
+                        currentRoute.key === 'comments' ||
+                        currentRoute.key === 'activity'
+                          ? currentRoute.id.latest
+                          : undefined
+                      const url = createCommentUrl({
+                        docId: targetDocId,
+                        commentId: event.comment.id,
+                        siteUrl: targetDomain,
+                        isDiscussionsView,
+                        latest: routeLatest,
+                      })
+                      copyTextToClipboard(url)
+                      toast.success('Copied Comment URL')
+                    }
+                  }}
+                >
+                  <Link className="size-3" />
+                </Button>
+              </Tooltip>
+              {options.length > 0 && (
+                <OptionsDropdown
+                  side="bottom"
+                  align="end"
+                  className="hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                  menuItems={options}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      </>
     )
   }
 
@@ -495,16 +495,12 @@ function EventContent({
 function EventCommentWithReply({
   event,
   route,
-  onCommentDelete,
-  currentAccount,
   targetDomain,
   isSingleResource,
   size,
 }: {
   event: LoadedCommentEvent
   route: NavRoute | null
-  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
-  currentAccount?: string
   targetDomain?: string
   isSingleResource?: boolean
   size?: 'sm' | 'md'
@@ -575,8 +571,6 @@ function EventCommentWithReply({
         <EventHeaderContent
           isSingleResource={isSingleResource}
           event={event}
-          onCommentDelete={onCommentDelete}
-          currentAccount={currentAccount}
           targetDomain={targetDomain}
           route={route}
         />
@@ -824,16 +818,12 @@ function getEventRoute(event: LoadedEvent, useFullPageNavigation: boolean = fals
 function EventItem({
   event,
   route,
-  onCommentDelete,
-  currentAccount,
   targetDomain,
   isSingleResource,
   size,
 }: {
   event: LoadedEvent
   route: NavRoute | null
-  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
-  currentAccount?: string
   targetDomain?: string
   isSingleResource?: boolean
   size?: 'sm' | 'md'
@@ -868,13 +858,7 @@ function EventItem({
             />
           ) : null}
         </div>
-        <EventHeaderContent
-          event={event}
-          onCommentDelete={onCommentDelete}
-          currentAccount={currentAccount}
-          targetDomain={targetDomain}
-          isSingleResource={isSingleResource}
-        />
+        <EventHeaderContent event={event} targetDomain={targetDomain} isSingleResource={isSingleResource} />
       </div>
       {isSingleResource && event.type == 'doc-update' ? null : (
         <div className="relative flex gap-2">

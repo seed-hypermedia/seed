@@ -17,11 +17,9 @@ export interface FeedPageProps {
   docId: UnpackedHypermediaId
   CommentEditor?: React.ComponentType<CommentEditorProps>
   extraMenuItems?: MenuItemType[]
-  currentAccountUid?: string
-  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
 }
 
-export function FeedPage({docId, extraMenuItems, currentAccountUid, onCommentDelete}: FeedPageProps) {
+export function FeedPage({docId, extraMenuItems}: FeedPageProps) {
   const siteHomeId = hmId(docId.uid)
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
   const homeDirectory = useDirectory(siteHomeId)
@@ -51,13 +49,7 @@ export function FeedPage({docId, extraMenuItems, currentAccountUid, onCommentDel
       document={siteHomeDocument ?? undefined}
       isMainFeedVisible
     >
-      <FeedBody
-        siteHomeId={siteHomeId}
-        extraMenuItems={extraMenuItems}
-        currentAccountUid={currentAccountUid}
-        onCommentDelete={onCommentDelete}
-        targetDomain={targetDomain}
-      />
+      <FeedBody siteHomeId={siteHomeId} extraMenuItems={extraMenuItems} targetDomain={targetDomain} />
     </PageWrapper>
   )
 }
@@ -65,14 +57,10 @@ export function FeedPage({docId, extraMenuItems, currentAccountUid, onCommentDel
 function FeedBody({
   siteHomeId,
   extraMenuItems,
-  currentAccountUid,
-  onCommentDelete,
   targetDomain,
 }: {
   siteHomeId: UnpackedHypermediaId
   extraMenuItems?: MenuItemType[]
-  currentAccountUid?: string
-  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   targetDomain?: string
 }) {
   const route = useNavRoute()
@@ -106,8 +94,6 @@ function FeedBody({
         <Separator />
         <Feed
           filterResource={`${siteHomeId.id}*`}
-          currentAccount={currentAccountUid || ''}
-          onCommentDelete={onCommentDelete}
           targetDomain={targetDomain}
           size="md"
           filterEventType={filterEventType}

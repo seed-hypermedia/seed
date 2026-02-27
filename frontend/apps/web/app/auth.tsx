@@ -60,6 +60,12 @@ export const keyPairStore = {
     keyPair = kp
     keyPairHandlers.forEach((callback) => callback())
   },
+  subscribe: (handler: () => void) => {
+    keyPairHandlers.add(handler)
+    return () => {
+      keyPairHandlers.delete(handler)
+    }
+  },
 }
 
 async function loadLocalWebIdentity(): Promise<LocalWebIdentity | null> {

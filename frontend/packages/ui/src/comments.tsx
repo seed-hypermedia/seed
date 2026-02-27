@@ -23,11 +23,12 @@ import {
   useCommentReplyCount,
   useCommentsService,
   useCommentsServiceContext,
+  useDeleteComment,
   useDiscussionsService,
   useHackyAuthorsSubscriptions,
 } from '@shm/shared/comments-service-provider'
 import {HMListDiscussionsOutput} from '@shm/shared/hm-types'
-import {useResource} from '@shm/shared/models/entity'
+import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Link, MessageSquare, Trash2} from 'lucide-react'
@@ -53,8 +54,6 @@ export function CommentDiscussions({
   commentId,
   commentEditor,
   targetDomain,
-  currentAccountId,
-  onCommentDelete,
   selection,
 }: {
   targetId: UnpackedHypermediaId
@@ -63,8 +62,6 @@ export function CommentDiscussions({
   onStartDiscussion?: () => void
   isEntirelyHighlighted?: boolean
   targetDomain?: string
-  currentAccountId?: string
-  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   selection?: {
     blockId?: string
     blockRange?: BlockRange
@@ -173,8 +170,6 @@ export function CommentDiscussions({
                 authorId={comment.author}
                 authorMetadata={commentsService.data?.authors?.[comment.author]?.metadata}
                 targetDomain={targetDomain}
-                currentAccountId={currentAccountId}
-                onCommentDelete={onCommentDelete}
                 isFirst={index === 0}
                 isLast={false}
               />
@@ -191,8 +186,6 @@ export function CommentDiscussions({
             authorId={focusedComment.author}
             authorMetadata={commentsService.data?.authors?.[focusedComment.author]?.metadata}
             targetDomain={targetDomain}
-            currentAccountId={currentAccountId}
-            onCommentDelete={onCommentDelete}
             isFirst={!(hasParents && showParents)}
             isLast={true}
             highlight
@@ -221,9 +214,7 @@ export function CommentDiscussions({
                   key={cg.id}
                   commentGroup={cg}
                   authors={commentsService.data?.authors}
-                  onCommentDelete={onCommentDelete}
                   targetDomain={targetDomain}
-                  currentAccountId={currentAccountId}
                 />
               </div>
             )
@@ -237,14 +228,10 @@ export const Discussions = memo(function Discussions({
   targetId,
   commentId,
   targetDomain,
-  currentAccountId,
-  onCommentDelete,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
   targetDomain?: string
-  currentAccountId?: string
-  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
 }) {
   const discussionsService = useDiscussionsService({targetId, commentId})
 
@@ -300,8 +287,6 @@ export const Discussions = memo(function Discussions({
                     authors={discussionsService.data.authors}
                     enableReplies
                     targetDomain={targetDomain}
-                    currentAccountId={currentAccountId}
-                    onCommentDelete={onCommentDelete}
                   />
                 </LazyCommentGroup>
               </div>
@@ -316,8 +301,6 @@ export const Discussions = memo(function Discussions({
                     authors={discussionsService.data.authors}
                     enableReplies
                     targetDomain={targetDomain}
-                    currentAccountId={currentAccountId}
-                    onCommentDelete={onCommentDelete}
                   />
                 </LazyCommentGroup>
               </div>
@@ -336,14 +319,10 @@ export function BlockDiscussions({
   targetId,
   commentEditor,
   targetDomain,
-  currentAccountId,
-  onCommentDelete,
 }: {
   targetId: UnpackedHypermediaId
   commentEditor?: ReactNode
   targetDomain?: string
-  currentAccountId?: string
-  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
 }) {
   const commentsService = useBlockDiscussionsService({targetId})
   const doc = useResource(targetId)
@@ -404,8 +383,6 @@ export function BlockDiscussions({
                 authorId={comment.author}
                 authorMetadata={commentsService.data.authors[comment.author]?.metadata}
                 targetDomain={targetDomain}
-                currentAccountId={currentAccountId}
-                onCommentDelete={onCommentDelete}
               />
             </div>
           )
@@ -471,15 +448,11 @@ export const CommentGroup = memo(function CommentGroup({
   enableReplies = true,
   highlightLastComment = false,
   targetDomain,
-  currentAccountId,
-  onCommentDelete,
 }: {
   commentGroup: HMCommentGroup | HMExternalCommentGroup
   authors?: HMListDiscussionsOutput['authors']
   enableReplies?: boolean
   highlightLastComment?: boolean
-  currentAccountId?: string
-  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   targetDomain?: string
 }) {
   const lastComment = commentGroup.comments.at(-1)
@@ -514,8 +487,6 @@ export const CommentGroup = memo(function CommentGroup({
             authorId={comment.author}
             enableReplies={enableReplies}
             highlight={highlightLastComment && isLastCommentInGroup}
-            currentAccountId={currentAccountId}
-            onCommentDelete={onCommentDelete}
             targetDomain={targetDomain}
           />
         )
@@ -533,8 +504,6 @@ export const Comment = memo(function Comment({
   enableReplies = true,
   defaultExpandReplies = false,
   highlight = false,
-  onCommentDelete,
-  currentAccountId,
   targetDomain,
   heading,
   externalTarget,
@@ -548,9 +517,7 @@ export const Comment = memo(function Comment({
   enableReplies?: boolean
   defaultExpandReplies?: boolean
   highlight?: boolean
-  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   targetDomain?: string
-  currentAccountId?: string
   heading?: ReactNode
   externalTarget?: HMMetadataPayload
   selection?: {
@@ -562,6 +529,9 @@ export const Comment = memo(function Comment({
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const commentsContext = useCommentsServiceContext()
   const {data: replyCount} = useCommentReplyCount({id: comment.id})
+  const currentAccountId = useSelectedAccountId()
+  const deleteCommentMutation = useDeleteComment()
+  const deleteCommentDialog = useDeleteCommentDialog()
 
   const authorHmId = comment.author || authorId ? hmId(authorId || comment.author) : null
 
@@ -578,139 +548,149 @@ export const Comment = memo(function Comment({
   const isDiscussionsView = currentRoute.key === 'comments' || currentRoute.key === 'activity'
   const docId = getCommentTargetId(comment)
   const options: MenuItemType[] = []
-  if (onCommentDelete) {
+  if (currentAccountId) {
     options.push({
       icon: <Trash2 className="size-4" />,
       label: 'Delete',
       onClick: () => {
-        onCommentDelete(comment.id, currentAccountId)
+        deleteCommentDialog.open({
+          onConfirm: () => {
+            deleteCommentMutation.mutate({
+              comment,
+              signingAccountId: currentAccountId,
+            })
+          },
+        })
       },
       key: 'delete',
     })
   }
   const isEntirelyHighlighted = highlight && !selection
   return (
-    <div className={cn('group relative flex gap-1 rounded-lg p-2', isEntirelyHighlighted && 'bg-accent')}>
-      {heading ? null : (
-        <div className="relative mt-0.5 flex min-w-5 flex-col items-center">
-          {isFirst ? null : <div className="bg-border absolute top-[-40px] left-1/2 h-[40px] w-px" />}
-          <div
-            className={cn(
-              'absolute top-0 left-0 z-2 size-5 rounded-full bg-transparent transition-all duration-200 ease-in-out',
-              isEntirelyHighlighted
-                ? 'outline-secondary hover:outline-secondary'
-                : 'dark:outline-background dark:hover:outline-background outline-white hover:outline-white',
+    <>
+      {deleteCommentDialog.content}
+      <div className={cn('group relative flex gap-1 rounded-lg p-2', isEntirelyHighlighted && 'bg-accent')}>
+        {heading ? null : (
+          <div className="relative mt-0.5 flex min-w-5 flex-col items-center">
+            {isFirst ? null : <div className="bg-border absolute top-[-40px] left-1/2 h-[40px] w-px" />}
+            <div
+              className={cn(
+                'absolute top-0 left-0 z-2 size-5 rounded-full bg-transparent transition-all duration-200 ease-in-out',
+                isEntirelyHighlighted
+                  ? 'outline-secondary hover:outline-secondary'
+                  : 'dark:outline-background dark:hover:outline-background outline-white hover:outline-white',
+              )}
+              {...authorLink}
+            />
+            {authorHmId && (
+              <div className="size-5">
+                <HMIcon id={authorHmId} name={authorMetadata?.name} icon={authorMetadata?.icon} size={20} />
+              </div>
             )}
-            {...authorLink}
-          />
-          {authorHmId && (
-            <div className="size-5">
-              <HMIcon id={authorHmId} name={authorMetadata?.name} icon={authorMetadata?.icon} size={20} />
-            </div>
-          )}
-          {!isLast || (highlight && selection?.blockId) ? <div className="bg-border h-full w-px" /> : null}
-        </div>
-      )}
-
-      <div className="flex w-full flex-1 flex-col gap-1">
-        <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
-          {heading ? (
-            <div className="inline">{heading}</div>
-          ) : (
-            <InlineDescriptor>
-              {authorHmId ? (
-                <AuthorNameLink
-                  author={{
-                    id: authorHmId,
-                    metadata: authorMetadata ?? undefined,
-                  }}
-                />
-              ) : (
-                <span>Someone</span>
-              )}{' '}
-              {externalTarget ? (
-                <>
-                  <span>on</span>{' '}
-                  <button
-                    {...externalTargetLink}
-                    className="hover:bg-accent text-foreground h-5 truncate rounded px-1 text-sm font-bold transition-colors"
-                  >
-                    {externalTarget.metadata?.name}
-                  </button>
-                </>
-              ) : null}
-              <CommentDate comment={comment} />
-            </InlineDescriptor>
-          )}
-          <div className="flex items-center gap-2">
-            <Tooltip content={tx('Copy Comment Link')}>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
-                onClick={() => {
-                  if (docId) {
-                    const routeLatest =
-                      currentRoute.key === 'document' ||
-                      currentRoute.key === 'comments' ||
-                      currentRoute.key === 'activity'
-                        ? currentRoute.id.latest
-                        : undefined
-                    const url = createCommentUrl({
-                      docId,
-                      commentId: comment.id,
-                      siteUrl: targetDomain,
-                      isDiscussionsView,
-                      latest: routeLatest,
-                    })
-                    copyTextToClipboard(url)
-                    toast.success('Copied Comment URL')
-                  }
-                }}
-              >
-                <Link className="size-3" />
-              </Button>
-            </Tooltip>
-            {currentAccountId == comment.author ? (
-              <OptionsDropdown
-                side="bottom"
-                align="end"
-                className="hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
-                menuItems={options}
-              />
-            ) : null}
-          </div>
-        </div>
-
-        <CommentContent comment={comment} selection={selection} />
-
-        {!isEntirelyHighlighted && (
-          <div className={cn('-ml-1 flex items-center gap-2 py-1', !heading && 'mb-2')}>
-            {enableReplies || commentsContext.onReplyClick ? (
-              <Button
-                variant="ghost"
-                size="xs"
-                className={cn(
-                  'text-muted-foreground hover:text-muted-foreground active:text-muted-foreground',
-                  'plausible-event-name=Reply+Click',
-                )}
-                onClick={() => {
-                  if (commentsContext.onReplyClick) {
-                    commentsContext.onReplyClick(comment)
-                  } else if (replyCount && commentsContext.onReplyCountClick) {
-                    commentsContext.onReplyCountClick(comment)
-                  }
-                }}
-              >
-                <ReplyArrow className="size-3" />
-                {tx('Reply')}
-                {replyCount && replyCount > 0 ? ` (${replyCount})` : ''}
-              </Button>
-            ) : null}
+            {!isLast || (highlight && selection?.blockId) ? <div className="bg-border h-full w-px" /> : null}
           </div>
         )}
+
+        <div className="flex w-full flex-1 flex-col gap-1">
+          <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
+            {heading ? (
+              <div className="inline">{heading}</div>
+            ) : (
+              <InlineDescriptor>
+                {authorHmId ? (
+                  <AuthorNameLink
+                    author={{
+                      id: authorHmId,
+                      metadata: authorMetadata ?? undefined,
+                    }}
+                  />
+                ) : (
+                  <span>Someone</span>
+                )}{' '}
+                {externalTarget ? (
+                  <>
+                    <span>on</span>{' '}
+                    <button
+                      {...externalTargetLink}
+                      className="hover:bg-accent text-foreground h-5 truncate rounded px-1 text-sm font-bold transition-colors"
+                    >
+                      {externalTarget.metadata?.name}
+                    </button>
+                  </>
+                ) : null}
+                <CommentDate comment={comment} />
+              </InlineDescriptor>
+            )}
+            <div className="flex items-center gap-2">
+              <Tooltip content={tx('Copy Comment Link')}>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                  onClick={() => {
+                    if (docId) {
+                      const routeLatest =
+                        currentRoute.key === 'document' ||
+                        currentRoute.key === 'comments' ||
+                        currentRoute.key === 'activity'
+                          ? currentRoute.id.latest
+                          : undefined
+                      const url = createCommentUrl({
+                        docId,
+                        commentId: comment.id,
+                        siteUrl: targetDomain,
+                        isDiscussionsView,
+                        latest: routeLatest,
+                      })
+                      copyTextToClipboard(url)
+                      toast.success('Copied Comment URL')
+                    }
+                  }}
+                >
+                  <Link className="size-3" />
+                </Button>
+              </Tooltip>
+              {currentAccountId == comment.author ? (
+                <OptionsDropdown
+                  side="bottom"
+                  align="end"
+                  className="hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                  menuItems={options}
+                />
+              ) : null}
+            </div>
+          </div>
+
+          <CommentContent comment={comment} selection={selection} />
+
+          {!isEntirelyHighlighted && (
+            <div className={cn('-ml-1 flex items-center gap-2 py-1', !heading && 'mb-2')}>
+              {enableReplies || commentsContext.onReplyClick ? (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className={cn(
+                    'text-muted-foreground hover:text-muted-foreground active:text-muted-foreground',
+                    'plausible-event-name=Reply+Click',
+                  )}
+                  onClick={() => {
+                    if (commentsContext.onReplyClick) {
+                      commentsContext.onReplyClick(comment)
+                    } else if (replyCount && commentsContext.onReplyCountClick) {
+                      commentsContext.onReplyCountClick(comment)
+                    }
+                  }}
+                >
+                  <ReplyArrow className="size-3" />
+                  {tx('Reply')}
+                  {replyCount && replyCount > 0 ? ` (${replyCount})` : ''}
+                </Button>
+              ) : null}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   )
 })
 

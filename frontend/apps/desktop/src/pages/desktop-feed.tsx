@@ -2,7 +2,6 @@ import {triggerCommentDraftFocus} from '@/components/commenting'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {DesktopDocumentActionsProvider} from '@/components/document-actions-provider'
 import {useGatewayUrl} from '@/models/gateway-settings'
-import {useSelectedAccount} from '@/selected-account'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmId} from '@shm/shared'
@@ -24,8 +23,6 @@ export default function DesktopFeedPage() {
 
   if (route.key !== 'feed') throw new Error('Not a feed route')
   const docId = route.id
-
-  const selectedAccount = useSelectedAccount()
 
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
   const siteHomeResource = useResource(hmId(docId.uid), {subscribed: true})
@@ -128,7 +125,7 @@ export default function DesktopFeedPage() {
         onReplyCountClick={onReplyCountClick}
       >
         <DesktopDocumentActionsProvider>
-          <FeedPage docId={docId} extraMenuItems={menuItems} currentAccountUid={selectedAccount?.id?.uid} />
+          <FeedPage docId={docId} extraMenuItems={menuItems} />
         </DesktopDocumentActionsProvider>
       </CommentsProvider>
       {copyGatewayContent}

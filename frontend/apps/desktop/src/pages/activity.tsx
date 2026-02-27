@@ -1,7 +1,6 @@
 import {useDocumentEmbeds, useSiteNavigationItems} from '@/models/documents'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useChildrenActivity} from '@/models/library'
-import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {ActivityRoute, HMDocument, hmId, HMResourceFetchResult, UnpackedHypermediaId} from '@shm/shared'
 import {useAccount, useCapabilities, useResource} from '@shm/shared/models/entity'
@@ -23,7 +22,6 @@ import React, {useEffect} from 'react'
 function _ActivityContent({id, route}: {id: UnpackedHypermediaId; route: ActivityRoute}) {
   const replace = useNavigate('replace')
   const navigate = useNavigate()
-  const selectedAccount = useSelectedAccount()
 
   // Data for DocumentTools
   const directory = useChildrenActivity(id)
@@ -132,12 +130,7 @@ function _ActivityContent({id, route}: {id: UnpackedHypermediaId; route: Activit
             replace({...route, filterEventType})
           }}
         />
-        <Feed
-          size="md"
-          filterResource={id.id}
-          currentAccount={selectedAccount?.id.uid || ''}
-          filterEventType={route.filterEventType || []}
-        />
+        <Feed size="md" filterResource={id.id} filterEventType={route.filterEventType || []} />
       </PageLayout>
     </div>
   )

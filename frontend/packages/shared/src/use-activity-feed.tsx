@@ -1,5 +1,6 @@
 import {useInfiniteQuery} from '@tanstack/react-query'
 import {HMListEventsInput, HMListEventsRequest} from './hm-types'
+import {useSelectedAccountId} from './models/entity'
 import {LoadedEventWithNotifMeta} from './models/activity-service'
 import {queryKeys} from './models/query-keys'
 import {useUniversalClient} from './routing'
@@ -17,19 +18,18 @@ type LoadedEventsResponse = {
  * Returns resolved/loaded events ready for UI rendering
  */
 export function useActivityFeed({
-  currentAccount,
   pageSize,
   filterAuthors,
   filterResource,
   filterEventType,
 }: {
-  currentAccount: string
   pageSize?: number
   filterAuthors?: string[]
   filterResource?: string
   filterEventType?: string[]
 }) {
   const client = useUniversalClient()
+  const currentAccount = useSelectedAccountId()
 
   return useInfiniteQuery({
     queryKey: [queryKeys.ACTIVITY_FEED, filterResource, filterAuthors, filterEventType, currentAccount],
@@ -41,7 +41,7 @@ export function useActivityFeed({
           filterEventType,
           filterResource,
           pageToken: pageParam as string | undefined,
-          currentAccount,
+          currentAccount: currentAccount ?? undefined,
         }
 
         // Fetch pre-resolved events from API

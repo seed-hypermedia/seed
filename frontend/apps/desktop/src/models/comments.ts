@@ -2,9 +2,8 @@ import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {HMBlockNodeSchema, HMComment, HMCommentDraftSchema, UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {useMutation, useQuery} from '@tanstack/react-query'
+import {useQuery} from '@tanstack/react-query'
 
 export function useCommentDraft(
   targetDocId: UnpackedHypermediaId,
@@ -47,29 +46,6 @@ export function useComments(commentIds: UnpackedHypermediaId[] = []) {
           }),
         } as HMComment
       })
-    },
-  })
-}
-
-export function useDeleteComment() {
-  return useMutation({
-    mutationFn: async ({
-      commentId,
-      targetDocId,
-      signingAccountId,
-    }: {
-      commentId: string
-      targetDocId: UnpackedHypermediaId
-      signingAccountId: string
-    }) => {
-      await grpcClient.comments.deleteComment({
-        id: commentId,
-        signingKeyName: signingAccountId,
-      })
-    },
-    onSuccess: () => {
-      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
-      invalidateQueries([])
     },
   })
 }
