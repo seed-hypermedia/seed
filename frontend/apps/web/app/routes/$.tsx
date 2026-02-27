@@ -6,10 +6,11 @@ import {
   printInstrumentationSummary,
   setRequestInstrumentationContext,
 } from '@/instrumentation.server'
+import {createResourceMetadata, metadataToPageMeta} from '@/hypermedia-metadata'
 import {GRPCError, loadSiteResource, SiteDocumentPayload} from '@/loaders'
-import {defaultPageMeta, defaultSiteIcon} from '@/meta'
+import {defaultPageMeta} from '@/meta'
 import {NoSitePage, NotRegisteredPage} from '@/not-registered'
-import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
+import {WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config.server'
 import {unwrap, type Wrapped} from '@/wrapping'
@@ -20,17 +21,14 @@ import {Code} from '@connectrpc/connect'
 import {HeadersFunction} from '@remix-run/node'
 import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
 import {
+  commentIdToHmId,
   createDocumentNavRoute,
-  getDocumentTitle,
   hmId,
-  hmIdPathToEntityQueryPath,
-  hostnameStripProtocol,
   UnpackedHypermediaId,
   VIEW_TERMS,
   ViewRouteKey,
 } from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
-import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {SizableText} from '@shm/ui/text'
 
 // Extended payload with view term and panel param for page routing
@@ -99,102 +97,19 @@ const unregisteredMeta = defaultPageMeta('Welcome to Seed Hypermedia')
 
 export const documentPageMeta = ({data}: {data: Wrapped<SiteDocumentPayload>}): ReturnType<MetaFunction> => {
   const siteDocument = unwrap<SiteDocumentPayload>(data)
-  // Use the document's home icon (siteHomeIcon), not the origin site's icon
-  const siteHomeIcon = siteDocument?.siteHomeIcon
-    ? getOptimizedImageUrl(extractIpfsUrlCid(siteDocument.siteHomeIcon), 'S')
-    : null
-  const meta: ReturnType<MetaFunction> = []
-
-  meta.push({
-    tagName: 'link',
-    rel: 'icon',
-    href: siteHomeIcon || defaultSiteIcon,
-    type: 'image/png',
-  })
-
-  if (!siteDocument) return meta
-
-  if (siteDocument.id)
-    meta.push({
-      name: 'hypermedia_id',
-      content: siteDocument.id.id,
-    })
-  if (siteDocument.document) {
-    const documentTitle = getDocumentTitle(siteDocument.document)
-    const documentDescription = ''
-    const imageUrl = `${siteDocument.origin}/hm/api/content-image?space=${
-      siteDocument.id.uid
-    }&path=${hmIdPathToEntityQueryPath(siteDocument.id.path)}&version=${siteDocument.id.version}`
-    const currentUrl = `${siteDocument.origin}${
-      siteDocument.id.path?.length ? '/' + siteDocument.id.path.join('/') : ''
-    }`
-    const domain = hostnameStripProtocol(siteDocument.origin)
-
-    meta.push({title: documentTitle})
-    meta.push({
-      name: 'description',
-      content: documentDescription,
-    })
-
-    meta.push({
-      property: 'og:url',
-      content: currentUrl,
-    })
-    meta.push({
-      property: 'og:type',
-      content: 'website',
-    })
-    meta.push({
-      property: 'og:title',
-      content: documentTitle,
-    })
-    meta.push({
-      property: 'og:description',
-      content: documentDescription,
-    })
-    meta.push({
-      property: 'og:image',
-      content: imageUrl,
-    })
-
-    // Twitter Meta Tags
-    meta.push({
-      name: 'twitter:card',
-      content: 'summary_large_image',
-    })
-    meta.push({
-      property: 'twitter:domain',
-      content: domain,
-    })
-    meta.push({
-      property: 'twitter:url',
-      content: currentUrl,
-    })
-    meta.push({
-      name: 'twitter:title',
-      content: documentTitle,
-    })
-    meta.push({
-      name: 'twitter:description',
-      content: documentDescription,
-    })
-    meta.push({
-      name: 'twitter:image',
-      content: imageUrl,
-    })
-
-    meta.push({
-      name: 'hypermedia_version',
-      content: siteDocument.document.version,
-    })
-    meta.push({
-      name: 'hypermedia_title',
-      content: documentTitle,
-    })
-  } else {
-    meta.push({title: 'Not Found'})
+  if (!siteDocument?.document) {
+    return siteDocument ? [{title: 'Not Found'}] : []
   }
-  return meta
+  const metadata = createResourceMetadata({
+    id: siteDocument.comment ? commentIdToHmId(siteDocument.comment.id) : siteDocument.id,
+    document: siteDocument.document,
+    comment: siteDocument.comment,
+  })
+  return metadataToPageMeta(metadata, {
+    origin: siteDocument.origin,
+    id: siteDocument.id,
+    siteHomeIcon: siteDocument.siteHomeIcon,
+  })
 }
 
 export const meta: MetaFunction<typeof loader> = (args) => {

@@ -15,6 +15,7 @@ export default defineConfig(({isSsrBuild}) => {
   return {
     server: {
       port: 3000,
+      cors: false,
     },
     clearScreen: false,
     // css: {

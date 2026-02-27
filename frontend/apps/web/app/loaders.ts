@@ -2,6 +2,7 @@ import {Code, ConnectError} from '@connectrpc/connect'
 import {redirect} from '@remix-run/react'
 import {accountMetadataFromAccount} from '@shm/shared/account-metadata'
 import {
+  commentIdToHmId,
   createWebHMUrl,
   entityQueryPathToHmIdPath,
   extractQueryBlocks,
@@ -37,6 +38,7 @@ import {createPrefetchContext, dehydratePrefetchContext, PrefetchContext} from '
 import {ParsedRequest} from './request'
 import {serverUniversalClient} from './server-universal-client'
 import {getConfig} from './site-config.server'
+import {createResourceMetadata, metadataToHeaders} from './hypermedia-metadata'
 import {discoverDocument} from './utils/discovery'
 import {wrapJSON, WrappedResponse} from './wrapping.server'
 
@@ -393,7 +395,7 @@ async function loadResourcePayload(
 
   return {
     document,
-    comment,
+    ...(comment != null ? {comment} : {}),
     isLatest: !latestDocument || latestDocument.version === document.version,
     // For comments, return the comment's own ID so the client route uses it
     id: commentId || finalId,
@@ -540,20 +542,43 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
     const resourceContent = await instrument(ctx || noopCtx, `loadResourceWithDiscovery(${packHmId(id)})`, () =>
       loadResourceWithDiscovery(id, parsedRequest, ctx),
     )
+
+    // Resolve comment when URL addresses one (e.g. /:comment/UID/TSID)
+    let comment = resourceContent.comment
+    let commentAuthorTitle: string | undefined
+    const openCommentId = (extraData as any)?.openComment as string | undefined
+    if (!comment && openCommentId) {
+      try {
+        comment = (await getComment(openCommentId)) ?? undefined
+        if (comment?.author) {
+          try {
+            const authorResource = await resolveResource(hmId(comment.author))
+            if (authorResource.type === 'document') {
+              commentAuthorTitle = authorResource.document.metadata.name || undefined
+            }
+          } catch (e) {}
+        }
+      } catch (e) {}
+    }
+
     const loadedSiteDocument = {
       ...(extraData || {}),
       ...resourceContent,
+      ...(comment ? {comment} : {}),
       homeMetadata,
       origin,
       originHomeId,
     }
     // Remove instrumentationCtx from the response
     const {instrumentationCtx: _, ...cleanDocument} = loadedSiteDocument as any
-    const headers: Record<string, string> = {}
-    headers['x-hypermedia-id'] = id.id
-    headers['x-hypermedia-version'] = resourceContent.document.version
+    const metadata = createResourceMetadata({
+      id: comment ? commentIdToHmId(comment.id) : id,
+      document: resourceContent.document,
+      comment,
+      commentAuthorTitle,
+    })
     return wrapJSON(cleanDocument, {
-      headers,
+      headers: metadataToHeaders(metadata),
     })
   } catch (e) {
     console.error('Error Loading Site Document', id, e)

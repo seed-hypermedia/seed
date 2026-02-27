@@ -6,7 +6,7 @@ import {PassThrough} from 'node:stream'
 import type {AppLoadContext, EntryContext} from '@remix-run/node'
 import {createReadableStreamFromReadable, redirect} from '@remix-run/node'
 import {RemixServer} from '@remix-run/react'
-import {getCommentTargetId, hmId, packHmId} from '@shm/shared'
+import {commentIdToHmId, getCommentTargetId, HMDocument, hmId} from '@shm/shared'
 import {SITE_BASE_URL, WEB_IDENTITY_ENABLED, WEB_IDENTITY_ORIGIN, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
 import fs from 'fs'
 import {mkdir, readFile, stat, writeFile} from 'fs/promises'
@@ -22,7 +22,8 @@ import {
   printInstrumentationSummary,
   startSpan,
 } from './instrumentation.server'
-import {resolveResource} from './loaders'
+import {createResourceMetadata, metadataToHeaders} from './hypermedia-metadata'
+import {getComment, resolveResource} from './loaders'
 import {logDebug} from './logger'
 import {ParsedRequest, parseRequest} from './request'
 import {applyConfigSubscriptions, getConfig, getHostnames} from './site-config.server'
@@ -200,6 +201,18 @@ async function warmFullCache(hostname: string) {
   }
 }
 
+const COMMENT_VIEW_TERMS = [':comments', ':comment', ':discussions']
+
+function extractCommentId(pathParts: string[]): string | null {
+  if (pathParts.length >= 3) {
+    const thirdToLast = pathParts[pathParts.length - 3]!
+    if (COMMENT_VIEW_TERMS.includes(thirdToLast)) {
+      return `${pathParts[pathParts.length - 2]}/${pathParts[pathParts.length - 1]}`
+    }
+  }
+  return null
+}
+
 function getHmIdOfRequest({pathParts, url}: ParsedRequest, originAccountId: string | undefined) {
   const version = url.searchParams.get('v')
   const latest = url.searchParams.get('l') === ''
@@ -214,17 +227,12 @@ function getHmIdOfRequest({pathParts, url}: ParsedRequest, originAccountId: stri
   return hmId(originAccountId, {path: pathParts, version, latest})
 }
 
-function uriEncodedAuthors(authors: string[]) {
-  return authors.map((author) => encodeURIComponent(`hm://${author}`)).join(',')
-}
-
 async function handleOptionsRequest(request: Request) {
   const parsedRequest = parseRequest(request)
-  const {hostname} = parsedRequest
+  const {hostname, pathParts} = parsedRequest
   const serviceConfig = await getConfig(hostname)
   const originAccountId = serviceConfig?.registeredAccountUid
 
-  console.log('handleOptionsRequest', parsedRequest, originAccountId)
   const headers: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS, HEAD',
@@ -234,53 +242,57 @@ async function handleOptionsRequest(request: Request) {
   }
 
   try {
+    // Check for comment URL pattern first
+    const commentRawId = extractCommentId(pathParts[0] === 'hm' ? pathParts.slice(2) : pathParts)
+    if (commentRawId) {
+      const comment = await getComment(commentRawId)
+      if (comment) {
+        const commentId = commentIdToHmId(commentRawId)
+        const targetId = getCommentTargetId(comment)
+        let targetDocument: HMDocument | undefined
+        if (targetId) {
+          const target = await resolveResource(targetId)
+          if (target.type === 'document') targetDocument = target.document
+        }
+        let commentAuthorTitle: string | undefined
+        if (comment.author) {
+          try {
+            const author = await resolveResource(hmId(comment.author))
+            if (author.type === 'document' && author.document.metadata.name) {
+              commentAuthorTitle = author.document.metadata.name
+            }
+          } catch (e) {}
+        }
+        if (targetDocument) {
+          Object.assign(
+            headers,
+            metadataToHeaders(
+              createResourceMetadata({
+                id: commentId,
+                document: targetDocument,
+                comment,
+                commentAuthorTitle,
+              }),
+            ),
+          )
+        }
+        return new Response(null, {status: 200, headers})
+      }
+    }
+
+    // Document URL
     const resourceId = getHmIdOfRequest(parsedRequest, originAccountId)
     if (resourceId) {
       const resource = await resolveResource(resourceId)
       if (resource.type === 'document') {
-        headers['X-Hypermedia-Id'] = encodeURIComponent(resourceId.id)
-        headers['X-Hypermedia-Version'] = resource.document.version
-        headers['X-Hypermedia-Authors'] = uriEncodedAuthors(resource.document.authors)
-        headers['X-Hypermedia-Type'] = 'Document'
-        headers['X-Hypermedia-Title'] = encodeURIComponent(resource.document.metadata.name || '')
-      } else if (resource.type === 'comment') {
-        headers['X-Hypermedia-Id'] = encodeURIComponent(resourceId.id)
-        headers['X-Hypermedia-Authors'] = uriEncodedAuthors([resource.comment.author])
-        headers['X-Hypermedia-Version'] = resource.comment.version
-        headers['X-Hypermedia-Type'] = 'Comment'
-        const targetId = getCommentTargetId(resource.comment)
-        if (targetId) {
-          headers['X-Hypermedia-Target'] = encodeURIComponent(packHmId(targetId))
-        }
-        let targetTitle: string = 'a Document'
-        if (targetId) {
-          const document = await resolveResource(targetId)
-          if (document.type === 'document' && document.document.metadata.name) {
-            targetTitle = document.document.metadata.name
-          }
-        }
-        let authorTitle: string = 'Somebody'
-        if (resource.comment.author) {
-          const document = await resolveResource(hmId(resource.comment.author))
-          if (document.type === 'document' && document.document.metadata.name) {
-            authorTitle = document.document.metadata.name
-          }
-        }
-        const title = `${authorTitle} on ${targetTitle}`
-        headers['X-Hypermedia-Title'] = encodeURIComponent(title)
+        Object.assign(headers, metadataToHeaders(createResourceMetadata({id: resourceId, document: resource.document})))
       }
-      return new Response(null, {
-        status: 200,
-        headers,
-      })
+      return new Response(null, {status: 200, headers})
     }
   } catch (e) {
     console.error('Error handling options request', e)
   }
-  return new Response(null, {
-    status: 200,
-    headers,
-  })
+  return new Response(null, {status: 200, headers})
 }
 
 export default async function handleRequest(
