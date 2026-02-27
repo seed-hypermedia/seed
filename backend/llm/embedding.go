@@ -448,6 +448,7 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 	// Detect unreliable embeddings by checking similarity to gibberish.
 	// Rare/unknown single words produce degenerate embeddings that are highly similar to nonsense.
 	if sim := cosineSimilarityInt8(queryEmbedding, gibberishEmbedding); sim > unreliableEmbeddingThreshold {
+		e.logger.Warn("query embedding is unreliable, skipping semantic search results", zap.String("query", query), zap.Float32("similarity_to_gibberish", sim))
 		return nil, ErrUnreliableEmbedding
 	}
 
