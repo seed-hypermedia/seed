@@ -12,6 +12,7 @@ import {HMFormattingToolbar} from '@shm/editor/hm-formatting-toolbar'
 import {HypermediaLinkPreview} from '@shm/editor/hm-link-preview'
 import type {HyperMediaEditor} from '@shm/editor/types'
 import {useEffect} from 'react'
+import {AddBlockAtEndButton} from './add-block-at-end-button'
 
 export function HyperMediaEditorView({
   editor,
@@ -39,19 +40,22 @@ export function HyperMediaEditorView({
   }, [editor])
 
   return (
-    <BlockNoteView editor={editor}>
-      <FormattingToolbarPositioner editor={editor} formattingToolbar={HMFormattingToolbar} />
-      <HyperlinkToolbarPositioner
-        // hyperlinkToolbar={HypermediaLinkToolbar}
-        // @ts-expect-error
-        hyperlinkToolbar={HypermediaLinkPreview}
-        editor={editor}
-        // @ts-expect-error
-        openUrl={openUrl}
-      />
-      <SlashMenuPositioner editor={editor} />
-      {comment ? null : <SideMenuPositioner editor={editor} placement="left" />}
-      <LinkMenuPositioner editor={editor} />
-    </BlockNoteView>
+    <>
+      <BlockNoteView editor={editor}>
+        <FormattingToolbarPositioner editor={editor} formattingToolbar={HMFormattingToolbar} />
+        <HyperlinkToolbarPositioner
+          // hyperlinkToolbar={HypermediaLinkToolbar}
+          // @ts-expect-error
+          hyperlinkToolbar={HypermediaLinkPreview}
+          editor={editor}
+          // @ts-expect-error
+          openUrl={openUrl}
+        />
+        <SlashMenuPositioner editor={editor} />
+        {comment ? null : <SideMenuPositioner editor={editor} placement="left" />}
+        <LinkMenuPositioner editor={editor} />
+      </BlockNoteView>
+      {comment ? null : <AddBlockAtEndButton editor={editor} />}
+    </>
   )
 }
