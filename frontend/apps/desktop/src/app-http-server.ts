@@ -41,10 +41,7 @@ export function startApiServer(): Promise<void> {
         return
       }
 
-      const url = new URL(
-        req.url || '/',
-        `http://127.0.0.1:${API_HTTP_PORT}`,
-      )
+      const url = new URL(req.url || '/', `http://127.0.0.1:${API_HTTP_PORT}`)
 
       if (!url.pathname.startsWith('/api/')) {
         res.writeHead(404, {'Content-Type': 'application/json'})

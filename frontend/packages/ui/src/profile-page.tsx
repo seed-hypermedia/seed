@@ -28,7 +28,7 @@ export function HMProfilePage({
       <div className="border-t border-neutral-200 py-6 dark:border-neutral-800">
         <h2 className="text-2xl font-bold">{tx('Account Activity')}</h2>
       </div>
-      <Feed currentAccount={currentAccount} filterAuthors={[profile.id.uid]} filterResource={undefined} />
+      <Feed filterAuthors={[profile.id.uid]} filterResource={undefined} />
     </div>
   )
 }

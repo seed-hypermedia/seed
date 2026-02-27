@@ -11,7 +11,6 @@ import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-contro
 import {useMyAccountIds} from '@/models/daemon'
 import {useChildDrafts, useCreateInlineDraft, useDeleteDraft, useUpdateDraftMetadata} from '@/models/documents'
 import {useExistingDraft} from '@/models/drafts'
-import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
@@ -20,12 +19,11 @@ import {hmId} from '@shm/shared'
 import {findSelfQueryBlock} from '@shm/shared/content'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
-import {CommentsProvider, isRouteEqualToCommentTarget, useDeleteComment} from '@shm/shared/comments-service-provider'
+import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
 import {HMBlockNode, HMComment} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useNavRoute, useNavigationDispatch} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
-import {useDeleteCommentDialog} from '@shm/ui/comments'
 import {Download, SubscribeSpace, Trash} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {ResourcePage} from '@shm/ui/resource-page-common'
@@ -123,30 +121,6 @@ export default function DesktopResourcePage() {
       },
     }),
     [selfQueryBlock?.id, hasSelfQuery, childDrafts, lastCreatedDraftId, navigate, deleteDraft, updateDraftMetadata],
-  )
-
-  // Comment deletion
-  // useSelectedAccountId reads the UID directly from the stream (synchronous),
-  // avoiding the async document fetch that useSelectedAccount() requires.
-  // This ensures the delete option is visible immediately when the user
-  // has a selected account, without waiting for the account document to load.
-  const currentAccountId = useSelectedAccountId() ?? undefined
-  const deleteComment = useDeleteComment()
-  const deleteCommentDialog = useDeleteCommentDialog()
-  const onCommentDelete = useCallback(
-    (commentId: string, signingAccountId?: string) => {
-      if (!signingAccountId) return
-      deleteCommentDialog.open({
-        onConfirm: () => {
-          deleteComment.mutate({
-            commentId,
-            targetDocId: docId,
-            signingAccountId,
-          })
-        },
-      })
-    },
-    [docId, currentAccountId],
   )
 
   const {exportDocument, openDirectory} = useAppContext()
@@ -417,9 +391,6 @@ export default function DesktopResourcePage() {
               collaboratorForm={<AddCollaboratorForm id={docId} />}
               inlineCards={inlineCards}
               rightActions={<SubscriptionButton id={docId} />}
-              currentAccountId={currentAccountId}
-              onCommentDelete={onCommentDelete}
-              deleteCommentDialogContent={deleteCommentDialog.content}
             />
           </QueryBlockDraftsProvider>
         </DesktopDocumentActionsProvider>

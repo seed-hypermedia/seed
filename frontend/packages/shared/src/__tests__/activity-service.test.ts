@@ -11,8 +11,7 @@ describe('loadCitationEvent', () => {
       eventTime: null,
       observeTime: null,
       newMention: {
-        source:
-          'hm://z6MkhUgmuFYwEDED4P5EdPKqh35ybJprcGxaVpK9u3H8vpGh/z6FUAnpExKUZwX',
+        source: 'hm://z6MkhUgmuFYwEDED4P5EdPKqh35ybJprcGxaVpK9u3H8vpGh/z6FUAnpExKUZwX',
         sourceType: 'comment/Embed',
         sourceBlob: {
           cid: 'bafy2bzacedexveqjcytw4trm6a4lxgxyssrg3ubxyro6rp5o4lo545qcl3imw',

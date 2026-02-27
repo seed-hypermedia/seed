@@ -73,10 +73,7 @@ export default defineConfig(({isSsrBuild}) => {
         '@shm/editor': path.resolve(__dirname, '../../packages/editor/src'),
         '@shm/ui': path.resolve(__dirname, '../../packages/ui/src'),
         '../ui': path.resolve(__dirname, '../../packages/ui/src'),
-        '@seed-hypermedia/client': path.resolve(
-          __dirname,
-          '../../packages/client/src',
-        ),
+        '@seed-hypermedia/client': path.resolve(__dirname, '../../packages/client/src'),
       },
     },
   }

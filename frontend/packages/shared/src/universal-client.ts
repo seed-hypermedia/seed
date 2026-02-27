@@ -9,12 +9,6 @@ export type DraftsService = {
   listAccountDrafts: (accountUid: string | undefined) => Promise<HMListedDraft[]>
 }
 
-export type DeleteCommentInput = {
-  commentId: string
-  targetDocId: UnpackedHypermediaId
-  signingAccountId: string
-}
-
 // Discovery service for tracking entity discovery state
 export type DiscoveryService = {
   getDiscoveryStream: (entityId: string) => StateStream<DiscoveryState | null>
@@ -28,9 +22,6 @@ export type UniversalClient = {
   fetchRecents?: () => Promise<RecentsResult[]>
 
   deleteRecent?: (id: string) => Promise<void>
-
-  // Delete a comment (desktop-only, requires signing key)
-  deleteComment?: (input: DeleteCommentInput) => Promise<void>
 
   request<Request extends HMRequest>(key: Request['key'], input: Request['input']): Promise<Request['output']>
   publish: (

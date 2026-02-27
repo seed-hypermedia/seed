@@ -300,9 +300,7 @@ app.whenReady().then(async () => {
     .then(() => {
       logger.info('DaemonStarted')
       startApiServer().catch((err) => {
-        logger.error(
-          '[MAIN]: Failed to start API server: ' + (err as Error).message,
-        )
+        logger.error('[MAIN]: Failed to start API server: ' + (err as Error).message)
       })
       return Promise.all([
         initDrafts().then(() => {

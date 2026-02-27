@@ -1,3 +1,4 @@
+import {deleteComment as createDeleteCommentBlob} from '@seed-hypermedia/client'
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 import {createContext, PropsWithChildren, useContext, useMemo} from 'react'
 import {
@@ -15,7 +16,6 @@ import {
 } from './hm-types'
 import {queryKeys} from './models/query-keys'
 import {useUniversalClient} from './routing'
-import {DeleteCommentInput} from './universal-client'
 import {hmId} from './utils/entity-id-url'
 
 type CommentsProviderValue = {
@@ -149,11 +149,21 @@ export function useDeleteComment() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (params: DeleteCommentInput) => {
-      if (!client.deleteComment) {
-        throw new Error('deleteComment not available on this platform')
+    mutationFn: async (params: {comment: HMComment; signingAccountId: string}) => {
+      if (!client.getSigner) {
+        throw new Error('Signing not available on this platform')
       }
-      await client.deleteComment(params)
+      const signer = client.getSigner(params.signingAccountId)
+      const publishInput = await createDeleteCommentBlob(
+        {
+          commentId: params.comment.id,
+          targetAccount: params.comment.targetAccount,
+          targetPath: params.comment.targetPath || '',
+          targetVersion: params.comment.targetVersion,
+        },
+        signer,
+      )
+      await client.publish(publishInput)
     },
     onSuccess: () => {
       // Invalidate all comment-related queries to refresh the UI

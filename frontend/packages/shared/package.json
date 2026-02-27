@@ -30,6 +30,7 @@
     "vitest": "0.34.2"
   },
   "dependencies": {
+    "@seed-hypermedia/client": "workspace:*",
     "@bufbuild/protobuf": "1.10.0",
     "@connectrpc/connect-web": "1.4.0",
     "@ipld/dag-cbor": "^9.2.5",
