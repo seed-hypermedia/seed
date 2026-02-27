@@ -189,6 +189,7 @@ export const BlockChildren = Node.create<{
       new Plugin({
         props: {
           transformPasted: (slice, view) => {
+            console.log('original slice', slice)
             const {state} = view
             const {selection} = state
             const isSelectionInText =
@@ -201,22 +202,68 @@ export const BlockChildren = Node.create<{
               return slice
             }
 
-            const schema = view.state.schema
-            let normalizedContent = normalizeFragment(slice.content, schema)
-
-            // If all wrapper nodes are properly structured, close the slice boundaries to indicate it's a complete slice.
-            let allTopLevelNodesAreStructured = true
-            normalizedContent.forEach((node: any) => {
-              if (node.type.name !== 'blockNode' && node.type.name !== 'blockChildren') {
-                allTopLevelNodesAreStructured = false
+            // Check if all top-level nodes are blockNode (internal copy/paste).
+            let allBlockNodes = slice.content.childCount > 0
+            slice.content.forEach((node: any) => {
+              if (node.type.name !== 'blockNode') {
+                allBlockNodes = false
               }
             })
 
-            const openStart = allTopLevelNodesAreStructured && normalizedContent.childCount > 0 ? 0 : slice.openStart
-            const openEnd = allTopLevelNodesAreStructured && normalizedContent.childCount > 0 ? 0 : slice.openEnd
+            console.log('allBlockNodes', allBlockNodes)
 
-            const finalSlice = new Slice(normalizedContent, openStart, openEnd)
+            if (allBlockNodes) {
+              return slice
+            }
 
+            // Internal list copy: single blockChildren with listType group wrapping
+            // deeper structure with high openStart. Strip outer Group wrappers
+            // until inside the actual content.
+            if (
+              slice.content.childCount === 1 &&
+              slice.content.firstChild?.type.name === 'blockChildren' &&
+              slice.content.firstChild.attrs?.listType === 'Group'
+            ) {
+              let content = slice.content
+              let openStart = slice.openStart
+              let openEnd = slice.openEnd
+
+              // Remove blockChildren->blockNode layers until we reach actual content
+              while (
+                content.childCount === 1 &&
+                content.firstChild?.type.name === 'blockChildren' &&
+                content.firstChild.attrs?.listType === 'Group' &&
+                openStart >= 2
+              ) {
+                const group = content.firstChild
+                // If the group has a single blockNode child, unwrap one level
+                if (group.childCount === 1 && group.firstChild?.type.name === 'blockNode') {
+                  content = group.firstChild.content
+                  openStart -= 2
+                  openEnd -= 2
+                } else {
+                  break
+                }
+              }
+
+              if (content !== slice.content) {
+                console.log('unwrapped internal list copy', openStart, openEnd)
+                // Continue to normalizeFragment with the unwrapped content
+                // so it wraps the list in a blockNode (1 level of nesting),
+                // preserving the list type.
+                const schema = view.state.schema
+                const normalizedContent = normalizeFragment(content, schema)
+                const finalSlice = new Slice(normalizedContent, 0, 0)
+                console.log('final slice', finalSlice)
+                return finalSlice
+              }
+            }
+
+            // External paste: normalize orphan nodes into blockNode/blockChildren structure
+            const schema = view.state.schema
+            const normalizedContent = normalizeFragment(slice.content, schema)
+            const finalSlice = new Slice(normalizedContent, 0, 0)
+            console.log('final slice', finalSlice)
             return finalSlice
           },
         },
