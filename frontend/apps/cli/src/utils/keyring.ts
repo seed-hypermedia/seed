@@ -124,13 +124,24 @@ function writeKeyringRaw(serviceName: string, value: string): void {
 
 /**
  * Reads the key collection from the OS keyring.
+ *
+ * Handles two formats:
+ * 1. Plain JSON (written by the CLI)
+ * 2. `go-keyring-base64:<base64>` (written by the Go daemon)
  */
 function readCollection(serviceName: string): Record<string, string> {
   const raw = readKeyringRaw(serviceName)
   if (!raw) return {}
 
+  let jsonStr = raw
+  const GO_KEYRING_PREFIX = 'go-keyring-base64:'
+  if (raw.startsWith(GO_KEYRING_PREFIX)) {
+    const b64 = raw.slice(GO_KEYRING_PREFIX.length)
+    jsonStr = Buffer.from(b64, 'base64').toString('utf-8')
+  }
+
   try {
-    return JSON.parse(raw)
+    return JSON.parse(jsonStr)
   } catch {
     throw new Error(
       'Failed to parse keyring data. The keyring entry may be corrupted.',
@@ -140,12 +151,16 @@ function readCollection(serviceName: string): Record<string, string> {
 
 /**
  * Writes the key collection to the OS keyring.
+ *
+ * Uses the `go-keyring-base64:` format for compatibility with the Go daemon.
  */
 function writeCollection(
   serviceName: string,
   collection: Record<string, string>,
 ): void {
-  writeKeyringRaw(serviceName, JSON.stringify(collection))
+  const json = JSON.stringify(collection)
+  const encoded = `go-keyring-base64:${Buffer.from(json).toString('base64')}`
+  writeKeyringRaw(serviceName, encoded)
 }
 
 /**
