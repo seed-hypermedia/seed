@@ -45,9 +45,9 @@ describe('CLI Read Operations (Live Dev Server)', () => {
 
   describe('Account Commands', () => {
     test(
-      'accounts list shows accounts',
+      'account list shows accounts',
       async () => {
-        const result = await runCli(['accounts'], {server: DEV_SERVER})
+        const result = await runCli(['account', 'list'], {server: DEV_SERVER})
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain('accounts')
       },
@@ -55,9 +55,9 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     )
 
     test(
-      'accounts -q shows compact output',
+      'account list -q shows compact output',
       async () => {
-        const result = await runCli(['accounts', '-q'], {server: DEV_SERVER})
+        const result = await runCli(['account', 'list', '-q'], {server: DEV_SERVER})
         expect(result.exitCode).toBe(0)
         const lines = result.stdout.split('\n').filter(Boolean)
         expect(lines.length).toBeGreaterThan(0)
@@ -68,9 +68,9 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     )
 
     test(
-      'account shows account info',
+      'account get shows account info',
       async () => {
-        const result = await runCli(['account', KNOWN_ACCOUNT], {
+        const result = await runCli(['account', 'get', KNOWN_ACCOUNT], {
           server: DEV_SERVER,
         })
         expect(result.exitCode).toBe(0)
@@ -80,11 +80,12 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     )
 
     test(
-      'account with --pretty shows formatted output',
+      'account get with --pretty shows formatted output',
       async () => {
-        const result = await runCli(['account', KNOWN_ACCOUNT, '--pretty'], {
-          server: DEV_SERVER,
-        })
+        const result = await runCli(
+          ['account', 'get', KNOWN_ACCOUNT, '--pretty'],
+          {server: DEV_SERVER},
+        )
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain(KNOWN_ACCOUNT_NAME)
       },
@@ -92,10 +93,10 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     )
 
     test(
-      'account not found returns proper error',
+      'account get not found returns proper error',
       async () => {
         const result = await runCli(
-          ['account', 'z6MknonexistentAAAAAAAAAAAAAAAAAAAA'],
+          ['account', 'get', 'z6MknonexistentAAAAAAAAAAAAAAAAAAAA'],
           {server: DEV_SERVER},
         )
         expect(result.stdout).toContain('not-found')
@@ -108,11 +109,12 @@ describe('CLI Read Operations (Live Dev Server)', () => {
 
   describe('Document Commands', () => {
     test(
-      'get fetches document',
+      'document get fetches document',
       async () => {
-        const result = await runCli(['get', `hm://${KNOWN_ACCOUNT}`], {
-          server: DEV_SERVER,
-        })
+        const result = await runCli(
+          ['document', 'get', `hm://${KNOWN_ACCOUNT}`],
+          {server: DEV_SERVER},
+        )
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain('document')
       },
@@ -120,11 +122,12 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     )
 
     test(
-      'get with --md outputs markdown',
+      'document get with --md outputs markdown',
       async () => {
-        const result = await runCli(['get', `hm://${KNOWN_ACCOUNT}`, '--md'], {
-          server: DEV_SERVER,
-        })
+        const result = await runCli(
+          ['document', 'get', `hm://${KNOWN_ACCOUNT}`, '--md'],
+          {server: DEV_SERVER},
+        )
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain(`# ${KNOWN_ACCOUNT_NAME}`)
       },
@@ -132,10 +135,10 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     )
 
     test(
-      'get with --md --frontmatter includes frontmatter',
+      'document get with --md --frontmatter includes frontmatter',
       async () => {
         const result = await runCli(
-          ['get', `hm://${KNOWN_ACCOUNT}`, '--md', '--frontmatter'],
+          ['document', 'get', `hm://${KNOWN_ACCOUNT}`, '--md', '--frontmatter'],
           {server: DEV_SERVER},
         )
         expect(result.exitCode).toBe(0)
@@ -146,11 +149,12 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     )
 
     test(
-      'get -q shows minimal output',
+      'document get -q shows minimal output',
       async () => {
-        const result = await runCli(['get', `hm://${KNOWN_ACCOUNT}`, '-q'], {
-          server: DEV_SERVER,
-        })
+        const result = await runCli(
+          ['document', 'get', `hm://${KNOWN_ACCOUNT}`, '-q'],
+          {server: DEV_SERVER},
+        )
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toMatch(new RegExp(`${KNOWN_ACCOUNT_NAME}|z6Mk`))
       },
@@ -158,11 +162,12 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     )
 
     test(
-      'get -m fetches metadata only',
+      'document get -m fetches metadata only',
       async () => {
-        const result = await runCli(['get', `hm://${KNOWN_ACCOUNT}`, '-m'], {
-          server: DEV_SERVER,
-        })
+        const result = await runCli(
+          ['document', 'get', `hm://${KNOWN_ACCOUNT}`, '-m'],
+          {server: DEV_SERVER},
+        )
         expect(result.exitCode).toBe(0)
         // ResourceMetadata returns id and metadata fields
         expect(result.stdout).toContain(KNOWN_ACCOUNT)
@@ -252,22 +257,24 @@ describe('CLI Read Operations (Live Dev Server)', () => {
 
   describe('Comments Commands', () => {
     test(
-      'comments on document',
+      'comment list on document',
       async () => {
-        const result = await runCli(['comments', `hm://${KNOWN_ACCOUNT}`], {
-          server: DEV_SERVER,
-        })
+        const result = await runCli(
+          ['comment', 'list', `hm://${KNOWN_ACCOUNT}`],
+          {server: DEV_SERVER},
+        )
         expect(result.exitCode).toBe(0)
       },
       TEST_TIMEOUT,
     )
 
     test(
-      'discussions on document',
+      'comment discussions on document',
       async () => {
-        const result = await runCli(['discussions', `hm://${KNOWN_ACCOUNT}`], {
-          server: DEV_SERVER,
-        })
+        const result = await runCli(
+          ['comment', 'discussions', `hm://${KNOWN_ACCOUNT}`],
+          {server: DEV_SERVER},
+        )
         expect(result.exitCode).toBe(0)
       },
       TEST_TIMEOUT,
@@ -278,11 +285,12 @@ describe('CLI Read Operations (Live Dev Server)', () => {
 
   describe('Changes Commands', () => {
     test(
-      'changes shows document history',
+      'document changes shows document history',
       async () => {
-        const result = await runCli(['changes', `hm://${KNOWN_ACCOUNT}`], {
-          server: DEV_SERVER,
-        })
+        const result = await runCli(
+          ['document', 'changes', `hm://${KNOWN_ACCOUNT}`],
+          {server: DEV_SERVER},
+        )
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain('changes')
       },
@@ -290,10 +298,10 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     )
 
     test(
-      'changes -q shows compact output',
+      'document changes -q shows compact output',
       async () => {
         const result = await runCli(
-          ['changes', `hm://${KNOWN_ACCOUNT}`, '-q'],
+          ['document', 'changes', `hm://${KNOWN_ACCOUNT}`, '-q'],
           {server: DEV_SERVER},
         )
         expect(result.exitCode).toBe(0)
@@ -308,9 +316,10 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       'citations shows backlinks',
       async () => {
-        const result = await runCli(['citations', `hm://${KNOWN_ACCOUNT}`], {
-          server: DEV_SERVER,
-        })
+        const result = await runCli(
+          ['citations', `hm://${KNOWN_ACCOUNT}`],
+          {server: DEV_SERVER},
+        )
         expect(result.exitCode).toBe(0)
       },
       TEST_TIMEOUT,
@@ -321,11 +330,12 @@ describe('CLI Read Operations (Live Dev Server)', () => {
 
   describe('Capabilities Commands', () => {
     test(
-      'capabilities shows access control',
+      'account capabilities shows access control',
       async () => {
-        const result = await runCli(['capabilities', `hm://${KNOWN_ACCOUNT}`], {
-          server: DEV_SERVER,
-        })
+        const result = await runCli(
+          ['account', 'capabilities', `hm://${KNOWN_ACCOUNT}`],
+          {server: DEV_SERVER},
+        )
         expect(result.exitCode).toBe(0)
       },
       TEST_TIMEOUT,
@@ -360,11 +370,12 @@ describe('CLI Read Operations (Live Dev Server)', () => {
 
   describe('Stats Commands', () => {
     test(
-      'stats shows interaction summary',
+      'document stats shows interaction summary',
       async () => {
-        const result = await runCli(['stats', `hm://${KNOWN_ACCOUNT}`], {
-          server: DEV_SERVER,
-        })
+        const result = await runCli(
+          ['document', 'stats', `hm://${KNOWN_ACCOUNT}`],
+          {server: DEV_SERVER},
+        )
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain('citations')
       },
@@ -404,9 +415,10 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       '--json outputs valid JSON',
       async () => {
-        const result = await runCli(['account', KNOWN_ACCOUNT, '--json'], {
-          server: DEV_SERVER,
-        })
+        const result = await runCli(
+          ['account', 'get', KNOWN_ACCOUNT, '--json'],
+          {server: DEV_SERVER},
+        )
         expect(result.exitCode).toBe(0)
         expect(() => JSON.parse(result.stdout)).not.toThrow()
       },
@@ -416,9 +428,10 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       '--yaml outputs YAML format',
       async () => {
-        const result = await runCli(['account', KNOWN_ACCOUNT, '--yaml'], {
-          server: DEV_SERVER,
-        })
+        const result = await runCli(
+          ['account', 'get', KNOWN_ACCOUNT, '--yaml'],
+          {server: DEV_SERVER},
+        )
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toMatch(/type:\s/)
       },
@@ -428,9 +441,10 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       '--pretty outputs readable format',
       async () => {
-        const result = await runCli(['account', KNOWN_ACCOUNT, '--pretty'], {
-          server: DEV_SERVER,
-        })
+        const result = await runCli(
+          ['account', 'get', KNOWN_ACCOUNT, '--pretty'],
+          {server: DEV_SERVER},
+        )
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain('\n')
       },
@@ -453,7 +467,7 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       'missing required argument shows error',
       async () => {
-        const result = await runCli(['get'])
+        const result = await runCli(['document', 'get'])
         expect(result.exitCode).toBe(1)
       },
       TEST_TIMEOUT,
@@ -464,10 +478,10 @@ describe('CLI Read Operations (Live Dev Server)', () => {
 
   describe('Markdown Resolution', () => {
     test(
-      'get --md --resolve works on documents',
+      'document get --md --resolve works on documents',
       async () => {
         const result = await runCli(
-          ['get', `hm://${KNOWN_ACCOUNT}`, '--md', '--resolve'],
+          ['document', 'get', `hm://${KNOWN_ACCOUNT}`, '--md', '--resolve'],
           {server: DEV_SERVER},
         )
         expect(result.exitCode).toBe(0)

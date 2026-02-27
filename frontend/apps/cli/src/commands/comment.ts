@@ -5,8 +5,8 @@
 import type {Command} from 'commander'
 import {readFileSync} from 'fs'
 import * as ed25519 from '@noble/ed25519'
-import {createComment, createSeedClient} from '@seed-hypermedia/client'
-import type {HMAnnotation, HMBlockNode, HMSigner, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {createComment, deleteComment, createSeedClient} from '@seed-hypermedia/client'
+import type {HMAnnotation, HMBlockNode, HMSigner, UnpackedHypermediaId, HMCommentRequest} from '@shm/shared/hm-types'
 import {getClient, getOutputFormat} from '../index'
 import {formatOutput, printError, printSuccess, printInfo} from '../output'
 import {resolveKey} from '../utils/keyring'
@@ -178,6 +178,52 @@ export function registerCommentCommands(program: Command) {
           console.log(commentId)
         } else {
           printInfo(`Comment CID: ${commentId}`)
+        }
+      } catch (error) {
+        printError((error as Error).message)
+        process.exit(1)
+      }
+    })
+
+  // ── delete ─────────────────────────────────────────────────────────────
+
+  comment
+    .command('delete <commentId>')
+    .description('Delete a comment (publish a tombstone)')
+    .option('-k, --key <name>', 'Signing key name or account ID')
+    .action(async (commentId: string, options, cmd) => {
+      const globalOpts = cmd.optsWithGlobals()
+      const dev = !!globalOpts.dev
+      const client = getClient(globalOpts)
+
+      try {
+        const key = resolveKey(options.key, dev)
+
+        const seedClient = createSeedClient(client.server)
+
+        // Fetch the comment to get target details
+        const existing = await seedClient.request<HMCommentRequest>('Comment', commentId)
+
+        const signer: HMSigner = {
+          getPublicKey: async () => key.publicKeyWithPrefix,
+          sign: async (data: Uint8Array) => ed25519.signAsync(data, key.privateKey),
+        }
+
+        await seedClient.publish(
+          await deleteComment(
+            {
+              commentId,
+              targetAccount: existing.targetAccount,
+              targetPath: existing.targetPath || '',
+              targetVersion: existing.targetVersion,
+            },
+            signer,
+          ),
+        )
+
+        printSuccess('Comment deleted')
+        if (!globalOpts.quiet) {
+          printInfo(`Deleted comment: ${commentId}`)
         }
       } catch (error) {
         printError((error as Error).message)

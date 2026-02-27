@@ -2,7 +2,7 @@
  * CLI Fixture Tests
  *
  * Full integration tests with daemon + web server using fixture data.
- * Includes write operation tests (update, comment-create).
+ * Includes write operation tests (update, comment-create, comment-delete).
  */
 
 import {describe, test, expect, beforeAll, afterAll} from 'bun:test'
@@ -99,7 +99,7 @@ describe('CLI Full Integration Tests', () => {
     test(
       'get hierarchy-test document as JSON',
       async () => {
-        const result = await runCli(['get', HIERARCHY_TEST_DOC], {
+        const result = await runCli(['document', 'get', HIERARCHY_TEST_DOC], {
           server: ctx.webServerUrl,
         })
         expect(result.exitCode).toBe(0)
@@ -114,9 +114,10 @@ describe('CLI Full Integration Tests', () => {
     test(
       'get --md returns correct markdown structure',
       async () => {
-        const result = await runCli(['get', HIERARCHY_TEST_DOC, '--md'], {
-          server: ctx.webServerUrl,
-        })
+        const result = await runCli(
+          ['document', 'get', HIERARCHY_TEST_DOC, '--md'],
+          {server: ctx.webServerUrl},
+        )
         expect(result.exitCode).toBe(0)
 
         // Validate the markdown content matches the fixture document
@@ -140,7 +141,7 @@ describe('CLI Full Integration Tests', () => {
       'get --md --frontmatter includes YAML frontmatter',
       async () => {
         const result = await runCli(
-          ['get', HIERARCHY_TEST_DOC, '--md', '--frontmatter'],
+          ['document', 'get', HIERARCHY_TEST_DOC, '--md', '--frontmatter'],
           {server: ctx.webServerUrl},
         )
         expect(result.exitCode).toBe(0)
@@ -205,7 +206,7 @@ describe('CLI Full Integration Tests', () => {
 
       // 5. Wait for the account to be indexed and verify it's accessible.
       await new Promise((r) => setTimeout(r, 2000))
-      const verifyResult = await runCli(['get', writeAccountHmId], {
+      const verifyResult = await runCli(['document', 'get', writeAccountHmId], {
         server: ctx.webServerUrl,
       })
       console.log(
@@ -232,11 +233,12 @@ describe('CLI Full Integration Tests', () => {
     // --- Document Update Tests ---
 
     test(
-      'update --title changes document title',
+      'document update --title changes document title',
       async () => {
         const newTitle = `Updated Title ${Date.now()}`
         const result = await runCli(
           [
+            'document',
             'update',
             writeAccountHmId,
             '--title',
@@ -254,9 +256,10 @@ describe('CLI Full Integration Tests', () => {
         expect(result.stderr + result.stdout).toContain('Document updated')
 
         // Verify by reading back.
-        const getResult = await runCli(['get', writeAccountHmId, '--md'], {
-          server: ctx.webServerUrl,
-        })
+        const getResult = await runCli(
+          ['document', 'get', writeAccountHmId, '--md'],
+          {server: ctx.webServerUrl},
+        )
         expect(getResult.exitCode).toBe(0)
         expect(getResult.stdout).toContain(`# ${newTitle}`)
       },
@@ -264,11 +267,12 @@ describe('CLI Full Integration Tests', () => {
     )
 
     test(
-      'update --summary sets document summary',
+      'document update --summary sets document summary',
       async () => {
         const summary = 'A test summary from CLI fixture tests'
         const result = await runCli(
           [
+            'document',
             'update',
             writeAccountHmId,
             '--summary',
@@ -282,9 +286,10 @@ describe('CLI Full Integration Tests', () => {
         expect(result.stderr + result.stdout).toContain('Document updated')
 
         // Verify by reading full resource (ResourceMetadata doesn't return summary).
-        const getResult = await runCli(['get', writeAccountHmId], {
-          server: ctx.webServerUrl,
-        })
+        const getResult = await runCli(
+          ['document', 'get', writeAccountHmId],
+          {server: ctx.webServerUrl},
+        )
         expect(getResult.exitCode).toBe(0)
         expect(getResult.stdout).toContain(summary)
       },
@@ -292,10 +297,10 @@ describe('CLI Full Integration Tests', () => {
     )
 
     test(
-      'update with no flags shows error',
+      'document update with no flags shows error',
       async () => {
         const result = await runCli(
-          ['update', writeAccountHmId, '--key', TEST_KEY_NAME],
+          ['document', 'update', writeAccountHmId, '--key', TEST_KEY_NAME],
           {server: ctx.webServerUrl},
         )
         expect(result.exitCode).toBe(1)
@@ -305,10 +310,11 @@ describe('CLI Full Integration Tests', () => {
     )
 
     test(
-      'update with missing key shows error',
+      'document update with missing key shows error',
       async () => {
         const result = await runCli(
           [
+            'document',
             'update',
             writeAccountHmId,
             '--title',
@@ -326,13 +332,16 @@ describe('CLI Full Integration Tests', () => {
 
     // --- Comment Create Tests ---
 
+    let createdCommentId: string
+
     test(
-      'comment-create creates a comment',
+      'comment create creates a comment',
       async () => {
         const commentText = `Test comment from CLI fixture ${Date.now()}`
         const result = await runCli(
           [
-            'comment-create',
+            'comment',
+            'create',
             writeAccountHmId,
             '--body',
             commentText,
@@ -342,31 +351,86 @@ describe('CLI Full Integration Tests', () => {
           {server: ctx.webServerUrl},
         )
         if (result.exitCode !== 0) {
-          console.log('[test] comment-create stderr:', result.stderr)
-          console.log('[test] comment-create stdout:', result.stdout)
+          console.log('[test] comment create stderr:', result.stderr)
+          console.log('[test] comment create stdout:', result.stdout)
         }
         expect(result.exitCode).toBe(0)
         expect(result.stderr + result.stdout).toContain('Comment created')
 
         // Verify by listing comments.
-        const commentsResult = await runCli(['comments', writeAccountHmId], {
-          server: ctx.webServerUrl,
-        })
+        const commentsResult = await runCli(
+          ['comment', 'list', writeAccountHmId],
+          {server: ctx.webServerUrl},
+        )
         expect(commentsResult.exitCode).toBe(0)
         expect(commentsResult.stdout).toContain(commentText)
+
+        // Extract the comment ID for the delete test.
+        const commentsData = JSON.parse(commentsResult.stdout)
+        if (commentsData.comments && commentsData.comments.length > 0) {
+          createdCommentId = commentsData.comments[0].id
+          console.log(`[test] Created comment ID: ${createdCommentId}`)
+        }
       },
       TEST_TIMEOUT,
     )
 
     test(
-      'comment-create with no body shows error',
+      'comment create with no body shows error',
       async () => {
         const result = await runCli(
-          ['comment-create', writeAccountHmId, '--key', TEST_KEY_NAME],
+          ['comment', 'create', writeAccountHmId, '--key', TEST_KEY_NAME],
           {server: ctx.webServerUrl},
         )
         expect(result.exitCode).toBe(1)
         expect(result.stderr).toContain('--body or --file')
+      },
+      TEST_TIMEOUT,
+    )
+
+    // --- Comment Delete Tests ---
+
+    test(
+      'comment delete deletes a comment',
+      async () => {
+        // Ensure we have a comment to delete from the create test.
+        expect(createdCommentId).toBeTruthy()
+
+        const result = await runCli(
+          [
+            'comment',
+            'delete',
+            createdCommentId,
+            '--key',
+            TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        if (result.exitCode !== 0) {
+          console.log('[test] comment delete stderr:', result.stderr)
+          console.log('[test] comment delete stdout:', result.stdout)
+        }
+        expect(result.exitCode).toBe(0)
+        expect(result.stderr + result.stdout).toContain('Comment deleted')
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'comment delete with missing key shows error',
+      async () => {
+        const result = await runCli(
+          [
+            'comment',
+            'delete',
+            'fake-author/fake-tsid',
+            '--key',
+            'nonexistent-key-name',
+          ],
+          {server: ctx.webServerUrl},
+        )
+        expect(result.exitCode).toBe(1)
+        expect(result.stderr).toContain('not found')
       },
       TEST_TIMEOUT,
     )
