@@ -6,8 +6,10 @@
  */
 
 import type {
+  HMAccountContactsRequest,
   HMAccountRequest,
   HMCapability,
+  HMContactRecord,
   HMDocumentInfo,
   HMInteractionSummaryOutput,
   HMInteractionSummaryRequest,
@@ -24,6 +26,7 @@ import type {
   HMResource,
   HMResourceRequest,
   HMRole,
+  HMSubjectContactsRequest,
   UnpackedHypermediaId,
 } from '../hm-types'
 import {HMQueryResultSchema, HMResourceSchema} from '../hm-types'
@@ -226,5 +229,33 @@ export function queryInteractionSummary(client: UniversalClient, id: UnpackedHyp
       return await client.request<HMInteractionSummaryRequest>('InteractionSummary', {id})
     },
     enabled: !!id,
+  }
+}
+
+/**
+ * Query options for fetching contacts where the given account is the subject.
+ */
+export function queryContactsOfSubject(client: UniversalClient, uid: string | undefined) {
+  return {
+    queryKey: [queryKeys.CONTACTS_SUBJECT, uid] as const,
+    queryFn: async (): Promise<HMContactRecord[]> => {
+      if (!uid) return []
+      return client.request<HMSubjectContactsRequest>('SubjectContacts', uid)
+    },
+    enabled: !!uid,
+  }
+}
+
+/**
+ * Query options for fetching contacts owned by the given account.
+ */
+export function queryContactsOfAccount(client: UniversalClient, uid: string | null | undefined) {
+  return {
+    queryKey: [queryKeys.CONTACTS_ACCOUNT, uid] as const,
+    queryFn: async (): Promise<HMContactRecord[]> => {
+      if (!uid) return []
+      return client.request<HMAccountContactsRequest>('AccountContacts', uid)
+    },
+    enabled: !!uid,
   }
 }

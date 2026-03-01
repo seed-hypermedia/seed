@@ -4,11 +4,8 @@ import {useInfiniteQuery, useQueries, useQuery, UseQueryOptions} from '@tanstack
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {DocumentInfo, RedirectErrorDetails} from '../client'
 import {DISCOVERY_TIMEOUT_MS} from '../constants'
-import {getContactMetadata} from '../content'
 import {
-  HMAccountContactsRequest,
   HMAccountsMetadata,
-  HMContactRecord,
   HMDocumentInfo,
   HMDocumentInfoSchema,
   HMDocumentMetadataSchema,
@@ -498,38 +495,6 @@ export function getErrorMessage(err: any) {
 export function useSelectedAccountId() {
   const {selectedIdentity} = useUniversalAppContext()
   return useStream(selectedIdentity) ?? null
-}
-
-export function useAccountContacts(accountUid: string | null | undefined) {
-  const client = useUniversalClient()
-  return useQuery({
-    enabled: !!accountUid,
-    queryKey: [queryKeys.CONTACTS_ACCOUNT, accountUid],
-    queryFn: async (): Promise<HMContactRecord[]> => {
-      if (!accountUid) return []
-      return await client.request<HMAccountContactsRequest>('AccountContacts', accountUid)
-    },
-  })
-}
-
-export function useContacts(accountUids: string[]) {
-  const accounts = useAccounts(accountUids)
-  const selectedAccountId = useSelectedAccountId()
-  const contacts = useAccountContacts(selectedAccountId)
-
-  return useMemo(() => {
-    return accounts.map((account) => {
-      return {
-        ...account,
-        data: account.data
-          ? {
-              id: account.data.id,
-              metadata: getContactMetadata(account.data.id.uid, account.data.metadata, contacts.data),
-            }
-          : undefined,
-      }
-    })
-  }, [accounts, contacts.data])
 }
 
 export function useDirectory(

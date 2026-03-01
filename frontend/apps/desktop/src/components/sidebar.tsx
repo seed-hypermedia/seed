@@ -1,6 +1,7 @@
 import {useBookmarks} from '@/models/bookmarks'
 import {useComments} from '@/models/comments'
-import {useContactList, useSelectedAccountContacts} from '@/models/contacts'
+import {useContactList} from '@/models/contacts'
+import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useSubscribedDocuments} from '@/models/library'
 import {useListSubscriptions, useSubscription} from '@/models/subscription'
 import {useSelectedAccountId} from '@/selected-account'

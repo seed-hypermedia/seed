@@ -434,5 +434,179 @@ describe('CLI Full Integration Tests', () => {
       },
       TEST_TIMEOUT,
     )
+
+    // --- Contact Tests ---
+
+    const contactName = `Test Contact ${Date.now()}`
+
+    test(
+      'contact create creates a contact',
+      async () => {
+        const result = await runCli(
+          [
+            'contact',
+            'create',
+            '--subject',
+            FIXTURE_ACCOUNT,
+            '--name',
+            contactName,
+            '--key',
+            TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        if (result.exitCode !== 0) {
+          console.log('[test] contact create stderr:', result.stderr)
+          console.log('[test] contact create stdout:', result.stdout)
+        }
+        expect(result.exitCode).toBe(0)
+        expect(result.stderr + result.stdout).toContain('Contact created')
+        expect(result.stderr + result.stdout).toContain('Contact ID:')
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'contact list shows both directions by default',
+      async () => {
+        // Wait for indexing after create
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // writeAccount created a contact with subject=FIXTURE_ACCOUNT,
+        // so listing writeAccount should show it (as signer).
+        const result = await runCli(
+          ['contact', 'list', writeAccount.accountId],
+          {server: ctx.webServerUrl},
+        )
+        if (result.exitCode !== 0) {
+          console.log('[test] contact list stderr:', result.stderr)
+          console.log('[test] contact list stdout:', result.stdout)
+        }
+        expect(result.exitCode).toBe(0)
+        const contacts = JSON.parse(result.stdout)
+        expect(Array.isArray(contacts)).toBe(true)
+        expect(contacts.length).toBeGreaterThan(0)
+        const found = contacts.find((c: any) => c.name === contactName)
+        expect(found).toBeTruthy()
+        expect(found.subject).toBe(FIXTURE_ACCOUNT)
+        expect(found.account).toBe(writeAccount.accountId)
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'contact list --account filters to contacts signed by the account',
+      async () => {
+        const result = await runCli(
+          ['contact', 'list', writeAccount.accountId, '--account'],
+          {server: ctx.webServerUrl},
+        )
+        if (result.exitCode !== 0) {
+          console.log('[test] contact list --account stderr:', result.stderr)
+          console.log('[test] contact list --account stdout:', result.stdout)
+        }
+        expect(result.exitCode).toBe(0)
+        const contacts = JSON.parse(result.stdout)
+        expect(Array.isArray(contacts)).toBe(true)
+        expect(contacts.length).toBeGreaterThan(0)
+        // All results should be signed by this account
+        for (const c of contacts) {
+          expect(c.account).toBe(writeAccount.accountId)
+        }
+        const found = contacts.find((c: any) => c.name === contactName)
+        expect(found).toBeTruthy()
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'contact list --subject filters to contacts about the account',
+      async () => {
+        // FIXTURE_ACCOUNT is the subject of the contact we created
+        const result = await runCli(
+          ['contact', 'list', FIXTURE_ACCOUNT, '--subject'],
+          {server: ctx.webServerUrl},
+        )
+        if (result.exitCode !== 0) {
+          console.log('[test] contact list --subject stderr:', result.stderr)
+          console.log('[test] contact list --subject stdout:', result.stdout)
+        }
+        expect(result.exitCode).toBe(0)
+        const contacts = JSON.parse(result.stdout)
+        expect(Array.isArray(contacts)).toBe(true)
+        expect(contacts.length).toBeGreaterThan(0)
+        // All returned contacts should reference this subject
+        for (const c of contacts) {
+          expect(c.subject).toBe(FIXTURE_ACCOUNT)
+        }
+        const found = contacts.find((c: any) => c.name === contactName)
+        expect(found).toBeTruthy()
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'contact list with no account ID shows error',
+      async () => {
+        const result = await runCli(
+          ['contact', 'list'],
+          {server: ctx.webServerUrl},
+        )
+        expect(result.exitCode).not.toBe(0)
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'contact delete deletes a contact',
+      async () => {
+        // List contacts to find the one we created
+        const listResult = await runCli(
+          ['contact', 'list', writeAccount.accountId],
+          {server: ctx.webServerUrl},
+        )
+        expect(listResult.exitCode).toBe(0)
+        const contacts = JSON.parse(listResult.stdout)
+        const target = contacts.find((c: any) => c.name === contactName)
+        expect(target).toBeTruthy()
+
+        const result = await runCli(
+          [
+            'contact',
+            'delete',
+            target.id,
+            '--key',
+            TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        if (result.exitCode !== 0) {
+          console.log('[test] contact delete stderr:', result.stderr)
+          console.log('[test] contact delete stdout:', result.stdout)
+        }
+        expect(result.exitCode).toBe(0)
+        expect(result.stderr + result.stdout).toContain('Contact deleted')
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'contact delete with missing key shows error',
+      async () => {
+        const result = await runCli(
+          [
+            'contact',
+            'delete',
+            'fake-author/fake-tsid',
+            '--key',
+            'nonexistent-key-name',
+          ],
+          {server: ctx.webServerUrl},
+        )
+        expect(result.exitCode).toBe(1)
+        expect(result.stderr).toContain('not found')
+      },
+      TEST_TIMEOUT,
+    )
   })
 })

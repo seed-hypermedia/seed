@@ -7,7 +7,7 @@ import {useResource} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useQuery} from '@tanstack/react-query'
-import {useContacts} from './contacts'
+import {useContacts} from '@shm/shared/models/contacts'
 
 export function useDocumentPublishedChanges(id: UnpackedHypermediaId | null | undefined) {
   const entity = useResource(id ? {...id, version: null} : null)

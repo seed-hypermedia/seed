@@ -1,77 +1,17 @@
 import {grpcClient} from '@/grpc-client'
 import {useAccountList} from '@/models/accounts'
-import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
-import {toPlainMessage} from '@bufbuild/protobuf'
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import {
-  getContactMetadata,
-  HMAccountsMetadata,
-  HMContact,
-  hmId,
-  HMPeerConnectionRequestSchema,
-  HMTimestamp,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {getContactMetadata, HMPeerConnectionRequestSchema, HMTimestamp} from '@shm/shared'
 import {BIG_INT} from '@shm/shared/constants'
-import {useAccount, useAccounts, useAccountsMetadata, useResources} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {fullInvalidate, queryKeys} from '@shm/shared/models/query-keys'
-import {useMutation, UseMutationOptions, useQueries, useQuery} from '@tanstack/react-query'
+import {useMutation, UseMutationOptions} from '@tanstack/react-query'
 import {base58btc} from 'multiformats/bases/base58'
 import {useDaemonInfo, useMyAccountIds} from './daemon'
 import {useConnectedPeers} from './networking'
 
-function queryContactListOfSubject(accountUid: string | undefined) {
-  return {
-    queryKey: [queryKeys.CONTACTS_SUBJECT, accountUid],
-    queryFn: async () => {
-      if (!accountUid) return []
-      const contacts = await grpcClient.documents.listContacts({
-        filter: {
-          case: 'subject',
-          value: accountUid,
-        },
-      })
-      return contacts.contacts.map((c) => toPlainMessage(c))
-    },
-    enabled: !!accountUid,
-  }
-}
-
-export function useContactListOfSubject(accountUid: string | undefined) {
-  const contacts = useQuery(queryContactListOfSubject(accountUid))
-  return contacts
-}
-
-function queryContactListOfAccount(accountUid: string | null | undefined) {
-  return {
-    queryKey: [queryKeys.CONTACTS_ACCOUNT, accountUid],
-    queryFn: async () => {
-      if (!accountUid) return []
-      const contacts = await grpcClient.documents.listContacts({
-        filter: {
-          case: 'account',
-          value: accountUid,
-        },
-      })
-      return contacts.contacts.map((c) => toPlainMessage(c))
-    },
-    enabled: !!accountUid,
-  }
-}
-
-export function useContactListOfAccount(accountUid: string | null | undefined) {
-  const contacts = useQuery(queryContactListOfAccount(accountUid))
-  return contacts
-}
-
-export function useContactListsOfAccount(accountUids: string[]) {
-  const contacts = useQueries({
-    queries: accountUids.map((aUid) => queryContactListOfAccount(aUid)),
-  })
-  return contacts
-}
+import {useContactListsOfAccount, useSelectedAccountContacts} from '@shm/shared/models/contacts'
 
 export function useMyContacts() {
   const accts = useMyAccountIds()
@@ -91,22 +31,6 @@ export function useMyContacts() {
   return output
 }
 
-export function useContact(id: UnpackedHypermediaId | undefined) {
-  const account = useAccount(id?.uid)
-  const subjectContacts = useContactListOfSubject(id?.uid)
-  const accountContacts = useContactListOfAccount(id?.uid)
-  return {
-    ...account,
-    data: account.data?.metadata
-      ? ({
-          metadata: account.data.metadata,
-          contacts: accountContacts.data,
-          subjectContacts: subjectContacts.data,
-        } satisfies HMContact)
-      : undefined,
-  }
-}
-
 export function useAllAccountsWithContacts() {
   const allAccounts = useAccountList()
   const myContacts = useMyContacts()
@@ -121,54 +45,6 @@ export function useAllAccountsWithContacts() {
     ...allAccounts,
     data,
   }
-}
-
-export function useSaveContact() {
-  return useMutation({
-    mutationFn: async (contact: {accountUid: string; name: string; subjectUid: string; editId?: string}) => {
-      if (contact.editId) {
-        await grpcClient.documents.updateContact({
-          signingKeyName: contact.accountUid,
-          contact: {
-            id: contact.editId,
-            account: contact.accountUid,
-            name: contact.name,
-            subject: contact.subjectUid,
-          },
-        })
-      } else {
-        await grpcClient.documents.createContact({
-          signingKeyName: contact.accountUid,
-          account: contact.accountUid,
-          name: contact.name,
-          subject: contact.subjectUid,
-        })
-      }
-    },
-    onSuccess: (_, contact) => {
-      invalidateQueries([queryKeys.CONTACTS_SUBJECT, contact.subjectUid])
-      invalidateQueries([queryKeys.CONTACTS_ACCOUNT, contact.accountUid])
-    },
-  })
-}
-
-export function useDeleteContact() {
-  const selectedAccount = useSelectedAccountId()
-  return useMutation({
-    mutationFn: async (contact: {id: string; account: string; subject: string}) => {
-      if (!selectedAccount) throw new Error('No selected account')
-      await grpcClient.documents.deleteContact({
-        id: contact.id,
-        // @ts-expect-error
-        account: contact.account,
-        signingKeyName: selectedAccount,
-      })
-    },
-    onSuccess: (_, contact) => {
-      invalidateQueries([queryKeys.CONTACTS_SUBJECT, contact.subject])
-      invalidateQueries([queryKeys.CONTACTS_ACCOUNT, contact.account])
-    },
-  })
 }
 
 export function useConnectionSummary() {
@@ -256,50 +132,6 @@ export function useConnectPeer(
       opts?.onSuccess?.(data, ...rest)
     },
   })
-}
-
-export function useSelectedAccountContacts() {
-  const selectedAccount = useSelectedAccountId()
-  const contacts = useContactListOfAccount(selectedAccount)
-  return contacts
-}
-
-export function useContacts(accountUids: string[]) {
-  const accounts = useAccounts(accountUids)
-  // we're currently relying on the account discovery here. we would ideally build it into useAccounts
-  useResources(
-    accountUids.map((uid) => hmId(uid)),
-    {subscribed: true},
-  )
-  const contacts = useSelectedAccountContacts()
-
-  return accounts.map((account) => {
-    return {
-      ...account,
-      data: account.data
-        ? {
-            id: account.data.id,
-            metadata: getContactMetadata(account.data.id.uid, account.data.metadata, contacts.data),
-          }
-        : undefined,
-    }
-  })
-}
-
-export function useContactsMetadata(ids: string[]): HMAccountsMetadata {
-  const accountsMetadata = useAccountsMetadata(ids)
-  const contacts = useSelectedAccountContacts()
-  return Object.fromEntries(
-    Object.entries(accountsMetadata.data).map(([uid, account]) => {
-      return [
-        uid,
-        {
-          id: account.id,
-          metadata: getContactMetadata(account.id.uid, account.metadata, contacts.data),
-        },
-      ]
-    }),
-  )
 }
 
 export function useContactList() {

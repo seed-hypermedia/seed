@@ -1,6 +1,7 @@
 import {HMRequest} from './hm-types'
 import {Account, AccountParams} from './api-account'
 import {AccountContacts} from './api-account-contacts'
+import {SubjectContacts} from './api-subject-contacts'
 import {ListEvents} from './api-activity'
 import {ListCapabilities, ListCapabilitiesParams} from './api-capabilities'
 import {ListChanges, ListChangesParams} from './api-changes'
@@ -24,6 +25,7 @@ export const APIRouter = {
   Account,
   Comment,
   AccountContacts,
+  SubjectContacts,
   Search,
   Query,
   ListComments,

@@ -7,7 +7,13 @@ import type {AppLoadContext, EntryContext} from '@remix-run/node'
 import {createReadableStreamFromReadable, redirect} from '@remix-run/node'
 import {RemixServer} from '@remix-run/react'
 import {commentIdToHmId, getCommentTargetId, HMDocument, hmId} from '@shm/shared'
-import {SITE_BASE_URL, WEB_IDENTITY_ENABLED, WEB_IDENTITY_ORIGIN, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
+import {
+  DAEMON_HTTP_URL,
+  SITE_BASE_URL,
+  WEB_IDENTITY_ENABLED,
+  WEB_IDENTITY_ORIGIN,
+  WEB_SIGNING_ENABLED,
+} from '@shm/shared/constants'
 import fs from 'fs'
 import {mkdir, readFile, stat, writeFile} from 'fs/promises'
 import * as isbotModule from 'isbot'
@@ -321,10 +327,19 @@ export default async function handleRequest(
   responseHeaders.set('Permissions-Policy', 'storage-access=*')
   const sendPerfLog = logDebugRequest(url.pathname)
 
-  if (url.pathname.startsWith('/ipfs')) {
-    return new Response('Not Found', {
-      status: 404,
-    })
+  if (url.pathname.startsWith('/ipfs/')) {
+    try {
+      const daemonResponse = await fetch(`${DAEMON_HTTP_URL}${url.pathname}`)
+      return new Response(daemonResponse.body, {
+        status: daemonResponse.status,
+        headers: {
+          'Content-Type': daemonResponse.headers.get('Content-Type') || 'application/octet-stream',
+          'Cache-Control': daemonResponse.headers.get('Cache-Control') || 'public, max-age=29030400, immutable',
+        },
+      })
+    } catch {
+      return new Response('Not Found', {status: 404})
+    }
   }
   if (url.pathname.startsWith('/.well-known/')) {
     return new Response('Not Found', {status: 404})
