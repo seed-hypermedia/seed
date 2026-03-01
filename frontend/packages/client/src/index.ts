@@ -4,6 +4,8 @@ export {createComment, deleteComment} from './comment'
 export type {CreateCommentInput, DeleteCommentInput, CommentAttachmentBlob} from './comment'
 export {createContact, updateContact, deleteContact, contactRecordIdFromBlob} from './contact'
 export type {CreateContactInput, UpdateContactInput, DeleteContactInput, CreateContactResult} from './contact'
+export {createCapability} from './capability'
+export type {CreateCapabilityInput, CapabilityRole} from './capability'
 export {SeedClientError, SeedNetworkError, SeedValidationError} from './errors'
 
 // Re-export key types so consumers don't need @shm/shared directly

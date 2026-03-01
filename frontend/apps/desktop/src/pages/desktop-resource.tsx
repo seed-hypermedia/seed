@@ -1,6 +1,5 @@
 import {useAppContext} from '@/app-context'
 import {BranchDialog} from '@/components/branch-dialog'
-import {AddCollaboratorForm} from '@/components/collaborators-panel'
 import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
 import {CreateDocumentButton} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
@@ -388,7 +387,6 @@ export default function DesktopResourcePage() {
               extraMenuItems={menuItems}
               editActions={editActions}
               existingDraft={existingDraft}
-              collaboratorForm={<AddCollaboratorForm id={docId} />}
               inlineCards={inlineCards}
               rightActions={<SubscriptionButton id={docId} />}
             />
