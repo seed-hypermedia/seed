@@ -12,6 +12,7 @@ import type {OutputFormat} from './output'
 // Commands
 import {registerDocumentCommands} from './commands/document'
 import {registerCommentCommands} from './commands/comment'
+import {registerContactCommands} from './commands/contact'
 import {registerAccountCommands} from './commands/account'
 import {registerSearchCommand} from './commands/search'
 import {registerQueryCommands} from './commands/query'
@@ -52,6 +53,7 @@ export function getClient(options: Record<string, unknown>) {
 // Register command groups
 registerDocumentCommands(program)
 registerCommentCommands(program)
+registerContactCommands(program)
 registerAccountCommands(program)
 registerKeyCommands(program)
 

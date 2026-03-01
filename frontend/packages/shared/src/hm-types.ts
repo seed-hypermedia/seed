@@ -1324,6 +1324,14 @@ export const HMAccountContactsRequestSchema = z.object({
 })
 export type HMAccountContactsRequest = z.infer<typeof HMAccountContactsRequestSchema>
 
+// SubjectContacts request: get contacts where this account is the subject
+export const HMSubjectContactsRequestSchema = z.object({
+  key: z.literal('SubjectContacts'),
+  input: z.string(), // subject UID
+  output: z.array(HMContactRecordSchema),
+})
+export type HMSubjectContactsRequest = z.infer<typeof HMSubjectContactsRequestSchema>
+
 export const HMCapabilitySchema = z.object({
   id: z.string(),
   accountUid: z.string(),
@@ -1717,6 +1725,7 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMSearchRequestSchema,
   HMQueryRequestSchema,
   HMAccountContactsRequestSchema,
+  HMSubjectContactsRequestSchema,
   HMListCommentsRequestSchema,
   HMListDiscussionsRequestSchema,
   HMListCommentsByReferenceRequestSchema,
