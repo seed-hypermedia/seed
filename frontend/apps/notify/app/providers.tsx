@@ -7,11 +7,13 @@ import {NavAction, NavContextProvider, NavState, navStateReducer} from '@shm/sha
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
+import {registerQueryClient} from '@shm/shared/models/query-client'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {createContext, useContext, useEffect, useMemo, useState} from 'react'
 import {notifyUniversalClient} from './universal-client'
 
 const queryClient = new QueryClient()
+registerQueryClient(queryClient)
 
 type ThemeContextType = {
   theme: 'light' | 'dark'

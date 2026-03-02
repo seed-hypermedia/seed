@@ -1,5 +1,5 @@
 import {deleteComment as createDeleteCommentBlob} from '@seed-hypermedia/client'
-import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
+import {useMutation, useQuery} from '@tanstack/react-query'
 import {createContext, PropsWithChildren, useContext, useMemo} from 'react'
 import {
   HMComment,
@@ -14,6 +14,7 @@ import {
   HMListDiscussionsRequest,
   UnpackedHypermediaId,
 } from './hm-types'
+import {invalidateQueries} from './models/query-client'
 import {queryKeys} from './models/query-keys'
 import {useUniversalClient} from './routing'
 import {hmId} from './utils/entity-id-url'
@@ -146,7 +147,6 @@ export function isRouteEqualToCommentTarget({
 
 export function useDeleteComment() {
   const client = useUniversalClient()
-  const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (params: {comment: HMComment; signingAccountId: string}) => {
@@ -167,18 +167,10 @@ export function useDeleteComment() {
     },
     onSuccess: () => {
       // Invalidate all comment-related queries to refresh the UI
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_DISCUSSION],
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_COMMENTS],
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.BLOCK_DISCUSSIONS],
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.ACTIVITY_FEED],
-      })
+      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
+      invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
+      invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
+      invalidateQueries([queryKeys.ACTIVITY_FEED])
     },
   })
 }

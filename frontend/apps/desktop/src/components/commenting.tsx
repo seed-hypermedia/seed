@@ -190,14 +190,12 @@ function _CommentBox(props: {
       invalidateQueries([queryKeys.LIST_ACCOUNTS])
       invalidateQueries([queryKeys.DOC_CITATIONS])
 
-      queryClient.invalidateQueries({queryKey: [queryKeys.DOCUMENT_ACTIVITY]})
-      queryClient.invalidateQueries({queryKey: [queryKeys.DOCUMENT_DISCUSSION]})
-      queryClient.invalidateQueries({queryKey: [queryKeys.DOCUMENT_COMMENTS]})
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY],
-      })
-      queryClient.invalidateQueries({queryKey: [queryKeys.BLOCK_DISCUSSIONS]})
-      queryClient.invalidateQueries({queryKey: [queryKeys.ACTIVITY_FEED]})
+      invalidateQueries([queryKeys.DOCUMENT_ACTIVITY])
+      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
+      invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
+      invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY])
+      invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
+      invalidateQueries([queryKeys.ACTIVITY_FEED])
     },
     onError: (err: {message: string}) => {
       setIsSubmitting(false)

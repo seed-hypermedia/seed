@@ -41,6 +41,17 @@ export function onQueryInvalidation(handler: (queryKey: QueryKey) => void) {
   queryInvalidationSubscriptions.add(handler)
 }
 
+let registeredClient: QueryClient | null = null
+
+export function registerQueryClient(client: QueryClient) {
+  registeredClient = client
+}
+
 export function invalidateQueries(queryKey: QueryKey) {
+  // Always invalidate the registered client directly
+  if (registeredClient) {
+    registeredClient.invalidateQueries({queryKey})
+  }
+  // Fire subscriptions for platform-specific behavior (IPC broadcast on desktop)
   queryInvalidationSubscriptions.forEach((handler) => handler(queryKey))
 }

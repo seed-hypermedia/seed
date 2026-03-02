@@ -1,6 +1,6 @@
 import {createCapability as createCapabilityBlob} from '@seed-hypermedia/client'
 import type {CapabilityRole} from '@seed-hypermedia/client'
-import {useMutation, useQueryClient} from '@tanstack/react-query'
+import {useMutation} from '@tanstack/react-query'
 import type {HMCapability, HMRole, UnpackedHypermediaId} from '../hm-types'
 import {useUniversalClient} from '../routing'
 import {hmId} from '../utils/entity-id-url'
@@ -33,7 +33,6 @@ const EMPTY_TIMESTAMP = {
 
 export function useAddCapabilities(id: UnpackedHypermediaId) {
   const client = useUniversalClient()
-  const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({
       myCapability,
@@ -62,9 +61,7 @@ export function useAddCapabilities(id: UnpackedHypermediaId) {
       )
     },
     onSuccess: () => {
-      const queryKey = [queryKeys.CAPABILITIES, id.uid, ...(id.path || [])]
-      qc.invalidateQueries({queryKey})
-      invalidateQueries(queryKey)
+      invalidateQueries([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
     },
   })
 }

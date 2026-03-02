@@ -6,6 +6,7 @@ import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
 import {HMDocument, HMDocumentOperation} from '@shm/shared/hm-types'
 import * as hmauth from '@shm/shared/hmauth'
 import {useAccount, useResource} from '@shm/shared/models/entity'
+import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
@@ -17,7 +18,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {useMutation, useQueryClient} from '@tanstack/react-query'
+import {useMutation} from '@tanstack/react-query'
 import {ChevronDown, LogOut, Monitor, Smartphone} from 'lucide-react'
 import {BlockView} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
@@ -729,7 +730,6 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
   const account = useAccount(input.accountUid)
   const accountDocument = useResource(account.data?.id)
   const document = accountDocument?.data?.type === 'document' ? accountDocument.data.document : undefined
-  const queryClient = useQueryClient()
   const update = useMutation({
     mutationFn: (updates: SiteMetaFields) => {
       if (!keyPair) {
@@ -746,21 +746,11 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
     },
     onSuccess: () => {
       // invalidate the activity and discussion for all documents because they may be affected by the profile change
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_ACTIVITY],
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_DISCUSSION],
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.ENTITY, id.id],
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.RESOLVED_ENTITY, id.id],
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.ACCOUNT],
-      })
+      invalidateQueries([queryKeys.DOCUMENT_ACTIVITY])
+      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
+      invalidateQueries([queryKeys.ENTITY, id.id])
+      invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+      invalidateQueries([queryKeys.ACCOUNT])
     },
   })
   return (

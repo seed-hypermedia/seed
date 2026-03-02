@@ -3,18 +3,18 @@ import {
   updateContact as updateContactBlob,
   deleteContact as deleteContactBlob,
 } from '@seed-hypermedia/client'
-import {useMutation, useQueries, useQuery, useQueryClient} from '@tanstack/react-query'
+import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
 import {getContactMetadata} from '../content'
 import type {HMAccountsMetadata, HMContact, UnpackedHypermediaId} from '../hm-types'
 import {useUniversalClient} from '../routing'
 import {hmId} from '../utils/entity-id-url'
 import {useAccount, useAccounts, useAccountsMetadata, useResources, useSelectedAccountId} from './entity'
+import {invalidateQueries} from './query-client'
 import {queryContactsOfAccount, queryContactsOfSubject} from './queries'
 import {queryKeys} from './query-keys'
 
 export function useSaveContact() {
   const client = useUniversalClient()
-  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (contact: {accountUid: string; name: string; subjectUid: string; editId?: string}) => {
       if (!client.getSigner) throw new Error('Signing not available on this platform')
@@ -31,15 +31,14 @@ export function useSaveContact() {
       }
     },
     onSuccess: (_, contact) => {
-      queryClient.invalidateQueries({queryKey: [queryKeys.CONTACTS_SUBJECT, contact.subjectUid]})
-      queryClient.invalidateQueries({queryKey: [queryKeys.CONTACTS_ACCOUNT, contact.accountUid]})
+      invalidateQueries([queryKeys.CONTACTS_SUBJECT, contact.subjectUid])
+      invalidateQueries([queryKeys.CONTACTS_ACCOUNT, contact.accountUid])
     },
   })
 }
 
 export function useDeleteContact() {
   const client = useUniversalClient()
-  const queryClient = useQueryClient()
   const selectedAccountId = useSelectedAccountId()
   return useMutation({
     mutationFn: async (contact: {id: string; account: string; subject: string}) => {
@@ -49,8 +48,8 @@ export function useDeleteContact() {
       await client.publish(await deleteContactBlob({contactId: contact.id}, signer))
     },
     onSuccess: (_, contact) => {
-      queryClient.invalidateQueries({queryKey: [queryKeys.CONTACTS_SUBJECT, contact.subject]})
-      queryClient.invalidateQueries({queryKey: [queryKeys.CONTACTS_ACCOUNT, contact.account]})
+      invalidateQueries([queryKeys.CONTACTS_SUBJECT, contact.subject])
+      invalidateQueries([queryKeys.CONTACTS_ACCOUNT, contact.account])
     },
   })
 }

@@ -1,5 +1,6 @@
-import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
+import {useMutation, useQuery} from '@tanstack/react-query'
 import {UnpackedHypermediaId} from '../hm-types'
+import {invalidateQueries} from './query-client'
 import {queryKeys} from './query-keys'
 import {useUniversalClient} from '../routing'
 
@@ -29,7 +30,6 @@ export function useRecents() {
 
 export function useDeleteRecent() {
   const client = useUniversalClient()
-  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => {
       if (!client.deleteRecent) {
@@ -38,7 +38,7 @@ export function useDeleteRecent() {
       return client.deleteRecent(id)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({queryKey: [queryKeys.RECENTS]})
+      invalidateQueries([queryKeys.RECENTS])
     },
   })
 }

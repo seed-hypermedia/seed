@@ -15,6 +15,7 @@ import {MetaDescriptor, useLoaderData} from '@remix-run/react'
 import {DeviceLinkSessionSchema, useRouteLink, useUniversalAppContext} from '@shm/shared'
 import {DeviceLinkSession, HMMetadata, HMMetadataPayload, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useAccount} from '@shm/shared/models/entity'
+import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
@@ -22,7 +23,7 @@ import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Close} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
-import {useMutation, useQueryClient} from '@tanstack/react-query'
+import {useMutation} from '@tanstack/react-query'
 import {Scanner, type IDetectedBarcode} from '@yudiel/react-qr-scanner'
 import {ArrowRight, Check, KeySquare, Link as LinkIcon, Monitor, Smartphone} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
@@ -630,7 +631,6 @@ function useLinkDevice(localIdentity: LocalWebIdentity) {
   const [linkingState, setLinkingState] = useState<LinkingState>({
     state: 'idle',
   })
-  const queryClient = useQueryClient()
   return {
     state: linkingState,
     mutation: useMutation({
@@ -665,9 +665,7 @@ function useLinkDevice(localIdentity: LocalWebIdentity) {
         })
       },
       onSuccess: (data) => {
-        queryClient.invalidateQueries({
-          queryKey: [queryKeys.ACCOUNT],
-        })
+        invalidateQueries([queryKeys.ACCOUNT])
       },
     }),
   }

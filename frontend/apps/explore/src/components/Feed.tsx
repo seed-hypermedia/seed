@@ -1,10 +1,10 @@
-import {useInfiniteFeed, useLatestEvent, useQueryClient} from '@shm/shared'
+import {useInfiniteFeed, useLatestEvent} from '@shm/shared'
+import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
 import DataViewer from './DataViewer'
 
 export default function Feed() {
-  const queryClient = useQueryClient()
   const {
     data,
     fetchNextPage,
@@ -51,7 +51,7 @@ export default function Feed() {
       if ((latestEvent as {id?: string}).id !== currentLatestId) {
         if (isAtTop) {
           // If at top, automatically refresh by invalidating the entire query
-          queryClient.invalidateQueries({queryKey: ['infinite-feed']})
+          invalidateQueries(['infinite-feed'])
         } else {
           // If scrolled down, show the pill
           setShowNewContentPill(true)
@@ -61,7 +61,7 @@ export default function Feed() {
         setShowNewContentPill(false)
       }
     }
-  }, [latestEvent, allEvents, isAtTop, queryClient, latestKnownId])
+  }, [latestEvent, allEvents, isAtTop, latestKnownId])
 
   // Track scroll position
   useEffect(() => {
@@ -78,7 +78,7 @@ export default function Feed() {
   const handleNewContentClick = () => {
     setShowNewContentPill(false)
     // Invalidate the entire infinite query to get all new pages
-    queryClient.invalidateQueries({queryKey: ['infinite-feed']})
+    invalidateQueries(['infinite-feed'])
     window.scrollTo({top: 0, behavior: 'smooth'})
   }
 

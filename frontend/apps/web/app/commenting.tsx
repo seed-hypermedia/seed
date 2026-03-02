@@ -12,6 +12,7 @@ import {
   useUniversalClient,
 } from '@shm/shared'
 import {useCommentsService} from '@shm/shared/comments-service-provider'
+import {invalidateQueries} from '@shm/shared/models/query-client'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
@@ -22,7 +23,7 @@ import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {useMutation, useQueryClient} from '@tanstack/react-query'
+import {useMutation} from '@tanstack/react-query'
 import {MemoryBlockstore} from 'blockstore-core/memory'
 import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
 import {SendHorizontal} from 'lucide-react'
@@ -59,7 +60,6 @@ export default function WebCommenting({
   onSuccess,
   autoFocus,
 }: WebCommentingProps) {
-  const queryClient = useQueryClient()
   const tx = useTxString()
   const {getSigner, publish} = useUniversalClient()
 
@@ -121,28 +121,13 @@ export default function WebCommenting({
         commentPayload: commentPayload,
         id: commentId,
       })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_ACTIVITY], // all docs
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_DISCUSSION], // all docs
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_COMMENTS], // all docs
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY], // all docs
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOC_CITATIONS], // all docs
-      })
-
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.BLOCK_DISCUSSIONS], // all docs
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.ACTIVITY_FEED], // all Feed
-      })
+      invalidateQueries([queryKeys.DOCUMENT_ACTIVITY])
+      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
+      invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
+      invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY])
+      invalidateQueries([queryKeys.DOC_CITATIONS])
+      invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
+      invalidateQueries([queryKeys.ACTIVITY_FEED])
     },
   })
 

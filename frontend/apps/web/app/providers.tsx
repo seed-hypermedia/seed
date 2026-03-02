@@ -16,6 +16,7 @@ import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Spinner} from '@shm/ui/spinner'
 import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
+import {registerQueryClient} from '@shm/shared/models/query-client'
 import {DehydratedState, hydrate, QueryClient, QueryClientProvider, useQueryClient} from '@tanstack/react-query'
 import type {StateStream} from '@shm/shared/utils/stream'
 import {createContext, useContext, useEffect, useMemo, useState} from 'react'
@@ -54,6 +55,7 @@ function getQueryClient() {
   // Browser: use singleton
   if (!browserQueryClient) {
     browserQueryClient = createQueryClient()
+    registerQueryClient(browserQueryClient)
   }
   return browserQueryClient
 }
