@@ -55,6 +55,7 @@ import {DocumentTools} from '@shm/ui/document-tools'
 import {Feed} from '@shm/ui/feed'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Home, Undo} from '@shm/ui/icons'
+import {XIcon} from 'lucide-react'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {DocNavigationItem} from '@shm/ui/navigation'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
@@ -248,6 +249,10 @@ export default function DraftPage() {
     }
   }
 
+  const handleLeaveDraftCancel = () => {
+    setPendingProceed(null)
+  }
+
   const panelContent = panelKey ? (
     <ScrollArea className="flex-1">
       <DraftPanelContent
@@ -330,8 +335,20 @@ export default function DraftPage() {
           </div>
         </div>
       </CommentsProvider>
-      <AlertDialog open={!!pendingProceed}>
+      <AlertDialog
+        open={!!pendingProceed}
+        onOpenChange={(open) => {
+          if (!open) handleLeaveDraftCancel()
+        }}
+      >
         <AlertDialogContent>
+          <button
+            onClick={handleLeaveDraftCancel}
+            className="absolute top-4 right-4 rounded-xs text-gray-500 transition-all hover:text-gray-700 focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 focus:outline-hidden dark:text-gray-400 dark:hover:text-gray-200"
+          >
+            <XIcon className="size-4" />
+            <span className="sr-only">Close</span>
+          </button>
           <AlertDialogTitle>Leave Draft?</AlertDialogTitle>
           <p className="text-muted-foreground text-sm">Do you want to save your draft before leaving?</p>
           <AlertDialogFooter>
