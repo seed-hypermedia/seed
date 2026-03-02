@@ -12,7 +12,7 @@ const appStoreMock = {
 const listKeysMock = vi.fn(async () => ({
   keys: [] as Array<{publicKey: string}>,
 }))
-const listRawEventsMock = vi.fn(async () => ({events: [] as any[]}))
+const listRawEventsMock = vi.fn(async () => ({toJson: () => ({events: [] as any[]})}))
 const listResolvedEventsMock = vi.fn(async () => ({
   events: [] as any[],
   nextPageToken: '',
@@ -53,10 +53,10 @@ vi.mock('../logger', () => ({
 
 function rawNewBlobEvent(cid: string) {
   return {
-    data: {
-      case: 'newBlob',
-      value: {cid},
-    },
+    newBlob: {cid},
+    account: '',
+    eventTime: null,
+    observeTime: null,
   } as any
 }
 
@@ -148,7 +148,7 @@ describe('app notification inbox', () => {
     vi.clearAllMocks()
     for (const key of Object.keys(storeData)) delete storeData[key]
     listKeysMock.mockResolvedValue({keys: []})
-    listRawEventsMock.mockResolvedValue({events: []})
+    listRawEventsMock.mockResolvedValue({toJson: () => ({events: []})})
     listResolvedEventsMock.mockResolvedValue({events: [], nextPageToken: ''})
     vi.useFakeTimers()
   })
@@ -162,7 +162,7 @@ describe('app notification inbox', () => {
       keys: [{publicKey: 'account-a'}],
     })
     listRawEventsMock.mockResolvedValue({
-      events: [rawNewBlobEvent('latest-cid')],
+      toJson: () => ({events: [rawNewBlobEvent('latest-cid')]}),
     })
 
     const {caller, start} = await loadInboxCaller()
@@ -179,7 +179,7 @@ describe('app notification inbox', () => {
   })
 
   it('ingests and stores notifications for all local accounts in background', async () => {
-    storeData['NotificationInbox-v001'] = {
+    storeData['NotificationInbox-v002'] = {
       version: 1,
       cursorEventId: 'blob-old-cursor',
       accounts: {},
@@ -191,7 +191,7 @@ describe('app notification inbox', () => {
       keys: [{publicKey: 'account-a'}, {publicKey: 'account-b'}],
     })
     listRawEventsMock.mockResolvedValue({
-      events: [rawNewBlobEvent('latest-cid')],
+      toJson: () => ({events: [rawNewBlobEvent('latest-cid')]}),
     })
     listResolvedEventsMock.mockResolvedValue({
       events: [
@@ -239,7 +239,7 @@ describe('app notification inbox', () => {
   })
 
   it('ingests discussion notifications for collaborator accounts', async () => {
-    storeData['NotificationInbox-v001'] = {
+    storeData['NotificationInbox-v002'] = {
       version: 1,
       cursorEventId: 'blob-old-cursor',
       accounts: {},
@@ -251,7 +251,7 @@ describe('app notification inbox', () => {
       keys: [{publicKey: 'account-a'}],
     })
     listRawEventsMock.mockResolvedValue({
-      events: [rawNewBlobEvent('latest-cid')],
+      toJson: () => ({events: [rawNewBlobEvent('latest-cid')]}),
     })
     listResolvedEventsMock.mockResolvedValue({
       events: [
@@ -286,7 +286,7 @@ describe('app notification inbox', () => {
   })
 
   it('does not duplicate discussion notifications when citation mirror event exists', async () => {
-    storeData['NotificationInbox-v001'] = {
+    storeData['NotificationInbox-v002'] = {
       version: 1,
       cursorEventId: 'blob-old-cursor',
       accounts: {},
@@ -298,7 +298,7 @@ describe('app notification inbox', () => {
       keys: [{publicKey: 'account-a'}],
     })
     listRawEventsMock.mockResolvedValue({
-      events: [rawNewBlobEvent('latest-cid')],
+      toJson: () => ({events: [rawNewBlobEvent('latest-cid')]}),
     })
     listResolvedEventsMock.mockResolvedValue({
       events: [
