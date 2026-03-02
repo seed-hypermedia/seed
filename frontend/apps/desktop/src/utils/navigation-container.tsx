@@ -25,24 +25,13 @@ import {AppWindowEvent} from './window-events'
 
 const [updateNavState, navState] = writeableStateStream(window.initNavState)
 
-// Navigation guard: blocks route-changing actions until confirmed
-type NavigationGuard = (action: NavAction, proceed: () => void) => boolean
-let navigationGuard: NavigationGuard | null = null
-
-export function setNavigationGuard(guard: NavigationGuard) {
-  navigationGuard = guard
-}
-
-export function clearNavigationGuard() {
-  navigationGuard = null
-}
-
-const ROUTE_CHANGING_ACTIONS = new Set(['push', 'replace', 'backplace', 'pop', 'forward', 'closeBack'])
+import {clearNavigationGuard, getNavigationGuard, ROUTE_CHANGING_ACTIONS, setNavigationGuard} from './navigation-guard'
+export {clearNavigationGuard, setNavigationGuard}
 
 const navigation = {
   dispatch(action: NavAction) {
-    if (navigationGuard && ROUTE_CHANGING_ACTIONS.has(action.type)) {
-      const guard = navigationGuard
+    const guard = getNavigationGuard()
+    if (guard && ROUTE_CHANGING_ACTIONS.has(action.type)) {
       const shouldProceed = guard(action, () => {
         clearNavigationGuard()
         navigation.dispatch(action)
