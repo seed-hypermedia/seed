@@ -1,8 +1,7 @@
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {LoadedEventWithNotifMeta} from '@shm/shared/models/activity-service'
+import {LoadedEventWithNotifMeta, listEventsImpl, getFeedEventId} from '@shm/shared/models/activity-service'
 import {classifyNotificationEvent, NotificationReason} from '@shm/shared/models/notification-event-classifier'
 import {ListEvents} from '@shm/shared/api-activity'
-import {Event} from '@shm/shared/src/client/.generated/activity/v1alpha/activity_pb'
 import z from 'zod'
 // @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
@@ -11,7 +10,7 @@ import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
 import * as log from './logger'
 
-const NOTIFICATION_INBOX_STORE_KEY = 'NotificationInbox-v001'
+const NOTIFICATION_INBOX_STORE_KEY = 'NotificationInbox-v002'
 const NOTIFICATION_POLL_INTERVAL_MS = 5_000
 const NOTIFICATION_PAGE_SIZE = 40
 const NOTIFICATION_MAX_SCAN_PAGES = 40
@@ -116,32 +115,19 @@ function setLastPollError(error: string) {
   writeStore()
 }
 
-function asEventId(event: Event): string | null {
-  if (event.data.case === 'newBlob') {
-    const cid = event.data.value?.cid
-    return cid ? `blob-${cid}` : null
-  }
-  if (event.data.case === 'newMention') {
-    const mention = event.data.value
-    return `mention-${mention.sourceBlob?.cid}-${mention.mentionType}-${mention.target}`
-  }
-  return null
-}
-
 async function listLocalAccountUids(): Promise<string[]> {
   const keys = await grpcClient.daemon.listKeys({})
   return keys.keys.map((key) => key.publicKey).filter(Boolean)
 }
 
-async function fetchLatestEventId(currentAccount: string | undefined): Promise<string | null> {
-  const response = await grpcClient.activityFeed.listEvents({
+async function fetchLatestEventId(): Promise<string | null> {
+  const response = await listEventsImpl(grpcClient as any, {
     pageSize: 1,
-    currentAccount,
     filterEventType: [],
-  } as any)
+  })
   const firstEvent = response.events[0]
   if (!firstEvent) return null
-  return asEventId(firstEvent)
+  return getFeedEventId(firstEvent)
 }
 
 async function fetchResolvedEventsPage(input: {pageToken?: string; currentAccount?: string}) {
@@ -292,7 +278,7 @@ async function runNotificationIngestPoll() {
     }
 
     const currentAccount = accountUids[0]
-    const latestEventId = await fetchLatestEventId(currentAccount)
+    const latestEventId = await fetchLatestEventId()
 
     if (!latestEventId) {
       setLastPollSuccess()
@@ -325,7 +311,9 @@ async function runNotificationIngestPoll() {
     })
 
     const changedAccounts = ingestEventsForAccounts(loaded.events, accountUids)
-    if (loaded.foundCursor && loaded.newestEventId) {
+    // Always advance cursor to prevent infinite re-scanning.
+    // Even if the old cursor wasn't found (stale/pruned), advance to newest.
+    if (loaded.newestEventId) {
       store = {
         ...store,
         cursorEventId: loaded.newestEventId,
