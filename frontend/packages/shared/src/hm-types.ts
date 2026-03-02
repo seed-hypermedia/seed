@@ -709,7 +709,7 @@ export type HMActivitySummary = z.infer<typeof HMActivitySummarySchema>
 
 export const HMGenerationInfoSchema = z.object({
   genesis: z.string(),
-  generation: z.bigint(),
+  generation: z.union([z.bigint(), z.coerce.bigint()]),
 })
 export type HMGenerationInfo = z.infer<typeof HMGenerationInfoSchema>
 
@@ -1142,6 +1142,7 @@ export const HMDocumentSchema = z.object({
   metadata: HMDocumentMetadataSchema,
   detachedBlocks: z.record(z.string(), HMBlockNodeSchema).optional(),
   genesis: z.string(),
+  generationInfo: HMGenerationInfoSchema.optional(),
   visibility: HMResourceVisibilitySchema,
 })
 // .strict() // avoid errors when the backend sends extra fields (most recently "header" and "footer")

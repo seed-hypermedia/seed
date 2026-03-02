@@ -383,6 +383,7 @@ export type Document = {
   updateTime: Timestamp
   metadata: Metadata
   genesis: string
+  generationInfo?: {genesis: string; generation: string}
   visibility: 'PUBLIC' | 'PRIVATE'
 }
 

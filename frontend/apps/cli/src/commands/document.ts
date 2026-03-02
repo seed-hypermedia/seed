@@ -1,11 +1,21 @@
 /**
- * Document commands — get, create, update, changes, stats, cid.
+ * Document commands — get, create, update, delete, fork, move, redirect, changes, stats, cid.
  */
 
 import type {Command} from 'commander'
 import {readFileSync} from 'fs'
 import {CID} from 'multiformats/cid'
 import {base58btc} from 'multiformats/bases/base58'
+import * as ed25519 from '@noble/ed25519'
+import {
+  createVersionRef,
+  createTombstoneRef,
+  createRedirectRef,
+  createSeedClient,
+} from '@seed-hypermedia/client'
+import type {HMSigner} from '@shm/shared/hm-types'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {getClient, getOutputFormat} from '../index'
 import {formatOutput, printError, printSuccess, printInfo} from '../output'
 import {documentToMarkdown} from '../markdown'
@@ -13,18 +23,24 @@ import {resolveKey} from '../utils/keyring'
 import {
   createGenesisChange,
   createDocumentChange,
-  createRef,
   encodeBlock,
-  blockReference,
   type DocumentOperation,
 } from '../utils/signing'
 import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations} from '../utils/markdown'
 import {createBlocksMap, matchBlockIds, computeReplaceOps, type APIBlockNode} from '../utils/block-diff'
 import type {BlockNode as ClientBlockNode} from '../client'
+import type {KeyPair} from '../utils/key-derivation'
+
+function createSignerFromKey(key: KeyPair): HMSigner {
+  return {
+    getPublicKey: async () => key.publicKeyWithPrefix,
+    sign: async (data: Uint8Array) => ed25519.signAsync(data, key.privateKey),
+  }
+}
 
 export function registerDocumentCommands(program: Command) {
-  const doc = program.command('document').description('Manage documents (get, create, update, changes, stats, cid)')
+  const doc = program.command('document').description('Manage documents (get, create, update, delete, fork, move, redirect, changes, stats, cid)')
 
   // ── get ──────────────────────────────────────────────────────────────────
 
@@ -148,27 +164,26 @@ export function registerDocumentCommands(program: Command) {
         const signedChange = await createDocumentChange(key, genesisBlock.cid, [genesisBlock.cid], 1, ops)
         const changeBlock = await encodeBlock(signedChange)
 
+        const signer = createSignerFromKey(key)
         const generation = Number(signedChange.ts)
-        const signedRef = await createRef(
-          key,
-          genesisBlock.cid,
-          changeBlock.cid,
-          generation,
-          path,
-          key.publicKeyWithPrefix,
+        const refInput = await createVersionRef(
+          {
+            space: account,
+            path,
+            genesis: genesisBlock.cid.toString(),
+            version: changeBlock.cid.toString(),
+            generation,
+          },
+          signer,
         )
-        const refBlock = await encodeBlock(signedRef)
 
-        // Genesis must be stored before the change+ref that reference it.
-        const genesisRef = blockReference(genesisBlock)
-        await client.updateDocument({
-          change: genesisRef,
-          ref: genesisRef,
-        })
-
-        await client.updateDocument({
-          change: blockReference(changeBlock),
-          ref: blockReference(refBlock),
+        const seedClient = createSeedClient(client.server)
+        await seedClient.publish({
+          blobs: [
+            {data: new Uint8Array(genesisBlock.bytes), cid: genesisBlock.cid.toString()},
+            {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
+            ...refInput.blobs,
+          ],
         })
 
         const hmUrl = `hm://${account}${path}`
@@ -287,18 +302,28 @@ export function registerDocumentCommands(program: Command) {
         const depCids = state.heads.map((h) => CID.parse(h))
         const newDepth = state.headDepth + 1
 
-        const space = base58btc.decode(docAccount)
-
         const signedChange = await createDocumentChange(key, genesisCid, depCids, newDepth, ops)
         const changeBlock = await encodeBlock(signedChange)
 
+        const signer = createSignerFromKey(key)
         const generation = Number(signedChange.ts)
-        const signedRef = await createRef(key, genesisCid, changeBlock.cid, generation, docPath || undefined, space)
-        const refBlock = await encodeBlock(signedRef)
+        const refInput = await createVersionRef(
+          {
+            space: docAccount,
+            path: docPath,
+            genesis: state.genesis,
+            version: changeBlock.cid.toString(),
+            generation,
+          },
+          signer,
+        )
 
-        await client.updateDocument({
-          change: blockReference(changeBlock),
-          ref: blockReference(refBlock),
+        const seedClient = createSeedClient(client.server)
+        await seedClient.publish({
+          blobs: [
+            {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
+            ...refInput.blobs,
+          ],
         })
 
         printSuccess('Document updated')
@@ -306,7 +331,247 @@ export function registerDocumentCommands(program: Command) {
           console.log(changeBlock.cid.toString())
         } else {
           printInfo(`Change CID: ${changeBlock.cid.toString()}`)
-          printInfo(`Ref CID: ${refBlock.cid.toString()}`)
+        }
+      } catch (error) {
+        printError((error as Error).message)
+        process.exit(1)
+      }
+    })
+
+  // ── delete ─────────────────────────────────────────────────────────────
+
+  doc
+    .command('delete <id>')
+    .description('Delete a document by publishing a tombstone ref')
+    .option('-k, --key <name>', 'Signing key name or account ID')
+    .action(async (id: string, _options, cmd) => {
+      const globalOpts = cmd.optsWithGlobals()
+      const dev = !!globalOpts.dev
+      const client = getClient(globalOpts)
+
+      try {
+        const key = resolveKey(_options.key, dev)
+        const signer = createSignerFromKey(key)
+        const seedClient = createSeedClient(client.server)
+
+        const resource = await client.getResource(id)
+        if (resource.type !== 'document') {
+          printError(`Cannot delete: resource is ${resource.type}, not a document.`)
+          process.exit(1)
+        }
+        const doc = resource.document
+        const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 1
+
+        const unpacked = unpackHmId(id)
+        if (!unpacked) {
+          printError(`Invalid Hypermedia ID: ${id}`)
+          process.exit(1)
+        }
+
+        const refInput = await createTombstoneRef(
+          {
+            space: unpacked.uid,
+            path: hmIdPathToEntityQueryPath(unpacked.path),
+            genesis: doc.genesis,
+            generation,
+          },
+          signer,
+        )
+        await seedClient.publish(refInput)
+
+        printSuccess('Document deleted')
+        if (!globalOpts.quiet) {
+          printInfo(`Deleted: ${id}`)
+        }
+      } catch (error) {
+        printError((error as Error).message)
+        process.exit(1)
+      }
+    })
+
+  // ── fork ───────────────────────────────────────────────────────────────
+
+  doc
+    .command('fork <sourceId> <destinationId>')
+    .description('Fork a document to a new location (creates a copy)')
+    .option('-k, --key <name>', 'Signing key name or account ID')
+    .action(async (sourceId: string, destinationId: string, _options, cmd) => {
+      const globalOpts = cmd.optsWithGlobals()
+      const dev = !!globalOpts.dev
+      const client = getClient(globalOpts)
+
+      try {
+        const key = resolveKey(_options.key, dev)
+        const signer = createSignerFromKey(key)
+        const seedClient = createSeedClient(client.server)
+
+        const resource = await client.getResource(sourceId)
+        if (resource.type !== 'document') {
+          printError(`Cannot fork: source is ${resource.type}, not a document.`)
+          process.exit(1)
+        }
+        const doc = resource.document
+        if (!doc.generationInfo) throw new Error('No generation info for source document')
+
+        const dest = unpackHmId(destinationId)
+        if (!dest) {
+          printError(`Invalid destination Hypermedia ID: ${destinationId}`)
+          process.exit(1)
+        }
+
+        const refInput = await createVersionRef(
+          {
+            space: dest.uid,
+            path: hmIdPathToEntityQueryPath(dest.path),
+            genesis: doc.generationInfo.genesis,
+            version: doc.version,
+            generation: Number(doc.generationInfo.generation),
+          },
+          signer,
+        )
+        await seedClient.publish(refInput)
+
+        printSuccess('Document forked')
+        if (!globalOpts.quiet) {
+          printInfo(`Source: ${sourceId}`)
+          printInfo(`Destination: ${destinationId}`)
+        }
+      } catch (error) {
+        printError((error as Error).message)
+        process.exit(1)
+      }
+    })
+
+  // ── move ───────────────────────────────────────────────────────────────
+
+  doc
+    .command('move <sourceId> <destinationId>')
+    .description('Move a document to a new location (creates redirect at source)')
+    .option('-k, --key <name>', 'Signing key name or account ID')
+    .action(async (sourceId: string, destinationId: string, _options, cmd) => {
+      const globalOpts = cmd.optsWithGlobals()
+      const dev = !!globalOpts.dev
+      const client = getClient(globalOpts)
+
+      try {
+        const key = resolveKey(_options.key, dev)
+        const signer = createSignerFromKey(key)
+        const seedClient = createSeedClient(client.server)
+
+        const resource = await client.getResource(sourceId)
+        if (resource.type !== 'document') {
+          printError(`Cannot move: source is ${resource.type}, not a document.`)
+          process.exit(1)
+        }
+        const doc = resource.document
+        if (!doc.generationInfo) throw new Error('No generation info for source document')
+
+        const source = unpackHmId(sourceId)
+        const dest = unpackHmId(destinationId)
+        if (!source) {
+          printError(`Invalid source Hypermedia ID: ${sourceId}`)
+          process.exit(1)
+        }
+        if (!dest) {
+          printError(`Invalid destination Hypermedia ID: ${destinationId}`)
+          process.exit(1)
+        }
+
+        // Create version ref at destination
+        const versionRefInput = await createVersionRef(
+          {
+            space: dest.uid,
+            path: hmIdPathToEntityQueryPath(dest.path),
+            genesis: doc.generationInfo.genesis,
+            version: doc.version,
+            generation: Number(doc.generationInfo.generation),
+          },
+          signer,
+        )
+        await seedClient.publish(versionRefInput)
+
+        // Create redirect ref at source
+        const redirectRefInput = await createRedirectRef(
+          {
+            space: source.uid,
+            path: hmIdPathToEntityQueryPath(source.path),
+            genesis: doc.generationInfo.genesis,
+            generation: Number(doc.generationInfo.generation),
+            targetSpace: dest.uid,
+            targetPath: hmIdPathToEntityQueryPath(dest.path),
+          },
+          signer,
+        )
+        await seedClient.publish(redirectRefInput)
+
+        printSuccess('Document moved')
+        if (!globalOpts.quiet) {
+          printInfo(`Source: ${sourceId} → redirect`)
+          printInfo(`Destination: ${destinationId}`)
+        }
+      } catch (error) {
+        printError((error as Error).message)
+        process.exit(1)
+      }
+    })
+
+  // ── redirect ──────────────────────────────────────────────────────────
+
+  doc
+    .command('redirect <id>')
+    .description('Create a redirect from one document to another')
+    .requiredOption('--to <targetId>', 'Target Hypermedia ID to redirect to')
+    .option('--republish', 'Republish target content at this location')
+    .option('-k, --key <name>', 'Signing key name or account ID')
+    .action(async (id: string, _options, cmd) => {
+      const globalOpts = cmd.optsWithGlobals()
+      const dev = !!globalOpts.dev
+      const client = getClient(globalOpts)
+
+      try {
+        const key = resolveKey(_options.key, dev)
+        const signer = createSignerFromKey(key)
+        const seedClient = createSeedClient(client.server)
+
+        const resource = await client.getResource(id)
+        if (resource.type !== 'document') {
+          printError(`Cannot redirect: resource is ${resource.type}, not a document.`)
+          process.exit(1)
+        }
+        const doc = resource.document
+        const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 1
+
+        const source = unpackHmId(id)
+        const target = unpackHmId(_options.to)
+        if (!source) {
+          printError(`Invalid source Hypermedia ID: ${id}`)
+          process.exit(1)
+        }
+        if (!target) {
+          printError(`Invalid target Hypermedia ID: ${_options.to}`)
+          process.exit(1)
+        }
+
+        const refInput = await createRedirectRef(
+          {
+            space: source.uid,
+            path: hmIdPathToEntityQueryPath(source.path),
+            genesis: doc.genesis,
+            generation,
+            targetSpace: target.uid,
+            targetPath: hmIdPathToEntityQueryPath(target.path),
+            republish: !!_options.republish,
+          },
+          signer,
+        )
+        await seedClient.publish(refInput)
+
+        printSuccess('Redirect created')
+        if (!globalOpts.quiet) {
+          printInfo(`${id} → ${_options.to}`)
+          if (_options.republish) {
+            printInfo('Mode: republish')
+          }
         }
       } catch (error) {
         printError((error as Error).message)

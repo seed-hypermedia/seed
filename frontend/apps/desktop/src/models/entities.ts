@@ -1,12 +1,14 @@
 import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
+import {createTombstoneRef} from '@seed-hypermedia/client'
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {DiscoveryState, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {DiscoveryState, HMResourceRequest, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {createQueryResolver} from '@shm/shared/models/directory'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useDeleteRecent} from '@shm/shared/models/recents'
 import {createResourceFetcher} from '@shm/shared/resource-loader'
+import {useUniversalClient} from '@shm/shared/routing'
 import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
@@ -23,19 +25,30 @@ type DeleteEntitiesInput = {
 export function useDeleteEntities(opts: UseMutationOptions<void, unknown, DeleteEntitiesInput>) {
   const push = usePushResource()
   const deleteRecent = useDeleteRecent()
+  const universalClient = useUniversalClient()
   return useMutation({
     ...opts,
     mutationFn: async ({ids, capabilityId, signingAccountUid}: DeleteEntitiesInput) => {
+      if (!universalClient.getSigner) throw new Error('Signing not available')
+      const signer = universalClient.getSigner(signingAccountUid)
       await Promise.all(
         ids.map(async (id) => {
           await deleteRecent.mutateAsync(id.id)
-          await grpcClient.documents.createRef({
-            account: id.uid || '',
-            path: hmIdPathToEntityQueryPath(id.path),
-            signingKeyName: signingAccountUid,
-            capability: capabilityId,
-            target: {target: {case: 'tombstone', value: {}}},
-          })
+          const resource = await universalClient.request<HMResourceRequest>('Resource', id)
+          if (resource.type !== 'document') throw new Error(`Cannot delete: resource is ${resource.type}`)
+          const doc = resource.document
+          const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : Number(doc.genesis ? 1 : 0)
+          const refInput = await createTombstoneRef(
+            {
+              space: id.uid || '',
+              path: hmIdPathToEntityQueryPath(id.path),
+              genesis: doc.genesis,
+              generation,
+              capability: capabilityId,
+            },
+            signer,
+          )
+          await universalClient.publish(refInput)
         }),
       )
       await Promise.all(ids.map((id) => push(id)))

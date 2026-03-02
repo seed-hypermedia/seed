@@ -1,5 +1,6 @@
 import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {grpcClient} from '@/grpc-client'
+import {createVersionRef, createRedirectRef} from '@seed-hypermedia/client'
 import {useDraft} from '@/models/accounts'
 import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
@@ -1352,6 +1353,7 @@ export function useCreateDraft(
 
 export function useForkDocument() {
   const push = usePushResource()
+  const universalClient = useUniversalClient()
   return useMutation({
     mutationFn: async ({
       from,
@@ -1362,27 +1364,23 @@ export function useForkDocument() {
       to: UnpackedHypermediaId
       signingAccountId: string
     }) => {
-      const document = await grpcClient.documents.getDocument({
-        account: from.uid,
-        path: hmIdPathToEntityQueryPath(from.path),
-        version: from.latest ? undefined : from.version || undefined,
-      })
-      const {generationInfo} = document
-      if (!generationInfo) throw new Error('No generation info for document')
-      await grpcClient.documents.createRef({
-        account: to.uid,
-        signingKeyName: signingAccountId,
-        path: hmIdPathToEntityQueryPath(to.path),
-        target: {
-          target: {
-            case: 'version',
-            value: {
-              genesis: generationInfo.genesis,
-              version: document.version,
-            },
-          },
+      if (!universalClient.getSigner) throw new Error('Signing not available')
+      const resource = await universalClient.request<HMResourceRequest>('Resource', from)
+      if (resource.type !== 'document') throw new Error(`Cannot fork: resource is ${resource.type}`)
+      const doc = resource.document
+      if (!doc.generationInfo) throw new Error('No generation info for document')
+      const signer = universalClient.getSigner(signingAccountId)
+      const refInput = await createVersionRef(
+        {
+          space: to.uid,
+          path: hmIdPathToEntityQueryPath(to.path),
+          genesis: doc.generationInfo.genesis,
+          version: doc.version,
+          generation: Number(doc.generationInfo.generation),
         },
-      })
+        signer,
+      )
+      await universalClient.publish(refInput)
       push(from)
       push(to)
     },
@@ -1391,6 +1389,7 @@ export function useForkDocument() {
 
 export function useMoveDocument() {
   const push = usePushResource()
+  const universalClient = useUniversalClient()
   return useMutation({
     mutationFn: async ({
       from,
@@ -1401,41 +1400,37 @@ export function useMoveDocument() {
       to: UnpackedHypermediaId
       signingAccountId: string
     }) => {
-      const document = await grpcClient.documents.getDocument({
-        account: from.uid,
-        path: hmIdPathToEntityQueryPath(from.path),
-        version: from.latest ? undefined : from.version || undefined,
-      })
-      const {generationInfo} = document
-      if (!generationInfo) throw new Error('No generation info for document')
-      await grpcClient.documents.createRef({
-        account: to.uid,
-        signingKeyName: signingAccountId,
-        path: hmIdPathToEntityQueryPath(to.path),
-        target: {
-          target: {
-            case: 'version',
-            value: {
-              genesis: generationInfo.genesis,
-              version: document.version,
-            },
-          },
+      if (!universalClient.getSigner) throw new Error('Signing not available')
+      const resource = await universalClient.request<HMResourceRequest>('Resource', from)
+      if (resource.type !== 'document') throw new Error(`Cannot move: resource is ${resource.type}`)
+      const doc = resource.document
+      if (!doc.generationInfo) throw new Error('No generation info for document')
+      const signer = universalClient.getSigner(signingAccountId)
+      // Create version ref at destination
+      const versionRefInput = await createVersionRef(
+        {
+          space: to.uid,
+          path: hmIdPathToEntityQueryPath(to.path),
+          genesis: doc.generationInfo.genesis,
+          version: doc.version,
+          generation: Number(doc.generationInfo.generation),
         },
-      })
-      await grpcClient.documents.createRef({
-        account: from.uid,
-        signingKeyName: signingAccountId,
-        path: hmIdPathToEntityQueryPath(from.path),
-        target: {
-          target: {
-            case: 'redirect',
-            value: {
-              account: to.uid,
-              path: hmIdPathToEntityQueryPath(to.path),
-            },
-          },
+        signer,
+      )
+      await universalClient.publish(versionRefInput)
+      // Create redirect ref at source
+      const redirectRefInput = await createRedirectRef(
+        {
+          space: from.uid,
+          path: hmIdPathToEntityQueryPath(from.path),
+          genesis: doc.generationInfo.genesis,
+          generation: Number(doc.generationInfo.generation),
+          targetSpace: to.uid,
+          targetPath: hmIdPathToEntityQueryPath(to.path),
         },
-      })
+        signer,
+      )
+      await universalClient.publish(redirectRefInput)
       push(from)
       push(to)
     },

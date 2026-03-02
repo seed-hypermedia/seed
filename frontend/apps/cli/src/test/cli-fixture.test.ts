@@ -435,6 +435,372 @@ describe('CLI Full Integration Tests', () => {
       TEST_TIMEOUT,
     )
 
+    // --- Document Create Tests ---
+
+    let createdDocPath: string
+    let createdDocHmId: string
+
+    test(
+      'document create creates a document',
+      async () => {
+        const uniqueSlug = `test-doc-${Date.now()}`
+        createdDocPath = `/${uniqueSlug}`
+        createdDocHmId = `hm://${writeAccount.accountId}/${uniqueSlug}`
+
+        const result = await runCli(
+          [
+            'document',
+            'create',
+            writeAccount.accountId,
+            '--path',
+            uniqueSlug,
+            '--title',
+            'CLI Test Document',
+            '--body',
+            'Hello from CLI test',
+            '--key',
+            TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        if (result.exitCode !== 0) {
+          console.log('[test] document create stderr:', result.stderr)
+          console.log('[test] document create stdout:', result.stdout)
+        }
+        expect(result.exitCode).toBe(0)
+        expect(result.stderr + result.stdout).toContain('Document created')
+
+        // Wait for indexing
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // Verify document exists
+        const getResult = await runCli(
+          ['document', 'get', createdDocHmId],
+          {server: ctx.webServerUrl},
+        )
+        expect(getResult.exitCode).toBe(0)
+        const data = JSON.parse(getResult.stdout)
+        expect(data.type).toBe('document')
+        expect(data.document.metadata.name).toBe('CLI Test Document')
+      },
+      TEST_TIMEOUT,
+    )
+
+    // --- Document Delete Tests ---
+
+    test(
+      'document delete deletes a document',
+      async () => {
+        // Create a document to delete
+        const deleteSlug = `delete-test-${Date.now()}`
+        const deleteHmId = `hm://${writeAccount.accountId}/${deleteSlug}`
+
+        const createResult = await runCli(
+          [
+            'document',
+            'create',
+            writeAccount.accountId,
+            '--path',
+            deleteSlug,
+            '--title',
+            'Doc To Delete',
+            '--body',
+            'This will be deleted',
+            '--key',
+            TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        expect(createResult.exitCode).toBe(0)
+
+        // Wait for indexing
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // Verify it exists
+        const existsResult = await runCli(
+          ['document', 'get', deleteHmId],
+          {server: ctx.webServerUrl},
+        )
+        expect(existsResult.exitCode).toBe(0)
+
+        // Delete it
+        const deleteResult = await runCli(
+          [
+            'document',
+            'delete',
+            deleteHmId,
+            '--key',
+            TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        if (deleteResult.exitCode !== 0) {
+          console.log('[test] document delete stderr:', deleteResult.stderr)
+          console.log('[test] document delete stdout:', deleteResult.stdout)
+        }
+        expect(deleteResult.exitCode).toBe(0)
+        expect(deleteResult.stderr + deleteResult.stdout).toContain('Document deleted')
+
+        // Wait for indexing
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // Verify the document is deleted (should fail or return deleted status)
+        const getResult = await runCli(
+          ['document', 'get', deleteHmId],
+          {server: ctx.webServerUrl},
+        )
+        // Deleted documents should return an error or have type 'deleted'
+        if (getResult.exitCode === 0) {
+          const data = JSON.parse(getResult.stdout)
+          expect(data.type).not.toBe('document')
+        } else {
+          // Expected: document not found after deletion
+          expect(getResult.exitCode).not.toBe(0)
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
+    // --- Document Fork Tests ---
+
+    test(
+      'document fork creates a copy at destination',
+      async () => {
+        // Create source document
+        const sourceSlug = `fork-source-${Date.now()}`
+        const sourceHmId = `hm://${writeAccount.accountId}/${sourceSlug}`
+
+        const createResult = await runCli(
+          [
+            'document',
+            'create',
+            writeAccount.accountId,
+            '--path',
+            sourceSlug,
+            '--title',
+            'Fork Source',
+            '--body',
+            'Content to fork',
+            '--key',
+            TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        expect(createResult.exitCode).toBe(0)
+
+        // Wait for indexing
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // Fork to destination
+        const destSlug = `fork-dest-${Date.now()}`
+        const destHmId = `hm://${writeAccount.accountId}/${destSlug}`
+
+        const forkResult = await runCli(
+          [
+            'document',
+            'fork',
+            sourceHmId,
+            destHmId,
+            '--key',
+            TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        if (forkResult.exitCode !== 0) {
+          console.log('[test] document fork stderr:', forkResult.stderr)
+          console.log('[test] document fork stdout:', forkResult.stdout)
+        }
+        expect(forkResult.exitCode).toBe(0)
+        expect(forkResult.stderr + forkResult.stdout).toContain('Document forked')
+
+        // Wait for indexing
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // Verify destination exists with same content
+        const getResult = await runCli(
+          ['document', 'get', destHmId],
+          {server: ctx.webServerUrl},
+        )
+        expect(getResult.exitCode).toBe(0)
+        const data = JSON.parse(getResult.stdout)
+        expect(data.type).toBe('document')
+        expect(data.document.metadata.name).toBe('Fork Source')
+
+        // Verify source still exists
+        const sourceResult = await runCli(
+          ['document', 'get', sourceHmId],
+          {server: ctx.webServerUrl},
+        )
+        expect(sourceResult.exitCode).toBe(0)
+      },
+      TEST_TIMEOUT,
+    )
+
+    // --- Document Move Tests ---
+
+    test(
+      'document move creates destination and redirects source',
+      async () => {
+        // Create source document
+        const moveSourceSlug = `move-source-${Date.now()}`
+        const moveSourceHmId = `hm://${writeAccount.accountId}/${moveSourceSlug}`
+
+        const createResult = await runCli(
+          [
+            'document',
+            'create',
+            writeAccount.accountId,
+            '--path',
+            moveSourceSlug,
+            '--title',
+            'Move Source',
+            '--body',
+            'Content to move',
+            '--key',
+            TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        expect(createResult.exitCode).toBe(0)
+
+        // Wait for indexing
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // Move to destination
+        const moveDestSlug = `move-dest-${Date.now()}`
+        const moveDestHmId = `hm://${writeAccount.accountId}/${moveDestSlug}`
+
+        const moveResult = await runCli(
+          [
+            'document',
+            'move',
+            moveSourceHmId,
+            moveDestHmId,
+            '--key',
+            TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        if (moveResult.exitCode !== 0) {
+          console.log('[test] document move stderr:', moveResult.stderr)
+          console.log('[test] document move stdout:', moveResult.stdout)
+        }
+        expect(moveResult.exitCode).toBe(0)
+        expect(moveResult.stderr + moveResult.stdout).toContain('Document moved')
+
+        // Wait for indexing
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // Verify destination exists with same content
+        const destResult = await runCli(
+          ['document', 'get', moveDestHmId],
+          {server: ctx.webServerUrl},
+        )
+        expect(destResult.exitCode).toBe(0)
+        const data = JSON.parse(destResult.stdout)
+        expect(data.type).toBe('document')
+        expect(data.document.metadata.name).toBe('Move Source')
+      },
+      TEST_TIMEOUT,
+    )
+
+    // --- Document Redirect Tests ---
+
+    test(
+      'document redirect creates a redirect',
+      async () => {
+        // Create a document to redirect
+        const redirectSlug = `redirect-source-${Date.now()}`
+        const redirectHmId = `hm://${writeAccount.accountId}/${redirectSlug}`
+
+        const createResult = await runCli(
+          [
+            'document',
+            'create',
+            writeAccount.accountId,
+            '--path',
+            redirectSlug,
+            '--title',
+            'Redirect Source',
+            '--body',
+            'Will redirect',
+            '--key',
+            TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        expect(createResult.exitCode).toBe(0)
+
+        // Wait for indexing
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // Create a target document
+        const targetSlug = `redirect-target-${Date.now()}`
+        const targetHmId = `hm://${writeAccount.accountId}/${targetSlug}`
+
+        const targetResult = await runCli(
+          [
+            'document',
+            'create',
+            writeAccount.accountId,
+            '--path',
+            targetSlug,
+            '--title',
+            'Redirect Target',
+            '--body',
+            'Target content',
+            '--key',
+            TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        expect(targetResult.exitCode).toBe(0)
+
+        // Wait for indexing
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // Redirect source to target
+        const redirectResult = await runCli(
+          [
+            'document',
+            'redirect',
+            redirectHmId,
+            '--to',
+            targetHmId,
+            '--key',
+            TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        if (redirectResult.exitCode !== 0) {
+          console.log('[test] document redirect stderr:', redirectResult.stderr)
+          console.log('[test] document redirect stdout:', redirectResult.stdout)
+        }
+        expect(redirectResult.exitCode).toBe(0)
+        expect(redirectResult.stderr + redirectResult.stdout).toContain('Redirect created')
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'document delete with missing key shows error',
+      async () => {
+        const result = await runCli(
+          [
+            'document',
+            'delete',
+            `hm://${writeAccount.accountId}/nonexistent`,
+            '--key',
+            'nonexistent-key-name',
+          ],
+          {server: ctx.webServerUrl},
+        )
+        expect(result.exitCode).toBe(1)
+        expect(result.stderr).toContain('not found')
+      },
+      TEST_TIMEOUT,
+    )
+
     // --- Contact Tests ---
 
     const contactName = `Test Contact ${Date.now()}`
