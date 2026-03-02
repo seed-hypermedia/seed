@@ -269,16 +269,6 @@ export function ResourcePage({
     )
   }
 
-  // Handle redirect - for now just show not found, redirect handling comes later
-  if (resource.data.type === 'redirect') {
-    return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
-        <PageNotFound />
-        {pageFooter}
-      </PageWrapper>
-    )
-  }
-
   // Handle comment - render target document's discussions view with comment open
   if (resource.data.type === 'comment') {
     return (

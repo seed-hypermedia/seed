@@ -1435,7 +1435,7 @@ export function BlockEmbedCard({
   if (doc.data?.type === 'error') {
     return <ErrorBlock message={doc.data.message} />
   }
-  if (doc.isError || !doc.data || doc.data.type == 'redirect') return <ErrorBlock message="Could not load embed" />
+  if (doc.isError || !doc.data) return <ErrorBlock message="Could not load embed" />
 
   const accountsMetadata = Object.fromEntries(
     authors

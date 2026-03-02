@@ -70,7 +70,12 @@ export function queryResource(client: UniversalClient, id: UnpackedHypermediaId 
     queryFn: async (): Promise<HMResource | null> => {
       if (!id) return null
       try {
-        const res = await client.request<HMResourceRequest>('Resource', id)
+        let res = await client.request<HMResourceRequest>('Resource', id)
+        // Follow redirects automatically so consumers never see {type: 'redirect'}
+        let maxRedirects = 5
+        while (res?.type === 'redirect' && maxRedirects-- > 0) {
+          res = await client.request<HMResourceRequest>('Resource', res.redirectTarget)
+        }
         return HMResourceSchema.parse(res)
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Unknown error'

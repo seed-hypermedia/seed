@@ -13,7 +13,7 @@ import {Feed} from '@shm/ui/feed'
 import {FeedFilters} from '@shm/ui/feed-filters'
 import {OpenInPanelButton} from '@shm/ui/open-in-panel'
 import {PageLayout} from '@shm/ui/page-layout'
-import {PageDiscovery, PageNotFound, PageRedirected} from '@shm/ui/page-message-states'
+import {PageDiscovery, PageNotFound} from '@shm/ui/page-message-states'
 import {SiteHeader} from '@shm/ui/site-header'
 import {toast} from '@shm/ui/toast'
 import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
@@ -77,16 +77,6 @@ function _ActivityContent({id, route}: {id: UnpackedHypermediaId; route: Activit
     resource.data?.type === 'document' ? resource.data.document : undefined
 
   if (resource.isInitialLoading) return null
-
-  if (resource.data?.type === 'redirect') {
-    return (
-      <PageRedirected
-        docId={id}
-        redirectTarget={resource.data.redirectTarget}
-        onNavigate={(target) => navigate({key: 'activity', id: target})}
-      />
-    )
-  }
 
   if (resource.data?.type === 'not-found') {
     if (resource.isDiscovering) {
