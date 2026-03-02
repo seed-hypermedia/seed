@@ -1,6 +1,6 @@
 import {PlainMessage, Struct, Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
-import {useInfiniteQuery, useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
+import {useInfiniteQuery, useQueries, useQuery, useQueryClient, UseQueryOptions} from '@tanstack/react-query'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {DocumentInfo, RedirectErrorDetails} from '../client'
 import {DISCOVERY_TIMEOUT_MS} from '../constants'
@@ -160,14 +160,29 @@ export function useResource(
     result.data?.type === 'not-found' &&
     (!!discoveryInProgress || result.isFetching)
 
-  // Redirect handling
-  const redirectTarget = result.data?.type === 'redirect' ? result.data.redirectTarget : null
+  // Redirect handling — queryResource follows redirects, so data.type is never
+  // 'redirect'. Instead, detect redirects by comparing the returned id with the
+  // requested id. Also populate the cache for the target id so other components
+  // querying the target directly get an instant cache hit.
+  const queryClient = useQueryClient()
+  const redirectTarget = (() => {
+    if (!result.data || !id) return null
+    if (result.data.type !== 'document' && result.data.type !== 'comment') return null
+    if (result.data.id?.id !== id.id) return result.data.id
+    return null
+  })()
   const onRedirectOrDeletedRef = useRef(onRedirectOrDeleted)
   onRedirectOrDeletedRef.current = onRedirectOrDeleted
   const handledRedirectRef = useRef<string | null>(null)
   useEffect(() => {
     if (redirectTarget && handledRedirectRef.current !== redirectTarget.id) {
       handledRedirectRef.current = redirectTarget.id
+      // Cache the resolved data under the target's key so other components
+      // querying the target id get an instant cache hit instead of re-fetching.
+      queryClient.setQueryData(
+        [queryKeys.ENTITY, redirectTarget.id, redirectTarget.version || undefined, redirectTarget.latest || false],
+        result.data,
+      )
       onRedirectOrDeletedRef.current?.({isDeleted: false, redirectTarget})
     }
   }, [redirectTarget])
