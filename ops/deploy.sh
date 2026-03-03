@@ -93,6 +93,23 @@ else
   info "Docker already installed: $(docker --version)"
 fi
 
+if ! command_exists unzip; then
+  info "Installing unzip (required for Bun)..."
+  if command_exists apt-get; then
+    sudo apt-get update -qq && sudo apt-get install -y -qq unzip
+  elif command_exists dnf; then
+    sudo dnf install -y -q unzip
+  elif command_exists yum; then
+    sudo yum install -y -q unzip
+  elif command_exists apk; then
+    sudo apk add --quiet unzip
+  else
+    echo "ERROR: 'unzip' is required to install Bun but could not be installed automatically." >&2
+    echo "Please install 'unzip' manually and re-run this script." >&2
+    exit 1
+  fi
+fi
+
 if ! command_exists bun; then
   info "Installing Bun..."
   curl -fsSL https://bun.sh/install | bash
@@ -135,4 +152,4 @@ case ":${PATH}:" in
 esac
 
 info "Running deployment script..."
-exec bun "${SEED_DIR}/deploy.js"
+exec bun "${SEED_DIR}/deploy.js" </dev/tty
