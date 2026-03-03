@@ -6,7 +6,7 @@ description: Access content on the Hypermedia Network using Seed Hypermedia CLI.
 
 ## Overview
 
-The Seed CLI is a command-line interface for interacting with the Seed Hypermedia network. It allows you to fetch documents, search content, manage accounts, and perform various operations on the hypermedia network.
+The Seed CLI is a command-line interface for interacting with the Seed Hypermedia network. It allows you to fetch documents, search content, manage accounts, create and update documents, manage comments, contacts, capabilities, and signing keys.
 
 Seed servers are open source and self-hostable servers running on the peer-to-peer Hypermedia network. You can use the CLI to interact with any Seed server using its API.
 
@@ -60,15 +60,16 @@ The headers are URL encoded but you can see the hm:// URL is available in `x-hyp
 - `--yaml`: YAML output
 - `--pretty`: Pretty formatted output
 - `-q, --quiet`: Minimal output
+- `--dev`: Use development keyring (seed-daemon-dev)
 - `-h, --help`: Display help for command
 
 ## Commands
 
 ### Document Operations
 
-#### `get <id>` - Fetch a document, comment, or entity
+#### `document get <id>` - Fetch a document, comment, or entity
 
-Fetch content by Hypermedia ID.
+Fetch content by Hypermedia ID. Supports documents, comments, and entities.
 
 **Options:**
 
@@ -81,22 +82,192 @@ Fetch content by Hypermedia ID.
 **Example:**
 
 ```bash
-npx -y @seed-hypermedia/cli get --md "hm://HYPERMEDIA_URL_HERE"
+npx -y @seed-hypermedia/cli document get --md "hm://HYPERMEDIA_URL_HERE"
 ```
 
-#### `cid <cid>` - Fetch raw IPFS block by CID
+#### `document create <account>` - Create a new document
 
-Retrieve raw IPFS content by Content Identifier.
+Create a new document from markdown or HMBlockNodes JSON.
 
-#### `stats <id>` - Get interaction statistics for a document
+**Options:**
 
-Get metrics and statistics for a specific document.
+- `--title <title>`: **Required.** Document title
+- `-p, --path <path>`: Document path (default: slugified title)
+- `--body <text>`: Markdown content (inline)
+- `--body-file <file>`: Read markdown from file
+- `--blocks <json>`: HMBlockNodes JSON (inline)
+- `--blocks-file <file>`: Read HMBlockNodes JSON from file
+- `-k, --key <name>`: Signing key name or account ID
+
+**Example:**
+
+```bash
+npx -y @seed-hypermedia/cli document create z6Mk... --title "My Document" --body "Hello world" --key main
+```
+
+#### `document update <id>` - Update a document
+
+Update document metadata, append content, replace content, or delete blocks.
+
+**Options:**
+
+- `--title <title>`: Set document title
+- `--summary <summary>`: Set document summary
+- `--body <text>`: Markdown content to append
+- `--body-file <file>`: Read markdown to append from file
+- `--replace-body <file>`: Replace entire body from file (smart diff)
+- `--parent <blockId>`: Parent block for new content
+- `--delete-blocks <ids>`: Comma-separated block IDs to delete
+- `-k, --key <name>`: Signing key name or account ID
+
+#### `document delete <id>` - Delete a document
+
+Publish a tombstone ref to mark a document as deleted.
+
+**Options:**
+
+- `-k, --key <name>`: Signing key name or account ID
+
+#### `document fork <sourceId> <destinationId>` - Fork a document
+
+Copy a document to a new location without creating a redirect at the source.
+
+**Options:**
+
+- `-k, --key <name>`: Signing key name or account ID
+
+#### `document move <sourceId> <destinationId>` - Move a document
+
+Move a document: creates a copy at the destination and a redirect at the source.
+
+**Options:**
+
+- `-k, --key <name>`: Signing key name or account ID
+
+#### `document redirect <id>` - Create a redirect
+
+Create a redirect from one document to another.
+
+**Options:**
+
+- `--to <targetId>`: **Required.** Target Hypermedia ID
+- `--republish`: Republish target content at this location
+- `-k, --key <name>`: Signing key name or account ID
+
+#### `document changes <targetId>` - List change history
+
+List the version DAG for a document.
+
+**Options:**
+
+- `-q, --quiet`: Output CIDs and authors only
+
+#### `document stats <id>` - Get interaction statistics
+
+Get citation, comment, change, and child counts for a document.
+
+#### `document cid <cid>` - Fetch raw IPFS block by CID
+
+Retrieve and decode a raw IPFS block by its Content Identifier.
+
+### Account Management
+
+#### `account get <uid>` - Get account information
+
+**Options:**
+
+- `-q, --quiet`: Output name only
+
+#### `account list` - List all known accounts
+
+**Options:**
+
+- `-q, --quiet`: Output IDs and names only
+
+#### `account contacts <uid>` - List contacts for an account
+
+**Options:**
+
+- `-q, --quiet`: Output names only
+
+#### `account capabilities <id>` - List access control capabilities
+
+View delegated access permissions for a resource.
+
+### Comment Operations
+
+#### `comment get <id>` - Get a single comment
+
+#### `comment list <targetId>` - List comments on a document
+
+**Options:**
+
+- `-q, --quiet`: Output IDs and authors only
+
+#### `comment create <targetId>` - Create a comment
+
+**Options:**
+
+- `--body <text>`: Comment text
+- `--file <path>`: Read comment from file
+- `--reply <commentId>`: Reply to an existing comment (threading)
+- `-k, --key <name>`: Signing key name or account ID
+
+Supports inline mentions: `@[DisplayName](hm://accountId)`.
+Supports block-level comments: target a specific block with `#blockId` in the URL.
+
+#### `comment delete <commentId>` - Delete a comment
+
+**Options:**
+
+- `-k, --key <name>`: Signing key name or account ID
+
+#### `comment discussions <targetId>` - List threaded discussions
+
+**Options:**
+
+- `-c, --comment <id>`: Filter to specific thread
+
+### Contact Operations
+
+#### `contact create` - Create a contact
+
+**Options:**
+
+- `--subject <accountId>`: **Required.** Account ID being described
+- `--name <name>`: **Required.** Display name
+- `-k, --key <name>`: Signing key name or account ID
+
+#### `contact delete <contactIdOrCid>` - Delete a contact
+
+Accepts record ID (authority/tsid) or CID.
+
+**Options:**
+
+- `-k, --key <name>`: Signing key name or account ID
+
+#### `contact list [accountId]` - List contacts
+
+**Options:**
+
+- `--account`: Only contacts signed by the account
+- `--subject`: Only contacts where the account is the subject
+
+### Capability Operations
+
+#### `capability create` - Delegate access
+
+**Options:**
+
+- `--delegate <accountId>`: **Required.** Account receiving access
+- `--role <role>`: **Required.** `WRITER` or `AGENT`
+- `--path <path>`: Path scope
+- `--label <label>`: Human-readable label
+- `-k, --key <name>`: Signing key name or account ID
 
 ### Search and Query
 
 #### `search <query>` - Search for documents
-
-Search across the hypermedia network.
 
 **Options:**
 
@@ -105,14 +276,12 @@ Search across the hypermedia network.
 
 #### `query <space>` - List documents in a space
 
-Query documents within a specific space.
-
 **Options:**
 
 - `-p, --path <path>`: Path prefix
-- `-m, --mode <mode>`: Query mode: Children or AllDescendants (default: "Children")
+- `-m, --mode <mode>`: Query mode: `Children` (default) or `AllDescendants`
 - `-l, --limit <n>`: Limit results
-- `--sort <term>`: Sort by: Path, Title, CreateTime, UpdateTime, DisplayTime
+- `--sort <term>`: Sort by: `Path`, `Title`, `CreateTime`, `UpdateTime`, `DisplayTime`
 - `--reverse`: Reverse sort order
 - `-q, --quiet`: Output IDs and names only
 
@@ -126,156 +295,67 @@ Shorthand for `query --mode Children`.
 - `-l, --limit <n>`: Limit results
 - `-q, --quiet`: Output IDs and names only
 
-#### `citations <id>` - List documents citing this resource
-
-Find documents that reference or cite a specific resource.
+#### `citations <id>` - List citing documents
 
 **Options:**
 
 - `-q, --quiet`: Output source IDs only
 
-### Account Management
-
-#### `account <uid>` - Get account information
-
-Retrieve information about a specific account.
-
-**Options:**
-
-- `-q, --quiet`: Output ID only
-
-#### `accounts` - List all known accounts
-
-List all accounts known to the system.
-
-**Options:**
-
-- `-q, --quiet`: Output IDs and names only
-
-#### `contacts <uid>` - List contacts for an account
-
-Get the contact list for a specific account.
-
-**Options:**
-
-- `-q, --quiet`: Output names only
-
-### Comments and Discussions
-
-#### `comments <targetId>` - List comments on a document
-
-Get all comments for a specific document.
-
-**Options:**
-
-- `-q, --quiet`: Output IDs and authors only
-
-#### `discussions <targetId>` - List threaded discussions on a document
-
-Get threaded discussion view for a document.
-
-**Options:**
-
-- `-c, --comment <id>`: Filter to specific thread
-- `-q, --quiet`: Minimal output
-
-#### `comment <id>` - Get a single comment by ID
-
-Retrieve a specific comment.
-
-### Access Control
-
-#### `capabilities <id>` - List access control capabilities
-
-View access control permissions for a resource.
-
 ### Activity and History
 
 #### `activity` - List activity events
 
-View recent activity across the network.
-
 **Options:**
 
 - `-l, --limit <n>`: Page size
-- `-t, --token <token>`: Page token for pagination
+- `-t, --token <token>`: Pagination token
 - `--authors <uids>`: Filter by author UIDs (comma-separated)
 - `--resource <id>`: Filter by resource
 - `-q, --quiet`: Output summary only
 
-#### `changes <targetId>` - List document change history
-
-View the change history for a specific document.
-
-**Options:**
-
-- `-q, --quiet`: Output CIDs and authors only
-
 ### Key Management
 
-#### `key` - Manage signing keys
+Keys are stored in the **OS keyring** (macOS Keychain / Linux libsecret), shared with the Seed desktop app and daemon.
 
-Manage cryptographic keys for signing and authentication.
-
-**Subcommands:**
-
-##### `key generate` - Generate a new signing key
-
-Generate a new signing key from a BIP-39 mnemonic.
+#### `key generate` - Generate a new signing key
 
 **Options:**
 
-- `-n, --name <name>`: Name for the key (default: "default")
+- `-n, --name <name>`: Key name (default: "main")
 - `-w, --words <count>`: Mnemonic word count: 12 or 24 (default: "12")
-- `--passphrase <pass>`: Optional passphrase for key derivation
-- `--show-mnemonic`: Display the mnemonic (DANGER: write it down securely)
+- `--passphrase <pass>`: Optional BIP-39 passphrase
+- `--show-mnemonic`: Display the mnemonic (save securely!)
 
-##### `key import <mnemonic>` - Import a key from existing mnemonic
-
-Import a signing key from an existing BIP-39 mnemonic phrase.
+#### `key import <mnemonic>` - Import from mnemonic
 
 **Options:**
 
-- `-n, --name <name>`: Name for the key (default: "imported")
-- `--passphrase <pass>`: Optional passphrase for key derivation
+- `-n, --name <name>`: Key name (default: "imported")
+- `--passphrase <pass>`: Optional BIP-39 passphrase
 
-##### `key list` - List stored signing keys
+#### `key list` - List stored keys
 
-Display all stored signing keys.
+#### `key show [nameOrId]` - Show key info
 
-##### `key show [nameOrId]` - Show key information
+#### `key default [nameOrId]` - Set or show default key
 
-Display information about a specific key or the default key.
-
-**Options:**
-
-- `--show-mnemonic`: Display the mnemonic (DANGER)
-
-##### `key remove <nameOrId>` - Remove a stored key
-
-Permanently delete a stored signing key.
+#### `key remove <nameOrId>` - Remove a key
 
 **Options:**
 
-- `-f, --force`: Skip confirmation prompt
+- `-f, --force`: Skip confirmation
 
-##### `key default [nameOrId]` - Set or show default signing key
+#### `key rename <currentName> <newName>` - Rename a key
 
-Set the default key for signing operations, or show the current default.
-
-##### `key derive <mnemonic>` - Derive account ID from mnemonic
-
-Derive and display the account ID from a mnemonic without storing it.
+#### `key derive <mnemonic>` - Derive account ID without storing
 
 **Options:**
 
-- `--passphrase <pass>`: Optional passphrase for key derivation
+- `--passphrase <pass>`: Optional BIP-39 passphrase
 
 ### Configuration
 
 #### `config` - Manage CLI configuration
-
-Configure CLI settings.
 
 **Options:**
 
@@ -287,13 +367,25 @@ Configure CLI settings.
 ### Reading a Document as Markdown
 
 ```bash
-npx -y @seed-hypermedia/cli get --md "hm://document-id-here"
+npx -y @seed-hypermedia/cli document get --md "hm://document-id-here"
 ```
 
 ### Reading with Full Context Resolution
 
 ```bash
-npx -y @seed-hypermedia/cli get --md --resolve --frontmatter "hm://document-id-here"
+npx -y @seed-hypermedia/cli document get --md --resolve --frontmatter "hm://document-id-here"
+```
+
+### Creating a Document
+
+```bash
+npx -y @seed-hypermedia/cli document create z6Mk... --title "My Doc" --body-file content.md --key main
+```
+
+### Updating a Document
+
+```bash
+npx -y @seed-hypermedia/cli document update hm://z6Mk.../my-doc --replace-body updated.md --key main
 ```
 
 ### Searching for Content
@@ -311,13 +403,20 @@ npx -y @seed-hypermedia/cli query "space-id" --sort UpdateTime --reverse
 ### Getting Account Information
 
 ```bash
-npx -y @seed-hypermedia/cli account "account-uid"
+npx -y @seed-hypermedia/cli account get "account-uid"
 ```
 
-### Viewing Comments
+### Creating and Managing Comments
 
 ```bash
-npx -y @seed-hypermedia/cli comments "document-id"
+# Create a comment
+npx -y @seed-hypermedia/cli comment create "hm://z6Mk.../doc" --body "Great work!" --key main
+
+# Reply to a comment
+npx -y @seed-hypermedia/cli comment create "hm://z6Mk.../doc" --body "Thanks!" --reply bafy... --key main
+
+# List comments
+npx -y @seed-hypermedia/cli comment list "hm://z6Mk.../doc"
 ```
 
 ### Managing Keys
@@ -336,20 +435,27 @@ npx -y @seed-hypermedia/cli key list
 npx -y @seed-hypermedia/cli key derive "word1 word2 ... word12"
 ```
 
+### Delegating Access
+
+```bash
+npx -y @seed-hypermedia/cli capability create --delegate z6MkBob... --role WRITER --key alice
+```
+
 ## Output Formats
 
 The CLI supports multiple output formats:
 
 - **JSON** (default): Machine-readable structured data
 - **YAML**: Human-readable structured data (`--yaml`)
-- **Pretty**: Formatted output (`--pretty`)
-- **Markdown**: For documents (`--md` with get command)
-- **Quiet**: Minimal output (`--quiet`)
+- **Pretty**: Colorized formatted output (`--pretty`)
+- **Markdown**: For documents (`--md` with document get)
+- **Quiet**: Minimal tab-separated output (`--quiet`)
 
 ## Server Configuration
 
 By default, the CLI connects to `https://hyper.media`. You can:
 
 - Use a different server for a single command: `-s, --server <url>`
-- Set a default server: `npx -y @seed-hypermedia/cli config --server <url>`
-- View current configuration: `npx -y @seed-hypermedia/cli config --show`
+- Set a default server: `config --server <url>`
+- Set via environment variable: `SEED_SERVER=https://...`
+- View current configuration: `config --show`
