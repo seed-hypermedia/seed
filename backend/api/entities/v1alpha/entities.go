@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
+	"seed/backend/config"
 	"seed/backend/core"
 	entpb "seed/backend/genproto/entities/v1alpha"
 	"seed/backend/hlc"
@@ -52,6 +53,7 @@ type Discoverer interface {
 type Server struct {
 	entpb.UnimplementedEntitiesServer
 
+	cfg      config.Base
 	db       *sqlitex.Pool
 	disc     Discoverer
 	embedder llm.LightEmbedder
@@ -59,8 +61,9 @@ type Server struct {
 }
 
 // NewServer creates a new entities server.
-func NewServer(db *sqlitex.Pool, disc Discoverer, embedder llm.LightEmbedder, log *zap.Logger) *Server {
+func NewServer(cfg config.Base, db *sqlitex.Pool, disc Discoverer, embedder llm.LightEmbedder, log *zap.Logger) *Server {
 	return &Server{
+		cfg:      cfg,
 		db:       db,
 		disc:     disc,
 		embedder: embedder,
@@ -300,6 +303,7 @@ FROM fts
 JOIN fts_index fi ON fi.rowid = fts.rowid
 JOIN structural_blobs sb ON sb.id = fts.blob_id
 JOIN blobs ON blobs.id = fts.blob_id
+LEFT JOIN public_blobs pb ON pb.id = fts.blob_id
 LEFT JOIN resources r1 ON r1.id = sb.resource
 LEFT JOIN blob_links bl ON bl.target = fts.blob_id AND bl.type = 'ref/head'
 LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
@@ -309,6 +313,7 @@ WHERE fts.raw_content MATCH ?
   AND blobs.size > 0
   AND COALESCE(r1.iri, r2.iri) IS NOT NULL
   AND COALESCE(r1.iri, r2.iri) GLOB ?
+  AND (? = 0 OR pb.id IS NOT NULL)
 ORDER BY
   (fts.type = 'contact' OR fts.type = 'title') DESC,
   fts.rank ASC
@@ -317,7 +322,7 @@ LIMIT ?
 
 // keywordSearch performs minimal FTS search returning SearchResultMap.
 // This is a standalone function (not Server method) used for hybrid search.
-func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[string]bool, iriGlob string) (llm.SearchResultMap, error) {
+func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[string]bool, iriGlob string, publicOnly bool) (llm.SearchResultMap, error) {
 	results := make(llm.SearchResultMap)
 	var entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment interface{}
 	supportedType := false
@@ -344,13 +349,14 @@ func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[
 		return nil, errors.New("at least one content type is required. Otherwise there is nothing to search :)")
 	}
 	score := float32(999999.9)
+
 	if err := sqlitex.Exec(conn, qKeywordSearch(), func(stmt *sqlite.Stmt) error {
 		// The query alredy handles proper ordering and limit. The order depends on type and rank.
 		// We assign scores in decreasing order to be consistent with other search methods.
 		results[stmt.ColumnInt64(0)] = score
 		score--
 		return nil
-	}, query, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob, limit); err != nil {
+	}, query, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob, publicOnly, limit); err != nil {
 		return nil, fmt.Errorf("keyword search failed: %w", err)
 	}
 
@@ -808,13 +814,13 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			semanticResults, semanticErr = srv.embedder.SemanticSearch(ctx, query, resultsLmit*3, contentTypes, iriGlob, semanticThreshold)
+			semanticResults, semanticErr = srv.embedder.SemanticSearch(ctx, query, resultsLmit*3, contentTypes, iriGlob, semanticThreshold, srv.cfg.PublicOnly)
 		}()
 		go func() {
 			defer wg.Done()
 			keywordErr = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 				var err error
-				keywordResults, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit*3, contentTypes, iriGlob)
+				keywordResults, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit*3, contentTypes, iriGlob, srv.cfg.PublicOnly)
 				return err
 			})
 		}()
@@ -838,7 +844,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		// Semantic-only search. Any failure is surfaced to the caller since there
 		// is no keyword leg to fall back to.
 		var err error
-		winners, err = srv.embedder.SemanticSearch(ctx, query, resultsLmit*2, contentTypes, iriGlob, semanticThreshold)
+		winners, err = srv.embedder.SemanticSearch(ctx, query, resultsLmit*2, contentTypes, iriGlob, semanticThreshold, srv.cfg.PublicOnly)
 		if err != nil {
 			return nil, fmt.Errorf("semantic search failed: %w", err)
 		}
@@ -847,7 +853,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		// Keyword only search:
 		err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 			var err error
-			winners, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit, contentTypes, iriGlob)
+			winners, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit, contentTypes, iriGlob, srv.cfg.PublicOnly)
 			return err
 		})
 		if err != nil {

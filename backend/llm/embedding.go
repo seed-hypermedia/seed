@@ -92,7 +92,7 @@ var gibberishEmbedding = []int8{
 // Returns the top limit results matching the query.
 // Threshold is the minimum similarity score (0.0 to 1.0) to include in results.
 type LightEmbedder interface {
-	SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string, threshold float32) (SearchResultMap, error)
+	SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string, threshold float32, publicOnly bool) (SearchResultMap, error)
 }
 
 // Embedder handles embedding generation and indexing.
@@ -416,7 +416,7 @@ func (srList SearchResultList) ToMap() SearchResultMap {
 // If empty, defaults to ["title", "document", "comment"].
 // iriGlob filters results by IRI pattern. If empty, defaults to "*" (all).
 // Threshold filters results by minimum similarity score (0.0 to 1.0). Default is 0.0 (no filtering).
-func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string, threshold float32) (SearchResultMap, error) {
+func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string, threshold float32, publicOnly bool) (SearchResultMap, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -501,8 +501,8 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 		// The subquery parameters are duplicated for both UNION branches.
 		if err := sqlitex.Exec(conn, qEmbeddingsSearchFiltered(), resultHandler,
 			queryEmbedding, maxDistance, limit,
-			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob,
-			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob,
+			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob, publicOnly,
+			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob, publicOnly,
 		); err != nil {
 			return nil, fmt.Errorf("semantic search query failed: %w", err)
 		}
@@ -510,7 +510,7 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 		// Use unfiltered query for generic IRI patterns.
 		if err := sqlitex.Exec(conn, qEmbeddingsSearchUnfiltered(), resultHandler,
 			queryEmbedding, maxDistance, limit,
-			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment,
+			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, publicOnly,
 		); err != nil {
 			return nil, fmt.Errorf("semantic search query failed: %w", err)
 		}
@@ -889,10 +889,12 @@ SELECT
 	v.distance
 FROM embeddings v
 JOIN fts_index fi ON fi.rowid = v.fts_id
+LEFT JOIN public_blobs pb ON pb.id = fi.blob_id
 WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
   AND v.distance < ?
   AND k = ?
   AND fi.type IN (?, ?, ?, ?)
+  AND (? = 0 OR pb.id IS NOT NULL)
 ORDER BY v.distance
 `)
 
@@ -914,15 +916,19 @@ WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
     SELECT fi.rowid FROM fts_index fi
     JOIN structural_blobs sb ON sb.id = fi.blob_id
     JOIN resources r ON r.id = sb.resource
+    LEFT JOIN public_blobs pb ON pb.id = fi.blob_id
     WHERE fi.type IN (?, ?, ?, ?)
       AND r.iri GLOB ?
+      AND (? = 0 OR pb.id IS NOT NULL)
     UNION
     SELECT fi.rowid FROM fts_index fi
     JOIN blob_links bl ON bl.target = fi.blob_id AND bl.type = 'ref/head'
     JOIN structural_blobs sb ON sb.id = bl.source
     JOIN resources r ON r.id = sb.resource
+    LEFT JOIN public_blobs pb ON pb.id = fi.blob_id
     WHERE fi.type IN (?, ?, ?, ?)
       AND r.iri GLOB ?
+      AND (? = 0 OR pb.id IS NOT NULL)
   )
 ORDER BY v.distance
 `)

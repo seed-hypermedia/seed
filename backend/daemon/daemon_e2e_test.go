@@ -34,9 +34,12 @@ import (
 	"github.com/ipfs/boxo/files"
 	unixfile "github.com/ipfs/boxo/ipld/unixfs/file"
 	"github.com/ipfs/go-cid"
+	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -2754,6 +2757,57 @@ func TestPrivateDocumentAccessControl(t *testing.T) {
 	}
 	require.True(t, foundPrivate, "Alice must see the private document in her document list")
 	require.True(t, foundPublic, "Alice must see the public document in her document list")
+
+	// Alice creates a private comment on her private document.
+	aliceComment, err := alice.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  privateDoc.Account,
+		TargetPath:     privateDoc.Path,
+		TargetVersion:  privateDoc.Version,
+		Content: []*documents.BlockNode{
+			{Block: &documents.Block{Id: "c1", Type: "paragraph", Text: "Alice private comment"}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Don't blindly trust what API returns.
+	require.Equal(t, string(blob.VisibilityPrivate), aliceComment.Visibility)
+
+	// Inspect the actual blob data of the comment to ensure it has explicit visibility field.
+	blobCID, err := cid.Decode(aliceComment.Version)
+	require.NoError(t, err)
+
+	blk, err := alice.Index.Get(ctx, blobCID)
+	require.NoError(t, err)
+
+	var raw blob.Comment
+	require.NoError(t, cbornode.DecodeInto(blk.RawData(), &raw))
+	require.Equal(t, blob.VisibilityPrivate, raw.Visibility, "the actual blob data must have explicit visibility field")
+
+	// Alice replies to her private comment.
+	aliceReply, err := alice.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  privateDoc.Account,
+		TargetPath:     privateDoc.Path,
+		TargetVersion:  privateDoc.Version,
+		ReplyParent:    aliceComment.Id,
+		Content: []*documents.BlockNode{
+			{Block: &documents.Block{Id: "c2", Type: "paragraph", Text: "Alice reply"}},
+		},
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, string(blob.VisibilityPrivate), aliceReply.Visibility)
+
+	replyBlobCID, err := cid.Decode(aliceReply.Version)
+	require.NoError(t, err)
+
+	replyBlk, err := alice.Index.Get(ctx, replyBlobCID)
+	require.NoError(t, err)
+
+	var replyRaw blob.Comment
+	require.NoError(t, cbornode.DecodeInto(replyBlk.RawData(), &replyRaw))
+	require.Equal(t, blob.VisibilityPrivate, replyRaw.Visibility, "the actual reply blob data must have explicit visibility field")
 }
 
 func TestPrivateDocumentUpdatePreservesVisibility(t *testing.T) {
@@ -4087,4 +4141,105 @@ func TestSearchVersionConsistency(t *testing.T) {
 			}
 		})
 	})
+}
+
+func TestPublicOnlyGetPrivateDocument(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// Create a single server with PublicOnly=true.
+	cfg := makeTestConfig(t)
+	cfg.Base.PublicOnly = true
+	alice := makeTestApp(t, "alice", cfg, true)
+
+	// Create a private document.
+	privateDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main")).String(),
+		Path:           "/private-doc",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Secret Document"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE, privateDoc.Visibility)
+
+	// Try to get the document WITH a version - expect PermissionDenied.
+	_, err = alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: privateDoc.Account,
+		Path:    privateDoc.Path,
+		Version: privateDoc.Version,
+	})
+	require.Error(t, err, "GetDocument for private doc with version should fail when PublicOnly=true")
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	require.Equal(t, codes.PermissionDenied, st.Code(), "error should be PermissionDenied")
+
+	// Try to get the document WITHOUT a version - expect PermissionDenied.
+	_, err = alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: privateDoc.Account,
+		Path:    privateDoc.Path,
+	})
+	require.Error(t, err, "GetDocument for private doc without version should fail when PublicOnly=true")
+	st, ok = status.FromError(err)
+	require.True(t, ok)
+	require.Equal(t, codes.PermissionDenied, st.Code(), "error should be PermissionDenied")
+
+	// Try to get the private document resource via GetResource - expect PermissionDenied.
+	resourceURL := "hm://" + privateDoc.Account + privateDoc.Path
+	_, err = alice.RPC.DocumentsV3.GetResource(ctx, &documents.GetResourceRequest{
+		Iri: resourceURL,
+	})
+	require.Error(t, err, "GetResource for private doc should fail when PublicOnly=true")
+	st, ok = status.FromError(err)
+	require.True(t, ok)
+	require.Equal(t, codes.PermissionDenied, st.Code(), "error should be PermissionDenied")
+
+	// Create a private comment on the private document.
+	comment, err := alice.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  privateDoc.Account,
+		TargetPath:     privateDoc.Path,
+		TargetVersion:  privateDoc.Version,
+		Content: []*documents.BlockNode{
+			{Block: &documents.Block{Id: "b1", Type: "paragraph", Text: "Private comment"}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, string(blob.VisibilityPrivate), comment.Visibility)
+
+	// Try to get the private comment resource via GetResource - expect PermissionDenied.
+	commentIRI := "hm://" + comment.Id
+	_, err = alice.RPC.DocumentsV3.GetResource(ctx, &documents.GetResourceRequest{Iri: commentIRI})
+	st, ok = status.FromError(err)
+	require.True(t, ok)
+	require.Equal(t, codes.PermissionDenied, st.Code(), "error should be PermissionDenied")
+
+	// Search for the private document content.
+	// It should NOT be returned because PublicOnly=true.
+	searchRes, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		Query: "Secret",
+	})
+	require.NoError(t, err)
+
+	for _, e := range searchRes.Entities {
+		if strings.Contains(e.Id, privateDoc.Path) {
+			t.Errorf("search returned private document: %s", e.Id)
+		}
+	}
+
+	searchResCmt, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		Query: "Private comment",
+	})
+	require.NoError(t, err)
+
+	for _, e := range searchResCmt.Entities {
+		if strings.Contains(e.Id, comment.Id) {
+			t.Errorf("search returned private comment: %s", e.Id)
+		}
+	}
 }
