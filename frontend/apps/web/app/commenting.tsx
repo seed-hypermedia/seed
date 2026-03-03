@@ -287,7 +287,7 @@ export default function WebCommenting({
           initialBlocks={draft || undefined}
           onContentChange={saveDraft}
           onAvatarPress={onAvatarPress}
-          importWebFile={importWebFile}
+          importWebFile={(url) => importWebFile(url, draftId)}
           handleFileAttachment={(file) => handleFileAttachment(file, draftId)}
           getDraftMediaBlob={async (draftId, mediaId) => {
             if (typeof window === 'undefined') return null
@@ -522,12 +522,15 @@ async function handleFileAttachment(
   }
 }
 
-const importWebFile: (url: string) => Promise<{
+async function importWebFile(
+  url: string,
+  draftId?: string,
+): Promise<{
   displaySrc: string
   fileBinary?: Uint8Array
   type: string
   size: number
-}> = async (url: string) => {
+}> {
   try {
     const res = await fetch(url, {method: 'GET', mode: 'cors'})
 
@@ -538,7 +541,7 @@ const importWebFile: (url: string) => Promise<{
     const contentType = res.headers.get('content-type') || 'application/octet-stream'
     const blob = await res.blob()
 
-    const result = await handleFileAttachment(blob)
+    const result = await handleFileAttachment(blob, draftId)
 
     return {
       displaySrc: result.displaySrc,

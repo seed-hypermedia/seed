@@ -612,6 +612,8 @@ export function CommentEditor({
         const newId = generateBlockId()
         let blockNode
 
+        const serializedMediaRef = props.mediaRef ? JSON.stringify(props.mediaRef) : ''
+
         if (chromiumSupportedImageMimeTypes.has(file.type)) {
           blockNode = {
             id: newId,
@@ -619,7 +621,7 @@ export function CommentEditor({
             props: {
               displaySrc: props.displaySrc,
               fileBinary: props.fileBinary,
-              mediaRef: props.mediaRef,
+              mediaRef: serializedMediaRef,
               name: props.name,
             },
           }
@@ -630,7 +632,7 @@ export function CommentEditor({
             props: {
               displaySrc: props.displaySrc,
               fileBinary: props.fileBinary,
-              mediaRef: props.mediaRef,
+              mediaRef: serializedMediaRef,
               name: props.name,
             },
           }
@@ -640,7 +642,7 @@ export function CommentEditor({
             type: 'file',
             props: {
               fileBinary: props.fileBinary,
-              mediaRef: props.mediaRef,
+              mediaRef: serializedMediaRef,
               name: props.name,
               size: props.size,
             },
@@ -743,6 +745,7 @@ export function CommentEditor({
                 const {state} = ttEditor.view
                 let blockNode
                 const newId = generateBlockId()
+                const serializedMediaRef = props.mediaRef ? JSON.stringify(props.mediaRef) : ''
 
                 if (chromiumSupportedImageMimeTypes.has(file.type)) {
                   blockNode = {
@@ -751,7 +754,7 @@ export function CommentEditor({
                     props: {
                       displaySrc: props.displaySrc,
                       fileBinary: props.fileBinary,
-                      mediaRef: props.mediaRef,
+                      mediaRef: serializedMediaRef,
                       name: props.name,
                     },
                   }
@@ -762,7 +765,7 @@ export function CommentEditor({
                     props: {
                       displaySrc: props.displaySrc,
                       fileBinary: props.fileBinary,
-                      mediaRef: props.mediaRef,
+                      mediaRef: serializedMediaRef,
                       name: props.name,
                     },
                   }
@@ -772,7 +775,7 @@ export function CommentEditor({
                     type: 'file',
                     props: {
                       fileBinary: props.fileBinary,
-                      mediaRef: props.mediaRef,
+                      mediaRef: serializedMediaRef,
                       name: props.name,
                       size: props.size,
                     },

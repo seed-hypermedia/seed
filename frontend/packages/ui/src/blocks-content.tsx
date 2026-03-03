@@ -79,7 +79,7 @@ import {CheckboxField} from './components/checkbox'
 import {RadioGroup, RadioGroupItem} from './components/radio-group'
 import {EmbedWrapper} from './embed-wrapper'
 import {BlankQueryBlockMessage} from './entity-card'
-import {extractIpfsUrlCid, getDaemonFileUrl, isIpfsUrl, useFileUrl, useImageUrl} from './get-file-url'
+import {extractIpfsUrlCid, getDaemonFileUrl, isIpfsUrl, useFileProxyUrl, useImageUrl} from './get-file-url'
 import {SeedHeading, marginClasses} from './heading'
 import {HMIcon} from './hm-icon'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from './hover-card'
@@ -1147,7 +1147,7 @@ function BlockContentVideo({block, parentBlockId, ...props}: BlockContentProps<H
   let inline = useMemo(() => hmBlockToEditorBlock(block)?.content ?? [], [block])
   const link = block.link || ''
   const {textUnit} = useBlocksContentContext()
-  const fileUrl = useFileUrl()
+  const fileUrl = useFileProxyUrl()
   if (block.type !== 'Video') return null
   const isIpfs = isIpfsUrl(link)
 
@@ -2520,7 +2520,10 @@ export function BlockContentMath({block, parentBlockId, ...props}: BlockContentP
 function getSourceType(name?: string) {
   if (!name) return
   const nameArray = name.split('.')
-  return `video/${nameArray[nameArray.length - 1]}`
+  const ext = nameArray[nameArray.length - 1]?.toLowerCase()
+  if (!ext) return undefined
+  if (ext === 'mov') return 'video/mp4'
+  return `video/${ext}`
 }
 
 export function InlineEmbedButton({

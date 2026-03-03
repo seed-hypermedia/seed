@@ -49,7 +49,7 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   return (
     <MediaRender
       block={block}
-      hideForm={!!block.props.url || !!block.props.fileBinary}
+      hideForm={!!block.props.url || !!block.props.fileBinary || !!block.props.mediaRef}
       editor={editor}
       mediaType="file"
       DisplayComponent={display}

@@ -1,4 +1,4 @@
-import {getDaemonFileUrl, isIpfsUrl, useFileUrl} from '@shm/ui/get-file-url'
+import {isIpfsUrl, useFileProxyUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
@@ -15,7 +15,11 @@ import {isValidUrl, youtubeParser} from './utils'
 
 export const getSourceType = (name: string) => {
   const nameArray = name.split('.')
-  return nameArray[nameArray.length - 1] ? `video/${nameArray[nameArray.length - 1]}` : undefined
+  const ext = nameArray[nameArray.length - 1]?.toLowerCase()
+  if (!ext) return undefined
+  // MOV files typically use H.264/AAC codecs that browsers support
+  if (ext === 'mov') return 'video/mp4'
+  return `video/${ext}`
 }
 
 function getVideoIframeSrc(link: string) {
@@ -127,7 +131,8 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
 }
 
 function validateFile(file: File) {
-  if (file.type === 'video/quicktime') {
+  const supportedTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime']
+  if (file.type && !supportedTypes.includes(file.type)) {
     toast.error('This video file format is not supported. Upload as a file, or convert the video to .mp4')
     return false
   }
@@ -135,7 +140,7 @@ function validateFile(file: File) {
 }
 
 const display = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
-  const getFileUrl = useFileUrl()
+  const getFileUrl = useFileProxyUrl()
 
   // Determine video source
   const videoSrc = (() => {
@@ -153,7 +158,10 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
         console.warn('Skipping invalid blob URL from old draft:', url)
         return ''
       }
-      return getFileUrl(url) || getDaemonFileUrl(url)
+      if (isIpfsUrl(url)) {
+        return getFileUrl(url)
+      }
+      return url
     }
     return ''
   })()
@@ -297,7 +305,7 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
             <ResizeHandle style={{right: 4}} onMouseDown={rightResizeHandleMouseDownHandler} />
           </>
         )}
-        {block.props.displaySrc ? (
+        {block.props.displaySrc || isIpfsUrl(block.props.url || '') ? (
           <video
             contentEditable={false}
             playsInline
@@ -307,22 +315,6 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
           >
             <source
               src={videoSrc}
-              // @ts-ignore
-              type={getSourceType(block.props.name)}
-            />
-            <p>Error with the video file.</p>
-          </video>
-        ) : // @ts-ignore
-        isIpfsUrl(block.props.url) ? (
-          <video
-            contentEditable={false}
-            playsInline
-            controls
-            preload="metadata"
-            className="absolute top-0 left-0 h-full w-full"
-          >
-            <source
-              src={block.props.url ? getFileUrl(block.props.url) : getDaemonFileUrl(block.props.url)}
               // @ts-ignore
               type={getSourceType(block.props.name)}
             />

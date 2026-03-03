@@ -33,7 +33,7 @@ const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
           if (item.type.startsWith('image/')) {
             const img = item.getAsFile()
             if (img) {
-              processImage(img, view, insertPos, blockNoteEditor)
+              processMedia(img, view, insertPos, blockNoteEditor, 'image')
               return true
             }
           }
@@ -44,40 +44,14 @@ const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
           if (item.type.startsWith('video/')) {
             const vid = item.getAsFile()
             if (vid) {
-              uploadMedia(vid)
-                .then((data) => {
-                  const {name} = vid
-                  const {schema} = view.state
-                  // @ts-ignore
-                  const node = schema.nodes.video.create({
-                    url: data,
-                    name: name,
-                  })
-                  view.dispatch(view.state.tr.insert(insertPos, node))
-                })
-                .catch((error) => {
-                  console.error('Error uploading pasted video:', error)
-                })
+              processMedia(vid, view, insertPos, blockNoteEditor, 'video')
               return true
             }
           } else {
             // Other types of files (not image or video)
             const file = item.getAsFile()
             if (file) {
-              uploadMedia(file)
-                .then((data) => {
-                  const {name, size} = file
-                  // @ts-ignore
-                  const node = view.state.schema.nodes.file.create({
-                    url: data,
-                    name: name,
-                    size: size,
-                  })
-                  view.dispatch(view.state.tr.insert(insertPos, node))
-                })
-                .catch((error) => {
-                  console.error('Error uploading pasted file:', error)
-                })
+              processMedia(file, view, insertPos, blockNoteEditor, 'file')
               return true
             }
           }
@@ -88,7 +62,13 @@ const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
     },
   })
 
-function processImage(img: File, view: any, insertPos: number, blockNoteEditor: any) {
+function processMedia(
+  file: File,
+  view: any,
+  insertPos: number,
+  blockNoteEditor: any,
+  mediaType: 'image' | 'video' | 'file',
+) {
   // Check if we're in a comment editor in the web app
   // Desktop uploads immediately, web stores for later upload
   const isCommentEditor = view.dom.closest('.comment-editor') !== null
@@ -96,83 +76,96 @@ function processImage(img: File, view: any, insertPos: number, blockNoteEditor: 
     IS_PROD_DESKTOP ||
     (typeof window !== 'undefined' && window.location.protocol === 'file:') ||
     typeof (window as any).appInfo !== 'undefined'
-  const shouldStoreForLater = isCommentEditor && !isDesktop
+  const shouldStoreMedia = isCommentEditor && !isDesktop
 
-  if (shouldStoreForLater) {
+  if (shouldStoreMedia) {
     // Comment editor: Store media blobs in IndexedDB for later upload
     const editor = blockNoteEditor
 
     if (editor?.handleFileAttachment) {
       // Use the editor's handleFileAttachment which handles IndexedDB storage
       editor
-        .handleFileAttachment(img)
+        .handleFileAttachment(file)
         .then((result: any) => {
-          const {name} = img
+          const {name, size} = file
           const {schema} = view.state
-          const node = schema.nodes.image.create({
-            displaySrc: result.displaySrc,
-            fileBinary: result.fileBinary,
+
+          const nodeProps: Record<string, any> = {
+            name: name,
             // Serialize mediaRef object to JSON string for block attribute
             mediaRef: result.mediaRef ? JSON.stringify(result.mediaRef) : '',
-            name: name,
-          })
+          }
+
+          if (mediaType === 'file') {
+            // File blocks don't need displaySrc
+            nodeProps.fileBinary = result.fileBinary
+            nodeProps.size = size
+          } else {
+            nodeProps.displaySrc = result.displaySrc
+            nodeProps.fileBinary = result.fileBinary
+          }
+
+          // @ts-ignore
+          const node = schema.nodes[mediaType].create(nodeProps)
           view.dispatch(view.state.tr.insert(insertPos, node))
         })
         .catch((error: any) => {
-          console.error('Error processing pasted image:', error)
+          console.error(`Error processing pasted ${mediaType}:`, error)
         })
     } else {
-      console.warn('Using legacy binary storage (no handleFileAttachment)')
+      console.warn('Using legacy binary storage')
       // Fallback to legacy binary storage if handleFileAttachment not available
-      const displayReader = new FileReader()
       const binaryReader = new FileReader()
 
-      let displaySrc: string
-      let fileBinary: Uint8Array
-
-      displayReader.onload = (e) => {
-        displaySrc = e.target?.result as string
-        binaryReader.readAsArrayBuffer(img)
-      }
-
       binaryReader.onload = (e) => {
-        fileBinary = new Uint8Array(e.target?.result as ArrayBuffer)
-
-        const {name} = img
+        const fileBinary = new Uint8Array(e.target?.result as ArrayBuffer)
+        const {name, size} = file
         const {schema} = view.state
-        const node = schema.nodes.image.create({
-          displaySrc: displaySrc,
-          fileBinary: fileBinary,
+
+        const nodeProps: Record<string, any> = {
           name: name,
-        })
+          fileBinary: fileBinary,
+        }
+
+        if (mediaType === 'file') {
+          nodeProps.size = size
+        } else {
+          // For images and videos, create an object URL for display
+          nodeProps.displaySrc = URL.createObjectURL(file)
+        }
+
+        // @ts-ignore
+        const node = schema.nodes[mediaType].create(nodeProps)
         view.dispatch(view.state.tr.insert(insertPos, node))
       }
 
-      displayReader.onerror = (error) => {
-        console.error('Error reading pasted image as data URL:', error)
-        alert(`Failed to read image: ${error}`)
-      }
       binaryReader.onerror = (error) => {
-        console.error('Error reading pasted image as binary:', error)
-        alert(`Failed to read image data: ${error}`)
+        console.error(`Error reading pasted ${mediaType} as binary:`, error)
       }
 
-      displayReader.readAsDataURL(img)
+      binaryReader.readAsArrayBuffer(file)
     }
   } else {
     // Desktop editor: upload immediately to IPFS
-    uploadMedia(img)
+    uploadMedia(file)
       .then((data) => {
-        const {name} = img
+        const {name, size} = file
         const {schema} = view.state
-        const node = schema.nodes.image.create({
+
+        const nodeProps: Record<string, any> = {
           url: data,
           name: name,
-        })
+        }
+        if (mediaType === 'file') {
+          nodeProps.size = size
+        }
+
+        // @ts-ignore
+        const node = schema.nodes[mediaType].create(nodeProps)
         view.dispatch(view.state.tr.insert(insertPos, node))
       })
       .catch((error) => {
-        console.error('Error uploading pasted image:', error)
+        console.error(`Error uploading pasted ${mediaType}:`, error)
       })
   }
 }

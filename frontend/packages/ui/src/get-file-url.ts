@@ -49,3 +49,26 @@ export function useFileUrl() {
     return `${ipfsFileUrl || DAEMON_FILE_URL}/${cid}`
   }
 }
+
+/**
+ * Returns a function that builds a /hm/api/file/[cid] URL for non-image
+ * files (videos, documents, etc.). This proxies through the web server,
+ * avoiding localhost daemon URLs that break on hosted sites.
+ * Falls back to the direct IPFS URL on desktop.
+ */
+export function useFileProxyUrl() {
+  const {getOptimizedImageUrl} = useUniversalAppContext()
+  // If getOptimizedImageUrl exists, we're in a web context that supports proxy routes
+  const isWebContext = !!getOptimizedImageUrl
+  const getFileUrl = useFileUrl()
+
+  return (ipfsUrl: string) => {
+    const cid = extractIpfsUrlCid(ipfsUrl)
+    if (!cid) return ''
+    if (isWebContext) {
+      return `/hm/api/file/${cid}`
+    }
+    // Desktop: use direct daemon URL
+    return getFileUrl(ipfsUrl)
+  }
+}
