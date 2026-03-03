@@ -308,8 +308,8 @@ function NotificationButton() {
       (item) =>
         !isNotificationEventRead({
           readState: readState.data,
-          eventId: item.event.feedEventId,
-          eventAtMs: item.event.eventAtMs,
+          eventId: item.feedEventId,
+          eventAtMs: item.eventAtMs,
         }),
     ).length
   }, [inbox.data, readState.data])

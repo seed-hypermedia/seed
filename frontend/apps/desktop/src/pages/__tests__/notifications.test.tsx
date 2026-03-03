@@ -1,11 +1,12 @@
 import {isNotificationEventRead} from '@/models/notification-read-logic'
+import type {NotificationPayload} from '@shm/shared/models/notification-payload'
 import {LoadedEventWithNotifMeta} from '@shm/shared/models/activity-service'
+import {classifyNotificationEvent} from '@shm/shared/models/notification-event-classifier'
 import {describe, expect, it} from 'vitest'
 import {
-  classifyNotificationEvent,
   getMaxLoadedNotificationEventAtMs,
   markNotificationReadAndNavigate,
-  notificationRouteForEvent,
+  notificationRouteForPayload,
   notificationTitle,
 } from '../notifications-helpers'
 
@@ -77,6 +78,36 @@ function createReplyEvent(overrides: Partial<LoadedEventWithNotifMeta> = {}) {
     replyCount: 1,
     ...overrides,
   } as unknown as LoadedEventWithNotifMeta
+}
+
+function createMentionPayload(overrides: Partial<NotificationPayload> = {}): NotificationPayload {
+  return {
+    feedEventId: 'mention-event-1',
+    eventAtMs: 1_000,
+    reason: 'mention',
+    eventType: 'citation',
+    author: {uid: 'author', name: 'Alice', icon: null},
+    target: {uid: 'source', path: ['doc'], name: 'Source Doc'},
+    commentId: null,
+    sourceId: 'source',
+    citationType: 'd',
+    ...overrides,
+  }
+}
+
+function createReplyPayload(overrides: Partial<NotificationPayload> = {}): NotificationPayload {
+  return {
+    feedEventId: 'reply-event-1',
+    eventAtMs: 2_000,
+    reason: 'reply',
+    eventType: 'comment',
+    author: {uid: 'author-2', name: 'Bob', icon: null},
+    target: {uid: 'site', path: ['post'], name: 'Post'},
+    commentId: 'comment-version-cid',
+    sourceId: null,
+    citationType: null,
+    ...overrides,
+  }
 }
 
 describe('notifications page helpers', () => {
@@ -206,28 +237,27 @@ describe('notifications page helpers', () => {
   })
 
   it('creates route for reply notifications', () => {
-    const event = createReplyEvent()
-    expect(notificationRouteForEvent(event)).toEqual({
+    const payload = createReplyPayload()
+    const route = notificationRouteForPayload(payload)
+    expect(route).toEqual({
       key: 'comments',
-      id: hmId('site', ['post']),
+      id: expect.objectContaining({uid: 'site', path: ['post']}),
       openComment: 'comment-version-cid',
     })
   })
 
   it('creates route for mention notifications', () => {
-    const event = createMentionEvent()
-    expect(notificationRouteForEvent(event)).toEqual({
+    const payload = createMentionPayload()
+    const route = notificationRouteForPayload(payload)
+    expect(route).toEqual({
       key: 'document',
-      id: hmId('source', ['doc']),
+      id: expect.objectContaining({uid: 'source', path: ['doc']}),
     })
   })
 
   it('marks event read before navigating', async () => {
     const callOrder: string[] = []
-    const item = {
-      reason: 'reply' as const,
-      event: createReplyEvent(),
-    }
+    const item = createReplyPayload()
     await markNotificationReadAndNavigate({
       accountUid: 'target-account',
       item,
@@ -242,25 +272,20 @@ describe('notifications page helpers', () => {
   })
 
   it('includes document name for mention notifications from comment events', () => {
-    const event = createReplyEvent()
-    expect(notificationTitle({reason: 'mention', event})).toBe('Bob mentioned you in Post')
+    const payload = createMentionPayload({eventType: 'comment'})
+    expect(notificationTitle(payload)).toBe('Bob mentioned you in Source Doc')
   })
 
   it('falls back to source path when mention source metadata is missing', () => {
-    const event = createMentionEvent({
-      source: {
-        id: hmId('source', ['fallback-doc']),
-        metadata: {},
-      } as any,
+    const payload = createMentionPayload({
+      author: {uid: 'author', name: 'Alice', icon: null},
+      target: {uid: 'source', path: ['fallback-doc'], name: null},
     })
-    expect(notificationTitle({reason: 'mention', event})).toBe('Alice mentioned you in fallback-doc')
+    expect(notificationTitle(payload)).toBe('Alice mentioned you in fallback-doc')
   })
 
   it('computes mark-all timestamp from latest loaded event', () => {
-    const notifications = [
-      {reason: 'mention' as const, event: createMentionEvent({eventAtMs: 10})},
-      {reason: 'reply' as const, event: createReplyEvent({eventAtMs: 20})},
-    ]
+    const notifications = [createMentionPayload({eventAtMs: 10}), createReplyPayload({eventAtMs: 20})]
     expect(getMaxLoadedNotificationEventAtMs(notifications, 1)).toBe(20)
     expect(getMaxLoadedNotificationEventAtMs([], 99)).toBe(99)
   })

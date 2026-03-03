@@ -23,7 +23,7 @@ import {
 } from '@/pages/notifications-helpers'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
-import {formattedDateShort} from '@shm/shared'
+import {formattedDateShort, hmId} from '@shm/shared'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
@@ -132,12 +132,13 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
               {notifications.map((item) => {
                 const isRead = isNotificationEventRead({
                   readState: readState.data,
-                  eventId: item.event.feedEventId,
-                  eventAtMs: item.event.eventAtMs,
+                  eventId: item.feedEventId,
+                  eventAtMs: item.eventAtMs,
                 })
+                const authorId = item.author.uid ? hmId(item.author.uid) : null
                 return (
                   <button
-                    key={item.event.feedEventId}
+                    key={item.feedEventId}
                     className="group hover:bg-muted/40 flex w-full items-center gap-3 p-4 text-left"
                     onClick={async () => {
                       await markNotificationReadAndNavigate({
@@ -149,13 +150,8 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
                     }}
                   >
                     <div className="pt-0.5">
-                      {item.event.author?.id ? (
-                        <HMIcon
-                          size={24}
-                          id={item.event.author.id}
-                          name={item.event.author.metadata?.name}
-                          icon={item.event.author.metadata?.icon}
-                        />
+                      {authorId ? (
+                        <HMIcon size={24} id={authorId} name={item.author.name} icon={item.author.icon} />
                       ) : (
                         <div className="bg-muted h-6 w-6 rounded-full" />
                       )}
@@ -165,9 +161,7 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
                         {!isRead ? <span className="bg-brand inline-block h-2 w-2 rounded-full" /> : null}
                         <p className="truncate text-sm">{notificationTitle(item)}</p>
                       </div>
-                      <p className="text-muted-foreground text-xs">
-                        {formattedDateShort(new Date(item.event.eventAtMs))}
-                      </p>
+                      <p className="text-muted-foreground text-xs">{formattedDateShort(new Date(item.eventAtMs))}</p>
                     </div>
                     <Tooltip content={isRead ? 'Mark as unread' : 'Mark as read'}>
                       <Button
@@ -180,18 +174,18 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
                           if (isRead) {
                             markEventUnread.mutate({
                               accountUid,
-                              eventId: item.event.feedEventId,
-                              eventAtMs: item.event.eventAtMs,
+                              eventId: item.feedEventId,
+                              eventAtMs: item.eventAtMs,
                               otherLoadedEvents: notifications.map((n) => ({
-                                eventId: n.event.feedEventId,
-                                eventAtMs: n.event.eventAtMs,
+                                eventId: n.feedEventId,
+                                eventAtMs: n.eventAtMs,
                               })),
                             })
                           } else {
                             markEventRead.mutate({
                               accountUid,
-                              eventId: item.event.feedEventId,
-                              eventAtMs: item.event.eventAtMs,
+                              eventId: item.feedEventId,
+                              eventAtMs: item.eventAtMs,
                             })
                           }
                         }}

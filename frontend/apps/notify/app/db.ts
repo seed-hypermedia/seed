@@ -90,6 +90,12 @@ let stmtUpsertNotificationReadState: Database.Statement
 let stmtGetNotificationReadEvents: Database.Statement
 let stmtUpsertNotificationReadEvent: Database.Statement
 let stmtPruneNotificationReadEvents: Database.Statement
+let stmtInsertNotification: Database.Statement
+let stmtGetNotificationsPage: Database.Statement
+let stmtGetNotificationsFirstPage: Database.Statement
+let stmtRegisterInboxAccount: Database.Statement
+let stmtGetInboxRegisteredAccounts: Database.Statement
+let stmtIsInboxRegistered: Database.Statement
 
 export async function initDatabase(): Promise<void> {
   const dbFilePath = join(process.env.DATA_DIR || process.cwd(), 'web-db.sqlite')
@@ -289,6 +295,29 @@ export async function initDatabase(): Promise<void> {
     version = 9
   }
 
+  if (version === 9) {
+    db.exec(`
+    BEGIN;
+    CREATE TABLE notification_inbox (
+      accountId TEXT NOT NULL,
+      feedEventId TEXT NOT NULL,
+      eventAtMs INTEGER NOT NULL,
+      data TEXT NOT NULL,
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (accountId, feedEventId)
+    ) WITHOUT ROWID;
+    CREATE INDEX idx_notification_inbox_account_time ON notification_inbox (accountId, eventAtMs DESC);
+    CREATE TABLE inbox_registration (
+      accountId TEXT PRIMARY KEY NOT NULL,
+      registeredAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      lastSeenAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) WITHOUT ROWID;
+    PRAGMA user_version = 10;
+    COMMIT;
+  `)
+    version = 10
+  }
+
   // Initialize all prepared statements
   stmtInsertEmail = db.prepare('INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)')
   stmtInsertSubscription = db.prepare(
@@ -421,6 +450,34 @@ export async function initDatabase(): Promise<void> {
   stmtPruneNotificationReadEvents = db.prepare(`
     DELETE FROM notification_read_events
     WHERE accountId = ? AND eventAtMs <= ?
+  `)
+  stmtInsertNotification = db.prepare(`
+    INSERT OR IGNORE INTO notification_inbox (accountId, feedEventId, eventAtMs, data)
+    VALUES (?, ?, ?, ?)
+  `)
+  stmtGetNotificationsPage = db.prepare(`
+    SELECT data FROM notification_inbox
+    WHERE accountId = ? AND eventAtMs < ?
+    ORDER BY eventAtMs DESC
+    LIMIT ?
+  `)
+  stmtGetNotificationsFirstPage = db.prepare(`
+    SELECT data FROM notification_inbox
+    WHERE accountId = ?
+    ORDER BY eventAtMs DESC
+    LIMIT ?
+  `)
+  stmtRegisterInboxAccount = db.prepare(`
+    INSERT INTO inbox_registration (accountId)
+    VALUES (?)
+    ON CONFLICT(accountId) DO UPDATE SET
+      lastSeenAt = CURRENT_TIMESTAMP
+  `)
+  stmtGetInboxRegisteredAccounts = db.prepare(`
+    SELECT accountId FROM inbox_registration ORDER BY accountId
+  `)
+  stmtIsInboxRegistered = db.prepare(`
+    SELECT 1 FROM inbox_registration WHERE accountId = ?
   `)
 
   // Ensure email rows exist for notification_config entries from previous runs.
@@ -743,4 +800,63 @@ export function mergeNotificationReadState(
   })
 
   return transaction()
+}
+
+// --- Notification Inbox ---
+
+import type {NotificationPayload} from '@shm/shared/models/notification-payload'
+
+export function insertNotification(
+  accountId: string,
+  feedEventId: string,
+  eventAtMs: number,
+  data: NotificationPayload,
+): void {
+  stmtInsertNotification.run(accountId, feedEventId, eventAtMs, JSON.stringify(data))
+}
+
+export function insertNotificationsBatch(
+  items: Array<{accountId: string; feedEventId: string; eventAtMs: number; data: NotificationPayload}>,
+): void {
+  const transaction = db.transaction(() => {
+    for (const item of items) {
+      stmtInsertNotification.run(item.accountId, item.feedEventId, item.eventAtMs, JSON.stringify(item.data))
+    }
+  })
+  transaction()
+}
+
+export function getNotificationsPage(
+  accountId: string,
+  opts: {beforeMs?: number; limit?: number} = {},
+): {notifications: NotificationPayload[]; hasMore: boolean; oldestEventAtMs: number | null} {
+  const limit = Math.min(opts.limit ?? 50, 500)
+  const fetchLimit = limit + 1
+
+  let rows: Array<{data: string}>
+  if (opts.beforeMs != null) {
+    rows = stmtGetNotificationsPage.all(accountId, opts.beforeMs, fetchLimit) as Array<{data: string}>
+  } else {
+    rows = stmtGetNotificationsFirstPage.all(accountId, fetchLimit) as Array<{data: string}>
+  }
+
+  const hasMore = rows.length > limit
+  const pageRows = hasMore ? rows.slice(0, limit) : rows
+  const notifications = pageRows.map((row) => JSON.parse(row.data) as NotificationPayload)
+  const oldestEventAtMs = notifications.length > 0 ? notifications[notifications.length - 1]!.eventAtMs : null
+
+  return {notifications, hasMore, oldestEventAtMs}
+}
+
+export function registerInboxAccount(accountId: string): void {
+  stmtRegisterInboxAccount.run(accountId)
+}
+
+export function getInboxRegisteredAccounts(): string[] {
+  const rows = stmtGetInboxRegisteredAccounts.all() as Array<{accountId: string}>
+  return rows.map((r) => r.accountId)
+}
+
+export function isInboxRegistered(accountId: string): boolean {
+  return stmtIsInboxRegistered.get(accountId) != null
 }
