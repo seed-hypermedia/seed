@@ -6,6 +6,9 @@
  */
 
 import {describe, test, expect, beforeAll, afterAll} from 'bun:test'
+import {writeFileSync, mkdtempSync, rmSync} from 'fs'
+import {tmpdir} from 'os'
+import {join} from 'path'
 import {
   startFullIntegrationWithFixture,
   runCli,
@@ -482,6 +485,286 @@ describe('CLI Full Integration Tests', () => {
         const data = JSON.parse(getResult.stdout)
         expect(data.type).toBe('document')
         expect(data.document.metadata.name).toBe('CLI Test Document')
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'document create with markdown body has readable content',
+      async () => {
+        const slug = `md-body-${Date.now()}`
+        const hmId = `hm://${writeAccount.accountId}/${slug}`
+        const markdownBody = '## Introduction\n\nThis is a **bold** paragraph.\n\n- Item one\n- Item two'
+
+        const result = await runCli(
+          [
+            'document', 'create', writeAccount.accountId,
+            '--path', slug,
+            '--title', 'Markdown Body Test',
+            '--body', markdownBody,
+            '--key', TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        if (result.exitCode !== 0) {
+          console.log('[test] md body create stderr:', result.stderr)
+          console.log('[test] md body create stdout:', result.stdout)
+        }
+        expect(result.exitCode).toBe(0)
+
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // Read back as JSON and verify blocks
+        const getResult = await runCli(
+          ['document', 'get', hmId],
+          {server: ctx.webServerUrl},
+        )
+        expect(getResult.exitCode).toBe(0)
+        const data = JSON.parse(getResult.stdout)
+        expect(data.type).toBe('document')
+        expect(data.document.metadata.name).toBe('Markdown Body Test')
+        // Should have content blocks
+        expect(data.document.content.length).toBeGreaterThan(0)
+
+        // Read back as markdown and verify text
+        const mdResult = await runCli(
+          ['document', 'get', hmId, '--md'],
+          {server: ctx.webServerUrl},
+        )
+        expect(mdResult.exitCode).toBe(0)
+        expect(mdResult.stdout).toContain('Introduction')
+        expect(mdResult.stdout).toContain('bold')
+        expect(mdResult.stdout).toContain('Item one')
+        expect(mdResult.stdout).toContain('Item two')
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'document create with --body-file reads markdown from file',
+      async () => {
+        const slug = `md-file-${Date.now()}`
+        const hmId = `hm://${writeAccount.accountId}/${slug}`
+
+        const tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFile = join(tmpDir, 'content.md')
+        writeFileSync(mdFile, '## From File\n\nContent loaded from a file.')
+
+        try {
+          const result = await runCli(
+            [
+              'document', 'create', writeAccount.accountId,
+              '--path', slug,
+              '--title', 'File Body Test',
+              '--body-file', mdFile,
+              '--key', TEST_KEY_NAME,
+            ],
+            {server: ctx.webServerUrl},
+          )
+          if (result.exitCode !== 0) {
+            console.log('[test] body-file create stderr:', result.stderr)
+            console.log('[test] body-file create stdout:', result.stdout)
+          }
+          expect(result.exitCode).toBe(0)
+
+          await new Promise((r) => setTimeout(r, 2000))
+
+          const mdResult = await runCli(
+            ['document', 'get', hmId, '--md'],
+            {server: ctx.webServerUrl},
+          )
+          expect(mdResult.exitCode).toBe(0)
+          expect(mdResult.stdout).toContain('From File')
+          expect(mdResult.stdout).toContain('Content loaded from a file')
+        } finally {
+          rmSync(tmpDir, {recursive: true, force: true})
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'document create with --blocks accepts HMBlockNodes JSON',
+      async () => {
+        const slug = `blocks-json-${Date.now()}`
+        const hmId = `hm://${writeAccount.accountId}/${slug}`
+
+        const blocksJson = JSON.stringify([
+          {
+            block: {
+              type: 'Heading',
+              id: 'hdr1',
+              text: 'Block Heading',
+              annotations: [],
+              attributes: {childrenType: 'Group'},
+            },
+            children: [
+              {
+                block: {
+                  type: 'Paragraph',
+                  id: 'para1',
+                  text: 'Paragraph under heading',
+                  annotations: [],
+                  attributes: {},
+                },
+              },
+            ],
+          },
+          {
+            block: {
+              type: 'Paragraph',
+              id: 'para2',
+              text: 'Root-level paragraph',
+              annotations: [],
+              attributes: {},
+            },
+          },
+        ])
+
+        const result = await runCli(
+          [
+            'document', 'create', writeAccount.accountId,
+            '--path', slug,
+            '--title', 'Blocks JSON Test',
+            '--blocks', blocksJson,
+            '--key', TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        if (result.exitCode !== 0) {
+          console.log('[test] blocks json create stderr:', result.stderr)
+          console.log('[test] blocks json create stdout:', result.stdout)
+        }
+        expect(result.exitCode).toBe(0)
+
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // Read back as JSON and verify block structure
+        const getResult = await runCli(
+          ['document', 'get', hmId],
+          {server: ctx.webServerUrl},
+        )
+        expect(getResult.exitCode).toBe(0)
+        const data = JSON.parse(getResult.stdout)
+        expect(data.type).toBe('document')
+        expect(data.document.metadata.name).toBe('Blocks JSON Test')
+        expect(data.document.content.length).toBe(2)
+
+        // Verify the heading block
+        const headingBlock = data.document.content[0]
+        expect(headingBlock.block.type).toBe('Heading')
+        expect(headingBlock.block.text).toBe('Block Heading')
+        // Heading should have a child paragraph
+        expect(headingBlock.children.length).toBe(1)
+        expect(headingBlock.children[0].block.text).toBe('Paragraph under heading')
+
+        // Verify the root paragraph
+        const paraBlock = data.document.content[1]
+        expect(paraBlock.block.type).toBe('Paragraph')
+        expect(paraBlock.block.text).toBe('Root-level paragraph')
+
+        // Also verify via markdown output
+        const mdResult = await runCli(
+          ['document', 'get', hmId, '--md'],
+          {server: ctx.webServerUrl},
+        )
+        expect(mdResult.exitCode).toBe(0)
+        expect(mdResult.stdout).toContain('Block Heading')
+        expect(mdResult.stdout).toContain('Paragraph under heading')
+        expect(mdResult.stdout).toContain('Root-level paragraph')
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'document create with --blocks-file reads JSON from file',
+      async () => {
+        const slug = `blocks-file-${Date.now()}`
+        const hmId = `hm://${writeAccount.accountId}/${slug}`
+
+        const blocksJson = JSON.stringify([
+          {
+            block: {
+              type: 'Paragraph',
+              id: 'fp1',
+              text: 'Block from JSON file',
+              annotations: [],
+              attributes: {},
+            },
+          },
+        ])
+
+        const tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const blocksFile = join(tmpDir, 'blocks.json')
+        writeFileSync(blocksFile, blocksJson)
+
+        try {
+          const result = await runCli(
+            [
+              'document', 'create', writeAccount.accountId,
+              '--path', slug,
+              '--title', 'Blocks File Test',
+              '--blocks-file', blocksFile,
+              '--key', TEST_KEY_NAME,
+            ],
+            {server: ctx.webServerUrl},
+          )
+          if (result.exitCode !== 0) {
+            console.log('[test] blocks-file create stderr:', result.stderr)
+            console.log('[test] blocks-file create stdout:', result.stdout)
+          }
+          expect(result.exitCode).toBe(0)
+
+          await new Promise((r) => setTimeout(r, 2000))
+
+          const getResult = await runCli(
+            ['document', 'get', hmId],
+            {server: ctx.webServerUrl},
+          )
+          expect(getResult.exitCode).toBe(0)
+          const data = JSON.parse(getResult.stdout)
+          expect(data.type).toBe('document')
+          expect(data.document.content.length).toBe(1)
+          expect(data.document.content[0].block.text).toBe('Block from JSON file')
+        } finally {
+          rmSync(tmpDir, {recursive: true, force: true})
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'document create with both --body and --blocks shows error',
+      async () => {
+        const result = await runCli(
+          [
+            'document', 'create', writeAccount.accountId,
+            '--title', 'Error Test',
+            '--body', 'some text',
+            '--blocks', '[]',
+            '--key', TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        expect(result.exitCode).toBe(1)
+        expect(result.stderr).toContain('Cannot combine')
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'document create with no content shows error',
+      async () => {
+        const result = await runCli(
+          [
+            'document', 'create', writeAccount.accountId,
+            '--title', 'Error Test',
+            '--key', TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        expect(result.exitCode).toBe(1)
+        expect(result.stderr).toContain('No content specified')
       },
       TEST_TIMEOUT,
     )

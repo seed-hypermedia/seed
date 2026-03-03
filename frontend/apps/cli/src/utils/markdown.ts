@@ -388,18 +388,15 @@ function createListNode(
  * Builds a hierarchical block tree from markdown.
  *
  * The hierarchy is determined by heading levels:
- * - The document title (H1) is extracted separately
- * - H2 headings are root-level blocks; content under them becomes children
- * - H3 headings become children of the preceding H2, etc.
+ * - H1 headings are root-level blocks; lower headings and content become children
+ * - H2 headings become children of the preceding H1, etc.
  * - Content before the first heading goes to root level
  */
 export function parseMarkdown(markdown: string): {
-  title: string
   tree: BlockNode[]
 } {
   const tokens = tokenize(markdown)
   const rootNodes: BlockNode[] = []
-  let title = ''
 
   // heading stack: [{level, node}] — tracks current hierarchy
   const headingStack: {level: number; node: BlockNode}[] = []
@@ -417,12 +414,6 @@ export function parseMarkdown(markdown: string): {
   for (const token of tokens) {
     switch (token.kind) {
       case 'heading': {
-        if (token.level === 1 && !title) {
-          // Extract H1 as document title
-          title = token.text
-          break
-        }
-
         const headingNode = createHeadingNode(token.text)
 
         // Pop headings from stack that are at same level or deeper
@@ -464,7 +455,7 @@ export function parseMarkdown(markdown: string): {
     }
   }
 
-  return {title, tree: rootNodes}
+  return {tree: rootNodes}
 }
 
 // ─── Operations builder ──────────────────────────────────────────────────────

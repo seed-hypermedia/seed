@@ -36,9 +36,7 @@ service Documents {
   // Prepares relevant blobs for clients to sign and re-submit to the server.
   // In ideal world it shouldn't exist. Trust is assumed between client and the server.
   // It exists to avoid making clients aware of all the document CRDT complexities.
-  //
-  // This RPC ignores the signing_key_name field, because the blobs are expected to be signed by the client, not the server.
-  rpc PrepareChange(CreateDocumentChangeRequest) returns (PrepareChangeResponse);
+  rpc PrepareChange(PrepareChangeRequest) returns (PrepareChangeResponse);
 
   // Deletes a document.
   //
@@ -199,6 +197,33 @@ message CreateDocumentChangeRequest {
   // Can only be specified here when creating the document for the first time,
   // i.e. when `base_version` is empty.
   ResourceVisibility visibility = 8;
+}
+
+// Request to prepare an unsigned document change for client-side signing.
+message PrepareChangeRequest {
+  // Required. The ID of the account where the document is located.
+  string account = 1;
+
+  // Required. Path of the document to create change for.
+  // If document doesn't exist it will be created.
+  // Empty string means root document.
+  string path = 2;
+
+  // Required. Version of the document to apply changes to.
+  // Can be empty when creating a new document.
+  string base_version = 3;
+
+  // Required. Changes to be applied to the document.
+  repeated DocumentChange changes = 4;
+
+  // Optional. ID of the capability that allows the signing key to write on behalf of the account
+  // for this particular path.
+  string capability = 5;
+
+  // Optional. Visibility of the document.
+  // Can only be specified here when creating the document for the first time,
+  // i.e. when `base_version` is empty.
+  ResourceVisibility visibility = 6;
 }
 
 // Response with prepared change data for client-side signing.

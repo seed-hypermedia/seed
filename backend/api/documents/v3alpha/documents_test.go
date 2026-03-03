@@ -3,6 +3,7 @@ package documents
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"seed/backend/api/apitest"
 	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
@@ -10,6 +11,7 @@ import (
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	documents "seed/backend/genproto/documents/v3alpha"
+	"seed/backend/ipfs"
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/testutil"
@@ -21,6 +23,8 @@ import (
 
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	cbornode "github.com/ipfs/go-ipld-cbor"
+	"github.com/multiformats/go-multicodec"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -1644,4 +1648,269 @@ func TestRepublishDocument(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+}
+
+func TestPrepareChangeAndSubmit(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	// Step 1: Create a document with blocks [A, B] using the normal server-side signing.
+	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "/prepare-test",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Prepare Test"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "a", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "a", Type: "paragraph", Text: "Block A"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b", Parent: "", LeftSibling: "a"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b", Type: "paragraph", Text: "Block B"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, doc.Content, 2, "must have 2 blocks initially")
+	require.Equal(t, "a", doc.Content[0].Block.Id)
+	require.Equal(t, "b", doc.Content[1].Block.Id)
+
+	// Step 2: Call PrepareChange to add block C after B.
+	prepared, err := alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+		Account:     alice.me.Account.PublicKey.String(),
+		Path:        "/prepare-test",
+		BaseVersion: doc.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "c", Parent: "", LeftSibling: "b"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "c", Type: "paragraph", Text: "Block C"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, prepared.UnsignedChange, "must return unsigned CBOR bytes")
+
+	// Step 3: Simulate client-side signing.
+	// Decode unsigned CBOR into a Change struct, fill signer + sign, re-encode.
+	kp := alice.me.Account
+	signedChange, err := signPreparedChangeBlob(prepared.UnsignedChange, kp)
+	require.NoError(t, err)
+
+	// Step 4: Create a Ref blob pointing to the new change.
+	genesisCid, err := cid.Decode(doc.Genesis)
+	require.NoError(t, err)
+
+	ref, err := blob.NewRef(
+		kp,
+		doc.GenerationInfo.Generation,
+		genesisCid,
+		kp.Principal(),
+		"/prepare-test",
+		[]cid.Cid{signedChange.CID},
+		time.Now().Round(blob.ClockPrecision),
+		blob.VisibilityPublic,
+	)
+	require.NoError(t, err)
+
+	// Step 5: Submit both blobs to the index.
+	require.NoError(t, alice.idx.PutMany(ctx, []blocks.Block{signedChange, ref}))
+
+	// Step 6: Verify the document has blocks [A, B, C] in order.
+	got, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: alice.me.Account.PublicKey.String(),
+		Path:    "/prepare-test",
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Content, 3, "must have 3 blocks after prepare+submit")
+	require.Equal(t, "a", got.Content[0].Block.Id, "first block must be A")
+	require.Equal(t, "b", got.Content[1].Block.Id, "second block must be B")
+	require.Equal(t, "c", got.Content[2].Block.Id, "third block must be C")
+	require.Equal(t, "Block C", got.Content[2].Block.Text, "block C text must match")
+
+	// Step 7: Verify the version includes our submitted change CID.
+	require.Contains(t, got.Version, signedChange.CID.String(), "version must reference the submitted change")
+}
+
+func TestPrepareChangeBlockReordering(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	// Create a document with blocks [A, B, C].
+	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "/reorder-test",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "a", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "a", Type: "paragraph", Text: "A"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b", Parent: "", LeftSibling: "a"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b", Type: "paragraph", Text: "B"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "c", Parent: "", LeftSibling: "b"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "c", Type: "paragraph", Text: "C"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, doc.Content, 3)
+
+	// PrepareChange to move C before A (C becomes first).
+	prepared, err := alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+		Account:     alice.me.Account.PublicKey.String(),
+		Path:        "/reorder-test",
+		BaseVersion: doc.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "c", Parent: "", LeftSibling: ""},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	kp := alice.me.Account
+	signedChange, err := signPreparedChangeBlob(prepared.UnsignedChange, kp)
+	require.NoError(t, err)
+
+	genesisCid, err := cid.Decode(doc.Genesis)
+	require.NoError(t, err)
+
+	ref, err := blob.NewRef(
+		kp,
+		doc.GenerationInfo.Generation,
+		genesisCid,
+		kp.Principal(),
+		"/reorder-test",
+		[]cid.Cid{signedChange.CID},
+		time.Now().Round(blob.ClockPrecision),
+		blob.VisibilityPublic,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, alice.idx.PutMany(ctx, []blocks.Block{signedChange, ref}))
+
+	got, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: alice.me.Account.PublicKey.String(),
+		Path:    "/reorder-test",
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Content, 3, "must still have 3 blocks")
+	require.Equal(t, "c", got.Content[0].Block.Id, "first block must be C after reorder")
+	require.Equal(t, "a", got.Content[1].Block.Id, "second block must be A after reorder")
+	require.Equal(t, "b", got.Content[2].Block.Id, "third block must be B after reorder")
+}
+
+func TestPrepareChangeMetadataUpdate(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	// Create a document with title "Original".
+	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "/metadata-test",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Original"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "Original", doc.Metadata.Fields["title"].GetStringValue())
+
+	// PrepareChange to update title to "Updated".
+	prepared, err := alice.PrepareChange(ctx, &documents.PrepareChangeRequest{
+		Account:     alice.me.Account.PublicKey.String(),
+		Path:        "/metadata-test",
+		BaseVersion: doc.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Updated"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	kp := alice.me.Account
+	signedChange, err := signPreparedChangeBlob(prepared.UnsignedChange, kp)
+	require.NoError(t, err)
+
+	genesisCid, err := cid.Decode(doc.Genesis)
+	require.NoError(t, err)
+
+	ref, err := blob.NewRef(
+		kp,
+		doc.GenerationInfo.Generation,
+		genesisCid,
+		kp.Principal(),
+		"/metadata-test",
+		[]cid.Cid{signedChange.CID},
+		time.Now().Round(blob.ClockPrecision),
+		blob.VisibilityPublic,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, alice.idx.PutMany(ctx, []blocks.Block{signedChange, ref}))
+
+	got, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: alice.me.Account.PublicKey.String(),
+		Path:    "/metadata-test",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "Updated", got.Metadata.Fields["title"].GetStringValue(), "title must be updated")
+}
+
+// signPreparedChangeBlob simulates client-side signing of unsigned CBOR from PrepareChange.
+// It decodes the unsigned bytes, fills in the signer and signature, and re-encodes.
+func signPreparedChangeBlob(unsignedBytes []byte, kp *core.KeyPair) (blob.Encoded[*blob.Change], error) {
+	var change blob.Change
+	if err := cbornode.DecodeInto(unsignedBytes, &change); err != nil {
+		return blob.Encoded[*blob.Change]{}, fmt.Errorf("decoding unsigned change: %w", err)
+	}
+
+	// Fill in the signer (NopSigner leaves it nil).
+	change.Signer = kp.Principal()
+
+	// Sign the change (sets sig to zeros, encodes, signs, fills sig).
+	if err := blob.Sign(kp, &change, &change.Sig); err != nil {
+		return blob.Encoded[*blob.Change]{}, fmt.Errorf("signing change: %w", err)
+	}
+
+	// Re-encode to get final CBOR bytes + CID.
+	data, err := cbornode.DumpObject(&change)
+	if err != nil {
+		return blob.Encoded[*blob.Change]{}, fmt.Errorf("encoding signed change: %w", err)
+	}
+
+	blk := ipfs.NewBlock(uint64(multicodec.DagCbor), data)
+
+	return blob.Encoded[*blob.Change]{
+		CID:     blk.Cid(),
+		Data:    blk.RawData(),
+		Decoded: &change,
+	}, nil
 }

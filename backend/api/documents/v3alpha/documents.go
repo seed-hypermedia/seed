@@ -205,7 +205,14 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 		}
 	}
 
-	doc, err := srv.handleDocumentChangeRequest(ctx, in)
+	doc, err := srv.handleDocumentChangeRequest(ctx, documentChangeParams{
+		Account:     in.Account,
+		Path:        in.Path,
+		BaseVersion: in.BaseVersion,
+		Changes:     in.Changes,
+		Capability:  in.Capability,
+		Visibility:  in.Visibility,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -259,8 +266,15 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 }
 
 // PrepareChange prepares unsigned Change and Ref blobs for client-side signing.
-func (srv *Server) PrepareChange(ctx context.Context, in *documents.CreateDocumentChangeRequest) (*documents.PrepareChangeResponse, error) {
-	doc, err := srv.handleDocumentChangeRequest(ctx, in)
+func (srv *Server) PrepareChange(ctx context.Context, in *documents.PrepareChangeRequest) (*documents.PrepareChangeResponse, error) {
+	doc, err := srv.handleDocumentChangeRequest(ctx, documentChangeParams{
+		Account:     in.Account,
+		Path:        in.Path,
+		BaseVersion: in.BaseVersion,
+		Changes:     in.Changes,
+		Capability:  in.Capability,
+		Visibility:  in.Visibility,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -277,9 +291,19 @@ func (srv *Server) PrepareChange(ctx context.Context, in *documents.CreateDocume
 	}, nil
 }
 
+// documentChangeParams holds the common parameters for CreateDocumentChange and PrepareChange.
+type documentChangeParams struct {
+	Account     string
+	Path        string
+	BaseVersion string
+	Changes     []*documents.DocumentChange
+	Capability  string
+	Visibility  documents.ResourceVisibility
+}
+
 // handleDocumentChangeRequest handles the common logic for CreateDocumentChange and PrepareChange.
 // It validates input, loads/creates the document, and applies the requested changes.
-func (srv *Server) handleDocumentChangeRequest(ctx context.Context, in *documents.CreateDocumentChangeRequest) (*docmodel.Document, error) {
+func (srv *Server) handleDocumentChangeRequest(ctx context.Context, in documentChangeParams) (*docmodel.Document, error) {
 	ns, err := core.DecodePrincipal(in.Account)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode account %s: %v", in.Account, err)

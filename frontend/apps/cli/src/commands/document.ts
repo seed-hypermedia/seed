@@ -28,6 +28,7 @@ import {
 } from '../utils/signing'
 import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations} from '../utils/markdown'
+import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
 import {createBlocksMap, matchBlockIds, computeReplaceOps, type APIBlockNode} from '../utils/block-diff'
 import type {BlockNode as ClientBlockNode} from '../client'
 import type {KeyPair} from '../utils/key-derivation'
@@ -116,11 +117,13 @@ export function registerDocumentCommands(program: Command) {
 
   doc
     .command('create <account>')
-    .description('Create a new document from markdown content')
+    .description('Create a new document from markdown or HMBlockNodes JSON')
     .option('-p, --path <path>', 'Document path (e.g. "my-document")')
-    .option('--title <title>', 'Document title (overrides H1 from markdown)')
+    .requiredOption('--title <title>', 'Document title')
     .option('--body <text>', 'Markdown content (inline)')
     .option('--body-file <file>', 'Read markdown content from file')
+    .option('--blocks <json>', 'HMBlockNodes JSON (inline)')
+    .option('--blocks-file <file>', 'Read HMBlockNodes JSON from file')
     .option('-k, --key <name>', 'Signing key name or account ID')
     .action(async (account: string, options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
@@ -130,24 +133,20 @@ export function registerDocumentCommands(program: Command) {
       try {
         const key = resolveKey(options.key, dev)
 
-        let markdown: string
-        if (options.bodyFile) {
-          markdown = readFileSync(options.bodyFile, 'utf-8')
-        } else if (options.body) {
-          markdown = options.body
-        } else {
-          printError('No content specified. Use --body or --body-file.')
+        const hasBody = options.body || options.bodyFile
+        const hasBlocks = options.blocks || options.blocksFile
+
+        if (hasBody && hasBlocks) {
+          printError('Cannot combine --body/--body-file with --blocks/--blocks-file.')
           process.exit(1)
         }
 
-        const {title: parsedTitle, tree} = parseMarkdown(markdown)
-        const title = options.title || parsedTitle
-
-        if (!title) {
-          printError('No title found. Use --title or include an H1 heading in the markdown.')
+        if (!hasBody && !hasBlocks) {
+          printError('No content specified. Use --body, --body-file, --blocks, or --blocks-file.')
           process.exit(1)
         }
 
+        const title = options.title
         const rawPath = options.path || slugify(title)
         const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`
 
@@ -156,7 +155,26 @@ export function registerDocumentCommands(program: Command) {
           type: 'SetAttributes',
           attrs: [{key: ['name'], value: title}],
         })
-        ops.push(...flattenToOperations(tree))
+
+        if (hasBlocks) {
+          let json: string
+          if (options.blocksFile) {
+            json = readFileSync(options.blocksFile, 'utf-8')
+          } else {
+            json = options.blocks
+          }
+          const nodes = parseBlocksJson(json)
+          ops.push(...hmBlockNodesToOperations(nodes))
+        } else {
+          let markdown: string
+          if (options.bodyFile) {
+            markdown = readFileSync(options.bodyFile, 'utf-8')
+          } else {
+            markdown = options.body
+          }
+          const {tree} = parseMarkdown(markdown)
+          ops.push(...flattenToOperations(tree))
+        }
 
         const genesisChange = await createGenesisChange(key)
         const genesisBlock = await encodeBlock(genesisChange)
@@ -241,18 +259,7 @@ export function registerDocumentCommands(program: Command) {
         if (options.replaceBody) {
           // Smart replace: diff existing blocks against new markdown
           const markdown = readFileSync(options.replaceBody, 'utf-8')
-          const {title: parsedTitle, tree: newTree} = parseMarkdown(markdown)
-
-          // If the markdown has a title and --title wasn't explicitly set, update title
-          if (parsedTitle && options.title === undefined) {
-            const currentTitle = existingDoc.metadata?.name || ''
-            if (parsedTitle !== currentTitle) {
-              ops.push({
-                type: 'SetAttributes',
-                attrs: [{key: ['name'], value: parsedTitle}],
-              })
-            }
-          }
+          const {tree: newTree} = parseMarkdown(markdown)
 
           // Convert API block tree to the format expected by block-diff
           const oldNodes = (existingDoc.content || []).map(toAPIBlockNode)
