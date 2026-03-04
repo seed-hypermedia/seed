@@ -132,7 +132,6 @@ info "Downloading deployment script..."
 curl -fsSL "${GH_RAW}/dist/deploy.js" -o "${SEED_DIR}/deploy.js"
 
 # Install the 'seed-deploy' CLI wrapper so users can run commands from anywhere.
-# ~/.local/bin is user-writable and on PATH by default on modern Linux distros.
 BUN_PATH="$(command -v bun)"
 WRAPPER_DIR="${HOME}/.local/bin"
 WRAPPER="${WRAPPER_DIR}/seed-deploy"
@@ -145,10 +144,16 @@ WRAPPER_EOF
 chmod +x "$WRAPPER"
 info "Installed 'seed-deploy' command at ${WRAPPER}"
 
-# Check if ~/.local/bin is on PATH; hint if not.
+# Ensure ~/.local/bin is on PATH for the current and future sessions.
 case ":${PATH}:" in
   *":${WRAPPER_DIR}:"*) ;;
-  *) info "NOTE: Add ~/.local/bin to your PATH: export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
+  *)
+    export PATH="${WRAPPER_DIR}:${PATH}"
+    if ! grep -qF '/.local/bin' "$HOME/.profile" 2>/dev/null; then
+      printf '\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "$HOME/.profile"
+      info "Added ~/.local/bin to PATH (updated ~/.profile)"
+    fi
+    ;;
 esac
 
 info "Running deployment script..."
