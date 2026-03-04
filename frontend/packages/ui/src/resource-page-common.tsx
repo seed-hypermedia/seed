@@ -502,6 +502,7 @@ function CommentPageBody({
               authors={commentAuthorPayloads}
               updateTime={document.updateTime}
               breadcrumbs={breadcrumbs}
+              visibility={document.visibility}
             />
           )}
         </div>
@@ -694,6 +695,7 @@ function DocumentBody({
   deleteCommentDialogContent?: ReactNode
 }) {
   const route = useNavRoute()
+  console.log('== route', route)
   const navigate = useNavigate()
   const activeView = getActiveView(route.key)
 
@@ -1007,6 +1009,7 @@ function DocumentBody({
                 authors={authorPayloads}
                 updateTime={document.updateTime}
                 breadcrumbs={breadcrumbs}
+                visibility={document.visibility}
               />
             )}
           </div>
@@ -1024,6 +1027,7 @@ function DocumentBody({
               authors={authorPayloads}
               updateTime={document.updateTime}
               breadcrumbs={breadcrumbs}
+              visibility={document.visibility}
             />
           )}
         </div>
