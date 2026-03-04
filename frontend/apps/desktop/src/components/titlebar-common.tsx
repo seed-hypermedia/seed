@@ -19,7 +19,7 @@ import {hostnameStripProtocol} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useIsLatest, useResource} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {createDocumentNavRoute, DocumentRoute, DraftRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
@@ -36,7 +36,7 @@ import {
 import {appRouteOfId, useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
-import {ArrowRight, Back, CloudOff, Download, Forward, Link, Trash, UploadCloud} from '@shm/ui/icons'
+import {Back, CloudOff, Download, Forward, Link, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
@@ -346,7 +346,6 @@ export function PageActionButtons(props: TitleBarProps) {
 
 function DocumentTitlebarButtons({route}: {route: DocumentRoute | FeedRoute}) {
   const {id} = route
-  const isLatest = useIsLatest(id)
 
   const publishSite = usePublishSite()
   const isHomeDoc = !id.path?.length
@@ -363,7 +362,6 @@ function DocumentTitlebarButtons({route}: {route: DocumentRoute | FeedRoute}) {
           <UploadCloud className="size-4" />
         </Button>
       ) : null}
-      {isLatest ? null : <GoToLatestVersionButton route={route} />}
       {publishSite.content}
     </TitlebarSection>
   )
@@ -453,27 +451,6 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
         </div>
       )}
     </div>
-  )
-}
-
-function GoToLatestVersionButton({route}: {route: DocumentRoute | FeedRoute}) {
-  const navigate = useNavigate('push')
-
-  return (
-    <Button
-      variant="secondary"
-      size="xs"
-      onClick={() => {
-        navigate({
-          key: 'document',
-          id: {...route.id, version: null, latest: true},
-          panel: route.panel,
-        })
-      }}
-    >
-      Latest Version
-      <ArrowRight className="size-4" />
-    </Button>
   )
 }
 
