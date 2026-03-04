@@ -1,7 +1,7 @@
 import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
-import {FallbackProps, getErrorMessage, useErrorBoundary} from 'react-error-boundary'
+import {FallbackProps, getErrorMessage} from 'react-error-boundary'
 import {ErrorBar} from './error-bar'
 
 export function AppErrorPage({error}: FallbackProps) {
@@ -18,8 +18,6 @@ export function RootAppError({error}: FallbackProps) {
 }
 
 export function AppErrorContent({message}: {message: string}) {
-  const {resetBoundary} = useErrorBoundary()
-
   return (
     <div className={panelContainerStyles}>
       <div className="flex flex-1 items-start justify-center px-4 py-12">
@@ -31,7 +29,7 @@ export function AppErrorContent({message}: {message: string}) {
             <ScrollArea>
               <pre className="p-4 text-sm break-all whitespace-pre-wrap text-red-700">{message}</pre>
             </ScrollArea>
-            <Button variant="destructive" onClick={resetBoundary}>
+            <Button variant="destructive" onClick={() => window.location.reload()}>
               Try again
             </Button>
           </div>
