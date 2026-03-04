@@ -45,7 +45,7 @@ import {
 import {OpenInPanelButton} from './open-in-panel'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {PageLayout} from './page-layout'
-import {PageDeleted, PageDiscovery, PageNotFound} from './page-message-states'
+import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
 import {PanelLayout} from './panel-layout'
 import {GotoLatestBanner, SiteHeader} from './site-header'
 import {Spinner} from './spinner'
@@ -252,6 +252,16 @@ export function ResourcePage({
     return (
       <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <PageDeleted />
+        {pageFooter}
+      </PageWrapper>
+    )
+  }
+
+  // Handle private document (permission denied)
+  if (resource.data.type === 'error' && resource.data.message.toLowerCase().includes('permission')) {
+    return (
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+        <PagePrivate />
         {pageFooter}
       </PageWrapper>
     )

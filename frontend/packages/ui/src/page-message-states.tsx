@@ -1,5 +1,5 @@
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {ArrowRight} from 'lucide-react'
+import {ArrowRight, Lock} from 'lucide-react'
 import {ReactNode} from 'react'
 import {Button} from './button'
 import {panelContainerStyles} from './container'
@@ -98,4 +98,18 @@ export function PageNotFound() {
  */
 export function PageDeleted() {
   return <PageMessageBox title="Document Deleted" message="This document has been deleted by its owner." />
+}
+
+/**
+ * Shown when a document is private and the current user doesn't have access.
+ */
+export function PagePrivate() {
+  return (
+    <PageMessageBox title="Private Document" message="This document is private. You don't have permission to view it.">
+      <div className="text-muted-foreground flex items-center gap-2">
+        <Lock className="size-4" />
+        <SizableText size="sm">Contact the document owner to request access.</SizableText>
+      </div>
+    </PageMessageBox>
+  )
 }
