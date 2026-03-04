@@ -2,8 +2,11 @@ import {describe, it, expect} from 'vitest'
 import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
 import * as Block from 'multiformats/block'
 import {sha256} from 'multiformats/hashes/sha2'
-import {signPreparedChange} from './change'
+import {signPreparedChange, signDocumentChange} from './change'
 import type {HMSigner} from '@shm/shared/hm-types'
+
+// A valid base58btc-encoded account UID (multibase 'z' prefix)
+const TEST_ACCOUNT_UID = 'z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou'
 
 const cborCodec = {
   code: 0x71 as const,
@@ -129,5 +132,76 @@ describe('signPreparedChange', () => {
     expect(result.cid.code).toBe(0x71)
     // SHA256 = 0x12
     expect(result.cid.multihash.code).toBe(0x12)
+  })
+})
+
+describe('signDocumentChange', () => {
+  it('returns change blob + ref blob', async () => {
+    const unsignedBytes = await createMockUnsignedChange()
+    const signer = createMockSigner()
+
+    const {changeCid, publishInput} = await signDocumentChange(
+      {account: TEST_ACCOUNT_UID, unsignedChange: unsignedBytes},
+      signer,
+    )
+
+    expect(changeCid).toBeDefined()
+    expect(changeCid.toString()).toMatch(/^bafy/)
+    // One change blob + one ref blob
+    expect(publishInput.blobs).toHaveLength(2)
+    expect(publishInput.blobs[0]!.cid).toBe(changeCid.toString())
+    expect(publishInput.blobs[0]!.data).toBeInstanceOf(Uint8Array)
+    expect(publishInput.blobs[1]!.data).toBeInstanceOf(Uint8Array)
+  })
+
+  it('uses changeCid as genesis when genesis not provided (new document)', async () => {
+    const unsignedBytes = await createMockUnsignedChange()
+    const signer = createMockSigner()
+
+    const {changeCid, publishInput} = await signDocumentChange(
+      {account: TEST_ACCOUNT_UID, unsignedChange: unsignedBytes},
+      signer,
+    )
+
+    // The ref blob should encode the genesis as the changeCid
+    const refData = cborDecode(publishInput.blobs[1]!.data) as Record<string, unknown>
+    expect(refData['type']).toBe('Ref')
+    expect(refData['genesisBlob']?.toString()).toBe(changeCid.toString())
+  })
+
+  it('uses provided genesis when given', async () => {
+    const unsignedBytes = await createMockUnsignedChange()
+    const signer = createMockSigner()
+    const knownGenesis = await makeTestCID({genesis: 'existing-doc'})
+
+    const {publishInput} = await signDocumentChange(
+      {
+        account: TEST_ACCOUNT_UID,
+        unsignedChange: unsignedBytes,
+        genesis: knownGenesis.toString(),
+        generation: 42,
+      },
+      signer,
+    )
+
+    expect(publishInput.blobs).toHaveLength(2)
+    const refData = cborDecode(publishInput.blobs[1]!.data) as Record<string, unknown>
+    expect(refData['genesisBlob']?.toString()).toBe(knownGenesis.toString())
+  })
+
+  it('produces consistent CIDs for the same input', async () => {
+    const unsignedBytes = await createMockUnsignedChange()
+    const signer = createMockSigner()
+
+    const result1 = await signDocumentChange(
+      {account: TEST_ACCOUNT_UID, unsignedChange: unsignedBytes, generation: 1000},
+      signer,
+    )
+    const result2 = await signDocumentChange(
+      {account: TEST_ACCOUNT_UID, unsignedChange: unsignedBytes, generation: 1000},
+      signer,
+    )
+
+    expect(result1.changeCid.toString()).toBe(result2.changeCid.toString())
   })
 })

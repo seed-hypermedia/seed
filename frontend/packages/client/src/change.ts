@@ -43,19 +43,17 @@ export async function signPreparedChange(
   return {signedBytes: block.bytes, cid: block.cid}
 }
 
-export type PublishDocumentChangeInput = {
+export type SignDocumentChangeInput = {
   /** Account UID (base58btc-encoded principal) */
   account: string
-  /** Document path (API format, e.g., "/my-doc") */
-  path: string
-  /** Current document version (dot-separated CID strings) */
-  baseVersion: string
+  /** Document path (API format, e.g., "/my-doc"). Defaults to root (""). */
+  path?: string
   /** Unsigned CBOR bytes from PrepareChange RPC */
   unsignedChange: Uint8Array
-  /** Genesis CID string (from GetDocument) */
-  genesis: string
-  /** Generation number (from GetDocument.generationInfo) */
-  generation: number
+  /** Genesis CID string (from GetDocument). For new documents omit — changeCid is used. */
+  genesis?: string
+  /** Generation number (from GetDocument.generationInfo). Defaults to Date.now(). */
+  generation?: number | bigint
   /** Optional capability CID string */
   capability?: string
 }
@@ -66,19 +64,23 @@ export type PublishDocumentChangeInput = {
  * Combines: sign change + create version ref into a single publish payload.
  * The caller is responsible for calling PrepareChange beforehand and submitting via publishBlobs.
  */
-export async function publishDocumentChange(
-  input: PublishDocumentChangeInput,
+export async function signDocumentChange(
+  input: SignDocumentChangeInput,
   signer: HMSigner,
 ): Promise<{changeCid: CID; publishInput: HMPublishBlobsInput}> {
   const {signedBytes, cid: changeCid} = await signPreparedChange(input.unsignedChange, signer)
 
+  // For new documents, the change CID is the genesis
+  const effectiveGenesis = input.genesis || changeCid.toString()
+  const effectiveGeneration = input.generation != null ? Number(input.generation) : Date.now()
+
   const refBlobs = await createVersionRef(
     {
       space: input.account,
-      path: input.path,
-      genesis: input.genesis,
+      path: input.path ?? '',
+      genesis: effectiveGenesis,
       version: changeCid.toString(),
-      generation: input.generation,
+      generation: effectiveGeneration,
       capability: input.capability,
     },
     signer,

@@ -1,5 +1,6 @@
+import {signDocumentChange} from '@seed-hypermedia/client'
 import type {HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'
-import type {UniversalClient} from './universal-client'
+import type {PublishDocumentInput, UniversalClient} from './universal-client'
 
 export type WebClientDependencies = {
   // Type-safe request function (from createSeedClient or compatible)
@@ -7,9 +8,6 @@ export type WebClientDependencies = {
   publish: (
     input: Extract<HMRequest, {key: 'PublishBlobs'}>['input'],
   ) => Promise<Extract<HMRequest, {key: 'PublishBlobs'}>['output']>
-
-  // POST CBOR-encoded data to an API endpoint
-  postCBOR?: (url: string, data: any) => Promise<any>
 
   // Comment editor component
   CommentEditor: (props: {docId: UnpackedHypermediaId}) => JSX.Element
@@ -23,6 +21,31 @@ export type WebClientDependencies = {
 }
 
 export function createWebUniversalClient(deps: WebClientDependencies): UniversalClient {
+  async function publishDocument(input: PublishDocumentInput): Promise<void> {
+    if (!deps.getSigner) throw new Error('getSigner is required for publishDocument')
+    const signer = deps.getSigner(input.signerAccountUid)
+    const {unsignedChange} = (await deps.request('PrepareDocumentChange', {
+      account: input.account,
+      path: input.path,
+      baseVersion: input.baseVersion,
+      changes: input.changes,
+      capability: input.capability,
+      visibility: input.visibility,
+    })) as Extract<HMRequest, {key: 'PrepareDocumentChange'}>['output']
+    const {publishInput} = await signDocumentChange(
+      {
+        account: input.account,
+        path: input.path,
+        unsignedChange,
+        genesis: input.genesis,
+        generation: input.generation,
+        capability: input.capability,
+      },
+      signer,
+    )
+    await deps.publish(publishInput)
+  }
+
   return {
     CommentEditor: deps.CommentEditor,
     fetchRecents: deps.fetchRecents,
@@ -32,5 +55,7 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
 
     request: deps.request,
     publish: deps.publish,
+
+    publishDocument: deps.getSigner ? publishDocument : undefined,
   }
 }

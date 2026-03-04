@@ -1,7 +1,6 @@
+import {createSeedClient} from '@seed-hypermedia/client'
 import type {HMSigner, UnpackedHypermediaId} from '@shm/shared'
 import {createWebUniversalClient} from '@shm/shared'
-import {createSeedClient} from '@seed-hypermedia/client'
-import {cborEncode, postCBOR as rawPostCBOR} from './api'
 import {preparePublicKey} from './auth-utils'
 import WebCommenting from './commenting'
 import {getStoredLocalKeys} from './local-db'
@@ -12,7 +11,6 @@ const seedClient = createSeedClient('')
 export const webUniversalClient = createWebUniversalClient({
   request: seedClient.request,
   publish: seedClient.publish,
-  postCBOR: (url: string, data: any) => rawPostCBOR(url, cborEncode(data)),
   CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => {
     return <WebCommenting docId={docId} />
   },

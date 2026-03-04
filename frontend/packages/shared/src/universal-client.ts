@@ -1,6 +1,18 @@
-import type {DiscoveryState, HMListedDraft, HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'
+import type {DiscoveryState, HMListedDraft, HMPrepareDocumentChangeInput, HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'
 import type {RecentsResult} from './models/recents'
 import type {StateStream} from './utils/stream'
+
+export type PublishDocumentInput = {
+  account: string
+  signerAccountUid: string
+  changes: HMPrepareDocumentChangeInput['changes']
+  path?: string
+  baseVersion?: string
+  genesis?: string
+  generation?: number | bigint
+  capability?: string
+  visibility?: number
+}
 
 export type {RecentsResult}
 
@@ -39,4 +51,7 @@ export type UniversalClient = {
 
   // Platform-specific signing
   getSigner?: (accountUid: string) => HMSigner
+
+  // Combined prepare + sign + publish in one call
+  publishDocument?: (input: PublishDocumentInput) => Promise<void>
 }

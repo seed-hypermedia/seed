@@ -1,4 +1,4 @@
-import {HMRequest} from './hm-types'
+import {HMAction, HMGetRequest} from './hm-types'
 import {Account, AccountParams} from './api-account'
 import {AccountContacts} from './api-account-contacts'
 import {SubjectContacts} from './api-subject-contacts'
@@ -12,6 +12,7 @@ import {GetCID} from './api-get-cid'
 import {InteractionSummary} from './api-interaction-summary'
 import {ListAccounts} from './api-list-accounts'
 import {ListCommentsByAuthor} from './api-list-comments-by-author'
+import {PrepareDocumentChange} from './api-prepare-document-change'
 import {PublishBlobs} from './api-publish-blobs'
 import {Query} from './api-query'
 import {Resource, ResourceParams} from './api-resource'
@@ -19,7 +20,7 @@ import {ResourceMetadata, ResourceMetadataParams} from './api-resource-metadata'
 import {Search} from './api-search'
 import {HMRequestImplementation, HMRequestParams} from './api-types'
 
-export const APIRouter = {
+export const APIQueries = {
   Resource,
   ResourceMetadata,
   Account,
@@ -40,13 +41,25 @@ export const APIRouter = {
   ListChanges,
   ListCapabilities,
   InteractionSummary,
-  PublishBlobs,
 } as const satisfies {
-  [K in HMRequest as K['key']]: HMRequestImplementation<K>
+  [K in HMGetRequest['key']]: HMRequestImplementation<Extract<HMGetRequest, {key: K}>>
 }
 
+export const APIActions = {
+  PublishBlobs,
+  PrepareDocumentChange,
+} as const satisfies {
+  [K in HMAction['key']]: HMRequestImplementation<Extract<HMAction, {key: K}>>
+}
+
+// Combined router — kept for backward compatibility (desktop uses this directly)
+export const APIRouter = {
+  ...APIQueries,
+  ...APIActions,
+} as const
+
 export const APIParams: {
-  [K in HMRequest['key']]?: HMRequestParams<Extract<HMRequest, {key: K}>>
+  [K in HMGetRequest['key']]?: HMRequestParams<Extract<HMGetRequest, {key: K}>>
 } = {
   Account: AccountParams,
   Resource: ResourceParams,

@@ -1,8 +1,6 @@
-import {PartialMessage} from '@bufbuild/protobuf'
 import {hmId, hmIdPathToEntityQueryPath, packHmId, unpackHmId} from '@shm/shared'
-import {DocumentChange} from '@shm/shared/client/grpc-types'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
-import {HMBlockNode} from '@shm/shared/hm-types'
+import {HMBlockNode, HMPrepareDocumentChangeInput} from '@shm/shared/hm-types'
 import {htmlToBlocks} from '@shm/shared/html-to-blocks'
 import * as cheerio from 'cheerio'
 import {readFile, writeFile} from 'fs/promises'
@@ -12,7 +10,7 @@ import {nanoid} from 'nanoid'
 import {join} from 'path'
 import z from 'zod'
 import {app, dialog} from 'electron'
-import {grpcClient} from './app-grpc'
+import {seedClient, getSigner} from './app-client'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
 import {PostsFile, ScrapeStatus, scrapeUrl} from './web-scraper'
@@ -180,40 +178,21 @@ async function importPost({
   let displayPublishTime: string | null = postWpMetadata?.[0]?.date_gmt
     ? new Date(postWpMetadata?.[0]?.date_gmt).toDateString()
     : null
-  const changes: DocumentChange[] = []
-  function addChange(op: PartialMessage<DocumentChange>['op']) {
-    changes.push(
-      new DocumentChange({
-        op,
-      }),
-    )
-  }
-  addChange({
-    case: 'setMetadata',
-    value: {
-      key: 'name',
-      value: post.title,
-    },
-  })
+  const changes: HMPrepareDocumentChangeInput['changes'] = [
+    {op: {case: 'setMetadata', value: {key: 'name', value: post.title}}},
+  ]
   if (displayPublishTime) {
-    addChange({
-      case: 'setMetadata',
-      value: {
-        key: 'displayPublishTime',
-        value: displayPublishTime,
-      },
-    })
+    changes.push({op: {case: 'setMetadata', value: {key: 'displayPublishTime', value: displayPublishTime}}})
   }
   changes.push(...changesForBlockNodes(blocks, ''))
-  const resp = await grpcClient.documents.createDocumentChange({
-    signingKeyName: signAccountUid,
-    account: parentId.uid,
-    path: hmIdPathToEntityQueryPath(docPath),
-    changes,
-  })
-  if (resp) {
-    // console.log('Document created', resp)
-  }
+  await seedClient.publishDocument(
+    {
+      account: parentId.uid,
+      path: hmIdPathToEntityQueryPath(docPath),
+      changes,
+    },
+    getSigner(signAccountUid),
+  )
 }
 
 export const webImportingApi = t.router({
@@ -390,34 +369,16 @@ export const webImportingApi = t.router({
     }),
 })
 
-function changesForBlockNodes(nodes: HMBlockNode[], parentId: string): DocumentChange[] {
-  const changes: DocumentChange[] = []
+function changesForBlockNodes(nodes: HMBlockNode[], parentId: string): HMPrepareDocumentChangeInput['changes'] {
+  const changes: HMPrepareDocumentChangeInput['changes'] = []
 
   let lastPlacedBlockId = ''
 
   nodes.forEach((node) => {
     const block = node.block
-    changes.push(
-      new DocumentChange({
-        op: {
-          case: 'moveBlock',
-          value: {
-            blockId: block.id,
-            parent: parentId,
-            leftSibling: lastPlacedBlockId,
-          },
-        },
-      }),
-    )
-    changes.push(
-      new DocumentChange({
-        op: {
-          case: 'replaceBlock',
-          // @ts-expect-error
-          value: block,
-        },
-      }),
-    )
+    changes.push({op: {case: 'moveBlock', value: {blockId: block.id, parent: parentId, leftSibling: lastPlacedBlockId}}})
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    changes.push({op: {case: 'replaceBlock', value: block as any}})
     lastPlacedBlockId = block.id || ''
 
     if (node.children) {

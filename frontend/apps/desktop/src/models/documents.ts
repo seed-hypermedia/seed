@@ -1,5 +1,6 @@
 import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {grpcClient} from '@/grpc-client'
+import {desktopUniversalClient} from '@/desktop-universal-client'
 import {createVersionRef, createRedirectRef} from '@seed-hypermedia/client'
 import {useDraft} from '@/models/accounts'
 import {useExperiments} from '@/models/experiments'
@@ -13,12 +14,7 @@ import {BlockNoteEditor} from '@shm/editor/blocknote/core'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {getSlashMenuItems} from '@shm/editor/slash-menu-items'
 import {getCommentTargetId, getParentPaths, HMAnnotation, UniversalClient, useUniversalClient} from '@shm/shared'
-import {
-  Block,
-  CreateDocumentChangeRequest,
-  DocumentChange,
-  ResourceVisibility,
-} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {AnnounceBlobsProgress} from '@shm/shared/client/.generated/p2p/v1alpha/syncing_pb'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
@@ -300,28 +296,39 @@ export function usePublishResource(
               invalidateQueries([queryKeys.RECENT_SIGNERS])
             })
 
-            const req: PartialMessage<CreateDocumentChangeRequest> = {
-              signingKeyName: accountId,
-              account: destinationId.uid,
-              baseVersion: draft.deps?.join('.') || '',
-              path: hmIdPathToEntityQueryPath(destinationId.path || []),
-              changes: allChanges,
-              capability: capabilityId,
-            }
+            let visibility = ResourceVisibility.UNSPECIFIED
 
             // We only care to set the visibility if it's private.
             if (draft.visibility === 'PRIVATE') {
-              req.visibility = ResourceVisibility.PRIVATE
+              visibility = ResourceVisibility.PRIVATE
             }
 
             // We must only specify the visibility if this is a first publish.
             // For subsequent publishes we set it to unspecified, to let the server decide.
             if (draft.deps?.length > 0) {
-              req.visibility = ResourceVisibility.UNSPECIFIED
+              visibility = ResourceVisibility.UNSPECIFIED
             }
 
-            const publishedDoc = await grpcClient.documents.createDocumentChange(req)
-            const resultDoc: HMDocument = prepareHMDocument(publishedDoc)
+            const docPath = hmIdPathToEntityQueryPath(destinationId.path || [])
+
+            await desktopUniversalClient.publishDocument!({
+              signerAccountUid: accountId,
+              account: destinationId.uid,
+              baseVersion: draft.deps?.join('.') || '',
+              path: docPath,
+              // allChanges is DocumentChange[] from shared helpers; structurally compatible with plain change objects
+              changes: allChanges as any,
+              capability: capabilityId,
+              visibility,
+              genesis: editDocument?.genesis,
+              generation: editDocument?.generationInfo?.generation,
+            })
+
+            const updatedDoc = await grpcClient.documents.getDocument({
+              account: destinationId.uid,
+              path: docPath,
+            })
+            const resultDoc: HMDocument = prepareHMDocument(updatedDoc)
             return resultDoc
           } else {
             throw Error('PUBLISH ERROR: Please select an account to sign first')
@@ -1142,23 +1149,9 @@ export async function publishLinkToParentDocument(
   }
 
   // Create DocumentChange operations: MoveBlock then ReplaceBlock
-  const changes: DocumentChange[] = [
-    new DocumentChange({
-      op: {
-        case: 'moveBlock',
-        value: {
-          blockId: newBlockId,
-          parent: '', // root level
-          leftSibling: lastBlockId, // after the last existing block
-        },
-      },
-    }),
-    new DocumentChange({
-      op: {
-        case: 'replaceBlock',
-        value: Block.fromJson(embedBlock),
-      },
-    }),
+  const changes = [
+    {op: {case: 'moveBlock' as const, value: {blockId: newBlockId, parent: '', leftSibling: lastBlockId}}},
+    {op: {case: 'replaceBlock' as const, value: embedBlock}},
   ]
 
   // Check if signing account has write access (same as child publish)
@@ -1175,18 +1168,24 @@ export async function publishLinkToParentDocument(
     capabilityId = capability.id
   }
 
-  const req: PartialMessage<CreateDocumentChangeRequest> = {
-    signingKeyName,
+  const parentPath = hmIdPathToEntityQueryPath(parentId.path || [])
+
+  await desktopUniversalClient.publishDocument!({
+    signerAccountUid: signingKeyName,
     account: parentId.uid,
     baseVersion: parentDocument.version,
-    path: hmIdPathToEntityQueryPath(parentId.path || []),
+    path: parentPath,
     changes,
     capability: capabilityId,
-    visibility: ResourceVisibility.UNSPECIFIED, // preserve existing visibility
-  }
+    genesis: parentDocument.genesis,
+    generation: parentDocument.generationInfo?.generation,
+  })
 
-  const publishedDoc = await grpcClient.documents.createDocumentChange(req)
-  const resultDoc: HMDocument = prepareHMDocument(publishedDoc)
+  const updatedDoc = await grpcClient.documents.getDocument({
+    account: parentId.uid,
+    path: parentPath,
+  })
+  const resultDoc: HMDocument = prepareHMDocument(updatedDoc)
 
   // Invalidate parent document queries
   invalidateQueries([queryKeys.ENTITY, parentId.id])

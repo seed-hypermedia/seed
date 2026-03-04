@@ -1,7 +1,7 @@
 import {serialize} from 'superjson'
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import {HMRequest, HMRequestSchema} from './hm-types'
-import {APIParams, APIRouter} from './api'
+import {HMActionSchema, HMGetRequestSchema} from './hm-types'
+import {APIParams, APIQueries, APIActions} from './api'
 import {deserializeQueryString} from './input-querystring'
 import type {GRPCClient} from './grpc-client'
 import type {QueryDaemonFn} from './api-types'
@@ -32,18 +32,18 @@ export async function handleApiRequest(
     return {status: 400, body: JSON.stringify({error: 'Missing API key'}), headers: CORS_HEADERS}
   }
 
-  const apiDefinition = APIRouter[key as HMRequest['key']]
+  const apiDefinition = APIQueries[key as keyof typeof APIQueries]
   if (!apiDefinition) {
-    return {status: 404, body: JSON.stringify({error: `Unknown API key: ${key}`}), headers: CORS_HEADERS}
+    return {status: 404, body: JSON.stringify({error: `Unknown query key: ${key}`}), headers: CORS_HEADERS}
   }
 
-  const requestSchema = HMRequestSchema.options.find((schema) => schema.shape.key.value === key)
+  const requestSchema = HMGetRequestSchema.options.find((schema) => schema.shape.key.value === key)
   if (!requestSchema) {
     return {status: 500, body: JSON.stringify({error: `No schema found for key: ${key}`}), headers: CORS_HEADERS}
   }
 
   try {
-    const apiParams = APIParams[key as HMRequest['key']]
+    const apiParams = APIParams[key as keyof typeof APIParams]
     let input: any
     if (apiParams?.paramsToInput) {
       const params: Record<string, string> = {}
@@ -79,45 +79,32 @@ export async function handleApiAction(
     return {status: 400, body: JSON.stringify({error: 'Missing API key'}), headers: CORS_HEADERS}
   }
 
-  const apiDefinition = APIRouter[key as HMRequest['key']]
+  const apiDefinition = APIActions[key as keyof typeof APIActions]
   if (!apiDefinition) {
-    return {status: 404, body: JSON.stringify({error: `Unknown API key: ${key}`}), headers: CORS_HEADERS}
+    return {status: 404, body: JSON.stringify({error: `Unknown action key: ${key}`}), headers: CORS_HEADERS}
   }
 
-  const requestSchema = HMRequestSchema.options.find((schema) => schema.shape.key.value === key)
+  const requestSchema = HMActionSchema.options.find((schema) => schema.shape.key.value === key)
+  if (!requestSchema) {
+    return {status: 500, body: JSON.stringify({error: `No schema found for key: ${key}`}), headers: CORS_HEADERS}
+  }
 
   try {
     const decodedInput = cborDecode(body)
-    let validatedInput = decodedInput
-
-    if (key === 'PublishBlobs') {
-      if (!requestSchema) {
-        return {
-          status: 500,
-          body: JSON.stringify({error: `No schema found for key: ${key}`}),
-          headers: CORS_HEADERS,
-        }
-      }
-      try {
-        validatedInput = requestSchema.shape.input.parse(decodedInput)
-      } catch (error) {
-        return {
-          status: 400,
-          body: JSON.stringify({
-            error: error instanceof Error ? error.message : 'Invalid request input',
-          }),
-          headers: CORS_HEADERS,
-        }
+    let validatedInput: any
+    try {
+      validatedInput = requestSchema.shape.input.parse(decodedInput)
+    } catch (error) {
+      return {
+        status: 400,
+        body: JSON.stringify({error: error instanceof Error ? error.message : 'Invalid request input'}),
+        headers: CORS_HEADERS,
       }
     }
 
     const output = await apiDefinition.getData(grpcClient, validatedInput as any, queryDaemon)
-
-    if (requestSchema) {
-      const validatedOutput = requestSchema.shape.output.parse(output)
-      return {status: 200, body: JSON.stringify(serialize(validatedOutput)), headers: CORS_HEADERS}
-    }
-    return {status: 200, body: JSON.stringify(serialize(output)), headers: CORS_HEADERS}
+    const validatedOutput = requestSchema.shape.output.parse(output)
+    return {status: 200, body: JSON.stringify(serialize(validatedOutput)), headers: CORS_HEADERS}
   } catch (error) {
     console.error('API action error:', error)
     return {

@@ -171,4 +171,29 @@ describe('createSeedClient', () => {
 
     expect(result).toEqual({cids: ['bafyviahelper2']})
   })
+
+  it('uses POST CBOR transport for PrepareDocumentChange', async () => {
+    // PrepareDocumentChange is an action — should use POST like PublishBlobs.
+    // We abort after the fetch call to inspect transport without faking the response.
+    let capturedUrl: string | undefined
+    let capturedOptions: RequestInit | undefined
+
+    const fetchFn = vi.fn().mockImplementation((url: string, options: RequestInit) => {
+      capturedUrl = url
+      capturedOptions = options
+      return Promise.reject(new Error('test abort'))
+    })
+    const client = createSeedClient('https://example.com', {fetch: fetchFn})
+    const input = {account: 'test-uid', changes: []}
+
+    await expect(client.request('PrepareDocumentChange', input)).rejects.toThrow(SeedNetworkError)
+
+    expect(capturedUrl).toBe('https://example.com/api/PrepareDocumentChange')
+    expect(capturedOptions?.method).toBe('POST')
+    expect(capturedOptions?.headers).toEqual(
+      expect.objectContaining({'Content-Type': 'application/cbor'}),
+    )
+    const decodedBody = cborDecode(capturedOptions?.body as Uint8Array)
+    expect(decodedBody).toEqual(input)
+  })
 })

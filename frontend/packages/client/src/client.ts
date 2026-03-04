@@ -1,10 +1,22 @@
-import type {HMRequest} from '@shm/shared/hm-types'
-import {HMRequestSchema} from '@shm/shared/hm-types'
+import type {HMPrepareDocumentChangeInput, HMRequest, HMSigner} from '@shm/shared/hm-types'
+import {HMActionSchema, HMRequestSchema} from '@shm/shared/hm-types'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {serializeQueryString} from '@shm/shared/input-querystring'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {deserialize} from 'superjson'
 import {SeedClientError, SeedNetworkError, SeedValidationError} from './errors'
+import {signDocumentChange} from './change'
+
+export type PublishDocumentInput = {
+  account: string
+  changes: HMPrepareDocumentChangeInput['changes']
+  path?: string
+  baseVersion?: string
+  genesis?: string
+  generation?: number | bigint
+  capability?: string
+  visibility?: number
+}
 
 export type SeedClientOptions = {
   fetch?: typeof globalThis.fetch
@@ -40,6 +52,7 @@ export type SeedClient = {
   request<Req extends HMRequest>(key: Req['key'], input: Req['input']): Promise<Req['output']>
   publish(input: PublishBlobsRequest['input']): Promise<PublishBlobsRequest['output']>
   publishBlobs(input: PublishBlobsRequest['input']): Promise<PublishBlobsRequest['output']>
+  publishDocument(input: PublishDocumentInput, signer: HMSigner): Promise<void>
   baseUrl: string
 }
 
@@ -64,7 +77,8 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
 
     let response: Response
 
-    if (key === 'PublishBlobs') {
+    const isAction = HMActionSchema.options.some((s) => s.shape.key.value === key)
+    if (isAction) {
       const url = `${normalizedBaseUrl}/api/${key}`
       try {
         response = await fetchFn(url, {
@@ -140,10 +154,34 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
     return request<PublishBlobsRequest>('PublishBlobs', input)
   }
 
+  async function publishDocument(input: PublishDocumentInput, signer: HMSigner): Promise<void> {
+    const {unsignedChange} = (await request('PrepareDocumentChange', {
+      account: input.account,
+      path: input.path,
+      baseVersion: input.baseVersion,
+      changes: input.changes,
+      capability: input.capability,
+      visibility: input.visibility,
+    })) as Extract<HMRequest, {key: 'PrepareDocumentChange'}>['output']
+    const {publishInput} = await signDocumentChange(
+      {
+        account: input.account,
+        path: input.path,
+        unsignedChange,
+        genesis: input.genesis,
+        generation: input.generation,
+        capability: input.capability,
+      },
+      signer,
+    )
+    await publish(publishInput)
+  }
+
   return {
     baseUrl: normalizedBaseUrl,
     request,
     publish,
     publishBlobs: publish,
+    publishDocument,
   }
 }

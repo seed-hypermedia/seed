@@ -1,5 +1,4 @@
 import {hmId, queryKeys} from '@shm/shared'
-import {DocumentChange} from '@shm/shared/client'
 import {SEED_HOST_URL} from '@shm/shared/constants'
 import z from 'zod'
 import {grpcClient} from './app-grpc'
@@ -7,6 +6,7 @@ import {appInvalidateQueries} from './app-invalidation'
 // @ts-expect-error ignore import
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
+import {seedClient, getSigner} from './app-client'
 
 const HOST_STORAGE_KEY = 'Host-v001'
 
@@ -81,22 +81,16 @@ async function writeDNSActive(pendingDomain: PendingDomain) {
   if (!doc) {
     throw new Error('writeDNSActive: no document found')
   }
-  await grpcClient.documents.createDocumentChange({
-    account: pendingDomain.siteUid,
-    signingKeyName: pendingDomain.siteUid, // this only works if the signer is available.. we haven't confirmed it but it probably is, if the user has gotten here
-    baseVersion: doc.version,
-    changes: [
-      new DocumentChange({
-        op: {
-          case: 'setMetadata',
-          value: {
-            key: 'siteUrl',
-            value: `https://${pendingDomain.hostname}`,
-          },
-        },
-      }),
-    ],
-  })
+  await seedClient.publishDocument(
+    {
+      account: pendingDomain.siteUid,
+      baseVersion: doc.version,
+      genesis: doc.genesis,
+      generation: doc.generationInfo?.generation,
+      changes: [{op: {case: 'setMetadata', value: {key: 'siteUrl', value: `https://${pendingDomain.hostname}`}}}],
+    },
+    getSigner(pendingDomain.siteUid),
+  )
   const entityId = hmId(pendingDomain.siteUid).id
   console.log('~~ Invalidating entity', entityId)
   appInvalidateQueries([queryKeys.ENTITY, entityId])
