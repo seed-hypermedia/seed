@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {extractAllContentRefs, hasQueryBlockTargetingSelf} from '../content'
+import {extractAllContentRefs, findSelfQueryBlock, hasQueryBlockTargetingSelf} from '../content'
 import {HMBlockNode} from '../hm-types'
 
 function makeBlock(block: any, children?: HMBlockNode[]): HMBlockNode {
@@ -207,5 +207,123 @@ describe('hasQueryBlockTargetingSelf', () => {
       ]),
     ]
     expect(hasQueryBlockTargetingSelf(blocks, 'uid1', null)).toBe(true)
+  })
+})
+
+describe('findSelfQueryBlock', () => {
+  it('returns null for empty content', () => {
+    expect(findSelfQueryBlock([], 'uid', ['path'])).toBeNull()
+  })
+
+  it('returns null when no Query blocks exist', () => {
+    const blocks: HMBlockNode[] = [makeBlock({type: 'Paragraph', id: 'p1', text: 'hello'})]
+    expect(findSelfQueryBlock(blocks, 'uid', ['path'])).toBeNull()
+  })
+
+  it('returns the block when Query targets same uid and path', () => {
+    const queryBlock = {
+      type: 'Query',
+      id: 'q1',
+      attributes: {
+        query: {
+          includes: [{space: 'myuid', path: 'my/path', mode: 'Children'}],
+        },
+      },
+    }
+    const blocks: HMBlockNode[] = [makeBlock(queryBlock)]
+    const result = findSelfQueryBlock(blocks, 'myuid', ['my', 'path'])
+    expect(result).not.toBeNull()
+    expect(result!.id).toBe('q1')
+  })
+
+  it('returns the block for root doc with empty path', () => {
+    const blocks: HMBlockNode[] = [
+      makeBlock({
+        type: 'Query',
+        id: 'q1',
+        attributes: {
+          query: {
+            includes: [{space: 'uid1', path: '', mode: 'Children'}],
+          },
+        },
+      }),
+    ]
+    expect(findSelfQueryBlock(blocks, 'uid1', null)).not.toBeNull()
+    expect(findSelfQueryBlock(blocks, 'uid1', [])).not.toBeNull()
+  })
+
+  it('returns null when Query targets different uid', () => {
+    const blocks: HMBlockNode[] = [
+      makeBlock({
+        type: 'Query',
+        id: 'q1',
+        attributes: {
+          query: {
+            includes: [{space: 'other-uid', path: 'path', mode: 'Children'}],
+          },
+        },
+      }),
+    ]
+    expect(findSelfQueryBlock(blocks, 'myuid', ['path'])).toBeNull()
+  })
+
+  it('returns null when Query targets different path', () => {
+    const blocks: HMBlockNode[] = [
+      makeBlock({
+        type: 'Query',
+        id: 'q1',
+        attributes: {
+          query: {
+            includes: [{space: 'uid1', path: 'other/path', mode: 'Children'}],
+          },
+        },
+      }),
+    ]
+    expect(findSelfQueryBlock(blocks, 'uid1', ['my', 'path'])).toBeNull()
+  })
+
+  it('returns the first match when multiple self-referential blocks exist', () => {
+    const blocks: HMBlockNode[] = [
+      makeBlock({
+        type: 'Query',
+        id: 'q1',
+        attributes: {
+          query: {
+            includes: [{space: 'uid1', path: '', mode: 'Children'}],
+          },
+        },
+      }),
+      makeBlock({
+        type: 'Query',
+        id: 'q2',
+        attributes: {
+          query: {
+            includes: [{space: 'uid1', path: '', mode: 'AllDescendants'}],
+          },
+        },
+      }),
+    ]
+    const result = findSelfQueryBlock(blocks, 'uid1', null)
+    expect(result).not.toBeNull()
+    expect(result!.id).toBe('q1')
+  })
+
+  it('finds Query block in nested children', () => {
+    const blocks: HMBlockNode[] = [
+      makeBlock({type: 'Paragraph', id: 'p1', text: 'parent'}, [
+        makeBlock({
+          type: 'Query',
+          id: 'q1',
+          attributes: {
+            query: {
+              includes: [{space: 'uid1', path: '', mode: 'Children'}],
+            },
+          },
+        }),
+      ]),
+    ]
+    const result = findSelfQueryBlock(blocks, 'uid1', null)
+    expect(result).not.toBeNull()
+    expect(result!.id).toBe('q1')
   })
 })

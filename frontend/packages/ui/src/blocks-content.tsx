@@ -58,6 +58,7 @@ import {common} from 'lowlight'
 import {AlertCircle, ChevronDown, ChevronRight, File, Link, MessageSquare, Undo2, X} from 'lucide-react'
 import React, {
   PropsWithChildren,
+  ReactNode,
   createContext,
   createElement,
   memo,
@@ -81,9 +82,12 @@ import {EmbedWrapper} from './embed-wrapper'
 import {BlankQueryBlockMessage} from './entity-card'
 import {extractIpfsUrlCid, getDaemonFileUrl, isIpfsUrl, useFileProxyUrl, useImageUrl} from './get-file-url'
 import {SeedHeading, marginClasses} from './heading'
+import {useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
 import {HMIcon} from './hm-icon'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from './hover-card'
 import {BlockQuote} from './icons'
+import {InlineDraftCard} from './inline-draft-card'
+import {InlineDraftListItem} from './inline-draft-list-item'
 import {DocumentCard} from './newspaper'
 import {QueryBlockContent} from './query-block-content'
 import {Spinner} from './spinner'
@@ -1957,6 +1961,62 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
   // Get accounts metadata
   const accountsMetadata = useAccountsMetadata(authorIds)
 
+  // Inline drafts for self-referential query blocks
+  const {targetBlockId, drafts, onOpenDraft, onDeleteDraft, onUpdateDraftName} = useQueryBlockDrafts()
+  const hasDrafts = targetBlockId === block.id && drafts.length > 0
+
+  const style = block.attributes.style || 'Card'
+  const banner = block.attributes.banner || false
+
+  const {prependItems, bannerContent} = useMemo(() => {
+    if (!hasDrafts || !onOpenDraft || !onDeleteDraft || !onUpdateDraftName) {
+      return {prependItems: undefined, bannerContent: undefined}
+    }
+
+    if (style === 'Card') {
+      const cards = drafts.map(({draft, autoFocus}) => (
+        <InlineDraftCard
+          key={`draft-${draft.id}`}
+          draft={draft}
+          autoFocus={autoFocus}
+          onOpenDraft={onOpenDraft}
+          onDeleteDraft={onDeleteDraft}
+          onUpdateDraftName={onUpdateDraftName}
+        />
+      ))
+      if (banner && cards.length > 0) {
+        // First draft takes the banner slot
+        const bannerDraft = drafts[0]!
+        const bannerEl = (
+          <InlineDraftCard
+            key={`draft-banner-${bannerDraft.draft.id}`}
+            draft={bannerDraft.draft}
+            autoFocus={bannerDraft.autoFocus}
+            banner
+            onOpenDraft={onOpenDraft}
+            onDeleteDraft={onDeleteDraft}
+            onUpdateDraftName={onUpdateDraftName}
+          />
+        )
+        return {prependItems: cards.slice(1), bannerContent: bannerEl}
+      }
+      return {prependItems: cards, bannerContent: undefined}
+    }
+
+    // List view
+    const listItems = drafts.map(({draft, autoFocus}) => (
+      <InlineDraftListItem
+        key={`draft-${draft.id}`}
+        draft={draft}
+        autoFocus={autoFocus}
+        onOpenDraft={onOpenDraft}
+        onDeleteDraft={onDeleteDraft}
+        onUpdateDraftName={onUpdateDraftName}
+      />
+    ))
+    return {prependItems: listItems, bannerContent: undefined}
+  }, [hasDrafts, drafts, style, banner, onOpenDraft, onDeleteDraft, onUpdateDraftName])
+
   // Show discovering state (after all hooks)
   if (queryTarget.data?.type === 'not-found' && queryTarget.isDiscovering) {
     return (
@@ -1979,11 +2039,13 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
   return (
     <QueryBlockContent
       items={sortedItems}
-      style={block.attributes.style || 'Card'}
+      style={style}
       columnCount={block.attributes.columnCount}
-      banner={block.attributes.banner || false}
+      banner={hasDrafts ? false : banner}
       accountsMetadata={accountsMetadata.data}
       getEntity={getEntity}
+      prependItems={prependItems}
+      bannerContent={bannerContent}
     />
   )
 }
@@ -2585,6 +2647,8 @@ export function DocumentCardGrid({
   accountsMetadata,
   columnCount = 1,
   isDiscovering,
+  prependItems,
+  bannerContent,
 }: {
   firstItem: HMDocumentInfo | undefined
   items: Array<HMDocumentInfo>
@@ -2592,13 +2656,19 @@ export function DocumentCardGrid({
   accountsMetadata?: HMAccountsMetadata
   columnCount?: number
   isDiscovering?: boolean
+  prependItems?: ReactNode[]
+  bannerContent?: ReactNode
 }) {
   const columnClasses = useMemo(() => {
     return cn('basis-full', columnCount == 2 && 'sm:basis-1/2', columnCount == 3 && 'sm:basis-1/2 md:basis-1/3')
   }, [columnCount])
+  const hasPrependItems = prependItems && prependItems.length > 0
+  const hasItems = items?.length > 0
   return (
     <div className="flex w-full flex-col">
-      {firstItem ? (
+      {bannerContent ? (
+        <div className="flex">{bannerContent}</div>
+      ) : firstItem ? (
         <div className="flex">
           <DocumentCard
             banner
@@ -2608,8 +2678,13 @@ export function DocumentCardGrid({
           />
         </div>
       ) : null}
-      {items?.length ? (
+      {hasPrependItems || hasItems ? (
         <div className="-mx-3 mt-2 flex flex-wrap justify-center">
+          {prependItems?.map((item, i) => (
+            <div className={cn(columnClasses, 'flex p-3')} key={`prepend-${i}`}>
+              {item}
+            </div>
+          ))}
           {items.map((item) => {
             if (!item) return null
             return (
@@ -2620,9 +2695,9 @@ export function DocumentCardGrid({
           })}
         </div>
       ) : null}
-      {items.length == 0 && isDiscovering ? (
+      {!hasItems && !hasPrependItems && isDiscovering ? (
         <BlankQueryBlockMessage message="Searching for documents..." />
-      ) : items.length == 0 ? (
+      ) : !hasItems && !hasPrependItems ? (
         <BlankQueryBlockMessage message="No Documents found in this Query Block." />
       ) : null}
     </div>

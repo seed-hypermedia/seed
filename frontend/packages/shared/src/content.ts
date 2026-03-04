@@ -292,6 +292,24 @@ export function hasQueryBlockTargetingSelf(
   })
 }
 
+export function findSelfQueryBlock(
+  children: HMBlockNode[],
+  parentUid: string,
+  parentPath: string[] | null,
+): HMBlockQuery | null {
+  const queryBlocks = extractQueryBlocks(children)
+  for (const qb of queryBlocks) {
+    const include = qb.attributes.query.includes[0]
+    if (!include) continue
+    if (include.space !== parentUid) continue
+    const includePath = entityQueryPathToHmIdPath(include.path)
+    const parentPathStr = (parentPath || []).join('/')
+    const includePathStr = (includePath || []).join('/')
+    if (includePathStr === parentPathStr) return qb
+  }
+  return null
+}
+
 export function extractQueryBlocks(children: HMBlockNode[]): HMBlockQuery[] {
   let queries: HMBlockQuery[] = []
   function extractQueriesFromBlock(block: HMBlockNode) {
