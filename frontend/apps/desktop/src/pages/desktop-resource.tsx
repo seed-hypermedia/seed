@@ -9,7 +9,7 @@ import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
 import {MoveDialog} from '@/components/move-dialog'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
-import {useChildDrafts, useCreateInlineDraft} from '@/models/documents'
+import {useChildDrafts, useCreateInlineDraft, useDeleteDraft, useUpdateDraftMetadata} from '@/models/documents'
 import {useExistingDraft} from '@/models/drafts'
 import {useSelectedAccount} from '@/selected-account'
 import {client} from '@/trpc'
@@ -17,6 +17,8 @@ import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmId} from '@shm/shared'
+import {findSelfQueryBlock} from '@shm/shared/content'
+import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {CommentsProvider, isRouteEqualToCommentTarget, useDeleteComment} from '@shm/shared/comments-service-provider'
 import {HMBlockNode, HMComment} from '@shm/shared/hm-types'
@@ -76,9 +78,21 @@ export default function DesktopResourcePage() {
   // Inline document creation
   const childDrafts = useChildDrafts(docId)
   const createInlineDraft = useCreateInlineDraft(docId)
+  const deleteDraft = useDeleteDraft()
+  const updateDraftMetadata = useUpdateDraftMetadata()
   const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)
+
+  // Detect self-referential query block
+  const selfQueryBlock = useMemo(() => {
+    if (!doc?.content) return null
+    return findSelfQueryBlock(doc.content, docId.uid, docId.path || null)
+  }, [doc?.content, docId.uid, docId.path])
+
+  const hasSelfQuery = !!selfQueryBlock
+
+  // When self-query exists, drafts render inside query block; otherwise at the bottom
   const inlineCards = useMemo(() => {
-    if (!childDrafts.length) return null
+    if (!childDrafts.length || hasSelfQuery) return null
     return (
       <div className="mt-6 grid grid-cols-1 gap-4 px-4 sm:grid-cols-2 lg:grid-cols-3">
         {childDrafts.map((draft) => (
@@ -86,7 +100,30 @@ export default function DesktopResourcePage() {
         ))}
       </div>
     )
-  }, [childDrafts, lastCreatedDraftId])
+  }, [childDrafts, lastCreatedDraftId, hasSelfQuery])
+
+  // Context value for query block draft rendering
+  const queryBlockDraftsValue = useMemo(
+    () => ({
+      targetBlockId: selfQueryBlock?.id ?? null,
+      drafts: hasSelfQuery
+        ? childDrafts
+            .slice()
+            .reverse()
+            .map((d) => ({draft: d, autoFocus: d.id === lastCreatedDraftId}))
+        : [],
+      onOpenDraft: (draftId: string) => {
+        navigate({key: 'draft', id: draftId})
+      },
+      onDeleteDraft: (draftId: string) => {
+        deleteDraft.mutate(draftId)
+      },
+      onUpdateDraftName: (draftId: string, name: string) => {
+        updateDraftMetadata.mutate({draftId, metadata: {name}})
+      },
+    }),
+    [selfQueryBlock?.id, hasSelfQuery, childDrafts, lastCreatedDraftId, navigate, deleteDraft, updateDraftMetadata],
+  )
 
   // Comment deletion
   const selectedAccount = useSelectedAccount()
@@ -367,19 +404,21 @@ export default function DesktopResourcePage() {
         onReplyCountClick={onReplyCountClick}
       >
         <DesktopDocumentActionsProvider>
-          <ResourcePage
-            docId={docId}
-            CommentEditor={CommentBox}
-            extraMenuItems={menuItems}
-            editActions={editActions}
-            existingDraft={existingDraft}
-            collaboratorForm={<AddCollaboratorForm id={docId} />}
-            inlineCards={inlineCards}
-            rightActions={<SubscriptionButton id={docId} />}
-            currentAccountId={currentAccountId}
-            onCommentDelete={onCommentDelete}
-            deleteCommentDialogContent={deleteCommentDialog.content}
-          />
+          <QueryBlockDraftsProvider {...queryBlockDraftsValue}>
+            <ResourcePage
+              docId={docId}
+              CommentEditor={CommentBox}
+              extraMenuItems={menuItems}
+              editActions={editActions}
+              existingDraft={existingDraft}
+              collaboratorForm={<AddCollaboratorForm id={docId} />}
+              inlineCards={inlineCards}
+              rightActions={<SubscriptionButton id={docId} />}
+              currentAccountId={currentAccountId}
+              onCommentDelete={onCommentDelete}
+              deleteCommentDialogContent={deleteCommentDialog.content}
+            />
+          </QueryBlockDraftsProvider>
         </DesktopDocumentActionsProvider>
       </CommentsProvider>
       {deleteEntity.content}

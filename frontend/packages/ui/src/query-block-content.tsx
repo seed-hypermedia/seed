@@ -1,4 +1,5 @@
 import {HMAccountsMetadata, HMDocumentInfo, HMResourceFetchResult, UnpackedHypermediaId} from '@shm/shared'
+import {ReactNode} from 'react'
 import {DocumentCardGrid} from './blocks-content'
 import {DocumentListItem} from './document-list-item'
 
@@ -10,6 +11,8 @@ export interface QueryBlockContentProps {
   accountsMetadata: HMAccountsMetadata
   getEntity: (id: UnpackedHypermediaId) => HMResourceFetchResult | null
   isDiscovering?: boolean
+  prependItems?: ReactNode[]
+  bannerContent?: ReactNode
 }
 
 export function QueryBlockContent({
@@ -20,6 +23,8 @@ export function QueryBlockContent({
   accountsMetadata,
   getEntity,
   isDiscovering,
+  prependItems,
+  bannerContent,
 }: QueryBlockContentProps) {
   if (style === 'Card') {
     return (
@@ -30,11 +35,20 @@ export function QueryBlockContent({
         accountsMetadata={accountsMetadata}
         getEntity={getEntity}
         isDiscovering={isDiscovering}
+        prependItems={prependItems}
+        bannerContent={bannerContent}
       />
     )
   }
 
-  return <QueryBlockListView items={items} accountsMetadata={accountsMetadata} isDiscovering={isDiscovering} />
+  return (
+    <QueryBlockListView
+      items={items}
+      accountsMetadata={accountsMetadata}
+      isDiscovering={isDiscovering}
+      prependItems={prependItems}
+    />
+  )
 }
 
 function QueryBlockCardView({
@@ -44,6 +58,8 @@ function QueryBlockCardView({
   accountsMetadata,
   getEntity,
   isDiscovering,
+  prependItems,
+  bannerContent,
 }: {
   items: HMDocumentInfo[]
   banner: boolean
@@ -51,9 +67,12 @@ function QueryBlockCardView({
   accountsMetadata: HMAccountsMetadata
   getEntity: (id: UnpackedHypermediaId) => HMResourceFetchResult | null
   isDiscovering?: boolean
+  prependItems?: ReactNode[]
+  bannerContent?: ReactNode
 }) {
-  const firstItem = banner ? items[0] : undefined
-  const restItems = banner ? items.slice(1) : items
+  // When bannerContent is provided, it takes the banner slot — don't split items
+  const firstItem = banner && !bannerContent ? items[0] : undefined
+  const restItems = banner && !bannerContent ? items.slice(1) : items
 
   const columnCountNum = typeof columnCount === 'string' ? parseInt(columnCount, 10) : columnCount
 
@@ -65,6 +84,8 @@ function QueryBlockCardView({
       accountsMetadata={accountsMetadata}
       columnCount={columnCountNum}
       isDiscovering={isDiscovering}
+      prependItems={prependItems}
+      bannerContent={bannerContent}
     />
   )
 }
@@ -73,13 +94,17 @@ function QueryBlockListView({
   items,
   accountsMetadata,
   isDiscovering,
+  prependItems,
 }: {
   items: HMDocumentInfo[]
   accountsMetadata: HMAccountsMetadata
   isDiscovering?: boolean
+  prependItems?: ReactNode[]
 }) {
+  const hasPrependItems = prependItems && prependItems.length > 0
+
   // Show loading state when discovering and no items yet
-  if (items.length === 0 && isDiscovering) {
+  if (items.length === 0 && !hasPrependItems && isDiscovering) {
     return (
       <div className="bg-muted flex items-center rounded-lg p-4">
         <span className="text-muted-foreground italic">Searching for documents...</span>
@@ -89,6 +114,7 @@ function QueryBlockListView({
 
   return (
     <div className="my-4 flex w-full flex-col gap-1">
+      {prependItems}
       {items.map((item) => {
         return <DocumentListItem key={item.id.id} item={item} accountsMetadata={accountsMetadata} />
       })}
