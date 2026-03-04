@@ -101,6 +101,26 @@ export function makeShellRunner(): ShellRunner {
   };
 }
 
+/**
+ * Verify that the current user can reach the Docker daemon.
+ * Called before any Docker-dependent command so the user gets
+ * an immediate, actionable error instead of a cryptic failure
+ * minutes later (e.g. after completing the setup wizard).
+ */
+function checkDockerAccess(shell: ShellRunner): void {
+  if (shell.runSafe("docker info >/dev/null 2>&1") === null) {
+    throw new Error(
+      [
+        "Cannot connect to Docker. Ensure Docker is installed and your user",
+        "has permission to access the Docker socket.",
+        "",
+        "  Fix: sudo usermod -aG docker $USER",
+        "  Then log out and back in, or run: newgrp docker",
+      ].join("\n"),
+    );
+  }
+}
+
 export interface SeedConfig {
   /** Public hostname for this node, e.g. "https://node1.seed.run" */
   domain: string;
@@ -1270,6 +1290,7 @@ async function cmdDeploy(
   shell: ShellRunner,
   reconfigure = false,
 ): Promise<void> {
+  checkDockerAccess(shell);
   await ensureSeedDir(paths, shell);
 
   // In headless mode (cron), self-update the script before deploying.
@@ -1324,12 +1345,14 @@ async function cmdDeploy(
 }
 
 async function cmdStop(paths: DeployPaths, shell: ShellRunner): Promise<void> {
+  checkDockerAccess(shell);
   console.log("Stopping and removing Seed containers...");
   shell.runSafe(`docker compose -f "${paths.composePath}" down`);
   console.log("All Seed containers stopped and removed.");
 }
 
 async function cmdStart(paths: DeployPaths, shell: ShellRunner): Promise<void> {
+  checkDockerAccess(shell);
   if (!(await configExists(paths))) {
     console.error(
       `No config found at ${paths.configPath}. Run 'seed-deploy' first to set up.`,
@@ -1359,6 +1382,7 @@ async function cmdStatus(
   paths: DeployPaths,
   shell: ShellRunner,
 ): Promise<void> {
+  checkDockerAccess(shell);
   console.log(`\nSeed Node Status v${VERSION}`);
   console.log("━".repeat(40));
 
@@ -1660,6 +1684,7 @@ async function cmdBackup(
   shell: ShellRunner,
   args: string[],
 ): Promise<void> {
+  checkDockerAccess(shell);
   if (!(await configExists(paths))) {
     console.error(
       `No config found at ${paths.configPath}. Nothing to back up.`,
@@ -1729,6 +1754,7 @@ async function cmdRestore(
   shell: ShellRunner,
   args: string[],
 ): Promise<void> {
+  checkDockerAccess(shell);
   const backupFile = args[0];
   if (!backupFile) {
     console.error("Usage: seed-deploy restore <backup-file.tar.gz>");
@@ -1839,6 +1865,7 @@ async function cmdUninstall(
   paths: DeployPaths,
   shell: ShellRunner,
 ): Promise<void> {
+  checkDockerAccess(shell);
   p.intro(`Seed Node Uninstall v${VERSION}`);
 
   p.note(
