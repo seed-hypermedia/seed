@@ -1,4 +1,5 @@
 import {HMDocument, hmId, UnpackedHypermediaId} from '@shm/shared'
+import {IS_DESKTOP} from '@shm/shared/constants'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useMemo} from 'react'
@@ -90,7 +91,8 @@ function FeedBody({
   })
 
   const media = useMedia()
-  const isMobile = media.xs
+  // In Electron (IS_DESKTOP), always use element scroll regardless of window width
+  const isMobile = media.xs && !IS_DESKTOP
 
   const menuItems = extraMenuItems || []
 
