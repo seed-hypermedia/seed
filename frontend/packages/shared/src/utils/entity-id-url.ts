@@ -155,7 +155,6 @@ export function createCommentUrl({
   siteUrl,
   blockRef,
   blockRange,
-  isDiscussionsView,
   latest,
 }: {
   docId: UnpackedHypermediaId
@@ -163,51 +162,26 @@ export function createCommentUrl({
   siteUrl?: string | null
   blockRef?: string | null
   blockRange?: BlockRange | null
-  /** true when on the :comments main view, false when comment is in a panel */
-  isDiscussionsView?: boolean
   latest?: boolean | null
 }): string {
-  if (isDiscussionsView) {
-    // Main panel → commentId in URL path via view term
-    const viewTermWithComment = `:comments/${commentId}`
-    if (siteUrl) {
-      return createSiteUrl({
-        path: docId.path,
-        hostname: siteUrl,
-        latest: latest ?? undefined,
-        viewTerm: viewTermWithComment,
-        blockRef,
-        blockRange,
-      })
-    }
-    return createWebHMUrl(docId.uid, {
+  const viewTermWithComment = `:comments/${commentId}`
+  if (siteUrl) {
+    return createSiteUrl({
       path: docId.path,
-      latest,
+      hostname: siteUrl,
+      latest: latest ?? undefined,
       viewTerm: viewTermWithComment,
       blockRef,
       blockRange,
     })
-  } else {
-    // Right panel → commentId in panel query param
-    const panelParam = `comments/${commentId}`
-    if (siteUrl) {
-      return createSiteUrl({
-        path: docId.path,
-        hostname: siteUrl,
-        latest: latest ?? undefined,
-        panel: panelParam,
-        blockRef,
-        blockRange,
-      })
-    }
-    return createWebHMUrl(docId.uid, {
-      path: docId.path,
-      latest,
-      panel: panelParam,
-      blockRef,
-      blockRange,
-    })
   }
+  return createWebHMUrl(docId.uid, {
+    path: docId.path,
+    latest,
+    viewTerm: viewTermWithComment,
+    blockRef,
+    blockRange,
+  })
 }
 
 export function getCommentTargetId(comment: HMComment | undefined): UnpackedHypermediaId | undefined {

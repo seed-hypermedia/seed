@@ -762,94 +762,67 @@ describe('createSiteUrl with viewTerm and panel', () => {
 describe('createCommentUrl', () => {
   const docId = hmId('z6MkOwner', {path: ['human-interface-library']})
 
-  test('comments view with siteUrl', () => {
+  test('with siteUrl', () => {
     expect(
       createCommentUrl({
         docId,
         commentId: 'z6MkAuthor/tsid123',
         siteUrl: 'https://seedteamtalks.hyper.media',
-        isDiscussionsView: true,
       }),
     ).toBe('https://seedteamtalks.hyper.media/human-interface-library/:comments/z6MkAuthor/tsid123')
   })
 
-  test('comments view with siteUrl + latest', () => {
+  test('with siteUrl + latest', () => {
     expect(
       createCommentUrl({
         docId,
         commentId: 'z6MkAuthor/tsid123',
         siteUrl: 'https://seedteamtalks.hyper.media',
-        isDiscussionsView: true,
         latest: true,
       }),
     ).toBe('https://seedteamtalks.hyper.media/human-interface-library/:comments/z6MkAuthor/tsid123?l')
   })
 
-  test('comments view with siteUrl + blockRef', () => {
+  test('with siteUrl + blockRef', () => {
     expect(
       createCommentUrl({
         docId,
         commentId: 'z6MkAuthor/tsid123',
         siteUrl: 'https://seedteamtalks.hyper.media',
-        isDiscussionsView: true,
         blockRef: 'XK6l8B4d',
         blockRange: {expanded: true},
       }),
     ).toBe('https://seedteamtalks.hyper.media/human-interface-library/:comments/z6MkAuthor/tsid123#XK6l8B4d+')
   })
 
-  test('panel view with siteUrl (not comments main view)', () => {
+  test('with siteUrl + latest + blockRef', () => {
     expect(
       createCommentUrl({
         docId,
         commentId: 'z6MkAuthor/tsid123',
         siteUrl: 'https://seedteamtalks.hyper.media',
-        isDiscussionsView: false,
-      }),
-    ).toBe('https://seedteamtalks.hyper.media/human-interface-library?panel=comments/z6MkAuthor/tsid123')
-  })
-
-  test('panel view with siteUrl + latest + blockRef', () => {
-    expect(
-      createCommentUrl({
-        docId,
-        commentId: 'z6MkAuthor/tsid123',
-        siteUrl: 'https://seedteamtalks.hyper.media',
-        isDiscussionsView: false,
         latest: true,
         blockRef: 'blk1',
         blockRange: {start: 10, end: 20},
       }),
-    ).toBe('https://seedteamtalks.hyper.media/human-interface-library?l&panel=comments/z6MkAuthor/tsid123#blk1[10:20]')
+    ).toBe('https://seedteamtalks.hyper.media/human-interface-library/:comments/z6MkAuthor/tsid123?l#blk1[10:20]')
   })
 
-  test('comments view without siteUrl (gateway)', () => {
+  test('without siteUrl (gateway)', () => {
     expect(
       createCommentUrl({
         docId,
         commentId: 'z6MkAuthor/tsid123',
-        isDiscussionsView: true,
         latest: true,
       }),
     ).toContain('/hm/z6MkOwner/human-interface-library/:comments/z6MkAuthor/tsid123?l')
   })
 
-  test('panel view without siteUrl (gateway)', () => {
+  test('gateway with blockRef', () => {
     expect(
       createCommentUrl({
         docId,
         commentId: 'z6MkAuthor/tsid123',
-        isDiscussionsView: false,
-      }),
-    ).toContain('/hm/z6MkOwner/human-interface-library?panel=comments/z6MkAuthor/tsid123')
-  })
-
-  test('gateway view with blockRef', () => {
-    expect(
-      createCommentUrl({
-        docId,
-        commentId: 'z6MkAuthor/tsid123',
-        isDiscussionsView: true,
         blockRef: 'blk1',
         blockRange: {expanded: true},
       }),
@@ -857,30 +830,16 @@ describe('createCommentUrl', () => {
   })
 
   // Root path (no doc path) — matches user's gabo.es example
-  test('root doc comments view with siteUrl + latest', () => {
+  test('root doc with siteUrl + latest', () => {
     const rootDocId = hmId('z6MkOwner', {path: []})
     expect(
       createCommentUrl({
         docId: rootDocId,
         commentId: 'zDnae.../z6FK...',
         siteUrl: 'https://gabo.es',
-        isDiscussionsView: true,
         latest: true,
       }),
     ).toBe('https://gabo.es/:comments/zDnae.../z6FK...?l')
-  })
-
-  test('root doc panel view with siteUrl + latest', () => {
-    const rootDocId = hmId('z6MkOwner', {path: []})
-    expect(
-      createCommentUrl({
-        docId: rootDocId,
-        commentId: 'zDnae.../z6FK...',
-        siteUrl: 'https://gabo.es',
-        isDiscussionsView: false,
-        latest: true,
-      }),
-    ).toBe('https://gabo.es?l&panel=comments/zDnae.../z6FK...')
   })
 })
 

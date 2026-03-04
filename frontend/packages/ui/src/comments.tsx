@@ -575,7 +575,6 @@ export const Comment = memo(function Comment({
     }
   }, [defaultExpandReplies])
   const currentRoute = useNavRoute()
-  const isDiscussionsView = currentRoute.key === 'comments' || currentRoute.key === 'activity'
   const docId = getCommentTargetId(comment)
   const options: MenuItemType[] = []
   if (onCommentDelete) {
@@ -660,7 +659,6 @@ export const Comment = memo(function Comment({
                       docId,
                       commentId: comment.id,
                       siteUrl: targetDomain,
-                      isDiscussionsView,
                       latest: routeLatest,
                     })
                     copyTextToClipboard(url)
@@ -742,7 +740,6 @@ export function CommentContent({
   const targetHomeDoc = targetHomeEntity.data?.type === 'document' ? targetHomeEntity.data.document : undefined
   const targetDocId = getCommentTargetId(comment)
   const siteUrl = targetHomeDoc?.metadata?.siteUrl as string | undefined
-  const isDiscussionsView = currentRoute.key === 'comments' || currentRoute.key === 'activity'
   const textUnit = size === 'sm' ? 12 : 14
   const layoutUnit = size === 'sm' ? 14 : 16
   const onBlockSelect = (blockId: string, opts?: BlockRangeSelectOptions): boolean => {
@@ -761,7 +758,6 @@ export function CommentContent({
           docId: targetDocId,
           commentId: comment.id,
           siteUrl,
-          isDiscussionsView,
           latest: routeLatest,
           blockRef: blockId,
           blockRange,

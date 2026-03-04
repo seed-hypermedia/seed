@@ -51,12 +51,9 @@ Generates `href` attributes for `<a>` tags. Same path logic as `routeToUrl` but 
 
 ### `createCommentUrl()` (entity-id-url.ts)
 
-Context-aware URL builder for the "Copy Comment Link" button:
+URL builder for the "Copy Comment Link" button. Always produces the main-panel path format regardless of where the comment is rendered:
 
-- **Main panel** (`isDiscussionsView: true`): Comment ID goes in the URL path
-  - `https://site.com/doc/:comments/UID/TSID`
-- **Right panel** (`isDiscussionsView: false`): Comment ID goes in query param
-  - `https://site.com/doc?panel=comments/UID/TSID`
+- `https://site.com/doc/:comments/UID/TSID`
 
 ---
 
@@ -189,7 +186,7 @@ Navigates to the target document with comments panel open.
 | WC-06 | Navigate to `/:discussions` (old URL format). The page must redirect or render the comments view identically to `/:comments` (backward compatibility). |
 | WC-07 | Navigate to `?panel=comment/UID/TSID` (old `comment/` prefix). The document must render in the main area with a comments panel in the right sidebar, same as `?panel=comments/UID/TSID` (backward compatibility). |
 | WC-08 | On the comments main view (`/:comments`), click the "Copy Comment Link" button on any comment. The clipboard must contain a URL with the comment ID in the path: `.../:comments/UID/TSID` (no `?panel=` query param). |
-| WC-09 | On a document with the comments right panel open (`?panel=comments/UID/TSID`), click the "Copy Comment Link" button on any comment. The clipboard must contain a URL with the comment ID in the query param: `...?panel=comments/UID/TSID` (no `:comments` view term in path). |
+| WC-09 | On a document with the comments right panel open (`?panel=comments/UID/TSID`), click the "Copy Comment Link" button on any comment. The clipboard must contain a URL with the comment ID in the path: `.../:comments/UID/TSID` (same format as main panel). |
 | WC-10 | On the comments main view (`/:comments`), click the "Reply" button on a comment. The URL must update to `/:comments/UID/TSID` where UID/TSID is the comment being replied to, and the reply editor must be focused. |
 | WC-11 | On a document with comments in the right panel, click the "Reply" button on a comment. The URL must update to include `?panel=comments/UID/TSID` and the reply editor must be focused in the right panel. |
 
@@ -204,7 +201,7 @@ Navigates to the target document with comments panel open.
 | DC-05 | On the comments main view, click the "Reply" button on a comment. The URL in the omnibar must update to show `/:comments/UID/TSID` and the reply editor must appear. |
 | DC-06 | On a document with comments in the right panel, click the "Reply" button. The URL in the omnibar must update to include `?panel=comments/UID/TSID` and the reply editor must appear in the right panel. |
 | DC-07 | On the comments main view, click the "Copy Comment Link" button. The clipboard URL must contain `/:comments/UID/TSID` in the path (not as a query param). |
-| DC-08 | On a document with comments in the right panel, click the "Copy Comment Link" button. The clipboard URL must contain `?panel=comments/UID/TSID` as a query param (no `:comments` view term in path). |
+| DC-08 | On a document with comments in the right panel, click the "Copy Comment Link" button. The clipboard URL must contain `/:comments/UID/TSID` in the path (same format as main panel). |
 | DC-09 | Paste a URL with the old `/:discussions` view term into the omnibar. The app must navigate to the comments view (backward compatibility). |
 | DC-10 | Paste a URL with the old `?panel=comment/UID/TSID` format (singular `comment/`) into the omnibar. The app must open the document with the comments right panel and highlighted comment (backward compatibility). |
 | DC-11 | Paste a URL ending in `/:comments/UID/TSID` into the titlebar URL field and press Enter. The comments view must render with the specified comment highlighted (same behavior as omnibar). |

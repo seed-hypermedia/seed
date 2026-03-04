@@ -219,7 +219,6 @@ function EventHeaderContent({
 }) {
   const tx = useTxString()
   const currentRoute = useNavRoute()
-  const isDiscussionsView = currentRoute.key === 'comments' || currentRoute.key === 'activity'
   if (event.type == 'comment') {
     const options: MenuItemType[] = []
     if (onCommentDelete && event.comment && currentAccount == event.comment.author) {
@@ -266,7 +265,6 @@ function EventHeaderContent({
                       docId: targetDocId,
                       commentId: event.comment.id,
                       siteUrl: targetDomain,
-                      isDiscussionsView,
                       latest: routeLatest,
                     })
                     copyTextToClipboard(url)
