@@ -132,29 +132,36 @@ info "Downloading deployment script..."
 curl -fsSL "${GH_RAW}/dist/deploy.js" -o "${SEED_DIR}/deploy.js"
 
 # Install the 'seed-deploy' CLI wrapper so users can run commands from anywhere.
+# /usr/local/bin is in $PATH on every UNIX system, so no shell-config changes
+# are needed. If we can't write there we try sudo; if that also fails we skip
+# the wrapper and let deploy.js show curl-based hints instead.
 BUN_PATH="$(command -v bun)"
-WRAPPER_DIR="${HOME}/.local/bin"
-WRAPPER="${WRAPPER_DIR}/seed-deploy"
+WRAPPER="/usr/local/bin/seed-deploy"
+WRAPPER_CONTENT="#!/bin/sh
+exec \"${BUN_PATH}\" \"${SEED_DIR}/deploy.js\" \"\\\$@\""
 
-mkdir -p "${WRAPPER_DIR}"
-cat > "$WRAPPER" <<WRAPPER_EOF
-#!/bin/sh
-exec "${BUN_PATH}" "${SEED_DIR}/deploy.js" "\$@"
-WRAPPER_EOF
-chmod +x "$WRAPPER"
-info "Installed 'seed-deploy' command at ${WRAPPER}"
+SEED_DEPLOY_CLI_INSTALLED=0
+if [ -w /usr/local/bin ]; then
+  printf '%s\n' "$WRAPPER_CONTENT" > "$WRAPPER"
+  chmod +x "$WRAPPER"
+  SEED_DEPLOY_CLI_INSTALLED=1
+  info "Installed 'seed-deploy' command at ${WRAPPER}"
+elif command_exists sudo; then
+  info "Installing seed-deploy to /usr/local/bin (requires sudo)"
+  if printf '%s\n' "$WRAPPER_CONTENT" | sudo tee "$WRAPPER" > /dev/null 2>&1 \
+     && sudo chmod +x "$WRAPPER"; then
+    SEED_DEPLOY_CLI_INSTALLED=1
+    info "Installed 'seed-deploy' command at ${WRAPPER}"
+  else
+    info "Warning: Could not install 'seed-deploy' to /usr/local/bin."
+    info "You can still manage your node by re-running the curl command with flags."
+  fi
+else
+  info "Warning: Could not install 'seed-deploy' to /usr/local/bin (no write access and sudo not available)."
+  info "You can still manage your node by re-running the curl command with flags."
+fi
 
-# Ensure ~/.local/bin is on PATH for the current and future sessions.
-case ":${PATH}:" in
-  *":${WRAPPER_DIR}:"*) ;;
-  *)
-    export PATH="${WRAPPER_DIR}:${PATH}"
-    if ! grep -qF '/.local/bin' "$HOME/.profile" 2>/dev/null; then
-      printf '\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "$HOME/.profile"
-      info "Added ~/.local/bin to PATH (updated ~/.profile)"
-    fi
-    ;;
-esac
+export SEED_DEPLOY_CLI_INSTALLED
 
 info "Running deployment script..."
-exec bun "${SEED_DIR}/deploy.js" </dev/tty
+exec bun "${SEED_DIR}/deploy.js" "$@" </dev/tty

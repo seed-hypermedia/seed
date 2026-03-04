@@ -52,6 +52,28 @@ export const NOTIFY_SERVICE_HOST = "https://notify.seed.hyper.media";
 export const LIGHTNING_URL_MAINNET = "https://ln.seed.hyper.media";
 export const LIGHTNING_URL_TESTNET = "https://ln.testnet.seed.hyper.media";
 
+// The bootstrap curl command. Used in user-facing hints when the seed-deploy
+// CLI wrapper could not be installed to /usr/local/bin.
+export const CURL_INSTALL_CMD = `curl -fsSL ${DEFAULT_REPO_URL}/ops/deploy.sh | sh`;
+
+/** Whether the shell wrapper was installed by deploy.sh. */
+export const CLI_INSTALLED = process.env.SEED_DEPLOY_CLI_INSTALLED !== "0";
+
+/**
+ * Return a user-facing command string. When the `seed-deploy` CLI wrapper is
+ * available, returns e.g. `seed-deploy status`. Otherwise returns the
+ * equivalent curl one-liner with `sh -s -- status`.
+ */
+export function cmd(subcommand?: string): string {
+  if (CLI_INSTALLED) {
+    return subcommand ? `seed-deploy ${subcommand}` : "seed-deploy";
+  }
+  if (subcommand) {
+    return `${CURL_INSTALL_CMD} -s -- ${subcommand}`;
+  }
+  return CURL_INSTALL_CMD;
+}
+
 // ---------------------------------------------------------------------------
 // Configurable paths — allows tests to inject a temp directory
 // ---------------------------------------------------------------------------
@@ -219,9 +241,8 @@ export function log(msg: string): void {
   }
 }
 
-const RESUME_HINT = "\nRun 'seed-deploy' to resume installation at any time.\n";
-const MANAGE_HINT =
-  "Manage your node anytime with the 'seed-deploy' command. Run 'seed-deploy --help' for options.";
+const RESUME_HINT = `\nRun '${cmd()}' to resume installation at any time.\n`;
+const MANAGE_HINT = `Manage your node anytime with '${cmd()}'. Run '${cmd("--help")}' for options.`;
 
 // ---------------------------------------------------------------------------
 // Old installation detection
@@ -997,7 +1018,7 @@ export async function deploy(
     );
     if (isInteractive) {
       console.log(
-        "\n  To change your node's configuration, run 'seed-deploy deploy --reconfigure'.\n",
+        `\n  To change your node's configuration, run '${cmd("deploy --reconfigure")}'.\n`,
       );
     }
     config.last_script_run = new Date().toISOString();
@@ -1248,45 +1269,58 @@ export function parseArgs(argv: string[] = process.argv): CliArgs {
 }
 
 export function printHelp(): void {
-  const text = `
-Seed Node Deployment v${VERSION}
+  const lines = [
+    `Seed Node Deployment v${VERSION}`,
+    ``,
+    `Usage: seed-deploy [command] [options]`,
+    ``,
+    `Commands:`,
+    `  deploy      Deploy or update the Seed node (default)`,
+    `  stop        Stop and remove all Seed containers`,
+    `  start       Start containers without re-deploying`,
+    `  restart     Restart all Seed containers`,
+    `  status      Show node health, versions, and connectivity`,
+    `  config      Print current configuration (secrets redacted)`,
+    `  logs        Tail container logs [daemon|web|proxy]`,
+    `  cron        Install or remove automatic update cron jobs`,
+    `  backup      Create a portable backup of all node data`,
+    `  restore     Restore node data from a backup file`,
+    `  uninstall   Remove all Seed containers, data, and configuration`,
+    ``,
+    `Options:`,
+    `  --reconfigure  Re-run the setup wizard to change configuration`,
+    `  -h, --help     Show this help message`,
+    `  -v, --version  Show script version`,
+    ``,
+    `Examples:`,
+    `  seed-deploy                            Deploy or update`,
+    `  seed-deploy deploy --reconfigure       Change node configuration`,
+    `  seed-deploy stop                       Teardown containers`,
+    `  seed-deploy status                     Check node health`,
+    `  seed-deploy logs daemon                Tail seed-daemon logs`,
+    `  seed-deploy cron                       Install automatic update cron`,
+    `  seed-deploy cron remove                Remove cron jobs`,
+    `  seed-deploy backup                     Create backup`,
+    `  seed-deploy backup /tmp/backup.tar.gz  Create backup at custom path`,
+    `  seed-deploy restore backup.tar.gz      Restore from backup file`,
+    ``,
+  ];
 
-Usage: seed-deploy [command] [options]
+  if (CLI_INSTALLED) {
+    lines.push(
+      `The 'seed-deploy' command is installed at /usr/local/bin/seed-deploy.`,
+      `The deployment script lives at ${DEFAULT_SEED_DIR}/deploy.js.`,
+    );
+  } else {
+    lines.push(
+      `The 'seed-deploy' CLI is not installed. You can run any command above with:`,
+      `  ${CURL_INSTALL_CMD} -s -- <command>`,
+      ``,
+      `The deployment script lives at ${DEFAULT_SEED_DIR}/deploy.js.`,
+    );
+  }
 
-Commands:
-  deploy      Deploy or update the Seed node (default)
-  stop        Stop and remove all Seed containers
-  start       Start containers without re-deploying
-  restart     Restart all Seed containers
-  status      Show node health, versions, and connectivity
-  config      Print current configuration (secrets redacted)
-  logs        Tail container logs [daemon|web|proxy]
-  cron        Install or remove automatic update cron jobs
-  backup      Create a portable backup of all node data
-  restore     Restore node data from a backup file
-  uninstall   Remove all Seed containers, data, and configuration
-
-Options:
-  --reconfigure  Re-run the setup wizard to change configuration
-  -h, --help     Show this help message
-  -v, --version  Show script version
-
-Examples:
-  seed-deploy                            Deploy or update
-  seed-deploy deploy --reconfigure       Change node configuration
-  seed-deploy stop                       Teardown containers
-  seed-deploy status                     Check node health
-  seed-deploy logs daemon                Tail seed-daemon logs
-  seed-deploy cron                       Install automatic update cron
-  seed-deploy cron remove                Remove cron jobs
-  seed-deploy backup                     Create backup
-  seed-deploy backup /tmp/backup.tar.gz  Create backup at custom path
-  seed-deploy restore backup.tar.gz      Restore from backup file
-
-The 'seed-deploy' command is installed at ~/.local/bin/seed-deploy
-during initial setup. The deployment script lives at ${DEFAULT_SEED_DIR}/deploy.js.
-`.trimStart();
-  console.log(text);
+  console.log(lines.join("\n"));
 }
 
 // ---------------------------------------------------------------------------
@@ -1338,7 +1372,7 @@ async function cmdDeploy(
 
   await setupCron(paths, shell);
   p.log.success(
-    "Cron job installed. Your node will auto-update nightly at 02:00. Run 'seed-deploy cron remove' to disable.",
+    `Cron job installed. Your node will auto-update nightly at 02:00. Run '${cmd("cron remove")}' to disable.`,
   );
 
   await deploy(config, paths, shell);
@@ -1357,7 +1391,7 @@ async function cmdStart(paths: DeployPaths, shell: ShellRunner): Promise<void> {
   checkDockerAccess(shell);
   if (!(await configExists(paths))) {
     console.error(
-      `No config found at ${paths.configPath}. Run 'seed-deploy' first to set up.`,
+      `No config found at ${paths.configPath}. Run '${cmd()}' first to set up.`,
     );
     process.exit(1);
   }
@@ -1439,7 +1473,7 @@ async function cmdStatus(
   }
 
   if (hasUnhealthy) {
-    console.log(`\n  Tip: Check logs with 'seed-deploy logs daemon|web|proxy'`);
+    console.log(`\n  Tip: Check logs with '${cmd("logs daemon|web|proxy")}'`);
   }
 
   // Monitoring export check (only shown when metrics profile is active)
@@ -1484,7 +1518,7 @@ async function cmdStatus(
         `\n  Tip: This may indicate a permissions issue with the monitoring/ directory.`,
       );
       console.log(
-        `        Run 'seed-deploy deploy' to attempt an automatic fix.`,
+        `        Run '${cmd("deploy")}' to attempt an automatic fix.`,
       );
     }
   }
@@ -1569,7 +1603,7 @@ async function cmdStatus(
     `  Cleanup:     ${cleanupCron ? cleanupCron.split(" ").slice(0, 5).join(" ") : "not installed"}`,
   );
   if (!deployCron || !cleanupCron) {
-    console.log(`\n  Tip: Run 'seed-deploy cron' to set up automatic updates.`);
+    console.log(`\n  Tip: Run '${cmd("cron")}' to set up automatic updates.`);
   }
 
   console.log("");
@@ -1578,7 +1612,7 @@ async function cmdStatus(
 async function cmdConfig(paths: DeployPaths): Promise<void> {
   if (!(await configExists(paths))) {
     console.error(
-      `No config found at ${paths.configPath}. Run 'seed-deploy' first.`,
+      `No config found at ${paths.configPath}. Run '${cmd()}' first.`,
     );
     process.exit(1);
   }
@@ -1644,7 +1678,7 @@ async function cmdCron(
   }
 
   console.error(`Unknown cron subcommand: ${subcommand}`);
-  console.error("Usage: seed-deploy cron [install|remove]");
+  console.error(`Usage: ${cmd("cron [install|remove]")}`);
   process.exit(1);
 }
 
@@ -1759,7 +1793,7 @@ async function cmdRestore(
   checkDockerAccess(shell);
   const backupFile = args[0];
   if (!backupFile) {
-    console.error("Usage: seed-deploy restore <backup-file.tar.gz>");
+    console.error(`Usage: ${cmd("restore <backup-file.tar.gz>")}`);
     process.exit(1);
   }
 
@@ -1802,7 +1836,7 @@ async function cmdRestore(
   });
   if (p.isCancel(confirmed) || !confirmed) {
     p.cancel("Restore cancelled.");
-    console.log("\nRun 'seed-deploy restore <file>' to try again.\n");
+    console.log(`\nRun '${cmd("restore <file>")}' to try again.\n`);
     process.exit(0);
   }
 
