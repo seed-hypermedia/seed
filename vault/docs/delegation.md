@@ -1,12 +1,15 @@
 # Hypermedia Identity Delegation
 
-This document explains how a third-party website can let a user sign in with their Hypermedia identity without ever receiving the user’s long-lived private key.
+This document explains how a third-party website can let a user sign in with their Hypermedia identity without ever
+receiving the user’s long-lived private key.
 
-In one sentence: the website creates a browser-local session key, the Vault signs a delegation capability for that key after user consent, and the website uses that delegated session to act on behalf of the account.
+In one sentence: the website creates a browser-local session key, the Vault signs a delegation capability for that key
+after user consent, and the website uses that delegated session to act on behalf of the account.
 
 ## Why this exists.
 
-A user’s account key is high value and long lived. A third-party site should not be trusted to store or handle that key material.
+A user’s account key is high value and long lived. A third-party site should not be trusted to store or handle that key
+material.
 
 Delegation solves this by separating identity ownership from session execution:
 
@@ -86,7 +89,8 @@ The callback carries:
 - Echoed state value.
 - Optional error code when consent is denied or flow fails.
 
-Callback payloads are encoded for URL transport. On the client, decoded payloads are re-encoded and checked against the provided CIDs before use.
+Callback payloads are encoded for URL transport. On the client, decoded payloads are re-encoded and checked against the
+provided CIDs before use.
 
 ## Validation rules.
 
@@ -126,7 +130,8 @@ This protocol is designed to provide the following guarantees:
 - **Transport integrity by content addressing.**
   - Decoded blob data is checked against CIDs.
 
-The capability itself is not secret. The usable authority comes from capability + possession of the delegated private key.
+The capability itself is not secret. The usable authority comes from capability + possession of the delegated private
+key.
 
 ## SDK usage model.
 
@@ -138,7 +143,8 @@ A client integration typically follows this sequence:
 4. Persist delegation artifacts as needed.
 5. Clear session on logout with `clearSession(...)`.
 
-The SDK handles encoding/decoding and standard validation steps, while the application owns session lifecycle and UI behavior.
+The SDK handles encoding/decoding and standard validation steps, while the application owns session lifecycle and UI
+behavior.
 
 ## Scope and non-goals.
 

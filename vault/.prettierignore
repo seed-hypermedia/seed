@@ -1,2 +1,3 @@
-# We are using biome here.
-.
+.local
+dist
+node_modules

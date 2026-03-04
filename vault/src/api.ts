@@ -1,126 +1,126 @@
 import type {
-	AuthenticationResponseJSON,
-	PublicKeyCredentialCreationOptionsJSON,
-	PublicKeyCredentialRequestOptionsJSON,
-	RegistrationResponseJSON,
-} from "@simplewebauthn/server"
+  AuthenticationResponseJSON,
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+  RegistrationResponseJSON,
+} from '@simplewebauthn/server'
 
 // Pre-login.
 export type PreLoginRequest = {
-	email: string
+  email: string
 }
 export type PreLoginResponse = {
-	exists: boolean
-	hasPassword?: boolean
+  exists: boolean
+  hasPassword?: boolean
 }
 
 // Register start.
 export type RegisterStartRequest = {
-	email: string
+  email: string
 }
 export type RegisterStartResponse = {
-	message: string
-	challengeId: string
+  message: string
+  challengeId: string
 }
 
 // Register poll - called by the original device to check if magic link was clicked.
 export type RegisterPollRequest = {
-	challengeId: string
+  challengeId: string
 }
 export type RegisterPollResponse = {
-	verified: boolean
-	userId?: string
+  verified: boolean
+  userId?: string
 }
 
 // Register verify link - called when user clicks the magic link.
 export type RegisterVerifyLinkRequest = {
-	challengeId: string
-	token: string
+  challengeId: string
+  token: string
 }
 export type RegisterVerifyLinkResponse = {
-	verified: boolean
-	email: string
+  verified: boolean
+  email: string
 }
 
 // Add password.
 export type AddPasswordRequest = {
-	encryptedDEK: string
-	authHash: string
+  encryptedDEK: string
+  authHash: string
 }
 export type AddPasswordResponse = {
-	success: boolean
+  success: boolean
 }
 
 // Login.
 export type LoginRequest = {
-	email: string
-	authHash: string
+  email: string
+  authHash: string
 }
 export type LoginResponse = {
-	success: boolean
-	userId: string
-	vault?: {
-		encryptedDEK: string
-	}
+  success: boolean
+  userId: string
+  vault?: {
+    encryptedDEK: string
+  }
 }
 
 // Get vault.
 export type GetVaultResponse = {
-	encryptedDEK?: string
-	encryptedData?: string
-	version?: number
+  encryptedDEK?: string
+  encryptedData?: string
+  version?: number
 }
 
 // Save vault data.
 export type SaveVaultDataRequest = {
-	encryptedData: string
-	version: number
+  encryptedData: string
+  version: number
 }
 export type SaveVaultDataResponse = {
-	success: boolean
+  success: boolean
 }
 
 // Get session.
 export type GetSessionResponse = {
-	authenticated: boolean
-	relyingPartyOrigin: string
-	userId?: string
-	email?: string
-	hasPassword?: boolean
-	hasPasskeys?: boolean
+  authenticated: boolean
+  relyingPartyOrigin: string
+  userId?: string
+  email?: string
+  hasPassword?: boolean
+  hasPasskeys?: boolean
 }
 
 // Change email start - initiates email change verification.
 export type ChangeEmailStartRequest = {
-	newEmail: string
+  newEmail: string
 }
 export type ChangeEmailStartResponse = {
-	message: string
-	challengeId: string
+  message: string
+  challengeId: string
 }
 
 // Change email poll - check if verification link was clicked.
 export type ChangeEmailPollRequest = {
-	challengeId: string
+  challengeId: string
 }
 export type ChangeEmailPollResponse = {
-	verified: boolean
-	newEmail?: string
+  verified: boolean
+  newEmail?: string
 }
 
 // Change email verify link - called when user clicks magic link.
 export type ChangeEmailVerifyLinkRequest = {
-	challengeId: string
-	token: string
+  challengeId: string
+  token: string
 }
 export type ChangeEmailVerifyLinkResponse = {
-	verified: boolean
-	newEmail: string
+  verified: boolean
+  newEmail: string
 }
 
 // Logout.
 export type LogoutResponse = {
-	success: boolean
+  success: boolean
 }
 
 // WebAuthn register start response.
@@ -128,53 +128,53 @@ export type WebAuthnRegisterStartResponse = PublicKeyCredentialCreationOptionsJS
 
 // WebAuthn register complete.
 export type WebAuthnRegisterCompleteRequest = {
-	response: RegistrationResponseJSON
+  response: RegistrationResponseJSON
 }
 export type WebAuthnRegisterCompleteResponse = {
-	success: boolean
-	credentialId: string
-	backupEligible: boolean
-	backupState: boolean
-	prfEnabled: boolean
+  success: boolean
+  credentialId: string
+  backupEligible: boolean
+  backupState: boolean
+  prfEnabled: boolean
 }
 
 // WebAuthn login start.
 export type WebAuthnLoginStartRequest = {
-	email?: string
+  email?: string
 }
 export type WebAuthnLoginStartResponse = PublicKeyCredentialRequestOptionsJSON & {
-	userId?: string
+  userId?: string
 }
 
 // WebAuthn login complete.
 export type WebAuthnLoginCompleteRequest = {
-	response: AuthenticationResponseJSON
+  response: AuthenticationResponseJSON
 }
 export type WebAuthnLoginCompleteResponse = {
-	success: boolean
-	userId: string
-	/** Vault data encrypted with PRF-derived key (client-side only). */
-	vault: {
-		encryptedDEK: string
-	} | null
+  success: boolean
+  userId: string
+  /** Vault data encrypted with PRF-derived key (client-side only). */
+  vault: {
+    encryptedDEK: string
+  } | null
 }
 
 // WebAuthn vault store.
 export type WebAuthnVaultStoreRequest = {
-	credentialId: string
-	encryptedDEK: string
+  credentialId: string
+  encryptedDEK: string
 }
 export type WebAuthnVaultStoreResponse = {
-	success: boolean
+  success: boolean
 }
 
 // Change password.
 export type ChangePasswordRequest = {
-	encryptedDEK: string
-	authHash: string
+  encryptedDEK: string
+  authHash: string
 }
 export type ChangePasswordResponse = {
-	success: boolean
+  success: boolean
 }
 
 // ============================================================================
@@ -186,32 +186,32 @@ export type ChangePasswordResponse = {
  * This serves as the source of truth for both client and server types.
  */
 export interface ServiceDefinition {
-	// Auth.
-	preLogin(req: PreLoginRequest): Promise<PreLoginResponse>
-	registerStart(req: RegisterStartRequest): Promise<RegisterStartResponse>
-	registerPoll(req: RegisterPollRequest): Promise<RegisterPollResponse>
-	registerVerifyLink(req: RegisterVerifyLinkRequest): Promise<RegisterVerifyLinkResponse>
-	addPassword(req: AddPasswordRequest): Promise<AddPasswordResponse>
-	changePassword(req: ChangePasswordRequest): Promise<ChangePasswordResponse>
-	login(req: LoginRequest): Promise<LoginResponse>
-	logout(): Promise<LogoutResponse>
-	getSession(): Promise<GetSessionResponse>
+  // Auth.
+  preLogin(req: PreLoginRequest): Promise<PreLoginResponse>
+  registerStart(req: RegisterStartRequest): Promise<RegisterStartResponse>
+  registerPoll(req: RegisterPollRequest): Promise<RegisterPollResponse>
+  registerVerifyLink(req: RegisterVerifyLinkRequest): Promise<RegisterVerifyLinkResponse>
+  addPassword(req: AddPasswordRequest): Promise<AddPasswordResponse>
+  changePassword(req: ChangePasswordRequest): Promise<ChangePasswordResponse>
+  login(req: LoginRequest): Promise<LoginResponse>
+  logout(): Promise<LogoutResponse>
+  getSession(): Promise<GetSessionResponse>
 
-	// Vault updates.
-	getVault(): Promise<GetVaultResponse>
-	saveVaultData(req: SaveVaultDataRequest): Promise<SaveVaultDataResponse>
+  // Vault updates.
+  getVault(): Promise<GetVaultResponse>
+  saveVaultData(req: SaveVaultDataRequest): Promise<SaveVaultDataResponse>
 
-	// Email change.
-	changeEmailStart(req: ChangeEmailStartRequest): Promise<ChangeEmailStartResponse>
-	changeEmailPoll(req: ChangeEmailPollRequest): Promise<ChangeEmailPollResponse>
-	changeEmailVerifyLink(req: ChangeEmailVerifyLinkRequest): Promise<ChangeEmailVerifyLinkResponse>
+  // Email change.
+  changeEmailStart(req: ChangeEmailStartRequest): Promise<ChangeEmailStartResponse>
+  changeEmailPoll(req: ChangeEmailPollRequest): Promise<ChangeEmailPollResponse>
+  changeEmailVerifyLink(req: ChangeEmailVerifyLinkRequest): Promise<ChangeEmailVerifyLinkResponse>
 
-	// WebAuthn.
-	webAuthnRegisterStart(): Promise<WebAuthnRegisterStartResponse>
-	webAuthnRegisterComplete(req: WebAuthnRegisterCompleteRequest): Promise<WebAuthnRegisterCompleteResponse>
-	webAuthnLoginStart(req: WebAuthnLoginStartRequest): Promise<WebAuthnLoginStartResponse>
-	webAuthnLoginComplete(req: WebAuthnLoginCompleteRequest): Promise<WebAuthnLoginCompleteResponse>
-	webAuthnVaultStore(req: WebAuthnVaultStoreRequest): Promise<WebAuthnVaultStoreResponse>
+  // WebAuthn.
+  webAuthnRegisterStart(): Promise<WebAuthnRegisterStartResponse>
+  webAuthnRegisterComplete(req: WebAuthnRegisterCompleteRequest): Promise<WebAuthnRegisterCompleteResponse>
+  webAuthnLoginStart(req: WebAuthnLoginStartRequest): Promise<WebAuthnLoginStartResponse>
+  webAuthnLoginComplete(req: WebAuthnLoginCompleteRequest): Promise<WebAuthnLoginCompleteResponse>
+  webAuthnVaultStore(req: WebAuthnVaultStoreRequest): Promise<WebAuthnVaultStoreResponse>
 }
 
 /**
@@ -222,13 +222,13 @@ export interface ServiceDefinition {
  * - `sessionCookie: null` - clear the session cookie.
  */
 export interface ServerContext {
-	readonly sessionId: string | null
-	sessionCookie?: string | null
+  readonly sessionId: string | null
+  sessionCookie?: string | null
 
-	// The raw value of the challenge cookie from the incoming request.
-	readonly challengeCookie: string | null
-	// Set to a string to send a new challenge cookie, null to clear it.
-	outboundChallengeCookie?: string | null
+  // The raw value of the challenge cookie from the incoming request.
+  readonly challengeCookie: string | null
+  // Set to a string to send a new challenge cookie, null to clear it.
+  outboundChallengeCookie?: string | null
 }
 
 /**
@@ -242,9 +242,9 @@ export type ClientInterface = ServiceDefinition
  * Methods return plain response; cookie ops are done via ctx mutation.
  */
 export type ServerInterface = {
-	[K in keyof ServiceDefinition]: ServiceDefinition[K] extends () => Promise<infer R>
-		? (ctx: ServerContext) => Promise<R>
-		: ServiceDefinition[K] extends (req: infer Req) => Promise<infer R>
-			? (req: Req, ctx: ServerContext) => Promise<R>
-			: never
+  [K in keyof ServiceDefinition]: ServiceDefinition[K] extends () => Promise<infer R>
+    ? (ctx: ServerContext) => Promise<R>
+    : ServiceDefinition[K] extends (req: infer Req) => Promise<infer R>
+    ? (req: Req, ctx: ServerContext) => Promise<R>
+    : never
 }

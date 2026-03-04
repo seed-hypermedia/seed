@@ -1,6 +1,7 @@
 # Seed Hypermedia Identity Vault
 
-A zero-knowledge, end-to-end encrypted (E2EE) identity and data vault. This project implements a secure authentication and storage system where the server has no knowledge of the user's data.
+A zero-knowledge, end-to-end encrypted (E2EE) identity and data vault. This project implements a secure authentication
+and storage system where the server has no knowledge of the user's data.
 
 ## Features
 
@@ -17,7 +18,8 @@ This project is built with **[Bun](https://bun.sh)**.
 For the best contributor experience, we recommend installing:
 
 1. **[mise](https://mise.jdx.dev/)**: For managing tools and runtimes (like Bun).
-2. **[direnv](https://direnv.net/)**: For automatically loading environment variables and tools when you enter the directory.
+2. **[direnv](https://direnv.net/)**: For automatically loading environment variables and tools when you enter the
+   directory.
 
 Once installed, simply `cd` into the directory and allow the environment:
 
@@ -61,11 +63,13 @@ bun test
 
 ## Architecture & Security
 
-This system is designed with a **Zero-Knowledge** philosophy. The server stores opaque user IDs and encrypted blobs, but cannot decrypt user data.
+This system is designed with a **Zero-Knowledge** philosophy. The server stores opaque user IDs and encrypted blobs, but
+cannot decrypt user data.
 
 The UI is an SPA built with React.
 
-[Valtio](https://valtio.dev) is used for state management, to maintain the core of the business logic outside React. This is much easier to test and to reason about.
+[Valtio](https://valtio.dev) is used for state management, to maintain the core of the business logic outside React.
+This is much easier to test and to reason about.
 
 ### Key Principles
 

@@ -1,78 +1,69 @@
-import { xchacha20poly1305 } from "@noble/ciphers/chacha.js"
-import { argon2id } from "hash-wasm"
+import {xchacha20poly1305} from '@noble/ciphers/chacha.js'
+import {argon2id} from 'hash-wasm'
 
 /**
  * Default Argon2id params (Bitwarden defaults).
  */
 export const DEFAULT_ARGON2_PARAMS = {
-	memoryCost: 65536, // 64 MiB in KiB.
-	timeCost: 3,
-	parallelism: 4,
+  memoryCost: 65536, // 64 MiB in KiB.
+  timeCost: 3,
+  parallelism: 4,
 }
 
 /**
  * Argon2id parameters for key derivation.
  */
 export interface Argon2Params {
-	memoryCost: number
-	timeCost: number
-	parallelism: number
+  memoryCost: number
+  timeCost: number
+  parallelism: number
 }
 
 /**
  * Derive a 256-bit key from password using Argon2id.
  */
 export async function deriveKeyFromPassword(
-	password: string,
-	salt: Uint8Array,
-	params: Argon2Params = DEFAULT_ARGON2_PARAMS,
+  password: string,
+  salt: Uint8Array,
+  params: Argon2Params = DEFAULT_ARGON2_PARAMS,
 ): Promise<Uint8Array> {
-	const hash = await argon2id({
-		password,
-		salt,
-		parallelism: params.parallelism,
-		iterations: params.timeCost,
-		memorySize: params.memoryCost,
-		hashLength: 32,
-		outputType: "binary",
-	})
-	return new Uint8Array(hash)
+  const hash = await argon2id({
+    password,
+    salt,
+    parallelism: params.parallelism,
+    iterations: params.timeCost,
+    memorySize: params.memoryCost,
+    hashLength: 32,
+    outputType: 'binary',
+  })
+  return new Uint8Array(hash)
 }
 
 /**
  * Stretch a key to 512 bits using HKDF-SHA256 (Web Crypto).
  */
-export async function stretchKey(key: Uint8Array, info: string = "enc"): Promise<Uint8Array> {
-	const baseKey = await crypto.subtle.importKey("raw", key.buffer as ArrayBuffer, { name: "HKDF" }, false, [
-		"deriveBits",
-	])
+export async function stretchKey(key: Uint8Array, info: string = 'enc'): Promise<Uint8Array> {
+  const baseKey = await crypto.subtle.importKey('raw', key.buffer as ArrayBuffer, {name: 'HKDF'}, false, ['deriveBits'])
 
-	const stretched = await crypto.subtle.deriveBits(
-		{
-			name: "HKDF",
-			hash: "SHA-256",
-			salt: new Uint8Array(0),
-			info: new TextEncoder().encode(info),
-		},
-		baseKey,
-		512,
-	)
+  const stretched = await crypto.subtle.deriveBits(
+    {
+      name: 'HKDF',
+      hash: 'SHA-256',
+      salt: new Uint8Array(0),
+      info: new TextEncoder().encode(info),
+    },
+    baseKey,
+    512,
+  )
 
-	return new Uint8Array(stretched)
+  return new Uint8Array(stretched)
 }
 
 /**
  * Generate a random Data Encryption Key (64 bytes).
  */
 export function generateDEK(): Uint8Array {
-	return crypto.getRandomValues(new Uint8Array(64))
-}
-
-/**
- * Normalize email for consistent salt derivation (lowercase + trim).
- */
-export function normalizeEmail(email: string): string {
-	return email.toLowerCase().trim()
+  return crypto.getRandomValues(new Uint8Array(64))
 }
 
 /**
@@ -80,36 +71,32 @@ export function normalizeEmail(email: string): string {
  * This matches Bitwarden's approach of using email as salt.
  */
 export function emailToSalt(email: string): Uint8Array {
-	return new TextEncoder().encode(normalizeEmail(email))
+  return new TextEncoder().encode(email.toLowerCase().trim())
 }
 
 /**
  * Generate a random nonce for XChaCha20-Poly1305 (24 bytes).
  */
 export function generateNonce(): Uint8Array {
-	return crypto.getRandomValues(new Uint8Array(24))
+  return crypto.getRandomValues(new Uint8Array(24))
 }
 
-/**
- * Encrypt data using XChaCha20-Poly1305.
- * Uses the first 256 bits (32 bytes) of the key.
- */
 /**
  * Encrypt data using XChaCha20-Poly1305.
  * Uses the first 256 bits (32 bytes) of the key.
  * Returns nonce prepended to ciphertext.
  */
 export async function encrypt(plaintext: Uint8Array, key: Uint8Array): Promise<Uint8Array> {
-	const nonce = generateNonce()
-	const keySlice = key.subarray(0, 32)
-	const xc = xchacha20poly1305(keySlice, nonce)
-	const ciphertext = xc.encrypt(plaintext)
+  const nonce = generateNonce()
+  const keySlice = key.subarray(0, 32)
+  const xc = xchacha20poly1305(keySlice, nonce)
+  const ciphertext = xc.encrypt(plaintext)
 
-	const result = new Uint8Array(nonce.length + ciphertext.length)
-	result.set(nonce)
-	result.set(ciphertext, nonce.length)
+  const result = new Uint8Array(nonce.length + ciphertext.length)
+  result.set(nonce)
+  result.set(ciphertext, nonce.length)
 
-	return result
+  return result
 }
 
 /**
@@ -117,11 +104,11 @@ export async function encrypt(plaintext: Uint8Array, key: Uint8Array): Promise<U
  * Expects nonce to be prepended to the ciphertext (first 24 bytes).
  */
 export async function decrypt(data: Uint8Array, key: Uint8Array): Promise<Uint8Array> {
-	const nonce = data.subarray(0, 24)
-	const ciphertext = data.subarray(24)
-	const keySlice = key.subarray(0, 32)
-	const xc = xchacha20poly1305(keySlice, nonce)
-	return xc.decrypt(ciphertext)
+  const nonce = data.subarray(0, 24)
+  const ciphertext = data.subarray(24)
+  const keySlice = key.subarray(0, 32)
+  const xc = xchacha20poly1305(keySlice, nonce)
+  return xc.decrypt(ciphertext)
 }
 
 /**
@@ -129,8 +116,8 @@ export async function decrypt(data: Uint8Array, key: Uint8Array): Promise<Uint8A
  * Uses the second half of the stretched key (bytes 32-64).
  */
 export async function computeAuthHash(stretchedKey: Uint8Array): Promise<Uint8Array> {
-	const authKey = stretchedKey.slice(32, 64)
-	return authKey
+  const authKey = stretchedKey.slice(32, 64)
+  return authKey
 }
 
 /**
@@ -138,37 +125,37 @@ export async function computeAuthHash(stretchedKey: Uint8Array): Promise<Uint8Ar
  * Returns: 0 = weak, 1 = medium, 2 = strong.
  */
 export function checkPasswordStrength(password: string): number {
-	if (password.length < 8) return 0
+  if (password.length < 8) return 0
 
-	let score = 0
-	if (password.length >= 12) score++
-	if (password.length >= 16) score++
-	if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++
-	if (/\d/.test(password)) score++
-	if (/[^a-zA-Z0-9]/.test(password)) score++
+  let score = 0
+  if (password.length >= 12) score++
+  if (password.length >= 16) score++
+  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++
+  if (/\d/.test(password)) score++
+  if (/[^a-zA-Z0-9]/.test(password)) score++
 
-	if (score <= 1) return 0
-	if (score <= 3) return 1
-	return 2
+  if (score <= 1) return 0
+  if (score <= 3) return 1
+  return 2
 }
 
 /**
  * Check if WebAuthn is supported.
  */
 export function isWebAuthnSupported(): boolean {
-	return !!(window.PublicKeyCredential && typeof window.PublicKeyCredential === "function")
+  return !!(window.PublicKeyCredential && typeof window.PublicKeyCredential === 'function')
 }
 
 /**
  * Check if platform authenticator is available.
  */
 export async function isPlatformAuthenticatorAvailable(): Promise<boolean> {
-	if (!isWebAuthnSupported()) return false
-	try {
-		return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
-	} catch {
-		return false
-	}
+  if (!isWebAuthnSupported()) return false
+  try {
+    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -177,17 +164,17 @@ export async function isPlatformAuthenticatorAvailable(): Promise<boolean> {
  * unique derived keys per credential. This simplifies the implementation by avoiding
  * per-credential salt storage on the server.
  */
-export const PRF_SALT = new TextEncoder().encode("hypermedia-identity-vault-v1")
+export const PRF_SALT = new TextEncoder().encode('hypermedia-identity-vault-v1')
 
 /**
  * PRF extension result type (not included in TypeScript's built-in types).
  */
 export interface PRFOutput {
-	results?: {
-		first?: ArrayBuffer
-		second?: ArrayBuffer
-	}
-	enabled?: boolean
+  results?: {
+    first?: ArrayBuffer
+    second?: ArrayBuffer
+  }
+  enabled?: boolean
 }
 
 /**
@@ -196,8 +183,8 @@ export interface PRFOutput {
  * Returns null if PRF is not supported or the result is missing.
  */
 export function extractPRFKey(prfOutput: PRFOutput | undefined): Uint8Array | null {
-	if (!prfOutput?.results?.first) {
-		return null
-	}
-	return new Uint8Array(prfOutput.results.first)
+  if (!prfOutput?.results?.first) {
+    return null
+  }
+  return new Uint8Array(prfOutput.results.first)
 }

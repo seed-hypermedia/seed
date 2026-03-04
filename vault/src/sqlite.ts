@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite"
+import {Database} from 'bun:sqlite'
 
 /**
  * Bump this value whenever the schema changes.
@@ -8,7 +8,7 @@ import { Database } from "bun:sqlite"
 export const SCHEMA_VERSION = 5
 
 /** Result of opening the database. */
-export type OpenResult = { ok: true; db: Database } | { ok: false; current: number; desired: number }
+export type OpenResult = {ok: true; db: Database} | {ok: false; current: number; desired: number}
 
 /**
  * Opens or creates the SQLite database, initializing the schema if needed.
@@ -16,32 +16,30 @@ export type OpenResult = { ok: true; db: Database } | { ok: false; current: numb
  * without an exception.
  */
 export function open(filename: string): OpenResult {
-	const db = new Database(filename, { create: true, strict: true })
-	const isNew = db.query<{ count: number }, []>("SELECT count(*) as count FROM sqlite_schema").get()?.count === 0
-	db.run("PRAGMA journal_mode = WAL")
-	db.run("PRAGMA foreign_keys = ON")
+  const db = new Database(filename, {create: true, strict: true})
+  const isNew = db.query<{count: number}, []>('SELECT count(*) as count FROM sqlite_schema').get()?.count === 0
+  db.run('PRAGMA journal_mode = WAL')
+  db.run('PRAGMA foreign_keys = ON')
 
-	initSchema(db)
+  initSchema(db)
 
-	const row = db
-		.query<{ value: string }, [string]>("SELECT value FROM server_config WHERE key = ?")
-		.get("schema_version")
+  const row = db.query<{value: string}, [string]>('SELECT value FROM server_config WHERE key = ?').get('schema_version')
 
-	const current = row ? Number(row.value) : isNew ? SCHEMA_VERSION : 0
-	if (current !== SCHEMA_VERSION) {
-		db.close()
-		return { ok: false, current, desired: SCHEMA_VERSION }
-	}
+  const current = row ? Number(row.value) : isNew ? SCHEMA_VERSION : 0
+  if (current !== SCHEMA_VERSION) {
+    db.close()
+    return {ok: false, current, desired: SCHEMA_VERSION}
+  }
 
-	if (!row) {
-		db.run("INSERT INTO server_config (key, value) VALUES (?, ?)", ["schema_version", String(SCHEMA_VERSION)])
-	}
+  if (!row) {
+    db.run('INSERT INTO server_config (key, value) VALUES (?, ?)', ['schema_version', String(SCHEMA_VERSION)])
+  }
 
-	return { ok: true, db }
+  return {ok: true, db}
 }
 
 function initSchema(db: Database): void {
-	db.run(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,
@@ -118,15 +116,15 @@ function initSchema(db: Database): void {
 }
 
 export function getOrCreateHmacSecret(db: Database): Uint8Array {
-	const row = db
-		.query<{ value: Uint8Array }, [string]>(`SELECT value FROM server_config WHERE key = ?`)
-		.get("hmac_secret")
+  const row = db
+    .query<{value: Uint8Array}, [string]>(`SELECT value FROM server_config WHERE key = ?`)
+    .get('hmac_secret')
 
-	if (row) {
-		return new Uint8Array(row.value)
-	}
+  if (row) {
+    return new Uint8Array(row.value)
+  }
 
-	const secret = crypto.getRandomValues(new Uint8Array(32))
-	db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, ["hmac_secret", secret])
-	return secret
+  const secret = crypto.getRandomValues(new Uint8Array(32))
+  db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, ['hmac_secret', secret])
+  return secret
 }

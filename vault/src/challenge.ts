@@ -1,9 +1,9 @@
-import { createHmac, timingSafeEqual } from "node:crypto"
-import * as base64 from "@shm/shared/base64"
-import { Cookie } from "bun"
+import {createHmac, timingSafeEqual} from 'node:crypto'
+import * as base64 from '@shm/shared/base64'
+import {Cookie} from 'bun'
 
 export function getCookieName(isProd: boolean): string {
-	return isProd ? "__Secure-wac" : "wac"
+  return isProd ? '__Secure-wac' : 'wac'
 }
 
 /**
@@ -12,25 +12,25 @@ export function getCookieName(isProd: boolean): string {
  * For register, `sessionId` must be provided for binding.
  */
 export function computeHmac(
-	secret: Uint8Array,
-	purpose: "webauthn-login" | "webauthn-register",
-	challenge: string,
-	sessionId?: string,
+  secret: Uint8Array,
+  purpose: 'webauthn-login' | 'webauthn-register',
+  challenge: string,
+  sessionId?: string,
 ): string {
-	const hmac = createHmac("sha256", secret)
-	hmac.update(purpose)
-	hmac.update("\0")
-	hmac.update(challenge)
+  const hmac = createHmac('sha256', secret)
+  hmac.update(purpose)
+  hmac.update('\0')
+  hmac.update(challenge)
 
-	if (purpose === "webauthn-register") {
-		if (!sessionId) {
-			throw new Error("sessionId is required for webauthn-register purpose")
-		}
-		hmac.update("\0")
-		hmac.update(sessionId)
-	}
+  if (purpose === 'webauthn-register') {
+    if (!sessionId) {
+      throw new Error('sessionId is required for webauthn-register purpose')
+    }
+    hmac.update('\0')
+    hmac.update(sessionId)
+  }
 
-	return base64.encode(new Uint8Array(hmac.digest()))
+  return base64.encode(new Uint8Array(hmac.digest()))
 }
 
 /**
@@ -39,53 +39,53 @@ export function computeHmac(
  * Uses timing-safe comparison.
  */
 export function verifyHmac(
-	secret: Uint8Array,
-	cookieValue: string,
-	purpose: "webauthn-login" | "webauthn-register",
-	challenge: string,
-	sessionId?: string,
+  secret: Uint8Array,
+  cookieValue: string,
+  purpose: 'webauthn-login' | 'webauthn-register',
+  challenge: string,
+  sessionId?: string,
 ): boolean {
-	if (!cookieValue) return false
+  if (!cookieValue) return false
 
-	// Recompute the HMAC with the expected inputs.
-	const expectedHmacString = computeHmac(secret, purpose, challenge, sessionId)
+  // Recompute the HMAC with the expected inputs.
+  const expectedHmacString = computeHmac(secret, purpose, challenge, sessionId)
 
-	const a = new TextEncoder().encode(cookieValue)
-	const b = new TextEncoder().encode(expectedHmacString)
+  const a = new TextEncoder().encode(cookieValue)
+  const b = new TextEncoder().encode(expectedHmacString)
 
-	if (a.length !== b.length) {
-		return false
-	}
+  if (a.length !== b.length) {
+    return false
+  }
 
-	return timingSafeEqual(a, b)
+  return timingSafeEqual(a, b)
 }
 
 /** Create a Set-Cookie header string for the challenge cookie. */
 export function createCookieHeader(hmacValue: string, isProdArg: boolean): string {
-	const cookie = new Cookie({
-		name: getCookieName(isProdArg),
-		value: hmacValue,
-		httpOnly: true,
-		sameSite: "strict",
-		maxAge: 300, // 5 minutes
-		path: "/vault",
-		secure: isProdArg,
-	})
+  const cookie = new Cookie({
+    name: getCookieName(isProdArg),
+    value: hmacValue,
+    httpOnly: true,
+    sameSite: 'strict',
+    maxAge: 300, // 5 minutes
+    path: '/vault',
+    secure: isProdArg,
+  })
 
-	return cookie.toString()
+  return cookie.toString()
 }
 
 /** Returns a Set-Cookie header string that clears the challenge cookie. */
 export function clearCookieHeader(isProdArg: boolean): string {
-	const cookie = new Cookie({
-		name: getCookieName(isProdArg),
-		value: "",
-		httpOnly: true,
-		sameSite: "strict",
-		maxAge: 0,
-		path: "/vault",
-		secure: isProdArg,
-	})
+  const cookie = new Cookie({
+    name: getCookieName(isProdArg),
+    value: '',
+    httpOnly: true,
+    sameSite: 'strict',
+    maxAge: 0,
+    path: '/vault',
+    secure: isProdArg,
+  })
 
-	return cookie.toString()
+  return cookie.toString()
 }
