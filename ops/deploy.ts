@@ -33,11 +33,19 @@ export const DEFAULT_REPO_URL =
 // SEED_DEPLOY_URL points at the ops/ directory (matches deploy.sh convention).
 // SEED_REPO_URL points at the repo root (legacy, kept for compatibility).
 // Both resolve to the same ops/ base for fetching compose + deploy.js.
-export const OPS_BASE_URL =
-  process.env.SEED_DEPLOY_URL ||
-  (process.env.SEED_REPO_URL
-    ? `${process.env.SEED_REPO_URL}/ops`
-    : `${DEFAULT_REPO_URL}/ops`);
+//
+// getOpsBaseUrl() re-reads env vars at call time so that overrides set after
+// module load (e.g. in tests) take effect. The OPS_BASE_URL constant is kept
+// for backward compatibility with code that only needs the value at startup.
+export function getOpsBaseUrl(): string {
+  return (
+    process.env.SEED_DEPLOY_URL ||
+    (process.env.SEED_REPO_URL
+      ? `${process.env.SEED_REPO_URL}/ops`
+      : `${DEFAULT_REPO_URL}/ops`)
+  );
+}
+export const OPS_BASE_URL = getOpsBaseUrl();
 
 export const DEFAULT_COMPOSE_URL = `${OPS_BASE_URL}/docker-compose.yml`;
 export const NOTIFY_SERVICE_HOST = "https://notify.seed.hyper.media";
@@ -913,8 +921,8 @@ async function rollback(
 // ---------------------------------------------------------------------------
 
 export async function selfUpdate(paths: DeployPaths): Promise<void> {
-  const scriptPath = process.argv[1];
-  const url = `${OPS_BASE_URL}/dist/deploy.js`;
+  const scriptPath = join(paths.seedDir, "deploy.js");
+  const url = `${getOpsBaseUrl()}/dist/deploy.js`;
 
   try {
     const response = await fetch(url);
@@ -967,7 +975,7 @@ export async function deploy(
   const hasEnvOverride =
     process.env.SEED_DEPLOY_URL || process.env.SEED_REPO_URL;
   const composeUrl = hasEnvOverride
-    ? `${OPS_BASE_URL}/docker-compose.yml`
+    ? `${getOpsBaseUrl()}/docker-compose.yml`
     : config.compose_url;
   const composeResponse = await fetch(composeUrl);
   if (!composeResponse.ok) {

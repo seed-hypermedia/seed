@@ -45,6 +45,7 @@ import {
   removeSeedCronLines,
   DEFAULT_SEED_DIR,
   selfUpdate,
+  getOpsBaseUrl,
 } from "./deploy";
 
 // ---------------------------------------------------------------------------
@@ -1193,9 +1194,8 @@ describe("selfUpdate", () => {
   });
 
   test("handles fetch failure gracefully (no throw)", async () => {
-    // selfUpdate uses process.argv[1] and fetches from DEFAULT_REPO_URL.
-    // In a test environment, the fetch will fail (no internet or wrong URL).
-    // It should not throw — just log and return.
+    // selfUpdate uses getOpsBaseUrl() which re-reads env vars at call time,
+    // so this override makes the fetch target an unreachable host.
     const origUrl = process.env.SEED_REPO_URL;
     process.env.SEED_REPO_URL = "http://localhost:1/nonexistent";
     try {
@@ -1203,6 +1203,90 @@ describe("selfUpdate", () => {
     } finally {
       if (origUrl !== undefined) {
         process.env.SEED_REPO_URL = origUrl;
+      } else {
+        delete process.env.SEED_REPO_URL;
+      }
+    }
+  });
+
+  test("writes to paths.seedDir, not process.argv[1]", async () => {
+    // Regression: selfUpdate previously used process.argv[1] as the target
+    // path, which during `bun test` pointed at deploy.test.ts and corrupted
+    // the test file with the bundled output.
+    const origUrl = process.env.SEED_REPO_URL;
+    process.env.SEED_REPO_URL = "http://localhost:1/nonexistent";
+    try {
+      await selfUpdate(paths);
+    } finally {
+      if (origUrl !== undefined) {
+        process.env.SEED_REPO_URL = origUrl;
+      } else {
+        delete process.env.SEED_REPO_URL;
+      }
+    }
+
+    // The test file (process.argv[1]) must not have been modified.
+    const testFile = process.argv[1];
+    const content = await readFile(testFile, "utf-8");
+    expect(content).toContain('from "bun:test"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getOpsBaseUrl
+// ---------------------------------------------------------------------------
+
+describe("getOpsBaseUrl", () => {
+  test("returns default URL when no env vars are set", () => {
+    const origDeploy = process.env.SEED_DEPLOY_URL;
+    const origRepo = process.env.SEED_REPO_URL;
+    delete process.env.SEED_DEPLOY_URL;
+    delete process.env.SEED_REPO_URL;
+    try {
+      expect(getOpsBaseUrl()).toContain("/ops");
+      expect(getOpsBaseUrl()).toContain("seed-hypermedia/seed");
+    } finally {
+      if (origDeploy !== undefined) process.env.SEED_DEPLOY_URL = origDeploy;
+      if (origRepo !== undefined) process.env.SEED_REPO_URL = origRepo;
+    }
+  });
+
+  test("SEED_DEPLOY_URL takes priority", () => {
+    const origDeploy = process.env.SEED_DEPLOY_URL;
+    const origRepo = process.env.SEED_REPO_URL;
+    process.env.SEED_DEPLOY_URL = "https://custom.example.com/ops";
+    process.env.SEED_REPO_URL = "https://should-be-ignored.example.com";
+    try {
+      expect(getOpsBaseUrl()).toBe("https://custom.example.com/ops");
+    } finally {
+      if (origDeploy !== undefined) {
+        process.env.SEED_DEPLOY_URL = origDeploy;
+      } else {
+        delete process.env.SEED_DEPLOY_URL;
+      }
+      if (origRepo !== undefined) {
+        process.env.SEED_REPO_URL = origRepo;
+      } else {
+        delete process.env.SEED_REPO_URL;
+      }
+    }
+  });
+
+  test("SEED_REPO_URL appends /ops", () => {
+    const origDeploy = process.env.SEED_DEPLOY_URL;
+    const origRepo = process.env.SEED_REPO_URL;
+    delete process.env.SEED_DEPLOY_URL;
+    process.env.SEED_REPO_URL = "https://repo.example.com";
+    try {
+      expect(getOpsBaseUrl()).toBe("https://repo.example.com/ops");
+    } finally {
+      if (origDeploy !== undefined) {
+        process.env.SEED_DEPLOY_URL = origDeploy;
+      } else {
+        delete process.env.SEED_DEPLOY_URL;
+      }
+      if (origRepo !== undefined) {
+        process.env.SEED_REPO_URL = origRepo;
       } else {
         delete process.env.SEED_REPO_URL;
       }
