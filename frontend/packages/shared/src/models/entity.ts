@@ -10,19 +10,14 @@ import {
   HMDocumentInfoSchema,
   HMDocumentMetadataSchema,
   HMGetCIDOutput,
-  HMGetCIDRequest,
   HMListAccountsOutput,
-  HMListAccountsRequest,
   HMListCommentsByAuthorOutput,
-  HMListCommentsByAuthorRequest,
   HMListedDraft,
   HMListEventsOutput,
-  HMListEventsRequest,
   HMMetadata,
   HMMetadataPayload,
   HMResolvedResource,
   HMResource,
-  HMResourceRequest,
   HMTimestamp,
   HMTimestampSchema,
   UnpackedHypermediaId,
@@ -240,12 +235,11 @@ export function useResolvedResource(
       if (!id) return null
 
       async function loadResolvedResource(id: UnpackedHypermediaId): Promise<HMResolvedResource | null> {
-        let resource = await client.request<HMResourceRequest>('Resource', id)
+        let resource = await client.request('Resource', id)
         if (resource?.type === 'redirect') {
           return await loadResolvedResource(resource.redirectTarget)
         }
-        // @ts-expect-error
-        return resource
+        return resource as HMResolvedResource
       }
 
       return await loadResolvedResource(id)
@@ -414,12 +408,11 @@ export function useResolvedResources(
           if (!id) return null
 
           async function loadResolvedResource(id: UnpackedHypermediaId): Promise<HMResolvedResource | null> {
-            let resource = await client.request<HMResourceRequest>('Resource', id)
+            let resource = await client.request('Resource', id)
             if (resource?.type === 'redirect') {
               return await loadResolvedResource(resource.redirectTarget)
             }
-            // @ts-expect-error
-            return resource
+            return resource as HMResolvedResource
           }
 
           return await loadResolvedResource(id)
@@ -562,7 +555,7 @@ export function useRootDocuments() {
   return useQuery({
     queryKey: [queryKeys.ROOT_DOCUMENTS],
     queryFn: async (): Promise<HMListAccountsOutput> => {
-      return await client.request<HMListAccountsRequest>('ListAccounts', undefined)
+      return await client.request('ListAccounts', undefined)
     },
   })
 }
@@ -572,7 +565,7 @@ export function useCID(cid: string | undefined) {
   return useQuery({
     queryKey: [queryKeys.CID, cid],
     queryFn: async (): Promise<HMGetCIDOutput> => {
-      return await client.request<HMGetCIDRequest>('GetCID', {cid: cid!})
+      return await client.request('GetCID', {cid: cid!})
     },
     enabled: !!cid,
   })
@@ -590,7 +583,7 @@ export function useAuthoredComments(id: UnpackedHypermediaId | null | undefined)
     queryKey: [queryKeys.AUTHORED_COMMENTS, id?.id],
     queryFn: async (): Promise<HMListCommentsByAuthorOutput> => {
       if (!id) throw new Error('ID required')
-      return await client.request<HMListCommentsByAuthorRequest>('ListCommentsByAuthor', {authorId: id})
+      return await client.request('ListCommentsByAuthor', {authorId: id})
     },
     enabled: !!id && isRootAccount,
   })
@@ -616,7 +609,7 @@ export function useInfiniteFeed(pageSize: number = 10) {
   return useInfiniteQuery({
     queryKey: [queryKeys.FEED, 'infinite', pageSize],
     queryFn: async ({pageParam}): Promise<HMListEventsOutput> => {
-      return await client.request<HMListEventsRequest>('ListEvents', {
+      return await client.request('ListEvents', {
         pageSize,
         pageToken: pageParam as string | undefined,
       })
@@ -631,7 +624,7 @@ export function useLatestEvent() {
   return useQuery({
     queryKey: [queryKeys.FEED, 'latest'],
     queryFn: async () => {
-      const result = await client.request<HMListEventsRequest>('ListEvents', {
+      const result = await client.request('ListEvents', {
         pageSize: 1,
       })
       return result.events[0] || null

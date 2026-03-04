@@ -3,14 +3,15 @@
  * Supports automatic resolution of embeds, mentions, and queries
  */
 
-import type {BlockNode, Block, Annotation, Document, Metadata, Client} from './client'
-import {unpackHmId} from './utils/hm-id'
+import type {HMBlockNode, HMBlock, HMAnnotation, HMDocument, HMMetadata} from '@shm/shared/hm-types'
+import type {SeedClient} from '@seed-hypermedia/client'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 
 export type MarkdownOptions = {
   includeMetadata?: boolean
   includeFrontmatter?: boolean
   resolve?: boolean // Enable automatic resolution of embeds/mentions/queries
-  client?: Client // Required if resolve is true
+  client?: SeedClient // Required if resolve is true
   maxDepth?: number // Max embed recursion depth (default 2)
 }
 
@@ -18,7 +19,7 @@ export type MarkdownOptions = {
  * Convert a document to markdown
  */
 export async function documentToMarkdown(
-  doc: Document,
+  doc: HMDocument,
   options?: MarkdownOptions
 ): Promise<string> {
   const lines: string[] = []
@@ -59,18 +60,18 @@ export async function documentToMarkdown(
 }
 
 type ResolveContext = {
-  client?: Client
+  client?: SeedClient
   resolve: boolean
   maxDepth: number
   currentDepth: number
-  cache: Map<string, {name?: string; content?: BlockNode[]}>
+  cache: Map<string, {name?: string; content?: HMBlockNode[]}>
 }
 
 /**
  * Convert a block node (with children) to markdown
  */
 async function blockNodeToMarkdown(
-  node: BlockNode,
+  node: HMBlockNode,
   depth: number,
   ctx: ResolveContext
 ): Promise<string> {
@@ -80,7 +81,7 @@ async function blockNodeToMarkdown(
   let result = await blockToMarkdown(block, depth, ctx)
 
   // Handle children based on childrenType
-  const childrenType = block.attributes?.childrenType as string | undefined
+  const childrenType = (block as {attributes?: {childrenType?: string}}).attributes?.childrenType
 
   for (const child of children) {
     const childMd = await blockNodeToMarkdown(child, depth + 1, ctx)
@@ -104,64 +105,69 @@ async function blockNodeToMarkdown(
  * Convert a single block to markdown
  */
 async function blockToMarkdown(
-  block: Block,
+  block: HMBlock,
   depth: number,
   ctx: ResolveContext
 ): Promise<string> {
   const ind = indent(depth)
+  // Cast to generic shape for uniform access across all block variants
+  const b = block as {type: string; id: string; text?: string; link?: string; annotations?: HMAnnotation[]; attributes?: Record<string, unknown>}
+  const text = b.text || ''
+  const link = b.link || ''
+  const annotations = b.annotations
 
   switch (block.type) {
     case 'Paragraph':
-      return ind + (await applyAnnotations(block.text || '', block.annotations, ctx))
+      return ind + (await applyAnnotations(text, annotations, ctx))
 
     case 'Heading':
       // Use depth to determine heading level (max h6)
       const level = Math.min(depth + 1, 6)
       const hashes = '#'.repeat(level)
-      return `${hashes} ${await applyAnnotations(block.text || '', block.annotations, ctx)}`
+      return `${hashes} ${await applyAnnotations(text, annotations, ctx)}`
 
     case 'Code':
-      const lang = block.attributes?.language || ''
-      return ind + '```' + lang + '\n' + ind + (block.text || '') + '\n' + ind + '```'
+      const lang = b.attributes?.language || ''
+      return ind + '```' + lang + '\n' + ind + text + '\n' + ind + '```'
 
     case 'Math':
       // LaTeX math block
-      return ind + '$$\n' + ind + (block.text || '') + '\n' + ind + '$$'
+      return ind + '$$\n' + ind + text + '\n' + ind + '$$'
 
     case 'Image':
-      const altText = block.text || 'image'
-      const imgUrl = formatMediaUrl(block.link || '')
+      const altText = text || 'image'
+      const imgUrl = formatMediaUrl(link)
       return ind + `![${altText}](${imgUrl})`
 
     case 'Video':
-      const videoUrl = formatMediaUrl(block.link || '')
+      const videoUrl = formatMediaUrl(link)
       return ind + `[Video](${videoUrl})`
 
     case 'File':
-      const fileName = block.attributes?.name || 'file'
-      const fileUrl = formatMediaUrl(block.link || '')
+      const fileName = b.attributes?.name || 'file'
+      const fileUrl = formatMediaUrl(link)
       return ind + `[${fileName}](${fileUrl})`
 
     case 'Embed':
       return await resolveBlockEmbed(block, depth, ctx)
 
     case 'WebEmbed':
-      return ind + `[Web Embed](${block.link})`
+      return ind + `[Web Embed](${link})`
 
     case 'Button':
-      const buttonText = block.text || 'Button'
-      return ind + `[${buttonText}](${block.link})`
+      const buttonText = text || 'Button'
+      return ind + `[${buttonText}](${link})`
 
     case 'Query':
       return await resolveQuery(block, depth, ctx)
 
     case 'Nostr':
-      return ind + `[Nostr: ${block.link}](${block.link})`
+      return ind + `[Nostr: ${link}](${link})`
 
     default:
       // Unknown block type
-      if (block.text) {
-        return ind + block.text
+      if (text) {
+        return ind + text
       }
       return ''
   }
@@ -171,12 +177,12 @@ async function blockToMarkdown(
  * Resolve a block-level embed
  */
 async function resolveBlockEmbed(
-  block: Block,
+  block: HMBlock,
   depth: number,
   ctx: ResolveContext
 ): Promise<string> {
   const ind = indent(depth)
-  const link = block.link || ''
+  const link = (block as {link?: string}).link || ''
 
   if (!ctx.resolve || !ctx.client || ctx.currentDepth >= ctx.maxDepth) {
     return ind + `> [Embed: ${link}](${link})`
@@ -193,7 +199,7 @@ async function resolveBlockEmbed(
     let cached = ctx.cache.get(cacheKey)
 
     if (!cached) {
-      const result = await ctx.client.getResource(link)
+      const result = await ctx.client.request('Resource', unpacked)
       if (result.type === 'document') {
         cached = {
           name: result.document.metadata?.name,
@@ -208,7 +214,7 @@ async function resolveBlockEmbed(
     // Find specific block if blockRef specified
     let contentToRender = cached.content
     if (unpacked.blockRef && cached.content) {
-      const targetBlock = findBlockById(cached.content, unpacked.blockRef)
+      const targetBlock = findBlockById(cached.content, unpacked.blockRef as string)
       if (targetBlock) {
         contentToRender = [targetBlock]
       }
@@ -250,7 +256,7 @@ async function resolveBlockEmbed(
  * Resolve a query block
  */
 async function resolveQuery(
-  block: Block,
+  block: HMBlock,
   depth: number,
   ctx: ResolveContext
 ): Promise<string> {
@@ -262,7 +268,7 @@ async function resolveQuery(
 
   try {
     type SortTerm = 'Path' | 'Title' | 'CreateTime' | 'UpdateTime' | 'DisplayTime'
-    const attrs = block.attributes as Record<string, unknown> | undefined
+    const attrs = (block as {attributes?: Record<string, unknown>}).attributes
     const queryConfig = attrs?.query as {
       includes?: Array<{space: string; path?: string; mode?: string}>
       sort?: Array<{term: SortTerm; reverse?: boolean}>
@@ -271,7 +277,7 @@ async function resolveQuery(
 
     // Handle both old (flat) and new (nested query) formats
     let includes: Array<{space: string; path?: string; mode: 'Children' | 'AllDescendants'}>
-    let sort: Array<{term: SortTerm; reverse?: boolean}> | undefined
+    let sort: Array<{term: SortTerm; reverse: boolean}> | undefined
     let limit: number | undefined
 
     if (queryConfig?.includes) {
@@ -281,7 +287,7 @@ async function resolveQuery(
         path: inc.path,
         mode: (inc.mode as 'Children' | 'AllDescendants') || 'Children',
       }))
-      sort = queryConfig.sort
+      sort = queryConfig.sort?.map((s) => ({term: s.term, reverse: s.reverse ?? false}))
       limit = queryConfig.limit
     } else {
       // Old flat format
@@ -296,13 +302,13 @@ async function resolveQuery(
       }]
     }
 
-    const results = await ctx.client.query(
+    const results = await ctx.client.request('Query', {
       includes,
-      sort || [{term: 'UpdateTime', reverse: true}],
-      limit || 10
-    )
+      sort: sort || [{term: 'UpdateTime', reverse: true}],
+      limit: limit || 10,
+    })
 
-    if (!results.results || results.results.length === 0) {
+    if (!results || !results.results || results.results.length === 0) {
       return ind + `<!-- Query: no results -->`
     }
 
@@ -323,7 +329,7 @@ async function resolveQuery(
 /**
  * Find a block by ID in content tree
  */
-function findBlockById(content: BlockNode[], blockId: string): BlockNode | null {
+function findBlockById(content: HMBlockNode[], blockId: string): HMBlockNode | null {
   for (const node of content) {
     if (node.block.id === blockId) {
       return node
@@ -341,7 +347,7 @@ function findBlockById(content: BlockNode[], blockId: string): BlockNode | null 
  */
 async function applyAnnotations(
   text: string,
-  annotations: Annotation[] | undefined,
+  annotations: HMAnnotation[] | undefined,
   ctx: ResolveContext
 ): Promise<string> {
   if (!annotations || annotations.length === 0) {
@@ -349,7 +355,7 @@ async function applyAnnotations(
   }
 
   // Build a list of markers with positions
-  type Marker = {pos: number; type: 'open' | 'close'; annotation: Annotation}
+  type Marker = {pos: number; type: 'open' | 'close'; annotation: HMAnnotation}
   const markers: Marker[] = []
 
   for (const ann of annotations) {
@@ -396,7 +402,7 @@ async function applyAnnotations(
  * Get markdown marker for annotation
  */
 async function getAnnotationMarker(
-  ann: Annotation,
+  ann: HMAnnotation,
   type: 'open' | 'close',
   ctx: ResolveContext
 ): Promise<string> {
@@ -430,11 +436,11 @@ async function getAnnotationMarker(
  * Resolve inline embed/mention to show name
  */
 async function resolveInlineEmbed(
-  ann: Annotation,
+  ann: HMAnnotation,
   type: 'open' | 'close',
   ctx: ResolveContext
 ): Promise<string> {
-  const link = ann.link || ''
+  const link = 'link' in ann ? (ann.link as string) || '' : ''
 
   if (type === 'open') {
     // Try to resolve name
@@ -447,7 +453,7 @@ async function resolveInlineEmbed(
           const unpacked = unpackHmId(link)
           if (unpacked) {
             // Try to get metadata
-            const result = await ctx.client.getResourceMetadata(link)
+            const result = await ctx.client.request('ResourceMetadata', unpacked)
             cached = {name: result.metadata?.name}
             ctx.cache.set(cacheKey, cached)
           }
@@ -490,7 +496,7 @@ function indent(depth: number): string {
 /**
  * Format metadata as a simple header
  */
-export function metadataToMarkdown(metadata: Metadata | null): string {
+export function metadataToMarkdown(metadata: HMMetadata | null): string {
   if (!metadata) return ''
 
   const lines: string[] = []

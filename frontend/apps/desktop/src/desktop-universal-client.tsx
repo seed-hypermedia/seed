@@ -1,13 +1,13 @@
+import {createSeedClient} from '@seed-hypermedia/client'
+import type {UnpackedHypermediaId} from '@shm/shared'
+import {API_HTTP_URL} from '@shm/shared/constants'
+import type {UniversalClient} from '@shm/shared/universal-client'
+import {base58btc} from 'multiformats/bases/base58'
+import {grpcClient} from '@/grpc-client'
 import {addSubscribedEntity, getDiscoveryStream, removeSubscribedEntity} from '@/models/entities'
 import {deleteRecent, fetchRecents} from '@/models/recents'
 import {client as trpcClient} from '@/trpc'
-import type {UnpackedHypermediaId} from '@shm/shared'
-import type {UniversalClient} from '@shm/shared/universal-client'
 import {CommentBox} from './components/commenting'
-import {createSeedClient} from '@seed-hypermedia/client'
-import {API_HTTP_URL} from '@shm/shared/constants'
-import {base58btc} from 'multiformats/bases/base58'
-import {grpcClient} from '@/grpc-client'
 
 const seedClient = createSeedClient(API_HTTP_URL)
 
@@ -27,7 +27,7 @@ export const desktopUniversalClient: UniversalClient = {
   fetchRecents: fetchRecents,
   deleteRecent: deleteRecent,
 
-  request: seedClient.request,
+  request: seedClient.request as UniversalClient['request'],
   publish: seedClient.publish,
 
   subscribeEntity: ({id, recursive}) => {

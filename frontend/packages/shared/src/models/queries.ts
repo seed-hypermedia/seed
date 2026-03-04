@@ -6,27 +6,17 @@
  */
 
 import type {
-  HMAccountContactsRequest,
-  HMAccountRequest,
   HMCapability,
   HMContactRecord,
   HMDocumentInfo,
   HMInteractionSummaryOutput,
-  HMInteractionSummaryRequest,
-  HMListCapabilitiesRequest,
   HMListChangesOutput,
-  HMListChangesRequest,
   HMListCitationsOutput,
-  HMListCitationsRequest,
   HMListCommentsOutput,
-  HMListCommentsRequest,
   HMMetadataPayload,
-  HMQueryRequest,
   HMRawCapability,
   HMResource,
-  HMResourceRequest,
   HMRole,
-  HMSubjectContactsRequest,
   UnpackedHypermediaId,
 } from '../hm-types'
 import {HMQueryResultSchema, HMResourceSchema} from '../hm-types'
@@ -73,11 +63,11 @@ export function queryResource(client: UniversalClient, id: UnpackedHypermediaId 
     queryFn: async (): Promise<HMResource | null> => {
       if (!id) return null
       try {
-        let res = await client.request<HMResourceRequest>('Resource', id)
+        let res = await client.request('Resource', id)
         // Follow redirects automatically so consumers never see {type: 'redirect'}
         let maxRedirects = 5
         while (res?.type === 'redirect' && maxRedirects-- > 0) {
-          res = await client.request<HMResourceRequest>('Resource', res.redirectTarget)
+          res = await client.request('Resource', res.redirectTarget)
         }
         return HMResourceSchema.parse(res)
       } catch (e) {
@@ -98,7 +88,7 @@ export function queryAccount(client: UniversalClient, uid: string | null | undef
     queryKey: [queryKeys.ACCOUNT, uid] as const,
     queryFn: async (): Promise<HMMetadataPayload | null> => {
       if (!uid) return null
-      const result = await client.request<HMAccountRequest>('Account', uid)
+      const result = await client.request('Account', uid)
       if (result.type === 'account-not-found') return null
       return result
     },
@@ -118,7 +108,7 @@ export function queryDirectory(
     queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.id, mode] as const,
     queryFn: async (): Promise<HMDocumentInfo[]> => {
       if (!id) return []
-      const result = await client.request<HMQueryRequest>('Query', {
+      const result = await client.request('Query', {
         includes: [
           {
             space: id.uid,
@@ -142,7 +132,7 @@ export function queryComments(client: UniversalClient, targetId: UnpackedHyperme
     queryKey: [queryKeys.COMMENTS, targetId?.id] as const,
     queryFn: async (): Promise<HMListCommentsOutput> => {
       if (!targetId) throw new Error('ID required')
-      return await client.request<HMListCommentsRequest>('ListComments', {
+      return await client.request('ListComments', {
         targetId,
       })
     },
@@ -158,7 +148,7 @@ export function queryCitations(client: UniversalClient, targetId: UnpackedHyperm
     queryKey: [queryKeys.CITATIONS, targetId?.id] as const,
     queryFn: async (): Promise<HMListCitationsOutput> => {
       if (!targetId) throw new Error('ID required')
-      return await client.request<HMListCitationsRequest>('ListCitations', {
+      return await client.request('ListCitations', {
         targetId,
       })
     },
@@ -174,7 +164,7 @@ export function queryChanges(client: UniversalClient, targetId: UnpackedHypermed
     queryKey: [queryKeys.CHANGES, targetId?.id] as const,
     queryFn: async (): Promise<HMListChangesOutput> => {
       if (!targetId) throw new Error('ID required')
-      return await client.request<HMListChangesRequest>('ListChanges', {
+      return await client.request('ListChanges', {
         targetId,
       })
     },
@@ -191,7 +181,7 @@ export function queryCapabilities(client: UniversalClient, targetId: UnpackedHyp
     queryKey: [queryKeys.CAPABILITIES, targetId?.uid, ...(targetId?.path || [])] as const,
     queryFn: async (): Promise<HMCapability[]> => {
       if (!targetId) throw new Error('ID required')
-      const result = await client.request<HMListCapabilitiesRequest>('ListCapabilities', {targetId})
+      const result = await client.request('ListCapabilities', {targetId})
       const visitedCaps = new Set<string>()
       const caps: HMCapability[] = []
       for (const raw of result.capabilities) {
@@ -231,7 +221,7 @@ export function queryInteractionSummary(client: UniversalClient, id: UnpackedHyp
           blocks: {},
         }
       }
-      return await client.request<HMInteractionSummaryRequest>('InteractionSummary', {id})
+      return await client.request('InteractionSummary', {id})
     },
     enabled: !!id,
   }
@@ -245,7 +235,7 @@ export function queryContactsOfSubject(client: UniversalClient, uid: string | un
     queryKey: [queryKeys.CONTACTS_SUBJECT, uid] as const,
     queryFn: async (): Promise<HMContactRecord[]> => {
       if (!uid) return []
-      return client.request<HMSubjectContactsRequest>('SubjectContacts', uid)
+      return client.request('SubjectContacts', uid)
     },
     enabled: !!uid,
   }
@@ -259,7 +249,7 @@ export function queryContactsOfAccount(client: UniversalClient, uid: string | nu
     queryKey: [queryKeys.CONTACTS_ACCOUNT, uid] as const,
     queryFn: async (): Promise<HMContactRecord[]> => {
       if (!uid) return []
-      return client.request<HMAccountContactsRequest>('AccountContacts', uid)
+      return client.request('AccountContacts', uid)
     },
     enabled: !!uid,
   }

@@ -190,9 +190,7 @@ describe('createSeedClient', () => {
 
     expect(capturedUrl).toBe('https://example.com/api/PrepareDocumentChange')
     expect(capturedOptions?.method).toBe('POST')
-    expect(capturedOptions?.headers).toEqual(
-      expect.objectContaining({'Content-Type': 'application/cbor'}),
-    )
+    expect(capturedOptions?.headers).toEqual(expect.objectContaining({'Content-Type': 'application/cbor'}))
     const decodedBody = cborDecode(capturedOptions?.body as Uint8Array)
     expect(decodedBody).toEqual(input)
   })

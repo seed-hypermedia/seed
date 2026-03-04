@@ -8,7 +8,6 @@
 import {UniversalClient} from '@shm/shared'
 import {APIRouter} from '@shm/shared/api'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
-import type {HMRequest} from '@shm/shared/hm-types'
 import {grpcClient} from './client.server'
 
 // queryDaemon for handlers that need direct HTTP access (e.g., GetCID)
@@ -33,11 +32,8 @@ export async function serverRequest<K extends keyof typeof APIRouter>(
   return result as Awaited<ReturnType<(typeof APIRouter)[K]['getData']>>
 }
 
-type PublishBlobsInput = Extract<HMRequest, {key: 'PublishBlobs'}>['input']
-type PublishBlobsOutput = Extract<HMRequest, {key: 'PublishBlobs'}>['output']
-
-export async function serverPublish(input: PublishBlobsInput): Promise<PublishBlobsOutput> {
-  return serverRequest('PublishBlobs', input) as Promise<PublishBlobsOutput>
+export const serverPublish: UniversalClient['publish'] = (input) => {
+  return serverRequest('PublishBlobs', input) as ReturnType<UniversalClient['publish']>
 }
 
 /**
@@ -45,9 +41,6 @@ export async function serverPublish(input: PublishBlobsInput): Promise<PublishBl
  * Implements the same request interface as the client-side universal client.
  */
 export const serverUniversalClient: UniversalClient = {
-  request: serverRequest as <Request extends HMRequest>(
-    key: Request['key'],
-    input: Request['input'],
-  ) => Promise<Request['output']>,
+  request: serverRequest as UniversalClient['request'],
   publish: serverPublish,
 }

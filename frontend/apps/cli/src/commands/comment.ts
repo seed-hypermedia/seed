@@ -5,12 +5,12 @@
 import type {Command} from 'commander'
 import {readFileSync} from 'fs'
 import * as ed25519 from '@noble/ed25519'
-import {createComment, deleteComment, createSeedClient} from '@seed-hypermedia/client'
-import type {HMAnnotation, HMBlockNode, HMSigner, UnpackedHypermediaId, HMCommentRequest} from '@shm/shared/hm-types'
+import {createComment, deleteComment} from '@seed-hypermedia/client'
+import type {HMAnnotation, HMBlockNode, HMSigner, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {unpackHmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {getClient, getOutputFormat} from '../index'
 import {formatOutput, printError, printSuccess, printInfo} from '../output'
 import {resolveKey} from '../utils/keyring'
-import {unpackHmId, packHmId} from '../utils/hm-id'
 
 export function registerCommentCommands(program: Command) {
   const comment = program.command('comment').description('Manage comments (get, list, create, discussions)')
@@ -26,7 +26,7 @@ export function registerCommentCommands(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const result = await client.getComment(id)
+        const result = await client.request('Comment', id)
         console.log(formatOutput(result, format))
       } catch (error) {
         printError((error as Error).message)
@@ -46,7 +46,12 @@ export function registerCommentCommands(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const result = await client.listComments(targetId)
+        const unpacked = unpackHmId(targetId)
+        if (!unpacked) {
+          printError(`Invalid Hypermedia ID: ${targetId}`)
+          process.exit(1)
+        }
+        const result = await client.request('ListComments', {targetId: unpacked})
 
         if (globalOpts.quiet) {
           result.comments.forEach((c) => {
@@ -95,9 +100,9 @@ export function registerCommentCommands(program: Command) {
         }
         const blockRef = unpacked.blockRef
         // Strip the blockRef for the API fetch (server doesn't need it).
-        const fetchId = unpacked.id + (unpacked.version ? `?v=${unpacked.version}` : '')
+        const resourceId = {...unpacked, blockRef: null} as UnpackedHypermediaId
 
-        const resource = await client.getResource(fetchId)
+        const resource = await client.request('Resource', resourceId)
         if (resource.type !== 'document') {
           throw new Error(`Target is ${resource.type}, expected a document.`)
         }
@@ -134,7 +139,7 @@ export function registerCommentCommands(program: Command) {
         let threadRoot: string | undefined
 
         if (options.reply) {
-          const parentComment = await client.getComment(options.reply)
+          const parentComment = await client.request('Comment', options.reply)
           const parentVersion = parentComment.version || parentComment.id
           if (parentVersion) replyParent = parentVersion
           if (parentComment.threadRoot) {
@@ -149,8 +154,7 @@ export function registerCommentCommands(program: Command) {
           sign: async (data: Uint8Array) => ed25519.signAsync(data, key.privateKey),
         }
 
-        const publishClient = createSeedClient(client.server)
-        const result = await publishClient.publish(
+        const result = await client.publish(
           await createComment(
             {
               content: body,
@@ -199,17 +203,15 @@ export function registerCommentCommands(program: Command) {
       try {
         const key = resolveKey(options.key, dev)
 
-        const seedClient = createSeedClient(client.server)
-
         // Fetch the comment to get target details
-        const existing = await seedClient.request<HMCommentRequest>('Comment', commentId)
+        const existing = await client.request('Comment', commentId)
 
         const signer: HMSigner = {
           getPublicKey: async () => key.publicKeyWithPrefix,
           sign: async (data: Uint8Array) => ed25519.signAsync(data, key.privateKey),
         }
 
-        await seedClient.publish(
+        await client.publish(
           await deleteComment(
             {
               commentId,
@@ -243,7 +245,12 @@ export function registerCommentCommands(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const result = await client.listDiscussions(targetId, options.comment)
+        const unpacked = unpackHmId(targetId)
+        if (!unpacked) {
+          printError(`Invalid Hypermedia ID: ${targetId}`)
+          process.exit(1)
+        }
+        const result = await client.request('ListDiscussions', {targetId: unpacked, commentId: options.comment})
         console.log(formatOutput(result, format))
       } catch (error) {
         printError((error as Error).message)

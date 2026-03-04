@@ -72,9 +72,7 @@ describe('handleApiAction', () => {
     const result = await handleApiAction('PrepareDocumentChange', cborEncode(payload), grpcClient, queryDaemon)
 
     expect(result.status).toBe(200)
-    expect(prepareChange).toHaveBeenCalledWith(
-      expect.objectContaining({account: 'test-uid', changes: []}),
-    )
+    expect(prepareChange).toHaveBeenCalledWith(expect.objectContaining({account: 'test-uid', changes: []}))
     const deserialized = deserialize(JSON.parse(result.body)) as any
     expect(deserialized.unsignedChange).toBeInstanceOf(Uint8Array)
     expect(Array.from(deserialized.unsignedChange)).toEqual([4, 5, 6])

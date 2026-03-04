@@ -32,7 +32,6 @@ import {
   HMListedDraft,
   HMNavigationItem,
   HMResourceFetchResult,
-  HMResourceRequest,
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
@@ -839,7 +838,7 @@ export async function pushResource(
   onlyPushToHost?: string,
   onStatusChange?: (status: PushResourceStatus) => void,
 ): Promise<boolean> {
-  const resource = await universalClient.request<HMResourceRequest>('Resource', id)
+  const resource = await universalClient.request('Resource', id)
   // step 1. find all the site IDs that will be affected by this resource.
   // console.log('== publish 1', id, resource, gwUrl)
   let destinationSiteUids = new Set<string>()
@@ -914,7 +913,7 @@ export async function pushResource(
   await Promise.all(
     Array.from(destinationSiteUids).map(async (uid) => {
       try {
-        const resource = await universalClient.request<HMResourceRequest>('Resource', hmId(uid))
+        const resource = await universalClient.request('Resource', hmId(uid))
         if (resource.type === 'document') {
           const siteUrl = resource.document.metadata?.siteUrl
           if (siteUrl) destinationHosts.add(siteUrl)
@@ -1364,7 +1363,7 @@ export function useForkDocument() {
       signingAccountId: string
     }) => {
       if (!universalClient.getSigner) throw new Error('Signing not available')
-      const resource = await universalClient.request<HMResourceRequest>('Resource', from)
+      const resource = await universalClient.request('Resource', from)
       if (resource.type !== 'document') throw new Error(`Cannot fork: resource is ${resource.type}`)
       const doc = resource.document
       if (!doc.generationInfo) throw new Error('No generation info for document')
@@ -1400,7 +1399,7 @@ export function useMoveDocument() {
       signingAccountId: string
     }) => {
       if (!universalClient.getSigner) throw new Error('Signing not available')
-      const resource = await universalClient.request<HMResourceRequest>('Resource', from)
+      const resource = await universalClient.request('Resource', from)
       if (resource.type !== 'document') throw new Error(`Cannot move: resource is ${resource.type}`)
       const doc = resource.document
       if (!doc.generationInfo) throw new Error('No generation info for document')

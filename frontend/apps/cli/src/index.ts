@@ -4,7 +4,7 @@
  */
 
 import {Command} from 'commander'
-import {createClient} from './client'
+import {createSeedClient} from '@seed-hypermedia/client'
 import {formatOutput, printError, printSuccess, printInfo} from './output'
 import {loadConfig, setConfigValue, getConfigValue} from './config'
 import type {OutputFormat} from './output'
@@ -47,8 +47,8 @@ export function getOutputFormat(
 
 // Helper to create client from options
 export function getClient(options: Record<string, unknown>) {
-  const server = (options.server as string) || getConfigValue('server')
-  return createClient({server})
+  const server = (options.server as string) || getConfigValue('server') || 'https://hyper.media'
+  return createSeedClient(server)
 }
 
 // Register command groups

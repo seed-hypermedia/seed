@@ -1,4 +1,4 @@
-import type {UnpackedHypermediaId} from '@shm/shared'
+import type {UnpackedHypermediaId, UniversalClient} from '@shm/shared'
 import {createWebUniversalClient} from '@shm/shared'
 import {createSeedClient} from '@seed-hypermedia/client'
 import {SITE_BASE_URL} from '@shm/shared/constants'
@@ -11,7 +11,7 @@ function NotifyCommentEditor({docId}: {docId: UnpackedHypermediaId}) {
 }
 
 export const notifyUniversalClient = createWebUniversalClient({
-  request: seedClient.request,
+  request: seedClient.request as UniversalClient['request'],
   publish: seedClient.publish,
   CommentEditor: NotifyCommentEditor,
   // Notify app doesn't have recents

@@ -2,7 +2,7 @@ import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
 import {createTombstoneRef} from '@seed-hypermedia/client'
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {DiscoveryState, HMResourceRequest, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {DiscoveryState, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {createQueryResolver} from '@shm/shared/models/directory'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -34,7 +34,7 @@ export function useDeleteEntities(opts: UseMutationOptions<void, unknown, Delete
       await Promise.all(
         ids.map(async (id) => {
           await deleteRecent.mutateAsync(id.id)
-          const resource = await universalClient.request<HMResourceRequest>('Resource', id)
+          const resource = await universalClient.request('Resource', id)
           if (resource.type !== 'document') throw new Error(`Cannot delete: resource is ${resource.type}`)
           const doc = resource.document
           const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : Number(doc.genesis ? 1 : 0)

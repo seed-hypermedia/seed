@@ -3,6 +3,7 @@
  */
 
 import type {Command} from 'commander'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {getClient, getOutputFormat} from '../index'
 import {formatOutput, printError} from '../output'
 
@@ -23,7 +24,7 @@ export function registerAccountCommands(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const result = await client.getAccount(uid)
+        const result = await client.request('Account', uid)
 
         if (globalOpts.quiet) {
           if (result.type === 'account') {
@@ -52,7 +53,7 @@ export function registerAccountCommands(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const result = await client.listAccounts()
+        const result = await client.request('ListAccounts', {})
 
         if (globalOpts.quiet) {
           result.accounts.forEach((a) => {
@@ -80,7 +81,7 @@ export function registerAccountCommands(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const result = await client.getAccountContacts(uid)
+        const result = await client.request('AccountContacts', uid)
 
         if (globalOpts.quiet) {
           result.forEach((c) => {
@@ -106,7 +107,12 @@ export function registerAccountCommands(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const result = await client.listCapabilities(id)
+        const unpacked = unpackHmId(id)
+        if (!unpacked) {
+          printError(`Invalid Hypermedia ID: ${id}`)
+          process.exit(1)
+        }
+        const result = await client.request('ListCapabilities', {targetId: unpacked})
         console.log(formatOutput(result, format))
       } catch (error) {
         printError((error as Error).message)

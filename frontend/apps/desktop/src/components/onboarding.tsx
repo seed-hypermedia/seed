@@ -900,7 +900,9 @@ function RecoveryStep({
 
         if (seedExperimentalLogo) {
           console.log('Adding logo metadata:', `ipfs://${seedExperimentalLogo}`)
-          changes.push({op: {case: 'setMetadata', value: {key: 'seedExperimentalLogo', value: `ipfs://${seedExperimentalLogo}`}}})
+          changes.push({
+            op: {case: 'setMetadata', value: {key: 'seedExperimentalLogo', value: `ipfs://${seedExperimentalLogo}`}},
+          })
         }
 
         console.log('Final changes to apply:', changes)

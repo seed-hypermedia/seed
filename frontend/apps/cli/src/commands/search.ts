@@ -18,7 +18,7 @@ export function registerSearchCommand(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const result = await client.search(query, options.account)
+        const result = await client.request('Search', {query, accountUid: options.account})
 
         if (globalOpts.quiet) {
           result.entities.forEach((e) => {

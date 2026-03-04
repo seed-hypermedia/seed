@@ -1,4 +1,11 @@
-import type {DiscoveryState, HMListedDraft, HMPrepareDocumentChangeInput, HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'
+import type {
+  DiscoveryState,
+  HMListedDraft,
+  HMPrepareDocumentChangeInput,
+  HMRequest,
+  HMSigner,
+  UnpackedHypermediaId,
+} from './hm-types'
 import type {RecentsResult} from './models/recents'
 import type {StateStream} from './utils/stream'
 
@@ -35,7 +42,10 @@ export type UniversalClient = {
 
   deleteRecent?: (id: string) => Promise<void>
 
-  request<Request extends HMRequest>(key: Request['key'], input: Request['input']): Promise<Request['output']>
+  request<K extends HMRequest['key']>(
+    key: K,
+    input: Extract<HMRequest, {key: K}>['input'],
+  ): Promise<Extract<HMRequest, {key: K}>['output']>
   publish: (
     input: Extract<HMRequest, {key: 'PublishBlobs'}>['input'],
   ) => Promise<Extract<HMRequest, {key: 'PublishBlobs'}>['output']>

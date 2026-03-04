@@ -4,7 +4,7 @@
 
 import type {Command} from 'commander'
 import * as ed25519 from '@noble/ed25519'
-import {createCapability, createSeedClient} from '@seed-hypermedia/client'
+import {createCapability} from '@seed-hypermedia/client'
 import type {CapabilityRole} from '@seed-hypermedia/client'
 import type {HMSigner} from '@shm/shared/hm-types'
 import {getClient} from '../index'
@@ -51,7 +51,6 @@ Examples:
           sign: async (data: Uint8Array) => ed25519.signAsync(data, key.privateKey),
         }
 
-        const seedClient = createSeedClient(client.server)
         const result = await createCapability(
           {
             delegateUid: options.delegate,
@@ -61,7 +60,7 @@ Examples:
           },
           signer,
         )
-        await seedClient.publish(result)
+        await client.publish(result)
 
         printSuccess('Capability created')
         if (!globalOpts.quiet) {

@@ -3,15 +3,11 @@ import {useMutation, useQuery} from '@tanstack/react-query'
 import {createContext, PropsWithChildren, useContext, useMemo} from 'react'
 import {
   HMComment,
-  HMGetCommentReplyCountRequest,
   HMListCommentsByReferenceInput,
-  HMListCommentsByReferenceRequest,
   HMListCommentsInput,
   HMListCommentsOutput,
-  HMListCommentsRequest,
   HMListDiscussionsInput,
   HMListDiscussionsOutput,
-  HMListDiscussionsRequest,
   UnpackedHypermediaId,
 } from './hm-types'
 import {invalidateQueries} from './models/query-client'
@@ -73,7 +69,7 @@ export function useCommentsService(params: HMListCommentsInput) {
     queryKey: [queryKeys.DOCUMENT_COMMENTS, params.targetId],
     queryFn: async (): Promise<HMListCommentsOutput> => {
       try {
-        return await client.request<HMListCommentsRequest>('ListComments', params)
+        return await client.request('ListComments', params)
       } catch (error) {
         console.error('Error fetching comments:', error)
         throw error
@@ -91,7 +87,7 @@ export function useDiscussionsService(params: HMListDiscussionsInput) {
     queryKey: [queryKeys.DOCUMENT_DISCUSSION, params.targetId, params.commentId],
     queryFn: async (): Promise<HMListDiscussionsOutput> => {
       try {
-        return await client.request<HMListDiscussionsRequest>('ListDiscussions', params)
+        return await client.request('ListDiscussions', params)
       } catch (error) {
         console.error('Error fetching discussions:', error)
         throw error
@@ -109,7 +105,7 @@ export function useBlockDiscussionsService(params: HMListCommentsByReferenceInpu
     queryKey: [queryKeys.BLOCK_DISCUSSIONS, params.targetId],
     queryFn: async (): Promise<HMListCommentsOutput> => {
       try {
-        return await client.request<HMListCommentsByReferenceRequest>('ListCommentsByReference', params)
+        return await client.request('ListCommentsByReference', params)
       } catch (error) {
         console.error('Error fetching block discussions:', error)
         throw error
@@ -181,7 +177,7 @@ export function useCommentReplyCount({id}: {id: string}) {
   return useQuery({
     queryKey: [id, 'replyCount'],
     queryFn: () =>
-      client.request<HMGetCommentReplyCountRequest>('GetCommentReplyCount', {
+      client.request('GetCommentReplyCount', {
         id,
       }),
     retry: 1,

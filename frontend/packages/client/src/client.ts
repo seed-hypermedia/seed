@@ -49,7 +49,10 @@ const QUERY_PARAM_SERIALIZERS = {
 }>
 
 export type SeedClient = {
-  request<Req extends HMRequest>(key: Req['key'], input: Req['input']): Promise<Req['output']>
+  request<K extends HMRequest['key']>(
+    key: K,
+    input: Extract<HMRequest, {key: K}>['input'],
+  ): Promise<Extract<HMRequest, {key: K}>['output']>
   publish(input: PublishBlobsRequest['input']): Promise<PublishBlobsRequest['output']>
   publishBlobs(input: PublishBlobsRequest['input']): Promise<PublishBlobsRequest['output']>
   publishDocument(input: PublishDocumentInput, signer: HMSigner): Promise<void>
@@ -179,7 +182,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
 
   return {
     baseUrl: normalizedBaseUrl,
-    request,
+    request: request as SeedClient['request'],
     publish,
     publishBlobs: publish,
     publishDocument,

@@ -7,7 +7,8 @@
 import type {Command} from 'commander'
 import {getClient, getOutputFormat} from '../index'
 import {formatOutput, printError} from '../output'
-import type {QueryInclude, QuerySort} from '../client'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import type {HMQuerySort} from '@shm/shared/hm-types'
 
 export function registerQueryCommands(program: Command) {
   program
@@ -32,7 +33,7 @@ export function registerQueryCommands(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const includes: QueryInclude[] = [
+        const includes = [
           {
             space,
             path: options.path,
@@ -40,11 +41,16 @@ export function registerQueryCommands(program: Command) {
           },
         ]
 
-        const sort: QuerySort[] | undefined = options.sort
+        const sort: HMQuerySort[] | undefined = options.sort
           ? [{term: options.sort, reverse: options.reverse}]
           : undefined
 
-        const result = await client.query(includes, sort, options.limit)
+        const result = await client.request('Query', {includes, sort, limit: options.limit})
+
+        if (!result) {
+          printError('No results')
+          process.exit(1)
+        }
 
         if (globalOpts.quiet) {
           result.results.forEach((r) => {
@@ -71,15 +77,20 @@ export function registerQueryCommands(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const includes: QueryInclude[] = [
+        const includes = [
           {
             space,
             path: options.path,
-            mode: 'Children',
+            mode: 'Children' as const,
           },
         ]
 
-        const result = await client.query(includes, undefined, options.limit)
+        const result = await client.request('Query', {includes, limit: options.limit})
+
+        if (!result) {
+          printError('No results')
+          process.exit(1)
+        }
 
         if (globalOpts.quiet) {
           result.results.forEach((r) => {
@@ -104,7 +115,12 @@ export function registerQueryCommands(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const result = await client.listCitations(id)
+        const unpacked = unpackHmId(id)
+        if (!unpacked) {
+          printError(`Invalid Hypermedia ID: ${id}`)
+          process.exit(1)
+        }
+        const result = await client.request('ListCitations', {targetId: unpacked})
 
         if (globalOpts.quiet) {
           result.citations.forEach((c) => {
@@ -133,7 +149,7 @@ export function registerQueryCommands(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const result = await client.listEvents({
+        const result = await client.request('ListEvents', {
           pageSize: options.limit,
           pageToken: options.token,
           filterAuthors: options.authors?.split(','),

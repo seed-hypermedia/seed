@@ -11,7 +11,6 @@ import {
   createVersionRef,
   createTombstoneRef,
   createRedirectRef,
-  createSeedClient,
 } from '@seed-hypermedia/client'
 import type {HMSigner} from '@shm/shared/hm-types'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -30,7 +29,7 @@ import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations} from '../utils/markdown'
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
 import {createBlocksMap, matchBlockIds, computeReplaceOps, type APIBlockNode} from '../utils/block-diff'
-import type {BlockNode as ClientBlockNode} from '../client'
+import type {HMBlockNode} from '@shm/shared/hm-types'
 import type {KeyPair} from '../utils/key-derivation'
 
 function createSignerFromKey(key: KeyPair): HMSigner {
@@ -60,7 +59,12 @@ export function registerDocumentCommands(program: Command) {
 
       try {
         if (options.metadata) {
-          const result = await client.getResourceMetadata(id)
+          const unpacked = unpackHmId(id)
+          if (!unpacked) {
+            printError(`Invalid Hypermedia ID: ${id}`)
+            process.exit(1)
+          }
+          const result = await client.request('ResourceMetadata', unpacked)
           if (globalOpts.quiet || options.quiet) {
             console.log(result.metadata?.name || result.id.id)
           } else {
@@ -69,7 +73,12 @@ export function registerDocumentCommands(program: Command) {
           return
         }
 
-        const result = await client.getResource(id)
+        const resourceId = unpackHmId(id)
+        if (!resourceId) {
+          printError(`Invalid Hypermedia ID: ${id}`)
+          process.exit(1)
+        }
+        const result = await client.request('Resource', resourceId)
 
         if (globalOpts.quiet || options.quiet) {
           if (result.type === 'document') {
@@ -195,8 +204,7 @@ export function registerDocumentCommands(program: Command) {
           signer,
         )
 
-        const seedClient = createSeedClient(client.server)
-        await seedClient.publish({
+        await client.publish({
           blobs: [
             {data: new Uint8Array(genesisBlock.bytes), cid: genesisBlock.cid.toString()},
             {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
@@ -249,7 +257,12 @@ export function registerDocumentCommands(program: Command) {
 
         // Fetch the document — needed for all paths (replace-body needs
         // the existing block tree; other paths need account/path).
-        const resource = await client.getResource(id)
+        const resourceId = unpackHmId(id)
+        if (!resourceId) {
+          printError(`Invalid Hypermedia ID: ${id}`)
+          process.exit(1)
+        }
+        const resource = await client.request('Resource', resourceId)
         if (resource.type !== 'document') {
           printError(`Resource is ${resource.type}, not a document.`)
           process.exit(1)
@@ -325,8 +338,7 @@ export function registerDocumentCommands(program: Command) {
           signer,
         )
 
-        const seedClient = createSeedClient(client.server)
-        await seedClient.publish({
+        await client.publish({
           blobs: [
             {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
             ...refInput.blobs,
@@ -359,21 +371,20 @@ export function registerDocumentCommands(program: Command) {
       try {
         const key = resolveKey(_options.key, dev)
         const signer = createSignerFromKey(key)
-        const seedClient = createSeedClient(client.server)
-
-        const resource = await client.getResource(id)
-        if (resource.type !== 'document') {
-          printError(`Cannot delete: resource is ${resource.type}, not a document.`)
-          process.exit(1)
-        }
-        const doc = resource.document
-        const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 1
 
         const unpacked = unpackHmId(id)
         if (!unpacked) {
           printError(`Invalid Hypermedia ID: ${id}`)
           process.exit(1)
         }
+
+        const resource = await client.request('Resource', unpacked)
+        if (resource.type !== 'document') {
+          printError(`Cannot delete: resource is ${resource.type}, not a document.`)
+          process.exit(1)
+        }
+        const doc = resource.document
+        const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 1
 
         const refInput = await createTombstoneRef(
           {
@@ -384,7 +395,7 @@ export function registerDocumentCommands(program: Command) {
           },
           signer,
         )
-        await seedClient.publish(refInput)
+        await client.publish(refInput)
 
         printSuccess('Document deleted')
         if (!globalOpts.quiet) {
@@ -410,9 +421,14 @@ export function registerDocumentCommands(program: Command) {
       try {
         const key = resolveKey(_options.key, dev)
         const signer = createSignerFromKey(key)
-        const seedClient = createSeedClient(client.server)
 
-        const resource = await client.getResource(sourceId)
+        const sourceUnpacked = unpackHmId(sourceId)
+        if (!sourceUnpacked) {
+          printError(`Invalid source Hypermedia ID: ${sourceId}`)
+          process.exit(1)
+        }
+
+        const resource = await client.request('Resource', sourceUnpacked)
         if (resource.type !== 'document') {
           printError(`Cannot fork: source is ${resource.type}, not a document.`)
           process.exit(1)
@@ -436,7 +452,7 @@ export function registerDocumentCommands(program: Command) {
           },
           signer,
         )
-        await seedClient.publish(refInput)
+        await client.publish(refInput)
 
         printSuccess('Document forked')
         if (!globalOpts.quiet) {
@@ -463,15 +479,6 @@ export function registerDocumentCommands(program: Command) {
       try {
         const key = resolveKey(_options.key, dev)
         const signer = createSignerFromKey(key)
-        const seedClient = createSeedClient(client.server)
-
-        const resource = await client.getResource(sourceId)
-        if (resource.type !== 'document') {
-          printError(`Cannot move: source is ${resource.type}, not a document.`)
-          process.exit(1)
-        }
-        const doc = resource.document
-        if (!doc.generationInfo) throw new Error('No generation info for source document')
 
         const source = unpackHmId(sourceId)
         const dest = unpackHmId(destinationId)
@@ -484,6 +491,14 @@ export function registerDocumentCommands(program: Command) {
           process.exit(1)
         }
 
+        const resource = await client.request('Resource', source)
+        if (resource.type !== 'document') {
+          printError(`Cannot move: source is ${resource.type}, not a document.`)
+          process.exit(1)
+        }
+        const doc = resource.document
+        if (!doc.generationInfo) throw new Error('No generation info for source document')
+
         // Create version ref at destination
         const versionRefInput = await createVersionRef(
           {
@@ -495,7 +510,7 @@ export function registerDocumentCommands(program: Command) {
           },
           signer,
         )
-        await seedClient.publish(versionRefInput)
+        await client.publish(versionRefInput)
 
         // Create redirect ref at source
         const redirectRefInput = await createRedirectRef(
@@ -509,7 +524,7 @@ export function registerDocumentCommands(program: Command) {
           },
           signer,
         )
-        await seedClient.publish(redirectRefInput)
+        await client.publish(redirectRefInput)
 
         printSuccess('Document moved')
         if (!globalOpts.quiet) {
@@ -538,15 +553,6 @@ export function registerDocumentCommands(program: Command) {
       try {
         const key = resolveKey(_options.key, dev)
         const signer = createSignerFromKey(key)
-        const seedClient = createSeedClient(client.server)
-
-        const resource = await client.getResource(id)
-        if (resource.type !== 'document') {
-          printError(`Cannot redirect: resource is ${resource.type}, not a document.`)
-          process.exit(1)
-        }
-        const doc = resource.document
-        const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 1
 
         const source = unpackHmId(id)
         const target = unpackHmId(_options.to)
@@ -558,6 +564,14 @@ export function registerDocumentCommands(program: Command) {
           printError(`Invalid target Hypermedia ID: ${_options.to}`)
           process.exit(1)
         }
+
+        const resource = await client.request('Resource', source)
+        if (resource.type !== 'document') {
+          printError(`Cannot redirect: resource is ${resource.type}, not a document.`)
+          process.exit(1)
+        }
+        const doc = resource.document
+        const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 1
 
         const refInput = await createRedirectRef(
           {
@@ -571,7 +585,7 @@ export function registerDocumentCommands(program: Command) {
           },
           signer,
         )
-        await seedClient.publish(refInput)
+        await client.publish(refInput)
 
         printSuccess('Redirect created')
         if (!globalOpts.quiet) {
@@ -598,7 +612,12 @@ export function registerDocumentCommands(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const result = await client.listChanges(targetId)
+        const unpacked = unpackHmId(targetId)
+        if (!unpacked) {
+          printError(`Invalid Hypermedia ID: ${targetId}`)
+          process.exit(1)
+        }
+        const result = await client.request('ListChanges', {targetId: unpacked})
 
         if (globalOpts.quiet) {
           result.changes.forEach((c) => {
@@ -627,7 +646,12 @@ export function registerDocumentCommands(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const result = await client.getInteractionSummary(id)
+        const unpacked = unpackHmId(id)
+        if (!unpacked) {
+          printError(`Invalid Hypermedia ID: ${id}`)
+          process.exit(1)
+        }
+        const result = await client.request('InteractionSummary', {id: unpacked})
         console.log(formatOutput(result, format))
       } catch (error) {
         printError((error as Error).message)
@@ -646,7 +670,7 @@ export function registerDocumentCommands(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        const result = await client.getCID(cid)
+        const result = await client.request('GetCID', {cid})
         console.log(formatOutput(result, format))
       } catch (error) {
         printError((error as Error).message)
@@ -688,15 +712,16 @@ function slugify(title: string): string {
  * Convert API BlockNode (with optional children) to the APIBlockNode shape
  * expected by block-diff utilities (with required children array).
  */
-function toAPIBlockNode(node: ClientBlockNode): APIBlockNode {
+function toAPIBlockNode(node: HMBlockNode): APIBlockNode {
+  const block = node.block as {id: string; type: string; text?: string; link?: string; annotations?: unknown[]; attributes?: Record<string, unknown>}
   return {
     block: {
-      id: node.block.id,
-      type: node.block.type,
-      text: node.block.text || '',
-      link: node.block.link || '',
-      annotations: node.block.annotations || [],
-      attributes: node.block.attributes || {},
+      id: block.id,
+      type: block.type,
+      text: block.text || '',
+      link: block.link || '',
+      annotations: block.annotations || [],
+      attributes: block.attributes || {},
     },
     children: (node.children || []).map(toAPIBlockNode),
   }

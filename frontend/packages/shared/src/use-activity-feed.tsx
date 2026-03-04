@@ -1,5 +1,5 @@
 import {useInfiniteQuery} from '@tanstack/react-query'
-import {HMListEventsInput, HMListEventsRequest} from './hm-types'
+import {HMListEventsInput} from './hm-types'
 import {useSelectedAccountId} from './models/entity'
 import {LoadedEventWithNotifMeta} from './models/activity-service'
 import {queryKeys} from './models/query-keys'
@@ -45,7 +45,7 @@ export function useActivityFeed({
         }
 
         // Fetch pre-resolved events from API
-        const response = await client.request<HMListEventsRequest>('ListEvents', input)
+        const response = await client.request('ListEvents', input)
 
         return {
           events: response.events as LoadedEventWithNotifMeta[],

@@ -6,7 +6,9 @@
  * genesis has depth 0, each subsequent change has depth = max(dep depths) + 1.
  */
 
-import type {Client, ChangesResponse} from '../client'
+import type {SeedClient} from '@seed-hypermedia/client'
+import type {HMListChangesOutput} from '@shm/shared/hm-types'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 
 export type DocumentState = {
   genesis: string
@@ -19,10 +21,12 @@ export type DocumentState = {
  * Resolves the current document state including head depth.
  */
 export async function resolveDocumentState(
-  client: Client,
+  client: SeedClient,
   targetId: string,
 ): Promise<DocumentState> {
-  const changesResp = await client.listChanges(targetId)
+  const unpacked = unpackHmId(targetId)
+  if (!unpacked) throw new Error(`Invalid ID: ${targetId}`)
+  const changesResp = await client.request('ListChanges', {targetId: unpacked})
 
   if (!changesResp.changes || changesResp.changes.length === 0) {
     throw new Error(`No changes found for ${targetId}. Document may not exist.`)
@@ -85,7 +89,7 @@ export async function resolveDocumentState(
 /**
  * Computes depth for every change in the DAG via BFS from genesis.
  */
-function computeDepths(changesResp: ChangesResponse): Map<string, number> {
+function computeDepths(changesResp: HMListChangesOutput): Map<string, number> {
   const depthMap = new Map<string, number>()
   const depsMap = new Map<string, string[]>()
   const dependents = new Map<string, string[]>()

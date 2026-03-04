@@ -376,7 +376,9 @@ function changesForBlockNodes(nodes: HMBlockNode[], parentId: string): HMPrepare
 
   nodes.forEach((node) => {
     const block = node.block
-    changes.push({op: {case: 'moveBlock', value: {blockId: block.id, parent: parentId, leftSibling: lastPlacedBlockId}}})
+    changes.push({
+      op: {case: 'moveBlock', value: {blockId: block.id, parent: parentId, leftSibling: lastPlacedBlockId}},
+    })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     changes.push({op: {case: 'replaceBlock', value: block as any}})
     lastPlacedBlockId = block.id || ''

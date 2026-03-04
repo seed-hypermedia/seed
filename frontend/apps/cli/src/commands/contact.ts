@@ -4,8 +4,8 @@
 
 import type {Command} from 'commander'
 import * as ed25519 from '@noble/ed25519'
-import {createContact, deleteContact, contactRecordIdFromBlob, createSeedClient} from '@seed-hypermedia/client'
-import type {HMSigner, HMAccountContactsRequest, HMSubjectContactsRequest} from '@shm/shared/hm-types'
+import {createContact, deleteContact, contactRecordIdFromBlob} from '@seed-hypermedia/client'
+import type {HMSigner} from '@shm/shared/hm-types'
 import {getClient, getOutputFormat} from '../index'
 import {formatOutput, printError, printSuccess, printInfo} from '../output'
 import {resolveKey} from '../utils/keyring'
@@ -58,7 +58,6 @@ Examples:
           sign: async (data: Uint8Array) => ed25519.signAsync(data, key.privateKey),
         }
 
-        const seedClient = createSeedClient(client.server)
         const contactResult = await createContact(
           {
             subjectUid: options.subject,
@@ -66,7 +65,7 @@ Examples:
           },
           signer,
         )
-        await seedClient.publish(contactResult)
+        await client.publish(contactResult)
 
         printSuccess('Contact created')
         if (globalOpts.quiet) {
@@ -93,15 +92,14 @@ Examples:
       try {
         const key = resolveKey(options.key, dev)
         const client = getClient(globalOpts)
-        const contactId = await resolveContactId(contactIdOrCid, client.server)
+        const contactId = await resolveContactId(contactIdOrCid, client.baseUrl)
 
         const signer: HMSigner = {
           getPublicKey: async () => key.publicKeyWithPrefix,
           sign: async (data: Uint8Array) => ed25519.signAsync(data, key.privateKey),
         }
 
-        const seedClient = createSeedClient(client.server)
-        await seedClient.publish(await deleteContact({contactId}, signer))
+        await client.publish(await deleteContact({contactId}, signer))
 
         printSuccess('Contact deleted')
         if (!globalOpts.quiet) {
@@ -135,16 +133,16 @@ Examples:
       const showSubject = !options.account || options.subject
 
       try {
-        const seedClient = createSeedClient(getClient(globalOpts).server)
+        const client = getClient(globalOpts)
         let results: {id: string; name: string; account: string; subject: string}[] = []
 
         if (showAccount) {
-          const accountContacts = await seedClient.request<HMAccountContactsRequest>('AccountContacts', accountId)
+          const accountContacts = await client.request('AccountContacts', accountId)
           results.push(...accountContacts)
         }
 
         if (showSubject) {
-          const subjectContacts = await seedClient.request<HMSubjectContactsRequest>('SubjectContacts', accountId)
+          const subjectContacts = await client.request('SubjectContacts', accountId)
           // Dedupe if showing both directions
           if (showAccount) {
             const seen = new Set(results.map((c) => c.id))

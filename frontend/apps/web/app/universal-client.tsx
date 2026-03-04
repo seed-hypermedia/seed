@@ -1,5 +1,5 @@
 import {createSeedClient} from '@seed-hypermedia/client'
-import type {HMSigner, UnpackedHypermediaId} from '@shm/shared'
+import type {HMSigner, UnpackedHypermediaId, UniversalClient} from '@shm/shared'
 import {createWebUniversalClient} from '@shm/shared'
 import {preparePublicKey} from './auth-utils'
 import WebCommenting from './commenting'
@@ -9,7 +9,7 @@ import {deleteRecent, getRecents} from './local-db-recents'
 const seedClient = createSeedClient('')
 
 export const webUniversalClient = createWebUniversalClient({
-  request: seedClient.request,
+  request: seedClient.request as UniversalClient['request'],
   publish: seedClient.publish,
   CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => {
     return <WebCommenting docId={docId} />
