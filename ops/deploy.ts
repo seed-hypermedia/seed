@@ -1336,16 +1336,10 @@ async function cmdDeploy(
     config = await runFreshWizard(paths);
   }
 
-  const wantsCron = await p.confirm({
-    message: "Install nightly cron job for automatic updates? (runs at 02:00)",
-    initialValue: true,
-  });
-  if (!p.isCancel(wantsCron) && wantsCron) {
-    await setupCron(paths, shell);
-    p.log.success(
-      "Cron job installed. Your node will auto-update nightly at 02:00.",
-    );
-  }
+  await setupCron(paths, shell);
+  p.log.success(
+    "Cron job installed. Your node will auto-update nightly at 02:00. Run 'seed-deploy cron remove' to disable.",
+  );
 
   await deploy(config, paths, shell);
 
@@ -1502,7 +1496,7 @@ async function cmdStatus(
 
     // HTTPS check
     const httpCode = shell.runSafe(
-      `curl -sSf -o /dev/null -w '%{http_code}' --max-time 10 "${config.domain}" 2>/dev/null`,
+      `curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "${config.domain}" 2>/dev/null`,
     );
     if (httpCode && httpCode.startsWith("2")) {
       console.log(`  \u2714 HTTPS          ${httpCode} OK`);
@@ -1514,7 +1508,7 @@ async function cmdStatus(
 
     // DNS check
     const publicIp = shell.runSafe(
-      "curl -s --max-time 5 ifconfig.me 2>/dev/null",
+      "curl -4 -s --max-time 5 ifconfig.me 2>/dev/null",
     );
     const dnsResult = shell.runSafe(
       `dig +short ${dns} A 2>/dev/null | head -1`,
