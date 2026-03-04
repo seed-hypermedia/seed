@@ -448,7 +448,7 @@ function arePayloadListsEqual(left: NotificationPayload[], right: NotificationPa
 
 // --- Main poll loop ---
 
-async function runNotificationIngestPoll() {
+export async function runNotificationIngestPoll() {
   if (isPolling) return
   isPolling = true
 

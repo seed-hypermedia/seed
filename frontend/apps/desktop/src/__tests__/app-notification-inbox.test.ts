@@ -132,13 +132,7 @@ async function loadInboxCaller() {
   const mod = await import('../app-notification-inbox')
   return {
     caller: mod.notificationInboxApi.createCaller({}),
-    start: mod.startNotificationInboxBackgroundIngestor,
-  }
-}
-
-async function flushAsyncWork(rounds = 8) {
-  for (let idx = 0; idx < rounds; idx += 1) {
-    await Promise.resolve()
+    runPoll: mod.runNotificationIngestPoll,
   }
 }
 
@@ -165,10 +159,8 @@ describe('app notification inbox', () => {
       toJson: () => ({events: [rawNewBlobEvent('latest-cid')]}),
     })
 
-    const {caller, start} = await loadInboxCaller()
-    start()
-
-    await flushAsyncWork()
+    const {caller, runPoll} = await loadInboxCaller()
+    await runPoll()
 
     const status = await caller.getIngestStatus()
     expect(status.cursorEventId).toBe('blob-latest-cid')
@@ -179,10 +171,12 @@ describe('app notification inbox', () => {
   })
 
   it('ingests and stores notifications for all local accounts in background', async () => {
-    storeData['NotificationInbox-v002'] = {
-      version: 1,
+    storeData['NotificationInbox-v003'] = {
+      version: 2,
       cursorEventId: 'blob-old-cursor',
       accounts: {},
+      registeredAccounts: {},
+      registeredHost: null,
       lastPollAtMs: null,
       lastError: null,
     }
@@ -217,21 +211,19 @@ describe('app notification inbox', () => {
       nextPageToken: '',
     })
 
-    const {caller, start} = await loadInboxCaller()
-    start()
-
-    await flushAsyncWork()
+    const {caller, runPoll} = await loadInboxCaller()
+    await runPoll()
 
     const inboxA = await caller.getLocalInbox({accountUid: 'account-a'})
     const inboxB = await caller.getLocalInbox({accountUid: 'account-b'})
 
     expect(inboxA[0]).toMatchObject({
       reason: 'reply',
-      event: {feedEventId: 'reply-event'},
+      feedEventId: 'reply-event',
     })
     expect(inboxB[0]).toMatchObject({
       reason: 'mention',
-      event: {feedEventId: 'mention-event'},
+      feedEventId: 'mention-event',
     })
 
     expect(appInvalidateQueriesMock).toHaveBeenCalledWith(['NOTIFICATION_INBOX', 'account-a'])
@@ -239,10 +231,12 @@ describe('app notification inbox', () => {
   })
 
   it('ingests discussion notifications for collaborator accounts', async () => {
-    storeData['NotificationInbox-v002'] = {
-      version: 1,
+    storeData['NotificationInbox-v003'] = {
+      version: 2,
       cursorEventId: 'blob-old-cursor',
       accounts: {},
+      registeredAccounts: {},
+      registeredHost: null,
       lastPollAtMs: null,
       lastError: null,
     }
@@ -273,23 +267,23 @@ describe('app notification inbox', () => {
       nextPageToken: '',
     })
 
-    const {caller, start} = await loadInboxCaller()
-    start()
-
-    await flushAsyncWork()
+    const {caller, runPoll} = await loadInboxCaller()
+    await runPoll()
 
     const inbox = await caller.getLocalInbox({accountUid: 'account-a'})
     expect(inbox[0]).toMatchObject({
       reason: 'discussion',
-      event: {feedEventId: 'discussion-event'},
+      feedEventId: 'discussion-event',
     })
   })
 
   it('does not duplicate discussion notifications when citation mirror event exists', async () => {
-    storeData['NotificationInbox-v002'] = {
-      version: 1,
+    storeData['NotificationInbox-v003'] = {
+      version: 2,
       cursorEventId: 'blob-old-cursor',
       accounts: {},
+      registeredAccounts: {},
+      registeredHost: null,
       lastPollAtMs: null,
       lastError: null,
     }
@@ -324,16 +318,14 @@ describe('app notification inbox', () => {
       nextPageToken: '',
     })
 
-    const {caller, start} = await loadInboxCaller()
-    start()
-
-    await flushAsyncWork()
+    const {caller, runPoll} = await loadInboxCaller()
+    await runPoll()
 
     const inbox = await caller.getLocalInbox({accountUid: 'account-a'})
     expect(inbox).toHaveLength(1)
     expect(inbox[0]).toMatchObject({
       reason: 'discussion',
-      event: {feedEventId: 'discussion-event'},
+      feedEventId: 'discussion-event',
     })
   })
 })

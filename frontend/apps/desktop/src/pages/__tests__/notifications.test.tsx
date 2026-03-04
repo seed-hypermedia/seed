@@ -273,7 +273,7 @@ describe('notifications page helpers', () => {
 
   it('includes document name for mention notifications from comment events', () => {
     const payload = createMentionPayload({eventType: 'comment'})
-    expect(notificationTitle(payload)).toBe('Bob mentioned you in Source Doc')
+    expect(notificationTitle(payload)).toBe('Alice mentioned you in Source Doc')
   })
 
   it('falls back to source path when mention source metadata is missing', () => {
