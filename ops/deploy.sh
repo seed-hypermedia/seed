@@ -138,7 +138,7 @@ curl -fsSL "${GH_RAW}/dist/deploy.js" -o "${SEED_DIR}/deploy.js"
 BUN_PATH="$(command -v bun)"
 WRAPPER="/usr/local/bin/seed-deploy"
 WRAPPER_CONTENT="#!/bin/sh
-exec \"${BUN_PATH}\" \"${SEED_DIR}/deploy.js\" \"\\\$@\""
+exec \"${BUN_PATH}\" \"${SEED_DIR}/deploy.js\" \"\$@\""
 
 SEED_DEPLOY_CLI_INSTALLED=0
 if [ -w /usr/local/bin ]; then
