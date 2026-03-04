@@ -1,8 +1,14 @@
 import {rm} from 'node:fs/promises'
 import tailwind from 'bun-plugin-tailwind'
 import uglify from './uglify-js'
+import * as path from 'node:path'
+import {fileURLToPath} from 'node:url'
+import process from 'node:process'
 
 const OUTDIR = './dist'
+
+// Ensure this script runs from the directory where it lives.
+process.chdir(path.dirname(fileURLToPath(import.meta.url)))
 
 await rm(OUTDIR, {recursive: true, force: true})
 

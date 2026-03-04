@@ -9,6 +9,7 @@ protoc = "24.4"
 pnpm = "9.15.0"
 cmake = "3.31.6"
 golangci-lint = "2.8.0"
+bun = "1.3.10"
 
 [settings]
 experimental = true
