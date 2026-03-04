@@ -1001,7 +1001,8 @@ describe("parseArgs", () => {
       "stop",
       "start",
       "restart",
-      "status",
+      "doctor",
+      "secret",
       "config",
       "logs",
       "cron",
@@ -1076,7 +1077,7 @@ describe("parseArgs", () => {
   });
 
   test("--reconfigure is not set on other commands", () => {
-    const result = parseArgs(["node", "deploy.js", "status"]);
+    const result = parseArgs(["node", "deploy.js", "doctor"]);
     expect(result.reconfigure).toBeFalsy();
   });
 

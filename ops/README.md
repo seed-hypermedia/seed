@@ -81,19 +81,20 @@ fields. Changed fields are marked with a pencil icon in the summary.
 seed-deploy [command] [options]
 ```
 
-| Command          | Description                                                |
-| ---------------- | ---------------------------------------------------------- |
-| `deploy`         | Deploy or update the node (default when no command given)  |
-| `stop`           | Stop and remove all containers                             |
-| `start`          | Start containers without re-deploying                      |
-| `restart`        | Restart all containers                                     |
-| `status`         | Show health, versions, connectivity, disk, and cron status |
-| `config`         | Print current configuration (secrets redacted)             |
-| `logs [service]` | Tail container logs (`daemon`, `web`, or `proxy`)          |
-| `cron [remove]`  | Install or remove automatic update cron jobs               |
-| `backup [path]`  | Create a portable backup of all node data                  |
-| `restore <file>` | Restore node data from a backup archive                    |
-| `uninstall`      | Remove all containers, data, and configuration             |
+| Command          | Description                                               |
+| ---------------- | --------------------------------------------------------- |
+| `deploy`         | Deploy or update the node (default when no command given) |
+| `stop`           | Stop and remove all containers                            |
+| `start`          | Start containers without re-deploying                     |
+| `restart`        | Restart all containers                                    |
+| `doctor`         | Diagnose health, connectivity, disk, and cron status      |
+| `secret`         | Print the site registration secret                        |
+| `config`         | Print current configuration (secrets redacted)            |
+| `logs [service]` | Tail container logs (`daemon`, `web`, or `proxy`)         |
+| `cron [remove]`  | Install or remove automatic update cron jobs              |
+| `backup [path]`  | Create a portable backup of all node data                 |
+| `restore <file>` | Restore node data from a backup archive                   |
+| `uninstall`      | Remove all containers, data, and configuration            |
 
 | Option            | Description                                     |
 | ----------------- | ----------------------------------------------- |
