@@ -935,8 +935,8 @@ async function rollback(
 }
 
 // ---------------------------------------------------------------------------
-// Self-update — fetches the latest deploy.js from the repo during headless
-// runs so that cron-triggered deployments always use the newest script.
+// Self-update — fetches the latest deploy.js from the repo.
+// Invoked by the explicit `upgrade` command (including cron-managed upgrades).
 // The update takes effect on the *next* run; the current process continues
 // with the code already loaded in memory.
 // ---------------------------------------------------------------------------
@@ -944,11 +944,18 @@ async function rollback(
 export async function selfUpdate(paths: DeployPaths): Promise<void> {
   const scriptPath = join(paths.seedDir, "deploy.js");
   const url = `${getOpsBaseUrl()}/dist/deploy.js`;
+  const report = (msg: string) => {
+    if (process.stdout.isTTY) {
+      console.log(msg);
+    } else {
+      log(msg);
+    }
+  };
 
   try {
     const response = await fetch(url);
     if (!response.ok) {
-      log(`Self-update: failed to fetch ${url}: ${response.status}`);
+      report(`Upgrade: failed to fetch ${url}: ${response.status}`);
       return;
     }
     const remote = await response.text();
@@ -962,12 +969,12 @@ export async function selfUpdate(paths: DeployPaths): Promise<void> {
 
     if (sha256(remote) !== sha256(local)) {
       await writeFile(scriptPath, remote, "utf-8");
-      log(`Self-update: deploy.js updated (takes effect on next run).`);
+      report(`Upgrade: deploy.js updated (takes effect on next run).`);
     } else {
-      log("Self-update: deploy.js is up to date.");
+      report("Upgrade: deploy.js is up to date.");
     }
   } catch (err) {
-    log(`Self-update: skipped (${err})`);
+    report(`Upgrade: skipped (${err})`);
   }
 }
 
@@ -1179,7 +1186,10 @@ export function buildCrontab(
   paths: DeployPaths,
   bunPath: string = "/usr/local/bin/bun",
 ): string {
-  const deployLine = `0 2 * * * ${bunPath} ${join(paths.seedDir, "deploy.js")} >> ${paths.deployLog} 2>&1 # seed-deploy`;
+  const deployScript = join(paths.seedDir, "deploy.js");
+  const deployLine =
+    `0 2 * * * ${bunPath} "${deployScript}" upgrade >> "${paths.deployLog}" 2>&1; ` +
+    `${bunPath} "${deployScript}" deploy >> "${paths.deployLog}" 2>&1 # seed-deploy`;
   const cleanupLine = `0 0,4,8,12,16,20 * * * docker image prune -a -f --filter "until=1h" # seed-cleanup`;
 
   const filtered = existing
@@ -1225,6 +1235,7 @@ export async function setupCron(
 
 const COMMANDS = [
   "deploy",
+  "upgrade",
   "stop",
   "start",
   "restart",
@@ -1265,6 +1276,9 @@ export function parseArgs(argv: string[] = process.argv): CliArgs {
   }
 
   console.error(`Unknown command: ${first}\n`);
+  console.error(
+    "Your deploy script may be outdated; run seed-deploy upgrade\n",
+  );
   printHelp();
   process.exit(1);
 }
@@ -1277,6 +1291,7 @@ export function printHelp(): void {
     ``,
     `Commands:`,
     `  deploy      Deploy or update the Seed node (default)`,
+    `  upgrade     Update deploy script to latest version`,
     `  stop        Stop and remove all Seed containers`,
     `  start       Start containers without re-deploying`,
     `  restart     Restart all Seed containers`,
@@ -1296,6 +1311,7 @@ export function printHelp(): void {
     ``,
     `Examples:`,
     `  seed-deploy                            Deploy or update`,
+    `  seed-deploy upgrade                    Update deploy script`,
     `  seed-deploy deploy --reconfigure       Change node configuration`,
     `  seed-deploy stop                       Teardown containers`,
     `  seed-deploy doctor                     Check node health`,
@@ -1338,13 +1354,6 @@ async function cmdDeploy(
   checkDockerAccess(shell);
   await ensureSeedDir(paths, shell);
 
-  // In headless mode (cron), self-update the script before deploying.
-  // The update takes effect on the next run — the current process keeps
-  // executing with the code already loaded in memory.
-  if (!process.stdout.isTTY) {
-    await selfUpdate(paths);
-  }
-
   if (await configExists(paths)) {
     if (reconfigure && process.stdout.isTTY) {
       const existing = await readConfig(paths);
@@ -1381,6 +1390,10 @@ async function cmdDeploy(
   await deploy(config, paths, shell);
 
   p.outro(`Setup complete! Your Seed node is running.\n${MANAGE_HINT}`);
+}
+
+async function cmdUpgrade(paths: DeployPaths): Promise<void> {
+  await selfUpdate(paths);
 }
 
 async function cmdStop(paths: DeployPaths, shell: ShellRunner): Promise<void> {
@@ -2051,6 +2064,8 @@ async function main(): Promise<void> {
       return;
     case "deploy":
       return cmdDeploy(paths, shell, reconfigure);
+    case "upgrade":
+      return cmdUpgrade(paths);
     case "stop":
       return cmdStop(paths, shell);
     case "start":

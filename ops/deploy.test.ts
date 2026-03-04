@@ -903,6 +903,8 @@ describe("buildCrontab", () => {
     expect(result).toContain("# seed-deploy");
     expect(result).toContain("# seed-cleanup");
     expect(result).toContain("/opt/seed/deploy.js");
+    expect(result).toContain('deploy.js" upgrade');
+    expect(result).toContain('deploy.js" deploy');
     expect(result.endsWith("\n")).toBe(true);
   });
 
@@ -973,6 +975,8 @@ describe("buildCrontab", () => {
       .find((l) => l.includes("# seed-deploy"))!;
     expect(deployLine).toContain("/home/user/.bun/bin/bun");
     expect(deployLine).not.toContain("/usr/local/bin/bun");
+    expect(deployLine).toContain('upgrade >> "/opt/seed/deploy.log"');
+    expect(deployLine).toContain('deploy >> "/opt/seed/deploy.log"');
   });
 
   test("defaults bun path to /usr/local/bin/bun", () => {
@@ -981,6 +985,8 @@ describe("buildCrontab", () => {
       .split("\n")
       .find((l) => l.includes("# seed-deploy"))!;
     expect(deployLine).toContain("/usr/local/bin/bun");
+    expect(deployLine).toContain('"/opt/seed/deploy.js" upgrade');
+    expect(deployLine).toContain('"/opt/seed/deploy.js" deploy');
   });
 });
 
@@ -998,6 +1004,7 @@ describe("parseArgs", () => {
   test("parses known commands", () => {
     const commands = [
       "deploy",
+      "upgrade",
       "stop",
       "start",
       "restart",

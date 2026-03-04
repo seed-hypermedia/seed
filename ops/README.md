@@ -58,12 +58,11 @@ and offers a migration path, pre-filling values from the old config.
 
 When `config.json` exists, the script runs without prompts:
 
-1. Self-updates `deploy.js` from the upstream repo (cron only)
-2. Fetches `docker-compose.yml` and compares SHA-256 with the stored hash
-3. If nothing changed and all containers are healthy, skips redeployment
-4. Otherwise: pulls images first (while old containers serve traffic),
+1. Fetches `docker-compose.yml` and compares SHA-256 with the stored hash
+2. If nothing changed and all containers are healthy, skips redeployment
+3. Otherwise: pulls images first (while old containers serve traffic),
    then recreates containers from cache — minimizes downtime
-5. Prunes unused Docker images after successful deploy
+4. Prunes unused Docker images after successful deploy
 
 ### 3. Reconfiguration
 
@@ -84,6 +83,7 @@ seed-deploy [command] [options]
 | Command          | Description                                               |
 | ---------------- | --------------------------------------------------------- |
 | `deploy`         | Deploy or update the node (default when no command given) |
+| `upgrade`        | Update the deploy script to the latest version            |
 | `stop`           | Stop and remove all containers                            |
 | `start`          | Start containers without re-deploying                     |
 | `restart`        | Restart all containers                                    |
@@ -149,7 +149,7 @@ The cron system installs two jobs:
 
 | Schedule          | Task                                                                                         |
 | ----------------- | -------------------------------------------------------------------------------------------- |
-| **02:00 daily**   | Run `deploy.js` — self-updates the script, pulls new images, recreates containers if changed |
+| **02:00 daily**   | Run `deploy.js upgrade` then `deploy.js deploy` — explicit script update, then normal deploy |
 | **Every 4 hours** | `docker image prune -a -f --filter "until=1h"` — removes unused images older than 1 hour     |
 
 Install with `seed-deploy cron`, remove with `seed-deploy cron remove`.
