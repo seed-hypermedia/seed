@@ -1,2 +1,6 @@
 node_modules/
 bun.lock
+
+# NOTE: dist/ is intentionally tracked. deploy.sh fetches dist/deploy.js
+# from GitHub raw as the production bundle for self-hosters.
+# Run `bun run build` to regenerate it after changing deploy.ts.
