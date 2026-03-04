@@ -12,7 +12,7 @@ import {
   unpackHmId,
   useUniversalAppContext,
 } from '@shm/shared'
-import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useAccountsMetadata, useDirectory, useIsLatest, useResource, useResources} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
@@ -635,8 +635,9 @@ export function PageWrapper({
 }) {
   // Mobile: let content flow naturally (document scroll)
   // Desktop: fixed height container (element scroll via ScrollArea in children)
+  // Note: IS_DESKTOP (Electron) never uses document scroll regardless of window width
   const media = useMedia()
-  const isMobile = media.xs
+  const isMobile = media.xs && !IS_DESKTOP
 
   return (
     <div
@@ -870,9 +871,11 @@ function DocumentBody({
     })
   }, [document.authors, accountsMetadata.data])
 
-  // Use document scroll on mobile, element scroll on desktop
+  // Use document scroll on mobile web, element scroll on desktop/large screens
+  // In Electron (IS_DESKTOP), always use element scroll regardless of window width,
+  // because the layout uses overflow-hidden containers that prevent document scroll.
   const media = useMedia()
-  const isMobile = media.xs
+  const isMobile = media.xs && !IS_DESKTOP
 
   // Block tools handlers
   const blockCitations = useMemo(() => interactionSummary.data?.blocks || null, [interactionSummary.data?.blocks])
