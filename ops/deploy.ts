@@ -495,12 +495,6 @@ async function runMigrationWizard(
           message: "Run as public gateway?",
           initialValue: old.gateway,
         }),
-      analytics: () =>
-        p.confirm({
-          message:
-            "Enable web analytics? Adds a Plausible.io dashboard to track your site's traffic.",
-          initialValue: old.trafficStats,
-        }),
       email: () =>
         p.text({
           message:
@@ -546,12 +540,13 @@ async function runMigrationWizard(
     release_channel: presets.release_channel,
     testnet: presets.testnet,
     link_secret: secret,
-    analytics: answers.analytics as boolean,
+    analytics: old.trafficStats,
     gateway: answers.gateway as boolean,
     last_script_run: "",
   };
 
   const summary = Object.entries(config)
+    .filter(([k]) => k !== "analytics")
     .map(([k, v]) => `  ${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`)
     .join("\n");
   p.note(summary, "Configuration summary");
@@ -692,12 +687,6 @@ async function runFreshWizard(
           message: "Run as a public gateway? (serves all known public content)",
           initialValue: existing?.gateway ?? false,
         }),
-      analytics: () =>
-        p.confirm({
-          message:
-            "Enable web analytics? Adds a Plausible.io dashboard to track your site's traffic.",
-          initialValue: existing?.analytics ?? false,
-        }),
       email: () =>
         p.text({
           message:
@@ -736,7 +725,9 @@ async function runFreshWizard(
     release_channel: presets.release_channel,
     testnet: presets.testnet,
     link_secret: secret,
-    analytics: answers.analytics as boolean,
+    // TODO: When re-enabling wizard analytics, publish a post/changelog
+    // so self-hosters know how analytics works and when it is active again.
+    analytics: existing?.analytics ?? false,
     gateway: answers.gateway as boolean,
     last_script_run: existing?.last_script_run ?? "",
   };
@@ -747,7 +738,6 @@ async function runFreshWizard(
     ["environment", config.environment],
     ["log_level", config.compose_envs.LOG_LEVEL],
     ["gateway", String(config.gateway)],
-    ["analytics", String(config.analytics)],
   ];
   const oldFields: Record<string, string> | undefined = existing
     ? {
@@ -756,7 +746,6 @@ async function runFreshWizard(
         environment: existing.environment,
         log_level: existing.compose_envs?.LOG_LEVEL ?? "info",
         gateway: String(existing.gateway),
-        analytics: String(existing.analytics),
       }
     : undefined;
   const summary = userFields
@@ -1449,7 +1438,6 @@ async function cmdDoctor(
     );
     console.log(`  Channel:     ${config.release_channel}`);
     console.log(`  Gateway:     ${config.gateway ? "Yes" : "No"}`);
-    console.log(`  Analytics:   ${config.analytics ? "Yes" : "No"}`);
     console.log(`  Config:      ${paths.configPath}`);
   } else {
     console.log(

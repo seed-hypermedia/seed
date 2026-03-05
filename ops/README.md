@@ -48,8 +48,7 @@ When no `config.json` exists, the script launches a terminal wizard:
 2. **Environment** — Production / Staging / Development
 3. **Log level** — Debug / Info / Warn / Error
 4. **Gateway mode** — whether the node serves all known public content
-5. **Analytics** — enable Plausible.io traffic dashboard
-6. **Contact email** — optional, for security update notifications
+5. **Contact email** — optional, for security update notifications
 
 The wizard also detects legacy installations (from `website_deployment.sh`)
 and offers a migration path, pre-filling values from the old config.
@@ -122,10 +121,9 @@ Stored at `<seed-dir>/config.json`. User-facing fields:
 | `email`       | No       | Contact email for security notifications |
 | `environment` | Yes      | `prod`, `staging`, or `dev`              |
 | `gateway`     | Yes      | Serve all known public content           |
-| `analytics`   | Yes      | Enable Plausible.io web analytics        |
 
 Internal fields (managed by the script): `compose_url`, `compose_sha`,
-`compose_envs`, `release_channel`, `testnet`, `link_secret`,
+`compose_envs`, `release_channel`, `testnet`, `link_secret`, `analytics`,
 `last_script_run`.
 
 ## Docker Services
