@@ -7,6 +7,7 @@
     "test": "ts-node --transpile-only src/run-performance-tests.ts",
     "test:ci": "ts-node --transpile-only src/run-performance-tests.ts --ci",
     "test:debug": "PWDEBUG=1 ts-node --transpile-only src/run-performance-tests.ts",
+    "test:web": "ts-node --transpile-only src/run-web-perf.ts",
     "record": "PWDEBUG=1 ts-node --transpile-only src/record-scenario.ts",
     "build": "tsc",
     "start": "node dist/performance/src/run-performance-tests.js"

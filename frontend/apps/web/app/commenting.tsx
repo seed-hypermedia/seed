@@ -22,11 +22,11 @@ import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
 import {SendHorizontal} from 'lucide-react'
 import type {CID} from 'multiformats'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {ClientOnly} from './client-lazy'
 import {useCommentDraftPersistence} from './comment-draft-utils'
 import {EmailNotificationsForm} from './email-notifications'
 import {hasPromptedEmailNotifications, setHasPromptedEmailNotifications, setPendingIntent} from './local-db'
 import {processPendingIntent} from './pending-intent'
+import {isPerfEnabled, markCommentSubmitEnd, markCommentSubmitStart, markEditorLoadEnd} from './web-perf-marks'
 
 type PublishCommentInput = Awaited<ReturnType<typeof createComment>>
 
@@ -121,6 +121,7 @@ export default function WebCommenting({
       return {response, commentId, commentPayload}
     },
     onSuccess: ({response, commentId, commentPayload}) => {
+      if (isPerfEnabled()) markCommentSubmitEnd()
       onSuccess?.({
         response,
         commentPayload: commentPayload,
@@ -231,6 +232,7 @@ export default function WebCommenting({
 
       try {
         setIsSubmitting(true)
+        if (isPerfEnabled()) markCommentSubmitStart()
         if (!getSigner) throw new Error('getSigner not available')
         const signer = getSigner(userKeyPair.id)
         const commentPayload = await createComment(
@@ -310,6 +312,15 @@ export default function WebCommenting({
     }) as HMBlockNode[]
   }, [draft, draftMediaRefs])
 
+  // Mark editor as loaded for performance measurement (only in perf test environment)
+  // isPerfEnabled() is static at runtime, so this conditional hook is safe
+  if (isPerfEnabled()) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    useEffect(() => {
+      markEditorLoadEnd()
+    }, [])
+  }
+
   // Don't render until draft is loaded or doc version is missing
   if (isDraftLoading || !docVersion) {
     return !docVersion ? null : <div className="w-full">Loading...</div>
@@ -317,62 +328,60 @@ export default function WebCommenting({
 
   return (
     <div className="w-full">
-      <ClientOnly>
-        <CommentEditor
-          key={`${draftId}-${editorGeneration}`}
-          autoFocus={autoFocus}
-          isReplying={isReplyEditor}
-          handleSubmit={handleSubmit}
-          initialBlocks={initialBlocks}
-          onContentChange={(blocks, mediaRefs) => {
-            latestBlocksRef.current = blocks
-            saveDraft(blocks, mediaRefs)
-          }}
-          onAvatarPress={onAvatarPress}
-          importWebFile={(url) => importWebFile(url, draftId)}
-          handleFileAttachment={(file) => handleFileAttachment(file, draftId)}
-          getDraftMediaBlob={async (draftId, mediaId) => {
-            if (typeof window === 'undefined') return null
-            try {
-              const {getDraftMedia} = await import('./draft-media-db')
-              const mediaData = await getDraftMedia(draftId, mediaId)
-              if (!mediaData) {
-                console.warn(`Media not found in IndexedDB: ${draftId}/${mediaId}`)
-              }
-              return mediaData?.blob || null
-            } catch (error) {
-              console.error('Failed to get draft media blob:', error)
-              return null
+      <CommentEditor
+        key={`${draftId}-${editorGeneration}`}
+        autoFocus={autoFocus}
+        isReplying={isReplyEditor}
+        handleSubmit={handleSubmit}
+        initialBlocks={initialBlocks}
+        onContentChange={(blocks, mediaRefs) => {
+          latestBlocksRef.current = blocks
+          saveDraft(blocks, mediaRefs)
+        }}
+        onAvatarPress={onAvatarPress}
+        importWebFile={(url) => importWebFile(url, draftId)}
+        handleFileAttachment={(file) => handleFileAttachment(file, draftId)}
+        getDraftMediaBlob={async (draftId, mediaId) => {
+          if (typeof window === 'undefined') return null
+          try {
+            const {getDraftMedia} = await import('./draft-media-db')
+            const mediaData = await getDraftMedia(draftId, mediaId)
+            if (!mediaData) {
+              console.warn(`Media not found in IndexedDB: ${draftId}/${mediaId}`)
             }
-          }}
-          submitButton={({getContent, reset}) => {
-            return (
-              <Tooltip
-                content={tx(
-                  'publish_comment_as',
-                  ({name}: {name: string | undefined}) => (name ? `Publish Comment as ${name}` : 'Publish Comment'),
-                  {name: myAccount.data?.metadata?.name},
+            return mediaData?.blob || null
+          } catch (error) {
+            console.error('Failed to get draft media blob:', error)
+            return null
+          }
+        }}
+        submitButton={({getContent, reset}) => {
+          return (
+            <Tooltip
+              content={tx(
+                'publish_comment_as',
+                ({name}: {name: string | undefined}) => (name ? `Publish Comment as ${name}` : 'Publish Comment'),
+                {name: myAccount.data?.metadata?.name},
+              )}
+            >
+              <button
+                disabled={isSubmitting}
+                className={cn(
+                  buttonVariants({size: 'icon', variant: 'ghost'}),
+                  publishButtonEventClass,
+                  'flex items-center justify-center rounded-sm p-2 text-neutral-800 hover:bg-neutral-200 dark:text-neutral-200 dark:hover:bg-neutral-700',
+                  isSubmitting && 'cursor-not-allowed opacity-50',
                 )}
+                onClick={() => handleSubmit(getContent, reset)}
               >
-                <button
-                  disabled={isSubmitting}
-                  className={cn(
-                    buttonVariants({size: 'icon', variant: 'ghost'}),
-                    publishButtonEventClass,
-                    'flex items-center justify-center rounded-sm p-2 text-neutral-800 hover:bg-neutral-200 dark:text-neutral-200 dark:hover:bg-neutral-700',
-                    isSubmitting && 'cursor-not-allowed opacity-50',
-                  )}
-                  onClick={() => handleSubmit(getContent, reset)}
-                >
-                  <SendHorizontal className="size-4" />
-                </button>
-              </Tooltip>
-            )
-          }}
-          account={myAccount.data}
-          perspectiveAccountUid={myAccount.data?.id.uid} // TODO: figure out if this is the correct value
-        />
-      </ClientOnly>
+                <SendHorizontal className="size-4" />
+              </button>
+            </Tooltip>
+          )
+        }}
+        account={myAccount.data}
+        perspectiveAccountUid={myAccount.data?.id.uid} // TODO: figure out if this is the correct value
+      />
       {createAccountContent}
       {emailNotificationsPromptContent}
     </div>

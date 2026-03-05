@@ -4,7 +4,8 @@ import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comment
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
-import {useCallback} from 'react'
+import {useCallback, useEffect, useRef} from 'react'
+import {preloadCommenting} from './client-lazy'
 import {PageFooter} from './page-footer'
 import {WebAccountFooter} from './web-utils'
 
@@ -23,6 +24,22 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
   const route = useNavRoute()
   const navigate = useNavigate()
   const replaceRoute = useNavigate('replace')
+
+  // Preload the comment editor chunk on first hover over any Comments-related element
+  const preloaded = useRef(false)
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (preloaded.current) return
+      const target = e.target as HTMLElement
+      // Match the Comments tab button or any element with comment-related text
+      if (target.closest?.('a[href*="comments"], button')?.textContent?.includes('Comments')) {
+        preloaded.current = true
+        preloadCommenting()
+      }
+    }
+    document.addEventListener('mouseover', handler, {passive: true})
+    return () => document.removeEventListener('mouseover', handler)
+  }, [])
 
   // Show banner when viewing content from a different site than the host
   const siteUid = docId.uid

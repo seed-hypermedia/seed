@@ -2,7 +2,8 @@ import {BlockRange, HMComment, HMDocument, UnpackedHypermediaId} from '@seed-hyp
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {PanelContent} from '@shm/ui/accessories'
 import {BlockDiscussions, CommentDiscussions, Discussions} from '@shm/ui/comments'
-import React from 'react'
+import React, {useEffect} from 'react'
+import {markPanelOpenEnd} from './web-perf-marks'
 // import {useScrollRestoration} from './use-scroll-restoration'
 
 type DiscussionsPanelProps = {
@@ -24,6 +25,11 @@ export const WebDiscussionsPanel = React.memo(_WebDiscussionsPanel)
 
 function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
   const {comment, blockId, blockRef, blockRange, commentEditor, targetDomain, docId} = props
+
+  // Mark panel content as rendered for performance measurement
+  useEffect(() => {
+    markPanelOpenEnd()
+  }, [])
 
   // TODO: Re-enable scroll restoration for web
   // const scrollRef = useScrollRestoration(`discussions-${docId.id}`)
