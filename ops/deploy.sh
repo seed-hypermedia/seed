@@ -10,7 +10,7 @@
 # are not supported. The script checks this upfront and exits with a clear message.
 #
 # Usage:
-#   sh <(curl -fsSL https://raw.githubusercontent.com/seed-hypermedia/seed/main/ops/deploy.sh)
+#   sh <(curl -fsSL https://deploy.seed.hyper.media/deploy.sh)
 
 set -e
 

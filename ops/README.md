@@ -7,7 +7,7 @@ and automatic updates.
 ## Quick Start
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/seed-hypermedia/seed/main/ops/deploy.sh | sh
+curl -fsSL https://deploy.seed.hyper.media/deploy.sh | sh
 ```
 
 The bootstrap script installs Docker and Bun (if missing), downloads the

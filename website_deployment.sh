@@ -5,7 +5,7 @@
 # This script is deprecated and will be removed in a future release.
 # Please use the new deployment system instead:
 #
-#   curl -fsSL https://seed.hyper.media/deploy.sh | sudo sh
+#   curl -fsSL https://deploy.seed.hyper.media/deploy.sh | sudo sh
 #
 # The new system provides:
 #   - Interactive setup wizard with guided configuration
