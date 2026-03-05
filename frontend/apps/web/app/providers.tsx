@@ -1,4 +1,5 @@
 import {useLocation, useNavigate, useNavigation} from '@remix-run/react'
+import {markNavEnd, markNavStart} from './web-perf-marks'
 import {
   createWebHMUrl,
   NavRoute,
@@ -24,8 +25,9 @@ function createQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: Infinity,
-        refetchOnMount: false,
+        // Serve cached data instantly, refetch in background after 30s
+        staleTime: 30_000,
+        refetchOnMount: true,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
       },
@@ -80,6 +82,7 @@ function useNavigationLoading() {
 
   useEffect(() => {
     if (!isNavigating) {
+      markNavEnd()
       setShowLoading(false)
       return
     }
@@ -257,6 +260,7 @@ export function WebSiteProvider(props: {
       }}
       universalClient={webUniversalClient}
       openRoute={(route: NavRoute, replace?: boolean) => {
+        markNavStart()
         // Update navigation state
         if (replace) {
           navigation.dispatch({type: 'replace', route})

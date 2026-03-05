@@ -118,6 +118,77 @@ export const defaultBudgets: PerformanceBudget[] = [
 ]
 
 /**
+ * Web-specific performance budgets for comment interactions.
+ */
+export const webBudgets: PerformanceBudget[] = [
+  // Panel open time
+  {
+    metric: 'perf:panel-open',
+    scenario: 'web-open-comments-panel',
+    threshold: 300,
+    operator: 'lt',
+    severity: 'error',
+    description: 'Comments panel should open in less than 300ms',
+  },
+
+  // Comment submit round-trip
+  {
+    metric: 'perf:comment-submit',
+    scenario: 'web-submit-comment',
+    threshold: 1000,
+    operator: 'lt',
+    severity: 'error',
+    description: 'Comment submission round-trip should be less than 1s',
+  },
+
+  // Comment editor load time
+  {
+    metric: 'perf:editor-load',
+    scenario: 'web-open-comments-panel',
+    threshold: 500,
+    operator: 'lt',
+    severity: 'warning',
+    description: 'Comment editor should load in less than 500ms',
+  },
+
+  // Client-side navigation
+  {
+    metric: 'perf:nav',
+    scenario: 'web-navigate-between-docs',
+    threshold: 500,
+    operator: 'lt',
+    severity: 'warning',
+    description: 'Client-side navigation should complete in less than 500ms',
+  },
+
+  // Core Web Vitals for page load
+  {
+    metric: 'lcp',
+    scenario: 'web-page-load',
+    threshold: 2500,
+    operator: 'lt',
+    severity: 'error',
+    description: 'Largest Contentful Paint should be less than 2.5s',
+  },
+  {
+    metric: 'cls',
+    scenario: 'web-page-load',
+    threshold: 0.1,
+    operator: 'lt',
+    severity: 'error',
+    description: 'Cumulative Layout Shift should be less than 0.1',
+  },
+  {
+    metric: 'fcp',
+    scenario: 'web-page-load',
+    threshold: 1800,
+    operator: 'lt',
+    severity: 'warning',
+    description: 'First Contentful Paint should be less than 1.8s',
+  },
+]
+
+/**
  * Checks metrics against defined performance budgets
  */
 export function checkPerformanceBudgets(

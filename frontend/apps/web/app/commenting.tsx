@@ -29,8 +29,8 @@ import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
 import {SendHorizontal} from 'lucide-react'
 import type {CID} from 'multiformats'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {ClientOnly} from './client-lazy'
 import {useCommentDraftPersistence} from './comment-draft-utils'
+import {markCommentSubmitEnd, markCommentSubmitStart, markEditorLoadEnd} from './web-perf-marks'
 import {EmailNotificationsForm} from './email-notifications'
 import {hasPromptedEmailNotifications, setHasPromptedEmailNotifications} from './local-db'
 import type {CommentPayload, CommentResponsePayload} from './routes/hm.api.comment'
@@ -115,32 +115,65 @@ export default function WebCommenting({
       return result as CommentResponsePayload
     },
     onSuccess: (result, commentPayload) => {
+      markCommentSubmitEnd()
       onSuccess?.({
         response: result,
         commentPayload: commentPayload,
         id: result.commentId,
       })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_ACTIVITY], // all docs
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_DISCUSSION], // all docs
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_COMMENTS], // all docs
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY], // all docs
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOC_CITATIONS], // all docs
-      })
+
+      // Optimistically insert the new comment into the cache for instant feedback.
+      // The subsequent invalidation will refetch and reconcile.
+      if (result.comment) {
+        queryClient.setQueriesData<{comments?: any[]; authors?: Record<string, any>}>(
+          {queryKey: [queryKeys.DOCUMENT_COMMENTS]},
+          (old) => {
+            if (!old?.comments) return old
+            // Avoid duplicates if the comment is already present
+            if (old.comments.some((c: any) => c.id === result.comment.id)) return old
+            return {
+              ...old,
+              comments: [...old.comments, result.comment],
+            }
+          },
+        )
+      }
+
+      // Scope invalidation to the current document where possible.
+      // Queries use [key, targetId] where targetId is an UnpackedHypermediaId object,
+      // so we match by checking the id property of the second key element.
+      const matchesDoc = (key: readonly unknown[]) => {
+        const target = key[1] as {id?: string} | undefined
+        return target?.id === docId.id
+      }
 
       queryClient.invalidateQueries({
-        queryKey: [queryKeys.BLOCK_DISCUSSIONS], // all docs
+        queryKey: [queryKeys.DOCUMENT_ACTIVITY],
+        predicate: (query) => matchesDoc(query.queryKey),
       })
       queryClient.invalidateQueries({
-        queryKey: [queryKeys.ACTIVITY_FEED], // all Feed
+        queryKey: [queryKeys.DOCUMENT_DISCUSSION],
+        predicate: (query) => matchesDoc(query.queryKey),
+      })
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.DOCUMENT_COMMENTS],
+        predicate: (query) => matchesDoc(query.queryKey),
+      })
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY],
+        predicate: (query) => matchesDoc(query.queryKey),
+      })
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.DOC_CITATIONS],
+        predicate: (query) => matchesDoc(query.queryKey),
+      })
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.BLOCK_DISCUSSIONS],
+        predicate: (query) => matchesDoc(query.queryKey),
+      })
+      // Activity feed is global, keep broad invalidation
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.ACTIVITY_FEED],
       })
     },
   })
@@ -215,6 +248,7 @@ export default function WebCommenting({
 
       try {
         setIsSubmitting(true)
+        markCommentSubmitStart()
         const commentPayload = await prepareComment(
           getContent,
           {
@@ -272,6 +306,11 @@ export default function WebCommenting({
     ? 'plausible-event-name=Publish+Comment'
     : 'plausible-event-name=start-create-account'
 
+  // Mark editor as loaded for performance measurement
+  useEffect(() => {
+    markEditorLoadEnd()
+  }, [])
+
   // Don't render until draft is loaded or doc version is missing
   if (isDraftLoading || !docVersion) {
     return !docVersion ? null : <div className="w-full">Loading...</div>
@@ -279,8 +318,7 @@ export default function WebCommenting({
 
   return (
     <div className="w-full">
-      <ClientOnly>
-        <CommentEditor
+      <CommentEditor
           autoFocus={autoFocus}
           isReplying={isReplyEditor}
           handleSubmit={handleSubmit}
@@ -330,7 +368,6 @@ export default function WebCommenting({
           account={myAccount.data}
           perspectiveAccountUid={myAccount.data?.id.uid} // TODO: figure out if this is the correct value
         />
-      </ClientOnly>
       {createAccountContent}
       {emailNotificationsPromptContent}
     </div>

@@ -29,7 +29,7 @@ export default defineConfig(({isSsrBuild}) => {
     // ssr: {
     //   noExternal: ["react-tweet"],
     // },
-    build: {minify: false, sourcemap: true},
+    build: {minify: true, sourcemap: true},
     ssr: {
       // Bundle all workspace packages and common dependencies for proper SSR with pnpm
       noExternal: [
