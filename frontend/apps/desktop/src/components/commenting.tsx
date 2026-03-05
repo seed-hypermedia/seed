@@ -167,6 +167,7 @@ function _CommentBox(props: {
             replyCommentVersion: resolvedReply?.replyCommentVersion,
             rootReplyCommentVersion: resolvedReply?.rootReplyCommentVersion,
             quotingBlockId,
+            visibility: targetDoc?.visibility === 'PRIVATE' ? 'Private' : '',
           },
           signer,
         ),

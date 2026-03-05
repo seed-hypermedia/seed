@@ -30,6 +30,7 @@ type CreateCommentBaseInput = {
   replyCommentVersion?: string | null
   rootReplyCommentVersion?: string | null
   quotingBlockId?: string
+  visibility?: 'Private' | ''
 }
 
 export type CreateCommentInput =
@@ -56,6 +57,7 @@ type UnsignedComment = {
   signer: Uint8Array
   ts: bigint
   sig: Uint8Array
+  visibility?: string
 }
 
 type SignedComment = {
@@ -69,6 +71,7 @@ type SignedComment = {
   signer: Uint8Array
   ts: bigint
   sig: ArrayBuffer | Uint8Array
+  visibility?: string
 }
 
 function normalizeBytes(data: Uint8Array): Uint8Array<ArrayBuffer> {
@@ -237,6 +240,7 @@ function createUnsignedComment({
   signerKey,
   replyCommentVersion,
   rootReplyCommentVersion,
+  visibility,
 }: {
   content: HMBlockNode[]
   docId: UnpackedHypermediaId
@@ -244,6 +248,7 @@ function createUnsignedComment({
   signerKey: Uint8Array
   replyCommentVersion?: string | null
   rootReplyCommentVersion?: string | null
+  visibility?: 'Private' | ''
 }): UnsignedComment {
   const unsignedComment: UnsignedComment = {
     type: 'Comment',
@@ -259,6 +264,7 @@ function createUnsignedComment({
   }
   if (!unsignedComment.replyParent) delete unsignedComment.replyParent
   if (!unsignedComment.threadRoot) delete unsignedComment.threadRoot
+  if (visibility) unsignedComment.visibility = visibility
   return unsignedComment
 }
 
@@ -280,6 +286,7 @@ async function createCommentBlob({
   signer,
   replyCommentVersion,
   rootReplyCommentVersion,
+  visibility,
 }: {
   content: HMBlockNode[]
   docId: UnpackedHypermediaId
@@ -287,6 +294,7 @@ async function createCommentBlob({
   signer: HMSigner
   replyCommentVersion?: string | null
   rootReplyCommentVersion?: string | null
+  visibility?: 'Private' | ''
 }): Promise<Uint8Array> {
   const signerKey = await signer.getPublicKey()
   cleanContentOfUndefined(content)
@@ -297,6 +305,7 @@ async function createCommentBlob({
     signerKey,
     replyCommentVersion,
     rootReplyCommentVersion,
+    visibility,
   })
   const signedComment = await createSignedComment(unsignedComment, signer)
   return cborEncode(signedComment)
@@ -369,6 +378,7 @@ export async function createComment(input: CreateCommentInput, signer: HMSigner)
     signer,
     replyCommentVersion: input.replyCommentVersion,
     rootReplyCommentVersion: input.rootReplyCommentVersion,
+    visibility: input.visibility,
   })
   return toPublishInput(comment, blobs)
 }
@@ -378,6 +388,7 @@ export type DeleteCommentInput = {
   targetAccount: string // space uid
   targetPath: string // path (e.g., "/doc1")
   targetVersion: string // version string (e.g., "cid1.cid2")
+  visibility?: 'Private' | ''
 }
 
 export async function deleteComment(input: DeleteCommentInput, signer: HMSigner): Promise<HMPublishBlobsInput> {
@@ -403,6 +414,7 @@ export async function deleteComment(input: DeleteCommentInput, signer: HMSigner)
     ts: BigInt(Date.now()),
     sig: new Uint8Array(64),
   }
+  if (input.visibility) tombstone.visibility = input.visibility
 
   // Sign the tombstone (CBOR-encode with zeroed sig, then sign)
   tombstone.sig = await signObject(signer, tombstone)

@@ -156,6 +156,7 @@ export function useDeleteComment() {
           targetAccount: params.comment.targetAccount,
           targetPath: params.comment.targetPath || '',
           targetVersion: params.comment.targetVersion,
+          visibility: params.comment.visibility === 'PRIVATE' ? 'Private' : '',
         },
         signer,
       )
