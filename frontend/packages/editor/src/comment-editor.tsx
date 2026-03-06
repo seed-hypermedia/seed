@@ -559,7 +559,6 @@ export function CommentEditor({
         }
       }
     }
-
     const {blobs, resultCIDs} = await prepareAttachments(binariesToUpload)
 
     // Update blocks with IPFS URLs and clean up temporary properties
@@ -575,13 +574,14 @@ export function CommentEditor({
         block.props.url = ''
       }
 
-      // Clean up temporary properties
+      // Reset temporary properties to defaults instead of deleting,
+      // because delete can leave undefined values that break CBOR encoding
       // @ts-expect-error
-      delete block.props.fileBinary
+      block.props.fileBinary = ''
       // @ts-expect-error
-      delete block.props.mediaRef
+      block.props.mediaRef = ''
       // @ts-expect-error
-      delete block.props.displaySrc
+      block.props.displaySrc = ''
     })
 
     const blocks = serverBlockNodesFromEditorBlocks(editor, editorBlocks)

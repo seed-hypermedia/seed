@@ -59,7 +59,23 @@ export const action: ActionFunction = async ({request}) => {
   }
   const cborData = await request.arrayBuffer()
   const commentPayload = cborDecode(new Uint8Array(cborData)) as CommentPayload
-  await grpcClient.daemon.storeBlobs({blobs: commentPayload.blobs})
+  // Batch blobs into multiple storeBlobs calls to stay under gRPC 4MB message limit.
+  // UnixFS chunks are ~256KB each, so batching ~12 per call keeps it well under.
+  const MAX_BATCH_SIZE = 3 * 1024 * 1024 // 3MB per batch
+  let batch: {cid: string; data: Uint8Array}[] = []
+  let batchSize = 0
+  for (const blob of commentPayload.blobs) {
+    if (batchSize + blob.data.length > MAX_BATCH_SIZE && batch.length > 0) {
+      await grpcClient.daemon.storeBlobs({blobs: batch})
+      batch = []
+      batchSize = 0
+    }
+    batch.push(blob)
+    batchSize += blob.data.length
+  }
+  if (batch.length > 0) {
+    await grpcClient.daemon.storeBlobs({blobs: batch})
+  }
   const resultComment = await grpcClient.daemon.storeBlobs({
     blobs: [
       {

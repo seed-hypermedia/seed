@@ -235,7 +235,7 @@ export const chromiumSupportedImageMimeTypes = new Set([
   'image/avif',
 ])
 
-export const chromiumSupportedVideoMimeTypes = new Set(['video/mp4', 'video/webm'])
+export const chromiumSupportedVideoMimeTypes = new Set(['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'])
 
 export function removeTrailingBlocks(blocks: Array<EditorBlock>) {
   let trailedBlocks = [...blocks]

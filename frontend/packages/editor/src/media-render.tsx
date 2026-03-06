@@ -339,15 +339,23 @@ function MediaForm({
 
     const {name, size} = file
     if (editor.handleFileAttachment) {
-      const {displaySrc, fileBinary} = await editor.handleFileAttachment(file)
-      assign({
-        props: {
-          fileBinary,
-          displaySrc: block.type === 'file' ? undefined : displaySrc,
-          name,
-          size: size.toString(),
-        },
-      } as MediaType)
+      const result = await editor.handleFileAttachment(file)
+      const props: Record<string, any> = {
+        name,
+        size: size.toString(),
+      }
+      if (result.mediaRef) {
+        props.mediaRef = typeof result.mediaRef === 'string' ? result.mediaRef : JSON.stringify(result.mediaRef)
+        if (block.type !== 'file') {
+          props.displaySrc = result.displaySrc
+        }
+      } else {
+        props.fileBinary = result.fileBinary
+        if (block.type !== 'file') {
+          props.displaySrc = result.displaySrc
+        }
+      }
+      assign({props} as MediaType)
     } else {
       // upload to IPFS immediately if handleFileAttachment is not available
       try {
