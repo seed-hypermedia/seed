@@ -298,15 +298,18 @@ async function createAccount(
   const ref = await createRef(keyPair, genesisBlock.cid, homeBlock.cid, 1)
   const refBlock = await encodeBlob(ref)
 
-  // 5. POST to server
-  const payload = cborEncode({
-    genesis: {data: genesisBlock.bytes, cid: genesisBlock.cid.toString()},
-    home: {data: homeBlock.bytes, cid: homeBlock.cid.toString()},
-    ref: refBlock.bytes,
-    icon: iconBlock ? {data: iconBlock.bytes, cid: iconBlock.cid.toString()} : null,
-  })
+  // 5. Publish all blobs via PublishBlobs API
+  const blobs = [
+    {data: genesisBlock.bytes, cid: genesisBlock.cid.toString()},
+    {data: homeBlock.bytes, cid: homeBlock.cid.toString()},
+    {data: refBlock.bytes, cid: refBlock.cid.toString()},
+  ]
+  if (iconBlock) {
+    blobs.push({data: iconBlock.bytes, cid: iconBlock.cid.toString()})
+  }
+  const payload = cborEncode({blobs})
 
-  await fetch('/hm/api/create-account', {
+  await fetch('/api/PublishBlobs', {
     method: 'POST',
     headers: {'Content-Type': 'application/cbor'},
     body: payload,

@@ -1705,10 +1705,9 @@ export const HMPublishBlobsInputSchema = z.object({
   blobs: z.array(
     z.object({
       cid: z.string().optional(),
-      data: z.custom<Uint8Array>(
-        (val) => ArrayBuffer.isView(val) && 'byteLength' in val,
-        {message: 'Expected Uint8Array or compatible binary data'},
-      ),
+      data: z.custom<Uint8Array>((val) => ArrayBuffer.isView(val) && 'byteLength' in val, {
+        message: 'Expected Uint8Array or compatible binary data',
+      }),
     }),
   ),
 })
@@ -1777,10 +1776,9 @@ export const HMPrepareDocumentChangeInputSchema = z.object({
 export type HMPrepareDocumentChangeInput = z.infer<typeof HMPrepareDocumentChangeInputSchema>
 
 export const HMPrepareDocumentChangeOutputSchema = z.object({
-  unsignedChange: z.custom<Uint8Array>(
-    (val) => ArrayBuffer.isView(val) && 'byteLength' in val,
-    {message: 'Expected Uint8Array or compatible binary data'},
-  ),
+  unsignedChange: z.custom<Uint8Array>((val) => ArrayBuffer.isView(val) && 'byteLength' in val, {
+    message: 'Expected Uint8Array or compatible binary data',
+  }),
 })
 export type HMPrepareDocumentChangeOutput = z.infer<typeof HMPrepareDocumentChangeOutputSchema>
 

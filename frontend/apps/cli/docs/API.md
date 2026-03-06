@@ -537,36 +537,6 @@ Content-Type: application/cbor
 
 ---
 
-### Create Account
-
-Create a new account with genesis, home document, and ref.
-
-```
-POST /hm/api/create-account
-Content-Type: application/cbor
-```
-
-**Payload (CBOR):**
-
-```typescript
-{
-  genesis: {data: Uint8Array, cid: string},   // Genesis change blob
-  home: {data: Uint8Array, cid: string},      // Home document change
-  ref: Uint8Array,                             // Ref blob bytes
-  icon?: {data: Uint8Array, cid: string}      // Optional icon
-}
-```
-
-**Response:**
-
-```typescript
-{
-  message: 'Success'
-}
-```
-
----
-
 ### Document Update
 
 ```

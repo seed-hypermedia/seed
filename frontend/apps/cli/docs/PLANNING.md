@@ -329,7 +329,7 @@ const block = await Block.encode({
 3. Create genesis change (empty change, ts=0)
 4. Create home change (with name, icon)
 5. Create ref pointing to home change
-6. POST all blobs to /hm/api/create-account
+6. POST all blobs to /api/PublishBlobs
 ```
 
 ## Write API Endpoints
@@ -342,19 +342,6 @@ Content-Type: application/cbor
 Body: <raw CBOR blob>
 
 Response: {cid: string}
-```
-
-### `/hm/api/create-account`
-
-```
-POST /hm/api/create-account
-Content-Type: application/cbor
-Body: CBOR({
-  genesis: {data: Uint8Array, cid: string},
-  home: {data: Uint8Array, cid: string},
-  ref: Uint8Array,
-  icon?: {data: Uint8Array, cid: string}
-})
 ```
 
 ### `/hm/api/document-update`

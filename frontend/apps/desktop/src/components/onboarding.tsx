@@ -989,12 +989,15 @@ function RecoveryStep({
         </CheckboxField>
         <div className="flex-1" />
         <div className="mt-4 flex justify-center gap-4">
-          <Button variant="default" onClick={() => {
-            handleSubmit().catch((err) => {
-              console.error('[Onboarding] handleSubmit error:', err)
-              toast.error('Account creation failed: ' + (err instanceof Error ? err.message : String(err)))
-            })
-          }}>
+          <Button
+            variant="default"
+            onClick={() => {
+              handleSubmit().catch((err) => {
+                console.error('[Onboarding] handleSubmit error:', err)
+                toast.error('Account creation failed: ' + (err instanceof Error ? err.message : String(err)))
+              })
+            }}
+          >
             NEXT
           </Button>
         </div>

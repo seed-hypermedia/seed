@@ -52,7 +52,6 @@ export async function encodeBlock(
   return block
 }
 
-
 export async function getChangesDepth(deps: string[]) {
   const allDepths = await Promise.all(
     deps.map(async (dep) => {
@@ -65,4 +64,3 @@ export async function getChangesDepth(deps: string[]) {
   )
   return Math.max(...allDepths)
 }
-
