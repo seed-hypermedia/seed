@@ -4,6 +4,7 @@ import {useEffect, useRef, useState} from 'react'
 
 interface CommentDraft {
   blocks: HMBlockNode[]
+  mediaRefs?: Record<string, string> // blockId to serialized mediaRef JSON map
   timestamp: number
 }
 
@@ -70,7 +71,7 @@ export function useCommentDraftPersistence(docId: string, replyCommentId?: strin
     cleanupOldDrafts()
   }, [draftKey])
 
-  const saveDraft = (blocks: HMBlockNode[]) => {
+  const saveDraft = (blocks: HMBlockNode[], mediaRefs?: Record<string, string>) => {
     // Clear any pending save
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
@@ -95,6 +96,10 @@ export function useCommentDraftPersistence(docId: string, replyCommentId?: strin
         const draft: CommentDraft = {
           blocks,
           timestamp: Date.now(),
+        }
+        // Save mediaRefs in a map because they get stripped by Zod schema
+        if (mediaRefs && Object.keys(mediaRefs).length > 0) {
+          draft.mediaRefs = mediaRefs
         }
         localStorage.setItem(draftKey, JSON.stringify(draft))
         // Updating state here caused unnecessary rerenders that caused cursor jumping
@@ -130,6 +135,7 @@ export function useCommentDraftPersistence(docId: string, replyCommentId?: strin
 
   return {
     draft: draft?.blocks || null,
+    draftMediaRefs: draft?.mediaRefs || null,
     isLoading,
     saveDraft,
     removeDraft,

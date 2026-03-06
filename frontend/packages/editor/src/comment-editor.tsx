@@ -255,7 +255,7 @@ export function CommentEditor({
   isReplying?: boolean
   perspectiveAccountUid?: string | null | undefined
   initialBlocks?: HMBlockNode[]
-  onContentChange?: (blocks: HMBlockNode[]) => void
+  onContentChange?: (blocks: HMBlockNode[], mediaRefs?: Record<string, string>) => void
   onAvatarPress?: () => void
   importWebFile?: (url: string) => Promise<{
     displaySrc: string
@@ -428,12 +428,27 @@ export function CommentEditor({
       // Debounce content change notifications
       contentChangeTimeoutRef.current = setTimeout(() => {
         try {
-          const blocks = serverBlockNodesFromEditorBlocks(
-            editor,
+          // @ts-expect-error
+          const editorBlocks: EditorBlock[] = editor.topLevelBlocks
+          // Extract mediaRefs from editor blocks before HMBlock conversion
+          const mediaRefs: Record<string, string> = {}
+          for (const block of editorBlocks) {
             // @ts-expect-error
-            editor.topLevelBlocks,
+            if (block.props?.mediaRef) {
+              mediaRefs[block.id] =
+                // @ts-expect-error
+                typeof block.props.mediaRef === 'string'
+                  ? // @ts-expect-error
+                    block.props.mediaRef
+                  : // @ts-expect-error
+                    JSON.stringify(block.props.mediaRef)
+            }
+          }
+          const blocks = serverBlockNodesFromEditorBlocks(editor, editorBlocks)
+          onContentChange(
+            blocks.map((b) => b.toJson()) as HMBlockNode[],
+            Object.keys(mediaRefs).length > 0 ? mediaRefs : undefined,
           )
-          onContentChange(blocks.map((b) => b.toJson()) as HMBlockNode[])
         } catch (error) {
           console.error('Failed to notify content change:', error)
         }

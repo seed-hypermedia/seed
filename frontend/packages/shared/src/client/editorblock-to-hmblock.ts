@@ -128,33 +128,17 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
 
   const blockImage = block.type === 'Image' ? block : undefined
   if (blockImage && editorBlock.type == 'image') {
-    // Priority: url > mediaRef > displaySrc > src
     if (editorBlock.props.url && !editorBlock.props.mediaRef) {
-      // Only use url if there's no mediaRef
       blockImage.link = editorBlock.props.url
     } else if (editorBlock.props.mediaRef) {
-      // MediaRef means it's a draft media stored in IndexedDB
-      // Parse mediaRef and store in attributes
-      try {
-        const mediaRef =
-          typeof editorBlock.props.mediaRef === 'string'
-            ? JSON.parse(editorBlock.props.mediaRef)
-            : editorBlock.props.mediaRef
-        blockImage.attributes.mediaRef = mediaRef
-      } catch (e) {
-        console.error('Failed to parse mediaRef:', e)
-      }
-      // Don't store temporary blob URL in the link. It will be invalid after refresh
-      // The rehydration logic will recreate the blob URL from IndexedDB
+      // mediaRef means draft media in IndexedDB — don't store blob URL in link
       blockImage.link = ''
     } else if (editorBlock.props.displaySrc) {
-      // For images with displaySrc (local data URLs), use displaySrc as the link
       blockImage.link = editorBlock.props.displaySrc
     } else if (editorBlock.props.src) {
-      // For images with src (data URLs), use src as the link
       blockImage.link = editorBlock.props.src
     } else {
-      blockImage.link = '' // Fallback to empty string if neither exists
+      blockImage.link = ''
     }
     const width = toNumber(editorBlock.props.width)
     if (width) {
@@ -165,22 +149,9 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   const blockVideo = block.type === 'Video' ? block : undefined
   if (blockVideo && editorBlock.type == 'video') {
     blockVideo.text = ''
-    // Priority: url > mediaRef > displaySrc > src
     if (editorBlock.props.url && !editorBlock.props.mediaRef) {
       blockVideo.link = editorBlock.props.url
     } else if (editorBlock.props.mediaRef) {
-      // Parse mediaRef and store in attributes
-      try {
-        const mediaRef =
-          typeof editorBlock.props.mediaRef === 'string'
-            ? JSON.parse(editorBlock.props.mediaRef)
-            : editorBlock.props.mediaRef
-        blockVideo.attributes.mediaRef = mediaRef
-      } catch (e) {
-        console.error('Failed to parse mediaRef for video:', e)
-      }
-      // Don't store temporary blob URL in the link. It will be invalid after refresh
-      // The rehydration logic will recreate the blob URL from IndexedDB
       blockVideo.link = ''
     }
     const width = toNumber(editorBlock.props.width)
@@ -193,22 +164,9 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
 
   const blockFile = block.type === 'File' ? block : undefined
   if (blockFile && editorBlock.type == 'file') {
-    // Priority: url > mediaRef > displaySrc > src
     if (editorBlock.props.url && !editorBlock.props.mediaRef) {
       blockFile.link = editorBlock.props.url
     } else if (editorBlock.props.mediaRef) {
-      // Parse mediaRef and store in attribute
-      try {
-        const mediaRef =
-          typeof editorBlock.props.mediaRef === 'string'
-            ? JSON.parse(editorBlock.props.mediaRef)
-            : editorBlock.props.mediaRef
-        blockFile.attributes.mediaRef = mediaRef
-      } catch (e) {
-        console.error('Failed to parse mediaRef for file:', e)
-      }
-      // Don't store temporary blob URL in the link. It will be invalid after refresh
-      // The rehydration logic will recreate the blob URL from IndexedDB
       blockFile.link = ''
     }
     if (editorBlock.props.name) blockFile.attributes.name = editorBlock.props.name

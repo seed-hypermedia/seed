@@ -269,15 +269,6 @@ export const HMBlockImageSchema = z
         ...parentBlockAttributes,
         width: z.number().optional(),
         name: z.string().optional(),
-        mediaRef: z
-          .object({
-            draftId: z.string(),
-            mediaId: z.string(),
-            name: z.string(),
-            mime: z.string(),
-            size: z.number(),
-          })
-          .optional(),
       })
       .optional()
       .default({}),
@@ -294,15 +285,6 @@ export const HMBlockVideoSchema = z
         ...parentBlockAttributes,
         width: z.number().optional(),
         name: z.string().optional(),
-        mediaRef: z
-          .object({
-            draftId: z.string(),
-            mediaId: z.string(),
-            name: z.string(),
-            mime: z.string(),
-            size: z.number(),
-          })
-          .optional(),
       })
       .optional()
       .default({}),
@@ -319,15 +301,6 @@ export const HMBlockFileSchema = z
         ...parentBlockAttributes,
         size: z.number().optional().transform(toNumber), // number of bytes, as a string
         name: z.string().optional(),
-        mediaRef: z
-          .object({
-            draftId: z.string(),
-            mediaId: z.string(),
-            name: z.string(),
-            mime: z.string(),
-            size: z.number(),
-          })
-          .optional(),
       })
       .optional()
       .default({}),

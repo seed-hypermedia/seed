@@ -87,6 +87,7 @@ export default function WebCommenting({
   // Use draft persistence
   const {
     draft,
+    draftMediaRefs,
     isLoading: isDraftLoading,
     saveDraft,
     removeDraft,
@@ -272,6 +273,27 @@ export default function WebCommenting({
     ? 'plausible-event-name=Publish+Comment'
     : 'plausible-event-name=start-create-account'
 
+  // Re-inject mediaRefs into draft blocks so the editor can restore IndexedDB media
+  const initialBlocks = useMemo(() => {
+    if (!draft) return undefined
+    if (!draftMediaRefs) return draft
+    return draft.map((node) => {
+      const block = node.block as any
+      const blockId = block?.id
+      if (!blockId || !draftMediaRefs[blockId]) return node
+      return {
+        ...node,
+        block: {
+          ...block,
+          attributes: {
+            ...block.attributes,
+            mediaRef: JSON.parse(draftMediaRefs[blockId]),
+          },
+        },
+      }
+    }) as HMBlockNode[]
+  }, [draft, draftMediaRefs])
+
   // Don't render until draft is loaded or doc version is missing
   if (isDraftLoading || !docVersion) {
     return !docVersion ? null : <div className="w-full">Loading...</div>
@@ -284,7 +306,7 @@ export default function WebCommenting({
           autoFocus={autoFocus}
           isReplying={isReplyEditor}
           handleSubmit={handleSubmit}
-          initialBlocks={draft || undefined}
+          initialBlocks={initialBlocks}
           onContentChange={saveDraft}
           onAvatarPress={onAvatarPress}
           importWebFile={(url) => importWebFile(url, draftId)}
