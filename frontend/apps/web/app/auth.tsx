@@ -1,9 +1,9 @@
 import {zodResolver} from '@hookform/resolvers/zod'
-import {encode as cborEncode} from '@ipld/dag-cbor'
 import {useNavigate} from '@remix-run/react'
+import {createSeedClient} from '@seed-hypermedia/client'
 import {hmId, hostnameStripProtocol, queryKeys, useUniversalAppContext} from '@shm/shared'
 import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
-import {HMDocument, HMDocumentOperation} from '@shm/shared/hm-types'
+import {HMDocument, HMPrepareDocumentChangeInput, HMSigner} from '@shm/shared/hm-types'
 import * as hmauth from '@shm/shared/hmauth'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -20,28 +20,31 @@ import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
 import {ChevronDown, LogOut, Monitor, Smartphone} from 'lucide-react'
-import {BlockView} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
-import {CID} from 'multiformats/cid'
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react'
 import {Control, FieldValues, Path, SubmitHandler, useController, useForm} from 'react-hook-form'
 import {z} from 'zod'
-import {
-  blockReference,
-  createDocumentGenesisChange,
-  createHomeDocumentChange,
-  createRef,
-  encodeBlock,
-  getChangesDepth,
-  postCBOR,
-  rawCodec,
-} from './api'
+import {encodeBlock, rawCodec} from './api'
 import {preparePublicKey} from './auth-utils'
 import {createDefaultAccountName} from './default-account-name'
 import {deleteLocalKeys, getStoredLocalKeys, setHasPromptedEmailNotifications, writeLocalKeys} from './local-db'
 import {queryAPI} from './models'
-import type {CreateAccountPayload} from './routes/hm.api.create-account'
-import type {UpdateDocumentPayload} from './routes/hm.api.document-update'
+
+const seedClient = createSeedClient('')
+
+function createSignerFromKeyPair(kp: CryptoKeyPair): HMSigner {
+  return {
+    getPublicKey: async () => preparePublicKey(kp.publicKey),
+    sign: async (data: Uint8Array) => {
+      const sig = await crypto.subtle.sign(
+        {...kp.privateKey.algorithm, hash: {name: 'SHA-256'}},
+        kp.privateKey,
+        new Uint8Array(data),
+      )
+      return new Uint8Array(sig)
+    },
+  }
+}
 
 let AccountWithImage: boolean = false
 
@@ -195,66 +198,26 @@ export async function createAccount({
   if (!keyPair) {
     throw new Error('Failed to initialize local key pair')
   }
-  const genesisChange = await createDocumentGenesisChange({
-    keyPair,
-  })
-  const genesisChangeBlock = await encodeBlock(genesisChange)
-  const iconBlock = icon ? await encodeBlock(await icon.arrayBuffer(), rawCodec) : null
-  const operations: HMDocumentOperation[] = [
-    {
-      type: 'SetAttributes',
-      attrs: [{key: ['name'], value: name}],
-    },
-  ]
-  if (iconBlock) {
-    operations.push({
-      type: 'SetAttributes',
-      attrs: [{key: ['icon'], value: iconBlock.cid.toString()}],
-    })
-  }
-  const changeHome = await createHomeDocumentChange({
-    keyPair,
-    genesisChangeCid: genesisChangeBlock.cid,
-    operations,
-    deps: [genesisChangeBlock.cid],
-    depth: 1,
-  })
-  const changeHomeBlock = await encodeBlock(changeHome)
-  const ref = await createRef({
-    keyPair,
-    genesisCid: genesisChangeBlock.cid,
-    head: changeHomeBlock.cid,
-    generation: 1,
-  })
-  const refBlock = await encodeBlock(ref)
+  const signer = createSignerFromKeyPair(keyPair)
+  const uid = base58btc.encode(await preparePublicKey(keyPair.publicKey))
 
-  const createAccountPayload: CreateAccountPayload = {
-    genesis: {
-      data: genesisChangeBlock.bytes,
-      cid: genesisChangeBlock.cid.toString(),
-    },
-    home: {
-      data: changeHomeBlock.bytes,
-      cid: changeHomeBlock.cid.toString(),
-    },
-    ref: refBlock.bytes,
-    icon: iconBlock
-      ? {
-          data: iconBlock.bytes,
-          cid: iconBlock.cid.toString(),
-        }
-      : null,
+  const changes: HMPrepareDocumentChangeInput['changes'] = [
+    {op: {case: 'setMetadata', value: {key: 'name', value: name}}},
+  ]
+
+  // Publish icon blob first if provided
+  if (icon) {
+    const iconBlock = await encodeBlock(await icon.arrayBuffer(), rawCodec)
+    await seedClient.publish({
+      blobs: [{data: iconBlock.bytes, cid: iconBlock.cid.toString()}],
+    })
+    changes.push({op: {case: 'setMetadata', value: {key: 'icon', value: iconBlock.cid.toString()}}})
   }
-  const createAccountData = cborEncode(createAccountPayload)
-  await postCBOR('/hm/api/create-account', createAccountData)
-  keyPairStore.set({
-    ...keyPair,
-    id: base58btc.encode(await preparePublicKey(keyPair.publicKey)),
-  })
-  return {
-    ...keyPair,
-    id: base58btc.encode(await preparePublicKey(keyPair.publicKey)),
-  }
+
+  await seedClient.publishDocument({account: uid, changes}, signer)
+
+  keyPairStore.set({...keyPair, id: uid})
+  return {...keyPair, id: uid}
 }
 
 /**
@@ -289,53 +252,28 @@ export async function updateProfile({
   document: HMDocument
   updates: SiteMetaFields
 }) {
-  const depsStrs = document.version.split('.')
-  const deps = depsStrs.map((cidStr) => CID.parse(cidStr))
-  const genesisStr = document.genesis
-  const genesisChangeCid = genesisStr ? CID.parse(genesisStr) : null
-  if (!genesisChangeCid) {
-    throw new Error('No genesis found on document')
-  }
-  const lastDepth = await getChangesDepth(depsStrs)
-  const operations: HMDocumentOperation[] = []
+  const signer = createSignerFromKeyPair(keyPair)
+  const changes: HMPrepareDocumentChangeInput['changes'] = []
   if (updates.name && updates.name !== document.metadata.name) {
-    operations.push({
-      type: 'SetAttributes',
-      attrs: [{key: ['name'], value: updates.name}],
-    })
+    changes.push({op: {case: 'setMetadata', value: {key: 'name', value: updates.name}}})
   }
-  let iconBlock: BlockView<unknown, number, 18, 1> | null = null
   if (updates.icon && typeof updates.icon !== 'string') {
-    // we are uploading a new icon
-    iconBlock = await encodeBlock(await updates.icon.arrayBuffer(), rawCodec)
-    operations.push({
-      type: 'SetAttributes',
-      attrs: [{key: ['icon'], value: iconBlock.cid.toString()}],
+    const iconBlock = await encodeBlock(await updates.icon.arrayBuffer(), rawCodec)
+    await seedClient.publish({
+      blobs: [{data: iconBlock.bytes, cid: iconBlock.cid.toString()}],
     })
+    changes.push({op: {case: 'setMetadata', value: {key: 'icon', value: iconBlock.cid.toString()}}})
   }
-  const changePayload = await createHomeDocumentChange({
-    keyPair,
-    operations,
-    genesisChangeCid,
-    deps,
-    depth: lastDepth + 1,
-  })
-  const changeBlock = await encodeBlock(changePayload)
-  const refPayload = await createRef({
-    keyPair,
-    space: base58btc.decode(document.account),
-    genesisCid: genesisChangeCid,
-    head: changeBlock.cid,
-    generation: lastDepth + 1,
-  })
-  const refBlock = await encodeBlock(refPayload)
-  const updatePayload: UpdateDocumentPayload = {
-    icon: iconBlock ? blockReference(iconBlock) : null,
-    change: blockReference(changeBlock),
-    ref: blockReference(refBlock),
-  }
-  const updateData = cborEncode(updatePayload)
-  await postCBOR('/hm/api/document-update', updateData)
+  await seedClient.publishDocument(
+    {
+      account: document.account,
+      changes,
+      baseVersion: document.version,
+      genesis: document.genesis,
+      generation: document.generationInfo?.generation,
+    },
+    signer,
+  )
 }
 
 export function useCreateAccount(options?: {onClose?: () => void}) {

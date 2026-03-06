@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest'
-import {encode as cborEncode} from '@ipld/dag-cbor'
+import {encode as cborEncode, decode as cborDecode} from '@ipld/dag-cbor'
 import {deserialize} from 'superjson'
 import {handleApiAction} from '../api-server'
 
@@ -93,6 +93,31 @@ describe('handleApiAction', () => {
     expect(calledChanges).toHaveLength(1)
     expect(calledChanges[0].op.case).toBe('setMetadata')
     expect(calledChanges[0].op.value).toEqual(expect.objectContaining({key: 'name', value: 'Test'}))
+  })
+
+  it('accepts PublishBlobs with Buffer-like byte data from CBOR decode', async () => {
+    // Simulate what happens in Electron's bundled main process where
+    // @ipld/dag-cbor may decode bytes as a Uint8Array subclass (Buffer)
+    // that fails z.instanceof(Uint8Array) due to cross-realm constructor mismatch.
+    const storeBlobs = vi.fn().mockResolvedValue({cids: ['bafynew']})
+    const grpcClient = {daemon: {storeBlobs}} as any
+    const queryDaemon = vi.fn()
+
+    // Create a Uint8Array subclass to simulate Buffer or cross-realm Uint8Array
+    class FakeBuffer extends Uint8Array {}
+    const blobData = new FakeBuffer([1, 2, 3])
+    const payload = {blobs: [{cid: 'bafyold', data: blobData}]}
+    const encoded = cborEncode(payload)
+
+    // Manually decode and re-encode with the subclass to bypass normal CBOR round-trip
+    const decoded = cborDecode(encoded) as any
+    // Replace the data with our FakeBuffer to simulate the cross-realm issue
+    decoded.blobs[0].data = new FakeBuffer(decoded.blobs[0].data)
+
+    const result = await handleApiAction('PublishBlobs', cborEncode(decoded), grpcClient, queryDaemon)
+
+    expect(result.status).toBe(200)
+    expect(storeBlobs).toHaveBeenCalled()
   })
 
   it('returns 400 for PrepareDocumentChange missing required account', async () => {

@@ -106,21 +106,6 @@ export type Ref = {
 }
 
 /**
- * Creates a genesis change (first change in document/account)
- */
-export async function createGenesisChange(
-  keyPair: KeyPair,
-): Promise<GenesisChange> {
-  const unsigned: GenesisChange = {
-    type: 'Change',
-    signer: keyPair.publicKeyWithPrefix,
-    sig: new Uint8Array(64),
-    ts: 0n,
-  }
-  return signBlob(unsigned, keyPair.privateKey)
-}
-
-/**
  * Creates a document change
  */
 export async function createDocumentChange(

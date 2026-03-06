@@ -6,7 +6,7 @@
  */
 
 import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
-import type {HMPublishBlobsInput, HMSigner} from '@shm/shared/hm-types'
+import type {HMPrepareDocumentChangeInput, HMPublishBlobsInput, HMSigner} from '@shm/shared/hm-types'
 import {CID} from 'multiformats'
 import * as Block from 'multiformats/block'
 import {sha256} from 'multiformats/hashes/sha2'
@@ -30,8 +30,11 @@ const cborCodec = {
 export async function signPreparedChange(
   unsignedBytes: Uint8Array,
   signer: HMSigner,
-): Promise<{signedBytes: Uint8Array; cid: CID}> {
+): Promise<{signedBytes: Uint8Array; cid: CID; genesis: CID | null}> {
   const change = cborDecode(unsignedBytes) as Record<string, unknown>
+
+  // Extract genesis CID from the change before signing
+  const genesis = change.genesis instanceof CID ? change.genesis : null
 
   change.signer = new Uint8Array(await signer.getPublicKey())
   change.sig = new Uint8Array(64)
@@ -40,7 +43,87 @@ export async function signPreparedChange(
 
   const block = await Block.encode({value: change, codec: cborCodec, hasher: sha256})
 
-  return {signedBytes: block.bytes, cid: block.cid}
+  return {signedBytes: block.bytes, cid: block.cid, genesis}
+}
+
+/**
+ * Create a signed genesis Change blob (empty, ts=0).
+ * This is the bootstrap blob for a new document, matching the web pattern.
+ */
+export async function createGenesisChange(signer: HMSigner): Promise<{bytes: Uint8Array; cid: CID}> {
+  const pubKey = await signer.getPublicKey()
+  const unsigned: Record<string, unknown> = {
+    type: 'Change',
+    signer: new Uint8Array(pubKey),
+    sig: new Uint8Array(64),
+    ts: 0n,
+  }
+  unsigned.sig = await signer.sign(cborEncode(unsigned))
+  const block = await Block.encode({value: unsigned, codec: cborCodec, hasher: sha256})
+  return {bytes: block.bytes, cid: block.cid}
+}
+
+export type CreateDocumentChangeInput = {
+  /** Proto-format changes (same as PrepareDocumentChange input) */
+  changes: HMPrepareDocumentChangeInput['changes']
+  /** CID of the genesis change blob */
+  genesisCid: CID
+  /** CIDs of dependency changes */
+  deps: CID[]
+  /** Depth of the change (max depth of deps + 1) */
+  depth: number
+}
+
+/**
+ * Create a signed document Change blob entirely client-side (no PrepareChange needed).
+ * Converts proto-format changes to native CBOR blob ops format.
+ */
+export async function createDocumentChange(
+  input: CreateDocumentChangeInput,
+  signer: HMSigner,
+): Promise<{bytes: Uint8Array; cid: CID}> {
+  const ops = protoChangesToOps(input.changes)
+  const pubKey = await signer.getPublicKey()
+  const unsigned: Record<string, unknown> = {
+    type: 'Change',
+    body: {
+      ops,
+      opCount: ops.length,
+    },
+    signer: new Uint8Array(pubKey),
+    ts: BigInt(Date.now()),
+    sig: new Uint8Array(64),
+    genesis: input.genesisCid,
+    deps: input.deps,
+    depth: input.depth,
+  }
+  unsigned.sig = await signer.sign(cborEncode(unsigned))
+  const block = await Block.encode({value: unsigned, codec: cborCodec, hasher: sha256})
+  return {bytes: block.bytes, cid: block.cid}
+}
+
+/**
+ * Convert proto DocumentChange[] to native CBOR op format used in Change blobs.
+ * Only setMetadata is supported for client-side change creation.
+ * For complex ops (moveBlock, replaceBlock, deleteBlock, setAttribute),
+ * use PrepareDocumentChange + signDocumentChange instead.
+ */
+function protoChangesToOps(changes: HMPrepareDocumentChangeInput['changes']): Record<string, unknown>[] {
+  return changes.map((change) => {
+    const op = change.op
+    if (!op || !op.case) throw new Error('Invalid change: missing op')
+    switch (op.case) {
+      case 'setMetadata':
+        return {
+          type: 'SetAttributes',
+          attrs: [{key: [op.value.key], value: op.value.value}],
+        }
+      default:
+        throw new Error(
+          `Op "${op.case}" is not supported for client-side change creation. Use PrepareDocumentChange + signDocumentChange instead.`,
+        )
+    }
+  })
 }
 
 export type SignDocumentChangeInput = {
@@ -68,10 +151,10 @@ export async function signDocumentChange(
   input: SignDocumentChangeInput,
   signer: HMSigner,
 ): Promise<{changeCid: CID; publishInput: HMPublishBlobsInput}> {
-  const {signedBytes, cid: changeCid} = await signPreparedChange(input.unsignedChange, signer)
+  const {signedBytes, cid: changeCid, genesis: changeGenesis} = await signPreparedChange(input.unsignedChange, signer)
 
-  // For new documents, the change CID is the genesis
-  const effectiveGenesis = input.genesis || changeCid.toString()
+  // Use explicit genesis from input, or the genesis embedded in the change blob, or fall back to the change CID
+  const effectiveGenesis = input.genesis || (changeGenesis ? changeGenesis.toString() : changeCid.toString())
   const effectiveGeneration = input.generation != null ? Number(input.generation) : Date.now()
 
   const refBlobs = await createVersionRef(

@@ -5,7 +5,8 @@ import {serializeQueryString} from '@shm/shared/input-querystring'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {deserialize} from 'superjson'
 import {SeedClientError, SeedNetworkError, SeedValidationError} from './errors'
-import {signDocumentChange} from './change'
+import {createDocumentChange, createGenesisChange, signDocumentChange} from './change'
+import {createVersionRef} from './ref'
 
 export type PublishDocumentInput = {
   account: string
@@ -91,7 +92,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
             'Content-Type': 'application/cbor',
             ...defaultHeaders,
           },
-          body: new Uint8Array(cborEncode(validatedInput)) as unknown as BodyInit,
+          body: new Uint8Array(cborEncode(stripUndefined(validatedInput))) as unknown as BodyInit,
         })
       } catch (err) {
         throw new SeedNetworkError(
@@ -158,6 +159,40 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
   }
 
   async function publishDocument(input: PublishDocumentInput, signer: HMSigner): Promise<void> {
+    // For new documents, create genesis + content change + ref entirely client-side
+    if (!input.genesis && !input.baseVersion) {
+      const genesisChange = await createGenesisChange(signer)
+      const contentChange = await createDocumentChange(
+        {
+          changes: input.changes,
+          genesisCid: genesisChange.cid,
+          deps: [genesisChange.cid],
+          depth: 1,
+        },
+        signer,
+      )
+      const ref = await createVersionRef(
+        {
+          space: input.account,
+          path: input.path ?? '',
+          genesis: genesisChange.cid.toString(),
+          version: contentChange.cid.toString(),
+          generation: input.generation != null ? Number(input.generation) : 1,
+          capability: input.capability,
+        },
+        signer,
+      )
+      await publish({
+        blobs: [
+          {data: genesisChange.bytes, cid: genesisChange.cid.toString()},
+          {data: contentChange.bytes, cid: contentChange.cid.toString()},
+          ...ref.blobs,
+        ],
+      })
+      return
+    }
+
+    // For existing documents, use PrepareDocumentChange to handle CRDT resolution
     const {unsignedChange} = (await request('PrepareDocumentChange', {
       account: input.account,
       path: input.path,
@@ -187,4 +222,16 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
     publishBlobs: publish,
     publishDocument,
   }
+}
+
+/** Remove undefined values from an object so CBOR encoding doesn't choke. */
+function stripUndefined(obj: unknown): unknown {
+  if (obj === null || obj === undefined || typeof obj !== 'object') return obj
+  if (ArrayBuffer.isView(obj) || obj instanceof ArrayBuffer) return obj
+  if (Array.isArray(obj)) return obj.map(stripUndefined)
+  const result: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    if (v !== undefined) result[k] = stripUndefined(v)
+  }
+  return result
 }

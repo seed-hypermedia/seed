@@ -11,6 +11,7 @@ import {
   createVersionRef,
   createTombstoneRef,
   createRedirectRef,
+  createGenesisChange,
 } from '@seed-hypermedia/client'
 import type {HMSigner} from '@shm/shared/hm-types'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -20,7 +21,6 @@ import {formatOutput, printError, printSuccess, printInfo} from '../output'
 import {documentToMarkdown} from '../markdown'
 import {resolveKey} from '../utils/keyring'
 import {
-  createGenesisChange,
   createDocumentChange,
   encodeBlock,
   type DocumentOperation,
@@ -185,13 +185,11 @@ export function registerDocumentCommands(program: Command) {
           ops.push(...flattenToOperations(tree))
         }
 
-        const genesisChange = await createGenesisChange(key)
-        const genesisBlock = await encodeBlock(genesisChange)
+        const signer = createSignerFromKey(key)
+        const genesisBlock = await createGenesisChange(signer)
 
         const signedChange = await createDocumentChange(key, genesisBlock.cid, [genesisBlock.cid], 1, ops)
         const changeBlock = await encodeBlock(signedChange)
-
-        const signer = createSignerFromKey(key)
         const generation = Number(signedChange.ts)
         const refInput = await createVersionRef(
           {
