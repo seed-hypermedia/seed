@@ -518,25 +518,6 @@ GET /api/GetCID?cid={cid}
 
 ## Write Endpoints
 
-### Store Blob (Generic)
-
-Store any valid IPLD blob. Preferred for advanced operations.
-
-```
-POST /hm/api/debug.store-blob
-Content-Type: application/cbor
-```
-
-**Payload:** Raw CBOR-encoded blob bytes
-
-**Response:**
-
-```typescript
-{message: 'Success', cid: string}
-```
-
----
-
 ### Document Update
 
 ```

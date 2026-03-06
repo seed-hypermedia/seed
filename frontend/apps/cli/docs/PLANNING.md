@@ -334,16 +334,6 @@ const block = await Block.encode({
 
 ## Write API Endpoints
 
-### `/hm/api/store-blob` (preferred)
-
-```
-POST /hm/api/debug.store-blob
-Content-Type: application/cbor
-Body: <raw CBOR blob>
-
-Response: {cid: string}
-```
-
 ### `/hm/api/document-update`
 
 ```
