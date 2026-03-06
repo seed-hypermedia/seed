@@ -1,6 +1,7 @@
 import {encode as cborEncode, decode as cborDecode} from '@ipld/dag-cbor'
 import type {HMPublishBlobsInput, HMSigner} from '@shm/shared/hm-types'
 import {base58btc} from 'multiformats/bases/base58'
+import {signObject, toPublishInput} from './signing'
 
 export type CreateContactInput = {
   /** The subject account UID (base58btc-encoded principal) */
@@ -26,22 +27,6 @@ export type DeleteContactInput = {
 export type CreateContactResult = HMPublishBlobsInput & {
   /** The record ID in format "authority/tsid" */
   recordId: string
-}
-
-function normalizeBytes(data: Uint8Array): Uint8Array<ArrayBuffer> {
-  const normalized = new Uint8Array(data.byteLength)
-  normalized.set(data)
-  return normalized
-}
-
-function toPublishInput(blobData: Uint8Array): HMPublishBlobsInput {
-  return {
-    blobs: [{data: normalizeBytes(blobData)}],
-  }
-}
-
-async function signObject(signer: HMSigner, data: unknown): Promise<Uint8Array> {
-  return await signer.sign(cborEncode(data))
 }
 
 /**

@@ -13,6 +13,7 @@ import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {CID} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
+import {signObject, toPublishInput} from './signing'
 
 export type CommentAttachmentBlob = {
   cid: string
@@ -72,24 +73,6 @@ type SignedComment = {
   ts: bigint
   sig: ArrayBuffer | Uint8Array
   visibility?: string
-}
-
-function normalizeBytes(data: Uint8Array): Uint8Array<ArrayBuffer> {
-  const normalized = new Uint8Array(data.byteLength)
-  normalized.set(data)
-  return normalized
-}
-
-function toPublishInput(comment: Uint8Array, blobs: CommentAttachmentBlob[]): HMPublishBlobsInput {
-  return {
-    blobs: [
-      {data: normalizeBytes(comment)},
-      ...blobs.map((blob) => ({
-        cid: blob.cid,
-        data: normalizeBytes(blob.data),
-      })),
-    ],
-  }
 }
 
 function annotationsToPublishable(annotations: HMAnnotation[]): HMPublishableAnnotation[] {
@@ -227,10 +210,6 @@ function cleanContentOfUndefined(content: HMBlockNode[]) {
     if (typeof block.text === 'undefined') block.text = ''
     if (children) cleanContentOfUndefined(children)
   })
-}
-
-async function signObject(signer: HMSigner, data: unknown): Promise<Uint8Array> {
-  return await signer.sign(cborEncode(data))
 }
 
 function createUnsignedComment({

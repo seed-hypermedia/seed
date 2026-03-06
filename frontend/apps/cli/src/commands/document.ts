@@ -5,39 +5,26 @@
 import type {Command} from 'commander'
 import {readFileSync} from 'fs'
 import {CID} from 'multiformats/cid'
-import {base58btc} from 'multiformats/bases/base58'
-import * as ed25519 from '@noble/ed25519'
 import {
   createVersionRef,
   createTombstoneRef,
   createRedirectRef,
   createGenesisChange,
+  createDocumentChangeFromOps,
+  type DocumentOperation,
 } from '@seed-hypermedia/client'
-import type {HMSigner} from '@shm/shared/hm-types'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {getClient, getOutputFormat} from '../index'
 import {formatOutput, printError, printSuccess, printInfo} from '../output'
 import {documentToMarkdown} from '../markdown'
 import {resolveKey} from '../utils/keyring'
-import {
-  createDocumentChange,
-  encodeBlock,
-  type DocumentOperation,
-} from '../utils/signing'
+import {createSignerFromKey} from '../utils/signer'
 import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations} from '../utils/markdown'
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
 import {createBlocksMap, matchBlockIds, computeReplaceOps, type APIBlockNode} from '../utils/block-diff'
 import type {HMBlockNode} from '@shm/shared/hm-types'
-import type {KeyPair} from '../utils/key-derivation'
-
-function createSignerFromKey(key: KeyPair): HMSigner {
-  return {
-    getPublicKey: async () => key.publicKeyWithPrefix,
-    sign: async (data: Uint8Array) => ed25519.signAsync(data, key.privateKey),
-  }
-}
 
 export function registerDocumentCommands(program: Command) {
   const doc = program.command('document').description('Manage documents (get, create, update, delete, fork, move, redirect, changes, stats, cid)')
@@ -188,9 +175,11 @@ export function registerDocumentCommands(program: Command) {
         const signer = createSignerFromKey(key)
         const genesisBlock = await createGenesisChange(signer)
 
-        const signedChange = await createDocumentChange(key, genesisBlock.cid, [genesisBlock.cid], 1, ops)
-        const changeBlock = await encodeBlock(signedChange)
-        const generation = Number(signedChange.ts)
+        const changeBlock = await createDocumentChangeFromOps(
+          {ops, genesisCid: genesisBlock.cid, deps: [genesisBlock.cid], depth: 1},
+          signer,
+        )
+        const generation = Number(changeBlock.ts)
         const refInput = await createVersionRef(
           {
             space: account,
@@ -320,11 +309,12 @@ export function registerDocumentCommands(program: Command) {
         const depCids = state.heads.map((h) => CID.parse(h))
         const newDepth = state.headDepth + 1
 
-        const signedChange = await createDocumentChange(key, genesisCid, depCids, newDepth, ops)
-        const changeBlock = await encodeBlock(signedChange)
-
         const signer = createSignerFromKey(key)
-        const generation = Number(signedChange.ts)
+        const changeBlock = await createDocumentChangeFromOps(
+          {ops, genesisCid, deps: depCids, depth: newDepth},
+          signer,
+        )
+        const generation = Number(changeBlock.ts)
         const refInput = await createVersionRef(
           {
             space: docAccount,

@@ -5,7 +5,7 @@
 import type {HMBlockNode} from '@shm/shared/hm-types'
 import {HMBlockNodeSchema} from '@shm/shared/hm-types'
 import {z} from 'zod'
-import type {DocumentOperation} from './signing'
+import type {DocumentOperation} from '@seed-hypermedia/client'
 
 /**
  * Parse and validate a JSON string as HMBlockNode[].

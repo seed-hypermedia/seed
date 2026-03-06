@@ -1,61 +1,23 @@
 /**
  * Account creation helpers for testing
- * Implements the full account creation workflow
+ * Implements the full account creation workflow using @seed-hypermedia/client
  */
 
 import {encode as cborEncode} from '@ipld/dag-cbor'
-import * as ed25519 from '@noble/ed25519'
-import {sha512} from '@noble/hashes/sha2'
-import * as Block from 'multiformats/block'
-import {sha256} from 'multiformats/hashes/sha2'
-import {CID} from 'multiformats/cid'
+import {
+  createGenesisChange,
+  createDocumentChangeFromOps,
+  createVersionRef,
+  type DocumentOperation,
+} from '@seed-hypermedia/client'
 import {
   generateMnemonic,
   deriveKeyPairFromMnemonic,
-  type KeyPair,
 } from '../utils/key-derivation'
-
-// Configure ed25519 to use sha512
-ed25519.etc.sha512Sync = (...m) => sha512(ed25519.etc.concatBytes(...m))
-
-const cborCodec = {
-  code: 0x71 as const,
-  encode: (input: unknown) => cborEncode(input),
-  name: 'DAG-CBOR' as const,
-}
-
-type EncodedBlock = {
-  cid: CID
-  bytes: Uint8Array
-}
-
-async function encodeBlock(data: unknown): Promise<EncodedBlock> {
-  const block = await Block.encode({
-    value: data,
-    codec: cborCodec,
-    hasher: sha256,
-  })
-  return {cid: block.cid, bytes: block.bytes}
-}
-
-function blockReference(block: EncodedBlock) {
-  return {
-    data: block.bytes,
-    cid: block.cid.toString(),
-  }
-}
-
-async function signBlob<T extends {sig: Uint8Array}>(
-  unsigned: T,
-  privateKey: Uint8Array,
-): Promise<T> {
-  const cborData = cborEncode(unsigned)
-  const signature = await ed25519.signAsync(cborData, privateKey)
-  return {...unsigned, sig: signature}
-}
+import {createSignerFromKey} from '../utils/signer'
 
 export type TestAccount = {
-  keyPair: KeyPair
+  keyPair: ReturnType<typeof deriveKeyPairFromMnemonic>
   mnemonic: string
   accountId: string
 }
@@ -74,28 +36,21 @@ export function generateTestAccount(): TestAccount {
 }
 
 /**
- * Create genesis change for account
+ * Register an account on the server
  */
-async function createGenesisChange(keyPair: KeyPair) {
-  const unsigned = {
-    type: 'Change',
-    signer: keyPair.publicKeyWithPrefix,
-    sig: new Uint8Array(64),
-    ts: 0n,
-  }
-  return signBlob(unsigned, keyPair.privateKey)
-}
-
-/**
- * Create home document change with account name
- */
-async function createHomeDocumentChange(
-  keyPair: KeyPair,
-  genesisCid: CID,
+export async function registerAccount(
+  serverUrl: string,
+  account: TestAccount,
   accountName: string,
-) {
+): Promise<void> {
+  const signer = createSignerFromKey(account.keyPair)
+
+  // Create genesis change
+  const genesisBlock = await createGenesisChange(signer)
+
+  // Create home document change
   const blockId = generateBlockId()
-  const operations = [
+  const ops: DocumentOperation[] = [
     {
       type: 'SetAttributes',
       attrs: [{key: ['name'], value: accountName}],
@@ -116,67 +71,34 @@ async function createHomeDocumentChange(
     },
   ]
 
-  const unsigned = {
-    type: 'Change',
-    signer: keyPair.publicKeyWithPrefix,
-    sig: new Uint8Array(64),
-    ts: BigInt(Date.now()), // milliseconds (daemon expects UnixMilli)
-    genesis: genesisCid,
-    deps: [genesisCid],
-    depth: 1,
-    body: {ops: operations, opCount: operations.length},
-  }
-  return signBlob(unsigned, keyPair.privateKey)
-}
-
-/**
- * Create ref (version pointer)
- */
-async function createRef(keyPair: KeyPair, genesisCid: CID, headCid: CID) {
-  const unsigned = {
-    type: 'Ref',
-    signer: keyPair.publicKeyWithPrefix,
-    sig: new Uint8Array(64),
-    ts: BigInt(Date.now()), // milliseconds (daemon expects UnixMilli)
-    genesisBlob: genesisCid,
-    heads: [headCid],
-    generation: 1,
-  }
-  return signBlob(unsigned, keyPair.privateKey)
-}
-
-/**
- * Register an account on the server
- */
-export async function registerAccount(
-  serverUrl: string,
-  account: TestAccount,
-  accountName: string,
-): Promise<void> {
-  const {keyPair} = account
-
-  // Create genesis change
-  const genesisChange = await createGenesisChange(keyPair)
-  const genesisBlock = await encodeBlock(genesisChange)
-
-  // Create home document change
-  const homeChange = await createHomeDocumentChange(
-    keyPair,
-    genesisBlock.cid,
-    accountName,
+  const homeBlock = await createDocumentChangeFromOps(
+    {
+      ops,
+      genesisCid: genesisBlock.cid,
+      deps: [genesisBlock.cid],
+      depth: 1,
+    },
+    signer,
   )
-  const homeBlock = await encodeBlock(homeChange)
 
   // Create ref
-  const ref = await createRef(keyPair, genesisBlock.cid, homeBlock.cid)
-  const refBlock = await encodeBlock(ref)
+  const refInput = await createVersionRef(
+    {
+      space: account.accountId,
+      path: '',
+      genesis: genesisBlock.cid.toString(),
+      version: homeBlock.cid.toString(),
+      generation: Number(homeBlock.ts),
+    },
+    signer,
+  )
 
   // Publish all blobs via PublishBlobs API
   const payload = {
     blobs: [
       {data: genesisBlock.bytes, cid: genesisBlock.cid.toString()},
       {data: homeBlock.bytes, cid: homeBlock.cid.toString()},
-      {data: refBlock.bytes, cid: refBlock.cid.toString()},
+      ...refInput.blobs,
     ],
   }
 
@@ -201,9 +123,9 @@ export async function createDocumentUpdate(
   serverUrl: string,
   account: TestAccount,
   path: string,
-  operations: Array<{type: string; [key: string]: unknown}>,
+  operations: DocumentOperation[],
 ): Promise<void> {
-  const {keyPair} = account
+  const signer = createSignerFromKey(account.keyPair)
   const accountId = account.accountId
 
   // Get current document version to use as dependency
@@ -214,56 +136,40 @@ export async function createDocumentUpdate(
   const resource = await resourceRes.json()
   const doc = resource.json || resource
 
-  let genesisCid: CID
-  let deps: CID[]
-  let depth: number
-
   if (doc.type === 'not-found') {
-    // New document - use account genesis as dependency
-    const accountUrl = `${serverUrl}/api/Account?id=${accountId}`
-    const accountRes = await fetch(accountUrl)
-    const accountData = await accountRes.json()
-    const account = accountData.json || accountData
+    // New document — create genesis + change + ref
+    const genesisBlock = await createGenesisChange(signer)
 
-    // For new documents, we need the account's genesis
-    // We'll create a new genesis for this document
-    const genesisChange = await createGenesisChange(keyPair)
-    const genesisBlock = await encodeBlock(genesisChange)
-    genesisCid = genesisBlock.cid
-    deps = [genesisCid]
-    depth = 1
+    const changeBlock = await createDocumentChangeFromOps(
+      {
+        ops: operations,
+        genesisCid: genesisBlock.cid,
+        deps: [genesisBlock.cid],
+        depth: 1,
+      },
+      signer,
+    )
 
-    // Create the document change
-    const change = {
-      type: 'Change',
-      signer: keyPair.publicKeyWithPrefix,
-      sig: new Uint8Array(64),
-      ts: BigInt(Date.now()) * 1000n,
-      genesis: genesisCid,
-      deps,
-      depth,
-      body: {ops: operations, opCount: operations.length},
-    }
-    const signedChange = await signBlob(change, keyPair.privateKey)
-    const changeBlock = await encodeBlock(signedChange)
+    const refInput = await createVersionRef(
+      {
+        space: accountId,
+        path,
+        genesis: genesisBlock.cid.toString(),
+        version: changeBlock.cid.toString(),
+        generation: Number(changeBlock.ts),
+      },
+      signer,
+    )
 
-    // Create ref
-    const ref = await createRef(keyPair, genesisCid, changeBlock.cid)
-    const refBlock = await encodeBlock(ref)
-
-    // Add path and space to ref for non-home documents
-    const refWithPath = {
-      ...ref,
-      path,
-      space: keyPair.publicKeyWithPrefix,
-    }
-    const signedRefWithPath = await signBlob(refWithPath, keyPair.privateKey)
-    const refWithPathBlock = await encodeBlock(signedRefWithPath)
+    const toRef = (block: {bytes: Uint8Array; cid: {toString(): string}}) => ({
+      data: block.bytes,
+      cid: block.cid.toString(),
+    })
 
     const payload = {
-      change: blockReference(changeBlock),
-      ref: blockReference(refWithPathBlock),
-      blobs: [blockReference(genesisBlock)],
+      change: toRef(changeBlock),
+      ref: refInput.blobs[0],
+      blobs: [toRef(genesisBlock)],
     }
 
     const cborData = cborEncode(payload)

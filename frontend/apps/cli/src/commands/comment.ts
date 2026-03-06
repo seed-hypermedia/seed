@@ -4,13 +4,13 @@
 
 import type {Command} from 'commander'
 import {readFileSync} from 'fs'
-import * as ed25519 from '@noble/ed25519'
 import {createComment, deleteComment} from '@seed-hypermedia/client'
-import type {HMAnnotation, HMBlockNode, HMSigner, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import type {HMAnnotation, HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {unpackHmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {getClient, getOutputFormat} from '../index'
 import {formatOutput, printError, printSuccess, printInfo} from '../output'
 import {resolveKey} from '../utils/keyring'
+import {createSignerFromKey} from '../utils/signer'
 
 export function registerCommentCommands(program: Command) {
   const comment = program.command('comment').description('Manage comments (get, list, create, discussions)')
@@ -149,10 +149,7 @@ export function registerCommentCommands(program: Command) {
           }
         }
 
-        const signer: HMSigner = {
-          getPublicKey: async () => key.publicKeyWithPrefix,
-          sign: async (data: Uint8Array) => ed25519.signAsync(data, key.privateKey),
-        }
+        const signer = createSignerFromKey(key)
 
         const result = await client.publish(
           await createComment(
@@ -207,10 +204,7 @@ export function registerCommentCommands(program: Command) {
         // Fetch the comment to get target details
         const existing = await client.request('Comment', commentId)
 
-        const signer: HMSigner = {
-          getPublicKey: async () => key.publicKeyWithPrefix,
-          sign: async (data: Uint8Array) => ed25519.signAsync(data, key.privateKey),
-        }
+        const signer = createSignerFromKey(key)
 
         await client.publish(
           await deleteComment(

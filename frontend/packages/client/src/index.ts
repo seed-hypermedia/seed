@@ -1,5 +1,16 @@
-export {signPreparedChange, signDocumentChange, createGenesisChange, createDocumentChange} from './change'
-export type {SignDocumentChangeInput, CreateDocumentChangeInput} from './change'
+export {
+  signPreparedChange,
+  signDocumentChange,
+  createGenesisChange,
+  createDocumentChange,
+  createDocumentChangeFromOps,
+} from './change'
+export type {
+  SignDocumentChangeInput,
+  CreateDocumentChangeInput,
+  CreateDocumentChangeFromOpsInput,
+  DocumentOperation,
+} from './change'
 export {createSeedClient} from './client'
 export type {SeedClient, SeedClientOptions, PublishDocumentInput} from './client'
 export {createComment, deleteComment} from './comment'

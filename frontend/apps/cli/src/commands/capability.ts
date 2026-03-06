@@ -3,13 +3,12 @@
  */
 
 import type {Command} from 'commander'
-import * as ed25519 from '@noble/ed25519'
 import {createCapability} from '@seed-hypermedia/client'
 import type {CapabilityRole} from '@seed-hypermedia/client'
-import type {HMSigner} from '@shm/shared/hm-types'
 import {getClient} from '../index'
 import {printError, printSuccess, printInfo} from '../output'
 import {resolveKey} from '../utils/keyring'
+import {createSignerFromKey} from '../utils/signer'
 
 export function registerCapabilityCommands(program: Command) {
   const capability = program
@@ -46,10 +45,7 @@ Examples:
 
         const key = resolveKey(options.key, dev)
 
-        const signer: HMSigner = {
-          getPublicKey: async () => key.publicKeyWithPrefix,
-          sign: async (data: Uint8Array) => ed25519.signAsync(data, key.privateKey),
-        }
+        const signer = createSignerFromKey(key)
 
         const result = await createCapability(
           {

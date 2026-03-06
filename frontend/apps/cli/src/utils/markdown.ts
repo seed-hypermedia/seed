@@ -460,7 +460,7 @@ export function parseMarkdown(markdown: string): {
 
 // ─── Operations builder ──────────────────────────────────────────────────────
 
-import type {DocumentOperation} from './signing'
+import type {DocumentOperation} from '@seed-hypermedia/client'
 
 /**
  * Flattens a block tree into Seed document operations.

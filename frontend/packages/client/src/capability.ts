@@ -5,6 +5,7 @@
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import type {HMPublishBlobsInput, HMSigner} from '@shm/shared/hm-types'
 import {base58btc} from 'multiformats/bases/base58'
+import {signObject, toPublishInput} from './signing'
 
 /** Role values for capability blobs. */
 export type CapabilityRole = 'WRITER' | 'AGENT'
@@ -18,22 +19,6 @@ export type CreateCapabilityInput = {
   path?: string
   /** Optional human-readable label */
   label?: string
-}
-
-function normalizeBytes(data: Uint8Array): Uint8Array<ArrayBuffer> {
-  const normalized = new Uint8Array(data.byteLength)
-  normalized.set(data)
-  return normalized
-}
-
-function toPublishInput(blobData: Uint8Array): HMPublishBlobsInput {
-  return {
-    blobs: [{data: normalizeBytes(blobData)}],
-  }
-}
-
-async function signObject(signer: HMSigner, data: unknown): Promise<Uint8Array> {
-  return await signer.sign(cborEncode(data))
 }
 
 /**

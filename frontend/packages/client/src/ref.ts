@@ -6,6 +6,7 @@ import {encode as cborEncode} from '@ipld/dag-cbor'
 import type {HMPublishBlobsInput, HMSigner} from '@shm/shared/hm-types'
 import {CID} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
+import {signObject, toPublishInput} from './signing'
 
 export type CreateVersionRefInput = {
   /** Account UID (base58btc-encoded principal) */
@@ -52,22 +53,6 @@ export type CreateRedirectRefInput = {
   republish?: boolean
   /** Optional capability CID string */
   capability?: string
-}
-
-function normalizeBytes(data: Uint8Array): Uint8Array<ArrayBuffer> {
-  const normalized = new Uint8Array(data.byteLength)
-  normalized.set(data)
-  return normalized
-}
-
-function toPublishInput(blobData: Uint8Array): HMPublishBlobsInput {
-  return {
-    blobs: [{data: normalizeBytes(blobData)}],
-  }
-}
-
-async function signObject(signer: HMSigner, data: unknown): Promise<Uint8Array> {
-  return await signer.sign(cborEncode(data))
 }
 
 function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {

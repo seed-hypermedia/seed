@@ -11,12 +11,7 @@ import {CID} from 'multiformats'
 import * as Block from 'multiformats/block'
 import {sha256} from 'multiformats/hashes/sha2'
 import {createVersionRef} from './ref'
-
-const cborCodec = {
-  code: 0x71 as const,
-  encode: (input: unknown) => cborEncode(input),
-  name: 'DAG-CBOR' as const,
-}
+import {cborCodec, normalizeBytes} from './signing'
 
 /**
  * Sign an unsigned Change blob returned by the daemon's PrepareChange RPC.
@@ -63,6 +58,51 @@ export async function createGenesisChange(signer: HMSigner): Promise<{bytes: Uin
   return {bytes: block.bytes, cid: block.cid}
 }
 
+export type DocumentOperation =
+  | {type: 'SetAttributes'; attrs: Array<{key: string[]; value: unknown}>}
+  | {type: 'MoveBlocks'; blocks: string[]; parent: string}
+  | {type: 'ReplaceBlock'; block: unknown}
+  | {type: 'DeleteBlocks'; blocks: string[]}
+
+export type CreateDocumentChangeFromOpsInput = {
+  /** Native CBOR ops */
+  ops: DocumentOperation[]
+  /** CID of the genesis change blob */
+  genesisCid: CID
+  /** CIDs of dependency changes */
+  deps: CID[]
+  /** Depth of the change (max depth of deps + 1) */
+  depth: number
+}
+
+/**
+ * Create a signed document Change blob from native CBOR ops.
+ * Supports all op types: SetAttributes, MoveBlocks, ReplaceBlock, DeleteBlocks.
+ */
+export async function createDocumentChangeFromOps(
+  input: CreateDocumentChangeFromOpsInput,
+  signer: HMSigner,
+): Promise<{bytes: Uint8Array; cid: CID; ts: bigint}> {
+  const pubKey = await signer.getPublicKey()
+  const ts = BigInt(Date.now())
+  const unsigned: Record<string, unknown> = {
+    type: 'Change',
+    body: {
+      ops: input.ops,
+      opCount: input.ops.length,
+    },
+    signer: new Uint8Array(pubKey),
+    ts,
+    sig: new Uint8Array(64),
+    genesis: input.genesisCid,
+    deps: input.deps,
+    depth: input.depth,
+  }
+  unsigned.sig = await signer.sign(cborEncode(unsigned))
+  const block = await Block.encode({value: unsigned, codec: cborCodec, hasher: sha256})
+  return {bytes: block.bytes, cid: block.cid, ts}
+}
+
 export type CreateDocumentChangeInput = {
   /** Proto-format changes (same as PrepareDocumentChange input) */
   changes: HMPrepareDocumentChangeInput['changes']
@@ -77,45 +117,24 @@ export type CreateDocumentChangeInput = {
 /**
  * Create a signed document Change blob entirely client-side (no PrepareChange needed).
  * Converts proto-format changes to native CBOR blob ops format.
+ * Only supports setMetadata — for all ops, use createDocumentChangeFromOps.
  */
 export async function createDocumentChange(
   input: CreateDocumentChangeInput,
   signer: HMSigner,
 ): Promise<{bytes: Uint8Array; cid: CID}> {
   const ops = protoChangesToOps(input.changes)
-  const pubKey = await signer.getPublicKey()
-  const unsigned: Record<string, unknown> = {
-    type: 'Change',
-    body: {
-      ops,
-      opCount: ops.length,
-    },
-    signer: new Uint8Array(pubKey),
-    ts: BigInt(Date.now()),
-    sig: new Uint8Array(64),
-    genesis: input.genesisCid,
-    deps: input.deps,
-    depth: input.depth,
-  }
-  unsigned.sig = await signer.sign(cborEncode(unsigned))
-  const block = await Block.encode({value: unsigned, codec: cborCodec, hasher: sha256})
-  return {bytes: block.bytes, cid: block.cid}
+  return createDocumentChangeFromOps({ops, genesisCid: input.genesisCid, deps: input.deps, depth: input.depth}, signer)
 }
 
-/**
- * Convert proto DocumentChange[] to native CBOR op format used in Change blobs.
- * Only setMetadata is supported for client-side change creation.
- * For complex ops (moveBlock, replaceBlock, deleteBlock, setAttribute),
- * use PrepareDocumentChange + signDocumentChange instead.
- */
-function protoChangesToOps(changes: HMPrepareDocumentChangeInput['changes']): Record<string, unknown>[] {
+function protoChangesToOps(changes: HMPrepareDocumentChangeInput['changes']): DocumentOperation[] {
   return changes.map((change) => {
     const op = change.op
     if (!op || !op.case) throw new Error('Invalid change: missing op')
     switch (op.case) {
       case 'setMetadata':
         return {
-          type: 'SetAttributes',
+          type: 'SetAttributes' as const,
           attrs: [{key: [op.value.key], value: op.value.value}],
         }
       default:
@@ -175,10 +194,4 @@ export async function signDocumentChange(
       blobs: [{data: normalizeBytes(signedBytes), cid: changeCid.toString()}, ...refBlobs.blobs],
     },
   }
-}
-
-function normalizeBytes(data: Uint8Array): Uint8Array<ArrayBuffer> {
-  const normalized = new Uint8Array(data.byteLength)
-  normalized.set(data)
-  return normalized
 }

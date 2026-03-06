@@ -6,7 +6,7 @@
  * by block type to preserve block IDs where possible.
  */
 
-import type {DocumentOperation} from './signing'
+import type {DocumentOperation} from '@seed-hypermedia/client'
 import type {BlockNode, SeedBlock} from './markdown'
 
 // ── Types matching the API response shape ────────────────────────────────────

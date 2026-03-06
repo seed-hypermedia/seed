@@ -3,12 +3,11 @@
  */
 
 import type {Command} from 'commander'
-import * as ed25519 from '@noble/ed25519'
 import {createContact, deleteContact, contactRecordIdFromBlob} from '@seed-hypermedia/client'
-import type {HMSigner} from '@shm/shared/hm-types'
 import {getClient, getOutputFormat} from '../index'
 import {formatOutput, printError, printSuccess, printInfo} from '../output'
 import {resolveKey} from '../utils/keyring'
+import {createSignerFromKey} from '../utils/signer'
 
 /**
  * Resolve a contact identifier that may be either a record ID (authority/tsid)
@@ -53,10 +52,7 @@ Examples:
       try {
         const key = resolveKey(options.key, dev)
 
-        const signer: HMSigner = {
-          getPublicKey: async () => key.publicKeyWithPrefix,
-          sign: async (data: Uint8Array) => ed25519.signAsync(data, key.privateKey),
-        }
+        const signer = createSignerFromKey(key)
 
         const contactResult = await createContact(
           {
@@ -94,10 +90,7 @@ Examples:
         const client = getClient(globalOpts)
         const contactId = await resolveContactId(contactIdOrCid, client.baseUrl)
 
-        const signer: HMSigner = {
-          getPublicKey: async () => key.publicKeyWithPrefix,
-          sign: async (data: Uint8Array) => ed25519.signAsync(data, key.privateKey),
-        }
+        const signer = createSignerFromKey(key)
 
         await client.publish(await deleteContact({contactId}, signer))
 
