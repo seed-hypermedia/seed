@@ -20,6 +20,10 @@ export type TestAccount = {
   accountId: string
 }
 
+export type RegisterAccountOptions = {
+  homeBody?: string
+}
+
 /**
  * Generate a new test account with a random mnemonic
  */
@@ -36,8 +40,14 @@ export function generateTestAccount(): TestAccount {
 /**
  * Register an account on the server
  */
-export async function registerAccount(serverUrl: string, account: TestAccount, accountName: string): Promise<void> {
+export async function registerAccount(
+  serverUrl: string,
+  account: TestAccount,
+  accountName: string,
+  options: RegisterAccountOptions = {},
+): Promise<void> {
   const signer = createSignerFromKey(account.keyPair)
+  const homeBody = options.homeBody ?? `Welcome to ${accountName}'s space`
 
   // Create genesis change
   const genesisBlock = await createGenesisChange(signer)
@@ -54,7 +64,7 @@ export async function registerAccount(serverUrl: string, account: TestAccount, a
       block: {
         type: 'Paragraph',
         id: blockId,
-        text: `Welcome to ${accountName}'s space`,
+        text: homeBody,
         annotations: [],
       },
     },
@@ -119,9 +129,10 @@ export async function createDocumentUpdate(
 ): Promise<void> {
   const signer = createSignerFromKey(account.keyPair)
   const accountId = account.accountId
+  const normalizedPath = path ? (path.startsWith('/') ? path : `/${path}`) : ''
 
   // Get current document version to use as dependency
-  const resourceUrl = `${serverUrl}/api/Resource?id=${encodeURIComponent(`hm://${accountId}${path ? '/' + path : ''}`)}`
+  const resourceUrl = `${serverUrl}/api/Resource?id=${encodeURIComponent(`hm://${accountId}${normalizedPath}`)}`
   const resourceRes = await fetch(resourceUrl)
   const resource = await resourceRes.json()
   const doc = resource.json || resource
@@ -141,7 +152,7 @@ export async function createDocumentUpdate(
     const refInput = await createVersionRef(
       {
         space: accountId,
-        path,
+        path: normalizedPath,
         genesis: genesisBlock.cid.toString(),
         version: changeBlock.cid.toString(),
         generation: Number(ts),

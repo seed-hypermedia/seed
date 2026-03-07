@@ -4,9 +4,10 @@
  */
 
 import {spawn, execSync, type ChildProcess} from 'child_process'
-import {mkdtempSync, rmSync, existsSync, cpSync, writeFileSync} from 'fs'
+import {mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync} from 'fs'
 import {tmpdir} from 'os'
 import {join} from 'path'
+import {seedTestFixtures, writeFixtureWebConfig} from './fixture-seed'
 
 /**
  * Find repo root by looking for backend directory
@@ -31,6 +32,12 @@ function findExecutable(name: string): string {
     if (result) return result
   } catch {
     // which failed
+  }
+  try {
+    const result = execSync(`mise which ${name}`, {encoding: 'utf8'}).trim()
+    if (result) return result
+  } catch {
+    // mise not available or tool not managed by mise
   }
   // Default to just the name and hope PATH works
   return name
@@ -94,17 +101,13 @@ async function waitForDaemon(url: string, timeoutMs = 90000): Promise<void> {
     await sleep(1000)
   }
 
-  throw new Error(
-    `Daemon failed to start within ${timeoutMs}ms. Last error: ${lastError?.message}`,
-  )
+  throw new Error(`Daemon failed to start within ${timeoutMs}ms. Last error: ${lastError?.message}`)
 }
 
 /**
  * Start a daemon instance for testing
  */
-export async function startDaemon(
-  config: TestConfig = {},
-): Promise<TestContext> {
+export async function startDaemon(config: TestConfig = {}): Promise<TestContext> {
   const testnetName = generateTestnetName()
   // Use random ports to avoid conflicts between test runs
   const basePort = getRandomPort()
@@ -116,9 +119,7 @@ export async function startDaemon(
 
   console.log(`[test] Starting daemon with testnet: ${testnetName}`)
   console.log(`[test] Data dir: ${dataDir}`)
-  console.log(
-    `[test] Ports: http=${httpPort}, grpc=${grpcPort}, p2p=${p2pPort}`,
-  )
+  console.log(`[test] Ports: http=${httpPort}, grpc=${grpcPort}, p2p=${p2pPort}`)
 
   const repoRoot = findRepoRoot()
   const daemonPath = join(repoRoot, 'backend/cmd/seed-daemon')
@@ -204,110 +205,10 @@ export async function startDaemon(
 
 /**
  * Start daemon with test fixture data
- * Copies fixture to temp dir to avoid modifying original
+ * Starts a fresh daemon instance for tests that will seed fixture data through a web server
  */
-export async function startDaemonWithFixture(
-  config: TestConfig = {},
-): Promise<TestContext> {
-  const testnetName = 'fixture'
-  const basePort = getRandomPort()
-  const httpPort = config.httpPort || basePort
-  const grpcPort = config.grpcPort || basePort + 1
-  const p2pPort = config.p2pPort || basePort + 2
-
-  const repoRoot = findRepoRoot()
-  const fixtureSource = join(repoRoot, 'test-fixtures/desktop/daemon')
-
-  if (!existsSync(fixtureSource)) {
-    throw new Error(`Fixture not found: ${fixtureSource}`)
-  }
-
-  // Copy fixture to temp directory
-  const dataDir = mkdtempSync(join(tmpdir(), 'seed-cli-fixture-'))
-  cpSync(fixtureSource, dataDir, {recursive: true})
-
-  console.log(`[test] Starting daemon with fixture data`)
-  console.log(`[test] Data dir: ${dataDir}`)
-  console.log(
-    `[test] Ports: http=${httpPort}, grpc=${grpcPort}, p2p=${p2pPort}`,
-  )
-
-  const daemonPath = join(repoRoot, 'backend/cmd/seed-daemon')
-  const keystoreDir = join(dataDir, 'keys')
-
-  const goBinary = findExecutable('go')
-  console.log(`[test] Go binary: ${goBinary}`)
-
-  const daemon = spawn(
-    '/bin/sh',
-    [
-      '-c',
-      `cd "${daemonPath}" && "${goBinary}" run . -data-dir="${dataDir}" -keystore-dir="${keystoreDir}" -http.port=${httpPort} -grpc.port=${grpcPort} -p2p.port=${p2pPort} -log-level=warn`,
-    ],
-    {
-      env: {
-        ...process.env,
-        SEED_P2P_TESTNET_NAME: testnetName,
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
-  )
-
-  const daemonUrl = `http://localhost:${httpPort}`
-
-  daemon.stdout?.on('data', (data) => {
-    const lines = data.toString().split('\n').filter(Boolean)
-    for (const line of lines) {
-      console.log(`[daemon:stdout] ${line}`)
-    }
-  })
-
-  daemon.stderr?.on('data', (data) => {
-    const lines = data.toString().split('\n').filter(Boolean)
-    for (const line of lines) {
-      console.log(`[daemon:stderr] ${line}`)
-    }
-  })
-
-  daemon.on('exit', (code, signal) => {
-    console.log(`[daemon] Process exited with code ${code}, signal ${signal}`)
-  })
-
-  daemon.on('error', (err) => {
-    console.log(`[daemon] Process error: ${err.message}`)
-  })
-
-  try {
-    await waitForDaemon(daemonUrl)
-    console.log(`[test] Daemon ready at ${daemonUrl}`)
-  } catch (error) {
-    daemon.kill()
-    rmSync(dataDir, {recursive: true, force: true})
-    throw error
-  }
-
-  const cleanup = async () => {
-    console.log('[test] Cleaning up fixture test...')
-    if (daemon && !daemon.killed) {
-      daemon.kill('SIGTERM')
-      await sleep(1000)
-      if (!daemon.killed) {
-        daemon.kill('SIGKILL')
-      }
-    }
-    if (existsSync(dataDir)) {
-      rmSync(dataDir, {recursive: true, force: true})
-    }
-    console.log('[test] Cleanup complete')
-  }
-
-  return {
-    testnetName,
-    daemonUrl,
-    dataDir,
-    daemon,
-    cleanup,
-  }
+export async function startDaemonWithFixture(config: TestConfig = {}): Promise<TestContext> {
+  return await startDaemon(config)
 }
 
 /**
@@ -379,18 +280,13 @@ async function waitForWebServer(url: string, timeoutMs = 60000): Promise<void> {
     await sleep(1000)
   }
 
-  throw new Error(
-    `Web server failed to start within ${timeoutMs}ms. Last error: ${lastError?.message}`,
-  )
+  throw new Error(`Web server failed to start within ${timeoutMs}ms. Last error: ${lastError?.message}`)
 }
 
 /**
  * Start daemon with fixture data AND web server for full integration testing
  */
-export async function startFullIntegrationWithFixture(
-  config: TestConfig = {},
-): Promise<FullTestContext> {
-  const testnetName = 'fixture'
+export async function startFullIntegrationWithFixture(config: TestConfig = {}): Promise<FullTestContext> {
   const basePort = getRandomPort()
   const httpPort = config.httpPort || basePort
   const grpcPort = config.grpcPort || basePort + 1
@@ -398,76 +294,18 @@ export async function startFullIntegrationWithFixture(
   const webServerPort = basePort + 3
 
   const repoRoot = findRepoRoot()
-  const fixtureSource = join(repoRoot, 'test-fixtures/desktop/daemon')
-
-  if (!existsSync(fixtureSource)) {
-    throw new Error(`Fixture not found: ${fixtureSource}`)
-  }
-
-  // Copy fixture to temp directory
-  const dataDir = mkdtempSync(join(tmpdir(), 'seed-cli-fixture-'))
-  cpSync(fixtureSource, dataDir, {recursive: true})
+  const daemonCtx = await startDaemon({
+    httpPort,
+    grpcPort,
+    p2pPort,
+  })
+  const webDataDir = mkdtempSync(join(tmpdir(), 'seed-web-fixture-'))
+  writeFixtureWebConfig(webDataDir)
 
   console.log(`[test] Starting full integration with fixture data`)
-  console.log(`[test] Data dir: ${dataDir}`)
-  console.log(
-    `[test] Ports: http=${httpPort}, grpc=${grpcPort}, p2p=${p2pPort}, web=${webServerPort}`,
-  )
-
-  const daemonPath = join(repoRoot, 'backend/cmd/seed-daemon')
-  const keystoreDir = join(dataDir, 'keys')
-
-  const goBinary = findExecutable('go')
-  console.log(`[test] Go binary: ${goBinary}`)
-
-  // Start daemon
-  const daemon = spawn(
-    '/bin/sh',
-    [
-      '-c',
-      `cd "${daemonPath}" && "${goBinary}" run . -data-dir="${dataDir}" -keystore-dir="${keystoreDir}" -http.port=${httpPort} -grpc.port=${grpcPort} -p2p.port=${p2pPort} -log-level=warn`,
-    ],
-    {
-      env: {
-        ...process.env,
-        SEED_P2P_TESTNET_NAME: testnetName,
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
-  )
-
-  const daemonUrl = `http://localhost:${httpPort}`
-
-  daemon.stdout?.on('data', (data) => {
-    const lines = data.toString().split('\n').filter(Boolean)
-    for (const line of lines) {
-      console.log(`[daemon:stdout] ${line}`)
-    }
-  })
-
-  daemon.stderr?.on('data', (data) => {
-    const lines = data.toString().split('\n').filter(Boolean)
-    for (const line of lines) {
-      console.log(`[daemon:stderr] ${line}`)
-    }
-  })
-
-  daemon.on('exit', (code, signal) => {
-    console.log(`[daemon] Process exited with code ${code}, signal ${signal}`)
-  })
-
-  daemon.on('error', (err) => {
-    console.log(`[daemon] Process error: ${err.message}`)
-  })
-
-  try {
-    await waitForDaemon(daemonUrl)
-    console.log(`[test] Daemon ready at ${daemonUrl}`)
-  } catch (error) {
-    daemon.kill()
-    rmSync(dataDir, {recursive: true, force: true})
-    throw error
-  }
+  console.log(`[test] Daemon data dir: ${daemonCtx.dataDir}`)
+  console.log(`[test] Web data dir: ${webDataDir}`)
+  console.log(`[test] Ports: http=${httpPort}, grpc=${grpcPort}, p2p=${p2pPort}, web=${webServerPort}`)
 
   // Start web server
   const webPath = join(repoRoot, 'frontend/apps/web')
@@ -475,25 +313,19 @@ export async function startFullIntegrationWithFixture(
 
   console.log(`[test] Starting web server at ${webServerUrl}`)
 
-  // Create config.json in web app directory for testing (if it doesn't exist)
-  const webConfigPath = join(webPath, 'config.json')
-  const hadConfig = existsSync(webConfigPath)
-  if (!hadConfig) {
-    writeFileSync(webConfigPath, JSON.stringify({}))
-    console.log(`[test] Created temporary config.json at ${webConfigPath}`)
-  }
-
   // Write .env file so the Remix server picks up the correct daemon port.
   // The constants module reads process.env at import time inside Vite's SSR
   // module runner, which may not inherit env vars from the spawned shell.
   const webEnvPath = join(webPath, '.env')
   const hadEnv = existsSync(webEnvPath)
+  const originalEnv = hadEnv ? readFileSync(webEnvPath, 'utf8') : null
   const envContent = [
     `DAEMON_HTTP_URL=http://localhost:${httpPort}`,
     `DAEMON_HTTP_PORT=${httpPort}`,
     `DAEMON_FILE_URL=http://localhost:${httpPort}/ipfs`,
     `VITE_DESKTOP_HTTP_PORT=${httpPort}`,
     `VITE_DESKTOP_HOSTNAME=http://localhost`,
+    `DATA_DIR=${webDataDir}`,
   ].join('\n')
   writeFileSync(webEnvPath, envContent)
   console.log(`[test] Wrote .env with DAEMON_HTTP_PORT=${httpPort}`)
@@ -502,10 +334,7 @@ export async function startFullIntegrationWithFixture(
   let pnpmBinary = findExecutable('pnpm')
   if (!pnpmBinary || pnpmBinary === 'pnpm') {
     // Check mise installs
-    const misePnpm = join(
-      process.env.HOME || '',
-      '.local/share/mise/installs/pnpm/9.15.0/pnpm',
-    )
+    const misePnpm = join(process.env.HOME || '', '.local/share/mise/installs/pnpm/9.15.0/pnpm')
     if (existsSync(misePnpm)) {
       pnpmBinary = misePnpm
     }
@@ -516,11 +345,12 @@ export async function startFullIntegrationWithFixture(
     '/bin/sh',
     [
       '-c',
-      `cd "${webPath}" && DAEMON_HTTP_URL="http://localhost:${httpPort}" DAEMON_HTTP_PORT="${httpPort}" DAEMON_FILE_URL="http://localhost:${httpPort}/ipfs" "${pnpmBinary}" remix vite:dev --port ${webServerPort}`,
+      `cd "${webPath}" && DATA_DIR="${webDataDir}" DAEMON_HTTP_URL="http://localhost:${httpPort}" DAEMON_HTTP_PORT="${httpPort}" DAEMON_FILE_URL="http://localhost:${httpPort}/ipfs" "${pnpmBinary}" remix vite:dev --port ${webServerPort}`,
     ],
     {
       env: {
         ...process.env,
+        DATA_DIR: webDataDir,
         DAEMON_HTTP_URL: `http://localhost:${httpPort}`,
         DAEMON_HTTP_PORT: String(httpPort),
         DAEMON_FILE_URL: `http://localhost:${httpPort}/ipfs`,
@@ -554,11 +384,19 @@ export async function startFullIntegrationWithFixture(
 
   try {
     await waitForWebServer(webServerUrl)
+    await seedTestFixtures(webServerUrl)
     console.log(`[test] Web server ready at ${webServerUrl}`)
   } catch (error) {
-    daemon.kill()
     webServer.kill()
-    rmSync(dataDir, {recursive: true, force: true})
+    await daemonCtx.cleanup()
+    if (existsSync(webDataDir)) {
+      rmSync(webDataDir, {recursive: true, force: true})
+    }
+    if (!hadEnv && existsSync(webEnvPath)) {
+      rmSync(webEnvPath)
+    } else if (hadEnv && originalEnv !== null) {
+      writeFileSync(webEnvPath, originalEnv)
+    }
     throw error
   }
 
@@ -571,36 +409,25 @@ export async function startFullIntegrationWithFixture(
         webServer.kill('SIGKILL')
       }
     }
-    if (daemon && !daemon.killed) {
-      daemon.kill('SIGTERM')
-      await sleep(1000)
-      if (!daemon.killed) {
-        daemon.kill('SIGKILL')
-      }
+    await daemonCtx.cleanup()
+    if (existsSync(webDataDir)) {
+      rmSync(webDataDir, {recursive: true, force: true})
     }
-    if (existsSync(dataDir)) {
-      rmSync(dataDir, {recursive: true, force: true})
-    }
-    // Remove config.json if we created it
-    if (!hadConfig && existsSync(webConfigPath)) {
-      rmSync(webConfigPath)
-      console.log(`[test] Removed temporary config.json`)
-    }
-    // Remove .env if we created it
     if (!hadEnv && existsSync(webEnvPath)) {
       rmSync(webEnvPath)
       console.log(`[test] Removed temporary .env`)
-    } else if (hadEnv) {
-      // Restore original .env if it existed (shouldn't normally happen)
+    } else if (hadEnv && originalEnv !== null) {
+      writeFileSync(webEnvPath, originalEnv)
+      console.log(`[test] Restored original .env`)
     }
     console.log('[test] Cleanup complete')
   }
 
   return {
-    testnetName,
-    daemonUrl,
-    dataDir,
-    daemon,
+    testnetName: daemonCtx.testnetName,
+    daemonUrl: daemonCtx.daemonUrl,
+    dataDir: daemonCtx.dataDir,
+    daemon: daemonCtx.daemon,
     webServerUrl,
     webServer,
     cleanup,
