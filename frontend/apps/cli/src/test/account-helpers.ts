@@ -6,14 +6,12 @@
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {
   createGenesisChange,
-  createDocumentChangeFromOps,
+  createChangeOps,
+  createChange,
   createVersionRef,
   type DocumentOperation,
 } from '@seed-hypermedia/client'
-import {
-  generateMnemonic,
-  deriveKeyPairFromMnemonic,
-} from '../utils/key-derivation'
+import {generateMnemonic, deriveKeyPairFromMnemonic} from '../utils/key-derivation'
 import {createSignerFromKey} from '../utils/signer'
 
 export type TestAccount = {
@@ -38,11 +36,7 @@ export function generateTestAccount(): TestAccount {
 /**
  * Register an account on the server
  */
-export async function registerAccount(
-  serverUrl: string,
-  account: TestAccount,
-  accountName: string,
-): Promise<void> {
+export async function registerAccount(serverUrl: string, account: TestAccount, accountName: string): Promise<void> {
   const signer = createSignerFromKey(account.keyPair)
 
   // Create genesis change
@@ -71,15 +65,13 @@ export async function registerAccount(
     },
   ]
 
-  const homeBlock = await createDocumentChangeFromOps(
-    {
-      ops,
-      genesisCid: genesisBlock.cid,
-      deps: [genesisBlock.cid],
-      depth: 1,
-    },
-    signer,
-  )
+  const {unsignedBytes, ts} = createChangeOps({
+    ops,
+    genesisCid: genesisBlock.cid,
+    deps: [genesisBlock.cid],
+    depth: 1,
+  })
+  const homeBlock = await createChange(unsignedBytes, signer)
 
   // Create ref
   const refInput = await createVersionRef(
@@ -88,7 +80,7 @@ export async function registerAccount(
       path: '',
       genesis: genesisBlock.cid.toString(),
       version: homeBlock.cid.toString(),
-      generation: Number(homeBlock.ts),
+      generation: Number(ts),
     },
     signer,
   )
@@ -129,9 +121,7 @@ export async function createDocumentUpdate(
   const accountId = account.accountId
 
   // Get current document version to use as dependency
-  const resourceUrl = `${serverUrl}/api/Resource?id=${encodeURIComponent(
-    `hm://${accountId}${path ? '/' + path : ''}`,
-  )}`
+  const resourceUrl = `${serverUrl}/api/Resource?id=${encodeURIComponent(`hm://${accountId}${path ? '/' + path : ''}`)}`
   const resourceRes = await fetch(resourceUrl)
   const resource = await resourceRes.json()
   const doc = resource.json || resource
@@ -140,15 +130,13 @@ export async function createDocumentUpdate(
     // New document — create genesis + change + ref
     const genesisBlock = await createGenesisChange(signer)
 
-    const changeBlock = await createDocumentChangeFromOps(
-      {
-        ops: operations,
-        genesisCid: genesisBlock.cid,
-        deps: [genesisBlock.cid],
-        depth: 1,
-      },
-      signer,
-    )
+    const {unsignedBytes, ts} = createChangeOps({
+      ops: operations,
+      genesisCid: genesisBlock.cid,
+      deps: [genesisBlock.cid],
+      depth: 1,
+    })
+    const changeBlock = await createChange(unsignedBytes, signer)
 
     const refInput = await createVersionRef(
       {
@@ -156,7 +144,7 @@ export async function createDocumentUpdate(
         path,
         genesis: genesisBlock.cid.toString(),
         version: changeBlock.cid.toString(),
-        generation: Number(changeBlock.ts),
+        generation: Number(ts),
       },
       signer,
     )
@@ -190,8 +178,7 @@ export async function createDocumentUpdate(
 }
 
 function generateBlockId(): string {
-  const chars =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-'
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-'
   let id = ''
   for (let i = 0; i < 8; i++) {
     id += chars[Math.floor(Math.random() * chars.length)]

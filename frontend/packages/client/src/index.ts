@@ -1,4 +1,6 @@
 export {
+  createChangeOps,
+  createChange,
   signPreparedChange,
   signDocumentChange,
   createGenesisChange,
@@ -6,6 +8,7 @@ export {
   createDocumentChangeFromOps,
 } from './change'
 export type {
+  CreateChangeOpsInput,
   SignDocumentChangeInput,
   CreateDocumentChangeInput,
   CreateDocumentChangeFromOpsInput,

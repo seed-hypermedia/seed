@@ -1,5 +1,5 @@
 import {Struct} from '@bufbuild/protobuf'
-import {signPreparedChange, createVersionRef} from '@seed-hypermedia/client'
+import {createChange, createVersionRef} from '@seed-hypermedia/client'
 import {DocumentChange} from '../client'
 import {prepareHMDocument} from '../document-utils'
 import {GRPCClient} from '../grpc-client'
@@ -136,7 +136,7 @@ async function dispatchCloneChange(
     changes: input.changes,
   })
 
-  const {signedBytes, cid: changeCid} = await signPreparedChange(prepared.unsignedChange, signer)
+  const {bytes: signedBytes, cid: changeCid} = await createChange(prepared.unsignedChange, signer)
   const changeCidStr = changeCid.toString()
   const effectiveGenesis = input.genesis || changeCidStr
   const effectiveGeneration = input.generation != null ? Number(input.generation) : Date.now()

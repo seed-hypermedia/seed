@@ -2,7 +2,7 @@ import {describe, it, expect} from 'vitest'
 import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
 import * as Block from 'multiformats/block'
 import {sha256} from 'multiformats/hashes/sha2'
-import {signPreparedChange, signDocumentChange} from './change'
+import {createChange, createChangeOps, signPreparedChange, signDocumentChange} from './change'
 import type {HMSigner} from '@shm/shared/hm-types'
 
 // A valid base58btc-encoded account UID (multibase 'z' prefix)
@@ -74,20 +74,20 @@ async function createMockUnsignedChange(): Promise<Uint8Array> {
   return cborEncode(change)
 }
 
-describe('signPreparedChange', () => {
+describe('createChange', () => {
   it('fills signer, signs, and returns valid CID', async () => {
     const unsignedBytes = await createMockUnsignedChange()
     const signer = createMockSigner()
 
-    const result = await signPreparedChange(unsignedBytes, signer)
+    const result = await createChange(unsignedBytes, signer)
 
-    expect(result.signedBytes).toBeInstanceOf(Uint8Array)
-    expect(result.signedBytes.length).toBeGreaterThan(0)
+    expect(result.bytes).toBeInstanceOf(Uint8Array)
+    expect(result.bytes.length).toBeGreaterThan(0)
     expect(result.cid).toBeDefined()
     expect(result.cid.toString()).toMatch(/^bafy/)
 
     // Decode the signed bytes and verify fields
-    const decoded = cborDecode(result.signedBytes) as Record<string, unknown>
+    const decoded = cborDecode(result.bytes) as Record<string, unknown>
     expect(decoded['type']).toBe('Change')
 
     // Signer should be filled with the mock public key
@@ -100,7 +100,6 @@ describe('signPreparedChange', () => {
     const decodedSig = decoded['sig'] as Uint8Array
     expect(decodedSig).toBeInstanceOf(Uint8Array)
     expect(decodedSig.length).toBe(64)
-    // At least some bytes should be non-zero (a real signature)
     const hasNonZero = Array.from(decodedSig).some((b) => b !== 0)
     expect(hasNonZero).toBe(true)
 
@@ -115,23 +114,59 @@ describe('signPreparedChange', () => {
     const unsignedBytes = await createMockUnsignedChange()
     const signer = createMockSigner()
 
-    const result1 = await signPreparedChange(unsignedBytes, signer)
-    const result2 = await signPreparedChange(unsignedBytes, signer)
+    const result1 = await createChange(unsignedBytes, signer)
+    const result2 = await createChange(unsignedBytes, signer)
 
     expect(result1.cid.toString()).toBe(result2.cid.toString())
-    expect(Array.from(result1.signedBytes)).toEqual(Array.from(result2.signedBytes))
+    expect(Array.from(result1.bytes)).toEqual(Array.from(result2.bytes))
   })
 
   it('uses SHA256 CID (DAG-CBOR codec)', async () => {
     const unsignedBytes = await createMockUnsignedChange()
     const signer = createMockSigner()
 
-    const result = await signPreparedChange(unsignedBytes, signer)
+    const result = await createChange(unsignedBytes, signer)
 
     // DAG-CBOR codec = 0x71
     expect(result.cid.code).toBe(0x71)
     // SHA256 = 0x12
     expect(result.cid.multihash.code).toBe(0x12)
+  })
+})
+
+describe('createChangeOps', () => {
+  it('produces unsigned bytes that createChange can sign', async () => {
+    const genesisCID = await makeTestCID({type: 'Change', ts: 0n})
+    const signer = createMockSigner()
+
+    const {unsignedBytes, ts} = createChangeOps({
+      ops: [{type: 'SetAttributes', attrs: [{key: ['title'], value: 'Test'}]}],
+      genesisCid: genesisCID,
+      deps: [genesisCID],
+      depth: 1,
+    })
+
+    expect(ts).toBeGreaterThan(0n)
+
+    const result = await createChange(unsignedBytes, signer)
+    expect(result.cid.toString()).toMatch(/^bafy/)
+
+    const decoded = cborDecode(result.bytes) as Record<string, unknown>
+    expect(decoded['type']).toBe('Change')
+    expect(decoded['depth']).toBe(1)
+    expect(decoded['genesis']).toBeDefined()
+    expect(result.genesis?.toString()).toBe(genesisCID.toString())
+  })
+})
+
+describe('signPreparedChange (compat)', () => {
+  it('returns signedBytes alias for bytes', async () => {
+    const unsignedBytes = await createMockUnsignedChange()
+    const signer = createMockSigner()
+
+    const result = await signPreparedChange(unsignedBytes, signer)
+    expect(result.signedBytes).toBeInstanceOf(Uint8Array)
+    expect(result.cid.toString()).toMatch(/^bafy/)
   })
 })
 

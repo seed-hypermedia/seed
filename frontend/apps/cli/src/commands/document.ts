@@ -10,7 +10,8 @@ import {
   createTombstoneRef,
   createRedirectRef,
   createGenesisChange,
-  createDocumentChangeFromOps,
+  createChangeOps,
+  createChange,
   type DocumentOperation,
 } from '@seed-hypermedia/client'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -27,7 +28,9 @@ import {createBlocksMap, matchBlockIds, computeReplaceOps, type APIBlockNode} fr
 import type {HMBlockNode} from '@shm/shared/hm-types'
 
 export function registerDocumentCommands(program: Command) {
-  const doc = program.command('document').description('Manage documents (get, create, update, delete, fork, move, redirect, changes, stats, cid)')
+  const doc = program
+    .command('document')
+    .description('Manage documents (get, create, update, delete, fork, move, redirect, changes, stats, cid)')
 
   // ── get ──────────────────────────────────────────────────────────────────
 
@@ -175,11 +178,14 @@ export function registerDocumentCommands(program: Command) {
         const signer = createSignerFromKey(key)
         const genesisBlock = await createGenesisChange(signer)
 
-        const changeBlock = await createDocumentChangeFromOps(
-          {ops, genesisCid: genesisBlock.cid, deps: [genesisBlock.cid], depth: 1},
-          signer,
-        )
-        const generation = Number(changeBlock.ts)
+        const {unsignedBytes, ts} = createChangeOps({
+          ops,
+          genesisCid: genesisBlock.cid,
+          deps: [genesisBlock.cid],
+          depth: 1,
+        })
+        const changeBlock = await createChange(unsignedBytes, signer)
+        const generation = Number(ts)
         const refInput = await createVersionRef(
           {
             space: account,
@@ -310,11 +316,9 @@ export function registerDocumentCommands(program: Command) {
         const newDepth = state.headDepth + 1
 
         const signer = createSignerFromKey(key)
-        const changeBlock = await createDocumentChangeFromOps(
-          {ops, genesisCid, deps: depCids, depth: newDepth},
-          signer,
-        )
-        const generation = Number(changeBlock.ts)
+        const {unsignedBytes, ts} = createChangeOps({ops, genesisCid, deps: depCids, depth: newDepth})
+        const changeBlock = await createChange(unsignedBytes, signer)
+        const generation = Number(ts)
         const refInput = await createVersionRef(
           {
             space: docAccount,
@@ -327,10 +331,7 @@ export function registerDocumentCommands(program: Command) {
         )
 
         await client.publish({
-          blobs: [
-            {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
-            ...refInput.blobs,
-          ],
+          blobs: [{data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()}, ...refInput.blobs],
         })
 
         printSuccess('Document updated')
@@ -701,7 +702,14 @@ function slugify(title: string): string {
  * expected by block-diff utilities (with required children array).
  */
 function toAPIBlockNode(node: HMBlockNode): APIBlockNode {
-  const block = node.block as {id: string; type: string; text?: string; link?: string; annotations?: unknown[]; attributes?: Record<string, unknown>}
+  const block = node.block as {
+    id: string
+    type: string
+    text?: string
+    link?: string
+    annotations?: unknown[]
+    attributes?: Record<string, unknown>
+  }
   return {
     block: {
       id: block.id,
