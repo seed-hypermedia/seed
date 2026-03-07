@@ -6,6 +6,12 @@ import {GRPCClient} from '../grpc-client'
 import {HMBlockNode, HMDocumentSchema, HMSigner} from '../hm-types'
 import {BlocksMap, createBlocksMap, getDocAttributeChanges} from './document-changes'
 
+function normalizeBytes(data: Uint8Array): Uint8Array<ArrayBuffer> {
+  const normalized = new Uint8Array(data.byteLength)
+  normalized.set(data)
+  return normalized
+}
+
 export async function cloneSiteFromTemplate({
   client,
   signer,
@@ -160,7 +166,7 @@ async function dispatchCloneChange(
       {cid: changeCidStr, data: normalizedSignedBytes},
       ...refBlobs.blobs.map((b) => ({
         cid: b.cid || '',
-        data: b.data,
+        data: normalizeBytes(b.data),
       })),
     ],
   })

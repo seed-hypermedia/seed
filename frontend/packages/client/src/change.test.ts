@@ -51,15 +51,14 @@ function createMockSigner(): HMSigner & {publicKey: Uint8Array} {
  * Create an unsigned CBOR blob that mimics what Go's NopSigner produces.
  * NopSigner sets signer=nil and sig=nil, but keeps other fields intact.
  */
-async function createMockUnsignedChange(): Promise<Uint8Array> {
+async function createMockUnsignedChange({includeGenesis = true}: {includeGenesis?: boolean} = {}): Promise<Uint8Array> {
   const genesisCID = await makeTestCID({type: 'Change', ts: 0n})
   const change: Record<string, unknown> = {
     type: 'Change',
     signer: null,
     sig: null,
     ts: BigInt(Date.now()),
-    genesis: genesisCID,
-    deps: [genesisCID],
+    ...(includeGenesis ? {genesis: genesisCID, deps: [genesisCID]} : {deps: []}),
     depth: 1,
     body: {
       opCount: 1,
@@ -189,8 +188,8 @@ describe('signDocumentChange', () => {
     expect(publishInput.blobs[1]!.data).toBeInstanceOf(Uint8Array)
   })
 
-  it('uses changeCid as genesis when genesis not provided (new document)', async () => {
-    const unsignedBytes = await createMockUnsignedChange()
+  it('uses changeCid as genesis when the unsigned change has no embedded genesis', async () => {
+    const unsignedBytes = await createMockUnsignedChange({includeGenesis: false})
     const signer = createMockSigner()
 
     const {changeCid, publishInput} = await signDocumentChange(
@@ -202,6 +201,18 @@ describe('signDocumentChange', () => {
     const refData = cborDecode(publishInput.blobs[1]!.data) as Record<string, unknown>
     expect(refData['type']).toBe('Ref')
     expect(refData['genesisBlob']?.toString()).toBe(changeCid.toString())
+  })
+
+  it('uses the genesis embedded in the unsigned change when present', async () => {
+    const unsignedBytes = await createMockUnsignedChange()
+    const signer = createMockSigner()
+    const decodedUnsigned = cborDecode(unsignedBytes) as Record<string, unknown>
+
+    const {publishInput} = await signDocumentChange({account: TEST_ACCOUNT_UID, unsignedChange: unsignedBytes}, signer)
+
+    const refData = cborDecode(publishInput.blobs[1]!.data) as Record<string, unknown>
+    expect(refData['type']).toBe('Ref')
+    expect(refData['genesisBlob']?.toString()).toBe(decodedUnsigned['genesis']?.toString())
   })
 
   it('uses provided genesis when given', async () => {

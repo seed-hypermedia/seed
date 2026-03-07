@@ -104,7 +104,7 @@ export async function createGenesisChange(signer: HMSigner): Promise<{bytes: Uin
     type: 'Change',
     signer: new Uint8Array(pubKey),
     sig: new Uint8Array(64),
-    ts: 0n,
+    ts: BigInt(0),
   }
   unsigned.sig = await signer.sign(cborEncode(unsigned))
   const block = await Block.encode({value: unsigned, codec: cborCodec, hasher: sha256})
