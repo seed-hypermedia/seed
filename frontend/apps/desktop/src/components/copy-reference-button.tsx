@@ -4,7 +4,7 @@ import {useGatewayUrl} from '@/models/gateway-settings'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {BlockRange, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
-import {createSiteUrl, createWebHMUrl, hmId} from '@shm/shared/utils/entity-id-url'
+import {hmId, routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button, ButtonProps} from '@shm/ui/button'
 import {ExternalLink, Link} from '@shm/ui/icons'
@@ -38,21 +38,10 @@ export function useDocumentUrl({
     siteHostname ? accountId : undefined,
   )
   if (!docId) return null
-  const url = siteHostname
-    ? createSiteUrl({
-        hostname: siteHostname,
-        path: docId.path,
-        // @ts-expect-error
-        version: docEntity.data?.document?.version,
-        latest,
-      })
-    : createWebHMUrl(docId.uid, {
-        // @ts-expect-error
-        version: docEntity.data?.document?.version,
-        hostname: gwUrl,
-        path: docId.path,
-        latest,
-      })
+  const url = routeToUrl(route, {
+    hostname: siteHostname || gwUrl,
+    originHomeId: siteHostname ? accountId : undefined,
+  })
   // Get document version for block links
   const docVersion = docEntity.data?.type === 'document' ? docEntity.data.document?.version : undefined
 

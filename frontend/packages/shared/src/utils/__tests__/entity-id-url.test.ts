@@ -639,6 +639,32 @@ describe('routeToUrl', () => {
     )
     expect(url).toBe('https://mysite.com/page')
   })
+
+  test('document route without version produces URL without version param', () => {
+    const url = routeToUrl(
+      {
+        key: 'document',
+        id: hmId('uid1'),
+      },
+      {hostname: 'https://gw.com'},
+    )
+    expect(url).toBe('https://gw.com/hm/uid1')
+    expect(url).not.toContain('?v=')
+  })
+
+  test('document route with originHomeId and no version produces site URL without version param', () => {
+    const originHome = hmId('uid1')
+    const url = routeToUrl(
+      {
+        key: 'document',
+        id: hmId('uid1', {path: ['docs']}),
+      },
+      {hostname: 'https://mysite.com', originHomeId: originHome},
+    )
+    expect(url).toBe('https://mysite.com/docs')
+    expect(url).not.toContain('?v=')
+    expect(url).not.toContain('?l')
+  })
 })
 
 describe('idToUrl', () => {
