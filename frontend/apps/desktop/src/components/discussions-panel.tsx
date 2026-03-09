@@ -1,4 +1,4 @@
-import {useSelectedAccount} from '@/selected-account'
+import {useSelectedAccountId} from '@/selected-account'
 import {useDeleteComment} from '@shm/shared/comments-service-provider'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
@@ -15,7 +15,11 @@ function _DiscussionsPanel(props: {docId: UnpackedHypermediaId; selection: Comme
   const {docId, selection} = props
   // Use selection.id if available (panel's own target), otherwise fall back to docId
   const targetDocId = selection.id ?? docId
-  const selectedAccount = useSelectedAccount()
+  // useSelectedAccountId reads the UID directly from the stream (synchronous),
+  // avoiding the async document fetch that useSelectedAccount() requires.
+  // This ensures the delete option is visible immediately when the user
+  // has a selected account, without waiting for the account document to load.
+  const currentAccountId = useSelectedAccountId() ?? undefined
   const homeDoc = useResource(hmId(targetDocId.uid))
   const targetDomain = homeDoc.data?.type === 'document' ? homeDoc.data.document.metadata.siteUrl : undefined
 
@@ -46,10 +50,8 @@ function _DiscussionsPanel(props: {docId: UnpackedHypermediaId; selection: Comme
         },
       })
     },
-    [targetDocId, selectedAccount?.id?.uid],
+    [targetDocId, currentAccountId],
   )
-
-  const currentAccountId = selectedAccount?.id.uid
 
   if (selection.targetBlockId) {
     const targetId = hmId(targetDocId.uid, {

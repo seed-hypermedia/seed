@@ -11,7 +11,7 @@ import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-contro
 import {useMyAccountIds} from '@/models/daemon'
 import {useChildDrafts, useCreateInlineDraft, useDeleteDraft, useUpdateDraftMetadata} from '@/models/documents'
 import {useExistingDraft} from '@/models/drafts'
-import {useSelectedAccount} from '@/selected-account'
+import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
@@ -126,10 +126,13 @@ export default function DesktopResourcePage() {
   )
 
   // Comment deletion
-  const selectedAccount = useSelectedAccount()
+  // useSelectedAccountId reads the UID directly from the stream (synchronous),
+  // avoiding the async document fetch that useSelectedAccount() requires.
+  // This ensures the delete option is visible immediately when the user
+  // has a selected account, without waiting for the account document to load.
+  const currentAccountId = useSelectedAccountId() ?? undefined
   const deleteComment = useDeleteComment()
   const deleteCommentDialog = useDeleteCommentDialog()
-  const currentAccountId = selectedAccount?.id.uid
   const onCommentDelete = useCallback(
     (commentId: string, signingAccountId?: string) => {
       if (!signingAccountId) return
