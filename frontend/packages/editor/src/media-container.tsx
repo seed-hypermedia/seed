@@ -210,10 +210,10 @@ export const MediaContainer = ({
               }}
             />
             <Button
-              variant='accent'
+              variant="accent"
               size="xs"
               className={cn(
-                'absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity',
+                'absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
                 selected && 'opacity-100',
               )}
               onClick={() => fileInputRef.current?.click()}

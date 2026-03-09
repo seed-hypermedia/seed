@@ -444,7 +444,7 @@ function MediaForm({
                     <Button
                       variant="default"
                       size="sm"
-                      className="shrink-0 font-semibold user-select-none"
+                      className="user-select-none shrink-0 font-semibold"
                       disabled={fileName.color === 'red'}
                       onClick={() => {
                         if (url) {
