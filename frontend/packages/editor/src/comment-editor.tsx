@@ -11,6 +11,7 @@ import {LinkIcon} from '@shm/ui/hm-icon'
 import {AtSignIcon, ImageIcon, SlashSquareIcon} from '@shm/ui/icons'
 import {cn} from '@shm/ui/utils'
 import {Extension} from '@tiptap/core'
+import {Plugin, PluginKey} from '@tiptap/pm/state'
 import {useEffect, useLayoutEffect, useRef, useState} from 'react'
 import avatarPlaceholder from './assets/avatar.png'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
@@ -61,9 +62,16 @@ export function useCommentEditor(
 ) {
   const {onMentionsQuery} = useInlineMentions(perspectiveAccountUid)
 
-  // Use ref so the extension can access the latest onSubmit
+  // Use refs so extensions created once by useBlockNote can access the latest callbacks.
+  // useBlockNote only creates the editor on the first render, but these callbacks may
+  // change (e.g., isMobile starts false due to SSR-safe useMedia initialization, then
+  // becomes true after layout effect).
   const onSubmitRef = useRef<(() => void) | undefined>(onSubmit)
   onSubmitRef.current = onSubmit
+  const onMobileMentionTriggerRef = useRef(onMobileMentionTrigger)
+  onMobileMentionTriggerRef.current = onMobileMentionTrigger
+  const onMobileSlashTriggerRef = useRef(onMobileSlashTrigger)
+  onMobileSlashTriggerRef.current = onMobileSlashTrigger
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
@@ -113,59 +121,51 @@ export function useCommentEditor(
             }
           },
         }),
-        // Mobile-specific keyboard handlers for mentions and slash menu
-        ...(onMobileMentionTrigger || onMobileSlashTrigger
-          ? [
-              Extension.create({
-                name: 'mobile-dialog-triggers',
-                priority: 2000,
-                addKeyboardShortcuts() {
-                  return {
-                    '@': ({editor}) => {
-                      if (!onMobileMentionTrigger || !isMobileDevice()) return false
+        // Mobile-specific handlers for mentions and slash menu.
+        Extension.create({
+          name: 'mobile-dialog-triggers',
+          priority: 2000,
+          addProseMirrorPlugins() {
+            return [
+              new Plugin({
+                key: new PluginKey('mobile-dialog-triggers'),
+                props: {
+                  handleKeyDown(view, event) {
+                    if (!isMobileDevice()) return false
 
-                      const {state, view} = editor
-                      const {selection} = state
-
-                      const textBeforeCursor = selection.$from.parent.textContent.substring(
-                        0,
-                        selection.$from.parentOffset,
-                      )
-
+                    if (event.key === '@' && onMobileMentionTriggerRef.current) {
+                      const {selection} = view.state
+                      const $from = selection.$from
+                      const textBeforeCursor = $from.parent.textContent.substring(0, $from.parentOffset)
                       const isAtStart = textBeforeCursor.length === 0
                       const isAfterSpace = textBeforeCursor.endsWith(' ')
 
                       if (isAtStart || isAfterSpace) {
-                        onMobileMentionTrigger()
+                        onMobileMentionTriggerRef.current()
                         return true
                       }
-                      return false
-                    },
-                    '/': ({editor}) => {
-                      if (!onMobileSlashTrigger || !isMobileDevice()) return false
+                    }
 
-                      const {state, view} = editor
-                      const {selection} = state
-
-                      const textBeforeCursor = selection.$from.parent.textContent.substring(
-                        0,
-                        selection.$from.parentOffset,
-                      )
-
+                    if (event.key === '/' && onMobileSlashTriggerRef.current) {
+                      const {selection} = view.state
+                      const $from = selection.$from
+                      const textBeforeCursor = $from.parent.textContent.substring(0, $from.parentOffset)
                       const isAtStart = textBeforeCursor.length === 0
                       const isAfterSpace = textBeforeCursor.endsWith(' ')
 
                       if (isAtStart || isAfterSpace) {
-                        onMobileSlashTrigger()
+                        onMobileSlashTriggerRef.current()
                         return true
                       }
-                      return false
-                    },
-                  }
+                    }
+
+                    return false
+                  },
                 },
               }),
             ]
-          : []),
+          },
+        }),
       ],
     },
   })
