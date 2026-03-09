@@ -29,6 +29,7 @@ import {
 } from '@shm/shared/comments-service-provider'
 import {HMListDiscussionsOutput} from '@shm/shared/hm-types'
 import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
+import {getRoutePanel} from '@shm/shared/routes'
 import {useTxString} from '@shm/shared/translation'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Link, MessageSquare, Trash2} from 'lucide-react'
@@ -142,7 +143,6 @@ export function CommentDiscussions({
     )
   }
 
-  // If comment not found in the list, show a message
   if (!commentFound && commentsService.data) {
     return (
       <SelectionContent>
@@ -545,6 +545,7 @@ export const Comment = memo(function Comment({
     }
   }, [defaultExpandReplies])
   const currentRoute = useNavRoute()
+  const navigate = useNavigate('replace')
   const docId = getCommentTargetId(comment)
   const options: MenuItemType[] = []
   if (currentAccountId) {
@@ -554,10 +555,26 @@ export const Comment = memo(function Comment({
       onClick: () => {
         deleteCommentDialog.open({
           onConfirm: () => {
-            deleteCommentMutation.mutate({
-              comment,
-              signingAccountId: currentAccountId,
-            })
+            // Check if we're currently focused on this comment before deleting.
+            // If so, navigate back to the comments list after deletion succeeds.
+            const routePanel = getRoutePanel(currentRoute)
+            const isFocusedComment =
+              (currentRoute.key === 'comments' && currentRoute.openComment === comment.id) ||
+              (routePanel?.key === 'comments' && routePanel.openComment === comment.id)
+
+            deleteCommentMutation.mutate(
+              {comment, signingAccountId: currentAccountId},
+              {
+                onSuccess: () => {
+                  if (!isFocusedComment) return
+                  if (currentRoute.key === 'comments' && currentRoute.openComment) {
+                    navigate({...currentRoute, openComment: undefined})
+                  } else if ('panel' in currentRoute && routePanel?.key === 'comments' && routePanel.openComment) {
+                    navigate({...currentRoute, panel: {...routePanel, openComment: undefined}} as NavRoute)
+                  }
+                },
+              },
+            )
           },
         })
       },
