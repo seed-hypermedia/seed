@@ -29,6 +29,7 @@ import {
 } from '@shm/shared/comments-service-provider'
 import {HMListDiscussionsOutput} from '@shm/shared/hm-types'
 import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
+import {getRoutePanel} from '@shm/shared/routes'
 import {useTxString} from '@shm/shared/translation'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Link, MessageSquare, Trash2} from 'lucide-react'
@@ -556,9 +557,10 @@ export const Comment = memo(function Comment({
           onConfirm: () => {
             // Check if we're currently focused on this comment before deleting.
             // If so, navigate back to the comments list after deletion succeeds.
+            const routePanel = getRoutePanel(currentRoute)
             const isFocusedComment =
               (currentRoute.key === 'comments' && currentRoute.openComment === comment.id) ||
-              (currentRoute.panel?.key === 'comments' && currentRoute.panel.openComment === comment.id)
+              (routePanel?.key === 'comments' && routePanel.openComment === comment.id)
 
             deleteCommentMutation.mutate(
               {comment, signingAccountId: currentAccountId},
@@ -567,8 +569,8 @@ export const Comment = memo(function Comment({
                   if (!isFocusedComment) return
                   if (currentRoute.key === 'comments' && currentRoute.openComment) {
                     navigate({...currentRoute, openComment: undefined})
-                  } else if (currentRoute.panel?.key === 'comments' && currentRoute.panel.openComment) {
-                    navigate({...currentRoute, panel: {...currentRoute.panel, openComment: undefined}})
+                  } else if ('panel' in currentRoute && routePanel?.key === 'comments' && routePanel.openComment) {
+                    navigate({...currentRoute, panel: {...routePanel, openComment: undefined}} as NavRoute)
                   }
                 },
               },
