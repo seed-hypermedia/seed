@@ -1012,7 +1012,7 @@ function DocumentBody({
       <DocumentCover cover={document.metadata?.cover} />
 
       {!isMobile ? (
-        <div style={wrapperProps.style} className={cn('mx-auto flex w-full justify-between', isHomeDoc && 'mt-6')}>
+        <div style={wrapperProps.style} className={cn('mx-auto flex w-full justify-between', isHomeDoc && 'mt-10')}>
           {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
           <div {...mainContentProps} className={cn(mainContentProps.className, 'flex flex-col')}>
             {!isHomeDoc && (
@@ -1214,7 +1214,7 @@ function DocumentBody({
         {actionButtons ? (
           <div
             className={cn(
-              'absolute top-2 right-2 z-40 hidden items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4 md:flex',
+              'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
             )}
           >
             {actionButtons}
