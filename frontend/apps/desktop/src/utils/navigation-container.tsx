@@ -1,6 +1,6 @@
 import {desktopUniversalClient} from '@/desktop-universal-client'
 import {ipc} from '@/ipc'
-import {useSelectedAccountContacts} from '@/models/contacts'
+import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {pushResource} from '@/models/documents'
 import {useGatewayUrl, usePushOnCopy} from '@/models/gateway-settings'
 import {client} from '@/trpc'

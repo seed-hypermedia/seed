@@ -111,6 +111,20 @@ def main():
 
         return run("pnpm desktop", args=args)
 
+    @cmd(cmds, "run-desktop-fixture", "Run desktop app against test fixture data.")
+    def run_desktop_fixture(args):
+        run("plz build //:pnpm")
+
+        if "SEED_NO_DAEMON_SPAWN" not in os.environ:
+            run("plz build //backend:seed-daemon")
+
+        # Point entire desktop userData to fixture directory
+        fixture_dir = os.path.abspath("test-fixtures/desktop")
+        os.environ["SEED_FIXTURE_DATA_DIR"] = fixture_dir
+        os.environ["SEED_P2P_TESTNET_NAME"] = "fixture"
+
+        return run("pnpm desktop", args=args)
+
     @cmd(cmds, "build-desktop", "Builds the desktop app for the current platform. Use --profiler to enable React Profiler.")
     def build_desktop(args):
         # run("node scripts/cleanup-desktop.js")
@@ -193,6 +207,30 @@ def main():
     @cmd(cmds, "ping-p2p", "Execute ping utility to check visibility.")
     def ping_p2p(args):
         return run("plz run //backend:pingp2p", args=args)
+
+    @cmd(
+        cmds,
+        "install-cli",
+        "Build and install the seed-cli command into ~/.local/bin.",
+    )
+    def install_cli(args):
+        import pathlib
+
+        run("pnpm install")
+        run("pnpm --filter @seed-hypermedia/cli build")
+
+        cli_dist = pathlib.Path(__file__).resolve().parent / "frontend" / "apps" / "cli" / "dist" / "index.js"
+        if not cli_dist.exists():
+            print(f"Error: build output not found at {cli_dist}")
+            sys.exit(1)
+
+        bin_dir = pathlib.Path.home() / ".local" / "bin"
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        link = bin_dir / "seed-cli"
+        if link.exists() or link.is_symlink():
+            link.unlink()
+        link.symlink_to(cli_dist)
+        print(f"Installed: {link} -> {cli_dist}")
 
     @cmd(
         cmds,

@@ -1,5 +1,4 @@
 import {useEffect, useRef} from 'react'
-import {HMSearchRequest} from '../hm-types'
 import {useUniversalClient} from '../routing'
 import {useRecents} from './recents'
 import {SearchResultItem} from './search'
@@ -22,7 +21,7 @@ export function useInlineMentions(perspectiveAccountUid?: string | null | undefi
   }, [recents])
 
   async function onMentionsQuery(query: string) {
-    const resp = await client.request<HMSearchRequest>('Search', {
+    const resp = await client.request('Search', {
       query,
       perspectiveAccountUid: perspectiveAccountUid || undefined,
       includeBody: false,

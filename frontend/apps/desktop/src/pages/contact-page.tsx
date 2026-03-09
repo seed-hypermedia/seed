@@ -1,23 +1,16 @@
 import {BookmarkButton} from '@/components/bookmarking'
-import {
-  useAllAccountsWithContacts,
-  useContact,
-  useContactList,
-  useDeleteContact,
-  useSaveContact,
-  useSelectedAccountContacts,
-} from '@/models/contacts'
+import {useAllAccountsWithContacts, useContactList} from '@/models/contacts'
+import {useContact, useDeleteContact, useSaveContact, useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useResources} from '@shm/shared/models/entity'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
-import {PlainMessage} from '@bufbuild/protobuf'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {
-  Contact,
   getMetadataName,
   HMAccount,
   HMAccountsMetadata,
   HMContact,
+  HMContactRecord,
   hmId,
   UnpackedHypermediaId,
 } from '@shm/shared'
@@ -119,7 +112,7 @@ function ContactListItem({
 }: {
   account: HMAccount
   active: boolean
-  savedContact: PlainMessage<Contact> | undefined
+  savedContact: HMContactRecord | undefined
 }) {
   const navigate = useNavigate()
   const id = hmId(account.id, {})
@@ -243,7 +236,7 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
   )
 }
 
-function DeleteContactDialog({input, onClose}: {input: {contact: PlainMessage<Contact>}; onClose: () => void}) {
+function DeleteContactDialog({input, onClose}: {input: {contact: HMContactRecord}; onClose: () => void}) {
   const deleteContact = useDeleteContact()
   return (
     <div className="flex flex-col gap-4">

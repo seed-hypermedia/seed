@@ -28,7 +28,7 @@ import './tailwind.css'
 import {client} from './trpc'
 
 import {AppWindowEvent} from '@/utils/window-events'
-import {onQueryCacheError, onQueryInvalidation} from '@shm/shared/models/query-client'
+import {onQueryCacheError, onQueryInvalidation, registerQueryClient} from '@shm/shared/models/query-client'
 import {labelOfQueryKey} from '@shm/shared/models/query-keys'
 import {windowContainerStyles} from '@shm/ui/container'
 import {cn} from '@shm/ui/utils'
@@ -208,11 +208,11 @@ function useDarkMode(): boolean {
   return isDark
 }
 
-// on desktop we handle query invalidation by sending it through IPC so it is sent to all windows
+// Register the desktop QueryClient so shared invalidateQueries() works
+registerQueryClient(queryClient)
+
+// Broadcast invalidations to all windows via IPC (local invalidation handled by invalidateQueries itself)
 onQueryInvalidation((queryKey: QueryKey) => {
-  // invalidate local cache immediately so navigations within this window see fresh data
-  queryClient.invalidateQueries({queryKey})
-  // also broadcast to all windows via IPC
   ipc.send?.('invalidate_queries', queryKey)
 })
 

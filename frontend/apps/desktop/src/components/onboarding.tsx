@@ -1,11 +1,12 @@
 import {grpcClient} from '@/grpc-client'
+import {desktopUniversalClient} from '@/desktop-universal-client'
 import {useMnemonics, useRegisterKey} from '@/models/daemon'
 import {client} from '@/trpc'
 import {fileUpload} from '@/utils/file-upload'
 import {extractWords, isWordsValid} from '@/utils/onboarding'
 import {useNavigate} from '@/utils/useNavigate'
 import {eventStream, UnpackedHypermediaId, useOpenUrl, useUniversalAppContext} from '@shm/shared'
-import {DocumentChange} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {HMPrepareDocumentChangeInput} from '@shm/shared/hm-types'
 import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -889,65 +890,36 @@ function RecoveryStep({
         console.group('📝 Creating Document Changes')
         console.log('Current uploaded URLs:', {icon, seedExperimentalLogo})
 
-        let changes = [
-          new DocumentChange({
-            op: {
-              case: 'setMetadata',
-              value: {
-                key: 'name',
-                value: formData.name,
-              },
-            },
-          }),
+        const changes: HMPrepareDocumentChangeInput['changes'] = [
+          {op: {case: 'setMetadata', value: {key: 'name', value: formData.name}}},
         ]
 
         if (icon) {
-          changes.push(
-            new DocumentChange({
-              op: {
-                case: 'setMetadata',
-                value: {
-                  key: 'icon',
-                  value: `ipfs://${icon}`,
-                },
-              },
-            }),
-          )
+          changes.push({op: {case: 'setMetadata', value: {key: 'icon', value: `ipfs://${icon}`}}})
         }
 
         if (seedExperimentalLogo) {
           console.log('Adding logo metadata:', `ipfs://${seedExperimentalLogo}`)
-          changes.push(
-            new DocumentChange({
-              op: {
-                case: 'setMetadata',
-                value: {
-                  key: 'seedExperimentalLogo',
-                  value: `ipfs://${seedExperimentalLogo}`,
-                },
-              },
-            }),
-          )
+          changes.push({
+            op: {case: 'setMetadata', value: {key: 'seedExperimentalLogo', value: `ipfs://${seedExperimentalLogo}`}},
+          })
         }
 
         console.log('Final changes to apply:', changes)
-        const doc = await grpcClient.documents.createDocumentChange({
+        await desktopUniversalClient.publishDocument!({
+          signerAccountUid: createdAccount.publicKey,
           account: createdAccount.accountId,
-          signingKeyName: createdAccount.publicKey,
-          baseVersion: undefined, // undefined because this is the first change of this document
           changes,
         })
 
-        if (doc) {
-          console.log('✅ Document changes created:', doc)
-          console.log('Invalidating queries...')
-          const id = hmId(createdAccount!.accountId)
-          invalidateQueries([queryKeys.ENTITY, id.id])
-          invalidateQueries([queryKeys.ACCOUNT, id.uid])
-          invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
-          invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
-          console.log('✅ Queries invalidated')
-        }
+        console.log('✅ Document changes created')
+        console.log('Invalidating queries...')
+        const id = hmId(createdAccount!.accountId)
+        invalidateQueries([queryKeys.ENTITY, id.id])
+        invalidateQueries([queryKeys.ACCOUNT, id.uid])
+        invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+        invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
+        console.log('✅ Queries invalidated')
         console.groupEnd()
       } catch (error) {
         console.error('❌ Failed to create document changes:', error)
@@ -1017,7 +989,15 @@ function RecoveryStep({
         </CheckboxField>
         <div className="flex-1" />
         <div className="mt-4 flex justify-center gap-4">
-          <Button variant="default" onClick={handleSubmit}>
+          <Button
+            variant="default"
+            onClick={() => {
+              handleSubmit().catch((err) => {
+                console.error('[Onboarding] handleSubmit error:', err)
+                toast.error('Account creation failed: ' + (err instanceof Error ? err.message : String(err)))
+              })
+            }}
+          >
             NEXT
           </Button>
         </div>

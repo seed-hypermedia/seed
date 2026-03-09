@@ -1,5 +1,7 @@
 import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {grpcClient} from '@/grpc-client'
+import {desktopUniversalClient} from '@/desktop-universal-client'
+import {createVersionRef, createRedirectRef} from '@seed-hypermedia/client'
 import {useDraft} from '@/models/accounts'
 import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
@@ -12,12 +14,7 @@ import {BlockNoteEditor} from '@shm/editor/blocknote/core'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {getSlashMenuItems} from '@shm/editor/slash-menu-items'
 import {getCommentTargetId, getParentPaths, HMAnnotation, UniversalClient, useUniversalClient} from '@shm/shared'
-import {
-  Block,
-  CreateDocumentChangeRequest,
-  DocumentChange,
-  ResourceVisibility,
-} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {AnnounceBlobsProgress} from '@shm/shared/client/.generated/p2p/v1alpha/syncing_pb'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
@@ -35,7 +32,6 @@ import {
   HMListedDraft,
   HMNavigationItem,
   HMResourceFetchResult,
-  HMResourceRequest,
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
@@ -299,28 +295,39 @@ export function usePublishResource(
               invalidateQueries([queryKeys.RECENT_SIGNERS])
             })
 
-            const req: PartialMessage<CreateDocumentChangeRequest> = {
-              signingKeyName: accountId,
-              account: destinationId.uid,
-              baseVersion: draft.deps?.join('.') || '',
-              path: hmIdPathToEntityQueryPath(destinationId.path || []),
-              changes: allChanges,
-              capability: capabilityId,
-            }
+            let visibility = ResourceVisibility.UNSPECIFIED
 
             // We only care to set the visibility if it's private.
             if (draft.visibility === 'PRIVATE') {
-              req.visibility = ResourceVisibility.PRIVATE
+              visibility = ResourceVisibility.PRIVATE
             }
 
             // We must only specify the visibility if this is a first publish.
             // For subsequent publishes we set it to unspecified, to let the server decide.
             if (draft.deps?.length > 0) {
-              req.visibility = ResourceVisibility.UNSPECIFIED
+              visibility = ResourceVisibility.UNSPECIFIED
             }
 
-            const publishedDoc = await grpcClient.documents.createDocumentChange(req)
-            const resultDoc: HMDocument = prepareHMDocument(publishedDoc)
+            const docPath = hmIdPathToEntityQueryPath(destinationId.path || [])
+
+            await desktopUniversalClient.publishDocument!({
+              signerAccountUid: accountId,
+              account: destinationId.uid,
+              baseVersion: draft.deps?.join('.') || '',
+              path: docPath,
+              // allChanges is DocumentChange[] from shared helpers; structurally compatible with plain change objects
+              changes: allChanges as any,
+              capability: capabilityId,
+              visibility,
+              genesis: editDocument?.genesis,
+              generation: editDocument?.generationInfo?.generation,
+            })
+
+            const updatedDoc = await grpcClient.documents.getDocument({
+              account: destinationId.uid,
+              path: docPath,
+            })
+            const resultDoc: HMDocument = prepareHMDocument(updatedDoc)
             return resultDoc
           } else {
             throw Error('PUBLISH ERROR: Please select an account to sign first')
@@ -831,7 +838,7 @@ export async function pushResource(
   onlyPushToHost?: string,
   onStatusChange?: (status: PushResourceStatus) => void,
 ): Promise<boolean> {
-  const resource = await universalClient.request<HMResourceRequest>('Resource', id)
+  const resource = await universalClient.request('Resource', id)
   // step 1. find all the site IDs that will be affected by this resource.
   // console.log('== publish 1', id, resource, gwUrl)
   let destinationSiteUids = new Set<string>()
@@ -906,7 +913,7 @@ export async function pushResource(
   await Promise.all(
     Array.from(destinationSiteUids).map(async (uid) => {
       try {
-        const resource = await universalClient.request<HMResourceRequest>('Resource', hmId(uid))
+        const resource = await universalClient.request('Resource', hmId(uid))
         if (resource.type === 'document') {
           const siteUrl = resource.document.metadata?.siteUrl
           if (siteUrl) destinationHosts.add(siteUrl)
@@ -1141,23 +1148,9 @@ export async function publishLinkToParentDocument(
   }
 
   // Create DocumentChange operations: MoveBlock then ReplaceBlock
-  const changes: DocumentChange[] = [
-    new DocumentChange({
-      op: {
-        case: 'moveBlock',
-        value: {
-          blockId: newBlockId,
-          parent: '', // root level
-          leftSibling: lastBlockId, // after the last existing block
-        },
-      },
-    }),
-    new DocumentChange({
-      op: {
-        case: 'replaceBlock',
-        value: Block.fromJson(embedBlock),
-      },
-    }),
+  const changes = [
+    {op: {case: 'moveBlock' as const, value: {blockId: newBlockId, parent: '', leftSibling: lastBlockId}}},
+    {op: {case: 'replaceBlock' as const, value: embedBlock}},
   ]
 
   // Check if signing account has write access (same as child publish)
@@ -1174,18 +1167,24 @@ export async function publishLinkToParentDocument(
     capabilityId = capability.id
   }
 
-  const req: PartialMessage<CreateDocumentChangeRequest> = {
-    signingKeyName,
+  const parentPath = hmIdPathToEntityQueryPath(parentId.path || [])
+
+  await desktopUniversalClient.publishDocument!({
+    signerAccountUid: signingKeyName,
     account: parentId.uid,
     baseVersion: parentDocument.version,
-    path: hmIdPathToEntityQueryPath(parentId.path || []),
+    path: parentPath,
     changes,
     capability: capabilityId,
-    visibility: ResourceVisibility.UNSPECIFIED, // preserve existing visibility
-  }
+    genesis: parentDocument.genesis,
+    generation: parentDocument.generationInfo?.generation,
+  })
 
-  const publishedDoc = await grpcClient.documents.createDocumentChange(req)
-  const resultDoc: HMDocument = prepareHMDocument(publishedDoc)
+  const updatedDoc = await grpcClient.documents.getDocument({
+    account: parentId.uid,
+    path: parentPath,
+  })
+  const resultDoc: HMDocument = prepareHMDocument(updatedDoc)
 
   // Invalidate parent document queries
   invalidateQueries([queryKeys.ENTITY, parentId.id])
@@ -1352,6 +1351,7 @@ export function useCreateDraft(
 
 export function useForkDocument() {
   const push = usePushResource()
+  const universalClient = useUniversalClient()
   return useMutation({
     mutationFn: async ({
       from,
@@ -1362,27 +1362,23 @@ export function useForkDocument() {
       to: UnpackedHypermediaId
       signingAccountId: string
     }) => {
-      const document = await grpcClient.documents.getDocument({
-        account: from.uid,
-        path: hmIdPathToEntityQueryPath(from.path),
-        version: from.latest ? undefined : from.version || undefined,
-      })
-      const {generationInfo} = document
-      if (!generationInfo) throw new Error('No generation info for document')
-      await grpcClient.documents.createRef({
-        account: to.uid,
-        signingKeyName: signingAccountId,
-        path: hmIdPathToEntityQueryPath(to.path),
-        target: {
-          target: {
-            case: 'version',
-            value: {
-              genesis: generationInfo.genesis,
-              version: document.version,
-            },
-          },
+      if (!universalClient.getSigner) throw new Error('Signing not available')
+      const resource = await universalClient.request('Resource', from)
+      if (resource.type !== 'document') throw new Error(`Cannot fork: resource is ${resource.type}`)
+      const doc = resource.document
+      if (!doc.generationInfo) throw new Error('No generation info for document')
+      const signer = universalClient.getSigner(signingAccountId)
+      const refInput = await createVersionRef(
+        {
+          space: to.uid,
+          path: hmIdPathToEntityQueryPath(to.path),
+          genesis: doc.generationInfo.genesis,
+          version: doc.version,
+          generation: Number(doc.generationInfo.generation),
         },
-      })
+        signer,
+      )
+      await universalClient.publish(refInput)
       push(from)
       push(to)
     },
@@ -1391,6 +1387,7 @@ export function useForkDocument() {
 
 export function useMoveDocument() {
   const push = usePushResource()
+  const universalClient = useUniversalClient()
   return useMutation({
     mutationFn: async ({
       from,
@@ -1401,41 +1398,37 @@ export function useMoveDocument() {
       to: UnpackedHypermediaId
       signingAccountId: string
     }) => {
-      const document = await grpcClient.documents.getDocument({
-        account: from.uid,
-        path: hmIdPathToEntityQueryPath(from.path),
-        version: from.latest ? undefined : from.version || undefined,
-      })
-      const {generationInfo} = document
-      if (!generationInfo) throw new Error('No generation info for document')
-      await grpcClient.documents.createRef({
-        account: to.uid,
-        signingKeyName: signingAccountId,
-        path: hmIdPathToEntityQueryPath(to.path),
-        target: {
-          target: {
-            case: 'version',
-            value: {
-              genesis: generationInfo.genesis,
-              version: document.version,
-            },
-          },
+      if (!universalClient.getSigner) throw new Error('Signing not available')
+      const resource = await universalClient.request('Resource', from)
+      if (resource.type !== 'document') throw new Error(`Cannot move: resource is ${resource.type}`)
+      const doc = resource.document
+      if (!doc.generationInfo) throw new Error('No generation info for document')
+      const signer = universalClient.getSigner(signingAccountId)
+      // Create version ref at destination
+      const versionRefInput = await createVersionRef(
+        {
+          space: to.uid,
+          path: hmIdPathToEntityQueryPath(to.path),
+          genesis: doc.generationInfo.genesis,
+          version: doc.version,
+          generation: Number(doc.generationInfo.generation),
         },
-      })
-      await grpcClient.documents.createRef({
-        account: from.uid,
-        signingKeyName: signingAccountId,
-        path: hmIdPathToEntityQueryPath(from.path),
-        target: {
-          target: {
-            case: 'redirect',
-            value: {
-              account: to.uid,
-              path: hmIdPathToEntityQueryPath(to.path),
-            },
-          },
+        signer,
+      )
+      await universalClient.publish(versionRefInput)
+      // Create redirect ref at source
+      const redirectRefInput = await createRedirectRef(
+        {
+          space: from.uid,
+          path: hmIdPathToEntityQueryPath(from.path),
+          genesis: doc.generationInfo.genesis,
+          generation: Number(doc.generationInfo.generation),
+          targetSpace: to.uid,
+          targetPath: hmIdPathToEntityQueryPath(to.path),
         },
-      })
+        signer,
+      )
+      await universalClient.publish(redirectRefInput)
       push(from)
       push(to)
     },

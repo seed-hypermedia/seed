@@ -1,18 +1,18 @@
-import {createComment, postCBOR} from '@/api'
-import {LocalWebIdentity, useCreateAccount} from '@/auth'
-import {encode as cborEncode} from '@ipld/dag-cbor'
+import {useCreateAccount} from '@/auth'
+import {createComment} from '@seed-hypermedia/client'
 import {CommentEditor} from '@shm/editor/comment-editor'
 import {
   HMBlockNode,
+  HMPublishBlobsOutput,
   idToUrl,
-  packHmId,
   queryKeys,
-  trimTrailingEmptyBlocks,
   UnpackedHypermediaId,
   unpackHmId,
   useUniversalAppContext,
+  useUniversalClient,
 } from '@shm/shared'
 import {useCommentsService} from '@shm/shared/comments-service-provider'
+import {invalidateQueries} from '@shm/shared/models/query-client'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
@@ -23,7 +23,7 @@ import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {useMutation, useQueryClient} from '@tanstack/react-query'
+import {useMutation} from '@tanstack/react-query'
 import {MemoryBlockstore} from 'blockstore-core/memory'
 import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
 import {SendHorizontal} from 'lucide-react'
@@ -33,7 +33,8 @@ import {ClientOnly} from './client-lazy'
 import {useCommentDraftPersistence} from './comment-draft-utils'
 import {EmailNotificationsForm} from './email-notifications'
 import {hasPromptedEmailNotifications, setHasPromptedEmailNotifications} from './local-db'
-import type {CommentPayload, CommentResponsePayload} from './routes/hm.api.comment'
+
+type PublishCommentInput = Awaited<ReturnType<typeof createComment>>
 
 export type WebCommentingProps = {
   docId: UnpackedHypermediaId
@@ -44,8 +45,7 @@ export type WebCommentingProps = {
   replyCommentId?: string | null
   rootReplyCommentVersion?: string | null
   quotingBlockId?: string
-  onSuccess?: (successData: {id: string; response: CommentResponsePayload; commentPayload: CommentPayload}) => void
-  commentingOriginUrl?: string
+  onSuccess?: (successData: {id: string; response: HMPublishBlobsOutput; commentPayload: PublishCommentInput}) => void
   autoFocus?: boolean
 }
 
@@ -58,12 +58,10 @@ export default function WebCommenting({
   replyCommentId: replyCommentIdProp,
   quotingBlockId,
   onSuccess,
-  commentingOriginUrl,
   autoFocus,
 }: WebCommentingProps) {
-  const openUrl = useOpenUrlWeb()
-  const queryClient = useQueryClient()
   const tx = useTxString()
+  const {getSigner, publish} = useUniversalClient()
 
   // Resolve reply parent from commentId when explicit version props aren't provided
   const commentsService = useCommentsService({targetId: docId})
@@ -111,38 +109,25 @@ export default function WebCommenting({
   }, [])
 
   const postComment = useMutation({
-    mutationFn: async (commentPayload: {comment: Uint8Array; blobs: {cid: string; data: Uint8Array}[]}) => {
-      const result = await postCBOR('/hm/api/comment', cborEncode(commentPayload))
-      return result as CommentResponsePayload
+    mutationFn: async (commentPayload: PublishCommentInput) => {
+      const response = await publish(commentPayload)
+      const commentId = response.cids[0]
+      if (!commentId) throw new Error('Failed to publish comment blob')
+      return {response, commentId, commentPayload}
     },
-    onSuccess: (result, commentPayload) => {
+    onSuccess: ({response, commentId, commentPayload}) => {
       onSuccess?.({
-        response: result,
+        response,
         commentPayload: commentPayload,
-        id: result.commentId,
+        id: commentId,
       })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_ACTIVITY], // all docs
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_DISCUSSION], // all docs
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_COMMENTS], // all docs
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY], // all docs
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOC_CITATIONS], // all docs
-      })
-
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.BLOCK_DISCUSSIONS], // all docs
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.ACTIVITY_FEED], // all Feed
-      })
+      invalidateQueries([queryKeys.DOCUMENT_ACTIVITY])
+      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
+      invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
+      invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY])
+      invalidateQueries([queryKeys.DOC_CITATIONS])
+      invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
+      invalidateQueries([queryKeys.ACTIVITY_FEED])
     },
   })
 
@@ -216,17 +201,19 @@ export default function WebCommenting({
 
       try {
         setIsSubmitting(true)
-        const commentPayload = await prepareComment(
-          getContent,
+        if (!getSigner) throw new Error('getSigner not available')
+        const signer = getSigner(userKeyPair.id)
+        const commentPayload = await createComment(
           {
+            getContent,
             docId,
             docVersion,
-            keyPair: userKeyPair,
             replyCommentVersion,
             rootReplyCommentVersion,
             quotingBlockId,
+            prepareAttachments,
           },
-          commentingOriginUrl,
+          signer,
         )
         await postComment.mutateAsync(commentPayload)
         console.log('✅ Comment posted successfully, calling promptEmailNotifications')
@@ -255,7 +242,6 @@ export default function WebCommenting({
       replyCommentVersion,
       rootReplyCommentVersion,
       quotingBlockId,
-      commentingOriginUrl,
       createAccount,
       postComment,
       removeDraft,
@@ -386,75 +372,6 @@ async function prepareAttachments(binaries: Uint8Array[]) {
     })
   }
   return {blobs, resultCIDs}
-}
-
-function generateBlockId(length: number = 8): string {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-  let result = ''
-  for (let i = 0; i < length; i++) {
-    result += characters.charAt(Math.floor(Math.random() * characters.length))
-  }
-  return result
-}
-
-async function prepareComment(
-  getContent: (
-    prepareAttachments: (binaries: Uint8Array[]) => Promise<{
-      blobs: {cid: string; data: Uint8Array}[]
-      resultCIDs: string[]
-    }>,
-  ) => Promise<{
-    blockNodes: HMBlockNode[]
-    blobs: {cid: string; data: Uint8Array}[]
-  }>,
-  commentMeta: {
-    docId: UnpackedHypermediaId
-    docVersion: string
-    keyPair: LocalWebIdentity
-    replyCommentVersion: string | null | undefined
-    rootReplyCommentVersion: string | null | undefined
-    quotingBlockId?: string
-  },
-  commentingOriginUrl: string | undefined,
-): Promise<CommentPayload> {
-  const {blockNodes: rawBlockNodes, blobs} = await getContent(prepareAttachments)
-  const blockNodes = trimTrailingEmptyBlocks(rawBlockNodes)
-
-  // If quotingBlockId is provided, wrap content in an embed block like desktop version
-  // Include version to ensure we reference the specific version containing the block
-  const publishContent = commentMeta.quotingBlockId
-    ? [
-        {
-          block: {
-            id: generateBlockId(8),
-            type: 'Embed',
-            text: '',
-            attributes: {
-              childrenType: 'Group',
-              view: 'Content',
-            },
-            annotations: [],
-            link: packHmId({
-              ...commentMeta.docId,
-              blockRef: commentMeta.quotingBlockId,
-              version: commentMeta.docVersion,
-            }),
-          },
-          children: blockNodes,
-        } as HMBlockNode,
-      ]
-    : blockNodes
-
-  const signedComment = await createComment({
-    content: publishContent,
-    ...commentMeta,
-  })
-  const result: CommentPayload = {
-    comment: cborEncode(signedComment),
-    blobs,
-  }
-  if (commentingOriginUrl) result.commentingOriginUrl = commentingOriginUrl
-  return result
 }
 
 // UUID v4 with safe fallback for browsers without crypto.randomUUID (Safari < 15.4)

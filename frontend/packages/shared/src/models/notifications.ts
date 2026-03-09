@@ -1,7 +1,8 @@
 import {encode as cborEncode} from '@ipld/dag-cbor'
-import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
+import {useMutation, useQuery} from '@tanstack/react-query'
 import {base58btc} from 'multiformats/bases/base58'
 import {IS_DESKTOP} from '../constants'
+import {invalidateQueries} from './query-client'
 import {queryKeys} from './query-keys'
 
 const DESKTOP_NOTIFICATION_CONFIG_REFETCH_MS = 30_000
@@ -90,7 +91,6 @@ export function useSetNotificationConfig(
   notifyServiceHost: string | undefined,
   signer: NotificationSigner | undefined,
 ) {
-  const queryClient = useQueryClient()
   const accountId = accountIdFromSigner(signer)
   return useMutation({
     mutationFn: async (input: SetNotificationConfigInput) => {
@@ -103,9 +103,7 @@ export function useSetNotificationConfig(
       })
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.NOTIFICATION_CONFIG, notifyServiceHost, accountId],
-      })
+      invalidateQueries([queryKeys.NOTIFICATION_CONFIG, notifyServiceHost, accountId])
     },
   })
 }
@@ -114,7 +112,6 @@ export function useResendNotificationConfigVerification(
   notifyServiceHost: string | undefined,
   signer: NotificationSigner | undefined,
 ) {
-  const queryClient = useQueryClient()
   const accountId = accountIdFromSigner(signer)
   return useMutation({
     mutationFn: async () => {
@@ -126,9 +123,7 @@ export function useResendNotificationConfigVerification(
       })
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.NOTIFICATION_CONFIG, notifyServiceHost, accountId],
-      })
+      invalidateQueries([queryKeys.NOTIFICATION_CONFIG, notifyServiceHost, accountId])
     },
   })
 }
@@ -137,7 +132,6 @@ export function useRemoveNotificationConfig(
   notifyServiceHost: string | undefined,
   signer: NotificationSigner | undefined,
 ) {
-  const queryClient = useQueryClient()
   const accountId = accountIdFromSigner(signer)
   return useMutation({
     mutationFn: async () => {
@@ -149,9 +143,7 @@ export function useRemoveNotificationConfig(
       })
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.NOTIFICATION_CONFIG, notifyServiceHost, accountId],
-      })
+      invalidateQueries([queryKeys.NOTIFICATION_CONFIG, notifyServiceHost, accountId])
     },
   })
 }
@@ -181,7 +173,6 @@ export function useMergeNotificationReadState(
   notifyServiceHost: string | undefined,
   signer: NotificationSigner | undefined,
 ) {
-  const queryClient = useQueryClient()
   const accountId = accountIdFromSigner(signer)
   return useMutation({
     mutationFn: async (input: MergeNotificationReadStateInput) => {
@@ -195,9 +186,7 @@ export function useMergeNotificationReadState(
       })
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.NOTIFICATION_READ_STATE, notifyServiceHost, accountId],
-      })
+      invalidateQueries([queryKeys.NOTIFICATION_READ_STATE, notifyServiceHost, accountId])
     },
   })
 }

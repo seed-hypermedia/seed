@@ -167,7 +167,7 @@ export function useRegisterKey(
         .subscribe({
           account: registration.publicKey,
           recursive: true,
-          path: '/',
+          path: '',
         })
         .catch((e) => {
           console.error('Failed to subscribe to new account!', e)

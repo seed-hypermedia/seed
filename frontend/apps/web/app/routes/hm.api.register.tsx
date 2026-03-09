@@ -12,17 +12,6 @@ const registerSchema = z.object({
   addrs: z.array(z.string()),
 })
 
-async function waitFor(check: () => Promise<void>, timeBetweenChecks = 1000) {
-  while (true) {
-    try {
-      await check()
-      return
-    } catch (e) {
-      await new Promise((resolve) => setTimeout(resolve, timeBetweenChecks))
-    }
-  }
-}
-
 export const action: ActionFunction = async ({request}) => {
   const {url, hostname} = parseRequest(request)
   try {

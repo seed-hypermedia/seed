@@ -65,9 +65,7 @@ type DocumentsClient interface {
 	// Prepares relevant blobs for clients to sign and re-submit to the server.
 	// In ideal world it shouldn't exist. Trust is assumed between client and the server.
 	// It exists to avoid making clients aware of all the document CRDT complexities.
-	//
-	// This RPC ignores the signing_key_name field, because the blobs are expected to be signed by the client, not the server.
-	PrepareChange(ctx context.Context, in *CreateDocumentChangeRequest, opts ...grpc.CallOption) (*PrepareChangeResponse, error)
+	PrepareChange(ctx context.Context, in *PrepareChangeRequest, opts ...grpc.CallOption) (*PrepareChangeResponse, error)
 	// Deprecated: Do not use.
 	// Deletes a document.
 	//
@@ -161,7 +159,7 @@ func (c *documentsClient) CreateDocumentChange(ctx context.Context, in *CreateDo
 	return out, nil
 }
 
-func (c *documentsClient) PrepareChange(ctx context.Context, in *CreateDocumentChangeRequest, opts ...grpc.CallOption) (*PrepareChangeResponse, error) {
+func (c *documentsClient) PrepareChange(ctx context.Context, in *PrepareChangeRequest, opts ...grpc.CallOption) (*PrepareChangeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PrepareChangeResponse)
 	err := c.cc.Invoke(ctx, Documents_PrepareChange_FullMethodName, in, out, cOpts...)
@@ -381,9 +379,7 @@ type DocumentsServer interface {
 	// Prepares relevant blobs for clients to sign and re-submit to the server.
 	// In ideal world it shouldn't exist. Trust is assumed between client and the server.
 	// It exists to avoid making clients aware of all the document CRDT complexities.
-	//
-	// This RPC ignores the signing_key_name field, because the blobs are expected to be signed by the client, not the server.
-	PrepareChange(context.Context, *CreateDocumentChangeRequest) (*PrepareChangeResponse, error)
+	PrepareChange(context.Context, *PrepareChangeRequest) (*PrepareChangeResponse, error)
 	// Deprecated: Do not use.
 	// Deletes a document.
 	//
@@ -448,7 +444,7 @@ func (UnimplementedDocumentsServer) BatchGetDocumentInfo(context.Context, *Batch
 func (UnimplementedDocumentsServer) CreateDocumentChange(context.Context, *CreateDocumentChangeRequest) (*Document, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateDocumentChange not implemented")
 }
-func (UnimplementedDocumentsServer) PrepareChange(context.Context, *CreateDocumentChangeRequest) (*PrepareChangeResponse, error) {
+func (UnimplementedDocumentsServer) PrepareChange(context.Context, *PrepareChangeRequest) (*PrepareChangeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PrepareChange not implemented")
 }
 func (UnimplementedDocumentsServer) DeleteDocument(context.Context, *DeleteDocumentRequest) (*emptypb.Empty, error) {
@@ -601,7 +597,7 @@ func _Documents_CreateDocumentChange_Handler(srv interface{}, ctx context.Contex
 }
 
 func _Documents_PrepareChange_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateDocumentChangeRequest)
+	in := new(PrepareChangeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -613,7 +609,7 @@ func _Documents_PrepareChange_Handler(srv interface{}, ctx context.Context, dec 
 		FullMethod: Documents_PrepareChange_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DocumentsServer).PrepareChange(ctx, req.(*CreateDocumentChangeRequest))
+		return srv.(DocumentsServer).PrepareChange(ctx, req.(*PrepareChangeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

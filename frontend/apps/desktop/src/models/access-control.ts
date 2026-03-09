@@ -1,64 +1,24 @@
 import {grpcClient} from '@/grpc-client'
-import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
+import {useSelectedAccountId} from '@/selected-account'
 import {Role} from '@shm/shared/client/.generated/documents/v3alpha/access_control_pb'
 import {BIG_INT} from '@shm/shared/constants'
 import {HMCapability, HMResourceFetchResult, HMRole, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {roleCanWrite} from '@shm/shared/models/capabilities'
 import {useCapabilities, useResources} from '@shm/shared/models/entity'
-import {invalidateQueries} from '@shm/shared/models/query-client'
-import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId, isPathParentOfOrEqual} from '@shm/shared/utils/entity-id-url'
-import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
-import {toast} from '@shm/ui/toast'
-import {useMutation, useQueries} from '@tanstack/react-query'
+import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
+import {useQueries} from '@tanstack/react-query'
 import {useMyAccountIds} from './daemon'
 
-export function useAddCapabilities(id: UnpackedHypermediaId) {
-  return useMutation({
-    mutationFn: async ({
-      myCapability,
-      collaboratorAccountIds,
-      role,
-    }: {
-      myCapability: HMCapability
-      collaboratorAccountIds: string[]
-      role: Role
-    }) => {
-      await Promise.all(
-        collaboratorAccountIds.map(
-          async (collaboratorAccountId) =>
-            await grpcClient.accessControl.createCapability({
-              account: id.uid,
-              delegate: collaboratorAccountId,
-              role,
-              path: hmIdPathToEntityQueryPath(id.path),
-              signingKeyName: myCapability.accountUid,
-              // noRecursive, // ?
-            }),
-        ),
-      )
-    },
-    onSuccess: (data, {collaboratorAccountIds: count}) => {
-      toast.success(`Capabilit${count?.length > 1 ? 'ies' : 'y'} added`)
-      invalidateQueries([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
-    },
-  })
-}
+// Re-export shared capabilities hooks for backward compatibility
+export {roleCanWrite, useAddCapabilities, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
 
 export function getRoleCapabilityType(role: Role): HMRole | null {
   if (role === Role.WRITER) return 'writer'
   return null
 }
 
-const CapabilityInheritance: Readonly<HMRole[]> =
-  // used to determine when one capability can be used in place of another. all owners are writers, for example
-  ['owner', 'writer', 'none']
-
-export function roleCanWrite(role?: HMRole | null | undefined) {
-  if (!role) return false
-  const writeCapIndex = CapabilityInheritance.indexOf('writer')
-  const roleIndex = CapabilityInheritance.indexOf(role)
-  return roleIndex <= writeCapIndex
-}
+const CapabilityInheritance: Readonly<HMRole[]> = ['owner', 'writer', 'none']
 
 function isGreaterOrEqualRole(referenceRole: HMRole, role: HMRole) {
   const referenceRoleIndex = CapabilityInheritance.indexOf(referenceRole)
@@ -76,7 +36,7 @@ function roleToHMRole(role: Role): HMRole {
 function useAccountsCapabilities(accountIds: string[]) {
   const capabilities = useQueries({
     queries: accountIds.map((accountId) => ({
-      queryKey: [queryKeys.ACCOUNT_CAPABILITIES, accountId],
+      queryKey: ['ACCOUNT_CAPABILITIES', accountId],
       queryFn: async () => {
         const result = await grpcClient.accessControl.listCapabilitiesForDelegate({
           delegate: accountId,
@@ -118,9 +78,7 @@ export function useSelectedAccountWritableDocuments(): HMWritableDocument[] {
   const accountsCaps = useAccountsCapabilities(selectedAccountId ? [selectedAccountId] : [])
   const writableDocumentIds: UnpackedHypermediaId[] = []
   function addWritableId(id: UnpackedHypermediaId) {
-    // if writableDocumentIds already has this id, don't add it
     if (writableDocumentIds.find((doc) => doc.id === id.id)) return
-    // add the parent
     writableDocumentIds.push(id)
   }
   accountsCaps?.forEach((q) => {
@@ -171,43 +129,11 @@ export function useMyAccountsCapabilities() {
   })
 }
 
-export function useSelectedAccountCapability(
-  id?: UnpackedHypermediaId,
-  minimumRole: HMRole = 'writer',
-): HMCapability | null {
-  const selectedAccount = useSelectedAccount()
-  const capabilities = useCapabilities(id)
-  if (!id) return null
-  if (selectedAccount?.id.uid === id.uid) {
-    // owner is the highest role so we don't need to check for minimumRole
-    return {
-      id: '_owner',
-      accountUid: id.uid,
-      role: 'owner',
-      grantId: hmId(id.uid),
-      createTime: EMPTY_TIMESTAMP,
-    } satisfies HMCapability
-  }
-  const myCapability = [...(capabilities.data || [])]
-    ?.sort(
-      // sort by capability id for deterministic capability selection
-      (a, b) => a.grantId.id.localeCompare(b.grantId.id),
-    )
-    .filter((cap) => {
-      return isGreaterOrEqualRole(minimumRole, cap.role)
-    })
-    .find((cap) => {
-      return selectedAccount?.id.uid === cap.accountUid
-    })
-  return myCapability || null
-}
-
 export function useMyCapability(id?: UnpackedHypermediaId, minimumRole: HMRole = 'writer'): HMCapability | null {
   if (!id) return null
   const myAccounts = useMyAccountIds()
   const capabilities = useCapabilities(id)
   if (myAccounts.data?.indexOf(id.uid) !== -1) {
-    // owner is the highest role so we don't need to check for minimumRole
     return {
       id: '_owner',
       accountUid: id.uid,
@@ -217,51 +143,10 @@ export function useMyCapability(id?: UnpackedHypermediaId, minimumRole: HMRole =
     } satisfies HMCapability
   }
   const myCapability = [...(capabilities.data || [])]
-    ?.sort(
-      // sort by capability id for deterministic capability selection
-      (a, b) => a.grantId.id.localeCompare(b.grantId.id),
-    )
-    .filter((cap) => {
-      return isGreaterOrEqualRole(minimumRole, cap.role)
-    })
-    .find((cap) => {
-      return !!myAccounts.data?.find((myAccountUid) => myAccountUid === cap.accountUid)
-    })
+    ?.sort((a, b) => a.grantId.id.localeCompare(b.grantId.id))
+    .filter((cap) => isGreaterOrEqualRole(minimumRole, cap.role))
+    .find((cap) => !!myAccounts.data?.find((myAccountUid) => myAccountUid === cap.accountUid))
   return myCapability || null
-}
-
-export function useSelectedAccountCapabilities(
-  id?: UnpackedHypermediaId,
-  minimumRole: HMRole = 'writer',
-): HMCapability[] {
-  if (!id) return []
-  const capabilities = useCapabilities(id)
-  const selectedAccount = useSelectedAccount()
-
-  const ownerCap: HMCapability[] =
-    selectedAccount?.id.uid && selectedAccount.id.uid === id.uid
-      ? [
-          {
-            id: '_owner',
-            accountUid: id.uid,
-            role: 'owner',
-            grantId: hmId(id.uid),
-            createTime: EMPTY_TIMESTAMP,
-          } satisfies HMCapability,
-        ]
-      : []
-  const myCapabilities: HMCapability[] = [...(capabilities.data || [])]
-    ?.sort(
-      // sort by capability id for deterministic capability selection
-      (a, b) => a.grantId.id.localeCompare(b.grantId.id),
-    )
-    .filter((cap) => {
-      return isGreaterOrEqualRole(minimumRole, cap.role)
-    })
-    .filter((cap) => {
-      return selectedAccount?.id.uid === cap.accountUid
-    })
-  return [...ownerCap, ...myCapabilities]
 }
 
 export function useMyAccountsWithWriteAccess(id: UnpackedHypermediaId | undefined | null) {

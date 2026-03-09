@@ -1,18 +1,31 @@
-import type {DiscoveryState, HMListedDraft, HMRequest, UnpackedHypermediaId} from './hm-types'
+import type {
+  DiscoveryState,
+  HMListedDraft,
+  HMPrepareDocumentChangeInput,
+  HMRequest,
+  HMSigner,
+  UnpackedHypermediaId,
+} from './hm-types'
 import type {RecentsResult} from './models/recents'
 import type {StateStream} from './utils/stream'
+
+export type PublishDocumentInput = {
+  account: string
+  signerAccountUid: string
+  changes: HMPrepareDocumentChangeInput['changes']
+  path?: string
+  baseVersion?: string
+  genesis?: string
+  generation?: number | bigint
+  capability?: string
+  visibility?: number
+}
 
 export type {RecentsResult}
 
 // Drafts service for querying drafts (desktop only)
 export type DraftsService = {
   listAccountDrafts: (accountUid: string | undefined) => Promise<HMListedDraft[]>
-}
-
-export type DeleteCommentInput = {
-  commentId: string
-  targetDocId: UnpackedHypermediaId
-  signingAccountId: string
 }
 
 // Discovery service for tracking entity discovery state
@@ -29,10 +42,13 @@ export type UniversalClient = {
 
   deleteRecent?: (id: string) => Promise<void>
 
-  // Delete a comment (desktop-only, requires signing key)
-  deleteComment?: (input: DeleteCommentInput) => Promise<void>
-
-  request<Request extends HMRequest>(key: Request['key'], input: Request['input']): Promise<Request['output']>
+  request<K extends HMRequest['key']>(
+    key: K,
+    input: Extract<HMRequest, {key: K}>['input'],
+  ): Promise<Extract<HMRequest, {key: K}>['output']>
+  publish: (
+    input: Extract<HMRequest, {key: 'PublishBlobs'}>['input'],
+  ) => Promise<Extract<HMRequest, {key: 'PublishBlobs'}>['output']>
 
   // Discovery subscription (desktop only - no-op on web)
   subscribeEntity?: (opts: {id: UnpackedHypermediaId; recursive?: boolean}) => () => void
@@ -42,4 +58,10 @@ export type UniversalClient = {
 
   // Drafts service (desktop only - undefined on web)
   drafts?: DraftsService
+
+  // Platform-specific signing
+  getSigner?: (accountUid: string) => HMSigner
+
+  // Combined prepare + sign + publish in one call
+  publishDocument?: (input: PublishDocumentInput) => Promise<void>
 }

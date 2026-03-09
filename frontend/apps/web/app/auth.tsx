@@ -1,11 +1,12 @@
 import {zodResolver} from '@hookform/resolvers/zod'
-import {encode as cborEncode} from '@ipld/dag-cbor'
 import {useNavigate} from '@remix-run/react'
+import {createSeedClient} from '@seed-hypermedia/client'
 import {hmId, hostnameStripProtocol, queryKeys, useUniversalAppContext} from '@shm/shared'
 import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
-import {HMDocument, HMDocumentOperation} from '@shm/shared/hm-types'
+import {HMDocument, HMPrepareDocumentChangeInput, HMSigner} from '@shm/shared/hm-types'
 import * as hmauth from '@shm/shared/hmauth'
 import {useAccount, useResource} from '@shm/shared/models/entity'
+import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
@@ -17,30 +18,33 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {useMutation, useQueryClient} from '@tanstack/react-query'
+import {useMutation} from '@tanstack/react-query'
 import {ChevronDown, LogOut, Monitor, Smartphone} from 'lucide-react'
-import {BlockView} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
-import {CID} from 'multiformats/cid'
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react'
 import {Control, FieldValues, Path, SubmitHandler, useController, useForm} from 'react-hook-form'
 import {z} from 'zod'
-import {
-  blockReference,
-  createDocumentGenesisChange,
-  createHomeDocumentChange,
-  createRef,
-  encodeBlock,
-  getChangesDepth,
-  postCBOR,
-  rawCodec,
-} from './api'
+import {encodeBlock, rawCodec} from './api'
 import {preparePublicKey} from './auth-utils'
 import {createDefaultAccountName} from './default-account-name'
 import {deleteLocalKeys, getStoredLocalKeys, setHasPromptedEmailNotifications, writeLocalKeys} from './local-db'
 import {queryAPI} from './models'
-import type {CreateAccountPayload} from './routes/hm.api.create-account'
-import type {UpdateDocumentPayload} from './routes/hm.api.document-update'
+
+const seedClient = createSeedClient('')
+
+function createSignerFromKeyPair(kp: CryptoKeyPair): HMSigner {
+  return {
+    getPublicKey: async () => preparePublicKey(kp.publicKey),
+    sign: async (data: Uint8Array) => {
+      const sig = await crypto.subtle.sign(
+        {...kp.privateKey.algorithm, hash: {name: 'SHA-256'}},
+        kp.privateKey,
+        new Uint8Array(data),
+      )
+      return new Uint8Array(sig)
+    },
+  }
+}
 
 let AccountWithImage: boolean = false
 
@@ -59,6 +63,12 @@ export const keyPairStore = {
   set: (kp: LocalWebIdentity | null) => {
     keyPair = kp
     keyPairHandlers.forEach((callback) => callback())
+  },
+  subscribe: (handler: () => void) => {
+    keyPairHandlers.add(handler)
+    return () => {
+      keyPairHandlers.delete(handler)
+    }
   },
 }
 
@@ -188,66 +198,26 @@ export async function createAccount({
   if (!keyPair) {
     throw new Error('Failed to initialize local key pair')
   }
-  const genesisChange = await createDocumentGenesisChange({
-    keyPair,
-  })
-  const genesisChangeBlock = await encodeBlock(genesisChange)
-  const iconBlock = icon ? await encodeBlock(await icon.arrayBuffer(), rawCodec) : null
-  const operations: HMDocumentOperation[] = [
-    {
-      type: 'SetAttributes',
-      attrs: [{key: ['name'], value: name}],
-    },
-  ]
-  if (iconBlock) {
-    operations.push({
-      type: 'SetAttributes',
-      attrs: [{key: ['icon'], value: iconBlock.cid.toString()}],
-    })
-  }
-  const changeHome = await createHomeDocumentChange({
-    keyPair,
-    genesisChangeCid: genesisChangeBlock.cid,
-    operations,
-    deps: [genesisChangeBlock.cid],
-    depth: 1,
-  })
-  const changeHomeBlock = await encodeBlock(changeHome)
-  const ref = await createRef({
-    keyPair,
-    genesisCid: genesisChangeBlock.cid,
-    head: changeHomeBlock.cid,
-    generation: 1,
-  })
-  const refBlock = await encodeBlock(ref)
+  const signer = createSignerFromKeyPair(keyPair)
+  const uid = base58btc.encode(await preparePublicKey(keyPair.publicKey))
 
-  const createAccountPayload: CreateAccountPayload = {
-    genesis: {
-      data: genesisChangeBlock.bytes,
-      cid: genesisChangeBlock.cid.toString(),
-    },
-    home: {
-      data: changeHomeBlock.bytes,
-      cid: changeHomeBlock.cid.toString(),
-    },
-    ref: refBlock.bytes,
-    icon: iconBlock
-      ? {
-          data: iconBlock.bytes,
-          cid: iconBlock.cid.toString(),
-        }
-      : null,
+  const changes: HMPrepareDocumentChangeInput['changes'] = [
+    {op: {case: 'setMetadata', value: {key: 'name', value: name}}},
+  ]
+
+  // Publish icon blob first if provided
+  if (icon) {
+    const iconBlock = await encodeBlock(await icon.arrayBuffer(), rawCodec)
+    await seedClient.publish({
+      blobs: [{data: iconBlock.bytes, cid: iconBlock.cid.toString()}],
+    })
+    changes.push({op: {case: 'setMetadata', value: {key: 'icon', value: iconBlock.cid.toString()}}})
   }
-  const createAccountData = cborEncode(createAccountPayload)
-  await postCBOR('/hm/api/create-account', createAccountData)
-  keyPairStore.set({
-    ...keyPair,
-    id: base58btc.encode(await preparePublicKey(keyPair.publicKey)),
-  })
-  return {
-    ...keyPair,
-    id: base58btc.encode(await preparePublicKey(keyPair.publicKey)),
-  }
+
+  await seedClient.publishDocument({account: uid, changes}, signer)
+
+  keyPairStore.set({...keyPair, id: uid})
+  return {...keyPair, id: uid}
 }
 
 /**
@@ -282,53 +252,28 @@ export async function updateProfile({
   document: HMDocument
   updates: SiteMetaFields
 }) {
-  const depsStrs = document.version.split('.')
-  const deps = depsStrs.map((cidStr) => CID.parse(cidStr))
-  const genesisStr = document.genesis
-  const genesisChangeCid = genesisStr ? CID.parse(genesisStr) : null
-  if (!genesisChangeCid) {
-    throw new Error('No genesis found on document')
-  }
-  const lastDepth = await getChangesDepth(depsStrs)
-  const operations: HMDocumentOperation[] = []
+  const signer = createSignerFromKeyPair(keyPair)
+  const changes: HMPrepareDocumentChangeInput['changes'] = []
   if (updates.name && updates.name !== document.metadata.name) {
-    operations.push({
-      type: 'SetAttributes',
-      attrs: [{key: ['name'], value: updates.name}],
-    })
+    changes.push({op: {case: 'setMetadata', value: {key: 'name', value: updates.name}}})
   }
-  let iconBlock: BlockView<unknown, number, 18, 1> | null = null
   if (updates.icon && typeof updates.icon !== 'string') {
-    // we are uploading a new icon
-    iconBlock = await encodeBlock(await updates.icon.arrayBuffer(), rawCodec)
-    operations.push({
-      type: 'SetAttributes',
-      attrs: [{key: ['icon'], value: iconBlock.cid.toString()}],
+    const iconBlock = await encodeBlock(await updates.icon.arrayBuffer(), rawCodec)
+    await seedClient.publish({
+      blobs: [{data: iconBlock.bytes, cid: iconBlock.cid.toString()}],
     })
+    changes.push({op: {case: 'setMetadata', value: {key: 'icon', value: iconBlock.cid.toString()}}})
   }
-  const changePayload = await createHomeDocumentChange({
-    keyPair,
-    operations,
-    genesisChangeCid,
-    deps,
-    depth: lastDepth + 1,
-  })
-  const changeBlock = await encodeBlock(changePayload)
-  const refPayload = await createRef({
-    keyPair,
-    space: base58btc.decode(document.account),
-    genesisCid: genesisChangeCid,
-    head: changeBlock.cid,
-    generation: lastDepth + 1,
-  })
-  const refBlock = await encodeBlock(refPayload)
-  const updatePayload: UpdateDocumentPayload = {
-    icon: iconBlock ? blockReference(iconBlock) : null,
-    change: blockReference(changeBlock),
-    ref: blockReference(refBlock),
-  }
-  const updateData = cborEncode(updatePayload)
-  await postCBOR('/hm/api/document-update', updateData)
+  await seedClient.publishDocument(
+    {
+      account: document.account,
+      changes,
+      baseVersion: document.version,
+      genesis: document.genesis,
+      generation: document.generationInfo?.generation,
+    },
+    signer,
+  )
 }
 
 export function useCreateAccount(options?: {onClose?: () => void}) {
@@ -723,7 +668,6 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
   const account = useAccount(input.accountUid)
   const accountDocument = useResource(account.data?.id)
   const document = accountDocument?.data?.type === 'document' ? accountDocument.data.document : undefined
-  const queryClient = useQueryClient()
   const update = useMutation({
     mutationFn: (updates: SiteMetaFields) => {
       if (!keyPair) {
@@ -740,21 +684,11 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
     },
     onSuccess: () => {
       // invalidate the activity and discussion for all documents because they may be affected by the profile change
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_ACTIVITY],
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_DISCUSSION],
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.ENTITY, id.id],
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.RESOLVED_ENTITY, id.id],
-      })
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.ACCOUNT],
-      })
+      invalidateQueries([queryKeys.DOCUMENT_ACTIVITY])
+      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
+      invalidateQueries([queryKeys.ENTITY, id.id])
+      invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+      invalidateQueries([queryKeys.ACCOUNT])
     },
   })
   return (

@@ -1,26 +1,25 @@
-import {grpcClient} from '@/grpc-client'
 import {useCommentDraft} from '@/models/comments'
-import {usePushResource} from '@/models/documents'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {handleDragMedia} from '@/utils/media-drag'
 import {useNavigate} from '@/utils/useNavigate'
-import {toPlainMessage} from '@bufbuild/protobuf'
+import {createComment} from '@seed-hypermedia/client'
 import {CommentEditor} from '@shm/editor/comment-editor'
-import {commentIdToHmId, packHmId, queryClient, queryKeys, trimTrailingEmptyBlocks} from '@shm/shared'
-import {Block, BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {queryClient, queryKeys} from '@shm/shared'
+import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {useCommentsService} from '@shm/shared/comments-service-provider'
 import {HMBlockNode, HMCommentGroup, HMListDiscussionsOutput, UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useContacts, useResource} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
+import {useContacts} from '@shm/shared/models/contacts'
 import {invalidateQueries} from '@shm/shared/models/query-client'
-import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {useUniversalClient} from '@shm/shared/routing'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useMutation} from '@tanstack/react-query'
 import {SendHorizonal} from 'lucide-react'
-import {nanoid} from 'nanoid'
-import {memo, useCallback, useEffect, useRef, useState} from 'react'
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 
 export function useCommentGroupAuthors(commentGroups: HMCommentGroup[]): HMListDiscussionsOutput['authors'] {
   const commentGroupAuthors = new Set<string>()
@@ -54,9 +53,21 @@ function _CommentBox(props: {
   const account = useSelectedAccount()
   const selectedAccountId = useSelectedAccountId()
   const targetEntity = useResource(docId)
-  const pushResource = usePushResource()
+  const {getSigner, publish} = useUniversalClient()
   const route = useNavRoute()
   const navigate = useNavigate('replace')
+
+  // Resolve reply parent: commentId is an ID like "author/path", but publishing uses CID versions
+  const commentsService = useCommentsService({targetId: docId})
+  const resolvedReply = useMemo(() => {
+    if (!commentId) return null
+    const comment = commentsService.data?.comments?.find((c) => c.id === commentId)
+    if (!comment) return null
+    return {
+      replyCommentVersion: comment.version,
+      rootReplyCommentVersion: comment.threadRootVersion || comment.version,
+    }
+  }, [commentId, commentsService.data?.comments])
 
   const draft = useCommentDraft(
     quotingBlockId ? {...docId, blockRef: quotingBlockId} : docId,
@@ -127,76 +138,65 @@ function _CommentBox(props: {
 
   // Publish comment mutation
   const publishComment = useMutation({
-    mutationFn: async ({content, signingKeyName}: {content: BlockNode[]; signingKeyName: string}) => {
-      // When quoting a block, include the version to ensure we reference
-      // the specific version containing the block
+    mutationFn: async ({
+      getContent,
+      signingKeyName,
+    }: {
+      getContent: (
+        prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+          blobs: {cid: string; data: Uint8Array}[]
+          resultCIDs: string[]
+        }>,
+      ) => Promise<{
+        blockNodes: HMBlockNode[]
+        blobs: {cid: string; data: Uint8Array}[]
+      }>
+      signingKeyName: string
+    }) => {
+      if (!getSigner) throw new Error('getSigner not available')
       const targetDoc = targetEntity.data?.type === 'document' ? targetEntity.data.document : undefined
       const targetVersion = targetDoc?.version
-      const publishContent = quotingBlockId
-        ? [
-            new BlockNode({
-              block: Block.fromJson({
-                id: nanoid(8),
-                type: 'Embed',
-                text: '',
-                attributes: {
-                  childrenType: 'Group',
-                  view: 'Content',
-                },
-                annotations: [],
-                link: packHmId({
-                  ...docId,
-                  blockRef: quotingBlockId,
-                  version: targetVersion || docId.version,
-                }),
-              }),
-              children: content,
-            }),
-          ]
-        : content
 
-      const resultComment = await grpcClient.comments.createComment({
-        content: publishContent,
-        replyParent: commentId || undefined,
-        targetAccount: docId.uid,
-        targetPath: hmIdPathToEntityQueryPath(docId.path),
-        signingKeyName,
-        // @ts-expect-error
-        targetVersion: targetEntity.data?.document?.version!,
-      })
+      const signer = getSigner(signingKeyName)
+      const response = await publish(
+        await createComment(
+          {
+            getContent,
+            docId,
+            docVersion: targetVersion || docId.version || '',
+            replyCommentVersion: resolvedReply?.replyCommentVersion,
+            rootReplyCommentVersion: resolvedReply?.rootReplyCommentVersion,
+            quotingBlockId,
+            visibility: targetDoc?.visibility === 'PRIVATE' ? 'Private' : '',
+          },
+          signer,
+        ),
+      )
+      if (!response.cids[0]) throw new Error('Failed to publish comment blob')
 
       writeRecentSigner.mutateAsync(signingKeyName).then(() => {
         invalidateQueries([queryKeys.RECENT_SIGNERS])
       })
-
-      if (!resultComment) throw new Error('no resultComment')
-      return toPlainMessage(resultComment)
     },
-    onSuccess: (newComment) => {
+    onSuccess: () => {
       setIsSubmitting(false)
       isDeletingDraft.current = true
       clearTimeout(saveTimeoutRef.current)
 
       removeDraft.mutate()
 
-      // Invalidate queries
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION, docId.uid, ...(docId.path || [])])
       invalidateQueries([queryKeys.LIBRARY])
       invalidateQueries([queryKeys.SITE_LIBRARY, docId.uid])
       invalidateQueries([queryKeys.LIST_ACCOUNTS])
       invalidateQueries([queryKeys.DOC_CITATIONS])
 
-      // Invalidate additional queries
-      queryClient.invalidateQueries({queryKey: [queryKeys.DOCUMENT_ACTIVITY]})
-      queryClient.invalidateQueries({queryKey: [queryKeys.DOCUMENT_DISCUSSION]})
-      queryClient.invalidateQueries({queryKey: [queryKeys.DOCUMENT_COMMENTS]})
-      queryClient.invalidateQueries({
-        queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY],
-      })
-      queryClient.invalidateQueries({queryKey: [queryKeys.BLOCK_DISCUSSIONS]})
-      queryClient.invalidateQueries({queryKey: [queryKeys.ACTIVITY_FEED]})
-
-      pushResource(commentIdToHmId(newComment.id))
+      invalidateQueries([queryKeys.DOCUMENT_ACTIVITY])
+      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
+      invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
+      invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY])
+      invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
+      invalidateQueries([queryKeys.ACTIVITY_FEED])
     },
     onError: (err: {message: string}) => {
       setIsSubmitting(false)
@@ -262,21 +262,8 @@ function _CommentBox(props: {
       setIsSubmitting(true)
 
       try {
-        // For desktop, we handle file uploads differently - files are already uploaded
-        // So we just need to get the content without re-uploading
-        const {blockNodes: rawBlockNodes} = await getContent(async (binaries) => {
-          // Desktop handles media uploads inline via handleDragMedia
-          // which already returns URLs, so no additional upload needed
-          return {blobs: [], resultCIDs: []}
-        })
-        const blockNodes = trimTrailingEmptyBlocks(rawBlockNodes)
-
-        // Convert to BlockNode for gRPC - must use fromJson to properly handle
-        // google.protobuf.Struct fields (like attributes.childrenType)
-        const content = blockNodes.map((b) => BlockNode.fromJson(b as any))
-
         await publishComment.mutateAsync({
-          content,
+          getContent,
           signingKeyName: account.id.uid,
         })
 

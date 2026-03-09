@@ -13,9 +13,6 @@ export interface DiscussionsPageContentProps {
   isReplying?: boolean
   commentEditor?: ReactNode
   targetDomain?: string
-  currentAccountId?: string
-  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
-  deleteCommentDialogContent?: ReactNode
   /** Called when user wants to go back to all discussions */
   onBackToAll?: () => void
   /** Whether to show the "Open in Panel" button. Defaults to true. */
@@ -38,9 +35,6 @@ export function DiscussionsPageContent({
   blockRange,
   commentEditor,
   targetDomain,
-  currentAccountId,
-  onCommentDelete,
-  deleteCommentDialogContent,
   showOpenInPanel: _showOpenInPanel = true,
   showTitle = true,
   contentMaxWidth,
@@ -53,15 +47,7 @@ export function DiscussionsPageContent({
       ...docId,
       blockRef: targetBlockId,
     })
-    content = (
-      <BlockDiscussions
-        targetId={targetId}
-        commentEditor={commentEditor}
-        targetDomain={targetDomain}
-        currentAccountId={currentAccountId}
-        onCommentDelete={onCommentDelete}
-      />
-    )
+    content = <BlockDiscussions targetId={targetId} commentEditor={commentEditor} targetDomain={targetDomain} />
   } else if (openComment) {
     content = (
       <CommentDiscussions
@@ -69,8 +55,6 @@ export function DiscussionsPageContent({
         commentEditor={commentEditor}
         targetId={docId}
         targetDomain={targetDomain}
-        currentAccountId={currentAccountId}
-        onCommentDelete={onCommentDelete}
         isEntirelyHighlighted={!blockId}
         selection={blockId ? {blockId, blockRange: blockRange || undefined} : undefined}
       />
@@ -79,12 +63,7 @@ export function DiscussionsPageContent({
     content = (
       <>
         {commentEditor}
-        <Discussions
-          targetId={docId}
-          targetDomain={targetDomain}
-          currentAccountId={currentAccountId}
-          onCommentDelete={onCommentDelete}
-        />
+        <Discussions targetId={docId} targetDomain={targetDomain} />
       </>
     )
   }
@@ -92,7 +71,6 @@ export function DiscussionsPageContent({
   return (
     <div className="p-4">
       <PageLayout title={showTitle ? 'Discussions' : undefined} contentMaxWidth={contentMaxWidth}>
-        {deleteCommentDialogContent}
         {content}
       </PageLayout>
     </div>

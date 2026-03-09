@@ -3,7 +3,10 @@ export * from './client'
 export * from './interaction-summary'
 export * from './comments'
 export * from './content'
-export * from './create-web-universal-client'
+// create-web-universal-client is not barrel-exported because it imports from
+// @seed-hypermedia/client, which causes Vite pre-bundle cache conflicts when
+// desktop and web dev servers run simultaneously. Import it directly instead:
+// import {createWebUniversalClient} from '@shm/shared/create-web-universal-client'
 export * from './document-to-text'
 export * from './editor-types'
 export * from './grpc-client'
@@ -30,4 +33,5 @@ export * from './use-hover'
 export * from './use-lowlight'
 export * from './use-activity-feed'
 export * from './utils'
+export * from './models/contacts'
 export * from './models/entity'

@@ -1,4 +1,5 @@
-import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {useMutation, useQuery} from '@tanstack/react-query'
 import {get, post} from './api'
 import type {EmailNotifTokenLoaderResponse} from './routes/hm.api.email-notif-token'
 import type {EmailNotifTokenAction} from './routes/hm.api.email-notif-token'
@@ -17,7 +18,6 @@ export function useEmailNotificationsWithToken(token: string | null) {
 }
 
 export function useSetEmailUnsubscribed(token: string | null) {
-  const queryClient = useQueryClient()
   return useMutation({
     mutationKey: ['set-subscription', token],
     mutationFn: async (isUnsubscribed: boolean) => {
@@ -27,15 +27,12 @@ export function useSetEmailUnsubscribed(token: string | null) {
       } satisfies EmailNotifTokenAction)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['email-notifications-with-token', token],
-      })
+      invalidateQueries(['email-notifications-with-token', token])
     },
   })
 }
 
 export function useSetAccountOptions(token: string | null) {
-  const queryClient = useQueryClient()
   return useMutation({
     mutationKey: ['set-account-options', token],
     mutationFn: async (input: {accountId: string; notifyOwnedDocChange?: boolean; notifySiteDiscussions?: boolean}) => {
@@ -45,15 +42,12 @@ export function useSetAccountOptions(token: string | null) {
       } satisfies EmailNotifTokenAction)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['email-notifications-with-token', token],
-      })
+      invalidateQueries(['email-notifications-with-token', token])
     },
   })
 }
 
 export function useUnsubscribeMyNotification(token: string | null) {
-  const queryClient = useQueryClient()
   return useMutation({
     mutationKey: ['unsubscribe-my-notification', token],
     mutationFn: async (accountId: string) => {
@@ -63,9 +57,7 @@ export function useUnsubscribeMyNotification(token: string | null) {
       } satisfies EmailNotifTokenAction)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['email-notifications-with-token', token],
-      })
+      invalidateQueries(['email-notifications-with-token', token])
     },
   })
 }

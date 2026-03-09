@@ -429,6 +429,93 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
 }
 
 /**
+ * Request to prepare an unsigned document change for client-side signing.
+ *
+ * @generated from message com.seed.documents.v3alpha.PrepareChangeRequest
+ */
+export class PrepareChangeRequest extends Message<PrepareChangeRequest> {
+  /**
+   * Required. The ID of the account where the document is located.
+   *
+   * @generated from field: string account = 1;
+   */
+  account = "";
+
+  /**
+   * Required. Path of the document to create change for.
+   * If document doesn't exist it will be created.
+   * Empty string means root document.
+   *
+   * @generated from field: string path = 2;
+   */
+  path = "";
+
+  /**
+   * Required. Version of the document to apply changes to.
+   * Can be empty when creating a new document.
+   *
+   * @generated from field: string base_version = 3;
+   */
+  baseVersion = "";
+
+  /**
+   * Required. Changes to be applied to the document.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.DocumentChange changes = 4;
+   */
+  changes: DocumentChange[] = [];
+
+  /**
+   * Optional. ID of the capability that allows the signing key to write on behalf of the account
+   * for this particular path.
+   *
+   * @generated from field: string capability = 5;
+   */
+  capability = "";
+
+  /**
+   * Optional. Visibility of the document.
+   * Can only be specified here when creating the document for the first time,
+   * i.e. when `base_version` is empty.
+   *
+   * @generated from field: com.seed.documents.v3alpha.ResourceVisibility visibility = 6;
+   */
+  visibility = ResourceVisibility.UNSPECIFIED;
+
+  constructor(data?: PartialMessage<PrepareChangeRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.PrepareChangeRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "base_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "changes", kind: "message", T: DocumentChange, repeated: true },
+    { no: 5, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "visibility", kind: "enum", T: proto3.getEnumType(ResourceVisibility) },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PrepareChangeRequest {
+    return new PrepareChangeRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PrepareChangeRequest {
+    return new PrepareChangeRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PrepareChangeRequest {
+    return new PrepareChangeRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PrepareChangeRequest | PlainMessage<PrepareChangeRequest> | undefined, b: PrepareChangeRequest | PlainMessage<PrepareChangeRequest> | undefined): boolean {
+    return proto3.util.equals(PrepareChangeRequest, a, b);
+  }
+}
+
+/**
  * Response with prepared change data for client-side signing.
  *
  * @generated from message com.seed.documents.v3alpha.PrepareChangeResponse

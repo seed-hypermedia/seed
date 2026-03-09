@@ -1,16 +1,25 @@
 import {Struct} from '@bufbuild/protobuf'
+import {createChange, createVersionRef} from '@seed-hypermedia/client'
 import {DocumentChange} from '../client'
 import {prepareHMDocument} from '../document-utils'
 import {GRPCClient} from '../grpc-client'
-import {HMBlockNode, HMDocumentSchema} from '../hm-types'
+import {HMBlockNode, HMDocumentSchema, HMSigner} from '../hm-types'
 import {BlocksMap, createBlocksMap, getDocAttributeChanges} from './document-changes'
+
+function normalizeBytes(data: Uint8Array): Uint8Array<ArrayBuffer> {
+  const normalized = new Uint8Array(data.byteLength)
+  normalized.set(data)
+  return normalized
+}
 
 export async function cloneSiteFromTemplate({
   client,
+  signer,
   targetId,
   templateId,
 }: {
   client: GRPCClient
+  signer: HMSigner
   targetId: string
   templateId: string
 }) {
@@ -62,15 +71,17 @@ export async function cloneSiteFromTemplate({
     console.log(`[Clone] Blocks map created with ${Object.keys(blocksMap).length} blocks`)
 
     console.log('[Clone] Applying changes to target home document...')
-    await client.documents.createDocumentChange({
-      signingKeyName: targetId,
+    const homeChanges = [
+      ...getDocAttributeChanges(templateHomeDocEntity.metadata),
+      ...getBlockNodeChanges(targetId, templateHomeDocEntity.content, blocksMap),
+    ]
+    await dispatchCloneChange(client, signer, {
       account: targetId,
-      baseVersion: targetHomeDoc.version,
       path: '',
-      changes: [
-        ...getDocAttributeChanges(templateHomeDocEntity.metadata),
-        ...getBlockNodeChanges(targetId, templateHomeDocEntity.content, blocksMap),
-      ],
+      baseVersion: targetHomeDoc.version,
+      changes: homeChanges,
+      genesis: targetHomeDoc.genesis,
+      generation: targetHomeDoc.generationInfo?.generation,
     })
     console.log('[Clone] Target home document updated successfully')
   } catch (error) {
@@ -98,8 +109,7 @@ export async function cloneSiteFromTemplate({
       const blocksMap = createBlocksMap(doc.content, '')
       console.log(`[Clone] Created blocks map for ${document.path} with ${Object.keys(blocksMap).length} blocks`)
 
-      await client.documents.createDocumentChange({
-        signingKeyName: targetId,
+      await dispatchCloneChange(client, signer, {
         account: targetId,
         path: document.path,
         changes: [...getDocAttributeChanges(doc.metadata), ...getBlockNodeChanges(targetId, doc.content, blocksMap)],
@@ -111,6 +121,55 @@ export async function cloneSiteFromTemplate({
     }
   }
   console.log('[Clone] Clone process completed successfully')
+}
+
+async function dispatchCloneChange(
+  client: GRPCClient,
+  signer: HMSigner,
+  input: {
+    account: string
+    path: string
+    changes: DocumentChange[]
+    baseVersion?: string
+    genesis?: string
+    generation?: bigint | number
+  },
+) {
+  const prepared = await client.documents.prepareChange({
+    account: input.account,
+    path: input.path,
+    baseVersion: input.baseVersion || '',
+    changes: input.changes,
+  })
+
+  const {bytes: signedBytes, cid: changeCid} = await createChange(prepared.unsignedChange, signer)
+  const changeCidStr = changeCid.toString()
+  const effectiveGenesis = input.genesis || changeCidStr
+  const effectiveGeneration = input.generation != null ? Number(input.generation) : Date.now()
+
+  const refBlobs = await createVersionRef(
+    {
+      space: input.account,
+      path: input.path,
+      genesis: effectiveGenesis,
+      version: changeCidStr,
+      generation: effectiveGeneration,
+    },
+    signer,
+  )
+
+  const normalizedSignedBytes = new Uint8Array(signedBytes.byteLength)
+  normalizedSignedBytes.set(signedBytes)
+
+  await client.daemon.storeBlobs({
+    blobs: [
+      {cid: changeCidStr, data: normalizedSignedBytes},
+      ...refBlobs.blobs.map((b) => ({
+        cid: b.cid || '',
+        data: normalizeBytes(b.data),
+      })),
+    ],
+  })
 }
 
 function getBlockNodeChanges(targetId: string, blockNodes: HMBlockNode[], blocksMap: BlocksMap) {

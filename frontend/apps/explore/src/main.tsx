@@ -1,4 +1,5 @@
 import {QueryClientProvider, UniversalAppProvider} from '@shm/shared'
+import {registerQueryClient} from '@shm/shared/models/query-client'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import {ErrorBoundary} from 'react-error-boundary'
@@ -8,6 +9,8 @@ import {ErrorFallback} from './components/ErrorBoundary'
 import './index.css'
 import {queryClient} from './queryClient'
 import {exploreUniversalClient} from './universal-client'
+
+registerQueryClient(queryClient)
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

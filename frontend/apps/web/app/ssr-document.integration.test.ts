@@ -62,7 +62,10 @@ vi.mock('@shm/shared', async (importOriginal) => {
       openRoute: () => {},
       onCopyReference: () => {},
       languagePack: undefined,
-      universalClient: {},
+      universalClient: {
+        request: async () => null,
+        publish: async () => ({cids: []}),
+      },
     }),
   }
 })
@@ -129,6 +132,7 @@ vi.mock('@shm/shared/routing', async (importOriginal) => {
     useUniversalClient: () => ({
       documents: {searchDocuments: async () => ({documents: []})},
       request: async () => null,
+      publish: async () => ({cids: []}),
       subscribeEntity: undefined,
     }),
   }

@@ -39,6 +39,8 @@ export const DAEMON_GRPC_PORT = IME.VITE_DESKTOP_GRPC_PORT || process.env.VITE_D
 export const METRIC_SERVER_HTTP_PORT =
   IME.VITE_METRIC_SERVER_HTTP_PORT || process.env.VITE_METRIC_SERVER_HTTP_PORT || 56003
 
+export const API_HTTP_PORT = IME.VITE_DESKTOP_API_PORT || process.env.VITE_DESKTOP_API_PORT || 56004
+
 export const DAEMON_HOSTNAME = IME.VITE_DESKTOP_HOSTNAME || process.env.VITE_DESKTOP_HOSTNAME
 
 export const DESKTOP_APPDATA = IME.VITE_DESKTOP_APPDATA || process.env.VITE_DESKTOP_APPDATA || 'Seed'
@@ -76,6 +78,8 @@ export const IS_TEST = process.env.NODE_ENV == 'test'
 
 export const DAEMON_HTTP_URL =
   IME.DAEMON_HTTP_URL || process.env.DAEMON_HTTP_URL || `${DAEMON_HOSTNAME || 'http://localhost'}:${DAEMON_HTTP_PORT}`
+
+export const API_HTTP_URL = `${DAEMON_HOSTNAME || 'http://localhost'}:${API_HTTP_PORT}`
 
 export const DAEMON_FILE_UPLOAD_URL = `${DAEMON_HTTP_URL}/ipfs/file-upload`
 

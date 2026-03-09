@@ -1,8 +1,8 @@
 import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {desktopUniversalClient} from '@/desktop-universal-client'
 import {hmId, packHmId} from '@shm/shared'
-import {DocumentChange} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -67,21 +67,13 @@ export function useSiteRegistration(accountUid: string) {
         }
       }
 
-      await grpcClient.documents.createDocumentChange({
+      await desktopUniversalClient.publishDocument!({
+        signerAccountUid: accountUid,
         account: accountUid,
-        signingKeyName: accountUid,
         baseVersion: document?.version,
-        changes: [
-          new DocumentChange({
-            op: {
-              case: 'setMetadata',
-              value: {
-                key: 'siteUrl',
-                value: siteUrl,
-              },
-            },
-          }),
-        ],
+        genesis: document?.genesis,
+        generation: document?.generationInfo?.generation,
+        changes: [{op: {case: 'setMetadata', value: {key: 'siteUrl', value: siteUrl}}}],
       })
       return siteUrl
     },
@@ -98,21 +90,13 @@ export function useRemoveSite(id: UnpackedHypermediaId) {
   const document = entity.data?.type === 'document' ? entity.data.document : undefined
   return useMutation({
     mutationFn: async () => {
-      await grpcClient.documents.createDocumentChange({
+      await desktopUniversalClient.publishDocument!({
+        signerAccountUid: id.uid,
         account: id.uid,
-        signingKeyName: id.uid,
         baseVersion: document?.version,
-        changes: [
-          new DocumentChange({
-            op: {
-              case: 'setMetadata',
-              value: {
-                key: 'siteUrl',
-                value: '',
-              },
-            },
-          }),
-        ],
+        genesis: document?.genesis,
+        generation: document?.generationInfo?.generation,
+        changes: [{op: {case: 'setMetadata', value: {key: 'siteUrl', value: ''}}}],
       })
       return null
     },

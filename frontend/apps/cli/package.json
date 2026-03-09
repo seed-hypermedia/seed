@@ -1,0 +1,68 @@
+{
+  "name": "@seed-hypermedia/cli",
+  "version": "0.1.1",
+  "description": "Command-line interface for Seed Hypermedia",
+  "type": "module",
+  "bin": {
+    "seed-cli": "./dist/index.js",
+    "seed-hypermedia": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target node && node -e \"const fs=require('fs'); const f='dist/index.js'; let c=fs.readFileSync(f,'utf8'); c=c.replace(/^#!.*\\n/,''); fs.writeFileSync(f, '#!/usr/bin/env node\\n' + c)\"",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test src/test/cli-fixture.test.ts",
+    "test:daemon": "bun test src/test/cli.test.ts",
+    "test:live": "bun test src/test/cli-live.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "seed",
+    "hypermedia",
+    "cli",
+    "decentralized",
+    "p2p",
+    "ipfs"
+  ],
+  "author": "Seed Hypermedia",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seed-hypermedia/seed.git",
+    "directory": "frontend/apps/cli"
+  },
+  "homepage": "https://github.com/seed-hypermedia/seed/tree/main/frontend/apps/cli",
+  "bugs": {
+    "url": "https://github.com/seed-hypermedia/seed/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@exodus/slip10": "^2.2.2",
+    "@ipld/dag-cbor": "^9.2.2",
+    "@noble/ed25519": "^2.2.0",
+    "@noble/hashes": "^1.7.0",
+    "@seed-hypermedia/client": "workspace:*",
+    "bip39": "^3.1.0",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "multiformats": "^13.3.1",
+    "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,5 +1,5 @@
 import {useDraft} from '@/models/accounts'
-import {useContact, useSelectedAccountContacts} from '@/models/contacts'
+import {useContact, useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {draftEditId, draftLocationId} from '@/models/drafts'
 import {commentIdToHmId, getParentPaths, hmId, UnpackedHypermediaId} from '@shm/shared'
 import {getDocumentTitle} from '@shm/shared/content'

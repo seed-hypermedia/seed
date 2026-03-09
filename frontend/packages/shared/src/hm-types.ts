@@ -1,5 +1,11 @@
 import {PlainMessage} from '@bufbuild/protobuf'
 import * as z from 'zod'
+
+// Signing abstraction: each platform provides its own implementation
+export type HMSigner = {
+  getPublicKey: () => Promise<Uint8Array>
+  sign: (data: Uint8Array) => Promise<Uint8Array>
+}
 import {
   type Account,
   type Block,
@@ -703,7 +709,7 @@ export type HMActivitySummary = z.infer<typeof HMActivitySummarySchema>
 
 export const HMGenerationInfoSchema = z.object({
   genesis: z.string(),
-  generation: z.bigint(),
+  generation: z.union([z.bigint(), z.coerce.bigint()]),
 })
 export type HMGenerationInfo = z.infer<typeof HMGenerationInfoSchema>
 
@@ -1136,6 +1142,7 @@ export const HMDocumentSchema = z.object({
   metadata: HMDocumentMetadataSchema,
   detachedBlocks: z.record(z.string(), HMBlockNodeSchema).optional(),
   genesis: z.string(),
+  generationInfo: HMGenerationInfoSchema.optional(),
   visibility: HMResourceVisibilitySchema,
 })
 // .strict() // avoid errors when the backend sends extra fields (most recently "header" and "footer")
@@ -1317,6 +1324,14 @@ export const HMAccountContactsRequestSchema = z.object({
   output: z.array(HMContactRecordSchema),
 })
 export type HMAccountContactsRequest = z.infer<typeof HMAccountContactsRequestSchema>
+
+// SubjectContacts request: get contacts where this account is the subject
+export const HMSubjectContactsRequestSchema = z.object({
+  key: z.literal('SubjectContacts'),
+  input: z.string(), // subject UID
+  output: z.array(HMContactRecordSchema),
+})
+export type HMSubjectContactsRequest = z.infer<typeof HMSubjectContactsRequestSchema>
 
 export const HMCapabilitySchema = z.object({
   id: z.string(),
@@ -1680,7 +1695,102 @@ export const HMInteractionSummaryRequestSchema = z.object({
 })
 export type HMInteractionSummaryRequest = z.infer<typeof HMInteractionSummaryRequestSchema>
 
-export const HMRequestSchema = z.discriminatedUnion('key', [
+// PublishBlobs - store blobs via gRPC StoreBlobs
+export const HMPublishBlobsOutputSchema = z.object({
+  cids: z.array(z.string()),
+})
+export type HMPublishBlobsOutput = z.infer<typeof HMPublishBlobsOutputSchema>
+
+export const HMPublishBlobsInputSchema = z.object({
+  blobs: z.array(
+    z.object({
+      cid: z.string().optional(),
+      data: z.custom<Uint8Array>((val) => ArrayBuffer.isView(val) && 'byteLength' in val, {
+        message: 'Expected Uint8Array or compatible binary data',
+      }),
+    }),
+  ),
+})
+export type HMPublishBlobsInput = z.infer<typeof HMPublishBlobsInputSchema>
+
+export const HMPublishBlobsRequestSchema = z.object({
+  key: z.literal('PublishBlobs'),
+  input: HMPublishBlobsInputSchema,
+  output: HMPublishBlobsOutputSchema,
+})
+export type HMPublishBlobsRequest = z.infer<typeof HMPublishBlobsRequestSchema>
+
+// PrepareDocumentChange - call gRPC PrepareChange, returns unsigned CBOR bytes for client signing
+
+const ProtoAnnotationSchema = z.object({
+  type: z.string(),
+  link: z.string().optional(),
+  attributes: z.record(z.string(), z.any()).optional(),
+  starts: z.array(z.number()).optional(),
+  ends: z.array(z.number()).optional(),
+})
+
+const ProtoBlockSchema = z.object({
+  id: z.string().optional(),
+  type: z.string().optional(),
+  text: z.string().optional(),
+  link: z.string().optional(),
+  attributes: z.record(z.string(), z.any()).optional(),
+  annotations: z.array(ProtoAnnotationSchema).optional(),
+  revision: z.string().optional(),
+})
+
+const ProtoSetAttributeValueSchema = z.union([
+  z.object({case: z.literal('stringValue'), value: z.string()}),
+  z.object({case: z.literal('intValue'), value: z.union([z.bigint(), z.coerce.bigint()])}),
+  z.object({case: z.literal('boolValue'), value: z.boolean()}),
+  z.object({case: z.literal('nullValue'), value: z.object({})}),
+  z.object({case: z.undefined(), value: z.undefined().optional()}),
+])
+
+const ProtoDocumentChangeSchema = z.object({
+  op: z.union([
+    z.object({case: z.literal('setMetadata'), value: z.object({key: z.string(), value: z.string()})}),
+    z.object({
+      case: z.literal('moveBlock'),
+      value: z.object({blockId: z.string(), parent: z.string(), leftSibling: z.string()}),
+    }),
+    z.object({case: z.literal('replaceBlock'), value: ProtoBlockSchema}),
+    z.object({case: z.literal('deleteBlock'), value: z.string()}),
+    z.object({
+      case: z.literal('setAttribute'),
+      value: z.object({blockId: z.string(), key: z.array(z.string()), value: ProtoSetAttributeValueSchema}),
+    }),
+    z.object({case: z.undefined(), value: z.undefined().optional()}),
+  ]),
+})
+
+export const HMPrepareDocumentChangeInputSchema = z.object({
+  account: z.string(),
+  path: z.string().optional(),
+  baseVersion: z.string().optional(),
+  changes: z.array(ProtoDocumentChangeSchema),
+  capability: z.string().optional(),
+  visibility: z.number().int().optional(),
+})
+export type HMPrepareDocumentChangeInput = z.infer<typeof HMPrepareDocumentChangeInputSchema>
+
+export const HMPrepareDocumentChangeOutputSchema = z.object({
+  unsignedChange: z.custom<Uint8Array>((val) => ArrayBuffer.isView(val) && 'byteLength' in val, {
+    message: 'Expected Uint8Array or compatible binary data',
+  }),
+})
+export type HMPrepareDocumentChangeOutput = z.infer<typeof HMPrepareDocumentChangeOutputSchema>
+
+export const HMPrepareDocumentChangeRequestSchema = z.object({
+  key: z.literal('PrepareDocumentChange'),
+  input: HMPrepareDocumentChangeInputSchema,
+  output: HMPrepareDocumentChangeOutputSchema,
+})
+export type HMPrepareDocumentChangeRequest = z.infer<typeof HMPrepareDocumentChangeRequestSchema>
+
+// GET request union — all read-only API endpoints
+export const HMGetRequestSchema = z.discriminatedUnion('key', [
   HMResourceRequestSchema,
   HMResourceMetadataRequestSchema,
   HMAccountRequestSchema,
@@ -1688,6 +1798,7 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMSearchRequestSchema,
   HMQueryRequestSchema,
   HMAccountContactsRequestSchema,
+  HMSubjectContactsRequestSchema,
   HMListCommentsRequestSchema,
   HMListDiscussionsRequestSchema,
   HMListCommentsByReferenceRequestSchema,
@@ -1700,6 +1811,40 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMListChangesRequestSchema,
   HMListCapabilitiesRequestSchema,
   HMInteractionSummaryRequestSchema,
+])
+export type HMGetRequest = z.infer<typeof HMGetRequestSchema>
+
+// POST (action) union — all write/mutation API endpoints
+export const HMActionSchema = z.discriminatedUnion('key', [
+  HMPublishBlobsRequestSchema,
+  HMPrepareDocumentChangeRequestSchema,
+])
+export type HMAction = z.infer<typeof HMActionSchema>
+
+// Combined schema — kept for backward compatibility
+export const HMRequestSchema = z.discriminatedUnion('key', [
+  HMResourceRequestSchema,
+  HMResourceMetadataRequestSchema,
+  HMAccountRequestSchema,
+  HMCommentRequestSchema,
+  HMSearchRequestSchema,
+  HMQueryRequestSchema,
+  HMAccountContactsRequestSchema,
+  HMSubjectContactsRequestSchema,
+  HMListCommentsRequestSchema,
+  HMListDiscussionsRequestSchema,
+  HMListCommentsByReferenceRequestSchema,
+  HMGetCommentReplyCountRequestSchema,
+  HMListEventsRequestSchema,
+  HMListAccountsRequestSchema,
+  HMGetCIDRequestSchema,
+  HMListCommentsByAuthorRequestSchema,
+  HMListCitationsRequestSchema,
+  HMListChangesRequestSchema,
+  HMListCapabilitiesRequestSchema,
+  HMInteractionSummaryRequestSchema,
+  HMPublishBlobsRequestSchema,
+  HMPrepareDocumentChangeRequestSchema,
 ])
 
 export type HMRequest = z.infer<typeof HMRequestSchema>
