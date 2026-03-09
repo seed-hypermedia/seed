@@ -176,6 +176,8 @@ export async function openInitialWindows() {
         sidebarWidth: window.sidebarWidth,
         accessoryWidth: window.accessoryWidth,
         bounds: window.bounds,
+        assistantOpen: window.assistantOpen,
+        assistantSessionId: window.assistantSessionId,
         id: windowId,
       })
     })
@@ -330,6 +332,8 @@ export const router = t.router({
           .or(z.null())
           .optional(),
         selectedIdentity: z.string().nullable().optional(),
+        assistantOpen: z.boolean().optional(),
+        assistantSessionId: z.string().nullable().optional(),
       }),
     )
     .mutation(async ({input}) => {

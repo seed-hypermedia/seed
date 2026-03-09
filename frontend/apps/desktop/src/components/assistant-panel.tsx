@@ -13,7 +13,13 @@ import {SizableText} from '@shm/ui/text'
 import {Bot, Check, Eye, EyeOff, Plus, Send, Settings, Trash2, Wrench} from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 
-export function AssistantPanel() {
+export function AssistantPanel({
+  initialSessionId,
+  onSessionChange,
+}: {
+  initialSessionId?: string | null
+  onSessionChange?: (sessionId: string | null) => void
+}) {
   const [view, setView] = useState<'chat' | 'settings'>('chat')
 
   return (
@@ -32,7 +38,11 @@ export function AssistantPanel() {
           <Settings className="size-4" />
         </button>
       </div>
-      {view === 'settings' ? <SettingsView /> : <ChatView />}
+      {view === 'settings' ? (
+        <SettingsView />
+      ) : (
+        <ChatView initialSessionId={initialSessionId} onSessionChange={onSessionChange} />
+      )}
     </div>
   )
 }
@@ -87,16 +97,28 @@ function SettingsView() {
   )
 }
 
-function ChatView() {
+function ChatView({
+  initialSessionId,
+  onSessionChange,
+}: {
+  initialSessionId?: string | null
+  onSessionChange?: (sessionId: string | null) => void
+}) {
   const sessions = useChatSessions()
   const createSession = useCreateChatSession()
   const deleteSession = useDeleteChatSession()
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
+  const [selectedSessionId, setSelectedSessionIdRaw] = useState<string | null>(initialSessionId || null)
+
+  const setSelectedSessionId = (id: string | null) => {
+    setSelectedSessionIdRaw(id)
+    onSessionChange?.(id)
+  }
   const session = useChatSession(selectedSessionId)
   const sendMessage = useSendChatMessage()
   const {streamingText, isStreaming, pendingToolCalls, pendingToolResults} = useChatStream(selectedSessionId)
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // Auto-select first session
   useEffect(() => {
@@ -207,6 +229,7 @@ function ChatView() {
       {/* Input */}
       <div className="border-border flex items-center gap-2 border-t px-3 py-2">
         <Input
+          ref={inputRef}
           placeholder="Type a message..."
           value={input}
           onChangeText={setInput}
@@ -214,6 +237,7 @@ function ChatView() {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
               handleSend()
+              requestAnimationFrame(() => inputRef.current?.focus())
             }
           }}
           disabled={isStreaming}

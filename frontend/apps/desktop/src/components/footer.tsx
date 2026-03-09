@@ -18,11 +18,20 @@ import {Cable} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
+import {Bot} from 'lucide-react'
 import {ReactNode, useEffect, useState} from 'react'
 import {OnlineIndicator} from './indicator'
 import {useNetworkDialog} from './network-dialog'
 
-export default function Footer({children}: {children?: ReactNode}) {
+export default function Footer({
+  children,
+  assistantOpen,
+  onToggleAssistant,
+}: {
+  children?: ReactNode
+  assistantOpen?: boolean
+  onToggleAssistant?: () => void
+}) {
   const updateStatus = useUpdateStatus()
   return (
     <FooterWrapper className="flex-none">
@@ -46,6 +55,16 @@ export default function Footer({children}: {children?: ReactNode}) {
         <DaemonTasksIndicator />
         <DiscoveryIndicator />
         {children}
+        {onToggleAssistant && (
+          <Button
+            size="xs"
+            variant={assistantOpen ? 'default' : 'ghost'}
+            className={cn('px-2', assistantOpen && 'bg-link hover:bg-link-hover')}
+            onClick={onToggleAssistant}
+          >
+            <Bot className="size-3" />
+          </Button>
+        )}
       </div>
     </FooterWrapper>
   )

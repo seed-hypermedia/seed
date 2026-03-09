@@ -131,6 +131,8 @@ const appWindowSchema = z.object({
   sidebarWidth: z.number(),
   accessoryWidth: z.number(),
   selectedIdentity: z.string().nullable().optional(),
+  assistantOpen: z.boolean().optional(),
+  assistantSessionId: z.string().nullable().optional(),
 })
 
 export type AppWindow = z.infer<typeof appWindowSchema>
@@ -499,6 +501,8 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     sidebarWidth: input.sidebarWidth || 15,
     accessoryWidth: input.accessoryWidth || 20,
     selectedIdentity,
+    assistantOpen: input.assistantOpen || false,
+    assistantSessionId: input.assistantSessionId || null,
   }
 
   windowNavState[windowId] = initNavState
@@ -583,8 +587,26 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     updateRecentRoute(routes[routeIndex])
   }
 
+  // IPC handler for assistant panel state
+  const windowAssistantStateHandler = (
+    info: any,
+    {assistantOpen, assistantSessionId}: {assistantOpen: boolean; assistantSessionId: string | null},
+  ) => {
+    windowNavState[windowId] = {
+      ...windowNavState[windowId],
+      assistantOpen,
+      assistantSessionId,
+    }
+    updateWindowState(windowId, (window) => ({
+      ...window,
+      assistantOpen,
+      assistantSessionId,
+    }))
+  }
+
   // Note: The initWindow data is sent via the synchronous IPC handler above
   browserWindow.webContents.ipc.addListener('windowNavState', windowNavStateHandler)
+  browserWindow.webContents.ipc.addListener('windowAssistantState', windowAssistantStateHandler)
 
   // First render trick: https://getlotus.app/21-making-electron-apps-feel-native-on-mac
   browserWindow.on('ready-to-show', () => {
@@ -610,8 +632,9 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
       windowPositionSaveTimeout = null
     }
 
-    // Remove IPC listener to prevent memory leak
+    // Remove IPC listeners to prevent memory leak
     browserWindow.webContents.ipc.removeListener('windowNavState', windowNavStateHandler)
+    browserWindow.webContents.ipc.removeListener('windowAssistantState', windowAssistantStateHandler)
 
     // Clean up window state
     allWindows.delete(windowId)
