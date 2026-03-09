@@ -220,7 +220,7 @@ export async function htmlToBlocks(
   }
 
   // First pass: process all elements and collect them
-  const children = $('body').children().toArray()
+  const children = $('body').contents().toArray()
   const processedElements: Array<{
     type: 'heading' | 'content'
     level?: number
@@ -229,7 +229,20 @@ export async function htmlToBlocks(
 
   for (let i = 0; i < children.length; i++) {
     const el = children[i]
+    if (!el) continue
     const $el = $(el)
+
+    const nodeType = (el as any).type
+    if (nodeType === 'text') {
+      const node = await parseParagraphNode(el)
+      if (node) {
+        processedElements.push({
+          type: 'content',
+          blockNode: node,
+        })
+      }
+      continue
+    }
 
     // Check if there are newlines before this element by looking at the original HTML
     // @ts-ignore
