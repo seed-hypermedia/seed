@@ -70,6 +70,9 @@ export function CommentDiscussions({
   const focusedCommentRef = useRef<HTMLDivElement>(null)
   const [showParents, setShowParents] = useState(false)
   const parentsRef = useRef<HTMLDivElement>(null)
+  // These hooks must be called unconditionally before any early returns.
+  const navigate = useNavigate('replace')
+  const currentRoute = useNavRoute()
 
   if (!commentId) return null
 
@@ -100,6 +103,21 @@ export function CommentDiscussions({
   useHackyAuthorsSubscriptions(allAuthorIds)
 
   const commentFound = commentsService.data?.comments?.some((c) => c.id === commentId)
+
+  // When the focused comment is no longer found (e.g. it was deleted), navigate
+  // back to the comments list view instead of showing a dead-end error state.
+  useEffect(() => {
+    if (commentFound !== false || !commentsService.data) return
+    // Main section: /:comments/<uid>/<tsid> → /:comments
+    if (currentRoute.key === 'comments' && currentRoute.openComment) {
+      navigate({...currentRoute, openComment: undefined})
+      return
+    }
+    // Right panel: ?panel=comments/<uid>/<tsid> → ?panel=comments
+    if (currentRoute.panel?.key === 'comments' && currentRoute.panel.openComment) {
+      navigate({...currentRoute, panel: {...currentRoute.panel, openComment: undefined}})
+    }
+  }, [commentFound, commentsService.data, currentRoute, navigate])
 
   // Find the actual focused comment
   const focusedComment = useMemo(() => {
@@ -142,14 +160,13 @@ export function CommentDiscussions({
     )
   }
 
-  // If comment not found in the list, show a message
+  // Comment not found — navigation is being triggered by the useEffect above.
+  // Show a spinner while the redirect happens.
   if (!commentFound && commentsService.data) {
     return (
       <SelectionContent>
-        <div className="flex flex-col items-center gap-2 p-4">
-          <SizableText color="muted" size="sm">
-            This comment is not available in the current document version
-          </SizableText>
+        <div className="flex items-center justify-center p-4">
+          <Spinner />
         </div>
       </SelectionContent>
     )
