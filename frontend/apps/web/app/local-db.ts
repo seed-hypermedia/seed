@@ -85,7 +85,10 @@ function storePut<T>(store: IDBObjectStore, value: T, key: string): Promise<void
     const doGet = store.put(value, key)
     doGet.onsuccess = () => {
       if (typeof navigator !== 'undefined' && navigator.storage?.persist) {
-        navigator.storage.persist().then(() => resolve()).catch(() => resolve())
+        navigator.storage
+          .persist()
+          .then(() => resolve())
+          .catch(() => resolve())
       } else {
         resolve()
       }

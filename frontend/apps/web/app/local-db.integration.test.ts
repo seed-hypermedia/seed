@@ -82,11 +82,7 @@ describe('local-db integration', () => {
     it('should write and read local keys', async () => {
       const db = await resetDB(indexedDB)
       try {
-        const keyPair = await crypto.subtle.generateKey(
-          {name: 'ECDSA', namedCurve: 'P-256'},
-          false,
-          ['sign', 'verify'],
-        )
+        const keyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, ['sign', 'verify'])
         await writeLocalKeys(keyPair)
         const stored = await getStoredLocalKeys()
         expect(stored).not.toBeNull()
@@ -102,11 +98,7 @@ describe('local-db integration', () => {
     it('should delete local keys', async () => {
       const db = await resetDB(indexedDB)
       try {
-        const keyPair = await crypto.subtle.generateKey(
-          {name: 'ECDSA', namedCurve: 'P-256'},
-          false,
-          ['sign', 'verify'],
-        )
+        const keyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, ['sign', 'verify'])
         await writeLocalKeys(keyPair)
         expect(await getStoredLocalKeys()).not.toBeNull()
         await deleteLocalKeys()
@@ -154,11 +146,7 @@ describe('local-db integration', () => {
     it('should store and retrieve an auth session', async () => {
       const db = await resetDB(indexedDB)
       try {
-        const keyPair = await crypto.subtle.generateKey(
-          {name: 'ECDSA', namedCurve: 'P-256'},
-          false,
-          ['sign', 'verify'],
-        )
+        const keyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, ['sign', 'verify'])
         const record: DBSessionRecord = {
           keyPair,
           publicKeyRaw: new Uint8Array([1, 2, 3]),
@@ -182,11 +170,7 @@ describe('local-db integration', () => {
     it('should delete an auth session', async () => {
       const db = await resetDB(indexedDB)
       try {
-        const keyPair = await crypto.subtle.generateKey(
-          {name: 'ECDSA', namedCurve: 'P-256'},
-          false,
-          ['sign', 'verify'],
-        )
+        const keyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, ['sign', 'verify'])
         const record: DBSessionRecord = {
           keyPair,
           publicKeyRaw: new Uint8Array([1, 2, 3]),
@@ -208,11 +192,7 @@ describe('local-db integration', () => {
     it('should store sessions keyed by vault URL independently', async () => {
       const db = await resetDB(indexedDB)
       try {
-        const keyPair = await crypto.subtle.generateKey(
-          {name: 'ECDSA', namedCurve: 'P-256'},
-          false,
-          ['sign', 'verify'],
-        )
+        const keyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, ['sign', 'verify'])
         const record1: DBSessionRecord = {
           keyPair,
           publicKeyRaw: new Uint8Array([1]),
