@@ -404,6 +404,7 @@ function MediaForm({
         editor.commentEditor && !drag && !selected && 'border-border bg-black/5 dark:bg-white/10',
       )}
       {...(isEmbed ? {} : dragProps)}
+      contentEditable={false}
     >
       {drag && !isEmbed && (
         <div className="absolute top-0 left-0 z-5 flex h-full w-full items-center justify-center rounded-sm bg-white/50">
@@ -443,7 +444,7 @@ function MediaForm({
                     <Button
                       variant="default"
                       size="sm"
-                      className="shrink-0 font-semibold"
+                      className="shrink-0 font-semibold user-select-none"
                       disabled={fileName.color === 'red'}
                       onClick={() => {
                         if (url) {

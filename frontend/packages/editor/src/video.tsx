@@ -183,6 +183,9 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
     if (block.props.width) {
       width = parseFloat(block.props.width)
       setCurrentWidth(parseFloat(block.props.width))
+    } else {
+      width = editor.domElement.firstElementChild!.clientWidth
+      setCurrentWidth(width)
     }
   }, [block.props.width])
 

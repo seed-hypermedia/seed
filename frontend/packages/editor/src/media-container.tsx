@@ -3,7 +3,7 @@ import {Button} from '@shm/ui/button'
 import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {useState} from 'react'
+import {useRef, useState} from 'react'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {InlineContent} from './blocknote/react/ReactBlockSpec'
@@ -45,6 +45,7 @@ export const MediaContainer = ({
   validateFile,
 }: ContainerProps) => {
   const [drag, setDrag] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const isEmbed = ['embed', 'web-embed'].includes(mediaType)
 
   const handleDragReplace = async (file: File) => {
@@ -68,6 +69,8 @@ export const MediaContainer = ({
           url: data ? `ipfs://${data}` : '',
           name: file.name,
           size: file.size.toString(),
+          displaySrc: '',
+          width: undefined,
         },
       } as MediaType)
     } catch (error) {
@@ -192,33 +195,32 @@ export const MediaContainer = ({
         contentEditable={false}
       >
         {mediaType !== 'embed' && editor.isEditable && (
-          <Button
-            variant="ghost"
-            size="xs"
-            className={cn(
-              'dark:bg-background bg-muted absolute top-2 right-2 z-3 w-[60px] transition-opacity',
-              selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto',
-            )}
-            onClick={() =>
-              assign({
-                props: {
-                  url: '',
-                  name: '',
-                  size: '0',
-                  displaySrc: '',
-                  width:
-                    mediaType === 'image' || mediaType === 'video'
-                      ? editor.domElement.firstElementChild!.clientWidth
-                      : undefined,
-                },
-                children: [],
-                content: [],
-                type: mediaType,
-              } as MediaType)
-            }
-          >
-            replace
-          </Button>
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={mediaType === 'file' ? undefined : `${mediaType}/*`}
+              style={{display: 'none'}}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                if (validateFile && !validateFile(file)) return
+                handleDragReplace(file)
+                e.target.value = ''
+              }}
+            />
+            <Button
+              variant='accent'
+              size="xs"
+              className={cn(
+                'absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity',
+                selected && 'opacity-100',
+              )}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              replace
+            </Button>
+          </>
         )}
         {children}
       </div>
