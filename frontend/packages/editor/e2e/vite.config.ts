@@ -1,9 +1,10 @@
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import {defineConfig} from 'vite'
+import tsconfigPaths from 'vite-tsconfig-paths'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tsconfigPaths({root: path.resolve(__dirname, '../../..')})],
   root: path.resolve(__dirname, 'test-app'),
   define: {
     // TODO: Define process.env for dependencies
@@ -20,15 +21,10 @@ export default defineConfig({
       '@shm/editor/*',
       '@shm/ui',
       '@shm/ui/*',
+      '@seed-hypermedia/client',
       'react',
       'react-dom',
     ],
-    alias: {
-      '@': path.resolve(__dirname, '../src'),
-      '@shm/shared': path.resolve(__dirname, '../../shared/src'),
-      '@shm/editor': path.resolve(__dirname, '../src'),
-      '@shm/ui': path.resolve(__dirname, '../../ui/src'),
-    },
   },
   server: {
     port: 5180,
