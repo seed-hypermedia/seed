@@ -54,6 +54,7 @@ func New(
 ) Server {
 	db := repo.DB()
 	proxy := &p2pProxy{node: node}
+
 	return Server{
 		Activity:    activity,
 		Daemon:      daemon.NewServer(repo, node, idx, dlink, taskMgr),
