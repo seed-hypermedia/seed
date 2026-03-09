@@ -326,7 +326,8 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
             className={cn(
               'video-iframe absolute top-0 right-0 bottom-0 left-0',
               !editor.isEditable && 'pointer-events-auto',
-              editor.isEditable && 'pointer-events-none',
+              editor.isEditable && !selected && 'pointer-events-none',
+              editor.isEditable && selected && 'pointer-events-auto',
             )}
             src={getVideoIframeSrc(block.props.url)}
             allowFullScreen
