@@ -15,6 +15,8 @@ import path from 'path'
 import z from 'zod'
 import {deleteAccount} from './app-account-management'
 import {getDaemonState, restartDaemonWithEmbedding, subscribeDaemonState} from './daemon'
+import {aiConfigApi} from './app-ai-config'
+import {chatApi} from './app-chat'
 import {commentsApi} from './app-comments'
 import {diagnosisApi} from './app-diagnosis'
 import {draftsApi} from './app-drafts'
@@ -221,6 +223,8 @@ function getRouteRefocusKey(route: NavRoute): string | null {
 }
 
 export const router = t.router({
+  aiConfig: aiConfigApi,
+  chat: chatApi,
   drafts: draftsApi,
   experiments: experimentsApi,
   diagnosis: diagnosisApi,

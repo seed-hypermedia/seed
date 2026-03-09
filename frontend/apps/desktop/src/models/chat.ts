@@ -1,0 +1,120 @@
+import {client} from '@/trpc'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {useMutation, useQuery} from '@tanstack/react-query'
+import {toast} from '@shm/ui/toast'
+import {useCallback, useEffect, useRef, useState} from 'react'
+
+export type ChatStreamEvent = {
+  type: 'stream_start' | 'text_delta' | 'tool_calls' | 'tool_results' | 'stream_end' | 'stream_error' | 'message_added'
+  sessionId: string
+  delta?: string
+  message?: any
+  toolCalls?: Array<{id: string; name: string; args: Record<string, unknown>}>
+  toolResults?: Array<{id: string; name: string; result: string}>
+  error?: string
+}
+
+export function useChatSessions() {
+  return useQuery({
+    queryKey: [queryKeys.CHAT_SESSIONS],
+    queryFn: () => client.chat.listSessions.query(),
+  })
+}
+
+export function useChatSession(sessionId: string | null) {
+  return useQuery({
+    queryKey: [queryKeys.CHAT_SESSION, sessionId],
+    queryFn: () => (sessionId ? client.chat.getSession.query(sessionId) : null),
+    enabled: !!sessionId,
+  })
+}
+
+export function useCreateChatSession() {
+  return useMutation({
+    mutationFn: (input?: {title?: string}) => client.chat.createSession.mutate(input),
+    onSuccess() {
+      invalidateQueries([queryKeys.CHAT_SESSIONS])
+    },
+    onError() {
+      toast.error('Could not create chat session')
+    },
+  })
+}
+
+export function useDeleteChatSession() {
+  return useMutation({
+    mutationFn: (sessionId: string) => client.chat.deleteSession.mutate(sessionId),
+    onSuccess() {
+      invalidateQueries([queryKeys.CHAT_SESSIONS])
+    },
+  })
+}
+
+export function useSendChatMessage() {
+  return useMutation({
+    mutationFn: (input: {sessionId: string; content: string}) => client.chat.sendMessage.mutate(input),
+    onSuccess(_data, variables) {
+      invalidateQueries([queryKeys.CHAT_SESSION, variables.sessionId])
+    },
+    onError(error) {
+      toast.error(`Chat error: ${(error as Error).message}`)
+    },
+  })
+}
+
+export function useChatStream(sessionId: string | null) {
+  const [streamingText, setStreamingText] = useState('')
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [pendingToolCalls, setPendingToolCalls] = useState<ChatStreamEvent['toolCalls']>([])
+  const [pendingToolResults, setPendingToolResults] = useState<ChatStreamEvent['toolResults']>([])
+  const streamingTextRef = useRef('')
+
+  useEffect(() => {
+    const chatStreamEvents = (window as any).chatStreamEvents
+    if (!chatStreamEvents) return
+
+    const unsubscribe = chatStreamEvents.subscribe((event: ChatStreamEvent) => {
+      if (event.sessionId !== sessionId) return
+
+      switch (event.type) {
+        case 'stream_start':
+          setIsStreaming(true)
+          setStreamingText('')
+          streamingTextRef.current = ''
+          setPendingToolCalls([])
+          setPendingToolResults([])
+          break
+        case 'text_delta':
+          streamingTextRef.current += event.delta || ''
+          setStreamingText(streamingTextRef.current)
+          break
+        case 'tool_calls':
+          setPendingToolCalls((prev) => [...(prev || []), ...(event.toolCalls || [])])
+          break
+        case 'tool_results':
+          setPendingToolResults((prev) => [...(prev || []), ...(event.toolResults || [])])
+          break
+        case 'stream_end':
+          setIsStreaming(false)
+          setStreamingText('')
+          streamingTextRef.current = ''
+          setPendingToolCalls([])
+          setPendingToolResults([])
+          invalidateQueries([queryKeys.CHAT_SESSION, sessionId])
+          break
+        case 'stream_error':
+          setIsStreaming(false)
+          setStreamingText('')
+          streamingTextRef.current = ''
+          setPendingToolCalls([])
+          setPendingToolResults([])
+          break
+      }
+    })
+
+    return unsubscribe
+  }, [sessionId])
+
+  return {streamingText, isStreaming, pendingToolCalls, pendingToolResults}
+}

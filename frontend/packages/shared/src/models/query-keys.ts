@@ -132,6 +132,13 @@ export const queryKeys = {
   NOTIFICATION_INBOX: 'NOTIFICATION_INBOX', // accountUid
   NOTIFICATION_READ_STATE: 'NOTIFICATION_READ_STATE', // notifyServiceHost, accountUid
   NOTIFICATION_SYNC_STATUS: 'NOTIFICATION_SYNC_STATUS', // accountUid
+
+  // ai config
+  AI_CONFIG: 'AI_CONFIG',
+
+  // chat
+  CHAT_SESSIONS: 'CHAT_SESSIONS',
+  CHAT_SESSION: 'CHAT_SESSION', // sessionId: string
 } as const
 
 export function labelOfQueryKey(key: QueryKey) {

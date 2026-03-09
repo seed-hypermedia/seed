@@ -41,6 +41,7 @@
     "test:performance:full": "pnpm test:performance --dashboard --budget --trace --best-practices"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.41",
     "@ariakit/react": "0.3.5",
     "@atlaskit/pragmatic-drag-and-drop": "^1.7.2",
     "@bufbuild/protobuf": "1.10.0",
@@ -87,6 +88,7 @@
     "@trpc/react-query": "10.45.2",
     "@trpc/server": "10.45.2",
     "@xstate/react": "4.1.3",
+    "ai": "^6.0.116",
     "cheerio": "^1.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
