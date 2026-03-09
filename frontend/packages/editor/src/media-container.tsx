@@ -44,7 +44,6 @@ export const MediaContainer = ({
   onPress,
   validateFile,
 }: ContainerProps) => {
-  const [hover, setHover] = useState(false)
   const [drag, setDrag] = useState(false)
   const isEmbed = ['embed', 'web-embed'].includes(mediaType)
 
@@ -133,11 +132,9 @@ export const MediaContainer = ({
     ...(isEmbed ? {} : dragProps),
     onMouseEnter: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       if (onHoverIn) onHoverIn()
-      setHover(true)
     },
     onMouseLeave: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       if (onHoverOut) onHoverOut(e)
-      setHover(false)
     },
   }
 
@@ -183,7 +180,7 @@ export const MediaContainer = ({
       )}
       <div
         className={cn(
-          'relative flex flex-col rounded-md border-2 transition-colors',
+          'group relative flex flex-col rounded-md border-2 transition-colors',
           mediaType === 'file' ? 'w-full' : 'w-full',
           drag || selected ? 'border-foreground/20 dark:border-foreground/30' : 'border-border',
           drag && 'border-dashed',
@@ -194,11 +191,14 @@ export const MediaContainer = ({
         {...mediaProps}
         contentEditable={false}
       >
-        {(hover || selected) && mediaType !== 'embed' && editor.isEditable && (
+        {mediaType !== 'embed' && editor.isEditable && (
           <Button
             variant="ghost"
             size="xs"
-            className="dark:bg-background bg-muted absolute top-2 right-2 z-3 w-[60px]"
+            className={cn(
+              'dark:bg-background bg-muted absolute top-2 right-2 z-3 w-[60px] transition-opacity',
+              selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto',
+            )}
             onClick={() =>
               assign({
                 props: {
