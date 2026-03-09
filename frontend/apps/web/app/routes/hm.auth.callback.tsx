@@ -1,10 +1,18 @@
 import {cborEncode} from '@/api'
-import {keyPairStore, type LocalWebIdentity} from '@/auth'
+import * as authSession from '@/auth-session'
+import {
+  AUTH_STATE_ACTIVE_VAULT_URL,
+  AUTH_STATE_DELEGATION_RETURN_URL,
+  AUTH_STATE_DELEGATION_VAULT_URL,
+  deleteAuthState,
+  getAuthState,
+  setAuthState,
+  writeLocalKeys,
+} from '@/local-db'
 import {useNavigate} from '@remix-run/react'
 import {useUniversalAppContext} from '@shm/shared'
 import * as blobs from '@shm/shared/blobs'
 import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
-import * as hmauth from '@shm/shared/hmauth'
 import {Button} from '@shm/ui/button'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
@@ -19,17 +27,17 @@ export default function AuthCallbackRoute() {
 
   useEffect(() => {
     async function handleAuth() {
-      const vaultUrl = localStorage.getItem('hm_delegation_vault_url') || `${origin}/vault/delegate`
-      const returnUrl = localStorage.getItem('hm_delegation_return_url') || '/'
+      const vaultUrl = (await getAuthState(AUTH_STATE_DELEGATION_VAULT_URL)) || `${origin}/vault/delegate`
+      const returnUrl = (await getAuthState(AUTH_STATE_DELEGATION_RETURN_URL)) || '/'
 
       try {
-        const result = await hmauth.handleCallback({vaultUrl})
+        const result = await authSession.handleCallback({vaultUrl})
         if (!result) {
           setError('No authentication data received.')
           return
         }
 
-        // hmauth.handleCallback already verified signatures, coherence, and built EncodedBlobs.
+        // handleCallback already verified signatures, coherence, and built EncodedBlobs.
 
         // Build the session Signer for creating reverse blobs.
         const sessionSigner = new blobs.WebCryptoKeyPair(result.session.keyPair, result.session.publicKeyRaw)
@@ -97,29 +105,22 @@ export default function AuthCallbackRoute() {
 
         await Promise.all(uploadPromises)
 
-        // Set the local web identity to this session.
-        const webIdentity: LocalWebIdentity = {
-          privateKey: sessionSigner.keyPair.privateKey,
-          publicKey: sessionSigner.keyPair.publicKey,
-          id: result.session.principal,
-          isDelegated: true,
-          vaultUrl: vaultUrl,
-        }
-        keyPairStore.set(webIdentity)
-        localStorage.setItem('hm_active_vault_url', vaultUrl)
+        // Store the session key pair as the active local keys and mark as delegated.
+        await writeLocalKeys(sessionSigner.keyPair)
+        await setAuthState(AUTH_STATE_ACTIVE_VAULT_URL, vaultUrl)
 
         // Cleanup delegation markers.
-        localStorage.removeItem('hm_delegation_vault_url')
-        localStorage.removeItem('hm_delegation_return_url')
+        await deleteAuthState(AUTH_STATE_DELEGATION_VAULT_URL)
+        await deleteAuthState(AUTH_STATE_DELEGATION_RETURN_URL)
 
         toast.success('Signed in successfully')
         navigate(returnUrl, {replace: true})
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         setError(message)
-        hmauth.clearSession(vaultUrl).catch(console.error)
-        localStorage.removeItem('hm_delegation_vault_url')
-        localStorage.removeItem('hm_delegation_return_url')
+        authSession.clearSession(vaultUrl).catch(console.error)
+        deleteAuthState(AUTH_STATE_DELEGATION_VAULT_URL).catch(console.error)
+        deleteAuthState(AUTH_STATE_DELEGATION_RETURN_URL).catch(console.error)
       }
     }
 

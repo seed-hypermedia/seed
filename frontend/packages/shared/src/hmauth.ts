@@ -1,22 +1,12 @@
 /**
- * Hypermedia Auth Client SDK.
+ * Hypermedia Auth Protocol.
  *
- * A client module for third-party sites to authenticate users via a
- * Seed Hypermedia Identity Vault.
+ * Protocol types, validation, URL building, and constants for the
+ * Seed Hypermedia delegation flow. Used by both the Vault (server-side)
+ * and client applications.
  *
- * @example
- * ```ts
- * import * as hmauth from "./hypermedia-auth"
- *
- * // Start the auth flow and navigate to the returned URL
- * const authUrl = await hmauth.startAuth({ vaultUrl: "https://vault.example.com" })
- *
- * // On the callback page
- * const result = await hmauth.handleCallback()
- * if (result) {
- *   console.log("Authenticated as", result.accountPrincipal)
- * }
- * ```
+ * Client-side auth session management (startAuth, handleCallback, etc.)
+ * lives in the web app's auth-session module.
  */
 
 import type {CID} from 'multiformats/cid'
@@ -112,20 +102,6 @@ export function principalDecode(principal: string): Uint8Array {
   return new Uint8Array(packedPrincipal.slice(blobs.ED25519_VARINT_PREFIX.length))
 }
 
-function generateAuthState(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(AUTH_STATE_BYTES))
-  return base64.encode(bytes)
-}
-
-async function signDelegationProof(privateKey: CryptoKey, payload: Uint8Array): Promise<Uint8Array> {
-  const signature = await crypto.subtle.sign(
-    'Ed25519' as unknown as AlgorithmIdentifier,
-    privateKey,
-    payload as ArrayBufferView<ArrayBuffer>,
-  )
-  return new Uint8Array(signature)
-}
-
 async function collectStream(readable: ReadableStream<Uint8Array>): Promise<Uint8Array> {
   const chunks: Uint8Array[] = []
   const reader = readable.getReader()
@@ -150,14 +126,6 @@ async function compress(data: Uint8Array): Promise<Uint8Array> {
   writer.write(data as Uint8Array<ArrayBuffer>)
   writer.close()
   return collectStream(cs.readable)
-}
-
-async function decompress(data: Uint8Array): Promise<Uint8Array> {
-  const ds = new DecompressionStream('gzip')
-  const writer = ds.writable.getWriter()
-  writer.write(data as Uint8Array<ArrayBuffer>)
-  writer.close()
-  return collectStream(ds.readable)
 }
 
 function hasProofParam(url: string): boolean {
@@ -193,90 +161,6 @@ function decodeProofSignature(proof: string): Uint8Array {
     throw new Error(`Invalid proof signature length: expected 64 bytes, got ${signature.length}`)
   }
   return signature
-}
-
-// -- IndexedDB helpers (private) --
-
-const DB_NAME = 'hypermedia-auth'
-const STORE_NAME = 'sessions'
-const DB_VERSION = 1
-
-interface DBSessionRecord {
-  keyPair: CryptoKeyPair
-  publicKeyRaw: Uint8Array
-  principal: string
-  vaultUrl: string
-  createTime: number
-  authState: string | null
-  authStartTime: number | null
-}
-
-function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION)
-    req.onupgradeneeded = () => {
-      const db = req.result
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME)
-      }
-    }
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
-  })
-}
-
-async function dbGet(key: string): Promise<DBSessionRecord | undefined> {
-  const db = await openDB()
-  return await new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly')
-    const store = tx.objectStore(STORE_NAME)
-    const req = store.get(key)
-    req.onsuccess = () => resolve(req.result as DBSessionRecord | undefined)
-    req.onerror = () => reject(req.error)
-  })
-}
-
-async function dbPut(key: string, value: DBSessionRecord): Promise<void> {
-  const db = await openDB()
-  return await new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite')
-    const store = tx.objectStore(STORE_NAME)
-    const req = store.put(value, key)
-    req.onsuccess = () => resolve()
-    req.onerror = () => reject(req.error)
-  })
-}
-
-async function dbDelete(key: string): Promise<void> {
-  const db = await openDB()
-  return await new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite')
-    const store = tx.objectStore(STORE_NAME)
-    const req = store.delete(key)
-    req.onsuccess = () => resolve()
-    req.onerror = () => reject(req.error)
-  })
-}
-
-// -- Session key generation --
-
-/**
- * Generate a non-extractable Ed25519 session key pair using the Web Crypto API.
- * Returns the key pair, raw public key bytes, and the encoded principal string.
- */
-export async function generateSessionKey(): Promise<{
-  keyPair: CryptoKeyPair
-  publicKeyRaw: Uint8Array
-  principal: string
-}> {
-  const keyPair = (await crypto.subtle.generateKey('Ed25519' as unknown as AlgorithmIdentifier, false, [
-    'sign',
-    'verify',
-  ])) as CryptoKeyPair
-  const rawExport = await crypto.subtle.exportKey('raw', keyPair.publicKey)
-  const publicKeyRaw = new Uint8Array(rawExport)
-  const principal = blobs.principalToString(blobs.principalFromEd25519(publicKeyRaw))
-  return {keyPair, publicKeyRaw, principal}
 }
 
 /** Parsed and validated delegation request from URL parameters. */
@@ -498,55 +382,6 @@ export async function verifyDelegationRequestProof(
   }
 }
 
-// -- Public API --
-
-/**
- * Start the authentication flow by generating a session key and storing it.
- *
- * 1. Generates a non-extractable Ed25519 key pair.
- * 2. Stores it in IndexedDB keyed by the Vault URL.
- * 3. Returns the Vault URL (with delegation params) for the caller to navigate to.
- */
-export async function startAuth(config: HypermediaAuthConfig): Promise<string> {
-  const clientId = config.clientId ?? window.location.origin
-  const redirectUri = config.redirectUri ?? `${window.location.origin}${window.location.pathname}`
-  validateClientId(clientId)
-  validateRedirectUri(redirectUri, clientId)
-
-  const session = await generateSessionKey()
-  const authState = generateAuthState()
-  const authStartTime = Date.now()
-
-  const record: DBSessionRecord = {
-    keyPair: session.keyPair,
-    publicKeyRaw: session.publicKeyRaw,
-    principal: session.principal,
-    vaultUrl: config.vaultUrl,
-    createTime: Date.now(),
-    authState,
-    authStartTime: authStartTime,
-  }
-
-  await dbPut(config.vaultUrl, record)
-
-  // Navigate to the vault root. The vault captures delegation params on any
-  // landing URL and preserves them through login/registration flows.
-  const url = new URL(config.vaultUrl)
-  url.search = ''
-  url.hash = ''
-  url.searchParams.set(PARAM_CLIENT_ID, clientId)
-  url.searchParams.set(PARAM_REDIRECT_URI, redirectUri)
-  url.searchParams.set(PARAM_SESSION_KEY, session.principal)
-  url.searchParams.set(PARAM_STATE, authState)
-  url.searchParams.set(PARAM_TS, String(authStartTime))
-  const signedUrl = url.toString()
-  const proofPayload = new TextEncoder().encode(signedUrl)
-  const proofSig = await signDelegationProof(session.keyPair.privateKey, proofPayload)
-  const proof = base64.encode(proofSig)
-  const delimiter = signedUrl.includes('?') ? '&' : '?'
-  return `${signedUrl}${delimiter}${PARAM_PROOF}=${encodeURIComponent(proof)}`
-}
-
 /** Callback data passed back to the requesting site after authorization. */
 export interface CallbackData {
   /** Account principal (the issuer of the capability). */
@@ -564,7 +399,6 @@ export interface CallbackData {
 /**
  * Build the callback URL to redirect the user back with the signed capability.
  * Encodes callback data as CBOR, compresses with gzip, then base64url-encodes.
- * Uses a single `data` URL parameter.
  */
 export async function buildCallbackUrl(
   redirectUri: string,
@@ -600,148 +434,4 @@ export async function createDelegation(
   return await blobs.createCapability(issuer, sessionKeyPrincipal, 'AGENT', Date.now() as blobs.Timestamp, {
     label: `Session key for ${clientId}`,
   })
-}
-
-/**
- * Handle the callback after the Vault redirects back with delegation results.
- *
- * Checks the current URL for `data` query parameter containing CBOR-encoded,
- * gzip-compressed, base64url-encoded callback data.
- * Returns null if no delegation parameters are present.
- * Throws if an `error` parameter is present.
- */
-export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Promise<AuthResult | null> {
-  const url = new URL(window.location.href)
-  const dataParam = url.searchParams.get(PARAM_DATA)
-  const stateParam = url.searchParams.get(PARAM_STATE)
-  const error = url.searchParams.get(PARAM_ERROR)
-
-  if (!dataParam && !error) {
-    return null
-  }
-
-  const vaultUrl = config?.vaultUrl
-  if (!vaultUrl) {
-    throw new Error('vaultUrl is required to retrieve the stored session')
-  }
-
-  if (!stateParam) {
-    throw new Error('Missing callback state')
-  }
-
-  const record = await dbGet(vaultUrl)
-  if (!record) {
-    throw new Error('No stored session found for this vault. Was startAuth() called first?')
-  }
-  if (!record.authState) {
-    throw new Error('No pending auth state found for this vault. Was startAuth() called first?')
-  }
-  if (record.authState !== stateParam) {
-    throw new Error('Invalid callback state')
-  }
-
-  if (error) {
-    await dbPut(vaultUrl, {
-      ...record,
-      authState: null,
-      authStartTime: null,
-    })
-    throw new Error(`Delegation error: ${error}`)
-  }
-  if (!dataParam) {
-    throw new Error('Missing callback data')
-  }
-
-  const session: StoredSession = {
-    keyPair: record.keyPair,
-    publicKeyRaw: record.publicKeyRaw,
-    principal: record.principal,
-    vaultUrl: record.vaultUrl,
-    createdAt: record.createTime,
-  }
-
-  // Decode callback data: base64url → gzip decompress → CBOR decode.
-  const compressed = base64.decode(dataParam)
-  const decodedCbor = await decompress(compressed)
-  const callbackData = cbor.decode<CallbackData>(decodedCbor)
-
-  // Re-encode the decoded blobs to verify CID integrity.
-  const capability = blobs.encode(callbackData.capability)
-  if (capability.cid.toString() !== callbackData.capabilityCid.toString()) {
-    throw new Error('Capability CID mismatch: data was corrupted in transit')
-  }
-
-  const profile = blobs.encode(callbackData.profile)
-  if (profile.cid.toString() !== callbackData.profileCid.toString()) {
-    throw new Error('Profile CID mismatch: data was corrupted in transit')
-  }
-
-  // Verify signatures.
-  if (!blobs.verify(callbackData.capability)) {
-    throw new Error('Invalid capability signature')
-  }
-  if (!blobs.verify(callbackData.profile)) {
-    throw new Error('Invalid profile signature')
-  }
-
-  // Cross-blob coherence checks.
-  const expectedDelegate = blobs.principalFromString(session.principal)
-  if (!blobs.principalEqual(callbackData.capability.delegate, expectedDelegate)) {
-    throw new Error('Capability delegate does not match local session key')
-  }
-  if (!blobs.principalEqual(callbackData.account, callbackData.capability.signer)) {
-    throw new Error('Callback account does not match capability signer')
-  }
-  const profileAccount = callbackData.profile.account ?? callbackData.profile.signer
-  if (!blobs.principalEqual(callbackData.account, profileAccount)) {
-    throw new Error('Callback account does not match profile owner')
-  }
-
-  await dbPut(vaultUrl, {
-    ...record,
-    authState: null,
-    authStartTime: null,
-  })
-
-  return {
-    accountPrincipal: blobs.principalToString(callbackData.account),
-    capability,
-    session,
-    profile,
-  }
-}
-
-/**
- * Retrieve a stored session from IndexedDB for a given Vault URL.
- * Returns null if no session is stored.
- */
-export async function getSession(vaultUrl: string): Promise<StoredSession | null> {
-  const record = await dbGet(vaultUrl)
-  if (!record) return null
-  return {
-    keyPair: record.keyPair,
-    publicKeyRaw: record.publicKeyRaw,
-    principal: record.principal,
-    vaultUrl: record.vaultUrl,
-    createdAt: record.createTime,
-  }
-}
-
-/**
- * Sign data using the session's non-extractable private key.
- * Uses the Web Crypto Ed25519 sign operation.
- */
-export async function signWithSession(session: StoredSession, data: Uint8Array): Promise<Uint8Array> {
-  const sig = await crypto.subtle.sign(
-    'Ed25519' as unknown as AlgorithmIdentifier,
-    session.keyPair.privateKey,
-    data as ArrayBufferView<ArrayBuffer>,
-  )
-  return new Uint8Array(sig)
-}
-
-/**
- * Remove a stored session from IndexedDB for a given Vault URL. */
-export async function clearSession(vaultUrl: string): Promise<void> {
-  await dbDelete(vaultUrl)
 }

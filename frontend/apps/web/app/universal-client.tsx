@@ -1,9 +1,9 @@
 import {createSeedClient} from '@seed-hypermedia/client'
 import type {HMSigner, UnpackedHypermediaId, UniversalClient} from '@shm/shared'
 import {createWebUniversalClient} from '@shm/shared/create-web-universal-client'
+import {keyPairStore} from './auth'
 import {preparePublicKey} from './auth-utils'
 import WebCommenting from './commenting'
-import {getStoredLocalKeys} from './local-db'
 import {deleteRecent, getRecents} from './local-db-recents'
 
 const seedClient = createSeedClient('')
@@ -18,16 +18,16 @@ export const webUniversalClient = createWebUniversalClient({
   deleteRecent: deleteRecent,
   getSigner: (): HMSigner => ({
     getPublicKey: async () => {
-      const keys = await getStoredLocalKeys()
-      if (!keys) throw new Error('No signing keys available')
-      return preparePublicKey(keys.publicKey)
+      const kp = keyPairStore.get()
+      if (!kp) throw new Error('No signing keys available')
+      return preparePublicKey(kp.publicKey)
     },
     sign: async (data: Uint8Array) => {
-      const keys = await getStoredLocalKeys()
-      if (!keys) throw new Error('No signing keys available')
+      const kp = keyPairStore.get()
+      if (!kp) throw new Error('No signing keys available')
       const sig = await crypto.subtle.sign(
-        {...keys.privateKey.algorithm, hash: {name: 'SHA-256'}},
-        keys.privateKey,
+        {...kp.privateKey.algorithm, hash: {name: 'SHA-256'}},
+        kp.privateKey,
         new Uint8Array(data),
       )
       return new Uint8Array(sig)

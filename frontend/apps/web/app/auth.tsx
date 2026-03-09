@@ -4,7 +4,6 @@ import {createSeedClient} from '@seed-hypermedia/client'
 import {hmId, hostnameStripProtocol, queryKeys, useUniversalAppContext} from '@shm/shared'
 import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
 import {HMDocument, HMPrepareDocumentChangeInput, HMSigner} from '@shm/shared/hm-types'
-import * as hmauth from '@shm/shared/hmauth'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useTx, useTxString} from '@shm/shared/translation'
@@ -25,9 +24,22 @@ import {useEffect, useRef, useState, useSyncExternalStore} from 'react'
 import {Control, FieldValues, Path, SubmitHandler, useController, useForm} from 'react-hook-form'
 import {z} from 'zod'
 import {encodeBlock, rawCodec} from './api'
+import * as authSession from './auth-session'
 import {preparePublicKey} from './auth-utils'
 import {createDefaultAccountName} from './default-account-name'
-import {deleteLocalKeys, getStoredLocalKeys, setHasPromptedEmailNotifications, writeLocalKeys} from './local-db'
+import {
+  AUTH_STATE_ACTIVE_VAULT_URL,
+  AUTH_STATE_DELEGATION_RETURN_URL,
+  AUTH_STATE_DELEGATION_VAULT_URL,
+  clearAllAuthState,
+  deleteAuthState,
+  deleteLocalKeys,
+  getAuthState,
+  getStoredLocalKeys,
+  setAuthState,
+  setHasPromptedEmailNotifications,
+  writeLocalKeys,
+} from './local-db'
 import {queryAPI} from './models'
 
 const seedClient = createSeedClient('')
@@ -76,9 +88,12 @@ async function loadLocalWebIdentity(): Promise<LocalWebIdentity | null> {
   const kp = await getStoredLocalKeys()
   if (!kp) return null
   const id = await preparePublicKey(kp.publicKey)
+  const activeVaultUrl = await getAuthState(AUTH_STATE_ACTIVE_VAULT_URL)
   return {
     ...kp,
     id: base58btc.encode(id),
+    isDelegated: !!activeVaultUrl,
+    vaultUrl: activeVaultUrl ?? undefined,
   }
 }
 
@@ -89,32 +104,6 @@ function syncKeyPair(newKeyPair: LocalWebIdentity | null) {
 }
 
 function updateKeyPair() {
-  const activeVaultUrl = typeof window !== 'undefined' ? localStorage.getItem('hm_active_vault_url') : null
-  if (activeVaultUrl) {
-    hmauth
-      .getSession(activeVaultUrl)
-      .then(async (session) => {
-        if (session) {
-          return {
-            privateKey: session.keyPair.privateKey,
-            publicKey: session.keyPair.publicKey,
-            id: session.principal,
-            isDelegated: true,
-            vaultUrl: session.vaultUrl,
-          } satisfies LocalWebIdentity
-        }
-        localStorage.removeItem('hm_active_vault_url')
-        return await loadLocalWebIdentity()
-      })
-      .then(syncKeyPair)
-      .catch((err) => {
-        console.error(err)
-        localStorage.removeItem('hm_active_vault_url')
-        loadLocalWebIdentity().then(syncKeyPair).catch(console.error)
-      })
-    return
-  }
-
   loadLocalWebIdentity().then(syncKeyPair).catch(console.error)
 }
 
@@ -123,16 +112,11 @@ export function logout() {
   Promise.all([
     deleteLocalKeys(),
     setHasPromptedEmailNotifications(false),
-    vaultUrl ? hmauth.clearSession(vaultUrl) : Promise.resolve(),
+    vaultUrl ? authSession.clearSession(vaultUrl) : Promise.resolve(),
+    clearAllAuthState(),
   ])
     .then(() => {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('hm_active_vault_url')
-        localStorage.removeItem('hm_delegation_return_url')
-        localStorage.removeItem('hm_delegation_vault_url')
-      }
       keyPairStore.set(null)
-      console.log('Logged out')
     })
     .catch((e) => {
       console.error('Failed to log out', e)
@@ -163,10 +147,10 @@ export async function createAccount({
     throw new Error('Must provide an image or null for account creation')
   }
 
-  const activeVaultUrl = typeof window !== 'undefined' ? localStorage.getItem('hm_active_vault_url') : null
+  const activeVaultUrl = await getAuthState(AUTH_STATE_ACTIVE_VAULT_URL)
   if (activeVaultUrl) {
-    localStorage.removeItem('hm_active_vault_url')
-    await hmauth.clearSession(activeVaultUrl).catch((err) => {
+    await deleteAuthState(AUTH_STATE_ACTIVE_VAULT_URL)
+    await authSession.clearSession(activeVaultUrl).catch((err) => {
       console.error('Failed to clear delegated session while creating local account', err)
     })
   }
@@ -385,10 +369,10 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
 
   const handleVaultSignIn = async (urlOverride?: string) => {
     const vaultUrl = urlOverride || defaultVaultUrl
-    localStorage.setItem('hm_delegation_return_url', window.location.pathname)
-    localStorage.setItem('hm_delegation_vault_url', vaultUrl)
+    await setAuthState(AUTH_STATE_DELEGATION_RETURN_URL, window.location.pathname)
+    await setAuthState(AUTH_STATE_DELEGATION_VAULT_URL, vaultUrl)
     try {
-      const authUrl = await hmauth.startAuth({
+      const authUrl = await authSession.startAuth({
         vaultUrl,
         clientId: origin || window.location.origin,
         redirectUri: `${origin || window.location.origin}/hm/auth/callback`,
@@ -415,21 +399,6 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
           siteName: siteName || 'this site',
         })}
       </DialogTitle>
-      <DialogDescription className="max-sm:text-sm">
-        {tx(
-          'create_account_description',
-          'Hypermedia accounts use public key cryptography. The private key for your account will be securely stored in this browser, and no one else has access to it. The identity will be accessible only on this domain, but you can link it to other domains and devices later.',
-        )}
-      </DialogDescription>
-      <EditProfileForm
-        onSubmit={(values) => {
-          onClose()
-          onSubmit(values)
-        }}
-        submitLabel={tx('create_account_submit', ({siteName}: {siteName: string}) => `Create ${siteName} Account`, {
-          siteName,
-        })}
-      />
 
       {vaultSignInUnlocked ? (
         <>
@@ -498,7 +467,25 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
             </div>
           </div>
         </>
-      ) : null}
+      ) : (
+        <>
+          <DialogDescription className="max-sm:text-sm">
+            {tx(
+              'create_account_description',
+              'Hypermedia accounts use public key cryptography. The private key for your account will be securely stored in this browser, and no one else has access to it. The identity will be accessible only on this domain, but you can link it to other domains and devices later.',
+            )}
+          </DialogDescription>
+          <EditProfileForm
+            onSubmit={(values) => {
+              onClose()
+              onSubmit(values)
+            }}
+            submitLabel={tx('create_account_submit', ({siteName}: {siteName: string}) => `Create ${siteName} Account`, {
+              siteName,
+            })}
+          />
+        </>
+      )}
     </>
   )
 }
