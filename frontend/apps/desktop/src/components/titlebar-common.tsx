@@ -302,6 +302,7 @@ function NotificationButton() {
   const accountUid = useSelectedAccountId()
   const inbox = useNotificationInbox(accountUid)
   const readState = useLocalNotificationReadState(accountUid)
+  const isActive = route.key === 'notifications'
 
   const unreadCount = useMemo(() => {
     if (!inbox.data || !readState.data) return 0
@@ -320,9 +321,13 @@ function NotificationButton() {
       <Button
         className={cn(
           'window-no-drag relative h-8 rounded-full border-1 p-0',
-          route.key === 'notifications' ? 'bg-white dark:bg-white' : 'border-transparent',
+          isActive
+            ? 'cursor-default border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
+            : 'border-transparent',
         )}
-        onClick={() => navigate({key: 'notifications'})}
+        aria-current={isActive ? 'page' : undefined}
+        aria-disabled={isActive || undefined}
+        onClick={isActive ? undefined : () => navigate({key: 'notifications'})}
       >
         <Bell className="size-4" />
         {unreadCount > 0 ? (
