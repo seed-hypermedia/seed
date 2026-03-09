@@ -1,4 +1,5 @@
-import {HMMetadataPayload, useRouteLink} from '@shm/shared'
+import {HMMetadataPayload} from '@seed-hypermedia/client/hm-types'
+import {useRouteLink} from '@shm/shared'
 import {useTxString} from '@shm/shared/translation'
 import {ExternalLink, Pencil} from 'lucide-react'
 import {Button} from './button'

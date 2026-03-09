@@ -31,7 +31,9 @@
     "allowUnusedLabels": false,
 
     "paths": {
-      "@shm/ui/*": ["../ui/src/*"]
+      "@shm/ui/*": ["../ui/src/*"],
+      "@seed-hypermedia/client": ["../client/src/index.ts"],
+      "@seed-hypermedia/client/*": ["../client/src/*"]
     }
   },
   "include": ["src"]

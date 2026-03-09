@@ -14,7 +14,9 @@
       "@shm/shared/*": ["../shared/src/*"],
       "@shm/editor/*": ["./src/*"],
       "@/*": ["./src/*"],
-      "@": ["./src/index"]
+      "@": ["./src/index"],
+      "@seed-hypermedia/client": ["../client/src/index.ts"],
+      "@seed-hypermedia/client/*": ["../client/src/*"]
     },
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,

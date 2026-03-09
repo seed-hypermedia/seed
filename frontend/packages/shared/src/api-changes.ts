@@ -1,7 +1,7 @@
 import {HMRequestImplementation, HMRequestParams} from './api-types'
 import {BIG_INT} from './constants'
 import {GRPCClient} from './grpc-client'
-import {HMListChangesRequest} from './hm-types'
+import {HMListChangesRequest} from '@seed-hypermedia/client/hm-types'
 import {getErrorMessage, HMRedirectError} from './models/entity'
 import {packHmId, unpackHmId} from './utils'
 import {hmIdPathToEntityQueryPath} from './utils/path-api'

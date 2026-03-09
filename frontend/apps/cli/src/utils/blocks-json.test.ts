@@ -1,6 +1,6 @@
 import {describe, test, expect} from 'bun:test'
 import {parseBlocksJson, hmBlockNodesToOperations} from './blocks-json'
-import type {HMBlockNode} from '@shm/shared/hm-types'
+import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 
 const para = (id: string, text: string): HMBlockNode => ({
   block: {type: 'Paragraph', id, text, annotations: [], attributes: {}},
@@ -23,9 +23,7 @@ describe('parseBlocksJson', () => {
   })
 
   test('parses nested blocks', () => {
-    const json = JSON.stringify([
-      heading('h1', 'Section', [para('p1', 'Content')]),
-    ])
+    const json = JSON.stringify([heading('h1', 'Section', [para('p1', 'Content')])])
     const result = parseBlocksJson(json)
     expect(result).toHaveLength(1)
     expect(result[0].children).toHaveLength(1)

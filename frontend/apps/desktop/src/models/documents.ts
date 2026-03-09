@@ -13,7 +13,8 @@ import {useBlockNote} from '@shm/editor/blocknote'
 import {BlockNoteEditor} from '@shm/editor/blocknote/core'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {getSlashMenuItems} from '@shm/editor/slash-menu-items'
-import {getCommentTargetId, getParentPaths, HMAnnotation, UniversalClient, useUniversalClient} from '@shm/shared'
+import {HMAnnotation} from '@seed-hypermedia/client/hm-types'
+import {getCommentTargetId, getParentPaths, UniversalClient, useUniversalClient} from '@shm/shared'
 import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {AnnounceBlobsProgress} from '@shm/shared/client/.generated/p2p/v1alpha/syncing_pb'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
@@ -26,14 +27,16 @@ import {
   HMBlockNode,
   HMDocument,
   HMDocumentMetadataSchema,
+  HMResourceVisibility,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
+import {
   HMDraft,
   HMDraftContent,
   HMDraftMeta,
   HMListedDraft,
   HMNavigationItem,
   HMResourceFetchResult,
-  HMResourceVisibility,
-  UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 /**
  * Extended draft type returned by app-drafts.ts listAccount/list endpoints.

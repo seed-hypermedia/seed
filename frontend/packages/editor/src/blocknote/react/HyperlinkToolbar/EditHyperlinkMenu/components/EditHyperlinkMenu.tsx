@@ -1,5 +1,5 @@
 import {hmId} from '@shm/shared'
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {packHmId} from '@shm/shared/utils'
 import {Button} from '@shm/ui/button'
 import {Checkbox} from '@shm/ui/components/checkbox'

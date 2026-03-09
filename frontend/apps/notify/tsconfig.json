@@ -40,7 +40,8 @@
       "@shm/shared": ["../../packages/shared/src/index.ts"],
       "@shm/shared/*": ["../../packages/shared/src/*"],
       "@shm/ui/*": ["../../packages/ui/src/*"],
-      "@seed-hypermedia/client": ["../../packages/client/src/index.ts"]
+      "@seed-hypermedia/client": ["../../packages/client/src/index.ts"],
+      "@seed-hypermedia/client/*": ["../../packages/client/src/*"]
     },
     "noEmit": true
   },

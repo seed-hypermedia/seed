@@ -1,7 +1,7 @@
 import {useMyAccountIds} from '@/models/daemon'
 import {HMSubscription, useSubscription} from '@/models/subscription'
 import {getDocumentTitle} from '@shm/shared/content'
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {Button, buttonVariants} from '@shm/ui/button'
 import {

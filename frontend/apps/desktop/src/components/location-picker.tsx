@@ -3,15 +3,14 @@ import {useMyAccountIds} from '@/models/daemon'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {client} from '@/trpc'
 import {pathNameify} from '@/utils/path'
+import {HMMetadataPayload, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   createSiteUrl,
   createWebHMUrl,
   getParent,
   hmId,
   hmIdPathToEntityQueryPath,
-  HMMetadataPayload,
   isIdParentOfOrEqual,
-  UnpackedHypermediaId,
   useSearch,
 } from '@shm/shared'
 import {useCapabilities, useDirectory, useResource, useResources} from '@shm/shared/models/entity'

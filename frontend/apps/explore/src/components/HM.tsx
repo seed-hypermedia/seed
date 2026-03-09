@@ -1,16 +1,5 @@
-import {
-  HMBlockNode,
-  hmId,
-  hmIdPathToEntityQueryPath,
-  packHmId,
-  useAuthoredComments,
-  useCapabilities,
-  useChanges,
-  useChildrenList,
-  useCitations,
-  useComments,
-  useResource,
-} from '@shm/shared'
+import {HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import {hmId, hmIdPathToEntityQueryPath, packHmId, useAuthoredComments, useCapabilities, useChanges, useChildrenList, useCitations, useComments, useResource} from '@shm/shared'
 import {useMemo} from 'react'
 import {useNavigate, useParams, useSearchParams} from 'react-router-dom'
 import {useApiHost} from '../apiHostStore'

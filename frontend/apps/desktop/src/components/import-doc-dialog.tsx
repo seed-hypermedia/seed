@@ -1,4 +1,4 @@
-import {HMResourceVisibility} from '@shm/shared'
+import {HMResourceVisibility} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
 import {SizableText, Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'

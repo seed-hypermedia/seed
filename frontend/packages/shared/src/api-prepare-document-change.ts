@@ -1,6 +1,6 @@
 import {DocumentChange} from './client/.generated/documents/v3alpha/documents_pb'
 import {HMRequestImplementation} from './api-types'
-import {HMPrepareDocumentChangeRequest} from './hm-types'
+import {HMPrepareDocumentChangeRequest} from '@seed-hypermedia/client/hm-types'
 
 export const PrepareDocumentChange: HMRequestImplementation<HMPrepareDocumentChangeRequest> = {
   async getData(grpcClient, input) {

@@ -1,16 +1,8 @@
 import {useCreateAccount} from '@/auth'
 import {createComment} from '@seed-hypermedia/client'
 import {CommentEditor} from '@shm/editor/comment-editor'
-import {
-  HMBlockNode,
-  HMPublishBlobsOutput,
-  idToUrl,
-  queryKeys,
-  UnpackedHypermediaId,
-  unpackHmId,
-  useUniversalAppContext,
-  useUniversalClient,
-} from '@shm/shared'
+import {HMBlockNode, HMPublishBlobsOutput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {idToUrl, queryKeys, unpackHmId, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {useCommentsService} from '@shm/shared/comments-service-provider'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'

@@ -1,5 +1,5 @@
 import {createWebUniversalClient} from '@shm/shared/create-web-universal-client'
-import type {HMRequest} from '@shm/shared'
+import type {HMRequest} from '@seed-hypermedia/client/hm-types'
 import {createSeedClient} from '@seed-hypermedia/client'
 import {getApiHost} from './queryClient'
 

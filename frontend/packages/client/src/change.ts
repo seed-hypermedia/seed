@@ -9,7 +9,7 @@
  */
 
 import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
-import type {HMPrepareDocumentChangeInput, HMPublishBlobsInput, HMSigner} from '@shm/shared/hm-types'
+import type {HMPrepareDocumentChangeInput, HMPublishBlobsInput, HMSigner} from './hm-types'
 import {CID} from 'multiformats'
 import * as Block from 'multiformats/block'
 import {sha256} from 'multiformats/hashes/sha2'

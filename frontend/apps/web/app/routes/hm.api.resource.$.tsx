@@ -3,7 +3,8 @@ import {parseRequest} from '@/request'
 import {withCors} from '@/utils/cors'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {Params} from '@remix-run/react'
-import {hmId, HMResource} from '@shm/shared'
+import {HMResource} from '@seed-hypermedia/client/hm-types'
+import {hmId} from '@shm/shared'
 
 export const loader = async ({
   request,

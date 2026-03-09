@@ -2,6 +2,13 @@ import {Code, ConnectError} from '@connectrpc/connect'
 import {redirect} from '@remix-run/react'
 import {accountMetadataFromAccount} from '@shm/shared/account-metadata'
 import {
+  HMDocument,
+  HMDocumentMetadataSchema,
+  HMMetadata,
+  HMMetadataPayload,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
+import {
   commentIdToHmId,
   createWebHMUrl,
   entityQueryPathToHmIdPath,
@@ -9,19 +16,14 @@ import {
   extractRefs,
   getBreadcrumbDocumentIds,
   getCommentTargetId,
-  HMDocument,
-  HMDocumentMetadataSchema,
   hmId,
   hmIdPathToEntityQueryPath,
-  HMMetadata,
-  HMMetadataPayload,
   packHmId,
   queryBlockSortedItems,
-  UnpackedHypermediaId,
 } from '@shm/shared'
 import {SITE_BASE_URL, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
 import {prepareHMDocument} from '@shm/shared/document-utils'
-import {HMComment, HMCommentSchema, HMDocumentInfo, HMResource} from '@shm/shared/hm-types'
+import {HMComment, HMCommentSchema, HMDocumentInfo, HMResource} from '@seed-hypermedia/client/hm-types'
 import {
   documentMetadataParseAdjustments,
   getErrorMessage,

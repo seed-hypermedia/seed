@@ -5,15 +5,8 @@ import {useResources} from '@shm/shared/models/entity'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
-import {
-  getMetadataName,
-  HMAccount,
-  HMAccountsMetadata,
-  HMContact,
-  HMContactRecord,
-  hmId,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {HMAccountsMetadata, HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {getMetadataName, HMAccount, HMContact, hmId} from '@shm/shared'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'

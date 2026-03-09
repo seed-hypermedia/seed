@@ -1,4 +1,4 @@
-import {HMTimestamp} from './hm-types'
+import {HMTimestamp} from '@seed-hypermedia/client/hm-types'
 import {normalizeDate} from './utils/date'
 
 /**

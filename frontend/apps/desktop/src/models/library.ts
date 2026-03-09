@@ -1,15 +1,8 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {BIG_INT} from '@shm/shared/constants'
-import {
-  HMAccount,
-  HMComment,
-  HMDocument,
-  HMDocumentInfo,
-  HMLibraryDocument,
-  HMMetadata,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+import {HMComment, HMDocument, HMDocumentInfo, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMAccount, HMLibraryDocument} from '@shm/shared/hm-types'
 import {documentMetadataParseAdjustments, prepareHMDocumentInfo} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'

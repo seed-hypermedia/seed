@@ -1,4 +1,4 @@
-import {HMBlock} from '@shm/shared/hm-types'
+import {HMBlock} from '@seed-hypermedia/client/hm-types'
 import {Editor} from '@tiptap/react'
 import {Node} from 'prosemirror-model'
 

@@ -1,15 +1,17 @@
 import {
-  formattedDate,
-  getMetadataName,
   HMAccountsMetadata,
   HMActivitySummary,
   HMBreadcrumb,
   HMComment,
   HMDocumentInfo,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
+import {
+  formattedDate,
+  getMetadataName,
   hmId,
   HMLibraryDocument,
   InteractionSummaryPayload,
-  UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
 import {useDocumentActions} from '@shm/shared/document-actions-context'

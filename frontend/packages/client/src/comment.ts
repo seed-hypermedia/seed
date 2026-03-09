@@ -7,13 +7,35 @@ import type {
   HMPublishableBlock,
   HMSigner,
   UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
-import {trimTrailingEmptyBlocks} from '@shm/shared/comments'
-import {packHmId} from '@shm/shared/utils/entity-id-url'
-import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+} from './hm-types'
+import {hmIdPathToEntityQueryPath, packHmId} from './hm-types'
 import {CID} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
 import {signObject, toPublishInput} from './signing'
+
+// ─── Block trimming ─────────────────────────────────────────────────────────
+
+/**
+ * Removes trailing empty blocks from comment content before publishing.
+ * The editor always keeps a trailing empty paragraph for UX, but we
+ * don't want to publish it.
+ */
+export function trimTrailingEmptyBlocks(blocks: HMBlockNode[]): HMBlockNode[] {
+  let end = blocks.length
+  while (end > 0) {
+    const node = blocks[end - 1]!
+    if (!isEmptyBlockNode(node)) break
+    end--
+  }
+  return blocks.slice(0, end)
+}
+
+function isEmptyBlockNode(node: HMBlockNode): boolean {
+  const {block, children} = node
+  if (children && children.length > 0) return false
+  if (block.type !== 'Paragraph' && block.type !== 'Heading') return false
+  return !block.text || block.text.trim() === ''
+}
 
 export type CommentAttachmentBlob = {
   cid: string

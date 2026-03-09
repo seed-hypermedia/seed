@@ -1,4 +1,4 @@
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useEffect, useRef} from 'react'
 
 // Default highlight color - adjust as needed

@@ -3,6 +3,7 @@ import {MainWrapper} from '@/components/main-wrapper'
 import {useCreateDraft, useDraftList} from '@/models/documents'
 import {client} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
+import {HMMetadataPayload} from '@seed-hypermedia/client/hm-types'
 import {
   formattedDateMedium,
   getMetadataName,
@@ -10,7 +11,6 @@ import {
   hmId,
   HMListedCommentDraft,
   HMListedDraft,
-  HMMetadataPayload,
   unpackHmId,
 } from '@shm/shared'
 import {useResource, useResources} from '@shm/shared/models/entity'

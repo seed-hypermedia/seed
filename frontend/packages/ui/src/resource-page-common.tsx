@@ -1,14 +1,11 @@
+import {BlockRange, HMComment, HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
-  BlockRange,
   DocumentPanelRoute,
   findContentBlock,
   getBlockText,
-  HMComment,
-  HMDocument,
   HMExistingDraft,
   hmId,
   NavRoute,
-  UnpackedHypermediaId,
   unpackHmId,
   useUniversalAppContext,
 } from '@shm/shared'
@@ -1271,7 +1268,7 @@ function MainContent({
     openComment?: string
     targetBlockId?: string
     blockId?: string
-    blockRange?: import('@shm/shared').BlockRange | null
+    blockRange?: import('@seed-hypermedia/client/hm-types').BlockRange | null
     autoFocus?: boolean
   }
   activityFilterEventType?: string[]
@@ -1285,7 +1282,7 @@ function MainContent({
   ) => void
   onBlockSelect?: (blockId: string, opts?: BlockRangeSelectOptions) => void
   CommentEditor?: React.ComponentType<CommentEditorProps>
-  directory?: import('@shm/shared').HMDocumentInfo[]
+  directory?: import('@seed-hypermedia/client/hm-types').HMDocumentInfo[]
   siteUrl?: string
   inlineCards?: ReactNode
 }) {
@@ -1395,7 +1392,7 @@ function ContentViewWithOutline({
     startCommentingNow?: boolean,
   ) => void
   onBlockSelect?: (blockId: string, opts?: BlockRangeSelectOptions) => void
-  directory?: import('@shm/shared').HMDocumentInfo[]
+  directory?: import('@seed-hypermedia/client/hm-types').HMDocumentInfo[]
   inlineCards?: ReactNode
 }) {
   const outline = useNodesOutline(document, docId)

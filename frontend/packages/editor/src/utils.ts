@@ -1,6 +1,6 @@
 import type {BlockSchema} from '@shm/editor/blocknote'
 import type {Block as BNBlock} from '@shm/editor/blocknote/core/extensions/Blocks/api/blockTypes'
-import {HMBlockChildrenTypeSchema} from '@shm/shared'
+import {HMBlockChildrenTypeSchema} from '@seed-hypermedia/client/hm-types'
 import {editorBlockToHMBlock} from '@shm/shared/client/editorblock-to-hmblock'
 import {Block, BlockNode} from '@shm/shared/client/grpc-types'
 import {EditorBlock} from '@shm/shared/editor-types'

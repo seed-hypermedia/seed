@@ -1,4 +1,5 @@
-import {getMetadataName, HMDocument, HMMetadata, HMMetadataPayload, UnpackedHypermediaId} from '@shm/shared'
+import {HMDocument, HMMetadata, HMMetadataPayload, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {getMetadataName} from '@shm/shared'
 import {Container} from '@shm/ui/container'
 import {DocumentDate} from '@shm/ui/document-date'
 import {DonateButton} from '@shm/ui/donate-button'

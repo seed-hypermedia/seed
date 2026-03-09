@@ -1,6 +1,6 @@
 import {base58btc} from 'multiformats/bases/base58'
 import type {GRPCClient} from '@shm/shared/grpc-client'
-import type {HMSigner} from '@shm/shared/hm-types'
+import type {HMSigner} from '@seed-hypermedia/client/hm-types'
 
 /**
  * Create an HMSigner backed by the daemon's keystore.

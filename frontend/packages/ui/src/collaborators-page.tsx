@@ -1,6 +1,7 @@
 import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
-import {HMCapability, HMMetadata, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
+import {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMCapability, useRouteLink} from '@shm/shared'
 import {useAddCapabilities, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
 import {useCapabilities, useResource, useSelectedAccountId} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'

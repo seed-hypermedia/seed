@@ -15,7 +15,7 @@ import {
   HMMetadata,
   HMResourceVisibility,
   UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+} from '@seed-hypermedia/client/hm-types'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'

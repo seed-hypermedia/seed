@@ -1,7 +1,7 @@
 import {HMRequestImplementation, HMRequestParams} from './api-types'
 import {BIG_INT} from './constants'
 import {GRPCClient} from './grpc-client'
-import {HMListCitationsRequest} from './hm-types'
+import {HMListCitationsRequest} from '@seed-hypermedia/client/hm-types'
 import {packHmId, unpackHmId} from './utils'
 
 export const ListCitations: HMRequestImplementation<HMListCitationsRequest> = {

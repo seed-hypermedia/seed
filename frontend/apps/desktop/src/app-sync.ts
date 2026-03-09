@@ -10,7 +10,8 @@
 
 import {grpcClient} from '@/grpc-client'
 import {DISCOVERY_DEBOUNCE_MS} from '@shm/shared/constants'
-import {AggregatedDiscoveryState, DiscoveryProgress, DiscoveryState, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {AggregatedDiscoveryState, DiscoveryProgress, DiscoveryState} from '@shm/shared/hm-types'
 import {getErrorMessage, HMRedirectError, HMResourceTombstoneError} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {createResourceFetcher} from '@shm/shared/resource-loader'

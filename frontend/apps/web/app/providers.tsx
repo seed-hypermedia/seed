@@ -1,12 +1,6 @@
 import {useLocation, useNavigate, useNavigation} from '@remix-run/react'
-import {
-  createWebHMUrl,
-  NavRoute,
-  OptimizedImageSize,
-  routeToHref,
-  UniversalAppProvider,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {createWebHMUrl, NavRoute, OptimizedImageSize, routeToHref, UniversalAppProvider} from '@shm/shared'
 import {DAEMON_FILE_URL, SEED_ASSET_HOST, SITE_BASE_URL} from '@shm/shared/constants'
 import {languagePacks} from '@shm/shared/language-packs'
 import {defaultRoute} from '@shm/shared/routes'

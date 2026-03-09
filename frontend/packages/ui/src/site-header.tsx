@@ -1,14 +1,5 @@
-import {
-  getMetadataName,
-  HMDocument,
-  HMMetadata,
-  HMResourceFetchResult,
-  HMResourceVisibility,
-  NavRoute,
-  SearchResult,
-  UnpackedHypermediaId,
-  useRouteLink,
-} from '@shm/shared'
+import {HMDocument, HMMetadata, HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {getMetadataName, HMResourceFetchResult, NavRoute, SearchResult, useRouteLink} from '@shm/shared'
 import {useTxString, useTxUtils} from '@shm/shared/translation'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'

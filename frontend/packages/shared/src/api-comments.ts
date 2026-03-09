@@ -5,7 +5,7 @@ import {
   HMListCommentsByReferenceRequest,
   HMListCommentsRequest,
   HMListDiscussionsRequest,
-} from './hm-types'
+} from '@seed-hypermedia/client/hm-types'
 import {
   createCommentsByReferenceResolver,
   createCommentsResolver,

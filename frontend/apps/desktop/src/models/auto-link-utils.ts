@@ -5,14 +5,8 @@
  * heavy dependencies from documents.ts
  */
 
-import {
-  HMBlockNode,
-  HMDocument,
-  UnpackedHypermediaId,
-  hmIdPathToEntityQueryPath,
-  packHmId,
-  unpackHmId,
-} from '@shm/shared'
+import {HMBlockNode, HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmIdPathToEntityQueryPath, packHmId, unpackHmId} from '@shm/shared'
 
 /**
  * Check if a document contains a link/embed to a specific child document

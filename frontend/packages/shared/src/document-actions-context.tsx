@@ -1,5 +1,5 @@
 import {createContext, PropsWithChildren, useContext, useMemo} from 'react'
-import {HMDocument, UnpackedHypermediaId} from './hm-types'
+import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 
 export type DocumentActionsContextValue = {
   // Account info — card checks ownership/capabilities itself

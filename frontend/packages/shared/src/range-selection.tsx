@@ -2,7 +2,7 @@ import {useMachine} from '@xstate/react'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {assign, setup} from 'xstate'
 import {isSurrogate} from './client/unicode'
-import {HMBlockNode} from './hm-types'
+import {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 
 /**
  * Converts a UTF-16 offset to a Unicode codepoint offset

@@ -1,15 +1,17 @@
 import {
-  getMetadataName,
-  getNodesOutline,
   HMDocument,
   HMDocumentInfo,
-  HMListedDraft,
   HMMetadata,
-  HMResourceFetchResult,
   HMResourceVisibility,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
+import {
+  getMetadataName,
+  getNodesOutline,
+  HMListedDraft,
+  HMResourceFetchResult,
   NavRoute,
   NodeOutline,
-  UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'

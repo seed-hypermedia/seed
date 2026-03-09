@@ -1,5 +1,5 @@
 import {HMRequestImplementation} from './api-types'
-import {HMPublishBlobsRequest} from './hm-types'
+import {HMPublishBlobsRequest} from '@seed-hypermedia/client/hm-types'
 
 function normalizeBytes(data: Uint8Array): Uint8Array<ArrayBuffer> {
   const normalized = new Uint8Array(data.byteLength)

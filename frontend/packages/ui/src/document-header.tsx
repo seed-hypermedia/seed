@@ -1,13 +1,11 @@
 import {
-  abbreviateUid,
-  getMetadataName,
   HMDocument,
   HMMetadata,
   HMMetadataPayload,
   HMResourceVisibility,
   UnpackedHypermediaId,
-  useRouteLink,
-} from '@shm/shared'
+} from '@seed-hypermedia/client/hm-types'
+import {abbreviateUid, getMetadataName, useRouteLink} from '@shm/shared'
 import {useMemo} from 'react'
 import {Container} from './container'
 import {DocumentDate} from './document-date'

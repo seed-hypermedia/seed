@@ -1,7 +1,13 @@
 import {HMRequestImplementation, HMRequestParams} from './api-types'
 import {accountMetadataFromAccount} from './account-metadata'
 import {GRPCClient} from './grpc-client'
-import {HMAccountNotFound, HMAccountPayload, HMAccountRequest, HMAccountResult, HMMetadataPayload} from './hm-types'
+import {
+  HMAccountNotFound,
+  HMAccountPayload,
+  HMAccountRequest,
+  HMAccountResult,
+  HMMetadataPayload,
+} from '@seed-hypermedia/client/hm-types'
 import {getErrorMessage, HMNotFoundError} from './models/entity'
 import {hmId} from './utils'
 

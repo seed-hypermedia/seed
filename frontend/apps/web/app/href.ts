@@ -1,4 +1,5 @@
-import {serializeBlockRange, UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {serializeBlockRange} from '@shm/shared'
 
 export function getHref(homeId: UnpackedHypermediaId | null | undefined, id: UnpackedHypermediaId, version?: string) {
   const path = `/${(id.path || []).join('/')}`

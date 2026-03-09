@@ -1,4 +1,5 @@
-import type {BlockRange, HMComment, ParsedFragment, UnpackedHypermediaId} from '../hm-types'
+import type {BlockRange, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {ParsedFragment} from '../hm-types'
 import {DEFAULT_GATEWAY_URL, HYPERMEDIA_SCHEME, OS_PROTOCOL_SCHEME} from '../constants'
 import {NavRoute} from '../routes'
 import {entityQueryPathToHmIdPath} from './path-api'

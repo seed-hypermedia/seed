@@ -1,5 +1,6 @@
 import {usePushResource} from '@/models/documents'
-import {NavRoute, routeToUrl, UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {NavRoute, routeToUrl} from '@shm/shared'
 import {NavigationContext} from '@shm/shared/utils/navigation'
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'

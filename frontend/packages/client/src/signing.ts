@@ -4,7 +4,7 @@
  */
 
 import {encode as cborEncode} from '@ipld/dag-cbor'
-import type {HMPublishBlobsInput, HMSigner} from '@shm/shared/hm-types'
+import type {HMPublishBlobsInput, HMSigner} from './hm-types'
 
 export const cborCodec = {
   code: 0x71 as const,

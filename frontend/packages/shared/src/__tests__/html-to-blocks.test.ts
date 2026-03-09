@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest'
-import {HMAnnotation, HMBlock} from '..'
+import {HMAnnotation, HMBlock} from '@seed-hypermedia/client/hm-types'
 import {htmlToBlocks} from '../html-to-blocks'
 
 describe('htmlToBlocks', () => {

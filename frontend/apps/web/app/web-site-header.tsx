@@ -1,4 +1,5 @@
-import {HMDocument, HMMetadata, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
+import {HMDocument, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {unpackHmId} from '@shm/shared'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'

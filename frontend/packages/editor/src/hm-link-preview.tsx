@@ -1,4 +1,5 @@
-import {getDocumentTitle, HMDocument, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
+import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {getDocumentTitle, unpackHmId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {useHighlighter} from '@shm/ui/highlight-context'

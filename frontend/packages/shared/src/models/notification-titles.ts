@@ -1,4 +1,4 @@
-import type {HMMetadata, UnpackedHypermediaId} from '../hm-types'
+import type {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 
 type NotificationTitleTarget = {
   targetMeta?: HMMetadata | null

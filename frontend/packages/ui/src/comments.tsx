@@ -1,18 +1,20 @@
 import {AlertDialogDescription, AlertDialogTitle} from '@radix-ui/react-alert-dialog'
 import {
   BlockRange,
-  commentIdToHmId,
-  createCommentUrl,
-  getCommentTargetId,
   HMComment,
   HMCommentGroup,
   HMDocument,
   HMExternalCommentGroup,
-  hmId,
   HMMetadata,
   HMMetadataPayload,
-  NavRoute,
   UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
+import {
+  commentIdToHmId,
+  createCommentUrl,
+  getCommentTargetId,
+  hmId,
+  NavRoute,
   useCommentGroups,
   useCommentParents,
   useRouteLink,
@@ -27,7 +29,7 @@ import {
   useDiscussionsService,
   useHackyAuthorsSubscriptions,
 } from '@shm/shared/comments-service-provider'
-import {HMListDiscussionsOutput} from '@shm/shared/hm-types'
+import {HMListDiscussionsOutput} from '@seed-hypermedia/client/hm-types'
 import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
 import {getRoutePanel} from '@shm/shared/routes'
 import {useTxString} from '@shm/shared/translation'

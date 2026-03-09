@@ -1,4 +1,4 @@
-import {HMMetadata} from '@shm/shared'
+import {HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {forwardRef, useMemo, useRef, useState} from 'react'
 import {ScrollArea} from './components/scroll-area'

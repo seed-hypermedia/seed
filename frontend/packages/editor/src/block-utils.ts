@@ -1,4 +1,4 @@
-import {HMBlockChildrenType} from '@shm/shared/hm-types'
+import {HMBlockChildrenType} from '@seed-hypermedia/client/hm-types'
 import {Node} from '@tiptap/pm/model'
 import {EditorView} from '@tiptap/pm/view'
 import {BlockNoteEditor, getBlockInfoFromPos} from './blocknote'

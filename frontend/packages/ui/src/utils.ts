@@ -1,4 +1,4 @@
-import {HMBlock, HMBlockNode, HMDocument} from '@shm/shared/hm-types'
+import {HMBlock, HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 import {clsx, type ClassValue} from 'clsx'
 import {LegacyRef, MutableRefObject, RefCallback} from 'react'
 import {twMerge} from 'tailwind-merge'

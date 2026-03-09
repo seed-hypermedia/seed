@@ -1,7 +1,7 @@
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
-import {HMResourceVisibility, UnpackedHypermediaId} from '@shm/shared'
+import {HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,

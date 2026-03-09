@@ -1,4 +1,4 @@
-import {UnpackedHypermediaId} from './hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useUniversalAppContext} from './routing'
 import {createWebHMUrl} from './utils'
 

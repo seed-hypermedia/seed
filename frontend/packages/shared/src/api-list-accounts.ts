@@ -2,7 +2,7 @@ import {HMRequestImplementation} from './api-types'
 import {accountMetadataFromAccount} from './account-metadata'
 import {BIG_INT} from './constants'
 import {GRPCClient} from './grpc-client'
-import {HMListAccountsRequest, HMMetadataPayload} from './hm-types'
+import {HMListAccountsRequest, HMMetadataPayload} from '@seed-hypermedia/client/hm-types'
 import {hmId} from './utils'
 
 export const ListAccounts: HMRequestImplementation<HMListAccountsRequest> = {

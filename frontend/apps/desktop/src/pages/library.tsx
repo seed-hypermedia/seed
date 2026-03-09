@@ -11,9 +11,9 @@ import {
   HMActivitySummary,
   HMBreadcrumb,
   HMDocumentInfo,
-  HMLibraryDocument,
   UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+} from '@seed-hypermedia/client/hm-types'
+import {HMLibraryDocument} from '@shm/shared/hm-types'
 import {DocumentRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'

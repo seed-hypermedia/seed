@@ -5,7 +5,7 @@
 import type {Command} from 'commander'
 import {readFileSync} from 'fs'
 import {createComment, deleteComment} from '@seed-hypermedia/client'
-import type {HMAnnotation, HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import type {HMAnnotation, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {getClient, getOutputFormat} from '../index'
 import {formatOutput, printError, printSuccess, printInfo} from '../output'

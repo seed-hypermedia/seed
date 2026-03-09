@@ -1,5 +1,5 @@
 import {ImageForm} from '@/pages/image-form'
-import {HMBlockNode, HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {HMBlockNode, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {PanelContent} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
 import {DatePicker} from '@shm/ui/components/date-picker'

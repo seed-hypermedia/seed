@@ -1,4 +1,5 @@
-import {DocumentPanelRoute, UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {DocumentPanelRoute} from '@shm/shared'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {SquareChevronRight} from 'lucide-react'
 import {Button} from './button'

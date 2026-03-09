@@ -1,7 +1,7 @@
 import {AutocompletePopup, createAutoCompletePlugin} from '@shm/editor/autocomplete'
 import {useUniversalAppContext} from '@shm/shared'
 import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useHighlighter} from '@shm/ui/highlight-context'

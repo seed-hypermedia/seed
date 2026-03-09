@@ -1,7 +1,8 @@
 import {deduplicateCitations} from './citation-deduplication'
 import {ListDocumentChangesResponse} from './client/.generated/documents/v3alpha/documents_pb'
 import {ListEntityMentionsResponse} from './client/.generated/entities/v1alpha/entities_pb'
-import {HMCitation, UnpackedHypermediaId} from './hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMCitation} from './hm-types'
 import {hmId, unpackHmId} from './utils'
 import {parseFragment} from './utils/entity-id-url'
 

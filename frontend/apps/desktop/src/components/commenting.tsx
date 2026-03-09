@@ -8,7 +8,12 @@ import {CommentEditor} from '@shm/editor/comment-editor'
 import {queryClient, queryKeys} from '@shm/shared'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {useCommentsService} from '@shm/shared/comments-service-provider'
-import {HMBlockNode, HMCommentGroup, HMListDiscussionsOutput, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {
+  HMBlockNode,
+  HMCommentGroup,
+  HMListDiscussionsOutput,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useContacts} from '@shm/shared/models/contacts'
 import {invalidateQueries} from '@shm/shared/models/query-client'

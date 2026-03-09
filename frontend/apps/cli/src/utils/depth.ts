@@ -7,7 +7,7 @@
  */
 
 import type {SeedClient} from '@seed-hypermedia/client'
-import type {HMListChangesOutput} from '@shm/shared/hm-types'
+import type {HMListChangesOutput} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 
 export type DocumentState = {
@@ -20,10 +20,7 @@ export type DocumentState = {
 /**
  * Resolves the current document state including head depth.
  */
-export async function resolveDocumentState(
-  client: SeedClient,
-  targetId: string,
-): Promise<DocumentState> {
+export async function resolveDocumentState(client: SeedClient, targetId: string): Promise<DocumentState> {
   const unpacked = unpackHmId(targetId)
   if (!unpacked) throw new Error(`Invalid ID: ${targetId}`)
   const changesResp = await client.request('ListChanges', {targetId: unpacked})

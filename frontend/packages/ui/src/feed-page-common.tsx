@@ -1,4 +1,5 @@
-import {HMDocument, hmId, UnpackedHypermediaId} from '@shm/shared'
+import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmId} from '@shm/shared'
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {useNavRoute} from '@shm/shared/utils/navigation'

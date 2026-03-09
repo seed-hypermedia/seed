@@ -3,7 +3,7 @@ import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
 import * as Block from 'multiformats/block'
 import {sha256} from 'multiformats/hashes/sha2'
 import {createChange, createChangeOps, signPreparedChange, signDocumentChange} from './change'
-import type {HMSigner} from '@shm/shared/hm-types'
+import type {HMSigner} from './hm-types'
 
 // A valid base58btc-encoded account UID (multibase 'z' prefix)
 const TEST_ACCOUNT_UID = 'z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou'

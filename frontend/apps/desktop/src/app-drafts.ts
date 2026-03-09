@@ -1,15 +1,13 @@
 import {hmIdPathToEntityQueryPath, pathMatches} from '@shm/shared'
+import {HMDocumentMetadataSchema, HMMetadata, HMResourceVisibilitySchema} from '@seed-hypermedia/client/hm-types'
 import {
-  HMDocumentMetadataSchema,
   HMDraft,
   HMDraftContent,
   HMDraftContentSchema,
   HMListedDraft,
   HMListedDraftReadSchema,
   HMListedDraftSchema,
-  HMMetadata,
   HMNavigationItemSchema,
-  HMResourceVisibilitySchema,
 } from '@shm/shared/hm-types'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'

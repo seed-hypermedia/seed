@@ -1,6 +1,6 @@
 import {HMRequestImplementation} from './api-types'
 import {GRPCClient} from './grpc-client'
-import {HMListEventsRequest} from './hm-types'
+import {HMListEventsRequest} from '@seed-hypermedia/client/hm-types'
 import {
   getEventAtMs,
   getFeedEventId,

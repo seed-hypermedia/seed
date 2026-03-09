@@ -1,11 +1,5 @@
-import {
-  hmIdToURL,
-  isHypermediaScheme,
-  isPublicGatewayLink,
-  normalizeHmId,
-  StateStream,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmIdToURL, isHypermediaScheme, isPublicGatewayLink, normalizeHmId, StateStream} from '@shm/shared'
 import {
   CircleDot,
   File as FileIcon,

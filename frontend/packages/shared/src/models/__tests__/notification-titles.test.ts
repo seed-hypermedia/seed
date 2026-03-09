@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import type {HMMetadata, UnpackedHypermediaId} from '../../hm-types'
+import type {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getMentionNotificationTitle, getNotificationDocumentName} from '../notification-titles'
 
 function targetPath(path: string[] | null): Pick<UnpackedHypermediaId, 'path'> {

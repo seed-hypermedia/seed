@@ -1,4 +1,4 @@
-import {HMBlockChildrenType} from './hm-types'
+import {HMBlockChildrenType} from '@seed-hypermedia/client/hm-types'
 
 export type EditorBlock =
   | EditorParagraphBlock

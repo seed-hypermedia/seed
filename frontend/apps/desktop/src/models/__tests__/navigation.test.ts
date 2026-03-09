@@ -1,4 +1,5 @@
-import {HMBlockNode, HMNavigationItem} from '@shm/shared/hm-types'
+import {HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import {HMNavigationItem} from '@shm/shared/hm-types'
 import {describe, expect, it} from 'vitest'
 import {getNavigationChanges} from '../navigation'
 

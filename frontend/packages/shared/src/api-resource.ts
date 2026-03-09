@@ -1,6 +1,6 @@
 import {HMRequestImplementation, HMRequestParams} from './api-types'
 import {GRPCClient} from './grpc-client'
-import {HMResource, HMResourceRequest, UnpackedHypermediaId} from './hm-types'
+import {HMResource, HMResourceRequest, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {createResourceFetcher} from './resource-loader'
 import {packHmId, unpackHmId} from './utils'
 

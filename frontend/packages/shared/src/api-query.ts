@@ -1,6 +1,6 @@
 import {HMRequestImplementation} from './api-types'
 import {GRPCClient} from './grpc-client'
-import {HMQuery, HMQueryRequest, HMQueryResult} from './hm-types'
+import {HMQuery, HMQueryRequest, HMQueryResult} from '@seed-hypermedia/client/hm-types'
 import {createQueryResolver} from './models/directory'
 
 export const Query: HMRequestImplementation<HMQueryRequest> = {

@@ -1,6 +1,6 @@
 import {describe, it, expect, vi} from 'vitest'
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import type {HMBlockNode, HMSigner, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import type {HMBlockNode, HMSigner, UnpackedHypermediaId} from '../src/hm-types'
 import {createComment} from '../src/comment'
 
 const TEST_DOC_ID: UnpackedHypermediaId = {

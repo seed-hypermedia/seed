@@ -1,4 +1,4 @@
-import {HMMetadata} from '@shm/shared'
+import {HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {useTx, useTxUtils} from '@shm/shared/translation'
 import {SizableText} from './text'
 

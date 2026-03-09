@@ -2,8 +2,8 @@
  * HMBlockNode JSON parsing and conversion to document operations.
  */
 
-import type {HMBlockNode} from '@shm/shared/hm-types'
-import {HMBlockNodeSchema} from '@shm/shared/hm-types'
+import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import {HMBlockNodeSchema} from '@seed-hypermedia/client/hm-types'
 import {z} from 'zod'
 import type {DocumentOperation} from '@seed-hypermedia/client'
 
@@ -21,10 +21,7 @@ export function parseBlocksJson(json: string): HMBlockNode[] {
  * Same traversal pattern as flattenToOperations in markdown.ts but works
  * directly with HMBlockNode from @shm/shared.
  */
-export function hmBlockNodesToOperations(
-  nodes: HMBlockNode[],
-  parentId: string = '',
-): DocumentOperation[] {
+export function hmBlockNodesToOperations(nodes: HMBlockNode[], parentId: string = ''): DocumentOperation[] {
   const ops: DocumentOperation[] = []
   const blockIds: string[] = []
 

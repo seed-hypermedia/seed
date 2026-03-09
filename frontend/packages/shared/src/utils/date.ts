@@ -1,7 +1,7 @@
 import {Timestamp} from '@bufbuild/protobuf'
 import {format, Locale} from 'date-fns'
 import type {Document} from '../client'
-import {HMTimestamp} from '../hm-types'
+import {HMTimestamp} from '@seed-hypermedia/client/hm-types'
 
 type KeyOfType<T, U> = {
   [P in keyof T]: T[P] extends U ? P : never

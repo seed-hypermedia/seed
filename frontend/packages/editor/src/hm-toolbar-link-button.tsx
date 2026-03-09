@@ -1,5 +1,5 @@
 import {hmId, packHmId, unpackHmId} from '@shm/shared'
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {Button} from '@shm/ui/button'

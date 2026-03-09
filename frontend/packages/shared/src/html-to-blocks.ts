@@ -2,7 +2,7 @@ import * as cheerio from 'cheerio'
 import {nanoid} from 'nanoid'
 import {resolve} from 'path'
 import {codePointLength} from './client/unicode'
-import {HMAnnotation, HMBlock, HMBlockNode} from './hm-types'
+import {HMAnnotation, HMBlock, HMBlockNode} from '@seed-hypermedia/client/hm-types'
 
 export async function htmlToBlocks(
   html: string,

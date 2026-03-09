@@ -8,7 +8,7 @@ import {
   HMResourceRedirect,
   HMResourceTombstone,
   UnpackedHypermediaId,
-} from './hm-types'
+} from '@seed-hypermedia/client/hm-types'
 import {getErrorMessage, HMNotFoundError, HMRedirectError, HMResourceTombstoneError} from './models/entity'
 import {packHmId} from './utils'
 

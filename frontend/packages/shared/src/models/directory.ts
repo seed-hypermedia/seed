@@ -1,4 +1,4 @@
-import {HMDocumentInfo, HMQuery, HMQueryResult, UnpackedHypermediaId} from '..'
+import {HMDocumentInfo, HMQuery, HMQueryResult, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {BIG_INT} from '../constants'
 import {queryBlockSortedItems} from '../content'
 import {GRPCClient} from '../grpc-client'

@@ -26,7 +26,7 @@ import {ColorStyle, Styles, ToggledStyle} from './extensions/Blocks/api/inlineCo
 import {Selection} from './extensions/Blocks/api/selectionTypes'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from './extensions/Blocks/helpers/getBlockInfoFromPos'
 
-import {UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {InlineMentionsResult} from '@shm/shared/models/inline-mentions'
 import {Transaction} from 'prosemirror-state'
 import {HMBlockSchema, hmBlockSchema} from '../../schema'

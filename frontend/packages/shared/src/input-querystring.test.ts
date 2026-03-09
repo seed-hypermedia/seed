@@ -9,7 +9,7 @@ import {
   HMGetCommentReplyCountInputSchema,
   HMSearchInputSchema,
   HMQuerySchema,
-} from './hm-types'
+} from '@seed-hypermedia/client/hm-types'
 
 describe('input-querystring', () => {
   describe('serializeQueryString', () => {

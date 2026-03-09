@@ -4,6 +4,8 @@ import {
   HMDocumentMetadataSchema,
   HMMetadataPayload,
   UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
+import {
   clipContentBlocks,
   entityQueryPathToHmIdPath,
   getDocumentImage,

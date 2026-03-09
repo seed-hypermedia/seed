@@ -1,4 +1,5 @@
-import {HMMetadata, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
+import {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useRouteLink} from '@shm/shared'
 import {useImageUrl} from './get-file-url'
 import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'

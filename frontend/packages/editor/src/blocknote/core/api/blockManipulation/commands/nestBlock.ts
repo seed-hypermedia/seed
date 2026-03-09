@@ -1,4 +1,4 @@
-import {HMBlockChildrenType} from '@shm/shared/hm-types'
+import {HMBlockChildrenType} from '@seed-hypermedia/client/hm-types'
 import {Editor} from '@tiptap/core'
 import {Fragment, NodeType, Slice} from '@tiptap/pm/model'
 import {ReplaceAroundStep} from '@tiptap/pm/transform'

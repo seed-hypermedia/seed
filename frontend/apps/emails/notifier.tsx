@@ -10,7 +10,7 @@ import {
   MjmlTitle,
 } from '@faire/mjml-react'
 import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
-import {HMComment, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {HMComment, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getMentionNotificationTitle, getNotificationDocumentName} from '@shm/shared/models/notification-titles'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import mjml2html from 'mjml'

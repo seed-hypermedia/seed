@@ -1,7 +1,7 @@
 import {createContext, useContext} from 'react'
 import z from 'zod'
 import {DAEMON_FILE_URL} from './constants'
-import {HMContactRecord, UnpackedHypermediaId} from './hm-types'
+import {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {NavRoute} from './routes'
 import {LanguagePack} from './translation'
 import type {UniversalClient} from './universal-client'

@@ -1,5 +1,5 @@
 import {createSeedClient} from '@seed-hypermedia/client'
-import type {UnpackedHypermediaId} from '@shm/shared'
+import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {API_HTTP_URL} from '@shm/shared/constants'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import {base58btc} from 'multiformats/bases/base58'
