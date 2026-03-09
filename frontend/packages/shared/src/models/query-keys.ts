@@ -135,6 +135,9 @@ export const queryKeys = {
 
   // ai config
   AI_CONFIG: 'AI_CONFIG',
+  AI_PROVIDERS: 'AI_PROVIDERS',
+  AI_SELECTED_PROVIDER: 'AI_SELECTED_PROVIDER',
+  OLLAMA_MODELS: 'OLLAMA_MODELS', // baseUrl: string
 
   // chat
   CHAT_SESSIONS: 'CHAT_SESSIONS',

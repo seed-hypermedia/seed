@@ -53,7 +53,8 @@ export function useDeleteChatSession() {
 
 export function useSendChatMessage() {
   return useMutation({
-    mutationFn: (input: {sessionId: string; content: string}) => client.chat.sendMessage.mutate(input),
+    mutationFn: (input: {sessionId: string; content: string; providerId?: string}) =>
+      client.chat.sendMessage.mutate(input),
     onSuccess(_data, variables) {
       invalidateQueries([queryKeys.CHAT_SESSION, variables.sessionId])
     },
@@ -122,5 +123,11 @@ export function useChatStream(sessionId: string | null) {
     return unsubscribe
   }, [sessionId, clearStream])
 
-  return {streamingText, isStreaming, streamComplete, pendingToolCalls, pendingToolResults, clearStream}
+  const stopStream = useCallback(() => {
+    if (sessionId) {
+      ;(window as any).ipc?.send('chatStopStream', sessionId)
+    }
+  }, [sessionId])
+
+  return {streamingText, isStreaming, streamComplete, pendingToolCalls, pendingToolResults, clearStream, stopStream}
 }

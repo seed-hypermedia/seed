@@ -1,4 +1,4 @@
-import {useAIConfig, useSetAIConfigValue} from '@/models/ai-config'
+import {useAIProviders, useSelectedProvider, useSetSelectedProvider} from '@/models/ai-config'
 import {
   useChatSession,
   useChatSessions,
@@ -7,10 +7,11 @@ import {
   useDeleteChatSession,
   useSendChatMessage,
 } from '@/models/chat'
+import {useNavigate} from '@/utils/useNavigate'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {SizableText} from '@shm/ui/text'
-import {ArrowDown, Bot, Check, Eye, EyeOff, Plus, Send, Settings, Trash2, Wrench} from 'lucide-react'
+import {ArrowDown, Bot, Check, Plus, Send, Settings, Square, Trash2, Wrench} from 'lucide-react'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {Markdown} from './markdown'
 
@@ -21,7 +22,7 @@ export function AssistantPanel({
   initialSessionId?: string | null
   onSessionChange?: (sessionId: string | null) => void
 }) {
-  const [view, setView] = useState<'chat' | 'settings'>('chat')
+  const navigate = useNavigate()
 
   return (
     <div className="flex h-full flex-col">
@@ -33,67 +34,14 @@ export function AssistantPanel({
           </SizableText>
         </div>
         <button
-          onClick={() => setView(view === 'chat' ? 'settings' : 'chat')}
+          onClick={() => navigate({key: 'settings'})}
           className="text-muted-foreground hover:text-foreground"
+          title="AI Provider Settings"
         >
           <Settings className="size-4" />
         </button>
       </div>
-      {view === 'settings' ? (
-        <SettingsView />
-      ) : (
-        <ChatView initialSessionId={initialSessionId} onSessionChange={onSessionChange} />
-      )}
-    </div>
-  )
-}
-
-function SettingsView() {
-  const aiConfig = useAIConfig()
-  const setConfigValue = useSetAIConfigValue()
-  const existingKey = aiConfig.data?.providers?.openai?.apiKey ?? ''
-  const [draft, setDraft] = useState('')
-  const [showKey, setShowKey] = useState(false)
-
-  function handleSave() {
-    if (!draft.trim()) return
-    setConfigValue.mutate({path: 'providers.openai.apiKey', value: draft.trim()}, {onSuccess: () => setDraft('')})
-  }
-
-  return (
-    <div className="flex flex-col gap-3 p-3">
-      <SizableText size="sm" className="font-medium">
-        OpenAI API Key
-      </SizableText>
-      {existingKey ? (
-        <div className="flex items-center gap-2">
-          <code className="bg-muted flex-1 truncate rounded px-2 py-1 text-xs">
-            {showKey ? existingKey : `${existingKey.slice(0, 7)}${'*'.repeat(20)}`}
-          </code>
-          <button onClick={() => setShowKey((s) => !s)} className="text-muted-foreground hover:text-foreground">
-            {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-          </button>
-        </div>
-      ) : (
-        <SizableText size="xs" className="text-muted-foreground">
-          No API key configured
-        </SizableText>
-      )}
-      <div className="flex items-center gap-2">
-        <Input
-          type="password"
-          placeholder="sk-..."
-          value={draft}
-          onChangeText={setDraft}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSave()
-          }}
-          className="flex-1 text-xs"
-        />
-        <Button size="sm" onClick={handleSave} disabled={!draft.trim() || setConfigValue.isLoading}>
-          <Check className="size-4" />
-        </Button>
-      </div>
+      <ChatView initialSessionId={initialSessionId} onSessionChange={onSessionChange} />
     </div>
   )
 }
@@ -116,12 +64,17 @@ function ChatView({
   }
   const session = useChatSession(selectedSessionId)
   const sendMessage = useSendChatMessage()
-  const {streamingText, isStreaming, streamComplete, pendingToolCalls, pendingToolResults, clearStream} =
+  const {streamingText, isStreaming, streamComplete, pendingToolCalls, pendingToolResults, clearStream, stopStream} =
     useChatStream(selectedSessionId)
   const [input, setInput] = useState('')
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Provider selection
+  const providers = useAIProviders()
+  const selectedProvider = useSelectedProvider()
+  const setSelectedProvider = useSetSelectedProvider()
 
   // Scroll state
   const [isNearBottom, setIsNearBottom] = useState(true)
@@ -207,7 +160,11 @@ function ChatView({
     }
     const content = input.trim()
     setInput('')
-    sendMessage.mutate({sessionId, content})
+    sendMessage.mutate({
+      sessionId,
+      content,
+      providerId: selectedProvider.data?.id,
+    })
   }
 
   async function handleNewSession() {
@@ -223,7 +180,7 @@ function ChatView({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Session selector */}
+      {/* Session selector + provider selector */}
       <div className="border-border flex items-center gap-1 border-b px-2 py-1.5">
         <select
           value={selectedSessionId || ''}
@@ -250,6 +207,25 @@ function ChatView({
           </button>
         )}
       </div>
+
+      {/* Provider selector */}
+      {providers.data && providers.data.length > 0 && (
+        <div className="border-border flex items-center gap-1 border-b px-2 py-1">
+          <select
+            value={selectedProvider.data?.id || ''}
+            onChange={(e) => {
+              if (e.target.value) setSelectedProvider.mutate(e.target.value)
+            }}
+            className="bg-muted text-foreground flex-1 rounded px-2 py-1 text-xs"
+          >
+            {providers.data.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label} ({p.model})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Messages */}
       <div ref={messagesContainerRef} onScroll={handleScroll} className="relative flex-1 overflow-y-auto px-3 py-2">
@@ -317,9 +293,15 @@ function ChatView({
           disabled={isBusy}
           className="flex-1 text-xs"
         />
-        <Button size="sm" onClick={handleSend} disabled={!input.trim() || isBusy}>
-          <Send className="size-3.5" />
-        </Button>
+        {isStreaming ? (
+          <Button size="sm" variant="destructive" onClick={stopStream}>
+            <Square className="size-3" />
+          </Button>
+        ) : (
+          <Button size="sm" onClick={handleSend} disabled={!input.trim() || isBusy}>
+            <Send className="size-3.5" />
+          </Button>
+        )}
       </div>
     </div>
   )

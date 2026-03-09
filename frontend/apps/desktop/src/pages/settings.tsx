@@ -1,3 +1,11 @@
+import {
+  useAddProvider,
+  useAIProviders,
+  useDeleteProvider,
+  useDuplicateProvider,
+  useOllamaModels,
+  useUpdateProvider,
+} from '@/models/ai-config'
 import {useAppContext, useIPC} from '@/app-context'
 import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
@@ -62,19 +70,26 @@ import {cn} from '@shm/ui/utils'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {
   AtSign,
+  Bot,
   Check,
   Code2,
   Cog,
+  Copy as CopyIcon,
   Download,
   Eye,
   EyeOff,
   Info,
+  Pencil,
   Plus,
   RadioTower,
   Trash,
   UserRoundPlus,
 } from 'lucide-react'
 import {useEffect, useId, useMemo, useState} from 'react'
+
+// Known model lists per provider type
+const OPENAI_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1', 'o1-mini', 'o3-mini']
+const ANTHROPIC_MODELS = ['claude-opus-4-20250514', 'claude-sonnet-4-20250514', 'claude-haiku-4-20250414']
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('accounts')
@@ -93,6 +108,7 @@ export default function Settings() {
             <Tab value="accounts" active={activeTab === 'accounts'} icon={AtSign} label="Accounts" />
             <Tab value="general" active={activeTab === 'general'} icon={Cog} label="General" />
             <Tab value="gateway" active={activeTab === 'gateway'} icon={RadioTower} label="Gateway" />
+            <Tab value="ai-providers" active={activeTab === 'ai-providers'} icon={Bot} label="AI Providers" />
             <Tab value="app-info" active={activeTab === 'app-info'} icon={Info} label="App Info" />
             <Tab value="developer" active={activeTab === 'developer'} icon={Code2} label="Developers" />
           </TabsList>
@@ -105,6 +121,9 @@ export default function Settings() {
           </CustomTabsContent>
           <CustomTabsContent value="gateway">
             <GatewaySettings />
+          </CustomTabsContent>
+          <CustomTabsContent value="ai-providers">
+            <AIProvidersSettings />
           </CustomTabsContent>
           <CustomTabsContent value="app-info">
             <AppSettings />
@@ -1263,6 +1282,343 @@ function SettingsSection({title, children}: React.PropsWithChildren<{title: stri
     <div className={cn('dark:bg-background bg-muted flex flex-col gap-3 rounded p-3')}>
       <SizableText size="2xl">{title}</SizableText>
       {children}
+    </div>
+  )
+}
+
+// AI Providers Settings
+
+type ProviderFormData = {
+  label: string
+  type: 'openai' | 'anthropic' | 'ollama'
+  model: string
+  apiKey: string
+  baseUrl: string
+}
+
+const DEFAULT_FORM: ProviderFormData = {
+  label: '',
+  type: 'openai',
+  model: '',
+  apiKey: '',
+  baseUrl: '',
+}
+
+function AIProvidersSettings() {
+  const providers = useAIProviders()
+  const addProvider = useAddProvider()
+  const deleteProvider = useDeleteProvider()
+  const duplicateProvider = useDuplicateProvider()
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [isAdding, setIsAdding] = useState(false)
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <SizableText size="2xl">AI Providers</SizableText>
+        <Button
+          size="sm"
+          onClick={() => {
+            setIsAdding(true)
+            setEditingId(null)
+          }}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Add Provider
+        </Button>
+      </div>
+
+      {isAdding && <ProviderForm onSave={() => setIsAdding(false)} onCancel={() => setIsAdding(false)} />}
+
+      {providers.data?.length === 0 && !isAdding && (
+        <div className="text-muted-foreground py-8 text-center text-sm">
+          No AI providers configured. Add one to start using the assistant.
+        </div>
+      )}
+
+      {providers.data?.map((provider) =>
+        editingId === provider.id ? (
+          <ProviderEditForm
+            key={provider.id}
+            providerId={provider.id}
+            onSave={() => setEditingId(null)}
+            onCancel={() => setEditingId(null)}
+          />
+        ) : (
+          <div key={provider.id} className="dark:bg-background bg-muted flex items-center gap-3 rounded border p-3">
+            <div className="flex flex-1 flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <SizableText size="sm" weight="bold">
+                  {provider.label}
+                </SizableText>
+                <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-[10px] font-medium uppercase">
+                  {provider.type}
+                </span>
+              </div>
+              <SizableText size="xs" className="text-muted-foreground">
+                {provider.model}
+              </SizableText>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setEditingId(provider.id)
+                  setIsAdding(false)
+                }}
+              >
+                <Pencil className="size-3.5" />
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => duplicateProvider.mutate(provider.id)}>
+                <CopyIcon className="size-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                onClick={() => deleteProvider.mutate(provider.id)}
+              >
+                <Trash className="size-3.5" />
+              </Button>
+            </div>
+          </div>
+        ),
+      )}
+    </div>
+  )
+}
+
+function ProviderForm({onSave, onCancel}: {onSave: () => void; onCancel: () => void}) {
+  const addProvider = useAddProvider()
+  const [form, setForm] = useState<ProviderFormData>({...DEFAULT_FORM})
+
+  function handleTypeChange(type: 'openai' | 'anthropic' | 'ollama') {
+    const labels: Record<string, string> = {openai: 'OpenAI', anthropic: 'Anthropic', ollama: 'Ollama'}
+    const models: Record<string, string> = {
+      openai: 'gpt-4o-mini',
+      anthropic: 'claude-sonnet-4-20250514',
+      ollama: 'llama3',
+    }
+    setForm({
+      ...form,
+      type,
+      label: form.label || labels[type],
+      model: models[type],
+      baseUrl: type === 'ollama' ? 'http://localhost:11434' : '',
+      apiKey: type === 'ollama' ? '' : form.apiKey,
+    })
+  }
+
+  function handleSave() {
+    addProvider.mutate(
+      {
+        type: form.type,
+        label: form.label || undefined,
+        model: form.model || undefined,
+        apiKey: form.apiKey || undefined,
+        baseUrl: form.baseUrl || undefined,
+      },
+      {onSuccess: onSave},
+    )
+  }
+
+  return (
+    <ProviderFormFields
+      form={form}
+      setForm={setForm}
+      onTypeChange={handleTypeChange}
+      onSave={handleSave}
+      onCancel={onCancel}
+      saveLabel="Add Provider"
+      isSaving={addProvider.isLoading}
+    />
+  )
+}
+
+function ProviderEditForm({
+  providerId,
+  onSave,
+  onCancel,
+}: {
+  providerId: string
+  onSave: () => void
+  onCancel: () => void
+}) {
+  const updateProvider = useUpdateProvider()
+  const providerQuery = useQuery({
+    queryKey: ['AI_PROVIDER_EDIT', providerId],
+    queryFn: () => client.aiConfig.getProvider.query(providerId),
+  })
+  const [form, setForm] = useState<ProviderFormData | null>(null)
+
+  useEffect(() => {
+    if (providerQuery.data && !form) {
+      setForm({
+        label: providerQuery.data.label,
+        type: providerQuery.data.type as ProviderFormData['type'],
+        model: providerQuery.data.model,
+        apiKey: providerQuery.data.apiKey || '',
+        baseUrl: providerQuery.data.baseUrl || '',
+      })
+    }
+  }, [providerQuery.data, form])
+
+  if (!form) return <Spinner size="small" />
+
+  function handleTypeChange(type: 'openai' | 'anthropic' | 'ollama') {
+    if (!form) return
+    const models: Record<string, string> = {
+      openai: 'gpt-4o-mini',
+      anthropic: 'claude-sonnet-4-20250514',
+      ollama: 'llama3',
+    }
+    setForm({
+      ...form,
+      type,
+      model: models[type],
+      baseUrl: type === 'ollama' ? 'http://localhost:11434' : '',
+    })
+  }
+
+  function handleSave() {
+    if (!form) return
+    updateProvider.mutate(
+      {
+        id: providerId,
+        label: form.label,
+        type: form.type,
+        model: form.model,
+        apiKey: form.apiKey || undefined,
+        baseUrl: form.baseUrl || undefined,
+      },
+      {onSuccess: onSave},
+    )
+  }
+
+  return (
+    <ProviderFormFields
+      form={form}
+      setForm={setForm}
+      onTypeChange={handleTypeChange}
+      onSave={handleSave}
+      onCancel={onCancel}
+      saveLabel="Save"
+      isSaving={updateProvider.isLoading}
+    />
+  )
+}
+
+function ProviderFormFields({
+  form,
+  setForm,
+  onTypeChange,
+  onSave,
+  onCancel,
+  saveLabel,
+  isSaving,
+}: {
+  form: ProviderFormData
+  setForm: (form: ProviderFormData) => void
+  onTypeChange: (type: 'openai' | 'anthropic' | 'ollama') => void
+  onSave: () => void
+  onCancel: () => void
+  saveLabel: string
+  isSaving: boolean
+}) {
+  const ollamaModels = useOllamaModels(form.type === 'ollama' ? form.baseUrl || 'http://localhost:11434' : null)
+  const [showApiKey, setShowApiKey] = useState(false)
+
+  const modelOptions =
+    form.type === 'openai' ? OPENAI_MODELS : form.type === 'anthropic' ? ANTHROPIC_MODELS : ollamaModels.data || []
+
+  return (
+    <div className="dark:bg-background bg-muted flex flex-col gap-3 rounded border p-3">
+      <Field id="provider-label" label="Label">
+        <Input value={form.label} onChangeText={(v) => setForm({...form, label: v})} placeholder="Provider name" />
+      </Field>
+
+      <Field id="provider-type" label="Type">
+        <Select value={form.type} onValueChange={(v) => onTypeChange(v as ProviderFormData['type'])}>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="openai">OpenAI</SelectItem>
+            <SelectItem value="anthropic">Anthropic</SelectItem>
+            <SelectItem value="ollama">Ollama</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+
+      {(form.type === 'openai' || form.type === 'anthropic') && (
+        <Field id="provider-apikey" label="API Key">
+          <div className="flex items-center gap-2">
+            <Input
+              type={showApiKey ? 'text' : 'password'}
+              value={form.apiKey}
+              onChangeText={(v) => setForm({...form, apiKey: v})}
+              placeholder={form.type === 'openai' ? 'sk-...' : 'sk-ant-...'}
+              className="flex-1"
+            />
+            <button onClick={() => setShowApiKey((s) => !s)} className="text-muted-foreground hover:text-foreground">
+              {showApiKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
+          </div>
+        </Field>
+      )}
+
+      {form.type === 'ollama' && (
+        <Field id="provider-baseurl" label="Base URL">
+          <Input
+            value={form.baseUrl}
+            onChangeText={(v) => setForm({...form, baseUrl: v})}
+            placeholder="http://localhost:11434"
+          />
+        </Field>
+      )}
+
+      <Field id="provider-model" label="Model">
+        {modelOptions.length > 0 ? (
+          <Select value={form.model} onValueChange={(v) => setForm({...form, model: v})}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select a model" />
+            </SelectTrigger>
+            <SelectContent>
+              {modelOptions.map((m: string) => (
+                <SelectItem key={m} value={m}>
+                  {m}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input
+            value={form.model}
+            onChangeText={(v) => setForm({...form, model: v})}
+            placeholder={form.type === 'ollama' ? 'e.g. llama3' : 'Model name'}
+          />
+        )}
+        {form.type === 'ollama' && ollamaModels.isLoading && (
+          <SizableText size="xs" className="text-muted-foreground mt-1">
+            Loading models from Ollama...
+          </SizableText>
+        )}
+        {form.type === 'ollama' && !ollamaModels.isLoading && ollamaModels.data?.length === 0 && form.baseUrl && (
+          <SizableText size="xs" className="text-muted-foreground mt-1">
+            Could not connect to Ollama. Type a model name manually.
+          </SizableText>
+        )}
+      </Field>
+
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={onSave} disabled={isSaving}>
+          {saveLabel}
+        </Button>
+      </div>
     </div>
   )
 }

@@ -41,6 +41,7 @@
     "test:performance:full": "pnpm test:performance --dashboard --budget --trace --best-practices"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.58",
     "@ai-sdk/openai": "^3.0.41",
     "@ariakit/react": "0.3.5",
     "@atlaskit/pragmatic-drag-and-drop": "^1.7.2",

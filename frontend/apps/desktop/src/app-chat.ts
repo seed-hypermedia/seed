@@ -1,10 +1,12 @@
+import {createAnthropic} from '@ai-sdk/anthropic'
 import {createOpenAI} from '@ai-sdk/openai'
 import {jsonSchema, stepCountIs, streamText, type ModelMessage} from 'ai'
 import crypto from 'crypto'
+import {ipcMain} from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 import z from 'zod'
-import {readConfig} from './app-ai-config'
+import {readConfig, type AgentProvider} from './app-ai-config'
 import {appInvalidateQueries} from './app-invalidation'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
@@ -88,6 +90,47 @@ function broadcastChatEvent(event: {type: string; sessionId: string; [key: strin
   })
 }
 
+// Active stream abort controllers, keyed by sessionId
+const activeStreams = new Map<string, AbortController>()
+
+ipcMain.on('chatStopStream', (_, sessionId: string) => {
+  const controller = activeStreams.get(sessionId)
+  if (controller) {
+    controller.abort()
+    activeStreams.delete(sessionId)
+  }
+})
+
+// Provider model factory
+
+function createProviderModel(provider: AgentProvider) {
+  switch (provider.type) {
+    case 'openai': {
+      const openai = createOpenAI({
+        apiKey: provider.apiKey,
+        ...(provider.baseUrl ? {baseURL: provider.baseUrl} : {}),
+      })
+      return openai.chat(provider.model)
+    }
+    case 'anthropic': {
+      const anthropic = createAnthropic({
+        apiKey: provider.apiKey,
+        ...(provider.baseUrl ? {baseURL: provider.baseUrl} : {}),
+      })
+      return anthropic(provider.model)
+    }
+    case 'ollama': {
+      const ollama = createOpenAI({
+        baseURL: (provider.baseUrl || 'http://localhost:11434') + '/v1',
+        apiKey: 'ollama',
+      })
+      return ollama.chat(provider.model)
+    }
+    default:
+      throw new Error(`Unsupported provider type: ${(provider as any).type}`)
+  }
+}
+
 // Plain tool objects using inputSchema (not parameters) to match AI SDK v4 internal expectations.
 // Typed as Record<string, any> to avoid excessive type instantiation depth with Zod + AI SDK.
 const chatTools: Record<string, any> = {
@@ -151,124 +194,170 @@ export const chatApi = t.router({
     return null
   }),
 
-  sendMessage: t.procedure.input(z.object({sessionId: z.string(), content: z.string()})).mutation(async ({input}) => {
-    const session = await readSession(input.sessionId)
-    if (!session) throw new Error('Session not found')
+  sendMessage: t.procedure
+    .input(z.object({sessionId: z.string(), content: z.string(), providerId: z.string().optional()}))
+    .mutation(async ({input}) => {
+      const session = await readSession(input.sessionId)
+      if (!session) throw new Error('Session not found')
 
-    const config = await readConfig()
-    const apiKey = config?.providers?.openai?.apiKey
-    if (!apiKey) throw new Error('OpenAI API key not configured')
+      const config = await readConfig()
+      const providers = config.agentProviders || []
+      const providerId = input.providerId || config.selectedProviderId
+      const provider = providerId ? providers.find((p) => p.id === providerId) : providers[0]
+      if (!provider) throw new Error('No AI provider configured. Add one in Settings > AI Providers.')
 
-    const userMessage: ChatMessage = {
-      role: 'user',
-      content: input.content,
-      createdAt: new Date().toISOString(),
-    }
-    session.messages.push(userMessage)
-    session.updatedAt = new Date().toISOString()
+      const userMessage: ChatMessage = {
+        role: 'user',
+        content: input.content,
+        createdAt: new Date().toISOString(),
+      }
+      session.messages.push(userMessage)
+      session.updatedAt = new Date().toISOString()
 
-    // Update title from first message
-    if (session.messages.filter((m) => m.role === 'user').length === 1) {
-      session.title = input.content.slice(0, 60) + (input.content.length > 60 ? '...' : '')
-    }
+      // Update title from first message
+      if (session.messages.filter((m) => m.role === 'user').length === 1) {
+        session.title = input.content.slice(0, 60) + (input.content.length > 60 ? '...' : '')
+      }
 
-    await writeSession(session)
-    appInvalidateQueries(['CHAT_SESSION', input.sessionId])
+      await writeSession(session)
+      appInvalidateQueries(['CHAT_SESSION', input.sessionId])
 
-    broadcastChatEvent({type: 'message_added', sessionId: input.sessionId, message: userMessage})
+      broadcastChatEvent({type: 'message_added', sessionId: input.sessionId, message: userMessage})
 
-    const messages: ModelMessage[] = session.messages.map((m) => {
-      if (m.role === 'user') return {role: 'user' as const, content: m.content}
-      return {role: 'assistant' as const, content: m.content}
-    })
-
-    const openai = createOpenAI({apiKey})
-
-    try {
-      broadcastChatEvent({type: 'stream_start', sessionId: input.sessionId})
-
-      const result = streamText({
-        model: openai.chat('gpt-4o-mini'),
-        messages,
-        tools: chatTools,
-        stopWhen: stepCountIs(5),
-        onStepFinish: ({toolCalls, toolResults}) => {
-          if (toolCalls && toolCalls.length > 0) {
-            broadcastChatEvent({
-              type: 'tool_calls',
-              sessionId: input.sessionId,
-              toolCalls: toolCalls.map((tc: any) => ({
-                id: tc.toolCallId,
-                name: tc.toolName,
-                args: tc.args,
-              })),
-            })
-          }
-          if (toolResults && toolResults.length > 0) {
-            broadcastChatEvent({
-              type: 'tool_results',
-              sessionId: input.sessionId,
-              toolResults: toolResults.map((tr: any) => ({
-                id: tr.toolCallId,
-                name: tr.toolName,
-                result: typeof tr.result === 'string' ? tr.result : JSON.stringify(tr.result),
-              })),
-            })
-          }
-        },
+      const messages: ModelMessage[] = session.messages.map((m) => {
+        if (m.role === 'user') return {role: 'user' as const, content: m.content}
+        return {role: 'assistant' as const, content: m.content}
       })
+
+      const model = createProviderModel(provider)
+      const abortController = new AbortController()
+      activeStreams.set(input.sessionId, abortController)
 
       let fullText = ''
       const allToolCalls: ChatMessage['toolCalls'] = []
       const allToolResults: ChatMessage['toolResults'] = []
 
-      for await (const chunk of result.textStream) {
-        fullText += chunk
-        broadcastChatEvent({type: 'text_delta', sessionId: input.sessionId, delta: chunk})
-      }
+      try {
+        broadcastChatEvent({type: 'stream_start', sessionId: input.sessionId})
 
-      // Collect tool usage from the final result
-      const finalResult = await result
-      const steps = await finalResult.steps
-      for (const step of steps) {
-        if (step.toolCalls) {
-          for (const tc of step.toolCalls) {
-            allToolCalls.push({id: (tc as any).toolCallId, name: (tc as any).toolName, args: (tc as any).args})
+        const result = streamText({
+          model,
+          messages,
+          tools: chatTools,
+          stopWhen: stepCountIs(5),
+          abortSignal: abortController.signal,
+          onStepFinish: ({toolCalls, toolResults}) => {
+            if (toolCalls && toolCalls.length > 0) {
+              broadcastChatEvent({
+                type: 'tool_calls',
+                sessionId: input.sessionId,
+                toolCalls: toolCalls.map((tc: any) => ({
+                  id: tc.toolCallId,
+                  name: tc.toolName,
+                  args: tc.args,
+                })),
+              })
+              for (const tc of toolCalls) {
+                allToolCalls.push({id: (tc as any).toolCallId, name: (tc as any).toolName, args: (tc as any).args})
+              }
+            }
+            if (toolResults && toolResults.length > 0) {
+              broadcastChatEvent({
+                type: 'tool_results',
+                sessionId: input.sessionId,
+                toolResults: toolResults.map((tr: any) => ({
+                  id: tr.toolCallId,
+                  name: tr.toolName,
+                  result: typeof tr.result === 'string' ? tr.result : JSON.stringify(tr.result),
+                })),
+              })
+              for (const tr of toolResults) {
+                const trResult = (tr as any).result
+                allToolResults.push({
+                  id: (tr as any).toolCallId,
+                  name: (tr as any).toolName,
+                  result: typeof trResult === 'string' ? trResult : JSON.stringify(trResult),
+                })
+              }
+            }
+          },
+        })
+
+        for await (const chunk of result.textStream) {
+          fullText += chunk
+          broadcastChatEvent({type: 'text_delta', sessionId: input.sessionId, delta: chunk})
+        }
+
+        // Collect tool usage from the final result (only for non-aborted streams)
+        const finalResult = await result
+        const steps = await finalResult.steps
+        for (const step of steps) {
+          if (step.toolCalls) {
+            for (const tc of step.toolCalls) {
+              const id = (tc as any).toolCallId
+              if (!allToolCalls.some((existing) => existing.id === id)) {
+                allToolCalls.push({id, name: (tc as any).toolName, args: (tc as any).args})
+              }
+            }
+          }
+          if (step.toolResults) {
+            for (const tr of step.toolResults) {
+              const id = (tr as any).toolCallId
+              if (!allToolResults.some((existing) => existing.id === id)) {
+                const trResult = (tr as any).result
+                allToolResults.push({
+                  id,
+                  name: (tr as any).toolName,
+                  result: typeof trResult === 'string' ? trResult : JSON.stringify(trResult),
+                })
+              }
+            }
           }
         }
-        if (step.toolResults) {
-          for (const tr of step.toolResults) {
-            const result = (tr as any).result
-            allToolResults.push({
-              id: (tr as any).toolCallId,
-              name: (tr as any).toolName,
-              result: typeof result === 'string' ? result : JSON.stringify(result),
-            })
-          }
+
+        const assistantMessage: ChatMessage = {
+          role: 'assistant',
+          content: fullText,
+          ...(allToolCalls.length > 0 ? {toolCalls: allToolCalls} : {}),
+          ...(allToolResults.length > 0 ? {toolResults: allToolResults} : {}),
+          createdAt: new Date().toISOString(),
         }
+
+        session.messages.push(assistantMessage)
+        session.updatedAt = new Date().toISOString()
+        await writeSession(session)
+
+        broadcastChatEvent({type: 'stream_end', sessionId: input.sessionId, message: assistantMessage})
+        appInvalidateQueries(['CHAT_SESSION', input.sessionId])
+
+        return assistantMessage
+      } catch (error) {
+        // On abort, save partial content as the assistant message
+        if (abortController.signal.aborted) {
+          const assistantMessage: ChatMessage = {
+            role: 'assistant',
+            content: fullText || '(stopped)',
+            ...(allToolCalls.length > 0 ? {toolCalls: allToolCalls} : {}),
+            ...(allToolResults.length > 0 ? {toolResults: allToolResults} : {}),
+            createdAt: new Date().toISOString(),
+          }
+
+          session.messages.push(assistantMessage)
+          session.updatedAt = new Date().toISOString()
+          await writeSession(session)
+
+          broadcastChatEvent({type: 'stream_end', sessionId: input.sessionId, message: assistantMessage})
+          appInvalidateQueries(['CHAT_SESSION', input.sessionId])
+
+          return assistantMessage
+        }
+
+        const errMsg = (error as Error).message
+        log.error('Chat stream error', {error: errMsg})
+        broadcastChatEvent({type: 'stream_error', sessionId: input.sessionId, error: errMsg})
+        throw error
+      } finally {
+        activeStreams.delete(input.sessionId)
       }
-
-      const assistantMessage: ChatMessage = {
-        role: 'assistant',
-        content: fullText,
-        ...(allToolCalls.length > 0 ? {toolCalls: allToolCalls} : {}),
-        ...(allToolResults.length > 0 ? {toolResults: allToolResults} : {}),
-        createdAt: new Date().toISOString(),
-      }
-
-      session.messages.push(assistantMessage)
-      session.updatedAt = new Date().toISOString()
-      await writeSession(session)
-
-      broadcastChatEvent({type: 'stream_end', sessionId: input.sessionId, message: assistantMessage})
-      appInvalidateQueries(['CHAT_SESSION', input.sessionId])
-
-      return assistantMessage
-    } catch (error) {
-      const errMsg = (error as Error).message
-      log.error('Chat stream error', {error: errMsg})
-      broadcastChatEvent({type: 'stream_error', sessionId: input.sessionId, error: errMsg})
-      throw error
-    }
-  }),
+    }),
 })
