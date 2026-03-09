@@ -3,7 +3,7 @@ import {Button} from '@shm/ui/button'
 import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {useState} from 'react'
+import {useRef, useState} from 'react'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {InlineContent} from './blocknote/react/ReactBlockSpec'
@@ -44,8 +44,8 @@ export const MediaContainer = ({
   onPress,
   validateFile,
 }: ContainerProps) => {
-  const [hover, setHover] = useState(false)
   const [drag, setDrag] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const isEmbed = ['embed', 'web-embed'].includes(mediaType)
 
   const handleDragReplace = async (file: File) => {
@@ -69,6 +69,8 @@ export const MediaContainer = ({
           url: data ? `ipfs://${data}` : '',
           name: file.name,
           size: file.size.toString(),
+          displaySrc: '',
+          width: undefined,
         },
       } as MediaType)
     } catch (error) {
@@ -133,11 +135,9 @@ export const MediaContainer = ({
     ...(isEmbed ? {} : dragProps),
     onMouseEnter: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       if (onHoverIn) onHoverIn()
-      setHover(true)
     },
     onMouseLeave: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       if (onHoverOut) onHoverOut(e)
-      setHover(false)
     },
   }
 
@@ -183,7 +183,7 @@ export const MediaContainer = ({
       )}
       <div
         className={cn(
-          'relative flex flex-col rounded-md border-2 transition-colors',
+          'group relative flex flex-col rounded-md border-2 transition-colors',
           mediaType === 'file' ? 'w-full' : 'w-full',
           drag || selected ? 'border-foreground/20 dark:border-foreground/30' : 'border-border',
           drag && 'border-dashed',
@@ -194,31 +194,33 @@ export const MediaContainer = ({
         {...mediaProps}
         contentEditable={false}
       >
-        {(hover || selected) && mediaType !== 'embed' && editor.isEditable && (
-          <Button
-            variant="ghost"
-            size="xs"
-            className="dark:bg-background bg-muted absolute top-2 right-2 z-3 w-[60px]"
-            onClick={() =>
-              assign({
-                props: {
-                  url: '',
-                  name: '',
-                  size: '0',
-                  displaySrc: '',
-                  width:
-                    mediaType === 'image' || mediaType === 'video'
-                      ? editor.domElement.firstElementChild!.clientWidth
-                      : undefined,
-                },
-                children: [],
-                content: [],
-                type: mediaType,
-              } as MediaType)
-            }
-          >
-            replace
-          </Button>
+        {mediaType !== 'embed' && editor.isEditable && (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={mediaType === 'file' ? undefined : `${mediaType}/*`}
+              style={{display: 'none'}}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                if (validateFile && !validateFile(file)) return
+                handleDragReplace(file)
+                e.target.value = ''
+              }}
+            />
+            <Button
+              variant="accent"
+              size="xs"
+              className={cn(
+                'absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
+                selected && 'opacity-100',
+              )}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              replace
+            </Button>
+          </>
         )}
         {children}
       </div>
