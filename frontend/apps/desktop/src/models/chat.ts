@@ -66,9 +66,18 @@ export function useSendChatMessage() {
 export function useChatStream(sessionId: string | null) {
   const [streamingText, setStreamingText] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
+  const [streamComplete, setStreamComplete] = useState(false)
   const [pendingToolCalls, setPendingToolCalls] = useState<ChatStreamEvent['toolCalls']>([])
   const [pendingToolResults, setPendingToolResults] = useState<ChatStreamEvent['toolResults']>([])
   const streamingTextRef = useRef('')
+
+  const clearStream = useCallback(() => {
+    setStreamingText('')
+    streamingTextRef.current = ''
+    setPendingToolCalls([])
+    setPendingToolResults([])
+    setStreamComplete(false)
+  }, [])
 
   useEffect(() => {
     const chatStreamEvents = (window as any).chatStreamEvents
@@ -80,6 +89,7 @@ export function useChatStream(sessionId: string | null) {
       switch (event.type) {
         case 'stream_start':
           setIsStreaming(true)
+          setStreamComplete(false)
           setStreamingText('')
           streamingTextRef.current = ''
           setPendingToolCalls([])
@@ -97,24 +107,20 @@ export function useChatStream(sessionId: string | null) {
           break
         case 'stream_end':
           setIsStreaming(false)
-          setStreamingText('')
-          streamingTextRef.current = ''
-          setPendingToolCalls([])
-          setPendingToolResults([])
+          // Keep streaming content visible until query refetch confirms the persisted message.
+          // clearStream() will be called by the component once the new message appears in session data.
+          setStreamComplete(true)
           invalidateQueries([queryKeys.CHAT_SESSION, sessionId])
           break
         case 'stream_error':
           setIsStreaming(false)
-          setStreamingText('')
-          streamingTextRef.current = ''
-          setPendingToolCalls([])
-          setPendingToolResults([])
+          clearStream()
           break
       }
     })
 
     return unsubscribe
-  }, [sessionId])
+  }, [sessionId, clearStream])
 
-  return {streamingText, isStreaming, pendingToolCalls, pendingToolResults}
+  return {streamingText, isStreaming, streamComplete, pendingToolCalls, pendingToolResults, clearStream}
 }

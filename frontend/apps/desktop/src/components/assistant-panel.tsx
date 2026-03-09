@@ -10,8 +10,9 @@ import {
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {SizableText} from '@shm/ui/text'
-import {Bot, Check, Eye, EyeOff, Plus, Send, Settings, Trash2, Wrench} from 'lucide-react'
-import {useEffect, useRef, useState} from 'react'
+import {ArrowDown, Bot, Check, Eye, EyeOff, Plus, Send, Settings, Trash2, Wrench} from 'lucide-react'
+import {useCallback, useEffect, useRef, useState} from 'react'
+import {Markdown} from './markdown'
 
 export function AssistantPanel({
   initialSessionId,
@@ -115,10 +116,22 @@ function ChatView({
   }
   const session = useChatSession(selectedSessionId)
   const sendMessage = useSendChatMessage()
-  const {streamingText, isStreaming, pendingToolCalls, pendingToolResults} = useChatStream(selectedSessionId)
+  const {streamingText, isStreaming, streamComplete, pendingToolCalls, pendingToolResults, clearStream} =
+    useChatStream(selectedSessionId)
   const [input, setInput] = useState('')
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Scroll state
+  const [isNearBottom, setIsNearBottom] = useState(true)
+  const [showScrollButton, setShowScrollButton] = useState(false)
+  const lastMessageCountRef = useRef(0)
+  const scrollingToBottomRef = useRef(false)
+
+  const isBusy = isStreaming || streamComplete
+  const showStreamingBlock =
+    isStreaming || (streamComplete && !!(streamingText || pendingToolCalls?.length || pendingToolResults?.length))
 
   // Auto-select first session
   useEffect(() => {
@@ -127,13 +140,65 @@ function ChatView({
     }
   }, [sessions.data, selectedSessionId])
 
-  // Scroll to bottom on new messages or streaming
+  // Clear streaming state once the persisted message appears in query data
+  const messages = session.data?.messages || []
   useEffect(() => {
+    if (streamComplete && messages.length > lastMessageCountRef.current) {
+      clearStream()
+    }
+    lastMessageCountRef.current = messages.length
+  }, [messages.length, streamComplete, clearStream])
+
+  // Near-bottom detection
+  const checkIsNearBottom = useCallback(() => {
+    const container = messagesContainerRef.current
+    if (!container) return true
+    const threshold = 100
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+    return distanceFromBottom <= threshold
+  }, [])
+
+  const handleScroll = useCallback(() => {
+    // During a programmatic smooth-scroll-to-bottom, ignore intermediate scroll events
+    // that would incorrectly detect us as "not near bottom" mid-animation
+    if (scrollingToBottomRef.current) {
+      const nearBottom = checkIsNearBottom()
+      if (nearBottom) {
+        scrollingToBottomRef.current = false
+        setIsNearBottom(true)
+        setShowScrollButton(false)
+      }
+      return
+    }
+    const nearBottom = checkIsNearBottom()
+    setIsNearBottom(nearBottom)
+    if (nearBottom) {
+      setShowScrollButton(false)
+    }
+  }, [checkIsNearBottom])
+
+  // Auto-scroll: snap to bottom instantly (no smooth) so it doesn't fight user scrolling
+  // or cause intermediate scroll events that flash the pill
+  useEffect(() => {
+    if (isNearBottom) {
+      const container = messagesContainerRef.current
+      if (container) {
+        container.scrollTop = container.scrollHeight
+      }
+    } else if (isStreaming || messages.length > lastMessageCountRef.current) {
+      setShowScrollButton(true)
+    }
+  }, [messages.length, streamingText, isNearBottom, isStreaming])
+
+  const scrollToBottom = useCallback(() => {
+    scrollingToBottomRef.current = true
+    setShowScrollButton(false)
+    setIsNearBottom(true)
     messagesEndRef.current?.scrollIntoView({behavior: 'smooth'})
-  }, [session.data?.messages, streamingText])
+  }, [])
 
   async function handleSend() {
-    if (!input.trim() || isStreaming) return
+    if (!input.trim() || isBusy) return
     let sessionId = selectedSessionId
     if (!sessionId) {
       const newSession = await createSession.mutateAsync(undefined)
@@ -155,8 +220,6 @@ function ChatView({
     deleteSession.mutate(selectedSessionId)
     setSelectedSessionId(null)
   }
-
-  const messages = session.data?.messages || []
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -189,7 +252,7 @@ function ChatView({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-2">
+      <div ref={messagesContainerRef} onScroll={handleScroll} className="relative flex-1 overflow-y-auto px-3 py-2">
         {messages.length === 0 && !isStreaming && (
           <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
             Send a message to start chatting
@@ -198,8 +261,8 @@ function ChatView({
         {messages.map((msg, i) => (
           <ChatMessageBubble key={i} message={msg} />
         ))}
-        {/* Streaming state */}
-        {isStreaming && (
+        {/* Streaming state — kept visible until persisted message confirmed */}
+        {showStreamingBlock && (
           <>
             {pendingToolCalls && pendingToolCalls.length > 0 && (
               <div className="my-1">
@@ -217,13 +280,24 @@ function ChatView({
             )}
             {streamingText && (
               <div className="bg-muted my-1 rounded-lg px-3 py-2 text-xs">
-                <p className="whitespace-pre-wrap">{streamingText}</p>
-                <span className="bg-foreground inline-block h-3 w-1 animate-pulse" />
+                <Markdown>{streamingText}</Markdown>
+                {isStreaming && <span className="bg-foreground inline-block h-3 w-1 animate-pulse" />}
               </div>
             )}
           </>
         )}
         <div ref={messagesEndRef} />
+        {/* Scroll-to-bottom pill */}
+        {showScrollButton && (
+          <div className="pointer-events-none sticky bottom-2 flex justify-center">
+            <button
+              onClick={scrollToBottom}
+              className="bg-muted border-border text-foreground pointer-events-auto rounded-full border p-1.5 shadow-lg"
+            >
+              <ArrowDown className="size-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Input */}
@@ -240,10 +314,10 @@ function ChatView({
               requestAnimationFrame(() => inputRef.current?.focus())
             }
           }}
-          disabled={isStreaming}
+          disabled={isBusy}
           className="flex-1 text-xs"
         />
-        <Button size="sm" onClick={handleSend} disabled={!input.trim() || isStreaming}>
+        <Button size="sm" onClick={handleSend} disabled={!input.trim() || isBusy}>
           <Send className="size-3.5" />
         </Button>
       </div>
@@ -256,7 +330,6 @@ function ChatMessageBubble({message}: {message: any}) {
 
   return (
     <div className="my-1.5">
-      {/* Tool calls */}
       {message.toolCalls?.map((tc: any) => <ToolCallDisplay key={tc.id} name={tc.name} args={tc.args} />)}
       {message.toolResults?.map((tr: any) => <ToolResultDisplay key={tr.id} name={tr.name} result={tr.result} />)}
       <div
@@ -264,7 +337,7 @@ function ChatMessageBubble({message}: {message: any}) {
           isUser ? 'bg-primary text-primary-foreground ml-6' : 'bg-muted mr-6'
         }`}
       >
-        <p className="whitespace-pre-wrap">{message.content}</p>
+        {isUser ? <p className="whitespace-pre-wrap">{message.content}</p> : <Markdown>{message.content}</Markdown>}
       </div>
     </div>
   )
@@ -288,7 +361,7 @@ function ToolResultDisplay({name, result}: {name: string; result: string}) {
       <Check className="text-muted-foreground mt-0.5 size-3 shrink-0" />
       <div>
         <span className="font-medium">{name}</span>
-        <span className="text-muted-foreground ml-1">→ {result}</span>
+        <span className="text-muted-foreground ml-1">{result}</span>
       </div>
     </div>
   )
