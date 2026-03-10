@@ -126,11 +126,7 @@ export function InlineDraftCard({
               <DraftBadge />
             </div>
           </div>
-          <div className="flex items-center justify-between py-3 pr-2 pl-4">
-            <Button variant="ghost" size="sm" onClick={openDraft} className="gap-1">
-              <Pencil className="size-3" />
-              Edit
-            </Button>
+          <div className="flex items-center justify-end py-3 pr-2 pl-4">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="iconSm">

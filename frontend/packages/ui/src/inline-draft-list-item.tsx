@@ -2,7 +2,6 @@ import {HMListedDraft} from '@shm/shared/hm-types'
 import {Button} from './button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {DraftBadge} from './draft-badge'
-import {SizableText} from './text'
 import {FileText, MoreVertical, Pencil, Trash2} from 'lucide-react'
 import {useCallback, useEffect, useRef, useState} from 'react'
 
@@ -104,10 +103,6 @@ export function InlineDraftListItem({
           <DraftBadge />
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={openDraft} className="gap-1">
-            <Pencil className="size-3" />
-            <SizableText size="xs">Edit</SizableText>
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="iconSm">
