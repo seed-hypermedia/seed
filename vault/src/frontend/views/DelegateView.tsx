@@ -2,7 +2,12 @@ import {CreateAccountDialog} from '@/frontend/components/CreateAccountDialog'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
-import {getProfileDisplayName, type AccountProfileSummary, type ProfileLoadState} from '@/frontend/profile'
+import {
+  getProfileAvatarImageSrc,
+  getProfileDisplayName,
+  type AccountProfileSummary,
+  type ProfileLoadState,
+} from '@/frontend/profile'
 import {useActions, useAppState} from '@/frontend/store'
 import * as blobs from '@shm/shared/blobs'
 import * as hmauth from '@shm/shared/hmauth'
@@ -31,6 +36,7 @@ export function DelegateView() {
     error,
     profiles,
     profileLoadStates,
+    backendBaseUrl,
   } = useAppState()
   const actions = useActions()
   const [searchParams] = useSearchParams()
@@ -123,6 +129,7 @@ export function DelegateView() {
                     principal={principal}
                     profile={profiles[principal]}
                     profileLoadState={profileLoadStates[principal]}
+                    backendBaseUrl={backendBaseUrl}
                     isSelected={isSelected}
                     onClick={() => actions.selectAccount(index)}
                   />
@@ -167,12 +174,14 @@ function AccountSelectionItem({
   principal,
   profile,
   profileLoadState,
+  backendBaseUrl,
   isSelected,
   onClick,
 }: {
   principal: string
   profile?: AccountProfileSummary
   profileLoadState?: ProfileLoadState
+  backendBaseUrl: string
   isSelected: boolean
   onClick: () => void
 }) {
@@ -189,7 +198,11 @@ function AccountSelectionItem({
     >
       <div className="bg-primary/10 flex size-8 shrink-0 items-center justify-center rounded-full">
         {profile?.avatar ? (
-          <img src={profile.avatar} className="size-full object-cover" alt="" />
+          <img
+            src={getProfileAvatarImageSrc(backendBaseUrl, profile.avatar)}
+            className="size-full object-cover"
+            alt=""
+          />
         ) : (
           <User className="text-primary size-4" />
         )}

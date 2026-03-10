@@ -15,7 +15,7 @@ export function CreateAccountDialog() {
       submitLabel="Create Account"
       loading={loading}
       error={error}
-      onSubmit={({name, description}) => actions.createAccount(name, description)}
+      onSubmit={({name, description, avatarFile}) => actions.createAccount(name, description, avatarFile)}
     />
   )
 }

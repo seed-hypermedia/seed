@@ -3,6 +3,9 @@ import * as base64 from '@shm/shared/base64'
 import * as blobs from '@shm/shared/blobs'
 import * as hmauth from '@shm/shared/hmauth'
 import * as webauthn from '@simplewebauthn/browser'
+import {code as rawCodec} from 'multiformats/codecs/raw'
+import {CID} from 'multiformats/cid'
+import {sha256} from 'multiformats/hashes/sha2'
 import {createContext, useContext} from 'react'
 import {proxy, useSnapshot} from 'valtio'
 import {APIError} from './api-client'
@@ -21,7 +24,7 @@ export interface SessionInfo {
 }
 
 /** Creates the initial state for the store. */
-export function initialState() {
+export function initialState(backendBaseUrl = '') {
   return {
     email: '',
     password: '',
@@ -47,6 +50,8 @@ export function initialState() {
     delegationConsented: false,
     /** Server-configured relying party origin used by WebAuthn verification. */
     relyingPartyOrigin: '',
+    /** Daemon base URL used for direct IPFS asset reads. */
+    backendBaseUrl,
     /** Cache of loaded profiles mapped by their principal */
     profiles: {} as Record<string, AccountProfileSummary>,
     /** Tracks degraded profile states so the UI can distinguish not found from temporary failures. */
@@ -111,6 +116,13 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     delete state.profileLoadStates[principal]
   }
 
+  async function uploadAvatar(avatarFile: File): Promise<string> {
+    const data = new Uint8Array(await avatarFile.arrayBuffer())
+    const cid = CID.createV1(rawCodec, await sha256.digest(data))
+    await blockstore.put(cid, data)
+    return `ipfs://${cid}`
+  }
+
   async function publishProfile(
     signer: blobs.NobleKeyPair,
     profile: {
@@ -129,7 +141,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
   const actions = {
     resetState() {
-      Object.assign(state, initialState())
+      Object.assign(state, initialState(state.backendBaseUrl))
     },
 
     setEmail(email: string) {
@@ -1005,7 +1017,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
-    async createAccount(name: string, description?: string) {
+    async createAccount(name: string, description?: string, avatarFile?: File) {
       if (!state.vaultData || !state.decryptedDEK) {
         state.error = 'Vault must be unlocked first'
         return
@@ -1041,6 +1053,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         didSaveAccount = true
         state.creatingAccount = false
 
+        if (avatarFile) {
+          profileOptions.avatar = await uploadAvatar(avatarFile)
+        }
+
         await publishProfile(kp, profileOptions, ts)
       } catch (e) {
         if (!didSaveAccount && insertedAccount && state.vaultData) {
@@ -1065,7 +1081,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.selectedAccountIndex = index
     },
 
-    async updateAccountProfile(principal: string, nextProfile: {name: string; description?: string}) {
+    async updateAccountProfile(
+      principal: string,
+      nextProfile: {name: string; description?: string; avatarFile?: File},
+    ) {
       if (!state.vaultData || !state.decryptedDEK) {
         state.error = 'Vault must be unlocked first'
         return false
@@ -1092,10 +1111,11 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       try {
         const kp = blobs.nobleKeyPairFromSeed(account.seed)
         const currentProfile = state.profiles[principal]
+        const avatar = nextProfile.avatarFile ? await uploadAvatar(nextProfile.avatarFile) : currentProfile?.avatar
         await publishProfile(kp, {
           name: nextProfile.name,
           description: nextProfile.description,
-          avatar: currentProfile?.avatar,
+          avatar,
         })
         return true
       } catch (e) {
@@ -1447,8 +1467,8 @@ export type StoreActions = ReturnType<typeof createActions>
  * @param client - The API client to use.
  * @param blockstore - The IPFS blockstore used for blob storage.
  */
-export function createStore(client: api.ClientInterface, blockstore: Blockstore) {
-  const state = proxy<AppState>(initialState())
+export function createStore(client: api.ClientInterface, blockstore: Blockstore, backendBaseUrl = '') {
+  const state = proxy<AppState>(initialState(backendBaseUrl))
 
   // Default navigator prevents crashes before router is connected
   let navigate = (path: string) => {

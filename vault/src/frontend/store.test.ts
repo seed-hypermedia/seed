@@ -3,6 +3,8 @@ import * as blobs from '@shm/shared/blobs'
 import {Account, Profile} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import * as simplewebauthn from '@simplewebauthn/browser'
 import {afterEach, beforeEach, describe, expect, mock, spyOn, test} from 'bun:test'
+import {code as rawCodec} from 'multiformats/codecs/raw'
+import {CID} from 'multiformats/cid'
 import {APIError} from './api-client'
 import {createStore} from './store'
 import {createMockBlockstore, createMockClient, createSuccessMockClient} from './test-utils'
@@ -632,6 +634,43 @@ describe('Store', () => {
 
       consoleErrorSpy.mockRestore()
     })
+
+    test('uploads an avatar block before publishing the new profile', async () => {
+      const published: Array<{cid: string; data: Uint8Array}> = []
+      const {state, actions} = createStore(
+        createMockClient({
+          saveVaultData: async () => ({success: true}),
+        }),
+        createMockBlockstore({
+          put: async (cid, data) => {
+            published.push({cid: cid.toString(), data})
+          },
+        }),
+      )
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [],
+      }
+      state.selectedAccountIndex = -1
+      state.creatingAccount = true
+
+      const avatarBytes = new Uint8Array([1, 2, 3, 4, 5])
+      const avatarFile = new File([avatarBytes], 'avatar.png', {type: 'image/png'})
+
+      await actions.createAccount('Test', 'Description', avatarFile)
+
+      expect(published.length).toBe(2)
+      expect(published[0]?.data).toEqual(avatarBytes)
+      expect(CID.parse(published[0]!.cid).code).toBe(rawCodec)
+
+      const profileBlob = published[1]
+      expect(profileBlob).toBeDefined()
+      const decoded = blobs.decodeBlob<blobs.Profile>(profileBlob!.data, CID.parse(profileBlob!.cid))
+      expect(decoded.decoded.avatar).toBe(`ipfs://${published[0]!.cid}`)
+      expect(decoded.decoded.description).toBe('Description')
+    })
   })
 
   describe('updateAccountProfile', () => {
@@ -687,6 +726,63 @@ describe('Store', () => {
       expect(decoded.decoded.description).toBe('New bio')
       expect(decoded.decoded.avatar).toBe('ipfs://avatar')
       expect(blobs.principalToString(decoded.decoded.signer)).toBe(principal)
+    })
+
+    test('uploads a replacement avatar and publishes its ipfs URI', async () => {
+      const published: Array<{cid: string; data: Uint8Array}> = []
+      const {state, actions} = createStore(
+        createMockClient(),
+        createMockBlockstore({
+          put: async (cid, data) => {
+            published.push({cid: cid.toString(), data})
+          },
+        }),
+      )
+
+      const kp = blobs.generateNobleKeyPair()
+      const principal = blobs.principalToString(kp.principal)
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [
+          {
+            seed: kp.seed,
+            createTime: Date.now(),
+            delegations: [],
+          },
+        ],
+      }
+      state.profiles[principal] = {
+        name: 'Alice',
+        avatar: 'ipfs://old-avatar',
+        description: 'Old bio',
+      }
+
+      const avatarBytes = new Uint8Array([9, 8, 7, 6])
+      const avatarFile = new File([avatarBytes], 'next-avatar.png', {type: 'image/png'})
+
+      const didUpdate = await actions.updateAccountProfile(principal, {
+        name: 'Alice Updated',
+        description: 'New bio',
+        avatarFile,
+      })
+
+      expect(didUpdate).toBe(true)
+      expect(published.length).toBe(2)
+      expect(published[0]?.data).toEqual(avatarBytes)
+      expect(CID.parse(published[0]!.cid).code).toBe(rawCodec)
+      expect(state.profiles[principal]).toEqual({
+        name: 'Alice Updated',
+        avatar: `ipfs://${published[0]!.cid}`,
+        description: 'New bio',
+      })
+
+      const profileBlob = published[1]
+      expect(profileBlob).toBeDefined()
+      const decoded = blobs.decodeBlob<blobs.Profile>(profileBlob!.data, CID.parse(profileBlob!.cid))
+      expect(decoded.decoded.avatar).toBe(`ipfs://${published[0]!.cid}`)
+      expect(decoded.decoded.description).toBe('New bio')
     })
 
     test('repairs a missing profile by publishing a fresh profile blob', async () => {

@@ -13,7 +13,7 @@ const rootElem = elem
 async function bootstrap() {
   const client = new FetchClient()
   const {backendBaseUrl} = await client.getConfig()
-  const appStore = createStore(client, new IndexedDBBlockstore(new RemoteBlockstore(backendBaseUrl)))
+  const appStore = createStore(client, new IndexedDBBlockstore(new RemoteBlockstore(backendBaseUrl)), backendBaseUrl)
   const router = createRouter()
 
   // Wire up the store's navigator to the router.

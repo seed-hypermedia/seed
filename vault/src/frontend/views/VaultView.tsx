@@ -3,7 +3,12 @@ import {CreateAccountDialog} from '@/frontend/components/CreateAccountDialog'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import {Alert, AlertDescription, AlertTitle} from '@/frontend/components/ui/alert'
 import {Button} from '@/frontend/components/ui/button'
-import {getProfileDisplayName, type AccountProfileSummary, type ProfileLoadState} from '@/frontend/profile'
+import {
+  getProfileAvatarImageSrc,
+  getProfileDisplayName,
+  type AccountProfileSummary,
+  type ProfileLoadState,
+} from '@/frontend/profile'
 import {Separator} from '@/frontend/components/ui/separator'
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from '@/frontend/components/ui/tooltip'
 import {useActions, useAppState} from '@/frontend/store'
@@ -36,7 +41,8 @@ function getProfileStatusTextClass(profileLoadState?: ProfileLoadState) {
  * Vault-level settings (credentials, email) live in a separate SettingsView.
  */
 export function VaultView() {
-  const {vaultData, selectedAccountIndex, creatingAccount, error, profiles, profileLoadStates} = useAppState()
+  const {vaultData, selectedAccountIndex, creatingAccount, error, profiles, profileLoadStates, backendBaseUrl} =
+    useAppState()
   const actions = useActions()
   const navigate = useNavigate()
 
@@ -121,6 +127,7 @@ export function VaultView() {
                       id={principal}
                       profile={profiles[principal]}
                       profileLoadState={profileLoadStates[principal]}
+                      backendBaseUrl={backendBaseUrl}
                       isSelected={isSelected}
                       onSelect={() => actions.selectAccount(index)}
                     />
@@ -181,12 +188,14 @@ function SortableAccountItem({
   id,
   profile,
   profileLoadState,
+  backendBaseUrl,
   isSelected,
   onSelect,
 }: {
   id: string
   profile?: AccountProfileSummary
   profileLoadState?: ProfileLoadState
+  backendBaseUrl: string
   isSelected: boolean
   onSelect: () => void
 }) {
@@ -221,7 +230,11 @@ function SortableAccountItem({
       <button type="button" className="flex min-w-0 flex-1 cursor-pointer items-center gap-3" onClick={onSelect}>
         <div className="bg-muted flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full">
           {profile?.avatar ? (
-            <img src={profile.avatar} className="size-full object-cover" alt="" />
+            <img
+              src={getProfileAvatarImageSrc(backendBaseUrl, profile.avatar)}
+              className="size-full object-cover"
+              alt=""
+            />
           ) : (
             <Component className="text-muted-foreground size-3" />
           )}
@@ -245,7 +258,7 @@ function AccountDetails({
   profile?: AccountProfileSummary
   profileLoadState?: ProfileLoadState
 }) {
-  const {loading, error} = useAppState()
+  const {loading, error, backendBaseUrl} = useAppState()
   const actions = useActions()
   const kp = blobs.nobleKeyPairFromSeed(account.seed)
   const principal = blobs.principalToString(kp.principal)
@@ -267,7 +280,7 @@ function AccountDetails({
     }
   }
 
-  async function handleProfileSubmit(nextProfile: {name: string; description?: string}) {
+  async function handleProfileSubmit(nextProfile: {name: string; description?: string; avatarFile?: File}) {
     const didUpdate = await actions.updateAccountProfile(principal, nextProfile)
     if (didUpdate) {
       setEditingProfile(false)
@@ -278,8 +291,16 @@ function AccountDetails({
     <div className="space-y-6 p-6">
       {/* Profile header */}
       <div className="flex items-start gap-4">
-        <div className="bg-primary/10 flex size-14 shrink-0 items-center justify-center rounded-full">
-          <User className="text-primary size-7" />
+        <div className="bg-primary/10 flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full">
+          {profile?.avatar ? (
+            <img
+              src={getProfileAvatarImageSrc(backendBaseUrl, profile.avatar)}
+              className="size-full object-cover"
+              alt=""
+            />
+          ) : (
+            <User className="text-primary size-7" />
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <h1 className={`text-2xl font-semibold ${statusTextClass}`}>{name}</h1>
@@ -378,6 +399,7 @@ function AccountDetails({
         error={error}
         initialName={profile?.name ?? ''}
         initialDescription={profile?.description ?? ''}
+        initialAvatar={profile?.avatar}
         onSubmit={handleProfileSubmit}
       />
     </div>
