@@ -248,9 +248,10 @@ export class Service implements api.ServerInterface {
     this.cleanupExpiredChallenges()
 
     const challenge = this.db
-      .query<Challenge, [string, string]>(
-        `SELECT * FROM email_challenges WHERE id = ? AND purpose = 'registration' AND expire_time > ?`,
-      )
+      .query<
+        Challenge,
+        [string, string]
+      >(`SELECT * FROM email_challenges WHERE id = ? AND purpose = 'registration' AND expire_time > ?`)
       .get(req.challengeId, Date.now().toString())
 
     if (!challenge) {
@@ -303,9 +304,10 @@ export class Service implements api.ServerInterface {
 
     // Lookup by primary key for efficiency.
     const challenge = this.db
-      .query<Challenge, [string, string]>(
-        `SELECT * FROM email_challenges WHERE id = ? AND purpose = 'registration' AND expire_time > ?`,
-      )
+      .query<
+        Challenge,
+        [string, string]
+      >(`SELECT * FROM email_challenges WHERE id = ? AND purpose = 'registration' AND expire_time > ?`)
       .get(req.challengeId, Date.now().toString())
 
     if (!challenge) {
@@ -492,9 +494,10 @@ export class Service implements api.ServerInterface {
     }
 
     const user = this.db
-      .query<Pick<User, 'encrypted_data' | 'version'>, [string]>(
-        `SELECT encrypted_data, version FROM users WHERE id = ?`,
-      )
+      .query<
+        Pick<User, 'encrypted_data' | 'version'>,
+        [string]
+      >(`SELECT encrypted_data, version FROM users WHERE id = ?`)
       .get(session.user_id)
 
     if (!user) {
@@ -683,9 +686,10 @@ export class Service implements api.ServerInterface {
     }
 
     const challenge = this.db
-      .query<Challenge, [string, string, string]>(
-        `SELECT * FROM email_challenges WHERE id = ? AND user_id = ? AND purpose = 'email_change' AND expire_time > ?`,
-      )
+      .query<
+        Challenge,
+        [string, string, string]
+      >(`SELECT * FROM email_challenges WHERE id = ? AND user_id = ? AND purpose = 'email_change' AND expire_time > ?`)
       .get(req.challengeId, session.user_id, Date.now().toString())
 
     if (!challenge) {
@@ -719,9 +723,10 @@ export class Service implements api.ServerInterface {
 
     // Lookup by primary key for efficiency.
     const challenge = this.db
-      .query<Challenge, [string, string]>(
-        `SELECT * FROM email_challenges WHERE id = ? AND purpose = 'email_change' AND expire_time > ?`,
-      )
+      .query<
+        Challenge,
+        [string, string]
+      >(`SELECT * FROM email_challenges WHERE id = ? AND purpose = 'email_change' AND expire_time > ?`)
       .get(req.challengeId, Date.now().toString())
 
     if (!challenge) {
@@ -1077,9 +1082,10 @@ export class Service implements api.ServerInterface {
 
     // Look up passkey directly by primary key (WebAuthn credential ID) and verify ownership.
     const credential = this.db
-      .query<Credential, [string, string, string]>(
-        `SELECT * FROM credentials WHERE id = ? AND user_id = ? AND type = ?`,
-      )
+      .query<
+        Credential,
+        [string, string, string]
+      >(`SELECT * FROM credentials WHERE id = ? AND user_id = ? AND type = ?`)
       .get(req.credentialId, session.user_id, 'passkey')
 
     if (!credential) {

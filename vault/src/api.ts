@@ -259,6 +259,6 @@ export type ServerInterface = {
   [K in keyof ServiceDefinition]: ServiceDefinition[K] extends () => Promise<infer R>
     ? (ctx: ServerContext) => Promise<R>
     : ServiceDefinition[K] extends (req: infer Req) => Promise<infer R>
-    ? (req: Req, ctx: ServerContext) => Promise<R>
-    : never
+      ? (req: Req, ctx: ServerContext) => Promise<R>
+      : never
 }

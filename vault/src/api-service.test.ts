@@ -107,9 +107,10 @@ describe('auth flow integration', () => {
     // Step 5: Decrypt vault.
     // Retrieve encrypted DEK from credential.
     const storedCredentialForLogin = db
-      .query<{encrypted_dek: ArrayBuffer}, [string, string]>(
-        `SELECT encrypted_dek FROM credentials WHERE user_id = ? AND type = ?`,
-      )
+      .query<
+        {encrypted_dek: ArrayBuffer},
+        [string, string]
+      >(`SELECT encrypted_dek FROM credentials WHERE user_id = ? AND type = ?`)
       .get(userId, 'password')
 
     const decryptedDEK = await crypto.decrypt(
@@ -184,9 +185,10 @@ describe('auth flow integration', () => {
 
     // Query credentials.
     const credentials = db
-      .query<{id: string; type: string; metadata: string | null}, [string]>(
-        `SELECT id, type, metadata FROM credentials WHERE user_id = ?`,
-      )
+      .query<
+        {id: string; type: string; metadata: string | null},
+        [string]
+      >(`SELECT id, type, metadata FROM credentials WHERE user_id = ?`)
       .all(userId)
     expect(credentials.length).toBe(2)
 
@@ -200,9 +202,10 @@ describe('auth flow integration', () => {
     const {decrypt} = await import('@/frontend/crypto')
 
     const storedPwCredential = db
-      .query<{encrypted_dek: ArrayBuffer}, [string, string]>(
-        `SELECT encrypted_dek FROM credentials WHERE user_id = ? AND type = ?`,
-      )
+      .query<
+        {encrypted_dek: ArrayBuffer},
+        [string, string]
+      >(`SELECT encrypted_dek FROM credentials WHERE user_id = ? AND type = ?`)
       .get(userId, 'password')
 
     const decryptedPwDEK = await decrypt(new Uint8Array(storedPwCredential!.encrypted_dek), passwordKey)
