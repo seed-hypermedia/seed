@@ -240,8 +240,9 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
   }
 
   async function publishDocument(input: PublishDocumentInput, signer: HMSigner): Promise<void> {
-    // For new documents, create genesis + content change + ref entirely client-side
-    if (!input.genesis && !input.baseVersion) {
+    // Bootstrap brand-new home documents client-side. Other new documents go
+    // through PrepareDocumentChange so the server can prepare richer ops.
+    if (!input.genesis && !input.baseVersion && !input.path) {
       const genesisChange = await createGenesisChange(signer)
       const contentChange = await createDocumentChange(
         {
@@ -255,7 +256,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
       const ref = await createVersionRef(
         {
           space: input.account,
-          path: input.path ?? '',
+          path: '',
           genesis: genesisChange.cid.toString(),
           version: contentChange.cid.toString(),
           generation: input.generation != null ? Number(input.generation) : 1,
@@ -273,7 +274,8 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
       return
     }
 
-    // For existing documents, use PrepareDocumentChange to handle CRDT resolution
+    // Use PrepareDocumentChange for both new and existing documents so the server
+    // can prepare all supported ops.
     const {unsignedChange} = (await request('PrepareDocumentChange', {
       account: input.account,
       path: input.path,

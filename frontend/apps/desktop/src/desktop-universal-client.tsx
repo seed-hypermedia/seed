@@ -7,6 +7,7 @@ import {grpcClient} from '@/grpc-client'
 import {addSubscribedEntity, getDiscoveryStream, removeSubscribedEntity} from '@/models/entities'
 import {deleteRecent, fetchRecents} from '@/models/recents'
 import {client as trpcClient} from '@/trpc'
+import {publishDesktopDocument} from '@/utils/publish-document'
 import {CommentBox} from './components/commenting'
 
 const seedClient = createSeedClient(API_HTTP_URL)
@@ -46,5 +47,13 @@ export const desktopUniversalClient: UniversalClient = {
 
   getSigner,
 
-  publishDocument: ({signerAccountUid, ...input}) => seedClient.publishDocument(input, getSigner(signerAccountUid)),
+  publishDocument: (input) =>
+    publishDesktopDocument(
+      {
+        createDocumentChange: (request) => grpcClient.documents.createDocumentChange(request),
+        publishDocument: seedClient.publishDocument.bind(seedClient),
+        getSigner,
+      },
+      input,
+    ),
 }

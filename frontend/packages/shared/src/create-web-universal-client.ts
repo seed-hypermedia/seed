@@ -14,8 +14,9 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
     if (!deps.getSigner) throw new Error('getSigner is required for publishDocument')
     const signer = deps.getSigner(input.signerAccountUid)
 
-    // For new documents, create everything client-side
-    if (!input.genesis && !input.baseVersion) {
+    // Bootstrap brand-new home documents client-side. Other new documents go
+    // through PrepareDocumentChange so the server can prepare richer ops.
+    if (!input.genesis && !input.baseVersion && !input.path) {
       const genesisChange = await createGenesisChange(signer)
       const contentChange = await createDocumentChange(
         {
@@ -29,7 +30,7 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
       const ref = await createVersionRef(
         {
           space: input.account,
-          path: input.path ?? '',
+          path: '',
           genesis: genesisChange.cid.toString(),
           version: contentChange.cid.toString(),
           generation: input.generation != null ? Number(input.generation) : 1,
@@ -47,7 +48,8 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
       return
     }
 
-    // For existing documents, use PrepareDocumentChange
+    // Use PrepareDocumentChange for both new and existing documents so the server
+    // can prepare all supported ops.
     const {unsignedChange} = (await deps.request('PrepareDocumentChange', {
       account: input.account,
       path: input.path,
