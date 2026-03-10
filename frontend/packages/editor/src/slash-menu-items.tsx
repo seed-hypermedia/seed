@@ -67,6 +67,11 @@ export function getSlashMenuItems({
           language: '',
         },
       } as PartialBlock<HMBlockSchema>)
+      // Move cursor to the code-block after converting from paragraph
+      const codeBlock = editor.getTextCursorPosition().prevBlock
+      if (codeBlock && codeBlock.type === 'code-block') {
+        editor.setTextCursorPosition(codeBlock, 'start')
+      }
       const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },
