@@ -154,33 +154,30 @@ export function Feed({
 
           if (e.type == 'comment' && e.replyingComment) {
             return (
-              <>
-                <div key={`${e.type}-${e.id}-${e.time}`}>
-                  <EventCommentWithReply
-                    isSingleResource={isSingleResource}
-                    event={e}
-                    route={route}
-                    targetDomain={targetDomain}
-                    size={size}
-                  />
-                </div>
+              <div key={`${e.type}-${e.id}-${e.time}`}>
+                <EventCommentWithReply
+                  isSingleResource={isSingleResource}
+                  event={e}
+                  route={route}
+                  targetDomain={targetDomain}
+                  size={size}
+                />
                 <Separator />
-              </>
+              </div>
             )
           }
 
           return (
-            <>
+            <div key={`${e.type}-${e.id}-${e.time}`}>
               <EventItem
                 isSingleResource={isSingleResource}
-                key={`${e.type}-${e.id}-${e.time}`}
                 event={e}
                 route={route}
                 targetDomain={targetDomain}
                 size={size}
               />
               <Separator />
-            </>
+            </div>
           )
         })}
         {!isLoading && <div className="h-20" ref={lastElementNodeRef} />}
