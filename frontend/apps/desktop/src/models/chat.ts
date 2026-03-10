@@ -51,6 +51,16 @@ export function useDeleteChatSession() {
   })
 }
 
+export function useSetSessionProvider() {
+  return useMutation({
+    mutationFn: (input: {sessionId: string; providerId: string}) => client.chat.setSessionProvider.mutate(input),
+    onSuccess(_data, variables) {
+      invalidateQueries([queryKeys.CHAT_SESSION, variables.sessionId])
+      invalidateQueries([queryKeys.AI_LAST_USED_PROVIDER])
+    },
+  })
+}
+
 export function useSendChatMessage() {
   return useMutation({
     mutationFn: (input: {sessionId: string; content: string | string[]; providerId?: string}) =>

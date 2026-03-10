@@ -1,3 +1,6 @@
+import {useAppContext, useIPC} from '@/app-context'
+import {LinkDeviceDialog} from '@/components/link-device-dialog'
+import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {
   useAddProvider,
   useAIProviders,
@@ -6,9 +9,6 @@ import {
   useOllamaModels,
   useUpdateProvider,
 } from '@/models/ai-config'
-import {useAppContext, useIPC} from '@/app-context'
-import {LinkDeviceDialog} from '@/components/link-device-dialog'
-import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {useDaemonInfo, useDeleteKey, useExportKey, useListKeys, useSavedMnemonics} from '@/models/daemon'
 import {useWriteExperiments} from '@/models/experiments'
@@ -108,7 +108,7 @@ export default function Settings() {
             <Tab value="accounts" active={activeTab === 'accounts'} icon={AtSign} label="Accounts" />
             <Tab value="general" active={activeTab === 'general'} icon={Cog} label="General" />
             <Tab value="gateway" active={activeTab === 'gateway'} icon={RadioTower} label="Gateway" />
-            <Tab value="ai-providers" active={activeTab === 'ai-providers'} icon={Bot} label="AI Providers" />
+            <Tab value="ai-providers" active={activeTab === 'ai-providers'} icon={Bot} label="Assistant Providers" />
             <Tab value="app-info" active={activeTab === 'app-info'} icon={Info} label="App Info" />
             <Tab value="developer" active={activeTab === 'developer'} icon={Code2} label="Developers" />
           </TabsList>
@@ -1315,7 +1315,7 @@ function AIProvidersSettings() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <SizableText size="2xl">AI Providers</SizableText>
+        <SizableText size="2xl">Assistant Providers</SizableText>
         <Button
           size="sm"
           onClick={() => {

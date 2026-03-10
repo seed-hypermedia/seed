@@ -55,16 +55,11 @@ export default function Main({className}: {className?: string}) {
   const navigate = useNavigate()
   const initNavState = (window as any).initNavState
   const [assistantOpen, setAssistantOpen] = useState(initNavState?.assistantOpen || false)
-  const [assistantSessionId, setAssistantSessionId] = useState<string | null>(
-    initNavState?.assistantSessionId || null,
-  )
+  const [assistantSessionId, setAssistantSessionId] = useState<string | null>(initNavState?.assistantSessionId || null)
 
-  const sendAssistantState = useCallback(
-    (open: boolean, sessionId: string | null) => {
-      ipc.send('windowAssistantState', {assistantOpen: open, assistantSessionId: sessionId})
-    },
-    [],
-  )
+  const sendAssistantState = useCallback((open: boolean, sessionId: string | null) => {
+    ipc.send('windowAssistantState', {assistantOpen: open, assistantSessionId: sessionId})
+  }, [])
 
   const handleToggleAssistant = useCallback(() => {
     setAssistantOpen((prev: boolean) => {

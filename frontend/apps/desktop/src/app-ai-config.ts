@@ -24,6 +24,7 @@ export type AgentProvider = {
 type AIConfig = {
   agentProviders?: AgentProvider[]
   selectedProviderId?: string
+  lastUsedProviderId?: string
   // Legacy fields kept for migration
   providers?: {openai?: {apiKey?: string}}
 }
@@ -45,6 +46,7 @@ async function writeConfig(config: AIConfig): Promise<void> {
   appInvalidateQueries(['AI_CONFIG'])
   appInvalidateQueries(['AI_PROVIDERS'])
   appInvalidateQueries(['AI_SELECTED_PROVIDER'])
+  appInvalidateQueries(['AI_LAST_USED_PROVIDER'])
 }
 
 // Migration from old format
@@ -132,6 +134,12 @@ const DEFAULT_MODELS: Record<AgentProviderType, string> = {
   openai: 'gpt-4o-mini',
   anthropic: 'claude-sonnet-4-20250514',
   ollama: 'llama3',
+}
+
+export async function setLastUsedProvider(providerId: string) {
+  const config = await readConfig()
+  config.lastUsedProviderId = providerId
+  await writeConfig(config)
 }
 
 // tRPC router
@@ -241,6 +249,11 @@ export const aiConfigApi = t.router({
     const config = await readConfig()
     if (!config.selectedProviderId || !config.agentProviders) return null
     return config.agentProviders.find((p) => p.id === config.selectedProviderId) || null
+  }),
+
+  getLastUsedProviderId: t.procedure.query(async () => {
+    const config = await readConfig()
+    return config.lastUsedProviderId || null
   }),
 
   listOllamaModels: t.procedure.input(z.string()).query(async ({input}) => {

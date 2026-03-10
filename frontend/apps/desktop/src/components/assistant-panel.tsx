@@ -1,4 +1,4 @@
-import {useAIProviders, useSelectedProvider, useSetSelectedProvider} from '@/models/ai-config'
+import {useAIProviders} from '@/models/ai-config'
 import {
   useChatSession,
   useChatSessions,
@@ -6,6 +6,7 @@ import {
   useCreateChatSession,
   useDeleteChatSession,
   useSendChatMessage,
+  useSetSessionProvider,
 } from '@/models/chat'
 import {useNavigate} from '@/utils/useNavigate'
 import {Button} from '@shm/ui/button'
@@ -36,7 +37,7 @@ export function AssistantPanel({
         <button
           onClick={() => navigate({key: 'settings'})}
           className="text-muted-foreground hover:text-foreground"
-          title="AI Provider Settings"
+          title="Assistant Providers"
         >
           <Settings className="size-4" />
         </button>
@@ -73,8 +74,8 @@ function ChatView({
 
   // Provider selection
   const providers = useAIProviders()
-  const selectedProvider = useSelectedProvider()
-  const setSelectedProvider = useSetSelectedProvider()
+  const setSessionProvider = useSetSessionProvider()
+  const sessionProviderId = session.data?.providerId
 
   // Message queue for messages sent while streaming
   const queuedMessagesRef = useRef<string[]>([])
@@ -164,7 +165,7 @@ function ChatView({
     sendMessage.mutate({
       sessionId,
       content,
-      providerId: selectedProvider.data?.id,
+      providerId: sessionProviderId,
     })
   }
 
@@ -236,9 +237,11 @@ function ChatView({
       {providers.data && providers.data.length > 0 && (
         <div className="border-border flex items-center gap-1 border-b px-2 py-1">
           <select
-            value={selectedProvider.data?.id || ''}
+            value={sessionProviderId || ''}
             onChange={(e) => {
-              if (e.target.value) setSelectedProvider.mutate(e.target.value)
+              if (e.target.value && selectedSessionId) {
+                setSessionProvider.mutate({sessionId: selectedSessionId, providerId: e.target.value})
+              }
             }}
             className="bg-muted text-foreground flex-1 rounded px-2 py-1 text-xs"
           >

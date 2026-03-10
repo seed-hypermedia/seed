@@ -128,6 +128,13 @@ export function useSetSelectedProvider() {
   })
 }
 
+export function useLastUsedProviderId() {
+  return useQuery({
+    queryKey: [queryKeys.AI_LAST_USED_PROVIDER],
+    queryFn: () => client.aiConfig.getLastUsedProviderId.query(),
+  })
+}
+
 export function useOllamaModels(baseUrl: string | null) {
   return useQuery({
     queryKey: [queryKeys.OLLAMA_MODELS, baseUrl],

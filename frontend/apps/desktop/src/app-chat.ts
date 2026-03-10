@@ -6,7 +6,7 @@ import {ipcMain} from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 import z from 'zod'
-import {readConfig, type AgentProvider} from './app-ai-config'
+import {readConfig, setLastUsedProvider, type AgentProvider} from './app-ai-config'
 import {appInvalidateQueries} from './app-invalidation'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
@@ -34,6 +34,7 @@ export type ChatMessage = {
 type ChatSession = {
   id: string
   title: string
+  providerId?: string
   messages: ChatMessage[]
   createdAt: string
   updatedAt: string
@@ -172,9 +173,11 @@ export const chatApi = t.router({
   createSession: t.procedure.input(z.object({title: z.string().optional()}).optional()).mutation(async ({input}) => {
     const id = crypto.randomUUID()
     const now = new Date().toISOString()
+    const config = await readConfig()
     const session: ChatSession = {
       id,
       title: input?.title || 'New Chat',
+      providerId: config.lastUsedProviderId || config.selectedProviderId,
       messages: [],
       createdAt: now,
       updatedAt: now,
@@ -183,6 +186,18 @@ export const chatApi = t.router({
     appInvalidateQueries(['CHAT_SESSIONS'])
     return session
   }),
+
+  setSessionProvider: t.procedure
+    .input(z.object({sessionId: z.string(), providerId: z.string()}))
+    .mutation(async ({input}) => {
+      const session = await readSession(input.sessionId)
+      if (!session) throw new Error('Session not found')
+      session.providerId = input.providerId
+      await writeSession(session)
+      setLastUsedProvider(input.providerId).catch(() => {})
+      appInvalidateQueries(['CHAT_SESSION', input.sessionId])
+      return null
+    }),
 
   deleteSession: t.procedure.input(z.string()).mutation(async ({input}) => {
     try {
@@ -208,9 +223,13 @@ export const chatApi = t.router({
 
       const config = await readConfig()
       const providers = config.agentProviders || []
-      const providerId = input.providerId || config.selectedProviderId
+      const providerId = input.providerId || session.providerId || config.lastUsedProviderId || config.selectedProviderId
       const provider = providerId ? providers.find((p) => p.id === providerId) : providers[0]
-      if (!provider) throw new Error('No AI provider configured. Add one in Settings > AI Providers.')
+      if (!provider) throw new Error('No AI provider configured. Add one in Settings > Assistant Providers.')
+
+      // Save provider to session and update last used globally
+      session.providerId = provider.id
+      setLastUsedProvider(provider.id).catch(() => {})
 
       // Support single string or array of strings (for queued messages)
       const contents = Array.isArray(input.content) ? input.content : [input.content]
