@@ -1,5 +1,8 @@
 import {createAnthropic} from '@ai-sdk/anthropic'
 import {createOpenAI} from '@ai-sdk/openai'
+import {HMBlockNode, HMComment, HMCommentSchema} from '@shm/shared/hm-types'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {jsonSchema, stepCountIs, streamText, type ModelMessage} from 'ai'
 import crypto from 'crypto'
 import {ipcMain} from 'electron'
@@ -11,6 +14,7 @@ import {appInvalidateQueries} from './app-invalidation'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
 import {getAllWindows} from './app-windows'
+import {grpcClient} from './grpc-client'
 import * as log from './logger'
 
 const chatDir = path.join(userDataPath, 'chat-sessions')
@@ -132,6 +136,176 @@ function createProviderModel(provider: AgentProvider) {
   }
 }
 
+// View term suffixes that can be appended to hm:// URLs
+const VIEW_TERM_PATTERN = /\/:(comments|directory|activity|collaborators|feed)(?:\/(.+))?$/
+
+/**
+ * Parse a URL, extracting any view term suffix.
+ * e.g. "hm://z6Mk.../path/:comments" → {id, viewTerm: "comments"}
+ * e.g. "hm://z6Mk.../path/:directory" → {id, viewTerm: "directory"}
+ * e.g. "hm://z6Mk.../path" → {id, viewTerm: null}
+ */
+function parseDocumentUrl(url: string) {
+  let viewTerm: string | null = null
+  let viewArg: string | undefined
+  let cleanUrl = url
+
+  const viewMatch = url.match(VIEW_TERM_PATTERN)
+  if (viewMatch) {
+    viewTerm = viewMatch[1]
+    viewArg = viewMatch[2]
+    cleanUrl = url.replace(VIEW_TERM_PATTERN, '')
+  }
+
+  const id = unpackHmId(cleanUrl)
+  if (!id) return null
+  return {id, viewTerm, viewArg}
+}
+
+// Helper: convert HMBlockNode[] to markdown
+function blockNodesToMarkdown(nodes: HMBlockNode[], depth = 0, listType?: string): string {
+  const parts: string[] = []
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]
+    if (!node.block) continue
+    const block = node.block as any
+    const text = block.text || ''
+    const attrs = block.attributes || {}
+    const childrenType: string | undefined =
+      typeof attrs?.toJson === 'function'
+        ? attrs.toJson({emitDefaultValues: true, enumAsInteger: false})?.childrenType
+        : attrs?.childrenType
+
+    let blockMd = ''
+    switch (block.type) {
+      case 'Heading': {
+        const level = '#'.repeat(Math.min((block.attributes?.level || depth) + 1, 6))
+        blockMd = `${level} ${text}`
+        break
+      }
+      case 'Code': {
+        const lang = block.attributes?.language || ''
+        blockMd = '```' + lang + '\n' + text + '\n```'
+        break
+      }
+      case 'Math':
+        blockMd = '$$\n' + text + '\n$$'
+        break
+      case 'Image':
+        blockMd = `![${text || ''}](${block.link || block.ref || ''})`
+        break
+      case 'Video':
+        blockMd = `[Video: ${text || block.link || ''}]`
+        break
+      case 'File':
+        blockMd = `[File: ${text || block.link || ''}]`
+        break
+      case 'Embed':
+        blockMd = `[Embed: ${block.link || ''}]`
+        break
+      case 'Button':
+        blockMd = `[${text || 'Button'}](${block.link || ''})`
+        break
+      case 'WebEmbed':
+        blockMd = `[Web: ${block.link || text || ''}]`
+        break
+      default:
+        if (text) {
+          if (listType === 'Unordered') {
+            blockMd = `${'  '.repeat(Math.max(depth - 1, 0))}- ${text}`
+          } else if (listType === 'Ordered') {
+            blockMd = `${'  '.repeat(Math.max(depth - 1, 0))}${i + 1}. ${text}`
+          } else if (listType === 'Blockquote') {
+            blockMd = `> ${text}`
+          } else {
+            blockMd = text
+          }
+        }
+    }
+
+    if (blockMd) parts.push(blockMd)
+    if (node.children?.length) {
+      parts.push(blockNodesToMarkdown(node.children, depth + 1, childrenType))
+    }
+  }
+  return parts.join('\n\n')
+}
+
+// Helper: parse a comment from gRPC response
+function parseComment(raw: any): HMComment | null {
+  const json = typeof raw.toJson === 'function' ? raw.toJson({emitDefaultValues: true, enumAsInteger: false}) : raw
+  const parsed = HMCommentSchema.safeParse(json)
+  return parsed.success ? parsed.data : null
+}
+
+// Helper: get metadata as plain object from gRPC Struct
+function getPlainMetadata(metadata: any): Record<string, any> | null {
+  if (!metadata) return null
+  if (typeof metadata.toJson === 'function') {
+    return metadata.toJson({emitDefaultValues: true, enumAsInteger: false})
+  }
+  return metadata
+}
+
+// Read handlers for each view type
+
+async function readDocument(id: ReturnType<typeof unpackHmId>) {
+  if (!id) return 'Error: invalid document ID'
+  const doc = await grpcClient.documents.getDocument({
+    account: id.uid,
+    path: hmIdPathToEntityQueryPath(id.path),
+    version: id.version || undefined,
+  })
+  const metadata = getPlainMetadata(doc.metadata)
+  const title = metadata?.name || 'Untitled'
+  const content = doc.content ? blockNodesToMarkdown(doc.content as HMBlockNode[]) : '(empty document)'
+  return `# ${title}\n\n${content}`
+}
+
+async function readComments(id: ReturnType<typeof unpackHmId>) {
+  if (!id) return 'Error: invalid document ID'
+  const res = await grpcClient.comments.listComments({
+    targetAccount: id.uid,
+    targetPath: hmIdPathToEntityQueryPath(id.path),
+    pageSize: 100,
+  })
+  const comments: string[] = []
+  for (const raw of res.comments) {
+    const c = parseComment(raw)
+    if (!c) continue
+    const content = c.content ? blockNodesToMarkdown(c.content as HMBlockNode[]) : ''
+    const replyInfo = c.replyParent ? ` (reply to ${c.replyParent})` : ''
+    comments.push(`**${c.author}**${replyInfo}:\n${content}`)
+  }
+  if (comments.length === 0) return 'No comments found on this document.'
+  return `## Comments\n\n${comments.join('\n\n---\n\n')}`
+}
+
+async function readDirectory(id: ReturnType<typeof unpackHmId>) {
+  if (!id) return 'Error: invalid document ID'
+  const apiPath = hmIdPathToEntityQueryPath(id.path)
+  const res = await grpcClient.documents.listDirectory({
+    account: id.uid,
+    directoryPath: apiPath,
+  })
+  const children: string[] = []
+  for (const doc of res.documents) {
+    const docPath = doc.path || ''
+    // Skip the parent itself
+    if (docPath === apiPath) continue
+    // Skip nested children (only direct children)
+    const parentSegments = apiPath ? apiPath.split('/').filter(Boolean) : []
+    const childSegments = docPath.split('/').filter(Boolean)
+    if (childSegments.length > parentSegments.length + 1) continue
+    const metadata = getPlainMetadata(doc.metadata)
+    const title = metadata?.name || childSegments[childSegments.length - 1] || 'Untitled'
+    const childUrl = `hm://${id.uid}/${childSegments.join('/')}`
+    children.push(`- [${title}](${childUrl})`)
+  }
+  if (children.length === 0) return 'No child documents found.'
+  return `## Directory\n\n${children.join('\n')}`
+}
+
 // Plain tool objects using inputSchema (not parameters) to match AI SDK v4 internal expectations.
 // Typed as Record<string, any> to avoid excessive type instantiation depth with Zod + AI SDK.
 const chatTools: Record<string, any> = {
@@ -154,6 +328,39 @@ const chatTools: Record<string, any> = {
       try {
         const result = Function(`"use strict"; return (${expression})`)()
         return String(result)
+      } catch (e) {
+        return `Error: ${(e as Error).message}`
+      }
+    },
+  },
+  read: {
+    description:
+      'Read a Hypermedia document, its comments, or its directory listing. Supports hm:// URLs with optional view term suffixes: /:comments for discussions, /:directory for child documents. Without a suffix, reads the document content as markdown.',
+    inputSchema: jsonSchema({
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description:
+            'The hm:// URL to read. Examples: "hm://z6Mk.../path" reads the document, "hm://z6Mk.../path/:comments" reads comments, "hm://z6Mk.../path/:directory" lists children.',
+        },
+      },
+      required: ['url'],
+      additionalProperties: false,
+    }),
+    execute: async ({url}: {url: string}) => {
+      try {
+        const parsed = parseDocumentUrl(url)
+        if (!parsed) return `Error: Could not parse URL "${url}". Use an hm:// URL.`
+        const {id, viewTerm} = parsed
+        switch (viewTerm) {
+          case 'comments':
+            return await readComments(id)
+          case 'directory':
+            return await readDirectory(id)
+          default:
+            return await readDocument(id)
+        }
       } catch (e) {
         return `Error: ${(e as Error).message}`
       }
@@ -215,6 +422,12 @@ export const chatApi = t.router({
         sessionId: z.string(),
         content: z.union([z.string(), z.array(z.string())]),
         providerId: z.string().optional(),
+        documentContext: z
+          .object({
+            url: z.string().optional(),
+            title: z.string().optional(),
+          })
+          .optional(),
       }),
     )
     .mutation(async ({input}) => {
@@ -254,6 +467,30 @@ export const chatApi = t.router({
       await writeSession(session)
       appInvalidateQueries(['CHAT_SESSION', input.sessionId])
 
+      // Build system prompt with document context
+      const systemParts: string[] = [
+        'You are a helpful assistant integrated into Seed, a Hypermedia document editor and collaboration platform.',
+        'You can read documents, their comments/discussions, and directory listings using the `read` tool.',
+        '',
+        'Documents in Seed use hm:// URLs. For example: hm://z6Mk.../path-segment',
+        'Use the `read` tool with an hm:// URL to read a document.',
+        'Append suffixes to the URL for different views:',
+        '  - read("hm://…/path") - Read the document content as markdown',
+        '  - read("hm://…/path/:comments") - Read discussions/comments on the document',
+        '  - read("hm://…/path/:directory") - List child documents (subdocuments)',
+        '',
+        'To explore a section of a site, read the directory first, then read each child document.',
+      ]
+      if (input.documentContext?.url) {
+        systemParts.push('')
+        systemParts.push(`The user is currently viewing: ${input.documentContext.url}`)
+        if (input.documentContext.title) {
+          systemParts.push(`Document title: "${input.documentContext.title}"`)
+        }
+        systemParts.push('You can use this URL with the `read` tool to access the document they are looking at.')
+      }
+      const system = systemParts.join('\n')
+
       const messages: ModelMessage[] = session.messages.map((m) => {
         if (m.role === 'user') return {role: 'user' as const, content: m.content}
         return {role: 'assistant' as const, content: m.content}
@@ -272,6 +509,7 @@ export const chatApi = t.router({
 
         const result = streamText({
           model,
+          system,
           messages,
           tools: chatTools,
           stopWhen: stepCountIs(5),

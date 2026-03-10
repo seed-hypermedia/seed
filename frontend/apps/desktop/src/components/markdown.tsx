@@ -40,7 +40,6 @@ const components: Components = {
 
 export function Markdown({children}: {children: string}) {
   return (
-    // @ts-expect-error remark-gfm@3 types are incompatible with react-markdown's bundled unified types
     <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
       {children}
     </ReactMarkdown>

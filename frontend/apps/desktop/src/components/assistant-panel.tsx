@@ -9,11 +9,13 @@ import {
   useSetSessionProvider,
 } from '@/models/chat'
 import {useNavigate} from '@/utils/useNavigate'
+import {packHmId} from '@shm/shared/utils/entity-id-url'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {SizableText} from '@shm/ui/text'
 import {ArrowDown, Bot, Check, Plus, Send, Settings, Square, Trash2, Wrench} from 'lucide-react'
-import {useCallback, useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {Markdown} from './markdown'
 
 export function AssistantPanel({
@@ -76,6 +78,28 @@ function ChatView({
   const providers = useAIProviders()
   const setSessionProvider = useSetSessionProvider()
   const sessionProviderId = session.data?.providerId
+
+  // Document context from current route
+  const navRoute = useNavRoute()
+  const documentContext = useMemo(() => {
+    if (
+      navRoute.key === 'document' ||
+      navRoute.key === 'comments' ||
+      navRoute.key === 'directory' ||
+      navRoute.key === 'activity' ||
+      navRoute.key === 'collaborators' ||
+      navRoute.key === 'feed'
+    ) {
+      const id = navRoute.id
+      try {
+        const url = packHmId(id)
+        return {url, title: undefined as string | undefined}
+      } catch {
+        return undefined
+      }
+    }
+    return undefined
+  }, [navRoute])
 
   // Message queue for messages sent while streaming
   const queuedMessagesRef = useRef<string[]>([])
@@ -166,6 +190,7 @@ function ChatView({
       sessionId,
       content,
       providerId: sessionProviderId,
+      documentContext,
     })
   }
 
