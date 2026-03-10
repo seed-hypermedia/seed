@@ -112,13 +112,11 @@ describe('delegation callback protocol', () => {
     const issuer = await blobs.generateKeyPair()
     const delegate = await blobs.generateKeyPair()
     const capability = await blobs.createCapability(issuer, delegate.principal, 'AGENT', Date.now())
-    const profile = await blobs.createProfile(issuer, {name: 'Alice'}, Date.now())
     const url = await SDK.buildCallbackUrl(
       'https://example.com/callback',
       'AAAAAAAAAAAAAAAAAAAAAA',
       issuer.principal,
       capability,
-      profile,
     )
     const parsed = new URL(url)
     expect(parsed.searchParams.get(SDK.PARAM_STATE)).toBe('AAAAAAAAAAAAAAAAAAAAAA')

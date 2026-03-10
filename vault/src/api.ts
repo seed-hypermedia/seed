@@ -4,6 +4,7 @@ import type {
   PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
 } from '@simplewebauthn/server'
+import type {Account} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 
 // Pre-login.
 export type PreLoginRequest = {
@@ -88,6 +89,17 @@ export type GetSessionResponse = {
   email?: string
   hasPassword?: boolean
   hasPasskeys?: boolean
+}
+
+// Get account.
+export type GetAccountRequest = {
+  id: string
+}
+export type GetAccountResponse = Account
+
+// Get frontend config.
+export type GetConfigResponse = {
+  backendBaseUrl: string
 }
 
 // Change email start - initiates email change verification.
@@ -196,6 +208,8 @@ export interface ServiceDefinition {
   login(req: LoginRequest): Promise<LoginResponse>
   logout(): Promise<LogoutResponse>
   getSession(): Promise<GetSessionResponse>
+  getAccount(req: GetAccountRequest): Promise<GetAccountResponse>
+  getConfig(): Promise<GetConfigResponse>
 
   // Vault updates.
   getVault(): Promise<GetVaultResponse>

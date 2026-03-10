@@ -1,9 +1,11 @@
-import {afterEach, beforeEach, describe, expect, mock, spyOn, test} from 'bun:test'
 import * as base64 from '@shm/shared/base64'
 import * as blobs from '@shm/shared/blobs'
+import {Account, Profile} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import * as simplewebauthn from '@simplewebauthn/browser'
+import {afterEach, beforeEach, describe, expect, mock, spyOn, test} from 'bun:test'
+import {APIError} from './api-client'
 import {createStore} from './store'
-import {createMockClient, createSuccessMockClient} from './test-utils'
+import {createMockBlockstore, createMockClient, createSuccessMockClient} from './test-utils'
 import * as vault from './vault'
 
 // Mock simplewebauthn browser functions (external dependency).
@@ -28,7 +30,6 @@ async function makeVaultState(accountCount: number) {
 
   const accounts: vault.State['accounts'] = keyPairs.map((_kp, i) => ({
     seed: keyPairs[i]!.seed,
-    profile: {cid: profiles[i]!.cid, decoded: profiles[i]!.decoded},
     createTime: Date.now(),
     delegations: [
       {
@@ -37,7 +38,7 @@ async function makeVaultState(accountCount: number) {
         deviceType: 'desktop' as const,
         capability: {
           cid: capabilities[i]!.cid,
-          decoded: capabilities[i]!.decoded,
+          delegate: keyPairs[(i + 1) % accountCount]!.principal,
         },
       },
     ],
@@ -46,7 +47,7 @@ async function makeVaultState(accountCount: number) {
   const principals = keyPairs.map((kp) => blobs.principalToString(kp.principal))
 
   return {
-    vaultData: {version: 1 as const, accounts},
+    vaultData: {version: 2 as const, accounts},
     principals,
   }
 }
@@ -62,7 +63,7 @@ describe('Store', () => {
         }),
         registerPoll: async () => ({verified: false}),
       })
-      const {state, actions, navigator} = createStore(client)
+      const {state, actions, navigator} = createStore(client, createMockBlockstore())
       const navigate = mock()
       navigator.setNavigate(navigate)
 
@@ -78,7 +79,7 @@ describe('Store', () => {
       const client = createMockClient({
         preLogin: async () => ({exists: true, hasPassword: true}),
       })
-      const {state, actions, navigator} = createStore(client)
+      const {state, actions, navigator} = createStore(client, createMockBlockstore())
       const navigate = mock()
       navigator.setNavigate(navigate)
 
@@ -96,7 +97,7 @@ describe('Store', () => {
           throw new Error('Network error')
         },
       })
-      const {state, actions, navigator} = createStore(client)
+      const {state, actions, navigator} = createStore(client, createMockBlockstore())
       const navigate = mock()
       navigator.setNavigate(navigate)
 
@@ -119,6 +120,7 @@ describe('Store', () => {
           registerStart: async () => ({message: 'ok', challengeId: 'c'}),
           registerPoll: async () => ({verified: false}),
         }),
+        createMockBlockstore(),
       )
 
       await actions.handlePreLogin()
@@ -151,7 +153,7 @@ describe('Store', () => {
           email: 'test@test.com',
         }),
       })
-      const {state, actions, navigator} = createStore(client)
+      const {state, actions, navigator} = createStore(client, createMockBlockstore())
       const navigate = mock()
       navigator.setNavigate(navigate)
 
@@ -170,7 +172,7 @@ describe('Store', () => {
           email: 'test@test.com',
         }),
       })
-      const {state, actions, navigator} = createStore(client)
+      const {state, actions, navigator} = createStore(client, createMockBlockstore())
       const navigate = mock()
       navigator.setNavigate(navigate)
 
@@ -183,6 +185,96 @@ describe('Store', () => {
     })
   })
 
+  describe('ensureProfileLoaded', () => {
+    test('loads profile data from the vault account API', async () => {
+      const client = createMockClient({
+        getAccount: async () =>
+          new Account({
+            id: 'alice',
+            profile: new Profile({
+              name: 'Alice',
+              icon: 'ipfs://avatar',
+              description: 'Hello',
+            }),
+          }),
+      })
+      const {state, actions} = createStore(client, createMockBlockstore())
+
+      await actions.ensureProfileLoaded('alice')
+
+      expect(state.profiles.alice).toEqual({
+        name: 'Alice',
+        avatar: 'ipfs://avatar',
+        description: 'Hello',
+      })
+    })
+
+    test('does not cache an empty profile response', async () => {
+      const client = createMockClient({
+        getAccount: async () => new Account({id: 'alice'}),
+      })
+      const {state, actions} = createStore(client, createMockBlockstore())
+
+      await actions.ensureProfileLoaded('alice')
+
+      expect(state.profiles.alice).toBeUndefined()
+    })
+
+    test('tracks unavailable profile loads so the UI can show a graceful fallback', async () => {
+      const client = createMockClient({
+        getAccount: async () => {
+          throw new Error('profile fetch failed')
+        },
+      })
+      const {state, actions} = createStore(client, createMockBlockstore())
+
+      await actions.ensureProfileLoaded('alice')
+
+      expect(state.profiles.alice).toBeUndefined()
+      expect(state.profileLoadStates.alice).toBe('unavailable')
+    })
+
+    test('tracks not found profile loads separately from backend failures', async () => {
+      const client = createMockClient({
+        getAccount: async () => {
+          throw new APIError('Account not found', 404)
+        },
+      })
+      const {state, actions} = createStore(client, createMockBlockstore())
+
+      await actions.ensureProfileLoaded('alice')
+
+      expect(state.profiles.alice).toBeUndefined()
+      expect(state.profileLoadStates.alice).toBe('not_found')
+    })
+
+    test('clears a previous profile load failure after a successful retry', async () => {
+      const client = createMockClient({
+        getAccount: mock(async () => {
+          throw new APIError('Account not found', 404)
+        }),
+      })
+      const {state, actions} = createStore(client, createMockBlockstore())
+
+      await actions.ensureProfileLoaded('alice')
+
+      client.getAccount = mock(
+        async () =>
+          new Account({
+            id: 'alice',
+            profile: new Profile({
+              name: 'Alice',
+            }),
+          }),
+      )
+
+      await actions.ensureProfileLoaded('alice')
+
+      expect(state.profileLoadStates.alice).toBeUndefined()
+      expect(state.profiles.alice).toEqual({name: 'Alice', avatar: undefined, description: undefined})
+    })
+  })
+
   describe('handleStartRegistration', () => {
     test('navigates to verify-pending on success and stores challengeId', async () => {
       const client = createMockClient({
@@ -192,7 +284,7 @@ describe('Store', () => {
         }),
         registerPoll: async () => ({verified: false}),
       })
-      const {state, actions, navigator} = createStore(client)
+      const {state, actions, navigator} = createStore(client, createMockBlockstore())
       const navigate = mock()
       navigator.setNavigate(navigate)
 
@@ -210,7 +302,7 @@ describe('Store', () => {
           throw new Error('Rate limited')
         },
       })
-      const {state, actions, navigator} = createStore(client)
+      const {state, actions, navigator} = createStore(client, createMockBlockstore())
       const navigate = mock()
       navigator.setNavigate(navigate)
 
@@ -232,7 +324,7 @@ describe('Store', () => {
           return {verified: true, email: 'test@example.com'}
         },
       })
-      const {state, actions} = createStore(client)
+      const {state, actions} = createStore(client, createMockBlockstore())
 
       await actions.handleVerifyLink('test-challenge-123', 'test-token-456')
 
@@ -247,7 +339,7 @@ describe('Store', () => {
           throw new Error('Invalid or expired link')
         },
       })
-      const {state, actions} = createStore(client)
+      const {state, actions} = createStore(client, createMockBlockstore())
 
       await actions.handleVerifyLink('invalid-challenge', 'invalid-token')
 
@@ -257,7 +349,7 @@ describe('Store', () => {
 
   describe('handleSetPassword', () => {
     test('validates password match', async () => {
-      const {state, actions} = createStore(createMockClient())
+      const {state, actions} = createStore(createMockClient(), createMockBlockstore())
       state.password = 'password1'
       state.confirmPassword = 'password2'
 
@@ -267,7 +359,7 @@ describe('Store', () => {
     })
 
     test('validates password strength', async () => {
-      const {state, actions} = createStore(createMockClient())
+      const {state, actions} = createStore(createMockClient(), createMockBlockstore())
 
       // Use a genuinely weak password (< 8 chars).
       state.password = 'weak'
@@ -284,7 +376,7 @@ describe('Store', () => {
       const client = createMockClient({
         logout: async () => ({success: true}),
       })
-      const {state, actions, navigator} = createStore(client)
+      const {state, actions, navigator} = createStore(client, createMockBlockstore())
       const navigate = mock()
       navigator.setNavigate(navigate)
 
@@ -316,6 +408,7 @@ describe('Store', () => {
             email: 'test@passkey.com',
           }),
         }),
+        createMockBlockstore(),
       )
       state.session = {
         authenticated: true,
@@ -342,6 +435,7 @@ describe('Store', () => {
             email: 'test@passkey.com',
           }),
         }),
+        createMockBlockstore(),
       )
       state.email = 'test@passkey.com'
       state.session = {
@@ -395,17 +489,25 @@ describe('Store', () => {
   describe('createAccount', () => {
     test('creates an account when description is omitted', async () => {
       const saveVaultDataCalls: unknown[] = []
+      const publishCalls: Array<{cid: unknown; data: Uint8Array}> = []
       const client = createMockClient({
         saveVaultData: async (req) => {
           saveVaultDataCalls.push(req)
           return {success: true}
         },
       })
-      const {state, actions} = createStore(client)
+      const {state, actions} = createStore(
+        client,
+        createMockBlockstore({
+          put: async (cid, data) => {
+            publishCalls.push({cid, data})
+          },
+        }),
+      )
 
       state.decryptedDEK = new Uint8Array(32)
       state.vaultData = {
-        version: 1,
+        version: 2,
         accounts: [],
       }
       state.selectedAccountIndex = -1
@@ -413,24 +515,33 @@ describe('Store', () => {
 
       await actions.createAccount('Test')
 
-      expect(state.vaultData.accounts.length).toBe(1)
+      expect(state.vaultData!.accounts.length).toBe(1)
       expect(state.selectedAccountIndex).toBe(0)
       expect(state.creatingAccount).toBe(false)
       expect(state.error).toBe('')
       expect(saveVaultDataCalls.length).toBe(1)
+      expect(publishCalls.length).toBe(1)
     })
 
-    test('rolls back local state when vault save fails', async () => {
+    test('rolls back local state without publishing when vault save fails', async () => {
       const client = createMockClient({
         saveVaultData: async () => ({success: true}),
       })
-      const {state, actions} = createStore(client)
+      const publishCalls: Array<{cid: unknown; data: Uint8Array}> = []
+      const {state, actions} = createStore(
+        client,
+        createMockBlockstore({
+          put: async (cid, data) => {
+            publishCalls.push({cid, data})
+          },
+        }),
+      )
       const consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {})
       const serializeSpy = spyOn(vault, 'serialize').mockRejectedValueOnce(new Error('dag-cbor failed'))
 
       state.decryptedDEK = new Uint8Array(32)
       state.vaultData = {
-        version: 1,
+        version: 2,
         accounts: [],
       }
       state.selectedAccountIndex = -1
@@ -438,12 +549,226 @@ describe('Store', () => {
 
       await actions.createAccount('Test', 'Description')
 
-      expect(state.vaultData.accounts.length).toBe(0)
+      expect(state.vaultData!.accounts.length).toBe(0)
       expect(state.selectedAccountIndex).toBe(-1)
       expect(state.creatingAccount).toBe(true)
       expect(state.error).toContain('dag-cbor failed')
+      expect(publishCalls.length).toBe(0)
       serializeSpy.mockRestore()
       consoleErrorSpy.mockRestore()
+    })
+
+    test('surfaces a backend-unavailable error when saving the new account fails over the network', async () => {
+      const client = createMockClient({
+        saveVaultData: async () => {
+          throw new TypeError('Load failed')
+        },
+      })
+      const {state, actions} = createStore(client, createMockBlockstore())
+      const consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {})
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [],
+      }
+      state.selectedAccountIndex = -1
+      state.creatingAccount = true
+
+      await actions.createAccount('Test')
+
+      expect(state.vaultData!.accounts.length).toBe(0)
+      expect(state.selectedAccountIndex).toBe(-1)
+      expect(state.creatingAccount).toBe(true)
+      expect(state.error).toBe(
+        "Couldn't reach the Vault backend to save your changes. Make sure the backend server is running and try again.",
+      )
+
+      consoleErrorSpy.mockRestore()
+    })
+
+    test('keeps the saved account when publishing the new profile fails', async () => {
+      const callOrder: string[] = []
+      const client = createMockClient({
+        saveVaultData: async () => {
+          callOrder.push('save')
+          return {success: true}
+        },
+      })
+      const {state, actions} = createStore(
+        client,
+        createMockBlockstore({
+          put: async () => {
+            callOrder.push('put')
+            throw new TypeError('Load failed')
+          },
+        }),
+      )
+      const consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {})
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [],
+      }
+      state.selectedAccountIndex = -1
+      state.creatingAccount = true
+
+      await actions.createAccount('Test')
+
+      expect(callOrder).toEqual(['save', 'put'])
+      expect(state.vaultData!.accounts.length).toBe(1)
+      expect(state.selectedAccountIndex).toBe(0)
+      expect(state.creatingAccount).toBe(false)
+      expect(state.error).toBe(
+        "Couldn't reach the Vault backend to publish your profile. Make sure the backend server is running and try again.",
+      )
+
+      const principal = blobs.principalToString(
+        blobs.nobleKeyPairFromSeed(state.vaultData!.accounts[0]!.seed).principal,
+      )
+      expect(state.profiles[principal]).toBeUndefined()
+      expect(state.profileLoadStates[principal]).toBeUndefined()
+
+      consoleErrorSpy.mockRestore()
+    })
+  })
+
+  describe('updateAccountProfile', () => {
+    test('publishes an updated profile and preserves cached avatar data', async () => {
+      const published: Array<{cid: unknown; data: Uint8Array}> = []
+      const {state, actions} = createStore(
+        createMockClient(),
+        createMockBlockstore({
+          put: async (cid, data) => {
+            published.push({cid, data})
+          },
+        }),
+      )
+
+      const kp = blobs.generateNobleKeyPair()
+      const principal = blobs.principalToString(kp.principal)
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [
+          {
+            seed: kp.seed,
+            createTime: Date.now(),
+            delegations: [],
+          },
+        ],
+      }
+      state.profiles[principal] = {
+        name: 'Alice',
+        avatar: 'ipfs://avatar',
+        description: 'Old bio',
+      }
+
+      const didUpdate = await actions.updateAccountProfile(principal, {
+        name: 'Alice Updated',
+        description: 'New bio',
+      })
+
+      expect(didUpdate).toBe(true)
+      expect(state.profiles[principal]).toEqual({
+        name: 'Alice Updated',
+        avatar: 'ipfs://avatar',
+        description: 'New bio',
+      })
+      expect(state.profileLoadStates[principal]).toBeUndefined()
+      expect(published.length).toBe(1)
+
+      const publishedProfile = published[0]
+      expect(publishedProfile).toBeDefined()
+      const decoded = blobs.decodeBlob<blobs.Profile>(publishedProfile!.data, publishedProfile!.cid as any)
+      expect(decoded.decoded.name).toBe('Alice Updated')
+      expect(decoded.decoded.description).toBe('New bio')
+      expect(decoded.decoded.avatar).toBe('ipfs://avatar')
+      expect(blobs.principalToString(decoded.decoded.signer)).toBe(principal)
+    })
+
+    test('repairs a missing profile by publishing a fresh profile blob', async () => {
+      const published: Array<{cid: unknown; data: Uint8Array}> = []
+      const {state, actions} = createStore(
+        createMockClient(),
+        createMockBlockstore({
+          put: async (cid, data) => {
+            published.push({cid, data})
+          },
+        }),
+      )
+
+      const kp = blobs.generateNobleKeyPair()
+      const principal = blobs.principalToString(kp.principal)
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [
+          {
+            seed: kp.seed,
+            createTime: Date.now(),
+            delegations: [],
+          },
+        ],
+      }
+      state.profileLoadStates[principal] = 'not_found'
+
+      const didUpdate = await actions.updateAccountProfile(principal, {name: 'Recovered'})
+
+      expect(didUpdate).toBe(true)
+      expect(state.profiles[principal]).toEqual({
+        name: 'Recovered',
+        avatar: undefined,
+        description: undefined,
+      })
+      expect(state.profileLoadStates[principal]).toBeUndefined()
+      expect(published.length).toBe(1)
+
+      const publishedProfile = published[0]
+      expect(publishedProfile).toBeDefined()
+      const decoded = blobs.decodeBlob<blobs.Profile>(publishedProfile!.data, publishedProfile!.cid as any)
+      expect(decoded.decoded.name).toBe('Recovered')
+      expect(decoded.decoded.avatar).toBeUndefined()
+      expect(decoded.decoded.description).toBeUndefined()
+    })
+
+    test('refuses to overwrite a profile when the current state is unavailable', async () => {
+      const published: Array<{cid: unknown; data: Uint8Array}> = []
+      const {state, actions} = createStore(
+        createMockClient(),
+        createMockBlockstore({
+          put: async (cid, data) => {
+            published.push({cid, data})
+          },
+        }),
+      )
+
+      const kp = blobs.generateNobleKeyPair()
+      const principal = blobs.principalToString(kp.principal)
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [
+          {
+            seed: kp.seed,
+            createTime: Date.now(),
+            delegations: [],
+          },
+        ],
+      }
+      state.profileLoadStates[principal] = 'unavailable'
+
+      const didUpdate = await actions.updateAccountProfile(principal, {name: 'Should Not Publish'})
+
+      expect(didUpdate).toBe(false)
+      expect(state.error).toBe('Current profile data is temporarily unavailable. Retry once it finishes loading.')
+      expect(published.length).toBe(0)
+      expect(state.profiles[principal]).toBeUndefined()
+      expect(state.profileLoadStates[principal]).toBe('unavailable')
     })
   })
 
@@ -456,7 +781,7 @@ describe('Store', () => {
           return {success: true}
         },
       })
-      const {state, actions} = createStore(client)
+      const {state, actions} = createStore(client, createMockBlockstore())
 
       const {vaultData} = await makeVaultState(3)
 
@@ -471,19 +796,22 @@ describe('Store', () => {
         clientId: '1b',
         createTime: 0,
         deviceType: 'mobile',
-        capability: {cid: extraCap.cid, decoded: extraCap.decoded},
+        capability: {
+          cid: extraCap.cid,
+          delegate: extraCap.decoded.delegate,
+        },
       })
 
       state.decryptedDEK = new Uint8Array(32)
       state.vaultData = vaultData
       state.selectedAccountIndex = 1
 
-      const principal2 = blobs.principalToString(state.vaultData!.accounts[1]!.profile.decoded.signer)
+      const kp2 = blobs.nobleKeyPairFromSeed(state.vaultData!.accounts[1]!.seed)
+      const principal2 = blobs.principalToString(kp2.principal)
       await actions.deleteAccount(principal2)
 
       expect(state.vaultData!.accounts.length).toBe(2)
-      expect(state.vaultData!.accounts[0]!.profile.decoded.name).toBe('Acc 0')
-      expect(state.vaultData!.accounts[1]!.profile.decoded.name).toBe('Acc 2')
+      // They don't have stored profiles anymore, skip name tests
 
       expect(state.selectedAccountIndex).toBe(0)
       expect(saveVaultDataCalls.length).toBe(1)
@@ -499,7 +827,7 @@ describe('Store', () => {
           return {success: true}
         },
       })
-      const {state, actions} = createStore(client)
+      const {state, actions} = createStore(client, createMockBlockstore())
 
       const {vaultData, principals} = await makeVaultState(3)
       state.decryptedDEK = new Uint8Array(32)
@@ -510,9 +838,7 @@ describe('Store', () => {
       await actions.reorderAccount(principals[0]!, principals[2]!)
 
       expect(state.vaultData!.accounts.length).toBe(3)
-      expect(state.vaultData!.accounts[0]!.profile.decoded.name).toBe('Acc 1')
-      expect(state.vaultData!.accounts[1]!.profile.decoded.name).toBe('Acc 2')
-      expect(state.vaultData!.accounts[2]!.profile.decoded.name).toBe('Acc 0')
+      // Name properties no longer stored on vault accounts.
 
       // The selected account was 0 ("Acc 0"). It moved to index 2.
       expect(state.selectedAccountIndex).toBe(2)
@@ -563,20 +889,26 @@ describe('delegation flow', () => {
     return {url, state}
   }
 
-  async function setupDelegationState(store: ReturnType<typeof createStore>, delegationUrl: URL) {
+  async function setupDelegationState(
+    store: ReturnType<typeof createStore>,
+    delegationUrl: URL,
+    blockstore: {put: (cid: any, data: Uint8Array) => Promise<void>},
+  ) {
     store.actions.parseDelegationFromUrl(delegationUrl)
 
     const kp = blobs.generateNobleKeyPair()
     const ts = Date.now()
     const profile = await blobs.createProfile(kp, {name: 'Test'}, ts)
 
+    // Pre-populate the blockstore so completeDelegation can fetch the profile blob.
+    await blockstore.put(profile.cid, profile.data)
+
     store.state.decryptedDEK = new Uint8Array(32)
     store.state.vaultData = {
-      version: 1,
+      version: 2,
       accounts: [
         {
           seed: kp.seed,
-          profile: {cid: profile.cid, decoded: profile.decoded},
           createTime: ts,
           delegations: [],
         },
@@ -610,9 +942,10 @@ describe('delegation flow', () => {
         return {success: true}
       },
     })
-    const store = createStore(client)
+    const bs = createMockBlockstore()
+    const store = createStore(client, bs)
     const request = await makeSignedDelegationUrl()
-    await setupDelegationState(store, request.url)
+    await setupDelegationState(store, request.url, bs)
 
     await store.actions.completeDelegation()
 
@@ -628,9 +961,10 @@ describe('delegation flow', () => {
   })
 
   test('surfaces serialization errors and does not redirect during delegation completion', async () => {
-    const store = createStore(createMockClient())
+    const bs = createMockBlockstore()
+    const store = createStore(createMockClient(), bs)
     const request = await makeSignedDelegationUrl()
-    await setupDelegationState(store, request.url)
+    await setupDelegationState(store, request.url, bs)
 
     const consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {})
     const serializeSpy = spyOn(vault, 'serialize').mockRejectedValueOnce(new Error('dag-cbor failed'))
@@ -645,10 +979,11 @@ describe('delegation flow', () => {
   })
 
   test('rejects tampered proof during delegation completion', async () => {
-    const store = createStore(createMockClient())
+    const bs = createMockBlockstore()
+    const store = createStore(createMockClient(), bs)
     const request = await makeSignedDelegationUrl()
     request.url.searchParams.set('proof', 'bad-proof')
-    await setupDelegationState(store, request.url)
+    await setupDelegationState(store, request.url, bs)
 
     await store.actions.completeDelegation()
 
@@ -656,7 +991,7 @@ describe('delegation flow', () => {
   })
 
   test('cancelDelegation redirects with error param', async () => {
-    const {state, actions} = createStore(createMockClient())
+    const {state, actions} = createStore(createMockClient(), createMockBlockstore())
     const sessionKeyPair = blobs.generateNobleKeyPair()
 
     state.delegationRequest = {

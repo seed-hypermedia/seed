@@ -1,3 +1,13 @@
+import {AccountProfileDialog} from '@/frontend/components/AccountProfileDialog'
+import {CreateAccountDialog} from '@/frontend/components/CreateAccountDialog'
+import {ErrorMessage} from '@/frontend/components/ErrorMessage'
+import {Alert, AlertDescription, AlertTitle} from '@/frontend/components/ui/alert'
+import {Button} from '@/frontend/components/ui/button'
+import {getProfileDisplayName, type AccountProfileSummary, type ProfileLoadState} from '@/frontend/profile'
+import {Separator} from '@/frontend/components/ui/separator'
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from '@/frontend/components/ui/tooltip'
+import {useActions, useAppState} from '@/frontend/store'
+import type * as vault from '@/frontend/vault'
 import {
   closestCenter,
   DndContext,
@@ -10,16 +20,15 @@ import {
 import {SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy} from '@dnd-kit/sortable'
 import {CSS} from '@dnd-kit/utilities'
 import * as blobs from '@shm/shared/blobs'
-import {Check, Copy, GripVertical, Link, Monitor, Plus, Settings, Smartphone, Tablet, User} from 'lucide-react'
-import {useState} from 'react'
+import {AlertTriangle, Check, Copy, GripVertical, Monitor, Plus, Settings, Smartphone, Tablet, User} from 'lucide-react'
+import {useEffect, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
-import {CreateAccountDialog} from '@/frontend/components/CreateAccountDialog'
-import {ErrorMessage} from '@/frontend/components/ErrorMessage'
-import {Button} from '@/frontend/components/ui/button'
-import {Separator} from '@/frontend/components/ui/separator'
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from '@/frontend/components/ui/tooltip'
-import {useActions, useAppState} from '@/frontend/store'
-import type * as vault from '@/frontend/vault'
+
+function getProfileStatusTextClass(profileLoadState?: ProfileLoadState) {
+  if (profileLoadState === 'not_found') return 'text-yellow-700 dark:text-yellow-400'
+  if (profileLoadState === 'unavailable') return 'text-destructive'
+  return ''
+}
 
 /**
  * Main vault view displaying an identity wallet with account management.
@@ -27,13 +36,24 @@ import type * as vault from '@/frontend/vault'
  * Vault-level settings (credentials, email) live in a separate SettingsView.
  */
 export function VaultView() {
-  const {vaultData, selectedAccountIndex, error} = useAppState()
+  const {vaultData, selectedAccountIndex, creatingAccount, error, profiles, profileLoadStates} = useAppState()
   const actions = useActions()
   const navigate = useNavigate()
 
   const accounts = vaultData?.accounts ?? []
   const hasAccounts = accounts.length > 0
   const selectedAccount = actions.getSelectedAccount()
+  const selectedPrincipal = selectedAccount
+    ? blobs.principalToString(blobs.nobleKeyPairFromSeed(selectedAccount.seed).principal)
+    : null
+
+  useEffect(() => {
+    accounts.forEach((account) => {
+      const kp = blobs.nobleKeyPairFromSeed(account.seed)
+      const principal = blobs.principalToString(kp.principal)
+      actions.ensureProfileLoaded(principal)
+    })
+  }, [accounts, actions])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -56,7 +76,7 @@ export function VaultView() {
   if (!hasAccounts) {
     return (
       <>
-        <ErrorMessage message={error} />
+        {!creatingAccount && <ErrorMessage message={error} />}
         <EmptyState />
         <CreateAccountDialog />
       </>
@@ -65,7 +85,7 @@ export function VaultView() {
 
   return (
     <>
-      <ErrorMessage message={error} />
+      {!creatingAccount && <ErrorMessage message={error} />}
       <div className="bg-card flex min-h-[480px] overflow-hidden rounded-xl border">
         {/* Left sidebar */}
         <div className="flex w-[280px] shrink-0 flex-col border-r">
@@ -85,17 +105,22 @@ export function VaultView() {
           <div className="flex-1 overflow-y-auto">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext
-                items={accounts.map((a) => blobs.principalToString(a.profile.decoded.signer))}
+                items={accounts.map((a) => {
+                  const kp = blobs.nobleKeyPairFromSeed(a.seed)
+                  return blobs.principalToString(kp.principal)
+                })}
                 strategy={verticalListSortingStrategy}
               >
                 {accounts.map((account, index) => {
-                  const principal = blobs.principalToString(account.profile.decoded.signer)
+                  const kp = blobs.nobleKeyPairFromSeed(account.seed)
+                  const principal = blobs.principalToString(kp.principal)
                   const isSelected = index === selectedAccountIndex
                   return (
                     <SortableAccountItem
                       key={principal}
                       id={principal}
-                      account={account as unknown as vault.Account}
+                      profile={profiles[principal]}
+                      profileLoadState={profileLoadStates[principal]}
                       isSelected={isSelected}
                       onSelect={() => actions.selectAccount(index)}
                     />
@@ -115,7 +140,11 @@ export function VaultView() {
         {/* Right panel */}
         <div className="flex-1 overflow-y-auto">
           {selectedAccount ? (
-            <AccountDetails account={selectedAccount as unknown as vault.Account} />
+            <AccountDetails
+              account={selectedAccount as unknown as vault.Account}
+              profile={selectedPrincipal ? profiles[selectedPrincipal] : undefined}
+              profileLoadState={selectedPrincipal ? profileLoadStates[selectedPrincipal] : undefined}
+            />
           ) : (
             <div className="text-muted-foreground flex h-full items-center justify-center">
               <p>Select an account to view details</p>
@@ -150,19 +179,22 @@ function EmptyState() {
 
 function SortableAccountItem({
   id,
-  account,
+  profile,
+  profileLoadState,
   isSelected,
   onSelect,
 }: {
   id: string
-  account: vault.Account
+  profile?: AccountProfileSummary
+  profileLoadState?: ProfileLoadState
   isSelected: boolean
   onSelect: () => void
 }) {
   const {attributes, listeners, setNodeRef, transform, transition, isDragging} = useSortable({id})
 
-  const name = account.profile.decoded.name || 'Unnamed'
-  const Component = account.profile.decoded.alias ? Link : User
+  const name = getProfileDisplayName(profile, profileLoadState)
+  const statusTextClass = getProfileStatusTextClass(profileLoadState)
+  const Component = User
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -188,14 +220,14 @@ function SortableAccountItem({
       </div>
       <button type="button" className="flex min-w-0 flex-1 cursor-pointer items-center gap-3" onClick={onSelect}>
         <div className="bg-muted flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full">
-          {account.profile.decoded.avatar ? (
-            <img src={account.profile.decoded.avatar} className="size-full object-cover" alt="" />
+          {profile?.avatar ? (
+            <img src={profile.avatar} className="size-full object-cover" alt="" />
           ) : (
             <Component className="text-muted-foreground size-3" />
           )}
         </div>
         <div className="min-w-0 flex-1 text-left">
-          <div className="truncate text-sm font-medium">{name}</div>
+          <div className={`truncate text-sm font-medium ${statusTextClass}`}>{name}</div>
           <div className="text-muted-foreground truncate font-mono text-xs">{id.slice(0, 16)}…</div>
         </div>
       </button>
@@ -204,9 +236,26 @@ function SortableAccountItem({
 }
 
 /** Account profile detail panel. Only shows identity information, not vault credentials. */
-function AccountDetails({account}: {account: vault.Account}) {
-  const principal = blobs.principalToString(account.profile.decoded.signer)
+function AccountDetails({
+  account,
+  profile,
+  profileLoadState,
+}: {
+  account: vault.Account
+  profile?: AccountProfileSummary
+  profileLoadState?: ProfileLoadState
+}) {
+  const {loading, error} = useAppState()
+  const actions = useActions()
+  const kp = blobs.nobleKeyPairFromSeed(account.seed)
+  const principal = blobs.principalToString(kp.principal)
   const [copied, setCopied] = useState(false)
+  const [editingProfile, setEditingProfile] = useState(false)
+  const name = getProfileDisplayName(profile, profileLoadState)
+  const statusTextClass = getProfileStatusTextClass(profileLoadState)
+  const isProfileNotFound = profileLoadState === 'not_found'
+  const canEditProfile = profileLoadState !== 'unavailable'
+  const profileActionLabel = profile ? 'Edit Profile' : 'Create Profile'
 
   async function copyPrincipal() {
     try {
@@ -218,6 +267,13 @@ function AccountDetails({account}: {account: vault.Account}) {
     }
   }
 
+  async function handleProfileSubmit(nextProfile: {name: string; description?: string}) {
+    const didUpdate = await actions.updateAccountProfile(principal, nextProfile)
+    if (didUpdate) {
+      setEditingProfile(false)
+    }
+  }
+
   return (
     <div className="space-y-6 p-6">
       {/* Profile header */}
@@ -226,7 +282,24 @@ function AccountDetails({account}: {account: vault.Account}) {
           <User className="text-primary size-7" />
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold">{account.profile.decoded.name || 'Unnamed'}</h1>
+          <h1 className={`text-2xl font-semibold ${statusTextClass}`}>{name}</h1>
+          {profileLoadState && (
+            <Alert variant={isProfileNotFound ? 'warning' : 'destructive'} className="mt-3">
+              <AlertTriangle />
+              <AlertTitle>
+                {isProfileNotFound
+                  ? 'No profile was found for this account'
+                  : 'We hit an internal issue while loading this profile'}
+              </AlertTitle>
+              <AlertDescription>
+                <p>
+                  {isProfileNotFound
+                    ? 'This account is still available and can be used normally, but there is no profile document for it.'
+                    : 'You did nothing wrong. This account is still available and can be used normally.'}
+                </p>
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="mt-1 flex items-center gap-2">
             <code className="text-muted-foreground truncate font-mono text-sm">{principal}</code>
             <Button variant="ghost" size="icon-xs" onClick={copyPrincipal} title="Copy principal">
@@ -240,17 +313,17 @@ function AccountDetails({account}: {account: vault.Account}) {
 
       {/* Profile details */}
       <div className="space-y-4">
-        {account.profile.decoded.description && (
+        {profile?.description && (
           <div>
             <h3 className="text-muted-foreground mb-1 text-sm font-medium">Description</h3>
-            <p className="text-sm">{account.profile.decoded.description}</p>
+            <p className="text-sm">{profile.description}</p>
           </div>
         )}
 
-        {account.profile.decoded.avatar && (
+        {profile?.avatar && (
           <div>
             <h3 className="text-muted-foreground mb-1 text-sm font-medium">Avatar</h3>
-            <p className="font-mono text-sm break-all">{account.profile.decoded.avatar}</p>
+            <p className="font-mono text-sm break-all">{profile.avatar}</p>
           </div>
         )}
 
@@ -273,8 +346,40 @@ function AccountDetails({account}: {account: vault.Account}) {
       <Separator />
 
       <div>
+        <div className="mb-3 space-y-2">
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto"
+            onClick={() => setEditingProfile(true)}
+            disabled={loading || !canEditProfile}
+          >
+            {profileActionLabel}
+          </Button>
+          {!canEditProfile && (
+            <p className="text-muted-foreground text-xs">
+              Profile editing is temporarily unavailable while the current profile state cannot be loaded.
+            </p>
+          )}
+        </div>
         <DeleteAccountButton principal={principal} />
       </div>
+
+      <AccountProfileDialog
+        open={editingProfile}
+        onOpenChange={setEditingProfile}
+        title={profile ? 'Edit Profile' : 'Create Profile'}
+        descriptionText={
+          profile
+            ? 'Update the public profile attached to this Hypermedia identity.'
+            : 'Publish a profile for this Hypermedia identity so apps can display it correctly.'
+        }
+        submitLabel={profile ? 'Save Profile' : 'Create Profile'}
+        loading={loading}
+        error={error}
+        initialName={profile?.name ?? ''}
+        initialDescription={profile?.description ?? ''}
+        onSubmit={handleProfileSubmit}
+      />
     </div>
   )
 }
@@ -293,7 +398,7 @@ function AuthorizedSessionsList({account}: {account: vault.Account}) {
         <h3 className="mb-4 text-sm font-medium">Authorized Sessions</h3>
         <div className="space-y-0 rounded-md border text-sm">
           {sessions.map((session, index) => {
-            const delegatePrincipal = blobs.principalToString(session.capability.decoded.delegate)
+            const delegatePrincipal = blobs.principalToString(session.capability.delegate)
             const key = `${session.clientId}:${delegatePrincipal}`
 
             const isLast = index === sessions.length - 1

@@ -121,6 +121,10 @@ func initHTTP(
 
 		router.Handle("/ipfs/file-upload", http.HandlerFunc(ipfsHandler.UploadFile), 0)
 		router.Handle("/ipfs/{cid}", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "POST" {
+				ipfsHandler.PutBlob(w, r)
+				return
+			}
 			// We only want to serve public blobs on the web.
 			// We set this config value in the Dockerfile that we deploy.
 			if cfg.PublicOnly {

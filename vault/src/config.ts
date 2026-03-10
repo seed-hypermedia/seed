@@ -14,6 +14,9 @@ export type Server = {
 
 export type Config = {
   http: Server
+  backend: {
+    baseUrl: string
+  }
   relyingParty: RelyingParty
   dbPath: string
   smtp: email.SmtpConfig | null
@@ -50,8 +53,14 @@ export const flags = (env: NodeJS.ProcessEnv = process.env) => ({
 
   'db-path': {
     type: String,
-    default: env.SEED_VAULT_DB_PATH || 'vault.sqlite',
+    default: env.SEED_VAULT_DB_PATH || './data/vault.sqlite',
     description: 'Path to the database file',
+  },
+
+  'backend-base-url': {
+    type: String,
+    default: env.SEED_VAULT_BACKEND_BASE_URL || env.SEED_VAULT_RP_ORIGIN || '',
+    description: 'Base URL for the backend daemon HTTP server',
   },
 
   'smtp-host': {
@@ -97,12 +106,26 @@ export function create(pflags: ParsedFlags): Config {
     origin: pflags['rp-origin'],
   }
 
+  const backend = {
+    baseUrl: pflags['backend-base-url'],
+  }
+
   if (!relyingParty.id) {
     throw new Error('Relying party ID configuration is required')
   }
 
   if (!relyingParty.origin) {
     throw new Error('Relying party origin configuration is required')
+  }
+
+  if (!backend.baseUrl) {
+    throw new Error('Backend base URL configuration is required')
+  }
+
+  try {
+    new URL(backend.baseUrl)
+  } catch {
+    throw new Error(`Invalid backend base URL: ${backend.baseUrl}`)
   }
 
   const dbPath = pflags['db-path']
@@ -119,6 +142,7 @@ export function create(pflags: ParsedFlags): Config {
 
   return {
     http,
+    backend,
     relyingParty,
     dbPath,
     smtp,

@@ -1,5 +1,8 @@
 import type {Database} from 'bun:sqlite'
+import * as connect from '@connectrpc/connect'
 import * as base64 from '@shm/shared/base64'
+import {Documents} from '@shm/shared/client/.generated/documents/v3alpha/documents_connect'
+import {Account} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import * as webauthn from '@simplewebauthn/server'
 import * as challenge from '@/challenge'
 import type * as config from '@/config'
@@ -8,6 +11,8 @@ import * as sess from '@/session'
 import type * as api from './api'
 
 const isProd = process.env.NODE_ENV === 'production'
+
+type DocumentsClient = Pick<connect.PromiseClient<typeof Documents>, 'getAccount'>
 
 interface User {
   id: string
@@ -100,12 +105,23 @@ const MAGIC_LINK_EXPIRY_MS = 2 * 60 * 1000 // 2 minutes (short-lived for securit
 export class Service implements api.ServerInterface {
   private db: Database
   private sessions: sess.Store
+  private backendBaseUrl: string
+  private documentsClient: DocumentsClient
   private rp: config.RelyingParty
   private hmacSecret: Uint8Array
   private emailSender: email.EmailSender
-  constructor(db: Database, rp: config.RelyingParty, hmacSecret: Uint8Array, emailSender: email.EmailSender) {
+  constructor(
+    db: Database,
+    backendBaseUrl: string,
+    documentsClient: DocumentsClient,
+    rp: config.RelyingParty,
+    hmacSecret: Uint8Array,
+    emailSender: email.EmailSender,
+  ) {
     this.db = db
     this.sessions = new sess.Store(db)
+    this.backendBaseUrl = backendBaseUrl
+    this.documentsClient = documentsClient
     this.rp = rp
     this.hmacSecret = hmacSecret
     this.emailSender = emailSender
@@ -143,6 +159,32 @@ export class Service implements api.ServerInterface {
     return {
       exists: true,
       hasPassword: passwordCredential !== null,
+    }
+  }
+
+  async getAccount(req: api.GetAccountRequest, _ctx: api.ServerContext): Promise<api.GetAccountResponse> {
+    if (!req.id || typeof req.id !== 'string') {
+      throw new APIError('Account ID required', 400)
+    }
+
+    try {
+      return await this.documentsClient.getAccount({id: req.id})
+    } catch (error) {
+      if (error instanceof connect.ConnectError) {
+        if (error.code === connect.Code.NotFound) {
+          throw new APIError('Account not found', 404)
+        }
+        if (error.code === connect.Code.InvalidArgument) {
+          throw new APIError(error.rawMessage || 'Invalid account ID', 400)
+        }
+      }
+      throw error
+    }
+  }
+
+  async getConfig(_ctx: api.ServerContext): Promise<api.GetConfigResponse> {
+    return {
+      backendBaseUrl: this.backendBaseUrl,
     }
   }
 

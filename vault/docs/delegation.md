@@ -85,7 +85,6 @@ The callback carries:
 
 - The authorizing account principal.
 - Delegation capability as a stored blob.
-- Account profile as a stored blob.
 - Echoed state value.
 - Optional error code when consent is denied or flow fails.
 
@@ -108,10 +107,10 @@ The Vault validates at least:
 The client validates at least:
 
 - Callback state matches the original request state.
-- Capability/profile signatures are valid.
-- Recomputed CIDs match the callback-provided CIDs.
+- Capability signature is valid.
+- Recomputed CID for capability matches the callback-provided CID.
 - Capability delegate matches the local session principal.
-- Account principal matches capability signer and profile owner.
+- Account principal matches capability signer.
 
 These checks ensure both authenticity and cross-blob coherence.
 

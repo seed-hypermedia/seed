@@ -1,4 +1,7 @@
 import type * as api from '@/api'
+import {Account} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import type {CID} from 'multiformats/cid'
+import type {Blockstore} from './blockstore'
 
 /**
  * Creates a mock IdentityService with all methods stubbed to throw by default.
@@ -21,6 +24,8 @@ export function createMockClient(overrides: Partial<api.ClientInterface> = {}): 
     saveVaultData: notImplemented('saveVaultData'),
     logout: notImplemented('logout'),
     getSession: notImplemented('getSession'),
+    getAccount: notImplemented('getAccount'),
+    getConfig: notImplemented('getConfig'),
     changeEmailStart: notImplemented('changeEmailStart'),
     changeEmailPoll: notImplemented('changeEmailPoll'),
     changeEmailVerifyLink: notImplemented('changeEmailVerifyLink'),
@@ -59,6 +64,8 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
       authenticated: false,
       relyingPartyOrigin: 'https://vault.example.com',
     }),
+    getAccount: async () => new Account(),
+    getConfig: async () => ({backendBaseUrl: 'https://daemon.example.com'}),
     changeEmailStart: async () => ({
       message: 'ok',
       challengeId: 'change-challenge',
@@ -91,6 +98,26 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
       vault: null,
     }),
     webAuthnVaultStore: async () => ({success: true}),
+    ...overrides,
+  }
+}
+
+/**
+ * Creates an in-memory stub blockstore suitable for unit tests.
+ * All puts and gets are backed by a simple Map — no IndexedDB or network involved.
+ */
+export function createMockBlockstore(overrides: Partial<Blockstore> = {}): Blockstore {
+  const store = new Map<string, Uint8Array>()
+  return {
+    get: async (cid: CID) => {
+      const cidStr = cid.toString()
+      const data = store.get(cidStr)
+      if (!data) throw new Error(`Blockstore: block not found for CID ${cidStr}`)
+      return data
+    },
+    put: async (cid: CID, data: Uint8Array) => {
+      store.set(cid.toString(), data)
+    },
     ...overrides,
   }
 }

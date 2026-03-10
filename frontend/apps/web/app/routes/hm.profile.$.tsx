@@ -89,7 +89,7 @@ function ProfilePageContent({
                 metadata: account.data?.metadata || null,
                 hasSite: account.data?.hasSite,
               }}
-              onEditProfile={() => editProfileDialog.open({accountUid: profileId.uid})}
+              onEditProfile={isDelegated ? null : () => editProfileDialog.open({accountUid: profileId.uid})}
               currentAccount={currentAccount}
               headerButtons={
                 isCurrentAccount ? (

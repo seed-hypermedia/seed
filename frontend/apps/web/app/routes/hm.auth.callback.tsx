@@ -54,7 +54,6 @@ export default function AuthCallbackRoute() {
 
         const publishBlobs = [
           {cid: result.capability.cid.toString(), data: result.capability.data},
-          {cid: result.profile.cid.toString(), data: result.profile.data},
           {cid: reverseCap.cid.toString(), data: reverseCap.data},
           {cid: reverseProf.cid.toString(), data: reverseProf.data},
         ]

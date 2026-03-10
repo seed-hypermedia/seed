@@ -1,11 +1,13 @@
 import {Database} from 'bun:sqlite'
+import fs from 'node:fs'
+import path from 'node:path'
 
 /**
  * Bump this value whenever the schema changes.
  * When the stored version doesn't match, the server will refuse to start
  * and ask the operator to drop the database file manually.
  */
-export const SCHEMA_VERSION = 5
+export const SCHEMA_VERSION = 6
 
 /** Result of opening the database. */
 export type OpenResult = {ok: true; db: Database} | {ok: false; current: number; desired: number}
@@ -15,8 +17,9 @@ export type OpenResult = {ok: true; db: Database} | {ok: false; current: number;
  * Returns a discriminated union so the caller can handle version mismatches
  * without an exception.
  */
-export function open(filename: string): OpenResult {
-  const db = new Database(filename, {create: true, strict: true})
+export function open(dbPath: string): OpenResult {
+  fs.mkdirSync(path.dirname(dbPath), {recursive: true})
+  const db = new Database(dbPath, {create: true, strict: true})
   const isNew = db.query<{count: number}, []>('SELECT count(*) as count FROM sqlite_schema').get()?.count === 0
   db.run('PRAGMA journal_mode = WAL')
   db.run('PRAGMA foreign_keys = ON')

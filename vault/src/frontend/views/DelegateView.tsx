@@ -1,12 +1,20 @@
-import * as blobs from '@shm/shared/blobs'
-import * as hmauth from '@shm/shared/hmauth'
-import {ExternalLink, Plus, Shield, User} from 'lucide-react'
-import {Navigate, useSearchParams} from 'react-router-dom'
 import {CreateAccountDialog} from '@/frontend/components/CreateAccountDialog'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
+import {getProfileDisplayName, type AccountProfileSummary, type ProfileLoadState} from '@/frontend/profile'
 import {useActions, useAppState} from '@/frontend/store'
+import * as blobs from '@shm/shared/blobs'
+import * as hmauth from '@shm/shared/hmauth'
+import {ExternalLink, Plus, Shield, User} from 'lucide-react'
+import {useEffect} from 'react'
+import {Navigate, useSearchParams} from 'react-router-dom'
+
+function getProfileStatusTextClass(profileLoadState?: ProfileLoadState) {
+  if (profileLoadState === 'not_found') return 'text-yellow-700 dark:text-yellow-400'
+  if (profileLoadState === 'unavailable') return 'text-destructive'
+  return ''
+}
 
 /**
  * Consent screen for delegating authority to a third-party site.
@@ -14,11 +22,28 @@ import {useActions, useAppState} from '@/frontend/store'
  * authorize or deny the delegation request.
  */
 export function DelegateView() {
-  const {delegationRequest, vaultData, selectedAccountIndex, loading, error} = useAppState()
+  const {
+    delegationRequest,
+    vaultData,
+    selectedAccountIndex,
+    creatingAccount,
+    loading,
+    error,
+    profiles,
+    profileLoadStates,
+  } = useAppState()
   const actions = useActions()
   const [searchParams] = useSearchParams()
 
   const accounts = vaultData?.accounts ?? []
+
+  useEffect(() => {
+    accounts.forEach((account) => {
+      const kp = blobs.nobleKeyPairFromSeed(account.seed)
+      const principal = blobs.principalToString(kp.principal)
+      actions.ensureProfileLoaded(principal)
+    })
+  }, [accounts, actions])
 
   if (!delegationRequest && !searchParams.has(hmauth.PARAM_CLIENT_ID)) {
     return <Navigate to="/" replace />
@@ -81,7 +106,7 @@ export function DelegateView() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <ErrorMessage message={error} />
+        {!creatingAccount && <ErrorMessage message={error} />}
 
         {/* Account selection */}
         {accounts.length > 1 && (
@@ -89,27 +114,18 @@ export function DelegateView() {
             <p className="text-sm font-medium">Select an account</p>
             <div className="space-y-1">
               {accounts.map((account, index) => {
-                const principal = blobs.principalToString(account.profile.decoded.signer)
+                const kp = blobs.nobleKeyPairFromSeed(account.seed)
+                const principal = blobs.principalToString(kp.principal)
                 const isSelected = index === selectedAccountIndex
                 return (
-                  <button
-                    type="button"
+                  <AccountSelectionItem
                     key={principal}
-                    className={`flex w-full cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 text-left transition-colors ${
-                      isSelected
-                        ? 'border-primary bg-primary/5 ring-primary/20 ring-1'
-                        : 'hover:bg-muted/50 border-transparent'
-                    }`}
+                    principal={principal}
+                    profile={profiles[principal]}
+                    profileLoadState={profileLoadStates[principal]}
+                    isSelected={isSelected}
                     onClick={() => actions.selectAccount(index)}
-                  >
-                    <div className="bg-primary/10 flex size-8 shrink-0 items-center justify-center rounded-full">
-                      <User className="text-primary size-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{account.profile.decoded.name || 'Unnamed'}</div>
-                      <div className="text-muted-foreground truncate font-mono text-xs">{principal}</div>
-                    </div>
-                  </button>
+                  />
                 )
               })}
             </div>
@@ -144,5 +160,44 @@ export function DelegateView() {
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+function AccountSelectionItem({
+  principal,
+  profile,
+  profileLoadState,
+  isSelected,
+  onClick,
+}: {
+  principal: string
+  profile?: AccountProfileSummary
+  profileLoadState?: ProfileLoadState
+  isSelected: boolean
+  onClick: () => void
+}) {
+  const name = getProfileDisplayName(profile, profileLoadState)
+  const statusTextClass = getProfileStatusTextClass(profileLoadState)
+
+  return (
+    <button
+      type="button"
+      className={`flex w-full cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 text-left transition-colors ${
+        isSelected ? 'border-primary bg-primary/5 ring-primary/20 ring-1' : 'hover:bg-muted/50 border-transparent'
+      }`}
+      onClick={onClick}
+    >
+      <div className="bg-primary/10 flex size-8 shrink-0 items-center justify-center rounded-full">
+        {profile?.avatar ? (
+          <img src={profile.avatar} className="size-full object-cover" alt="" />
+        ) : (
+          <User className="text-primary size-4" />
+        )}
+      </div>
+      <div className="min-w-0">
+        <div className={`truncate text-sm font-medium ${statusTextClass}`}>{name}</div>
+        <div className="text-muted-foreground truncate font-mono text-xs">{principal}</div>
+      </div>
+    </button>
   )
 }

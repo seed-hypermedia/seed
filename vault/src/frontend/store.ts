@@ -1,11 +1,14 @@
+import type * as api from '@/api'
 import * as base64 from '@shm/shared/base64'
 import * as blobs from '@shm/shared/blobs'
 import * as hmauth from '@shm/shared/hmauth'
 import * as webauthn from '@simplewebauthn/browser'
 import {createContext, useContext} from 'react'
 import {proxy, useSnapshot} from 'valtio'
-import type * as api from '@/api'
+import {APIError} from './api-client'
+import type {Blockstore} from './blockstore'
 import * as localCrypto from './crypto'
+import type {AccountProfileSummary, ProfileLoadState} from './profile'
 import * as vault from './vault'
 
 export interface SessionInfo {
@@ -44,6 +47,10 @@ export function initialState() {
     delegationConsented: false,
     /** Server-configured relying party origin used by WebAuthn verification. */
     relyingPartyOrigin: '',
+    /** Cache of loaded profiles mapped by their principal */
+    profiles: {} as Record<string, AccountProfileSummary>,
+    /** Tracks degraded profile states so the UI can distinguish not found from temporary failures. */
+    profileLoadStates: {} as Record<string, ProfileLoadState>,
   }
 }
 
@@ -53,8 +60,73 @@ export interface Navigator {
   go(path: string): void
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return (error instanceof Error ? error.message : '') || fallback
+}
+
+function isNetworkError(error: unknown) {
+  if (!(error instanceof Error)) return false
+
+  const message = error.message.toLowerCase()
+  return (
+    error instanceof TypeError ||
+    message === 'load failed' ||
+    message === 'failed to fetch' ||
+    message.includes('networkerror') ||
+    message.includes('network request failed')
+  )
+}
+
+function getVaultSaveErrorMessage(error: unknown) {
+  if (isNetworkError(error)) {
+    return "Couldn't reach the Vault backend to save your changes. Make sure the backend server is running and try again."
+  }
+
+  return getErrorMessage(error, 'Failed to save vault')
+}
+
+function getProfilePublishErrorMessage(error: unknown) {
+  if (isNetworkError(error)) {
+    return "Couldn't reach the Vault backend to publish your profile. Make sure the backend server is running and try again."
+  }
+
+  return getErrorMessage(error, 'Failed to update profile')
+}
+
 /** Creates actions bound to a specific state proxy and client. */
-function createActions(state: AppState, client: api.ClientInterface, navigator: Navigator) {
+function createActions(state: AppState, client: api.ClientInterface, navigator: Navigator, blockstore: Blockstore) {
+  function cacheProfile(
+    principal: string,
+    profile: {
+      name: string
+      avatar?: string
+      description?: string
+    },
+  ) {
+    state.profiles[principal] = {
+      name: profile.name,
+      avatar: profile.avatar,
+      description: profile.description,
+    }
+    delete state.profileLoadStates[principal]
+  }
+
+  async function publishProfile(
+    signer: blobs.NobleKeyPair,
+    profile: {
+      name: string
+      avatar?: string
+      description?: string
+    },
+    ts = Date.now(),
+  ) {
+    const encoded = await blobs.createProfile(signer, profile, ts)
+    await blockstore.put(encoded.cid, encoded.data)
+    const principal = blobs.principalToString(signer.principal)
+    cacheProfile(principal, profile)
+    return {encoded, principal}
+  }
+
   const actions = {
     resetState() {
       Object.assign(state, initialState())
@@ -78,6 +150,30 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
     setError(error: string) {
       state.error = error
+    },
+
+    async ensureProfileLoaded(principal: string) {
+      if (state.profiles[principal]) return
+      try {
+        const account = await client.getAccount({id: principal})
+        const profile = account.profile
+        const metadata = account.metadata?.toJson({emitDefaultValues: true}) as Record<string, unknown> | undefined
+
+        delete state.profileLoadStates[principal]
+
+        if (profile || metadata) {
+          state.profiles[principal] = {
+            name: profile?.name || (typeof metadata?.name === 'string' ? metadata.name : undefined),
+            avatar: profile?.icon || (typeof metadata?.icon === 'string' ? metadata.icon : undefined),
+            description:
+              profile?.description || (typeof metadata?.description === 'string' ? metadata.description : undefined),
+          }
+        }
+      } catch (err) {
+        state.profileLoadStates[principal] =
+          err instanceof APIError && err.statusCode === 404 ? 'not_found' : 'unavailable'
+        console.error('Failed to fetch profile', err)
+      }
     },
 
     async checkSession() {
@@ -904,7 +1000,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         state.vaultVersion++
       } catch (e) {
         console.error('Failed to save vault:', e)
-        state.error = (e instanceof Error ? e.message : '') || 'Failed to save vault'
+        state.error = getVaultSaveErrorMessage(e)
         throw e
       }
     },
@@ -920,41 +1016,46 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
       const previousSelectedAccountIndex = state.selectedAccountIndex
       const previousCreatingAccount = state.creatingAccount
+      let didSaveAccount = false
+      let insertedAccount = false
 
       try {
         const kp = blobs.generateNobleKeyPair()
         const ts = Date.now()
-        const profileOptions: {name: string; description?: string} = {name}
+        const profileOptions: {name: string; avatar?: string; description?: string} = {name}
         if (description) {
           profileOptions.description = description
         }
-        const encoded = await blobs.createProfile(kp, profileOptions, ts)
 
         const account: vault.Account = {
           seed: kp.seed,
-          profile: {
-            cid: encoded.cid,
-            decoded: encoded.decoded,
-          },
           createTime: ts,
           delegations: [],
         }
 
         state.vaultData.accounts.push(account)
+        insertedAccount = true
         state.selectedAccountIndex = state.vaultData.accounts.length - 1
-        state.creatingAccount = false
 
         await actions.saveVaultData()
+        didSaveAccount = true
+        state.creatingAccount = false
+
+        await publishProfile(kp, profileOptions, ts)
       } catch (e) {
-        // Rollback the optimistic state changes.
-        if (state.vaultData && state.vaultData.accounts.length > previousSelectedAccountIndex + 1) {
+        if (!didSaveAccount && insertedAccount && state.vaultData) {
+          // The seed never made it into the vault, so discard the in-memory account.
           state.vaultData.accounts.pop()
         }
-        state.selectedAccountIndex = previousSelectedAccountIndex
-        state.creatingAccount = previousCreatingAccount
+        if (!didSaveAccount) {
+          state.selectedAccountIndex = previousSelectedAccountIndex
+          state.creatingAccount = previousCreatingAccount
+        }
 
         console.error('Failed to create account:', e)
-        state.error = (e instanceof Error ? e.message : '') || 'Failed to create account'
+        state.error =
+          state.error ||
+          (didSaveAccount ? getProfilePublishErrorMessage(e) : getErrorMessage(e, 'Failed to create account'))
       } finally {
         state.loading = false
       }
@@ -962,6 +1063,48 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
     selectAccount(index: number) {
       state.selectedAccountIndex = index
+    },
+
+    async updateAccountProfile(principal: string, nextProfile: {name: string; description?: string}) {
+      if (!state.vaultData || !state.decryptedDEK) {
+        state.error = 'Vault must be unlocked first'
+        return false
+      }
+
+      const account = state.vaultData.accounts.find((candidate) => {
+        const kp = blobs.nobleKeyPairFromSeed(candidate.seed)
+        return blobs.principalToString(kp.principal) === principal
+      })
+
+      if (!account) {
+        state.error = 'Account not found'
+        return false
+      }
+
+      if (state.profileLoadStates[principal] === 'unavailable' && !state.profiles[principal]) {
+        state.error = 'Current profile data is temporarily unavailable. Retry once it finishes loading.'
+        return false
+      }
+
+      state.loading = true
+      state.error = ''
+
+      try {
+        const kp = blobs.nobleKeyPairFromSeed(account.seed)
+        const currentProfile = state.profiles[principal]
+        await publishProfile(kp, {
+          name: nextProfile.name,
+          description: nextProfile.description,
+          avatar: currentProfile?.avatar,
+        })
+        return true
+      } catch (e) {
+        console.error('Failed to update profile:', e)
+        state.error = state.error || getProfilePublishErrorMessage(e)
+        return false
+      } finally {
+        state.loading = false
+      }
     },
 
     setCreatingAccount(open: boolean) {
@@ -985,9 +1128,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         return
       }
 
-      const index = state.vaultData.accounts.findIndex(
-        (a) => blobs.principalToString(a.profile.decoded.signer) === principal,
-      )
+      const index = state.vaultData.accounts.findIndex((a) => {
+        const kp = blobs.nobleKeyPairFromSeed(a.seed)
+        return blobs.principalToString(kp.principal) === principal
+      })
 
       if (index === -1) {
         state.error = 'Account not found'
@@ -1013,7 +1157,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         await actions.saveVaultData()
       } catch (e) {
         console.error('Failed to delete account:', e)
-        state.error = (e as Error).message || 'Failed to delete account'
+        state.error = state.error || getErrorMessage(e, 'Failed to delete account')
       } finally {
         state.loading = false
       }
@@ -1027,12 +1171,14 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
       if (activePrincipal === overPrincipal) return
 
-      const oldIndex = state.vaultData.accounts.findIndex(
-        (a) => blobs.principalToString(a.profile.decoded.signer) === activePrincipal,
-      )
-      const newIndex = state.vaultData.accounts.findIndex(
-        (a) => blobs.principalToString(a.profile.decoded.signer) === overPrincipal,
-      )
+      const oldIndex = state.vaultData.accounts.findIndex((a) => {
+        const kp = blobs.nobleKeyPairFromSeed(a.seed)
+        return blobs.principalToString(kp.principal) === activePrincipal
+      })
+      const newIndex = state.vaultData.accounts.findIndex((a) => {
+        const kp = blobs.nobleKeyPairFromSeed(a.seed)
+        return blobs.principalToString(kp.principal) === overPrincipal
+      })
 
       if (oldIndex === -1 || newIndex === -1) {
         return
@@ -1057,7 +1203,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         await actions.saveVaultData()
       } catch (e) {
         console.error('Failed to reorder accounts:', e)
-        state.error = (e as Error).message || 'Failed to reorder accounts'
+        state.error = state.error || getErrorMessage(e, 'Failed to reorder accounts')
       } finally {
         state.loading = false
       }
@@ -1226,12 +1372,14 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           state.delegationRequest.clientId,
         )
 
+        await blockstore.put(encoded.cid, encoded.data)
+
         const delegatedSession: vault.DelegatedSession = {
           clientId: state.delegationRequest.clientId,
           deviceType: getDeviceType(),
           capability: {
             cid: encoded.cid,
-            decoded: encoded.decoded,
+            delegate: blobs.principalFromString(state.delegationRequest.sessionKeyPrincipal),
           },
           createTime: Date.now(),
         }
@@ -1239,15 +1387,11 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
         await actions.saveVaultData()
 
-        // The profile is stored as decoded blob + CID. Re-encode it to get the raw CBOR bytes.
-        const profileEncoded = blobs.encode(account.profile.decoded)
-
         const callbackUrl = await hmauth.buildCallbackUrl(
           state.delegationRequest.redirectUri,
           state.delegationRequest.state,
           issuerKeyPair.principal,
           encoded,
-          profileEncoded,
         )
 
         state.delegationRequest = null
@@ -1257,7 +1401,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       } catch (e) {
         // Error is surfaced to the user via state.error; no console.error
         // to avoid noisy output in tests that intentionally trigger failures.
-        state.error = (e as Error).message || 'Delegation failed'
+        state.error = state.error || getErrorMessage(e, 'Delegation failed')
       } finally {
         state.loading = false
       }
@@ -1298,11 +1442,12 @@ export type StoreActions = ReturnType<typeof createActions>
 
 /**
  * Creates a new store instance with its own state and actions.
- * The client is an immutable dependency — pass it at construction time.
+ * The client and blockstore are immutable dependencies — pass them at construction time.
  *
  * @param client - The API client to use.
+ * @param blockstore - The IPFS blockstore used for blob storage.
  */
-export function createStore(client: api.ClientInterface) {
+export function createStore(client: api.ClientInterface, blockstore: Blockstore) {
   const state = proxy<AppState>(initialState())
 
   // Default navigator prevents crashes before router is connected
@@ -1314,7 +1459,7 @@ export function createStore(client: api.ClientInterface) {
     go: (path: string) => navigate(path),
   }
 
-  const actions = createActions(state, client, navigator)
+  const actions = createActions(state, client, navigator, blockstore)
 
   return {
     state,

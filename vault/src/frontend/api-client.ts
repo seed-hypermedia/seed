@@ -1,4 +1,5 @@
 import type * as api from '@/api'
+import {Account} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 
 export class APIError extends Error {
   constructor(
@@ -101,6 +102,14 @@ export class FetchClient implements api.ClientInterface {
 
   async getSession(): Promise<api.GetSessionResponse> {
     return this.request('/api/session', {method: 'GET'})
+  }
+
+  async getAccount(req: api.GetAccountRequest): Promise<api.GetAccountResponse> {
+    return Account.fromJson(await this.request(`/api/accounts/${encodeURIComponent(req.id)}`, {method: 'GET'}))
+  }
+
+  async getConfig(): Promise<api.GetConfigResponse> {
+    return this.request('/api/config', {method: 'GET'})
   }
 
   // ==========================================================================

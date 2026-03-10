@@ -1,16 +1,18 @@
-import * as fs from 'node:fs'
-import filepath from 'node:path'
-import {type BunRequest, serve} from 'bun'
-import {cli} from 'cleye'
 import type * as api from '@/api'
 import * as apisvc from '@/api-service'
 import * as challenge from '@/challenge'
 import * as config from '@/config'
+import {createDocumentsClient} from '@/daemon-client'
 import * as email from '@/email'
 import index from '@/frontend/index.html'
 import schemaMismatch from '@/frontend/schema-mismatch.html'
 import * as session from '@/session'
 import * as sqlite from '@/sqlite'
+import {Message} from '@bufbuild/protobuf'
+import {type BunRequest, serve} from 'bun'
+import {cli} from 'cleye'
+import * as fs from 'node:fs'
+import filepath from 'node:path'
 
 /** Scan directory for built assets and create a lookup map for O(1) serving. */
 function collectStaticAssets(dir: string, urlPrefix: string): Map<string, ReturnType<typeof Bun.file>> {
@@ -28,6 +30,8 @@ function collectStaticAssets(dir: string, urlPrefix: string): Map<string, Return
   return assets
 }
 
+const isProd = process.env.NODE_ENV === 'production'
+
 async function main() {
   const argv = cli({
     name: 'seed-vault',
@@ -37,7 +41,6 @@ async function main() {
 
   const cfg = config.create(argv.flags)
   const result = sqlite.open(cfg.dbPath)
-  const isProd = process.env.NODE_ENV === 'production'
 
   if (!result.ok) {
     console.error(
@@ -61,7 +64,8 @@ async function main() {
   const db = result.db
   const hmacSecret = sqlite.getOrCreateHmacSecret(db)
   const emailSender = email.createSender(cfg.smtp)
-  const svc = new apisvc.Service(db, cfg.relyingParty, hmacSecret, emailSender)
+  const documentsClient = createDocumentsClient(cfg.backend.baseUrl)
+  const svc = new apisvc.Service(db, cfg.backend.baseUrl, documentsClient, cfg.relyingParty, hmacSecret, emailSender)
 
   // Pre-build asset lookup map at startup for O(1) serving.
   const assets = isProd ? collectStaticAssets('frontend', '/vault/') : new Map()
@@ -75,6 +79,7 @@ async function main() {
     },
     error: handleError,
     routes: {
+      ...createAPIRoutes(svc),
       '/vault': index,
       '/vault/*': isProd
         ? (req: BunRequest) => {
@@ -89,7 +94,6 @@ async function main() {
             })
           }
         : index,
-      ...createAPIRoutes(svc),
     },
     fetch(req) {
       const url = new URL(req.url)
@@ -211,6 +215,24 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
         return handleResponse(result, ctx)
       },
     },
+    '/vault/api/config': {
+      GET: async (req) => {
+        const ctx = getRequestContext(req)
+        const result = await svc.getConfig(ctx)
+        return handleResponse(result, ctx)
+      },
+    },
+    '/vault/api/accounts/:id': {
+      GET: async (req) => {
+        const ctx = getRequestContext(req)
+        if (!req.params.id) {
+          return handleResponse({error: 'Missing id'}, ctx, 400)
+        }
+
+        const result = await svc.getAccount({id: req.params.id}, ctx)
+        return handleResponse(result.toJson({enumAsInteger: false, emitDefaultValues: true}), ctx)
+      },
+    },
     '/vault/api/change-email/start': {
       POST: async (req) => {
         const body = await req.json()
@@ -279,7 +301,6 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
 
 function handleResponse(data: unknown, ctx: api.ServerContext, status = 200): Response {
   const headers = new Headers({'Content-Type': 'application/json'})
-  const isProd = process.env.NODE_ENV === 'production'
 
   if (ctx.sessionCookie !== undefined) {
     headers.append('Set-Cookie', ctx.sessionCookie === null ? session.clearCookie() : ctx.sessionCookie)
@@ -292,12 +313,19 @@ function handleResponse(data: unknown, ctx: api.ServerContext, status = 200): Re
     )
   }
 
-  return new Response(JSON.stringify(data), {status, headers})
+  const body =
+    data instanceof Message
+      ? data.toJson({
+          emitDefaultValues: true,
+          enumAsInteger: false,
+        })
+      : data
+
+  return new Response(JSON.stringify(body), {status, headers})
 }
 
 function getRequestContext(req: BunRequest): api.ServerContext {
   const sessionId = req.cookies.get(session.SESSION_COOKIE_NAME) || null
-  const isProd = process.env.NODE_ENV === 'production'
   const challengeCookie = req.cookies.get(challenge.getCookieName(isProd)) || null
   return {sessionId, challengeCookie}
 }

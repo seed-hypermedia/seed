@@ -196,17 +196,9 @@ export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Pr
     throw new Error('Capability CID mismatch: data was corrupted in transit')
   }
 
-  const profile = blobs.encode(callbackData.profile)
-  if (profile.cid.toString() !== callbackData.profileCid.toString()) {
-    throw new Error('Profile CID mismatch: data was corrupted in transit')
-  }
-
   // Verify signatures.
   if (!blobs.verify(callbackData.capability)) {
     throw new Error('Invalid capability signature')
-  }
-  if (!blobs.verify(callbackData.profile)) {
-    throw new Error('Invalid profile signature')
   }
 
   // Cross-blob coherence checks.
@@ -216,10 +208,6 @@ export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Pr
   }
   if (!blobs.principalEqual(callbackData.account, callbackData.capability.signer)) {
     throw new Error('Callback account does not match capability signer')
-  }
-  const profileAccount = callbackData.profile.account ?? callbackData.profile.signer
-  if (!blobs.principalEqual(callbackData.account, profileAccount)) {
-    throw new Error('Callback account does not match profile owner')
   }
 
   await putAuthSession(vaultUrl, {
@@ -232,7 +220,6 @@ export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Pr
     accountPrincipal: blobs.principalToString(callbackData.account),
     capability,
     session,
-    profile,
   }
 }
 

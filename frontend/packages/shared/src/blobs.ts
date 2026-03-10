@@ -212,7 +212,7 @@ export async function createProfile(
     account?: Principal
   },
   ts: Timestamp,
-): Promise<EncodedBlob<Profile>> {
+): Promise<Encoded<Profile>> {
   opts = {...opts} // Copying opts to avoid mutating the original object.
 
   if (opts.account && principalEqual(opts.account, signer.principal)) {
@@ -239,11 +239,7 @@ export async function createProfile(
 }
 
 /** Create a signed and encoded alias Profile blob (identity redirect). */
-export async function createProfileAlias(
-  signer: Signer,
-  alias: Principal,
-  ts: Timestamp,
-): Promise<EncodedBlob<Profile>> {
+export async function createProfileAlias(signer: Signer, alias: Principal, ts: Timestamp): Promise<Encoded<Profile>> {
   const blob: Profile = {
     type: 'Profile',
     signer: signer.principal,
@@ -284,7 +280,7 @@ export async function createCapability(
     /** Audience principal for direct auth. */
     audience?: Principal
   } = {},
-): Promise<EncodedBlob<Capability>> {
+): Promise<Encoded<Capability>> {
   const blob: Capability = {
     type: 'Capability',
     signer: issuer.principal,
@@ -299,13 +295,13 @@ export async function createCapability(
 }
 
 /** A decoded blob stored alongside its content-addressed CID. */
-export interface StoredBlob<T extends Blob> {
+export interface Decoded<T extends Blob> {
   readonly cid: CID
   readonly decoded: T
 }
 
-/** A blob with its DAG-CBOR encoding in addition to cid and decoded data. */
-export interface EncodedBlob<T extends Blob> extends StoredBlob<T> {
+/** A blob with its CID and decoded + encoded data. */
+export interface Encoded<T extends Blob> extends Decoded<T> {
   readonly data: Uint8Array
 }
 
@@ -321,7 +317,7 @@ export async function sign<T extends Blob>(signer: Signer, blob: T): Promise<T> 
 }
 
 /** Encode a signed blob to DAG-CBOR and compute its content-addressed CID. */
-export function encode<T extends Blob>(blob: T): EncodedBlob<T> {
+export function encode<T extends Blob>(blob: T): Encoded<T> {
   const data = new Uint8Array(cbor.encode(blob))
   const hash = sha256hash(data)
   const digest = Digest.create(sha256hasher.code, hash)
@@ -333,7 +329,7 @@ export function encode<T extends Blob>(blob: T): EncodedBlob<T> {
  * Decode raw CBOR bytes into a blob, verifying the CID matches.
  * Throws if the recomputed CID doesn't match the expected one.
  */
-export function decodeBlob<T extends Blob>(data: Uint8Array, expectedCid: CID): EncodedBlob<T> {
+export function decodeBlob<T extends Blob>(data: Uint8Array, expectedCid: CID): Encoded<T> {
   const decoded = cbor.decode<T>(data)
   const reencoded = encode(decoded)
   if (reencoded.cid.toString() !== expectedCid.toString()) {

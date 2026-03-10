@@ -19,9 +19,11 @@ import (
 	"github.com/ipfs/boxo/files"
 	"github.com/ipfs/boxo/ipld/merkledag"
 	unixfile "github.com/ipfs/boxo/ipld/unixfs/file"
+	"github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
 	"github.com/multiformats/go-multicodec"
+	"github.com/multiformats/go-multihash"
 	"go.uber.org/zap"
 )
 
@@ -35,6 +37,7 @@ const (
 // FileManager is the main object to handle ipfs files.
 type FileManager struct {
 	log        *zap.Logger
+	bs         blockstore.Blockstore
 	dagService ipld.DAGService
 }
 
@@ -50,6 +53,7 @@ func NewFileManager(log *zap.Logger, bs blockstore.Blockstore, bitswap exchange.
 
 	return &FileManager{
 		log:        log,
+		bs:         bs,
 		dagService: dag,
 	}
 }
@@ -58,7 +62,7 @@ func NewFileManager(log *zap.Logger, bs blockstore.Blockstore, bitswap exchange.
 func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Cache-Control, ETag, Range")
-	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET")
+	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET, POST")
 	w.Header().Set("Accept-Ranges", "bytes")
 
 	if r.Method == "OPTIONS" {
@@ -210,6 +214,72 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 	if _, err := io.Copy(w, response); err != nil {
 		fm.log.Warn("GetFile: failed to write response in full", zap.Error(err), zap.String("cid", cidStr))
 	}
+}
+// PutBlob stores a raw IPFS block uploaded by the client.
+// The CID in the URL must match the actual content; mismatches are rejected.
+func (fm *FileManager) PutBlob(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, POST")
+
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if r.Method != "POST" {
+		http.Error(w, "Only POST method is supported.", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	cidStr, ok := vars["cid"]
+	if !ok {
+		http.Error(w, "URL format not recognized.", http.StatusBadRequest)
+		return
+	}
+
+	declared, err := cid.Decode(cidStr)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Invalid CID %q: %v", cidStr, err), http.StatusBadRequest)
+		return
+	}
+
+	data, err := io.ReadAll(io.LimitReader(r.Body, MaxFileBytes))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to read body: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// Verify the data matches the declared CID by recomputing the multihash.
+	mh := declared.Hash()
+	decoded, err := multihash.Decode(mh)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Cannot decode multihash: %v", err), http.StatusBadRequest)
+		return
+	}
+	computed, err := multihash.Sum(data, decoded.Code, decoded.Length)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Cannot compute hash: %v", err), http.StatusBadRequest)
+		return
+	}
+	if !bytes.Equal(mh, computed) {
+		http.Error(w, "CID mismatch: data does not match declared CID", http.StatusBadRequest)
+		return
+	}
+
+	blk, err := blocks.NewBlockWithCid(data, declared)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to create block: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	if err := fm.bs.Put(r.Context(), blk); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to store block: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // UploadFile uploads a file to ipfs.

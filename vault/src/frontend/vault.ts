@@ -3,18 +3,31 @@
  * Defines the structured format for storing Hypermedia identity accounts.
  */
 
-import type * as blobs from '@shm/shared/blobs'
+import type {Principal} from '@shm/shared/blobs'
 import * as cbor from '@shm/shared/cbor'
+import {CID} from 'multiformats/cid'
+
+/** Current vault schema version. Bump on every incompatible schema change. */
+export const VAULT_VERSION = 2
+
+/**
+ * Minimal capability metadata stored per delegation.
+ * The raw CBOR blob bytes live in the external blockstore, keyed by cid.
+ */
+export interface CapabilityMeta {
+  /** CID (content address) of the capability blob in the blockstore. */
+  cid: CID
+  /** Delegate principal (packed Ed25519 public key) that received the rights. */
+  delegate: Principal
+}
 
 /** A single Hypermedia account stored in the vault. */
 export interface Account {
-  /** 32-byte Ed25519 private key seed. */
+  /** The 32-byte Ed25519 seed to reconstruct the key pair. */
   seed: Uint8Array
-  /** Signed profile blob. */
-  profile: blobs.StoredBlob<blobs.Profile>
-  /** Unix timestamp ms when account was created. */
+  /** Account creation timestamp. */
   createTime: number
-  /** List of delegations issued to third-party sites by this account. */
+  /** Allowed cross-device web application sessions. */
   delegations: DelegatedSession[]
 }
 
@@ -24,8 +37,8 @@ export interface DelegatedSession {
   clientId: string
   /** Type of device that requested the session. */
   deviceType?: 'desktop' | 'mobile' | 'tablet'
-  /** The capability blob delegating rights to the session key. */
-  capability: blobs.StoredBlob<blobs.Capability>
+  /** Minimal capability metadata (full blob bytes are stored externally). */
+  capability: CapabilityMeta
   /** Unix timestamp ms when the delegation was created. */
   createTime: number
 }
@@ -33,14 +46,14 @@ export interface DelegatedSession {
 /** Top-level vault data structure. */
 export interface State {
   /** Schema version for future migrations. */
-  version: 1
+  version: 2
   /** List of Hypermedia accounts. */
   accounts: Account[]
 }
 
 /** Create an empty vault. */
 export function createEmpty(): State {
-  return {version: 1, accounts: []}
+  return {version: VAULT_VERSION, accounts: []}
 }
 
 /** Serialize vault data: CBOR encode → gzip compress. Returns compressed bytes. */
@@ -49,17 +62,28 @@ export async function serialize(data: State): Promise<Uint8Array> {
   return compress(new Uint8Array(encodedCb))
 }
 
-/** Deserialize vault data: gzip decompress → CBOR decode. */
+/** Deserialize vault data: gzip decompress → CBOR decode. Throws if version mismatches. */
 export async function deserialize(compressed: Uint8Array): Promise<State> {
   const decodedCb = await decompress(compressed)
-  return cbor.decode(decodedCb) as State
+  const decoded = cbor.decode(decodedCb) as Record<string, unknown>
+
+  if (decoded.version !== VAULT_VERSION) {
+    throw new Error(
+      `Vault schema version mismatch: stored version is ${decoded.version}, but this client expects version ${VAULT_VERSION}. ` +
+        'The vault data is incompatible with this version of the application.',
+    )
+  }
+
+  // Because this data is written internally by the application, we assume
+  // it conforms to the schema if the version matches.
+  return decoded as unknown as State
 }
 
 /** Compress data using gzip. */
 async function compress(data: Uint8Array): Promise<Uint8Array> {
   const cs = new CompressionStream('gzip')
   const writer = cs.writable.getWriter()
-  writer.write(data as Uint8Array<ArrayBuffer>)
+  writer.write(data as any)
   writer.close()
   return collectStream(cs.readable)
 }
@@ -67,7 +91,7 @@ async function compress(data: Uint8Array): Promise<Uint8Array> {
 async function decompress(data: Uint8Array): Promise<Uint8Array> {
   const ds = new DecompressionStream('gzip')
   const writer = ds.writable.getWriter()
-  writer.write(data as Uint8Array<ArrayBuffer>)
+  writer.write(data as any)
   writer.close()
   return collectStream(ds.readable)
 }

@@ -48,16 +48,13 @@ export interface AccountProfile {
   avatar?: string
 }
 
-/** Result of completing the auth flow. */
 export interface AuthResult {
   /** The account principal (base58btc) that authorized this session. */
   accountPrincipal: string
   /** The signed capability blob with raw CBOR bytes and CID. */
-  capability: blobs.EncodedBlob<blobs.Capability>
+  capability: blobs.Encoded<blobs.Capability>
   /** The stored session with the unextractable signing key. */
   session: StoredSession
-  /** The profile blob with raw CBOR bytes and CID. */
-  profile: blobs.EncodedBlob<blobs.Profile>
 }
 
 /** URL parameter name for the client ID (origin of the requesting site). */
@@ -390,10 +387,6 @@ export interface CallbackData {
   capability: blobs.Capability
   /** Content-addressed CID of the capability blob. */
   capabilityCid: CID
-  /** Profile blob of the account (decoded object). */
-  profile: blobs.Profile
-  /** Content-addressed CID of the profile blob. */
-  profileCid: CID
 }
 
 /**
@@ -404,16 +397,13 @@ export async function buildCallbackUrl(
   redirectUri: string,
   state: string,
   accountPrincipal: blobs.Principal,
-  capability: blobs.EncodedBlob<blobs.Capability>,
-  profile: blobs.EncodedBlob<blobs.Profile>,
+  capability: blobs.Encoded<blobs.Capability>,
 ): Promise<string> {
   const url = new URL(redirectUri)
   const callbackData: CallbackData = {
     account: accountPrincipal,
     capability: capability.decoded,
     capabilityCid: capability.cid,
-    profile: profile.decoded,
-    profileCid: profile.cid,
   }
   const encodedCbor = cbor.encode(callbackData)
   const compressed = await compress(new Uint8Array(encodedCbor))
@@ -430,7 +420,7 @@ export async function createDelegation(
   issuer: blobs.Signer,
   sessionKeyPrincipal: blobs.Principal,
   clientId: string,
-): Promise<blobs.EncodedBlob<blobs.Capability>> {
+): Promise<blobs.Encoded<blobs.Capability>> {
   return await blobs.createCapability(issuer, sessionKeyPrincipal, 'AGENT', Date.now() as blobs.Timestamp, {
     label: `Session key for ${clientId}`,
   })
