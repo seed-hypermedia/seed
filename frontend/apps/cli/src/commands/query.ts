@@ -8,23 +8,16 @@ import type {Command} from 'commander'
 import {getClient, getOutputFormat} from '../index'
 import {formatOutput, printError} from '../output'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
-import type {HMQuerySort} from '@shm/shared/hm-types'
+import type {HMQuerySort} from '@seed-hypermedia/client/hm-types'
 
 export function registerQueryCommands(program: Command) {
   program
     .command('query <space>')
     .description('List documents in a space')
     .option('-p, --path <path>', 'Path prefix')
-    .option(
-      '-m, --mode <mode>',
-      'Query mode: Children or AllDescendants',
-      'Children',
-    )
+    .option('-m, --mode <mode>', 'Query mode: Children or AllDescendants', 'Children')
     .option('-l, --limit <n>', 'Limit results', parseInt)
-    .option(
-      '--sort <term>',
-      'Sort by: Path, Title, CreateTime, UpdateTime, DisplayTime',
-    )
+    .option('--sort <term>', 'Sort by: Path, Title, CreateTime, UpdateTime, DisplayTime')
     .option('--reverse', 'Reverse sort order')
     .option('-q, --quiet', 'Output IDs and names only')
     .action(async (space: string, options, cmd) => {

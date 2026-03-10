@@ -1,6 +1,6 @@
 import {GRPCClient} from '.'
 import {isSurrogate} from './client/unicode'
-import {HMBlock, HMBlockNode, UnpackedHypermediaId} from './hm-types'
+import {HMBlock, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from './utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from './utils/path-api'
 

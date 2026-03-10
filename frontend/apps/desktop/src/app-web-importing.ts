@@ -1,6 +1,6 @@
 import {hmId, hmIdPathToEntityQueryPath, packHmId, unpackHmId} from '@shm/shared'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
-import {HMBlockNode, HMPrepareDocumentChangeInput} from '@shm/shared/hm-types'
+import {HMBlockNode, HMPrepareDocumentChangeInput} from '@seed-hypermedia/client/hm-types'
 import {htmlToBlocks} from '@shm/shared/html-to-blocks'
 import * as cheerio from 'cheerio'
 import {readFile, writeFile} from 'fs/promises'

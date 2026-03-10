@@ -1,4 +1,4 @@
-import {BlockRange, HMComment, HMDocument, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {BlockRange, HMComment, HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {PanelContent} from '@shm/ui/accessories'
 import {BlockDiscussions, CommentDiscussions, Discussions} from '@shm/ui/comments'

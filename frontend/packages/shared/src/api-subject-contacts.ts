@@ -1,7 +1,7 @@
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {HMRequestImplementation} from './api-types'
 import {GRPCClient} from './grpc-client'
-import {HMContactRecord, HMSubjectContactsRequest} from './hm-types'
+import {HMContactRecord, HMSubjectContactsRequest} from '@seed-hypermedia/client/hm-types'
 
 export const SubjectContacts: HMRequestImplementation<HMSubjectContactsRequest> = {
   async getData(grpcClient: GRPCClient, input: string): Promise<HMContactRecord[]> {

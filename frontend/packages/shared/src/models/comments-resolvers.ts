@@ -8,7 +8,7 @@ import {
   HMExternalCommentGroup,
   HMMetadataPayload,
   UnpackedHypermediaId,
-} from '../hm-types'
+} from '@seed-hypermedia/client/hm-types'
 import {BIG_INT} from '../constants'
 import {hmIdPathToEntityQueryPath} from '../utils/path-api'
 import {getCommentGroups} from '../comments'

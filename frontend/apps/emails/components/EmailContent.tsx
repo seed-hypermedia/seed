@@ -1,12 +1,6 @@
-import {
-  MjmlButton,
-  MjmlColumn,
-  MjmlImage,
-  MjmlRaw,
-  MjmlSection,
-  MjmlText,
-} from '@faire/mjml-react'
-import {createWebHMUrl, HMBlockNode, unpackHmId} from '@shm/shared'
+import {MjmlButton, MjmlColumn, MjmlImage, MjmlRaw, MjmlSection, MjmlText} from '@faire/mjml-react'
+import {HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import {createWebHMUrl, unpackHmId} from '@shm/shared'
 import {DAEMON_FILE_URL} from '@shm/shared/constants'
 import {formattedDateShort} from '@shm/shared/utils/date'
 import React from 'react'
@@ -26,8 +20,7 @@ export function extractIpfsUrlCid(cidOrIPFSUrl: string): string {
 }
 
 export function EmailContent({notification}: {notification: Notification}) {
-  const {authorName, authorAvatar, fallbackLetter, createdAt} =
-    getNotificationMeta(notification)
+  const {authorName, authorAvatar, fallbackLetter, createdAt} = getNotificationMeta(notification)
 
   return (
     <>
@@ -77,21 +70,9 @@ export function EmailContent({notification}: {notification: Notification}) {
           )}
         </MjmlColumn>
         <MjmlColumn width="90%" verticalAlign="middle">
-          <MjmlText
-            fontSize="12px"
-            fontWeight="bold"
-            paddingBottom="4px"
-            paddingRight="10px"
-          >
+          <MjmlText fontSize="12px" fontWeight="bold" paddingBottom="4px" paddingRight="10px">
             {authorName}
-            {createdAt && (
-              <span
-                style={{color: '#888', fontWeight: 'normal', fontSize: '12px'}}
-              >
-                {' '}
-                {createdAt}
-              </span>
-            )}
+            {createdAt && <span style={{color: '#888', fontWeight: 'normal', fontSize: '12px'}}> {createdAt}</span>}
           </MjmlText>
         </MjmlColumn>
         <NotificationContent notification={notification} />
@@ -123,22 +104,14 @@ function NotificationContent({notification}: {notification: Notification}) {
   }
 }
 
-function SiteDocUpdateContent({
-  notification,
-}: {
-  notification: Extract<Notification, {reason: 'site-doc-update'}>
-}) {
+function SiteDocUpdateContent({notification}: {notification: Extract<Notification, {reason: 'site-doc-update'}>}) {
   return renderChange({
     targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
     isNewDocument: notification.isNewDocument,
   })
 }
 
-function MentionContent({
-  notification,
-}: {
-  notification: Extract<Notification, {reason: 'mention'}>
-}) {
+function MentionContent({notification}: {notification: Extract<Notification, {reason: 'mention'}>}) {
   return (
     <MjmlColumn width="100%" verticalAlign="middle">
       {notification.comment ? (
@@ -167,11 +140,7 @@ function MentionContent({
   )
 }
 
-function ReplyContent({
-  notification,
-}: {
-  notification: Extract<Notification, {reason: 'reply'}>
-}) {
+function ReplyContent({notification}: {notification: Extract<Notification, {reason: 'reply'}>}) {
   return (
     <MjmlColumn width="100%" verticalAlign="middle">
       <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
@@ -179,22 +148,14 @@ function ReplyContent({
       </MjmlText>
       <MjmlSection padding="0 0 8px 23px">
         <MjmlColumn border-left="1px solid #20C997">
-          {renderBlocks(
-            notification.comment.content,
-            notification.url,
-            notification.resolvedNames,
-          )}
+          {renderBlocks(notification.comment.content, notification.url, notification.resolvedNames)}
         </MjmlColumn>
       </MjmlSection>
     </MjmlColumn>
   )
 }
 
-function NewDiscussionContent({
-  notification,
-}: {
-  notification: Extract<Notification, {reason: 'site-new-discussion'}>
-}) {
+function NewDiscussionContent({notification}: {notification: Extract<Notification, {reason: 'site-new-discussion'}>}) {
   return (
     <MjmlColumn width="100%" verticalAlign="middle">
       <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
@@ -202,11 +163,7 @@ function NewDiscussionContent({
       </MjmlText>
       <MjmlSection padding="0 0 8px 23px">
         <MjmlColumn border-left="1px solid #20C997">
-          {renderBlocks(
-            notification.comment.content,
-            notification.url,
-            notification.resolvedNames,
-          )}
+          {renderBlocks(notification.comment.content, notification.url, notification.resolvedNames)}
         </MjmlColumn>
       </MjmlSection>
       <MjmlSection padding="0 0 16px 0">
@@ -230,11 +187,7 @@ function NewDiscussionContent({
   )
 }
 
-function DiscussionContent({
-  notification,
-}: {
-  notification: Extract<Notification, {reason: 'discussion'}>
-}) {
+function DiscussionContent({notification}: {notification: Extract<Notification, {reason: 'discussion'}>}) {
   return (
     <MjmlColumn width="100%" verticalAlign="middle">
       <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
@@ -242,10 +195,7 @@ function DiscussionContent({
       </MjmlText>
       <MjmlSection padding="0 0 8px 23px">
         <MjmlColumn border-left="1px solid #20C997">
-          {renderBlocks(
-            notification.comment.content,
-            notification.url,
-          )}
+          {renderBlocks(notification.comment.content, notification.url)}
         </MjmlColumn>
       </MjmlSection>
       <MjmlSection padding="0 0 16px 0">
@@ -269,11 +219,7 @@ function DiscussionContent({
   )
 }
 
-function UserCommentContent({
-  notification,
-}: {
-  notification: Extract<Notification, {reason: 'user-comment'}>
-}) {
+function UserCommentContent({notification}: {notification: Extract<Notification, {reason: 'user-comment'}>}) {
   return (
     <MjmlColumn width="100%" verticalAlign="middle">
       <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
@@ -327,9 +273,7 @@ export function renderMention({
 
       {/* Comment block with green border on the left */}
       <MjmlSection padding="0 0 8px 23px">
-        <MjmlColumn border-left="1px solid #20C997">
-          {renderBlocks(blocks, '', resolvedNames)}
-        </MjmlColumn>
+        <MjmlColumn border-left="1px solid #20C997">{renderBlocks(blocks, '', resolvedNames)}</MjmlColumn>
       </MjmlSection>
 
       {/* Target document */}
@@ -354,21 +298,13 @@ export function renderMention({
   )
 }
 
-function renderChange({
-  targetDocName,
-  isNewDocument,
-}: {
-  targetDocName: string
-  isNewDocument: boolean
-}) {
+function renderChange({targetDocName, isNewDocument}: {targetDocName: string; isNewDocument: boolean}) {
   return (
     <>
       <MjmlSection padding="0" textAlign="left">
         <MjmlColumn>
           <MjmlText fontSize="16px" padding="12px 25px">
-            {isNewDocument
-              ? 'has created a new document:'
-              : 'has made a new change to document:'}
+            {isNewDocument ? 'has created a new document:' : 'has made a new change to document:'}
           </MjmlText>
           <MjmlText fontSize="14px">
             <span
@@ -388,26 +324,16 @@ function renderChange({
   )
 }
 
-function renderBlocks(
-  blocks: HMBlockNode[],
-  notifUrl: string,
-  resolvedNames?: Record<string, string>,
-) {
+function renderBlocks(blocks: HMBlockNode[], notifUrl: string, resolvedNames?: Record<string, string>) {
   return blocks.map((blockNode, index) => (
     <React.Fragment key={index}>
       {renderBlock(blockNode, notifUrl, resolvedNames)}
-      {blockNode.children?.length
-        ? renderBlocks(blockNode.children, notifUrl, resolvedNames)
-        : null}
+      {blockNode.children?.length ? renderBlocks(blockNode.children, notifUrl, resolvedNames) : null}
     </React.Fragment>
   ))
 }
 
-function renderBlock(
-  blockNode: HMBlockNode,
-  notifUrl: string,
-  resolvedNames?: Record<string, string>,
-) {
+function renderBlock(blockNode: HMBlockNode, notifUrl: string, resolvedNames?: Record<string, string>) {
   const block = blockNode.block as {
     type: string
     text?: string
@@ -417,11 +343,7 @@ function renderBlock(
   }
   const {type, text, annotations, link, attributes} = block
 
-  const innerHtml = renderInlineTextWithAnnotations(
-    text || '',
-    annotations || [],
-    resolvedNames,
-  )
+  const innerHtml = renderInlineTextWithAnnotations(text || '', annotations || [], resolvedNames)
 
   if (type === 'Paragraph') {
     return (
@@ -433,12 +355,7 @@ function renderBlock(
 
   if (type === 'Heading') {
     return (
-      <MjmlText
-        align="left"
-        paddingBottom="8px"
-        fontSize="24px"
-        fontWeight="bold"
-      >
+      <MjmlText align="left" paddingBottom="8px" fontSize="24px" fontWeight="bold">
         <span dangerouslySetInnerHTML={{__html: innerHtml}} />
       </MjmlText>
     )
@@ -456,19 +373,9 @@ function renderBlock(
 
     return (
       <>
-        <MjmlImage
-          src={src}
-          alt={text || 'Image'}
-          width={width as number}
-          paddingBottom="8px"
-        />
+        <MjmlImage src={src} alt={text || 'Image'} width={width as number} paddingBottom="8px" />
         {text && (
-          <MjmlText
-            fontSize="12px"
-            color="#666"
-            paddingBottom="12px"
-            align="center"
-          >
+          <MjmlText fontSize="12px" color="#666" paddingBottom="12px" align="center">
             {text}
           </MjmlText>
         )}
@@ -479,23 +386,13 @@ function renderBlock(
   if (type === 'Video') {
     if (link?.includes('youtube.com') || link?.includes('youtu.be')) {
       return (
-        <MjmlButton
-          href={link}
-          backgroundColor="#FF0000"
-          fontSize="14px"
-          align="left"
-        >
+        <MjmlButton href={link} backgroundColor="#FF0000" fontSize="14px" align="left">
           Watch Video on YouTube
         </MjmlButton>
       )
     } else {
       return (
-        <MjmlButton
-          href={notifUrl}
-          backgroundColor="#068f7b"
-          fontSize="14px"
-          align="left"
-        >
+        <MjmlButton href={notifUrl} backgroundColor="#068f7b" fontSize="14px" align="left">
           Watch Video in the Comment
         </MjmlButton>
       )
@@ -505,23 +402,13 @@ function renderBlock(
   if (type === 'WebEmbed') {
     if (link?.includes('instagram.com')) {
       return (
-        <MjmlButton
-          href={link}
-          backgroundColor="#346DB7"
-          fontSize="14px"
-          align="left"
-        >
+        <MjmlButton href={link} backgroundColor="#346DB7" fontSize="14px" align="left">
           Open in Instagram
         </MjmlButton>
       )
     } else if (link?.includes('x.com')) {
       return (
-        <MjmlButton
-          href={link}
-          backgroundColor="#346DB7"
-          fontSize="14px"
-          align="left"
-        >
+        <MjmlButton href={link} backgroundColor="#346DB7" fontSize="14px" align="left">
           Open in X.com
         </MjmlButton>
       )
@@ -531,12 +418,7 @@ function renderBlock(
   if (type === 'Button') {
     const buttonAttrs = attributes as {fields?: {name?: {kind?: {value?: string}}}}
     return (
-      <MjmlButton
-        href={link}
-        backgroundColor="#068f7b"
-        fontSize="14px"
-        align="left"
-      >
+      <MjmlButton href={link} backgroundColor="#068f7b" fontSize="14px" align="left">
         {buttonAttrs.fields?.name?.kind?.value || link}
       </MjmlButton>
     )
@@ -544,13 +426,7 @@ function renderBlock(
 
   if (type === 'Math') {
     return (
-      <MjmlText
-        align="left"
-        paddingBottom="8px"
-        fontSize="14px"
-        fontFamily="monospace"
-        color="#888"
-      >
+      <MjmlText align="left" paddingBottom="8px" fontSize="14px" fontFamily="monospace" color="#888">
         {text}
       </MjmlText>
     )
@@ -575,12 +451,7 @@ function renderBlock(
 
   if (type === 'Embed') {
     return (
-      <MjmlButton
-        href={link}
-        backgroundColor="#346DB7"
-        fontSize="14px"
-        align="left"
-      >
+      <MjmlButton href={link} backgroundColor="#346DB7" fontSize="14px" align="left">
         Open Embed
       </MjmlButton>
     )
@@ -589,11 +460,7 @@ function renderBlock(
   return null
 }
 
-function renderInlineTextWithAnnotations(
-  text: string,
-  annotations: any[],
-  resolvedNames?: Record<string, string>,
-) {
+function renderInlineTextWithAnnotations(text: string, annotations: any[], resolvedNames?: Record<string, string>) {
   if (!annotations.length) return text
 
   let result = []

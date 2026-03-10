@@ -1,5 +1,5 @@
 import {Comment, Document} from './client'
-import {HMComment, HMCommentSchema, HMDocument, HMDocumentSchema} from './hm-types'
+import {HMComment, HMCommentSchema, HMDocument, HMDocumentSchema} from '@seed-hypermedia/client/hm-types'
 import {documentMetadataParseAdjustments} from './models/entity'
 
 const REQUIRES_LINK_TYPES = new Set(['Link', 'Image', 'Video', 'File', 'WebEmbed', 'Nostr', 'Embed', 'Button'])

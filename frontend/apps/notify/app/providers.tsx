@@ -1,5 +1,6 @@
 import {useNavigate} from '@remix-run/react'
-import {NavRoute, OptimizedImageSize, routeToHref, UniversalAppProvider, UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {NavRoute, OptimizedImageSize, routeToHref, UniversalAppProvider} from '@shm/shared'
 import {DAEMON_FILE_URL, SEED_ASSET_HOST} from '@shm/shared/constants'
 import {languagePacks} from '@shm/shared/language-packs'
 import {defaultRoute} from '@shm/shared/routes'

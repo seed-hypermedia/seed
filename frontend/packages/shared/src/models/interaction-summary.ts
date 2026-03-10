@@ -1,5 +1,5 @@
 import {useQuery} from '@tanstack/react-query'
-import {UnpackedHypermediaId} from '../hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useUniversalClient} from '../routing'
 import {queryInteractionSummary} from './queries'
 

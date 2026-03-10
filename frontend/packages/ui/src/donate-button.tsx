@@ -1,3 +1,4 @@
+import {HMMetadataPayload, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   applyIsEvenAllocation,
   applyRecipientAmount,
@@ -6,9 +7,7 @@ import {
   getAllocations,
   getMetadataName,
   HMInvoice,
-  HMMetadataPayload,
   PaymentAllocation,
-  UnpackedHypermediaId,
   useAllowedPaymentRecipients,
   useCreateInvoice,
   useInvoiceStatus,

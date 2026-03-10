@@ -2,18 +2,20 @@ import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {createDesktopNotificationsEmail, createNotificationsEmail, Notification} from '@shm/emails/notifier'
 import {
-  createWebHMUrl,
-  entityQueryPathToHmIdPath,
-  Event,
-  getAnnotations,
   HMBlockNode,
   HMComment,
   HMCommentSchema,
   HMDocument,
-  hmId,
   HMMetadata,
-  normalizeDate,
   UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
+import {
+  createWebHMUrl,
+  entityQueryPathToHmIdPath,
+  Event,
+  getAnnotations,
+  hmId,
+  normalizeDate,
   unpackHmId,
 } from '@shm/shared'
 import {DAEMON_HTTP_URL, NOTIFY_SERVICE_HOST, SITE_BASE_URL} from '@shm/shared/constants'

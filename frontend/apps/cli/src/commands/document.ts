@@ -25,7 +25,7 @@ import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations} from '../utils/markdown'
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
 import {createBlocksMap, matchBlockIds, computeReplaceOps, type APIBlockNode} from '../utils/block-diff'
-import type {HMBlockNode} from '@shm/shared/hm-types'
+import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 
 export function registerDocumentCommands(program: Command) {
   const doc = program

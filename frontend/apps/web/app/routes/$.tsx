@@ -20,14 +20,8 @@ import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
 import {HeadersFunction} from '@remix-run/node'
 import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
-import {
-  commentIdToHmId,
-  createDocumentNavRoute,
-  hmId,
-  UnpackedHypermediaId,
-  VIEW_TERMS,
-  ViewRouteKey,
-} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {commentIdToHmId, createDocumentNavRoute, hmId, VIEW_TERMS, ViewRouteKey} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {SizableText} from '@shm/ui/text'
 

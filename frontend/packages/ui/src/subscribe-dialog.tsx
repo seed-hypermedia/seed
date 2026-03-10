@@ -1,4 +1,4 @@
-import {HMMetadata} from '@shm/shared/hm-types'
+import {HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {useSubscribeToNotifications} from '@shm/shared/models/email-notifications'
 import {useEffect, useState} from 'react'
 import {Button} from './button'

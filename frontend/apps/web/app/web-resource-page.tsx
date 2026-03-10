@@ -1,6 +1,6 @@
-import {UnpackedHypermediaId, useUniversalAppContext} from '@shm/shared'
+import {HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useUniversalAppContext} from '@shm/shared'
 import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
-import {HMComment} from '@shm/shared/hm-types'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'

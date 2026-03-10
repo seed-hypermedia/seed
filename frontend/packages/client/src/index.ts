@@ -26,5 +26,14 @@ export {createVersionRef, createTombstoneRef, createRedirectRef} from './ref'
 export type {CreateVersionRefInput, CreateTombstoneRefInput, CreateRedirectRefInput} from './ref'
 export {SeedClientError, SeedNetworkError, SeedValidationError} from './errors'
 
-// Re-export key types so consumers don't need @shm/shared directly
-export type {HMRequest, UnpackedHypermediaId} from '@shm/shared/hm-types'
+export type {HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'
+export {
+  packHmId,
+  packBaseId,
+  getHMQueryString,
+  serializeBlockRange,
+  HYPERMEDIA_SCHEME,
+  hmIdPathToEntityQueryPath,
+  entityQueryPathToHmIdPath,
+} from './hm-types'
+export {trimTrailingEmptyBlocks} from './comment'

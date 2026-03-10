@@ -1,10 +1,5 @@
-import {
-  extractAllContentRefs,
-  hasQueryBlockTargetingSelf,
-  HMBlockNode,
-  HMDocumentInfo,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {HMBlockNode, HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {extractAllContentRefs, hasQueryBlockTargetingSelf} from '@shm/shared'
 import {ChevronDown, ChevronRight} from 'lucide-react'
 import {useMemo, useState} from 'react'
 import {DocumentListItem} from './document-list-item'

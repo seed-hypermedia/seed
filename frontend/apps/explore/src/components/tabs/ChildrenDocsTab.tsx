@@ -1,4 +1,4 @@
-import {UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {FileText} from 'lucide-react'
 import {useApiHost} from '../../apiHostStore'
 import EmptyState from '../EmptyState'

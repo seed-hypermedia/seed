@@ -1,4 +1,4 @@
-import {HMAction, HMGetRequest} from './hm-types'
+import {HMAction, HMGetRequest} from '@seed-hypermedia/client/hm-types'
 import {Account, AccountParams} from './api-account'
 import {AccountContacts} from './api-account-contacts'
 import {SubjectContacts} from './api-subject-contacts'

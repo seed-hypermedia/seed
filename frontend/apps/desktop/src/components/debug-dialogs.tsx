@@ -1,4 +1,5 @@
-import {hmId, UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmId} from '@shm/shared'
 import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
 import {useState} from 'react'

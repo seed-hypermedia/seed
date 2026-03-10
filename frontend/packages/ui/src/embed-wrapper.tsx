@@ -1,4 +1,5 @@
-import {NavRoute, UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {NavRoute} from '@shm/shared'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {HTMLAttributes, PropsWithChildren, useMemo} from 'react'

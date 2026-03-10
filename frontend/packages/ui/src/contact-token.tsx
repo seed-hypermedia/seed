@@ -1,4 +1,4 @@
-import {HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useRouteLink} from '@shm/shared/routing'
 import {HMIcon} from './hm-icon'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from './hover-card'

@@ -1,4 +1,4 @@
-import {HMBlockChildrenType} from '@shm/shared'
+import {HMBlockChildrenType} from '@seed-hypermedia/client/hm-types'
 import {InputRule, mergeAttributes, Node} from '@tiptap/core'
 import {Slice} from '@tiptap/pm/model'
 import {Plugin} from '@tiptap/pm/state'

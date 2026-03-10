@@ -4,7 +4,7 @@
  */
 import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {client} from '@/trpc'
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
 import {CheckboxField} from '@shm/ui/components/checkbox'
 import {DialogClose, DialogDescription, DialogTitle} from '@shm/ui/components/dialog'

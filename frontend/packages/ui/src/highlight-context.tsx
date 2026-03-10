@@ -1,4 +1,4 @@
-import {UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 
 import {useUniversalAppContext} from '@shm/shared'
 

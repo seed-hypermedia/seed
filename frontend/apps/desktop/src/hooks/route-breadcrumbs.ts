@@ -1,12 +1,5 @@
-import {
-  findContentBlock,
-  getBlockText,
-  getContactMetadata,
-  getDocumentTitle,
-  HMContactRecord,
-  hmId,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {findContentBlock, getBlockText, getContactMetadata, getDocumentTitle, hmId} from '@shm/shared'
 
 // ---------------------------------------------------------------------------
 // Types

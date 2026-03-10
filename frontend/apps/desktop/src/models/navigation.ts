@@ -1,5 +1,6 @@
 import {DocumentChange} from '@shm/shared'
-import {HMBlockNode, HMNavigationItem} from '@shm/shared/hm-types'
+import {HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import {HMNavigationItem} from '@shm/shared/hm-types'
 import {isBlocksEqual} from './blocks'
 
 export function getNavigationChanges(

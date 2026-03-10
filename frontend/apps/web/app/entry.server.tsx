@@ -6,7 +6,8 @@ import {PassThrough} from 'node:stream'
 import type {AppLoadContext, EntryContext} from '@remix-run/node'
 import {createReadableStreamFromReadable, redirect} from '@remix-run/node'
 import {RemixServer} from '@remix-run/react'
-import {commentIdToHmId, getCommentTargetId, HMDocument, hmId} from '@shm/shared'
+import {HMDocument} from '@seed-hypermedia/client/hm-types'
+import {commentIdToHmId, getCommentTargetId, hmId} from '@shm/shared'
 import {
   DAEMON_HTTP_URL,
   SITE_BASE_URL,

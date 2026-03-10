@@ -1,4 +1,4 @@
-import {HMBlock, HMQuery} from '@shm/shared'
+import {HMBlock, HMQuery} from '@seed-hypermedia/client/hm-types'
 import _ from 'lodash'
 
 // Type for comparing blocks that may have different properties based on their type

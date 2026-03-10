@@ -1,4 +1,5 @@
-import type {UnpackedHypermediaId, UniversalClient} from '@shm/shared'
+import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {UniversalClient} from '@shm/shared'
 import {createWebUniversalClient} from '@shm/shared/create-web-universal-client'
 import {createSeedClient} from '@seed-hypermedia/client'
 import {SITE_BASE_URL} from '@shm/shared/constants'

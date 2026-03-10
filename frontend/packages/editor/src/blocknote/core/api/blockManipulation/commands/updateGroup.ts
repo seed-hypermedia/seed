@@ -1,4 +1,4 @@
-import {HMBlockChildrenType} from '@shm/shared'
+import {HMBlockChildrenType} from '@seed-hypermedia/client/hm-types'
 import {Editor} from '@tiptap/core'
 import {ResolvedPos} from '@tiptap/pm/model'
 import {Node as PMNode} from 'prosemirror-model'

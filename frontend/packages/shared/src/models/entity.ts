@@ -12,7 +12,6 @@ import {
   HMGetCIDOutput,
   HMListAccountsOutput,
   HMListCommentsByAuthorOutput,
-  HMListedDraft,
   HMListEventsOutput,
   HMMetadata,
   HMMetadataPayload,
@@ -21,7 +20,8 @@ import {
   HMTimestamp,
   HMTimestampSchema,
   UnpackedHypermediaId,
-} from '../hm-types'
+} from '@seed-hypermedia/client/hm-types'
+import {HMListedDraft} from '../hm-types'
 import {useUniversalAppContext, useUniversalClient} from '../routing'
 import {useStream} from '../use-stream'
 import {entityQueryPathToHmIdPath, hmId, latestId, unpackHmId} from '../utils'

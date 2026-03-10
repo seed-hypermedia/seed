@@ -1,4 +1,5 @@
-import {HMBlockNode, HMDocument, hmId} from '@shm/shared'
+import {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
+import {hmId} from '@shm/shared'
 import {describe, expect, it, vi} from 'vitest'
 import {computeDraftRoute, computePublishPath, shouldAutoLinkParent, validatePublishPath} from '../publish-utils'
 

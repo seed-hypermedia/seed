@@ -1,4 +1,5 @@
-import {hmIdPathToEntityQueryPath, UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmIdPathToEntityQueryPath} from '@shm/shared'
 import {
   RiArticleFill,
   RiCodeBoxFill,

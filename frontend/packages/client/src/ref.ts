@@ -3,7 +3,7 @@
  */
 
 import {encode as cborEncode} from '@ipld/dag-cbor'
-import type {HMPublishBlobsInput, HMSigner} from '@shm/shared/hm-types'
+import type {HMPublishBlobsInput, HMSigner} from './hm-types'
 import {CID} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
 import {signObject, toPublishInput} from './signing'

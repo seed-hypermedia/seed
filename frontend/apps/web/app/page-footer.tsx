@@ -1,4 +1,5 @@
-import {createOSProtocolUrl, UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {createOSProtocolUrl} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'

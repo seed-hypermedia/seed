@@ -1,11 +1,5 @@
-import {
-  getDocumentImage,
-  HMAccountsMetadata,
-  hmId,
-  HMResourceFetchResult,
-  UnpackedHypermediaId,
-  useRouteLink,
-} from '@shm/shared'
+import {HMAccountsMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {getDocumentImage, hmId, HMResourceFetchResult, useRouteLink} from '@shm/shared'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {useNavigate} from '@shm/shared/utils/navigation'

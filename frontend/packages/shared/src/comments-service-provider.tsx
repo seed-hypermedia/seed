@@ -9,7 +9,7 @@ import {
   HMListDiscussionsInput,
   HMListDiscussionsOutput,
   UnpackedHypermediaId,
-} from './hm-types'
+} from '@seed-hypermedia/client/hm-types'
 import {invalidateQueries} from './models/query-client'
 import {queryKeys} from './models/query-keys'
 import {useUniversalClient} from './routing'

@@ -1,5 +1,5 @@
 import {Struct} from '@bufbuild/protobuf'
-import {HMDocumentMetadataSchema, HMMetadata, hmMetadataJsonCorrection} from './hm-types'
+import {HMDocumentMetadataSchema, HMMetadata, hmMetadataJsonCorrection} from '@seed-hypermedia/client/hm-types'
 
 type AccountMetadataInput = {
   metadata?: Struct

@@ -1,5 +1,5 @@
 import {getAnnotations} from '../content'
-import {HMBlockNode, HMComment} from '../hm-types'
+import {HMBlockNode, HMComment} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from '../utils/entity-id-url'
 import {LoadedEventWithNotifMeta} from './activity-service'
 

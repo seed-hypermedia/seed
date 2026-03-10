@@ -1,5 +1,5 @@
 import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 
 export function redirectToWebIdentityCommenting(

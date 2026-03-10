@@ -1,4 +1,4 @@
-import {UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useHover} from '@shm/shared/use-hover'
 import {Button} from '@shm/ui/button'
 import {Star} from '@shm/ui/icons'

@@ -1,5 +1,12 @@
 import {EditorBlock, HMInlineContent} from '../editor-types'
-import {HMAnnotations, HMBlock, HMBlockButtonAlignmentSchema, HMBlockSchema, HMBlockType, toNumber} from '../hm-types'
+import {
+  HMAnnotations,
+  HMBlock,
+  HMBlockButtonAlignmentSchema,
+  HMBlockSchema,
+  HMBlockType,
+  toNumber,
+} from '@seed-hypermedia/client/hm-types'
 import {AnnotationSet, codePointLength} from './unicode'
 
 function toHMBlockType(editorBlockType: EditorBlock['type']): HMBlockType | undefined {

@@ -1,6 +1,6 @@
 import {serialize} from 'superjson'
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import {HMActionSchema, HMGetRequestSchema} from './hm-types'
+import {HMActionSchema, HMGetRequestSchema} from '@seed-hypermedia/client/hm-types'
 import {APIParams, APIQueries, APIActions} from './api'
 import {deserializeQueryString} from './input-querystring'
 import type {GRPCClient} from './grpc-client'

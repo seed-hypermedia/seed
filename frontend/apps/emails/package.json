@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@faire/mjml-react": "^3.5.0",
+    "@seed-hypermedia/client": "workspace:*",
     "@shm/shared": "workspace:*",
     "mjml": "^4.15.3",
     "react": "^19.1.0",

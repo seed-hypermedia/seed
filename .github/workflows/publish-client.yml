@@ -1,0 +1,73 @@
+name: Publish @seed-hypermedia/client
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/packages/client/src/**"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm --filter @seed-hypermedia/client build
+
+      - name: Determine version
+        id: version
+        run: |
+          PKG_NAME=$(node -p "require('./frontend/packages/client/package.json').name")
+          PKG_VERSION=$(node -p "require('./frontend/packages/client/package.json').version")
+
+          # Get the latest published version from npm (empty if never published)
+          NPM_VERSION=$(npm view "${PKG_NAME}" version 2>/dev/null || echo "")
+
+          if [ -z "$NPM_VERSION" ]; then
+            # Package never published -- use package.json version as-is
+            echo "First publish: ${PKG_VERSION}"
+            echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
+          else
+            # Compare: if package.json version is higher, use it (intentional bump)
+            HIGHER=$(node -e "
+              const [pMaj, pMin, pPat] = '${PKG_VERSION}'.split('.').map(Number);
+              const [nMaj, nMin, nPat] = '${NPM_VERSION}'.split('.').map(Number);
+              const gt = pMaj > nMaj || (pMaj === nMaj && (pMin > nMin || (pMin === nMin && pPat > nPat)));
+              console.log(gt ? '${PKG_VERSION}' : '');
+            ")
+
+            if [ -n "$HIGHER" ]; then
+              echo "Intentional bump to ${PKG_VERSION} (npm has ${NPM_VERSION})"
+              echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
+            else
+              # Auto-increment patch from the npm version
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$NPM_VERSION"
+              PATCH=$((PATCH + 1))
+              NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+              echo "Auto-patching: ${NPM_VERSION} -> ${NEW_VERSION}"
+              cd frontend/packages/client
+              npm version "$NEW_VERSION" --no-git-tag-version
+              echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Publish
+        run: pnpm --filter @seed-hypermedia/client publish --no-git-checks --provenance

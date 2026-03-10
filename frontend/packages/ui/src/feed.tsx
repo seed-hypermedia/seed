@@ -1,5 +1,5 @@
 import {useDeleteComment, useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
-import {HMBlockNode, HMTimestamp, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {HMBlockNode, HMTimestamp, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {HMListEventsParams, LoadedCommentEvent, LoadedEvent} from '@shm/shared/models/activity-service'
 import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
 import {DocumentRoute, NavRoute} from '@shm/shared/routes'

@@ -1,5 +1,5 @@
 import {hasBlockContent} from '@shm/shared/content'
-import {HMBlockNode} from '@shm/shared/hm-types'
+import {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {useEffect, useRef, useState} from 'react'
 
 interface CommentDraft {

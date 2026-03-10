@@ -1,4 +1,4 @@
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {CommentsRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'

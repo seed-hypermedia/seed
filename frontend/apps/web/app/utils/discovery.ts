@@ -1,6 +1,7 @@
 import {grpcClient} from '@/client.server'
 import {getDocument} from '@/loaders'
-import {HMBlockNode, HMCommentSchema, hmId, hmIdPathToEntityQueryPath} from '@shm/shared'
+import {HMBlockNode, HMCommentSchema} from '@seed-hypermedia/client/hm-types'
+import {hmId, hmIdPathToEntityQueryPath} from '@shm/shared'
 import {BIG_INT, DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {findIpfsUrlCid} from '@shm/ui/get-file-url'

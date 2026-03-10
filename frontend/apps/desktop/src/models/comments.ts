@@ -1,7 +1,8 @@
 import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {HMBlockNodeSchema, HMComment, HMCommentDraftSchema, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {HMBlockNodeSchema, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMCommentDraftSchema} from '@shm/shared/hm-types'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useQuery} from '@tanstack/react-query'
 

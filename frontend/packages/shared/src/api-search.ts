@@ -1,6 +1,6 @@
 import {HMRequestImplementation} from './api-types'
 import {GRPCClient} from './grpc-client'
-import {HMSearchInput, HMSearchPayload, HMSearchRequest} from './hm-types'
+import {HMSearchInput, HMSearchPayload, HMSearchRequest} from '@seed-hypermedia/client/hm-types'
 import {hmId, unpackHmId} from './utils'
 
 export const Search: HMRequestImplementation<HMSearchRequest> = {

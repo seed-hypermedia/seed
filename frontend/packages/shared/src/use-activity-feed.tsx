@@ -1,5 +1,5 @@
 import {useInfiniteQuery} from '@tanstack/react-query'
-import {HMListEventsInput} from './hm-types'
+import {HMListEventsInput} from '@seed-hypermedia/client/hm-types'
 import {useSelectedAccountId} from './models/entity'
 import {LoadedEventWithNotifMeta} from './models/activity-service'
 import {queryKeys} from './models/query-keys'

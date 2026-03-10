@@ -1,5 +1,5 @@
 import {HMRequestImplementation, QueryDaemonFn} from './api-types'
-import {HMGetCIDRequest} from './hm-types'
+import {HMGetCIDRequest} from '@seed-hypermedia/client/hm-types'
 
 export const GetCID: HMRequestImplementation<HMGetCIDRequest> = {
   async getData(_grpcClient, input, queryDaemon?: QueryDaemonFn): Promise<HMGetCIDRequest['output']> {

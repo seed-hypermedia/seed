@@ -10,7 +10,7 @@ import {
   HMInlineContent,
   MediaBlockProps,
 } from '../editor-types'
-import {HMAnnotation, HMBlock, HMBlockChildrenType, HMBlockNode, HMBlockType} from '../hm-types'
+import {HMAnnotation, HMBlock, HMBlockChildrenType, HMBlockNode, HMBlockType} from '@seed-hypermedia/client/hm-types'
 import {Annotation, BlockNode} from './.generated/documents/v3alpha/documents_pb'
 import {isSurrogate} from './unicode'
 

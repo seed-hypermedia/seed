@@ -1,5 +1,5 @@
 import {encode as cborEncode, decode as cborDecode} from '@ipld/dag-cbor'
-import type {HMPublishBlobsInput, HMSigner} from '@shm/shared/hm-types'
+import type {HMPublishBlobsInput, HMSigner} from './hm-types'
 import {base58btc} from 'multiformats/bases/base58'
 import {signObject, toPublishInput} from './signing'
 

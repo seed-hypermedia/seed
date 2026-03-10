@@ -1,4 +1,4 @@
-import {HMAccountsMetadata} from '@shm/shared'
+import {HMAccountsMetadata} from '@seed-hypermedia/client/hm-types'
 import {useMemo} from 'react'
 import {HMIcon} from './hm-icon'
 import {Text} from './text'

@@ -20,10 +20,12 @@ import {
   HMDocument,
   HMDocumentInfo,
   HMEmbedView,
-  HMInlineContent,
   HMResolvedResource,
-  HMResourceFetchResult,
   UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
+import {
+  HMInlineContent,
+  HMResourceFetchResult,
   clipContentBlocks,
   entityQueryPathToHmIdPath,
   formatBytes,
@@ -97,7 +99,8 @@ import useMedia from './use-media'
 import {cn} from './utils'
 
 import {getCommentTargetId} from '@shm/shared'
-import {HMCitation, HMResource} from '@shm/shared/hm-types'
+import {HMResource} from '@seed-hypermedia/client/hm-types'
+import {HMCitation} from '@shm/shared/hm-types'
 import {toast} from 'sonner'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {useHighlighter} from './highlight-context'

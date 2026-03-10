@@ -1,4 +1,4 @@
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {ReactNode} from 'react'
 import {PanelContent} from './accessories'
 import {DirectoryEmpty, DirectoryListViewWithActivity, useDirectoryDataWithActivity} from './directory-page'

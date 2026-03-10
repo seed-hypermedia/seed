@@ -9,7 +9,8 @@ import {
   getIconForRoute,
   getWindowTitle,
 } from '../route-breadcrumbs'
-import {hmId, UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmId} from '@shm/shared'
 
 function makeId(uid: string, path?: string[] | null): UnpackedHypermediaId {
   return hmId(uid, {path: path ?? undefined})

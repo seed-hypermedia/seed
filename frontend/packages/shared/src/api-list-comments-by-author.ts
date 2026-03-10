@@ -2,7 +2,12 @@ import {loadAccounts} from './api-account'
 import {HMRequestImplementation} from './api-types'
 import {BIG_INT} from './constants'
 import {GRPCClient} from './grpc-client'
-import {HMComment, HMCommentSchema, HMListCommentsByAuthorRequest, HMMetadataPayload} from './hm-types'
+import {
+  HMComment,
+  HMCommentSchema,
+  HMListCommentsByAuthorRequest,
+  HMMetadataPayload,
+} from '@seed-hypermedia/client/hm-types'
 
 function parseComment(rawComment: any): HMComment | null {
   const commentJson =

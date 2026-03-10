@@ -1,4 +1,4 @@
-import {HMAnnotations} from '..'
+import {HMAnnotations} from '@seed-hypermedia/client/hm-types'
 import {Annotation} from './.generated/documents/v3alpha/documents_pb'
 
 export class AnnotationSet {

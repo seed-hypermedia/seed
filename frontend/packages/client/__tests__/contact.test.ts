@@ -1,6 +1,6 @@
 import {describe, it, expect, vi} from 'vitest'
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import type {HMSigner} from '@shm/shared/hm-types'
+import type {HMSigner} from '../src/hm-types'
 import {createContact, updateContact, deleteContact, contactRecordIdFromBlob} from '../src/contact'
 
 function makeSigner(): HMSigner {

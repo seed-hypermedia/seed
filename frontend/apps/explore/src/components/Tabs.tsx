@@ -1,4 +1,5 @@
-import {pluralS, UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {pluralS} from '@shm/shared'
 import React from 'react'
 
 export type TabType =

@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {extractAllContentRefs, findSelfQueryBlock, hasQueryBlockTargetingSelf} from '../content'
-import {HMBlockNode} from '../hm-types'
+import {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 
 function makeBlock(block: any, children?: HMBlockNode[]): HMBlockNode {
   return {block, children}

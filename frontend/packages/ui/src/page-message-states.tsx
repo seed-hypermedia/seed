@@ -1,4 +1,4 @@
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {ArrowRight, Lock} from 'lucide-react'
 import {ReactNode} from 'react'
 import {Button} from './button'

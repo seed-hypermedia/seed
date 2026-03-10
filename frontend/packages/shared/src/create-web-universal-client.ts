@@ -1,5 +1,5 @@
 import {createDocumentChange, createGenesisChange, createVersionRef, signDocumentChange} from '@seed-hypermedia/client'
-import type {HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'
+import type {HMRequest, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {PublishDocumentInput, UniversalClient} from './universal-client'
 
 export type WebClientDependencies = Pick<UniversalClient, 'request' | 'publish'> & {

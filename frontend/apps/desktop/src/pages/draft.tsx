@@ -27,14 +27,8 @@ import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import '@shm/editor/editor.css'
 import {chromiumSupportedImageMimeTypes, chromiumSupportedVideoMimeTypes, generateBlockId} from '@shm/editor/utils'
 import {CommentsProvider} from '@shm/shared/comments-service-provider'
-import {
-  HMDocument,
-  HMMetadata,
-  HMNavigationItem,
-  HMResourceFetchResult,
-  HMResourceVisibility,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+import {HMDocument, HMMetadata, HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMNavigationItem, HMResourceFetchResult} from '@shm/shared/hm-types'
 import {useCapabilities, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {DraftRoute} from '@shm/shared/routes'

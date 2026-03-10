@@ -13,7 +13,7 @@ import {createElement} from 'react'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {hmId} from '@shm/shared'
-import type {HMDocument, HMResource} from '@shm/shared'
+import type {HMDocument, HMResource} from '@seed-hypermedia/client/hm-types'
 import {queryKeys} from '@shm/shared/models/query-keys'
 
 // Test UID

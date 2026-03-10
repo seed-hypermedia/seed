@@ -1,4 +1,5 @@
-import {hmId, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmId, useRouteLink} from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
 import {displayHostname, routeToUrl} from '@shm/shared/utils/entity-id-url'

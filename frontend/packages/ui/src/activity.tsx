@@ -1,9 +1,7 @@
+import {HMAccountsMetadata, HMActivitySummary, HMComment} from '@seed-hypermedia/client/hm-types'
 import {
   formattedDate,
   getMetadataName,
-  HMAccountsMetadata,
-  HMActivitySummary,
-  HMComment,
   HMLibraryDocument,
   normalizeDate,
   plainTextOfContent,

@@ -1,4 +1,5 @@
-import {HMBlockNode, HMDocument, UnpackedHypermediaId, hmId} from '@shm/shared'
+import {HMBlockNode, HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmId} from '@shm/shared'
 import {describe, expect, it} from 'vitest'
 import {documentContainsLinkToChild, documentHasSelfQuery} from '../auto-link-utils'
 

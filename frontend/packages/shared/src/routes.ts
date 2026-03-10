@@ -1,5 +1,10 @@
 import {z} from 'zod'
-import {BlockRangeSchema, HMResourceVisibilitySchema, UnpackedHypermediaId, unpackedHmIdSchema} from './hm-types'
+import {
+  BlockRangeSchema,
+  HMResourceVisibilitySchema,
+  UnpackedHypermediaId,
+  unpackedHmIdSchema,
+} from '@seed-hypermedia/client/hm-types'
 import {activitySlugToFilter} from './utils/entity-id-url'
 import type {ViewRouteKey} from './utils/entity-id-url'
 

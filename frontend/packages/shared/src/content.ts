@@ -9,7 +9,7 @@ import {
   HMDocument,
   HMDocumentInfo,
   HMMetadata,
-} from './hm-types'
+} from '@seed-hypermedia/client/hm-types'
 import {entityQueryPathToHmIdPath, normalizeDate, unpackHmId} from './utils'
 
 // Check if a block has meaningful content

@@ -1,8 +1,8 @@
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   getDocumentTitle,
   packHmId,
   SearchResult,
-  UnpackedHypermediaId,
   unpackHmId,
   useRouteLink,
   useSearch,

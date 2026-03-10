@@ -4,7 +4,7 @@ import {useListSite} from '@/models/documents'
 
 import {hmId} from '@shm/shared'
 import {getDocumentTitle, getMetadataName} from '@shm/shared/content'
-import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 
 import {useResource} from '@shm/shared/models/entity'
 import {Button, ButtonProps} from '@shm/ui/button'

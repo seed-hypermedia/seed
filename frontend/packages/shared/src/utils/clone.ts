@@ -3,7 +3,7 @@ import {createChange, createVersionRef} from '@seed-hypermedia/client'
 import {DocumentChange} from '../client'
 import {prepareHMDocument} from '../document-utils'
 import {GRPCClient} from '../grpc-client'
-import {HMBlockNode, HMDocumentSchema, HMSigner} from '../hm-types'
+import {HMBlockNode, HMDocumentSchema, HMSigner} from '@seed-hypermedia/client/hm-types'
 import {BlocksMap, createBlocksMap, getDocAttributeChanges} from './document-changes'
 
 function normalizeBytes(data: Uint8Array): Uint8Array<ArrayBuffer> {

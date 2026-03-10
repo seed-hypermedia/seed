@@ -1,5 +1,5 @@
 import * as ed25519 from '@noble/ed25519'
-import type {HMSigner} from '@shm/shared/hm-types'
+import type {HMSigner} from '@seed-hypermedia/client/hm-types'
 import type {KeyPair} from './key-derivation'
 
 export function createSignerFromKey(key: KeyPair): HMSigner {

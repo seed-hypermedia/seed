@@ -23,7 +23,9 @@
     "allowUnusedLabels": false,
     "paths": {
       "@shm/shared": ["../../packages/shared/src/index.ts"],
-      "@shm/shared/*": ["../../packages/shared/src/*"]
+      "@shm/shared/*": ["../../packages/shared/src/*"],
+      "@seed-hypermedia/client": ["../../packages/client/src/index.ts"],
+      "@seed-hypermedia/client/*": ["../../packages/client/src/*"]
     }
   }
 }

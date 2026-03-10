@@ -1,7 +1,7 @@
 import {client} from '@/trpc'
 import {invalidateQueries} from '@shm/shared'
 import {SEED_HOST_URL} from '@shm/shared/constants'
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useEffect, useRef} from 'react'

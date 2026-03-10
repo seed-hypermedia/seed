@@ -1,5 +1,5 @@
 import {useMemo} from 'react'
-import {HMBlockNode, HMComment, HMCommentGroup} from './hm-types'
+import {HMBlockNode, HMComment, HMCommentGroup} from '@seed-hypermedia/client/hm-types'
 
 /**
  * Removes trailing empty blocks from comment content before publishing.

@@ -1,6 +1,5 @@
-import {HMBlockEmbed} from '@shm/shared'
+import {HMBlockEmbed, HMEmbedViewSchema} from '@seed-hypermedia/client/hm-types'
 import {useGatewayUrlStream} from '@shm/shared/gateway-url'
-import {HMEmbedViewSchema} from '@shm/shared/hm-types'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'

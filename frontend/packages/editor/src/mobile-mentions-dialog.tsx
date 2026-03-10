@@ -1,4 +1,4 @@
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {InlineMentionsResult, useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'

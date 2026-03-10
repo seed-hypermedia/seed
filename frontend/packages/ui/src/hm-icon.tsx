@@ -1,4 +1,5 @@
-import {abbreviateUid, HMMetadata, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
+import {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {abbreviateUid, useRouteLink} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {AlertCircle} from 'lucide-react'
 import {memo} from 'react'

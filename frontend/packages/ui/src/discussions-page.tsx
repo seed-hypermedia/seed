@@ -1,4 +1,5 @@
-import {BlockRange, hmId, UnpackedHypermediaId} from '@shm/shared'
+import {BlockRange, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmId} from '@shm/shared'
 import {ReactNode} from 'react'
 import {BlockDiscussions, CommentDiscussions, Discussions} from './comments'
 import {PageLayout} from './page-layout'

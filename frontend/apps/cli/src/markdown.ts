@@ -3,7 +3,7 @@
  * Supports automatic resolution of embeds, mentions, and queries
  */
 
-import type {HMBlockNode, HMBlock, HMAnnotation, HMDocument, HMMetadata} from '@shm/shared/hm-types'
+import type {HMBlockNode, HMBlock, HMAnnotation, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
 import type {SeedClient} from '@seed-hypermedia/client'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 
@@ -18,10 +18,7 @@ export type MarkdownOptions = {
 /**
  * Convert a document to markdown
  */
-export async function documentToMarkdown(
-  doc: HMDocument,
-  options?: MarkdownOptions
-): Promise<string> {
+export async function documentToMarkdown(doc: HMDocument, options?: MarkdownOptions): Promise<string> {
   const lines: string[] = []
   const ctx: ResolveContext = {
     client: options?.client,
@@ -70,11 +67,7 @@ type ResolveContext = {
 /**
  * Convert a block node (with children) to markdown
  */
-async function blockNodeToMarkdown(
-  node: HMBlockNode,
-  depth: number,
-  ctx: ResolveContext
-): Promise<string> {
+async function blockNodeToMarkdown(node: HMBlockNode, depth: number, ctx: ResolveContext): Promise<string> {
   const block = node.block
   const children = node.children || []
 
@@ -104,14 +97,17 @@ async function blockNodeToMarkdown(
 /**
  * Convert a single block to markdown
  */
-async function blockToMarkdown(
-  block: HMBlock,
-  depth: number,
-  ctx: ResolveContext
-): Promise<string> {
+async function blockToMarkdown(block: HMBlock, depth: number, ctx: ResolveContext): Promise<string> {
   const ind = indent(depth)
   // Cast to generic shape for uniform access across all block variants
-  const b = block as {type: string; id: string; text?: string; link?: string; annotations?: HMAnnotation[]; attributes?: Record<string, unknown>}
+  const b = block as {
+    type: string
+    id: string
+    text?: string
+    link?: string
+    annotations?: HMAnnotation[]
+    attributes?: Record<string, unknown>
+  }
   const text = b.text || ''
   const link = b.link || ''
   const annotations = b.annotations
@@ -176,11 +172,7 @@ async function blockToMarkdown(
 /**
  * Resolve a block-level embed
  */
-async function resolveBlockEmbed(
-  block: HMBlock,
-  depth: number,
-  ctx: ResolveContext
-): Promise<string> {
+async function resolveBlockEmbed(block: HMBlock, depth: number, ctx: ResolveContext): Promise<string> {
   const ind = indent(depth)
   const link = (block as {link?: string}).link || ''
 
@@ -238,7 +230,7 @@ async function resolveBlockEmbed(
             blockMd
               .split('\n')
               .map((l) => ind + '> ' + l.trim())
-              .join('\n')
+              .join('\n'),
           )
         }
       }
@@ -255,11 +247,7 @@ async function resolveBlockEmbed(
 /**
  * Resolve a query block
  */
-async function resolveQuery(
-  block: HMBlock,
-  depth: number,
-  ctx: ResolveContext
-): Promise<string> {
+async function resolveQuery(block: HMBlock, depth: number, ctx: ResolveContext): Promise<string> {
   const ind = indent(depth)
 
   if (!ctx.resolve || !ctx.client) {
@@ -269,11 +257,13 @@ async function resolveQuery(
   try {
     type SortTerm = 'Path' | 'Title' | 'CreateTime' | 'UpdateTime' | 'DisplayTime'
     const attrs = (block as {attributes?: Record<string, unknown>}).attributes
-    const queryConfig = attrs?.query as {
-      includes?: Array<{space: string; path?: string; mode?: string}>
-      sort?: Array<{term: SortTerm; reverse?: boolean}>
-      limit?: number
-    } | undefined
+    const queryConfig = attrs?.query as
+      | {
+          includes?: Array<{space: string; path?: string; mode?: string}>
+          sort?: Array<{term: SortTerm; reverse?: boolean}>
+          limit?: number
+        }
+      | undefined
 
     // Handle both old (flat) and new (nested query) formats
     let includes: Array<{space: string; path?: string; mode: 'Children' | 'AllDescendants'}>
@@ -295,11 +285,13 @@ async function resolveQuery(
       if (!space) {
         return ind + `<!-- Query: no space specified -->`
       }
-      includes = [{
-        space,
-        path: attrs?.path as string | undefined,
-        mode: (attrs?.mode as 'Children' | 'AllDescendants') || 'Children',
-      }]
+      includes = [
+        {
+          space,
+          path: attrs?.path as string | undefined,
+          mode: (attrs?.mode as 'Children' | 'AllDescendants') || 'Children',
+        },
+      ]
     }
 
     const results = await ctx.client.request('Query', {
@@ -348,7 +340,7 @@ function findBlockById(content: HMBlockNode[], blockId: string): HMBlockNode | n
 async function applyAnnotations(
   text: string,
   annotations: HMAnnotation[] | undefined,
-  ctx: ResolveContext
+  ctx: ResolveContext,
 ): Promise<string> {
   if (!annotations || annotations.length === 0) {
     return text
@@ -401,11 +393,7 @@ async function applyAnnotations(
 /**
  * Get markdown marker for annotation
  */
-async function getAnnotationMarker(
-  ann: HMAnnotation,
-  type: 'open' | 'close',
-  ctx: ResolveContext
-): Promise<string> {
+async function getAnnotationMarker(ann: HMAnnotation, type: 'open' | 'close', ctx: ResolveContext): Promise<string> {
   switch (ann.type) {
     case 'Bold':
       return '**'
@@ -435,11 +423,7 @@ async function getAnnotationMarker(
 /**
  * Resolve inline embed/mention to show name
  */
-async function resolveInlineEmbed(
-  ann: HMAnnotation,
-  type: 'open' | 'close',
-  ctx: ResolveContext
-): Promise<string> {
+async function resolveInlineEmbed(ann: HMAnnotation, type: 'open' | 'close', ctx: ResolveContext): Promise<string> {
   const link = 'link' in ann ? (ann.link as string) || '' : ''
 
   if (type === 'open') {

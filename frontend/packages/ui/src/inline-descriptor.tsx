@@ -1,13 +1,5 @@
-import {
-  abbreviateUid,
-  AnyTimestamp,
-  formattedDateShort,
-  HMMetadata,
-  NavRoute,
-  normalizeDate,
-  UnpackedHypermediaId,
-  useRouteLink,
-} from '@shm/shared'
+import {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {abbreviateUid, AnyTimestamp, formattedDateShort, NavRoute, normalizeDate, useRouteLink} from '@shm/shared'
 import {HMContactItem} from '@shm/shared/hm-types'
 import {Tooltip} from './tooltip'
 

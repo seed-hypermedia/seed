@@ -1,10 +1,11 @@
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import {defineConfig} from 'vite'
+import tsconfigPaths from 'vite-tsconfig-paths'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tsconfigPaths({root: path.resolve(__dirname, '../..')})],
   resolve: {
     dedupe: [
       '@shm/shared',
@@ -13,13 +14,9 @@ export default defineConfig({
       '@shm/editor/*',
       '@shm/ui',
       '@shm/ui/*',
+      '@seed-hypermedia/client',
       'react',
       'react-dom',
     ],
-    alias: {
-      '@shm/shared': path.resolve(__dirname, '../../packages/shared/src'),
-      '@shm/editor': path.resolve(__dirname, '../../packages/editor/src'),
-      '@shm/ui': path.resolve(__dirname, '../../packages/ui/src'),
-    },
   },
 })

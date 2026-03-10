@@ -15,7 +15,8 @@ import {
   processMediaMarkdown,
 } from '@shm/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
-import {HMResourceFetchResult, HMResourceVisibility, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMResourceFetchResult} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'

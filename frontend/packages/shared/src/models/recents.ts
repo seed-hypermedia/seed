@@ -1,5 +1,5 @@
 import {useMutation, useQuery} from '@tanstack/react-query'
-import {UnpackedHypermediaId} from '../hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {invalidateQueries} from './query-client'
 import {queryKeys} from './query-keys'
 import {useUniversalClient} from '../routing'

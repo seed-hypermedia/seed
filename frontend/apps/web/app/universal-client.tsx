@@ -1,5 +1,6 @@
 import {createSeedClient} from '@seed-hypermedia/client'
-import type {HMSigner, UnpackedHypermediaId, UniversalClient} from '@shm/shared'
+import type {HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {UniversalClient} from '@shm/shared'
 import {createWebUniversalClient} from '@shm/shared/create-web-universal-client'
 import {keyPairStore} from './auth'
 import {preparePublicKey} from './auth-utils'

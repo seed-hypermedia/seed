@@ -1,14 +1,12 @@
 import type {MetaFunction} from '@remix-run/react'
+import {HMComment, HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   getCommentTargetId,
   getDocumentTitle,
-  HMDocument,
   hmIdPathToEntityQueryPath,
   hostnameStripProtocol,
   packHmId,
-  UnpackedHypermediaId,
 } from '@shm/shared'
-import {HMComment} from '@shm/shared/hm-types'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {defaultSiteIcon} from './meta'
 import {getOptimizedImageUrl} from './providers'

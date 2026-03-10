@@ -20,7 +20,7 @@ import {
   HMBlockMath,
   HMBlockQuery,
   HMBlockWebEmbed,
-} from '../../hm-types'
+} from '@seed-hypermedia/client/hm-types'
 import {editorBlockToHMBlock} from '../editorblock-to-hmblock'
 
 describe('EditorBlock to HMBlock', () => {

@@ -1,5 +1,5 @@
 import {GRPCClient} from './grpc-client'
-import {HMMetadataPayload, HMRequest, UnpackedHypermediaId} from './hm-types'
+import {HMMetadataPayload, HMRequest, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 
 export type ListAPIResponse = {
   documents: HMMetadataPayload[]

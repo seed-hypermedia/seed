@@ -6,7 +6,8 @@ import {unwrap} from '@/wrapping'
 import {WebResourcePage} from '@/web-resource-page'
 import {Code} from '@connectrpc/connect'
 import {Params, useLoaderData} from '@remix-run/react'
-import {createDocumentNavRoute, UnpackedHypermediaId, ViewRouteKey} from '@shm/shared'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {createDocumentNavRoute, ViewRouteKey} from '@shm/shared'
 import {DaemonErrorPage, loader as loaderFn, meta as metaFn} from './$'
 
 export const loader = async ({params, request}: {params: Params; request: Request}) => {

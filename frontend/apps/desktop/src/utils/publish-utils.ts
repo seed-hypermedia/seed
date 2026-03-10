@@ -1,4 +1,5 @@
-import {HMDocument, HMResourceVisibility, UnpackedHypermediaId, hmIdPathToEntityQueryPath} from '@shm/shared'
+import {HMDocument, HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmIdPathToEntityQueryPath} from '@shm/shared'
 import {documentContainsLinkToChild, documentHasSelfQuery} from '../models/auto-link-utils'
 import {pathNameify} from './path'
 
