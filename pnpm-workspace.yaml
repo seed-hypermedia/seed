@@ -5,21 +5,27 @@ packages:
   - 'docs'
   - 'tests'
 
-# Supply-chain security settings (pnpm v10+).
-# See https://pnpm.io/supply-chain-security
+# Supply-chain security settings — https://pnpm.io/supply-chain-security
+
+# Delays installation of newly-published package versions by 24 h. This gives
+# the security ecosystem time to detect compromised releases before they reach
+# the project. Only affects `pnpm add` / version updates; `pnpm install` from
+# an existing lockfile (frozen) is unaffected.
+minimumReleaseAge: "1440 minutes"
+
+# Blocks installation if a package's trust level has decreased compared to its
+# previous release (e.g. was provenance-attested, now unsigned).
+trustPolicy: "no-downgrade"
+trustPolicyExclude:
+  # undici-types@6.21.0 (transitive dep of @types/node) lacks provenance
+  # attestation that earlier versions had. Excluded pending upstream resolution.
+  # See: https://github.com/seed-hypermedia/seed/pull/310 for context.
+  - "undici-types"
 
 # blockExoticSubdeps: true
 # Prevents transitive dependencies from being resolved from exotic sources
 # (git repositories, direct tarball URLs). All transitive deps must come
 # from the configured registry.
-# NOTE: kept off for now — enabling it immediately flagged @electron/node-gyp
-# (a transitive dep of @electron-forge/shared-types via @electron/rebuild) as
-# being resolved from a git repository instead of the npm registry. That
-# dependency should be investigated before turning this on.
-
-# trustPolicy: "no-downgrade"
-# Blocks installation if a package's trust level has decreased compared to
-# its previous release (e.g. was signed/provenance-verified, now unsigned).
-# NOTE: kept off for now — enabling it immediately flagged undici-types@6.21.0
-# (a transitive dep of @types/node) as a trust downgrade. That package should
-# be investigated before turning this on. See the PR description for details.
+# BLOCKED: @electron/node-gyp is resolved from a git repo as a transitive dep
+# of @electron-forge/shared-types → @electron/rebuild@3.7.2. Needs an upstream
+# fix in @electron-forge before this can be enabled.
