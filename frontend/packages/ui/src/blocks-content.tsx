@@ -2693,7 +2693,12 @@ export function DocumentCardGrid({
             if (!item) return null
             return (
               <div className={cn(columnClasses, 'flex p-3')} key={item.id.id}>
-                <DocumentCard docId={item.id} entity={getEntity(item.id)} accountsMetadata={accountsMetadata} showSummary />
+                <DocumentCard
+                  docId={item.id}
+                  entity={getEntity(item.id)}
+                  accountsMetadata={accountsMetadata}
+                  showSummary
+                />
               </div>
             )
           })}
