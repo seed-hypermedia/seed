@@ -5,6 +5,7 @@
     "": {
       "name": "@seed-hypermedia/vault",
       "dependencies": {
+        "@bufbuild/protobuf": "1.10.0",
         "@connectrpc/connect": "1.4.0",
         "@connectrpc/connect-node": "1.4.0",
         "@connectrpc/connect-web": "1.4.0",
