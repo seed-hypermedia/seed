@@ -25,9 +25,7 @@ export const Search: HMRequestImplementation<HMSearchRequest> = {
               title: entity.content,
               parentNames: entity.parentNames,
               icon: entity.icon,
-              versionTime: entity.versionTime
-                ? entity.versionTime.toDate().toLocaleString()
-                : undefined,
+              versionTime: entity.versionTime ? entity.versionTime.toDate().toLocaleString() : undefined,
               searchQuery: query,
               type: 'contact' as const,
             }
@@ -38,9 +36,7 @@ export const Search: HMRequestImplementation<HMSearchRequest> = {
                 title: entity.content,
                 parentNames: entity.parentNames,
                 icon: entity.icon,
-                versionTime: entity.versionTime
-                  ? entity.versionTime.toDate().toLocaleString()
-                  : undefined,
+                versionTime: entity.versionTime ? entity.versionTime.toDate().toLocaleString() : undefined,
                 searchQuery: query,
                 type: 'document' as const,
               }

@@ -313,13 +313,7 @@ const SearchInput = ({
           title: item.title || item.id.uid,
           key: packHmId(item.id),
           searchQuery: item.searchQuery,
-          versionTime: item.versionTime
-            ? typeof item.versionTime.toDate === 'function'
-              ? item.versionTime.toDate().toLocaleString()
-              : typeof item.versionTime === 'string' || typeof item.versionTime === 'number'
-              ? new Date(item.versionTime).toLocaleString()
-              : ''
-            : '',
+          versionTime: item.versionTime || '',
           onFocus: () => {},
           onMouseEnter: () => {},
           onSelect: () => {
