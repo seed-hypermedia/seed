@@ -339,6 +339,23 @@ export function DeveloperSettings() {
           <DeleteDraftLogs />
         </div>
       </SettingsSection>
+      <SettingsSection title="Forum View">
+        <SizableText>
+          Adds a Forum tab to documents that shows discussions in a list view (like GitHub Discussions).
+        </SizableText>
+        <div className="flex justify-between">
+          {experiments?.forum ? <EnabledTag /> : <div />}
+          <Button
+            size="sm"
+            variant={experiments?.forum ? 'destructive' : 'default'}
+            onClick={() => {
+              writeExperiments.mutate({forum: !experiments?.forum})
+            }}
+          >
+            {experiments?.forum ? 'Disable Forum View' : 'Enable Forum View'}
+          </Button>
+        </div>
+      </SettingsSection>
       {/* <TestURLCheck /> */}
     </>
   )

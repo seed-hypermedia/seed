@@ -596,6 +596,7 @@ function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
     route.key === 'directory' ||
     route.key === 'collaborators' ||
     route.key === 'comments' ||
+    route.key === 'forum' ||
     route.key === 'profile' ||
     route.key === 'contact'
   ) {
@@ -625,7 +626,8 @@ function isUrlDisplayableRoute(route: NavRoute): boolean {
     route.key === 'activity' ||
     route.key === 'directory' ||
     route.key === 'collaborators' ||
-    route.key === 'comments'
+    route.key === 'comments' ||
+    route.key === 'forum'
   )
 }
 

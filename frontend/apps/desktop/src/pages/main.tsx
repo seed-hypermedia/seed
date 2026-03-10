@@ -289,6 +289,11 @@ function getPageComponent(navRoute: NavRoute) {
         PageComponent: Document,
         Fallback: DocumentPlaceholder,
       }
+    case 'forum':
+      return {
+        PageComponent: Document,
+        Fallback: DocumentPlaceholder,
+      }
     case 'profile':
       return {
         PageComponent: Profile,

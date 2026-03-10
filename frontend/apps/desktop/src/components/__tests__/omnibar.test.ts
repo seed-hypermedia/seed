@@ -214,7 +214,8 @@ describe('Route ID extraction', () => {
       route.key === 'activity' ||
       route.key === 'directory' ||
       route.key === 'collaborators' ||
-      route.key === 'comments'
+      route.key === 'comments' ||
+      route.key === 'forum'
     ) {
       return route.id || null
     }
@@ -283,7 +284,8 @@ describe('URL displayable route detection', () => {
       route.key === 'activity' ||
       route.key === 'directory' ||
       route.key === 'collaborators' ||
-      route.key === 'comments'
+      route.key === 'comments' ||
+      route.key === 'forum'
     )
   }
 

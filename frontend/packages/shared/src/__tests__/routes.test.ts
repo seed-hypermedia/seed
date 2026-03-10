@@ -251,6 +251,16 @@ describe('createDocumentNavRoute', () => {
         panel: {key: 'activity', id: testDocId},
       })
     })
+
+    test('forum viewTerm returns forum route', () => {
+      const route = createDocumentNavRoute(testDocId, 'forum', null)
+      expect(route).toEqual({key: 'forum', id: testDocId, panel: null})
+    })
+
+    test('forum viewTerm with openComment returns forum route with openComment', () => {
+      const route = createDocumentNavRoute(testDocId, 'forum', null, 'z6Mk123/z6FC456')
+      expect(route).toEqual({key: 'forum', id: testDocId, openComment: 'z6Mk123/z6FC456', panel: null})
+    })
   })
 
   describe('with path in docId', () => {
@@ -382,5 +392,15 @@ describe('routeToHref', () => {
       const href = routeToHref({key: 'collaborators', id: hmId('uid1')}, {originHomeId: originHome})
       expect(href).toBe('/:collaborators')
     })
+  })
+
+  test('forum route generates view-term href', () => {
+    const href = routeToHref({key: 'forum', id: hmId('uid1')}, {originHomeId: originHome})
+    expect(href).toBe('/:forum')
+  })
+
+  test('forum route with openComment includes commentId in path', () => {
+    const href = routeToHref({key: 'forum', id: hmId('uid1'), openComment: 'z6Mk/z6FC'}, {originHomeId: originHome})
+    expect(href).toBe('/:forum/z6Mk/z6FC')
   })
 })

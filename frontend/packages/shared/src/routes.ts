@@ -121,6 +121,23 @@ export const commentsRouteSchema = z.object({
 })
 export type CommentsRoute = z.infer<typeof commentsRouteSchema>
 
+// Forum page panel options (same as comments)
+const forumPagePanelSchema = z.discriminatedUnion('key', [
+  activityPanelSchema,
+  commentsPanelSchema,
+  collaboratorsPanelSchema,
+  directoryPanelSchema,
+])
+
+export const forumRouteSchema = z.object({
+  key: z.literal('forum'),
+  id: unpackedHmIdSchema,
+  width: z.number().optional(),
+  openComment: z.string().optional(),
+  panel: forumPagePanelSchema.nullable().optional(),
+})
+export type ForumRoute = z.infer<typeof forumRouteSchema>
+
 const documentPanelRoute = z.discriminatedUnion('key', [
   activityRouteSchema,
   commentsRouteSchema,
@@ -226,6 +243,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   collaboratorsRouteSchema,
   activityRouteSchema,
   commentsRouteSchema,
+  forumRouteSchema,
 ])
 export type NavRoute = z.infer<typeof navRouteSchema>
 
@@ -264,6 +282,9 @@ export function getRoutePanel(route: NavRoute): NavRoute | null {
   } else if (route.key === 'comments') {
     panel = route.panel as DocumentPanelRoute | null
     routeId = route.id
+  } else if (route.key === 'forum') {
+    panel = route.panel as DocumentPanelRoute | null
+    routeId = route.id
   }
   if (panel?.key === 'options') return null
   if (!panel) return null
@@ -291,6 +312,10 @@ export function routeToPanelRoute(route: NavRoute): DocumentPanelRoute | null {
     case 'collaborators': {
       const {panel, ...rest} = route
       return rest
+    }
+    case 'forum': {
+      const {panel, ...rest} = route
+      return rest as any
     }
     default:
       return null
@@ -394,6 +419,11 @@ export function createDocumentNavRoute(
       return {key: 'collaborators', id: docId, panel}
     case 'feed':
       return {key: 'feed', id: docId, panel}
+    case 'forum':
+      if (openComment) {
+        return {key: 'forum', id: docId, openComment, panel}
+      }
+      return {key: 'forum', id: docId, panel}
     default: {
       // ?panel=comments/COMMENT_ID (no viewTerm) → document main + comments right panel
       return {key: 'document', id: docId, panel}

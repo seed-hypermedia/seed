@@ -37,11 +37,12 @@ export const VIEW_TERMS = [
   ':collaborators',
   ':directory',
   ':feed',
+  ':forum',
 ] as const
 export type ViewTerm = (typeof VIEW_TERMS)[number]
 
 // Route keys that correspond to view terms (excludes 'options' which is panel-only)
-export type ViewRouteKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'feed'
+export type ViewRouteKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'feed' | 'forum'
 
 // Panel keys that can be encoded in URL query param
 export type PanelQueryKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'options'
@@ -64,6 +65,17 @@ export function extractViewTermFromUrl(url: string): {
       url: url.replace(commentsMatch[0], ''),
       viewTerm: ':comments',
       commentId: commentsMatch[1],
+    }
+  }
+
+  // Check for :forum/UID/TSID pattern (2 path segments)
+  const forumPattern = /\/\:forum\/([^/?#]+\/[^/?#]+)(?=[?#]|$)/
+  const forumMatch = url.match(forumPattern)
+  if (forumMatch) {
+    return {
+      url: url.replace(forumMatch[0], ''),
+      viewTerm: ':forum',
+      commentId: forumMatch[1],
     }
   }
 
@@ -104,6 +116,7 @@ export function viewTermToRouteKey(viewTerm: ViewTerm | null): ViewRouteKey | nu
     ':collaborators': 'collaborators',
     ':directory': 'directory',
     ':feed': 'feed',
+    ':forum': 'forum',
   }
   return mapping[viewTerm] ?? null
 }
@@ -257,7 +270,8 @@ export function getRoutePanelParam(route: NavRoute): string | null {
       route.key === 'comments' ||
       route.key === 'collaborators' ||
       route.key === 'directory' ||
-      route.key === 'feed') &&
+      route.key === 'feed' ||
+      route.key === 'forum') &&
     route.panel
   ) {
     panel = route.panel
@@ -307,7 +321,8 @@ export function routeToUrl(
     route.key === 'activity' ||
     route.key === 'directory' ||
     route.key === 'collaborators' ||
-    route.key === 'comments'
+    route.key === 'comments' ||
+    route.key === 'forum'
   ) {
     // View-term routes use /:viewTerm in the path
     let viewTermPath = `:${route.key}`
@@ -321,6 +336,10 @@ export function routeToUrl(
     // For comments with openComment, put commentId in view term path
     if (route.key === 'comments' && route.openComment) {
       viewTermPath = `:comments/${route.openComment}`
+    }
+    // For forum with openComment, put commentId in view term path
+    if (route.key === 'forum' && route.openComment) {
+      viewTermPath = `:forum/${route.openComment}`
     }
     let effectivePanelParam = panelParam
     // View-term URLs need uid + path + blockRef for fragment

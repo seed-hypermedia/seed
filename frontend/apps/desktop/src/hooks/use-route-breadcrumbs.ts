@@ -98,7 +98,8 @@ export function useRouteBreadcrumbs(): RouteBreadcrumbsResult {
       route.key === 'directory' ||
       route.key === 'collaborators' ||
       route.key === 'activity' ||
-      route.key === 'comments'
+      route.key === 'comments' ||
+      route.key === 'forum'
     ) {
       return route.id
     }
@@ -116,6 +117,7 @@ export function useRouteBreadcrumbs(): RouteBreadcrumbsResult {
         key: 'comments' as const,
         openComment: route.openComment,
       } as DocumentPanelRoute
+    if (route.key === 'forum') return null
     return undefined
   }, [route, isDraft, draftParams?.panel])
 

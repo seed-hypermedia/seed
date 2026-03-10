@@ -59,7 +59,8 @@ export function getRouteKey(route: NavRoute): string {
     route.key === 'comments' ||
     route.key === 'activity' ||
     route.key === 'collaborators' ||
-    route.key === 'directory'
+    route.key === 'directory' ||
+    route.key === 'forum'
   )
     return `document:${route.id.uid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
   if (route.key === 'feed') return `feed:${route.id.uid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted

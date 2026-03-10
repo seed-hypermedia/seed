@@ -39,5 +39,6 @@ function getRouteResourceId(route: NavRoute): UnpackedHypermediaId | null {
   if (route.key === 'comments') return route.id
   if (route.key === 'activity') return route.id
   if (route.key === 'collaborators') return route.id
+  if (route.key === 'forum') return route.id
   return null
 }

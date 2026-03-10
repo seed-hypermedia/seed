@@ -2,6 +2,11 @@ import {HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-
 import {activitySlugToFilter, DocumentPanelRoute, NavRoute, useRouteLink} from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {MessageSquare, Newspaper, Quote, Users} from 'lucide-react'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {DocumentPanelRoute, NavRoute, useRouteLink, useUniversalAppContext} from '@shm/shared'
+import {HMExistingDraft} from '@shm/shared/hm-types'
+import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
+import {MessageCircle, MessageSquare, Newspaper, Users} from 'lucide-react'
 import {useRef, useState} from 'react'
 import {Button, ButtonProps} from './button'
 import {IconComponent} from './icons'
@@ -20,7 +25,7 @@ export function DocumentTools({
   layoutProps,
 }: {
   id: UnpackedHypermediaId
-  activeTab?: 'draft' | 'content' | 'comments' | 'collaborators' | 'citations'
+  activeTab?: 'draft' | 'content' | 'comments' | 'collaborators' | 'forum' | 'citations'
   commentsCount?: number
   citationsCount?: number
   collabsCount?: number
@@ -36,6 +41,7 @@ export function DocumentTools({
     showSidebars: boolean
   }
 }) {
+  const {experiments} = useUniversalAppContext()
   const containerRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
   const rightActionsRef = useRef<HTMLDivElement>(null)
@@ -136,6 +142,16 @@ export function DocumentTools({
       },
     },
   ]
+
+  if (experiments?.forum) {
+    buttons.push({
+      label: 'Forum',
+      tooltip: 'Open Forum',
+      icon: MessageCircle,
+      active: activeTab === 'forum',
+      route: {key: 'forum', id: idWithoutBlock, panel: panelFor()},
+    })
+  }
   const tabButtons = (
     <>
       {/* Hidden measurement container with labels always visible */}

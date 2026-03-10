@@ -22,6 +22,7 @@ export const appExperimentsSchema = z
     newLibrary: z.boolean().optional(),
     embeddingEnabled: z.boolean().optional(),
     notifications: z.boolean().optional(),
+    forum: z.boolean().optional(),
   })
   .strict()
 export type AppExperiments = z.infer<typeof appExperimentsSchema>
@@ -183,7 +184,8 @@ export function routeToHref(
       route.key === 'comments' ||
       route.key === 'directory' ||
       route.key === 'collaborators' ||
-      route.key === 'feed')
+      route.key === 'feed' ||
+      route.key === 'forum')
   ) {
     const docId = route.id
     // Build path with view term
@@ -203,6 +205,10 @@ export function routeToHref(
     }
     // Append openComment to view term path for comments
     if (route.key === 'comments' && route.openComment) {
+      viewTerm += `/${route.openComment}`
+    }
+    // Append openComment to view term path for forum
+    if (route.key === 'forum' && route.openComment) {
       viewTerm += `/${route.openComment}`
     }
     let href = basePath ? `${basePath}/${viewTerm}` : `/${viewTerm}`

@@ -639,6 +639,29 @@ describe('routeToUrl', () => {
     expect(url).toBe('https://gw.com/hm/uid1/:feed')
   })
 
+  test('forum route includes :forum viewTerm', () => {
+    const url = routeToUrl(
+      {
+        key: 'forum',
+        id: hmId('uid1'),
+      },
+      {hostname: 'https://gw.com'},
+    )
+    expect(url).toBe('https://gw.com/hm/uid1/:forum')
+  })
+
+  test('forum route with openComment includes commentId in path', () => {
+    const url = routeToUrl(
+      {
+        key: 'forum',
+        id: hmId('uid1'),
+        openComment: 'z6Mk123/z6FC456',
+      },
+      {hostname: 'https://gw.com'},
+    )
+    expect(url).toBe('https://gw.com/hm/uid1/:forum/z6Mk123/z6FC456')
+  })
+
   test('document route with originHomeId for site URL', () => {
     const originHome = hmId('uid1')
     const url = routeToUrl(
@@ -746,6 +769,20 @@ describe('extractViewTermFromUrl', () => {
   test('backward compat: bare :comment maps to :comment', () => {
     const result = extractViewTermFromUrl('https://site.com/path/:comment')
     expect(result).toEqual({url: 'https://site.com/path', viewTerm: ':comment'})
+  })
+
+  test('extracts :forum view term', () => {
+    const result = extractViewTermFromUrl('https://site.com/path/:forum')
+    expect(result).toEqual({url: 'https://site.com/path', viewTerm: ':forum'})
+  })
+
+  test('extracts :forum/UID/TSID pattern', () => {
+    const result = extractViewTermFromUrl('https://site.com/path/:forum/z6Mk123/z6FC456')
+    expect(result).toEqual({
+      url: 'https://site.com/path',
+      viewTerm: ':forum',
+      commentId: 'z6Mk123/z6FC456',
+    })
   })
 })
 

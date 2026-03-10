@@ -359,6 +359,9 @@ function applyViewTermToRoute(
     if (routeKey === 'comments' && commentId) {
       return {key: 'comments', id: route.id, openComment: commentId}
     }
+    if (routeKey === 'forum' && commentId) {
+      return {key: 'forum', id: route.id, openComment: commentId}
+    }
     return {key: routeKey, id: route.id}
   }
   return route

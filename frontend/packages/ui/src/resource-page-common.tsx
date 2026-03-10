@@ -35,6 +35,7 @@ import {ScrollArea} from './components/scroll-area'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
+import {ForumPageContent} from './forum-page'
 import {DocumentCover} from './document-cover'
 import {AuthorPayload, BreadcrumbEntry, DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
@@ -122,7 +123,7 @@ function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
   return params as DocumentPanelRoute
 }
 
-export type ActiveView = 'content' | 'activity' | 'comments' | 'directory' | 'collaborators'
+export type ActiveView = 'content' | 'activity' | 'comments' | 'directory' | 'collaborators' | 'forum'
 
 function getActiveView(routeKey: string): ActiveView {
   switch (routeKey) {
@@ -134,6 +135,8 @@ function getActiveView(routeKey: string): ActiveView {
       return 'directory'
     case 'collaborators':
       return 'collaborators'
+    case 'forum':
+      return 'forum'
     default:
       return 'content'
   }
@@ -686,6 +689,10 @@ function DocumentBody({
           blockRange: route.blockRange,
           autoFocus: route.autoFocus,
         }
+      : route.key === 'forum'
+      ? {
+          openComment: route.openComment,
+        }
       : undefined
 
   // Extract blockRef from route for scroll-to-block and highlighting
@@ -1050,7 +1057,7 @@ function DocumentBody({
                   <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
                 </div>
               )}
-              {activeView !== 'content' && !isMobile && (
+              {activeView !== 'content' && activeView !== 'forum' && !isMobile && (
                 <OpenInPanelButton
                   id={docId}
                   panelRoute={route.key === activeView ? extractPanelRoute(route) : {key: activeView, id: docId}}
@@ -1356,6 +1363,17 @@ function MainContent({
               />
             ) : undefined
           }
+        />
+      )
+
+    case 'forum':
+      return (
+        <ForumPageContent
+          docId={docId}
+          openComment={discussionsParams?.openComment}
+          contentMaxWidth={contentMaxWidth}
+          targetDomain={siteUrl}
+          CommentEditor={CommentEditor}
         />
       )
 

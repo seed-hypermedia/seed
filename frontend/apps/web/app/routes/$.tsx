@@ -46,13 +46,20 @@ function extractViewTermFromPath(pathParts: string[]): {
 } {
   if (pathParts.length === 0) return {path: [], viewTerm: null}
 
-  // Check for :comments/UID/TSID pattern (3 segments from end)
+  // Check for :comments/UID/TSID or :forum/UID/TSID pattern (3 segments from end)
   if (pathParts.length >= 3) {
     const thirdToLast = pathParts[pathParts.length - 3]
     if (thirdToLast === ':comments' || thirdToLast === ':comment' || thirdToLast === ':discussions') {
       return {
         path: pathParts.slice(0, -3),
         viewTerm: 'comments',
+        commentId: `${pathParts[pathParts.length - 2]}/${pathParts[pathParts.length - 1]}`,
+      }
+    }
+    if (thirdToLast === ':forum') {
+      return {
+        path: pathParts.slice(0, -3),
+        viewTerm: 'forum',
         commentId: `${pathParts[pathParts.length - 2]}/${pathParts[pathParts.length - 1]}`,
       }
     }

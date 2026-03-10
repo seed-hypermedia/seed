@@ -44,7 +44,7 @@ export default function DesktopResourcePage() {
   const replace = useNavigate('replace')
 
   // Only handle document-related routes
-  const supportedKeys = ['document', 'directory', 'collaborators', 'activity', 'comments']
+  const supportedKeys = ['document', 'directory', 'collaborators', 'activity', 'comments', 'forum']
   if (!supportedKeys.includes(route.key)) {
     throw new Error(`DesktopResourcePage: unsupported route ${route.key}`)
   }
@@ -325,6 +325,8 @@ export default function DesktopResourcePage() {
       } else if (route.key === 'comments') {
         // Already viewing discussions in main — update in place
         replace({...route, openComment: replyComment.id, isReplying: true})
+      } else if (route.key === 'forum') {
+        replace({...route, openComment: replyComment.id})
       } else {
         replace({
           ...route,
@@ -358,6 +360,8 @@ export default function DesktopResourcePage() {
           },
         })
       } else if (route.key === 'comments') {
+        replace({...route, openComment: replyComment.id})
+      } else if (route.key === 'forum') {
         replace({...route, openComment: replyComment.id})
       } else {
         replace({
