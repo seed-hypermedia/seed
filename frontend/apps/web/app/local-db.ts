@@ -10,7 +10,8 @@ const KEYS_STORE_NAME = 'keys-01'
 const EMAIL_NOTIFICATIONS_STORE_NAME = 'email-notifications-01'
 const AUTH_SESSIONS_STORE_NAME = 'auth-sessions-01'
 const AUTH_STATE_STORE_NAME = 'auth-state-01'
-const DB_VERSION = 6
+const PENDING_INTENT_STORE_NAME = 'pending-intent-01'
+const DB_VERSION = 7
 
 export const AUTH_STATE_ACTIVE_VAULT_URL = 'active_vault_url'
 export const AUTH_STATE_DELEGATION_RETURN_URL = 'delegation_return_url'
@@ -38,6 +39,7 @@ function initDB(idb?: IDBFactory): Promise<IDBDatabase> {
     upgradeStore(db, EMAIL_NOTIFICATIONS_STORE_NAME)
     upgradeStore(db, AUTH_SESSIONS_STORE_NAME)
     upgradeStore(db, AUTH_STATE_STORE_NAME)
+    upgradeStore(db, PENDING_INTENT_STORE_NAME)
   }
   return new Promise((resolve, reject) => {
     openDb.onsuccess = (event) => {
@@ -200,6 +202,42 @@ export async function deleteAuthState(key: string): Promise<void> {
 export async function clearAllAuthState(): Promise<void> {
   const store = (await getDB()).transaction(AUTH_STATE_STORE_NAME, 'readwrite').objectStore(AUTH_STATE_STORE_NAME)
   await storeClear(store)
+}
+
+// -- Pending intent --
+
+export interface PendingCommentIntent {
+  type: 'comment'
+  docId: string // JSON-serialized UnpackedHypermediaId
+  docVersion: string
+  content: string // JSON-serialized HMBlockNode[]
+  replyCommentId?: string
+  replyCommentVersion?: string
+  rootReplyCommentVersion?: string
+  quotingBlockId?: string
+}
+
+export interface PendingJoinIntent {
+  type: 'join'
+}
+
+export type PendingIntent = PendingCommentIntent | PendingJoinIntent
+
+const PENDING_INTENT_KEY = 'pending'
+
+export async function setPendingIntent(intent: PendingIntent): Promise<void> {
+  const store = (await getDB()).transaction(PENDING_INTENT_STORE_NAME, 'readwrite').objectStore(PENDING_INTENT_STORE_NAME)
+  await storePut(store, intent, PENDING_INTENT_KEY)
+}
+
+export async function getPendingIntent(): Promise<PendingIntent | null> {
+  const store = (await getDB()).transaction(PENDING_INTENT_STORE_NAME, 'readonly').objectStore(PENDING_INTENT_STORE_NAME)
+  return (await storeGet<PendingIntent | undefined>(store, PENDING_INTENT_KEY)) ?? null
+}
+
+export async function clearPendingIntent(): Promise<void> {
+  const store = (await getDB()).transaction(PENDING_INTENT_STORE_NAME, 'readwrite').objectStore(PENDING_INTENT_STORE_NAME)
+  await storeDelete(store, PENDING_INTENT_KEY)
 }
 
 // Clean up legacy database from hmauth

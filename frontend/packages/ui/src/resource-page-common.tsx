@@ -661,7 +661,6 @@ function DocumentBody({
   inlineCards?: ReactNode
 }) {
   const route = useNavRoute()
-  console.log('== route', route)
   const navigate = useNavigate()
   const activeView = getActiveView(route.key)
 
@@ -1117,6 +1116,7 @@ function DocumentBody({
               commentEditor={
                 CommentEditor ? (
                   <CommentEditor
+                    key={panelRoute?.key === 'comments' ? panelRoute.openComment : undefined}
                     docId={docId}
                     quotingBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
                     commentId={panelRoute?.key === 'comments' ? panelRoute.openComment : undefined}
@@ -1211,6 +1211,7 @@ function PanelContentRenderer({
           commentEditor={
             CommentEditor ? (
               <CommentEditor
+                key={panelRoute.openComment}
                 docId={docId}
                 quotingBlockId={panelRoute.targetBlockId}
                 commentId={panelRoute.openComment}
@@ -1329,6 +1330,7 @@ function MainContent({
           commentEditor={
             CommentEditor ? (
               <CommentEditor
+                key={discussionsParams?.openComment}
                 docId={docId}
                 quotingBlockId={discussionsParams?.targetBlockId}
                 commentId={discussionsParams?.openComment}

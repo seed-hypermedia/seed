@@ -378,10 +378,10 @@ export function createWebHMUrl(
   if (path && path.length) {
     res += `/${path.join('/')}`
   }
-  if (res === '') res = '/'
   if (viewTerm) {
     res += `/${viewTerm}`
   }
+  if (res === '') res = '/'
   res += getHMQueryString({
     latest: latest ?? null,
     version: latest ? undefined : version,

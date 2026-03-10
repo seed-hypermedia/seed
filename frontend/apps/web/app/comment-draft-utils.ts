@@ -60,6 +60,8 @@ export function useCommentDraftPersistence(docId: string, replyCommentId?: strin
       if (savedDraft) {
         const parsed = JSON.parse(savedDraft) as CommentDraft
         setDraftState(parsed)
+      } else {
+        setDraftState(null)
       }
     } catch (error) {
       console.error('Failed to load comment draft:', error)

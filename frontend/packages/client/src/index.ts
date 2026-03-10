@@ -16,7 +16,7 @@ export type {
 } from './change'
 export {createSeedClient} from './client'
 export type {SeedClient, SeedClientOptions, PublishDocumentInput} from './client'
-export {createComment, deleteComment} from './comment'
+export {createComment, deleteComment, commentRecordIdFromBlob} from './comment'
 export type {CreateCommentInput, DeleteCommentInput, CommentAttachmentBlob} from './comment'
 export {createContact, updateContact, deleteContact, contactRecordIdFromBlob} from './contact'
 export type {CreateContactInput, UpdateContactInput, DeleteContactInput, CreateContactResult} from './contact'

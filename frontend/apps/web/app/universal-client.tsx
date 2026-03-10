@@ -12,7 +12,7 @@ export const webUniversalClient = createWebUniversalClient({
   request: seedClient.request as UniversalClient['request'],
   publish: seedClient.publish,
   CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => {
-    return <WebCommenting docId={docId} />
+    return <WebCommenting key={docId.id} docId={docId} />
   },
   fetchRecents: getRecents,
   deleteRecent: deleteRecent,

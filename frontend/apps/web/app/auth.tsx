@@ -35,9 +35,11 @@ import {
   deleteAuthState,
   deleteLocalKeys,
   getAuthState,
+  getPendingIntent,
   getStoredLocalKeys,
   setAuthState,
   setHasPromptedEmailNotifications,
+  setPendingIntent,
   writeLocalKeys,
 } from './local-db'
 import {queryAPI} from './models'
@@ -371,6 +373,11 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
     const vaultUrl = urlOverride || defaultVaultUrl
     await setAuthState(AUTH_STATE_DELEGATION_RETURN_URL, window.location.pathname)
     await setAuthState(AUTH_STATE_DELEGATION_VAULT_URL, vaultUrl)
+    // If no pending comment intent was already saved, mark this as a join intent
+    const existingIntent = await getPendingIntent()
+    if (!existingIntent) {
+      await setPendingIntent({type: 'join'})
+    }
     try {
       const authUrl = await authSession.startAuth({
         vaultUrl,
@@ -386,6 +393,8 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
   const onSubmit: SubmitHandler<SiteMetaFields> = async (data) => {
     try {
       await createAccount({name: data.name, icon: data.icon})
+      // onClose triggers processPendingIntent() which publishes the comment
+      // from IDB and navigates to it.
       onClose()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err))
@@ -477,7 +486,6 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
           </DialogDescription>
           <EditProfileForm
             onSubmit={(values) => {
-              onClose()
               onSubmit(values)
             }}
             submitLabel={tx('create_account_submit', ({siteName}: {siteName: string}) => `Create ${siteName} Account`, {

@@ -1,4 +1,5 @@
 import {useCreateAccount} from '@/auth'
+import {useNavigate} from '@remix-run/react'
 import {createComment} from '@seed-hypermedia/client'
 import {CommentEditor} from '@shm/editor/comment-editor'
 import {
@@ -12,9 +13,9 @@ import {
   useUniversalClient,
 } from '@shm/shared'
 import {useCommentsService} from '@shm/shared/comments-service-provider'
-import {invalidateQueries} from '@shm/shared/models/query-client'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
+import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useTxString} from '@shm/shared/translation'
 import {Button, buttonVariants} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
@@ -32,7 +33,8 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {ClientOnly} from './client-lazy'
 import {useCommentDraftPersistence} from './comment-draft-utils'
 import {EmailNotificationsForm} from './email-notifications'
-import {hasPromptedEmailNotifications, setHasPromptedEmailNotifications} from './local-db'
+import {hasPromptedEmailNotifications, setHasPromptedEmailNotifications, setPendingIntent} from './local-db'
+import {processPendingIntent} from './pending-intent'
 
 type PublishCommentInput = Awaited<ReturnType<typeof createComment>>
 
@@ -62,6 +64,7 @@ export default function WebCommenting({
 }: WebCommentingProps) {
   const tx = useTxString()
   const {getSigner, publish} = useUniversalClient()
+  const {originHomeId} = useUniversalAppContext()
 
   // Resolve reply parent from commentId when explicit version props aren't provided
   const commentsService = useCommentsService({targetId: docId})
@@ -90,6 +93,16 @@ export default function WebCommenting({
     saveDraft,
     removeDraft,
   } = useCommentDraftPersistence(docId.id, replyCommentId, quotingBlockId)
+
+  // Track latest editor content for non-destructive reads (e.g. persisting intent to IDB)
+  const latestBlocksRef = useRef<HMBlockNode[] | null>(null)
+
+  // Generation counter: bumped on clearDraft to force editor remount via key
+  const [editorGeneration, setEditorGeneration] = useState(0)
+  const clearDraft = useCallback(() => {
+    removeDraft()
+    setEditorGeneration((g) => g + 1)
+  }, [removeDraft])
 
   // Generate a stable draftId for IndexedDB media storage
   const draftId = useMemo(() => {
@@ -132,8 +145,7 @@ export default function WebCommenting({
   })
 
   const docVersion = docId.version
-
-  const pendingSubmitRef = useRef<(() => Promise<void>) | null>(null)
+  const navigate = useNavigate()
 
   const {
     content: createAccountContent,
@@ -141,11 +153,18 @@ export default function WebCommenting({
     createAccount,
   } = useCreateAccount({
     onClose: () => {
-      // After account creation, retry pending submission
-      if (pendingSubmitRef.current) {
-        pendingSubmitRef.current()
-        pendingSubmitRef.current = null
-      }
+      console.log('[commenting] onClose fired, calling processPendingIntent')
+      processPendingIntent(originHomeId)
+        .then((commentUrl) => {
+          console.log('[commenting] processPendingIntent result:', commentUrl)
+          if (commentUrl) {
+            clearDraft()
+            navigate(commentUrl)
+          }
+        })
+        .catch((e) => {
+          console.error('Failed to process pending intent after account creation:', e)
+        })
     },
   })
 
@@ -186,14 +205,33 @@ export default function WebCommenting({
         blockNodes: HMBlockNode[]
         blobs: {cid: string; data: Uint8Array}[]
       }>,
-      reset: () => void,
+      _reset: () => void,
     ) => {
       if (isSubmitting || !docVersion) return // Prevent double submission
 
       if (!userKeyPair) {
-        // Store the pending submission to retry after account creation
-        pendingSubmitRef.current = async () => {
-          await handleSubmit(getContent, reset)
+        // Persist intent to IDB so it can be processed after account creation
+        // (works for both local and vault flows).
+        // Use latestBlocksRef (updated on every editor change) instead of getContent(),
+        // because getContent() destructively mutates editor blocks.
+        try {
+          const blocks = latestBlocksRef.current
+          console.log('[commenting] saving intent, blocks:', blocks?.length ?? 'null')
+          if (blocks) {
+            await setPendingIntent({
+              type: 'comment',
+              docId: JSON.stringify(docId),
+              docVersion,
+              content: JSON.stringify(blocks),
+              replyCommentId: replyCommentId || undefined,
+              replyCommentVersion: replyCommentVersion || undefined,
+              rootReplyCommentVersion: rootReplyCommentVersion || undefined,
+              quotingBlockId,
+            })
+            console.log('[commenting] intent saved to IDB')
+          }
+        } catch (e) {
+          console.warn('Failed to persist pending comment intent:', e)
         }
         createAccount()
         return
@@ -217,8 +255,7 @@ export default function WebCommenting({
         )
         await postComment.mutateAsync(commentPayload)
         console.log('✅ Comment posted successfully, calling promptEmailNotifications')
-        reset()
-        removeDraft() // Remove draft after successful submission
+        clearDraft()
         // Clean up associated media from IndexedDB after successful publish
         if (typeof window !== 'undefined') {
           import('./draft-media-db')
@@ -244,7 +281,7 @@ export default function WebCommenting({
       quotingBlockId,
       createAccount,
       postComment,
-      removeDraft,
+      clearDraft,
       promptEmailNotifications,
     ],
   )
@@ -289,11 +326,15 @@ export default function WebCommenting({
     <div className="w-full">
       <ClientOnly>
         <CommentEditor
+          key={`${draftId}-${editorGeneration}`}
           autoFocus={autoFocus}
           isReplying={isReplyEditor}
           handleSubmit={handleSubmit}
           initialBlocks={initialBlocks}
-          onContentChange={saveDraft}
+          onContentChange={(blocks, mediaRefs) => {
+            latestBlocksRef.current = blocks
+            saveDraft(blocks, mediaRefs)
+          }}
           onAvatarPress={onAvatarPress}
           importWebFile={(url) => importWebFile(url, draftId)}
           handleFileAttachment={(file) => handleFileAttachment(file, draftId)}

@@ -1,4 +1,4 @@
-import {encode as cborEncode} from '@ipld/dag-cbor'
+import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
 import type {
   HMAnnotation,
   HMBlockNode,
@@ -401,4 +401,35 @@ export async function deleteComment(input: DeleteCommentInput, signer: HMSigner)
   // Encode to CBOR and return as publish input
   const encoded = cborEncode(tombstone)
   return toPublishInput(encoded, [])
+}
+
+/**
+ * Compute the record ID ("authority/tsid") from raw CBOR-encoded comment blob bytes.
+ * The TSID is a 10-byte base58btc value: 6 bytes ms timestamp + 4 bytes SHA256 prefix.
+ */
+export async function commentRecordIdFromBlob(blobData: Uint8Array): Promise<string> {
+  const decoded = cborDecode(blobData) as Record<string, unknown>
+  if (decoded.type !== 'Comment') {
+    throw new Error(`Expected Comment blob, got "${decoded.type}"`)
+  }
+  const signerBytes = decoded.signer as Uint8Array
+  const ts = BigInt(decoded.ts as bigint | number)
+  const authority = base58btc.encode(new Uint8Array(signerBytes))
+
+  // 6 bytes for timestamp (lower 48 bits of ms, big-endian)
+  const buf = new ArrayBuffer(8)
+  new DataView(buf).setBigUint64(0, ts, false)
+  const tsBytes = new Uint8Array(buf, 2, 6)
+
+  // 4 bytes from SHA-256 of blob data
+  const hashBuffer = await crypto.subtle.digest('SHA-256', blobData)
+  const hashBytes = new Uint8Array(hashBuffer, 0, 4)
+
+  // Combine: 6 + 4 = 10 bytes, encode as base58btc
+  const tsidBytes = new Uint8Array(10)
+  tsidBytes.set(tsBytes, 0)
+  tsidBytes.set(hashBytes, 6)
+  const tsid = base58btc.encode(tsidBytes)
+
+  return `${authority}/${tsid}`
 }

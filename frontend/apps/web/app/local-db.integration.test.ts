@@ -20,18 +20,23 @@ import {
   AUTH_STATE_DELEGATION_RETURN_URL,
   AUTH_STATE_DELEGATION_VAULT_URL,
   type DBSessionRecord,
+  type PendingCommentIntent,
+  type PendingIntent,
   clearAllAuthState,
+  clearPendingIntent,
   deleteAuthSession,
   deleteAuthState,
   deleteLocalKeys,
   getAuthSession,
   getAuthState,
+  getPendingIntent,
   getStoredLocalKeys,
   hasPromptedEmailNotifications,
   putAuthSession,
   resetDB,
   setAuthState,
   setHasPromptedEmailNotifications,
+  setPendingIntent,
   writeLocalKeys,
 } from './local-db'
 
@@ -57,12 +62,13 @@ describe('local-db integration', () => {
   it('should initialize the database with correct version and stores', async () => {
     const db = await resetDB(indexedDB)
     try {
-      expect(db.version).toBe(6)
+      expect(db.version).toBe(7)
       const storeNames = Array.from(db.objectStoreNames)
       expect(storeNames).toContain('keys-01')
       expect(storeNames).toContain('email-notifications-01')
       expect(storeNames).toContain('auth-sessions-01')
       expect(storeNames).toContain('auth-state-01')
+      expect(storeNames).toContain('pending-intent-01')
     } finally {
       db.close()
     }
@@ -287,6 +293,79 @@ describe('local-db integration', () => {
         await deleteAuthState(AUTH_STATE_ACTIVE_VAULT_URL)
         expect(await getAuthState(AUTH_STATE_ACTIVE_VAULT_URL)).toBeNull()
         expect(await getAuthState(AUTH_STATE_DELEGATION_RETURN_URL)).toBe('/return')
+      } finally {
+        db.close()
+      }
+    })
+  })
+
+  describe('pending intent', () => {
+    it('should return null when no intent is stored', async () => {
+      const db = await resetDB(indexedDB)
+      try {
+        expect(await getPendingIntent()).toBeNull()
+      } finally {
+        db.close()
+      }
+    })
+
+    it('should store and retrieve a join intent', async () => {
+      const db = await resetDB(indexedDB)
+      try {
+        const intent: PendingIntent = {type: 'join'}
+        await setPendingIntent(intent)
+        const stored = await getPendingIntent()
+        expect(stored).toEqual({type: 'join'})
+      } finally {
+        db.close()
+      }
+    })
+
+    it('should store and retrieve a comment intent', async () => {
+      const db = await resetDB(indexedDB)
+      try {
+        const intent: PendingCommentIntent = {
+          type: 'comment',
+          docId: '{"uid":"abc","path":"/doc"}',
+          docVersion: 'v1.v2',
+          content: '[{"block":{"id":"b1","type":"Paragraph","text":"hello"}}]',
+          replyCommentVersion: 'rv1',
+          rootReplyCommentVersion: 'rrv1',
+          quotingBlockId: 'qb1',
+        }
+        await setPendingIntent(intent)
+        const stored = await getPendingIntent()
+        expect(stored).toEqual(intent)
+      } finally {
+        db.close()
+      }
+    })
+
+    it('should clear pending intent', async () => {
+      const db = await resetDB(indexedDB)
+      try {
+        await setPendingIntent({type: 'join'})
+        expect(await getPendingIntent()).not.toBeNull()
+        await clearPendingIntent()
+        expect(await getPendingIntent()).toBeNull()
+      } finally {
+        db.close()
+      }
+    })
+
+    it('should overwrite existing intent', async () => {
+      const db = await resetDB(indexedDB)
+      try {
+        await setPendingIntent({type: 'join'})
+        const commentIntent: PendingCommentIntent = {
+          type: 'comment',
+          docId: '{"uid":"abc"}',
+          docVersion: 'v1',
+          content: '[]',
+        }
+        await setPendingIntent(commentIntent)
+        const stored = await getPendingIntent()
+        expect(stored).toEqual(commentIntent)
       } finally {
         db.close()
       }

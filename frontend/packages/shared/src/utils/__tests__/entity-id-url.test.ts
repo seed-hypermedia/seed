@@ -457,6 +457,17 @@ describe('createWebHMUrl', () => {
     expect(createWebHMUrl('abc', {hostname: null})).toBe('/hm/abc')
   })
 
+  test('null hostname + originHomeId + viewTerm avoids // prefix', () => {
+    const originHome = hmId('abc')
+    expect(
+      createWebHMUrl('abc', {
+        hostname: null,
+        originHomeId: originHome,
+        viewTerm: ':comments/author123/tsid456',
+      }),
+    ).toBe('/:comments/author123/tsid456')
+  })
+
   test('undefined hostname uses default gateway', () => {
     const url = createWebHMUrl('abc', {})
     expect(url).toContain('/hm/abc')

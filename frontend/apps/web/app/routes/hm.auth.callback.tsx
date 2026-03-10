@@ -9,6 +9,7 @@ import {
   setAuthState,
   writeLocalKeys,
 } from '@/local-db'
+import {processPendingIntent} from '@/pending-intent'
 import {useNavigate} from '@remix-run/react'
 import {useUniversalAppContext} from '@shm/shared'
 import * as blobs from '@shm/shared/blobs'
@@ -23,7 +24,7 @@ import type {UploadDelegationPayload} from './hm.api.upload-delegation'
 export default function AuthCallbackRoute() {
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
-  const {origin} = useUniversalAppContext()
+  const {origin, originHomeId} = useUniversalAppContext()
 
   useEffect(() => {
     async function handleAuth() {
@@ -113,8 +114,11 @@ export default function AuthCallbackRoute() {
         await deleteAuthState(AUTH_STATE_DELEGATION_VAULT_URL)
         await deleteAuthState(AUTH_STATE_DELEGATION_RETURN_URL)
 
+        // Process any pending intent (comment or join) saved before vault redirect.
+        const commentUrl = await processPendingIntent(originHomeId)
+
         toast.success('Signed in successfully')
-        navigate(returnUrl, {replace: true})
+        navigate(commentUrl || returnUrl, {replace: true})
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         setError(message)
