@@ -1,4 +1,3 @@
-import {cborEncode} from '@/api'
 import * as authSession from '@/auth-session'
 import {
   AUTH_STATE_ACTIVE_VAULT_URL,
@@ -10,7 +9,9 @@ import {
   writeLocalKeys,
 } from '@/local-db'
 import {processPendingIntent} from '@/pending-intent'
+import {webUniversalClient} from '@/universal-client'
 import {useNavigate} from '@remix-run/react'
+import {createSeedClient} from '@seed-hypermedia/client'
 import {useUniversalAppContext} from '@shm/shared'
 import * as blobs from '@shm/shared/blobs'
 import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
@@ -19,7 +20,6 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useEffect, useState} from 'react'
-import type {UploadDelegationPayload} from './hm.api.upload-delegation'
 
 export default function AuthCallbackRoute() {
   const [error, setError] = useState<string | null>(null)
@@ -52,51 +52,37 @@ export default function AuthCallbackRoute() {
         // Reverse Profile: session key aliases to vault account.
         const reverseProf = await blobs.createProfileAlias(sessionSigner, accountPrincipal, ts)
 
-        const payload: UploadDelegationPayload = {
-          vaultCapability: {
-            cid: result.capability.cid,
-            decoded: result.capability.decoded,
-          },
-          vaultProfile: {
-            cid: result.profile.cid,
-            decoded: result.profile.decoded,
-          },
-          reverseCapability: {
-            cid: reverseCap.cid,
-            decoded: reverseCap.decoded,
-          },
-          reverseProfile: {
-            cid: reverseProf.cid,
-            decoded: reverseProf.decoded,
-          },
-        }
+        const publishBlobs = [
+          {cid: result.capability.cid.toString(), data: result.capability.data},
+          {cid: result.profile.cid.toString(), data: result.profile.data},
+          {cid: reverseCap.cid.toString(), data: reverseCap.data},
+          {cid: reverseProf.cid.toString(), data: reverseProf.data},
+        ]
 
-        const cborBody = new Uint8Array(cborEncode(payload))
+        console.log('[auth-callback] Publishing delegation blobs via client.publish', {
+          blobCids: publishBlobs.map((b) => b.cid),
+          account: result.accountPrincipal,
+        })
 
         // Dual-origin persistence.
-        const uploadPromises = []
+        const uploadPromises: Promise<unknown>[] = []
 
         // 1. Current origin (must succeed).
         uploadPromises.push(
-          fetch('/hm/api/upload-delegation', {
-            method: 'POST',
-            body: cborBody,
-            headers: {'Content-Type': 'application/cbor'},
-          }).then((res) => {
-            if (!res.ok) throw new Error('Failed to save delegation to current site')
+          webUniversalClient.publish({blobs: publishBlobs}).then((res) => {
+            console.log('[auth-callback] Published delegation blobs to current origin', res)
+            return res
           }),
         )
 
         // 2. Identity origin (failure is non-fatal).
         if (WEB_IDENTITY_ORIGIN && WEB_IDENTITY_ORIGIN !== origin) {
           uploadPromises.push(
-            fetch(`${WEB_IDENTITY_ORIGIN}/hm/api/upload-delegation`, {
-              method: 'POST',
-              body: cborBody,
-              headers: {'Content-Type': 'application/cbor'},
-            })
+            createSeedClient(WEB_IDENTITY_ORIGIN)
+              .publish({blobs: publishBlobs})
               .then((res) => {
-                if (!res.ok) throw new Error('Failed to save delegation to identity origin')
+                console.log('[auth-callback] Published delegation blobs to identity origin', res)
+                return res
               })
               .catch((e) => {
                 console.warn('Identity origin save failed, continuing anyway', e)

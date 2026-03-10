@@ -241,7 +241,7 @@ async function handleOptionsRequest(request: Request) {
 
   const headers: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS, HEAD',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, HEAD',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Expose-Headers':
       'X-Hypermedia-Id, X-Hypermedia-Version, X-Hypermedia-Title, X-Hypermedia-Target, X-Hypermedia-Authors, X-Hypermedia-Type',
