@@ -90,6 +90,8 @@ import {HoverCard, HoverCardContent, HoverCardTrigger} from './hover-card'
 import {BlockQuote} from './icons'
 import {InlineDraftCard} from './inline-draft-card'
 import {InlineDraftListItem} from './inline-draft-list-item'
+import {NewDocumentCard} from './new-document-card'
+import {NewDocumentListItem} from './new-document-list-item'
 import {DocumentCard} from './newspaper'
 import {QueryBlockContent} from './query-block-content'
 import {Spinner} from './spinner'
@@ -1965,14 +1967,27 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
   const accountsMetadata = useAccountsMetadata(authorIds)
 
   // Inline drafts for self-referential query blocks
-  const {targetBlockId, drafts, onOpenDraft, onDeleteDraft, onUpdateDraftName} = useQueryBlockDrafts()
-  const hasDrafts = targetBlockId === block.id && drafts.length > 0
+  const {targetBlockId, drafts, onOpenDraft, onDeleteDraft, onUpdateDraftName, onCreateDraft} = useQueryBlockDrafts()
+  const isSelfQuery = targetBlockId === block.id
+  const hasDrafts = isSelfQuery && drafts.length > 0
 
   const style = block.attributes.style || 'Card'
   const banner = block.attributes.banner || false
 
   const {prependItems, bannerContent} = useMemo(() => {
+    const createButton =
+      isSelfQuery && onCreateDraft ? (
+        style === 'Card' ? (
+          <NewDocumentCard key="new-doc-btn" onCreateDraft={onCreateDraft} />
+        ) : (
+          <NewDocumentListItem key="new-doc-btn" onCreateDraft={onCreateDraft} />
+        )
+      ) : null
+
     if (!hasDrafts || !onOpenDraft || !onDeleteDraft || !onUpdateDraftName) {
+      if (createButton) {
+        return {prependItems: [createButton], bannerContent: undefined}
+      }
       return {prependItems: undefined, bannerContent: undefined}
     }
 
@@ -2001,9 +2016,13 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
             onUpdateDraftName={onUpdateDraftName}
           />
         )
-        return {prependItems: cards.slice(1), bannerContent: bannerEl}
+        const remainingCards = cards.slice(1)
+        return {
+          prependItems: createButton ? [createButton, ...remainingCards] : remainingCards,
+          bannerContent: bannerEl,
+        }
       }
-      return {prependItems: cards, bannerContent: undefined}
+      return {prependItems: createButton ? [createButton, ...cards] : cards, bannerContent: undefined}
     }
 
     // List view
@@ -2017,8 +2036,8 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
         onUpdateDraftName={onUpdateDraftName}
       />
     ))
-    return {prependItems: listItems, bannerContent: undefined}
-  }, [hasDrafts, drafts, style, banner, onOpenDraft, onDeleteDraft, onUpdateDraftName])
+    return {prependItems: createButton ? [createButton, ...listItems] : listItems, bannerContent: undefined}
+  }, [isSelfQuery, hasDrafts, drafts, style, banner, onOpenDraft, onDeleteDraft, onUpdateDraftName, onCreateDraft])
 
   // Show discovering state (after all hooks)
   if (queryTarget.data?.type === 'not-found' && queryTarget.isDiscovering) {

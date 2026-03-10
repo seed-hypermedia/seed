@@ -12,6 +12,7 @@ export type QueryBlockDraftsContextValue = {
   onOpenDraft?: (draftId: string) => void
   onDeleteDraft?: (draftId: string) => void
   onUpdateDraftName?: (draftId: string, name: string) => void
+  onCreateDraft?: () => void
 }
 
 const defaultValue: QueryBlockDraftsContextValue = {
@@ -24,7 +25,14 @@ const QueryBlockDraftsContext = createContext<QueryBlockDraftsContextValue>(defa
 export function QueryBlockDraftsProvider({children, ...value}: PropsWithChildren<QueryBlockDraftsContextValue>) {
   const ctx = useMemo(
     () => value,
-    [value.targetBlockId, value.drafts, value.onOpenDraft, value.onDeleteDraft, value.onUpdateDraftName],
+    [
+      value.targetBlockId,
+      value.drafts,
+      value.onOpenDraft,
+      value.onDeleteDraft,
+      value.onUpdateDraftName,
+      value.onCreateDraft,
+    ],
   )
   return <QueryBlockDraftsContext.Provider value={ctx}>{children}</QueryBlockDraftsContext.Provider>
 }
