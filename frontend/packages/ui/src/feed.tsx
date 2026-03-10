@@ -506,7 +506,7 @@ function EventCommentWithReply({
   return (
     <div
       key={`${event.type}-${event.id}-${event.time}`}
-      className={cn('hover:bg-background group p-2 transition-colors dark:hover:bg-black/10')}
+      className={cn('hover:bg-background group px-4 py-2 transition-colors dark:hover:bg-black/10')}
       {...(route ? linkProps : {})}
     >
       {/* replying comment */}
@@ -834,7 +834,7 @@ function EventItem({
   return (
     <div
       className={cn(
-        'hover:bg-background group flex flex-col gap-2 p-2 py-4 transition-colors dark:hover:bg-black/10',
+        'hover:bg-background group flex flex-col gap-2 px-4 py-4 transition-colors dark:hover:bg-black/10',
         currentRoute.key == 'document' &&
           event.type == 'doc-update' &&
           event.docId.version == currentRoute.id.version &&
