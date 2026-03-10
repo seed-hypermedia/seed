@@ -226,17 +226,23 @@ export type PendingIntent = PendingCommentIntent | PendingJoinIntent
 const PENDING_INTENT_KEY = 'pending'
 
 export async function setPendingIntent(intent: PendingIntent): Promise<void> {
-  const store = (await getDB()).transaction(PENDING_INTENT_STORE_NAME, 'readwrite').objectStore(PENDING_INTENT_STORE_NAME)
+  const store = (await getDB())
+    .transaction(PENDING_INTENT_STORE_NAME, 'readwrite')
+    .objectStore(PENDING_INTENT_STORE_NAME)
   await storePut(store, intent, PENDING_INTENT_KEY)
 }
 
 export async function getPendingIntent(): Promise<PendingIntent | null> {
-  const store = (await getDB()).transaction(PENDING_INTENT_STORE_NAME, 'readonly').objectStore(PENDING_INTENT_STORE_NAME)
+  const store = (await getDB())
+    .transaction(PENDING_INTENT_STORE_NAME, 'readonly')
+    .objectStore(PENDING_INTENT_STORE_NAME)
   return (await storeGet<PendingIntent | undefined>(store, PENDING_INTENT_KEY)) ?? null
 }
 
 export async function clearPendingIntent(): Promise<void> {
-  const store = (await getDB()).transaction(PENDING_INTENT_STORE_NAME, 'readwrite').objectStore(PENDING_INTENT_STORE_NAME)
+  const store = (await getDB())
+    .transaction(PENDING_INTENT_STORE_NAME, 'readwrite')
+    .objectStore(PENDING_INTENT_STORE_NAME)
   await storeDelete(store, PENDING_INTENT_KEY)
 }
 
