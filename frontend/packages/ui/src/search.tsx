@@ -57,12 +57,7 @@ export function MobileSearch({
           onMouseEnter: () => {},
           subtitle: 'Document',
           searchQuery: item.searchQuery,
-          versionTime:
-            typeof item.versionTime === 'string'
-              ? item.versionTime
-              : item.versionTime
-              ? item.versionTime.toDate().toLocaleString()
-              : '',
+          versionTime: item.versionTime || '',
         } as SearchResult
       })
       .filter(Boolean) ?? []
@@ -170,12 +165,7 @@ export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | n
           // onSelect: () => {}, Now it's assumed it can be undefined for query search?
           subtitle: 'Document',
           searchQuery: item.searchQuery,
-          versionTime:
-            typeof item.versionTime === 'string'
-              ? item.versionTime
-              : item.versionTime
-              ? item.versionTime.toDate().toLocaleString()
-              : '',
+          versionTime: item.versionTime || '',
         }
       })
       .filter(Boolean) ?? []

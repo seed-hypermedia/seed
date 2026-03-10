@@ -477,12 +477,7 @@ function AutocompletePopupInner(
                             },
                             subtitle: 'Document',
                             searchQuery: item.searchQuery,
-                            versionTime:
-                              typeof item.versionTime === 'string'
-                                ? item.versionTime
-                                : item.versionTime
-                                ? item.versionTime.toDate().toLocaleString()
-                                : '',
+                            versionTime: item.versionTime || '',
                           }}
                         />
                       </div>

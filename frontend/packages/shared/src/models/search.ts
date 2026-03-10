@@ -1,4 +1,3 @@
-import {Timestamp} from '@bufbuild/protobuf'
 import {useQuery} from '@tanstack/react-query'
 import {SearchType} from '../client/.generated/entities/v1alpha/entities_pb'
 import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -12,7 +11,7 @@ export type SearchResultItem = {
   title: string
   icon: string
   parentNames: string[]
-  versionTime?: Timestamp
+  versionTime?: string
   searchQuery: string
   type: 'document' | 'contact'
 }
