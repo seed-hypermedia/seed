@@ -1,4 +1,4 @@
-import { PlainMessage } from '@bufbuild/protobuf'
+import {PlainMessage} from '@bufbuild/protobuf'
 import * as z from 'zod'
 
 import {
@@ -13,6 +13,7 @@ import {
 // Import schemas needed by stay-behind code from @seed-hypermedia/client
 import {
   BlockRangeSchema,
+  HMAccountContactsRequestSchema,
   HMAccountResultSchema,
   HMAccountsMetadataSchema,
   HMBlockChildrenTypeSchema,
