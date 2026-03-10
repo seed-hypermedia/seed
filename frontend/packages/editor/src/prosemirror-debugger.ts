@@ -4,6 +4,7 @@ import {Plugin, PluginKey, Transaction} from 'prosemirror-state'
 const debugPluginKey = new PluginKey('debugPlugin')
 
 export const debugPlugin = Extension.create({
+  name: 'prosemirror-debugger',
   addProseMirrorPlugins() {
     return [pmDebugPlugin]
   },

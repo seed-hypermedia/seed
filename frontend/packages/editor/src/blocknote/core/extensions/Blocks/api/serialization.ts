@@ -17,6 +17,7 @@ const customBlockSerializer = (schema: Schema) => {
   )
 }
 export const CustomBlockSerializerExtension = Extension.create({
+  name: 'CustomBlockSerializer',
   addProseMirrorPlugins() {
     return [
       new Plugin({
