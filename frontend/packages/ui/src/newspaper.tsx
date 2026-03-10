@@ -1,5 +1,5 @@
 import {HMAccountsMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {getDocumentImage, hmId, HMResourceFetchResult, useRouteLink} from '@shm/shared'
+import {getDocumentImage, hmId, HMResourceFetchResult, plainTextOfContent, useRouteLink} from '@shm/shared'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {useNavigate} from '@shm/shared/utils/navigation'
@@ -24,6 +24,7 @@ export function DocumentCard({
   onMouseEnter,
   onMouseLeave,
   banner = false,
+  showSummary = false,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   docId: UnpackedHypermediaId
@@ -33,6 +34,7 @@ export function DocumentCard({
   onMouseEnter?: (id: UnpackedHypermediaId) => void
   onMouseLeave?: (id: UnpackedHypermediaId) => void
   banner?: boolean
+  showSummary?: boolean
 }) {
   const highlighter = useHighlighter()
   const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null)
@@ -43,6 +45,14 @@ export function DocumentCard({
   const summaryId = useMemo(() => (docId ? hmId(docId.uid, {path: docId.path}) : null), [docId?.uid, docId?.path])
   const interactionSummary = useInteractionSummary(summaryId)
   const commentCount = interactionSummary.data?.comments ?? 0
+
+  const textContent = useMemo(() => {
+    if (!showSummary) return null
+    if (entity?.document?.metadata?.summary) {
+      return entity.document.metadata.summary
+    }
+    return plainTextOfContent(entity?.document?.content)
+  }, [showSummary, entity?.document])
 
   const coverImage = entity?.document ? getDocumentImage(entity?.document) : undefined
   const isPrivate = entity?.document?.visibility === 'PRIVATE'
@@ -165,6 +175,11 @@ export function DocumentCard({
             >
               {entity?.document?.metadata?.name}
             </p>
+            {textContent && (
+              <p className={cn('text-muted-foreground mt-2 line-clamp-3 font-sans', !banner && 'text-sm')}>
+                {textContent}
+              </p>
+            )}
           </div>
           <div className="flex items-center justify-between py-3 pr-2 pl-4">
             <div className="flex items-center gap-1.5">

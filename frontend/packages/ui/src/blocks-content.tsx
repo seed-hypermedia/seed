@@ -2678,6 +2678,7 @@ export function DocumentCardGrid({
             entity={getEntity(firstItem.id)}
             docId={firstItem.id}
             accountsMetadata={accountsMetadata}
+            showSummary
           />
         </div>
       ) : null}
@@ -2692,7 +2693,7 @@ export function DocumentCardGrid({
             if (!item) return null
             return (
               <div className={cn(columnClasses, 'flex p-3')} key={item.id.id}>
-                <DocumentCard docId={item.id} entity={getEntity(item.id)} accountsMetadata={accountsMetadata} />
+                <DocumentCard docId={item.id} entity={getEntity(item.id)} accountsMetadata={accountsMetadata} showSummary />
               </div>
             )
           })}
