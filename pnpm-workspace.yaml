@@ -4,3 +4,22 @@ packages:
   - 'frontend/scripts'
   - 'docs'
   - 'tests'
+
+# Supply-chain security settings (pnpm v10+).
+# See https://pnpm.io/supply-chain-security
+
+# blockExoticSubdeps: true
+# Prevents transitive dependencies from being resolved from exotic sources
+# (git repositories, direct tarball URLs). All transitive deps must come
+# from the configured registry.
+# NOTE: kept off for now — enabling it immediately flagged @electron/node-gyp
+# (a transitive dep of @electron-forge/shared-types via @electron/rebuild) as
+# being resolved from a git repository instead of the npm registry. That
+# dependency should be investigated before turning this on.
+
+# trustPolicy: "no-downgrade"
+# Blocks installation if a package's trust level has decreased compared to
+# its previous release (e.g. was signed/provenance-verified, now unsigned).
+# NOTE: kept off for now — enabling it immediately flagged undici-types@6.21.0
+# (a transitive dep of @types/node) as a trust downgrade. That package should
+# be investigated before turning this on. See the PR description for details.
