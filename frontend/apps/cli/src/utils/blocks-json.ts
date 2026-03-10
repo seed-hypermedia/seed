@@ -2,8 +2,7 @@
  * HMBlockNode JSON parsing and conversion to document operations.
  */
 
-import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
-import {HMBlockNodeSchema} from '@seed-hypermedia/client/hm-types'
+import {type HMBlockNode, HMBlockNodeSchema} from '@seed-hypermedia/client/hm-types'
 import {z} from 'zod'
 import type {DocumentOperation} from '@seed-hypermedia/client'
 

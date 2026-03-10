@@ -1,6 +1,12 @@
 import {z} from 'zod'
-import type {HMPrepareDocumentChangeInput, HMRequest, HMSigner} from './hm-types'
-import {HMActionSchema, HMRequestSchema, packHmId} from './hm-types'
+import {
+  type HMPrepareDocumentChangeInput,
+  type HMRequest,
+  type HMSigner,
+  HMActionSchema,
+  HMRequestSchema,
+  packHmId,
+} from './hm-types'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {deserialize} from 'superjson'
 import {SeedClientError, SeedNetworkError, SeedValidationError} from './errors'

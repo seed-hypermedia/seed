@@ -1,5 +1,5 @@
 import type {MetaFunction} from '@remix-run/react'
-import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMComment, HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   getCommentTargetId,
   getDocumentTitle,
@@ -7,7 +7,6 @@ import {
   hostnameStripProtocol,
   packHmId,
 } from '@shm/shared'
-import {HMComment} from '@seed-hypermedia/client/hm-types'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {defaultSiteIcon} from './meta'
 import {getOptimizedImageUrl} from './providers'
