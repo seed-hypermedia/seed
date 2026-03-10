@@ -53,7 +53,7 @@ export function useDeleteChatSession() {
 
 export function useSendChatMessage() {
   return useMutation({
-    mutationFn: (input: {sessionId: string; content: string; providerId?: string}) =>
+    mutationFn: (input: {sessionId: string; content: string | string[]; providerId?: string}) =>
       client.chat.sendMessage.mutate(input),
     onSuccess(_data, variables) {
       invalidateQueries([queryKeys.CHAT_SESSION, variables.sessionId])

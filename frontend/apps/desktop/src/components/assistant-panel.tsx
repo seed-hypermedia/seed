@@ -76,6 +76,10 @@ function ChatView({
   const selectedProvider = useSelectedProvider()
   const setSelectedProvider = useSetSelectedProvider()
 
+  // Message queue for messages sent while streaming
+  const queuedMessagesRef = useRef<string[]>([])
+  const [queuedMessages, setQueuedMessages] = useState<string[]>([])
+
   // Scroll state
   const [isNearBottom, setIsNearBottom] = useState(true)
   const [showScrollButton, setShowScrollButton] = useState(false)
@@ -150,22 +154,42 @@ function ChatView({
     messagesEndRef.current?.scrollIntoView({behavior: 'smooth'})
   }, [])
 
-  async function handleSend() {
-    if (!input.trim() || isBusy) return
+  async function doSendMessage(content: string | string[]) {
     let sessionId = selectedSessionId
     if (!sessionId) {
       const newSession = await createSession.mutateAsync(undefined)
       sessionId = newSession.id
       setSelectedSessionId(sessionId)
     }
-    const content = input.trim()
-    setInput('')
     sendMessage.mutate({
       sessionId,
       content,
       providerId: selectedProvider.data?.id,
     })
   }
+
+  async function handleSend() {
+    if (!input.trim()) return
+    const content = input.trim()
+    setInput('')
+    if (isBusy) {
+      // Queue message to send after current stream completes
+      queuedMessagesRef.current = [...queuedMessagesRef.current, content]
+      setQueuedMessages([...queuedMessagesRef.current])
+    } else {
+      doSendMessage(content)
+    }
+  }
+
+  // Flush all queued messages at once when stream finishes
+  useEffect(() => {
+    if (!isBusy && queuedMessagesRef.current.length > 0) {
+      const allQueued = [...queuedMessagesRef.current]
+      queuedMessagesRef.current = []
+      setQueuedMessages([])
+      doSendMessage(allQueued)
+    }
+  }, [isBusy])
 
   async function handleNewSession() {
     const newSession = await createSession.mutateAsync(undefined)
@@ -276,11 +300,22 @@ function ChatView({
         )}
       </div>
 
+      {/* Queued messages indicator */}
+      {queuedMessages.length > 0 && (
+        <div className="border-border border-t px-3 py-1">
+          {queuedMessages.map((msg, i) => (
+            <div key={i} className="text-muted-foreground truncate text-[10px] italic">
+              Queued: {msg}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Input */}
       <div className="border-border flex items-center gap-2 border-t px-3 py-2">
         <Input
           ref={inputRef}
-          placeholder="Type a message..."
+          placeholder={isBusy ? 'Type to queue a message...' : 'Type a message...'}
           value={input}
           onChangeText={setInput}
           onKeyDown={(e) => {
@@ -290,15 +325,21 @@ function ChatView({
               requestAnimationFrame(() => inputRef.current?.focus())
             }
           }}
-          disabled={isBusy}
           className="flex-1 text-xs"
         />
         {isStreaming ? (
-          <Button size="sm" variant="destructive" onClick={stopStream}>
-            <Square className="size-3" />
-          </Button>
+          <div className="flex gap-1">
+            {input.trim() && (
+              <Button size="sm" onClick={handleSend} title="Queue message">
+                <Send className="size-3.5" />
+              </Button>
+            )}
+            <Button size="sm" variant="destructive" onClick={stopStream}>
+              <Square className="size-3" />
+            </Button>
+          </div>
         ) : (
-          <Button size="sm" onClick={handleSend} disabled={!input.trim() || isBusy}>
+          <Button size="sm" onClick={handleSend} disabled={!input.trim()}>
             <Send className="size-3.5" />
           </Button>
         )}

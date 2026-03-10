@@ -195,7 +195,13 @@ export const chatApi = t.router({
   }),
 
   sendMessage: t.procedure
-    .input(z.object({sessionId: z.string(), content: z.string(), providerId: z.string().optional()}))
+    .input(
+      z.object({
+        sessionId: z.string(),
+        content: z.union([z.string(), z.array(z.string())]),
+        providerId: z.string().optional(),
+      }),
+    )
     .mutation(async ({input}) => {
       const session = await readSession(input.sessionId)
       if (!session) throw new Error('Session not found')
@@ -206,23 +212,28 @@ export const chatApi = t.router({
       const provider = providerId ? providers.find((p) => p.id === providerId) : providers[0]
       if (!provider) throw new Error('No AI provider configured. Add one in Settings > AI Providers.')
 
-      const userMessage: ChatMessage = {
-        role: 'user',
-        content: input.content,
-        createdAt: new Date().toISOString(),
+      // Support single string or array of strings (for queued messages)
+      const contents = Array.isArray(input.content) ? input.content : [input.content]
+
+      for (const content of contents) {
+        const userMessage: ChatMessage = {
+          role: 'user',
+          content,
+          createdAt: new Date().toISOString(),
+        }
+        session.messages.push(userMessage)
+        broadcastChatEvent({type: 'message_added', sessionId: input.sessionId, message: userMessage})
       }
-      session.messages.push(userMessage)
       session.updatedAt = new Date().toISOString()
 
       // Update title from first message
-      if (session.messages.filter((m) => m.role === 'user').length === 1) {
-        session.title = input.content.slice(0, 60) + (input.content.length > 60 ? '...' : '')
+      if (session.messages.filter((m) => m.role === 'user').length === contents.length) {
+        const firstContent = contents[0]
+        session.title = firstContent.slice(0, 60) + (firstContent.length > 60 ? '...' : '')
       }
 
       await writeSession(session)
       appInvalidateQueries(['CHAT_SESSION', input.sessionId])
-
-      broadcastChatEvent({type: 'message_added', sessionId: input.sessionId, message: userMessage})
 
       const messages: ModelMessage[] = session.messages.map((m) => {
         if (m.role === 'user') return {role: 'user' as const, content: m.content}
