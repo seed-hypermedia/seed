@@ -272,21 +272,20 @@ describe("generateCaddyfile", () => {
     expect(caddy).toContain("{$SEED_SITE_HOSTNAME}");
     expect(caddy).toContain("encode zstd gzip");
     expect(caddy).toContain("reverse_proxy /.metrics* grafana:");
-    expect(caddy).toContain("reverse_proxy @ipfsget seed-daemon:");
+    expect(caddy).toContain("reverse_proxy @ipfsroute seed-daemon:");
     expect(caddy).toContain("reverse_proxy * seed-web:");
   });
 
-  test("contains IPFS get matcher", () => {
+  test("contains IPFS route matcher", () => {
     const caddy = generateCaddyfile(makeTestConfig());
-    expect(caddy).toContain("@ipfsget");
-    expect(caddy).toContain("method GET HEAD OPTIONS");
+    expect(caddy).toContain("@ipfsroute");
     expect(caddy).toContain("path /ipfs/*");
   });
 
   test("uses env var placeholders for ports", () => {
     const caddy = generateCaddyfile(makeTestConfig());
     expect(caddy).toContain("{$SEED_SITE_MONITORING_PORT:3001}");
-    expect(caddy).toContain("{$HM_SITE_BACKEND_GRPCWEB_PORT:56001}");
+    expect(caddy).toContain("{$SEED_SITE_BACKEND_GRPCWEB_PORT:56001}");
     expect(caddy).toContain("{$SEED_SITE_LOCAL_PORT:3000}");
   });
 

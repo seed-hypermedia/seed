@@ -122,14 +122,13 @@ cat << BLOCK > ${workspace}/proxy/CaddyFile
 
 encode zstd gzip
 
-@ipfsget {
-	method GET HEAD OPTIONS
+@ipfsroute {
 	path /ipfs/*
 }
 
 reverse_proxy /.metrics* grafana:{\$SEED_SITE_MONITORING_PORT:3001}
 
-reverse_proxy @ipfsget seed-daemon:{\$HM_SITE_BACKEND_GRPCWEB_PORT:56001}
+reverse_proxy @ipfsroute seed-daemon:{\$SEED_SITE_BACKEND_GRPCWEB_PORT:56001}
 
 reverse_proxy * seed-web:{\$SEED_SITE_LOCAL_PORT:3000}
 BLOCK
