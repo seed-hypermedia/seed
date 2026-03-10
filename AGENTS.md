@@ -16,6 +16,7 @@
 ## Global rules
 
 - Keep changes minimal and consistent with nearby code.
+- Prefer existing files over creating tiny one-off modules. Add a new file only when it materially improves structure, ownership, or reuse.
 - Ask clarifying questions when requirements or constraints are ambiguous.
 - Never modify the `.git` directory directly.
 - Do not run git commands that write state, including commit, amend, rebase, reset, checkout, merge, cherry-pick, stash, tag, branch deletion, or push, unless explicitly asked.
