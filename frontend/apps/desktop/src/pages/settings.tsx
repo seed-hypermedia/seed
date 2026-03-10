@@ -4,9 +4,11 @@ import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {
   useAddProvider,
   useAIProviders,
+  useAnthropicModels,
   useDeleteProvider,
   useDuplicateProvider,
   useOllamaModels,
+  useOpenAIModels,
   useUpdateProvider,
 } from '@/models/ai-config'
 import {useAutoUpdatePreference} from '@/models/app-settings'
@@ -87,9 +89,9 @@ import {
 } from 'lucide-react'
 import {useEffect, useId, useMemo, useState} from 'react'
 
-// Known model lists per provider type
-const OPENAI_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1', 'o1-mini', 'o3-mini']
-const ANTHROPIC_MODELS = ['claude-opus-4-20250514', 'claude-sonnet-4-20250514', 'claude-haiku-4-20250414']
+// Fallback model lists when API key is not yet provided
+const OPENAI_MODELS_FALLBACK = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1', 'o1-mini', 'o3-mini']
+const ANTHROPIC_MODELS_FALLBACK = ['claude-opus-4-20250514', 'claude-sonnet-4-20250514', 'claude-haiku-4-20250414']
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('accounts')
@@ -1527,10 +1529,16 @@ function ProviderFormFields({
   isSaving: boolean
 }) {
   const ollamaModels = useOllamaModels(form.type === 'ollama' ? form.baseUrl || 'http://localhost:11434' : null)
+  const openaiModels = useOpenAIModels(form.type === 'openai' ? form.apiKey || null : null)
+  const anthropicModels = useAnthropicModels(form.type === 'anthropic' ? form.apiKey || null : null)
   const [showApiKey, setShowApiKey] = useState(false)
 
   const modelOptions =
-    form.type === 'openai' ? OPENAI_MODELS : form.type === 'anthropic' ? ANTHROPIC_MODELS : ollamaModels.data || []
+    form.type === 'openai'
+      ? openaiModels.data?.length ? openaiModels.data : OPENAI_MODELS_FALLBACK
+      : form.type === 'anthropic'
+        ? anthropicModels.data?.length ? anthropicModels.data : ANTHROPIC_MODELS_FALLBACK
+        : ollamaModels.data || []
 
   return (
     <div className="dark:bg-background bg-muted flex flex-col gap-3 rounded border p-3">
@@ -1598,6 +1606,16 @@ function ProviderFormFields({
             onChangeText={(v) => setForm({...form, model: v})}
             placeholder={form.type === 'ollama' ? 'e.g. llama3' : 'Model name'}
           />
+        )}
+        {form.type === 'openai' && openaiModels.isLoading && (
+          <SizableText size="xs" className="text-muted-foreground mt-1">
+            Loading models from OpenAI...
+          </SizableText>
+        )}
+        {form.type === 'anthropic' && anthropicModels.isLoading && (
+          <SizableText size="xs" className="text-muted-foreground mt-1">
+            Loading models from Anthropic...
+          </SizableText>
         )}
         {form.type === 'ollama' && ollamaModels.isLoading && (
           <SizableText size="xs" className="text-muted-foreground mt-1">

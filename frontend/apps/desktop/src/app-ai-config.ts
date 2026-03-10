@@ -256,6 +256,47 @@ export const aiConfigApi = t.router({
     return config.lastUsedProviderId || null
   }),
 
+  listOpenaiModels: t.procedure.input(z.string()).query(async ({input: apiKey}) => {
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 5000)
+      const res = await fetch('https://api.openai.com/v1/models', {
+        headers: {Authorization: `Bearer ${apiKey}`},
+        signal: controller.signal,
+      })
+      clearTimeout(timeout)
+      if (!res.ok) return []
+      const data = await res.json()
+      const models: string[] = (data.data || [])
+        .filter((m: any) => m.id && !m.id.includes('realtime') && !m.id.includes('audio') && !m.id.includes('tts') && !m.id.includes('whisper') && !m.id.includes('dall-e') && !m.id.includes('embedding') && !m.id.includes('moderation') && !m.id.includes('davinci') && !m.id.includes('babbage'))
+        .map((m: any) => m.id as string)
+        .sort()
+      return models
+    } catch {
+      return []
+    }
+  }),
+
+  listAnthropicModels: t.procedure.input(z.string()).query(async ({input: apiKey}) => {
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 5000)
+      const res = await fetch('https://api.anthropic.com/v1/models', {
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        signal: controller.signal,
+      })
+      clearTimeout(timeout)
+      if (!res.ok) return []
+      const data = await res.json()
+      return (data.data || []).map((m: any) => m.id as string).sort()
+    } catch {
+      return []
+    }
+  }),
+
   listOllamaModels: t.procedure.input(z.string()).query(async ({input}) => {
     try {
       const controller = new AbortController()

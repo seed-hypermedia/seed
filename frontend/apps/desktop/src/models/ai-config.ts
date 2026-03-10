@@ -142,3 +142,21 @@ export function useOllamaModels(baseUrl: string | null) {
     enabled: !!baseUrl,
   })
 }
+
+export function useOpenAIModels(apiKey: string | null) {
+  return useQuery({
+    queryKey: [queryKeys.OPENAI_MODELS, apiKey],
+    queryFn: () => client.aiConfig.listOpenaiModels.query(apiKey!),
+    enabled: !!apiKey && apiKey.length > 10,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useAnthropicModels(apiKey: string | null) {
+  return useQuery({
+    queryKey: [queryKeys.ANTHROPIC_MODELS, apiKey],
+    queryFn: () => client.aiConfig.listAnthropicModels.query(apiKey!),
+    enabled: !!apiKey && apiKey.length > 10,
+    staleTime: 5 * 60 * 1000,
+  })
+}
