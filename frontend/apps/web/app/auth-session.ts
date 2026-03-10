@@ -22,12 +22,7 @@ import {
   validateClientId,
   validateRedirectUri,
 } from '@shm/shared/hmauth'
-import {
-  type DBSessionRecord,
-  deleteAuthSession,
-  getAuthSession,
-  putAuthSession,
-} from './local-db'
+import {type DBSessionRecord, deleteAuthSession, getAuthSession, putAuthSession} from './local-db'
 
 const AUTH_STATE_BYTES = 16
 
