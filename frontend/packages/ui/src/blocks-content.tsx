@@ -1384,8 +1384,8 @@ function InlineContentView({
               backgroundColor: 'var(--brand-10)',
             }),
           }
-          if (unpackedRef) return <InlineEmbed entityId={unpackedRef} style={embedStyles} />
-          else return <span>!?!</span>
+          if (unpackedRef) return <InlineEmbed key={index} entityId={unpackedRef} style={embedStyles} />
+          else return <span key={index}>!?!</span>
         }
 
         // @ts-expect-error
