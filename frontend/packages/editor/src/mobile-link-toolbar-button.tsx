@@ -152,13 +152,7 @@ function LinkSearchInput({
       path: item.parentNames,
       icon: item.icon,
       searchQuery: item.searchQuery,
-      versionTime: item.versionTime
-        ? typeof item.versionTime.toDate === 'function'
-          ? item.versionTime.toDate().toLocaleString()
-          : item.versionTime instanceof Date
-          ? item.versionTime.toLocaleString()
-          : String(item.versionTime)
-        : '',
+      versionTime: item.versionTime || '',
       onSelect: () => handleDocumentSelect(item.id),
       onFocus: () => setFocusedIndex(index),
       onMouseEnter: () => setFocusedIndex(index),

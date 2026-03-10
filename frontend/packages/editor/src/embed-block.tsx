@@ -203,7 +203,7 @@ const EmbedLauncherInput = ({
           onSelect: () => assign({props: {url: packHmId(sanitizedId)}} as MediaType),
           subtitle: 'Document',
           searchQuery: item.searchQuery,
-          versionTime: item.versionTime ? item.versionTime.toDate().toLocaleString() : '',
+          versionTime: item.versionTime || '',
         }
       })
       .filter(Boolean) || []

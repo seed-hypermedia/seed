@@ -165,7 +165,7 @@ export const SearchInput = forwardRef<
           onSelect: () => onSelect({id: item.id, route: appRouteOfId(item.id)}),
           subtitle: 'Document',
           searchQuery: item.searchQuery,
-          versionTime: item.versionTime ? item.versionTime.toDate().toLocaleString() : '',
+          versionTime: item.versionTime || '',
         }
       })
       .filter(Boolean) ?? []

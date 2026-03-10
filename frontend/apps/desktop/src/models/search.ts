@@ -35,7 +35,7 @@ export async function fetchSearch(
             title: entity.content,
             parentNames: entity.parentNames,
             icon: entity.icon,
-            versionTime: entity.versionTime,
+            versionTime: entity.versionTime ? entity.versionTime.toDate().toLocaleString() : undefined,
             type: 'contact',
           }
         }
@@ -45,7 +45,7 @@ export async function fetchSearch(
               title: entity.content,
               parentNames: entity.parentNames,
               icon: entity.icon,
-              versionTime: entity.versionTime,
+              versionTime: entity.versionTime ? entity.versionTime.toDate().toLocaleString() : undefined,
               searchQuery: searchQuery,
               type: 'document',
             }

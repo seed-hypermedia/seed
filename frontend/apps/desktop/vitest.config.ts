@@ -10,6 +10,14 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        find: /^@seed-hypermedia\/client\/(.*)$/,
+        replacement: resolve(__dirname, '../../packages/client/src/$1'),
+      },
+      {
+        find: /^@seed-hypermedia\/client$/,
+        replacement: resolve(__dirname, '../../packages/client/src/index.ts'),
+      },
+      {
         find: /^@\/(.*)$/,
         replacement: resolve(__dirname, './src/$1'),
       },
