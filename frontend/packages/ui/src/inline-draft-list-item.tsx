@@ -85,8 +85,11 @@ export function InlineDraftListItem({
   return (
     <div
       ref={containerRef}
-      onClick={(e) => e.stopPropagation()}
-      className="group/item flex w-full items-center rounded border-2 border-dashed border-yellow-400/50 bg-white px-4 py-2 shadow-sm dark:bg-black"
+      onClick={(e) => {
+        e.stopPropagation()
+        openDraft()
+      }}
+      className="group/item flex w-full cursor-pointer items-center rounded border-2 border-dashed border-yellow-400/50 bg-white px-4 py-2 shadow-sm dark:bg-black"
     >
       <FileText className="text-muted-foreground mr-3 size-7 shrink-0" />
       <div className="flex flex-1 items-center gap-3 overflow-hidden">
@@ -97,12 +100,13 @@ export function InlineDraftListItem({
             value={title}
             onChange={handleTitleChange}
             onKeyDown={handleKeyDown}
+            onClick={(e) => e.stopPropagation()}
             placeholder="Untitled document"
             className="text-foreground w-full border-none bg-transparent font-sans text-sm font-bold outline-none placeholder:text-gray-400"
           />
           <DraftBadge />
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="iconSm">

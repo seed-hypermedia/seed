@@ -88,9 +88,12 @@ export function InlineDraftCard({
   return (
     <div
       ref={containerRef}
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation()
+        openDraft()
+      }}
       className={cn(
-        '@container flex min-h-[200px] flex-1 overflow-hidden rounded-lg border-2 border-dashed border-yellow-400/50 bg-white shadow-sm transition-colors duration-300 dark:bg-black',
+        '@container flex min-h-[200px] flex-1 cursor-pointer overflow-hidden rounded-lg border-2 border-dashed border-yellow-400/50 bg-white shadow-sm transition-colors duration-300 dark:bg-black',
         banner && 'rounded-xl md:min-h-[240px] lg:min-h-[280px]',
       )}
     >
@@ -98,10 +101,9 @@ export function InlineDraftCard({
         {/* Image placeholder */}
         <div
           className={cn(
-            'relative flex h-40 w-full shrink-0 cursor-pointer items-center justify-center bg-gray-50 @md:h-auto @md:w-1/2 dark:bg-gray-900',
+            'relative flex h-40 w-full shrink-0 items-center justify-center bg-gray-50 @md:h-auto @md:w-1/2 dark:bg-gray-900',
             banner && '@md:h-auto',
           )}
-          onClick={openDraft}
         >
           <ImageIcon className="text-muted-foreground size-12 opacity-30" />
         </div>
@@ -115,6 +117,7 @@ export function InlineDraftCard({
                 value={title}
                 onChange={handleTitleChange}
                 onKeyDown={handleKeyDown}
+                onClick={(e) => e.stopPropagation()}
                 placeholder="Untitled document"
                 className={cn(
                   'text-foreground block w-full border-none bg-transparent font-sans leading-tight font-bold outline-none placeholder:text-gray-400',
@@ -126,7 +129,7 @@ export function InlineDraftCard({
               <DraftBadge />
             </div>
           </div>
-          <div className="flex items-center justify-end py-3 pr-2 pl-4">
+          <div className="flex items-center justify-end py-3 pr-2 pl-4" onClick={(e) => e.stopPropagation()}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="iconSm">
