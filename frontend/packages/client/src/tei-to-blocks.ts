@@ -4,7 +4,7 @@
  * Converts GROBID TEI output into the Seed Hypermedia block model.
  * Follows the same patterns as html-to-blocks.ts in @shm/shared.
  */
-import * as cheerio from 'cheerio'
+import type {Cheerio, CheerioAPI} from 'cheerio'
 import {codePointLength} from '@shm/shared/client/unicode'
 import type {HMAnnotation, HMBlockNode, HMMetadata} from '@shm/shared/hm-types'
 
@@ -107,10 +107,7 @@ function makeList(items: HMBlockNode[], listType: 'Ordered' | 'Unordered'): HMBl
  * Walk a TEI element's children and produce plain text + annotations.
  * Handles <hi rend="bold|italic|sup|sub">, <ref>, and nested structures.
  */
-function parseInlineContent(
-  _$: ReturnType<typeof cheerio.load>,
-  el: ReturnType<ReturnType<typeof cheerio.load>>,
-): {text: string; annotations: HMAnnotation[]} {
+function parseInlineContent(_$: CheerioAPI, el: Cheerio<any>): {text: string; annotations: HMAnnotation[]} {
   const annotations: HMAnnotation[] = []
   let text = ''
 
@@ -210,7 +207,7 @@ function parseInlineContent(
 
 // ── Metadata extraction ───────────────────────────────────────────────
 
-type $ = ReturnType<typeof cheerio.load>
+type $ = CheerioAPI
 
 function extractTitle($: $): string {
   // Look for the main article title in teiHeader
@@ -636,7 +633,8 @@ function buildHierarchy(elements: ProcessedElement[]): HMBlockNode[] {
  * ```
  */
 export async function teiToBlocks(teiXml: string, opts: TeiToBlocksOptions = {}): Promise<TeiToBlocksResult> {
-  const $ = cheerio.load(teiXml, {xml: true})
+  const {load} = await import('cheerio')
+  const $ = load(teiXml, {xml: true})
 
   // ── Extract metadata ──
   const title = extractTitle($)
