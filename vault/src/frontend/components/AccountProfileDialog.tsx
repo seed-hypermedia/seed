@@ -47,14 +47,14 @@ export function AccountProfileDialog({
     avatarFile?: File
   }) => Promise<void> | Promise<boolean> | void | boolean
 }) {
-  const {backendBaseUrl} = useAppState()
+  const {backendHttpBaseUrl} = useAppState()
   const [name, setName] = useState(initialName)
   const [description, setDescription] = useState(initialDescription)
   const [nameError, setNameError] = useState('')
   const [avatarError, setAvatarError] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | undefined>()
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState(() =>
-    getProfileAvatarImageSrc(backendBaseUrl, initialAvatar),
+    getProfileAvatarImageSrc(backendHttpBaseUrl, initialAvatar),
   )
 
   useEffect(() => {
@@ -62,7 +62,7 @@ export function AccountProfileDialog({
       setNameError('')
       setAvatarError('')
       setAvatarFile(undefined)
-      setAvatarPreviewUrl(getProfileAvatarImageSrc(backendBaseUrl, initialAvatar))
+      setAvatarPreviewUrl(getProfileAvatarImageSrc(backendHttpBaseUrl, initialAvatar))
       return
     }
 
@@ -71,8 +71,8 @@ export function AccountProfileDialog({
     setNameError('')
     setAvatarError('')
     setAvatarFile(undefined)
-    setAvatarPreviewUrl(getProfileAvatarImageSrc(backendBaseUrl, initialAvatar))
-  }, [backendBaseUrl, initialAvatar, initialDescription, initialName, open])
+    setAvatarPreviewUrl(getProfileAvatarImageSrc(backendHttpBaseUrl, initialAvatar))
+  }, [backendHttpBaseUrl, initialAvatar, initialDescription, initialName, open])
 
   useEffect(() => {
     if (!avatarFile) return
@@ -90,7 +90,7 @@ export function AccountProfileDialog({
 
     if (file.size >= MAX_AVATAR_BYTES) {
       setAvatarFile(undefined)
-      setAvatarPreviewUrl(getProfileAvatarImageSrc(backendBaseUrl, initialAvatar))
+      setAvatarPreviewUrl(getProfileAvatarImageSrc(backendHttpBaseUrl, initialAvatar))
       setAvatarError('Avatar must be smaller than 1 MiB')
       return
     }

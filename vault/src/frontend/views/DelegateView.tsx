@@ -36,7 +36,7 @@ export function DelegateView() {
     error,
     profiles,
     profileLoadStates,
-    backendBaseUrl,
+    backendHttpBaseUrl,
   } = useAppState()
   const actions = useActions()
   const [searchParams] = useSearchParams()
@@ -129,7 +129,7 @@ export function DelegateView() {
                     principal={principal}
                     profile={profiles[principal]}
                     profileLoadState={profileLoadStates[principal]}
-                    backendBaseUrl={backendBaseUrl}
+                    backendHttpBaseUrl={backendHttpBaseUrl}
                     isSelected={isSelected}
                     onClick={() => actions.selectAccount(index)}
                   />
@@ -174,14 +174,14 @@ function AccountSelectionItem({
   principal,
   profile,
   profileLoadState,
-  backendBaseUrl,
+  backendHttpBaseUrl,
   isSelected,
   onClick,
 }: {
   principal: string
   profile?: AccountProfileSummary
   profileLoadState?: ProfileLoadState
-  backendBaseUrl: string
+  backendHttpBaseUrl: string
   isSelected: boolean
   onClick: () => void
 }) {
@@ -199,7 +199,7 @@ function AccountSelectionItem({
       <div className="bg-primary/10 flex size-8 shrink-0 items-center justify-center rounded-full">
         {profile?.avatar ? (
           <img
-            src={getProfileAvatarImageSrc(backendBaseUrl, profile.avatar)}
+            src={getProfileAvatarImageSrc(backendHttpBaseUrl, profile.avatar)}
             className="size-full object-cover"
             alt=""
           />

@@ -13,14 +13,14 @@ export function getProfileDisplayName(profile?: AccountProfileSummary, profileLo
   return 'Account'
 }
 
-export function getProfileAvatarImageSrc(backendBaseUrl: string, avatar?: string) {
+export function getProfileAvatarImageSrc(backendHttpBaseUrl: string, avatar?: string) {
   const prefix = 'ipfs://'
   if (!avatar) return ''
   if (!avatar.startsWith(prefix)) return avatar
 
   const cid = avatar.slice(prefix.length)
   if (!cid) return ''
-  if (!backendBaseUrl) return `/ipfs/${cid}`
+  if (!backendHttpBaseUrl) return `/ipfs/${cid}`
 
-  return `${backendBaseUrl.replace(/\/$/, '')}/ipfs/${cid}`
+  return `${backendHttpBaseUrl.replace(/\/$/, '')}/ipfs/${cid}`
 }

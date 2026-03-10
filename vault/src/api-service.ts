@@ -105,14 +105,14 @@ const MAGIC_LINK_EXPIRY_MS = 2 * 60 * 1000 // 2 minutes (short-lived for securit
 export class Service implements api.ServerInterface {
   private db: Database
   private sessions: sess.Store
-  private backendBaseUrl: string
+  private backendHttpBaseUrl: string
   private documentsClient: DocumentsClient
   private rp: config.RelyingParty
   private hmacSecret: Uint8Array
   private emailSender: email.EmailSender
   constructor(
     db: Database,
-    backendBaseUrl: string,
+    backendHttpBaseUrl: string,
     documentsClient: DocumentsClient,
     rp: config.RelyingParty,
     hmacSecret: Uint8Array,
@@ -120,7 +120,7 @@ export class Service implements api.ServerInterface {
   ) {
     this.db = db
     this.sessions = new sess.Store(db)
-    this.backendBaseUrl = backendBaseUrl
+    this.backendHttpBaseUrl = backendHttpBaseUrl
     this.documentsClient = documentsClient
     this.rp = rp
     this.hmacSecret = hmacSecret
@@ -184,7 +184,7 @@ export class Service implements api.ServerInterface {
 
   async getConfig(_ctx: api.ServerContext): Promise<api.GetConfigResponse> {
     return {
-      backendBaseUrl: this.backendBaseUrl,
+      backendHttpBaseUrl: this.backendHttpBaseUrl,
     }
   }
 

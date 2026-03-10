@@ -65,7 +65,7 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
       relyingPartyOrigin: 'https://vault.example.com',
     }),
     getAccount: async () => new Account(),
-    getConfig: async () => ({backendBaseUrl: 'https://daemon.example.com'}),
+    getConfig: async () => ({backendHttpBaseUrl: 'https://daemon.example.com'}),
     changeEmailStart: async () => ({
       message: 'ok',
       challengeId: 'change-challenge',

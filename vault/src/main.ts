@@ -64,8 +64,15 @@ async function main() {
   const db = result.db
   const hmacSecret = sqlite.getOrCreateHmacSecret(db)
   const emailSender = email.createSender(cfg.smtp)
-  const documentsClient = createDocumentsClient(cfg.backend.baseUrl)
-  const svc = new apisvc.Service(db, cfg.backend.baseUrl, documentsClient, cfg.relyingParty, hmacSecret, emailSender)
+  const documentsClient = createDocumentsClient(cfg.backend.grpcBaseUrl)
+  const svc = new apisvc.Service(
+    db,
+    cfg.backend.httpBaseUrl,
+    documentsClient,
+    cfg.relyingParty,
+    hmacSecret,
+    emailSender,
+  )
 
   // Pre-build asset lookup map at startup for O(1) serving.
   const assets = isProd ? collectStaticAssets('frontend', '/vault/') : new Map()

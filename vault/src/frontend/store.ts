@@ -24,7 +24,7 @@ export interface SessionInfo {
 }
 
 /** Creates the initial state for the store. */
-export function initialState(backendBaseUrl = '') {
+export function initialState(backendHttpBaseUrl = '') {
   return {
     email: '',
     password: '',
@@ -51,7 +51,7 @@ export function initialState(backendBaseUrl = '') {
     /** Server-configured relying party origin used by WebAuthn verification. */
     relyingPartyOrigin: '',
     /** Daemon base URL used for direct IPFS asset reads. */
-    backendBaseUrl,
+    backendHttpBaseUrl,
     /** Cache of loaded profiles mapped by their principal */
     profiles: {} as Record<string, AccountProfileSummary>,
     /** Tracks degraded profile states so the UI can distinguish not found from temporary failures. */
@@ -141,7 +141,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
   const actions = {
     resetState() {
-      Object.assign(state, initialState(state.backendBaseUrl))
+      Object.assign(state, initialState(state.backendHttpBaseUrl))
     },
 
     setEmail(email: string) {
@@ -1467,8 +1467,8 @@ export type StoreActions = ReturnType<typeof createActions>
  * @param client - The API client to use.
  * @param blockstore - The IPFS blockstore used for blob storage.
  */
-export function createStore(client: api.ClientInterface, blockstore: Blockstore, backendBaseUrl = '') {
-  const state = proxy<AppState>(initialState(backendBaseUrl))
+export function createStore(client: api.ClientInterface, blockstore: Blockstore, backendHttpBaseUrl = '') {
+  const state = proxy<AppState>(initialState(backendHttpBaseUrl))
 
   // Default navigator prevents crashes before router is connected
   let navigate = (path: string) => {

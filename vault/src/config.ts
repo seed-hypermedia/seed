@@ -15,7 +15,8 @@ export type Server = {
 export type Config = {
   http: Server
   backend: {
-    baseUrl: string
+    httpBaseUrl: string
+    grpcBaseUrl: string
   }
   relyingParty: RelyingParty
   dbPath: string
@@ -57,10 +58,15 @@ export const flags = (env: NodeJS.ProcessEnv = process.env) => ({
     description: 'Path to the database file',
   },
 
-  'backend-base-url': {
+  'backend-http-base-url': {
     type: String,
-    default: env.SEED_VAULT_BACKEND_BASE_URL || env.SEED_VAULT_RP_ORIGIN || '',
-    description: 'Base URL for the backend daemon HTTP server',
+    default: env.SEED_VAULT_BACKEND_HTTP_BASE_URL || env.SEED_VAULT_RP_ORIGIN || '',
+    description: 'Base URL for the backend daemon HTTP server used for public /ipfs access',
+  },
+  'backend-grpc-base-url': {
+    type: String,
+    default: env.SEED_VAULT_BACKEND_GRPC_BASE_URL || '',
+    description: 'Base URL for the backend daemon gRPC-Web server used by the Vault backend',
   },
 
   'smtp-host': {
@@ -107,7 +113,8 @@ export function create(pflags: ParsedFlags): Config {
   }
 
   const backend = {
-    baseUrl: pflags['backend-base-url'],
+    httpBaseUrl: pflags['backend-http-base-url'],
+    grpcBaseUrl: pflags['backend-grpc-base-url'] || pflags['backend-http-base-url'],
   }
 
   if (!relyingParty.id) {
@@ -118,14 +125,24 @@ export function create(pflags: ParsedFlags): Config {
     throw new Error('Relying party origin configuration is required')
   }
 
-  if (!backend.baseUrl) {
-    throw new Error('Backend base URL configuration is required')
+  if (!backend.httpBaseUrl) {
+    throw new Error('Backend HTTP base URL configuration is required')
   }
 
   try {
-    new URL(backend.baseUrl)
+    new URL(backend.httpBaseUrl)
   } catch {
-    throw new Error(`Invalid backend base URL: ${backend.baseUrl}`)
+    throw new Error(`Invalid backend HTTP base URL: ${backend.httpBaseUrl}`)
+  }
+
+  if (!backend.grpcBaseUrl) {
+    throw new Error('Backend gRPC base URL configuration is required')
+  }
+
+  try {
+    new URL(backend.grpcBaseUrl)
+  } catch {
+    throw new Error(`Invalid backend gRPC base URL: ${backend.grpcBaseUrl}`)
   }
 
   const dbPath = pflags['db-path']

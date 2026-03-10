@@ -73,7 +73,7 @@ describe('vault account api service', () => {
     const svc = createService(async ({id}) => new Account({id}))
 
     await expect(svc.getConfig({sessionId: null, challengeCookie: null})).resolves.toEqual({
-      backendBaseUrl: 'https://daemon.example.com',
+      backendHttpBaseUrl: 'https://daemon.example.com',
     })
   })
 })

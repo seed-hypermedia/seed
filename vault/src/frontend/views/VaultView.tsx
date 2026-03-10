@@ -41,7 +41,7 @@ function getProfileStatusTextClass(profileLoadState?: ProfileLoadState) {
  * Vault-level settings (credentials, email) live in a separate SettingsView.
  */
 export function VaultView() {
-  const {vaultData, selectedAccountIndex, creatingAccount, error, profiles, profileLoadStates, backendBaseUrl} =
+  const {vaultData, selectedAccountIndex, creatingAccount, error, profiles, profileLoadStates, backendHttpBaseUrl} =
     useAppState()
   const actions = useActions()
   const navigate = useNavigate()
@@ -127,7 +127,7 @@ export function VaultView() {
                       id={principal}
                       profile={profiles[principal]}
                       profileLoadState={profileLoadStates[principal]}
-                      backendBaseUrl={backendBaseUrl}
+                      backendHttpBaseUrl={backendHttpBaseUrl}
                       isSelected={isSelected}
                       onSelect={() => actions.selectAccount(index)}
                     />
@@ -188,14 +188,14 @@ function SortableAccountItem({
   id,
   profile,
   profileLoadState,
-  backendBaseUrl,
+  backendHttpBaseUrl,
   isSelected,
   onSelect,
 }: {
   id: string
   profile?: AccountProfileSummary
   profileLoadState?: ProfileLoadState
-  backendBaseUrl: string
+  backendHttpBaseUrl: string
   isSelected: boolean
   onSelect: () => void
 }) {
@@ -231,7 +231,7 @@ function SortableAccountItem({
         <div className="bg-muted flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full">
           {profile?.avatar ? (
             <img
-              src={getProfileAvatarImageSrc(backendBaseUrl, profile.avatar)}
+              src={getProfileAvatarImageSrc(backendHttpBaseUrl, profile.avatar)}
               className="size-full object-cover"
               alt=""
             />
@@ -258,7 +258,7 @@ function AccountDetails({
   profile?: AccountProfileSummary
   profileLoadState?: ProfileLoadState
 }) {
-  const {loading, error, backendBaseUrl} = useAppState()
+  const {loading, error, backendHttpBaseUrl} = useAppState()
   const actions = useActions()
   const kp = blobs.nobleKeyPairFromSeed(account.seed)
   const principal = blobs.principalToString(kp.principal)
@@ -294,7 +294,7 @@ function AccountDetails({
         <div className="bg-primary/10 flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full">
           {profile?.avatar ? (
             <img
-              src={getProfileAvatarImageSrc(backendBaseUrl, profile.avatar)}
+              src={getProfileAvatarImageSrc(backendHttpBaseUrl, profile.avatar)}
               className="size-full object-cover"
               alt=""
             />
