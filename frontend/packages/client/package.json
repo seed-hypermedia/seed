@@ -40,6 +40,8 @@
   },
   "dependencies": {
     "@ipld/dag-cbor": "^9.2.5",
+    "@shm/shared": "workspace:*",
+    "cheerio": "^1.2.0",
     "multiformats": "^13.4.1",
     "superjson": "2.2.1"
   },
@@ -50,6 +52,12 @@
     "zod": "3.25.76"
   },
   "peerDependencies": {
+    "pdfjs-dist": "^3.11.174 || ^4.0.0",
     "zod": ">=3.20.0"
+  },
+  "peerDependenciesMeta": {
+    "pdfjs-dist": {
+      "optional": true
+    }
   }
 }

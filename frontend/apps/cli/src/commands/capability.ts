@@ -58,8 +58,8 @@ Examples:
         )
         await client.publish(result)
 
-        printSuccess('Capability created')
         if (!globalOpts.quiet) {
+          printSuccess('Capability created')
           printInfo(`Delegated ${role} to ${options.delegate}`)
         }
       } catch (error) {

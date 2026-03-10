@@ -175,7 +175,7 @@ export function registerCommentCommands(program: Command) {
           throw new Error('Failed to publish comment blob')
         }
 
-        printSuccess('Comment created')
+        if (!globalOpts.quiet) printSuccess('Comment created')
         if (globalOpts.quiet) {
           console.log(commentId)
         } else {
@@ -219,8 +219,8 @@ export function registerCommentCommands(program: Command) {
           ),
         )
 
-        printSuccess('Comment deleted')
         if (!globalOpts.quiet) {
+          printSuccess('Comment deleted')
           printInfo(`Deleted comment: ${commentId}`)
         }
       } catch (error) {

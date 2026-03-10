@@ -24,6 +24,8 @@ export function getDocAttributeChanges(metadata: HMMetadata) {
   if (metadata.cover !== undefined) changes.push(docAttributeChangeString(['cover'], metadata.cover))
   if (metadata.siteUrl !== undefined) changes.push(docAttributeChangeString(['siteUrl'], metadata.siteUrl))
   if (metadata.layout !== undefined) changes.push(docAttributeChangeString(['layout'], metadata.layout))
+  if (metadata.displayAuthor !== undefined)
+    changes.push(docAttributeChangeString(['displayAuthor'], metadata.displayAuthor))
   if (metadata.displayPublishTime !== undefined)
     changes.push(docAttributeChangeString(['displayPublishTime'], metadata.displayPublishTime))
   if (metadata.seedExperimentalLogo !== undefined)

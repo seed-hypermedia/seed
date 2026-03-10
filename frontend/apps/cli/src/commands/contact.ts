@@ -63,7 +63,7 @@ Examples:
         )
         await client.publish(contactResult)
 
-        printSuccess('Contact created')
+        if (!globalOpts.quiet) printSuccess('Contact created')
         if (globalOpts.quiet) {
           console.log(contactResult.recordId)
         } else {
@@ -94,8 +94,8 @@ Examples:
 
         await client.publish(await deleteContact({contactId}, signer))
 
-        printSuccess('Contact deleted')
         if (!globalOpts.quiet) {
+          printSuccess('Contact deleted')
           printInfo(`Deleted contact: ${contactId}`)
         }
       } catch (error) {
@@ -108,7 +108,9 @@ Examples:
 
   contact
     .command('list [accountId]')
-    .description('List contacts for an account. Shows both directions by default, or filter with --account / --subject.')
+    .description(
+      'List contacts for an account. Shows both directions by default, or filter with --account / --subject.',
+    )
     .option('--account', 'Only show contacts signed by the account')
     .option('--subject', 'Only show contacts where the account is the subject')
     .action(async (accountId: string | undefined, options, cmd) => {

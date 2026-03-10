@@ -40,15 +40,11 @@ function formatTable(data: unknown): string {
     }
 
     const keys = Object.keys(first)
-    const widths = keys.map((k) =>
-      Math.max(k.length, ...data.map((row) => String(row[k] ?? '').length))
-    )
+    const widths = keys.map((k) => Math.max(k.length, ...data.map((row) => String(row[k] ?? '').length)))
 
     const header = keys.map((k, i) => k.padEnd(widths[i])).join('  ')
     const separator = widths.map((w) => '-'.repeat(w)).join('  ')
-    const rows = data.map((row) =>
-      keys.map((k, i) => String(row[k] ?? '').padEnd(widths[i])).join('  ')
-    )
+    const rows = data.map((row) => keys.map((k, i) => String(row[k] ?? '').padEnd(widths[i])).join('  '))
 
     return [header, separator, ...rows].join('\n')
   }
@@ -105,9 +101,7 @@ function formatPrettyValue(value: unknown, indent: number): string {
   if (typeof value === 'object') {
     const entries = Object.entries(value)
     if (entries.length === 0) return '{}'
-    const lines = entries.map(
-      ([k, v]) => `${prefix}  ${chalk.cyan(k)}: ${formatPrettyValue(v, indent + 1)}`
-    )
+    const lines = entries.map(([k, v]) => `${prefix}  ${chalk.cyan(k)}: ${formatPrettyValue(v, indent + 1)}`)
     return `{\n${lines.join(',\n')}\n${prefix}}`
   }
 
@@ -117,7 +111,7 @@ function formatPrettyValue(value: unknown, indent: number): string {
 // Helpers for CLI output
 
 export function printSuccess(message: string) {
-  console.log(chalk.green('✓'), message)
+  console.error(chalk.green('✓'), message)
 }
 
 export function printError(message: string) {
@@ -125,9 +119,9 @@ export function printError(message: string) {
 }
 
 export function printWarning(message: string) {
-  console.log(chalk.yellow('⚠'), message)
+  console.error(chalk.yellow('⚠'), message)
 }
 
 export function printInfo(message: string) {
-  console.log(chalk.blue('ℹ'), message)
+  console.error(chalk.blue('ℹ'), message)
 }

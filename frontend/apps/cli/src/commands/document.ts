@@ -1,5 +1,5 @@
 /**
- * Document commands — get, create, update, delete, fork, move, redirect, changes, stats, cid.
+ * Document commands — get, create, update, delete, fork, move, redirect, changes, stats, cid, import.
  */
 
 import type {Command} from 'commander'
@@ -12,6 +12,7 @@ import {
   createGenesisChange,
   createChangeOps,
   createChange,
+  pdfToBlocks,
   type DocumentOperation,
 } from '@seed-hypermedia/client'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -25,12 +26,12 @@ import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations} from '../utils/markdown'
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
 import {createBlocksMap, matchBlockIds, computeReplaceOps, type APIBlockNode} from '../utils/block-diff'
-import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import type {HMAnnotation, HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 
 export function registerDocumentCommands(program: Command) {
   const doc = program
     .command('document')
-    .description('Manage documents (get, create, update, delete, fork, move, redirect, changes, stats, cid)')
+    .description('Manage documents (get, create, update, delete, fork, move, redirect, changes, stats, cid, import)')
 
   // ── get ──────────────────────────────────────────────────────────────────
 
@@ -206,7 +207,7 @@ export function registerDocumentCommands(program: Command) {
         })
 
         const hmUrl = `hm://${account}${path}`
-        printSuccess(`Document created: ${hmUrl}`)
+        if (!globalOpts.quiet) printSuccess(`Document created: ${hmUrl}`)
         if (!globalOpts.quiet) {
           printInfo(`Title: ${title}`)
           printInfo(`Path: ${path}`)
@@ -334,7 +335,7 @@ export function registerDocumentCommands(program: Command) {
           blobs: [{data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()}, ...refInput.blobs],
         })
 
-        printSuccess('Document updated')
+        if (!globalOpts.quiet) printSuccess('Document updated')
         if (globalOpts.quiet) {
           console.log(changeBlock.cid.toString())
         } else {
@@ -386,8 +387,8 @@ export function registerDocumentCommands(program: Command) {
         )
         await client.publish(refInput)
 
-        printSuccess('Document deleted')
         if (!globalOpts.quiet) {
+          printSuccess('Document deleted')
           printInfo(`Deleted: ${id}`)
         }
       } catch (error) {
@@ -443,8 +444,8 @@ export function registerDocumentCommands(program: Command) {
         )
         await client.publish(refInput)
 
-        printSuccess('Document forked')
         if (!globalOpts.quiet) {
+          printSuccess('Document forked')
           printInfo(`Source: ${sourceId}`)
           printInfo(`Destination: ${destinationId}`)
         }
@@ -515,8 +516,8 @@ export function registerDocumentCommands(program: Command) {
         )
         await client.publish(redirectRefInput)
 
-        printSuccess('Document moved')
         if (!globalOpts.quiet) {
+          printSuccess('Document moved')
           printInfo(`Source: ${sourceId} → redirect`)
           printInfo(`Destination: ${destinationId}`)
         }
@@ -576,8 +577,8 @@ export function registerDocumentCommands(program: Command) {
         )
         await client.publish(refInput)
 
-        printSuccess('Redirect created')
         if (!globalOpts.quiet) {
+          printSuccess('Redirect created')
           printInfo(`${id} → ${_options.to}`)
           if (_options.republish) {
             printInfo('Mode: republish')
@@ -666,6 +667,145 @@ export function registerDocumentCommands(program: Command) {
         process.exit(1)
       }
     })
+
+  // ── import ──────────────────────────────────────────────────────────────
+
+  doc
+    .command('import <account> <file>')
+    .description('Import a PDF document (embedded extraction by default, or GROBID via --grobid-url)')
+    .option('-p, --path <path>', 'Document path (defaults to slugified title)')
+    .option('--title <title>', 'Override extracted title')
+    .option('-k, --key <name>', 'Signing key name or account ID')
+    .option('--grobid-url <url>', 'GROBID server URL (uses GROBID instead of embedded extraction)')
+    .option('--dry-run', 'Output preview without publishing')
+    .action(async (account: string, file: string, options, cmd) => {
+      const globalOpts = cmd.optsWithGlobals()
+      const dev = !!globalOpts.dev
+
+      // Detect format from file extension
+      const ext = file.split('.').pop()?.toLowerCase()
+
+      if (ext !== 'pdf') {
+        printError(`Unsupported file format: .${ext}. Currently supported: .pdf`)
+        process.exit(1)
+      }
+
+      try {
+        // ── Step 1: Read the PDF ──────────────────────────────────────
+        const pdfBuffer = readFileSync(file)
+
+        // ── Step 2: Extract content ───────────────────────────────────
+        if (!globalOpts.quiet) printInfo('Extracting PDF content...')
+        const result = await pdfToBlocks(pdfBuffer.buffer as ArrayBuffer, {
+          grobidUrl: options.grobidUrl,
+        })
+        const {metadata, blocks, source} = result
+        if (!globalOpts.quiet) printInfo(`Extraction method: ${source}`)
+
+        const title = options.title || metadata.name || 'Untitled Import'
+
+        // ── Step 4: Dry-run — render preview and exit ─────────────────
+        if (options.dryRun) {
+          const markdownPreview = renderImportMarkdown({
+            content: blocks,
+            metadata: {
+              name: title,
+              summary: metadata.summary,
+              displayAuthor: metadata.displayAuthor,
+              displayPublishTime: metadata.displayPublishTime,
+            },
+            version: '',
+            authors: [],
+          } as unknown as HMDocument)
+
+          const useStructuredOutput = !!(globalOpts.json || globalOpts.yaml || globalOpts.pretty)
+
+          if (!useStructuredOutput) {
+            console.log(markdownPreview)
+            return
+          }
+
+          const dryRunData = {
+            metadata: {
+              name: title,
+              summary: metadata.summary,
+              displayAuthor: metadata.displayAuthor,
+              displayPublishTime: metadata.displayPublishTime,
+            },
+            blocks,
+          }
+
+          const outputFormat = getOutputFormat(globalOpts)
+          console.log(formatOutput(dryRunData, outputFormat))
+          return
+        }
+
+        // ── Step 5: Build document operations ─────────────────────────
+        const client = getClient(globalOpts)
+        const key = resolveKey(options.key, dev)
+
+        const rawPath = options.path || slugify(title)
+        const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`
+
+        const ops: DocumentOperation[] = []
+
+        // Metadata attributes
+        const attrs: Array<{key: string[]; value: unknown}> = []
+        attrs.push({key: ['name'], value: title})
+        if (metadata.displayAuthor) attrs.push({key: ['displayAuthor'], value: metadata.displayAuthor})
+        if (metadata.summary) attrs.push({key: ['summary'], value: metadata.summary})
+        if (metadata.displayPublishTime) attrs.push({key: ['displayPublishTime'], value: metadata.displayPublishTime})
+        ops.push({type: 'SetAttributes', attrs})
+
+        // Content blocks
+        ops.push(...hmBlockNodesToOperations(blocks))
+
+        // ── Step 6: Sign and publish ──────────────────────────────────
+        const signer = createSignerFromKey(key)
+        const genesisBlock = await createGenesisChange(signer)
+
+        const {unsignedBytes, ts} = createChangeOps({
+          ops,
+          genesisCid: genesisBlock.cid,
+          deps: [genesisBlock.cid],
+          depth: 1,
+        })
+        const changeBlock = await createChange(unsignedBytes, signer)
+        const generation = Number(ts)
+        const refInput = await createVersionRef(
+          {
+            space: account,
+            path,
+            genesis: genesisBlock.cid.toString(),
+            version: changeBlock.cid.toString(),
+            generation,
+          },
+          signer,
+        )
+
+        await client.publish({
+          blobs: [
+            {data: new Uint8Array(genesisBlock.bytes), cid: genesisBlock.cid.toString()},
+            {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
+            ...refInput.blobs,
+          ],
+        })
+
+        const hmUrl = `hm://${account}${path}`
+        if (!globalOpts.quiet) printSuccess(`Document imported: ${hmUrl}`)
+        if (!globalOpts.quiet) {
+          printInfo(`Title: ${title}`)
+          if (metadata.displayAuthor) printInfo(`Author: ${metadata.displayAuthor}`)
+          printInfo(`Path: ${path}`)
+          printInfo(`Blocks: ${countBlocks(blocks)}`)
+          printInfo(`Genesis CID: ${genesisBlock.cid.toString()}`)
+          printInfo(`Change CID: ${changeBlock.cid.toString()}`)
+        }
+      } catch (error) {
+        printError((error as Error).message)
+        process.exit(1)
+      }
+    })
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -695,6 +835,164 @@ function slugify(title: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 60)
+}
+
+function countBlocks(nodes: HMBlockNode[]): number {
+  let count = 0
+  for (const node of nodes) {
+    count += 1
+    if (node.children) count += countBlocks(node.children)
+  }
+  return count
+}
+
+function renderImportMarkdown(doc: HMDocument): string {
+  const lines: string[] = []
+  const metadata = doc.metadata || {}
+
+  lines.push('---')
+  if (metadata.name) lines.push(`title: ${JSON.stringify(metadata.name)}`)
+  if (metadata.summary) lines.push(`summary: ${JSON.stringify(metadata.summary)}`)
+  if (metadata.displayAuthor) {
+    lines.push(`displayAuthor: ${JSON.stringify(metadata.displayAuthor)}`)
+  }
+  if (metadata.displayPublishTime) {
+    lines.push(`displayPublishTime: ${JSON.stringify(metadata.displayPublishTime)}`)
+  }
+  lines.push(`version: ${doc.version || ''}`)
+  lines.push('---')
+  lines.push('')
+
+  if (metadata.name) {
+    lines.push(`# ${metadata.name}`)
+    lines.push('')
+  }
+
+  const body = renderImportBlockNodes(doc.content || [], 0)
+  if (body) lines.push(body)
+
+  return lines.join('\n')
+}
+
+function renderImportBlockNodes(nodes: HMBlockNode[], depth: number): string {
+  return nodes
+    .map((node) => renderImportBlockNode(node, depth))
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+function renderImportBlockNode(node: HMBlockNode, depth: number): string {
+  const block = node.block as {
+    type: string
+    text?: string
+    link?: string
+    annotations?: HMAnnotation[]
+    attributes?: Record<string, unknown>
+  }
+
+  const text = renderImportAnnotatedText(block.text || '', block.annotations || [])
+  const parts: string[] = []
+
+  switch (block.type) {
+    case 'Heading': {
+      const level = Math.min(depth + 2, 6)
+      parts.push(`${'#'.repeat(level)} ${text}`)
+      break
+    }
+    case 'Paragraph': {
+      if (text) parts.push(text)
+      break
+    }
+    case 'Code': {
+      const lang = String(block.attributes?.language || '')
+      parts.push(`\`\`\`${lang}`)
+      parts.push(block.text || '')
+      parts.push('```')
+      break
+    }
+    case 'Math': {
+      parts.push('$$')
+      parts.push(block.text || '')
+      parts.push('$$')
+      break
+    }
+    case 'Image': {
+      const alt = text || 'image'
+      const link = block.link || ''
+      parts.push(`![${alt}](${link})`)
+      break
+    }
+    default: {
+      if (text) parts.push(text)
+      break
+    }
+  }
+
+  const childDepth = block.type === 'Heading' ? depth + 1 : depth
+  const children = node.children || []
+  if (children.length > 0) {
+    const childText = renderImportBlockNodes(children, childDepth)
+    if (childText) parts.push(childText)
+  }
+
+  return parts.join('\n\n')
+}
+
+function renderImportAnnotatedText(text: string, annotations: HMAnnotation[]): string {
+  if (!annotations.length || !text) return text
+
+  const chars = [...text]
+  const openAt = new Map<number, string[]>()
+  const closeAt = new Map<number, string[]>()
+
+  for (const ann of annotations) {
+    const starts = ann.starts || []
+    const ends = ann.ends || []
+    const marker = getImportAnnotationMarker(ann)
+    if (!marker) continue
+
+    for (let i = 0; i < starts.length; i++) {
+      const start = starts[i]
+      const end = ends[i]
+      if (start === undefined || end === undefined) continue
+
+      if (!openAt.has(start)) openAt.set(start, [])
+      openAt.get(start)!.push(marker.open)
+
+      if (!closeAt.has(end)) closeAt.set(end, [])
+      closeAt.get(end)!.push(marker.close)
+    }
+  }
+
+  let result = ''
+  for (let i = 0; i <= chars.length; i++) {
+    if (closeAt.has(i)) result += closeAt.get(i)!.join('')
+    if (openAt.has(i)) result += openAt.get(i)!.join('')
+    if (i < chars.length) result += chars[i]
+  }
+
+  return result
+}
+
+function getImportAnnotationMarker(ann: HMAnnotation): {open: string; close: string} | null {
+  switch (ann.type) {
+    case 'Bold':
+      return {open: '**', close: '**'}
+    case 'Italic':
+      return {open: '_', close: '_'}
+    case 'Strike':
+      return {open: '~~', close: '~~'}
+    case 'Code':
+      return {open: '`', close: '`'}
+    case 'Underline':
+      return {open: '<u>', close: '</u>'}
+    case 'Link': {
+      const link = 'link' in ann ? ann.link || '' : ''
+      return {open: '[', close: `](${link})`}
+    }
+    default:
+      return null
+  }
 }
 
 /**
