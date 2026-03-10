@@ -44,7 +44,12 @@ export function createInlineEmbedNode(bnEditor: any) {
     renderPopup: (state, actions) => {
       const root = getOrCreatePopupElement()
       if (root) {
-        root.render(<AutocompletePopup editor={bnEditor} state={state} actions={actions} />)
+        // Defer to avoid "nested component updates from render" warning.
+        // This callback is invoked from ProseMirror's view.update(), which
+        // can fire during a parent React render cycle.
+        queueMicrotask(() => {
+          root.render(<AutocompletePopup editor={bnEditor} state={state} actions={actions} />)
+        })
       }
     },
   })
