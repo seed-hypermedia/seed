@@ -1,6 +1,6 @@
 import {commentRecordIdFromBlob, createComment, createSeedClient} from '@seed-hypermedia/client'
+import type {HMBlockNode, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {queryKeys} from '@shm/shared'
-import type {HMBlockNode, HMSigner, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import type {NavRoute} from '@shm/shared/routes'
 import {routeToUrl} from '@shm/shared/utils/entity-id-url'
