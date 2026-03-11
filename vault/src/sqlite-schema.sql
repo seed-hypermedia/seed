@@ -12,7 +12,7 @@ CREATE TABLE credentials (
     type TEXT NOT NULL, -- 'password' | 'passkey'
     encrypted_dek BLOB,
     -- Metadata (JSON) varies by credential type:
-    -- password: { authHash: string }
+    -- password: { authHash: string, salt: string }
     -- passkey: { credentialId, publicKey, counter, transports, backupEligible, backupState, prfEnabled }
     metadata JSON,
     create_time INTEGER NOT NULL

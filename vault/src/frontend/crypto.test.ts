@@ -7,18 +7,13 @@ import * as base64 from '@shm/shared/base64'
 import * as crypto from './crypto'
 
 describe('crypto utilities', () => {
-  test('emailToSalt produces consistent salt from email', () => {
-    const email = 'test@example.com'
-    const salt1 = crypto.emailToSalt(email)
-    const salt2 = crypto.emailToSalt(email)
+  test('generatePasswordSalt produces random 16-byte salts', () => {
+    const salt1 = crypto.generatePasswordSalt()
+    const salt2 = crypto.generatePasswordSalt()
     expect(salt1).toBeInstanceOf(Uint8Array)
-    expect(salt1).toEqual(salt2)
-  })
-
-  test('emailToSalt normalizes email', () => {
-    const salt1 = crypto.emailToSalt('Test@Example.COM')
-    const salt2 = crypto.emailToSalt('test@example.com')
-    expect(salt1).toEqual(salt2)
+    expect(salt1.length).toBe(16)
+    expect(salt2.length).toBe(16)
+    expect(salt1).not.toEqual(salt2)
   })
 
   test('generateNonce returns 24 bytes', () => {
@@ -31,12 +26,6 @@ describe('crypto utilities', () => {
     const dek = crypto.generateDEK()
     expect(dek).toBeInstanceOf(Uint8Array)
     expect(dek.length).toBe(64)
-  })
-
-  test('different emails produce different salts', () => {
-    const salt1 = crypto.emailToSalt('user1@test.com')
-    const salt2 = crypto.emailToSalt('user2@test.com')
-    expect(salt1).not.toEqual(salt2)
   })
 })
 
@@ -67,46 +56,51 @@ describe('base64url encoding', () => {
 
 describe('key derivation', () => {
   test('deriveKeyFromPassword returns 32 bytes', async () => {
-    const salt = crypto.emailToSalt('test@example.com')
+    const salt = crypto.generatePasswordSalt()
     const key = await crypto.deriveKeyFromPassword('testpassword', salt, crypto.DEFAULT_ARGON2_PARAMS)
     expect(key).toBeInstanceOf(Uint8Array)
     expect(key.length).toBe(32)
   })
 
   test('same password and salt produce same key', async () => {
-    const salt = crypto.emailToSalt('same@example.com')
+    const salt = crypto.generatePasswordSalt()
     const key1 = await crypto.deriveKeyFromPassword('mypassword', salt, crypto.DEFAULT_ARGON2_PARAMS)
     const key2 = await crypto.deriveKeyFromPassword('mypassword', salt, crypto.DEFAULT_ARGON2_PARAMS)
     expect(key1).toEqual(key2)
   })
 
   test('different passwords produce different keys', async () => {
-    const salt = crypto.emailToSalt('user@example.com')
+    const salt = crypto.generatePasswordSalt()
     const key1 = await crypto.deriveKeyFromPassword('password1', salt, crypto.DEFAULT_ARGON2_PARAMS)
     const key2 = await crypto.deriveKeyFromPassword('password2', salt, crypto.DEFAULT_ARGON2_PARAMS)
     expect(key1).not.toEqual(key2)
   })
 
-  test('different emails produce different keys', async () => {
-    const salt1 = crypto.emailToSalt('user1@example.com')
-    const salt2 = crypto.emailToSalt('user2@example.com')
+  test('different salts produce different keys', async () => {
+    const salt1 = crypto.generatePasswordSalt()
+    const salt2 = crypto.generatePasswordSalt()
     const key1 = await crypto.deriveKeyFromPassword('samepassword', salt1, crypto.DEFAULT_ARGON2_PARAMS)
     const key2 = await crypto.deriveKeyFromPassword('samepassword', salt2, crypto.DEFAULT_ARGON2_PARAMS)
     expect(key1).not.toEqual(key2)
   })
 
-  test('stretchKey expands to 64 bytes', async () => {
+  test('deriveEncryptionKey returns 32 bytes', async () => {
     const masterKey = new Uint8Array(32).fill(42)
-    const stretched = await crypto.stretchKey(masterKey)
-    expect(stretched).toBeInstanceOf(Uint8Array)
-    expect(stretched.length).toBe(64)
+    const encryptionKey = await crypto.deriveEncryptionKey(masterKey)
+    expect(encryptionKey).toBeInstanceOf(Uint8Array)
+    expect(encryptionKey.length).toBe(32)
   })
 
-  test('stretchKey is deterministic', async () => {
+  test('HKDF derivations are deterministic and distinct', async () => {
     const masterKey = new Uint8Array(32).fill(123)
-    const stretched1 = await crypto.stretchKey(masterKey)
-    const stretched2 = await crypto.stretchKey(masterKey)
-    expect(stretched1).toEqual(stretched2)
+    const encryptionKey1 = await crypto.deriveEncryptionKey(masterKey)
+    const encryptionKey2 = await crypto.deriveEncryptionKey(masterKey)
+    const authKey1 = await crypto.deriveAuthKey(masterKey)
+    const authKey2 = await crypto.deriveAuthKey(masterKey)
+
+    expect(encryptionKey1).toEqual(encryptionKey2)
+    expect(authKey1).toEqual(authKey2)
+    expect(encryptionKey1).not.toEqual(authKey1)
   })
 })
 
@@ -165,54 +159,27 @@ describe('encryption and decryption', () => {
   })
 })
 
-describe('auth hash', () => {
-  test('computeAuthHash returns 32 bytes', async () => {
-    const stretchedKey = new Uint8Array(64).fill(55)
-    const hash = await crypto.computeAuthHash(stretchedKey)
-    expect(hash).toBeInstanceOf(Uint8Array)
-    expect(hash.length).toBe(32)
-  })
-
-  test('computeAuthHash is deterministic', async () => {
-    const stretchedKey = new Uint8Array(64).fill(88)
-    const hash1 = await crypto.computeAuthHash(stretchedKey)
-    const hash2 = await crypto.computeAuthHash(stretchedKey)
-    expect(hash1).toEqual(hash2)
-  })
-
-  test('different keys produce different hashes', async () => {
-    const key1 = new Uint8Array(64).fill(1)
-    const key2 = new Uint8Array(64).fill(2)
-    const hash1 = await crypto.computeAuthHash(key1)
-    const hash2 = await crypto.computeAuthHash(key2)
-    expect(hash1).not.toEqual(hash2)
-  })
-})
-
 describe('full key derivation flow', () => {
-  test('password to auth hash flow', async () => {
-    const email = 'user@example.com'
+  test('password flow derives distinct auth and encryption keys', async () => {
     const password = 'MySecurePassword123!'
-    const salt = crypto.emailToSalt(email)
+    const salt = crypto.generatePasswordSalt()
 
     // Derive master key.
     const masterKey = await crypto.deriveKeyFromPassword(password, salt, crypto.DEFAULT_ARGON2_PARAMS)
     expect(masterKey.length).toBe(32)
 
-    // Stretch key.
-    const stretchedKey = await crypto.stretchKey(masterKey)
-    expect(stretchedKey.length).toBe(64)
+    const encryptionKey = await crypto.deriveEncryptionKey(masterKey)
+    const authKey = await crypto.deriveAuthKey(masterKey)
+    expect(encryptionKey.length).toBe(32)
+    expect(authKey.length).toBe(32)
+    expect(encryptionKey).not.toEqual(authKey)
 
-    // Compute auth hash (uses second half of stretched key).
-    const authHash = await crypto.computeAuthHash(stretchedKey)
-    expect(authHash.length).toBe(32)
-
-    // Encrypt DEK with first half of stretched key.
+    // Encrypt DEK with derived encryption key.
     const dek = crypto.generateDEK()
-    const encryptedDEK = await crypto.encrypt(dek, stretchedKey)
+    const encryptedDEK = await crypto.encrypt(dek, encryptionKey)
 
     // Decrypt DEK.
-    const decryptedDEK = await crypto.decrypt(encryptedDEK, stretchedKey)
+    const decryptedDEK = await crypto.decrypt(encryptedDEK, encryptionKey)
     expect(decryptedDEK).toEqual(dek)
   })
 })

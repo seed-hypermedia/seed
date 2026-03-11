@@ -13,6 +13,7 @@ export type PreLoginRequest = {
 export type PreLoginResponse = {
   exists: boolean
   hasPassword?: boolean
+  salt?: string
 }
 
 // Register start.
@@ -46,7 +47,8 @@ export type RegisterVerifyLinkResponse = {
 // Add password.
 export type AddPasswordRequest = {
   encryptedDEK: string
-  authHash: string
+  authKey: string
+  salt: string
 }
 export type AddPasswordResponse = {
   success: boolean
@@ -55,21 +57,32 @@ export type AddPasswordResponse = {
 // Login.
 export type LoginRequest = {
   email: string
-  authHash: string
+  authKey: string
 }
 export type LoginResponse = {
   success: boolean
   userId: string
-  vault?: {
-    encryptedDEK: string
-  }
 }
 
 // Get vault.
+export type PasswordVaultCredential = {
+  kind: 'password'
+  salt: string
+  wrappedDEK: string
+}
+
+export type PasskeyVaultCredential = {
+  kind: 'passkey'
+  credentialId: string
+  wrappedDEK: string
+}
+
+export type VaultCredential = PasswordVaultCredential | PasskeyVaultCredential
+
 export type GetVaultResponse = {
-  encryptedDEK?: string
   encryptedData?: string
   version?: number
+  credentials: VaultCredential[]
 }
 
 // Save vault data.
@@ -165,10 +178,6 @@ export type WebAuthnLoginCompleteRequest = {
 export type WebAuthnLoginCompleteResponse = {
   success: boolean
   userId: string
-  /** Vault data encrypted with PRF-derived key (client-side only). */
-  vault: {
-    encryptedDEK: string
-  } | null
 }
 
 // WebAuthn vault store.
@@ -183,7 +192,8 @@ export type WebAuthnVaultStoreResponse = {
 // Change password.
 export type ChangePasswordRequest = {
   encryptedDEK: string
-  authHash: string
+  authKey: string
+  salt: string
 }
 export type ChangePasswordResponse = {
   success: boolean

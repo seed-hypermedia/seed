@@ -28,6 +28,7 @@ export function initialState(backendHttpBaseUrl = '') {
   return {
     email: '',
     password: '',
+    passwordSalt: '',
     confirmPassword: '',
     challengeId: '', // For polling during magic link verification.
     error: '',
@@ -100,6 +101,42 @@ function getProfilePublishErrorMessage(error: unknown) {
 
 /** Creates actions bound to a specific state proxy and client. */
 function createActions(state: AppState, client: api.ClientInterface, navigator: Navigator, blockstore: Blockstore) {
+  async function ensurePasswordSalt() {
+    if (state.passwordSalt) {
+      return state.passwordSalt
+    }
+
+    const data = await client.preLogin({email: state.email})
+    if (!data.exists || !data.salt) {
+      throw new Error('Password login is not available for this account.')
+    }
+
+    state.passwordSalt = data.salt
+    return data.salt
+  }
+
+  async function derivePasswordMaterial(password: string, salt: string) {
+    const masterKey = await localCrypto.deriveKeyFromPassword(password, base64.decode(salt))
+    const encryptionKey = await localCrypto.deriveEncryptionKey(masterKey)
+    const authKey = await localCrypto.deriveAuthKey(masterKey)
+    return {encryptionKey, authKey}
+  }
+
+  function getPasswordCredential(vaultData: api.GetVaultResponse): api.PasswordVaultCredential | null {
+    const credential = vaultData.credentials.find((item) => item.kind === 'password')
+    return credential?.kind === 'password' ? credential : null
+  }
+
+  function getPasskeyCredential(
+    vaultData: api.GetVaultResponse,
+    credentialId: string,
+  ): api.PasskeyVaultCredential | null {
+    const credential = vaultData.credentials.find(
+      (item) => item.kind === 'passkey' && item.credentialId === credentialId,
+    )
+    return credential?.kind === 'passkey' ? credential : null
+  }
+
   function cacheProfile(
     principal: string,
     profile: {
@@ -215,6 +252,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         if (data.exists) {
           // User exists, proceed to login.
           state.userHasPassword = data.hasPassword ?? false
+          state.passwordSalt = data.salt ?? ''
           navigator.go('/login')
         } else {
           await actions.handleStartRegistration()
@@ -317,19 +355,18 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.loading = true
 
       try {
-        const salt = localCrypto.emailToSalt(state.email)
-        const masterKey = await localCrypto.deriveKeyFromPassword(state.password, salt)
-
-        const stretchedKey = await localCrypto.stretchKey(masterKey)
+        const salt = base64.encode(localCrypto.generatePasswordSalt())
+        const {encryptionKey, authKey} = await derivePasswordMaterial(state.password, salt)
         const dek = localCrypto.generateDEK()
-        const encryptedDEK = await localCrypto.encrypt(dek, stretchedKey)
-        const authHash = await localCrypto.computeAuthHash(stretchedKey)
+        const encryptedDEK = await localCrypto.encrypt(dek, encryptionKey)
 
         await client.addPassword({
           encryptedDEK: base64.encode(encryptedDEK),
-          authHash: base64.encode(authHash),
+          authKey: base64.encode(authKey),
+          salt,
         })
 
+        state.passwordSalt = salt
         state.decryptedDEK = dek
         await actions.loadVaultData()
         navigator.go('/profile/create')
@@ -363,18 +400,17 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.loading = true
 
       try {
-        const salt = localCrypto.emailToSalt(state.email)
-        const masterKey = await localCrypto.deriveKeyFromPassword(state.password, salt)
-
-        const stretchedKey = await localCrypto.stretchKey(masterKey)
-        const encryptedDEK = await localCrypto.encrypt(state.decryptedDEK, stretchedKey)
-        const authHash = await localCrypto.computeAuthHash(stretchedKey)
+        const salt = base64.encode(localCrypto.generatePasswordSalt())
+        const {encryptionKey, authKey} = await derivePasswordMaterial(state.password, salt)
+        const encryptedDEK = await localCrypto.encrypt(state.decryptedDEK, encryptionKey)
 
         await client.addPassword({
           encryptedDEK: base64.encode(encryptedDEK),
-          authHash: base64.encode(authHash),
+          authKey: base64.encode(authKey),
+          salt,
         })
 
+        state.passwordSalt = salt
         await actions.checkSession()
         state.password = ''
         state.confirmPassword = ''
@@ -409,18 +445,17 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.loading = true
 
       try {
-        const salt = localCrypto.emailToSalt(state.email)
-        const masterKey = await localCrypto.deriveKeyFromPassword(state.password, salt)
-
-        const stretchedKey = await localCrypto.stretchKey(masterKey)
-        const encryptedDEK = await localCrypto.encrypt(state.decryptedDEK, stretchedKey)
-        const authHash = await localCrypto.computeAuthHash(stretchedKey)
+        const salt = base64.encode(localCrypto.generatePasswordSalt())
+        const {encryptionKey, authKey} = await derivePasswordMaterial(state.password, salt)
+        const encryptedDEK = await localCrypto.encrypt(state.decryptedDEK, encryptionKey)
 
         await client.changePassword({
           encryptedDEK: base64.encode(encryptedDEK),
-          authHash: base64.encode(authHash),
+          authKey: base64.encode(authKey),
+          salt,
         })
 
+        state.passwordSalt = salt
         await actions.checkSession()
         state.password = ''
         state.confirmPassword = ''
@@ -551,26 +586,24 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.loading = true
 
       try {
-        const salt = localCrypto.emailToSalt(state.email)
-        const masterKey = await localCrypto.deriveKeyFromPassword(state.password, salt)
+        const salt = await ensurePasswordSalt()
+        const {encryptionKey, authKey} = await derivePasswordMaterial(state.password, salt)
 
-        const stretchedKey = await localCrypto.stretchKey(masterKey)
-        const authHash = await localCrypto.computeAuthHash(stretchedKey)
-
-        const response = await client.login({
+        await client.login({
           email: state.email,
-          authHash: base64.encode(authHash),
+          authKey: base64.encode(authKey),
         })
 
-        if (response.vault) {
-          const encryptedDEK = base64.decode(response.vault.encryptedDEK)
-          const dek = await localCrypto.decrypt(encryptedDEK, stretchedKey)
-          state.decryptedDEK = dek
-          await actions.loadVaultData()
-        } else {
-          // Should not happen for password users based on current schema,
-          // but defensive coding.
+        const vaultData = await client.getVault()
+        const passwordCredential = getPasswordCredential(vaultData)
+        if (!passwordCredential) {
+          throw new Error('No password credential found for this account.')
         }
+
+        const dek = await localCrypto.decrypt(base64.decode(passwordCredential.wrappedDEK), encryptionKey)
+        state.passwordSalt = passwordCredential.salt
+        state.decryptedDEK = dek
+        await actions.loadVaultData(vaultData)
 
         await actions.checkSession()
       } catch (e) {
@@ -607,28 +640,33 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           optionsJSON: optionsWithPrf,
         })
 
-        const data = await client.webAuthnLoginComplete({
+        await client.webAuthnLoginComplete({
           response: authResponse,
         })
 
-        if (data.vault) {
-          // Extract PRF output for wrapKey.
-          const prfOutput = authResponse.clientExtensionResults as {
-            prf?: localCrypto.PRFOutput
-          }
-          const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
-
-          if (!wrapKey) {
-            state.error = 'PRF not supported by this authenticator. Please use your password.'
-            state.loading = false
-            return
-          }
-
-          const encryptedDEK = base64.decode(data.vault.encryptedDEK)
-          const dek = await localCrypto.decrypt(encryptedDEK, wrapKey)
-          state.decryptedDEK = dek
-          await actions.loadVaultData()
+        // Extract PRF output for wrapKey.
+        const prfOutput = authResponse.clientExtensionResults as {
+          prf?: localCrypto.PRFOutput
         }
+        const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
+
+        if (!wrapKey) {
+          state.error = 'PRF not supported by this authenticator. Please use your password.'
+          state.loading = false
+          return
+        }
+
+        const vaultData = await client.getVault()
+        const passkeyCredential = getPasskeyCredential(vaultData, authResponse.id)
+        if (!passkeyCredential) {
+          state.error = 'No vault found for this passkey'
+          state.loading = false
+          return
+        }
+
+        const dek = await localCrypto.decrypt(base64.decode(passkeyCredential.wrappedDEK), wrapKey)
+        state.decryptedDEK = dek
+        await actions.loadVaultData(vaultData)
 
         await actions.checkSession()
       } catch (e) {
@@ -672,30 +710,31 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           optionsJSON: optionsWithPrf,
         })
 
-        const data = await client.webAuthnLoginComplete({
+        await client.webAuthnLoginComplete({
           response: authResponse,
         })
 
-        if (data.vault) {
-          // Extract PRF output for wrapKey.
-          const prfOutput = authResponse.clientExtensionResults as {
-            prf?: localCrypto.PRFOutput
-          }
-          const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
-
-          if (!wrapKey) {
-            state.error = 'PRF not supported by this authenticator. Please use your password.'
-            state.loading = false
-            return
-          }
-
-          const encryptedDEK = base64.decode(data.vault.encryptedDEK)
-          const dek = await localCrypto.decrypt(encryptedDEK, wrapKey)
-          state.decryptedDEK = dek
-          await actions.loadVaultData()
-        } else {
-          state.error = 'No vault found for this passkey'
+        const prfOutput = authResponse.clientExtensionResults as {
+          prf?: localCrypto.PRFOutput
         }
+        const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
+
+        if (!wrapKey) {
+          state.error = 'PRF not supported by this authenticator. Please use your password.'
+          state.loading = false
+          return
+        }
+
+        const vaultData = await client.getVault()
+        const passkeyCredential = getPasskeyCredential(vaultData, authResponse.id)
+        if (!passkeyCredential) {
+          state.error = 'No vault found for this passkey'
+          return
+        }
+
+        const dek = await localCrypto.decrypt(base64.decode(passkeyCredential.wrappedDEK), wrapKey)
+        state.decryptedDEK = dek
+        await actions.loadVaultData(vaultData)
       } catch (e) {
         console.error('Quick unlock error:', e)
         state.error = (e as Error).message || 'Unlock failed. Try using your password.'
@@ -750,26 +789,30 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         })
 
         // User selected a passkey from autofill.
-        const data = await client.webAuthnLoginComplete({
+        await client.webAuthnLoginComplete({
           response: authResponse,
         })
 
-        if (data.vault) {
-          const prfOutput = authResponse.clientExtensionResults as {
-            prf?: localCrypto.PRFOutput
-          }
-          const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
-
-          if (!wrapKey) {
-            state.error = 'PRF not supported by this authenticator. Please use your password.'
-            return
-          }
-
-          const encryptedDEK = base64.decode(data.vault.encryptedDEK)
-          const dek = await localCrypto.decrypt(encryptedDEK, wrapKey)
-          state.decryptedDEK = dek
-          await actions.loadVaultData()
+        const prfOutput = authResponse.clientExtensionResults as {
+          prf?: localCrypto.PRFOutput
         }
+        const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
+
+        if (!wrapKey) {
+          state.error = 'PRF not supported by this authenticator. Please use your password.'
+          return
+        }
+
+        const vaultData = await client.getVault()
+        const passkeyCredential = getPasskeyCredential(vaultData, authResponse.id)
+        if (!passkeyCredential) {
+          state.error = 'No vault found for this passkey'
+          return
+        }
+
+        const dek = await localCrypto.decrypt(base64.decode(passkeyCredential.wrappedDEK), wrapKey)
+        state.decryptedDEK = dek
+        await actions.loadVaultData(vaultData)
 
         await actions.checkSession()
       } catch (e) {
@@ -805,29 +848,30 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           optionsJSON: optionsWithPrf,
         })
 
-        const data = await client.webAuthnLoginComplete({
+        await client.webAuthnLoginComplete({
           response: authResponse,
         })
 
-        if (data.vault) {
-          const prfOutput = authResponse.clientExtensionResults as {
-            prf?: localCrypto.PRFOutput
-          }
-          const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
+        const prfOutput = authResponse.clientExtensionResults as {
+          prf?: localCrypto.PRFOutput
+        }
+        const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
 
-          if (!wrapKey) {
-            state.error = 'PRF not supported by this authenticator. Please use your password.'
-            return
-          }
+        if (!wrapKey) {
+          state.error = 'PRF not supported by this authenticator. Please use your password.'
+          return
+        }
 
-          const encryptedDEK = base64.decode(data.vault.encryptedDEK)
-          const dek = await localCrypto.decrypt(encryptedDEK, wrapKey)
-          state.decryptedDEK = dek
-          await actions.loadVaultData()
-        } else {
+        const vaultData = await client.getVault()
+        const passkeyCredential = getPasskeyCredential(vaultData, authResponse.id)
+        if (!passkeyCredential) {
           state.error = 'No vault found for this passkey'
           return
         }
+
+        const dek = await localCrypto.decrypt(base64.decode(passkeyCredential.wrappedDEK), wrapKey)
+        state.decryptedDEK = dek
+        await actions.loadVaultData(vaultData)
 
         await actions.checkSession()
       } catch (e) {
@@ -964,15 +1008,20 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
-    async loadVaultData() {
+    async loadVaultData(serverData?: api.GetVaultResponse) {
       if (!state.decryptedDEK) {
         return
       }
 
       try {
-        const serverData = await client.getVault()
-        if (serverData.encryptedData) {
-          const encryptedData = base64.decode(serverData.encryptedData)
+        const vaultResponse = serverData ?? (await client.getVault())
+        const passwordCredential = getPasswordCredential(vaultResponse)
+        if (passwordCredential) {
+          state.passwordSalt = passwordCredential.salt
+        }
+
+        if (vaultResponse.encryptedData) {
+          const encryptedData = base64.decode(vaultResponse.encryptedData)
           const decryptedData = await localCrypto.decrypt(encryptedData, state.decryptedDEK)
           state.vaultData = await vault.deserialize(decryptedData)
 
@@ -986,7 +1035,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           state.vaultData = vault.createEmpty()
           state.creatingAccount = true
         }
-        state.vaultVersion = serverData.version ?? 0
+        state.vaultVersion = vaultResponse.version ?? 0
       } catch (e) {
         console.error('Failed to load vault data:', e)
       }

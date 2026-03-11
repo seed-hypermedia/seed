@@ -56,8 +56,8 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
     }),
     addPassword: async () => ({success: true}),
     changePassword: async () => ({success: true}),
-    login: async () => ({success: true, userId: 'user-1', vault: undefined}),
-    getVault: async () => ({}),
+    login: async () => ({success: true, userId: 'user-1'}),
+    getVault: async () => ({encryptedData: '', version: 0, credentials: []}),
     saveVaultData: async () => ({success: true}),
     logout: async () => ({success: true}),
     getSession: async () => ({
@@ -95,7 +95,6 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
     webAuthnLoginComplete: async () => ({
       success: true,
       userId: 'user-1',
-      vault: null,
     }),
     webAuthnVaultStore: async () => ({success: true}),
     ...overrides,

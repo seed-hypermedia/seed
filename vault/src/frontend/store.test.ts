@@ -187,6 +187,27 @@ describe('Store', () => {
     })
   })
 
+  describe('loadVaultData', () => {
+    test('creates an empty vault when the server returns an empty encrypted payload', async () => {
+      const client = createMockClient({
+        getVault: async () => ({
+          encryptedData: '',
+          version: 7,
+          credentials: [],
+        }),
+      })
+      const {state, actions} = createStore(client, createMockBlockstore())
+
+      state.decryptedDEK = new Uint8Array(32)
+
+      await actions.loadVaultData()
+
+      expect(state.vaultData).toEqual(vault.createEmpty())
+      expect(state.creatingAccount).toBe(true)
+      expect(state.vaultVersion).toBe(7)
+    })
+  })
+
   describe('ensureProfileLoaded', () => {
     let consoleErrorSpy: ReturnType<typeof spyOn>
 

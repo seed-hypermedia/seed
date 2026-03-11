@@ -2,8 +2,8 @@ import type {Database} from 'bun:sqlite'
 import * as connect from '@connectrpc/connect'
 import * as base64 from '@shm/shared/base64'
 import {Documents} from '@shm/shared/client/.generated/documents/v3alpha/documents_connect'
-import {Account} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import * as webauthn from '@simplewebauthn/server'
+import {argon2id} from 'hash-wasm'
 import * as challenge from '@/challenge'
 import type * as config from '@/config'
 import type * as email from '@/email'
@@ -46,6 +46,7 @@ interface PasskeyMetadata {
 
 interface PasswordMetadata {
   authHash: string
+  salt: string
 }
 
 interface Challenge {
@@ -79,9 +80,21 @@ function sha256Hash(data: Uint8Array): Uint8Array {
   return new Uint8Array(hasher.digest())
 }
 
-// ============================================================================
-// Custom Error for API errors
-// ============================================================================
+async function hashPasswordAuthKey(authKey: Uint8Array, salt: string): Promise<string> {
+  // These lighter Argon2id parameters are safe here because authKey is already a
+  // high-entropy derived secret, not a human-memorable password.
+  // We also reuse the same salt user sent us — should be enough.
+  const hash = await argon2id({
+    password: authKey,
+    salt: base64.decode(salt),
+    parallelism: 1,
+    iterations: 1,
+    memorySize: 16 * 1024,
+    hashLength: 32,
+    outputType: 'binary',
+  })
+  return base64.encode(hash)
+}
 
 export class APIError extends Error {
   constructor(
@@ -92,10 +105,6 @@ export class APIError extends Error {
     this.name = 'APIError'
   }
 }
-
-// ============================================================================
-// Server Implementation
-// ============================================================================
 
 const MAGIC_LINK_EXPIRY_MS = 2 * 60 * 1000 // 2 minutes (short-lived for security).
 
@@ -135,10 +144,6 @@ export class Service implements api.ServerInterface {
     this.db.run(`DELETE FROM email_challenges WHERE expire_time < ?`, [Date.now()])
   }
 
-  // ==========================================================================
-  // Auth Endpoints
-  // ==========================================================================
-
   async preLogin(req: api.PreLoginRequest, _ctx: api.ServerContext): Promise<api.PreLoginResponse> {
     if (!req.email || typeof req.email !== 'string') {
       throw new APIError('Email required', 400)
@@ -153,12 +158,20 @@ export class Service implements api.ServerInterface {
     }
 
     const passwordCredential = this.db
-      .query<{id: string}, [string, string]>(`SELECT id FROM credentials WHERE user_id = ? AND type = ?`)
+      .query<
+        Pick<Credential, 'id' | 'metadata'>,
+        [string, string]
+      >(`SELECT id, metadata FROM credentials WHERE user_id = ? AND type = ?`)
       .get(user.id, 'password')
+
+    const passwordMetadata = passwordCredential?.metadata
+      ? (JSON.parse(passwordCredential.metadata) as PasswordMetadata)
+      : undefined
 
     return {
       exists: true,
       hasPassword: passwordCredential !== null,
+      salt: passwordMetadata?.salt,
     }
   }
 
@@ -342,7 +355,7 @@ export class Service implements api.ServerInterface {
       throw new APIError('Session expired', 401)
     }
 
-    if (!req.encryptedDEK || !req.authHash) {
+    if (!req.encryptedDEK || !req.authKey || !req.salt) {
       throw new APIError('Missing required fields', 400)
     }
 
@@ -364,7 +377,8 @@ export class Service implements api.ServerInterface {
     const credentialId = sess.randomId()
 
     const passwordMetadata: PasswordMetadata = {
-      authHash: req.authHash,
+      authHash: await hashPasswordAuthKey(base64.decode(req.authKey), req.salt),
+      salt: req.salt,
     }
 
     this.db.run(
@@ -392,7 +406,7 @@ export class Service implements api.ServerInterface {
       throw new APIError('Session expired', 401)
     }
 
-    if (!req.encryptedDEK || !req.authHash) {
+    if (!req.encryptedDEK || !req.authKey || !req.salt) {
       throw new APIError('Missing required fields', 400)
     }
 
@@ -407,7 +421,8 @@ export class Service implements api.ServerInterface {
       .get(session.user_id, 'password')
 
     const passwordMetadata: PasswordMetadata = {
-      authHash: req.authHash,
+      authHash: await hashPasswordAuthKey(base64.decode(req.authKey), req.salt),
+      salt: req.salt,
     }
 
     if (existingPasswordCredential) {
@@ -439,8 +454,8 @@ export class Service implements api.ServerInterface {
   }
 
   async login(req: api.LoginRequest, ctx: api.ServerContext): Promise<api.LoginResponse> {
-    if (!req.email || !req.authHash) {
-      throw new APIError('Email and authHash required', 400)
+    if (!req.email || !req.authKey) {
+      throw new APIError('Email and authKey required', 400)
     }
 
     const normalizedEmail = req.email.toLowerCase()
@@ -460,26 +475,19 @@ export class Service implements api.ServerInterface {
     }
 
     const passwordMetadata = JSON.parse(passwordCredential.metadata) as PasswordMetadata
-    const providedHash = base64.decode(req.authHash)
+    const providedHash = await hashPasswordAuthKey(base64.decode(req.authKey), passwordMetadata.salt)
     const storedHash = base64.decode(passwordMetadata.authHash)
 
-    if (!timingSafeEqual(providedHash, storedHash)) {
+    if (!timingSafeEqual(base64.decode(providedHash), storedHash)) {
       throw new APIError('Invalid credentials', 401)
     }
 
     const session = this.sessions.createSession(user.id)
     ctx.sessionCookie = sess.createCookie(session)
 
-    if (!passwordCredential.encrypted_dek) {
-      throw new APIError('Invalid credential data', 500)
-    }
-
     return {
       success: true,
       userId: user.id,
-      vault: {
-        encryptedDEK: base64.encode(new Uint8Array(passwordCredential.encrypted_dek)),
-      },
     }
   }
 
@@ -504,7 +512,40 @@ export class Service implements api.ServerInterface {
       throw new APIError('User not found', 404)
     }
 
+    const credentials = this.db
+      .query<Credential, [string]>(`SELECT * FROM credentials WHERE user_id = ?`)
+      .all(session.user_id)
+
     const response: api.GetVaultResponse = {
+      credentials: credentials.flatMap((credential): api.VaultCredential[] => {
+        if (!credential.encrypted_dek || !credential.metadata) {
+          return []
+        }
+
+        if (credential.type === 'password') {
+          const metadata = JSON.parse(credential.metadata) as PasswordMetadata
+          return [
+            {
+              kind: 'password',
+              salt: metadata.salt,
+              wrappedDEK: base64.encode(new Uint8Array(credential.encrypted_dek)),
+            },
+          ]
+        }
+
+        if (credential.type === 'passkey') {
+          const metadata = JSON.parse(credential.metadata) as PasskeyMetadata
+          return [
+            {
+              kind: 'passkey',
+              credentialId: metadata.credentialId,
+              wrappedDEK: base64.encode(new Uint8Array(credential.encrypted_dek)),
+            },
+          ]
+        }
+
+        return []
+      }),
       version: user.version,
     }
 
@@ -1045,17 +1086,9 @@ export class Service implements api.ServerInterface {
       const session = this.sessions.createSession(userId)
       ctx.sessionCookie = sess.createCookie(session)
 
-      let vault: {encryptedDEK: string} | null = null
-      if (passkey.encrypted_dek) {
-        vault = {
-          encryptedDEK: base64.encode(new Uint8Array(passkey.encrypted_dek)),
-        }
-      }
-
       return {
         success: true,
         userId,
-        vault,
       }
     } catch (error) {
       console.error('WebAuthn authentication error:', error)

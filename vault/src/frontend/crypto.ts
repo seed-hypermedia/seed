@@ -40,12 +40,22 @@ export async function deriveKeyFromPassword(
 }
 
 /**
- * Stretch a key to 512 bits using HKDF-SHA256 (Web Crypto).
+ * Generate a random password salt for Argon2id.
  */
-export async function stretchKey(key: Uint8Array, info: string = 'enc'): Promise<Uint8Array> {
-  const baseKey = await crypto.subtle.importKey('raw', key.buffer as ArrayBuffer, {name: 'HKDF'}, false, ['deriveBits'])
+export function generatePasswordSalt(): Uint8Array {
+  return crypto.getRandomValues(new Uint8Array(16))
+}
 
-  const stretched = await crypto.subtle.deriveBits(
+/**
+ * Derive a 256-bit key from the master key using HKDF-SHA256.
+ */
+async function deriveHKDFKey(masterKey: Uint8Array, info: string): Promise<Uint8Array> {
+  const rawMasterKey = masterKey.slice()
+  const baseKey = await crypto.subtle.importKey('raw', rawMasterKey.buffer as ArrayBuffer, {name: 'HKDF'}, false, [
+    'deriveBits',
+  ])
+
+  const derived = await crypto.subtle.deriveBits(
     {
       name: 'HKDF',
       hash: 'SHA-256',
@@ -53,10 +63,24 @@ export async function stretchKey(key: Uint8Array, info: string = 'enc'): Promise
       info: new TextEncoder().encode(info),
     },
     baseKey,
-    512,
+    256,
   )
 
-  return new Uint8Array(stretched)
+  return new Uint8Array(derived)
+}
+
+/**
+ * Derive the vault encryption key from the master key.
+ */
+export async function deriveEncryptionKey(masterKey: Uint8Array): Promise<Uint8Array> {
+  return deriveHKDFKey(masterKey, 'seed-hypermedia-vault-encryption')
+}
+
+/**
+ * Derive the password authentication key from the master key.
+ */
+export async function deriveAuthKey(masterKey: Uint8Array): Promise<Uint8Array> {
+  return deriveHKDFKey(masterKey, 'seed-hypermedia-vault-authentication')
 }
 
 /**
@@ -64,14 +88,6 @@ export async function stretchKey(key: Uint8Array, info: string = 'enc'): Promise
  */
 export function generateDEK(): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(64))
-}
-
-/**
- * Derive salt from normalized email (UTF-8 encoded bytes).
- * This matches Bitwarden's approach of using email as salt.
- */
-export function emailToSalt(email: string): Uint8Array {
-  return new TextEncoder().encode(email.toLowerCase().trim())
 }
 
 /**
@@ -109,15 +125,6 @@ export async function decrypt(data: Uint8Array, key: Uint8Array): Promise<Uint8A
   const keySlice = key.subarray(0, 32)
   const xc = xchacha20poly1305(keySlice, nonce)
   return xc.decrypt(ciphertext)
-}
-
-/**
- * Compute auth hash from stretched key.
- * Uses the second half of the stretched key (bytes 32-64).
- */
-export async function computeAuthHash(stretchedKey: Uint8Array): Promise<Uint8Array> {
-  const authKey = stretchedKey.slice(32, 64)
-  return authKey
 }
 
 /**
