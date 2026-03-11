@@ -12,6 +12,7 @@ import {ChangeEmailVerifyView} from './views/ChangeEmailVerifyView'
 import {ChangeEmailView} from './views/ChangeEmailView'
 import {ChangePasswordView} from './views/ChangePasswordView'
 import {ChooseAuthView} from './views/ChooseAuthView'
+import {CreateProfileView} from './views/CreateProfileView'
 import {DelegateView} from './views/DelegateView'
 import {LoginView} from './views/LoginView'
 import {PreLoginView} from './views/PreLoginView'
@@ -223,6 +224,10 @@ export function createRouter() {
                   {
                     path: '/password/change',
                     element: <ChangePasswordView />,
+                  },
+                  {
+                    path: '/profile/create',
+                    element: <CreateProfileView />,
                   },
                   {
                     path: '/email/change',

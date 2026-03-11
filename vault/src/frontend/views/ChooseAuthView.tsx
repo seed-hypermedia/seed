@@ -1,59 +1,66 @@
-import {useNavigate} from 'react-router-dom'
+import {useState} from 'react'
+import {CreatePasswordDialog} from '@/frontend/components/CreatePasswordDialog'
 import {Divider} from '@/frontend/components/Divider'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
-import {Alert, AlertDescription, AlertTitle} from '@/frontend/components/ui/alert'
 import {Button} from '@/frontend/components/ui/button'
-import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
+import {Card, CardContent, CardHeader, CardTitle} from '@/frontend/components/ui/card'
 import {useActions, useAppState} from '@/frontend/store'
 
 /**
- * View for choosing authentication method during registration.
+ * View for choosing authentication method during registration (Step 2 of 3).
  */
 export function ChooseAuthView() {
-  const {loading, error, passkeySupported, platformAuthAvailable} = useAppState()
+  const {loading, error, passkeySupported} = useAppState()
   const actions = useActions()
-  const navigate = useNavigate()
-
-  const showPasskeyOption = passkeySupported
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-center">Secure Your Account</CardTitle>
-        <CardDescription className="text-center">
-          Choose how you want to protect your vault. Use a password manager if you can!
-        </CardDescription>
+        <CardTitle className="text-left">
+          <span className="text-muted-foreground font-normal">Step 2 of 3</span> — Pick how to secure your account
+        </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
         <ErrorMessage message={error} />
 
-        {showPasskeyOption && (
+        {passkeySupported && (
           <>
-            <Button onClick={actions.handleSetPasskey} loading={loading} className="w-full">
-              🔑 Use Passkey (Recommended)
-            </Button>
-            {platformAuthAvailable ? (
-              <Alert variant="success" className="my-4">
-                <AlertTitle>✓ This device supports passkeys</AlertTitle>
-                <AlertDescription>
-                  Your passkey will be synced across your devices using your operating system integration.
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <Alert variant="warning" className="my-4">
-                <AlertTitle>⚠ This device does not have a built-in passkey authenticator</AlertTitle>
-                <AlertDescription>
-                  You can use a hardware security key (like YubiKey) or a phone/tablet by scanning a QR code.
-                </AlertDescription>
-              </Alert>
-            )}
-            <Divider>or</Divider>
+            <div className="space-y-3">
+              <div>
+                <p className="font-semibold">Use a passkey (Recommended)</p>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  Faster, safer, no password to remember. Sign in securely using your device (Face ID, Touch ID, or
+                  screen lock).
+                </p>
+              </div>
+              <Button onClick={actions.handleSetPasskey} loading={loading} className="w-full">
+                Use passkey
+              </Button>
+            </div>
+
+            <Divider>Or</Divider>
           </>
         )}
 
-        <Button variant="secondary" onClick={() => navigate('/password/set')} disabled={loading} className="w-full">
-          🔒 Use Master Password
-        </Button>
+        <div className="space-y-3">
+          <div>
+            <p className="font-semibold">Use a password</p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Create a password to sign in with email and password.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setShowPasswordDialog(true)}
+            disabled={loading}
+            className="w-full"
+          >
+            Create password
+          </Button>
+        </div>
+
+        <CreatePasswordDialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog} />
       </CardContent>
     </Card>
   )
