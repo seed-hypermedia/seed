@@ -7,11 +7,7 @@
 
 import {describe, test, expect, beforeAll, afterAll} from 'bun:test'
 import {startDaemon, runCli, type TestContext} from './setup'
-import {
-  generateTestAccount,
-  registerAccount,
-  type TestAccount,
-} from './account-helpers'
+import {generateTestAccount, registerAccount, type TestAccount} from './account-helpers'
 
 let ctx: TestContext
 let account1: TestAccount
@@ -113,10 +109,7 @@ describe('Seed CLI Integration Tests', () => {
     test(
       'account get with --pretty shows formatted output',
       async () => {
-        const result = await runCli(
-          ['account', 'get', account1.accountId, '--pretty'],
-          {server: ctx.daemonUrl},
-        )
+        const result = await runCli(['account', 'get', account1.accountId, '--pretty'], {server: ctx.daemonUrl})
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain('Test Account Alpha')
       },
@@ -128,12 +121,23 @@ describe('Seed CLI Integration Tests', () => {
 
   describe('Document Commands', () => {
     test(
-      'document get account home document',
+      'document get defaults to markdown with frontmatter',
       async () => {
-        const result = await runCli(
-          ['document', 'get', `hm://${account1.accountId}`],
-          {server: ctx.daemonUrl},
-        )
+        const result = await runCli(['document', 'get', `hm://${account1.accountId}`], {server: ctx.daemonUrl})
+        expect(result.exitCode).toBe(0)
+        // Default output is markdown with frontmatter
+        expect(result.stdout).toMatch(/^---/)
+        expect(result.stdout).toContain('name: "Test Account Alpha"')
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'document get --json outputs JSON',
+      async () => {
+        const result = await runCli(['document', 'get', `hm://${account1.accountId}`, '--json'], {
+          server: ctx.daemonUrl,
+        })
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain('document')
       },
@@ -141,39 +145,9 @@ describe('Seed CLI Integration Tests', () => {
     )
 
     test(
-      'document get with --md outputs markdown',
-      async () => {
-        const result = await runCli(
-          ['document', 'get', `hm://${account1.accountId}`, '--md'],
-          {server: ctx.daemonUrl},
-        )
-        expect(result.exitCode).toBe(0)
-        expect(result.stdout).toContain('# Test Account Alpha')
-      },
-      TEST_TIMEOUT,
-    )
-
-    test(
-      'document get with --md --frontmatter includes frontmatter',
-      async () => {
-        const result = await runCli(
-          ['document', 'get', `hm://${account1.accountId}`, '--md', '--frontmatter'],
-          {server: ctx.daemonUrl},
-        )
-        expect(result.exitCode).toBe(0)
-        expect(result.stdout).toContain('---')
-        expect(result.stdout).toContain('title: "Test Account Alpha"')
-      },
-      TEST_TIMEOUT,
-    )
-
-    test(
       'document get -q shows minimal output',
       async () => {
-        const result = await runCli(
-          ['document', 'get', `hm://${account1.accountId}`, '-q'],
-          {server: ctx.daemonUrl},
-        )
+        const result = await runCli(['document', 'get', `hm://${account1.accountId}`, '-q'], {server: ctx.daemonUrl})
         expect(result.exitCode).toBe(0)
         // Should show name or id
         expect(result.stdout).toMatch(/Test Account Alpha|z6Mk/)
@@ -184,10 +158,7 @@ describe('Seed CLI Integration Tests', () => {
     test(
       'document get -m fetches metadata only',
       async () => {
-        const result = await runCli(
-          ['document', 'get', `hm://${account1.accountId}`, '-m'],
-          {server: ctx.daemonUrl},
-        )
+        const result = await runCli(['document', 'get', `hm://${account1.accountId}`, '-m'], {server: ctx.daemonUrl})
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain('Test Account Alpha')
         // Should not contain full content
@@ -199,10 +170,9 @@ describe('Seed CLI Integration Tests', () => {
     test(
       'document get non-existent document returns error',
       async () => {
-        const result = await runCli(
-          ['document', 'get', 'hm://z6MknonexistentAAAAAAAAAAAAAAAAAAAA/test'],
-          {server: ctx.daemonUrl},
-        )
+        const result = await runCli(['document', 'get', 'hm://z6MknonexistentAAAAAAAAAAAAAAAAAAAA/test'], {
+          server: ctx.daemonUrl,
+        })
         // Should handle gracefully
         expect(result.stdout).toContain('not-found')
       },
@@ -297,10 +267,7 @@ describe('Seed CLI Integration Tests', () => {
     test(
       'comment list on document (empty)',
       async () => {
-        const result = await runCli(
-          ['comment', 'list', `hm://${account1.accountId}`],
-          {server: ctx.daemonUrl},
-        )
+        const result = await runCli(['comment', 'list', `hm://${account1.accountId}`], {server: ctx.daemonUrl})
         expect(result.exitCode).toBe(0)
       },
       TEST_TIMEOUT,
@@ -309,10 +276,7 @@ describe('Seed CLI Integration Tests', () => {
     test(
       'comment discussions on document',
       async () => {
-        const result = await runCli(
-          ['comment', 'discussions', `hm://${account1.accountId}`],
-          {server: ctx.daemonUrl},
-        )
+        const result = await runCli(['comment', 'discussions', `hm://${account1.accountId}`], {server: ctx.daemonUrl})
         expect(result.exitCode).toBe(0)
       },
       TEST_TIMEOUT,
@@ -325,10 +289,7 @@ describe('Seed CLI Integration Tests', () => {
     test(
       'document changes shows document history',
       async () => {
-        const result = await runCli(
-          ['document', 'changes', `hm://${account1.accountId}`],
-          {server: ctx.daemonUrl},
-        )
+        const result = await runCli(['document', 'changes', `hm://${account1.accountId}`], {server: ctx.daemonUrl})
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain('changes')
       },
@@ -338,10 +299,9 @@ describe('Seed CLI Integration Tests', () => {
     test(
       'document changes -q shows compact output',
       async () => {
-        const result = await runCli(
-          ['document', 'changes', `hm://${account1.accountId}`, '-q'],
-          {server: ctx.daemonUrl},
-        )
+        const result = await runCli(['document', 'changes', `hm://${account1.accountId}`, '-q'], {
+          server: ctx.daemonUrl,
+        })
         expect(result.exitCode).toBe(0)
         // Should have at least one change
         const lines = result.stdout.split('\n').filter(Boolean)
@@ -357,10 +317,7 @@ describe('Seed CLI Integration Tests', () => {
     test(
       'citations shows backlinks',
       async () => {
-        const result = await runCli(
-          ['citations', `hm://${account1.accountId}`],
-          {server: ctx.daemonUrl},
-        )
+        const result = await runCli(['citations', `hm://${account1.accountId}`], {server: ctx.daemonUrl})
         expect(result.exitCode).toBe(0)
       },
       TEST_TIMEOUT,
@@ -373,10 +330,7 @@ describe('Seed CLI Integration Tests', () => {
     test(
       'account capabilities shows access control',
       async () => {
-        const result = await runCli(
-          ['account', 'capabilities', `hm://${account1.accountId}`],
-          {server: ctx.daemonUrl},
-        )
+        const result = await runCli(['account', 'capabilities', `hm://${account1.accountId}`], {server: ctx.daemonUrl})
         expect(result.exitCode).toBe(0)
       },
       TEST_TIMEOUT,
@@ -413,10 +367,7 @@ describe('Seed CLI Integration Tests', () => {
     test(
       'document stats shows interaction summary',
       async () => {
-        const result = await runCli(
-          ['document', 'stats', `hm://${account1.accountId}`],
-          {server: ctx.daemonUrl},
-        )
+        const result = await runCli(['document', 'stats', `hm://${account1.accountId}`], {server: ctx.daemonUrl})
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain('citations')
         expect(result.stdout).toContain('comments')
@@ -453,8 +404,7 @@ describe('Seed CLI Integration Tests', () => {
     test(
       'key derive computes account id',
       async () => {
-        const mnemonic =
-          'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+        const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
         const result = await runCli(['key', 'derive', mnemonic], {
           server: ctx.daemonUrl,
         })
@@ -468,10 +418,7 @@ describe('Seed CLI Integration Tests', () => {
     test(
       'key import with invalid mnemonic fails',
       async () => {
-        const result = await runCli(
-          ['key', 'import', 'invalid mnemonic words'],
-          {server: ctx.daemonUrl},
-        )
+        const result = await runCli(['key', 'import', 'invalid mnemonic words'], {server: ctx.daemonUrl})
         expect(result.exitCode).toBe(1)
         expect(result.stderr).toContain('Invalid mnemonic')
       },
@@ -497,10 +444,7 @@ describe('Seed CLI Integration Tests', () => {
     test(
       '--yaml outputs YAML format',
       async () => {
-        const result = await runCli(
-          ['account', 'get', account1.accountId, '--yaml'],
-          {server: ctx.daemonUrl},
-        )
+        const result = await runCli(['account', 'get', account1.accountId, '--yaml'], {server: ctx.daemonUrl})
         expect(result.exitCode).toBe(0)
         // YAML has different structure than JSON
         expect(result.stdout).toMatch(/type:\s/)
@@ -511,10 +455,7 @@ describe('Seed CLI Integration Tests', () => {
     test(
       '--pretty outputs readable format',
       async () => {
-        const result = await runCli(
-          ['account', 'get', account1.accountId, '--pretty'],
-          {server: ctx.daemonUrl},
-        )
+        const result = await runCli(['account', 'get', account1.accountId, '--pretty'], {server: ctx.daemonUrl})
         expect(result.exitCode).toBe(0)
         // Pretty format has indentation
         expect(result.stdout).toContain('\n')
@@ -573,14 +514,8 @@ describe('Seed CLI Integration Tests', () => {
     test(
       'can fetch both account home documents',
       async () => {
-        const result1 = await runCli(
-          ['document', 'get', `hm://${account1.accountId}`, '-q'],
-          {server: ctx.daemonUrl},
-        )
-        const result2 = await runCli(
-          ['document', 'get', `hm://${account2.accountId}`, '-q'],
-          {server: ctx.daemonUrl},
-        )
+        const result1 = await runCli(['document', 'get', `hm://${account1.accountId}`, '-q'], {server: ctx.daemonUrl})
+        const result2 = await runCli(['document', 'get', `hm://${account2.accountId}`, '-q'], {server: ctx.daemonUrl})
 
         expect(result1.exitCode).toBe(0)
         expect(result2.exitCode).toBe(0)

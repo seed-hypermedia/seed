@@ -88,7 +88,7 @@ describe('CLI Full Integration Tests', () => {
     test(
       'get hierarchy-test document as JSON',
       async () => {
-        const result = await runCli(['document', 'get', FIXTURE_HIERARCHY_HM_ID], {
+        const result = await runCli(['document', 'get', FIXTURE_HIERARCHY_HM_ID, '--json'], {
           server: ctx.webServerUrl,
         })
         expect(result.exitCode).toBe(0)
@@ -101,13 +101,16 @@ describe('CLI Full Integration Tests', () => {
     )
 
     test(
-      'get --md returns correct markdown structure',
+      'get returns markdown with frontmatter by default',
       async () => {
-        const result = await runCli(['document', 'get', FIXTURE_HIERARCHY_HM_ID, '--md'], {server: ctx.webServerUrl})
+        const result = await runCli(['document', 'get', FIXTURE_HIERARCHY_HM_ID], {server: ctx.webServerUrl})
         expect(result.exitCode).toBe(0)
 
+        // Default output is markdown with frontmatter and block IDs
+        expect(result.stdout).toMatch(/^---/)
+        expect(result.stdout).toContain('name: "Hierarchy Test"')
+
         // Validate the markdown content matches the fixture document
-        expect(result.stdout).toContain('# Hierarchy Test')
         expect(result.stdout).toContain('Text before first heading')
         expect(result.stdout).toContain('# First Heading')
         expect(result.stdout).toContain('under first heading')
@@ -117,24 +120,13 @@ describe('CLI Full Integration Tests', () => {
         expect(result.stdout).toContain('# Second Heading')
         expect(result.stdout).toContain('In second heading')
         expect(result.stdout).toContain('Text after all sections')
-      },
-      TEST_TIMEOUT,
-    )
 
-    test(
-      'get --md --frontmatter includes YAML frontmatter',
-      async () => {
-        const result = await runCli(['document', 'get', FIXTURE_HIERARCHY_HM_ID, '--md', '--frontmatter'], {
-          server: ctx.webServerUrl,
-        })
-        expect(result.exitCode).toBe(0)
+        // Block IDs are preserved as HTML comments
+        expect(result.stdout).toMatch(/<!-- id:[A-Za-z0-9_-]+ -->/)
 
-        // Validate frontmatter structure
-        expect(result.stdout).toMatch(/^---/)
-        expect(result.stdout).toContain('title: "Hierarchy Test"')
-        expect(result.stdout).toContain(`authors: [${FIXTURE_ACCOUNT_ID}]`)
-        expect(result.stdout).toContain('version: bafy')
-        expect(result.stdout).toMatch(/---\n\n# Hierarchy Test/)
+        // No system fields in frontmatter (authors, version)
+        expect(result.stdout).not.toContain('authors:')
+        expect(result.stdout).not.toContain('version:')
       },
       TEST_TIMEOUT,
     )
@@ -204,24 +196,24 @@ describe('CLI Full Integration Tests', () => {
     // --- Document Update Tests ---
 
     test(
-      'document update --title changes document title',
+      'document update --name changes document title',
       async () => {
         const newTitle = `Updated Title ${Date.now()}`
         const result = await runCli(
-          ['document', 'update', writeAccountHmId, '--title', newTitle, '--key', TEST_KEY_NAME],
+          ['document', 'update', writeAccountHmId, '--name', newTitle, '--key', TEST_KEY_NAME],
           {server: ctx.webServerUrl},
         )
         if (result.exitCode !== 0) {
-          console.log('[test] update --title stderr:', result.stderr)
-          console.log('[test] update --title stdout:', result.stdout)
+          console.log('[test] update --name stderr:', result.stderr)
+          console.log('[test] update --name stdout:', result.stdout)
         }
         expect(result.exitCode).toBe(0)
         expect(result.stderr + result.stdout).toContain('Document updated')
 
-        // Verify by reading back.
-        const getResult = await runCli(['document', 'get', writeAccountHmId, '--md'], {server: ctx.webServerUrl})
+        // Verify by reading back (default output is markdown with frontmatter).
+        const getResult = await runCli(['document', 'get', writeAccountHmId], {server: ctx.webServerUrl})
         expect(getResult.exitCode).toBe(0)
-        expect(getResult.stdout).toContain(`# ${newTitle}`)
+        expect(getResult.stdout).toContain(`name: "${newTitle}"`)
       },
       TEST_TIMEOUT,
     )
@@ -261,7 +253,7 @@ describe('CLI Full Integration Tests', () => {
       'document update with missing key shows error',
       async () => {
         const result = await runCli(
-          ['document', 'update', writeAccountHmId, '--title', 'X', '--key', 'nonexistent-key-name'],
+          ['document', 'update', writeAccountHmId, '--name', 'X', '--key', 'nonexistent-key-name'],
           {server: ctx.webServerUrl},
         )
         expect(result.exitCode).toBe(1)
@@ -361,22 +353,26 @@ describe('CLI Full Integration Tests', () => {
         createdDocPath = `/${uniqueSlug}`
         createdDocHmId = `hm://${writeAccount.accountId}/${uniqueSlug}`
 
+        const tmpDir1 = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFile1 = join(tmpDir1, 'content.md')
+        writeFileSync(mdFile1, 'Hello from CLI test')
+
         const result = await runCli(
           [
             'document',
             'create',
-            writeAccount.accountId,
             '--path',
             uniqueSlug,
-            '--title',
+            '--name',
             'CLI Test Document',
-            '--body',
-            'Hello from CLI test',
+            '-f',
+            mdFile1,
             '--key',
             TEST_KEY_NAME,
           ],
           {server: ctx.webServerUrl},
         )
+        rmSync(tmpDir1, {recursive: true, force: true})
         if (result.exitCode !== 0) {
           console.log('[test] document create stderr:', result.stderr)
           console.log('[test] document create stdout:', result.stdout)
@@ -404,22 +400,26 @@ describe('CLI Full Integration Tests', () => {
         const hmId = `hm://${writeAccount.accountId}/${slug}`
         const markdownBody = '## Introduction\n\nThis is a **bold** paragraph.\n\n- Item one\n- Item two'
 
+        const tmpDirMd = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFileMd = join(tmpDirMd, 'content.md')
+        writeFileSync(mdFileMd, markdownBody)
+
         const result = await runCli(
           [
             'document',
             'create',
-            writeAccount.accountId,
             '--path',
             slug,
-            '--title',
+            '--name',
             'Markdown Body Test',
-            '--body',
-            markdownBody,
+            '-f',
+            mdFileMd,
             '--key',
             TEST_KEY_NAME,
           ],
           {server: ctx.webServerUrl},
         )
+        rmSync(tmpDirMd, {recursive: true, force: true})
         if (result.exitCode !== 0) {
           console.log('[test] md body create stderr:', result.stderr)
           console.log('[test] md body create stdout:', result.stdout)
@@ -437,8 +437,8 @@ describe('CLI Full Integration Tests', () => {
         // Should have content blocks
         expect(data.document.content.length).toBeGreaterThan(0)
 
-        // Read back as markdown and verify text
-        const mdResult = await runCli(['document', 'get', hmId, '--md'], {server: ctx.webServerUrl})
+        // Read back as markdown (default) and verify text
+        const mdResult = await runCli(['document', 'get', hmId], {server: ctx.webServerUrl})
         expect(mdResult.exitCode).toBe(0)
         expect(mdResult.stdout).toContain('Introduction')
         expect(mdResult.stdout).toContain('bold')
@@ -449,7 +449,7 @@ describe('CLI Full Integration Tests', () => {
     )
 
     test(
-      'document create with --body-file reads markdown from file',
+      'document create with -f reads markdown from file',
       async () => {
         const slug = `md-file-${Date.now()}`
         const hmId = `hm://${writeAccount.accountId}/${slug}`
@@ -460,19 +460,7 @@ describe('CLI Full Integration Tests', () => {
 
         try {
           const result = await runCli(
-            [
-              'document',
-              'create',
-              writeAccount.accountId,
-              '--path',
-              slug,
-              '--title',
-              'File Body Test',
-              '--body-file',
-              mdFile,
-              '--key',
-              TEST_KEY_NAME,
-            ],
+            ['document', 'create', '--path', slug, '--name', 'File Body Test', '-f', mdFile, '--key', TEST_KEY_NAME],
             {server: ctx.webServerUrl},
           )
           if (result.exitCode !== 0) {
@@ -483,7 +471,7 @@ describe('CLI Full Integration Tests', () => {
 
           await new Promise((r) => setTimeout(r, 2000))
 
-          const mdResult = await runCli(['document', 'get', hmId, '--md'], {server: ctx.webServerUrl})
+          const mdResult = await runCli(['document', 'get', hmId], {server: ctx.webServerUrl})
           expect(mdResult.exitCode).toBe(0)
           expect(mdResult.stdout).toContain('From File')
           expect(mdResult.stdout).toContain('Content loaded from a file')
@@ -495,7 +483,7 @@ describe('CLI Full Integration Tests', () => {
     )
 
     test(
-      'document create with --blocks accepts HMBlockNodes JSON',
+      'document create with -f accepts HMBlockNodes JSON file',
       async () => {
         const slug = `blocks-json-${Date.now()}`
         const hmId = `hm://${writeAccount.accountId}/${slug}`
@@ -532,22 +520,15 @@ describe('CLI Full Integration Tests', () => {
           },
         ])
 
+        const tmpDirJ = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const jsonFile = join(tmpDirJ, 'blocks.json')
+        writeFileSync(jsonFile, blocksJson)
+
         const result = await runCli(
-          [
-            'document',
-            'create',
-            writeAccount.accountId,
-            '--path',
-            slug,
-            '--title',
-            'Blocks JSON Test',
-            '--blocks',
-            blocksJson,
-            '--key',
-            TEST_KEY_NAME,
-          ],
+          ['document', 'create', '--path', slug, '--name', 'Blocks JSON Test', '-f', jsonFile, '--key', TEST_KEY_NAME],
           {server: ctx.webServerUrl},
         )
+        rmSync(tmpDirJ, {recursive: true, force: true})
         if (result.exitCode !== 0) {
           console.log('[test] blocks json create stderr:', result.stderr)
           console.log('[test] blocks json create stdout:', result.stdout)
@@ -577,8 +558,8 @@ describe('CLI Full Integration Tests', () => {
         expect(paraBlock.block.type).toBe('Paragraph')
         expect(paraBlock.block.text).toBe('Root-level paragraph')
 
-        // Also verify via markdown output
-        const mdResult = await runCli(['document', 'get', hmId, '--md'], {server: ctx.webServerUrl})
+        // Also verify via markdown output (default)
+        const mdResult = await runCli(['document', 'get', hmId], {server: ctx.webServerUrl})
         expect(mdResult.exitCode).toBe(0)
         expect(mdResult.stdout).toContain('Block Heading')
         expect(mdResult.stdout).toContain('Paragraph under heading')
@@ -588,7 +569,7 @@ describe('CLI Full Integration Tests', () => {
     )
 
     test(
-      'document create with --blocks-file reads JSON from file',
+      'document create with -f reads JSON from file',
       async () => {
         const slug = `blocks-file-${Date.now()}`
         const hmId = `hm://${writeAccount.accountId}/${slug}`
@@ -614,12 +595,11 @@ describe('CLI Full Integration Tests', () => {
             [
               'document',
               'create',
-              writeAccount.accountId,
               '--path',
               slug,
-              '--title',
+              '--name',
               'Blocks File Test',
-              '--blocks-file',
+              '-f',
               blocksFile,
               '--key',
               TEST_KEY_NAME,
@@ -648,39 +628,13 @@ describe('CLI Full Integration Tests', () => {
     )
 
     test(
-      'document create with both --body and --blocks shows error',
+      'document create with no input shows error',
       async () => {
-        const result = await runCli(
-          [
-            'document',
-            'create',
-            writeAccount.accountId,
-            '--title',
-            'Error Test',
-            '--body',
-            'some text',
-            '--blocks',
-            '[]',
-            '--key',
-            TEST_KEY_NAME,
-          ],
-          {server: ctx.webServerUrl},
-        )
+        const result = await runCli(['document', 'create', '--name', 'Error Test', '--key', TEST_KEY_NAME], {
+          server: ctx.webServerUrl,
+        })
         expect(result.exitCode).toBe(1)
-        expect(result.stderr).toContain('Cannot combine')
-      },
-      TEST_TIMEOUT,
-    )
-
-    test(
-      'document create with no content shows error',
-      async () => {
-        const result = await runCli(
-          ['document', 'create', writeAccount.accountId, '--title', 'Error Test', '--key', TEST_KEY_NAME],
-          {server: ctx.webServerUrl},
-        )
-        expect(result.exitCode).toBe(1)
-        expect(result.stderr).toContain('No content specified')
+        expect(result.stderr).toContain('No input provided')
       },
       TEST_TIMEOUT,
     )
@@ -694,22 +648,26 @@ describe('CLI Full Integration Tests', () => {
         const deleteSlug = `delete-test-${Date.now()}`
         const deleteHmId = `hm://${writeAccount.accountId}/${deleteSlug}`
 
+        const tmpDirDel = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFileDel = join(tmpDirDel, 'content.md')
+        writeFileSync(mdFileDel, 'This will be deleted')
+
         const createResult = await runCli(
           [
             'document',
             'create',
-            writeAccount.accountId,
             '--path',
             deleteSlug,
-            '--title',
+            '--name',
             'Doc To Delete',
-            '--body',
-            'This will be deleted',
+            '-f',
+            mdFileDel,
             '--key',
             TEST_KEY_NAME,
           ],
           {server: ctx.webServerUrl},
         )
+        rmSync(tmpDirDel, {recursive: true, force: true})
         expect(createResult.exitCode).toBe(0)
 
         // Wait for indexing
@@ -756,22 +714,26 @@ describe('CLI Full Integration Tests', () => {
         const sourceSlug = `fork-source-${Date.now()}`
         const sourceHmId = `hm://${writeAccount.accountId}/${sourceSlug}`
 
+        const tmpDirFork = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFileFork = join(tmpDirFork, 'content.md')
+        writeFileSync(mdFileFork, 'Content to fork')
+
         const createResult = await runCli(
           [
             'document',
             'create',
-            writeAccount.accountId,
             '--path',
             sourceSlug,
-            '--title',
+            '--name',
             'Fork Source',
-            '--body',
-            'Content to fork',
+            '-f',
+            mdFileFork,
             '--key',
             TEST_KEY_NAME,
           ],
           {server: ctx.webServerUrl},
         )
+        rmSync(tmpDirFork, {recursive: true, force: true})
         expect(createResult.exitCode).toBe(0)
 
         // Wait for indexing
@@ -817,22 +779,26 @@ describe('CLI Full Integration Tests', () => {
         const moveSourceSlug = `move-source-${Date.now()}`
         const moveSourceHmId = `hm://${writeAccount.accountId}/${moveSourceSlug}`
 
+        const tmpDirMove = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFileMove = join(tmpDirMove, 'content.md')
+        writeFileSync(mdFileMove, 'Content to move')
+
         const createResult = await runCli(
           [
             'document',
             'create',
-            writeAccount.accountId,
             '--path',
             moveSourceSlug,
-            '--title',
+            '--name',
             'Move Source',
-            '--body',
-            'Content to move',
+            '-f',
+            mdFileMove,
             '--key',
             TEST_KEY_NAME,
           ],
           {server: ctx.webServerUrl},
         )
+        rmSync(tmpDirMove, {recursive: true, force: true})
         expect(createResult.exitCode).toBe(0)
 
         // Wait for indexing
@@ -874,17 +840,20 @@ describe('CLI Full Integration Tests', () => {
         const redirectSlug = `redirect-source-${Date.now()}`
         const redirectHmId = `hm://${writeAccount.accountId}/${redirectSlug}`
 
+        const tmpDirRedir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFileRedir = join(tmpDirRedir, 'source.md')
+        writeFileSync(mdFileRedir, 'Will redirect')
+
         const createResult = await runCli(
           [
             'document',
             'create',
-            writeAccount.accountId,
             '--path',
             redirectSlug,
-            '--title',
+            '--name',
             'Redirect Source',
-            '--body',
-            'Will redirect',
+            '-f',
+            mdFileRedir,
             '--key',
             TEST_KEY_NAME,
           ],
@@ -899,22 +868,25 @@ describe('CLI Full Integration Tests', () => {
         const targetSlug = `redirect-target-${Date.now()}`
         const targetHmId = `hm://${writeAccount.accountId}/${targetSlug}`
 
+        const mdFileTarget = join(tmpDirRedir, 'target.md')
+        writeFileSync(mdFileTarget, 'Target content')
+
         const targetResult = await runCli(
           [
             'document',
             'create',
-            writeAccount.accountId,
             '--path',
             targetSlug,
-            '--title',
+            '--name',
             'Redirect Target',
-            '--body',
-            'Target content',
+            '-f',
+            mdFileTarget,
             '--key',
             TEST_KEY_NAME,
           ],
           {server: ctx.webServerUrl},
         )
+        rmSync(tmpDirRedir, {recursive: true, force: true})
         expect(targetResult.exitCode).toBe(0)
 
         // Wait for indexing

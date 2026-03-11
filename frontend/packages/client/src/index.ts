@@ -45,3 +45,11 @@ export {
   entityQueryPathToHmIdPath,
 } from './hm-types'
 export {trimTrailingEmptyBlocks} from './comment'
+
+export {fileToIpfsBlobs, filesToIpfsBlobs, resolveFileLinksInBlocks, hasFileLinks} from './file-to-ipfs'
+export type {CollectedBlob} from './file-to-ipfs'
+
+export {parseMarkdown, flattenToOperations, parseInlineFormatting, parseFrontmatter} from './markdown-to-blocks'
+export type {BlockNode, SeedBlock, Annotation} from './markdown-to-blocks'
+export {blocksToMarkdown, emitFrontmatter} from './blocks-to-markdown'
+export type {BlocksToMarkdownOptions} from './blocks-to-markdown'

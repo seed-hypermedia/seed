@@ -464,6 +464,7 @@ export const HMDocumentMetadataSchema = z.object({
   siteUrl: z.string().optional(),
   layout: z.union([z.literal('Seed/Experimental/Newspaper'), z.literal('')]).optional(),
   displayPublishTime: z.string().optional(),
+  displayAuthor: z.string().optional(),
   seedExperimentalLogo: z.string().optional(),
   seedExperimentalHomeOrder: z.union([z.literal('UpdatedFirst'), z.literal('CreatedFirst')]).optional(),
   showOutline: z.boolean().optional(),

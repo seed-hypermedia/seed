@@ -1,9 +1,10 @@
 /**
- * Document commands — get, create, update, delete, fork, move, redirect, changes, stats, cid, import.
+ * Document commands — get, create, update, delete, fork, move, redirect, changes, stats, cid.
  */
 
 import type {Command} from 'commander'
-import {readFileSync} from 'fs'
+import {existsSync, readFileSync, writeFileSync} from 'fs'
+import {extname} from 'path'
 import {CID} from 'multiformats/cid'
 import {
   createVersionRef,
@@ -13,7 +14,9 @@ import {
   createChangeOps,
   createChange,
   pdfToBlocks,
+  fileToIpfsBlobs,
   type DocumentOperation,
+  type CollectedBlob,
 } from '@seed-hypermedia/client'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
@@ -26,12 +29,173 @@ import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations} from '../utils/markdown'
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
 import {createBlocksMap, matchBlockIds, computeReplaceOps, type APIBlockNode} from '../utils/block-diff'
-import type {HMAnnotation, HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
+import {resolveFileLinks} from '../utils/file-links'
+import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
+
+// ── Input helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Read all of stdin as a UTF-8 string.
+ */
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = []
+  for await (const chunk of process.stdin) {
+    chunks.push(Buffer.from(chunk))
+  }
+  return Buffer.concat(chunks).toString('utf-8')
+}
+
+/**
+ * Read stdin as raw binary (for PDF piping).
+ */
+async function readStdinBinary(): Promise<Buffer> {
+  const chunks: Buffer[] = []
+  for await (const chunk of process.stdin) {
+    chunks.push(Buffer.from(chunk))
+  }
+  return Buffer.concat(chunks)
+}
+
+type InputFormat = 'markdown' | 'json' | 'pdf'
+
+/**
+ * Detect input format from file extension.
+ */
+function detectFormatFromExtension(filePath: string): InputFormat {
+  const ext = extname(filePath).toLowerCase()
+  switch (ext) {
+    case '.json':
+      return 'json'
+    case '.pdf':
+      return 'pdf'
+    case '.md':
+    case '.txt':
+    case '':
+      return 'markdown'
+    default:
+      return 'markdown'
+  }
+}
+
+/**
+ * Auto-detect format from content (for stdin).
+ * If the first non-whitespace character is [ or {, treat as JSON blocks.
+ * Otherwise treat as markdown.
+ */
+function detectFormatFromContent(content: string): 'markdown' | 'json' {
+  const firstChar = content.trimStart()[0]
+  if (firstChar === '[' || firstChar === '{') return 'json'
+  return 'markdown'
+}
+
+type ParsedInput = {
+  ops: DocumentOperation[]
+  metadata: HMMetadata
+  fileBlobs: CollectedBlob[]
+  blocks?: HMBlockNode[] // for dry-run rendering
+  source?: string // extraction method label
+}
+
+/**
+ * Read and parse input from -f file, stdin, or error.
+ *
+ * Format is auto-detected from file extension (for -f) or content
+ * inspection (for stdin). Returns document operations, metadata from
+ * frontmatter, and any IPFS blobs from file:// link resolution.
+ */
+async function readInput(options: {file?: string; grobidUrl?: string; quiet?: boolean}): Promise<ParsedInput> {
+  const {file} = options
+  let format: InputFormat
+  let content: string
+  let pdfBuffer: Buffer | undefined
+
+  if (file) {
+    // -f <path>: read from file, detect format by extension
+    if (!existsSync(file)) {
+      throw new Error(`File not found: ${file}`)
+    }
+    format = detectFormatFromExtension(file)
+    if (format === 'pdf') {
+      pdfBuffer = readFileSync(file) as Buffer
+    } else {
+      content = readFileSync(file, 'utf-8')
+    }
+  } else if (!process.stdin.isTTY) {
+    // Piped stdin: read content and auto-detect format
+    // Try to detect PDF by magic bytes first
+    const raw = await readStdinBinary()
+    if (raw.length === 0) {
+      throw new Error('No input provided. Use -f <file> or pipe content via stdin.')
+    }
+    if (raw.length >= 4 && raw[0] === 0x25 && raw[1] === 0x50 && raw[2] === 0x44 && raw[3] === 0x46) {
+      // %PDF magic bytes
+      format = 'pdf'
+      pdfBuffer = raw
+    } else {
+      content = raw.toString('utf-8')
+      format = detectFormatFromContent(content)
+    }
+  } else {
+    throw new Error('No input provided. Use -f <file> or pipe content via stdin.')
+  }
+
+  // ── PDF path ──
+  if (format === 'pdf') {
+    if (!pdfBuffer) throw new Error('PDF buffer is empty')
+    if (!options.quiet) printInfo('Extracting PDF content...')
+    const result = await pdfToBlocks(pdfBuffer.buffer as ArrayBuffer, {
+      grobidUrl: options.grobidUrl,
+    })
+    if (!options.quiet) printInfo(`Extraction method: ${result.source}`)
+
+    const metadata: HMMetadata = {}
+    if (result.metadata.name) metadata.name = result.metadata.name
+    if (result.metadata.summary) metadata.summary = result.metadata.summary
+    if (result.metadata.displayAuthor) metadata.displayAuthor = result.metadata.displayAuthor
+    if (result.metadata.displayPublishTime) metadata.displayPublishTime = result.metadata.displayPublishTime
+
+    const ops: DocumentOperation[] = []
+    ops.push(...hmBlockNodesToOperations(result.blocks))
+
+    return {
+      ops,
+      metadata,
+      fileBlobs: [],
+      blocks: result.blocks,
+      source: result.source,
+    }
+  }
+
+  // ── JSON blocks path ──
+  if (format === 'json') {
+    let nodes = parseBlocksJson(content!)
+    const resolved = await resolveFileLinks(nodes)
+    nodes = resolved.nodes
+    return {
+      ops: hmBlockNodesToOperations(nodes),
+      metadata: {},
+      fileBlobs: resolved.blobs,
+    }
+  }
+
+  // ── Markdown path ──
+  const {tree, metadata} = parseMarkdown(content!)
+  const ops = flattenToOperations(tree)
+
+  // Resolve file:// links in the tree (images with local paths)
+  // We need to convert BlockNode tree back through operations,
+  // but file:// links are in the operations already via the link field.
+  // For now, file:// resolution only applies to JSON blocks input.
+  // Markdown images get file:// prepended at tokenizer level and will
+  // be resolved when we add block-level file link resolution.
+
+  return {ops, metadata, fileBlobs: []}
+}
 
 export function registerDocumentCommands(program: Command) {
   const doc = program
     .command('document')
-    .description('Manage documents (get, create, update, delete, fork, move, redirect, changes, stats, cid, import)')
+    .description('Manage documents (get, create, update, delete, fork, move, redirect, changes, stats, cid)')
 
   // ── get ──────────────────────────────────────────────────────────────────
 
@@ -39,14 +203,24 @@ export function registerDocumentCommands(program: Command) {
     .command('get <id>')
     .description('Fetch a document, comment, or entity by Hypermedia ID')
     .option('-m, --metadata', 'Fetch metadata only')
-    .option('--md', 'Output as markdown')
-    .option('--frontmatter', 'Include YAML frontmatter (with --md)')
-    .option('-r, --resolve', 'Resolve embeds, mentions, and queries (with --md)')
+    .option('-r, --resolve', 'Resolve embeds, mentions, and queries in markdown output')
+    .option('-o, --output <file>', 'Write output to file instead of stdout')
     .option('-q, --quiet', 'Output minimal info')
     .action(async (id: string, options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
+      const useStructuredOutput = !!(globalOpts.json || globalOpts.yaml || globalOpts.pretty)
+
+      /** Write output string to file or stdout. */
+      function emit(text: string) {
+        if (options.output) {
+          writeFileSync(options.output, text + '\n', 'utf-8')
+          if (!globalOpts.quiet) printInfo(`Written to ${options.output}`)
+        } else {
+          console.log(text)
+        }
+      }
 
       try {
         if (options.metadata) {
@@ -57,9 +231,9 @@ export function registerDocumentCommands(program: Command) {
           }
           const result = await client.request('ResourceMetadata', unpacked)
           if (globalOpts.quiet || options.quiet) {
-            console.log(result.metadata?.name || result.id.id)
+            emit(result.metadata?.name || result.id.id)
           } else {
-            console.log(formatOutput(result, format))
+            emit(formatOutput(result, format))
           }
           return
         }
@@ -73,21 +247,23 @@ export function registerDocumentCommands(program: Command) {
 
         if (globalOpts.quiet || options.quiet) {
           if (result.type === 'document') {
-            console.log(result.document.metadata?.name || result.id.id)
+            emit(result.document.metadata?.name || result.id.id)
           } else if (result.type === 'comment') {
-            console.log(result.id.id)
+            emit(result.id.id)
           } else {
-            console.log(result.type)
+            emit(result.type)
           }
-        } else if (options.md) {
+        } else if (useStructuredOutput) {
+          // --json, --yaml, --pretty → structured output
+          emit(formatOutput(result, format))
+        } else {
+          // Default: markdown output (with frontmatter and block IDs)
           if (result.type === 'document') {
             const md = await documentToMarkdown(result.document, {
-              includeMetadata: true,
-              includeFrontmatter: options.frontmatter,
               resolve: options.resolve,
               client: options.resolve ? client : undefined,
             })
-            console.log(md)
+            emit(md)
           } else if (result.type === 'comment') {
             const fakeDoc = {
               content: result.comment.content,
@@ -99,13 +275,11 @@ export function registerDocumentCommands(program: Command) {
               resolve: options.resolve,
               client: options.resolve ? client : undefined,
             })
-            console.log(md)
+            emit(md)
           } else {
             printError(`Cannot render ${result.type} as markdown`)
             process.exit(1)
           }
-        } else {
-          console.log(formatOutput(result, format))
         }
       } catch (error) {
         printError((error as Error).message)
@@ -116,65 +290,82 @@ export function registerDocumentCommands(program: Command) {
   // ── create ───────────────────────────────────────────────────────────────
 
   doc
-    .command('create <account>')
-    .description('Create a new document from markdown or HMBlockNodes JSON')
+    .command('create')
+    .description('Create a new document from markdown, JSON blocks, or PDF')
+    .option('-f, --file <path>', 'Input file (format detected by extension: .md, .json, .pdf)')
     .option('-p, --path <path>', 'Document path (e.g. "my-document")')
-    .requiredOption('--title <title>', 'Document title')
-    .option('--body <text>', 'Markdown content (inline)')
-    .option('--body-file <file>', 'Read markdown content from file')
-    .option('--blocks <json>', 'HMBlockNodes JSON (inline)')
-    .option('--blocks-file <file>', 'Read HMBlockNodes JSON from file')
+    .option('--name <value>', 'Document title (overrides frontmatter)')
+    .option('--summary <value>', 'Document summary')
+    .option('--display-author <value>', 'Display author name (e.g. "Jane Doe")')
+    .option('--display-publish-time <value>', 'Display publish time (YYYY-MM-DD)')
+    .option('--icon <value>', 'Document icon (ipfs:// or file:// URL)')
+    .option('--cover <value>', 'Cover image (ipfs:// or file:// URL)')
+    .option('--site-url <value>', 'Site URL')
+    .option('--layout <value>', 'Document layout (e.g. "Seed/Experimental/Newspaper")')
+    .option('--show-outline', 'Show document outline')
+    .option('--no-show-outline', 'Hide document outline')
+    .option('--show-activity', 'Show document activity')
+    .option('--no-show-activity', 'Hide document activity')
+    .option('--content-width <value>', 'Content width (S, M, L)')
+    .option('--seed-experimental-logo <value>', 'Experimental logo (ipfs:// or file:// URL)')
+    .option('--seed-experimental-home-order <value>', 'Home ordering (UpdatedFirst, CreatedFirst)')
+    .option('--import-categories <value>', 'Import categories (comma-separated)')
+    .option('--import-tags <value>', 'Import tags (comma-separated)')
+    .option('--grobid-url <url>', 'GROBID server URL for PDF extraction')
+    .option('--dry-run', 'Preview extracted content without publishing')
     .option('-k, --key <name>', 'Signing key name or account ID')
-    .action(async (account: string, options, cmd) => {
+    .action(async (options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
       const dev = !!globalOpts.dev
-      const client = getClient(globalOpts)
 
       try {
+        // Parse input from file or stdin
+        const input = await readInput({
+          file: options.file,
+          grobidUrl: options.grobidUrl,
+          quiet: globalOpts.quiet,
+        })
+
+        // Merge metadata: defaults < input (frontmatter/PDF) < CLI flags
+        const metadata = mergeMetadata(input.metadata, options, {name: 'Untitled'})
+
+        // ── Dry-run: preview and exit ──
+        if (options.dryRun) {
+          const useStructuredOutput = !!(globalOpts.json || globalOpts.yaml || globalOpts.pretty)
+          if (!useStructuredOutput) {
+            const dryRunDoc = {
+              content: input.blocks || [],
+              metadata,
+              version: '',
+              authors: [],
+            } as unknown as HMDocument
+            const md = await documentToMarkdown(dryRunDoc)
+            console.log(md)
+          } else {
+            const outputFormat = getOutputFormat(globalOpts)
+            console.log(formatOutput({metadata, blocks: input.blocks || []}, outputFormat))
+          }
+          return
+        }
+
+        const client = getClient(globalOpts)
         const key = resolveKey(options.key, dev)
+        const account = key.accountId
 
-        const hasBody = options.body || options.bodyFile
-        const hasBlocks = options.blocks || options.blocksFile
+        // Resolve file:// links in metadata (cover, icon, logo)
+        const {metadata: resolvedMeta, blobs: metaBlobs} = await resolveMetadataFileLinks(metadata)
 
-        if (hasBody && hasBlocks) {
-          printError('Cannot combine --body/--body-file with --blocks/--blocks-file.')
-          process.exit(1)
-        }
-
-        if (!hasBody && !hasBlocks) {
-          printError('No content specified. Use --body, --body-file, --blocks, or --blocks-file.')
-          process.exit(1)
-        }
-
-        const title = options.title
-        const rawPath = options.path || slugify(title)
+        const rawPath = options.path || slugify(resolvedMeta.name || 'Untitled')
         const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`
 
         const ops: DocumentOperation[] = []
-        ops.push({
-          type: 'SetAttributes',
-          attrs: [{key: ['name'], value: title}],
-        })
 
-        if (hasBlocks) {
-          let json: string
-          if (options.blocksFile) {
-            json = readFileSync(options.blocksFile, 'utf-8')
-          } else {
-            json = options.blocks
-          }
-          const nodes = parseBlocksJson(json)
-          ops.push(...hmBlockNodesToOperations(nodes))
-        } else {
-          let markdown: string
-          if (options.bodyFile) {
-            markdown = readFileSync(options.bodyFile, 'utf-8')
-          } else {
-            markdown = options.body
-          }
-          const {tree} = parseMarkdown(markdown)
-          ops.push(...flattenToOperations(tree))
-        }
+        // Metadata attributes
+        const metaOp = metadataToSetAttributes(resolvedMeta)
+        if (metaOp) ops.push(metaOp)
+
+        // Content operations
+        ops.push(...input.ops)
 
         const signer = createSignerFromKey(key)
         const genesisBlock = await createGenesisChange(signer)
@@ -203,13 +394,15 @@ export function registerDocumentCommands(program: Command) {
             {data: new Uint8Array(genesisBlock.bytes), cid: genesisBlock.cid.toString()},
             {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
             ...refInput.blobs,
+            ...input.fileBlobs.map((b) => ({data: b.data, cid: b.cid})),
+            ...metaBlobs.map((b) => ({data: b.data, cid: b.cid})),
           ],
         })
 
         const hmUrl = `hm://${account}${path}`
         if (!globalOpts.quiet) printSuccess(`Document created: ${hmUrl}`)
         if (!globalOpts.quiet) {
-          printInfo(`Title: ${title}`)
+          printInfo(`Name: ${resolvedMeta.name}`)
           printInfo(`Path: ${path}`)
           printInfo(`Genesis CID: ${genesisBlock.cid.toString()}`)
           printInfo(`Change CID: ${changeBlock.cid.toString()}`)
@@ -225,10 +418,24 @@ export function registerDocumentCommands(program: Command) {
   doc
     .command('update <id>')
     .description('Update document metadata, append content, or delete blocks')
-    .option('--title <title>', 'Set document title')
-    .option('--summary <summary>', 'Set document summary')
-    .option('--body <text>', 'Markdown content to append (inline)')
-    .option('--body-file <file>', 'Read markdown content to append from file')
+    .option('-f, --file <path>', 'Input file to append (format detected by extension: .md, .json)')
+    .option('--name <value>', 'Set document title')
+    .option('--summary <value>', 'Set document summary')
+    .option('--display-author <value>', 'Display author name')
+    .option('--display-publish-time <value>', 'Display publish time (YYYY-MM-DD)')
+    .option('--icon <value>', 'Document icon (ipfs:// or file:// URL)')
+    .option('--cover <value>', 'Cover image (ipfs:// or file:// URL)')
+    .option('--site-url <value>', 'Site URL')
+    .option('--layout <value>', 'Document layout')
+    .option('--show-outline', 'Show document outline')
+    .option('--no-show-outline', 'Hide document outline')
+    .option('--show-activity', 'Show document activity')
+    .option('--no-show-activity', 'Hide document activity')
+    .option('--content-width <value>', 'Content width (S, M, L)')
+    .option('--seed-experimental-logo <value>', 'Experimental logo (ipfs:// or file:// URL)')
+    .option('--seed-experimental-home-order <value>', 'Home ordering (UpdatedFirst, CreatedFirst)')
+    .option('--import-categories <value>', 'Import categories (comma-separated)')
+    .option('--import-tags <value>', 'Import tags (comma-separated)')
     .option('--replace-body <file>', 'Replace document body from file (smart positional diff)')
     .option('--parent <blockId>', 'Parent block ID for new content (default: root)')
     .option('--delete-blocks <ids>', 'Comma-separated block IDs to delete')
@@ -241,16 +448,45 @@ export function registerDocumentCommands(program: Command) {
       try {
         const key = resolveKey(options.key, dev)
 
-        // --replace-body is mutually exclusive with --body, --body-file, --delete-blocks
-        if (options.replaceBody && (options.body || options.bodyFile || options.deleteBlocks)) {
-          printError('--replace-body cannot be combined with --body, --body-file, or --delete-blocks.')
+        // For update, only use stdin if -f is explicitly given.
+        // Unlike create, update supports metadata-only changes (--name, --summary),
+        // so auto-detecting stdin would break those cases.
+        const hasFileInput = !!options.file
+
+        // --replace-body is mutually exclusive with -f and --delete-blocks
+        if (options.replaceBody && (hasFileInput || options.deleteBlocks)) {
+          printError('--replace-body cannot be combined with -f, stdin input, or --delete-blocks.')
           process.exit(1)
         }
 
-        const ops = buildMetadataOps(options)
+        const ops: DocumentOperation[] = []
+        let fileBlobs: CollectedBlob[] = []
+        let metaBlobs: CollectedBlob[] = []
 
-        // Fetch the document — needed for all paths (replace-body needs
-        // the existing block tree; other paths need account/path).
+        // Collect metadata from CLI flags and file input
+        let inputMeta: HMMetadata = {}
+        if (hasFileInput) {
+          const input = await readInput({
+            file: options.file,
+            quiet: globalOpts.quiet,
+          })
+          fileBlobs = input.fileBlobs
+          inputMeta = input.metadata
+          ops.push(...input.ops)
+        }
+
+        // Merge metadata: input (frontmatter) < CLI flags
+        const merged = mergeMetadata(inputMeta, options)
+
+        // Resolve file:// links in metadata
+        if (Object.keys(merged).length > 0) {
+          const resolved = await resolveMetadataFileLinks(merged)
+          metaBlobs = resolved.blobs
+          const metaOp = metadataToSetAttributes(resolved.metadata)
+          if (metaOp) ops.push(metaOp)
+        }
+
+        // Fetch the document — needed for all paths
         const resourceId = unpackHmId(id)
         if (!resourceId) {
           printError(`Invalid Hypermedia ID: ${id}`)
@@ -280,31 +516,16 @@ export function registerDocumentCommands(program: Command) {
           if (options.deleteBlocks) {
             const blockIds = options.deleteBlocks
               .split(',')
-              .map((id: string) => id.trim())
+              .map((blockId: string) => blockId.trim())
               .filter(Boolean)
             if (blockIds.length > 0) {
               ops.push({type: 'DeleteBlocks', blocks: blockIds})
             }
           }
-
-          if (options.bodyFile || options.body) {
-            let markdown: string
-            if (options.bodyFile) {
-              markdown = readFileSync(options.bodyFile, 'utf-8')
-            } else {
-              markdown = options.body
-            }
-
-            const parentId = options.parent || ''
-            const {tree} = parseMarkdown(markdown)
-            ops.push(...flattenToOperations(tree, parentId))
-          }
         }
 
         if (ops.length === 0) {
-          printError(
-            'No updates specified. Use --title, --summary, --body, --body-file, --replace-body, or --delete-blocks.',
-          )
+          printError('No updates specified. Use --name, --summary, -f <file>, --replace-body, or --delete-blocks.')
           process.exit(1)
         }
 
@@ -332,7 +553,12 @@ export function registerDocumentCommands(program: Command) {
         )
 
         await client.publish({
-          blobs: [{data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()}, ...refInput.blobs],
+          blobs: [
+            {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
+            ...refInput.blobs,
+            ...fileBlobs.map((b) => ({data: b.data, cid: b.cid})),
+            ...metaBlobs.map((b) => ({data: b.data, cid: b.cid})),
+          ],
         })
 
         if (!globalOpts.quiet) printSuccess('Document updated')
@@ -668,165 +894,126 @@ export function registerDocumentCommands(program: Command) {
       }
     })
 
-  // ── import ──────────────────────────────────────────────────────────────
+  // ── import (deprecated) ──────────────────────────────────────────────────
 
   doc
-    .command('import <account> <file>')
-    .description('Import a PDF document (embedded extraction by default, or GROBID via --grobid-url)')
-    .option('-p, --path <path>', 'Document path (defaults to slugified title)')
-    .option('--title <title>', 'Override extracted title')
-    .option('-k, --key <name>', 'Signing key name or account ID')
-    .option('--grobid-url <url>', 'GROBID server URL (uses GROBID instead of embedded extraction)')
-    .option('--dry-run', 'Output preview without publishing')
-    .action(async (account: string, file: string, options, cmd) => {
-      const globalOpts = cmd.optsWithGlobals()
-      const dev = !!globalOpts.dev
-
-      // Detect format from file extension
-      const ext = file.split('.').pop()?.toLowerCase()
-
-      if (ext !== 'pdf') {
-        printError(`Unsupported file format: .${ext}. Currently supported: .pdf`)
-        process.exit(1)
-      }
-
-      try {
-        // ── Step 1: Read the PDF ──────────────────────────────────────
-        const pdfBuffer = readFileSync(file)
-
-        // ── Step 2: Extract content ───────────────────────────────────
-        if (!globalOpts.quiet) printInfo('Extracting PDF content...')
-        const result = await pdfToBlocks(pdfBuffer.buffer as ArrayBuffer, {
-          grobidUrl: options.grobidUrl,
-        })
-        const {metadata, blocks, source} = result
-        if (!globalOpts.quiet) printInfo(`Extraction method: ${source}`)
-
-        const title = options.title || metadata.name || 'Untitled Import'
-
-        // ── Step 4: Dry-run — render preview and exit ─────────────────
-        if (options.dryRun) {
-          const markdownPreview = renderImportMarkdown({
-            content: blocks,
-            metadata: {
-              name: title,
-              summary: metadata.summary,
-              displayAuthor: metadata.displayAuthor,
-              displayPublishTime: metadata.displayPublishTime,
-            },
-            version: '',
-            authors: [],
-          } as unknown as HMDocument)
-
-          const useStructuredOutput = !!(globalOpts.json || globalOpts.yaml || globalOpts.pretty)
-
-          if (!useStructuredOutput) {
-            console.log(markdownPreview)
-            return
-          }
-
-          const dryRunData = {
-            metadata: {
-              name: title,
-              summary: metadata.summary,
-              displayAuthor: metadata.displayAuthor,
-              displayPublishTime: metadata.displayPublishTime,
-            },
-            blocks,
-          }
-
-          const outputFormat = getOutputFormat(globalOpts)
-          console.log(formatOutput(dryRunData, outputFormat))
-          return
-        }
-
-        // ── Step 5: Build document operations ─────────────────────────
-        const client = getClient(globalOpts)
-        const key = resolveKey(options.key, dev)
-
-        const rawPath = options.path || slugify(title)
-        const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`
-
-        const ops: DocumentOperation[] = []
-
-        // Metadata attributes
-        const attrs: Array<{key: string[]; value: unknown}> = []
-        attrs.push({key: ['name'], value: title})
-        if (metadata.displayAuthor) attrs.push({key: ['displayAuthor'], value: metadata.displayAuthor})
-        if (metadata.summary) attrs.push({key: ['summary'], value: metadata.summary})
-        if (metadata.displayPublishTime) attrs.push({key: ['displayPublishTime'], value: metadata.displayPublishTime})
-        ops.push({type: 'SetAttributes', attrs})
-
-        // Content blocks
-        ops.push(...hmBlockNodesToOperations(blocks))
-
-        // ── Step 6: Sign and publish ──────────────────────────────────
-        const signer = createSignerFromKey(key)
-        const genesisBlock = await createGenesisChange(signer)
-
-        const {unsignedBytes, ts} = createChangeOps({
-          ops,
-          genesisCid: genesisBlock.cid,
-          deps: [genesisBlock.cid],
-          depth: 1,
-        })
-        const changeBlock = await createChange(unsignedBytes, signer)
-        const generation = Number(ts)
-        const refInput = await createVersionRef(
-          {
-            space: account,
-            path,
-            genesis: genesisBlock.cid.toString(),
-            version: changeBlock.cid.toString(),
-            generation,
-          },
-          signer,
-        )
-
-        await client.publish({
-          blobs: [
-            {data: new Uint8Array(genesisBlock.bytes), cid: genesisBlock.cid.toString()},
-            {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
-            ...refInput.blobs,
-          ],
-        })
-
-        const hmUrl = `hm://${account}${path}`
-        if (!globalOpts.quiet) printSuccess(`Document imported: ${hmUrl}`)
-        if (!globalOpts.quiet) {
-          printInfo(`Title: ${title}`)
-          if (metadata.displayAuthor) printInfo(`Author: ${metadata.displayAuthor}`)
-          printInfo(`Path: ${path}`)
-          printInfo(`Blocks: ${countBlocks(blocks)}`)
-          printInfo(`Genesis CID: ${genesisBlock.cid.toString()}`)
-          printInfo(`Change CID: ${changeBlock.cid.toString()}`)
-        }
-      } catch (error) {
-        printError((error as Error).message)
-        process.exit(1)
-      }
+    .command('import')
+    .description('[deprecated] Use "document create -f <file.pdf>" instead')
+    .allowUnknownOption()
+    .action(() => {
+      printError('The "document import" command has been removed.')
+      printInfo('Use "document create -f <file.pdf>" instead.')
+      printInfo('Example: seed-hypermedia document create -f paper.pdf --dry-run')
+      process.exit(1)
     })
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function buildMetadataOps(options: Record<string, string>): DocumentOperation[] {
-  const ops: DocumentOperation[] = []
+/** All HMMetadata keys that can be set via CLI flags or frontmatter. */
+const METADATA_KEYS: (keyof HMMetadata)[] = [
+  'name',
+  'summary',
+  'displayAuthor',
+  'displayPublishTime',
+  'icon',
+  'cover',
+  'siteUrl',
+  'layout',
+  'showOutline',
+  'showActivity',
+  'contentWidth',
+  'seedExperimentalLogo',
+  'seedExperimentalHomeOrder',
+  'importCategories',
+  'importTags',
+]
+
+/** Metadata fields that support file:// paths (resolved to ipfs://). */
+const FILE_LINK_METADATA_KEYS = ['cover', 'icon', 'seedExperimentalLogo'] as const
+
+/**
+ * Extract metadata values from CLI options.
+ * Commander.js converts kebab-case flags to camelCase (--display-author → displayAuthor).
+ */
+function extractCliMetadata(options: Record<string, unknown>): HMMetadata {
+  const meta: HMMetadata = {}
+  for (const key of METADATA_KEYS) {
+    if (options[key] !== undefined) {
+      ;(meta as any)[key] = options[key]
+    }
+  }
+  return meta
+}
+
+/**
+ * Merge metadata from multiple sources.
+ * Priority: defaults < inputMeta (frontmatter/PDF) < CLI flags.
+ */
+function mergeMetadata(
+  inputMeta: HMMetadata,
+  options: Record<string, unknown>,
+  defaults?: Partial<HMMetadata>,
+): HMMetadata {
+  const cliMeta = extractCliMetadata(options)
+  const result: HMMetadata = {}
+
+  for (const key of METADATA_KEYS) {
+    const cli = (cliMeta as any)[key]
+    const input = (inputMeta as any)[key]
+    const def = defaults ? (defaults as any)[key] : undefined
+
+    const value = cli !== undefined ? cli : input !== undefined ? input : def
+    if (value !== undefined) {
+      ;(result as any)[key] = value
+    }
+  }
+
+  // Handle theme (nested object, not a simple flag)
+  if (inputMeta.theme) result.theme = inputMeta.theme
+
+  return result
+}
+
+/**
+ * Convert an HMMetadata object to a SetAttributes operation.
+ * Only includes fields with defined values.
+ */
+function metadataToSetAttributes(metadata: HMMetadata): DocumentOperation | null {
   const attrs: Array<{key: string[]; value: unknown}> = []
+  for (const [key, value] of Object.entries(metadata)) {
+    if (value !== undefined) {
+      attrs.push({key: [key], value})
+    }
+  }
+  if (attrs.length === 0) return null
+  return {type: 'SetAttributes', attrs}
+}
 
-  if (options.title !== undefined) {
-    attrs.push({key: ['name'], value: options.title})
+/**
+ * Resolve file:// links in metadata fields (cover, icon, seedExperimentalLogo).
+ * Reads the local file, chunks it into UnixFS IPFS blocks, and replaces
+ * the file:// URL with ipfs://CID.
+ */
+async function resolveMetadataFileLinks(metadata: HMMetadata): Promise<{metadata: HMMetadata; blobs: CollectedBlob[]}> {
+  const allBlobs: CollectedBlob[] = []
+  const resolved = {...metadata}
+
+  for (const key of FILE_LINK_METADATA_KEYS) {
+    const value = resolved[key]
+    if (value && value.startsWith('file://')) {
+      const filePath = value.slice(7) // strip file://
+      if (!existsSync(filePath)) {
+        throw new Error(`File not found for ${key}: ${filePath}`)
+      }
+      const data = readFileSync(filePath)
+      const result = await fileToIpfsBlobs(new Uint8Array(data))
+      resolved[key] = `ipfs://${result.cid}`
+      allBlobs.push(...result.blobs)
+    }
   }
 
-  if (options.summary !== undefined) {
-    attrs.push({key: ['summary'], value: options.summary})
-  }
-
-  if (attrs.length > 0) {
-    ops.push({type: 'SetAttributes', attrs})
-  }
-
-  return ops
+  return {metadata: resolved, blobs: allBlobs}
 }
 
 function slugify(title: string): string {
@@ -835,164 +1022,6 @@ function slugify(title: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 60)
-}
-
-function countBlocks(nodes: HMBlockNode[]): number {
-  let count = 0
-  for (const node of nodes) {
-    count += 1
-    if (node.children) count += countBlocks(node.children)
-  }
-  return count
-}
-
-function renderImportMarkdown(doc: HMDocument): string {
-  const lines: string[] = []
-  const metadata = doc.metadata || {}
-
-  lines.push('---')
-  if (metadata.name) lines.push(`title: ${JSON.stringify(metadata.name)}`)
-  if (metadata.summary) lines.push(`summary: ${JSON.stringify(metadata.summary)}`)
-  if (metadata.displayAuthor) {
-    lines.push(`displayAuthor: ${JSON.stringify(metadata.displayAuthor)}`)
-  }
-  if (metadata.displayPublishTime) {
-    lines.push(`displayPublishTime: ${JSON.stringify(metadata.displayPublishTime)}`)
-  }
-  lines.push(`version: ${doc.version || ''}`)
-  lines.push('---')
-  lines.push('')
-
-  if (metadata.name) {
-    lines.push(`# ${metadata.name}`)
-    lines.push('')
-  }
-
-  const body = renderImportBlockNodes(doc.content || [], 0)
-  if (body) lines.push(body)
-
-  return lines.join('\n')
-}
-
-function renderImportBlockNodes(nodes: HMBlockNode[], depth: number): string {
-  return nodes
-    .map((node) => renderImportBlockNode(node, depth))
-    .filter(Boolean)
-    .join('\n\n')
-}
-
-function renderImportBlockNode(node: HMBlockNode, depth: number): string {
-  const block = node.block as {
-    type: string
-    text?: string
-    link?: string
-    annotations?: HMAnnotation[]
-    attributes?: Record<string, unknown>
-  }
-
-  const text = renderImportAnnotatedText(block.text || '', block.annotations || [])
-  const parts: string[] = []
-
-  switch (block.type) {
-    case 'Heading': {
-      const level = Math.min(depth + 2, 6)
-      parts.push(`${'#'.repeat(level)} ${text}`)
-      break
-    }
-    case 'Paragraph': {
-      if (text) parts.push(text)
-      break
-    }
-    case 'Code': {
-      const lang = String(block.attributes?.language || '')
-      parts.push(`\`\`\`${lang}`)
-      parts.push(block.text || '')
-      parts.push('```')
-      break
-    }
-    case 'Math': {
-      parts.push('$$')
-      parts.push(block.text || '')
-      parts.push('$$')
-      break
-    }
-    case 'Image': {
-      const alt = text || 'image'
-      const link = block.link || ''
-      parts.push(`![${alt}](${link})`)
-      break
-    }
-    default: {
-      if (text) parts.push(text)
-      break
-    }
-  }
-
-  const childDepth = block.type === 'Heading' ? depth + 1 : depth
-  const children = node.children || []
-  if (children.length > 0) {
-    const childText = renderImportBlockNodes(children, childDepth)
-    if (childText) parts.push(childText)
-  }
-
-  return parts.join('\n\n')
-}
-
-function renderImportAnnotatedText(text: string, annotations: HMAnnotation[]): string {
-  if (!annotations.length || !text) return text
-
-  const chars = [...text]
-  const openAt = new Map<number, string[]>()
-  const closeAt = new Map<number, string[]>()
-
-  for (const ann of annotations) {
-    const starts = ann.starts || []
-    const ends = ann.ends || []
-    const marker = getImportAnnotationMarker(ann)
-    if (!marker) continue
-
-    for (let i = 0; i < starts.length; i++) {
-      const start = starts[i]
-      const end = ends[i]
-      if (start === undefined || end === undefined) continue
-
-      if (!openAt.has(start)) openAt.set(start, [])
-      openAt.get(start)!.push(marker.open)
-
-      if (!closeAt.has(end)) closeAt.set(end, [])
-      closeAt.get(end)!.push(marker.close)
-    }
-  }
-
-  let result = ''
-  for (let i = 0; i <= chars.length; i++) {
-    if (closeAt.has(i)) result += closeAt.get(i)!.join('')
-    if (openAt.has(i)) result += openAt.get(i)!.join('')
-    if (i < chars.length) result += chars[i]
-  }
-
-  return result
-}
-
-function getImportAnnotationMarker(ann: HMAnnotation): {open: string; close: string} | null {
-  switch (ann.type) {
-    case 'Bold':
-      return {open: '**', close: '**'}
-    case 'Italic':
-      return {open: '_', close: '_'}
-    case 'Strike':
-      return {open: '~~', close: '~~'}
-    case 'Code':
-      return {open: '`', close: '`'}
-    case 'Underline':
-      return {open: '<u>', close: '</u>'}
-    case 'Link': {
-      const link = 'link' in ann ? ann.link || '' : ''
-      return {open: '[', close: `](${link})`}
-    }
-    default:
-      return null
-  }
 }
 
 /**
