@@ -13,6 +13,7 @@ import {
   type StoredSession,
   PARAM_CLIENT_ID,
   PARAM_DATA,
+  PARAM_EMAIL,
   PARAM_ERROR,
   PARAM_PROOF,
   PARAM_REDIRECT_URI,
@@ -121,6 +122,9 @@ export async function startAuth(config: HypermediaAuthConfig): Promise<string> {
   url.searchParams.set(PARAM_SESSION_KEY, session.principal)
   url.searchParams.set(PARAM_STATE, authState)
   url.searchParams.set(PARAM_TS, String(authStartTime))
+  if (config.email) {
+    url.searchParams.set(PARAM_EMAIL, config.email)
+  }
   const signedUrl = url.toString()
   const proofPayload = new TextEncoder().encode(signedUrl)
   const proofSig = await signDelegationProof(session.keyPair.privateKey, proofPayload)

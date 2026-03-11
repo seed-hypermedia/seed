@@ -10,7 +10,6 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
-import {DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from '@shm/ui/components/dropdown-menu'
 import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
@@ -19,7 +18,7 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
-import {ChevronDown, LogOut, Monitor, Smartphone} from 'lucide-react'
+import {LogOut, Monitor, Smartphone} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react'
 import {Control, FieldValues, Path, SubmitHandler, useController, useForm} from 'react-hook-form'
@@ -329,6 +328,7 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
   const [customVaultUrl, setCustomVaultUrl] = useState('')
   const [showCustomVaultInput, setShowCustomVaultInput] = useState(false)
   const [vaultSignInUnlocked, setVaultSignInUnlocked] = useState(false)
+  const [vaultEmail, setVaultEmail] = useState('')
   const customVaultInputRef = useRef<HTMLInputElement>(null)
   const unlockTapCountRef = useRef(0)
   const unlockTapTimeoutRef = useRef<number | null>(null)
@@ -370,7 +370,7 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
     }
   }
 
-  const handleVaultSignIn = async (urlOverride?: string) => {
+  const handleVaultSignIn = async (urlOverride?: string, email?: string) => {
     const vaultUrl = urlOverride || defaultVaultUrl
     await setAuthState(AUTH_STATE_DELEGATION_RETURN_URL, window.location.pathname)
     await setAuthState(AUTH_STATE_DELEGATION_VAULT_URL, vaultUrl)
@@ -384,6 +384,7 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
         vaultUrl,
         clientId: origin || window.location.origin,
         redirectUri: `${origin || window.location.origin}/hm/auth/callback`,
+        email: email || undefined,
       })
       window.location.href = authUrl
     } catch (err) {
@@ -405,77 +406,113 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
   return (
     <>
       <DialogTitle className="max-sm:text-base" onClick={handleSecretTitleTap}>
-        {tx('create_account_title', ({siteName}: {siteName: string}) => `Create Account on ${siteName}`, {
-          siteName: siteName || 'this site',
-        })}
+        {vaultSignInUnlocked ? (
+          <>
+            <span className="font-normal">Step 1 of 3 &mdash;</span> Join the conversation
+          </>
+        ) : (
+          tx('create_account_title', ({siteName}: {siteName: string}) => `Create Account on ${siteName}`, {
+            siteName: siteName || 'this site',
+          })
+        )}
       </DialogTitle>
 
       {vaultSignInUnlocked ? (
         <>
-          {/* Divider. */}
-          <div className="flex items-center gap-1">
+          <DialogDescription className="max-sm:text-sm">
+            To join <span className="font-medium">{siteName || 'this site'}</span>, you&apos;ll need a free Seed
+            Hypermedia account. One account works across this site and others.
+          </DialogDescription>
+
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (vaultEmail.trim()) {
+                handleVaultSignIn(undefined, vaultEmail.trim())
+              }
+            }}
+          >
+            <div className="flex flex-col gap-1.5">
+              <SizableText size="sm" className="font-medium">
+                Enter your email to continue
+              </SizableText>
+              <input
+                type="email"
+                className="rounded-md border px-3 py-2 text-sm dark:bg-neutral-900"
+                value={vaultEmail}
+                onChange={(e) => setVaultEmail(e.target.value)}
+                placeholder="Enter your email"
+                required
+                autoFocus
+              />
+              <SizableText size="xs" className="text-neutral-500 dark:text-neutral-400">
+                We&apos;ll send you a verification link. No spam.
+              </SizableText>
+            </div>
+
+            <Button type="submit" size="lg" className="w-full" disabled={!vaultEmail.trim()}>
+              Continue to join
+            </Button>
+          </form>
+
+          {/* Divider */}
+          <div className="flex items-center gap-2">
             <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
-            <span className="text-xs text-neutral-400 dark:text-neutral-500">or</span>
+            <span className="text-xs text-neutral-400 dark:text-neutral-500">
+              Or, already have a Hypermedia account?
+            </span>
             <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
           </div>
 
-          {/* Split button: main part triggers vault sign-in, chevron opens dropdown for custom URL. */}
-          <div className="flex flex-col gap-1">
-            <div className="flex items-stretch">
-              <Button
-                variant="outline"
-                size="lg"
-                className="flex-1 rounded-r-none border-r-0"
-                onClick={() => handleVaultSignIn()}
-              >
-                Sign in with Hypermedia
-              </Button>
-              <DropdownMenu
-                open={showCustomVaultInput}
-                onOpenChange={(open) => {
-                  setShowCustomVaultInput(open)
-                  if (open) {
-                    // Focus the input after the dropdown renders.
-                    setTimeout(() => customVaultInputRef.current?.focus(), 50)
+          <Button variant="outline" size="lg" className="w-full" onClick={() => handleVaultSignIn()}>
+            Sign in
+          </Button>
+
+          <div className="text-center text-sm text-neutral-500 dark:text-neutral-400">
+            Do you have another domain?{' '}
+            <button
+              type="button"
+              className="cursor-pointer font-medium text-emerald-600 underline underline-offset-2 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+              onClick={() => setShowCustomVaultInput(true)}
+            >
+              Sign in with it
+            </button>
+          </div>
+
+          {showCustomVaultInput && (
+            <div className="flex flex-col gap-2 rounded-md border border-neutral-200 p-3 dark:border-neutral-700">
+              <SizableText size="sm" className="font-medium">
+                Custom Vault URL
+              </SizableText>
+              <input
+                ref={customVaultInputRef}
+                className="rounded border px-2 py-1.5 text-sm dark:bg-neutral-900"
+                value={customVaultUrl}
+                onChange={(e) => setCustomVaultUrl(e.target.value)}
+                placeholder={defaultVaultUrl}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && customVaultUrl.trim()) {
+                    handleVaultSignIn(customVaultUrl.trim())
                   }
                 }}
-              >
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="lg" className="rounded-l-none border-l px-2">
-                    <ChevronDown className="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-80 p-3">
-                  <div className="flex flex-col gap-2">
-                    <SizableText size="sm" className="font-medium">
-                      Custom Vault URL
-                    </SizableText>
-                    <input
-                      ref={customVaultInputRef}
-                      className="rounded border px-2 py-1.5 text-sm dark:bg-neutral-900"
-                      value={customVaultUrl}
-                      onChange={(e) => setCustomVaultUrl(e.target.value)}
-                      placeholder={defaultVaultUrl}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && customVaultUrl.trim()) {
-                          handleVaultSignIn(customVaultUrl.trim())
-                        }
-                      }}
-                    />
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="self-end"
-                      disabled={!customVaultUrl.trim()}
-                      onClick={() => handleVaultSignIn(customVaultUrl.trim())}
-                    >
-                      Connect
-                    </Button>
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setShowCustomVaultInput(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  disabled={!customVaultUrl.trim()}
+                  onClick={() => handleVaultSignIn(customVaultUrl.trim())}
+                >
+                  Connect
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </>
       ) : (
         <>

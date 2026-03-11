@@ -332,7 +332,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
         state.decryptedDEK = dek
         await actions.loadVaultData()
-        navigator.go('/')
+        navigator.go('/profile/create')
         await actions.checkSession()
       } catch (e) {
         console.error('Registration error:', e)
@@ -536,7 +536,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
         state.decryptedDEK = dek
         await actions.loadVaultData()
-        navigator.go('/')
+        navigator.go('/profile/create')
         await actions.checkSession()
       } catch (e) {
         console.error('Passkey registration error:', e)
@@ -1341,6 +1341,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         const request = hmauth.parseDelegationRequest(url)
         if (request) {
           state.delegationRequest = request
+          if (request.email) {
+            state.email = request.email
+          }
         }
       } catch (e) {
         state.error = (e as Error).message || 'Invalid delegation request'
