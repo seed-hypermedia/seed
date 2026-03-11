@@ -25,7 +25,19 @@ import {
 import {SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy} from '@dnd-kit/sortable'
 import {CSS} from '@dnd-kit/utilities'
 import * as blobs from '@shm/shared/blobs'
-import {AlertTriangle, Check, Copy, GripVertical, Monitor, Plus, Settings, Smartphone, Tablet, User} from 'lucide-react'
+import {
+  AlertTriangle,
+  Check,
+  ChevronLeft,
+  Copy,
+  GripVertical,
+  Monitor,
+  Plus,
+  Settings,
+  Smartphone,
+  Tablet,
+  User,
+} from 'lucide-react'
 import {useEffect, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
 
@@ -45,6 +57,7 @@ export function VaultView() {
     useAppState()
   const actions = useActions()
   const navigate = useNavigate()
+  const [mobilePanel, setMobilePanel] = useState<'list' | 'detail'>('list')
 
   const accounts = vaultData?.accounts ?? []
   const hasAccounts = accounts.length > 0
@@ -79,6 +92,11 @@ export function VaultView() {
     }
   }
 
+  function handleSelectAccount(index: number) {
+    actions.selectAccount(index)
+    setMobilePanel('detail')
+  }
+
   if (!hasAccounts) {
     return (
       <>
@@ -92,9 +110,11 @@ export function VaultView() {
   return (
     <>
       {!creatingAccount && <ErrorMessage message={error} />}
-      <div className="bg-card flex min-h-[480px] overflow-hidden rounded-xl border">
+      <div className="bg-card flex min-h-[480px] overflow-hidden rounded-xl border max-md:flex-col">
         {/* Left sidebar */}
-        <div className="flex w-[280px] shrink-0 flex-col border-r">
+        <div
+          className={`flex shrink-0 flex-col max-md:w-full max-md:border-r-0 md:w-[280px] md:border-r ${mobilePanel === 'list' ? 'max-md:border-b' : 'max-md:hidden'}`}
+        >
           <div className="flex items-center justify-between border-b p-4">
             <h2 className="text-muted-foreground text-sm font-semibold tracking-wide uppercase">Accounts</h2>
             <TooltipProvider>
@@ -129,7 +149,7 @@ export function VaultView() {
                       profileLoadState={profileLoadStates[principal]}
                       backendHttpBaseUrl={backendHttpBaseUrl}
                       isSelected={isSelected}
-                      onSelect={() => actions.selectAccount(index)}
+                      onSelect={() => handleSelectAccount(index)}
                     />
                   )
                 })}
@@ -145,12 +165,13 @@ export function VaultView() {
         </div>
 
         {/* Right panel */}
-        <div className="flex-1 overflow-y-auto">
+        <div className={`flex-1 overflow-y-auto ${mobilePanel === 'detail' ? '' : 'max-md:hidden'}`}>
           {selectedAccount ? (
             <AccountDetails
               account={selectedAccount as unknown as vault.Account}
               profile={selectedPrincipal ? profiles[selectedPrincipal] : undefined}
               profileLoadState={selectedPrincipal ? profileLoadStates[selectedPrincipal] : undefined}
+              onBack={() => setMobilePanel('list')}
             />
           ) : (
             <div className="text-muted-foreground flex h-full items-center justify-center">
@@ -253,10 +274,12 @@ function AccountDetails({
   account,
   profile,
   profileLoadState,
+  onBack,
 }: {
   account: vault.Account
   profile?: AccountProfileSummary
   profileLoadState?: ProfileLoadState
+  onBack?: () => void
 }) {
   const {loading, error, backendHttpBaseUrl} = useAppState()
   const actions = useActions()
@@ -289,6 +312,16 @@ function AccountDetails({
 
   return (
     <div className="space-y-6 p-6">
+      {onBack && (
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm md:hidden"
+          onClick={onBack}
+        >
+          <ChevronLeft className="size-4" />
+          All Accounts
+        </button>
+      )}
       {/* Profile header */}
       <div className="flex items-start gap-4">
         <div className="bg-primary/10 flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full">

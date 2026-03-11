@@ -20,7 +20,7 @@ export function Header() {
   }
 
   return (
-    <header className="bg-panel border-border flex items-center justify-between border-b px-8 py-4">
+    <header className="bg-panel border-border flex items-center justify-between border-b px-4 py-4 md:px-8">
       <Link
         to="/"
         className="!text-primary hover:!text-primary text-xl font-semibold transition-opacity hover:no-underline hover:opacity-80"
