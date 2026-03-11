@@ -25,7 +25,7 @@ export function Header() {
         to="/"
         className="!text-primary hover:!text-primary text-xl font-semibold transition-opacity hover:no-underline hover:opacity-80"
       >
-        <span className="font-semibold">hyper.media</span> <span className="font-light">Identity Vault</span>
+        <span className="font-semibold">hyper.media</span> <span className="font-light">Vault</span>
       </Link>
       <div className="flex items-center gap-2">
         {session?.authenticated && <AccountMenu email={session.email || ''} onSignOut={actions.handleLogout} />}
