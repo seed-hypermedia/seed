@@ -5,7 +5,6 @@ import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardHeader, CardTitle} from '@/frontend/components/ui/card'
 import {Input} from '@/frontend/components/ui/input'
 import {Label} from '@/frontend/components/ui/label'
-import {Textarea} from '@/frontend/components/ui/textarea'
 import {useActions, useAppState} from '@/frontend/store'
 import {Plus} from 'lucide-react'
 
@@ -20,24 +19,10 @@ export function CreateProfileView() {
   const navigate = useNavigate()
 
   const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
   const [nameError, setNameError] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | undefined>()
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null)
   const [avatarError, setAvatarError] = useState('')
-  const [emailNotifs, setEmailNotifs] = useState(true)
-
-  // Derive site name from delegation request's clientId
-  const siteName = (() => {
-    try {
-      if (delegationRequest?.clientId) {
-        return new URL(delegationRequest.clientId).hostname
-      }
-    } catch {
-      // ignore invalid URLs
-    }
-    return 'Hypermedia'
-  })()
 
   useEffect(() => {
     if (!avatarFile) return
@@ -72,7 +57,7 @@ export function CreateProfileView() {
     }
     setNameError('')
 
-    await actions.createAccount(trimmedName, description.trim() || undefined, avatarFile)
+    await actions.createAccount(trimmedName, undefined, avatarFile)
 
     // Navigate to delegation consent if there's a pending request, otherwise to dashboard
     if (delegationRequest) {
@@ -90,7 +75,7 @@ export function CreateProfileView() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-muted-foreground mb-6 text-sm">Add a name and short bio so people recognize you.</p>
+        <p className="text-muted-foreground mb-6 text-sm">Add a name so people recognize you.</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <ErrorMessage message={error} />
@@ -109,18 +94,6 @@ export function CreateProfileView() {
               disabled={loading}
             />
             {nameError && <p className="text-destructive text-sm">{nameError}</p>}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="profile-bio">Short bio (optional)</Label>
-            <Textarea
-              id="profile-bio"
-              value={description}
-              onChange={(e) => setDescription(e.target.value.slice(0, 512))}
-              placeholder="Type here"
-              className="min-h-[80px] resize-none"
-              disabled={loading}
-            />
           </div>
 
           {/* Avatar upload */}
@@ -144,17 +117,6 @@ export function CreateProfileView() {
             </div>
             {avatarError && <p className="text-destructive text-sm">{avatarError}</p>}
           </div>
-
-          {/* Email notifications placeholder */}
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={emailNotifs}
-              onChange={(e) => setEmailNotifs(e.target.checked)}
-              className="accent-brand-6 size-4 shrink-0 rounded"
-            />
-            Get email notifications about {siteName} activity.
-          </label>
 
           <Button type="submit" className="w-full" loading={loading}>
             Start participating
