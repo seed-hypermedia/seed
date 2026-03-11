@@ -11,16 +11,28 @@ packages:
 # the security ecosystem time to detect compromised releases before they reach
 # the project. Only affects `pnpm add` / version updates; `pnpm install` from
 # an existing lockfile (frozen) is unaffected.
-minimumReleaseAge: "1440 minutes"
+minimumReleaseAge: 1440
 
+# trustPolicy: "no-downgrade"
 # Blocks installation if a package's trust level has decreased compared to its
 # previous release (e.g. was provenance-attested, now unsigned).
-trustPolicy: "no-downgrade"
-trustPolicyExclude:
-  # undici-types@6.21.0 (transitive dep of @types/node) lacks provenance
-  # attestation that earlier versions had. Excluded pending upstream resolution.
-  # See: https://github.com/seed-hypermedia/seed/pull/310 for context.
-  - "undici-types"
+# DISABLED: too many packages in the current dependency tree have legitimately
+# changed their publishing workflow (e.g. semver, vite, hosted-git-info,
+# undici-types) — pnpm flags these as trust downgrades even when they are not
+# supply-chain incidents. Re-enable once the dep tree stabilises or when pnpm
+# adds a way to bulk-accept historical workflow changes.
+
+# Ignore CVEs that have no upstream fix available.
+# Re-evaluate periodically — remove once a patched version is released.
+auditConfig:
+  ignoreCves:
+    # ip@<=2.0.1 — Server-Side Request Forgery — no patch published.
+    # Reaches us via: lighthouse > puppeteer-core > ... > ip
+    # and react-devtools > ip (both are devDependencies only).
+    - CVE-2024-29415
+    # html-minifier@<=4.0.0 — ReDoS — no patch published.
+    # Reaches us via: mjml > mjml-cli > html-minifier (emails app devDep).
+    - CVE-2022-37620
 
 # blockExoticSubdeps: true
 # Prevents transitive dependencies from being resolved from exotic sources
