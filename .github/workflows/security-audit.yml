@@ -1,0 +1,44 @@
+name: Security Audit
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - '.github/workflows/security-audit.yml'
+  pull_request:
+    paths:
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - '.github/workflows/security-audit.yml'
+  schedule:
+    # Run every Monday at 09:00 UTC to catch newly-reported vulnerabilities
+    # in existing dependencies even when no code changes are made.
+    - cron: '0 9 * * 1'
+
+jobs:
+  audit:
+    name: pnpm audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run security audit
+        # Fail on high or critical vulnerabilities.
+        # Use --audit-level=moderate to be stricter if desired.
+        run: pnpm audit --audit-level=high

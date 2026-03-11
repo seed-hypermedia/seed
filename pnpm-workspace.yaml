@@ -5,21 +5,39 @@ packages:
   - 'docs'
   - 'tests'
 
-# Supply-chain security settings (pnpm v10+).
-# See https://pnpm.io/supply-chain-security
+# Supply-chain security settings — https://pnpm.io/supply-chain-security
+
+# Delays installation of newly-published package versions by 24 h. This gives
+# the security ecosystem time to detect compromised releases before they reach
+# the project. Only affects `pnpm add` / version updates; `pnpm install` from
+# an existing lockfile (frozen) is unaffected.
+minimumReleaseAge: 1440
+
+# trustPolicy: "no-downgrade"
+# Blocks installation if a package's trust level has decreased compared to its
+# previous release (e.g. was provenance-attested, now unsigned).
+# DISABLED: too many packages in the current dependency tree have legitimately
+# changed their publishing workflow (e.g. semver, vite, hosted-git-info,
+# undici-types) — pnpm flags these as trust downgrades even when they are not
+# supply-chain incidents. Re-enable once the dep tree stabilises or when pnpm
+# adds a way to bulk-accept historical workflow changes.
+
+# Ignore CVEs that have no upstream fix available.
+# Re-evaluate periodically — remove once a patched version is released.
+auditConfig:
+  ignoreCves:
+    # ip@<=2.0.1 — Server-Side Request Forgery — no patch published.
+    # Reaches us via: lighthouse > puppeteer-core > ... > ip
+    # and react-devtools > ip (both are devDependencies only).
+    - CVE-2024-29415
+    # html-minifier@<=4.0.0 — ReDoS — no patch published.
+    # Reaches us via: mjml > mjml-cli > html-minifier (emails app devDep).
+    - CVE-2022-37620
 
 # blockExoticSubdeps: true
 # Prevents transitive dependencies from being resolved from exotic sources
 # (git repositories, direct tarball URLs). All transitive deps must come
 # from the configured registry.
-# NOTE: kept off for now — enabling it immediately flagged @electron/node-gyp
-# (a transitive dep of @electron-forge/shared-types via @electron/rebuild) as
-# being resolved from a git repository instead of the npm registry. That
-# dependency should be investigated before turning this on.
-
-# trustPolicy: "no-downgrade"
-# Blocks installation if a package's trust level has decreased compared to
-# its previous release (e.g. was signed/provenance-verified, now unsigned).
-# NOTE: kept off for now — enabling it immediately flagged undici-types@6.21.0
-# (a transitive dep of @types/node) as a trust downgrade. That package should
-# be investigated before turning this on. See the PR description for details.
+# BLOCKED: @electron/node-gyp is resolved from a git repo as a transitive dep
+# of @electron-forge/shared-types → @electron/rebuild@3.7.2. Needs an upstream
+# fix in @electron-forge before this can be enabled.
