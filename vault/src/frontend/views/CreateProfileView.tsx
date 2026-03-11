@@ -99,7 +99,7 @@ export function CreateProfileView() {
           {/* Avatar upload */}
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <div className="bg-muted relative flex size-16 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded">
+              <div className="bg-muted focus-within:ring-primary relative flex size-16 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded focus-within:ring-2 focus-within:ring-offset-2">
                 {avatarPreviewUrl ? (
                   <img src={avatarPreviewUrl} className="size-full object-cover" alt="" />
                 ) : (
