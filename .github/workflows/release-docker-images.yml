@@ -206,3 +206,11 @@ jobs:
           push: true
           file: backend/cmd/relayd/Dockerfile
           tags: seedhypermedia/relayd:latest
+
+      - name: DockerHub Release seedhypermedia/vault:latest
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          file: vault/Dockerfile
+          tags: seedhypermedia/vault:latest
