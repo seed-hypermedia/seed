@@ -1,0 +1,437 @@
+{
+  "version": "2.8",
+  "children": [
+    {
+      "type": "frame",
+      "id": "8ZFSn",
+      "x": 0,
+      "y": 0,
+      "name": "Header — Teal Light",
+      "width": 900,
+      "height": 64,
+      "fill": "#FFFFFF",
+      "stroke": {
+        "align": "inside",
+        "thickness": {
+          "bottom": 1
+        },
+        "fill": "#E5E7EB"
+      },
+      "padding": [
+        0,
+        32
+      ],
+      "justifyContent": "space_between",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "bgBcl",
+          "name": "logo1",
+          "fill": "#3D8C8C",
+          "content": "hyper.media Identity Vault",
+          "fontFamily": "Inter",
+          "fontSize": 20,
+          "fontWeight": "600"
+        },
+        {
+          "type": "frame",
+          "id": "u4872",
+          "name": "rightGroup1",
+          "gap": 12,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "aC0QF",
+              "name": "themeBtn1",
+              "width": 32,
+              "height": 32,
+              "fill": "#F5F5F5",
+              "cornerRadius": 6,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "lYV4d",
+                  "name": "sunIcon1",
+                  "width": 16,
+                  "height": 16,
+                  "iconFontName": "sun",
+                  "iconFontFamily": "lucide",
+                  "fill": "#6B7280"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "bAvCU",
+              "name": "email1",
+              "fill": "#6B7280",
+              "content": "user@example.com",
+              "fontFamily": "Inter",
+              "fontSize": 14
+            },
+            {
+              "type": "frame",
+              "id": "Uw9Cr",
+              "name": "signOutBtn1",
+              "height": 32,
+              "fill": "#E8F5F5",
+              "cornerRadius": 6,
+              "padding": [
+                0,
+                12
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Hc74Y",
+                  "name": "signOutText1",
+                  "fill": "#3D8C8C",
+                  "content": "Sign out",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "NBA84",
+      "x": 0,
+      "y": 90,
+      "name": "Header — Teal Dark",
+      "width": 900,
+      "height": 64,
+      "fill": "#1A1A1E",
+      "stroke": {
+        "align": "inside",
+        "thickness": {
+          "bottom": 1
+        },
+        "fill": "#2A2A2E"
+      },
+      "padding": [
+        0,
+        32
+      ],
+      "justifyContent": "space_between",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "E1ix2",
+          "name": "logo2",
+          "fill": "#5CB8B8",
+          "content": "hyper.media Identity Vault",
+          "fontFamily": "Inter",
+          "fontSize": 20,
+          "fontWeight": "600"
+        },
+        {
+          "type": "frame",
+          "id": "aHRM5",
+          "name": "rightGroup2",
+          "gap": 12,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "oY4Es",
+              "name": "themeBtn2",
+              "width": 32,
+              "height": 32,
+              "fill": "#2A2A2E",
+              "cornerRadius": 6,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "R0Clm",
+                  "name": "moonIcon2",
+                  "width": 16,
+                  "height": 16,
+                  "iconFontName": "moon",
+                  "iconFontFamily": "lucide",
+                  "fill": "#9CA3AF"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "Yqla4",
+              "name": "email2",
+              "fill": "#9CA3AF",
+              "content": "user@example.com",
+              "fontFamily": "Inter",
+              "fontSize": 14
+            },
+            {
+              "type": "frame",
+              "id": "DONbI",
+              "name": "signOutBtn2",
+              "height": 32,
+              "fill": "#1E3A3A",
+              "cornerRadius": 6,
+              "padding": [
+                0,
+                12
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "0zvv6",
+                  "name": "signOutText2",
+                  "fill": "#5CB8B8",
+                  "content": "Sign out",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "kczQ3",
+      "x": 0,
+      "y": 220,
+      "name": "Header — Gray Light",
+      "width": 900,
+      "height": 64,
+      "fill": "#FFFFFF",
+      "stroke": {
+        "align": "inside",
+        "thickness": {
+          "bottom": 1
+        },
+        "fill": "#E5E7EB"
+      },
+      "padding": [
+        0,
+        32
+      ],
+      "justifyContent": "space_between",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "13Xj0",
+          "name": "logo3",
+          "fill": "#4B5563",
+          "content": "hyper.media Identity Vault",
+          "fontFamily": "Inter",
+          "fontSize": 20,
+          "fontWeight": "600"
+        },
+        {
+          "type": "frame",
+          "id": "ZuvEs",
+          "name": "rightGroup3",
+          "gap": 12,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "R1p40",
+              "name": "themeBtn3",
+              "width": 32,
+              "height": 32,
+              "fill": "#F3F4F6",
+              "cornerRadius": 6,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "Axzo6",
+                  "name": "sunIcon3",
+                  "width": 16,
+                  "height": 16,
+                  "iconFontName": "sun",
+                  "iconFontFamily": "lucide",
+                  "fill": "#6B7280"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "ZXZk2",
+              "name": "email3",
+              "fill": "#6B7280",
+              "content": "user@example.com",
+              "fontFamily": "Inter",
+              "fontSize": 14
+            },
+            {
+              "type": "frame",
+              "id": "TwEeB",
+              "name": "signOutBtn3",
+              "height": 32,
+              "fill": "#F3F4F6",
+              "cornerRadius": 6,
+              "padding": [
+                0,
+                12
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "GYVWd",
+                  "name": "signOutText3",
+                  "fill": "#4B5563",
+                  "content": "Sign out",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "QqcKH",
+      "x": 0,
+      "y": 310,
+      "name": "Header — Gray Dark",
+      "width": 900,
+      "height": 64,
+      "fill": "#1A1A1E",
+      "stroke": {
+        "align": "inside",
+        "thickness": {
+          "bottom": 1
+        },
+        "fill": "#2A2A2E"
+      },
+      "padding": [
+        0,
+        32
+      ],
+      "justifyContent": "space_between",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "TUhwP",
+          "name": "logo4",
+          "fill": "#9CA3AF",
+          "content": "hyper.media Identity Vault",
+          "fontFamily": "Inter",
+          "fontSize": 20,
+          "fontWeight": "600"
+        },
+        {
+          "type": "frame",
+          "id": "bKHyI",
+          "name": "rightGroup4",
+          "gap": 12,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "kRdeT",
+              "name": "themeBtn4",
+              "width": 32,
+              "height": 32,
+              "fill": "#2A2A2E",
+              "cornerRadius": 6,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "kZu0V",
+                  "name": "moonIcon4",
+                  "width": 16,
+                  "height": 16,
+                  "iconFontName": "moon",
+                  "iconFontFamily": "lucide",
+                  "fill": "#9CA3AF"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "eZyWo",
+              "name": "email4",
+              "fill": "#6B7280",
+              "content": "user@example.com",
+              "fontFamily": "Inter",
+              "fontSize": 14
+            },
+            {
+              "type": "frame",
+              "id": "mGErI",
+              "name": "signOutBtn4",
+              "height": 32,
+              "fill": "#2A2A2E",
+              "cornerRadius": 6,
+              "padding": [
+                0,
+                12
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "lrNgD",
+                  "name": "signOutText4",
+                  "fill": "#9CA3AF",
+                  "content": "Sign out",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "PxwDm",
+      "x": 0,
+      "y": -24,
+      "name": "tealLabel",
+      "fill": "#3D8C8C",
+      "content": "Option A: Teal",
+      "fontFamily": "Inter",
+      "fontSize": 14,
+      "fontWeight": "600"
+    },
+    {
+      "type": "text",
+      "id": "SJzmW",
+      "x": 0,
+      "y": 196,
+      "name": "grayLabel",
+      "fill": "#4B5563",
+      "content": "Option B: Cool Gray",
+      "fontFamily": "Inter",
+      "fontSize": 14,
+      "fontWeight": "600"
+    }
+  ]
+}

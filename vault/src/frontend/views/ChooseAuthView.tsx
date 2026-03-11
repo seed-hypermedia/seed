@@ -46,16 +46,9 @@ export function ChooseAuthView() {
         <div className="space-y-3">
           <div>
             <p className="font-semibold">Use a password</p>
-            <p className="text-muted-foreground mt-1 text-sm">
-              Create a password to sign in with email and password.
-            </p>
+            <p className="text-muted-foreground mt-1 text-sm">Create a password to sign in with email and password.</p>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => setShowPasswordDialog(true)}
-            disabled={loading}
-            className="w-full"
-          >
+          <Button variant="outline" onClick={() => setShowPasswordDialog(true)} disabled={loading} className="w-full">
             Create password
           </Button>
         </div>

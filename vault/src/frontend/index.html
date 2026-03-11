@@ -4,10 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Zero-Knowledge Identity Provider" />
-    <title>Seed Hypermedia Identity Vault</title>
+    <title>hyper.media Identity Vault</title>
     <link rel="stylesheet" href="@/frontend/styles.css" />
   </head>
   <body>
+    <script>
+      // Inline theme init to prevent flash of wrong theme before module loads.
+      try {
+        var t = localStorage.getItem('vault-theme') || 'system'
+        var dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+        if (dark) document.documentElement.classList.add('dark')
+      } catch (e) {}
+    </script>
     <div id="root"></div>
     <script type="module" src="@/frontend/index.tsx"></script>
   </body>

@@ -1,10 +1,9 @@
 import {useEffect, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
-import {Spinner} from '@/frontend/components/Spinner'
 import {Alert, AlertDescription} from '@/frontend/components/ui/alert'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
-import {useAppState} from '@/frontend/store'
+import {useActions, useAppState} from '@/frontend/store'
 
 function Countdown({seconds}: {seconds: number}) {
   const [timeLeft, setTimeLeft] = useState(seconds)
@@ -23,48 +22,50 @@ function Countdown({seconds}: {seconds: number}) {
   const remainingSeconds = timeLeft % 60
   const formattedTime = `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
 
-  return <p className="mt-2 text-sm opacity-80">Link expires in {formattedTime}</p>
+  return <p className="text-muted-foreground text-xs">Link expires in {formattedTime}</p>
 }
 
 /**
  * View shown while waiting for the user to click the magic link.
- * Displays instructions and a spinner while polling for verification.
+ * Displays instructions while polling for verification in the background.
  */
 export function VerifyPendingView() {
   const {email, error} = useAppState()
+  const actions = useActions()
   const navigate = useNavigate()
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-center">Check Your Email</CardTitle>
-        <CardDescription className="text-center">
-          We sent a verification link to <strong>{email}</strong>
+        <CardTitle className="text-left">
+          <span className="text-muted-foreground font-normal">Step 1 of 3</span> — Check your email
+        </CardTitle>
+        <CardDescription className="text-left">
+          We've sent a verification link to <strong>{email}</strong>
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Alert variant="info" className="my-6">
-          <AlertDescription>
-            <p>Click the link in your email to continue.</p>
-            <Countdown seconds={120} />
-          </AlertDescription>
-        </Alert>
-
-        <div className="my-8 flex justify-center">
-          <Spinner size="lg" />
+        <div className="border-muted-foreground/20 space-y-2 rounded-lg border p-4">
+          <p className="text-sm">Click the link in the email to continue joining this site.</p>
+          <p className="text-sm">
+            Didn't get it? Check spam or{' '}
+            <button
+              type="button"
+              className="text-primary underline hover:opacity-80"
+              onClick={() => actions.handleStartRegistration()}
+            >
+              request a new link
+            </button>
+            .
+          </p>
+          <Countdown seconds={120} />
         </div>
-
-        <p className="text-center text-sm opacity-70">Waiting for verification...</p>
 
         {error && (
           <Alert variant="destructive" className="mt-6">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-
-        <Alert variant="info" className="mt-6">
-          <AlertDescription>Check the server console for the magic link (in development).</AlertDescription>
-        </Alert>
 
         <Button variant="ghost" className="mt-4 w-full" onClick={() => navigate('/')}>
           ← Back

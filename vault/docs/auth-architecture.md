@@ -1,15 +1,15 @@
 # Authentication & Vault Architecture
 
-This document describes the full signup/login flow, the vault's internal architecture, and how the frontend
-integrates with the vault for identity delegation. For the delegation protocol specifically, see `delegation.md`.
+This document describes the full signup/login flow, the vault's internal architecture, and how the frontend integrates
+with the vault for identity delegation. For the delegation protocol specifically, see `delegation.md`.
 
 ## Overview
 
 The system has two independent applications:
 
 - **Frontend web app** (`frontend/apps/web/`): The main site. Users interact with content here.
-- **Vault app** (`vault/`): A capability-based identity service. Stores account keys, handles authentication,
-  and delegates authority to third-party sites.
+- **Vault app** (`vault/`): A capability-based identity service. Stores account keys, handles authentication, and
+  delegates authority to third-party sites.
 
 Users can create accounts in two ways:
 
@@ -31,13 +31,13 @@ Located in `vault/src/sqlite.ts`.
 
 ### users
 
-| Column           | Type    | Notes                         |
-| ---------------- | ------- | ----------------------------- |
-| `id`             | TEXT PK | UUID                          |
-| `email`          | TEXT    | Unique, not null              |
-| `encrypted_data` | BLOB    | Encrypted vault data          |
-| `version`        | INTEGER | Optimistic locking version    |
-| `create_time`    | INTEGER | Unix timestamp                |
+| Column           | Type    | Notes                      |
+| ---------------- | ------- | -------------------------- |
+| `id`             | TEXT PK | UUID                       |
+| `email`          | TEXT    | Unique, not null           |
+| `encrypted_data` | BLOB    | Encrypted vault data       |
+| `version`        | INTEGER | Optimistic locking version |
+| `create_time`    | INTEGER | Unix timestamp             |
 
 ### credentials
 
@@ -54,27 +54,27 @@ Wraps a user's Data Encryption Key (DEK) with different auth methods.
 
 ### sessions
 
-| Column        | Type    | Notes                      |
-| ------------- | ------- | -------------------------- |
-| `id`          | TEXT PK | UUID                       |
-| `user_id`     | TEXT FK | References `users`         |
-| `expire_time` | INTEGER | 24 hours from creation     |
-| `create_time` | INTEGER | Unix timestamp             |
+| Column        | Type    | Notes                  |
+| ------------- | ------- | ---------------------- |
+| `id`          | TEXT PK | UUID                   |
+| `user_id`     | TEXT FK | References `users`     |
+| `expire_time` | INTEGER | 24 hours from creation |
+| `create_time` | INTEGER | Unix timestamp         |
 
 ### email_challenges
 
 Temporary records for email verification (registration and email changes).
 
-| Column       | Type    | Notes                                    |
-| ------------ | ------- | ---------------------------------------- |
-| `id`         | TEXT PK | Challenge ID used for polling            |
-| `user_id`    | TEXT FK | Null for registration, set for changes   |
-| `purpose`    | TEXT    | `'registration'` or `'email_change'`     |
-| `token_hash` | TEXT    | SHA-256 hash of the verification token   |
-| `email`      | TEXT    | Email being verified                     |
-| `new_email`  | TEXT    | For email changes only                   |
-| `verified`   | INTEGER | Boolean flag                             |
-| `expire_time`| INTEGER | 2 minutes from creation                  |
+| Column        | Type    | Notes                                  |
+| ------------- | ------- | -------------------------------------- |
+| `id`          | TEXT PK | Challenge ID used for polling          |
+| `user_id`     | TEXT FK | Null for registration, set for changes |
+| `purpose`     | TEXT    | `'registration'` or `'email_change'`   |
+| `token_hash`  | TEXT    | SHA-256 hash of the verification token |
+| `email`       | TEXT    | Email being verified                   |
+| `new_email`   | TEXT    | For email changes only                 |
+| `verified`    | INTEGER | Boolean flag                           |
+| `expire_time` | INTEGER | 2 minutes from creation                |
 
 ## API Routes
 
@@ -82,44 +82,44 @@ All routes are at `/vault/api/*`. Defined in `vault/src/main.ts`, implemented in
 
 ### Authentication
 
-| Route                            | Method | Purpose                                    |
-| -------------------------------- | ------ | ------------------------------------------ |
-| `/vault/api/pre-login`           | POST   | Check if email exists, has password/passkeys |
-| `/vault/api/register/start`      | POST   | Start registration, send magic link email  |
-| `/vault/api/register/poll`       | POST   | Poll for magic link verification           |
-| `/vault/api/register/verify-link`| POST   | Verify magic link token                    |
-| `/vault/api/login`               | POST   | Password login                             |
-| `/vault/api/add-password`        | POST   | Add password credential                    |
-| `/vault/api/change-password`     | POST   | Change password credential                 |
-| `/vault/api/logout`              | POST   | Destroy session                            |
-| `/vault/api/session`             | GET    | Check current session status               |
+| Route                             | Method | Purpose                                      |
+| --------------------------------- | ------ | -------------------------------------------- |
+| `/vault/api/pre-login`            | POST   | Check if email exists, has password/passkeys |
+| `/vault/api/register/start`       | POST   | Start registration, send magic link email    |
+| `/vault/api/register/poll`        | POST   | Poll for magic link verification             |
+| `/vault/api/register/verify-link` | POST   | Verify magic link token                      |
+| `/vault/api/login`                | POST   | Password login                               |
+| `/vault/api/add-password`         | POST   | Add password credential                      |
+| `/vault/api/change-password`      | POST   | Change password credential                   |
+| `/vault/api/logout`               | POST   | Destroy session                              |
+| `/vault/api/session`              | GET    | Check current session status                 |
 
 ### WebAuthn / Passkey
 
-| Route                                  | Method | Purpose                          |
-| -------------------------------------- | ------ | -------------------------------- |
-| `/vault/api/webauthn/register/start`   | POST   | Generate passkey registration options |
-| `/vault/api/webauthn/register/complete`| POST   | Complete passkey registration    |
-| `/vault/api/webauthn/login/start`      | POST   | Generate passkey login challenge |
-| `/vault/api/webauthn/login/complete`   | POST   | Complete passkey login           |
-| `/vault/api/webauthn/vault`            | POST   | Store passkey-encrypted DEK      |
+| Route                                   | Method | Purpose                               |
+| --------------------------------------- | ------ | ------------------------------------- |
+| `/vault/api/webauthn/register/start`    | POST   | Generate passkey registration options |
+| `/vault/api/webauthn/register/complete` | POST   | Complete passkey registration         |
+| `/vault/api/webauthn/login/start`       | POST   | Generate passkey login challenge      |
+| `/vault/api/webauthn/login/complete`    | POST   | Complete passkey login                |
+| `/vault/api/webauthn/vault`             | POST   | Store passkey-encrypted DEK           |
 
 ### Vault Data & Config
 
-| Route                    | Method   | Purpose                              |
-| ------------------------ | -------- | ------------------------------------ |
-| `/vault/api/vault`       | GET      | Get encrypted vault data             |
-| `/vault/api/vault`       | POST     | Save encrypted vault data            |
-| `/vault/api/config`      | GET      | Get backend config (base URLs)       |
-| `/vault/api/accounts/:id`| GET      | Get account profile (protobuf)       |
+| Route                     | Method | Purpose                        |
+| ------------------------- | ------ | ------------------------------ |
+| `/vault/api/vault`        | GET    | Get encrypted vault data       |
+| `/vault/api/vault`        | POST   | Save encrypted vault data      |
+| `/vault/api/config`       | GET    | Get backend config (base URLs) |
+| `/vault/api/accounts/:id` | GET    | Get account profile (protobuf) |
 
 ### Email Change
 
-| Route                                  | Method | Purpose                          |
-| -------------------------------------- | ------ | -------------------------------- |
-| `/vault/api/change-email/start`        | POST   | Start email change               |
-| `/vault/api/change-email/poll`         | POST   | Poll for email change verification |
-| `/vault/api/change-email/verify-link`  | POST   | Verify email change link         |
+| Route                                 | Method | Purpose                            |
+| ------------------------------------- | ------ | ---------------------------------- |
+| `/vault/api/change-email/start`       | POST   | Start email change                 |
+| `/vault/api/change-email/poll`        | POST   | Poll for email change verification |
+| `/vault/api/change-email/verify-link` | POST   | Verify email change link           |
 
 ## Signup Flow (New User)
 
@@ -197,7 +197,8 @@ All routes are at `/vault/api/*`. Defined in `vault/src/main.ts`, implemented in
 
 Three variants:
 
-- **Conditional mediation** (autofill): On `PreLoginView` mount, starts `webauthn.startAuthentication({useBrowserAutofill: true})`. Browser shows passkey suggestions in the email field.
+- **Conditional mediation** (autofill): On `PreLoginView` mount, starts
+  `webauthn.startAuthentication({useBrowserAutofill: true})`. Browser shows passkey suggestions in the email field.
 - **Modal login**: User clicks "Sign in with a passkey" link. Shows system passkey picker.
 - **Email-specific**: After entering email, user clicks passkey button. Challenge scoped to that user's credentials.
 
@@ -205,21 +206,21 @@ All passkey logins: PRF output decrypts DEK → session created → vault unlock
 
 ### Quick Unlock (Locked State)
 
-When session is valid but `decryptedDEK` is null (vault locked), `LockedView` shows unlock options:
-passkey unlock or master password re-entry.
+When session is valid but `decryptedDEK` is null (vault locked), `LockedView` shows unlock options: passkey unlock or
+master password re-entry.
 
 ## Session & Cookie Management
 
 Located in `vault/src/session.ts`.
 
-| Property     | Value                                             |
-| ------------ | ------------------------------------------------- |
-| Cookie name  | `__Secure-Vault-Session` (prod) / `Vault-Session` (dev) |
-| httpOnly     | true                                              |
-| sameSite     | strict                                            |
-| secure       | true (prod)                                       |
-| path         | `/vault`                                          |
-| maxAge       | 86400 (24 hours)                                  |
+| Property    | Value                                                   |
+| ----------- | ------------------------------------------------------- |
+| Cookie name | `__Secure-Vault-Session` (prod) / `Vault-Session` (dev) |
+| httpOnly    | true                                                    |
+| sameSite    | strict                                                  |
+| secure      | true (prod)                                             |
+| path        | `/vault`                                                |
+| maxAge      | 86400 (24 hours)                                        |
 
 ## Encryption Architecture
 
@@ -255,48 +256,48 @@ See `delegation.md` for the full protocol. Here's the practical integration:
 
 **Frontend (main site):**
 
-| File | Purpose |
-| ---- | ------- |
-| `frontend/apps/web/app/auth.tsx` | `CreateAccountDialog` with 7-tap Easter egg for vault sign-in |
-| `frontend/apps/web/app/auth-session.ts` | `startAuth()`, `handleCallback()`, session key management |
-| `frontend/apps/web/app/routes/hm.auth.callback.tsx` | Callback route handler |
-| `frontend/apps/web/app/local-db.ts` | IndexedDB storage for keys, auth state, pending intents |
-| `frontend/packages/shared/src/hmauth.ts` | Protocol constants, types, URL building, validation |
-| `frontend/packages/shared/src/constants.ts` | `WEB_IDENTITY_ORIGIN` env var |
+| File                                                | Purpose                                                       |
+| --------------------------------------------------- | ------------------------------------------------------------- |
+| `frontend/apps/web/app/auth.tsx`                    | `CreateAccountDialog` with 7-tap Easter egg for vault sign-in |
+| `frontend/apps/web/app/auth-session.ts`             | `startAuth()`, `handleCallback()`, session key management     |
+| `frontend/apps/web/app/routes/hm.auth.callback.tsx` | Callback route handler                                        |
+| `frontend/apps/web/app/local-db.ts`                 | IndexedDB storage for keys, auth state, pending intents       |
+| `frontend/packages/shared/src/hmauth.ts`            | Protocol constants, types, URL building, validation           |
+| `frontend/packages/shared/src/constants.ts`         | `WEB_IDENTITY_ORIGIN` env var                                 |
 
 **Vault app:**
 
-| File | Purpose |
-| ---- | ------- |
-| `vault/src/frontend/views/PreLoginView.tsx` | Email entry screen |
-| `vault/src/frontend/views/LoginView.tsx` | Password/passkey login |
-| `vault/src/frontend/views/VerifyPendingView.tsx` | Magic link polling with countdown |
-| `vault/src/frontend/views/VerifyLinkView.tsx` | Magic link verification |
-| `vault/src/frontend/views/ChooseAuthView.tsx` | Passkey vs password choice |
-| `vault/src/frontend/views/SetPasswordView.tsx` | Password setup |
-| `vault/src/frontend/views/DelegateView.tsx` | Consent screen with account selection |
-| `vault/src/frontend/store.ts` | All state and actions (Valtio) |
-| `vault/src/frontend/router.tsx` | Route definitions, auth guards |
-| `vault/src/api-service.ts` | Backend API handlers |
-| `vault/src/config.ts` | Environment config |
-| `vault/src/session.ts` | Session/cookie management |
-| `vault/src/challenge.ts` | WebAuthn challenge HMAC management |
-| `vault/src/email.ts` | Magic link email sending |
-| `vault/src/sqlite.ts` | Database schema and queries |
+| File                                             | Purpose                               |
+| ------------------------------------------------ | ------------------------------------- |
+| `vault/src/frontend/views/PreLoginView.tsx`      | Email entry screen                    |
+| `vault/src/frontend/views/LoginView.tsx`         | Password/passkey login                |
+| `vault/src/frontend/views/VerifyPendingView.tsx` | Magic link polling with countdown     |
+| `vault/src/frontend/views/VerifyLinkView.tsx`    | Magic link verification               |
+| `vault/src/frontend/views/ChooseAuthView.tsx`    | Passkey vs password choice            |
+| `vault/src/frontend/views/SetPasswordView.tsx`   | Password setup                        |
+| `vault/src/frontend/views/DelegateView.tsx`      | Consent screen with account selection |
+| `vault/src/frontend/store.ts`                    | All state and actions (Valtio)        |
+| `vault/src/frontend/router.tsx`                  | Route definitions, auth guards        |
+| `vault/src/api-service.ts`                       | Backend API handlers                  |
+| `vault/src/config.ts`                            | Environment config                    |
+| `vault/src/session.ts`                           | Session/cookie management             |
+| `vault/src/challenge.ts`                         | WebAuthn challenge HMAC management    |
+| `vault/src/email.ts`                             | Magic link email sending              |
+| `vault/src/sqlite.ts`                            | Database schema and queries           |
 
 ### Delegation URL Parameters
 
 The delegation URL includes these signed parameters:
 
-| Parameter      | Constant         | Purpose                                |
-| -------------- | ---------------- | -------------------------------------- |
-| `client_id`    | `PARAM_CLIENT_ID`| Origin of requesting site              |
+| Parameter      | Constant             | Purpose                                |
+| -------------- | -------------------- | -------------------------------------- |
+| `client_id`    | `PARAM_CLIENT_ID`    | Origin of requesting site              |
 | `redirect_uri` | `PARAM_REDIRECT_URI` | Where vault redirects after delegation |
-| `session_key`  | `PARAM_SESSION_KEY` | Base58btc Ed25519 public key principal |
-| `state`        | `PARAM_STATE`    | CSRF protection nonce                  |
-| `ts`           | `PARAM_TS`       | Request timestamp (unix ms)            |
-| `email`        | `PARAM_EMAIL`    | Optional pre-filled email              |
-| `proof`        | `PARAM_PROOF`    | Ed25519 signature (must be last param) |
+| `session_key`  | `PARAM_SESSION_KEY`  | Base58btc Ed25519 public key principal |
+| `state`        | `PARAM_STATE`        | CSRF protection nonce                  |
+| `ts`           | `PARAM_TS`           | Request timestamp (unix ms)            |
+| `email`        | `PARAM_EMAIL`        | Optional pre-filled email              |
+| `proof`        | `PARAM_PROOF`        | Ed25519 signature (must be last param) |
 
 The `proof` parameter signs everything before it. Any parameter added must come before `proof`.
 
@@ -338,27 +339,27 @@ EnsureUnlocked (wraps protected routes)
 
 ### Vault (`vault/src/config.ts`)
 
-| Variable                          | Default       | Purpose                                |
-| --------------------------------- | ------------- | -------------------------------------- |
-| `SEED_VAULT_HTTP_HOSTNAME`        | `0.0.0.0`    | Server bind address                    |
-| `SEED_VAULT_HTTP_PORT`            | `3000`       | Server port                            |
-| `SEED_VAULT_RP_ID`               | (required)    | WebAuthn Relying Party ID              |
-| `SEED_VAULT_RP_NAME`             | `Seed Hypermedia Identity Vault` | WebAuthn RP display name |
-| `SEED_VAULT_RP_ORIGIN`           | (required)    | Origin for WebAuthn + magic links      |
-| `SEED_VAULT_DB_PATH`             | `./data/vault.sqlite` | SQLite database path            |
-| `SEED_VAULT_BACKEND_HTTP_BASE_URL`| (required)   | For IPFS asset access                  |
-| `SEED_VAULT_BACKEND_GRPC_BASE_URL`| (required)   | For account lookups                    |
-| `SEED_VAULT_SMTP_HOST`           | (optional)    | Email server host                      |
-| `SEED_VAULT_SMTP_PORT`           | `587`        | Email server port                      |
-| `SEED_VAULT_SMTP_USER`           | (optional)    | Email auth user                        |
-| `SEED_VAULT_SMTP_PASSWORD`       | (optional)    | Email auth password                    |
-| `SEED_VAULT_SMTP_SENDER`         | (optional)    | From address for emails                |
+| Variable                           | Default                          | Purpose                           |
+| ---------------------------------- | -------------------------------- | --------------------------------- |
+| `SEED_VAULT_HTTP_HOSTNAME`         | `0.0.0.0`                        | Server bind address               |
+| `SEED_VAULT_HTTP_PORT`             | `3000`                           | Server port                       |
+| `SEED_VAULT_RP_ID`                 | (required)                       | WebAuthn Relying Party ID         |
+| `SEED_VAULT_RP_NAME`               | `Seed Hypermedia Identity Vault` | WebAuthn RP display name          |
+| `SEED_VAULT_RP_ORIGIN`             | (required)                       | Origin for WebAuthn + magic links |
+| `SEED_VAULT_DB_PATH`               | `./data/vault.sqlite`            | SQLite database path              |
+| `SEED_VAULT_BACKEND_HTTP_BASE_URL` | (required)                       | For IPFS asset access             |
+| `SEED_VAULT_BACKEND_GRPC_BASE_URL` | (required)                       | For account lookups               |
+| `SEED_VAULT_SMTP_HOST`             | (optional)                       | Email server host                 |
+| `SEED_VAULT_SMTP_PORT`             | `587`                            | Email server port                 |
+| `SEED_VAULT_SMTP_USER`             | (optional)                       | Email auth user                   |
+| `SEED_VAULT_SMTP_PASSWORD`         | (optional)                       | Email auth password               |
+| `SEED_VAULT_SMTP_SENDER`           | (optional)                       | From address for emails           |
 
 ### Frontend
 
-| Variable                | Purpose                                                |
-| ----------------------- | ------------------------------------------------------ |
-| `WEB_IDENTITY_ORIGIN`   | Vault origin URL (default vault for delegation)       |
+| Variable              | Purpose                                         |
+| --------------------- | ----------------------------------------------- |
+| `WEB_IDENTITY_ORIGIN` | Vault origin URL (default vault for delegation) |
 
 ## Security Properties
 

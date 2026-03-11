@@ -223,7 +223,7 @@ function SortableAccountItem({
       <div
         {...attributes}
         {...listeners}
-        className="text-muted-foreground shrink-0 cursor-grab rounded p-1.5 hover:bg-black/5 active:cursor-grabbing"
+        className="text-muted-foreground shrink-0 cursor-grab rounded p-1.5 hover:bg-black/5 active:cursor-grabbing dark:hover:bg-white/10"
       >
         <GripVertical className="size-4" />
       </div>

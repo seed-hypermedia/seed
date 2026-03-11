@@ -1,10 +1,9 @@
 import {zodResolver} from '@hookform/resolvers/zod'
 import {useNavigate} from '@remix-run/react'
 import {createSeedClient} from '@seed-hypermedia/client'
+import {HMDocument, HMPrepareDocumentChangeInput, HMSigner} from '@seed-hypermedia/client/hm-types'
 import {hmId, hostnameStripProtocol, queryKeys, useUniversalAppContext} from '@shm/shared'
 import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
-import {HMDocument, HMPrepareDocumentChangeInput, HMSigner} from '@seed-hypermedia/client/hm-types'
-import * as hmauth from '@shm/shared/hmauth'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useTx, useTxString} from '@shm/shared/translation'
@@ -451,7 +450,7 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
               </SizableText>
             </div>
 
-            <Button type="submit" size="lg" className="w-full" disabled={!vaultEmail.trim()}>
+            <Button variant="default" type="submit" size="lg" className="w-full" disabled={!vaultEmail.trim()}>
               Continue to join
             </Button>
           </form>

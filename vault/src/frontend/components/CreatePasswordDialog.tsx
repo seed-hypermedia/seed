@@ -1,13 +1,7 @@
 import {useState} from 'react'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import {Button} from '@/frontend/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/frontend/components/ui/dialog'
+import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@/frontend/components/ui/dialog'
 import {Input} from '@/frontend/components/ui/input'
 import {Label} from '@/frontend/components/ui/label'
 import {useActions, useAppState} from '@/frontend/store'
@@ -20,13 +14,7 @@ const requirements = [
   {label: 'At least one number', test: (pw: string) => /[0-9]/.test(pw)},
 ]
 
-export function CreatePasswordDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
+export function CreatePasswordDialog({open, onOpenChange}: {open: boolean; onOpenChange: (open: boolean) => void}) {
   const {email, loading, error} = useAppState()
   const actions = useActions()
   const [password, setPassword] = useState('')
@@ -115,7 +103,9 @@ export function CreatePasswordDialog({
               return (
                 <li
                   key={req.label}
-                  className={password.length > 0 ? (met ? 'text-brand-6' : 'text-destructive') : 'text-muted-foreground'}
+                  className={
+                    password.length > 0 ? (met ? 'text-brand-6' : 'text-destructive') : 'text-muted-foreground'
+                  }
                 >
                   {password.length > 0 ? (met ? '✓' : '✗') : '•'} {req.label}
                 </li>
@@ -129,7 +119,7 @@ export function CreatePasswordDialog({
               type="checkbox"
               checked={acceptedTerms}
               onChange={(e) => setAcceptedTerms(e.target.checked)}
-              className="mt-0.5 size-4 shrink-0 accent-brand-6 rounded"
+              className="accent-brand-6 mt-0.5 size-4 shrink-0 rounded"
             />
             <span>
               I accept Hypermedia{' '}

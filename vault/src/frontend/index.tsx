@@ -4,11 +4,15 @@ import {FetchClient} from './api-client'
 import {IndexedDBBlockstore, RemoteBlockstore} from './blockstore'
 import {createRouter} from './router'
 import {createStore, StoreContext} from './store'
+import {initTheme} from './use-theme'
 import './styles.css'
 
 const elem = document.getElementById('root')
 if (!elem) throw new Error('root element not found')
 const rootElem = elem
+
+// Apply theme before first paint to prevent flash of wrong theme.
+initTheme()
 
 async function bootstrap() {
   const client = new FetchClient()

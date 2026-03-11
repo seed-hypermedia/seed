@@ -151,7 +151,7 @@ export function CreateProfileView() {
               type="checkbox"
               checked={emailNotifs}
               onChange={(e) => setEmailNotifs(e.target.checked)}
-              className="size-4 shrink-0 rounded accent-brand-6"
+              className="accent-brand-6 size-4 shrink-0 rounded"
             />
             Get email notifications about {siteName} activity.
           </label>

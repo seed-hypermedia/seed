@@ -36,7 +36,7 @@ export function VerifyLinkView() {
         {!loading && !error && (
           <>
             <div className="my-6 text-center">
-              <div className="bg-brand-6 mx-auto flex size-15 items-center justify-center rounded-full text-3xl text-white">
+              <div className="bg-brand-6 text-primary-foreground mx-auto flex size-15 items-center justify-center rounded-full text-3xl">
                 ✓
               </div>
             </div>
