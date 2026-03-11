@@ -47,9 +47,14 @@ export function useWebAccountButton() {
       : null,
   )
 
-  const accountButton = account?.id ? (
+  const accountButton = keyPair ? (
     <a {...profileLinkProps} className="flex rounded-full shadow-lg">
-      <HMIcon id={account.id} name={account.metadata?.name} icon={account.metadata?.icon} size={32} />
+      <HMIcon
+        id={account?.id ?? hmId(keyPair.id, {latest: true})}
+        name={account?.metadata?.name}
+        icon={account?.metadata?.icon}
+        size={32}
+      />
     </a>
   ) : (
     <button
