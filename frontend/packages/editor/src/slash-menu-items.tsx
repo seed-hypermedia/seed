@@ -8,6 +8,7 @@ import {
   RiGridFill,
   RiHeading,
   RiImage2Fill,
+  RiLayoutGridFill,
   RiPagesFill,
   RiRadioButtonFill,
   RiText,
@@ -15,6 +16,7 @@ import {
   RiWindow2Fill,
 } from 'react-icons/ri'
 import {BlockNoteEditor, BlockSpec, insertOrUpdateBlock, PartialBlock, PropSchema} from './blocknote/core'
+import {getBlockInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {HMBlockSchema} from './schema'
 
 export function getSlashMenuItems({
@@ -220,6 +222,81 @@ export function getSlashMenuItems({
         } as PartialBlock<HMBlockSchema>,
         true,
       )
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  })
+  slashMenuItems.push({
+    name: 'Grid',
+    aliases: ['grid', 'gallery', 'cards', 'columns'],
+    group: 'Layout',
+    icon: <RiLayoutGridFill size={18} />,
+    hint: 'Insert a Grid layout',
+    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
+      const currentBlock = editor.getTextCursorPosition().block
+      const prevBlock = editor.getTextCursorPosition().prevBlock
+
+      // Clear the "/" text from current block
+      editor.updateBlock(currentBlock, {
+        type: 'paragraph',
+        content: '',
+      } as PartialBlock<HMBlockSchema>)
+
+      const tiptap = editor._tiptapEditor
+
+      if (prevBlock && prevBlock.children.length === 0) {
+        // Previous block has no children: nest current block under it with Grid layout
+        setTimeout(() => {
+          tiptap
+            .chain()
+            .sinkListItem('blockNode')
+            .command(({state, dispatch}: {state: any; dispatch: any}) => {
+              if (!dispatch) return true
+              const $pos = state.doc.resolve(state.selection.from)
+              for (let d = $pos.depth; d >= 0; d--) {
+                const node = $pos.node(d)
+                if (node.type.name === 'blockChildren') {
+                  state.tr.setNodeMarkup($pos.before(d), null, {
+                    ...node.attrs,
+                    listType: 'Grid',
+                    columnCount: '3',
+                  })
+                  break
+                }
+              }
+              return true
+            })
+            .run()
+        })
+      } else {
+        // Previous block has children (or no previous block): add Grid children to current block
+        setTimeout(() => {
+          tiptap.commands.command(({state, dispatch}: {state: any; dispatch: any}) => {
+            if (!dispatch) return true
+            const blockInfo = getBlockInfoFromPos(state, state.selection.from)
+            const schema = state.schema
+
+            // Create 3 empty child blockNodes
+            const emptyChildren = []
+            for (let i = 0; i < 3; i++) {
+              const para = schema.nodes['paragraph'].create()
+              emptyChildren.push(schema.nodes['blockNode'].create({}, para))
+            }
+
+            // Create blockChildren with Grid type
+            const gridGroup = schema.nodes['blockChildren'].create(
+              {listType: 'Grid', columnCount: '3'},
+              emptyChildren,
+            )
+
+            // Insert after the block content node
+            state.tr.insert(blockInfo.blockContent.afterPos, gridGroup)
+            dispatch(state.tr)
+            return true
+          })
+        })
+      }
+
       const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },

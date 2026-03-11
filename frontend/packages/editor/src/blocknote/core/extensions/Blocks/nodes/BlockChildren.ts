@@ -1,7 +1,7 @@
 import {HMBlockChildrenType} from '@seed-hypermedia/client/hm-types'
 import {InputRule, mergeAttributes, Node} from '@tiptap/core'
 import {Slice} from '@tiptap/pm/model'
-import {Plugin} from '@tiptap/pm/state'
+import {EditorState, Plugin} from '@tiptap/pm/state'
 import {updateGroupCommand} from '../../../api/blockManipulation/commands/updateGroup'
 import {mergeCSSClasses} from '../../../shared/utils'
 import {BlockNoteDOMAttributes} from '../api/blockTypes'
@@ -35,6 +35,18 @@ export const BlockChildren = Node.create<{
           }
         },
       },
+      columnCount: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-column-count'),
+        renderHTML: (attributes) => {
+          if (attributes.columnCount) {
+            return {
+              'data-column-count': attributes.columnCount,
+            }
+          }
+          return {}
+        },
+      },
       // start: {
       //   default: '1',
       //   renderHTML: (attributes) => {
@@ -54,6 +66,7 @@ export const BlockChildren = Node.create<{
       new InputRule({
         find: new RegExp(`^>\\s$`),
         handler: ({state, chain, range}) => {
+          if (isInGridContainer(state, range.from)) return
           chain()
             .command(updateGroupCommand(state.selection.from, 'Blockquote', false))
             // Removes the ">" character used to set the list.
@@ -67,6 +80,7 @@ export const BlockChildren = Node.create<{
           if (state.doc.resolve(range.from).parent.type.name === 'heading') {
             return
           }
+          if (isInGridContainer(state, range.from)) return
           chain()
             .command(updateGroupCommand(state.selection.from, 'Unordered', false))
             // Removes the "-", "+", or "*" character used to set the list.
@@ -80,6 +94,7 @@ export const BlockChildren = Node.create<{
           if (state.doc.resolve(range.from).parent.type.name === 'heading') {
             return
           }
+          if (isInGridContainer(state, range.from)) return
           chain()
             .command(
               updateGroupCommand(
@@ -166,6 +181,13 @@ export const BlockChildren = Node.create<{
   renderHTML({node, HTMLAttributes}) {
     const blockChildrenDOMAttributes = this.options.domAttributes?.blockChildren || {}
 
+    const isGrid = node.attrs.listType === 'Grid'
+    const gridStyles = isGrid
+      ? {
+          style: `display: grid; grid-template-columns: repeat(${node.attrs.columnCount || 3}, 1fr); gap: 8px;`,
+        }
+      : {}
+
     return [
       listNode(node.attrs.listType),
       mergeAttributes(
@@ -177,6 +199,7 @@ export const BlockChildren = Node.create<{
             blockChildrenDOMAttributes.class,
           ),
           'data-node-type': 'blockChildren',
+          ...gridStyles,
         },
         HTMLAttributes,
       ),
@@ -283,4 +306,15 @@ function listNode(listType: HMBlockChildrenType) {
     return 'blockquote'
   }
   return 'div'
+}
+
+export function isInGridContainer(state: EditorState, pos: number): boolean {
+  const $pos = state.doc.resolve(pos)
+  for (let depth = $pos.depth; depth >= 0; depth--) {
+    const node = $pos.node(depth)
+    if (node.type.name === 'blockChildren' && node.attrs.listType === 'Grid') {
+      return true
+    }
+  }
+  return false
 }
