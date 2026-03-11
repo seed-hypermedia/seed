@@ -33,7 +33,7 @@ export const unpackedHmIdSchema = z.object({
 export type UnpackedHypermediaId = z.infer<typeof unpackedHmIdSchema>
 
 export const HMBlockChildrenTypeSchema = z
-  .union([z.literal('Group'), z.literal('Ordered'), z.literal('Unordered'), z.literal('Blockquote')])
+  .union([z.literal('Group'), z.literal('Ordered'), z.literal('Unordered'), z.literal('Blockquote'), z.literal('Grid')])
   .nullable() // null or missing childrenType means "Group"
 export type HMBlockChildrenType = z.infer<typeof HMBlockChildrenTypeSchema>
 

@@ -10,6 +10,7 @@ import {updateGroupChildrenCommand, updateGroupCommand} from '../../api/blockMan
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../Blocks/helpers/getBlockInfoFromPos'
 import {getGroupInfoFromPos} from '../Blocks/helpers/getGroupInfoFromPos'
+import {isInGridContainer} from '../Blocks/nodes/BlockChildren'
 import {SelectionPluginKey} from '../Blocks/nodes/BlockNode'
 
 export const KeyboardShortcutsExtension = Extension.create<{
@@ -542,6 +543,9 @@ export const KeyboardShortcutsExtension = Extension.create<{
       this.editor.commands.first(({commands}) => [
         () =>
           commands.command(({state}) => {
+            // Prevent indent inside Grid containers
+            if (isInGridContainer(state, state.selection.from)) return true
+
             // Find block group, block container, and depth it is at
             const {group, container, $pos} = getGroupInfoFromPos(state.selection.from, state)
 
@@ -619,6 +623,8 @@ export const KeyboardShortcutsExtension = Extension.create<{
       Enter: handleEnter,
       Tab: handleTab,
       'Shift-Tab': () => {
+        // Prevent outdent of grid children
+        if (isInGridContainer(this.editor.state, this.editor.state.selection.from)) return true
         const {block} = getBlockInfoFromSelection(this.editor.state)
         return unnestBlock(this.editor, block.beforePos + 1)
       },

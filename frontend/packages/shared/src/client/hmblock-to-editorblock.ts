@@ -56,7 +56,8 @@ export function hmBlocksToEditorContent(
           childrenType === 'Group' ||
           childrenType === 'Ordered' ||
           childrenType === 'Unordered' ||
-          childrenType === 'Blockquote'
+          childrenType === 'Blockquote' ||
+          childrenType === 'Grid'
             ? childrenType
             : 'Group'
 
@@ -106,9 +107,13 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
       childrenType === 'Group' ||
       childrenType === 'Ordered' ||
       childrenType === 'Unordered' ||
-      childrenType === 'Blockquote'
+      childrenType === 'Blockquote' ||
+      childrenType === 'Grid'
     ) {
       ;(out.props as EditorBlockProps).childrenType = childrenType
+    }
+    if (childrenType === 'Grid' && attributes.columnCount != null) {
+      ;(out.props as any).columnCount = String(attributes.columnCount)
     }
   }
 

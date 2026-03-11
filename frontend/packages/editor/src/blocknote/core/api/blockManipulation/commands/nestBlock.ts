@@ -6,6 +6,7 @@ import {EditorState, TextSelection} from 'prosemirror-state'
 import {BlockNoteEditor} from '../../../BlockNoteEditor'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
 import {getGroupInfoFromPos, getParentGroupInfoFromPos} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
+import {isInGridContainer} from '../../../extensions/Blocks/nodes/BlockChildren'
 import {updateGroupChildrenCommand} from './updateGroup'
 
 function liftListItem(editor: Editor, posInBlock: number) {
@@ -188,13 +189,17 @@ export function unnestBlock(editor: Editor, posInBlock: number) {
 }
 
 export function canNestBlock(editor: BlockNoteEditor<any>) {
-  const {block: blockContainer} = getBlockInfoFromSelection(editor._tiptapEditor.state)
+  const state = editor._tiptapEditor.state
+  if (isInGridContainer(state, state.selection.from)) return false
+  const {block: blockContainer} = getBlockInfoFromSelection(state)
 
-  return editor._tiptapEditor.state.doc.resolve(blockContainer.beforePos).nodeBefore !== null
+  return state.doc.resolve(blockContainer.beforePos).nodeBefore !== null
 }
 
 export function canUnnestBlock(editor: BlockNoteEditor<any>) {
-  const {block: blockContainer} = getBlockInfoFromSelection(editor._tiptapEditor.state)
+  const state = editor._tiptapEditor.state
+  if (isInGridContainer(state, state.selection.from)) return false
+  const {block: blockContainer} = getBlockInfoFromSelection(state)
 
-  return editor._tiptapEditor.state.doc.resolve(blockContainer.beforePos).depth > 1
+  return state.doc.resolve(blockContainer.beforePos).depth > 1
 }
