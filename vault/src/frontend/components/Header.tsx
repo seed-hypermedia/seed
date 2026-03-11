@@ -1,9 +1,9 @@
-import { Button } from '@/frontend/components/ui/button'
-import { useActions, useAppState } from '@/frontend/store'
-import { useTheme } from '@/frontend/use-theme'
-import { ChevronDown, LogOut, Moon, Sun } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import {Button} from '@/frontend/components/ui/button'
+import {useActions, useAppState} from '@/frontend/store'
+import {useTheme} from '@/frontend/use-theme'
+import {ChevronDown, LogOut, Moon, Sun} from 'lucide-react'
+import {useCallback, useEffect, useRef, useState} from 'react'
+import {Link} from 'react-router-dom'
 
 /**
  * Application header with user info, theme toggle, and logout button.
@@ -28,7 +28,7 @@ export function Header() {
         <span className="font-semibold">hyper.media</span> <span className="font-light">Identity Vault</span>
       </Link>
       <div className="flex items-center gap-2">
-        {session?.authenticated && <AccountMenu email={session.email || ""} onSignOut={actions.handleLogout} />}
+        {session?.authenticated && <AccountMenu email={session.email || ''} onSignOut={actions.handleLogout} />}
         <Button
           variant="ghost"
           size="sm"
