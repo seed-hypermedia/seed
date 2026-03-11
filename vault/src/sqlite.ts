@@ -1,13 +1,20 @@
 import {Database} from 'bun:sqlite'
+import schemaSQL from './sqlite-schema.sql' with {type: 'text'}
 import fs from 'node:fs'
 import path from 'node:path'
 
-/**
- * Bump this value whenever the schema changes.
- * When the stored version doesn't match, the server will refuse to start
- * and ask the operator to drop the database file manually.
- */
-export const SCHEMA_VERSION = 6
+export const LEGACY_SCHEMA_VERSION_KEY = 'schema_version'
+export const SCHEMA_MIGRATION_VERSION_KEY = 'schema_migration_version'
+export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
+
+// Add database migrations here in newest-first order (for user's convenience).
+// The list is reversed immediately to be executed from the oldest migration for runtime correctness.
+// Be very careful. Never delete and move existing migrations around.
+// This list is prepend-only.
+export const migrations = [].reverse()
+
+export const desiredVersion = migrations.length
+export const schema = stripSQLComments(schemaSQL).trim()
 
 /** Result of opening the database. */
 export type OpenResult = {ok: true; db: Database} | {ok: false; current: number; desired: number}
@@ -20,102 +27,154 @@ export type OpenResult = {ok: true; db: Database} | {ok: false; current: number;
 export function open(dbPath: string): OpenResult {
   fs.mkdirSync(path.dirname(dbPath), {recursive: true})
   const db = new Database(dbPath, {create: true, strict: true})
-  const isNew = db.query<{count: number}, []>('SELECT count(*) as count FROM sqlite_schema').get()?.count === 0
+  const result = openWithDatabase(db)
+  if (!result.ok) {
+    db.close()
+    return result
+  }
+
+  return result
+}
+
+/**
+ * Shared open path for tests that need to operate on an already-open database.
+ * Returns the same discriminated union as `open`, but never closes `db`.
+ */
+export function openWithDatabase(db: Database): OpenResult {
   db.run('PRAGMA journal_mode = WAL')
   db.run('PRAGMA foreign_keys = ON')
 
-  initSchema(db)
-
-  const row = db.query<{value: string}, [string]>('SELECT value FROM server_config WHERE key = ?').get('schema_version')
-
-  const current = row ? Number(row.value) : isNew ? SCHEMA_VERSION : 0
-  if (current !== SCHEMA_VERSION) {
-    db.close()
-    return {ok: false, current, desired: SCHEMA_VERSION}
+  if (isEmptyDatabase(db)) {
+    initializeEmptyDatabase(db)
+    return {ok: true, db}
   }
 
-  if (!row) {
-    db.run('INSERT INTO server_config (key, value) VALUES (?, ?)', ['schema_version', String(SCHEMA_VERSION)])
+  if (!hasServerConfigTable(db)) {
+    return {ok: false, current: BASELINE_SCHEMA_MIGRATION_VERSION, desired: desiredVersion}
   }
 
+  const legacyVersion = getServerConfigValue(db, LEGACY_SCHEMA_VERSION_KEY)
+  if (legacyVersion !== null) {
+    return {
+      ok: false,
+      current: parseSchemaMigrationVersion(legacyVersion) ?? BASELINE_SCHEMA_MIGRATION_VERSION,
+      desired: desiredVersion,
+    }
+  }
+
+  const currentVersionValue = getServerConfigValue(db, SCHEMA_MIGRATION_VERSION_KEY)
+  if (currentVersionValue === null) {
+    return {ok: false, current: BASELINE_SCHEMA_MIGRATION_VERSION, desired: desiredVersion}
+  }
+
+  const currentVersion = parseSchemaMigrationVersion(currentVersionValue)
+  if (currentVersion === null || currentVersion > desiredVersion) {
+    return {
+      ok: false,
+      current: currentVersion ?? BASELINE_SCHEMA_MIGRATION_VERSION,
+      desired: desiredVersion,
+    }
+  }
+
+  applyPendingMigrations(db, currentVersion)
   return {ok: true, db}
 }
 
-function initSchema(db: Database): void {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        email TEXT UNIQUE NOT NULL,
-        encrypted_data BLOB,
-        version INTEGER NOT NULL DEFAULT 1,
-        create_time INTEGER NOT NULL
-    ) WITHOUT ROWID;
+export function stripSQLComments(sql: string): string {
+  let stripped = ''
+  let i = 0
+  let state: 'normal' | 'single' | 'double' | 'backtick' | 'bracket' | 'line-comment' | 'block-comment' = 'normal'
 
-    -- Each credential wraps the user's DEK with its own KEK (Key Encryption Key).
-    -- For passwords: KEK is derived from password via Argon2.
-    -- For passkeys: KEK is derived from WebAuthn PRF extension output.
-    CREATE TABLE IF NOT EXISTS credentials (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL REFERENCES users (id),
-        type TEXT NOT NULL, -- 'password' | 'passkey'
-        encrypted_dek BLOB,
-        -- Metadata (JSON) varies by credential type:
-        -- password: { authHash: string }
-        -- passkey: { credentialId, publicKey, counter, transports, backupEligible, backupState, prfEnabled }
-        metadata JSON,
-        create_time INTEGER NOT NULL
-    ) WITHOUT ROWID;
+  while (i < sql.length) {
+    const char = sql[i]
+    const nextChar = sql[i + 1]
 
-    CREATE INDEX IF NOT EXISTS credentials_by_user_id ON credentials (user_id);
+    switch (state) {
+      case 'normal':
+        if (char === "'" || char === '"' || char === '`' || char === '[') {
+          stripped += char
+          state = char === "'" ? 'single' : char === '"' ? 'double' : char === '`' ? 'backtick' : 'bracket'
+          i += 1
+          continue
+        }
 
-    CREATE TABLE IF NOT EXISTS sessions (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL REFERENCES users (id),
-        expire_time INTEGER NOT NULL,
-        create_time INTEGER NOT NULL
-    ) WITHOUT ROWID;
+        if (char === '-' && nextChar === '-') {
+          state = 'line-comment'
+          i += 2
+          continue
+        }
 
-    CREATE INDEX IF NOT EXISTS sessions_by_user_id ON sessions (user_id);
+        if (char === '/' && nextChar === '*') {
+          state = 'block-comment'
+          i += 2
+          continue
+        }
 
-    -- Temporary challenges for email verification flows (registration, email change).
-    -- Challenges are short-lived and should be cleaned up after use or expiration.
-    CREATE TABLE IF NOT EXISTS email_challenges (
-        -- Unique identifier for this challenge instance (used for polling).
-        id TEXT PRIMARY KEY,
+        stripped += char
+        i += 1
+        continue
 
-        -- User this challenge belongs to (NULL for new user registration).
-        user_id TEXT REFERENCES users (id),
+      case 'single':
+        stripped += char
+        i += 1
+        if (char === "'" && sql[i] !== "'") {
+          state = 'normal'
+        } else if (char === "'" && sql[i] === "'") {
+          stripped += sql[i]
+          i += 1
+        }
+        continue
 
-        -- Purpose of the challenge: 'registration' | 'email_change'
-        purpose TEXT NOT NULL,
+      case 'double':
+        stripped += char
+        i += 1
+        if (char === '"' && sql[i] !== '"') {
+          state = 'normal'
+        } else if (char === '"' && sql[i] === '"') {
+          stripped += sql[i]
+          i += 1
+        }
+        continue
 
-        -- SHA-256 hash of the high-entropy token (token itself is sent in URL).
-        token_hash TEXT NOT NULL,
+      case 'backtick':
+        stripped += char
+        i += 1
+        if (char === '`') {
+          state = 'normal'
+        }
+        continue
 
-        -- Email address associated with this challenge.
-        -- For registration: the email being verified.
-        -- For email_change: the current email.
-        email TEXT NOT NULL,
+      case 'bracket':
+        stripped += char
+        i += 1
+        if (char === ']') {
+          state = 'normal'
+        }
+        continue
 
-        -- New email address (only for email_change purpose).
-        new_email TEXT,
+      case 'line-comment':
+        if (char === '\n') {
+          stripped += '\n'
+          state = 'normal'
+        }
+        i += 1
+        continue
 
-        -- Whether the email verification link has been clicked.
-        verified INTEGER NOT NULL DEFAULT 0,
+      case 'block-comment':
+        if (char === '*' && nextChar === '/') {
+          state = 'normal'
+          i += 2
+          continue
+        }
+        if (char === '\n') {
+          stripped += '\n'
+        }
+        i += 1
+        continue
+    }
+  }
 
-        -- Unix timestamp (ms) when this challenge expires.
-        expire_time INTEGER NOT NULL
-    ) WITHOUT ROWID;
-
-    -- Index for cleanup queries by expiration time.
-    CREATE INDEX IF NOT EXISTS email_challenges_by_expire_time ON email_challenges (expire_time);
-
-    -- Key-value store for server configuration and secrets (e.g. HMAC keys).
-    CREATE TABLE IF NOT EXISTS server_config (
-        key TEXT PRIMARY KEY,
-        value BLOB NOT NULL
-    ) WITHOUT ROWID;
-  `)
+  return normalizeStrippedSQL(stripped)
 }
 
 export function getOrCreateHmacSecret(db: Database): Uint8Array {
@@ -130,4 +189,111 @@ export function getOrCreateHmacSecret(db: Database): Uint8Array {
   const secret = crypto.getRandomValues(new Uint8Array(32))
   db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, ['hmac_secret', secret])
   return secret
+}
+
+function isEmptyDatabase(db: Database): boolean {
+  return db.query<{count: number}, []>('SELECT count(*) as count FROM sqlite_schema').get()?.count === 0
+}
+
+function initializeEmptyDatabase(db: Database): void {
+  db.run('BEGIN IMMEDIATE')
+  try {
+    db.run(schema)
+    setServerConfigValue(db, SCHEMA_MIGRATION_VERSION_KEY, String(desiredVersion))
+    db.run('COMMIT')
+  } catch (error) {
+    db.run('ROLLBACK')
+    throw error
+  }
+}
+
+function hasServerConfigTable(db: Database): boolean {
+  return db.query(`SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'server_config' LIMIT 1`).get() !== null
+}
+
+function getServerConfigValue(db: Database, key: string): string | null {
+  const row = db
+    .query<{value: string | Uint8Array | ArrayBuffer}, [string]>(`SELECT value FROM server_config WHERE key = ?`)
+    .get(key)
+  if (!row) {
+    return null
+  }
+
+  if (typeof row.value === 'string') {
+    return row.value
+  }
+
+  const bytes = row.value instanceof Uint8Array ? row.value : new Uint8Array(row.value)
+  return new TextDecoder().decode(bytes)
+}
+
+function setServerConfigValue(db: Database, key: string, value: string): void {
+  db.run(
+    `INSERT INTO server_config (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    [key, value],
+  )
+}
+
+function parseSchemaMigrationVersion(value: string): number | null {
+  if (!/^\d+$/.test(value)) {
+    return null
+  }
+
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed) || parsed < BASELINE_SCHEMA_MIGRATION_VERSION) {
+    return null
+  }
+
+  return parsed
+}
+
+function applyPendingMigrations(db: Database, currentVersion: number): void {
+  const pendingMigrations = migrations.slice(currentVersion)
+  if (pendingMigrations.length === 0) {
+    return
+  }
+
+  db.run('BEGIN IMMEDIATE')
+  try {
+    for (const [offset, migration] of pendingMigrations.entries()) {
+      const nextVersion = currentVersion + offset + 1
+      const savepoint = `migration_${nextVersion}`
+
+      db.run(`SAVEPOINT ${savepoint}`)
+      try {
+        db.run(migration)
+        setServerConfigValue(db, SCHEMA_MIGRATION_VERSION_KEY, String(nextVersion))
+        db.run(`RELEASE ${savepoint}`)
+      } catch (error) {
+        db.run(`ROLLBACK TO ${savepoint}`)
+        db.run(`RELEASE ${savepoint}`)
+        throw error
+      }
+    }
+
+    db.run('COMMIT')
+  } catch (error) {
+    db.run('ROLLBACK')
+    throw error
+  }
+}
+
+function normalizeStrippedSQL(sql: string): string {
+  const normalizedLines: string[] = []
+
+  for (const rawLine of sql.split(/\r?\n/u)) {
+    const line = rawLine.replace(/[ \t]+$/u, '')
+    if (line.trim() === '') {
+      continue
+    }
+
+    if (normalizedLines.length > 0 && normalizedLines[normalizedLines.length - 1]?.endsWith(';')) {
+      normalizedLines.push('')
+    }
+
+    normalizedLines.push(line)
+  }
+
+  return normalizedLines.join('\n')
 }

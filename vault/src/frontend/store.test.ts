@@ -188,6 +188,16 @@ describe('Store', () => {
   })
 
   describe('ensureProfileLoaded', () => {
+    let consoleErrorSpy: ReturnType<typeof spyOn>
+
+    beforeEach(() => {
+      consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      consoleErrorSpy.mockRestore()
+    })
+
     test('loads profile data from the vault account API', async () => {
       const client = createMockClient({
         getAccount: async () =>
@@ -234,6 +244,7 @@ describe('Store', () => {
 
       expect(state.profiles.alice).toBeUndefined()
       expect(state.profileLoadStates.alice).toBe('unavailable')
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to fetch profile', expect.any(Error))
     })
 
     test('tracks not found profile loads separately from backend failures', async () => {
@@ -248,6 +259,7 @@ describe('Store', () => {
 
       expect(state.profiles.alice).toBeUndefined()
       expect(state.profileLoadStates.alice).toBe('not_found')
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to fetch profile', expect.any(APIError))
     })
 
     test('clears a previous profile load failure after a successful retry', async () => {
@@ -259,6 +271,8 @@ describe('Store', () => {
       const {state, actions} = createStore(client, createMockBlockstore())
 
       await actions.ensureProfileLoaded('alice')
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to fetch profile', expect.any(APIError))
 
       client.getAccount = mock(
         async () =>
