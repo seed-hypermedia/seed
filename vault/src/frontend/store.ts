@@ -1341,6 +1341,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         const request = hmauth.parseDelegationRequest(url)
         if (request) {
           state.delegationRequest = request
+          if (request.email) {
+            state.email = request.email
+          }
         }
       } catch (e) {
         state.error = (e as Error).message || 'Invalid delegation request'

@@ -22,6 +22,8 @@ export interface HypermediaAuthConfig {
   clientId?: string
   /** The redirect URI. Defaults to current page URL (without search params). */
   redirectUri?: string
+  /** Optional email to pre-fill in the vault's login/registration form. */
+  email?: string
 }
 
 /** Stored session key with metadata. */
@@ -80,6 +82,9 @@ export const PARAM_DATA = 'data'
 
 /** URL parameter name for callback errors. */
 export const PARAM_ERROR = 'error'
+
+/** Optional URL parameter for pre-filling the user's email in the vault. */
+export const PARAM_EMAIL = 'email'
 
 /** Vault route path for handling delegation requests. */
 export const DELEGATION_PATH = '/delegate'
@@ -178,6 +183,8 @@ export interface DelegationRequest {
   proof: string
   /** Inferred vault origin where this request was received. */
   vaultOrigin: string
+  /** Optional pre-filled email from the requesting site. */
+  email?: string
 }
 
 /**
@@ -313,6 +320,8 @@ export function parseDelegationRequest(url: URL | string): DelegationRequest | n
   validateState(state)
   const requestTs = validateRequestTimestamp(ts)
 
+  const email = parsedUrl.searchParams.get(PARAM_EMAIL) || undefined
+
   return {
     originalUrl,
     clientId,
@@ -322,6 +331,7 @@ export function parseDelegationRequest(url: URL | string): DelegationRequest | n
     requestTs,
     proof,
     vaultOrigin: parsedUrl.origin,
+    email,
   }
 }
 
