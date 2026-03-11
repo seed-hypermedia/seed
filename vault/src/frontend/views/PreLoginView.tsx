@@ -1,6 +1,6 @@
 import {WebAuthnAbortService} from '@simplewebauthn/browser'
 import type React from 'react'
-import {useEffect} from 'react'
+import {useEffect, useRef} from 'react'
 import {Navigate} from 'react-router-dom'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import {Button} from '@/frontend/components/ui/button'
@@ -15,8 +15,9 @@ import {useActions, useAppState} from '@/frontend/store'
  * with resident passkeys can sign in without typing their email.
  */
 export function PreLoginView() {
-  const {email, loading, error, passkeySupported, session, sessionChecked} = useAppState()
+  const {email, loading, error, passkeySupported, session, sessionChecked, delegationRequest} = useAppState()
   const actions = useActions()
+  const autoSubmittedRef = useRef(false)
 
   useEffect(() => {
     if (sessionChecked) {
@@ -24,6 +25,21 @@ export function PreLoginView() {
     }
     return () => WebAuthnAbortService.cancelCeremony()
   }, [actions, sessionChecked])
+
+  // Auto-submit when email is pre-filled from a delegation URL
+  useEffect(() => {
+    if (
+      sessionChecked &&
+      !session?.authenticated &&
+      email &&
+      delegationRequest &&
+      !loading &&
+      !autoSubmittedRef.current
+    ) {
+      autoSubmittedRef.current = true
+      actions.handlePreLogin()
+    }
+  }, [sessionChecked, session, email, delegationRequest, loading, actions])
 
   if (!sessionChecked) {
     return null
