@@ -41,3 +41,22 @@ auditConfig:
 # BLOCKED: @electron/node-gyp is resolved from a git repo as a transitive dep
 # of @electron-forge/shared-types → @electron/rebuild@3.7.2. Needs an upstream
 # fix in @electron-forge before this can be enabled.
+
+# TypeScript settings — https://pnpm.io/typescript
+#
+# @types/* version pinning
+# In a pnpm workspace, multiple packages can end up pulling different versions of
+# the same @types/* package (e.g. @types/react), causing TypeScript to fail to
+# resolve types correctly. The recommended fix is either:
+#   (a) packageExtensions — declare the missing peerDependency on the culprit package, or
+#   (b) @pnpm/plugin-types-fixer — automates option (a) across the workspace
+# We use approach (c): pnpm.overrides in package.json to pin @types/react and
+# @types/react-dom workspace-wide. This is a valid alternative and keeps all packages
+# on a single, consistent set of type definitions.
+# Pinned versions: @types/react@18.2.64, @types/react-dom@18.2.21 (see package.json).
+#
+# preserveSymlinks
+# Never set "preserveSymlinks": true in any tsconfig.json when using pnpm.
+# TypeScript cannot resolve type dependencies correctly through pnpm's symlinked
+# node_modules with that option enabled. If you ever need symlink preservation for
+# Node.js runtime behaviour, set pnpm's nodeLinker to "hoisted" instead.
