@@ -1,4 +1,8 @@
 {
+  // NOTE: Do NOT set "preserveSymlinks": true here.
+  // pnpm uses symlinks for node_modules resolution. Enabling preserveSymlinks
+  // causes TypeScript to fail to resolve type dependencies correctly.
+  // See https://pnpm.io/typescript#do-not-preserve-symlinks
   "compilerOptions": {
     "strictNullChecks": true,
     "noUncheckedIndexedAccess": true,
