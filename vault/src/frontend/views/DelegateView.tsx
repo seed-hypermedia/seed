@@ -89,11 +89,6 @@ export function DelegateView() {
     )
   }
 
-  const sessionKeyTruncated =
-    delegationRequest.sessionKeyPrincipal.length > 24
-      ? `${delegationRequest.sessionKeyPrincipal.slice(0, 16)}\u2026${delegationRequest.sessionKeyPrincipal.slice(-8)}`
-      : delegationRequest.sessionKeyPrincipal
-
   const hasValidSelection = selectedAccountIndex >= 0 && selectedAccountIndex < accounts.length
 
   return (
@@ -138,18 +133,6 @@ export function DelegateView() {
             </div>
           </div>
         )}
-
-        {/* Delegation details */}
-        <div className="bg-muted/50 space-y-2 rounded-md p-3 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Session key</span>
-            <code className="font-mono text-xs">{sessionKeyTruncated}</code>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Role</span>
-            <span className="font-medium">Agent</span>
-          </div>
-        </div>
 
         {/* Actions */}
         <div className="flex flex-col gap-2">
