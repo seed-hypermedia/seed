@@ -19,6 +19,7 @@ import {Button} from '@shm/ui/button'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
+import {XCircle} from 'lucide-react'
 import {useEffect, useState} from 'react'
 
 export default function AuthCallbackRoute() {
@@ -120,12 +121,26 @@ export default function AuthCallbackRoute() {
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4">
       {error ? (
-        <div className="flex max-w-sm flex-col items-center gap-4 text-center">
-          <SizableText size="lg" weight="bold" className="text-red-500">
-            Authentication Failed
-          </SizableText>
-          <SizableText color="muted">{error}</SizableText>
-          <Button onClick={() => navigate('/', {replace: true})}>Return Home</Button>
+        <div className="bg-card text-card-foreground flex w-full max-w-sm flex-col items-center gap-6 rounded-xl border p-8 shadow-sm">
+          <div className="flex size-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+            <XCircle className="size-6 text-red-600 dark:text-red-400" />
+          </div>
+          <div className="space-y-2 text-center">
+            <SizableText size="lg" weight="bold">
+              Authentication Failed
+            </SizableText>
+            <SizableText color="muted" size="sm">
+              {error}
+            </SizableText>
+          </div>
+          <div className="flex w-full flex-col gap-2">
+            <Button onClick={() => navigate('/', {replace: true})} className="w-full">
+              Return Home
+            </Button>
+            <Button variant="outline" onClick={() => window.location.reload()} className="w-full">
+              Try Again
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col items-center gap-4 text-center">
