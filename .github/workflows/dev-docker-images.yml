@@ -6,11 +6,12 @@ on:
     branches:
       - main
     paths:
-      - "frontend/apps/web/**"
-      - "frontend/apps/notify/**"
-      - "frontend/packages/**"
-      - "backend/**"
-      - ".github/workflows/dev-docker-images.yml"
+      - 'frontend/apps/web/**'
+      - 'frontend/apps/notify/**'
+      - 'frontend/packages/**'
+      - 'backend/**'
+      - 'ops/**'
+      - '.github/workflows/dev-docker-images.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,6 +21,10 @@ env:
   AWS_REGION: us-east-1
 
 jobs:
+  # Build and validate deploy script (fail-fast before expensive builds)
+  deploy-script:
+    uses: ./.github/workflows/check-deploy-script.yml
+
   # Use the reusable parallel test workflow
   frontend-tests:
     uses: ./.github/workflows/test-frontend-parallel.yml
@@ -49,7 +54,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25.4"
+          go-version: '1.25.4'
 
       - name: Install build dependencies
         run: |
@@ -83,7 +88,7 @@ jobs:
   # Uploads pre-built artifacts so Docker jobs skip rebuilding.
   build-and-perf-test:
     runs-on: ubuntu-latest
-    needs: [frontend-tests, backend-tests]
+    needs: [frontend-tests, backend-tests, deploy-script]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -95,7 +100,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: "pnpm"
+          cache: 'pnpm'
 
       - name: Install Dependencies
         run: pnpm install
@@ -324,3 +329,23 @@ jobs:
           tags: seedhypermedia/relayd:dev
           cache-from: type=gha,scope=docker-relayd-dev
           cache-to: type=gha,mode=max,scope=docker-relayd-dev
+
+  # Upload deploy script to S3 alongside dev docker images
+  publish-deploy-script:
+    runs-on: ubuntu-latest
+    needs: [deploy-script]
+    if: ${{ github.ref == 'refs/heads/main' }}
+    steps:
+      - name: Download deploy-script artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deploy-script
+          path: deploy-script
+
+      - name: Upload deploy.js to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
+          AWS_DEFAULT_REGION: eu-west-2
+        run: |
+          aws s3 cp deploy-script/deploy.js s3://seedappdev/dev/latest/deploy.js

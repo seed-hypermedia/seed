@@ -17,6 +17,7 @@ set -e
 SEED_DIR="${SEED_DIR:-/opt/seed}"
 SEED_BRANCH="${SEED_BRANCH:-main}"
 GH_RAW="${SEED_DEPLOY_URL:-https://raw.githubusercontent.com/seed-hypermedia/seed/${SEED_BRANCH}/ops}"
+GH_RELEASES_API="https://api.github.com/repos/seed-hypermedia/seed/releases/latest"
 MIN_GLIBC="2.25"
 
 command_exists() {
@@ -129,7 +130,22 @@ fi
 ensure_dir "${SEED_DIR}"
 
 info "Downloading deployment script..."
-curl -fsSL "${GH_RAW}/dist/deploy.js" -o "${SEED_DIR}/deploy.js"
+# Try to fetch deploy.js from the latest GitHub Release asset (production).
+# Falls back to the raw GitHub URL if the release API is unreachable or
+# the asset is not found (e.g. before the first release with deploy.js).
+DEPLOY_JS_URL=""
+if [ -z "${SEED_DEPLOY_URL:-}" ]; then
+  DEPLOY_JS_URL=$(curl -fsSL "$GH_RELEASES_API" 2>/dev/null \
+    | grep -o '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*deploy\.js"' \
+    | head -1 \
+    | sed 's/.*"browser_download_url"[[:space:]]*:[[:space:]]*"\(.*\)"/\1/' \
+    || true)
+fi
+if [ -z "$DEPLOY_JS_URL" ]; then
+  info "Release asset not found, falling back to raw GitHub URL..."
+  DEPLOY_JS_URL="${GH_RAW}/dist/deploy.js"
+fi
+curl -fsSL "$DEPLOY_JS_URL" -o "${SEED_DIR}/deploy.js"
 
 # Install the 'seed-deploy' CLI wrapper so users can run commands from anywhere.
 # /usr/local/bin is in $PATH on every UNIX system, so no shell-config changes

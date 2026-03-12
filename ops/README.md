@@ -1,8 +1,7 @@
 # Seed Node Deployment
 
-Self-hosted deployment system for Seed nodes. A single script handles
-first-time setup, configuration, container orchestration, backups,
-and automatic updates.
+Self-hosted deployment system for Seed nodes. A single script handles first-time setup, configuration, container
+orchestration, backups, and automatic updates.
 
 ## Quick Start
 
@@ -10,9 +9,8 @@ and automatic updates.
 curl -fsSL https://deploy.seed.hyper.media/deploy.sh | sh
 ```
 
-The bootstrap script installs Docker and Bun (if missing), downloads the
-deployment engine, and launches an interactive wizard to configure your
-node. After setup you manage everything through the `seed-deploy` CLI.
+The bootstrap script installs Docker and Bun (if missing), downloads the deployment engine, and launches an interactive
+wizard to configure your node. After setup you manage everything through the `seed-deploy` CLI.
 
 ## Architecture
 
@@ -30,13 +28,15 @@ docker-compose.yml Container definitions for proxy, web, and daemon
 
 ### Files
 
-| File                 | Purpose                                  |
-| -------------------- | ---------------------------------------- |
-| `deploy.sh`          | One-line bootstrap installer             |
-| `deploy.ts`          | Deployment engine source (TypeScript)    |
-| `deploy.test.ts`     | Test suite (115 tests, 257 assertions)   |
-| `dist/deploy.js`     | Committed production bundle (Bun target) |
-| `docker-compose.yml` | Docker Compose service definitions       |
+| File                 | Purpose                               |
+| -------------------- | ------------------------------------- |
+| `deploy.sh`          | One-line bootstrap installer          |
+| `deploy.ts`          | Deployment engine source (TypeScript) |
+| `deploy.test.ts`     | Test suite                            |
+| `docker-compose.yml` | Docker Compose service definitions    |
+
+The production bundle (`deploy.js`) is built by CI and distributed as a GitHub Release asset (prod) or uploaded to S3
+(dev). It is not committed to the repository.
 
 ## Modes of Operation
 
@@ -50,8 +50,8 @@ When no `config.json` exists, the script launches a terminal wizard:
 4. **Gateway mode** — whether the node serves all known public content
 5. **Contact email** — optional, for security update notifications
 
-The wizard also detects legacy installations (from `website_deployment.sh`)
-and offers a migration path, pre-filling values from the old config.
+The wizard also detects legacy installations (from `website_deployment.sh`) and offers a migration path, pre-filling
+values from the old config.
 
 ### 2. Headless Deploy (subsequent runs)
 
@@ -59,8 +59,8 @@ When `config.json` exists, the script runs without prompts:
 
 1. Fetches `docker-compose.yml` and compares SHA-256 with the stored hash
 2. If nothing changed and all containers are healthy, skips redeployment
-3. Otherwise: pulls images first (while old containers serve traffic),
-   then recreates containers from cache — minimizes downtime
+3. Otherwise: pulls images first (while old containers serve traffic), then recreates containers from cache — minimizes
+   downtime
 4. Prunes unused Docker images after successful deploy
 
 ### 3. Reconfiguration
@@ -69,9 +69,8 @@ When `config.json` exists, the script runs without prompts:
 seed-deploy deploy --reconfigure
 ```
 
-Re-runs the wizard with current values shown as placeholders. Press Tab
-to keep a value, type to change it, or press Enter to clear optional
-fields. Changed fields are marked with a pencil icon in the summary.
+Re-runs the wizard with current values shown as placeholders. Press Tab to keep a value, type to change it, or press
+Enter to clear optional fields. Changed fields are marked with a pencil icon in the summary.
 
 ## CLI Reference
 
@@ -108,7 +107,6 @@ A single "Environment" choice controls multiple settings:
 | Environment     | Image Tag | Network | Use Case                                    |
 | --------------- | --------- | ------- | ------------------------------------------- |
 | **Production**  | `latest`  | Mainnet | Stable releases (recommended)               |
-| **Staging**     | `dev`     | Mainnet | Testing development builds on real network  |
 | **Development** | `dev`     | Testnet | Development builds on isolated test network |
 
 ## Configuration
@@ -119,12 +117,11 @@ Stored at `<seed-dir>/config.json`. User-facing fields:
 | ------------- | -------- | ---------------------------------------- |
 | `domain`      | Yes      | Public hostname including `https://`     |
 | `email`       | No       | Contact email for security notifications |
-| `environment` | Yes      | `prod`, `staging`, or `dev`              |
+| `environment` | Yes      | `prod` or `dev`                          |
 | `gateway`     | Yes      | Serve all known public content           |
 
-Internal fields (managed by the script): `compose_url`, `compose_sha`,
-`compose_envs`, `release_channel`, `testnet`, `link_secret`, `analytics`,
-`last_script_run`.
+Internal fields (managed by the script): `compose_url`, `compose_sha`, `compose_envs`, `release_channel`, `testnet`,
+`link_secret`, `analytics`, `last_script_run`.
 
 ## Docker Services
 
@@ -138,8 +135,8 @@ Three core containers, plus optional metrics:
 | `prometheus`  | `prom/prometheus`     | —                | Metrics (profile: `metrics`)    |
 | `grafana`     | `grafana/grafana`     | —                | Dashboards (profile: `metrics`) |
 
-All containers run as the host user (`SEED_UID:SEED_GID`) — no root inside
-containers. All bind mounts use the `:z` flag for SELinux compatibility.
+All containers run as the host user (`SEED_UID:SEED_GID`) — no root inside containers. All bind mounts use the `:z` flag
+for SELinux compatibility.
 
 ## Automatic Updates
 
@@ -154,17 +151,16 @@ Install with `seed-deploy cron`, remove with `seed-deploy cron remove`.
 
 ## Backup & Restore
 
-**Backup** creates a `.tar.gz` containing `config.json`, `docker-compose.yml`,
-and the `web/`, `daemon/`, and `proxy/` data directories. Containers are
-stopped during backup for data consistency and restarted after.
+**Backup** creates a `.tar.gz` containing `config.json`, `docker-compose.yml`, and the `web/`, `daemon/`, and `proxy/`
+data directories. Containers are stopped during backup for data consistency and restarted after.
 
 ```sh
 seed-deploy backup                     # default: <seed-dir>/backups/
 seed-deploy backup /tmp/my-backup.tgz  # custom path
 ```
 
-**Restore** extracts a backup archive, optionally lets you edit the
-configuration via the wizard, restores cron jobs, and runs a full deploy.
+**Restore** extracts a backup archive, optionally lets you edit the configuration via the wizard, restores cron jobs,
+and runs a full deploy.
 
 ```sh
 seed-deploy restore /path/to/backup.tar.gz
@@ -172,25 +168,21 @@ seed-deploy restore /path/to/backup.tar.gz
 
 ## Edge Cases Handled
 
-- **glibc < 2.25** — `deploy.sh` checks glibc version before attempting
-  Bun install. Prints supported OS versions and exits cleanly.
-- **SELinux** — all Docker bind mounts use `:z` flag. Without it,
-  Fedora/CentOS/RHEL silently block container access to host files.
-- **Legacy installations** — detects old `website_deployment.sh` containers
-  (`docker run`-based). Stops and removes them before first
-  `docker compose up` to avoid name conflicts.
-- **Non-root operation** — containers run as the host user. Caddy binds
-  ports 80/443 via `CAP_NET_BIND_SERVICE` file capability. `sudo` is
-  only used when creating directories outside the user's home.
-- **Disk exhaustion** — old Docker images are pruned both inline after
-  deploys and on a 4-hour cron schedule.
-- **No-change deploys** — skipped entirely when compose SHA matches and
-  all containers are healthy. Shows a hint for `--reconfigure`.
-- **Self-update** — in headless mode, the script fetches its own latest
-  version before deploying. Takes effect on the next run.
-- **rsync non-fatal** — the daemon's monitoring config export uses
-  `rsync -rlt` (no owner/group) and wraps failures as warnings to avoid
-  blocking the daemon start.
+- **glibc < 2.25** — `deploy.sh` checks glibc version before attempting Bun install. Prints supported OS versions and
+  exits cleanly.
+- **SELinux** — all Docker bind mounts use `:z` flag. Without it, Fedora/CentOS/RHEL silently block container access to
+  host files.
+- **Legacy installations** — detects old `website_deployment.sh` containers (`docker run`-based). Stops and removes them
+  before first `docker compose up` to avoid name conflicts.
+- **Non-root operation** — containers run as the host user. Caddy binds ports 80/443 via `CAP_NET_BIND_SERVICE` file
+  capability. `sudo` is only used when creating directories outside the user's home.
+- **Disk exhaustion** — old Docker images are pruned both inline after deploys and on a 4-hour cron schedule.
+- **No-change deploys** — skipped entirely when compose SHA matches and all containers are healthy. Shows a hint for
+  `--reconfigure`.
+- **Self-update** — in headless mode, the script fetches its own latest version before deploying. Takes effect on the
+  next run.
+- **rsync non-fatal** — the daemon's monitoring config export uses `rsync -rlt` (no owner/group) and wraps failures as
+  warnings to avoid blocking the daemon start.
 
 ## Environment Variables
 
@@ -218,8 +210,10 @@ SEED_DIR=/tmp/seed-test SEED_DEPLOY_URL=http://localhost:9999 sh ops/deploy.sh
 cd ops
 bun install          # install dependencies
 bun test             # run test suite
-bun run build        # bundle to dist/deploy.js
+bun run build        # bundle to dist/deploy.js (local testing only)
 ```
 
-The `dist/deploy.js` bundle is committed to the repo. A CI workflow
-verifies the bundle matches the source on every push to `ops/`.
+The `dist/deploy.js` bundle is **not** committed to the repo. CI builds it automatically and distributes it:
+
+- **Production releases** (tag push): attached as a GitHub Release asset.
+- **Dev releases** (main push / daily): uploaded to S3 alongside dev Docker images.
