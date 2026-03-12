@@ -78,45 +78,16 @@ jobs:
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
           LLAMA_LOG: error
-  generate-docker-images:
+
+  # Build frontend apps and run performance tests.
+  # Uploads pre-built artifacts so Docker jobs skip rebuilding.
+  build-and-perf-test:
     runs-on: ubuntu-latest
     needs: [frontend-tests, backend-tests]
     steps:
-      - name: Force Install GIT latest
-        run: |
-          sudo apt-get install -y software-properties-common \
-          && sudo apt-get update \
-          && sudo add-apt-repository -y ppa:git-core/ppa \
-          && sudo apt-get update \
-          && sudo apt-get install -y git \
-          && git --version
-
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      - name: Get commit date for the triggering commit
-        run: |
-          COMMIT_DATE=$(git show -s --format="%cd" ${{ github.sha }})
-          echo "COMMIT_DATE=$COMMIT_DATE" >> $GITHUB_ENV
-
-      - name: Cache GGUF model
-        uses: actions/cache@v4
-        with:
-          path: backend/llm/backends/llamacpp/models/*.gguf
-          key: gguf-model-granite-v2
-          enableCrossOsArchive: true
-
-      - name: Download GGUF model
-        run: |
-          if [ ! -f backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf ]; then
-            mkdir -p backend/llm/backends/llamacpp/models
-            curl -fSL -o backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf \
-              "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
-          fi
-
-      # Build and test performance before Docker build
       - name: Install pnpm
         uses: pnpm/action-setup@v4
 
@@ -145,9 +116,42 @@ jobs:
           cd frontend/apps/perf-web
           pnpm start --url http://localhost:3000 --app web
 
-      # Checkout the repository to the GitHub Actions runner
+      - name: Upload web build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: frontend/apps/web/build/
+          retention-days: 1
+
+      - name: Upload notify build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: notify-build
+          path: frontend/apps/notify/build/
+          retention-days: 1
+
+  docker-web:
+    runs-on: ubuntu-latest
+    needs: [build-and-perf-test]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get commit date
+        run: |
+          COMMIT_DATE=$(git show -s --format="%cd" ${{ github.sha }})
+          echo "COMMIT_DATE=$COMMIT_DATE" >> $GITHUB_ENV
+
+      - name: Download web build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: frontend/apps/web/build/
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
+
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
@@ -155,58 +159,168 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: DockerHub Release seedhypermedia/web:dev
-        if: ${{ github.ref == 'refs/heads/main' }}
-        uses: docker/build-push-action@v4
-        with:
-          push: true
-          file: frontend/apps/web/Dockerfile
-          tags: seedhypermedia/web:dev
-          build-args: |
-            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
-            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
-            COMMIT_HASH=${{ github.sha }}
-            BRANCH=${{ github.ref }}
-            DATE=${{ env.COMMIT_DATE }}
-
-      - name: DockerHub Release seedhypermedia/notify:dev
-        if: ${{ github.ref == 'refs/heads/main' }}
-        uses: docker/build-push-action@v4
-        with:
-          push: true
-          file: frontend/apps/notify/Dockerfile
-          tags: seedhypermedia/notify:dev
-          build-args: |
-            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
-            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
-            COMMIT_HASH=${{ github.sha }}
-            BRANCH=${{ github.ref }}
-            DATE=${{ env.COMMIT_DATE }}
-
-      - name: DockerHub Release seedhypermedia/site:dev
-        if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
+          file: frontend/apps/web/Dockerfile
+          tags: seedhypermedia/web:dev
+          build-args: |
+            PREBUILT=true
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
+            COMMIT_HASH=${{ github.sha }}
+            BRANCH=${{ github.ref }}
+            DATE=${{ env.COMMIT_DATE }}
+          cache-from: type=gha,scope=docker-web-dev
+          cache-to: type=gha,mode=max,scope=docker-web-dev
+
+  docker-notify:
+    runs-on: ubuntu-latest
+    needs: [build-and-perf-test]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get commit date
+        run: |
+          COMMIT_DATE=$(git show -s --format="%cd" ${{ github.sha }})
+          echo "COMMIT_DATE=$COMMIT_DATE" >> $GITHUB_ENV
+
+      - name: Download notify build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: notify-build
+          path: frontend/apps/notify/build/
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: DockerHub Release seedhypermedia/notify:dev
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          file: frontend/apps/notify/Dockerfile
+          tags: seedhypermedia/notify:dev
+          build-args: |
+            PREBUILT=true
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
+            COMMIT_HASH=${{ github.sha }}
+            BRANCH=${{ github.ref }}
+            DATE=${{ env.COMMIT_DATE }}
+          cache-from: type=gha,scope=docker-notify-dev
+          cache-to: type=gha,mode=max,scope=docker-notify-dev
+
+  docker-site:
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, backend-tests]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Get commit date
+        run: |
+          COMMIT_DATE=$(git show -s --format="%cd" ${{ github.sha }})
+          echo "COMMIT_DATE=$COMMIT_DATE" >> $GITHUB_ENV
+
+      - name: Cache GGUF model
+        uses: actions/cache@v4
+        with:
+          path: backend/llm/backends/llamacpp/models/*.gguf
+          key: gguf-model-granite-v2
+          enableCrossOsArchive: true
+
+      - name: Download GGUF model
+        run: |
+          if [ ! -f backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf ]; then
+            mkdir -p backend/llm/backends/llamacpp/models
+            curl -fSL -o backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf \
+              "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: DockerHub Release seedhypermedia/site:dev
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          file: backend/cmd/seed-daemon/Dockerfile
+          tags: seedhypermedia/site:dev
           build-args: |
             COMMIT_HASH=${{ github.sha }}
             BRANCH=${{ github.ref }}
             DATE=${{ env.COMMIT_DATE }}
-          file: backend/cmd/seed-daemon/Dockerfile
-          tags: seedhypermedia/site:dev
+          cache-from: type=gha,scope=docker-site-dev
+          cache-to: type=gha,mode=max,scope=docker-site-dev
+
+  docker-monitord:
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, backend-tests]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: DockerHub Release seedhypermedia/monitord:dev
-        if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/build-push-action@v4
         with:
           push: true
           file: backend/cmd/monitord/Dockerfile
           tags: seedhypermedia/monitord:dev
+          cache-from: type=gha,scope=docker-monitord-dev
+          cache-to: type=gha,mode=max,scope=docker-monitord-dev
+
+  docker-relayd:
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, backend-tests]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: DockerHub Release seedhypermedia/relayd:dev
-        if: ${{ github.ref == 'refs/heads/main' }}
         uses: docker/build-push-action@v4
         with:
           push: true
           file: backend/cmd/relayd/Dockerfile
           tags: seedhypermedia/relayd:dev
+          cache-from: type=gha,scope=docker-relayd-dev
+          cache-to: type=gha,mode=max,scope=docker-relayd-dev

@@ -4,6 +4,8 @@
 
 FROM node:20-alpine AS builder
 
+ARG PREBUILT=false
+
 RUN apk add git
 RUN npm install -g pnpm
 WORKDIR /app
@@ -18,7 +20,7 @@ RUN rm -rf ./frontend/apps/performance-dashboard
 RUN rm -rf ./frontend/apps/explore
 RUN rm -rf ./frontend/apps/web
 RUN pnpm install --frozen-lockfile
-RUN pnpm notify:build
+RUN if [ "$PREBUILT" != "true" ]; then pnpm notify:build; fi
 
 FROM node:20-alpine AS production
 
