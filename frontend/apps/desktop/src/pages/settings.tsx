@@ -7,8 +7,11 @@ import {
   useAnthropicModels,
   useDeleteProvider,
   useDuplicateProvider,
+  useOpenaiLoginStatus,
+  useOpenAIModelsForProvider,
   useOllamaModels,
   useOpenAIModels,
+  useStartOpenaiLogin,
   useUpdateProvider,
 } from '@/models/ai-config'
 import {useAutoUpdatePreference} from '@/models/app-settings'
@@ -1294,14 +1297,22 @@ type ProviderFormData = {
   label: string
   type: 'openai' | 'anthropic' | 'ollama'
   model: string
+  authMode: 'apiKey' | 'login'
   apiKey: string
   baseUrl: string
+  openaiAuth?: {
+    email?: string
+    chatgptAccountId?: string
+    chatgptPlanType?: string
+    lastRefreshAt?: string
+  }
 }
 
 const DEFAULT_FORM: ProviderFormData = {
   label: '',
   type: 'openai',
   model: '',
+  authMode: 'apiKey',
   apiKey: '',
   baseUrl: '',
 }
@@ -1356,6 +1367,11 @@ function AIProvidersSettings() {
                 <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-[10px] font-medium uppercase">
                   {provider.type}
                 </span>
+                {provider.type === 'openai' && (
+                  <span className="bg-muted-foreground/10 text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium uppercase">
+                    {provider.authMode === 'login' ? 'login' : 'api key'}
+                  </span>
+                )}
               </div>
               <SizableText size="xs" className="text-muted-foreground">
                 {provider.model}
@@ -1409,6 +1425,8 @@ function ProviderForm({onSave, onCancel}: {onSave: () => void; onCancel: () => v
       model: models[type],
       baseUrl: type === 'ollama' ? 'http://localhost:11434' : '',
       apiKey: type === 'ollama' ? '' : form.apiKey,
+      authMode: type === 'openai' ? form.authMode : 'apiKey',
+      openaiAuth: type === 'openai' ? form.openaiAuth : undefined,
     })
   }
 
@@ -1418,8 +1436,9 @@ function ProviderForm({onSave, onCancel}: {onSave: () => void; onCancel: () => v
         type: form.type,
         label: form.label || undefined,
         model: form.model || undefined,
-        apiKey: form.apiKey || undefined,
+        apiKey: form.type === 'openai' && form.authMode === 'login' ? undefined : form.apiKey || undefined,
         baseUrl: form.baseUrl || undefined,
+        authMode: form.type === 'openai' ? form.authMode : undefined,
       },
       {onSuccess: onSave},
     )
@@ -1427,6 +1446,7 @@ function ProviderForm({onSave, onCancel}: {onSave: () => void; onCancel: () => v
 
   return (
     <ProviderFormFields
+      providerId={null}
       form={form}
       setForm={setForm}
       onTypeChange={handleTypeChange}
@@ -1462,6 +1482,14 @@ function ProviderEditForm({
         model: providerQuery.data.model,
         apiKey: providerQuery.data.apiKey || '',
         baseUrl: providerQuery.data.baseUrl || '',
+        authMode:
+          providerQuery.data.type === 'openai'
+            ? (providerQuery.data.authMode as ProviderFormData['authMode']) || 'apiKey'
+            : 'apiKey',
+        openaiAuth:
+          providerQuery.data.type === 'openai'
+            ? (providerQuery.data.openaiAuth as ProviderFormData['openaiAuth'] | undefined)
+            : undefined,
       })
     }
   }, [providerQuery.data, form])
@@ -1480,6 +1508,8 @@ function ProviderEditForm({
       type,
       model: models[type],
       baseUrl: type === 'ollama' ? 'http://localhost:11434' : '',
+      authMode: type === 'openai' ? form.authMode : 'apiKey',
+      openaiAuth: type === 'openai' ? form.openaiAuth : undefined,
     })
   }
 
@@ -1491,8 +1521,9 @@ function ProviderEditForm({
         label: form.label,
         type: form.type,
         model: form.model,
-        apiKey: form.apiKey || undefined,
+        apiKey: form.type === 'openai' && form.authMode === 'login' ? undefined : form.apiKey || undefined,
         baseUrl: form.baseUrl || undefined,
+        authMode: form.type === 'openai' ? form.authMode : undefined,
       },
       {onSuccess: onSave},
     )
@@ -1500,6 +1531,7 @@ function ProviderEditForm({
 
   return (
     <ProviderFormFields
+      providerId={providerId}
       form={form}
       setForm={setForm}
       onTypeChange={handleTypeChange}
@@ -1512,6 +1544,7 @@ function ProviderEditForm({
 }
 
 function ProviderFormFields({
+  providerId,
   form,
   setForm,
   onTypeChange,
@@ -1520,6 +1553,7 @@ function ProviderFormFields({
   saveLabel,
   isSaving,
 }: {
+  providerId: string | null
   form: ProviderFormData
   setForm: (form: ProviderFormData) => void
   onTypeChange: (type: 'openai' | 'anthropic' | 'ollama') => void
@@ -1528,17 +1562,64 @@ function ProviderFormFields({
   saveLabel: string
   isSaving: boolean
 }) {
+  const openUrl = useOpenUrl()
   const ollamaModels = useOllamaModels(form.type === 'ollama' ? form.baseUrl || 'http://localhost:11434' : null)
-  const openaiModels = useOpenAIModels(form.type === 'openai' ? form.apiKey || null : null)
+  const openaiModelsApiKey = useOpenAIModels(
+    form.type === 'openai' && form.authMode === 'apiKey' ? form.apiKey || null : null,
+  )
+  const openaiModelsProvider = useOpenAIModelsForProvider(
+    form.type === 'openai' && form.authMode === 'login' && providerId ? providerId : null,
+  )
+  const startOpenaiLogin = useStartOpenaiLogin()
+  const [openaiLoginSessionId, setOpenaiLoginSessionId] = useState<string | null>(null)
+  const [openaiLoginUserCode, setOpenaiLoginUserCode] = useState<string | null>(null)
+  const openaiLoginStatus = useOpenaiLoginStatus(openaiLoginSessionId)
   const anthropicModels = useAnthropicModels(form.type === 'anthropic' ? form.apiKey || null : null)
   const [showApiKey, setShowApiKey] = useState(false)
+  const openaiModels = form.authMode === 'login' ? openaiModelsProvider : openaiModelsApiKey
+  const activeOpenaiUserCode = openaiLoginStatus.data?.userCode || openaiLoginUserCode
+  const openaiVerificationUrl = openaiLoginStatus.data?.verificationUrl || 'https://auth.openai.com/codex/device'
+  const isOpenAILoginMissingConnection = form.type === 'openai' && form.authMode === 'login' && !form.openaiAuth
+
+  useEffect(() => {
+    if (!openaiLoginSessionId) return
+    if (!openaiLoginStatus.data) return
+    if (openaiLoginStatus.data.status === 'success') {
+      setForm({
+        ...form,
+        authMode: 'login',
+        openaiAuth: {
+          email: openaiLoginStatus.data.email || undefined,
+          chatgptAccountId: openaiLoginStatus.data.chatgptAccountId || undefined,
+          chatgptPlanType: openaiLoginStatus.data.chatgptPlanType || undefined,
+          lastRefreshAt: new Date().toISOString(),
+        },
+      })
+      toast.success('Connected to OpenAI')
+      setOpenaiLoginSessionId(null)
+      setOpenaiLoginUserCode(null)
+      if (providerId) {
+        openaiModelsProvider.refetch().catch(() => {})
+      }
+      return
+    }
+    if (openaiLoginStatus.data.status === 'error') {
+      toast.error(openaiLoginStatus.data.message || 'OpenAI login failed')
+      setOpenaiLoginSessionId(null)
+      setOpenaiLoginUserCode(null)
+    }
+  }, [form, openaiLoginSessionId, openaiLoginStatus.data, openaiModelsProvider, providerId, setForm])
 
   const modelOptions =
     form.type === 'openai'
-      ? openaiModels.data?.length ? openaiModels.data : OPENAI_MODELS_FALLBACK
+      ? openaiModels.data?.length
+        ? openaiModels.data
+        : OPENAI_MODELS_FALLBACK
       : form.type === 'anthropic'
-        ? anthropicModels.data?.length ? anthropicModels.data : ANTHROPIC_MODELS_FALLBACK
-        : ollamaModels.data || []
+      ? anthropicModels.data?.length
+        ? anthropicModels.data
+        : ANTHROPIC_MODELS_FALLBACK
+      : ollamaModels.data || []
 
   return (
     <div className="dark:bg-background bg-muted flex flex-col gap-3 rounded border p-3">
@@ -1559,7 +1640,114 @@ function ProviderFormFields({
         </Select>
       </Field>
 
-      {(form.type === 'openai' || form.type === 'anthropic') && (
+      {form.type === 'openai' && (
+        <Field id="provider-openai-auth-mode" label="Authentication">
+          <RadioGroup
+            value={form.authMode}
+            onValueChange={(value) => {
+              const authMode = value as ProviderFormData['authMode']
+              setForm({
+                ...form,
+                authMode,
+                ...(authMode === 'apiKey' ? {openaiAuth: undefined} : {}),
+              })
+            }}
+          >
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="login" id="provider-openai-auth-login" />
+              <Label htmlFor="provider-openai-auth-login">Login</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="apiKey" id="provider-openai-auth-apikey" />
+              <Label htmlFor="provider-openai-auth-apikey">API Key</Label>
+            </div>
+          </RadioGroup>
+        </Field>
+      )}
+
+      {form.type === 'openai' && form.authMode === 'login' && (
+        <Field id="provider-openai-login" label="OpenAI Login">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!providerId || startOpenaiLogin.isLoading || openaiLoginStatus.data?.status === 'pending'}
+                onClick={() => {
+                  if (!providerId) {
+                    toast.error('Save this provider first, then connect OpenAI Login.')
+                    return
+                  }
+                  startOpenaiLogin.mutate(
+                    {providerId},
+                    {
+                      onSuccess: (result) => {
+                        setOpenaiLoginSessionId(result.sessionId)
+                        setOpenaiLoginUserCode(result.userCode || null)
+                        openUrl(result.authUrl)
+                      },
+                    },
+                  )
+                }}
+              >
+                {form.openaiAuth ? 'Reconnect OpenAI' : 'Connect OpenAI'}
+              </Button>
+              {(startOpenaiLogin.isLoading || openaiLoginStatus.data?.status === 'pending') && <Spinner size="small" />}
+            </div>
+
+            {!providerId && (
+              <SizableText size="xs" className="text-muted-foreground">
+                Save the provider first to start browser login.
+              </SizableText>
+            )}
+
+            {form.openaiAuth && (
+              <SizableText size="xs" className="text-muted-foreground">
+                Connected
+                {form.openaiAuth.email ? ` as ${form.openaiAuth.email}` : ''}
+                {form.openaiAuth.chatgptPlanType ? ` (${form.openaiAuth.chatgptPlanType})` : ''}.
+                {form.openaiAuth.lastRefreshAt
+                  ? ` Last refresh: ${formattedDateLong(new Date(form.openaiAuth.lastRefreshAt))}.`
+                  : ''}
+              </SizableText>
+            )}
+
+            {openaiLoginStatus.data?.status === 'pending' && (
+              <div className="flex flex-col gap-1">
+                <SizableText size="xs" className="text-muted-foreground">
+                  Waiting for OpenAI login to complete in your browser...
+                </SizableText>
+                {activeOpenaiUserCode ? (
+                  <div className="flex items-center gap-2">
+                    <SizableText size="xs" className="text-muted-foreground">
+                      Enter code <code>{activeOpenaiUserCode}</code> at {openaiVerificationUrl}.
+                    </SizableText>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        copyTextToClipboard(activeOpenaiUserCode)
+                        toast.success('Device code copied to clipboard')
+                      }}
+                    >
+                      <CopyIcon className="size-3.5" />
+                      Copy code
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            {openaiLoginStatus.data?.status === 'error' && (
+              <SizableText size="xs" className="text-destructive">
+                {openaiLoginStatus.data.message || 'OpenAI login failed.'}
+              </SizableText>
+            )}
+          </div>
+        </Field>
+      )}
+
+      {(form.type === 'anthropic' || (form.type === 'openai' && form.authMode === 'apiKey')) && (
         <Field id="provider-apikey" label="API Key">
           <div className="flex items-center gap-2">
             <Input
@@ -1586,48 +1774,50 @@ function ProviderFormFields({
         </Field>
       )}
 
-      <Field id="provider-model" label="Model">
-        {modelOptions.length > 0 ? (
-          <Select value={form.model} onValueChange={(v) => setForm({...form, model: v})}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select a model" />
-            </SelectTrigger>
-            <SelectContent>
-              {modelOptions.map((m: string) => (
-                <SelectItem key={m} value={m}>
-                  {m}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : (
-          <Input
-            value={form.model}
-            onChangeText={(v) => setForm({...form, model: v})}
-            placeholder={form.type === 'ollama' ? 'e.g. llama3' : 'Model name'}
-          />
-        )}
-        {form.type === 'openai' && openaiModels.isLoading && (
-          <SizableText size="xs" className="text-muted-foreground mt-1">
-            Loading models from OpenAI...
-          </SizableText>
-        )}
-        {form.type === 'anthropic' && anthropicModels.isLoading && (
-          <SizableText size="xs" className="text-muted-foreground mt-1">
-            Loading models from Anthropic...
-          </SizableText>
-        )}
-        {form.type === 'ollama' && ollamaModels.isLoading && (
-          <SizableText size="xs" className="text-muted-foreground mt-1">
-            Loading models from Ollama...
-          </SizableText>
-        )}
-        {form.type === 'ollama' && !ollamaModels.isLoading && ollamaModels.data?.length === 0 && form.baseUrl && (
-          <SizableText size="xs" className="text-muted-foreground mt-1">
-            Could not connect to Ollama. Type a model name manually.
-          </SizableText>
-        )}
-      </Field>
+      {!isOpenAILoginMissingConnection && (
+        <Field id="provider-model" label="Model">
+          {modelOptions.length > 0 ? (
+            <Select value={form.model} onValueChange={(v) => setForm({...form, model: v})}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a model" />
+              </SelectTrigger>
+              <SelectContent>
+                {modelOptions.map((m: string) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              value={form.model}
+              onChangeText={(v) => setForm({...form, model: v})}
+              placeholder={form.type === 'ollama' ? 'e.g. llama3' : 'Model name'}
+            />
+          )}
+          {form.type === 'openai' && openaiModels.isLoading && (
+            <SizableText size="xs" className="text-muted-foreground mt-1">
+              Loading models from OpenAI...
+            </SizableText>
+          )}
+          {form.type === 'anthropic' && anthropicModels.isLoading && (
+            <SizableText size="xs" className="text-muted-foreground mt-1">
+              Loading models from Anthropic...
+            </SizableText>
+          )}
+          {form.type === 'ollama' && ollamaModels.isLoading && (
+            <SizableText size="xs" className="text-muted-foreground mt-1">
+              Loading models from Ollama...
+            </SizableText>
+          )}
+          {form.type === 'ollama' && !ollamaModels.isLoading && ollamaModels.data?.length === 0 && form.baseUrl && (
+            <SizableText size="xs" className="text-muted-foreground mt-1">
+              Could not connect to Ollama. Type a model name manually.
+            </SizableText>
+          )}
+        </Field>
+      )}
 
       <div className="flex justify-end gap-2">
         <Button size="sm" variant="ghost" onClick={onCancel}>

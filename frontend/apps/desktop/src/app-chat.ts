@@ -9,11 +9,12 @@ import {ipcMain} from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 import z from 'zod'
-import {readConfig, setLastUsedProvider, type AgentProvider} from './app-ai-config'
+import {readConfig, resolveProviderForUsage, setLastUsedProvider, type AgentProvider} from './app-ai-config'
 import {appInvalidateQueries} from './app-invalidation'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
 import {getAllWindows} from './app-windows'
+import {desktopRequest} from './desktop-api'
 import {grpcClient} from './grpc-client'
 import * as log from './logger'
 
@@ -111,6 +112,9 @@ ipcMain.on('chatStopStream', (_, sessionId: string) => {
 function createProviderModel(provider: AgentProvider) {
   switch (provider.type) {
     case 'openai': {
+      if (!provider.apiKey) {
+        throw new Error('OpenAI credentials are missing. Reconnect in Settings > Assistant Providers.')
+      }
       const openai = createOpenAI({
         apiKey: provider.apiKey,
         ...(provider.baseUrl ? {baseURL: provider.baseUrl} : {}),
@@ -137,6 +141,7 @@ function createProviderModel(provider: AgentProvider) {
 }
 
 // View term suffixes that can be appended to hm:// URLs
+// Supports sub-paths like :activity/versions, :activity/citations
 const VIEW_TERM_PATTERN = /\/:(comments|directory|activity|collaborators|feed)(?:\/(.+))?$/
 
 /**
@@ -247,6 +252,32 @@ function getPlainMetadata(metadata: any): Record<string, any> | null {
   return metadata
 }
 
+// Helper: resolve account UIDs to display names, with caching within a single read call
+async function resolveAccountNames(uids: string[]): Promise<Record<string, string>> {
+  const unique = Array.from(new Set(uids.filter(Boolean)))
+  const names: Record<string, string> = {}
+  await Promise.all(
+    unique.map(async (uid) => {
+      try {
+        const result = await desktopRequest('Account', uid)
+        if (result.type === 'account' && result.metadata?.name) {
+          names[uid] = result.metadata.name
+        } else {
+          names[uid] = uid.slice(0, 12) + '...'
+        }
+      } catch {
+        names[uid] = uid.slice(0, 12) + '...'
+      }
+    }),
+  )
+  return names
+}
+
+function displayName(names: Record<string, string>, uid: string | undefined): string {
+  if (!uid) return 'unknown'
+  return names[uid] || uid.slice(0, 12) + '...'
+}
+
 // Read handlers for each view type
 
 async function readDocument(id: ReturnType<typeof unpackHmId>) {
@@ -269,15 +300,16 @@ async function readComments(id: ReturnType<typeof unpackHmId>) {
     targetPath: hmIdPathToEntityQueryPath(id.path),
     pageSize: 100,
   })
+  const parsed = res.comments.map(parseComment).filter((c): c is HMComment => c !== null)
+  if (parsed.length === 0) return 'No comments found on this document.'
+  const authorUids = parsed.map((c) => c.author).filter(Boolean) as string[]
+  const names = await resolveAccountNames(authorUids)
   const comments: string[] = []
-  for (const raw of res.comments) {
-    const c = parseComment(raw)
-    if (!c) continue
+  for (const c of parsed) {
     const content = c.content ? blockNodesToMarkdown(c.content as HMBlockNode[]) : ''
     const replyInfo = c.replyParent ? ` (reply to ${c.replyParent})` : ''
-    comments.push(`**${c.author}**${replyInfo}:\n${content}`)
+    comments.push(`**${displayName(names, c.author)}**${replyInfo}:\n${content}`)
   }
-  if (comments.length === 0) return 'No comments found on this document.'
   return `## Comments\n\n${comments.join('\n\n---\n\n')}`
 }
 
@@ -304,6 +336,75 @@ async function readDirectory(id: ReturnType<typeof unpackHmId>) {
   }
   if (children.length === 0) return 'No child documents found.'
   return `## Directory\n\n${children.join('\n')}`
+}
+
+async function readVersions(id: ReturnType<typeof unpackHmId>) {
+  if (!id) return 'Error: invalid document ID'
+  const result = await desktopRequest('ListChanges', {targetId: id})
+  if (!result.changes || result.changes.length === 0) return 'No version history found for this document.'
+  const authorUids = result.changes.map((c) => c.author).filter(Boolean) as string[]
+  const names = await resolveAccountNames(authorUids)
+  const lines: string[] = [`## Version History\n`]
+  if (result.latestVersion) {
+    lines.push(`Latest version: \`${result.latestVersion}\`\n`)
+  }
+  for (const change of result.changes) {
+    const date = change.createTime ? new Date(change.createTime).toLocaleString() : 'unknown date'
+    const changeId = change.id ? `\`${change.id.slice(0, 12)}...\`` : 'unknown'
+    lines.push(`- ${changeId} by ${displayName(names, change.author)} at ${date}`)
+  }
+  return lines.join('\n')
+}
+
+async function readCitations(id: ReturnType<typeof unpackHmId>) {
+  if (!id) return 'Error: invalid document ID'
+  const result = await desktopRequest('ListCitations', {targetId: id})
+  if (!result.citations || result.citations.length === 0) return 'No citations found for this document.'
+  // Resolve source document metadata for richer display
+  const sourceIds = result.citations.map((m) => unpackHmId(m.source)).filter((s) => s !== null)
+  const sourceMetadata: Record<string, string> = {}
+  await Promise.all(
+    sourceIds.map(async (srcId) => {
+      if (!srcId) return
+      try {
+        const res = await desktopRequest('ResourceMetadata', srcId)
+        if (res?.metadata?.name) sourceMetadata[srcId.id] = res.metadata.name
+      } catch {
+        // skip - will use URL fallback
+      }
+    }),
+  )
+  const lines: string[] = [`## Citations\n`]
+  for (const mention of result.citations) {
+    const sourceId = unpackHmId(mention.source)
+    const sourceName = sourceId ? sourceMetadata[sourceId.id] || mention.source : mention.source || 'unknown'
+    const sourceType = mention.sourceType || 'link'
+    const fragment = mention.targetFragment ? ` (fragment: ${mention.targetFragment})` : ''
+    lines.push(`- [${sourceType}] "${sourceName}" (${mention.source})${fragment}`)
+  }
+  return lines.join('\n')
+}
+
+async function readCollaborators(id: ReturnType<typeof unpackHmId>) {
+  if (!id) return 'Error: invalid document ID'
+  const result = await desktopRequest('ListCapabilities', {targetId: id})
+  if (!result.capabilities || result.capabilities.length === 0) return 'No collaborators found for this document.'
+  // Collect all unique account UIDs (issuers and delegates)
+  const uids: string[] = []
+  for (const cap of result.capabilities) {
+    if (cap.issuer) uids.push(cap.issuer)
+    if (cap.delegate) uids.push(cap.delegate)
+  }
+  const names = await resolveAccountNames(uids)
+  const lines: string[] = [`## Collaborators\n`]
+  for (const cap of result.capabilities) {
+    const delegate = displayName(names, cap.delegate)
+    const issuer = displayName(names, cap.issuer)
+    const role = cap.role || 'unknown role'
+    const path = cap.path ? ` (path: ${cap.path})` : ''
+    lines.push(`- **${delegate}** — ${role}, granted by ${issuer}${path}`)
+  }
+  return lines.join('\n')
 }
 
 // Plain tool objects using inputSchema (not parameters) to match AI SDK v4 internal expectations.
@@ -335,14 +436,14 @@ const chatTools: Record<string, any> = {
   },
   read: {
     description:
-      'Read a Hypermedia document, its comments, or its directory listing. Supports hm:// URLs with optional view term suffixes: /:comments for discussions, /:directory for child documents. Without a suffix, reads the document content as markdown.',
+      'Read a Hypermedia document, its comments, directory listing, version history, citations, or collaborators. Supports hm:// URLs with optional view term suffixes: /:comments for discussions, /:directory for child documents, /:activity/versions for version history, /:activity/citations for citations/backlinks, /:collaborators for access control. Without a suffix, reads the document content as markdown.',
     inputSchema: jsonSchema({
       type: 'object',
       properties: {
         url: {
           type: 'string',
           description:
-            'The hm:// URL to read. Examples: "hm://z6Mk.../path" reads the document, "hm://z6Mk.../path/:comments" reads comments, "hm://z6Mk.../path/:directory" lists children.',
+            'The hm:// URL to read. Examples: "hm://z6Mk.../path" reads the document, "hm://z6Mk.../path/:comments" reads comments, "hm://z6Mk.../path/:directory" lists children, "hm://z6Mk.../path/:activity/versions" lists version history, "hm://z6Mk.../path/:activity/citations" lists citations, "hm://z6Mk.../path/:collaborators" lists collaborators.',
         },
       },
       required: ['url'],
@@ -352,12 +453,23 @@ const chatTools: Record<string, any> = {
       try {
         const parsed = parseDocumentUrl(url)
         if (!parsed) return `Error: Could not parse URL "${url}". Use an hm:// URL.`
-        const {id, viewTerm} = parsed
+        const {id, viewTerm, viewArg} = parsed
         switch (viewTerm) {
           case 'comments':
             return await readComments(id)
           case 'directory':
             return await readDirectory(id)
+          case 'activity':
+            switch (viewArg) {
+              case 'versions':
+                return await readVersions(id)
+              case 'citations':
+                return await readCitations(id)
+              default:
+                return await readVersions(id)
+            }
+          case 'collaborators':
+            return await readCollaborators(id)
           default:
             return await readDocument(id)
         }
@@ -436,9 +548,14 @@ export const chatApi = t.router({
 
       const config = await readConfig()
       const providers = config.agentProviders || []
-      const providerId = input.providerId || session.providerId || config.lastUsedProviderId || config.selectedProviderId
-      const provider = providerId ? providers.find((p) => p.id === providerId) : providers[0]
-      if (!provider) throw new Error('No AI provider configured. Add one in Settings > Assistant Providers.')
+      const providerId =
+        input.providerId || session.providerId || config.lastUsedProviderId || config.selectedProviderId
+      const selectedProvider = providerId ? providers.find((p) => p.id === providerId) : providers[0]
+      if (!selectedProvider) throw new Error('No AI provider configured. Add one in Settings > Assistant Providers.')
+
+      const provider = await resolveProviderForUsage(selectedProvider.id).catch((error) => {
+        throw new Error((error as Error).message || 'Could not load provider credentials.')
+      })
 
       // Save provider to session and update last used globally
       session.providerId = provider.id
@@ -478,6 +595,9 @@ export const chatApi = t.router({
         '  - read("hm://…/path") - Read the document content as markdown',
         '  - read("hm://…/path/:comments") - Read discussions/comments on the document',
         '  - read("hm://…/path/:directory") - List child documents (subdocuments)',
+        '  - read("hm://…/path/:activity/versions") - List version history (changes/authors/dates)',
+        '  - read("hm://…/path/:activity/citations") - List citations/backlinks to this document',
+        '  - read("hm://…/path/:collaborators") - List collaborators and their access roles',
         '',
         'To explore a section of a site, read the directory first, then read each child document.',
       ]
@@ -516,36 +636,36 @@ export const chatApi = t.router({
           abortSignal: abortController.signal,
           onStepFinish: ({toolCalls, toolResults}) => {
             if (toolCalls && toolCalls.length > 0) {
+              const mappedCalls = toolCalls.map((tc: any) => ({
+                id: tc.toolCallId,
+                name: tc.toolName,
+                args: tc.input ?? tc.args ?? {},
+              }))
               broadcastChatEvent({
                 type: 'tool_calls',
                 sessionId: input.sessionId,
-                toolCalls: toolCalls.map((tc: any) => ({
-                  id: tc.toolCallId,
-                  name: tc.toolName,
-                  args: tc.args,
-                })),
+                toolCalls: mappedCalls,
               })
-              for (const tc of toolCalls) {
-                allToolCalls.push({id: (tc as any).toolCallId, name: (tc as any).toolName, args: (tc as any).args})
+              for (const mc of mappedCalls) {
+                allToolCalls.push(mc)
               }
             }
             if (toolResults && toolResults.length > 0) {
+              const mappedResults = toolResults.map((tr: any) => {
+                const result = tr.output ?? tr.result
+                return {
+                  id: tr.toolCallId,
+                  name: tr.toolName,
+                  result: typeof result === 'string' ? result : JSON.stringify(result),
+                }
+              })
               broadcastChatEvent({
                 type: 'tool_results',
                 sessionId: input.sessionId,
-                toolResults: toolResults.map((tr: any) => ({
-                  id: tr.toolCallId,
-                  name: tr.toolName,
-                  result: typeof tr.result === 'string' ? tr.result : JSON.stringify(tr.result),
-                })),
+                toolResults: mappedResults,
               })
-              for (const tr of toolResults) {
-                const trResult = (tr as any).result
-                allToolResults.push({
-                  id: (tr as any).toolCallId,
-                  name: (tr as any).toolName,
-                  result: typeof trResult === 'string' ? trResult : JSON.stringify(trResult),
-                })
+              for (const mr of mappedResults) {
+                allToolResults.push(mr)
               }
             }
           },
@@ -564,7 +684,11 @@ export const chatApi = t.router({
             for (const tc of step.toolCalls) {
               const id = (tc as any).toolCallId
               if (!allToolCalls.some((existing) => existing.id === id)) {
-                allToolCalls.push({id, name: (tc as any).toolName, args: (tc as any).args})
+                allToolCalls.push({
+                  id,
+                  name: (tc as any).toolName,
+                  args: (tc as any).input ?? (tc as any).args ?? {},
+                })
               }
             }
           }
@@ -572,7 +696,7 @@ export const chatApi = t.router({
             for (const tr of step.toolResults) {
               const id = (tr as any).toolCallId
               if (!allToolResults.some((existing) => existing.id === id)) {
-                const trResult = (tr as any).result
+                const trResult = (tr as any).output ?? (tr as any).result
                 allToolResults.push({
                   id,
                   name: (tr as any).toolName,

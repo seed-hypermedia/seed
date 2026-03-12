@@ -14,7 +14,19 @@ import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {SizableText} from '@shm/ui/text'
-import {ArrowDown, Bot, Check, Plus, Send, Settings, Square, Trash2, Wrench} from 'lucide-react'
+import {
+  ArrowDown,
+  Bot,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  Plus,
+  Send,
+  Settings,
+  Square,
+  Trash2,
+  Wrench,
+} from 'lucide-react'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {Markdown} from './markdown'
 
@@ -292,20 +304,13 @@ function ChatView({
         {/* Streaming state — kept visible until persisted message confirmed */}
         {showStreamingBlock && (
           <>
-            {pendingToolCalls && pendingToolCalls.length > 0 && (
-              <div className="my-1">
-                {pendingToolCalls.map((tc) => (
-                  <ToolCallDisplay key={tc.id} name={tc.name} args={tc.args} />
-                ))}
-              </div>
-            )}
-            {pendingToolResults && pendingToolResults.length > 0 && (
-              <div className="my-1">
-                {pendingToolResults.map((tr) => (
-                  <ToolResultDisplay key={tr.id} name={tr.name} result={tr.result} />
-                ))}
-              </div>
-            )}
+            {(() => {
+              const streamToolItems = mergeToolCallsAndResults(
+                pendingToolCalls as Array<{id: string; name: string; args: Record<string, unknown>}>,
+                pendingToolResults as Array<{id: string; name: string; result: string}>,
+              )
+              return streamToolItems.map((item) => <ToolCallItem key={item.id} item={item} />)
+            })()}
             {streamingText && (
               <div className="bg-muted my-1 rounded-lg px-3 py-2 text-xs">
                 <Markdown>{streamingText}</Markdown>
@@ -378,42 +383,123 @@ function ChatView({
 
 function ChatMessageBubble({message}: {message: any}) {
   const isUser = message.role === 'user'
+  const toolItems = mergeToolCallsAndResults(message.toolCalls, message.toolResults)
 
   return (
     <div className="my-1.5">
-      {message.toolCalls?.map((tc: any) => <ToolCallDisplay key={tc.id} name={tc.name} args={tc.args} />)}
-      {message.toolResults?.map((tr: any) => <ToolResultDisplay key={tr.id} name={tr.name} result={tr.result} />)}
-      <div
-        className={`rounded-lg px-3 py-2 text-xs ${
-          isUser ? 'bg-primary text-primary-foreground ml-6' : 'bg-muted mr-6'
-        }`}
+      {toolItems.map((item) => (
+        <ToolCallItem key={item.id} item={item} />
+      ))}
+      {message.content && (
+        <div
+          className={`rounded-lg px-3 py-2 text-xs ${
+            isUser ? 'bg-primary text-primary-foreground ml-6' : 'bg-muted mr-6'
+          }`}
+        >
+          {isUser ? <p className="whitespace-pre-wrap">{message.content}</p> : <Markdown>{message.content}</Markdown>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+type MergedToolItem = {
+  id: string
+  name: string
+  args?: Record<string, unknown>
+  result?: string
+  pending?: boolean
+}
+
+function mergeToolCallsAndResults(
+  toolCalls?: Array<{id: string; name: string; args: Record<string, unknown>}>,
+  toolResults?: Array<{id: string; name: string; result: string}>,
+): MergedToolItem[] {
+  const itemsById = new Map<string, MergedToolItem>()
+
+  if (toolCalls) {
+    for (const tc of toolCalls) {
+      itemsById.set(tc.id, {id: tc.id, name: tc.name, args: tc.args, pending: true})
+    }
+  }
+
+  if (toolResults) {
+    for (const tr of toolResults) {
+      const existing = itemsById.get(tr.id)
+      if (existing) {
+        existing.result = tr.result
+        existing.pending = false
+      } else {
+        itemsById.set(tr.id, {id: tr.id, name: tr.name, result: tr.result})
+      }
+    }
+  }
+
+  return Array.from(itemsById.values())
+}
+
+function ToolCallItem({item}: {item: MergedToolItem}) {
+  const [expanded, setExpanded] = useState(false)
+  const hasArgs = item.args && Object.keys(item.args).length > 0
+  const hasResult = item.result !== undefined
+
+  return (
+    <div className="bg-muted/50 border-border my-1 overflow-hidden rounded border text-xs">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="hover:bg-muted flex w-full items-center gap-2 px-2 py-1.5 text-left"
       >
-        {isUser ? <p className="whitespace-pre-wrap">{message.content}</p> : <Markdown>{message.content}</Markdown>}
-      </div>
-    </div>
-  )
-}
-
-function ToolCallDisplay({name, args}: {name: string; args: Record<string, unknown>}) {
-  return (
-    <div className="bg-muted/50 border-border my-1 flex items-start gap-2 rounded border px-2 py-1.5 text-xs">
-      <Wrench className="text-muted-foreground mt-0.5 size-3 shrink-0" />
-      <div>
-        <span className="font-medium">{name}</span>
-        <span className="text-muted-foreground ml-1">({JSON.stringify(args)})</span>
-      </div>
-    </div>
-  )
-}
-
-function ToolResultDisplay({name, result}: {name: string; result: string}) {
-  return (
-    <div className="bg-muted/50 border-border my-1 flex items-start gap-2 rounded border px-2 py-1.5 text-xs">
-      <Check className="text-muted-foreground mt-0.5 size-3 shrink-0" />
-      <div>
-        <span className="font-medium">{name}</span>
-        <span className="text-muted-foreground ml-1">{result}</span>
-      </div>
+        {item.pending ? (
+          <Loader2 className="text-muted-foreground size-3 shrink-0 animate-spin" />
+        ) : (
+          <Wrench className="text-muted-foreground size-3 shrink-0" />
+        )}
+        <span className="font-medium">{item.name}</span>
+        {hasArgs && !expanded && (
+          <span className="text-muted-foreground min-w-0 flex-1 truncate">
+            (
+            {Object.entries(item.args!)
+              .map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`)
+              .join(', ')}
+            )
+          </span>
+        )}
+        <span className="ml-auto shrink-0">
+          {expanded ? (
+            <ChevronDown className="text-muted-foreground size-3" />
+          ) : (
+            <ChevronRight className="text-muted-foreground size-3" />
+          )}
+        </span>
+      </button>
+      {expanded && (
+        <div className="border-border border-t px-2 py-1.5">
+          {hasArgs && (
+            <div className="mb-1">
+              <div className="text-muted-foreground mb-0.5 text-[10px] font-medium uppercase">Arguments</div>
+              <div className="bg-background rounded p-1.5">
+                {Object.entries(item.args!).map(([key, value]) => (
+                  <div key={key} className="flex gap-1">
+                    <span className="text-muted-foreground shrink-0">{key}:</span>
+                    <span className="min-w-0 break-all">
+                      {typeof value === 'string' ? value : JSON.stringify(value)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {hasResult && (
+            <div>
+              <div className="text-muted-foreground mb-0.5 text-[10px] font-medium uppercase">Result</div>
+              <div className="bg-background max-h-40 overflow-y-auto rounded p-1.5">
+                <pre className="break-all whitespace-pre-wrap">{item.result}</pre>
+              </div>
+            </div>
+          )}
+          {item.pending && !hasResult && <div className="text-muted-foreground italic">Running...</div>}
+        </div>
+      )}
     </div>
   )
 }

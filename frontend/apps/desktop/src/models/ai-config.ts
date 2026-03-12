@@ -63,6 +63,7 @@ export function useAddProvider() {
       model?: string
       apiKey?: string
       baseUrl?: string
+      authMode?: 'apiKey' | 'login'
     }) => client.aiConfig.addProvider.mutate(input),
     onError() {
       toast.error('Could not add provider')
@@ -82,6 +83,7 @@ export function useUpdateProvider() {
       model?: string
       apiKey?: string
       baseUrl?: string
+      authMode?: 'apiKey' | 'login'
     }) => client.aiConfig.updateProvider.mutate(input),
     onError() {
       toast.error('Could not update provider')
@@ -149,6 +151,34 @@ export function useOpenAIModels(apiKey: string | null) {
     queryFn: () => client.aiConfig.listOpenaiModels.query(apiKey!),
     enabled: !!apiKey && apiKey.length > 10,
     staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useOpenAIModelsForProvider(providerId: string | null) {
+  return useQuery({
+    queryKey: [queryKeys.OPENAI_MODELS, providerId, 'provider'],
+    queryFn: () => client.aiConfig.listOpenaiModelsForProvider.query(providerId!),
+    enabled: !!providerId,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useStartOpenaiLogin() {
+  return useMutation({
+    mutationFn: (input: {providerId: string}) => client.aiConfig.startOpenaiLogin.mutate(input),
+    onError() {
+      toast.error('Could not start OpenAI login')
+    },
+  })
+}
+
+export function useOpenaiLoginStatus(sessionId: string | null) {
+  return useQuery({
+    queryKey: ['OPENAI_LOGIN_STATUS', sessionId],
+    queryFn: () => client.aiConfig.getOpenaiLoginStatus.query(sessionId!),
+    enabled: !!sessionId,
+    refetchInterval: sessionId ? 1000 : false,
+    staleTime: 0,
   })
 }
 

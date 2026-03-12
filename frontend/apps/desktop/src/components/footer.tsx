@@ -58,8 +58,8 @@ export default function Footer({
         {onToggleAssistant && (
           <Button
             size="xs"
-            variant={assistantOpen ? 'default' : 'ghost'}
-            className={cn('px-2', assistantOpen && 'bg-link hover:bg-link-hover')}
+            variant={'ghost'}
+            className={cn('px-2', assistantOpen && 'text-brand hover:text-brand-hover')}
             onClick={onToggleAssistant}
           >
             <Bot className="size-3" />
