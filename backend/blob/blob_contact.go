@@ -21,11 +21,15 @@ const contactNameMaxLength = 256
 type Contact struct {
 	BaseBlob
 
-	// ID of the contact within the signer's authority that's being replaced.
+	// ID of the contact within the account's authority that's being replaced.
 	// Only present on contact updates.
 	//
 	// TODO(burdiyan): figure out how to handle delegated signers.
 	ID TSID `refmt:"id,omitempty"`
+
+	// Account is the account ID for which the contact is defined.
+	// It's only specified when the signer is acting on behalf of another account.
+	Account core.Principal `refmt:"account,omitempty"`
 
 	// Subject is the account that's being described by the contact record.
 	Subject core.Principal `refmt:"subject,omitempty"`
@@ -35,13 +39,22 @@ type Contact struct {
 }
 
 // NewContact creates a new Contact blob.
-func NewContact(kp *core.KeyPair, id TSID, subject core.Principal, name string, ts time.Time) (eb Encoded[*Contact], err error) {
+func NewContact(kp *core.KeyPair, id TSID, account, subject core.Principal, name string, ts time.Time) (eb Encoded[*Contact], err error) {
+	if account == nil {
+		return eb, fmt.Errorf("account cannot be nil")
+	}
+
+	if kp.Principal().Equal(account) {
+		account = nil
+	}
+
 	cu := &Contact{
 		BaseBlob: BaseBlob{
 			Type:   TypeContact,
 			Signer: kp.Principal(),
 			Ts:     ts,
 		},
+		Account: account,
 		ID:      id,
 		Subject: subject,
 		Name:    name,
@@ -52,6 +65,15 @@ func NewContact(kp *core.KeyPair, id TSID, subject core.Principal, name string, 
 	}
 
 	return encodeBlob(cu)
+}
+
+// AccountPrincipal returns the account that owns the contact.
+func (c *Contact) AccountPrincipal() core.Principal {
+	if c.Account != nil {
+		return c.Account
+	}
+
+	return c.Signer
 }
 
 // TSID implement [ReplacementBlob] interface.
@@ -90,6 +112,7 @@ func init() {
 
 func indexContact(ictx *indexingCtx, id int64, eb Encoded[*Contact]) error {
 	c, v := eb.CID, eb.Decoded
+	account := v.AccountPrincipal()
 
 	// Validate contact: subject is required for active contacts, empty subject means tombstone.
 	// Name is optional.
@@ -101,13 +124,13 @@ func indexContact(ictx *indexingCtx, id int64, eb Encoded[*Contact]) error {
 	}
 
 	// TODO(burdiyan): temporarily we associate contacts with the resource of the Home document.
-	iri, err := NewIRI(v.Signer, "")
+	iri, err := NewIRI(account, "")
 	if err != nil {
 		return err
 	}
 
 	// Contact blobs have public visibility, so no visibility spaces.
-	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, v.Signer, time.Time{}, VisibilityPublic, nil)
+	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, account, time.Time{}, VisibilityPublic, nil)
 
 	extraAttrs := map[string]any{
 		"tsid": eb.TSID(),

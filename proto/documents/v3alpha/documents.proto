@@ -474,8 +474,12 @@ message Contact {
   // Time when the contact was updated.
   google.protobuf.Timestamp update_time = 5;
 
-  // Account ID that issued this contact.
+  // Account ID that owns this contact.
   string account = 6;
+
+  // Signing key that authored the latest contact blob.
+  // When omitted in legacy storage, it matches account.
+  string signer = 7;
 }
 
 // Request to list a directory.

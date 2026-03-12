@@ -1835,8 +1835,11 @@ type Contact struct {
 	CreateTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
 	// Time when the contact was updated.
 	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
-	// Account ID that issued this contact.
-	Account       string `protobuf:"bytes,6,opt,name=account,proto3" json:"account,omitempty"`
+	// Account ID that owns this contact.
+	Account string `protobuf:"bytes,6,opt,name=account,proto3" json:"account,omitempty"`
+	// Signing key that authored the latest contact blob.
+	// When omitted in legacy storage, it matches account.
+	Signer        string `protobuf:"bytes,7,opt,name=signer,proto3" json:"signer,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1909,6 +1912,13 @@ func (x *Contact) GetUpdateTime() *timestamppb.Timestamp {
 func (x *Contact) GetAccount() string {
 	if x != nil {
 		return x.Account
+	}
+	return ""
+}
+
+func (x *Contact) GetSigner() string {
+	if x != nil {
+		return x.Signer
 	}
 	return ""
 }
@@ -4406,7 +4416,7 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\x06filter\"\x7f\n" +
 	"\x14ListContactsResponse\x12?\n" +
 	"\bcontacts\x18\x01 \x03(\v2#.com.seed.documents.v3alpha.ContactR\bcontacts\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xdb\x01\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xf3\x01\n" +
 	"\aContact\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\asubject\x18\x02 \x01(\tR\asubject\x12\x12\n" +
@@ -4415,7 +4425,8 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"createTime\x12;\n" +
 	"\vupdate_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"updateTime\x12\x18\n" +
-	"\aaccount\x18\x06 \x01(\tR\aaccount\"\xa6\x02\n" +
+	"\aaccount\x18\x06 \x01(\tR\aaccount\x12\x16\n" +
+	"\x06signer\x18\a \x01(\tR\x06signer\"\xa6\x02\n" +
 	"\x14ListDirectoryRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +

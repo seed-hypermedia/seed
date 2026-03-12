@@ -33,6 +33,7 @@ func TestCreateContact(t *testing.T) {
 	require.Equal(t, bob.Account.PublicKey.String(), contact.Subject)
 	require.Equal(t, "Bob", contact.Name)
 	require.Equal(t, alice.me.Account.PublicKey.String(), contact.Account)
+	require.Equal(t, alice.me.Account.PublicKey.String(), contact.Signer)
 	require.NotNil(t, contact.CreateTime)
 	require.NotNil(t, contact.UpdateTime)
 	require.NotEqual(t, "", contact.Id, "must have ID")
@@ -75,6 +76,86 @@ func TestCreateContact(t *testing.T) {
 	require.Error(t, err)
 	st, _ = status.FromError(err)
 	require.Equal(t, codes.InvalidArgument, st.Code())
+}
+
+func TestDelegatedContactSigner(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	bob := coretest.NewTester("bob")
+	carol := coretest.NewTester("carol")
+
+	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
+
+	_, err := alice.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+		SigningKeyName: "main",
+		Delegate:       bob.Account.PublicKey.String(),
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "",
+		Role:           documents.Role_WRITER,
+	})
+	require.NoError(t, err)
+
+	contact, err := alice.CreateContact(ctx, &documents.CreateContactRequest{
+		Account:        alice.me.Account.PublicKey.String(),
+		SigningKeyName: "bob",
+		Subject:        carol.Account.PublicKey.String(),
+		Name:           "Carol",
+	})
+	require.NoError(t, err)
+	require.Equal(t, alice.me.Account.PublicKey.String(), contact.Account)
+	require.Equal(t, bob.Account.PublicKey.String(), contact.Signer)
+
+	retrievedContact, err := alice.GetContact(ctx, &documents.GetContactRequest{
+		Id: contact.Id,
+	})
+	require.NoError(t, err)
+	testutil.StructsEqual(contact, retrievedContact).Compare(t, "delegated contact should round-trip")
+
+	resp, err := alice.ListContacts(ctx, &documents.ListContactsRequest{
+		PageSize: 10,
+		Filter: &documents.ListContactsRequest_Account{
+			Account: alice.me.Account.PublicKey.String(),
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Contacts, 1)
+	testutil.StructsEqual(contact, resp.Contacts[0]).Compare(t, "delegated contact should list under the account")
+
+	updatedContact, err := alice.UpdateContact(ctx, &documents.UpdateContactRequest{
+		Contact: &documents.Contact{
+			Id:      contact.Id,
+			Account: contact.Account,
+			Signer:  contact.Signer,
+			Subject: carol.Account.PublicKey.String(),
+			Name:    "Carol Updated",
+		},
+		SigningKeyName: "bob",
+	})
+	require.NoError(t, err)
+	require.Equal(t, contact.Account, updatedContact.Account)
+	require.Equal(t, contact.Signer, updatedContact.Signer)
+
+	retrievedContact, err = alice.GetContact(ctx, &documents.GetContactRequest{
+		Id: contact.Id,
+	})
+	require.NoError(t, err)
+	testutil.StructsEqual(updatedContact, retrievedContact).Compare(t, "delegated contact update should be visible")
+
+	_, err = alice.DeleteContact(ctx, &documents.DeleteContactRequest{
+		Id:             contact.Id,
+		SigningKeyName: "bob",
+	})
+	require.NoError(t, err)
+
+	_, err = alice.GetContact(ctx, &documents.GetContactRequest{
+		Id: contact.Id,
+	})
+	require.Error(t, err)
+	st, _ := status.FromError(err)
+	require.Equal(t, codes.NotFound, st.Code())
 }
 
 func TestListContacts(t *testing.T) {

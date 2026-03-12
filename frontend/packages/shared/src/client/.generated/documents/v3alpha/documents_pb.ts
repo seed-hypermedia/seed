@@ -1603,11 +1603,19 @@ export class Contact extends Message<Contact> {
   updateTime?: Timestamp;
 
   /**
-   * Account ID that issued this contact.
+   * Account ID that owns this contact.
    *
    * @generated from field: string account = 6;
    */
   account = "";
+
+  /**
+   * Signing key that authored the latest contact blob.
+   * When omitted in legacy storage, it matches account.
+   *
+   * @generated from field: string signer = 7;
+   */
+  signer = "";
 
   constructor(data?: PartialMessage<Contact>) {
     super();
@@ -1623,6 +1631,7 @@ export class Contact extends Message<Contact> {
     { no: 4, name: "create_time", kind: "message", T: Timestamp },
     { no: 5, name: "update_time", kind: "message", T: Timestamp },
     { no: 6, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "signer", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Contact {
