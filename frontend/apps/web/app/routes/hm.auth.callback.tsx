@@ -20,12 +20,21 @@ import {toast} from '@shm/ui/toast'
 import {XCircle} from 'lucide-react'
 import {useEffect, useState} from 'react'
 
+const inFlightAuthCallbacks = new Map<string, Promise<void>>()
+const completedAuthCallbacks = new Set<string>()
+
 export default function AuthCallbackRoute() {
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
   const {origin, originHomeId} = useUniversalAppContext()
 
   useEffect(() => {
+    const callbackKey = window.location.href
+    if (completedAuthCallbacks.has(callbackKey) || inFlightAuthCallbacks.has(callbackKey)) {
+      console.log('[auth-callback] Skipping duplicate callback handling', {callbackKey})
+      return
+    }
+
     async function handleAuth() {
       const vaultUrl = (await getAuthState(AUTH_STATE_DELEGATION_VAULT_URL)) || `${origin}/vault/delegate`
       const returnUrl = (await getAuthState(AUTH_STATE_DELEGATION_RETURN_URL)) || '/'
@@ -114,7 +123,11 @@ export default function AuthCallbackRoute() {
       }
     }
 
-    handleAuth()
+    const authPromise = handleAuth().finally(() => {
+      inFlightAuthCallbacks.delete(callbackKey)
+      completedAuthCallbacks.add(callbackKey)
+    })
+    inFlightAuthCallbacks.set(callbackKey, authPromise)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [origin, navigate])
 

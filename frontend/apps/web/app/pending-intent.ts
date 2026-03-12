@@ -8,6 +8,8 @@ import {getCurrentAccountUidWithDelegation, getCurrentSigner} from './auth'
 import {clearPendingIntent, getPendingIntent, getStoredLocalKeys} from './local-db'
 import {webUniversalClient} from './universal-client'
 
+let pendingIntentProcessingPromise: Promise<string | null> | null = null
+
 async function joinSite(signer: HMSigner, siteUid: string) {
   // check to see if we already have a contact for this site
   const accountUid = await getCurrentAccountUidWithDelegation()
@@ -39,6 +41,19 @@ async function joinSite(signer: HMSigner, siteUid: string) {
  * Returns a relative URL path to navigate to (for comment intents), or null.
  */
 export async function processPendingIntent(originHomeId?: UnpackedHypermediaId): Promise<string | null> {
+  if (pendingIntentProcessingPromise) {
+    console.log('[processPendingIntent] Reusing in-flight pending intent processing')
+    return pendingIntentProcessingPromise
+  }
+
+  pendingIntentProcessingPromise = runProcessPendingIntent(originHomeId).finally(() => {
+    pendingIntentProcessingPromise = null
+  })
+
+  return pendingIntentProcessingPromise
+}
+
+async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Promise<string | null> {
   console.log('[processPendingIntent] START. originHomeId:', originHomeId)
   const intent = await getPendingIntent()
   console.log('[processPendingIntent] intent:', intent?.type ?? 'none')
