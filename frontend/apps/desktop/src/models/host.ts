@@ -156,7 +156,7 @@ export function useHostSession({
       })
       const response = AbsorbResponseSchema.parse(respJson)
       if (response.status === 'success') {
-        setHostState.mutate({
+        await setHostState.mutateAsync({
           email: response.email,
           sessionToken: response.sessionToken,
           pendingSessionToken: null,
