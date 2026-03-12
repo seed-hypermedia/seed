@@ -1454,6 +1454,7 @@ export const HMInteractionSummaryOutputSchema = z.object({
   comments: z.number(),
   changes: z.number(),
   children: z.number(),
+  authorUids: z.array(z.string()).default([]),
   blocks: z.record(
     z.string(),
     z.object({

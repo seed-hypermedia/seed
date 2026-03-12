@@ -10,6 +10,8 @@ export type InteractionSummaryPayload = {
   comments: number
   changes: number
   children: number
+  /** UIDs of all authors who created mentions/citations targeting this document. */
+  authorUids: string[]
   blocks: Record<
     string,
     {
@@ -107,7 +109,13 @@ export function calculateInteractionSummary(
   const allCitations = processMentionsToCitations(mentions, targetDocId)
   const dedupedCitations = deduplicateCitations(allCitations)
 
-  const {blocks, citationCount} = calculateBlocksFromCitations(dedupedCitations)
+  const {blocks} = calculateBlocksFromCitations(dedupedCitations)
+
+  // Count distinct source documents, not per-block citations
+  // A single document can cite multiple blocks, but should only count as one citation
+  const uniqueDocSources = new Set(
+    dedupedCitations.filter((citation) => citation.source.type === 'd').map((citation) => citation.source.id.id),
+  )
 
   // Count distinct comment sources, not all comment citations
   // A single comment can cite multiple blocks, but should only count as one comment
@@ -115,11 +123,17 @@ export function calculateInteractionSummary(
     dedupedCitations.filter((citation) => citation.source.type === 'c').map((citation) => citation.source.id.id),
   )
 
+  // Collect unique author UIDs from all citations (both document and comment sources)
+  const authorUids = Array.from(
+    new Set(dedupedCitations.map((citation) => citation.source.author).filter((author): author is string => !!author)),
+  )
+
   return {
-    citations: citationCount, // Document citations/references to this document
+    citations: uniqueDocSources.size, // Count distinct document sources citing this document
     comments: uniqueCommentSources.size, // Count distinct comment sources
     changes: changes.length,
     children: childrenCount,
+    authorUids,
     blocks,
   }
 }

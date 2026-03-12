@@ -15,6 +15,7 @@ import {Bookmark, Copy, Forward, GitFork, Link, MessageSquare, Pencil} from 'luc
 import {useMemo} from 'react'
 import {LibraryEntryUpdateSummary} from './activity'
 import {Button} from './button'
+import {FacePile} from './face-pile'
 import {DraftBadge} from './draft-badge'
 import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
@@ -34,6 +35,8 @@ interface DocumentListItemProps {
   activitySummary?: HMActivitySummary | null
   latestComment?: HMComment | null
   interactionSummary?: InteractionSummaryPayload | null
+  /** Pre-computed contributor UIDs (document authors + comment/mention authors). */
+  contributorUids?: string[]
   draftId?: string
   isRead?: boolean
   indent?: boolean
@@ -48,6 +51,7 @@ export function DocumentListItem({
   breadcrumbs,
   activitySummary,
   latestComment,
+  contributorUids,
   interactionSummary,
   draftId: draftIdProp,
   isRead,
@@ -270,6 +274,11 @@ export function DocumentListItem({
               latestComment={itemLatestComment}
               activitySummary={itemActivitySummary}
             />
+          )}
+          {contributorUids && contributorUids.length > 0 && accountsMetadata && (
+            <div className="mt-1">
+              <FacePile accounts={contributorUids} accountsMetadata={accountsMetadata} />
+            </div>
           )}
         </div>
       </a>

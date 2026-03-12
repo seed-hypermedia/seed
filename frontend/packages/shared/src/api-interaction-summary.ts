@@ -49,7 +49,7 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
       // re-fetched with the correct (target) ID after redirect resolution.
       const err = getErrorMessage(e)
       if (err instanceof HMRedirectError) {
-        return {citations: 0, comments: 0, changes: 0, children: 0, blocks: {}}
+        return {citations: 0, comments: 0, changes: 0, children: 0, authorUids: [], blocks: {}}
       }
       throw e
     }

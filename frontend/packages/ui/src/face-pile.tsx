@@ -5,17 +5,22 @@ import {Text} from './text'
 import {cn} from './utils'
 
 export function FacePile({accounts, accountsMetadata}: {accounts: string[]; accountsMetadata: HMAccountsMetadata}) {
-  const showAccountIds = useMemo(() => (accounts.length > 3 ? accounts.slice(0, 2) : accounts), [accounts])
+  const maxVisible = 3
+  const showAccountIds = useMemo(
+    () => (accounts.length > maxVisible ? accounts.slice(0, maxVisible) : accounts),
+    [accounts],
+  )
+  const remainingCount = accounts.length - showAccountIds.length
 
-  const classNames =
-    'dark:border-background dark:bg-background -ml-2 overflow-hidden rounded-full border-2 border-white bg-white'
+  const overlapClass =
+    'dark:border-background dark:bg-background overflow-hidden rounded-full border-2 border-white bg-white'
   return (
-    <div className="flex items-center">
+    <div className="flex items-center pl-2">
       {showAccountIds.map((author, idx) => {
         const authorInfo = accountsMetadata[author]
         if (!authorInfo) return null
         return (
-          <div key={showAccountIds[idx]} className={cn(classNames, `z-${idx + 1}`)}>
+          <div key={showAccountIds[idx]} className={cn(overlapClass, '-ml-2', `z-${idx + 1}`)}>
             <HMIcon
               key={authorInfo.id.uid}
               id={authorInfo.id}
@@ -26,8 +31,8 @@ export function FacePile({accounts, accountsMetadata}: {accounts: string[]; acco
           </div>
         )
       })}
-      {accounts.length > 2 ? (
-        <div className={cn('flex', classNames)}>
+      {remainingCount > 0 ? (
+        <div className={cn('flex', overlapClass, '-ml-2')}>
           <Text
             size="xs"
             className="size-6 text-center leading-5 text-gray-400"
@@ -36,7 +41,7 @@ export function FacePile({accounts, accountsMetadata}: {accounts: string[]; acco
             }}
             weight="medium"
           >
-            +{accounts.length - 3}
+            +{remainingCount}
           </Text>
         </div>
       ) : null}

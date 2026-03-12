@@ -14,6 +14,8 @@ export interface QueryBlockContentProps {
   columnCount?: string | number
   banner?: boolean
   accountsMetadata: HMAccountsMetadata
+  /** Per-item contributor UIDs (document authors + comment/mention authors), keyed by doc ID. */
+  itemContributors?: Record<string, string[]>
   getEntity: (id: UnpackedHypermediaId) => HMResourceFetchResult | null
   isDiscovering?: boolean
   prependItems?: ReactNode[]
@@ -26,6 +28,7 @@ export function QueryBlockContent({
   columnCount = '3',
   banner = false,
   accountsMetadata,
+  itemContributors,
   getEntity,
   isDiscovering,
   prependItems,
@@ -38,6 +41,7 @@ export function QueryBlockContent({
         banner={banner}
         columnCount={columnCount}
         accountsMetadata={accountsMetadata}
+        itemContributors={itemContributors}
         getEntity={getEntity}
         isDiscovering={isDiscovering}
         prependItems={prependItems}
@@ -50,6 +54,7 @@ export function QueryBlockContent({
     <QueryBlockListView
       items={items}
       accountsMetadata={accountsMetadata}
+      itemContributors={itemContributors}
       isDiscovering={isDiscovering}
       prependItems={prependItems}
     />
@@ -61,6 +66,7 @@ function QueryBlockCardView({
   banner,
   columnCount,
   accountsMetadata,
+  itemContributors,
   getEntity,
   isDiscovering,
   prependItems,
@@ -70,6 +76,7 @@ function QueryBlockCardView({
   banner: boolean
   columnCount: string | number
   accountsMetadata: HMAccountsMetadata
+  itemContributors?: Record<string, string[]>
   getEntity: (id: UnpackedHypermediaId) => HMResourceFetchResult | null
   isDiscovering?: boolean
   prependItems?: ReactNode[]
@@ -87,6 +94,7 @@ function QueryBlockCardView({
       items={restItems}
       getEntity={getEntity}
       accountsMetadata={accountsMetadata}
+      itemContributors={itemContributors}
       columnCount={columnCountNum}
       isDiscovering={isDiscovering}
       prependItems={prependItems}
@@ -98,11 +106,13 @@ function QueryBlockCardView({
 function QueryBlockListView({
   items,
   accountsMetadata,
+  itemContributors,
   isDiscovering,
   prependItems,
 }: {
   items: HMDocumentInfo[]
   accountsMetadata: HMAccountsMetadata
+  itemContributors?: Record<string, string[]>
   isDiscovering?: boolean
   prependItems?: ReactNode[]
 }) {
@@ -121,7 +131,14 @@ function QueryBlockListView({
     <div className="my-4 flex w-full flex-col gap-1">
       {prependItems}
       {items.map((item) => {
-        return <DocumentListItem key={item.id.id} item={item} accountsMetadata={accountsMetadata} />
+        return (
+          <DocumentListItem
+            key={item.id.id}
+            item={item}
+            accountsMetadata={accountsMetadata}
+            contributorUids={itemContributors?.[item.id.id]}
+          />
+        )
       })}
     </div>
   )

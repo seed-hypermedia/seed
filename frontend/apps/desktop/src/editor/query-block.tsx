@@ -8,6 +8,7 @@ import {queryBlockSortedItems} from '@shm/shared/content'
 import {EditorQueryBlock} from '@shm/shared/editor-types'
 import {HMAccountsMetadata, HMBlockQuery, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
+import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
 import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
@@ -153,10 +154,28 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
     setSelected(isSelected)
   }
 
-  const authorIds = new Set<string>()
-  sortedItems.forEach((item) => item.authors.forEach((authorId) => authorIds.add(authorId)))
+  // Batch-fetch interaction summaries to get comment/mention author UIDs
+  const summaryIds = useMemo(() => sortedItems.map((item) => hmId(item.id.uid, {path: item.id.path})), [sortedItems])
+  const interactionSummaries = useInteractionSummaries(summaryIds)
 
-  const authors = useResources(Array.from(authorIds).map((uid) => hmId(uid)))
+  // Collect all author UIDs (document + comment/mention) and build per-item contributors map
+  const {allAuthorIds, itemContributors} = useMemo(() => {
+    const allIds = new Set<string>()
+    const contributors: Record<string, string[]> = {}
+    sortedItems.forEach((item, idx) => {
+      const uids = new Set(item.authors)
+      item.authors.forEach((uid) => allIds.add(uid))
+      const summaryUids = interactionSummaries[idx]?.data?.authorUids
+      summaryUids?.forEach((uid) => {
+        uids.add(uid)
+        allIds.add(uid)
+      })
+      contributors[item.id.id] = Array.from(uids)
+    })
+    return {allAuthorIds: Array.from(allIds), itemContributors: contributors}
+  }, [sortedItems, interactionSummaries])
+
+  const authors = useResources(allAuthorIds.map((uid) => hmId(uid)))
 
   const accountsMetadata: HMAccountsMetadata = Object.fromEntries(
     authors
@@ -213,6 +232,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         columnCount={block.props.columnCount}
         banner={banner}
         accountsMetadata={accountsMetadata}
+        itemContributors={itemContributors}
         getEntity={getEntity}
         isDiscovering={entity.isDiscovering || directoryItems.isLoading}
       />

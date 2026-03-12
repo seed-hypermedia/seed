@@ -49,6 +49,7 @@ import {
   useUniversalClient,
 } from '@shm/shared'
 import {useAccountsMetadata, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
+import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
 import {useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
 import {useTxString} from '@shm/shared/translation'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -1948,20 +1949,34 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
     return queryLimit && queryLimit > 0 ? sorted.slice(0, queryLimit) : sorted
   }, [directoryItems.data, block.attributes.query.sort, block.attributes.query.limit])
 
-  // Extract author IDs for metadata loading
-  const authorIds = useMemo(() => {
-    const ids = new Set<string>()
-    sortedItems.forEach((item) => item.authors?.forEach((authorId: string) => ids.add(authorId)))
-    return Array.from(ids)
-  }, [sortedItems])
+  // Batch-fetch interaction summaries to get comment/mention author UIDs
+  const summaryIds = useMemo(() => sortedItems.map((item) => hmId(item.id.uid, {path: item.id.path})), [sortedItems])
+  const interactionSummaries = useInteractionSummaries(summaryIds)
+
+  // Extract all author IDs (document authors + comment/mention authors) for metadata loading
+  const {allAuthorIds, itemContributors} = useMemo(() => {
+    const allIds = new Set<string>()
+    const contributors: Record<string, string[]> = {}
+    sortedItems.forEach((item, idx) => {
+      const uids = new Set(item.authors || [])
+      item.authors?.forEach((uid: string) => allIds.add(uid))
+      const summaryUids = interactionSummaries[idx]?.data?.authorUids
+      summaryUids?.forEach((uid) => {
+        uids.add(uid)
+        allIds.add(uid)
+      })
+      contributors[item.id.id] = Array.from(uids)
+    })
+    return {allAuthorIds: Array.from(allIds), itemContributors: contributors}
+  }, [sortedItems, interactionSummaries])
 
   // Batch load documents and authors
   const docIds = useMemo(() => sortedItems.map((item) => item.id), [sortedItems])
 
-  const documents = useResources([...(docIds || []), ...authorIds.map((uid: string) => hmId(uid))])
+  const documents = useResources([...(docIds || []), ...allAuthorIds.map((uid: string) => hmId(uid))])
 
-  // Get accounts metadata
-  const accountsMetadata = useAccountsMetadata(authorIds)
+  // Get accounts metadata (includes both document and comment authors)
+  const accountsMetadata = useAccountsMetadata(allAuthorIds)
 
   // Inline drafts for self-referential query blocks
   const {targetBlockId, drafts, onOpenDraft, onDeleteDraft, onUpdateDraftName} = useQueryBlockDrafts()
@@ -2045,6 +2060,7 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
       columnCount={block.attributes.columnCount}
       banner={hasDrafts ? false : banner}
       accountsMetadata={accountsMetadata.data}
+      itemContributors={itemContributors}
       getEntity={getEntity}
       prependItems={prependItems}
       bannerContent={bannerContent}
@@ -2647,6 +2663,7 @@ export function DocumentCardGrid({
   items,
   getEntity,
   accountsMetadata,
+  itemContributors,
   columnCount = 1,
   isDiscovering,
   prependItems,
@@ -2656,6 +2673,7 @@ export function DocumentCardGrid({
   items: Array<HMDocumentInfo>
   getEntity: (id: UnpackedHypermediaId) => HMResourceFetchResult | null
   accountsMetadata?: HMAccountsMetadata
+  itemContributors?: Record<string, string[]>
   columnCount?: number
   isDiscovering?: boolean
   prependItems?: ReactNode[]
@@ -2677,6 +2695,7 @@ export function DocumentCardGrid({
             entity={getEntity(firstItem.id)}
             docId={firstItem.id}
             accountsMetadata={accountsMetadata}
+            contributorUids={itemContributors?.[firstItem.id.id]}
             showSummary
           />
         </div>
@@ -2696,6 +2715,7 @@ export function DocumentCardGrid({
                   docId={item.id}
                   entity={getEntity(item.id)}
                   accountsMetadata={accountsMetadata}
+                  contributorUids={itemContributors?.[item.id.id]}
                   showSummary
                 />
               </div>

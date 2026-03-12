@@ -7,6 +7,7 @@ import {Bookmark, Copy, Forward, GitFork, Link, MessageSquare, Pencil} from 'luc
 import {HTMLAttributes, useMemo} from 'react'
 import {Button} from './button'
 import {DraftBadge} from './draft-badge'
+import {FacePile} from './face-pile'
 import {useImageUrl} from './get-file-url'
 import {useHighlighter} from './highlight-context'
 import {Download, Trash} from './icons'
@@ -20,6 +21,7 @@ export function DocumentCard({
   docId,
   entity,
   accountsMetadata,
+  contributorUids,
   navigate: navigateProp = true,
   onMouseEnter,
   onMouseLeave,
@@ -30,6 +32,8 @@ export function DocumentCard({
   docId: UnpackedHypermediaId
   entity: HMResourceFetchResult | null | undefined
   accountsMetadata?: HMAccountsMetadata
+  /** Pre-computed contributor UIDs (document authors + comment/mention authors). */
+  contributorUids?: string[]
   navigate?: boolean
   onMouseEnter?: (id: UnpackedHypermediaId) => void
   onMouseLeave?: (id: UnpackedHypermediaId) => void
@@ -183,6 +187,9 @@ export function DocumentCard({
           </div>
           <div className="flex items-center justify-between py-3 pr-2 pl-4">
             <div className="flex items-center gap-1.5">
+              {contributorUids && contributorUids.length > 0 && accountsMetadata && (
+                <FacePile accounts={contributorUids} accountsMetadata={accountsMetadata} />
+              )}
               {!!draftId && <DraftBadge />}
               {!draftId && isPrivate && <PrivateBadge size="sm" />}
             </div>

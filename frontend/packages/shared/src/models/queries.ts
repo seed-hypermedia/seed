@@ -218,6 +218,7 @@ export function queryInteractionSummary(client: UniversalClient, id: UnpackedHyp
           comments: 0,
           changes: 0,
           children: 0,
+          authorUids: [],
           blocks: {},
         }
       }
