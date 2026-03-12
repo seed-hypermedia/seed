@@ -182,6 +182,15 @@ describe('createDocumentNavRoute', () => {
       })
     })
 
+    test('activity viewTerm with activity/citations panelParam applies citations filter', () => {
+      const route = createDocumentNavRoute(testDocId, 'activity', 'activity/citations')
+      expect(route).toEqual({
+        key: 'activity',
+        id: testDocId,
+        filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+      })
+    })
+
     test('comments viewTerm returns comments route', () => {
       const route = createDocumentNavRoute(testDocId, 'comments', null)
       expect(route).toEqual({key: 'comments', id: testDocId, panel: null})
@@ -293,6 +302,14 @@ describe('routeToHref', () => {
   test('activity route with blockRef includes fragment', () => {
     const href = routeToHref({key: 'activity', id: hmId('uid1', {blockRef: 'blk2'})}, {originHomeId: originHome})
     expect(href).toBe('/:activity#blk2')
+  })
+
+  test('activity route with citations filter generates view-term href', () => {
+    const href = routeToHref(
+      {key: 'activity', id: hmId('uid1'), filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button']},
+      {originHomeId: originHome},
+    )
+    expect(href).toBe('/:activity/citations')
   })
 
   test('comments route with doc path generates correct href', () => {

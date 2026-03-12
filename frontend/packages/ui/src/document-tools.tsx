@@ -1,7 +1,7 @@
 import {HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {DocumentPanelRoute, NavRoute, useRouteLink} from '@shm/shared'
+import {activitySlugToFilter, DocumentPanelRoute, NavRoute, useRouteLink} from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {MessageSquare, Newspaper, Users} from 'lucide-react'
+import {MessageSquare, Newspaper, Quote, Users} from 'lucide-react'
 import {useRef, useState} from 'react'
 import {Button, ButtonProps} from './button'
 import {IconComponent} from './icons'
@@ -12,6 +12,7 @@ export function DocumentTools({
   id,
   activeTab,
   commentsCount = 0,
+  citationsCount = 0,
   collabsCount = 0,
   rightActions,
   existingDraft,
@@ -19,8 +20,9 @@ export function DocumentTools({
   layoutProps,
 }: {
   id: UnpackedHypermediaId
-  activeTab?: 'draft' | 'content' | 'comments' | 'collaborators'
+  activeTab?: 'draft' | 'content' | 'comments' | 'collaborators' | 'citations'
   commentsCount?: number
+  citationsCount?: number
   collabsCount?: number
   rightActions?: React.ReactNode
   existingDraft?: HMExistingDraft | false
@@ -119,6 +121,19 @@ export function DocumentTools({
       active: activeTab == 'comments',
       count: commentsCount,
       route: {key: 'comments', id: idWithoutBlock, panel: panelFor()},
+    },
+    {
+      label: 'Citations',
+      tooltip: 'Open Document Citations',
+      icon: Quote,
+      active: activeTab == 'citations',
+      count: undefined,
+      route: {
+        key: 'activity',
+        id: idWithoutBlock,
+        filterEventType: activitySlugToFilter('citations'),
+        panel: panelFor(),
+      },
     },
   ]
   const tabButtons = (

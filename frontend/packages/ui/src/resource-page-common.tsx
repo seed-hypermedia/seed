@@ -19,7 +19,13 @@ import {useAccountsMetadata, useDirectory, useIsLatest, useResource, useResource
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
-import {createSiteUrl, createWebHMUrl, getCommentTargetId, parseFragment} from '@shm/shared/utils/entity-id-url'
+import {
+  activityFilterToSlug,
+  createSiteUrl,
+  createWebHMUrl,
+  getCommentTargetId,
+  parseFragment,
+} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Folder} from 'lucide-react'
 import {CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -1015,10 +1021,18 @@ function DocumentBody({
       >
         <DocumentTools
           id={docId}
-          activeTab={activeView === 'activity' || activeView === 'directory' ? undefined : activeView}
+          activeTab={
+            activeView === 'activity' &&
+            activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
+              ? 'citations'
+              : activeView === 'activity' || activeView === 'directory'
+              ? undefined
+              : activeView
+          }
           currentPanel={panelRoute}
           existingDraft={existingDraft}
           commentsCount={interactionSummary.data?.comments || 0}
+          citationsCount={interactionSummary.data?.citations || 0}
           layoutProps={
             isMobile
               ? undefined
@@ -1306,7 +1320,9 @@ function MainContent({
     case 'activity':
       return (
         <PageLayout contentMaxWidth={contentMaxWidth}>
-          <FeedFilters filterEventType={activityFilterEventType} onFilterChange={onActivityFilterChange} />
+          {activityFilterToSlug(activityFilterEventType) !== 'citations' && (
+            <FeedFilters filterEventType={activityFilterEventType} onFilterChange={onActivityFilterChange} />
+          )}
           <Feed
             size="md"
             filterResource={docId.id}

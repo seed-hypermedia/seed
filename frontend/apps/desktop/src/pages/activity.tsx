@@ -3,7 +3,7 @@ import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useChildrenActivity} from '@/models/library'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMDocument, HMResourceFetchResult, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {ActivityRoute, hmId} from '@shm/shared'
+import {activityFilterToSlug, ActivityRoute, hmId} from '@shm/shared'
 import {useAccount, useCapabilities, useResource} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
@@ -98,8 +98,15 @@ function _ActivityContent({id, route}: {id: UnpackedHypermediaId; route: Activit
       <ActivitySiteHeader siteHomeEntity={siteHomeEntityData} docId={id} document={document} />
       <DocumentTools
         id={id}
-        activeTab={route.panel ? (route.panel.key as 'comments' | 'collaborators') : undefined}
+        activeTab={
+          route.panel
+            ? (route.panel.key as 'comments' | 'collaborators')
+            : activityFilterToSlug(route.filterEventType) === 'citations'
+            ? 'citations'
+            : undefined
+        }
         commentsCount={interactionSummary.data?.comments || 0}
+        citationsCount={interactionSummary.data?.citations || 0}
         collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
       />
       <PageLayout
@@ -115,12 +122,14 @@ function _ActivityContent({id, route}: {id: UnpackedHypermediaId; route: Activit
           />
         }
       >
-        <FeedFilters
-          filterEventType={route.filterEventType}
-          onFilterChange={({filterEventType}: {filterEventType?: string[]}) => {
-            replace({...route, filterEventType})
-          }}
-        />
+        {activityFilterToSlug(route.filterEventType) !== 'citations' && (
+          <FeedFilters
+            filterEventType={route.filterEventType}
+            onFilterChange={({filterEventType}: {filterEventType?: string[]}) => {
+              replace({...route, filterEventType})
+            }}
+          />
+        )}
         <Feed size="md" filterResource={id.id} filterEventType={route.filterEventType || []} />
       </PageLayout>
     </div>
