@@ -1189,7 +1189,7 @@ export const HMSearchResultItemSchema = z.object({
   title: z.string(),
   icon: z.string(),
   parentNames: z.array(z.string()),
-  versionTime: z.any().optional(),
+  versionTime: z.string().optional(),
   searchQuery: z.string(),
   type: z.enum(['document', 'contact']),
 })
