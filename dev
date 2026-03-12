@@ -13,7 +13,7 @@ def cmd(cmds: argparse._SubParsersAction, name: str, help: str):
     """Decorator that registers subcommands as functions to be executed."""
 
     def wrapper(func):
-        p = cmds.add_parser(name, help=help)
+        p = cmds.add_parser(name, help=help, add_help=False)
         p.set_defaults(func=func)
         return p
 
