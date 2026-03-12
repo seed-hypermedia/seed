@@ -1,18 +1,11 @@
-name: Deploy Script - Check
+name: Deploy Script - Check & Build
 
 on:
-  workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "ops/**"
+  workflow_call:
   pull_request:
     paths:
-      - "ops/**"
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+      - 'ops/**'
+      - '.github/workflows/check-deploy-script.yml'
 
 jobs:
   check:
@@ -42,10 +35,9 @@ jobs:
         run: bun run build
         working-directory: ops
 
-      - name: Check bundle is up to date
-        run: |
-          if ! git diff --quiet ops/dist/deploy.js; then
-            echo "::error::ops/dist/deploy.js is out of date. Run 'bun run build' in ops/ and commit the result."
-            git diff --stat ops/dist/deploy.js
-            exit 1
-          fi
+      - name: Upload deploy.js artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-script
+          path: ops/dist/deploy.js
+          retention-days: 7

@@ -117,3 +117,6 @@ backend/util/llama-go/**/*.o
 
 # Use yarn.lock only, ignore bun lock file
 bun.lock
+
+# Deploy script build artifact (built by CI, not committed)
+ops/dist/
