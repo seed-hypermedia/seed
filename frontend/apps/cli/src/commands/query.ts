@@ -5,7 +5,7 @@
  */
 
 import type {Command} from 'commander'
-import {getClient, getOutputFormat} from '../index'
+import {getClient, getOutputFormat, isPretty} from '../index'
 import {formatOutput, printError} from '../output'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import type {HMQuerySort} from '@seed-hypermedia/client/hm-types'
@@ -24,6 +24,7 @@ export function registerQueryCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const includes = [
@@ -50,7 +51,7 @@ export function registerQueryCommands(program: Command) {
             console.log(`${r.id.id}\t${r.metadata?.name || ''}`)
           })
         } else {
-          console.log(formatOutput(result, format))
+          console.log(formatOutput(result, format, pretty))
         }
       } catch (error) {
         printError((error as Error).message)
@@ -68,6 +69,7 @@ export function registerQueryCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const includes = [
@@ -90,7 +92,7 @@ export function registerQueryCommands(program: Command) {
             console.log(`${r.id.id}\t${r.metadata?.name || ''}`)
           })
         } else {
-          console.log(formatOutput(result, format))
+          console.log(formatOutput(result, format, pretty))
         }
       } catch (error) {
         printError((error as Error).message)
@@ -106,6 +108,7 @@ export function registerQueryCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const unpacked = unpackHmId(id)
@@ -120,7 +123,7 @@ export function registerQueryCommands(program: Command) {
             console.log(c.source)
           })
         } else {
-          console.log(formatOutput(result, format))
+          console.log(formatOutput(result, format, pretty))
         }
       } catch (error) {
         printError((error as Error).message)
@@ -140,6 +143,7 @@ export function registerQueryCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const result = await client.request('ListEvents', {
@@ -155,7 +159,7 @@ export function registerQueryCommands(program: Command) {
             console.log(`next\t${result.nextPageToken}`)
           }
         } else {
-          console.log(formatOutput(result, format))
+          console.log(formatOutput(result, format, pretty))
         }
       } catch (error) {
         printError((error as Error).message)

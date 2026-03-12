@@ -19,7 +19,7 @@
  * ```
  */
 
-import type {HMBlockNode, HMMetadata} from '@shm/shared/hm-types'
+import type {HMBlockNode, HMMetadata} from './hm-types'
 import {isGrobidAvailable, processFulltextDocument} from './grobid'
 import type {GrobidOptions} from './grobid'
 import {teiToBlocks} from './tei-to-blocks'

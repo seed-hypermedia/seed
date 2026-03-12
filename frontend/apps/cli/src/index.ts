@@ -28,15 +28,19 @@ program
   .option('-s, --server <url>', 'Server URL', process.env.SEED_SERVER || 'https://hyper.media')
   .option('--json', 'JSON output (default)')
   .option('--yaml', 'YAML output')
-  .option('--pretty', 'Pretty formatted output')
+  .option('--pretty', 'Beautify output (colorized JSON/YAML, clean markdown)')
   .option('-q, --quiet', 'Minimal output')
   .option('--dev', 'Use development environment (seed-daemon-dev keyring)')
 
 // Helper to get output format from options
 export function getOutputFormat(options: Record<string, unknown>): OutputFormat {
   if (options.yaml) return 'yaml'
-  if (options.pretty) return 'pretty'
   return 'json'
+}
+
+// Helper to check if pretty mode is active
+export function isPretty(options: Record<string, unknown>): boolean {
+  return !!options.pretty
 }
 
 // Helper to create client from options
@@ -67,7 +71,9 @@ program
     const globalOpts = cmd.optsWithGlobals()
     if (options.show) {
       const config = loadConfig()
-      console.log(formatOutput(config, 'json'))
+      const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
+      console.log(formatOutput(config, format, pretty))
       return
     }
 

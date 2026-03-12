@@ -20,15 +20,15 @@ import {
 } from '@seed-hypermedia/client'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
-import {getClient, getOutputFormat} from '../index'
-import {formatOutput, printError, printSuccess, printInfo} from '../output'
+import {getClient, getOutputFormat, isPretty} from '../index'
+import {formatOutput, stripBlockIdComments, printError, printSuccess, printInfo} from '../output'
 import {documentToMarkdown} from '../markdown'
 import {resolveKey} from '../utils/keyring'
 import {createSignerFromKey} from '../utils/signer'
 import {resolveDocumentState} from '../utils/depth'
-import {parseMarkdown, flattenToOperations} from '../utils/markdown'
+import {parseMarkdown, flattenToOperations, type BlockNode} from '../utils/markdown'
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
-import {createBlocksMap, matchBlockIds, computeReplaceOps, type APIBlockNode} from '../utils/block-diff'
+import {createBlocksMap, computeReplaceOps, hmBlockNodeToBlockNode, type APIBlockNode} from '../utils/block-diff'
 import {resolveFileLinks} from '../utils/file-links'
 import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
 
@@ -92,6 +92,7 @@ type ParsedInput = {
   ops: DocumentOperation[]
   metadata: HMMetadata
   fileBlobs: CollectedBlob[]
+  tree?: BlockNode[] // parsed block tree for smart diffing in update
   blocks?: HMBlockNode[] // for dry-run rendering
   source?: string // extraction method label
 }
@@ -175,6 +176,7 @@ async function readInput(options: {file?: string; grobidUrl?: string; quiet?: bo
       ops: hmBlockNodesToOperations(nodes),
       metadata: {},
       fileBlobs: resolved.blobs,
+      tree: nodes.map(hmBlockNodeToBlockNode),
     }
   }
 
@@ -189,7 +191,7 @@ async function readInput(options: {file?: string; grobidUrl?: string; quiet?: bo
   // Markdown images get file:// prepended at tokenizer level and will
   // be resolved when we add block-level file link resolution.
 
-  return {ops, metadata, fileBlobs: []}
+  return {ops, metadata, fileBlobs: [], tree}
 }
 
 export function registerDocumentCommands(program: Command) {
@@ -210,7 +212,10 @@ export function registerDocumentCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
-      const useStructuredOutput = !!(globalOpts.json || globalOpts.yaml || globalOpts.pretty)
+      const pretty = isPretty(globalOpts)
+      // --json or --yaml explicitly requested → structured output.
+      // --pretty alone stays on the markdown path (beautified).
+      const useStructuredOutput = !!(globalOpts.json || globalOpts.yaml)
 
       /** Write output string to file or stdout. */
       function emit(text: string) {
@@ -233,7 +238,7 @@ export function registerDocumentCommands(program: Command) {
           if (globalOpts.quiet || options.quiet) {
             emit(result.metadata?.name || result.id.id)
           } else {
-            emit(formatOutput(result, format))
+            emit(formatOutput(result, format, pretty))
           }
           return
         }
@@ -254,15 +259,17 @@ export function registerDocumentCommands(program: Command) {
             emit(result.type)
           }
         } else if (useStructuredOutput) {
-          // --json, --yaml, --pretty → structured output
-          emit(formatOutput(result, format))
+          // --json or --yaml → structured output (optionally colorized with --pretty)
+          emit(formatOutput(result, format, pretty))
         } else {
           // Default: markdown output (with frontmatter and block IDs)
+          // When --pretty: strip block-id HTML comments for clean markdown
           if (result.type === 'document') {
-            const md = await documentToMarkdown(result.document, {
+            let md = await documentToMarkdown(result.document, {
               resolve: options.resolve,
               client: options.resolve ? client : undefined,
             })
+            if (pretty) md = stripBlockIdComments(md)
             emit(md)
           } else if (result.type === 'comment') {
             const fakeDoc = {
@@ -271,10 +278,11 @@ export function registerDocumentCommands(program: Command) {
               version: result.comment.version,
               authors: [result.comment.author],
             }
-            const md = await documentToMarkdown(fakeDoc as any, {
+            let md = await documentToMarkdown(fakeDoc as any, {
               resolve: options.resolve,
               client: options.resolve ? client : undefined,
             })
+            if (pretty) md = stripBlockIdComments(md)
             emit(md)
           } else {
             printError(`Cannot render ${result.type} as markdown`)
@@ -331,19 +339,21 @@ export function registerDocumentCommands(program: Command) {
 
         // ── Dry-run: preview and exit ──
         if (options.dryRun) {
-          const useStructuredOutput = !!(globalOpts.json || globalOpts.yaml || globalOpts.pretty)
-          if (!useStructuredOutput) {
+          const dryRunStructured = !!(globalOpts.json || globalOpts.yaml)
+          const dryRunPretty = isPretty(globalOpts)
+          if (!dryRunStructured) {
             const dryRunDoc = {
               content: input.blocks || [],
               metadata,
               version: '',
               authors: [],
             } as unknown as HMDocument
-            const md = await documentToMarkdown(dryRunDoc)
+            let md = await documentToMarkdown(dryRunDoc)
+            if (dryRunPretty) md = stripBlockIdComments(md)
             console.log(md)
           } else {
             const outputFormat = getOutputFormat(globalOpts)
-            console.log(formatOutput({metadata, blocks: input.blocks || []}, outputFormat))
+            console.log(formatOutput({metadata, blocks: input.blocks || []}, outputFormat, dryRunPretty))
           }
           return
         }
@@ -417,8 +427,11 @@ export function registerDocumentCommands(program: Command) {
 
   doc
     .command('update <id>')
-    .description('Update document metadata, append content, or delete blocks')
-    .option('-f, --file <path>', 'Input file to append (format detected by extension: .md, .json)')
+    .description('Update document content and metadata (smart diff — only changed blocks are submitted)')
+    .option(
+      '-f, --file <path>',
+      'Input file (format detected by extension: .md, .json). Diffs against existing content.',
+    )
     .option('--name <value>', 'Set document title')
     .option('--summary <value>', 'Set document summary')
     .option('--display-author <value>', 'Display author name')
@@ -436,7 +449,6 @@ export function registerDocumentCommands(program: Command) {
     .option('--seed-experimental-home-order <value>', 'Home ordering (UpdatedFirst, CreatedFirst)')
     .option('--import-categories <value>', 'Import categories (comma-separated)')
     .option('--import-tags <value>', 'Import tags (comma-separated)')
-    .option('--replace-body <file>', 'Replace document body from file (smart positional diff)')
     .option('--parent <blockId>', 'Parent block ID for new content (default: root)')
     .option('--delete-blocks <ids>', 'Comma-separated block IDs to delete')
     .option('-k, --key <name>', 'Signing key name or account ID')
@@ -453,17 +465,24 @@ export function registerDocumentCommands(program: Command) {
         // so auto-detecting stdin would break those cases.
         const hasFileInput = !!options.file
 
-        // --replace-body is mutually exclusive with -f and --delete-blocks
-        if (options.replaceBody && (hasFileInput || options.deleteBlocks)) {
-          printError('--replace-body cannot be combined with -f, stdin input, or --delete-blocks.')
-          process.exit(1)
-        }
-
         const ops: DocumentOperation[] = []
         let fileBlobs: CollectedBlob[] = []
         let metaBlobs: CollectedBlob[] = []
 
-        // Collect metadata from CLI flags and file input
+        // Fetch the document — needed for diffing and state resolution
+        const resourceId = unpackHmId(id)
+        if (!resourceId) {
+          printError(`Invalid Hypermedia ID: ${id}`)
+          process.exit(1)
+        }
+        const resource = await client.request('Resource', resourceId)
+        if (resource.type !== 'document') {
+          printError(`Resource is ${resource.type}, not a document.`)
+          process.exit(1)
+        }
+        const existingDoc = resource.document
+
+        // Collect content and metadata from file input
         let inputMeta: HMMetadata = {}
         if (hasFileInput) {
           const input = await readInput({
@@ -472,7 +491,21 @@ export function registerDocumentCommands(program: Command) {
           })
           fileBlobs = input.fileBlobs
           inputMeta = input.metadata
-          ops.push(...input.ops)
+
+          if (input.tree) {
+            // Smart diff: compare input blocks against existing document.
+            // Each block is matched by its ID — if the ID exists in the
+            // old document, only content changes are emitted. If the ID
+            // doesn't exist, the block is treated as new. Old blocks
+            // whose IDs are absent from the new tree are deleted.
+            const oldNodes = (existingDoc.content || []).map(toAPIBlockNode)
+            const oldMap = createBlocksMap(oldNodes)
+            const diffOps = computeReplaceOps(oldMap, input.tree)
+            ops.push(...diffOps)
+          } else {
+            // No tree available (e.g. PDF input) — use flat ops as-is
+            ops.push(...input.ops)
+          }
         }
 
         // Merge metadata: input (frontmatter) < CLI flags
@@ -486,46 +519,18 @@ export function registerDocumentCommands(program: Command) {
           if (metaOp) ops.push(metaOp)
         }
 
-        // Fetch the document — needed for all paths
-        const resourceId = unpackHmId(id)
-        if (!resourceId) {
-          printError(`Invalid Hypermedia ID: ${id}`)
-          process.exit(1)
-        }
-        const resource = await client.request('Resource', resourceId)
-        if (resource.type !== 'document') {
-          printError(`Resource is ${resource.type}, not a document.`)
-          process.exit(1)
-        }
-        const existingDoc = resource.document
-
-        if (options.replaceBody) {
-          // Smart replace: diff existing blocks against new markdown
-          const markdown = readFileSync(options.replaceBody, 'utf-8')
-          const {tree: newTree} = parseMarkdown(markdown)
-
-          // Convert API block tree to the format expected by block-diff
-          const oldNodes = (existingDoc.content || []).map(toAPIBlockNode)
-          const oldMap = createBlocksMap(oldNodes)
-
-          // Match IDs positionally, then compute minimal ops
-          const matched = matchBlockIds(oldNodes, newTree)
-          const diffOps = computeReplaceOps(oldMap, matched)
-          ops.push(...diffOps)
-        } else {
-          if (options.deleteBlocks) {
-            const blockIds = options.deleteBlocks
-              .split(',')
-              .map((blockId: string) => blockId.trim())
-              .filter(Boolean)
-            if (blockIds.length > 0) {
-              ops.push({type: 'DeleteBlocks', blocks: blockIds})
-            }
+        if (options.deleteBlocks) {
+          const blockIds = options.deleteBlocks
+            .split(',')
+            .map((blockId: string) => blockId.trim())
+            .filter(Boolean)
+          if (blockIds.length > 0) {
+            ops.push({type: 'DeleteBlocks', blocks: blockIds})
           }
         }
 
         if (ops.length === 0) {
-          printError('No updates specified. Use --name, --summary, -f <file>, --replace-body, or --delete-blocks.')
+          printError('No updates specified. Use --name, --summary, -f <file>, or --delete-blocks.')
           process.exit(1)
         }
 
@@ -826,6 +831,7 @@ export function registerDocumentCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const unpacked = unpackHmId(targetId)
@@ -843,7 +849,7 @@ export function registerDocumentCommands(program: Command) {
             console.log(`latest\t${result.latestVersion}`)
           }
         } else {
-          console.log(formatOutput(result, format))
+          console.log(formatOutput(result, format, pretty))
         }
       } catch (error) {
         printError((error as Error).message)
@@ -860,6 +866,7 @@ export function registerDocumentCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const unpacked = unpackHmId(id)
@@ -868,7 +875,7 @@ export function registerDocumentCommands(program: Command) {
           process.exit(1)
         }
         const result = await client.request('InteractionSummary', {id: unpacked})
-        console.log(formatOutput(result, format))
+        console.log(formatOutput(result, format, pretty))
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)
@@ -884,10 +891,11 @@ export function registerDocumentCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const result = await client.request('GetCID', {cid})
-        console.log(formatOutput(result, format))
+        console.log(formatOutput(result, format, pretty))
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)

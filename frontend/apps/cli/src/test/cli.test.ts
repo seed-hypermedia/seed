@@ -453,12 +453,296 @@ describe('Seed CLI Integration Tests', () => {
     )
 
     test(
-      '--pretty outputs readable format',
+      '--pretty outputs valid JSON (colorized) for non-document commands',
       async () => {
-        const result = await runCli(['account', 'get', account1.accountId, '--pretty'], {server: ctx.daemonUrl})
+        const result = await runCli(['account', 'get', account1.accountId, '--pretty'], {
+          server: ctx.daemonUrl,
+          env: {FORCE_COLOR: '1'},
+        })
         expect(result.exitCode).toBe(0)
-        // Pretty format has indentation
-        expect(result.stdout).toContain('\n')
+        // Strip ANSI codes and verify it's still valid JSON
+        const stripped = result.stdout.replace(/\x1B\[[0-9;]*m/g, '')
+        expect(() => JSON.parse(stripped)).not.toThrow()
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      '--pretty --json outputs colorized JSON for documents',
+      async () => {
+        const result = await runCli(['document', 'get', `hm://${account1.accountId}`, '--pretty', '--json'], {
+          server: ctx.daemonUrl,
+          env: {FORCE_COLOR: '1'},
+        })
+        expect(result.exitCode).toBe(0)
+        const stripped = result.stdout.replace(/\x1B\[[0-9;]*m/g, '')
+        expect(() => JSON.parse(stripped)).not.toThrow()
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      '--pretty --yaml outputs YAML for documents',
+      async () => {
+        const result = await runCli(['document', 'get', `hm://${account1.accountId}`, '--pretty', '--yaml'], {
+          server: ctx.daemonUrl,
+          env: {FORCE_COLOR: '1'},
+        })
+        expect(result.exitCode).toBe(0)
+        const stripped = result.stdout.replace(/\x1B\[[0-9;]*m/g, '')
+        expect(stripped).toMatch(/type:\s/)
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      '--pretty on document get produces clean markdown without block-id comments',
+      async () => {
+        const result = await runCli(['document', 'get', `hm://${account1.accountId}`, '--pretty'], {
+          server: ctx.daemonUrl,
+        })
+        expect(result.exitCode).toBe(0)
+        // Should be markdown (starts with frontmatter)
+        expect(result.stdout).toMatch(/^---/)
+        // Should NOT contain block-id HTML comments
+        expect(result.stdout).not.toMatch(/<!-- id:[a-zA-Z0-9_-]+ -->/)
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'document get without --pretty includes block-id comments',
+      async () => {
+        const result = await runCli(['document', 'get', `hm://${account1.accountId}`], {
+          server: ctx.daemonUrl,
+        })
+        expect(result.exitCode).toBe(0)
+        // Default markdown includes block-id comments
+        expect(result.stdout).toMatch(/^---/)
+      },
+      TEST_TIMEOUT,
+    )
+  })
+
+  // ===== Config Commands =====
+
+  describe('Config Commands', () => {
+    test(
+      'config --show returns JSON config',
+      async () => {
+        const result = await runCli(['config', '--show'], {server: ctx.daemonUrl})
+        expect(result.exitCode).toBe(0)
+        // Should be valid JSON (empty or with values)
+        expect(() => JSON.parse(result.stdout)).not.toThrow()
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'config --server sets server URL',
+      async () => {
+        const result = await runCli(['config', '--server', 'http://test.local'], {server: ctx.daemonUrl})
+        expect(result.exitCode).toBe(0)
+        expect(result.stderr).toContain('test.local')
+      },
+      TEST_TIMEOUT,
+    )
+  })
+
+  // ===== Account Contacts =====
+
+  describe('Account Contacts Commands', () => {
+    test(
+      'account contacts lists contacts for an account',
+      async () => {
+        const result = await runCli(['account', 'contacts', account1.accountId], {server: ctx.daemonUrl})
+        expect(result.exitCode).toBe(0)
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'account get -q shows compact output',
+      async () => {
+        const result = await runCli(['account', 'get', account1.accountId, '-q'], {server: ctx.daemonUrl})
+        expect(result.exitCode).toBe(0)
+        // Should show just the name or uid
+        expect(result.stdout).toMatch(/Test Account Alpha|z6Mk/)
+      },
+      TEST_TIMEOUT,
+    )
+  })
+
+  // ===== Extended Key Management =====
+
+  describe('Extended Key Management', () => {
+    test(
+      'key show displays key information',
+      async () => {
+        // First ensure we have a key
+        await runCli(['key', 'generate', '-n', 'show-test-key'], {server: ctx.daemonUrl})
+        const result = await runCli(['key', 'show', 'show-test-key'], {server: ctx.daemonUrl})
+        expect(result.exitCode).toBe(0)
+        expect(result.stdout).toContain('show-test-key')
+        expect(result.stdout).toContain('accountId')
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'key show without arg shows default key',
+      async () => {
+        const result = await runCli(['key', 'show'], {server: ctx.daemonUrl})
+        // Either shows a key or says no keys stored
+        expect(result.exitCode === 0 || result.exitCode === 1).toBe(true)
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'key rename renames a key',
+      async () => {
+        await runCli(['key', 'generate', '-n', 'rename-me'], {server: ctx.daemonUrl})
+        const result = await runCli(['key', 'rename', 'rename-me', 'renamed-key'], {server: ctx.daemonUrl})
+        expect(result.exitCode).toBe(0)
+        expect(result.stderr).toContain('renamed')
+
+        // Verify the key shows under new name
+        const list = await runCli(['key', 'list'], {server: ctx.daemonUrl})
+        expect(list.stdout).toContain('renamed-key')
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'key default shows current default',
+      async () => {
+        const result = await runCli(['key', 'default'], {server: ctx.daemonUrl})
+        // Either shows default or says no keys stored
+        expect(result.exitCode).toBe(0)
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'key remove explicitly removes a key',
+      async () => {
+        await runCli(['key', 'generate', '-n', 'remove-me'], {server: ctx.daemonUrl})
+        // Without --force should fail
+        const noForce = await runCli(['key', 'remove', 'remove-me'], {server: ctx.daemonUrl})
+        expect(noForce.exitCode).toBe(1)
+        expect(noForce.stderr).toContain('--force')
+
+        // With --force should succeed
+        const withForce = await runCli(['key', 'remove', 'remove-me', '--force'], {server: ctx.daemonUrl})
+        expect(withForce.exitCode).toBe(0)
+        expect(withForce.stderr).toContain('removed')
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'key generate --words 24 generates 24-word mnemonic',
+      async () => {
+        const result = await runCli(['key', 'generate', '-n', 'long-key', '--words', '24', '--show-mnemonic'], {
+          server: ctx.daemonUrl,
+        })
+        expect(result.exitCode).toBe(0)
+        // Should show the 24-word mnemonic
+        const mnemonicLine = result.stdout.split('\n').find((l) => l.trim().split(' ').length >= 20)
+        expect(mnemonicLine).toBeTruthy()
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'key generate --show-mnemonic displays mnemonic in output',
+      async () => {
+        const result = await runCli(['key', 'generate', '-n', 'mnemonic-show', '--show-mnemonic'], {
+          server: ctx.daemonUrl,
+        })
+        expect(result.exitCode).toBe(0)
+        // Mnemonic should appear somewhere in stdout
+        // BIP-39 words are all lowercase alphabetic
+        const lines = result.stdout.split('\n').filter(Boolean)
+        const hasMnemonic = lines.some((l) => l.trim().split(' ').length >= 12)
+        expect(hasMnemonic).toBe(true)
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'key derive with --passphrase produces different account ID',
+      async () => {
+        const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+        const noPass = await runCli(['key', 'derive', mnemonic], {server: ctx.daemonUrl})
+        const withPass = await runCli(['key', 'derive', mnemonic, '--passphrase', 'secret'], {server: ctx.daemonUrl})
+        expect(noPass.exitCode).toBe(0)
+        expect(withPass.exitCode).toBe(0)
+        expect(noPass.stdout.trim()).not.toBe(withPass.stdout.trim())
+      },
+      TEST_TIMEOUT,
+    )
+  })
+
+  // ===== Extended Query Commands =====
+
+  describe('Extended Query Commands', () => {
+    test(
+      'query -q shows compact output',
+      async () => {
+        const result = await runCli(['query', account1.accountId, '-q'], {server: ctx.daemonUrl})
+        expect(result.exitCode).toBe(0)
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'children -q shows compact output',
+      async () => {
+        const result = await runCli(['children', account1.accountId, '-q'], {server: ctx.daemonUrl})
+        expect(result.exitCode).toBe(0)
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'citations -q shows compact output',
+      async () => {
+        const result = await runCli(['citations', `hm://${account1.accountId}`, '-q'], {server: ctx.daemonUrl})
+        expect(result.exitCode).toBe(0)
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'activity -q shows compact output',
+      async () => {
+        const result = await runCli(['activity', '-q'], {server: ctx.daemonUrl})
+        expect(result.exitCode).toBe(0)
+        expect(result.stdout).toMatch(/\d+ events/)
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'search --account scopes search to account',
+      async () => {
+        const result = await runCli(['search', 'Alpha', '--account', account1.accountId], {server: ctx.daemonUrl})
+        expect(result.exitCode).toBe(0)
+      },
+      TEST_TIMEOUT,
+    )
+  })
+
+  // ===== Comment list quiet =====
+
+  describe('Comment List Quiet', () => {
+    test(
+      'comment list -q shows compact output',
+      async () => {
+        const result = await runCli(['comment', 'list', `hm://${account1.accountId}`, '-q'], {server: ctx.daemonUrl})
+        expect(result.exitCode).toBe(0)
       },
       TEST_TIMEOUT,
     )

@@ -6,7 +6,7 @@
  */
 import type {Cheerio, CheerioAPI} from 'cheerio'
 import {codePointLength} from '@shm/shared/client/unicode'
-import type {HMAnnotation, HMBlockNode, HMMetadata} from '@shm/shared/hm-types'
+import type {HMAnnotation, HMBlockNode, HMMetadata} from './hm-types'
 
 // ── Public types ──────────────────────────────────────────────────────
 

@@ -199,14 +199,14 @@ $SEED_CLI document update <hm-id> --name "New Title" --key mykey
 # Update metadata fields
 $SEED_CLI document update <hm-id> --summary "New summary" --display-author "New Author" --key mykey
 
-# Append content from file
-$SEED_CLI document update <hm-id> -f new-section.md --key mykey
-
-# Replace entire body (smart positional diff)
-$SEED_CLI document update <hm-id> --replace-body updated-content.md --key mykey
+# Update content from file (smart diff — only changed blocks are submitted)
+$SEED_CLI document update <hm-id> -f updated-content.md --key mykey
 
 # Delete specific blocks
 $SEED_CLI document update <hm-id> --delete-blocks "blockId1,blockId2" --key mykey
+
+# Combine metadata and content update
+$SEED_CLI document update <hm-id> -f content.md --name "New Title" --key mykey
 
 # Development mode
 $SEED_CLI document update <hm-id> --name "Title" --key mykey --dev
@@ -215,15 +215,20 @@ $SEED_CLI document update <hm-id> --name "Title" --key mykey --dev
 **Parameters:**
 
 - `<hm-id>`: Hypermedia ID of the document (e.g., `hm://z6Mk.../path`)
-- `-f, --file <path>`: Input file to append (format detected by extension)
-- `--replace-body <file>`: Replace document body from markdown file (smart positional diff)
+- `-f, --file <path>`: Input file (format detected by extension: .md, .json). Diffs against existing content — only
+  changed blocks are submitted.
 - `--parent <blockId>`: Parent block ID for new content (default: document root)
 - `--delete-blocks <ids>`: Comma-separated block IDs to delete
 - All metadata flags from the create command (see table above)
 - `-k, --key`: Signing key name or account ID
 - `--dev`: Use development environment
 
-When using `-f`, frontmatter metadata from the file is applied as defaults — CLI flags take priority.
+When using `-f`, the CLI performs a per-block diff against the existing document:
+
+- Blocks with IDs matching the existing document are compared for content changes — only modified blocks are submitted.
+- Blocks with unknown IDs are treated as new.
+- Old blocks absent from the input are deleted.
+- Metadata from frontmatter is applied as defaults — CLI flags take priority.
 
 ### Create a Comment
 
@@ -384,20 +389,25 @@ $SEED_CLI document get hm://z6Mk.../my-doc -o doc.md
 ### Block ID Preservation
 
 Block IDs are embedded as HTML comments (`<!-- id:XXXXXXXX -->`). When the output is piped back through
-`document create`, these IDs are preserved. This enables:
+`document update -f`, these IDs enable smart per-block diffing. This enables:
 
-- **Round-trip editing**: `document get | sed 's/old/new/' | document create`
-- **Block-level diffing**: `document update --replace-body` uses block IDs for smart positional matching
+- **Round-trip editing**: Export → edit → update with minimal changes
+- **Smart diffing**: `document update -f` matches blocks by ID and only submits changes
 - **Stable references**: Block-level links (e.g., `hm://z6Mk.../doc?b=XXXXXXXX`) remain valid after re-import
 
 ```bash
-# Export, edit, re-import
+# Export, edit, re-import (only changed blocks are submitted)
 $SEED_CLI document get hm://z6Mk.../my-doc -o doc.md
 # ... edit doc.md ...
-$SEED_CLI document update hm://z6Mk.../my-doc --replace-body doc.md --key mykey
+$SEED_CLI document update hm://z6Mk.../my-doc -f doc.md --key mykey
 
-# Pipe through text processing
-$SEED_CLI document get hm://z6Mk.../my-doc | sed 's/old text/new text/g' | $SEED_CLI document create --key mykey
+# Same works with JSON (block IDs are always present in JSON output)
+$SEED_CLI document get hm://z6Mk.../my-doc --json -o doc.json
+# ... edit doc.json ...
+$SEED_CLI document update hm://z6Mk.../my-doc -f doc.json --key mykey
+
+# Plain markdown (no ID comments) → full body replacement
+echo "# New Content" | $SEED_CLI document update hm://z6Mk.../my-doc -f - --key mykey
 ```
 
 ### Frontmatter in Output

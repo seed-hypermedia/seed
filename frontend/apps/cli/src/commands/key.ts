@@ -16,7 +16,7 @@ import {
   renameKey as keyringRenameKey,
 } from '../utils/keyring'
 import {setConfigValue} from '../config'
-import {getOutputFormat} from '../index'
+import {getOutputFormat, isPretty} from '../index'
 
 export function registerKeyCommands(program: Command) {
   const key = program.command('key').alias('keys').description('Manage signing keys')
@@ -102,6 +102,7 @@ export function registerKeyCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const dev = !!globalOpts.dev
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const keys = keyringListKeys(dev)
@@ -114,7 +115,7 @@ export function registerKeyCommands(program: Command) {
         if (globalOpts.quiet) {
           keys.forEach((k) => console.log(`${k.name}\t${k.accountId}`))
         } else {
-          console.log(formatOutput(keys, format))
+          console.log(formatOutput(keys, format, pretty))
         }
       } catch (error) {
         printError((error as Error).message)
@@ -129,6 +130,7 @@ export function registerKeyCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const dev = !!globalOpts.dev
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const stored = nameOrId ? keyringGetKey(nameOrId, dev) : keyringGetDefaultKey(dev)
@@ -138,7 +140,7 @@ export function registerKeyCommands(program: Command) {
           process.exit(1)
         }
 
-        console.log(formatOutput({name: stored.name, accountId: stored.accountId}, format))
+        console.log(formatOutput({name: stored.name, accountId: stored.accountId}, format, pretty))
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)

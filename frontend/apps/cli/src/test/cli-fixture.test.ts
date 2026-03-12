@@ -639,6 +639,452 @@ describe('CLI Full Integration Tests', () => {
       TEST_TIMEOUT,
     )
 
+    // --- Document Create Metadata Flags ---
+
+    test(
+      'document create --summary sets document summary',
+      async () => {
+        const slug = `meta-summary-${Date.now()}`
+        const hmId = `hm://${writeAccount.accountId}/${slug}`
+        const tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFile = join(tmpDir, 'content.md')
+        writeFileSync(mdFile, 'Content')
+        try {
+          const result = await runCli(
+            [
+              'document',
+              'create',
+              '--path',
+              slug,
+              '--name',
+              'Summary Test',
+              '--summary',
+              'My summary',
+              '-f',
+              mdFile,
+              '--key',
+              TEST_KEY_NAME,
+            ],
+            {server: ctx.webServerUrl},
+          )
+          expect(result.exitCode).toBe(0)
+          await new Promise((r) => setTimeout(r, 2000))
+          const getResult = await runCli(['document', 'get', hmId], {server: ctx.webServerUrl})
+          expect(getResult.exitCode).toBe(0)
+          expect(getResult.stdout).toContain('My summary')
+        } finally {
+          rmSync(tmpDir, {recursive: true, force: true})
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'document create --layout sets layout metadata',
+      async () => {
+        const slug = `meta-layout-${Date.now()}`
+        const hmId = `hm://${writeAccount.accountId}/${slug}`
+        const tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFile = join(tmpDir, 'content.md')
+        writeFileSync(mdFile, 'Content')
+        try {
+          const result = await runCli(
+            [
+              'document',
+              'create',
+              '--path',
+              slug,
+              '--name',
+              'Layout Test',
+              '--layout',
+              'Seed/Experimental/Newspaper',
+              '-f',
+              mdFile,
+              '--key',
+              TEST_KEY_NAME,
+            ],
+            {server: ctx.webServerUrl},
+          )
+          expect(result.exitCode).toBe(0)
+          await new Promise((r) => setTimeout(r, 2000))
+          const getResult = await runCli(['document', 'get', hmId, '--json'], {server: ctx.webServerUrl})
+          expect(getResult.exitCode).toBe(0)
+          const data = JSON.parse(getResult.stdout)
+          expect(data.document.metadata.layout).toBe('Seed/Experimental/Newspaper')
+        } finally {
+          rmSync(tmpDir, {recursive: true, force: true})
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'document create --content-width sets content width',
+      async () => {
+        const slug = `meta-width-${Date.now()}`
+        const hmId = `hm://${writeAccount.accountId}/${slug}`
+        const tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFile = join(tmpDir, 'content.md')
+        writeFileSync(mdFile, 'Content')
+        try {
+          const result = await runCli(
+            [
+              'document',
+              'create',
+              '--path',
+              slug,
+              '--name',
+              'Width Test',
+              '--content-width',
+              'L',
+              '-f',
+              mdFile,
+              '--key',
+              TEST_KEY_NAME,
+            ],
+            {server: ctx.webServerUrl},
+          )
+          expect(result.exitCode).toBe(0)
+          await new Promise((r) => setTimeout(r, 2000))
+          const getResult = await runCli(['document', 'get', hmId, '--json'], {server: ctx.webServerUrl})
+          expect(getResult.exitCode).toBe(0)
+          const data = JSON.parse(getResult.stdout)
+          expect(data.document.metadata.contentWidth).toBe('L')
+        } finally {
+          rmSync(tmpDir, {recursive: true, force: true})
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'document create --display-author sets display author',
+      async () => {
+        const slug = `meta-author-${Date.now()}`
+        const hmId = `hm://${writeAccount.accountId}/${slug}`
+        const tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFile = join(tmpDir, 'content.md')
+        writeFileSync(mdFile, 'Content')
+        try {
+          const result = await runCli(
+            [
+              'document',
+              'create',
+              '--path',
+              slug,
+              '--name',
+              'Author Test',
+              '--display-author',
+              'Jane Doe',
+              '-f',
+              mdFile,
+              '--key',
+              TEST_KEY_NAME,
+            ],
+            {server: ctx.webServerUrl},
+          )
+          expect(result.exitCode).toBe(0)
+          await new Promise((r) => setTimeout(r, 2000))
+          const getResult = await runCli(['document', 'get', hmId, '--json'], {server: ctx.webServerUrl})
+          expect(getResult.exitCode).toBe(0)
+          const data = JSON.parse(getResult.stdout)
+          expect(data.document.metadata.displayAuthor).toBe('Jane Doe')
+        } finally {
+          rmSync(tmpDir, {recursive: true, force: true})
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'document create --display-publish-time sets publish time',
+      async () => {
+        const slug = `meta-pubtime-${Date.now()}`
+        const hmId = `hm://${writeAccount.accountId}/${slug}`
+        const tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFile = join(tmpDir, 'content.md')
+        writeFileSync(mdFile, 'Content')
+        try {
+          const result = await runCli(
+            [
+              'document',
+              'create',
+              '--path',
+              slug,
+              '--name',
+              'PubTime Test',
+              '--display-publish-time',
+              '2025-01-15',
+              '-f',
+              mdFile,
+              '--key',
+              TEST_KEY_NAME,
+            ],
+            {server: ctx.webServerUrl},
+          )
+          expect(result.exitCode).toBe(0)
+          await new Promise((r) => setTimeout(r, 2000))
+          const getResult = await runCli(['document', 'get', hmId, '--json'], {server: ctx.webServerUrl})
+          expect(getResult.exitCode).toBe(0)
+          const data = JSON.parse(getResult.stdout)
+          expect(data.document.metadata.displayPublishTime).toBe('2025-01-15')
+        } finally {
+          rmSync(tmpDir, {recursive: true, force: true})
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'document create --site-url sets site URL',
+      async () => {
+        const slug = `meta-siteurl-${Date.now()}`
+        const hmId = `hm://${writeAccount.accountId}/${slug}`
+        const tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFile = join(tmpDir, 'content.md')
+        writeFileSync(mdFile, 'Content')
+        try {
+          const result = await runCli(
+            [
+              'document',
+              'create',
+              '--path',
+              slug,
+              '--name',
+              'SiteUrl Test',
+              '--site-url',
+              'https://example.com',
+              '-f',
+              mdFile,
+              '--key',
+              TEST_KEY_NAME,
+            ],
+            {server: ctx.webServerUrl},
+          )
+          expect(result.exitCode).toBe(0)
+          await new Promise((r) => setTimeout(r, 2000))
+          const getResult = await runCli(['document', 'get', hmId, '--json'], {server: ctx.webServerUrl})
+          expect(getResult.exitCode).toBe(0)
+          const data = JSON.parse(getResult.stdout)
+          expect(data.document.metadata.siteUrl).toBe('https://example.com')
+        } finally {
+          rmSync(tmpDir, {recursive: true, force: true})
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'document create --show-outline sets outline visibility',
+      async () => {
+        const slug = `meta-outline-${Date.now()}`
+        const hmId = `hm://${writeAccount.accountId}/${slug}`
+        const tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFile = join(tmpDir, 'content.md')
+        writeFileSync(mdFile, 'Content')
+        try {
+          const result = await runCli(
+            [
+              'document',
+              'create',
+              '--path',
+              slug,
+              '--name',
+              'Outline Test',
+              '--show-outline',
+              '-f',
+              mdFile,
+              '--key',
+              TEST_KEY_NAME,
+            ],
+            {server: ctx.webServerUrl},
+          )
+          expect(result.exitCode).toBe(0)
+          await new Promise((r) => setTimeout(r, 2000))
+          const getResult = await runCli(['document', 'get', hmId, '--json'], {server: ctx.webServerUrl})
+          expect(getResult.exitCode).toBe(0)
+          const data = JSON.parse(getResult.stdout)
+          expect(data.document.metadata.showOutline).toBe(true)
+        } finally {
+          rmSync(tmpDir, {recursive: true, force: true})
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'document create --show-activity sets activity visibility',
+      async () => {
+        const slug = `meta-activity-${Date.now()}`
+        const hmId = `hm://${writeAccount.accountId}/${slug}`
+        const tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFile = join(tmpDir, 'content.md')
+        writeFileSync(mdFile, 'Content')
+        try {
+          const result = await runCli(
+            [
+              'document',
+              'create',
+              '--path',
+              slug,
+              '--name',
+              'Activity Test',
+              '--show-activity',
+              '-f',
+              mdFile,
+              '--key',
+              TEST_KEY_NAME,
+            ],
+            {server: ctx.webServerUrl},
+          )
+          expect(result.exitCode).toBe(0)
+          await new Promise((r) => setTimeout(r, 2000))
+          const getResult = await runCli(['document', 'get', hmId, '--json'], {server: ctx.webServerUrl})
+          expect(getResult.exitCode).toBe(0)
+          const data = JSON.parse(getResult.stdout)
+          expect(data.document.metadata.showActivity).toBe(true)
+        } finally {
+          rmSync(tmpDir, {recursive: true, force: true})
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
+    // --- Document Create --dry-run ---
+
+    test(
+      'document create --dry-run outputs preview without publishing',
+      async () => {
+        const tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFile = join(tmpDir, 'content.md')
+        writeFileSync(mdFile, '# Dry Run\n\nThis should not be published.')
+        try {
+          const result = await runCli(['document', 'create', '--name', 'Dry Run Test', '-f', mdFile, '--dry-run'], {
+            server: ctx.webServerUrl,
+          })
+          expect(result.exitCode).toBe(0)
+          // Should output markdown preview (no key needed for dry-run)
+          expect(result.stdout).toContain('Dry Run')
+          expect(result.stdout).toContain('This should not be published')
+        } finally {
+          rmSync(tmpDir, {recursive: true, force: true})
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'document create --dry-run --json outputs JSON preview',
+      async () => {
+        const tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFile = join(tmpDir, 'content.md')
+        writeFileSync(mdFile, 'Preview content')
+        try {
+          const result = await runCli(
+            ['document', 'create', '--name', 'JSON Preview', '-f', mdFile, '--dry-run', '--json'],
+            {server: ctx.webServerUrl},
+          )
+          expect(result.exitCode).toBe(0)
+          const data = JSON.parse(result.stdout)
+          expect(data.metadata.name).toBe('JSON Preview')
+          expect(data.blocks).toBeDefined()
+        } finally {
+          rmSync(tmpDir, {recursive: true, force: true})
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
+    // --- Document Update with file ---
+
+    test(
+      'document update -f appends content from file',
+      async () => {
+        const slug = `update-file-${Date.now()}`
+        const hmId = `hm://${writeAccount.accountId}/${slug}`
+        const tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdFile = join(tmpDir, 'initial.md')
+        writeFileSync(mdFile, 'Initial content')
+
+        try {
+          // Create document
+          const createResult = await runCli(
+            ['document', 'create', '--path', slug, '--name', 'Update File Test', '-f', mdFile, '--key', TEST_KEY_NAME],
+            {server: ctx.webServerUrl},
+          )
+          expect(createResult.exitCode).toBe(0)
+          await new Promise((r) => setTimeout(r, 2000))
+
+          // Update with new content
+          const updateFile = join(tmpDir, 'update.md')
+          writeFileSync(updateFile, 'Appended content from file')
+
+          const updateResult = await runCli(['document', 'update', hmId, '-f', updateFile, '--key', TEST_KEY_NAME], {
+            server: ctx.webServerUrl,
+          })
+          expect(updateResult.exitCode).toBe(0)
+
+          await new Promise((r) => setTimeout(r, 2000))
+
+          // Verify content was appended
+          const getResult = await runCli(['document', 'get', hmId], {server: ctx.webServerUrl})
+          expect(getResult.exitCode).toBe(0)
+          expect(getResult.stdout).toContain('Appended content from file')
+        } finally {
+          rmSync(tmpDir, {recursive: true, force: true})
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
+    // --- Document Get -o (output to file) ---
+
+    test(
+      'document get -o writes output to file',
+      async () => {
+        const tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const outputFile = join(tmpDir, 'output.md')
+        try {
+          const result = await runCli(['document', 'get', writeAccountHmId, '-o', outputFile], {
+            server: ctx.webServerUrl,
+          })
+          expect(result.exitCode).toBe(0)
+          expect(result.stderr).toContain('Written to')
+
+          // Verify file was written
+          const {existsSync: exists, readFileSync: read} = await import('fs')
+          expect(exists(outputFile)).toBe(true)
+          const content = read(outputFile, 'utf-8')
+          expect(content).toContain('---')
+        } finally {
+          rmSync(tmpDir, {recursive: true, force: true})
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
+    // --- Comment Create from file ---
+
+    test(
+      'comment create --file reads comment from file',
+      async () => {
+        const tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const commentFile = join(tmpDir, 'comment.txt')
+        writeFileSync(commentFile, 'Comment from file')
+        try {
+          const result = await runCli(
+            ['comment', 'create', writeAccountHmId, '--file', commentFile, '--key', TEST_KEY_NAME],
+            {server: ctx.webServerUrl},
+          )
+          expect(result.exitCode).toBe(0)
+          expect(result.stderr + result.stdout).toContain('Comment created')
+        } finally {
+          rmSync(tmpDir, {recursive: true, force: true})
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
     // --- Document Delete Tests ---
 
     test(

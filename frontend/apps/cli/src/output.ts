@@ -1,34 +1,142 @@
 /**
  * Output formatting utilities
+ *
+ * `--pretty` is a boolean modifier that beautifies whatever the current
+ * output format is:
+ *   --pretty (+ json default) -> colorized JSON (jq-style)
+ *   --pretty --yaml           -> colorized YAML
+ *   --pretty on markdown      -> clean markdown without block-id comments
  */
 
 import chalk from 'chalk'
 import YAML from 'yaml'
 
-export type OutputFormat = 'json' | 'yaml' | 'table' | 'pretty'
+export type OutputFormat = 'json' | 'yaml' | 'table'
 
-export function formatOutput(data: unknown, format: OutputFormat = 'json'): string {
+export function formatOutput(data: unknown, format: OutputFormat = 'json', pretty = false): string {
   switch (format) {
     case 'json':
-      return JSON.stringify(data, replacer, 2)
+      return pretty ? colorizeJson(data) : JSON.stringify(data, replacer, 2)
     case 'yaml':
-      return YAML.stringify(data, {indent: 2})
+      return pretty ? colorizeYaml(data) : YAML.stringify(data, {indent: 2})
     case 'table':
       return formatTable(data)
-    case 'pretty':
-      return formatPretty(data)
     default:
-      return JSON.stringify(data, replacer, 2)
+      return pretty ? colorizeJson(data) : JSON.stringify(data, replacer, 2)
   }
 }
 
 // JSON replacer to handle BigInt
-function replacer(_key: string, value: unknown): unknown {
+export function replacer(_key: string, value: unknown): unknown {
   if (typeof value === 'bigint') {
     return value.toString()
   }
   return value
 }
+
+// ── Colorized JSON (jq-style) ────────────────────────────────────────────────
+
+export function colorizeJson(data: unknown): string {
+  const json = JSON.stringify(data, replacer, 2)
+  if (!json) return chalk.dim('null')
+  return colorizeJsonString(json)
+}
+
+/**
+ * Apply jq-style syntax highlighting to a pre-formatted JSON string.
+ * Keys are blue/bold, strings green, numbers yellow, booleans blue, null dim.
+ */
+function colorizeJsonString(json: string): string {
+  return json.replace(
+    // Match JSON tokens: keys (quoted strings before colon), string values,
+    // numbers, booleans, and null.
+    /("(?:[^"\\]|\\.)*")\s*:|("(?:[^"\\]|\\.)*")|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b|(true|false)|(null)/g,
+    (match, key, str, num, bool, nul) => {
+      if (key) return chalk.blue(key) + ':'
+      if (str) return chalk.green(str)
+      if (num) return chalk.yellow(num)
+      if (bool) return chalk.blue(bool)
+      if (nul) return chalk.dim(nul)
+      return match
+    },
+  )
+}
+
+// ── Colorized YAML ───────────────────────────────────────────────────────────
+
+export function colorizeYaml(data: unknown): string {
+  const yaml = YAML.stringify(data, {indent: 2})
+  return colorizeYamlString(yaml)
+}
+
+/**
+ * Apply syntax highlighting to a YAML string.
+ * Keys are cyan, strings green, numbers yellow, booleans blue, null dim.
+ */
+function colorizeYamlString(yaml: string): string {
+  return yaml
+    .split('\n')
+    .map((line) => {
+      // Comment lines
+      if (line.trimStart().startsWith('#')) return chalk.dim(line)
+
+      // Lines with key: value
+      const kvMatch = line.match(/^(\s*)([\w./-]+)(\s*:\s*)(.*)$/)
+      if (kvMatch) {
+        const [, indent, key, sep, value] = kvMatch
+        return indent + chalk.cyan(key) + sep + colorizeYamlValue(value)
+      }
+
+      // List items (- value)
+      const listMatch = line.match(/^(\s*-\s+)(.*)$/)
+      if (listMatch) {
+        const [, prefix, value] = listMatch
+        return prefix + colorizeYamlValue(value)
+      }
+
+      return line
+    })
+    .join('\n')
+}
+
+function colorizeYamlValue(value: string): string {
+  const trimmed = value.trim()
+  if (trimmed === '' || trimmed === '~' || trimmed === 'null') return chalk.dim(trimmed)
+  if (trimmed === 'true' || trimmed === 'false') return chalk.blue(trimmed)
+  if (/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(trimmed)) return chalk.yellow(trimmed)
+  // Quoted strings
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return chalk.green(trimmed)
+  }
+  // Unquoted string value
+  if (trimmed.length > 0 && !trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    return chalk.green(trimmed)
+  }
+  return value
+}
+
+// ── Block-ID stripping for pretty markdown ───────────────────────────────────
+
+/**
+ * Remove `<!-- id:... -->` HTML comments injected by blocksToMarkdown().
+ * Handles two patterns:
+ *   1. Inline:     `text <!-- id:abc123 -->` -> `text`
+ *   2. Standalone: `<!-- id:abc123 -->` on its own line -> removed
+ * Collapses resulting double-blank-lines.
+ */
+export function stripBlockIdComments(markdown: string): string {
+  return (
+    markdown
+      // Remove inline block-id comments (with leading space)
+      .replace(/ <!-- id:[a-zA-Z0-9_-]+ -->/g, '')
+      // Remove standalone block-id comment lines
+      .replace(/^<!-- id:[a-zA-Z0-9_-]+ -->$/gm, '')
+      // Collapse runs of 3+ newlines into 2 (one blank line)
+      .replace(/\n{3,}/g, '\n\n')
+  )
+}
+
+// ── Table formatting ─────────────────────────────────────────────────────────
 
 function formatTable(data: unknown): string {
   if (Array.isArray(data)) {
@@ -69,46 +177,7 @@ function formatValue(value: unknown): string {
   return String(value)
 }
 
-function formatPretty(data: unknown): string {
-  return formatPrettyValue(data, 0)
-}
-
-function formatPrettyValue(value: unknown, indent: number): string {
-  const prefix = '  '.repeat(indent)
-
-  if (value === null || value === undefined) {
-    return chalk.dim('null')
-  }
-
-  if (typeof value === 'string') {
-    return chalk.green(`"${value}"`)
-  }
-
-  if (typeof value === 'number' || typeof value === 'bigint') {
-    return chalk.yellow(String(value))
-  }
-
-  if (typeof value === 'boolean') {
-    return chalk.blue(String(value))
-  }
-
-  if (Array.isArray(value)) {
-    if (value.length === 0) return '[]'
-    const items = value.map((v) => `${prefix}  ${formatPrettyValue(v, indent + 1)}`)
-    return `[\n${items.join(',\n')}\n${prefix}]`
-  }
-
-  if (typeof value === 'object') {
-    const entries = Object.entries(value)
-    if (entries.length === 0) return '{}'
-    const lines = entries.map(([k, v]) => `${prefix}  ${chalk.cyan(k)}: ${formatPrettyValue(v, indent + 1)}`)
-    return `{\n${lines.join(',\n')}\n${prefix}}`
-  }
-
-  return String(value)
-}
-
-// Helpers for CLI output
+// ── CLI message helpers ──────────────────────────────────────────────────────
 
 export function printSuccess(message: string) {
   console.error(chalk.green('✓'), message)

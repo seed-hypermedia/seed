@@ -4,13 +4,11 @@
 
 import type {Command} from 'commander'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {getClient, getOutputFormat} from '../index'
+import {getClient, getOutputFormat, isPretty} from '../index'
 import {formatOutput, printError} from '../output'
 
 export function registerAccountCommands(program: Command) {
-  const account = program
-    .command('account')
-    .description('Manage accounts (get, list, contacts, capabilities)')
+  const account = program.command('account').description('Manage accounts (get, list, contacts, capabilities)')
 
   // ── get ──────────────────────────────────────────────────────────────────
 
@@ -22,6 +20,7 @@ export function registerAccountCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const result = await client.request('Account', uid)
@@ -33,7 +32,7 @@ export function registerAccountCommands(program: Command) {
             console.log('not-found')
           }
         } else {
-          console.log(formatOutput(result, format))
+          console.log(formatOutput(result, format, pretty))
         }
       } catch (error) {
         printError((error as Error).message)
@@ -51,6 +50,7 @@ export function registerAccountCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const result = await client.request('ListAccounts', {})
@@ -61,7 +61,7 @@ export function registerAccountCommands(program: Command) {
             console.log(`${a.id.id}\t${name}`)
           })
         } else {
-          console.log(formatOutput(result, format))
+          console.log(formatOutput(result, format, pretty))
         }
       } catch (error) {
         printError((error as Error).message)
@@ -79,6 +79,7 @@ export function registerAccountCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const result = await client.request('AccountContacts', uid)
@@ -88,7 +89,7 @@ export function registerAccountCommands(program: Command) {
             console.log(c.name || c.account)
           })
         } else {
-          console.log(formatOutput(result, format))
+          console.log(formatOutput(result, format, pretty))
         }
       } catch (error) {
         printError((error as Error).message)
@@ -105,6 +106,7 @@ export function registerAccountCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const unpacked = unpackHmId(id)
@@ -113,7 +115,7 @@ export function registerAccountCommands(program: Command) {
           process.exit(1)
         }
         const result = await client.request('ListCapabilities', {targetId: unpacked})
-        console.log(formatOutput(result, format))
+        console.log(formatOutput(result, format, pretty))
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)

@@ -7,7 +7,7 @@ import {readFileSync} from 'fs'
 import {createComment, deleteComment} from '@seed-hypermedia/client'
 import type {HMAnnotation, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId, packHmId} from '@shm/shared/utils/entity-id-url'
-import {getClient, getOutputFormat} from '../index'
+import {getClient, getOutputFormat, isPretty} from '../index'
 import {formatOutput, printError, printSuccess, printInfo} from '../output'
 import {resolveKey} from '../utils/keyring'
 import {createSignerFromKey} from '../utils/signer'
@@ -24,10 +24,11 @@ export function registerCommentCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const result = await client.request('Comment', id)
-        console.log(formatOutput(result, format))
+        console.log(formatOutput(result, format, pretty))
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)
@@ -44,6 +45,7 @@ export function registerCommentCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const unpacked = unpackHmId(targetId)
@@ -59,7 +61,7 @@ export function registerCommentCommands(program: Command) {
             console.log(`${c.id}\t${authorName}`)
           })
         } else {
-          console.log(formatOutput(result, format))
+          console.log(formatOutput(result, format, pretty))
         }
       } catch (error) {
         printError((error as Error).message)
@@ -239,6 +241,7 @@ export function registerCommentCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const unpacked = unpackHmId(targetId)
@@ -247,7 +250,7 @@ export function registerCommentCommands(program: Command) {
           process.exit(1)
         }
         const result = await client.request('ListDiscussions', {targetId: unpacked, commentId: options.comment})
-        console.log(formatOutput(result, format))
+        console.log(formatOutput(result, format, pretty))
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)

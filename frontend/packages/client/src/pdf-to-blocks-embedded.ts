@@ -8,7 +8,7 @@
  * Requires `pdfjs-dist` to be installed (optional peer dependency).
  */
 
-import type {HMAnnotation, HMBlockNode, HMMetadata} from '@shm/shared/hm-types'
+import type {HMAnnotation, HMBlockNode, HMMetadata} from './hm-types'
 
 // ── pdfjs-dist types (local, to avoid hard dependency) ───────────────────────
 

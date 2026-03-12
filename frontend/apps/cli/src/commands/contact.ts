@@ -4,7 +4,7 @@
 
 import type {Command} from 'commander'
 import {createContact, deleteContact, contactRecordIdFromBlob} from '@seed-hypermedia/client'
-import {getClient, getOutputFormat} from '../index'
+import {getClient, getOutputFormat, isPretty} from '../index'
 import {formatOutput, printError, printSuccess, printInfo} from '../output'
 import {resolveKey} from '../utils/keyring'
 import {createSignerFromKey} from '../utils/signer'
@@ -116,6 +116,7 @@ Examples:
     .action(async (accountId: string | undefined, options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       if (!accountId) {
         printError('Provide an account ID')
@@ -154,7 +155,7 @@ Examples:
             console.log(`${c.id}\t${c.name}\t${c.subject}`)
           })
         } else {
-          console.log(formatOutput(results, format))
+          console.log(formatOutput(results, format, pretty))
         }
       } catch (error) {
         printError((error as Error).message)

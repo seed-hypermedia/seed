@@ -3,7 +3,7 @@
  */
 
 import type {Command} from 'commander'
-import {getClient, getOutputFormat} from '../index'
+import {getClient, getOutputFormat, isPretty} from '../index'
 import {formatOutput, printError} from '../output'
 
 export function registerSearchCommand(program: Command) {
@@ -16,6 +16,7 @@ export function registerSearchCommand(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const result = await client.request('Search', {query, accountUid: options.account})
@@ -25,7 +26,7 @@ export function registerSearchCommand(program: Command) {
             console.log(`${e.id.id}\t${e.title || ''}`)
           })
         } else {
-          console.log(formatOutput(result, format))
+          console.log(formatOutput(result, format, pretty))
         }
       } catch (error) {
         printError((error as Error).message)

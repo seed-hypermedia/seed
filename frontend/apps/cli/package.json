@@ -19,6 +19,7 @@
     "build": "bun build src/index.ts --outdir dist --target node && node -e \"const fs=require('fs'); const f='dist/index.js'; let c=fs.readFileSync(f,'utf8'); c=c.replace(/^#!.*\\n/,''); fs.writeFileSync(f, '#!/usr/bin/env node\\n' + c)\"",
     "typecheck": "tsc --noEmit",
     "test": "bun test src/test/cli-fixture.test.ts",
+    "test:unit": "FORCE_COLOR=1 bun test src/output.test.ts src/config.test.ts src/utils/blocks-json.test.ts src/utils/block-diff.test.ts src/utils/key-derivation.test.ts src/utils/depth.test.ts",
     "test:daemon": "bun test src/test/cli.test.ts",
     "test:live": "bun test src/test/cli-live.test.ts",
     "prepublishOnly": "npm run build"

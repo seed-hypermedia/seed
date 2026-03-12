@@ -53,3 +53,6 @@ export {parseMarkdown, flattenToOperations, parseInlineFormatting, parseFrontmat
 export type {BlockNode, SeedBlock, Annotation} from './markdown-to-blocks'
 export {blocksToMarkdown, emitFrontmatter} from './blocks-to-markdown'
 export type {BlocksToMarkdownOptions} from './blocks-to-markdown'
+
+export {createBlocksMap, matchBlockIds, computeReplaceOps, hmBlockNodeToBlockNode} from './block-diff'
+export type {APIBlockNode, APIBlock} from './block-diff'
