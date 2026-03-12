@@ -185,7 +185,7 @@ const config: ForgeConfig = {
 
       // certificateFile: process.env.WINDOWS_PFX_FILE,
       // certificatePassword: process.env.WINDOWS_PFX_PASSWORD,
-    })),
+    }), ['win32']),
     new MakerRpm(commonLinuxConfig as MakerRpmConfig, ['linux']),
     // new MakerFlatpak(flatpakConfig as MakerFlatpakConfig),
     // new MakerAppImage(commonLinuxConfig as MakerAppImageConfig),
