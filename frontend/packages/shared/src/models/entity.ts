@@ -653,9 +653,7 @@ export function useSiteMembers(id: UnpackedHypermediaId) {
 
   const processedData = useMemo(() => {
     const seen = new Set<string>()
-
     const members: HMSiteMember[] = []
-
     const caps = capabilities.data || []
     caps.forEach((cap) => {
       if (cap.role === 'agent') return
@@ -682,7 +680,6 @@ export function useSiteMembers(id: UnpackedHypermediaId) {
       members,
     }
   }, [capabilities.data, contacts.data, id.uid])
-
   return {
     ...processedData,
     isLoading: capabilities.isLoading || contacts.isLoading,

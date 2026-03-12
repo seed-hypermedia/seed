@@ -1,19 +1,45 @@
-import {commentRecordIdFromBlob, createComment, createContact, createSeedClient} from '@seed-hypermedia/client'
-import type {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {commentRecordIdFromBlob, createComment, createContact} from '@seed-hypermedia/client'
+import type {HMBlockNode, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {queryKeys} from '@shm/shared'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import type {NavRoute} from '@shm/shared/routes'
-import {routeToUrl} from '@shm/shared/utils/entity-id-url'
-import {getCurrentSigner} from './auth'
+import {routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {getCurrentAccountUidWithDelegation, getCurrentSigner} from './auth'
 import {clearPendingIntent, getPendingIntent, getStoredLocalKeys} from './local-db'
+import {webUniversalClient} from './universal-client'
 
-const seedClient = createSeedClient('')
+async function joinSite(signer: HMSigner, siteUid: string) {
+  // check to see if we already have a contact for this site
+  const accountUid = await getCurrentAccountUidWithDelegation()
+  if (!accountUid) {
+    throw new Error('No account UID available to join site')
+  }
+  const contacts = await webUniversalClient.request('AccountContacts', accountUid)
+  const existingContact = contacts.find((c) => c.subject === siteUid)
+  if (existingContact) {
+    console.log('[joinSite] Already have a contact for this site', {existingContact})
+    return
+  }
+  console.log('[joinSite] Creating contact for site', {siteUid})
+  const contactPayload = await createContact(
+    {
+      subjectUid: siteUid,
+      accountUid,
+      name: '',
+    },
+    signer,
+  )
+  await webUniversalClient.publish(contactPayload)
 
+  invalidateQueries([queryKeys.CONTACTS_ACCOUNT, accountUid])
+  invalidateQueries([queryKeys.CONTACTS_SUBJECT, siteUid])
+}
 /**
  * Process any pending intent saved before auth redirect.
  * Returns a relative URL path to navigate to (for comment intents), or null.
  */
 export async function processPendingIntent(originHomeId?: UnpackedHypermediaId): Promise<string | null> {
+  console.log('[processPendingIntent] START. originHomeId:', originHomeId)
   const intent = await getPendingIntent()
   console.log('[processPendingIntent] intent:', intent?.type ?? 'none')
   if (!intent) return null
@@ -26,23 +52,17 @@ export async function processPendingIntent(originHomeId?: UnpackedHypermediaId):
   }
 
   if (intent.type === 'join') {
-    console.log('[processPendingIntent] Creating "join" contact')
-
-    const contactPayload = await createContact(
-      {
-        subjectUid: intent.subjectUid,
-        // accountUid: intent.accountUid,
-        name: '',
-      },
-      signer,
-    )
-    // await seedClient.publish(contactPayload)
+    await joinSite(signer, intent.subjectUid)
 
     await clearPendingIntent()
     return null
   }
 
   if (intent.type === 'comment') {
+    const targetSiteUid = unpackHmId(intent.docId)?.uid
+    if (targetSiteUid) {
+      await joinSite(signer, targetSiteUid)
+    }
     console.log('[processPendingIntent] Creating comment')
     try {
       const storedKeys = await getStoredLocalKeys()
@@ -51,20 +71,6 @@ export async function processPendingIntent(originHomeId?: UnpackedHypermediaId):
         await clearPendingIntent()
         return null
       }
-
-      // const publicKeyRaw = await preparePublicKey(storedKeys.keyPair.publicKey)
-
-      // const signer: HMSigner = {
-      //   getPublicKey: async () => publicKeyRaw,
-      //   sign: async (data: Uint8Array) => {
-      //     const sig = await crypto.subtle.sign(
-      //       {...storedKeys.keyPair.privateKey.algorithm, hash: {name: 'SHA-256'}},
-      //       storedKeys.keyPair.privateKey,
-      //       new Uint8Array(data),
-      //     )
-      //     return new Uint8Array(sig)
-      //   },
-      // }
 
       const docId: UnpackedHypermediaId = JSON.parse(intent.docId)
       const content: HMBlockNode[] = JSON.parse(intent.content)
@@ -86,7 +92,7 @@ export async function processPendingIntent(originHomeId?: UnpackedHypermediaId):
       if (!commentBlobData) throw new Error('No comment blob data')
       const recordId = await commentRecordIdFromBlob(commentBlobData)
 
-      await seedClient.publish(commentPayload)
+      await webUniversalClient.publish(commentPayload)
 
       invalidateQueries([queryKeys.DOCUMENT_ACTIVITY])
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
@@ -107,6 +113,7 @@ export async function processPendingIntent(originHomeId?: UnpackedHypermediaId):
         id: docId,
         openComment: recordId,
       }
+      console.log('[processPendingIntent] END. commentRoute:', commentRoute)
       return routeToUrl(commentRoute, {hostname: null, originHomeId})
     } catch (e) {
       console.error('Failed to process pending comment intent:', e)

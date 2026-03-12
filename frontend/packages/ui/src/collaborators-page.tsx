@@ -4,6 +4,7 @@ import {HMCapability, HMMetadata, HMSiteMember, UnpackedHypermediaId} from '@see
 import {useRouteLink} from '@shm/shared'
 import {useAddCapabilities, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
 import {
+  useAccount,
   useCapabilities,
   useCollaborators,
   useResource,
@@ -239,7 +240,6 @@ export function CollaboratorsPage({docId}: {docId: UnpackedHypermediaId}) {
 
 function SiteMembers({docId}: {docId: UnpackedHypermediaId}) {
   const {grantedMembers, isInitialLoading, members} = useSiteMembers(docId)
-
   if (isInitialLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -247,17 +247,11 @@ function SiteMembers({docId}: {docId: UnpackedHypermediaId}) {
       </div>
     )
   }
-
   const hasNoMembers = grantedMembers.length === 0 && members.length === 0
-
   return (
     <div className="flex flex-col gap-4">
       <AddCollaboratorForm id={docId} />
-
-      {/* Publisher always shown first */}
       <PublisherCollaborator uid={docId.uid} />
-
-      {/* Granted section */}
       {grantedMembers.length > 0 && (
         <div className="flex flex-col gap-1">
           {grantedMembers.map((member) => (
@@ -272,7 +266,6 @@ function SiteMembers({docId}: {docId: UnpackedHypermediaId}) {
           ))}
         </div>
       )}
-
       {hasNoMembers && (
         <SizableText size="sm" color="muted" className="px-3 py-2">
           No additional members
@@ -283,10 +276,10 @@ function SiteMembers({docId}: {docId: UnpackedHypermediaId}) {
 }
 
 function MemberListItem({member}: {member: HMSiteMember}) {
-  const resource = useResource(member.account)
+  const resource = useAccount(member.account.uid)
   const linkProps = useRouteLink({key: 'profile', id: member.account})
 
-  const metadata = resource.data?.type === 'document' ? resource.data.document?.metadata : undefined
+  const metadata = resource.data?.metadata
   const isLoading = resource.isLoading
 
   return (

@@ -74,6 +74,11 @@ const keyPairHandlers = new Set<() => void>()
 const VAULT_SIGN_IN_UNLOCK_TAPS = 7
 const VAULT_SIGN_IN_UNLOCK_WINDOW_MS = 3500
 
+export async function getCurrentAccountUidWithDelegation(): Promise<string | null> {
+  const stored = await getStoredLocalKeys()
+  return stored?.delegatedAccountUid ?? keyPair?.id ?? null
+}
+
 export const keyPairStore = {
   get: () => keyPair,
   set: (kp: LocalWebIdentity | null) => {

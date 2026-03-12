@@ -1,5 +1,5 @@
-import { ReactNode, useEffect, useState } from 'react'
-import { cn } from './utils'
+import {ReactNode, useEffect, useState} from 'react'
+import {cn} from './utils'
 
 export interface FloatingAccountFooterProps {
   children?: ReactNode
@@ -90,7 +90,7 @@ export function FloatingAccountFooter({
       {children}
       <div
         style={{bottom: `calc(1rem + ${footerLiftPx}px)`}}
-        className={cn('fixed left-4 z-30 transition-[bottom] duration-200 flex gap-2 items-center')}
+        className={cn('fixed left-4 z-30 flex items-center gap-2 transition-[bottom] duration-200')}
       >
         {floatingButton}
       </div>

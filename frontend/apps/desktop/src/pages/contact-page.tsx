@@ -1,7 +1,5 @@
 import {BookmarkButton} from '@/components/bookmarking'
 import {useAllAccountsWithContacts, useContactList} from '@/models/contacts'
-import {useContact, useDeleteContact, useSaveContact, useSelectedAccountContacts} from '@shm/shared/models/contacts'
-import {useResources} from '@shm/shared/models/entity'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
@@ -13,6 +11,8 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {getMetadataName, hmId} from '@shm/shared'
+import {useContact, useDeleteContact, useSaveContact, useSelectedAccountContacts} from '@shm/shared/models/contacts'
+import {useResources} from '@shm/shared/models/entity'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
@@ -125,7 +125,7 @@ function ContactListItem({
     >
       <HMIcon size={28} id={id} name={account.metadata?.name} icon={account.metadata?.icon} />
       <span className="text-foreground flex-1 truncate overflow-hidden pl-2 text-left whitespace-nowrap">
-        {savedContact ? savedContact.name : getMetadataName(account.metadata)}
+        {savedContact?.name ? savedContact.name : getMetadataName(account.metadata)}
       </span>
 
       <BookmarkButton active={active} hideUntilItemHover id={id} />

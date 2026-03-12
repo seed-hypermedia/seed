@@ -1,7 +1,7 @@
-import { decode as cborDecode, encode as cborEncode } from '@ipld/dag-cbor'
-import { base58btc } from 'multiformats/bases/base58'
-import type { HMPublishBlobsInput, HMSigner } from './hm-types'
-import { signObject, toPublishInput } from './signing'
+import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
+import {base58btc} from 'multiformats/bases/base58'
+import type {HMPublishBlobsInput, HMSigner} from './hm-types'
+import {signObject, toPublishInput} from './signing'
 
 export type CreateContactInput = {
   /** The subject account UID (base58btc-encoded principal) */
@@ -88,7 +88,7 @@ export async function createContact(input: CreateContactInput, signer: HMSigner)
   if (input.accountUid) {
     unsigned.account = new Uint8Array(base58btc.decode(input.accountUid))
   }
-console.log('SIGNING BLOB', unsigned)
+  console.log('SIGNING BLOB', unsigned)
   unsigned.sig = await signObject(signer, unsigned)
 
   const encoded = cborEncode(unsigned)

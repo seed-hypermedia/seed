@@ -1,6 +1,6 @@
-import { hmId } from '../utils/entity-id-url'
-import { useSaveContact, useSelectedAccountContacts } from './contacts'
-import { useResource, useSelectedAccountId } from './entity'
+import {hmId} from '../utils/entity-id-url'
+import {useSaveContact, useSelectedAccountContacts} from './contacts'
+import {useResource, useSelectedAccountId} from './entity'
 
 export function useJoinSite({siteUid}: {siteUid: string}) {
   const selectedAccountId = useSelectedAccountId()
