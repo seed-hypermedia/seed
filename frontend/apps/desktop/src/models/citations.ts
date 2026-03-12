@@ -1,8 +1,7 @@
 import {grpcClient} from '@/grpc-client'
+import {HMCitation, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {processMentionsToCitations, queryKeys, sortCitationsByType} from '@shm/shared'
 import {BIG_INT} from '@shm/shared/constants'
-import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {HMCitation} from '@shm/shared/hm-types'
 import {useQuery} from '@tanstack/react-query'
 
 export function useDocumentCitations(docId?: UnpackedHypermediaId | null, {enabled}: {enabled?: boolean} = {}) {

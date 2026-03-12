@@ -1,5 +1,5 @@
+import {HMSearchResultItemSchema} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
-import {HMSearchResultItemSchema} from '../hm-types'
 
 const validItem = {
   id: {

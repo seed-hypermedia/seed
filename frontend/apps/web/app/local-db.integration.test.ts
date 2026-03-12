@@ -92,10 +92,10 @@ describe('local-db integration', () => {
         await writeLocalKeys(keyPair)
         const stored = await getStoredLocalKeys()
         expect(stored).not.toBeNull()
-        expect(stored!.privateKey.type).toBe('private')
-        expect(stored!.publicKey.type).toBe('public')
-        expect(stored!.privateKey.algorithm).toEqual(keyPair.privateKey.algorithm)
-        expect(stored!.publicKey.algorithm).toEqual(keyPair.publicKey.algorithm)
+        expect(stored!.keyPair.privateKey.type).toBe('private')
+        expect(stored!.keyPair.publicKey.type).toBe('public')
+        expect(stored!.keyPair.privateKey.algorithm).toEqual(keyPair.privateKey.algorithm)
+        expect(stored!.keyPair.publicKey.algorithm).toEqual(keyPair.publicKey.algorithm)
       } finally {
         db.close()
       }
@@ -312,10 +312,10 @@ describe('local-db integration', () => {
     it('should store and retrieve a join intent', async () => {
       const db = await resetDB(indexedDB)
       try {
-        const intent: PendingIntent = {type: 'join'}
+        const intent: PendingIntent = {type: 'join', subjectUid: 'test-uid'}
         await setPendingIntent(intent)
         const stored = await getPendingIntent()
-        expect(stored).toEqual({type: 'join'})
+        expect(stored).toEqual({type: 'join', subjectUid: 'test-uid'})
       } finally {
         db.close()
       }
@@ -344,7 +344,7 @@ describe('local-db integration', () => {
     it('should clear pending intent', async () => {
       const db = await resetDB(indexedDB)
       try {
-        await setPendingIntent({type: 'join'})
+        await setPendingIntent({type: 'join', subjectUid: 'test-uid'})
         expect(await getPendingIntent()).not.toBeNull()
         await clearPendingIntent()
         expect(await getPendingIntent()).toBeNull()
@@ -356,7 +356,7 @@ describe('local-db integration', () => {
     it('should overwrite existing intent', async () => {
       const db = await resetDB(indexedDB)
       try {
-        await setPendingIntent({type: 'join'})
+        await setPendingIntent({type: 'join', subjectUid: 'test-uid'})
         const commentIntent: PendingCommentIntent = {
           type: 'comment',
           docId: '{"uid":"abc"}',

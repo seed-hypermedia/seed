@@ -70,7 +70,7 @@ function ProfilePageContent({
   const isCurrentAccount = currentAccount === profileId.uid
   const linkKeysDialog = useAppDialog(LinkKeysDialog)
   const userKeyPair = useLocalKeyPair()
-  const isDelegated = userKeyPair?.isDelegated === true
+  const isDelegated = !!userKeyPair?.delegatedAccountUid
   return (
     <>
       <div className="flex min-h-screen flex-1 flex-col items-center">

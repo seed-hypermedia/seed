@@ -5,7 +5,7 @@ import {appRouteOfId} from '@shm/shared/utils/navigation'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 
 import {grpcClient} from '@/grpc-client'
-import {HMHostConfigSchema, SiteDiscoverRequest} from '@shm/shared'
+import {HMHostConfigSchema, SiteDiscoverRequest} from '@seed-hypermedia/client/hm-types'
 import {createDocumentNavRoute, defaultRoute, NavRoute, navRouteSchema} from '@shm/shared/routes'
 import {parseCustomURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {app, BrowserWindow, dialog, ipcMain, NativeImage, WebContentsView} from 'electron'

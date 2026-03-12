@@ -1,12 +1,5 @@
-import {HMAccountsMetadata, HMActivitySummary, HMComment} from '@seed-hypermedia/client/hm-types'
-import {
-  formattedDate,
-  getMetadataName,
-  HMLibraryDocument,
-  normalizeDate,
-  plainTextOfContent,
-  useRouteLink,
-} from '@shm/shared'
+import {HMAccountsMetadata, HMActivitySummary, HMComment, HMLibraryDocument} from '@seed-hypermedia/client/hm-types'
+import {formattedDate, getMetadataName, normalizeDate, plainTextOfContent, useRouteLink} from '@shm/shared'
 import {Button} from './button'
 import {Version} from './icons'
 import {SizableText} from './text'

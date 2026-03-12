@@ -27,13 +27,10 @@ import * as authSession from './auth-session'
 import {preparePublicKey} from './auth-utils'
 import {createDefaultAccountName} from './default-account-name'
 import {
-  AUTH_STATE_ACTIVE_VAULT_URL,
   AUTH_STATE_DELEGATION_RETURN_URL,
   AUTH_STATE_DELEGATION_VAULT_URL,
   clearAllAuthState,
-  deleteAuthState,
   deleteLocalKeys,
-  getAuthState,
   getPendingIntent,
   getStoredLocalKeys,
   setAuthState,
@@ -59,11 +56,17 @@ function createSignerFromKeyPair(kp: CryptoKeyPair): HMSigner {
   }
 }
 
+export async function getCurrentSigner(): Promise<HMSigner | null> {
+  const stored = await getStoredLocalKeys()
+  if (!stored) return null
+  return createSignerFromKeyPair(stored.keyPair)
+}
+
 let AccountWithImage: boolean = false
 
 export type LocalWebIdentity = CryptoKeyPair & {
   id: string
-  isDelegated?: boolean
+  delegatedAccountUid?: string
   vaultUrl?: string
 }
 let keyPair: LocalWebIdentity | null = null
@@ -86,15 +89,14 @@ export const keyPairStore = {
 }
 
 async function loadLocalWebIdentity(): Promise<LocalWebIdentity | null> {
-  const kp = await getStoredLocalKeys()
-  if (!kp) return null
-  const id = await preparePublicKey(kp.publicKey)
-  const activeVaultUrl = await getAuthState(AUTH_STATE_ACTIVE_VAULT_URL)
+  const stored = await getStoredLocalKeys()
+  if (!stored) return null
+  const id = await preparePublicKey(stored.keyPair.publicKey)
   return {
-    ...kp,
+    ...stored.keyPair,
     id: base58btc.encode(id),
-    isDelegated: !!activeVaultUrl,
-    vaultUrl: activeVaultUrl ?? undefined,
+    delegatedAccountUid: stored.delegatedAccountUid,
+    vaultUrl: stored.vaultUrl,
   }
 }
 
@@ -148,26 +150,24 @@ export async function createAccount({
     throw new Error('Must provide an image or null for account creation')
   }
 
-  const activeVaultUrl = await getAuthState(AUTH_STATE_ACTIVE_VAULT_URL)
-  if (activeVaultUrl) {
-    await deleteAuthState(AUTH_STATE_ACTIVE_VAULT_URL)
-    await authSession.clearSession(activeVaultUrl).catch((err) => {
+  const existingStored = await getStoredLocalKeys()
+  if (existingStored?.vaultUrl) {
+    await authSession.clearSession(existingStored.vaultUrl).catch((err) => {
       console.error('Failed to clear delegated session while creating local account', err)
     })
   }
 
-  const existingKeyPair = await getStoredLocalKeys()
-  let keyPair = existingKeyPair
+  let keyPair = existingStored?.keyPair
 
-  if (existingKeyPair) {
-    const id = await preparePublicKey(existingKeyPair.publicKey)
+  if (keyPair) {
+    const id = await preparePublicKey(keyPair.publicKey)
     const uid = base58btc.encode(id)
 
     try {
       const accountResult = await queryAPI<{type?: string}>(`/api/Account?id=${encodeURIComponent(uid)}`)
       if (accountResult?.type === 'account') {
         const webIdentity = {
-          ...existingKeyPair,
+          ...keyPair,
           id: uid,
         }
         keyPairStore.set(webIdentity)
@@ -318,10 +318,9 @@ function useIsMobileKeyboardOpen() {
 }
 
 function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void}) {
-  const {origin} = useUniversalAppContext()
+  const {origin, originHomeId} = useUniversalAppContext()
   const tx = useTxString()
   const siteName = hostnameStripProtocol(origin)
-
   const defaultVaultOrigin = WEB_IDENTITY_ORIGIN || origin || 'http://localhost'
   const defaultVaultUrl = `${defaultVaultOrigin}/vault/delegate`
   const [customVaultUrl, setCustomVaultUrl] = useState('')
@@ -375,8 +374,10 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
     await setAuthState(AUTH_STATE_DELEGATION_VAULT_URL, vaultUrl)
     // If no pending comment intent was already saved, mark this as a join intent
     const existingIntent = await getPendingIntent()
-    if (!existingIntent) {
-      await setPendingIntent({type: 'join'})
+    console.log('[handleVaultSignIn] existingIntent:', existingIntent)
+    console.log('[handleVaultSignIn] originHomeId:', originHomeId)
+    if (!existingIntent && originHomeId?.uid) {
+      await setPendingIntent({type: 'join', subjectUid: originHomeId.uid})
     }
     try {
       const authUrl = await authSession.startAuth({
@@ -667,7 +668,7 @@ function LogoutDialog({onClose}: {onClose: () => void}) {
         <Spinner />
       </div>
     )
-  const isAccountAliased = keyPair.isDelegated || account.data?.id.uid !== keyPair.id
+  const isAccountAliased = !!keyPair.delegatedAccountUid || account.data?.id.uid !== keyPair.id
   return (
     <>
       <DialogTitle>{tx('Really Logout?')}</DialogTitle>
@@ -815,7 +816,10 @@ export function AccountFooterActions(props: {hideDeviceLinkToast?: boolean}) {
   // in which case the ID of the final account will be different from the requested ID. When it happens, it means we have already linked this key to some other account.
   // Delegated sessions are already linked via the vault, so they never need legacy key linking.
   const needsKeyLinking =
-    !props.hideDeviceLinkToast && userKeyPair && !userKeyPair.isDelegated && myAccount.data?.id?.uid === userKeyPair?.id
+    !props.hideDeviceLinkToast &&
+    userKeyPair &&
+    !userKeyPair.delegatedAccountUid &&
+    myAccount.data?.id?.uid === userKeyPair?.id
 
   useEffect(() => {
     if (!needsKeyLinking) {

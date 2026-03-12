@@ -1,5 +1,9 @@
-import {HMAccountsMetadata, HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {HMResourceFetchResult} from '@shm/shared'
+import {
+  HMAccountsMetadata,
+  HMDocumentInfo,
+  HMResourceFetchResult,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {ReactNode} from 'react'
 import {DocumentCardGrid} from './blocks-content'
 import {DocumentListItem} from './document-list-item'

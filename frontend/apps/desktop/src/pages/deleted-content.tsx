@@ -1,5 +1,5 @@
 import {useDeletedContent, useUndeleteEntity} from '@/models/entities'
-import {HMDeletedEntity} from '@shm/shared/hm-types'
+import {HMDeletedEntity} from '@seed-hypermedia/client/hm-types'
 import {formattedDateLong, formattedDateMedium} from '@shm/shared/utils/date'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'

@@ -6,6 +6,7 @@
  */
 
 import type {
+  HMCapability,
   HMContactRecord,
   HMDocumentInfo,
   HMInteractionSummaryOutput,
@@ -18,7 +19,6 @@ import type {
   HMRole,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import type {HMCapability} from '../hm-types'
 import {HMQueryResultSchema, HMResourceSchema} from '@seed-hypermedia/client/hm-types'
 import type {UniversalClient} from '../universal-client'
 import {hmIdPathToEntityQueryPath} from '../utils'

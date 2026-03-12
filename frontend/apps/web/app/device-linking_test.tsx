@@ -1,10 +1,10 @@
-import {StrictMode, useState, FormEvent, useEffect} from 'react'
-import {createRoot} from 'react-dom/client'
-import {linkDevice, LinkingResult, LinkingEvent} from './device-linking'
 import * as cbor from '@ipld/dag-cbor'
+import type {DeviceLinkSession} from '@seed-hypermedia/client/hm-types'
 import {base58btc} from 'multiformats/bases/base58'
+import {FormEvent, StrictMode, useEffect, useState} from 'react'
+import {createRoot} from 'react-dom/client'
 import {preparePublicKey} from './auth-utils'
-import type {DeviceLinkSession} from '@shm/shared/hm-types'
+import {linkDevice, LinkingEvent, LinkingResult} from './device-linking'
 
 type LinkingState =
   | {

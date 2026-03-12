@@ -21,11 +21,11 @@ import {
   HMDocumentInfo,
   HMEmbedView,
   HMResolvedResource,
+  HMResourceFetchResult,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {
   HMInlineContent,
-  HMResourceFetchResult,
   clipContentBlocks,
   entityQueryPathToHmIdPath,
   formatBytes,
@@ -49,6 +49,7 @@ import {
   useUniversalClient,
 } from '@shm/shared'
 import {useAccountsMetadata, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
+import {useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
 import {useTxString} from '@shm/shared/translation'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {pluralS} from '@shm/shared/utils/language'
@@ -84,7 +85,6 @@ import {EmbedWrapper} from './embed-wrapper'
 import {BlankQueryBlockMessage} from './entity-card'
 import {extractIpfsUrlCid, getDaemonFileUrl, isIpfsUrl, useFileProxyUrl, useImageUrl} from './get-file-url'
 import {SeedHeading, marginClasses} from './heading'
-import {useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
 import {HMIcon} from './hm-icon'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from './hover-card'
 import {BlockQuote} from './icons'
@@ -98,9 +98,8 @@ import {Tooltip} from './tooltip'
 import useMedia from './use-media'
 import {cn} from './utils'
 
+import {HMCitation, HMResource} from '@seed-hypermedia/client/hm-types'
 import {getCommentTargetId} from '@shm/shared'
-import {HMResource} from '@seed-hypermedia/client/hm-types'
-import {HMCitation} from '@shm/shared/hm-types'
 import {toast} from 'sonner'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {useHighlighter} from './highlight-context'

@@ -594,6 +594,11 @@ export const HMDocumentInfoSchema = z.object({
 })
 export type HMDocumentInfo = z.infer<typeof HMDocumentInfoSchema>
 
+export type HMLibraryDocument = HMDocumentInfo & {
+  type: 'document'
+  latestComment?: HMComment | null
+}
+
 export const HMQueryResultSchema = z.object({
   in: unpackedHmIdSchema,
   results: z.array(HMDocumentInfoSchema),
@@ -628,6 +633,23 @@ export type HMAccountNotFound = z.infer<typeof HMAccountNotFoundSchema>
 
 export const HMAccountResultSchema = z.discriminatedUnion('type', [HMAccountPayloadSchema, HMAccountNotFoundSchema])
 export type HMAccountResult = z.infer<typeof HMAccountResultSchema>
+
+export const HMSiteMemberSchema = z.object({
+  account: unpackedHmIdSchema,
+  role: z.enum(['owner', 'writer', 'member']),
+})
+export type HMSiteMember = z.infer<typeof HMSiteMemberSchema>
+
+export type HMAccount = {
+  id: string
+  // metadata?: PlainMessage<Struct> | undefined;
+  // activitySummary?: PlainMessage<ActivitySummary> | undefined;
+  isSubscribed: boolean
+  aliasAccount: string
+  // profile?: PlainMessage<Profile> | undefined;
+  // homeDocumentInfo?: PlainMessage<DocumentInfo> | undefined;
+  metadata?: HMMetadata
+}
 
 export const HMAccountsMetadataSchema = z.record(
   z.string(), // account uid
@@ -835,6 +857,285 @@ export const HMAccountContactsRequestSchema = z.object({
   output: z.array(HMContactRecordSchema),
 })
 export type HMAccountContactsRequest = z.infer<typeof HMAccountContactsRequestSchema>
+
+export type HMExistingDraft = {
+  id: string
+}
+
+// Comment draft schemas
+export const HMCommentDraftSchema = z.object({
+  blocks: z.array(HMBlockNodeSchema),
+  targetDocId: z.string().optional(),
+  replyCommentId: z.string().optional(),
+  quotingBlockId: z.string().optional(),
+  context: z.enum(['accessory', 'feed', 'document-content']).optional(),
+  lastUpdateTime: z.number().optional(),
+})
+
+export type HMCommentDraft = z.infer<typeof HMCommentDraftSchema>
+
+export const HMListedCommentDraftSchema = z.object({
+  id: z.string(),
+  targetDocId: z.string(),
+  replyCommentId: z.string().optional(),
+  quotingBlockId: z.string().optional(),
+  context: z.enum(['accessory', 'feed', 'document-content']).optional(),
+  lastUpdateTime: z.number(),
+})
+
+export type HMListedCommentDraft = z.infer<typeof HMListedCommentDraftSchema>
+
+// Wallet type
+export type HMWallet = {
+  balance: number
+  id: string
+  address: string
+  name: string
+  type: string
+}
+
+// Document change info type
+export type HMDocumentChangeInfo = {
+  author: HMMetadataPayload
+  createTime: string
+  deps: Array<string>
+  id: string
+}
+
+// Host config schema
+export const HMHostConfigSchema = z.object({
+  peerId: z.string(),
+  registeredAccountUid: z.string(),
+  protocolId: z.string(),
+  addrs: z.array(z.string()),
+  hostname: z.string(),
+  isGateway: z.boolean(),
+})
+export type HMHostConfig = z.infer<typeof HMHostConfigSchema>
+
+export type EditorTextStyles = {
+  bold?: true
+  italic?: true
+  underline?: true
+  strike?: true
+  code?: true
+}
+
+export type EditorToggledStyle = {
+  [K in keyof EditorTextStyles]-?: Required<EditorTextStyles>[K] extends true ? K : never
+}[keyof EditorTextStyles]
+
+export const HMContactSchema = z.object({
+  metadata: HMDocumentMetadataSchema,
+  contacts: z.array(HMContactRecordSchema).optional(),
+  subjectContacts: z.array(HMContactRecordSchema).optional(),
+})
+export type HMContact = z.infer<typeof HMContactSchema>
+
+export const HMContactItemSchema = z.object({
+  id: unpackedHmIdSchema,
+  metadata: HMDocumentMetadataSchema.optional(),
+})
+export type HMContactItem = z.infer<typeof HMContactItemSchema>
+
+export const HMCapabilitySchema = z.object({
+  id: z.string(),
+  accountUid: z.string(),
+  role: HMRoleSchema,
+  capabilityId: z.string().optional(),
+  grantId: unpackedHmIdSchema,
+  label: z.string().optional(),
+  createTime: HMTimestampSchema,
+})
+export type HMCapability = z.infer<typeof HMCapabilitySchema>
+
+export const siteDiscoverRequestSchema = z.object({
+  uid: z.string(),
+  path: z.array(z.string()),
+  version: z.string().optional(),
+  media: z.boolean().optional(),
+})
+
+export type SiteDiscoverRequest = z.infer<typeof siteDiscoverRequestSchema>
+
+export const HMPeerConnectionRequestSchema = z.object({
+  a: z.array(z.string()), // addrs
+  d: z.string(), // peer/device ID
+})
+
+export type HMPeerConnectionRequest = z.infer<typeof HMPeerConnectionRequestSchema>
+
+export const ParsedFragmentSchema = BlockRangeSchema.extend({
+  blockId: z.string(),
+})
+export type ParsedFragment = z.infer<typeof ParsedFragmentSchema>
+
+const HMCitationCommentSourceSchema = z.object({
+  type: z.literal('c'),
+  id: unpackedHmIdSchema,
+  author: z.string().optional(),
+  time: HMTimestampSchema.optional(),
+})
+const HMCitationDocumentSourceSchema = z.object({
+  type: z.literal('d'),
+  id: unpackedHmIdSchema,
+  author: z.string().optional(),
+  time: HMTimestampSchema.optional(),
+})
+
+export const HMCitationSchema = z.object({
+  source: z.discriminatedUnion('type', [HMCitationCommentSourceSchema, HMCitationDocumentSourceSchema]),
+  isExactVersion: z.boolean(),
+  targetFragment: ParsedFragmentSchema.nullable(),
+  targetId: unpackedHmIdSchema,
+})
+export type HMCitation = z.infer<typeof HMCitationSchema>
+
+export type HMDocumentCitation = HMCitation & {
+  document: HMDocument | null
+  author: HMMetadataPayload | null
+}
+
+export type HMCommentCitation = HMCitation & {
+  comment: HMComment | null
+  author: HMMetadataPayload | null
+}
+
+export type HMCitationsPayload = Array<HMDocumentCitation>
+
+export type DiscoveryProgress = {
+  blobsDiscovered: number
+  blobsDownloaded: number
+  blobsFailed: number
+}
+
+export type DiscoveryState = {
+  isDiscovering: boolean
+  startedAt: number
+  entityId: string
+  recursive?: boolean
+  progress?: DiscoveryProgress
+  isTombstone?: boolean
+  isNotFound?: boolean
+}
+
+export type AggregatedDiscoveryState = {
+  activeCount: number
+  tombstoneCount: number
+  notFoundCount: number
+  blobsDiscovered: number
+  blobsDownloaded: number
+  blobsFailed: number
+}
+
+export const DeviceLinkSessionSchema = z.object({
+  accountId: z.string(),
+  secretToken: z.string(),
+  addrInfo: z.object({
+    peerId: z.string(),
+    addrs: z.array(z.string()),
+  }),
+})
+
+export type DeviceLinkSession = z.infer<typeof DeviceLinkSessionSchema>
+
+export const HMNavigationItemSchema = z.object({
+  type: z.literal('Link'),
+  id: z.string(),
+  text: z.string(),
+  link: z.string(),
+})
+export type HMNavigationItem = z.infer<typeof HMNavigationItemSchema>
+
+export const HMDraftContentSchema = z.object({
+  content: z.array(z.any()), // EditorBlock validation is handled elsewhere
+  deps: z.array(z.string().min(1)).default([]),
+  navigation: z.array(HMNavigationItemSchema).optional(),
+})
+
+export type HMDraftContent = z.infer<typeof HMDraftContentSchema>
+
+const HMDraftMetaBaseSchema = z.object({
+  id: z.string(),
+  locationUid: z.string().optional(),
+  locationPath: z.array(z.string()).optional(),
+  editUid: z.string().optional(),
+  editPath: z.array(z.string()).optional(),
+  metadata: HMDocumentMetadataSchema,
+  visibility: HMResourceVisibilitySchema.optional().default('PUBLIC'),
+})
+
+const draftLocationRefinement = (data: {editUid?: string; locationUid?: string}) => data.editUid || data.locationUid
+
+export const HMDraftMetaSchema = HMDraftMetaBaseSchema.refine(draftLocationRefinement, {
+  message: 'Either editUid or locationUid must be provided',
+})
+
+// TypeScript union type: editUid OR locationUid must be present
+type HMDraftMetaBase = {
+  id: string
+  locationPath?: string[]
+  editPath?: string[]
+  metadata: HMMetadata
+  visibility: HMResourceVisibility
+}
+
+export type HMDraftMeta = HMDraftMetaBase &
+  ({editUid: string; locationUid?: string} | {editUid?: undefined; locationUid: string})
+
+// Schema with refinement for writing new drafts
+export const HMListedDraftSchema = HMDraftMetaBaseSchema.extend({
+  lastUpdateTime: z.number(),
+}).refine(draftLocationRefinement, {
+  message: 'Either editUid or locationUid must be provided',
+})
+
+// Looser schema for reading legacy drafts (no refinement)
+export const HMListedDraftReadSchema = HMDraftMetaBaseSchema.extend({
+  lastUpdateTime: z.number(),
+})
+
+export type HMListedDraft = HMDraftMeta & {
+  lastUpdateTime: number
+}
+
+export type HMInvoice = {
+  payload: string
+  hash: string
+  amount: number
+  share: Record<string, number>
+  description?: string
+}
+
+export type HMDraft = HMDraftContent & HMListedDraft
+
+export type HMDeletedEntity = {
+  id: string
+  deleteTime?: HMTimestamp | undefined
+  deletedReason: string
+  metadata: string
+}
+
+export type HMResourceFetchResult = {
+  id: UnpackedHypermediaId
+  document?: HMDocument | null
+  redirectTarget?: UnpackedHypermediaId | null
+  isTombstone?: boolean
+}
+
+export type HMChangeSummary = {
+  type: 'change'
+  id: string
+  author: string
+  deps: string[]
+  createTime?: HMTimestamp | undefined
+}
+
+export type HMChangeGroup = {
+  id: string
+  type: 'changeGroup'
+  changes: HMChangeSummary[]
+}
 
 // SubjectContacts request: get contacts where this account is the subject
 export const HMSubjectContactsRequestSchema = z.object({

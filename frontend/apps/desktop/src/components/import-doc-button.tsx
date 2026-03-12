@@ -7,6 +7,7 @@ import {client} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
 import {ScrapeStatus} from '@/web-scraper'
 import {zodResolver} from '@hookform/resolvers/zod'
+import {HMResourceFetchResult, HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {BlockNoteEditor, type BlockSchema} from '@shm/editor/blocknote'
 import {LatexToBlocks, extractLatexMetadata} from '@shm/editor/blocknote/core/extensions/Latex/LatexToBlocks'
 import {
@@ -15,8 +16,6 @@ import {
   processMediaMarkdown,
 } from '@shm/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
-import {HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {HMResourceFetchResult} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'

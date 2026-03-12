@@ -1,11 +1,9 @@
 import * as authSession from '@/auth-session'
 import {
-  AUTH_STATE_ACTIVE_VAULT_URL,
   AUTH_STATE_DELEGATION_RETURN_URL,
   AUTH_STATE_DELEGATION_VAULT_URL,
   deleteAuthState,
   getAuthState,
-  setAuthState,
   writeLocalKeys,
 } from '@/local-db'
 import {processPendingIntent} from '@/pending-intent'
@@ -92,9 +90,11 @@ export default function AuthCallbackRoute() {
 
         await Promise.all(uploadPromises)
 
-        // Store the session key pair as the active local keys and mark as delegated.
-        await writeLocalKeys(sessionSigner.keyPair)
-        await setAuthState(AUTH_STATE_ACTIVE_VAULT_URL, vaultUrl)
+        // Store the session key pair as the active local keys with delegation info.
+        await writeLocalKeys(sessionSigner.keyPair, {
+          delegatedAccountUid: result.accountPrincipal,
+          vaultUrl,
+        })
 
         // Cleanup delegation markers.
         await deleteAuthState(AUTH_STATE_DELEGATION_VAULT_URL)

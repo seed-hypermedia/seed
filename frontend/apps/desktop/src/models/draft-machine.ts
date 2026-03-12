@@ -1,5 +1,5 @@
 import {dispatchDraftStatus, DraftStatus} from '@/draft-status'
-import {HMDraft, HMNavigationItem, HMResourceFetchResult} from '@shm/shared'
+import {HMDraft, HMNavigationItem, HMResourceFetchResult} from '@seed-hypermedia/client/hm-types'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {assign, setup, StateFrom} from 'xstate'

@@ -1,6 +1,6 @@
+import {HMCommentDraft, HMListedCommentDraft, HMListedCommentDraftSchema} from '@seed-hypermedia/client/hm-types'
 import {hasBlockContent} from '@shm/shared/content'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {HMCommentDraft, HMListedCommentDraft, HMListedCommentDraftSchema} from '@shm/shared/hm-types'
 import Store from 'electron-store'
 import fs from 'fs/promises'
 import {nanoid} from 'nanoid'

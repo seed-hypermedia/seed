@@ -95,7 +95,7 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
   )
 
   return (
-    <WebAccountFooter liftForPageFooter={true}>
+    <WebAccountFooter liftForPageFooter={true} siteUid={docId.uid}>
       {showBanner && <HypermediaHostBanner origin={origin} />}
       <CommentsProvider onReplyClick={onReplyClick} onReplyCountClick={onReplyCountClick}>
         <ResourcePage

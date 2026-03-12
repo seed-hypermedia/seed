@@ -12,9 +12,14 @@ import * as cbor from '@ipld/dag-cbor'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
 import {MetaDescriptor, useLoaderData} from '@remix-run/react'
-import {DeviceLinkSessionSchema, useRouteLink, useUniversalAppContext} from '@shm/shared'
-import {HMMetadata, HMMetadataPayload, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {DeviceLinkSession} from '@shm/shared/hm-types'
+import {
+  DeviceLinkSession,
+  DeviceLinkSessionSchema,
+  HMMetadata,
+  HMMetadataPayload,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
+import {useRouteLink, useUniversalAppContext} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'

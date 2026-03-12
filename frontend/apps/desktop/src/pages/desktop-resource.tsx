@@ -31,6 +31,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
+import {JoinButton} from '@/components/join-button'
 import {SubscriptionButton} from '@/components/subscription'
 import {useSubscription} from '@/models/subscription'
 import {Copy, ForwardIcon, GitFork, Pencil} from 'lucide-react'
@@ -373,7 +374,7 @@ export default function DesktopResourcePage() {
   )
 
   return (
-    <div className="h-full max-h-full overflow-hidden rounded-lg border bg-white">
+    <div className="relative h-full max-h-full overflow-hidden rounded-lg border bg-white">
       <CommentsProvider
         useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
         onReplyClick={onReplyClick}
@@ -393,6 +394,10 @@ export default function DesktopResourcePage() {
           </QueryBlockDraftsProvider>
         </DesktopDocumentActionsProvider>
       </CommentsProvider>
+      {/* Floating join button - positioned at bottom-left of resource page */}
+      <div className="absolute bottom-4 left-4 z-30">
+        <JoinButton siteUid={docId.uid} />
+      </div>
       {deleteEntity.content}
       {branchDialog.content}
       {moveDialog.content}

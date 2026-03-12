@@ -1,9 +1,14 @@
-import {BlockRange, HMComment, HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {
+  BlockRange,
+  HMComment,
+  HMDocument,
+  HMExistingDraft,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {
   DocumentPanelRoute,
   findContentBlock,
   getBlockText,
-  HMExistingDraft,
   hmId,
   NavRoute,
   unpackHmId,
@@ -19,7 +24,7 @@ import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Folder} from 'lucide-react'
 import {CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {BlockRangeSelectOptions, BlocksContent, BlocksContentProvider} from './blocks-content'
-import {AddCollaboratorForm, DocumentCollaborators} from './collaborators-page'
+import {CollaboratorsPage} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {DirectoryPageContent} from './directory-page'
@@ -1224,7 +1229,7 @@ function PanelContentRenderer({
     case 'collaborators':
       return (
         <div className="p-4">
-          <DocumentCollaborators docId={docId} />
+          <CollaboratorsPage docId={docId} />
         </div>
       )
     default:
@@ -1294,8 +1299,7 @@ function MainContent({
     case 'collaborators':
       return (
         <PageLayout contentMaxWidth={contentMaxWidth}>
-          <AddCollaboratorForm id={docId} />
-          <DocumentCollaborators docId={docId} />
+          <CollaboratorsPage docId={docId} />
         </PageLayout>
       )
 

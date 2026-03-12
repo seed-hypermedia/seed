@@ -127,21 +127,44 @@ function storeDelete(store: IDBObjectStore, key: string): Promise<void> {
 
 // -- Local keys --
 
-export async function getStoredLocalKeys(): Promise<CryptoKeyPair | null> {
-  const store = (await getDB()).transaction(KEYS_STORE_NAME).objectStore(KEYS_STORE_NAME)
-  const [privateKey, publicKey] = await Promise.all([
-    storeGet<CryptoKey>(store, 'privateKey'),
-    storeGet<CryptoKey>(store, 'publicKey'),
-  ])
-  return privateKey && publicKey ? {privateKey, publicKey} : null
+export interface StoredLocalKeys {
+  keyPair: CryptoKeyPair
+  delegatedAccountUid?: string
+  vaultUrl?: string
 }
 
-export async function writeLocalKeys(keyPair: CryptoKeyPair): Promise<void> {
+export async function getStoredLocalKeys(): Promise<StoredLocalKeys | null> {
+  const store = (await getDB()).transaction(KEYS_STORE_NAME).objectStore(KEYS_STORE_NAME)
+  const [privateKey, publicKey, delegatedAccountUid, vaultUrl] = await Promise.all([
+    storeGet<CryptoKey>(store, 'privateKey'),
+    storeGet<CryptoKey>(store, 'publicKey'),
+    storeGet<string | undefined>(store, 'delegatedAccountUid'),
+    storeGet<string | undefined>(store, 'vaultUrl'),
+  ])
+  if (!privateKey || !publicKey) return null
+  return {
+    keyPair: {privateKey, publicKey},
+    delegatedAccountUid: delegatedAccountUid ?? undefined,
+    vaultUrl: vaultUrl ?? undefined,
+  }
+}
+
+export async function writeLocalKeys(
+  keyPair: CryptoKeyPair,
+  options?: {delegatedAccountUid?: string; vaultUrl?: string},
+): Promise<void> {
   const store = (await getDB()).transaction(KEYS_STORE_NAME, 'readwrite').objectStore(KEYS_STORE_NAME)
-  await Promise.all([
+  const writes: Promise<void>[] = [
     storePut(store, keyPair.privateKey, 'privateKey'),
     storePut(store, keyPair.publicKey, 'publicKey'),
-  ])
+  ]
+  if (options?.delegatedAccountUid !== undefined) {
+    writes.push(storePut(store, options.delegatedAccountUid, 'delegatedAccountUid'))
+  }
+  if (options?.vaultUrl !== undefined) {
+    writes.push(storePut(store, options.vaultUrl, 'vaultUrl'))
+  }
+  await Promise.all(writes)
 }
 
 export async function deleteLocalKeys() {
@@ -219,6 +242,7 @@ export interface PendingCommentIntent {
 
 export interface PendingJoinIntent {
   type: 'join'
+  subjectUid: string
 }
 
 export type PendingIntent = PendingCommentIntent | PendingJoinIntent

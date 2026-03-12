@@ -5,15 +5,15 @@ import {useMarkAsRead} from '@/models/documents'
 import {useExportDocuments} from '@/models/export-documents'
 import {LibraryItem, LibrarySite, useLibrary, useSiteLibrary} from '@/models/library'
 import {useNavigate} from '@/utils/useNavigate'
-import {getMetadataName} from '@shm/shared/content'
 import {
   HMAccountsMetadata,
   HMActivitySummary,
   HMBreadcrumb,
   HMDocumentInfo,
+  HMLibraryDocument,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {HMLibraryDocument} from '@shm/shared/hm-types'
+import {getMetadataName} from '@shm/shared/content'
 import {DocumentRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'

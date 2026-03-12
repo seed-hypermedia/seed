@@ -22,13 +22,19 @@ import {handleDragMedia} from '@/utils/media-drag'
 import {clearNavigationGuard, setNavigationGuard} from '@/utils/navigation-container'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
+import {
+  HMDocument,
+  HMMetadata,
+  HMNavigationItem,
+  HMResourceFetchResult,
+  HMResourceVisibility,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {BlockNoteEditor} from '@shm/editor/blocknote'
 import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import '@shm/editor/editor.css'
 import {chromiumSupportedImageMimeTypes, chromiumSupportedVideoMimeTypes, generateBlockId} from '@shm/editor/utils'
 import {CommentsProvider} from '@shm/shared/comments-service-provider'
-import {HMDocument, HMMetadata, HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {HMNavigationItem, HMResourceFetchResult} from '@shm/shared/hm-types'
 import {useCapabilities, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {DraftRoute} from '@shm/shared/routes'
@@ -39,7 +45,7 @@ import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {PanelContent} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
-import {AddCollaboratorForm, DocumentCollaborators} from '@shm/ui/collaborators-page'
+import {CollaboratorsPage} from '@shm/ui/collaborators-page'
 import {AlertDialog, AlertDialogContent, AlertDialogFooter, AlertDialogTitle} from '@shm/ui/components/alert-dialog'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
@@ -48,7 +54,6 @@ import {DocumentTools} from '@shm/ui/document-tools'
 import {Feed} from '@shm/ui/feed'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Home, Undo} from '@shm/ui/icons'
-import {XIcon} from 'lucide-react'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {DocNavigationItem} from '@shm/ui/navigation'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
@@ -62,7 +67,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {useMutation} from '@tanstack/react-query'
 import {useSelector} from '@xstate/react'
-import {Eye, Settings} from 'lucide-react'
+import {Eye, Settings, XIcon} from 'lucide-react'
 import {Selection} from 'prosemirror-state'
 import {MouseEvent, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
@@ -439,8 +444,7 @@ function DraftPanelContent({
     case 'collaborators':
       return docId ? (
         <PanelContent>
-          <AddCollaboratorForm id={docId} />
-          <DocumentCollaborators docId={docId} />
+          <CollaboratorsPage docId={docId} />
         </PanelContent>
       ) : null
     case 'directory':

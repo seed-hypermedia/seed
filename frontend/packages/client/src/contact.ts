@@ -1,11 +1,13 @@
-import {encode as cborEncode, decode as cborDecode} from '@ipld/dag-cbor'
-import type {HMPublishBlobsInput, HMSigner} from './hm-types'
-import {base58btc} from 'multiformats/bases/base58'
-import {signObject, toPublishInput} from './signing'
+import { decode as cborDecode, encode as cborEncode } from '@ipld/dag-cbor'
+import { base58btc } from 'multiformats/bases/base58'
+import type { HMPublishBlobsInput, HMSigner } from './hm-types'
+import { signObject, toPublishInput } from './signing'
 
 export type CreateContactInput = {
   /** The subject account UID (base58btc-encoded principal) */
   subjectUid: string
+  /** The account UID (base58btc-encoded principal) */
+  accountUid?: string
   /** The display name for the contact */
   name: string
 }
@@ -15,6 +17,8 @@ export type UpdateContactInput = {
   contactId: string
   /** The subject account UID */
   subjectUid: string
+  /** The account UID (base58btc-encoded principal) */
+  accountUid?: string
   /** The updated display name */
   name: string
 }
@@ -77,9 +81,14 @@ export async function createContact(input: CreateContactInput, signer: HMSigner)
     sig: new Uint8Array(64),
     ts,
     subject: new Uint8Array(base58btc.decode(input.subjectUid)),
-    name: input.name,
   }
-
+  if (input.name) {
+    unsigned.name = input.name
+  }
+  if (input.accountUid) {
+    unsigned.account = new Uint8Array(base58btc.decode(input.accountUid))
+  }
+console.log('SIGNING BLOB', unsigned)
   unsigned.sig = await signObject(signer, unsigned)
 
   const encoded = cborEncode(unsigned)
@@ -106,7 +115,9 @@ export async function updateContact(input: UpdateContactInput, signer: HMSigner)
     ts: BigInt(Date.now()),
     id: tsid,
     subject: new Uint8Array(base58btc.decode(input.subjectUid)),
-    name: input.name,
+  }
+  if (input.name) {
+    unsigned.name = input.name
   }
 
   unsigned.sig = await signObject(signer, unsigned)

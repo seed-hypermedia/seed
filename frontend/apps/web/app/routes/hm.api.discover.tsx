@@ -1,6 +1,6 @@
 import {discoverDocument, discoverMedia} from '@/utils/discovery'
 import {ActionFunction, json} from '@remix-run/node'
-import {siteDiscoverRequestSchema} from '@shm/shared/hm-types'
+import {siteDiscoverRequestSchema} from '@seed-hypermedia/client/hm-types'
 
 export const action: ActionFunction = async ({request}) => {
   try {

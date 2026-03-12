@@ -1,5 +1,5 @@
+import {HMListedDraft} from '@seed-hypermedia/client/hm-types'
 import {createContext, PropsWithChildren, useContext, useMemo} from 'react'
-import {HMListedDraft} from './hm-types'
 
 export type QueryBlockDraftItem = {
   draft: HMListedDraft

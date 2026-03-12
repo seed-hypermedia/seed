@@ -7,10 +7,10 @@
  */
 
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {HMContactItem} from '@seed-hypermedia/client/hm-types'
 import {accountMetadataFromAccount} from './account-metadata'
 import {Comment, Document} from './client'
 import {GRPCClient} from './grpc-client'
-import {HMContactItem} from './hm-types'
 import {hmId} from './utils'
 import {abbreviateUid} from './utils/abbreviate'
 

@@ -1,14 +1,13 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {HMChangeSummary, HMDocumentChangeInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {normalizeDate} from '@shm/shared'
 import {BIG_INT} from '@shm/shared/constants'
-import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {HMChangeSummary, HMDocumentChangeInfo} from '@shm/shared/hm-types'
+import {useContacts} from '@shm/shared/models/contacts'
 import {useResource} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useQuery} from '@tanstack/react-query'
-import {useContacts} from '@shm/shared/models/contacts'
 
 export function useDocumentPublishedChanges(id: UnpackedHypermediaId | null | undefined) {
   const entity = useResource(id ? {...id, version: null} : null)

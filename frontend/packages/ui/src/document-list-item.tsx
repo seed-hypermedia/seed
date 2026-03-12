@@ -4,16 +4,10 @@ import {
   HMBreadcrumb,
   HMComment,
   HMDocumentInfo,
+  HMLibraryDocument,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {
-  formattedDate,
-  getMetadataName,
-  hmId,
-  HMLibraryDocument,
-  InteractionSummaryPayload,
-  useRouteLink,
-} from '@shm/shared'
+import {formattedDate, getMetadataName, hmId, InteractionSummaryPayload, useRouteLink} from '@shm/shared'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {useNavigate} from '@shm/shared/utils/navigation'

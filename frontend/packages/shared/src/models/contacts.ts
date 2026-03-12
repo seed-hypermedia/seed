@@ -1,17 +1,16 @@
 import {
   createContact as createContactBlob,
-  updateContact as updateContactBlob,
   deleteContact as deleteContactBlob,
+  updateContact as updateContactBlob,
 } from '@seed-hypermedia/client'
+import type {HMAccountsMetadata, HMContact, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
 import {getContactMetadata} from '../content'
-import type {HMAccountsMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import type {HMContact} from '../hm-types'
 import {useUniversalClient} from '../routing'
 import {hmId} from '../utils/entity-id-url'
 import {useAccount, useAccounts, useAccountsMetadata, useResources, useSelectedAccountId} from './entity'
-import {invalidateQueries} from './query-client'
 import {queryContactsOfAccount, queryContactsOfSubject} from './queries'
+import {invalidateQueries} from './query-client'
 import {queryKeys} from './query-keys'
 
 export function useSaveContact() {

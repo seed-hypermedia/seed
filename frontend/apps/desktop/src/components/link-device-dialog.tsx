@@ -1,7 +1,7 @@
 import {useLinkDevice, useLinkDeviceStatus} from '@/models/linked-devices'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {encode as cborEncode} from '@ipld/dag-cbor'
-import {DeviceLinkSession} from '@shm/shared/hm-types'
+import {DeviceLinkSession} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
 import {FormInput} from '@shm/ui/form-input'

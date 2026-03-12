@@ -1,5 +1,4 @@
-import {HMBlockChildrenType} from '@seed-hypermedia/client/hm-types'
-import {EditorToggledStyle} from '@shm/shared/hm-types'
+import {EditorToggledStyle, HMBlockChildrenType} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
 import {
   Code,

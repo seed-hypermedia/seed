@@ -1,5 +1,4 @@
-import {HMCommentGroup, HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
-import {HMChangeGroup, HMChangeSummary} from '../hm-types'
+import {HMChangeGroup, HMChangeSummary, HMCommentGroup, HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
 import {normalizeDate} from '../utils'
 
 export function getActivityTime(activity: HMCommentGroup | HMChangeSummary | HMDocumentInfo | HMChangeGroup) {

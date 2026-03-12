@@ -1,19 +1,33 @@
 import {dispatchOnboardingDialog} from '@/components/onboarding'
-import {grpcClient} from '@/grpc-client'
 import {desktopUniversalClient} from '@/desktop-universal-client'
-import {createVersionRef, createRedirectRef} from '@seed-hypermedia/client'
+import {grpcClient} from '@/grpc-client'
 import {useDraft} from '@/models/accounts'
 import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
-import {PartialMessage, Timestamp, toPlainMessage} from '@bufbuild/protobuf'
+import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
+import {createRedirectRef, createVersionRef} from '@seed-hypermedia/client'
+import {
+  HMAnnotation,
+  HMBlock,
+  HMBlockNode,
+  HMDocument,
+  HMDocumentMetadataSchema,
+  HMDraft,
+  HMDraftContent,
+  HMDraftMeta,
+  HMListedDraft,
+  HMNavigationItem,
+  HMResourceFetchResult,
+  HMResourceVisibility,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {useBlockNote} from '@shm/editor/blocknote'
 import {BlockNoteEditor} from '@shm/editor/blocknote/core'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {getSlashMenuItems} from '@shm/editor/slash-menu-items'
-import {HMAnnotation} from '@seed-hypermedia/client/hm-types'
 import {getCommentTargetId, getParentPaths, UniversalClient, useUniversalClient} from '@shm/shared'
 import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {AnnounceBlobsProgress} from '@shm/shared/client/.generated/p2p/v1alpha/syncing_pb'
@@ -22,30 +36,6 @@ import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {extractRefs, getAnnotations} from '@shm/shared/content'
 import {prepareHMDocument} from '@shm/shared/document-utils'
 import {EditorBlock} from '@shm/shared/editor-types'
-import {
-  HMBlock,
-  HMBlockNode,
-  HMDocument,
-  HMDocumentMetadataSchema,
-  HMResourceVisibility,
-  UnpackedHypermediaId,
-} from '@seed-hypermedia/client/hm-types'
-import {
-  HMDraft,
-  HMDraftContent,
-  HMDraftMeta,
-  HMListedDraft,
-  HMNavigationItem,
-  HMResourceFetchResult,
-} from '@shm/shared/hm-types'
-/**
- * Extended draft type returned by app-drafts.ts listAccount/list endpoints.
- * These endpoints compute locationId/editId from the raw uid+path fields.
- */
-export type HMListedDraftWithLocation = HMListedDraft & {
-  locationId?: UnpackedHypermediaId
-  editId?: UnpackedHypermediaId
-}
 import {prepareHMDocumentInfo, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -85,6 +75,14 @@ import {draftMachine} from './draft-machine'
 import {setGroupTypes} from './editor-utils'
 import {useGatewayUrl, useGatewayUrlStream} from './gateway-settings'
 import {getNavigationChanges} from './navigation'
+/**
+ * Extended draft type returned by app-drafts.ts listAccount/list endpoints.
+ * These endpoints compute locationId/editId from the raw uid+path fields.
+ */
+export type HMListedDraftWithLocation = HMListedDraft & {
+  locationId?: UnpackedHypermediaId
+  editId?: UnpackedHypermediaId
+}
 
 export const [draftDispatch, draftEvents] = eventStream<{
   type: 'change'

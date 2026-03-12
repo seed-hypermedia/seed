@@ -1,10 +1,11 @@
 import type {
+  DiscoveryState,
+  HMListedDraft,
   HMPrepareDocumentChangeInput,
   HMRequest,
   HMSigner,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import type {DiscoveryState, HMListedDraft} from './hm-types'
 import type {RecentsResult} from './models/recents'
 import type {StateStream} from './utils/stream'
 

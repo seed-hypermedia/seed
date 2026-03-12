@@ -1,15 +1,23 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {
+  HMAccount,
+  HMActivitySummary,
+  HMComment,
+  HMDocument,
+  HMDocumentInfo,
+  HMLibraryDocument,
+  HMMetadata,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {BIG_INT} from '@shm/shared/constants'
-import {HMComment, HMDocument, HMDocumentInfo, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {HMAccount, HMLibraryDocument} from '@shm/shared/hm-types'
 import {documentMetadataParseAdjustments, prepareHMDocumentInfo} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useQuery} from '@tanstack/react-query'
+import {useBookmarks} from './bookmarks'
 import {useComments} from './comments'
 import {useContactList} from './contacts'
-import {useBookmarks} from './bookmarks'
 import {HMSubscription, useListSubscriptions} from './subscription'
 
 export type FilterItem = 'owner' | 'admin' | 'editor' | 'writer' | 'drafts' | 'subscribed' | 'bookmarks'
@@ -56,6 +64,7 @@ export type ClassicLibrarySite = {
 export type LibrarySite = HMAccount & {
   type: 'site'
   latestComment?: HMComment | null
+  activitySummary?: HMActivitySummary
 }
 
 export type LibraryItem = LibrarySite | HMLibraryDocument

@@ -91,17 +91,13 @@ func init() {
 func indexContact(ictx *indexingCtx, id int64, eb Encoded[*Contact]) error {
 	c, v := eb.CID, eb.Decoded
 
-	// Validate contact: either both name and subject are present, or both are empty (tombstone)
+	// Validate contact: subject is required for active contacts, empty subject means tombstone.
+	// Name is optional.
 	var isTombstone bool
-	switch {
-	case v.Name != "" && len(v.Subject) > 0:
-		if len(v.Name) > contactNameMaxLength {
-			return fmt.Errorf("contact name exceeds maximum length of %d characters", contactNameMaxLength)
-		}
-	case v.Name == "" && len(v.Subject) == 0:
+	if len(v.Subject) == 0 {
 		isTombstone = true
-	default:
-		return fmt.Errorf("contacts must have either both name and subject, or neither (for tombstones)")
+	} else if len(v.Name) > contactNameMaxLength {
+		return fmt.Errorf("contact name exceeds maximum length of %d characters", contactNameMaxLength)
 	}
 
 	// TODO(burdiyan): temporarily we associate contacts with the resource of the Home document.

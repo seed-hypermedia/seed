@@ -1,15 +1,16 @@
-import {Mention} from '../client/.generated/entities/v1alpha/entities_pb'
-import {prepareHMComment, prepareHMDocument} from '../document-utils'
-import {GRPCClient} from '../grpc-client'
 import {
+  HMCapability,
   HMComment,
+  HMContactItem,
   HMDocument,
   HMMetadata,
   HMRoleSchema,
   HMTimestamp,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {HMCapability, HMContactItem} from '../hm-types'
+import {Mention} from '../client/.generated/entities/v1alpha/entities_pb'
+import {prepareHMComment, prepareHMDocument} from '../document-utils'
+import {GRPCClient} from '../grpc-client'
 import {RequestCache} from '../request-cache'
 import {entityQueryPathToHmIdPath, hmId, normalizeDate, parseFragment, unpackHmId} from '../utils'
 

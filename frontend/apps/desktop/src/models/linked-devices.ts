@@ -1,7 +1,7 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {DeviceLinkSession} from '@seed-hypermedia/client/hm-types'
 import {invalidateQueries, queryKeys} from '@shm/shared'
-import {DeviceLinkSession} from '@shm/shared/hm-types'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useEffect} from 'react'
 

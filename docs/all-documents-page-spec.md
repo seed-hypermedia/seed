@@ -285,7 +285,7 @@ Optional `sortFn` reorders siblings (used for column sorting).
 
 ```ts
 import {getMetadataName} from '../content'
-import {HMDocumentInfo} from '../hm-types'
+import {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
 
 export type DocumentTreeNode = {
   doc: HMDocumentInfo

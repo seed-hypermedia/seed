@@ -1,6 +1,5 @@
-import {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMContactItem, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {abbreviateUid, AnyTimestamp, formattedDateShort, NavRoute, normalizeDate, useRouteLink} from '@shm/shared'
-import {HMContactItem} from '@shm/shared/hm-types'
 import {Tooltip} from './tooltip'
 
 function formatUTC(date: Date) {

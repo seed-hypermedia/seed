@@ -1,6 +1,6 @@
 import {useDeleteDraft, useUpdateDraftMetadata} from '@/models/documents'
 import {useNavigate} from '@/utils/useNavigate'
-import {HMListedDraft} from '@shm/shared/hm-types'
+import {HMListedDraft} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,

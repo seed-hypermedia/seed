@@ -1,6 +1,5 @@
+import {HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {DocumentPanelRoute, NavRoute, useRouteLink} from '@shm/shared'
-import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {HMExistingDraft} from '@shm/shared/hm-types'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {MessageSquare, Newspaper, Users} from 'lucide-react'
 import {useRef, useState} from 'react'

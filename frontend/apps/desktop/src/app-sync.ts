@@ -9,13 +9,17 @@
  */
 
 import {grpcClient} from '@/grpc-client'
+import {
+  AggregatedDiscoveryState,
+  DiscoveryProgress,
+  DiscoveryState,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
+import {Event} from '@shm/shared/client/.generated/activity/v1alpha/activity_pb'
 import {DISCOVERY_DEBOUNCE_MS} from '@shm/shared/constants'
-import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {AggregatedDiscoveryState, DiscoveryProgress, DiscoveryState} from '@shm/shared/hm-types'
 import {getErrorMessage, HMRedirectError, HMResourceTombstoneError} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {createResourceFetcher} from '@shm/shared/resource-loader'
-import {Event} from '@shm/shared/client/.generated/activity/v1alpha/activity_pb'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'

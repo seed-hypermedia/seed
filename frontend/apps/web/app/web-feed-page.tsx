@@ -7,7 +7,7 @@ export function WebFeedPage({docId}: {docId: UnpackedHypermediaId}) {
   const menuItems = useWebMenuItems()
 
   return (
-    <WebAccountFooter>
+    <WebAccountFooter siteUid={docId.uid}>
       <CommentsProvider>
         <FeedPage docId={docId} extraMenuItems={menuItems} />
       </CommentsProvider>

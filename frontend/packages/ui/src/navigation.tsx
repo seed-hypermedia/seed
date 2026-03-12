@@ -1,19 +1,13 @@
 import {
   HMDocument,
   HMDocumentInfo,
+  HMListedDraft,
   HMMetadata,
+  HMResourceFetchResult,
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {
-  getMetadataName,
-  getNodesOutline,
-  HMListedDraft,
-  HMResourceFetchResult,
-  NavRoute,
-  NodeOutline,
-  useRouteLink,
-} from '@shm/shared'
+import {getMetadataName, getNodesOutline, NavRoute, NodeOutline, useRouteLink} from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {ReactNode, useMemo} from 'react'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from './/hover-card'

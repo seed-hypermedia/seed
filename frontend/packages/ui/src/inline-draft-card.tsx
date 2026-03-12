@@ -1,10 +1,10 @@
-import {HMListedDraft} from '@shm/shared/hm-types'
+import {HMListedDraft} from '@seed-hypermedia/client/hm-types'
+import {ImageIcon, MoreVertical, Pencil, Trash2} from 'lucide-react'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {DraftBadge} from './draft-badge'
 import {cn} from './utils'
-import {ImageIcon, MoreVertical, Pencil, Trash2} from 'lucide-react'
-import {useCallback, useEffect, useRef, useState} from 'react'
 
 export interface InlineDraftCardProps {
   draft: HMListedDraft

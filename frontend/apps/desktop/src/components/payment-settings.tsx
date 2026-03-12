@@ -11,9 +11,9 @@ import {
   useWallet,
 } from '@/models/payments'
 import {PlainMessage} from '@bufbuild/protobuf'
+import {HMInvoice, HMWallet} from '@seed-hypermedia/client/hm-types'
 import {Invoice} from '@shm/shared/client/.generated/payments/v1alpha/invoices_pb'
 import {getAccountName} from '@shm/shared/content'
-import {HMInvoice, HMWallet} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useInvoiceStatus} from '@shm/shared/models/payments'
 import {formattedDateMedium} from '@shm/shared/utils/date'

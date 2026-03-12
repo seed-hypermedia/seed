@@ -1,9 +1,15 @@
 import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
-import {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {HMCapability, useRouteLink} from '@shm/shared'
+import {HMCapability, HMMetadata, HMSiteMember, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useRouteLink} from '@shm/shared'
 import {useAddCapabilities, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
-import {useCapabilities, useResource, useSelectedAccountId} from '@shm/shared/models/entity'
+import {
+  useCapabilities,
+  useCollaborators,
+  useResource,
+  useSelectedAccountId,
+  useSiteMembers,
+} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {hmId, hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -25,12 +31,11 @@ type SearchResult = {
   metadata?: HMMetadata
 }
 
-export function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
+function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
   const myCapability = useSelectedAccountCapability(id, 'owner')
   const addCapabilities = useAddCapabilities(id)
   const [selectedCollaborators, setSelectedCollaborators] = useState<SearchResult[]>([])
   const capabilities = useCapabilities(id)
-
   const [search, setSearch] = useState('')
   const selectedAccountId = useSelectedAccountId()
   const searchResults = useSearch(search, {
@@ -161,51 +166,15 @@ function getRoleDisplayName(role: string | undefined): string {
   if (role === 'writer') return 'Writer'
   if (role === 'agent') return 'Device'
   if (role === 'owner') return 'Owner'
+  if (role === 'member') return 'Member'
   return role || 'Unknown'
-}
-
-/** Shared hook to fetch and prepare collaborators data */
-export function useCollaboratorsData(docId: UnpackedHypermediaId) {
-  const capabilities = useCapabilities(docId)
-
-  const processedData = useMemo(() => {
-    const allCaps = capabilities.data || []
-
-    // Filter out agents (devices) and owners
-    const filteredCaps = allCaps.filter((cap) => cap.role !== 'agent' && cap.role !== 'owner')
-
-    // Separate parent capabilities from direct grants
-    const parentCapabilities = filteredCaps.filter((cap) => cap.grantId.id !== docId.id)
-    const grantedCapabilities = filteredCaps.filter((cap) => cap.grantId.id === docId.id)
-
-    // Deduplicate by accountUid
-    const seen = new Set<string>()
-    const dedupeList = (list: HMCapability[]) =>
-      list.filter((cap) => {
-        if (seen.has(cap.accountUid)) return false
-        seen.add(cap.accountUid)
-        return true
-      })
-
-    return {
-      parentCapabilities: dedupeList(parentCapabilities),
-      grantedCapabilities: dedupeList(grantedCapabilities),
-      publisherUid: docId.uid,
-    }
-  }, [capabilities.data, docId.id, docId.uid])
-
-  return {
-    ...processedData,
-    isLoading: capabilities.isLoading,
-    isInitialLoading: capabilities.isInitialLoading,
-  }
 }
 
 /** Publisher/Owner display component */
 function PublisherCollaborator({uid}: {uid: string}) {
   const publisherId = hmId(uid)
   const resource = useResource(publisherId)
-  const linkProps = useRouteLink({key: 'document', id: publisherId})
+  const linkProps = useRouteLink({key: 'profile', id: publisherId})
 
   const metadata = resource.data?.type === 'document' ? resource.data.document?.metadata : undefined
   const isLoading = resource.isLoading
@@ -230,22 +199,133 @@ function PublisherCollaborator({uid}: {uid: string}) {
   )
 }
 
-/** Read-only collaborators list view - shared between web and desktop */
-export function CollaboratorsListView({
-  parentCapabilities,
-  grantedCapabilities,
-  publisherUid,
-  docId,
-}: {
-  parentCapabilities: HMCapability[]
-  grantedCapabilities: HMCapability[]
-  publisherUid: string
-  docId: UnpackedHypermediaId
-}) {
+function CollaboratorListItem({capability, docId}: {capability: HMCapability; docId: UnpackedHypermediaId}) {
+  const collaboratorId = hmId(capability.accountUid)
+  const resource = useResource(collaboratorId)
+  const linkProps = useRouteLink({key: 'profile', id: collaboratorId})
+
+  const metadata = resource.data?.type === 'document' ? resource.data.document?.metadata : undefined
+  const isLoading = resource.isLoading
+  const isParentCapability = capability.grantId.id !== docId.id
+
+  return (
+    <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
+      <HMIcon
+        id={collaboratorId}
+        name={isLoading ? undefined : metadata?.name}
+        icon={isLoading ? undefined : metadata?.icon}
+        size={32}
+      />
+      <div className="flex flex-1 items-center gap-2 overflow-hidden">
+        <SizableText size="sm" className="flex-1 truncate">
+          {isLoading ? 'Loading...' : metadata?.name || capability.accountUid}
+        </SizableText>
+        <SizableText size="xs" color="muted">
+          {getRoleDisplayName(capability.role)}
+          {isParentCapability ? ' (Parent Capability)' : ''}
+        </SizableText>
+      </div>
+    </a>
+  )
+}
+
+export function CollaboratorsPage({docId}: {docId: UnpackedHypermediaId}) {
+  if (docId.path?.length) {
+    return <DocumentCollaborators docId={docId} />
+  } else {
+    return <SiteMembers docId={docId} />
+  }
+}
+
+function SiteMembers({docId}: {docId: UnpackedHypermediaId}) {
+  const {grantedMembers, isInitialLoading, members} = useSiteMembers(docId)
+
+  if (isInitialLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Spinner className="size-8" />
+      </div>
+    )
+  }
+
+  const hasNoMembers = grantedMembers.length === 0 && members.length === 0
+
+  return (
+    <div className="flex flex-col gap-4">
+      <AddCollaboratorForm id={docId} />
+
+      {/* Publisher always shown first */}
+      <PublisherCollaborator uid={docId.uid} />
+
+      {/* Granted section */}
+      {grantedMembers.length > 0 && (
+        <div className="flex flex-col gap-1">
+          {grantedMembers.map((member) => (
+            <MemberListItem member={member} key={member.account.uid} />
+          ))}
+        </div>
+      )}
+      {members.length > 0 && (
+        <div className="flex flex-col gap-1">
+          {members.map((member) => (
+            <MemberListItem member={member} key={member.account.uid} />
+          ))}
+        </div>
+      )}
+
+      {hasNoMembers && (
+        <SizableText size="sm" color="muted" className="px-3 py-2">
+          No additional members
+        </SizableText>
+      )}
+    </div>
+  )
+}
+
+function MemberListItem({member}: {member: HMSiteMember}) {
+  const resource = useResource(member.account)
+  const linkProps = useRouteLink({key: 'profile', id: member.account})
+
+  const metadata = resource.data?.type === 'document' ? resource.data.document?.metadata : undefined
+  const isLoading = resource.isLoading
+
+  return (
+    <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
+      <HMIcon
+        id={member.account}
+        name={isLoading ? undefined : metadata?.name}
+        icon={isLoading ? undefined : metadata?.icon}
+        size={32}
+      />
+      <div className="flex flex-1 items-center gap-2 overflow-hidden">
+        <SizableText size="sm" className="flex-1 truncate">
+          {isLoading ? 'Loading...' : metadata?.name || member.account.uid}
+        </SizableText>
+        <SizableText size="xs" color="muted">
+          {getRoleDisplayName(member.role)}
+        </SizableText>
+      </div>
+    </a>
+  )
+}
+
+function DocumentCollaborators({docId}: {docId: UnpackedHypermediaId}) {
+  const {parentCapabilities, grantedCapabilities, publisherUid, isInitialLoading} = useCollaborators(docId)
+
+  if (isInitialLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Spinner className="size-8" />
+      </div>
+    )
+  }
+
   const hasNoCollaborators = parentCapabilities.length === 0 && grantedCapabilities.length === 0
 
   return (
     <div className="flex flex-col gap-4">
+      <AddCollaboratorForm id={docId} />
+
       {/* Publisher always shown first */}
       <PublisherCollaborator uid={publisherUid} />
 
@@ -276,58 +356,6 @@ export function CollaboratorsListView({
         </SizableText>
       )}
     </div>
-  )
-}
-
-function CollaboratorListItem({capability, docId}: {capability: HMCapability; docId: UnpackedHypermediaId}) {
-  const collaboratorId = hmId(capability.accountUid)
-  const resource = useResource(collaboratorId)
-  const linkProps = useRouteLink({key: 'document', id: collaboratorId})
-
-  const metadata = resource.data?.type === 'document' ? resource.data.document?.metadata : undefined
-  const isLoading = resource.isLoading
-  const isParentCapability = capability.grantId.id !== docId.id
-
-  return (
-    <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
-      <HMIcon
-        id={collaboratorId}
-        name={isLoading ? undefined : metadata?.name}
-        icon={isLoading ? undefined : metadata?.icon}
-        size={32}
-      />
-      <div className="flex flex-1 items-center gap-2 overflow-hidden">
-        <SizableText size="sm" className="flex-1 truncate">
-          {isLoading ? 'Loading...' : metadata?.name || capability.accountUid}
-        </SizableText>
-        <SizableText size="xs" color="muted">
-          {getRoleDisplayName(capability.role)}
-          {isParentCapability ? ' (Parent Capability)' : ''}
-        </SizableText>
-      </div>
-    </a>
-  )
-}
-
-/** Full read-only collaborators content with data fetching */
-export function DocumentCollaborators({docId}: {docId: UnpackedHypermediaId}) {
-  const {parentCapabilities, grantedCapabilities, publisherUid, isInitialLoading} = useCollaboratorsData(docId)
-
-  if (isInitialLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Spinner className="size-8" />
-      </div>
-    )
-  }
-
-  return (
-    <CollaboratorsListView
-      parentCapabilities={parentCapabilities}
-      grantedCapabilities={grantedCapabilities}
-      publisherUid={publisherUid}
-      docId={docId}
-    />
   )
 }
 

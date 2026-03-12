@@ -1,30 +1,33 @@
 import {PlainMessage, Struct, Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
-import {useInfiniteQuery, useQueries, useQuery, useQueryClient, UseQueryOptions} from '@tanstack/react-query'
-import {useEffect, useMemo, useRef, useState} from 'react'
-import {DocumentInfo, RedirectErrorDetails} from '../client'
-import {DISCOVERY_TIMEOUT_MS} from '../constants'
 import {
   HMAccountsMetadata,
+  HMCapability,
   HMDocumentInfo,
   HMDocumentInfoSchema,
   HMDocumentMetadataSchema,
   HMGetCIDOutput,
   HMListAccountsOutput,
   HMListCommentsByAuthorOutput,
+  HMListedDraft,
   HMListEventsOutput,
   HMMetadata,
   HMMetadataPayload,
   HMResolvedResource,
   HMResource,
+  HMSiteMember,
   HMTimestamp,
   HMTimestampSchema,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {HMListedDraft} from '../hm-types'
+import {useInfiniteQuery, useQueries, useQuery, useQueryClient, UseQueryOptions} from '@tanstack/react-query'
+import {useEffect, useMemo, useRef, useState} from 'react'
+import {DocumentInfo, RedirectErrorDetails} from '../client'
+import {DISCOVERY_TIMEOUT_MS} from '../constants'
 import {useUniversalAppContext, useUniversalClient} from '../routing'
 import {useStream} from '../use-stream'
 import {entityQueryPathToHmIdPath, hmId, latestId, unpackHmId} from '../utils'
+import {useContactListOfSubject} from './contacts'
 import {
   queryAccount,
   queryCapabilities,
@@ -602,6 +605,89 @@ export function useChanges(id: UnpackedHypermediaId | null | undefined) {
 export function useCapabilities(id: UnpackedHypermediaId | null | undefined) {
   const client = useUniversalClient()
   return useQuery(queryCapabilities(client, id))
+}
+
+export function useCollaborators(docId: UnpackedHypermediaId) {
+  const capabilities = useCapabilities(docId)
+
+  const processedData = useMemo(() => {
+    const allCaps = capabilities.data || []
+
+    // Filter out agents (devices) and owners
+    const filteredCaps = allCaps.filter((cap) => cap.role !== 'agent' && cap.role !== 'owner')
+
+    // Separate parent capabilities from direct grants
+    const parentCapabilities = filteredCaps.filter((cap) => cap.grantId.id !== docId.id)
+    const grantedCapabilities = filteredCaps.filter((cap) => cap.grantId.id === docId.id)
+
+    // Deduplicate by accountUid
+    const seen = new Set<string>()
+    const dedupeList = (list: HMCapability[]) =>
+      list.filter((cap) => {
+        if (seen.has(cap.accountUid)) return false
+        seen.add(cap.accountUid)
+        return true
+      })
+
+    return {
+      parentCapabilities: dedupeList(parentCapabilities),
+      grantedCapabilities: dedupeList(grantedCapabilities),
+      publisherUid: docId.uid,
+    }
+  }, [capabilities.data, docId.id, docId.uid])
+
+  return {
+    ...processedData,
+    isLoading: capabilities.isLoading,
+    isInitialLoading: capabilities.isInitialLoading,
+  }
+}
+
+export function useSiteMembers(id: UnpackedHypermediaId) {
+  const capabilities = useCapabilities(id)
+  const contacts = useContactListOfSubject(id?.uid)
+  console.log({
+    caps: capabilities.data,
+    contacts: contacts.data,
+  })
+
+  const processedData = useMemo(() => {
+    const seen = new Set<string>()
+
+    const members: HMSiteMember[] = []
+
+    const caps = capabilities.data || []
+    caps.forEach((cap) => {
+      if (cap.role === 'agent') return
+      if (cap.role === 'owner') return
+      if (cap.role === 'none') return
+      if (seen.has(cap.accountUid)) return
+      seen.add(cap.accountUid)
+      members.push({
+        account: hmId(cap.accountUid),
+        role: cap.role,
+      })
+    })
+    const grantedMembers: HMSiteMember[] = []
+    contacts.data?.forEach((contact) => {
+      if (seen.has(contact.account)) return
+      seen.add(contact.account)
+      members.push({
+        account: hmId(contact.account),
+        role: 'member',
+      })
+    })
+    return {
+      grantedMembers,
+      members,
+    }
+  }, [capabilities.data, contacts.data, id.uid])
+
+  return {
+    ...processedData,
+    isLoading: capabilities.isLoading || contacts.isLoading,
+    isInitialLoading: capabilities.isInitialLoading || contacts.isInitialLoading,
+  }
 }
 
 export function useInfiniteFeed(pageSize: number = 10) {

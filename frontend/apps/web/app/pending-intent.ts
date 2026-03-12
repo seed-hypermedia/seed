@@ -1,10 +1,10 @@
-import {commentRecordIdFromBlob, createComment, createSeedClient} from '@seed-hypermedia/client'
-import type {HMBlockNode, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {commentRecordIdFromBlob, createComment, createContact, createSeedClient} from '@seed-hypermedia/client'
+import type {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {queryKeys} from '@shm/shared'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import type {NavRoute} from '@shm/shared/routes'
 import {routeToUrl} from '@shm/shared/utils/entity-id-url'
-import {preparePublicKey} from './auth-utils'
+import {getCurrentSigner} from './auth'
 import {clearPendingIntent, getPendingIntent, getStoredLocalKeys} from './local-db'
 
 const seedClient = createSeedClient('')
@@ -18,34 +18,53 @@ export async function processPendingIntent(originHomeId?: UnpackedHypermediaId):
   console.log('[processPendingIntent] intent:', intent?.type ?? 'none')
   if (!intent) return null
 
+  const signer = await getCurrentSigner()
+  if (!signer) {
+    console.error('No signer available to process pending intent')
+    await clearPendingIntent()
+    return null
+  }
+
   if (intent.type === 'join') {
-    console.log('User joined')
+    console.log('[processPendingIntent] Creating "join" contact')
+
+    const contactPayload = await createContact(
+      {
+        subjectUid: intent.subjectUid,
+        // accountUid: intent.accountUid,
+        name: '',
+      },
+      signer,
+    )
+    // await seedClient.publish(contactPayload)
+
     await clearPendingIntent()
     return null
   }
 
   if (intent.type === 'comment') {
+    console.log('[processPendingIntent] Creating comment')
     try {
-      const keyPair = await getStoredLocalKeys()
-      if (!keyPair) {
+      const storedKeys = await getStoredLocalKeys()
+      if (!storedKeys) {
         console.warn('No key pair available to process pending comment intent')
         await clearPendingIntent()
         return null
       }
 
-      const publicKeyRaw = await preparePublicKey(keyPair.publicKey)
+      // const publicKeyRaw = await preparePublicKey(storedKeys.keyPair.publicKey)
 
-      const signer: HMSigner = {
-        getPublicKey: async () => publicKeyRaw,
-        sign: async (data: Uint8Array) => {
-          const sig = await crypto.subtle.sign(
-            {...keyPair.privateKey.algorithm, hash: {name: 'SHA-256'}},
-            keyPair.privateKey,
-            new Uint8Array(data),
-          )
-          return new Uint8Array(sig)
-        },
-      }
+      // const signer: HMSigner = {
+      //   getPublicKey: async () => publicKeyRaw,
+      //   sign: async (data: Uint8Array) => {
+      //     const sig = await crypto.subtle.sign(
+      //       {...storedKeys.keyPair.privateKey.algorithm, hash: {name: 'SHA-256'}},
+      //       storedKeys.keyPair.privateKey,
+      //       new Uint8Array(data),
+      //     )
+      //     return new Uint8Array(sig)
+      //   },
+      // }
 
       const docId: UnpackedHypermediaId = JSON.parse(intent.docId)
       const content: HMBlockNode[] = JSON.parse(intent.content)
