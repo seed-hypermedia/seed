@@ -2,12 +2,14 @@ package core
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/zalando/go-keyring"
 )
@@ -44,6 +46,24 @@ var (
 	nameFormat          = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 )
 
+// goKeyringBase64Prefix is the prefix used by the CLI (and some go-keyring backends)
+// to indicate that the keyring value is base64-encoded.
+const goKeyringBase64Prefix = "go-keyring-base64:"
+
+// decodeKeyringSecret handles keyring values that may be stored in either
+// plain text or with a "go-keyring-base64:" prefix (as written by the Seed CLI).
+// It returns the decoded string suitable for JSON unmarshaling.
+func decodeKeyringSecret(raw string) (string, error) {
+	if !strings.HasPrefix(raw, goKeyringBase64Prefix) {
+		return raw, nil
+	}
+	decoded, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(raw, goKeyringBase64Prefix))
+	if err != nil {
+		return "", fmt.Errorf("failed to decode base64 keyring value: %w", err)
+	}
+	return string(decoded), nil
+}
+
 // NewOSKeyStore creates a new key store backed by the operating system keyring.
 func NewOSKeyStore(environment string) KeyStore {
 	if environment == "" {
@@ -64,8 +84,13 @@ func (ks *osKeyStore) GetKey(ctx context.Context, name string) (*KeyPair, error)
 		return nil, err
 	}
 
+	decoded, err := decodeKeyringSecret(secret)
+	if err != nil {
+		return nil, err
+	}
+
 	collection := keyCollection{}
-	if err := json.Unmarshal([]byte(secret), &collection); err != nil {
+	if err := json.Unmarshal([]byte(decoded), &collection); err != nil {
 		return nil, err
 	}
 
@@ -90,7 +115,11 @@ func (ks *osKeyStore) StoreKey(ctx context.Context, name string, kp *KeyPair) er
 	collection := keyCollection{}
 	secret, err := keyring.Get(ks.serviceName, collectionName)
 	if err == nil {
-		if err := json.Unmarshal([]byte(secret), &collection); err != nil {
+		decoded, err := decodeKeyringSecret(secret)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal([]byte(decoded), &collection); err != nil {
 			return err
 		}
 		_, ok := collection[name]
@@ -130,9 +159,14 @@ func (ks *osKeyStore) ListKeys(ctx context.Context) ([]NamedKey, error) {
 		return nil, nil
 	}
 
+	decoded, err := decodeKeyringSecret(secret)
+	if err != nil {
+		return nil, err
+	}
+
 	collection := keyCollection{}
-	if err := json.Unmarshal([]byte(secret), &collection); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal json record: %w", err)
+	if err := json.Unmarshal([]byte(decoded), &collection); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal keyring record: %w", err)
 	}
 
 	var ret []NamedKey
@@ -163,8 +197,13 @@ func (ks *osKeyStore) DeleteKey(ctx context.Context, name string) error {
 		return errEmptyEnvironment
 	}
 
+	decoded, err := decodeKeyringSecret(secret)
+	if err != nil {
+		return err
+	}
+
 	collection := keyCollection{}
-	if err := json.Unmarshal([]byte(secret), &collection); err != nil {
+	if err := json.Unmarshal([]byte(decoded), &collection); err != nil {
 		return err
 	}
 
@@ -194,8 +233,13 @@ func (ks *osKeyStore) ChangeKeyName(ctx context.Context, currentName, newName st
 		return errEmptyEnvironment
 	}
 
+	decoded, err := decodeKeyringSecret(secret)
+	if err != nil {
+		return err
+	}
+
 	collection := keyCollection{}
-	if err := json.Unmarshal([]byte(secret), &collection); err != nil {
+	if err := json.Unmarshal([]byte(decoded), &collection); err != nil {
 		return err
 	}
 

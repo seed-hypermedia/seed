@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"seed/backend/testutil"
 	"testing"
 
@@ -128,4 +129,40 @@ func TestFileKeyStore(t *testing.T) {
 	keys, err = ks.ListKeys(ctx)
 	require.NoError(t, err)
 	require.Len(t, keys, 0)
+}
+
+func TestDecodeKeyringSecret(t *testing.T) {
+	plainJSON := `{"mykey":"CAESQ..."}`
+
+	t.Run("PlainJSON", func(t *testing.T) {
+		got, err := decodeKeyringSecret(plainJSON)
+		require.NoError(t, err)
+		require.Equal(t, plainJSON, got)
+	})
+
+	t.Run("Base64Prefixed", func(t *testing.T) {
+		encoded := goKeyringBase64Prefix + base64.StdEncoding.EncodeToString([]byte(plainJSON))
+		got, err := decodeKeyringSecret(encoded)
+		require.NoError(t, err)
+		require.Equal(t, plainJSON, got)
+	})
+
+	t.Run("InvalidBase64", func(t *testing.T) {
+		_, err := decodeKeyringSecret(goKeyringBase64Prefix + "!!!not-valid-base64!!!")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to decode base64 keyring value")
+	})
+
+	t.Run("EmptyString", func(t *testing.T) {
+		got, err := decodeKeyringSecret("")
+		require.NoError(t, err)
+		require.Equal(t, "", got)
+	})
+
+	t.Run("PrefixOnly", func(t *testing.T) {
+		// Empty base64 after prefix decodes to empty string.
+		got, err := decodeKeyringSecret(goKeyringBase64Prefix)
+		require.NoError(t, err)
+		require.Equal(t, "", got)
+	})
 }
