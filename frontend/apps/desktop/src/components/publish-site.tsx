@@ -1,26 +1,26 @@
-import { fetchResource } from '@/models/entities'
-import { HostInfoResponse, useHostSession } from '@/models/host'
-import { useRemoveSite, useSiteRegistration } from '@/models/site'
-import { useNavigate } from '@/utils/useNavigate'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { UnpackedHypermediaId } from '@seed-hypermedia/client/hm-types'
-import { DocumentRoute, hmId, hostnameStripProtocol, useUniversalAppContext } from '@shm/shared'
-import { SEED_HOST_URL, VERSION } from '@shm/shared/constants'
-import { getDocumentTitle } from '@shm/shared/content'
-import { useResource } from '@shm/shared/models/entity'
-import { Button, ButtonProps } from '@shm/ui/button'
-import { copyTextToClipboard } from '@shm/ui/copy-to-clipboard'
-import { FormInput } from '@shm/ui/form-input'
-import { FormField } from '@shm/ui/forms'
-import { IconComponent, PasteSetupUrl, SeedHost, SelfHost, UploadCloud } from '@shm/ui/icons'
-import { Spinner } from '@shm/ui/spinner'
-import { SizableText, Text, TextProps } from '@shm/ui/text'
-import { toast } from '@shm/ui/toast'
-import { Tooltip } from '@shm/ui/tooltip'
-import { AlertCircle, ArrowRight, Check, Copy, ExternalLink, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { SubmitHandler, useForm } from 'react-hook-form'
-import { z } from 'zod'
+import {fetchResource} from '@/models/entities'
+import {HostInfoResponse, useHostSession} from '@/models/host'
+import {useRemoveSite, useSiteRegistration} from '@/models/site'
+import {useNavigate} from '@/utils/useNavigate'
+import {zodResolver} from '@hookform/resolvers/zod'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {DocumentRoute, hmId, hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
+import {SEED_HOST_URL, VERSION} from '@shm/shared/constants'
+import {getDocumentTitle} from '@shm/shared/content'
+import {useResource} from '@shm/shared/models/entity'
+import {Button, ButtonProps} from '@shm/ui/button'
+import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {FormInput} from '@shm/ui/form-input'
+import {FormField} from '@shm/ui/forms'
+import {IconComponent, PasteSetupUrl, SeedHost, SelfHost, UploadCloud} from '@shm/ui/icons'
+import {Spinner} from '@shm/ui/spinner'
+import {SizableText, Text, TextProps} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
+import {AlertCircle, ArrowRight, Check, Copy, ExternalLink, X} from 'lucide-react'
+import {useEffect, useRef, useState} from 'react'
+import {SubmitHandler, useForm} from 'react-hook-form'
+import {z} from 'zod'
 
 import {
   AlertDialogAction,
@@ -28,12 +28,12 @@ import {
   AlertDialogDescription,
   AlertDialogTitle,
 } from '@shm/ui/components/alert-dialog'
-import { DialogTitle } from '@shm/ui/components/dialog'
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@shm/ui/hover-card'
-import { useAppDialog } from '@shm/ui/universal-dialog'
-import { cn } from '@shm/ui/utils'
-import { AlertTriangle, ArrowLeft, Plus } from 'lucide-react'
-import { CelebrationDotsLeft, CelebrationDotsRight, CongratsGraphic, WebPublishedGraphic } from './publish-graphics'
+import {DialogTitle} from '@shm/ui/components/dialog'
+import {HoverCard, HoverCardContent, HoverCardTrigger} from '@shm/ui/hover-card'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {cn} from '@shm/ui/utils'
+import {AlertTriangle, ArrowLeft, Plus} from 'lucide-react'
+import {CelebrationDotsLeft, CelebrationDotsRight, CongratsGraphic, WebPublishedGraphic} from './publish-graphics'
 
 export function usePublishSite() {
   return useAppDialog(PublishSiteDialog, {
@@ -49,7 +49,7 @@ export function useRemoveSiteDialog() {
 function RemoveSiteDialog({onClose, input}: {onClose: () => void; input: UnpackedHypermediaId}) {
   const removeSite = useRemoveSite(input)
   return (
-    <div className="flex flex-col gap-4 p-4 rounded-lg">
+    <div className="flex flex-col gap-4 rounded-lg p-4">
       <AlertDialogTitle>Remove Site</AlertDialogTitle>
       <AlertDialogDescription>
         Remove this site URL from the entity? Your site will still exist until you delete the server.
@@ -91,7 +91,7 @@ function PublishDialogContainer({
   backButton,
 }: React.PropsWithChildren<{heading?: string; backButton?: React.ReactNode}>) {
   return (
-    <div className="flex flex-col max-w-xl gap-6">
+    <div className="flex max-w-xl flex-col gap-6">
       {heading ? (
         <SizableText size="3xl" weight="bold" className="text-center">
           {heading}
@@ -105,7 +105,7 @@ function PublishDialogContainer({
 
 function SeedHostHeader() {
   return (
-    <div className="flex items-center gap-2 mt-6">
+    <div className="mt-6 flex items-center gap-2">
       <SeedHost color="#ffffff" size={32} />
       <Text weight="bold" size="lg" className="text-white/90">
         Hosting by Seed Hypermedia
@@ -125,10 +125,10 @@ function SeedHostContainer({
   footer?: React.ReactNode
 }>) {
   return (
-    <div className="relative flex flex-col items-center w-full h-full gap-4 p-4 bg-gray-900 rounded-lg">
+    <div className="relative flex h-full w-full flex-col items-center gap-4 rounded-lg bg-gray-900 p-4">
       <SeedHostHeader />
       {backButton ? <div className="absolute top-4 left-4">{backButton}</div> : null}
-      <div className="flex flex-col items-center justify-center flex-1 gap-3">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3">
         {heading ? (
           <Text weight="bold" size="lg" className="text-center text-white/90">
             {heading}
@@ -152,7 +152,7 @@ function SeedHostCongratsContainer({
   footer?: React.ReactNode
 }>) {
   return (
-    <div className="relative flex flex-col items-center w-full h-full gap-4 p-4 overflow-hidden bg-gray-900 rounded-lg">
+    <div className="relative flex h-full w-full flex-col items-center gap-4 overflow-hidden rounded-lg bg-gray-900 p-4">
       <div className="absolute top-20 bottom-0 left-0 [transform-origin:center] scale-125 animate-[superSlow] [animation-delay:0ms] [animation-duration:3000ms] [animation-fill-mode:both] [animation-name:celebration-dots-left] [animation-timing-function:ease-in-out]">
         <CelebrationDotsLeft />
       </div>
@@ -160,7 +160,7 @@ function SeedHostCongratsContainer({
         <CelebrationDotsRight />
       </div>
       <SeedHostHeader />
-      <div className="flex flex-col items-center justify-center flex-1 gap-4">
+      <div className="flex flex-1 flex-col items-center justify-center gap-4">
         {graphic ? (
           <div className="scale-100 [transform:translateY(0px)] animate-[bounce] opacity-100 [animation-delay:0ms] [animation-duration:1000ms] [animation-fill-mode:both]">
             {graphic}
@@ -207,10 +207,10 @@ function PublishSiteDialog({
   return (
     <PublishDialogContainer heading="Set Up Web Domain">
       <DialogInner>
-        <DialogTitle className="text-center text-muted-foreground">
+        <DialogTitle className="text-muted-foreground text-center">
           How would you like to publish to the web?
         </DialogTitle>
-        <div className="flex flex-col gap-2 p-2 rounded-lg bg-muted">
+        <div className="bg-muted flex flex-col gap-2 rounded-lg p-2">
           <PublishOptionButton
             icon={SeedHost}
             onClick={() => setMode('seed-host')}
@@ -271,7 +271,7 @@ function PublishOptionButton({
 function BackButton({onPress}: {onPress: () => void}) {
   return (
     <Button size="icon" onClick={onPress} variant="ghost">
-      <ArrowLeft className="text-gray-500 size-4 dark:text-gray-400" />
+      <ArrowLeft className="size-4 text-gray-500 dark:text-gray-400" />
     </Button>
   )
 }
@@ -286,7 +286,7 @@ function SeedHostInfo({info, onSubmit}: {info: HostInfoResponse; onSubmit: () =>
   }
   return (
     <div className="flex max-w-[600px] flex-col items-center justify-center gap-3">
-      <SizableText className="text-center text-muted-foreground">
+      <SizableText className="text-muted-foreground text-center">
         Seed offers free server hosting with a generous storage and bandwidth limit, perfect for getting started. If
         your needs grow beyond the free tier, you can easily purchase additional capacity to scale seamlessly.
       </SizableText>
@@ -297,7 +297,7 @@ function SeedHostInfo({info, onSubmit}: {info: HostInfoResponse; onSubmit: () =>
         </SizableText>
         , helping to build a more open and collaborative digital future.
       </SizableText>
-      <div className="flex justify-center gap-3 mt-4">
+      <div className="mt-4 flex justify-center gap-3">
         <PlanContainer>
           <PlanHeading>
             <PlanTitle>Free</PlanTitle>
@@ -333,10 +333,10 @@ function SeedHostInfo({info, onSubmit}: {info: HostInfoResponse; onSubmit: () =>
           <SelectPlanButton comingSoon />
         </PlanContainer>
       </div>
-      <div className="flex justify-center p-3 mb-4 border border-blue-700 rounded-lg">
+      <div className="mb-4 flex justify-center rounded-lg border border-blue-700 p-3">
         <SizableText className="text-muted-foreground">
           For large organizations,{' '}
-          <SizableText asChild className="underline text-muted-foreground">
+          <SizableText asChild className="text-muted-foreground underline">
             <a href="mailto:sales@seedhypermedia.com">contact us</a>
           </SizableText>{' '}
           for a customized plan.
@@ -378,11 +378,11 @@ function SelectPlanButton({
 
 function OverageWarning() {
   return (
-    <div className="flex items-center gap-3 mx-3">
+    <div className="mx-3 flex items-center gap-3">
       <FeatureSpacer>
-        <AlertTriangle className="text-blue-900 size-4" />
+        <AlertTriangle className="size-4 text-blue-900" />
       </FeatureSpacer>
-      <SizableText className="py-3 italic text-muted-foreground">
+      <SizableText className="text-muted-foreground py-3 italic">
         Service may be interrupted if resources are exceeded.
       </SizableText>
     </div>
@@ -434,10 +434,10 @@ function PlanPrice({value, label}: {value: number; label?: string}) {
 
 function PlanFeature({label, plus}: {label: string; plus?: string}) {
   return (
-    <div className="flex flex-col gap-1 mb-2">
+    <div className="mb-2 flex flex-col gap-1">
       <div className="flex gap-3">
         <FeatureSpacer>
-          <Check className="text-blue-900 size-6" />
+          <Check className="size-6 text-blue-900" />
         </FeatureSpacer>
         <FeatureText>{label}</FeatureText>
       </div>
@@ -531,10 +531,10 @@ function SeedHostIntro({
   } else {
     content = (
       <div className="flex flex-col items-center gap-4 p-8">
-        <SizableText className="text-center text-muted-foreground">
+        <SizableText className="text-muted-foreground text-center">
           Unable to load hosting service information.
         </SizableText>
-        <SizableText className="text-center text-muted-foreground">
+        <SizableText className="text-muted-foreground text-center">
           Please check your internet connection and try again.
         </SizableText>
         <Button variant="inverse" onClick={() => window.location.reload()}>
@@ -696,7 +696,7 @@ function SeedHostRegisterSubdomain({
                 {email}
               </Button>
             </HoverCardTrigger>
-            <HoverCardContent className="w-full max-w-3xl p-2 bg-black rounded-lg dark">
+            <HoverCardContent className="dark w-full max-w-3xl rounded-lg bg-black p-2">
               <div className="flex flex-col gap-2 p-2">
                 <SizableText size="sm" className="text-white/80">
                   Logged into{' '}
@@ -763,7 +763,7 @@ function AnimatedSpinner({isVisible}: {isVisible: boolean}) {
 function ErrorBox({error}: {error: string | null}) {
   if (!error) return null
   return (
-    <div className="flex items-center gap-3 p-3 border rounded-md border-destructive">
+    <div className="border-destructive flex items-center gap-3 rounded-md border p-3">
       <AlertCircle className="text-destructive size-6" />
       <p className="text-destructive">{error}</p>
     </div>
@@ -812,7 +812,7 @@ function PublishedUrl({url}: {url: string}) {
   const {openUrl} = useUniversalAppContext()
   const textRef = useRef<any>(null)
   return (
-    <div className="flex items-center overflow-hidden border-blue-800 rounded-md border-1">
+    <div className="flex items-center overflow-hidden rounded-md border-1 border-blue-800">
       <div
         onClick={(e) => {
           e.preventDefault()
@@ -825,7 +825,7 @@ function PublishedUrl({url}: {url: string}) {
           }
         }}
       >
-        <div className="flex items-center flex-1">
+        <div className="flex flex-1 items-center">
           <Text size="md" className="mx-3 text-blue-300" ref={textRef}>
             {url}
           </Text>
@@ -833,7 +833,7 @@ function PublishedUrl({url}: {url: string}) {
             <Button
               variant="ghost"
               size="icon"
-              className="self-stretch h-auto m-2 text-white/60 hover:text-white"
+              className="m-2 h-auto self-stretch text-white/60 hover:text-white"
               onClick={() => {
                 copyTextToClipboard(url)
                 toast(`Copied ${url} URL`)
@@ -1180,11 +1180,11 @@ function SelfHostContent({onSetupUrl, onBack}: {onSetupUrl: () => void; onBack: 
   return (
     <PublishDialogContainer heading="Host on Your Own Server" backButton={<BackButton onPress={onBack} />}>
       <DialogInner>
-        <SizableText className="text-center text-muted-foreground">
+        <SizableText className="text-muted-foreground text-center">
           You will need your own server and domain. Follow this guide to get started, and return when the setup script
           has printed the setup URL.
         </SizableText>
-        <div className="flex justify-center my-6">
+        <div className="my-6 flex justify-center">
           <Button
             onClick={() => {
               spawn(setupGuideRoute)
@@ -1247,10 +1247,10 @@ function PublishWithUrl({
       backButton={onBack ? <BackButton onPress={onBack} /> : null}
     >
       {/* <DialogDescription>description</DialogDescription> */}
-      <SizableText className="w-full text-center text-muted-foreground">
+      <SizableText className="text-muted-foreground w-full text-center">
         The{' '}
         <span
-          className="text-blue-800 underline cursor-pointer"
+          className="cursor-pointer text-blue-800 underline"
           onClick={() => {
             spawn(setupGuideRoute)
           }}
