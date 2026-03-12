@@ -127,7 +127,7 @@ export function DocumentTools({
       tooltip: 'Open Document Citations',
       icon: Quote,
       active: activeTab == 'citations',
-      count: undefined,
+      count: citationsCount,
       route: {
         key: 'activity',
         id: idWithoutBlock,

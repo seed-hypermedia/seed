@@ -18,7 +18,7 @@
 - Keep changes minimal and consistent with nearby code.
 - Prefer existing files over creating tiny one-off modules. Add a new file only when it materially improves structure,
   ownership, or reuse.
-- Ask clarifying questions when requirements or constraints are ambiguous.
+- Before making any changes or plans, Ask clarifying questions when requirements or constraints are ambiguous until you are 95% sure what needs to be done
 - Never modify the `.git` directory directly.
 - Do not run git commands that write state, including commit, amend, rebase, reset, checkout, merge, cherry-pick, stash,
   tag, branch deletion, or push, unless explicitly asked.

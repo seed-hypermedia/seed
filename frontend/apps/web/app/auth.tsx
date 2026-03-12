@@ -19,10 +19,11 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
 import {LogOut, Monitor, Smartphone} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
-import {useEffect, useRef, useState, useSyncExternalStore} from 'react'
+import {useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react'
 import {Control, FieldValues, Path, SubmitHandler, useController, useForm} from 'react-hook-form'
 import {z} from 'zod'
 import {encodeBlock, rawCodec} from './api'
+import {createSecretTapUnlock} from './secret-tap-unlock'
 import * as authSession from './auth-session'
 import {preparePublicKey} from './auth-utils'
 import {createDefaultAccountName} from './default-account-name'
@@ -71,8 +72,8 @@ export type LocalWebIdentity = CryptoKeyPair & {
 }
 let keyPair: LocalWebIdentity | null = null
 const keyPairHandlers = new Set<() => void>()
-const VAULT_SIGN_IN_UNLOCK_TAPS = 7
-const VAULT_SIGN_IN_UNLOCK_WINDOW_MS = 3500
+const SECRET_UNLOCK_TAPS = 7
+const SECRET_UNLOCK_WINDOW_MS = 3500
 
 export async function getCurrentAccountUidWithDelegation(): Promise<string | null> {
   const stored = await getStoredLocalKeys()
@@ -330,48 +331,26 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
   const defaultVaultUrl = `${defaultVaultOrigin}/vault/delegate`
   const [customVaultUrl, setCustomVaultUrl] = useState('')
   const [showCustomVaultInput, setShowCustomVaultInput] = useState(false)
-  const [vaultSignInUnlocked, setVaultSignInUnlocked] = useState(false)
+  const [localAccountUnlocked, setLocalAccountUnlocked] = useState(false)
   const [vaultEmail, setVaultEmail] = useState('')
   const customVaultInputRef = useRef<HTMLInputElement>(null)
-  const unlockTapCountRef = useRef(0)
-  const unlockTapTimeoutRef = useRef<number | null>(null)
+
+  const secretTap = useMemo(
+    () =>
+      createSecretTapUnlock({
+        requiredTaps: SECRET_UNLOCK_TAPS,
+        windowMs: SECRET_UNLOCK_WINDOW_MS,
+        onUnlock: () => {
+          setLocalAccountUnlocked(true)
+          toast.success('Local account creation unlocked for this session')
+        },
+      }),
+    [],
+  )
 
   useEffect(() => {
-    return () => {
-      if (unlockTapTimeoutRef.current) {
-        window.clearTimeout(unlockTapTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  const unlockVaultSignIn = () => {
-    setVaultSignInUnlocked(true)
-    unlockTapCountRef.current = 0
-    if (unlockTapTimeoutRef.current) {
-      window.clearTimeout(unlockTapTimeoutRef.current)
-      unlockTapTimeoutRef.current = null
-    }
-    toast.success('Hypermedia sign-in unlocked for this session')
-  }
-
-  const handleSecretTitleTap = () => {
-    if (vaultSignInUnlocked) return
-
-    unlockTapCountRef.current += 1
-
-    if (unlockTapTimeoutRef.current) {
-      window.clearTimeout(unlockTapTimeoutRef.current)
-    }
-
-    unlockTapTimeoutRef.current = window.setTimeout(() => {
-      unlockTapCountRef.current = 0
-      unlockTapTimeoutRef.current = null
-    }, VAULT_SIGN_IN_UNLOCK_WINDOW_MS)
-
-    if (unlockTapCountRef.current >= VAULT_SIGN_IN_UNLOCK_TAPS) {
-      unlockVaultSignIn()
-    }
-  }
+    return () => secretTap.dispose()
+  }, [secretTap])
 
   const handleVaultSignIn = async (urlOverride?: string, email?: string) => {
     const vaultUrl = urlOverride || defaultVaultUrl
@@ -410,19 +389,36 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
 
   return (
     <>
-      <DialogTitle className="max-sm:text-base" onClick={handleSecretTitleTap}>
-        {vaultSignInUnlocked ? (
-          <>
-            <span className="font-normal">Step 1 of 3 &mdash;</span> Join the conversation
-          </>
-        ) : (
+      <DialogTitle className="max-sm:text-base" onClick={secretTap.tap}>
+        {localAccountUnlocked ? (
           tx('create_account_title', ({siteName}: {siteName: string}) => `Create Account on ${siteName}`, {
             siteName: siteName || 'this site',
           })
+        ) : (
+          <>
+            <span className="font-normal">Step 1 of 3 &mdash;</span> Join the conversation
+          </>
         )}
       </DialogTitle>
 
-      {vaultSignInUnlocked ? (
+      {localAccountUnlocked ? (
+        <>
+          <DialogDescription className="max-sm:text-sm">
+            {tx(
+              'create_account_description',
+              'Hypermedia accounts use public key cryptography. The private key for your account will be securely stored in this browser, and no one else has access to it. The identity will be accessible only on this domain, but you can link it to other domains and devices later.',
+            )}
+          </DialogDescription>
+          <EditProfileForm
+            onSubmit={(values) => {
+              onSubmit(values)
+            }}
+            submitLabel={tx('create_account_submit', ({siteName}: {siteName: string}) => `Create ${siteName} Account`, {
+              siteName,
+            })}
+          />
+        </>
+      ) : (
         <>
           <DialogDescription className="max-sm:text-sm">
             To join <span className="font-medium">{siteName || 'this site'}</span>, you&apos;ll need a free Seed
@@ -518,23 +514,6 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
               </div>
             </div>
           )}
-        </>
-      ) : (
-        <>
-          <DialogDescription className="max-sm:text-sm">
-            {tx(
-              'create_account_description',
-              'Hypermedia accounts use public key cryptography. The private key for your account will be securely stored in this browser, and no one else has access to it. The identity will be accessible only on this domain, but you can link it to other domains and devices later.',
-            )}
-          </DialogDescription>
-          <EditProfileForm
-            onSubmit={(values) => {
-              onSubmit(values)
-            }}
-            submitLabel={tx('create_account_submit', ({siteName}: {siteName: string}) => `Create ${siteName} Account`, {
-              siteName,
-            })}
-          />
         </>
       )}
     </>
