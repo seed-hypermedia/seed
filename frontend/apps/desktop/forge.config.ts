@@ -136,7 +136,7 @@ const commonLinuxConfig = {
 const config: ForgeConfig = {
   packagerConfig: {
     appVersion: process.env.VITE_VERSION,
-    asar: true,
+    asar: {unpack: '**/node_modules/velopack/**'},
     darwinDarkModeSupport: true,
     icon: iconsPath,
     name: IS_PROD_DEV ? 'SeedDev' : 'Seed',

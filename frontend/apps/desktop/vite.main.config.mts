@@ -26,7 +26,7 @@ export default defineConfig(({command, mode}) => {
     build: {
       sourcemap: true,
       rollupOptions: {
-        external: ['electron', /canvas\.node$/],
+        external: ['electron', 'velopack', /canvas\.node$/],
         /**
          * Ignore "use client" waning since we are not using SSR
          * @see {@link https://github.com/TanStack/query/pull/5161#issuecomment-1477389761 Preserve 'use client' directives TanStack/query#5161}

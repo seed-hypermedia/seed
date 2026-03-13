@@ -55,7 +55,6 @@ jobs:
     timeout-minutes: 30
     name: Build ${{ matrix.config.os }} @ ${{ matrix.config.arch }}
     runs-on: ${{ matrix.config.os }}
-    # if: startsWith(github.ref, 'refs/tags/')
     needs: [build-info, frontend-tests, deploy-script]
     strategy:
       matrix:
@@ -111,14 +110,11 @@ jobs:
       - uses: ./.github/actions/ci-setup
         with:
           matrix-os: ${{ matrix.config.os }}
-          # matrix-target: ${{ matrix.config.daemon_name }}
-          # matrix-arch: ${{ matrix.config.arch }}
 
       - name: Build Backend (Unix)
         if: matrix.config.os != 'windows-2025'
         run: |
           mkdir -p plz-out/bin/backend
-          # GPU is enabled by default (no -tags needed)
           go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
         env:
           GOARCH: ${{ matrix.config.goarch }}
@@ -132,7 +128,6 @@ jobs:
         shell: bash
         run: |
           mkdir -p plz-out/bin/backend
-          # GPU is enabled by default (no -tags needed)
           go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon
         env:
           GOOS: 'windows'
@@ -208,8 +203,108 @@ jobs:
           node scripts/set-desktop-version.mjs
         env:
           VITE_VERSION: '${{ needs.build-info.outputs.version }}'
-      - name: Build, package & make (Unix)
-        if: matrix.config.os != 'windows-2025'
+
+      # ===== macOS: Forge package + Velopack =====
+      - name: Package app (macOS)
+        if: startsWith(matrix.config.os, 'macos')
+        run: |
+          pnpm desktop:package --arch=${{ matrix.config.arch }}
+        env:
+          timeout-minutes: 10
+          DEBUG: electron-*
+          NODE_OPTIONS: --max_old_space_size=4096
+          GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          DAEMON_NAME: ${{ matrix.config.daemon_name }}
+          VITE_VERSION: '${{ needs.build-info.outputs.version }}'
+          VITE_COMMIT_HASH: '${{ github.sha }}'
+          VITE_DESKTOP_P2P_PORT: '57000'
+          VITE_DESKTOP_HTTP_PORT: '57001'
+          VITE_DESKTOP_GRPC_PORT: '57002'
+          VITE_METRIC_SERVER_HTTP_PORT: '57003'
+          VITE_DESKTOP_APPDATA: 'Seed-dev'
+          VITE_DESKTOP_HOSTNAME: 'http://localhost'
+          VITE_LIGHTNING_API_URL: 'https://ln.testnet.seed.hyper.media'
+          VITE_SEED_HOST_URL: 'https://host-dev.seed.hyper.media'
+          VITE_GATEWAY_URL: 'https://dev.hyper.media'
+          VITE_NOTIFY_SERVICE_HOST: 'https://notify-dev.seed.hyper.media'
+          VITE_DESKTOP_SENTRY_DSN: '${{ secrets.DESKTOP_SENTRY_DSN }}'
+          SENTRY_AUTH_TOKEN: '${{ secrets.SENTRY_AUTH_TOKEN }}'
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SEED_P2P_TESTNET_NAME: 'dev'
+
+      - name: Pack with Velopack (macOS)
+        if: startsWith(matrix.config.os, 'macos')
+        run: node scripts/vpk-pack.mjs
+        env:
+          VITE_VERSION: '${{ needs.build-info.outputs.version }}'
+          VPK_CHANNEL: dev
+
+      - name: Upload Velopack artifacts to S3 (macOS)
+        if: startsWith(matrix.config.os, 'macos')
+        run: |
+          aws s3 sync frontend/apps/desktop/out/velopack/ \
+            s3://seedappdev/dev/velopack/darwin/${{ matrix.config.arch }}/ \
+            --no-progress
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
+          AWS_DEFAULT_REGION: eu-west-2
+
+      # ===== Windows: Forge package + Velopack =====
+      - name: Package app (Windows)
+        if: startsWith(matrix.config.os, 'windows')
+        shell: bash
+        run: |
+          # Clear any existing out directory to force a clean build
+          rm -rf frontend/apps/desktop/out || true
+          pnpm desktop:package --arch=${{ matrix.config.arch }}
+        env:
+          timeout-minutes: 10
+          DEBUG: electron-*
+          NODE_OPTIONS: --max_old_space_size=4096
+          GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          DAEMON_NAME: '${{ matrix.config.daemon_name }}.exe'
+          VITE_VERSION: '${{ needs.build-info.outputs.version }}'
+          VITE_COMMIT_HASH: '${{ github.sha }}'
+          VITE_DESKTOP_P2P_PORT: '57000'
+          VITE_DESKTOP_HTTP_PORT: '57001'
+          VITE_DESKTOP_GRPC_PORT: '57002'
+          VITE_METRIC_SERVER_HTTP_PORT: '57003'
+          VITE_DESKTOP_APPDATA: 'Seed-dev'
+          VITE_DESKTOP_HOSTNAME: 'http://localhost'
+          VITE_LIGHTNING_API_URL: 'https://ln.testnet.seed.hyper.media'
+          VITE_SEED_HOST_URL: 'https://host-dev.seed.hyper.media'
+          VITE_GATEWAY_URL: 'https://dev.hyper.media'
+          VITE_NOTIFY_SERVICE_HOST: 'https://notify-dev.seed.hyper.media'
+          VITE_DESKTOP_SENTRY_DSN: '${{ secrets.DESKTOP_SENTRY_DSN }}'
+          SENTRY_AUTH_TOKEN: '${{ secrets.SENTRY_AUTH_TOKEN }}'
+          SEED_P2P_TESTNET_NAME: 'dev'
+
+      - name: Pack with Velopack (Windows)
+        if: startsWith(matrix.config.os, 'windows')
+        shell: bash
+        run: node scripts/vpk-pack.mjs
+        env:
+          VITE_VERSION: '${{ needs.build-info.outputs.version }}'
+          VPK_CHANNEL: dev
+
+      - name: Upload Velopack artifacts to S3 (Windows)
+        if: startsWith(matrix.config.os, 'windows')
+        shell: bash
+        run: |
+          aws s3 sync frontend/apps/desktop/out/velopack/ \
+            s3://seedappdev/dev/velopack/win32/${{ matrix.config.arch }}/ \
+            --no-progress
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
+          AWS_DEFAULT_REGION: eu-west-2
+
+      # ===== Linux: Forge publish (unchanged) =====
+      - name: Build, package & publish (Linux)
+        if: matrix.config.os == 'ubuntu-latest'
         run: |
           pnpm desktop:publish --arch=${{ matrix.config.arch }}
         env:
@@ -240,150 +335,15 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           SEED_P2P_TESTNET_NAME: 'dev'
 
-      - name: Clean up problematic RELEASES file (Windows)
-        if: startsWith(matrix.config.os, 'windows')
-        shell: bash
-        run: |
-          # Clean up .nupkg files from S3 to force a fresh start
-          aws s3 rm s3://seedappdev/dev/win32/x64/ --recursive --exclude "*" --include "*.nupkg" || echo "No .nupkg files found, continuing..."
-          # Create an empty RELEASES file
-          touch RELEASES
-          aws s3 cp RELEASES s3://seedappdev/dev/win32/x64/RELEASES || echo "Failed to upload empty RELEASES file, continuing..."
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
-          AWS_DEFAULT_REGION: eu-west-2
+      - name: Upload Artifacts (Velopack - Win/Mac)
+        if: matrix.config.os != 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-${{ matrix.config.daemon_name }}
+          path: frontend/apps/desktop/out/velopack/**/*
 
-      - name: Ensure 7-Zip is in PATH (Windows)
-        if: startsWith(matrix.config.os, 'windows')
-        shell: powershell
-        run: |
-          # Squirrel.Windows needs 7z.exe for CreateZipFromDirectory
-          if (Test-Path "C:\Program Files\7-Zip") {
-            echo "C:\Program Files\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-            Write-Host "Added 7-Zip to PATH"
-          } else {
-            choco install 7zip -y
-            echo "C:\Program Files\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-            Write-Host "Installed and added 7-Zip to PATH"
-          }
-
-      - name: Build, package and make (Win32)
-        if: startsWith(matrix.config.os, 'windows')
-        shell: powershell
-        run: |
-          # Clear any existing out directory to force a clean build
-          if (Test-Path "frontend/apps/desktop/out") { Remove-Item -Recurse -Force "frontend/apps/desktop/out" }
-          pnpm desktop:publish --arch=${{ matrix.config.arch }}
-        env:
-          timeout-minutes: 10
-          DEBUG: electron-*
-          NODE_OPTIONS: --max_old_space_size=4096
-          GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
-          DAEMON_NAME: '${{ matrix.config.daemon_name }}.exe'
-          VITE_VERSION: '${{ needs.build-info.outputs.version }}'
-          VITE_COMMIT_HASH: '${{ github.sha }}'
-          VITE_DESKTOP_P2P_PORT: '57000'
-          VITE_DESKTOP_HTTP_PORT: '57001'
-          VITE_DESKTOP_GRPC_PORT: '57002'
-          VITE_METRIC_SERVER_HTTP_PORT: '57003'
-          VITE_DESKTOP_APPDATA: 'Seed-dev'
-          VITE_DESKTOP_HOSTNAME: 'http://localhost'
-          VITE_LIGHTNING_API_URL: 'https://ln.testnet.seed.hyper.media'
-          VITE_SEED_HOST_URL: 'https://host-dev.seed.hyper.media'
-          VITE_GATEWAY_URL: 'https://dev.hyper.media'
-          VITE_NOTIFY_SERVICE_HOST: 'https://notify-dev.seed.hyper.media'
-          VITE_DESKTOP_SENTRY_DSN: '${{ secrets.DESKTOP_SENTRY_DSN }}'
-          SENTRY_AUTH_TOKEN: '${{ secrets.SENTRY_AUTH_TOKEN }}'
-          S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
-          S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
-          AWS_DEFAULT_REGION: eu-west-2
-          SEED_P2P_TESTNET_NAME: 'dev'
-
-      # - name: Sign Windows application with KeyLocker
-      #   if: startsWith(matrix.config.os, 'windows')
-      #   uses: digicert/keylocker-signing@v1
-      #   with:
-      #     api_key: ${{ secrets.KEYLOCKER_API_KEY }}
-      #     client_cert: ${{ secrets.KEYLOCKER_CERT }}
-      #     client_cert_password: ${{ secrets.KEYLOCKER_CERT_PASSWORD }}
-      #     keypair_alias: ${{ secrets.KEYLOCKER_KEYPAIR_ALIAS }}
-      #     input_file: frontend/apps/desktop/out/make/squirrel.windows/x64/seed-dev-${{ needs.build-info.outputs.version }}-win32-x64-setup.exe
-      #     timestamp_url: http://timestamp.digicert.com
-
-      - name: Create test certificate for signing (Windows)
-        if: startsWith(matrix.config.os, 'windows')
-        shell: powershell
-        run: |
-          # Create a test certificate for signing
-          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Test Code Signing" -KeyAlgorithm RSA -KeyLength 2048 -Provider "Microsoft Enhanced RSA and AES Cryptographic Provider" -KeyExportPolicy Exportable -KeyUsage DigitalSignature -CertStoreLocation Cert:\CurrentUser\My
-
-          # Export the certificate to a PFX file
-          $password = ConvertTo-SecureString -String "testpassword" -Force -AsPlainText
-          Export-PfxCertificate -Cert $cert -FilePath "test-cert.pfx" -Password $password
-
-          echo "Test certificate created: test-cert.pfx"
-
-      - name: Sign Windows application with test certificate
-        if: startsWith(matrix.config.os, 'windows')
-        shell: powershell
-        run: |
-          # Find the .exe installer file
-          $exeFile = Get-ChildItem -Path "frontend/apps/desktop/out/make" -Filter "*.exe" -Recurse | Select-Object -First 1
-
-          if ($exeFile) {
-            Write-Host "Signing: $($exeFile.FullName)"
-            
-            # Sign with the test certificate
-            $signResult = & "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe" sign /f "test-cert.pfx" /p "testpassword" /t "http://timestamp.digicert.com" /fd sha256 /v "$($exeFile.FullName)"
-            
-            if ($LASTEXITCODE -eq 0) {
-              Write-Host "✅ Successfully signed: $($exeFile.FullName)"
-              
-              # Verify the signature (this will fail for self-signed certs, but that's expected)
-              Write-Host "Verifying signature (note: self-signed test certificates will show trust warnings)..."
-              
-              # Capture verification output without failing the script
-              $ErrorActionPreference = "Continue"
-              $verifyOutput = & "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe" verify /v "$($exeFile.FullName)" 2>&1
-              $verifyExitCode = $LASTEXITCODE
-              Write-Host $verifyOutput
-              
-              # Check if the file has a signature (ignore exit codes for verification)
-              $signatureCheck = & "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe" verify "$($exeFile.FullName)" 2>&1
-              $signatureCheckExitCode = $LASTEXITCODE
-              
-              # For test certificates, we expect "terminated in a root certificate which is not trusted"
-              # This means the file IS signed, just not with a trusted certificate
-              if ($signatureCheck -match "terminated in a root certificate which is not trusted" -or 
-                  $signatureCheck -match "SignTool Error: A certificate chain processed") {
-                Write-Host "✅ File is signed with test certificate (trust warnings are expected and normal)"
-                # Reset exit code to success since this is expected behavior
-                $global:LASTEXITCODE = 0
-              } elseif ($signatureCheck -match "No signature found") {
-                Write-Host "❌ File does not appear to be signed"
-                exit 1
-              } else {
-                Write-Host "✅ File appears to be signed (verification output: $signatureCheck)"
-                # Reset exit code to success
-                $global:LASTEXITCODE = 0
-              }
-              
-              Write-Host "🎉 Test signing workflow completed successfully!"
-              # Explicitly exit with success code
-              exit 0
-            } else {
-              Write-Host "❌ Failed to sign the file"
-              exit 1
-            }
-          } else {
-            Write-Host "No .exe file found to sign"
-            exit 1
-          }
-
-      - name: Upload Artifacts
+      - name: Upload Artifacts (Linux)
+        if: matrix.config.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: artifacts-${{ matrix.config.daemon_name }}
@@ -402,7 +362,6 @@ jobs:
         with:
           path: artifacts
 
-      # Step 3: Generate artifact URLs and send to Discord
       - name: Send Discord Notification
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -410,29 +369,18 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           VERSION: ${{ needs.build-info.outputs.version }}
         run: |
-          # Debug: List all files in artifacts directory
           echo "Listing all files in artifacts directory:"
           find artifacts -type f -ls
 
-          # Get the GitHub Action Run URL base
-          BASE_URL="https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest"
+          BASE_URL="https://seedappdev.s3.eu-west-2.amazonaws.com/dev"
 
-          # # Performance dashboard URL
-          # DASHBOARD_URL="https://seedappdev.s3.eu-west-2.amazonaws.com/performance-dashboard/latest/index.html"
-
-          # List all artifacts and construct URLs
           MESSAGE="**New dev version: ${VERSION}**"
           for file in $(find artifacts -type f); do
             FILE_NAME=$(basename "$file")
-            ARTIFACT_URL="${BASE_URL}/${FILE_NAME}"
+            ARTIFACT_URL="${BASE_URL}/latest/${FILE_NAME}"
             MESSAGE="${MESSAGE}\n - [${FILE_NAME}](${ARTIFACT_URL})"
           done
 
-          # # Add performance dashboard link
-          # MESSAGE="${MESSAGE}\n\n**[View Performance Dashboard](${DASHBOARD_URL})**"
-          # MESSAGE="${MESSAGE}\n(Performance results for this build will be available in the dashboard soon)"
-
-          # Send the message to Discord
           echo "Sending Discord Notification..."
           PAYLOAD=$(printf '{"content": "%s"}' "$MESSAGE")
           curl -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL"
@@ -444,7 +392,6 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
           AWS_DEFAULT_REGION: eu-west-2
         run: |
-          # Create the JSON structure
           cat > latest.json << EOF
           {
             "name": "${VERSION}",
@@ -467,26 +414,23 @@ jobs:
               },
               "macos": {
                 "x64": {
-                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-${VERSION}-x64.dmg",
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/velopack/darwin/x64/",
                   "zip_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-darwin-x64-${VERSION}.zip"
                 },
                 "arm64": {
-                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-${VERSION}-arm64.dmg",
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/velopack/darwin/arm64/",
                   "zip_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-darwin-arm64-${VERSION}.zip"
                 }
               },
               "win32": {
                 "x64": {
-                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev-${VERSION}-win32-x64-setup.exe",
-                  "nupkg_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev-${VERSION}-full.nupkg",
-                  "release_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/RELEASES"
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/velopack/win32/x64/"
                 }
               }
             }
           }
           EOF
 
-          # Upload to S3
           aws s3 cp latest.json s3://seedappdev/dev/latest.json
 
       - name: Upload deploy.js to S3
