@@ -66,6 +66,7 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
         genesis: input.genesis,
         generation: input.generation,
         capability: input.capability,
+        visibility: input.visibility,
       },
       signer,
     )

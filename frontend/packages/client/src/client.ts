@@ -292,6 +292,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
         genesis: input.genesis,
         generation: input.generation,
         capability: input.capability,
+        visibility: input.visibility,
       },
       signer,
     )

@@ -170,6 +170,17 @@ function protoChangesToOps(changes: HMPrepareDocumentChangeInput['changes']): Do
   })
 }
 
+/** Proto ResourceVisibility value for private documents. */
+const RESOURCE_VISIBILITY_PRIVATE = 2
+
+/**
+ * Map a proto ResourceVisibility enum value to the CBOR string used in Ref blobs.
+ * Returns "Private" for private documents, undefined otherwise (omitted from CBOR = public).
+ */
+export function visibilityToCbor(protoVisibility?: number): string | undefined {
+  return protoVisibility === RESOURCE_VISIBILITY_PRIVATE ? 'Private' : undefined
+}
+
 export type SignDocumentChangeInput = {
   /** Account UID (base58btc-encoded principal) */
   account: string
@@ -183,6 +194,8 @@ export type SignDocumentChangeInput = {
   generation?: number | bigint
   /** Optional capability CID string */
   capability?: string
+  /** Proto ResourceVisibility enum value (0=unspecified, 1=public, 2=private) */
+  visibility?: number
 }
 
 /**
@@ -209,6 +222,7 @@ export async function signDocumentChange(
       version: changeCid.toString(),
       generation: effectiveGeneration,
       capability: input.capability,
+      visibility: visibilityToCbor(input.visibility),
     },
     signer,
   )

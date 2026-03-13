@@ -328,6 +328,12 @@ export function usePublishResource(
               account: destinationId.uid,
               path: docPath,
             })
+            // TODO(temp): remove after verifying private document visibility fix
+            console.log('[publish] getDocument visibility:', {
+              path: docPath,
+              requestedVisibility: visibility,
+              returnedVisibility: updatedDoc.visibility,
+            })
             const resultDoc: HMDocument = prepareHMDocument(updatedDoc)
             return resultDoc
           } else {
