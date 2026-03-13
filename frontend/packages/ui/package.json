@@ -15,7 +15,7 @@
     "shadcn:add": "shadcn add",
     "format:check": "prettier --check .",
     "format:write": "prettier --write .",
-    "test": "echo NO TESTS",
+    "test": "vitest --run",
     "typecheck": "tsc --noEmit --project tsconfig.app.json"
   },
   "dependencies": {
@@ -62,6 +62,7 @@
   },
   "devDependencies": {
     "shadcn": "^2.6.3",
-    "typescript": "5.8.3"
+    "typescript": "5.8.3",
+    "vitest": "0.34.2"
   }
 }

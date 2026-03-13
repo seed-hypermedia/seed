@@ -59,7 +59,7 @@ import {generateInstagramEmbedHtml, loadInstagramScript, loadTwitterScript} from
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {common} from 'lowlight'
-import {AlertCircle, ChevronDown, ChevronRight, File, Link, MessageSquare, Undo2, X} from 'lucide-react'
+import {AlertCircle, ChevronDown, ChevronLeft, ChevronRight, File, Link, MessageSquare, Undo2, X} from 'lucide-react'
 import React, {
   PropsWithChildren,
   ReactNode,
@@ -156,6 +156,166 @@ const BlockHoverContext = createContext<{
   hoveredBlockId: string | null
   setHoveredBlockId: React.Dispatch<React.SetStateAction<string | null>>
 }>({hoveredBlockId: null, setHoveredBlockId: () => {}})
+
+// -- Image Gallery Context --
+
+type ImageGalleryContextValue = {
+  openGallery: (blockId: string) => void
+}
+
+const ImageGalleryContext = createContext<ImageGalleryContextValue | null>(null)
+
+function useSwipeNavigation(onSwipeLeft: () => void, onSwipeRight: () => void) {
+  const touchStartX = useRef<number | null>(null)
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0]
+    if (touch) touchStartX.current = touch.clientX
+  }, [])
+  const onTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (touchStartX.current === null) return
+      const touch = e.changedTouches[0]
+      if (!touch) return
+      const deltaX = touch.clientX - touchStartX.current
+      const dir = resolveSwipeDirection(deltaX)
+      if (dir === 'next') onSwipeLeft()
+      else if (dir === 'prev') onSwipeRight()
+      touchStartX.current = null
+    },
+    [onSwipeLeft, onSwipeRight],
+  )
+  return {onTouchStart, onTouchEnd}
+}
+
+function ImageGalleryProvider({blocks, children}: {blocks: HMBlockNode[]; children: ReactNode}) {
+  const images = useMemo(() => collectImageBlocks(blocks || []), [blocks])
+  const [activeIndex, setActiveIndex] = useState<number | null>(null)
+  const imageUrl = useImageUrl()
+  const media = useMedia()
+
+  const goNext = useCallback(() => {
+    setActiveIndex((idx) => {
+      if (idx === null) return null
+      return resolveGalleryNavigation(images, idx, 'next') ?? idx
+    })
+  }, [images])
+
+  const goPrev = useCallback(() => {
+    setActiveIndex((idx) => {
+      if (idx === null) return null
+      return resolveGalleryNavigation(images, idx, 'prev') ?? idx
+    })
+  }, [images])
+
+  const closeGallery = useCallback(() => setActiveIndex(null), [])
+
+  const openGallery = useCallback(
+    (blockId: string) => {
+      const idx = images.findIndex((img) => img.blockId === blockId)
+      if (idx !== -1) setActiveIndex(idx)
+    },
+    [images],
+  )
+
+  useEffect(() => {
+    if (activeIndex === null) return
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') closeGallery()
+      else if (e.key === 'ArrowRight') goNext()
+      else if (e.key === 'ArrowLeft') goPrev()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [activeIndex, closeGallery, goNext, goPrev])
+
+  const swipeHandlers = useSwipeNavigation(goNext, goPrev)
+
+  const activeImage = activeIndex !== null ? images[activeIndex] : null
+  const hasPrev = activeIndex !== null && activeIndex > 0
+  const hasNext = activeIndex !== null && activeIndex < images.length - 1
+  const showCounter = images.length > 1
+
+  const ctxValue = useMemo<ImageGalleryContextValue>(() => ({openGallery}), [openGallery])
+
+  const overlayContent = activeImage && (
+    <div
+      className={cn(
+        'fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm',
+        'animate-in fade-in duration-300',
+      )}
+      onClick={closeGallery}
+    >
+      <div
+        className="relative flex size-full items-center justify-center"
+        onClick={(e) => {
+          e.stopPropagation()
+          closeGallery()
+        }}
+        {...swipeHandlers}
+      >
+        {/* Previous arrow — desktop only */}
+        {hasPrev && media.gtSm && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              goPrev()
+            }}
+            className="absolute left-4 z-10 rounded-full bg-black/50 p-3 text-white transition-colors hover:bg-black/70"
+            aria-label="Previous image"
+          >
+            <ChevronLeft size={24} />
+          </button>
+        )}
+
+        <img
+          key={activeIndex}
+          alt={activeImage.name}
+          src={imageUrl(activeImage.link, 'L')}
+          className="animate-in fade-in duration-150 object-contain"
+          style={{maxWidth: '90vw', maxHeight: '90vh', width: '100%', height: '100%'}}
+          onClick={(e) => e.stopPropagation()}
+        />
+
+        {/* Next arrow — desktop only */}
+        {hasNext && media.gtSm && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              goNext()
+            }}
+            className="absolute right-4 z-10 rounded-full bg-black/50 p-3 text-white transition-colors hover:bg-black/70"
+            aria-label="Next image"
+          >
+            <ChevronRight size={24} />
+          </button>
+        )}
+
+        {/* Close button */}
+        <button
+          onClick={closeGallery}
+          className="absolute top-4 right-4 z-10 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+          aria-label="Close"
+        >
+          <X size={20} />
+        </button>
+
+        {/* Counter */}
+        {showCounter && (
+          <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-sm text-white">
+            {activeIndex! + 1} / {images.length}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  return (
+    <ImageGalleryContext.Provider value={ctxValue}>
+      {children}
+      {typeof window !== 'undefined' && overlayContent && createPortal(overlayContent, document.body)}
+    </ImageGalleryContext.Provider>
+  )
+}
 
 export function BlocksContentProvider({
   children,
@@ -360,56 +520,58 @@ export function BlocksContent({
   }, [media.gtSm])
 
   return (
-    <div
-      className="blocks-content-root relative my-2"
-      ref={wrapper}
-      style={
-        {
-          // CSS variables for text/layout units — inherited by all content
-          '--text-unit': `${textUnit}px`,
-          '--layout-unit': `${layoutUnit}px`,
-        } as React.CSSProperties
-      }
-      {...props}
-    >
+    <ImageGalleryProvider blocks={displayBlocks || []}>
       <div
-        ref={bubble}
-        className={cn(
-          'absolute top-0 left-0 z-50 transition-[opacity,transform] duration-200 ease-out select-none',
-          media.gtSm && !state.matches('disable') && state.matches({active: 'selected'})
-            ? 'pointer-events-auto translate-y-0 opacity-100'
-            : 'pointer-events-none -translate-y-4 opacity-0',
-        )}
-        style={{...coords}}
+        className="blocks-content-root relative my-2"
+        ref={wrapper}
+        style={
+          {
+            // CSS variables for text/layout units — inherited by all content
+            '--text-unit': `${textUnit}px`,
+            '--layout-unit': `${layoutUnit}px`,
+          } as React.CSSProperties
+        }
+        {...props}
       >
-        {onBlockSelect ? (
-          <Tooltip content={tx('copy_block_range', 'Copy Block Range')}>
-            <Button
-              size="icon"
-              className="bg-background hover:bg-background border-border relative border dark:bg-black dark:hover:bg-black"
-              onClick={() => {
-                onBlockSelect(
-                  state.context.blockId,
-                  typeof state.context.rangeStart == 'number' && typeof state.context.rangeEnd == 'number'
-                    ? {
-                        start: state.context.rangeStart,
-                        end: state.context.rangeEnd,
-                      }
-                    : {
-                        expanded: true,
-                      },
-                )
-                // Clear the browser selection so custom highlight becomes visible
-                actor.send({type: 'CREATE_COMMENT'})
-              }}
-            >
-              <Link className="size-3" size={2} />
-            </Button>
-          </Tooltip>
-        ) : null}
+        <div
+          ref={bubble}
+          className={cn(
+            'absolute top-0 left-0 z-50 transition-[opacity,transform] duration-200 ease-out select-none',
+            media.gtSm && !state.matches('disable') && state.matches({active: 'selected'})
+              ? 'pointer-events-auto translate-y-0 opacity-100'
+              : 'pointer-events-none -translate-y-4 opacity-0',
+          )}
+          style={{...coords}}
+        >
+          {onBlockSelect ? (
+            <Tooltip content={tx('copy_block_range', 'Copy Block Range')}>
+              <Button
+                size="icon"
+                className="bg-background hover:bg-background border-border relative border dark:bg-black dark:hover:bg-black"
+                onClick={() => {
+                  onBlockSelect(
+                    state.context.blockId,
+                    typeof state.context.rangeStart == 'number' && typeof state.context.rangeEnd == 'number'
+                      ? {
+                          start: state.context.rangeStart,
+                          end: state.context.rangeEnd,
+                        }
+                      : {
+                          expanded: true,
+                        },
+                  )
+                  // Clear the browser selection so custom highlight becomes visible
+                  actor.send({type: 'CREATE_COMMENT'})
+                }}
+              >
+                <Link className="size-3" size={2} />
+              </Button>
+            </Tooltip>
+          ) : null}
+        </div>
+        <BlocksContentInner blocks={displayBlocks} parentBlockId={null} hideCollapseButtons={hideCollapseButtons} />
       </div>
-      <BlocksContentInner blocks={displayBlocks} parentBlockId={null} hideCollapseButtons={hideCollapseButtons} />
-    </div>
+    </ImageGalleryProvider>
   )
 }
 const BlocksContentInner = memo(_BlocksContent)
@@ -1019,136 +1181,51 @@ function BlockContentImage({block, parentBlockId, ...props}: BlockContentProps<H
   let inline = useMemo(() => hmBlockToEditorBlock(block)?.content ?? [], [block])
   const {textUnit} = useBlocksContentContext()
   const imageUrl = useImageUrl()
-  const [modalState, setModalState] = useState<'closed' | 'opening' | 'open'>('closed')
-  const imageRef = useRef<HTMLImageElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const gallery = useContext(ImageGalleryContext)
 
   if (!block?.link) return null
 
-  const handleDoubleClick = useCallback(() => {
-    setModalState('opening')
-  }, [])
+  const handleClick = useCallback(() => {
+    gallery?.openGallery(block.id)
+  }, [gallery, block.id])
 
-  const handleClose = useCallback(() => {
-    setModalState('closed')
-  }, [])
-
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && modalState === 'open') {
-        handleClose()
-      }
-    },
-    [modalState, handleClose],
-  )
-
-  const handleAnimationEnd = useCallback(() => {
-    if (modalState === 'opening') {
-      setModalState('open')
-    }
-  }, [modalState])
-
-  useEffect(() => {
-    if (modalState !== 'closed') {
-      document.addEventListener('keydown', handleKeyDown)
-      // document.body.style.overflow = 'hidden'
-    } else {
-      document.removeEventListener('keydown', handleKeyDown)
-      // document.body.style.overflow = 'auto'
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      // document.body.style.overflow = 'auto'
-    }
-  }, [modalState, handleKeyDown])
-
-  const maximizedContent = modalState !== 'closed' && (
+  return (
     <div
-      className={cn(
-        'fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm',
-        modalState === 'opening' ? 'animate-in fade-in duration-300' : '',
-      )}
-      onClick={handleClose}
+      {...props}
+      className={cn('block-content block-image flex w-full max-w-full flex-col items-center gap-2 py-3', blockStyles)}
+      data-content-type="image"
+      data-url={block?.link}
+      data-name={block?.attributes?.name}
+      data-width={getBlockAttribute(block.attributes, 'width')}
     >
       <div
-        className="relative flex size-full items-center justify-center"
-        onClick={(e) => {
-          e.stopPropagation()
-          handleClose()
+        className={cn('max-w-full cursor-pointer')}
+        style={{
+          maxWidth: getBlockAttribute(block.attributes, 'width')
+            ? `${getBlockAttribute(block.attributes, 'width')}px`
+            : undefined,
         }}
+        onClick={handleClick}
+        title="Click to maximize"
       >
         <img
           alt={block?.attributes?.name}
           src={imageUrl(block?.link, 'L')}
-          className={cn('object-contain', modalState === 'opening' ? 'animate-in zoom-in-50 duration-300' : '')}
           style={{
-            maxWidth: '90vw',
-            maxHeight: '90vh',
             width: '100%',
-            height: '100%',
+            maxHeight: '600px',
+            objectFit: 'contain',
+            transition: 'transform 0.2s ease-out',
           }}
-          onAnimationEnd={handleAnimationEnd}
+          className="transition-transform duration-200"
         />
-        <button
-          onClick={handleClose}
-          className="absolute top-4 right-4 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
-          aria-label="Close"
-        >
-          <X size={20} />
-        </button>
       </div>
+      <p>
+        {inline.length ? (
+          <InlineContentView inline={inline} fontSize={textUnit * 0.85} className="text-muted-foreground" />
+        ) : null}
+      </p>
     </div>
-  )
-
-  return (
-    <>
-      <div
-        {...props}
-        ref={containerRef}
-        className={cn('block-content block-image flex w-full max-w-full flex-col items-center gap-2 py-3', blockStyles)}
-        data-content-type="image"
-        data-url={block?.link}
-        data-name={block?.attributes?.name}
-        data-width={getBlockAttribute(block.attributes, 'width')}
-      >
-        <div
-          className={cn('max-w-full cursor-pointer')}
-          style={{
-            maxWidth: getBlockAttribute(block.attributes, 'width')
-              ? `${getBlockAttribute(block.attributes, 'width')}px`
-              : undefined,
-          }}
-          onClick={handleDoubleClick}
-          title="Click to maximize"
-        >
-          <img
-            ref={imageRef}
-            alt={block?.attributes?.name}
-            src={imageUrl(block?.link, 'L')}
-            style={{
-              width: '100%',
-              maxHeight: '600px',
-              objectFit: 'contain',
-              transition: 'transform 0.2s ease-out',
-            }}
-            onClick={() => {
-              handleDoubleClick()
-            }}
-            className="transition-transform duration-200"
-          />
-        </div>
-        <p>
-          {inline.length ? (
-            <InlineContentView inline={inline} fontSize={textUnit * 0.85} className="text-muted-foreground" />
-          ) : null}
-        </p>
-      </div>
-      {typeof window !== 'undefined' &&
-        (() => {
-          return createPortal(maximizedContent, document.body)
-        })()}
-    </>
   )
 }
 
@@ -2113,6 +2190,51 @@ export function getBlockNodeById(blocks: Array<HMBlockNode>, blockId: string): H
     return false
   })
   return res || null
+}
+
+/** Item in the document-wide image gallery list. */
+export type ImageGalleryItem = {
+  blockId: string
+  link: string
+  name?: string
+}
+
+/** Recursively collects all Image blocks with a truthy link in DFS (document) order. */
+export function collectImageBlocks(blocks: HMBlockNode[]): ImageGalleryItem[] {
+  const result: ImageGalleryItem[] = []
+  for (const node of blocks) {
+    if (node.block?.type === 'Image' && node.block.link) {
+      result.push({
+        blockId: node.block.id,
+        link: node.block.link,
+        name: (node.block as HMBlockImage).attributes?.name,
+      })
+    }
+    if (node.children) {
+      result.push(...collectImageBlocks(node.children))
+    }
+  }
+  return result
+}
+
+/** Returns the next/prev index for gallery navigation, or null at boundaries. */
+export function resolveGalleryNavigation(
+  images: ImageGalleryItem[],
+  currentIndex: number,
+  direction: 'prev' | 'next',
+): number | null {
+  if (images.length === 0) return null
+  if (direction === 'prev') return currentIndex > 0 ? currentIndex - 1 : null
+  return currentIndex < images.length - 1 ? currentIndex + 1 : null
+}
+
+const SWIPE_THRESHOLD = 50 // px — must exceed, not equal
+
+/** Determines swipe direction from horizontal delta, or null if below threshold. */
+export function resolveSwipeDirection(deltaX: number): 'prev' | 'next' | null {
+  if (deltaX < -SWIPE_THRESHOLD) return 'next' // swipe left → next
+  if (deltaX > SWIPE_THRESHOLD) return 'prev' // swipe right → prev
+  return null
 }
 
 export function BlockContentFile({block}: BlockContentProps<HMBlockFile>) {
