@@ -2,7 +2,7 @@ import {parseDeepLink} from '@/utils/deep-links'
 import type {AppWindowEvent} from '@/utils/window-events'
 import {appRouteOfId} from '@shm/shared/utils/navigation'
 
-import {DAEMON_HTTP_URL} from '@shm/shared/constants'
+import {DAEMON_HTTP_URL, OS_PROTOCOL_SCHEME} from '@shm/shared/constants'
 
 import {grpcClient} from '@/grpc-client'
 import {HMHostConfigSchema, SiteDiscoverRequest} from '@seed-hypermedia/client/hm-types'
@@ -472,7 +472,13 @@ export async function handleUrlOpen(url: string) {
     return
   }
 
-  dialog.showErrorBox('Invalid URL', `We could not parse this URL: ${url}`)
+  // Only show error for URLs that look like they were intended as deep links.
+  // Silently ignore CLI flags and other non-URL strings (e.g. --fetch-schemes=sentry-ipc).
+  if (url.startsWith(`${OS_PROTOCOL_SCHEME}://`)) {
+    dialog.showErrorBox('Invalid URL', `We could not parse this URL: ${url}`)
+  } else {
+    log.warn('Ignoring non-deep-link URL passed to handleUrlOpen', {url})
+  }
   return
 }
 
@@ -482,12 +488,13 @@ export function handleSecondInstance(
   cwd: string,
 ) {
   log.info('Handling second instance', {args: args, cwd: cwd})
-  // from https://www.electronjs.org/docs/latest/tutorial/launch-app-from-url-in-another-app
-  // const focusedWindow = getFocusedWindow()
-  // if (focusedWindow) {
-  //   if (focusedWindow.isMinimized()) focusedWindow.restore()
-  //   focusedWindow.focus()
-  // }
-  const linkUrl = args.pop()
-  linkUrl && handleUrlOpen(linkUrl)
+
+  // Find an actual deep link URL in the args, ignoring CLI flags
+  const linkUrl = args.find((arg) => arg.startsWith(`${OS_PROTOCOL_SCHEME}://`))
+  if (linkUrl) {
+    handleUrlOpen(linkUrl)
+  } else {
+    // No deep link — just focus the existing window
+    ensureFocusedWindowVisible()
+  }
 }
