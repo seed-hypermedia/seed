@@ -267,15 +267,19 @@ $SEED_CLI comment create <target-hm-id> --body "Comment" --key mykey --dev
    $SEED_CLI key list --dev
    ```
 
-3. **Prepare content** — Write markdown with frontmatter (preferred) or JSON blocks.
+3. **Ask for the document path** — Before creating a document, always ask the user what path (`-p`) to publish under.
+   The path determines the document's permanent URL (e.g., `hm://z6Mk.../the-path`). Never auto-generate or assume a
+   path — this decision belongs to the user.
 
-4. **Publish** — Use the appropriate write command:
+4. **Prepare content** — Write markdown with frontmatter (preferred) or JSON blocks.
+
+5. **Publish** — Use the appropriate write command:
 
    ```bash
    $SEED_CLI document create -f content.md --key mykey --dev
    ```
 
-5. **Verify** — Read the document again to confirm the change was applied.
+6. **Verify** — Read the document again to confirm the change was applied.
 
 ### Producing Content for Seed
 
@@ -418,13 +422,16 @@ field (the parser also accepts `title:` as a backward-compatible alias).
 
 ## Key Rules
 
-1. **Always use --dev for testing** — Never write to production without explicit user confirmation.
-2. **Check key ownership** — The signing key must be the document owner's key or have a delegated capability.
-3. **Read before writing** — Always fetch the document first to understand its current state.
-4. **One operation at a time** — Don't batch multiple document updates in a single command.
-5. **Verify after writing** — Read the document again to confirm changes applied correctly.
-6. **Never expose mnemonics** — Don't log or display mnemonic phrases in output.
-7. **Prefer markdown** — Use markdown with frontmatter for content generation; use JSON blocks only when precise block
+1. **Always ask for the document path** — Before creating a document, always ask the user what path (`-p`) to publish
+   under. The path determines the document's permanent URL (e.g., `hm://z6Mk.../the-path`). Never auto-generate or
+   decide a path unilaterally — this decision belongs to the user.
+2. **Always use --dev for testing** — Never write to production without explicit user confirmation.
+3. **Check key ownership** — The signing key must be the document owner's key or have a delegated capability.
+4. **Read before writing** — Always fetch the document first to understand its current state.
+5. **One operation at a time** — Don't batch multiple document updates in a single command.
+6. **Verify after writing** — Read the document again to confirm changes applied correctly.
+7. **Never expose mnemonics** — Don't log or display mnemonic phrases in output.
+8. **Prefer markdown** — Use markdown with frontmatter for content generation; use JSON blocks only when precise block
    control is needed.
 
 ## Server Configuration
