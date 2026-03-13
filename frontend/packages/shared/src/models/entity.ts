@@ -1,5 +1,5 @@
-import { PlainMessage, Struct, Timestamp, toPlainMessage } from '@bufbuild/protobuf'
-import { Code, ConnectError } from '@connectrpc/connect'
+import {PlainMessage, Struct, Timestamp, toPlainMessage} from '@bufbuild/protobuf'
+import {Code, ConnectError} from '@connectrpc/connect'
 import {
   HMAccountsMetadata,
   HMCapability,
@@ -20,14 +20,14 @@ import {
   HMTimestampSchema,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import { useInfiniteQuery, useQueries, useQuery, useQueryClient, UseQueryOptions } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { DocumentInfo, RedirectErrorDetails } from '../client'
-import { DISCOVERY_TIMEOUT_MS } from '../constants'
-import { useUniversalAppContext, useUniversalClient } from '../routing'
-import { useStream } from '../use-stream'
-import { entityQueryPathToHmIdPath, hmId, latestId, unpackHmId } from '../utils'
-import { useContactListOfSubject } from './contacts'
+import {useInfiniteQuery, useQueries, useQuery, useQueryClient, UseQueryOptions} from '@tanstack/react-query'
+import {useEffect, useMemo, useRef, useState} from 'react'
+import {DocumentInfo, RedirectErrorDetails} from '../client'
+import {DISCOVERY_TIMEOUT_MS} from '../constants'
+import {useUniversalAppContext, useUniversalClient} from '../routing'
+import {useStream} from '../use-stream'
+import {entityQueryPathToHmIdPath, hmId, latestId, unpackHmId} from '../utils'
+import {useContactListOfSubject} from './contacts'
 import {
   queryAccount,
   queryCapabilities,
@@ -37,7 +37,7 @@ import {
   queryDirectory,
   queryResource,
 } from './queries'
-import { queryKeys } from './query-keys'
+import {queryKeys} from './query-keys'
 
 export function documentMetadataParseAdjustments(metadata: any) {
   if (metadata?.theme === '[object Object]') {

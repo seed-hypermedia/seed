@@ -1,12 +1,12 @@
-import { commentRecordIdFromBlob, createComment, createContact } from '@seed-hypermedia/client'
-import type { HMSigner, UnpackedHypermediaId } from '@seed-hypermedia/client/hm-types'
-import { queryKeys } from '@shm/shared'
-import { invalidateQueries } from '@shm/shared/models/query-client'
-import type { NavRoute } from '@shm/shared/routes'
-import { routeToUrl } from '@shm/shared/utils/entity-id-url'
-import { getCurrentAccountUidWithDelegation, getCurrentSigner } from './auth'
-import { clearPendingIntent, getPendingIntent, getStoredLocalKeys } from './local-db'
-import { webUniversalClient } from './universal-client'
+import {commentRecordIdFromBlob, createComment, createContact} from '@seed-hypermedia/client'
+import type {HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {queryKeys} from '@shm/shared'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import type {NavRoute} from '@shm/shared/routes'
+import {routeToUrl} from '@shm/shared/utils/entity-id-url'
+import {getCurrentAccountUidWithDelegation, getCurrentSigner} from './auth'
+import {clearPendingIntent, getPendingIntent, getStoredLocalKeys} from './local-db'
+import {webUniversalClient} from './universal-client'
 
 let pendingIntentProcessingPromise: Promise<string | null> | null = null
 
