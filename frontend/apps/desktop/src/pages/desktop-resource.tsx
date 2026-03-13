@@ -119,8 +119,32 @@ export default function DesktopResourcePage() {
       onUpdateDraftName: (draftId: string, name: string) => {
         updateDraftMetadata.mutate({draftId, metadata: {name}})
       },
+      onCreateDraft:
+        canEdit && !isPrivate
+          ? () => {
+              createInlineDraft.mutate(
+                {},
+                {
+                  onSuccess: ({draftId}) => {
+                    setLastCreatedDraftId(draftId)
+                  },
+                },
+              )
+            }
+          : undefined,
     }),
-    [selfQueryBlock?.id, hasSelfQuery, childDrafts, lastCreatedDraftId, navigate, deleteDraft, updateDraftMetadata],
+    [
+      selfQueryBlock?.id,
+      hasSelfQuery,
+      childDrafts,
+      lastCreatedDraftId,
+      navigate,
+      deleteDraft,
+      updateDraftMetadata,
+      canEdit,
+      isPrivate,
+      createInlineDraft,
+    ],
   )
 
   const {exportDocument, openDirectory} = useAppContext()
