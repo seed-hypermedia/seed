@@ -18,9 +18,15 @@ import {keyPairStore} from './auth'
 import {webUniversalClient} from './universal-client'
 
 const selectedIdentity: StateStream<string | null> = {
-  get: () => keyPairStore.get()?.id ?? null,
+  get: () => {
+    const kp = keyPairStore.get()
+    return kp?.delegatedAccountUid ?? kp?.id ?? null
+  },
   subscribe: (handler) => {
-    const wrapped = () => handler(keyPairStore.get()?.id ?? null)
+    const wrapped = () => {
+      const kp = keyPairStore.get()
+      handler(kp?.delegatedAccountUid ?? kp?.id ?? null)
+    }
     return keyPairStore.subscribe(wrapped)
   },
 }

@@ -11,6 +11,7 @@ function makeSigner(): HMSigner {
 }
 
 const TEST_SUBJECT_UID = 'z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou'
+const TEST_ACCOUNT_UID = 'z6MksV3sM8YJxFqv8kV4m4wQdD4sP2wJvB8c2kHh9Qx7LmNo'
 
 describe('createContact', () => {
   it('creates a publish-ready payload for a new contact', async () => {
@@ -43,19 +44,32 @@ describe('createContact', () => {
 
   it('returns a recordId in authority/tsid format', async () => {
     const signer = makeSigner()
-    const result = await createContact({subjectUid: TEST_SUBJECT_UID, name: 'Carol'}, signer)
+    const result = await createContact(
+      {subjectUid: TEST_SUBJECT_UID, name: 'Carol', accountUid: TEST_ACCOUNT_UID},
+      signer,
+    )
 
     expect(result.recordId).toBeDefined()
     expect(typeof result.recordId).toBe('string')
     // Record ID format: "authority/tsid"
     const parts = result.recordId.split('/')
     expect(parts).toHaveLength(2)
-    // Authority is base58btc-encoded signer key (starts with 'z')
-    expect(parts[0]).toMatch(/^z/)
+    expect(parts[0]).toBe(TEST_ACCOUNT_UID)
     // TSID is 14-15 chars base58btc-encoded (starts with 'z')
     expect(parts[1]).toMatch(/^z/)
     expect(parts[1]!.length).toBeGreaterThanOrEqual(14)
     expect(parts[1]!.length).toBeLessThanOrEqual(15)
+  })
+
+  it('encodes delegated account when provided', async () => {
+    const signer = makeSigner()
+    const result = await createContact(
+      {subjectUid: TEST_SUBJECT_UID, name: 'Delegated', accountUid: TEST_ACCOUNT_UID},
+      signer,
+    )
+
+    const decoded = cborDecode(result.blobs[0]!.data) as any
+    expect(decoded.account).toBeInstanceOf(Uint8Array)
   })
 })
 
@@ -78,17 +92,33 @@ describe('updateContact', () => {
     expect(decoded.id).toBe('zQ3shAbcDe12345')
     expect(decoded.subject).toBeInstanceOf(Uint8Array)
   })
+
+  it('preserves delegated account from the contact ID authority', async () => {
+    const signer = makeSigner()
+    const result = await updateContact(
+      {
+        contactId: `${TEST_ACCOUNT_UID}/zQ3shAbcDe12345`,
+        subjectUid: TEST_SUBJECT_UID,
+        name: 'Delegated Update',
+      },
+      signer,
+    )
+
+    const decoded = cborDecode(result.blobs[0]!.data) as any
+    expect(decoded.account).toBeInstanceOf(Uint8Array)
+  })
 })
 
 describe('deleteContact', () => {
   it('creates a tombstone blob with no subject or name', async () => {
     const signer = makeSigner()
-    const result = await deleteContact({contactId: `${TEST_SUBJECT_UID}/zQ3shAbcDe12345`}, signer)
+    const result = await deleteContact({contactId: `${TEST_ACCOUNT_UID}/zQ3shAbcDe12345`}, signer)
 
     expect(result.blobs).toHaveLength(1)
     const decoded = cborDecode(result.blobs[0]!.data) as any
     expect(decoded.type).toBe('Contact')
     expect(decoded.id).toBe('zQ3shAbcDe12345')
+    expect(decoded.account).toBeInstanceOf(Uint8Array)
     // Tombstone: no subject, no name
     expect(decoded.subject).toBeUndefined()
     expect(decoded.name).toBeUndefined()
@@ -103,7 +133,10 @@ describe('deleteContact', () => {
 describe('contactRecordIdFromBlob', () => {
   it('computes the same recordId as createContact', async () => {
     const signer = makeSigner()
-    const result = await createContact({subjectUid: TEST_SUBJECT_UID, name: 'Dave'}, signer)
+    const result = await createContact(
+      {subjectUid: TEST_SUBJECT_UID, name: 'Dave', accountUid: TEST_ACCOUNT_UID},
+      signer,
+    )
 
     const recordIdFromBlob = await contactRecordIdFromBlob(result.blobs[0]!.data)
     expect(recordIdFromBlob).toBe(result.recordId)

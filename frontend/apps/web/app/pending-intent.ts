@@ -1,18 +1,40 @@
-import {commentRecordIdFromBlob, createComment} from '@seed-hypermedia/client'
+import {commentRecordIdFromBlob, createComment, createContact} from '@seed-hypermedia/client'
 import type {HMBlockNode, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {queryKeys} from '@shm/shared'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import type {NavRoute} from '@shm/shared/routes'
 import {routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {getCurrentSigner} from './auth'
+import {getCurrentAccountUidWithDelegation, getCurrentSigner} from './auth'
 import {clearPendingIntent, getPendingIntent, getStoredLocalKeys} from './local-db'
 import {webUniversalClient} from './universal-client'
 
 let pendingIntentProcessingPromise: Promise<string | null> | null = null
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function joinSite(_signer: HMSigner, _siteUid: string) {
-  // TODO: bring back auto join
+async function joinSite(signer: HMSigner, siteUid: string) {
+  // check to see if we already have a contact for this site
+  const accountUid = await getCurrentAccountUidWithDelegation()
+  if (!accountUid) {
+    throw new Error('No account UID available to join site')
+  }
+  const contacts = await webUniversalClient.request('AccountContacts', accountUid)
+  const existingContact = contacts.find((c) => c.subject === siteUid)
+  if (existingContact) {
+    console.log('[joinSite] Already have a contact for this site', {existingContact})
+    return
+  }
+  console.log('[joinSite] Creating contact for site', {siteUid})
+  const contactPayload = await createContact(
+    {
+      subjectUid: siteUid,
+      accountUid,
+      name: '',
+    },
+    signer,
+  )
+  await webUniversalClient.publish(contactPayload)
+
+  invalidateQueries([queryKeys.CONTACTS_ACCOUNT, accountUid])
+  invalidateQueries([queryKeys.CONTACTS_SUBJECT, siteUid])
 }
 /**
  * Process any pending intent saved before auth redirect.

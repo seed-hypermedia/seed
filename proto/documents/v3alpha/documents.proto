@@ -476,6 +476,10 @@ message Contact {
 
   // Account ID that issued this contact.
   string account = 6;
+
+  // Key that signed this contact.
+  // When omitted in legacy storage, it matches account.
+  string signer = 7;
 }
 
 // Request to list a directory.

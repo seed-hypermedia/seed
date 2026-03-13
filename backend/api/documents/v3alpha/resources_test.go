@@ -321,6 +321,7 @@ func TestGetResource(t *testing.T) {
 		require.Equal(t, "Test User", resp.GetContact().Name)
 		require.Equal(t, other.Account.Principal().String(), resp.GetContact().Subject)
 		require.Equal(t, srv.me.Account.Principal().String(), resp.GetContact().Account)
+		require.Equal(t, srv.me.Account.Principal().String(), resp.GetContact().Signer)
 	})
 
 	t.Run("GetCommentWithSpecificVersion", func(t *testing.T) {
@@ -384,6 +385,7 @@ func TestGetResource(t *testing.T) {
 		require.Equal(t, "Test User", resp.GetContact().Name)
 		require.Equal(t, other.Account.Principal().String(), resp.GetContact().Subject)
 		require.Equal(t, srv.me.Account.Principal().String(), resp.GetContact().Account)
+		require.Equal(t, srv.me.Account.Principal().String(), resp.GetContact().Signer)
 	})
 
 	t.Run("MultipleVersionsNotSupported", func(t *testing.T) {
@@ -482,7 +484,7 @@ func mustCreateComment(ctx context.Context, t *testing.T, idx *blob.Index, u *co
 func mustCreateContact(ctx context.Context, t *testing.T, idx *blob.Index, u *coretest.Tester, id blob.TSID, subject core.Principal, name string, ts time.Time) blob.Encoded[*blob.Contact] {
 	t.Helper()
 
-	eb, err := blob.NewContact(u.Account, id, subject, name, ts.Round(blob.ClockPrecision))
+	eb, err := blob.NewContact(u.Account, id, u.Account.Principal(), subject, name, ts.Round(blob.ClockPrecision))
 	require.NoError(t, err)
 
 	// eb implements blocks.Block directly

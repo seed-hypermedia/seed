@@ -19,6 +19,7 @@ export const AccountContacts: HMRequestImplementation<HMAccountContactsRequest> 
         subject: plain.subject,
         name: plain.name,
         account: plain.account,
+        signer: plain.signer,
         createTime: plain.createTime
           ? {
               seconds: Number(plain.createTime.seconds),

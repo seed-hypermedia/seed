@@ -846,6 +846,7 @@ export const HMContactRecordSchema = z.object({
   subject: z.string(),
   name: z.string(),
   account: z.string(),
+  signer: z.string(),
   createTime: HMTimestampSchema.optional(),
   updateTime: HMTimestampSchema.optional(),
 })

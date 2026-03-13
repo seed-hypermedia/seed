@@ -27,7 +27,12 @@ export function useSaveContact() {
           ),
         )
       } else {
-        await client.publish(await createContactBlob({subjectUid: contact.subjectUid, name: contact.name}, signer))
+        await client.publish(
+          await createContactBlob(
+            {subjectUid: contact.subjectUid, name: contact.name, accountUid: contact.accountUid},
+            signer,
+          ),
+        )
       }
     },
     onSuccess: (_, contact) => {

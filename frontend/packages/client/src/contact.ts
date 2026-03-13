@@ -26,6 +26,8 @@ export type UpdateContactInput = {
 export type DeleteContactInput = {
   /** The contact record ID in format "authority/tsid" */
   contactId: string
+  /** The account UID (base58btc-encoded principal) */
+  accountUid?: string
 }
 
 export type CreateContactResult = HMPublishBlobsInput & {
@@ -43,6 +45,18 @@ function extractTsid(contactId: string): string {
     throw new Error(`Invalid contact ID format: ${contactId}. Expected "authority/tsid".`)
   }
   return tsid
+}
+
+/**
+ * Extract authority from a record ID (format: "authority/tsid").
+ */
+function extractAuthority(contactId: string): string {
+  const parts = contactId.split('/')
+  const authority = parts[0]
+  if (!authority || parts.length !== 2) {
+    throw new Error(`Invalid contact ID format: ${contactId}. Expected "authority/tsid".`)
+  }
+  return authority
 }
 
 /**
@@ -74,6 +88,8 @@ async function computeTSID(timestampMs: bigint, blobData: Uint8Array): Promise<s
 export async function createContact(input: CreateContactInput, signer: HMSigner): Promise<CreateContactResult> {
   const signerKey = await signer.getPublicKey()
   const ts = BigInt(Date.now())
+  const signerUid = base58btc.encode(new Uint8Array(signerKey))
+  const authority = input.accountUid || signerUid
 
   const unsigned: Record<string, unknown> = {
     type: 'Contact',
@@ -92,7 +108,6 @@ export async function createContact(input: CreateContactInput, signer: HMSigner)
   unsigned.sig = await signObject(signer, unsigned)
 
   const encoded = cborEncode(unsigned)
-  const authority = base58btc.encode(new Uint8Array(signerKey))
   const tsid = await computeTSID(ts, encoded)
 
   return {
@@ -107,6 +122,7 @@ export async function createContact(input: CreateContactInput, signer: HMSigner)
 export async function updateContact(input: UpdateContactInput, signer: HMSigner): Promise<HMPublishBlobsInput> {
   const signerKey = await signer.getPublicKey()
   const tsid = extractTsid(input.contactId)
+  const accountUid = input.accountUid || extractAuthority(input.contactId)
 
   const unsigned: Record<string, unknown> = {
     type: 'Contact',
@@ -118,6 +134,9 @@ export async function updateContact(input: UpdateContactInput, signer: HMSigner)
   }
   if (input.name) {
     unsigned.name = input.name
+  }
+  if (accountUid) {
+    unsigned.account = new Uint8Array(base58btc.decode(accountUid))
   }
 
   unsigned.sig = await signObject(signer, unsigned)
@@ -132,6 +151,7 @@ export async function updateContact(input: UpdateContactInput, signer: HMSigner)
 export async function deleteContact(input: DeleteContactInput, signer: HMSigner): Promise<HMPublishBlobsInput> {
   const signerKey = await signer.getPublicKey()
   const tsid = extractTsid(input.contactId)
+  const accountUid = input.accountUid || extractAuthority(input.contactId)
 
   const unsigned: Record<string, unknown> = {
     type: 'Contact',
@@ -139,6 +159,9 @@ export async function deleteContact(input: DeleteContactInput, signer: HMSigner)
     sig: new Uint8Array(64),
     ts: BigInt(Date.now()),
     id: tsid,
+  }
+  if (accountUid) {
+    unsigned.account = new Uint8Array(base58btc.decode(accountUid))
   }
 
   unsigned.sig = await signObject(signer, unsigned)
@@ -157,7 +180,8 @@ export async function contactRecordIdFromBlob(blobData: Uint8Array): Promise<str
   }
   const signerBytes = decoded.signer as Uint8Array
   const ts = BigInt(decoded.ts as bigint | number)
-  const authority = base58btc.encode(new Uint8Array(signerBytes))
+  const accountBytes = decoded.account as Uint8Array | undefined
+  const authority = base58btc.encode(new Uint8Array(accountBytes || signerBytes))
   const tsid = await computeTSID(ts, blobData)
   return `${authority}/${tsid}`
 }
