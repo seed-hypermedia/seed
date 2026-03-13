@@ -17,6 +17,9 @@ declare global {
     }
   }
 }
+import {VelopackApp} from 'velopack'
+VelopackApp.build().run()
+
 import * as Sentry from '@sentry/electron/main'
 import {app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, OpenDialogOptions, session, shell} from 'electron'
 import {performance} from 'perf_hooks'

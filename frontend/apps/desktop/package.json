@@ -138,6 +138,7 @@
     "unified": "10.1.2",
     "update-electron-app": "3.0.0",
     "use-prefers-color-scheme": "1.1.3",
+    "velopack": "0.0.1444-gc245055",
     "winston": "3.11.0",
     "winston-daily-rotate-file": "4.7.1",
     "xstate": "5.19.2",

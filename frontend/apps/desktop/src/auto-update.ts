@@ -5,6 +5,7 @@ import * as path from 'path'
 import {getLastFocusedWindow} from './app-windows'
 import * as log from './logger'
 import {UpdateAsset, UpdateInfo, UpdateStatus} from './types/updater-types'
+import {VelopackUpdater} from './velopack-updater'
 
 import {autoUpdater as defaultAutoUpdater, dialog, MessageBoxOptions} from 'electron'
 import {updateElectronApp, UpdateSourceType} from 'update-electron-app'
@@ -22,6 +23,39 @@ export function defaultCheckForUpdates() {
 }
 
 export const checkForUpdates = process.platform == 'win32' ? defaultCheckForUpdates : customAutoUpdates
+
+/**
+ * Checks if the app was installed via Velopack by looking for Velopack's Update binary.
+ */
+function isVelopackInstall(): boolean {
+  try {
+    if (process.platform === 'win32') {
+      // Velopack on Windows places Update.exe in the app's parent directory
+      const updateExe = path.join(path.dirname(app.getPath('exe')), '..', 'Update.exe')
+      // Squirrel also has Update.exe, but Velopack's doesn't have a 'packages' sibling directory
+      const packagesDir = path.join(path.dirname(app.getPath('exe')), '..', 'packages')
+      return fs.existsSync(updateExe) && !fs.existsSync(packagesDir)
+    }
+    if (process.platform === 'darwin') {
+      // Velopack on macOS places an update binary alongside the .app bundle
+      const updateBin = path.join(path.dirname(app.getPath('exe')), '..', '..', '..', 'UpdateMac')
+      return fs.existsSync(updateBin)
+    }
+  } catch (err) {
+    log.error(`[AUTO-UPDATE] Error detecting Velopack install: ${err}`)
+  }
+  return false
+}
+
+/**
+ * Returns the Velopack update URL based on current environment.
+ */
+function getVelopackUpdateUrl(): string {
+  if (process.env.AUTO_UPDATE_TEST_URL) {
+    return process.env.AUTO_UPDATE_TEST_URL
+  }
+  return `https://seedappdev.s3.eu-west-2.amazonaws.com/dev/velopack/${process.platform}/${process.arch}`
+}
 
 export default function autoUpdate() {
   console.log(`[AUTO-UPDATE] autoUpdate call INIT`, BrowserWindow.getFocusedWindow()?.id)
@@ -49,16 +83,19 @@ export default function autoUpdate() {
     return
   }
 
-  // if (!isAutoUpdateSupported()) {
-  //   log.debug('[MAIN][AUTO-UPDATE]: Auto-Update is not supported')
-  //   return
-  // }
+  // Velopack-installed apps (dev builds) use the Velopack updater
+  if (isVelopackInstall()) {
+    log.info('[AUTO-UPDATE] Velopack install detected, using Velopack updater')
+    const veloUpdater = new VelopackUpdater(getVelopackUpdateUrl())
+    veloUpdater.startAutoCheck()
+    return
+  }
+
+  // Legacy paths below (release builds)
 
   if (process.platform == 'win32') {
     setup()
   }
-
-  // Listen for when the window is ready
 
   setTimeout(() => {
     log.debug('[AUTO-UPDATE]: TIMEOUT 5000')
@@ -66,7 +103,6 @@ export default function autoUpdate() {
   }, 5000)
 
   if (process.platform === 'win32') {
-    // Set up periodic checks
     setInterval(checkForUpdates, 600_000) // every 10 mins
   }
 }

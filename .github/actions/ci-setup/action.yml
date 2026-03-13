@@ -157,6 +157,17 @@ runs:
         restore-keys: |
           ${{ inputs.matrix-os }}-go-
 
+    - name: "Setup .NET SDK (for Velopack CLI)"
+      if: inputs.matrix-os != 'ubuntu-latest'
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: "Install Velopack CLI"
+      if: inputs.matrix-os != 'ubuntu-latest'
+      run: dotnet tool install -g vpk
+      shell: bash
+
     - name: Install pnpm
       uses: pnpm/action-setup@v4
 
