@@ -1,6 +1,6 @@
 import {createAnthropic} from '@ai-sdk/anthropic'
 import {createOpenAI} from '@ai-sdk/openai'
-import {HMBlockNode, HMComment, HMCommentSchema} from '@shm/shared/hm-types'
+import {HMBlockNode, HMComment, HMCommentSchema} from '@seed-hypermedia/client/hm-types'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {jsonSchema, stepCountIs, streamText, type ModelMessage} from 'ai'
@@ -112,6 +112,24 @@ ipcMain.on('chatStopStream', (_, sessionId: string) => {
 function createProviderModel(provider: AgentProvider) {
   switch (provider.type) {
     case 'openai': {
+      if (provider.authMode === 'login') {
+        const accessToken = provider.openaiAuth?.accessToken
+        if (!accessToken) {
+          throw new Error('OpenAI login is missing an access token. Reconnect in Settings > Assistant Providers.')
+        }
+
+        const openai = createOpenAI({
+          apiKey: accessToken,
+          baseURL: provider.baseUrl || 'https://chatgpt.com/backend-api/codex',
+          headers: {
+            ...(provider.openaiAuth?.chatgptAccountId
+              ? {'ChatGPT-Account-ID': provider.openaiAuth.chatgptAccountId}
+              : {}),
+          },
+        })
+        return openai(provider.model)
+      }
+
       if (!provider.apiKey) {
         throw new Error('OpenAI credentials are missing. Reconnect in Settings > Assistant Providers.')
       }

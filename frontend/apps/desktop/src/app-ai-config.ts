@@ -220,12 +220,7 @@ function buildOpenAIAuthSession(tokens: {
   return {
     ...tokens,
     email: typeof claims.email === 'string' ? claims.email : undefined,
-    chatgptAccountId:
-      typeof claims.chatgpt_account_id === 'string'
-        ? claims.chatgpt_account_id
-        : typeof claims.organization_id === 'string'
-        ? claims.organization_id
-        : undefined,
+    chatgptAccountId: typeof claims.chatgpt_account_id === 'string' ? claims.chatgpt_account_id : undefined,
     chatgptPlanType: typeof claims.chatgpt_plan_type === 'string' ? claims.chatgpt_plan_type : undefined,
     lastRefreshAt: new Date().toISOString(),
   }
@@ -237,7 +232,7 @@ function isOpenAIProviderUsingLogin(provider: AgentProvider): boolean {
 
 function shouldRefreshOpenAIAuth(provider: AgentProvider): boolean {
   if (!isOpenAIProviderUsingLogin(provider)) return false
-  if (!provider.openaiAuth?.lastRefreshAt || !provider.apiKey) return true
+  if (!provider.openaiAuth?.lastRefreshAt || !provider.openaiAuth?.accessToken) return true
   const lastRefresh = Date.parse(provider.openaiAuth.lastRefreshAt)
   if (!Number.isFinite(lastRefresh)) return true
   return Date.now() - lastRefresh > OPENAI_REFRESH_INTERVAL_MS
@@ -369,28 +364,6 @@ async function exchangeAuthorizationCode(params: {
   return (await res.json()) as OpenAITokenResponse
 }
 
-async function exchangeIdTokenForApiKey(idToken: string): Promise<string> {
-  const body = new URLSearchParams({
-    grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
-    client_id: OPENAI_CLIENT_ID,
-    requested_token: 'openai-api-key',
-    subject_token: idToken,
-    subject_token_type: 'urn:ietf:params:oauth:token-type:id_token',
-  })
-  const res = await fetch(OPENAI_REFRESH_TOKEN_URL, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body,
-  })
-  if (!res.ok) {
-    const message = await parseFailedResponseMessage(res)
-    throw new Error(`OpenAI token exchange failed: ${message}`)
-  }
-  const data = (await res.json()) as {access_token?: string}
-  if (!data.access_token) throw new Error('OpenAI token exchange returned no access token')
-  return data.access_token
-}
-
 async function refreshOpenAITokens(refreshToken: string): Promise<OpenAIRefreshResponse> {
   const body = new URLSearchParams({
     grant_type: 'refresh_token',
@@ -438,8 +411,7 @@ async function runOpenAILoginSession(sessionId: string) {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
     })
-    const apiKey = await exchangeIdTokenForApiKey(tokens.id_token)
-    await persistOpenAILoginForProvider(activeSession.providerId, authSession, apiKey)
+    await persistOpenAILoginForProvider(activeSession.providerId, authSession)
     completeLoginSessionSuccess(activeSession, authSession)
   } catch (error) {
     const activeSession = openaiLoginSessions.get(sessionId)
@@ -455,7 +427,7 @@ async function runOpenAILoginSession(sessionId: string) {
   }
 }
 
-async function persistOpenAILoginForProvider(providerId: string, authSession: OpenAIAuthSession, apiKey: string) {
+async function persistOpenAILoginForProvider(providerId: string, authSession: OpenAIAuthSession) {
   const config = await readConfig()
   const providers = config.agentProviders || []
   const index = providers.findIndex((provider) => provider.id === providerId)
@@ -466,7 +438,7 @@ async function persistOpenAILoginForProvider(providerId: string, authSession: Op
     ...provider,
     authMode: 'login',
     openaiAuth: authSession,
-    apiKey,
+    apiKey: undefined,
   }
   config.agentProviders = providers
   await writeConfig(config)
@@ -495,12 +467,11 @@ async function refreshOpenAILoginProvider(providerId: string): Promise<AgentProv
   const accessToken = refreshResponse.access_token || authSession.accessToken
   const refreshToken = refreshResponse.refresh_token || authSession.refreshToken
   const nextAuthSession = buildOpenAIAuthSession({idToken, accessToken, refreshToken})
-  const nextApiKey = await exchangeIdTokenForApiKey(idToken)
   const nextProvider: AgentProvider = {
     ...provider,
     authMode: 'login',
     openaiAuth: nextAuthSession,
-    apiKey: nextApiKey,
+    apiKey: undefined,
   }
   const providers = config.agentProviders || []
   providers[index] = nextProvider
