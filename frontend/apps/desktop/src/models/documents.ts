@@ -29,7 +29,7 @@ import {BlockNoteEditor} from '@shm/editor/blocknote/core'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {getSlashMenuItems} from '@shm/editor/slash-menu-items'
 import {getCommentTargetId, getParentPaths, UniversalClient, useUniversalClient} from '@shm/shared'
-import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {Block, DocumentChange, ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {AnnounceBlobsProgress} from '@shm/shared/client/.generated/p2p/v1alpha/syncing_pb'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
@@ -1155,9 +1155,16 @@ export async function publishLinkToParentDocument(
   }
 
   // Create DocumentChange operations: MoveBlock then ReplaceBlock
+  // NOTE: Block.fromJson() is required to properly convert the attributes plain object
+  // into a google.protobuf.Struct. Without it, attributes like {view: 'Card'} are silently dropped.
+  // See: https://github.com/nicholasgasior/seed-hypermedia/issues/322
   const changes = [
-    {op: {case: 'moveBlock' as const, value: {blockId: newBlockId, parent: '', leftSibling: lastBlockId}}},
-    {op: {case: 'replaceBlock' as const, value: embedBlock}},
+    new DocumentChange({
+      op: {case: 'moveBlock', value: {blockId: newBlockId, parent: '', leftSibling: lastBlockId}},
+    }),
+    new DocumentChange({
+      op: {case: 'replaceBlock', value: Block.fromJson(embedBlock)},
+    }),
   ]
 
   // Check if signing account has write access (same as child publish)
