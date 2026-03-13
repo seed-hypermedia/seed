@@ -457,6 +457,10 @@ function QuerySettings({
                   //   value: 'Path',
                   // },
                   {
+                    label: 'Latest activity',
+                    value: 'ActivityTime',
+                  },
+                  {
                     label: 'By Title',
                     value: 'Title',
                   },

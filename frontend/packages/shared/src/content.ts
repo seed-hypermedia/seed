@@ -150,6 +150,17 @@ function displayPublishTimeOfEntry(entry: HMDocumentInfo): number {
   return normalizeDate(entry.updateTime)?.getTime() || 0
 }
 
+function activityTimeOfEntry(entry: HMDocumentInfo): number {
+  const activity = entry.activitySummary
+  const changeTime = normalizeDate(activity?.latestChangeTime)?.getTime() || 0
+  const commentTime = normalizeDate(activity?.latestCommentTime)?.getTime() || 0
+  return Math.max(changeTime, commentTime) || normalizeDate(entry.updateTime)?.getTime() || 0
+}
+
+function activityTimeSort(a: HMDocumentInfo, b: HMDocumentInfo) {
+  return activityTimeOfEntry(b) - activityTimeOfEntry(a)
+}
+
 function titleOfEntry(entry: HMDocumentInfo) {
   return entry.metadata.name
 }
@@ -188,6 +199,10 @@ export function queryBlockSortedItems({
 
   if (sortTerm === 'DisplayTime') {
     res = [...entries].sort(displayPublishTimeSort)
+  }
+
+  if (sortTerm === 'ActivityTime') {
+    res = [...entries].sort(activityTimeSort)
   }
 
   // if (sortTerm == 'Path') {

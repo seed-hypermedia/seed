@@ -671,6 +671,7 @@ export const HMQuerySortSchema = z.object({
     z.literal('CreateTime'),
     z.literal('UpdateTime'),
     z.literal('DisplayTime'),
+    z.literal('ActivityTime'),
   ]),
 })
 export type HMQuerySort = z.infer<typeof HMQuerySortSchema>
