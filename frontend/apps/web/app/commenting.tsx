@@ -1,8 +1,8 @@
 import {useCreateAccount} from '@/auth'
 import {useNavigate} from '@remix-run/react'
 import {createComment} from '@seed-hypermedia/client'
-import {CommentEditor} from '@shm/editor/comment-editor'
 import {HMBlockNode, HMPublishBlobsOutput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {CommentEditor} from '@shm/editor/comment-editor'
 import {idToUrl, queryKeys, unpackHmId, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {useCommentsService} from '@shm/shared/comments-service-provider'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
@@ -258,7 +258,8 @@ export default function WebCommenting({
             })
             .catch((err) => console.error('Failed to cleanup draft media:', err))
         }
-        promptEmailNotifications()
+        // TODO: bring back email notifications prompt for new notification system - only prompt if the user does not already notifs set up on the notify service.
+        // promptEmailNotifications()
       } finally {
         setIsSubmitting(false)
       }
