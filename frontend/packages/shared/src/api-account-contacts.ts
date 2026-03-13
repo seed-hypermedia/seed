@@ -1,7 +1,7 @@
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {HMRequestImplementation} from './api-types'
 import {GRPCClient} from './grpc-client'
-import {HMAccountContactsRequest, HMContactRecord} from '@seed-hypermedia/client/hm-types'
+import {HMAccountContactsRequest, HMContactSubscribe, HMContactRecord} from '@seed-hypermedia/client/hm-types'
 
 export const AccountContacts: HMRequestImplementation<HMAccountContactsRequest> = {
   async getData(grpcClient: GRPCClient, input: string): Promise<HMContactRecord[]> {
@@ -14,6 +14,9 @@ export const AccountContacts: HMRequestImplementation<HMAccountContactsRequest> 
     })
     return response.contacts.map((c) => {
       const plain = toPlainMessage(c)
+      // Extract subscribe from metadata - use toJson() on the Struct to get plain JS object
+      const metadata = c.metadata?.toJson() as Record<string, unknown> | undefined
+      const subscribe = metadata?.subscribe as HMContactSubscribe | undefined
       return {
         id: plain.id,
         subject: plain.subject,
@@ -32,6 +35,7 @@ export const AccountContacts: HMRequestImplementation<HMAccountContactsRequest> 
               nanos: plain.updateTime.nanos,
             }
           : undefined,
+        subscribe,
       }
     })
   },

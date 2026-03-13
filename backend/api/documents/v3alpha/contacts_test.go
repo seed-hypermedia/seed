@@ -7,6 +7,7 @@ import (
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/testutil"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -554,4 +555,67 @@ func TestContactUpdateAndDeleteWorkflow(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, resp.Contacts, 0, "Deleted contact should not appear in list")
+}
+
+func TestContactSubscribeMetadata(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	bob := coretest.NewTester("bob")
+
+	// Create a contact with subscribe metadata directly using the blob API.
+	subscribe := &blob.ContactSubscribe{Site: true}
+	eb := mustCreateContactWithSubscribe(ctx, t, alice.idx, &alice.me, "", bob.Account.Principal(), "Bob Site", subscribe, time.Now())
+
+	contactID := blob.RecordID{
+		Authority: alice.me.Account.Principal(),
+		TSID:      eb.TSID(),
+	}.String()
+
+	t.Run("GetContact returns subscribe metadata", func(t *testing.T) {
+		contact, err := alice.GetContact(ctx, &documents.GetContactRequest{
+			Id: contactID,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, contact)
+		require.Equal(t, "Bob Site", contact.Name)
+
+		// Verify subscribe metadata is present.
+		require.NotNil(t, contact.Metadata, "Metadata should be present")
+		subscribeMeta := contact.Metadata.Fields["subscribe"]
+		require.NotNil(t, subscribeMeta, "subscribe field should be present in metadata")
+
+		subscribeStruct := subscribeMeta.GetStructValue()
+		require.NotNil(t, subscribeStruct, "subscribe should be a struct")
+		site := subscribeStruct.Fields["site"]
+		require.NotNil(t, site, "site field should be present")
+		require.True(t, site.GetBoolValue(), "site should be true")
+	})
+
+	t.Run("ListContacts returns subscribe metadata", func(t *testing.T) {
+		resp, err := alice.ListContacts(ctx, &documents.ListContactsRequest{
+			PageSize: 10,
+			Filter: &documents.ListContactsRequest_Account{
+				Account: alice.me.Account.PublicKey.String(),
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Contacts, 1)
+
+		contact := resp.Contacts[0]
+		require.Equal(t, "Bob Site", contact.Name)
+
+		// Verify subscribe metadata is present.
+		require.NotNil(t, contact.Metadata, "Metadata should be present")
+		subscribeMeta := contact.Metadata.Fields["subscribe"]
+		require.NotNil(t, subscribeMeta, "subscribe field should be present in metadata")
+
+		subscribeStruct := subscribeMeta.GetStructValue()
+		require.NotNil(t, subscribeStruct, "subscribe should be a struct")
+		site := subscribeStruct.Fields["site"]
+		require.NotNil(t, site, "site field should be present")
+		require.True(t, site.GetBoolValue(), "site should be true")
+	})
 }

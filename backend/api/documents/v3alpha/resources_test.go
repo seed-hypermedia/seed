@@ -483,8 +483,13 @@ func mustCreateComment(ctx context.Context, t *testing.T, idx *blob.Index, u *co
 
 func mustCreateContact(ctx context.Context, t *testing.T, idx *blob.Index, u *coretest.Tester, id blob.TSID, subject core.Principal, name string, ts time.Time) blob.Encoded[*blob.Contact] {
 	t.Helper()
+	return mustCreateContactWithSubscribe(ctx, t, idx, u, id, subject, name, nil, ts)
+}
 
-	eb, err := blob.NewContact(u.Account, id, u.Account.Principal(), subject, name, ts.Round(blob.ClockPrecision))
+func mustCreateContactWithSubscribe(ctx context.Context, t *testing.T, idx *blob.Index, u *coretest.Tester, id blob.TSID, subject core.Principal, name string, subscribe *blob.ContactSubscribe, ts time.Time) blob.Encoded[*blob.Contact] {
+	t.Helper()
+
+	eb, err := blob.NewContact(u.Account, id, u.Account.Principal(), subject, name, subscribe, ts.Round(blob.ClockPrecision))
 	require.NoError(t, err)
 
 	// eb implements blocks.Block directly

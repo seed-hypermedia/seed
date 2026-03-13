@@ -10,11 +10,11 @@ export function useJoinSite({siteUid}: {siteUid: string}) {
   const siteResource = useResource(hmId(siteUid))
   const siteName = siteResource.data?.type === 'document' ? siteResource.data.document?.metadata?.name : undefined
 
-  const hasContact = selectedAccountContacts.data?.some((c) => c.subject === siteUid) ?? false
+  const isSiteMember = selectedAccountContacts.data?.some((c) => c.subject === siteUid && c.subscribe?.site) ?? false
 
   const isOwnAccount = selectedAccountId === siteUid
 
-  const isJoined = isOwnAccount || hasContact
+  const isJoined = isOwnAccount || isSiteMember
 
   const joinSite = async () => {
     if (!selectedAccountId) {
@@ -25,6 +25,7 @@ export function useJoinSite({siteUid}: {siteUid: string}) {
       accountUid: selectedAccountId,
       name: '',
       subjectUid: siteUid,
+      subscribe: {site: true},
     })
   }
 

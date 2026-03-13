@@ -840,6 +840,13 @@ export const HMResolvedResourceSchema = z.discriminatedUnion('type', [
 ])
 export type HMResolvedResource = z.infer<typeof HMResolvedResourceSchema>
 
+// Subscribe preferences for a contact.
+export const HMContactSubscribeSchema = z.object({
+  site: z.boolean().optional(),
+  profile: z.boolean().optional(),
+})
+export type HMContactSubscribe = z.infer<typeof HMContactSubscribeSchema>
+
 // Contact record schema (matches gRPC Contact type)
 export const HMContactRecordSchema = z.object({
   id: z.string(),
@@ -849,6 +856,7 @@ export const HMContactRecordSchema = z.object({
   signer: z.string(),
   createTime: HMTimestampSchema.optional(),
   updateTime: HMTimestampSchema.optional(),
+  subscribe: HMContactSubscribeSchema.optional(),
 })
 export type HMContactRecord = z.infer<typeof HMContactRecordSchema>
 

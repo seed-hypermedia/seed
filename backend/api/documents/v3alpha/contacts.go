@@ -2,6 +2,7 @@ package documents
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"seed/backend/blob"
 	"seed/backend/core"
@@ -17,6 +18,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -52,7 +54,7 @@ func (srv *Server) CreateContact(ctx context.Context, in *documents.CreateContac
 
 	clock := cclock.New()
 
-	eb, err := blob.NewContact(kp, "", account, subject, in.Name, clock.MustNow())
+	eb, err := blob.NewContact(kp, "", account, subject, in.Name, nil, clock.MustNow())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create contact: %v", err)
 	}
@@ -108,7 +110,8 @@ func (srv *Server) ListContacts(ctx context.Context, in *documents.ListContactsR
 				latest_sb.extra_attrs->>'name' as name,
 				latest_sb.extra_attrs->>'tsid' as tsid,
 				latest_sb.extra_attrs->>'deleted' as deleted,
-				latest_sb.ts
+				latest_sb.ts,
+				latest_sb.extra_attrs->'subscribe' as subscribe
 			FROM (
 				SELECT
 					sb.*,
@@ -147,7 +150,8 @@ func (srv *Server) ListContacts(ctx context.Context, in *documents.ListContactsR
 				latest_sb.extra_attrs->>'name' as name,
 				latest_sb.extra_attrs->>'tsid' as tsid,
 				latest_sb.extra_attrs->>'deleted' as deleted,
-				latest_sb.ts
+				latest_sb.ts,
+				latest_sb.extra_attrs->'subscribe' as subscribe
 			FROM (
 				SELECT
 					sb.*,
@@ -192,6 +196,7 @@ func (srv *Server) ListContacts(ctx context.Context, in *documents.ListContactsR
 			tsid := row.ColumnText(seq())
 			deleted := row.ColumnText(seq())
 			ts := row.ColumnInt64(seq())
+			subscribeJSON := row.ColumnText(seq())
 
 			// Skip deleted contacts (should already be filtered by query, but double-check).
 			if deleted == "true" {
@@ -213,6 +218,19 @@ func (srv *Server) ListContacts(ctx context.Context, in *documents.ListContactsR
 				UpdateTime: timestamppb.New(timestamp),
 				Account:    core.Principal(accountPrincipal).String(),
 				Signer:     core.Principal(signerPrincipal).String(),
+			}
+
+			// Build metadata struct with subscribe preferences if present.
+			if subscribeJSON != "" {
+				var subscribeData map[string]any
+				if err := json.Unmarshal([]byte(subscribeJSON), &subscribeData); err == nil && len(subscribeData) > 0 {
+					metadata := map[string]any{
+						"subscribe": subscribeData,
+					}
+					if metadataStruct, err := structpb.NewStruct(metadata); err == nil {
+						proto.Metadata = metadataStruct
+					}
+				}
 			}
 
 			cursor.ContactID = id
@@ -252,7 +270,8 @@ func (srv *Server) GetContact(ctx context.Context, in *documents.GetContactReque
 			pk_subject.principal as subject_principal,
 			sb.extra_attrs->>'name' as name,
 			sb.extra_attrs->>'deleted' as deleted,
-			sb.ts
+			sb.ts,
+			sb.extra_attrs->'subscribe' as subscribe
 		FROM structural_blobs sb
 		LEFT JOIN resources res ON res.id = sb.resource
 		JOIN public_keys pk_account ON pk_account.id = COALESCE(res.owner, sb.author)
@@ -278,6 +297,7 @@ func (srv *Server) GetContact(ctx context.Context, in *documents.GetContactReque
 		name := row.ColumnText(seq())
 		deleted := row.ColumnText(seq())
 		ts := row.ColumnInt64(seq())
+		subscribeJSON := row.ColumnText(seq())
 
 		// If this is a tombstone (deleted contact), return not found
 		if deleted != "" {
@@ -297,6 +317,19 @@ func (srv *Server) GetContact(ctx context.Context, in *documents.GetContactReque
 			UpdateTime: timestamppb.New(timestamp),
 			Account:    core.Principal(accountPrincipal).String(),
 			Signer:     core.Principal(signerPrincipal).String(),
+		}
+
+		// Build metadata struct with subscribe preferences if present.
+		if subscribeJSON != "" {
+			var subscribeData map[string]any
+			if err := json.Unmarshal([]byte(subscribeJSON), &subscribeData); err == nil && len(subscribeData) > 0 {
+				metadata := map[string]any{
+					"subscribe": subscribeData,
+				}
+				if metadataStruct, err := structpb.NewStruct(metadata); err == nil {
+					contact.Metadata = metadataStruct
+				}
+			}
 		}
 		break
 	}
@@ -357,7 +390,7 @@ func (srv *Server) UpdateContact(ctx context.Context, in *documents.UpdateContac
 
 	clock := cclock.New()
 
-	encoded, err := blob.NewContact(kp, recordID.TSID, account, subject, contact.Name, clock.MustNow())
+	encoded, err := blob.NewContact(kp, recordID.TSID, account, subject, contact.Name, nil, clock.MustNow())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to update contact: %v", err)
 	}
@@ -396,7 +429,7 @@ func (srv *Server) DeleteContact(ctx context.Context, in *documents.DeleteContac
 
 	clock := cclock.New()
 
-	encoded, err := blob.NewContact(kp, recordID.TSID, account, nil, "", clock.MustNow())
+	encoded, err := blob.NewContact(kp, recordID.TSID, account, nil, "", nil, clock.MustNow())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to delete contact: %v", err)
 	}
@@ -416,7 +449,7 @@ func contactToProto(tsid blob.TSID, v *blob.Contact) *documents.Contact {
 	}
 	createTime := tsid.Timestamp()
 
-	return &documents.Contact{
+	proto := &documents.Contact{
 		Id:         rid.String(),
 		Subject:    core.Principal(v.Subject).String(),
 		Name:       v.Name,
@@ -425,4 +458,25 @@ func contactToProto(tsid blob.TSID, v *blob.Contact) *documents.Contact {
 		Account:    core.Principal(account).String(),
 		Signer:     core.Principal(v.Signer).String(),
 	}
+
+	// Add subscribe preferences to metadata if present.
+	if v.Subscribe != nil {
+		subscribeData := map[string]any{}
+		if v.Subscribe.Site {
+			subscribeData["site"] = true
+		}
+		if v.Subscribe.Profile {
+			subscribeData["profile"] = true
+		}
+		if len(subscribeData) > 0 {
+			metadata := map[string]any{
+				"subscribe": subscribeData,
+			}
+			if metadataStruct, err := structpb.NewStruct(metadata); err == nil {
+				proto.Metadata = metadataStruct
+			}
+		}
+	}
+
+	return proto
 }

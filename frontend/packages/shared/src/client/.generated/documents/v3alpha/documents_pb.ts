@@ -1617,6 +1617,13 @@ export class Contact extends Message<Contact> {
    */
   signer = "";
 
+  /**
+   * Additional metadata from the contact blob (e.g., following preferences).
+   *
+   * @generated from field: google.protobuf.Struct metadata = 8;
+   */
+  metadata?: Struct;
+
   constructor(data?: PartialMessage<Contact>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1632,6 +1639,7 @@ export class Contact extends Message<Contact> {
     { no: 5, name: "update_time", kind: "message", T: Timestamp },
     { no: 6, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "signer", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "metadata", kind: "message", T: Struct },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Contact {

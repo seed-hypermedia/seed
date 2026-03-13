@@ -20,9 +20,9 @@ async function joinSite(signer: HMSigner, siteUid: string) {
   // console.log('[joinSite] Getting contacts for account', {accountUid})
   const contacts = await webUniversalClient.request('AccountContacts', accountUid)
   console.log('[joinSite] Existing Contacts', contacts)
-  const existingContact = contacts.find((c) => c.subject === siteUid)
-  if (existingContact) {
-    console.log('[joinSite] Already have a contact for this site', {existingContact})
+  const existingJoinContact = contacts.find((c) => c.subject === siteUid && c.subscribe?.site)
+  if (existingJoinContact) {
+    console.log('[joinSite] Already have a contact for this site', {existingJoinContact})
     return
   }
   console.log('[joinSite] Creating contact for site', {siteUid, accountUid})
@@ -30,6 +30,7 @@ async function joinSite(signer: HMSigner, siteUid: string) {
     {
       subjectUid: siteUid,
       accountUid,
+      subscribe: {site: true},
     },
     signer,
   )
