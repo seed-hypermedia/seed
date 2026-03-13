@@ -22,7 +22,8 @@ import {app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, OpenDialogOpt
 import {performance} from 'perf_hooks'
 
 import contextMenu from 'electron-context-menu'
-import squirrelStartup from 'electron-squirrel-startup'
+// electron-squirrel-startup is no longer used directly — we handle Squirrel
+// lifecycle events manually to add Windows Firewall rules on install/update.
 import fs from 'fs'
 import mime from 'mime'
 import path from 'node:path'
@@ -110,7 +111,41 @@ contextMenu({
 Menu.setApplicationMenu(createAppMenu())
 
 if (IS_PROD_DESKTOP) {
-  if (squirrelStartup) {
+  // Handle Squirrel.Windows lifecycle events (install, update, uninstall).
+  // On install/update: add a Windows Firewall inbound rule so the app doesn't
+  // prompt the user on every update (each version lives in a new directory).
+  const squirrelEvent = process.argv[1]
+  if (
+    squirrelEvent === '--squirrel-install' ||
+    squirrelEvent === '--squirrel-updated'
+  ) {
+    const {execSync} = require('child_process')
+    try {
+      execSync(`netsh advfirewall firewall delete rule name="Seed"`, {
+        stdio: 'ignore',
+      })
+    } catch {
+      // Rule may not exist yet, ignore
+    }
+    try {
+      execSync(
+        `netsh advfirewall firewall add rule name="Seed" dir=in action=allow program="${process.execPath}" enable=yes profile=any`,
+      )
+    } catch {
+      // Non-fatal: user will just see the firewall prompt
+    }
+    app.quit()
+  } else if (squirrelEvent === '--squirrel-uninstall') {
+    const {execSync} = require('child_process')
+    try {
+      execSync(`netsh advfirewall firewall delete rule name="Seed"`, {
+        stdio: 'ignore',
+      })
+    } catch {
+      // Ignore errors during cleanup
+    }
+    app.quit()
+  } else if (squirrelEvent === '--squirrel-obsolete') {
     app.quit()
   }
 
