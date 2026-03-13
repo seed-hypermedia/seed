@@ -1,5 +1,6 @@
 import {lazy, useEffect, useState} from 'react'
 import {WebCommentingProps} from './commenting'
+import {isPerfEnabled, markEditorLoadStart, markPanelOpenStart} from './web-perf-marks'
 
 function clientLazy<ComponentProps extends {}>(doImport: () => Promise<{default: React.FC<ComponentProps>}>) {
   const ClientComponent = lazy(doImport)
@@ -14,9 +15,19 @@ function clientLazy<ComponentProps extends {}>(doImport: () => Promise<{default:
   return ClientAwokenComponent
 }
 
-export const WebCommenting = clientLazy<WebCommentingProps>(async () => ({
-  default: (await import('./commenting')).default,
-}))
+export const WebCommenting = clientLazy<WebCommentingProps>(async () => {
+  if (isPerfEnabled()) {
+    markEditorLoadStart()
+    markPanelOpenStart()
+  }
+  const mod = await import('./commenting')
+  return {default: mod.default}
+})
+
+/** Preload the commenting chunk on hover to reduce editor load time */
+export function preloadCommenting(): void {
+  import('./commenting').catch(() => {})
+}
 
 export const AccountFooterActionsLazy = clientLazy<{}>(async () => ({
   default: (await import('./auth')).AccountFooterActions,

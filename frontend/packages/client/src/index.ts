@@ -1,39 +1,39 @@
+export {createCapability} from './capability'
+export type {CapabilityRole, CreateCapabilityInput} from './capability'
 export {
-  createChangeOps,
   createChange,
-  signPreparedChange,
-  signDocumentChange,
-  createGenesisChange,
+  createChangeOps,
   createDocumentChange,
   createDocumentChangeFromOps,
+  createGenesisChange,
+  signDocumentChange,
+  signPreparedChange,
 } from './change'
 export type {
   CreateChangeOpsInput,
-  SignDocumentChangeInput,
-  CreateDocumentChangeInput,
   CreateDocumentChangeFromOpsInput,
+  CreateDocumentChangeInput,
   DocumentOperation,
+  SignDocumentChangeInput,
 } from './change'
 export {createSeedClient} from './client'
-export type {SeedClient, SeedClientOptions, PublishDocumentInput} from './client'
-export {createComment, deleteComment, commentRecordIdFromBlob} from './comment'
-export type {CreateCommentInput, DeleteCommentInput, CommentAttachmentBlob} from './comment'
-export {createContact, updateContact, deleteContact, contactRecordIdFromBlob} from './contact'
-export type {CreateContactInput, UpdateContactInput, DeleteContactInput, CreateContactResult} from './contact'
-export {createCapability} from './capability'
-export type {CreateCapabilityInput, CapabilityRole} from './capability'
-export {createVersionRef, createTombstoneRef, createRedirectRef} from './ref'
-export type {CreateVersionRefInput, CreateTombstoneRefInput, CreateRedirectRefInput} from './ref'
+export type {PublishDocumentInput, SeedClient, SeedClientOptions} from './client'
+export {commentRecordIdFromBlob, createComment, deleteComment} from './comment'
+export type {CommentAttachmentBlob, CreateCommentInput, DeleteCommentInput} from './comment'
+export {contactRecordIdFromBlob, createContact, deleteContact, updateContact} from './contact'
+export type {CreateContactInput, CreateContactResult, DeleteContactInput, UpdateContactInput} from './contact'
 export {SeedClientError, SeedNetworkError, SeedValidationError} from './errors'
+export {createRedirectRef, createTombstoneRef, createVersionRef} from './ref'
+export type {CreateRedirectRefInput, CreateTombstoneRefInput, CreateVersionRefInput} from './ref'
 
-export type {HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'
-export {
-  packHmId,
-  packBaseId,
-  getHMQueryString,
-  serializeBlockRange,
-  HYPERMEDIA_SCHEME,
-  hmIdPathToEntityQueryPath,
-  entityQueryPathToHmIdPath,
-} from './hm-types'
 export {trimTrailingEmptyBlocks} from './comment'
+export {
+  entityQueryPathToHmIdPath,
+  getHMQueryString,
+  hmIdPathToEntityQueryPath,
+  HYPERMEDIA_SCHEME,
+  packBaseId,
+  packHmId,
+  serializeBlockRange,
+} from './hm-types'
+export type {HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'

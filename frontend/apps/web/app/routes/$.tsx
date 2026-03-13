@@ -118,6 +118,38 @@ export const meta: MetaFunction<typeof loader> = (args) => {
 
 export const headers: HeadersFunction = ({loaderHeaders}) => loaderHeaders
 
+/**
+ * Prevent Remix from re-running the loader when only panel-related search params change.
+ * The loader only depends on the pathname, `v` (version), and `l` (latest) params.
+ * Changes to `panel`, `view`, etc. are purely client-side state.
+ */
+export function shouldRevalidate({
+  currentUrl,
+  nextUrl,
+  defaultShouldRevalidate,
+}: {
+  currentUrl: URL
+  nextUrl: URL
+  defaultShouldRevalidate: boolean
+}) {
+  // Different pathname always revalidates
+  if (currentUrl.pathname !== nextUrl.pathname) {
+    return defaultShouldRevalidate
+  }
+
+  // Same pathname — check if data-affecting params changed
+  const currentV = currentUrl.searchParams.get('v')
+  const nextV = nextUrl.searchParams.get('v')
+  const currentL = currentUrl.searchParams.get('l')
+  const nextL = nextUrl.searchParams.get('l')
+
+  if (currentV === nextV && currentL === nextL) {
+    return false // Only cosmetic params (panel, view) changed
+  }
+
+  return defaultShouldRevalidate
+}
+
 export const loader = async ({params, request}: {params: Params; request: Request}) => {
   const parsedRequest = parseRequest(request)
   const ctx = createInstrumentationContext(parsedRequest.url.pathname, request.method)
