@@ -284,6 +284,18 @@ jobs:
           VITE_PLAUSIBLE_DOMAIN: 'stats.desktop.seedhypermedia.com'
           SENTRY_AUTH_TOKEN: '${{ secrets.SENTRY_AUTH_TOKEN }}'
 
+      - name: Sign Windows application (DigiCert KeyLocker)
+        if: startsWith(matrix.config.os, 'windows')
+        uses: digicert/code-signing-software-trust-action@v1.0.0
+        env:
+          SM_API_KEY: ${{ secrets.KEYLOCKER_API_KEY }}
+          SM_CLIENT_CERT_FILE_B64: ${{ secrets.KEYLOCKER_CERT }}
+          SM_CLIENT_CERT_PASSWORD: ${{ secrets.KEYLOCKER_CERT_PASSWORD }}
+        with:
+          keypair-alias: ${{ secrets.KEYLOCKER_KEYPAIR_ALIAS }}
+          input: frontend/apps/desktop/out/make
+          simple-signing-mode: true
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:

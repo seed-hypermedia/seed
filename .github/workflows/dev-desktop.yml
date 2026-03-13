@@ -302,86 +302,17 @@ jobs:
           AWS_DEFAULT_REGION: eu-west-2
           SEED_P2P_TESTNET_NAME: 'dev'
 
-      # - name: Sign Windows application with KeyLocker
-      #   if: startsWith(matrix.config.os, 'windows')
-      #   uses: digicert/keylocker-signing@v1
-      #   with:
-      #     api_key: ${{ secrets.KEYLOCKER_API_KEY }}
-      #     client_cert: ${{ secrets.KEYLOCKER_CERT }}
-      #     client_cert_password: ${{ secrets.KEYLOCKER_CERT_PASSWORD }}
-      #     keypair_alias: ${{ secrets.KEYLOCKER_KEYPAIR_ALIAS }}
-      #     input_file: frontend/apps/desktop/out/make/squirrel.windows/x64/seed-dev-${{ needs.build-info.outputs.version }}-win32-x64-setup.exe
-      #     timestamp_url: http://timestamp.digicert.com
-
-      - name: Create test certificate for signing (Windows)
+      - name: Sign Windows application (DigiCert KeyLocker)
         if: startsWith(matrix.config.os, 'windows')
-        shell: powershell
-        run: |
-          # Create a test certificate for signing
-          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Test Code Signing" -KeyAlgorithm RSA -KeyLength 2048 -Provider "Microsoft Enhanced RSA and AES Cryptographic Provider" -KeyExportPolicy Exportable -KeyUsage DigitalSignature -CertStoreLocation Cert:\CurrentUser\My
-
-          # Export the certificate to a PFX file
-          $password = ConvertTo-SecureString -String "testpassword" -Force -AsPlainText
-          Export-PfxCertificate -Cert $cert -FilePath "test-cert.pfx" -Password $password
-
-          echo "Test certificate created: test-cert.pfx"
-
-      - name: Sign Windows application with test certificate
-        if: startsWith(matrix.config.os, 'windows')
-        shell: powershell
-        run: |
-          # Find the .exe installer file
-          $exeFile = Get-ChildItem -Path "frontend/apps/desktop/out/make" -Filter "*.exe" -Recurse | Select-Object -First 1
-
-          if ($exeFile) {
-            Write-Host "Signing: $($exeFile.FullName)"
-            
-            # Sign with the test certificate
-            $signResult = & "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe" sign /f "test-cert.pfx" /p "testpassword" /t "http://timestamp.digicert.com" /fd sha256 /v "$($exeFile.FullName)"
-            
-            if ($LASTEXITCODE -eq 0) {
-              Write-Host "✅ Successfully signed: $($exeFile.FullName)"
-              
-              # Verify the signature (this will fail for self-signed certs, but that's expected)
-              Write-Host "Verifying signature (note: self-signed test certificates will show trust warnings)..."
-              
-              # Capture verification output without failing the script
-              $ErrorActionPreference = "Continue"
-              $verifyOutput = & "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe" verify /v "$($exeFile.FullName)" 2>&1
-              $verifyExitCode = $LASTEXITCODE
-              Write-Host $verifyOutput
-              
-              # Check if the file has a signature (ignore exit codes for verification)
-              $signatureCheck = & "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe" verify "$($exeFile.FullName)" 2>&1
-              $signatureCheckExitCode = $LASTEXITCODE
-              
-              # For test certificates, we expect "terminated in a root certificate which is not trusted"
-              # This means the file IS signed, just not with a trusted certificate
-              if ($signatureCheck -match "terminated in a root certificate which is not trusted" -or 
-                  $signatureCheck -match "SignTool Error: A certificate chain processed") {
-                Write-Host "✅ File is signed with test certificate (trust warnings are expected and normal)"
-                # Reset exit code to success since this is expected behavior
-                $global:LASTEXITCODE = 0
-              } elseif ($signatureCheck -match "No signature found") {
-                Write-Host "❌ File does not appear to be signed"
-                exit 1
-              } else {
-                Write-Host "✅ File appears to be signed (verification output: $signatureCheck)"
-                # Reset exit code to success
-                $global:LASTEXITCODE = 0
-              }
-              
-              Write-Host "🎉 Test signing workflow completed successfully!"
-              # Explicitly exit with success code
-              exit 0
-            } else {
-              Write-Host "❌ Failed to sign the file"
-              exit 1
-            }
-          } else {
-            Write-Host "No .exe file found to sign"
-            exit 1
-          }
+        uses: digicert/code-signing-software-trust-action@v1.0.0
+        env:
+          SM_API_KEY: ${{ secrets.KEYLOCKER_API_KEY }}
+          SM_CLIENT_CERT_FILE_B64: ${{ secrets.KEYLOCKER_CERT }}
+          SM_CLIENT_CERT_PASSWORD: ${{ secrets.KEYLOCKER_CERT_PASSWORD }}
+        with:
+          keypair-alias: ${{ secrets.KEYLOCKER_KEYPAIR_ALIAS }}
+          input: frontend/apps/desktop/out/make
+          simple-signing-mode: true
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
