@@ -326,9 +326,18 @@ describe('local-db integration', () => {
       try {
         const intent: PendingCommentIntent = {
           type: 'comment',
-          docId: '{"uid":"abc","path":"/doc"}',
+          docId: {
+            id: 'hm://abc',
+            uid: 'abc',
+            path: [],
+            version: null,
+            blockRef: null,
+            blockRange: null,
+            hostname: null,
+            scheme: null,
+          },
           docVersion: 'v1.v2',
-          content: '[{"block":{"id":"b1","type":"Paragraph","text":"hello"}}]',
+          content: [{block: {id: 'b1', type: 'Paragraph', text: 'hello', attributes: {}}}],
           replyCommentVersion: 'rv1',
           rootReplyCommentVersion: 'rrv1',
           quotingBlockId: 'qb1',
@@ -359,9 +368,18 @@ describe('local-db integration', () => {
         await setPendingIntent({type: 'join', subjectUid: 'test-uid'})
         const commentIntent: PendingCommentIntent = {
           type: 'comment',
-          docId: '{"uid":"abc"}',
+          docId: {
+            id: 'hm://abc',
+            uid: 'abc',
+            path: [],
+            version: null,
+            blockRef: null,
+            blockRange: null,
+            hostname: null,
+            scheme: null,
+          },
           docVersion: 'v1',
-          content: '[]',
+          content: [],
         }
         await setPendingIntent(commentIntent)
         const stored = await getPendingIntent()

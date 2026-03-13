@@ -1,33 +1,35 @@
-import {commentRecordIdFromBlob, createComment, createContact} from '@seed-hypermedia/client'
-import type {HMBlockNode, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {queryKeys} from '@shm/shared'
-import {invalidateQueries} from '@shm/shared/models/query-client'
-import type {NavRoute} from '@shm/shared/routes'
-import {routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {getCurrentAccountUidWithDelegation, getCurrentSigner} from './auth'
-import {clearPendingIntent, getPendingIntent, getStoredLocalKeys} from './local-db'
-import {webUniversalClient} from './universal-client'
+import { commentRecordIdFromBlob, createComment, createContact } from '@seed-hypermedia/client'
+import type { HMSigner, UnpackedHypermediaId } from '@seed-hypermedia/client/hm-types'
+import { queryKeys } from '@shm/shared'
+import { invalidateQueries } from '@shm/shared/models/query-client'
+import type { NavRoute } from '@shm/shared/routes'
+import { routeToUrl } from '@shm/shared/utils/entity-id-url'
+import { getCurrentAccountUidWithDelegation, getCurrentSigner } from './auth'
+import { clearPendingIntent, getPendingIntent, getStoredLocalKeys } from './local-db'
+import { webUniversalClient } from './universal-client'
 
 let pendingIntentProcessingPromise: Promise<string | null> | null = null
 
 async function joinSite(signer: HMSigner, siteUid: string) {
+  console.log('[joinSite] Joining site', {siteUid})
   // check to see if we already have a contact for this site
   const accountUid = await getCurrentAccountUidWithDelegation()
   if (!accountUid) {
     throw new Error('No account UID available to join site')
   }
+  // console.log('[joinSite] Getting contacts for account', {accountUid})
   const contacts = await webUniversalClient.request('AccountContacts', accountUid)
+  console.log('[joinSite] Existing Contacts', contacts)
   const existingContact = contacts.find((c) => c.subject === siteUid)
   if (existingContact) {
     console.log('[joinSite] Already have a contact for this site', {existingContact})
     return
   }
-  console.log('[joinSite] Creating contact for site', {siteUid})
+  console.log('[joinSite] Creating contact for site', {siteUid, accountUid})
   const contactPayload = await createContact(
     {
       subjectUid: siteUid,
       accountUid,
-      name: '',
     },
     signer,
   )
@@ -67,6 +69,7 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
   }
 
   if (intent.type === 'join') {
+    console.log('[processPendingIntent] Join intent', intent)
     await joinSite(signer, intent.subjectUid)
 
     await clearPendingIntent()
@@ -74,7 +77,9 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
   }
 
   if (intent.type === 'comment') {
-    const targetSiteUid = unpackHmId(intent.docId)?.uid
+    console.log('[processPendingIntent] Comment intent', intent)
+    const targetSiteUid = intent.docId.uid
+    // console.log('[processPendingIntent] Target site UID', targetSiteUid)
     if (targetSiteUid) {
       await joinSite(signer, targetSiteUid)
     }
@@ -87,8 +92,7 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
         return null
       }
 
-      const docId: UnpackedHypermediaId = JSON.parse(intent.docId)
-      const content: HMBlockNode[] = JSON.parse(intent.content)
+      const {docId, content} = intent
 
       const commentPayload = await createComment(
         {

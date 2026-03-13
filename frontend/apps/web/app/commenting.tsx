@@ -212,9 +212,9 @@ export default function WebCommenting({
           if (blocks) {
             await setPendingIntent({
               type: 'comment',
-              docId: JSON.stringify(docId),
+              docId,
               docVersion,
-              content: JSON.stringify(blocks),
+              content: blocks,
               replyCommentId: replyCommentId || undefined,
               replyCommentVersion: replyCommentVersion || undefined,
               rootReplyCommentVersion: rootReplyCommentVersion || undefined,

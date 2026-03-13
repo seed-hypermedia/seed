@@ -1,7 +1,7 @@
-import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
-import {base58btc} from 'multiformats/bases/base58'
-import type {HMPublishBlobsInput, HMSigner} from './hm-types'
-import {signObject, toPublishInput} from './signing'
+import { decode as cborDecode, encode as cborEncode } from '@ipld/dag-cbor'
+import { base58btc } from 'multiformats/bases/base58'
+import type { HMPublishBlobsInput, HMSigner } from './hm-types'
+import { signObject, toPublishInput } from './signing'
 
 export type CreateContactInput = {
   /** The subject account UID (base58btc-encoded principal) */
@@ -9,7 +9,7 @@ export type CreateContactInput = {
   /** The account UID (base58btc-encoded principal) */
   accountUid?: string
   /** The display name for the contact */
-  name: string
+  name?: string
 }
 
 export type UpdateContactInput = {
@@ -20,7 +20,7 @@ export type UpdateContactInput = {
   /** The account UID (base58btc-encoded principal) */
   accountUid?: string
   /** The updated display name */
-  name: string
+  name?: string
 }
 
 export type DeleteContactInput = {

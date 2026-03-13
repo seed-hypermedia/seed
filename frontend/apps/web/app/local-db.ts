@@ -1,3 +1,7 @@
+import {HMBlockNodeSchema, unpackedHmIdSchema} from '@seed-hypermedia/client/hm-types'
+import type {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {z} from 'zod'
+
 function upgradeStore(db: IDBDatabase, storeName: string, options?: IDBObjectStoreParameters): IDBObjectStore | null {
   if (db.objectStoreNames.contains(storeName)) {
     return null
@@ -231,9 +235,9 @@ export async function clearAllAuthState(): Promise<void> {
 
 export interface PendingCommentIntent {
   type: 'comment'
-  docId: string // JSON-serialized UnpackedHypermediaId
+  docId: UnpackedHypermediaId
   docVersion: string
-  content: string // JSON-serialized HMBlockNode[]
+  content: HMBlockNode[]
   replyCommentId?: string
   replyCommentVersion?: string
   rootReplyCommentVersion?: string
@@ -246,6 +250,25 @@ export interface PendingJoinIntent {
 }
 
 export type PendingIntent = PendingCommentIntent | PendingJoinIntent
+
+// Zod schemas for validating stored intent data
+const PendingCommentIntentSchema = z.object({
+  type: z.literal('comment'),
+  docId: unpackedHmIdSchema,
+  docVersion: z.string(),
+  content: z.array(HMBlockNodeSchema),
+  replyCommentId: z.string().optional(),
+  replyCommentVersion: z.string().optional(),
+  rootReplyCommentVersion: z.string().optional(),
+  quotingBlockId: z.string().optional(),
+})
+
+const PendingJoinIntentSchema = z.object({
+  type: z.literal('join'),
+  subjectUid: z.string(),
+})
+
+const PendingIntentSchema = z.discriminatedUnion('type', [PendingCommentIntentSchema, PendingJoinIntentSchema])
 
 const PENDING_INTENT_KEY = 'pending'
 
@@ -260,7 +283,17 @@ export async function getPendingIntent(): Promise<PendingIntent | null> {
   const store = (await getDB())
     .transaction(PENDING_INTENT_STORE_NAME, 'readonly')
     .objectStore(PENDING_INTENT_STORE_NAME)
-  return (await storeGet<PendingIntent | undefined>(store, PENDING_INTENT_KEY)) ?? null
+  const raw = await storeGet<unknown>(store, PENDING_INTENT_KEY)
+  if (!raw) return null
+
+  const result = PendingIntentSchema.safeParse(raw)
+  if (!result.success) {
+    console.warn('Invalid pending intent data in IndexedDB, clearing:', result.error.issues)
+    // Clear invalid data to avoid repeated failures
+    await clearPendingIntent()
+    return null
+  }
+  return result.data
 }
 
 export async function clearPendingIntent(): Promise<void> {
