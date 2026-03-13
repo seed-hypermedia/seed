@@ -2,7 +2,7 @@ import {describe, it, expect} from 'vitest'
 import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
 import * as Block from 'multiformats/block'
 import {sha256} from 'multiformats/hashes/sha2'
-import {createChange, createChangeOps, signPreparedChange, signDocumentChange} from './change'
+import {createChange, createChangeOps, signPreparedChange, signDocumentChange, visibilityToCbor} from './change'
 import type {HMSigner} from './hm-types'
 
 // A valid base58btc-encoded account UID (multibase 'z' prefix)
@@ -249,5 +249,71 @@ describe('signDocumentChange', () => {
     )
 
     expect(result1.changeCid.toString()).toBe(result2.changeCid.toString())
+  })
+
+  it('includes visibility "Private" in Ref blob when visibility=2', async () => {
+    const unsignedBytes = await createMockUnsignedChange()
+    const signer = createMockSigner()
+
+    const {publishInput} = await signDocumentChange(
+      {
+        account: TEST_ACCOUNT_UID,
+        unsignedChange: unsignedBytes,
+        path: '/my-private-doc',
+        visibility: 2, // RESOURCE_VISIBILITY_PRIVATE
+      },
+      signer,
+    )
+
+    const refData = cborDecode(publishInput.blobs[1]!.data) as Record<string, unknown>
+    expect(refData['type']).toBe('Ref')
+    expect(refData['visibility']).toBe('Private')
+  })
+
+  it('omits visibility from Ref blob when visibility is unspecified or public', async () => {
+    const unsignedBytes = await createMockUnsignedChange()
+    const signer = createMockSigner()
+
+    // UNSPECIFIED (0)
+    const {publishInput: result0} = await signDocumentChange(
+      {account: TEST_ACCOUNT_UID, unsignedChange: unsignedBytes, visibility: 0},
+      signer,
+    )
+    const refData0 = cborDecode(result0.blobs[1]!.data) as Record<string, unknown>
+    expect(refData0['visibility']).toBeUndefined()
+
+    // PUBLIC (1)
+    const {publishInput: result1} = await signDocumentChange(
+      {account: TEST_ACCOUNT_UID, unsignedChange: unsignedBytes, visibility: 1},
+      signer,
+    )
+    const refData1 = cborDecode(result1.blobs[1]!.data) as Record<string, unknown>
+    expect(refData1['visibility']).toBeUndefined()
+
+    // undefined
+    const {publishInput: resultUndef} = await signDocumentChange(
+      {account: TEST_ACCOUNT_UID, unsignedChange: unsignedBytes},
+      signer,
+    )
+    const refDataUndef = cborDecode(resultUndef.blobs[1]!.data) as Record<string, unknown>
+    expect(refDataUndef['visibility']).toBeUndefined()
+  })
+})
+
+describe('visibilityToCbor', () => {
+  it('maps PRIVATE (2) to "Private"', () => {
+    expect(visibilityToCbor(2)).toBe('Private')
+  })
+
+  it('returns undefined for UNSPECIFIED (0)', () => {
+    expect(visibilityToCbor(0)).toBeUndefined()
+  })
+
+  it('returns undefined for PUBLIC (1)', () => {
+    expect(visibilityToCbor(1)).toBeUndefined()
+  })
+
+  it('returns undefined when omitted', () => {
+    expect(visibilityToCbor(undefined)).toBeUndefined()
   })
 })
