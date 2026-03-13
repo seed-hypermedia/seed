@@ -956,7 +956,15 @@ function DocumentBody({
   const hasActionButtons = hasOptions || editActions
   const actionButtons = hasActionButtons ? (
     <>
-      {hasOptions && <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />}
+      {/* Only show in the floating overlay on md+ screens — on mobile the same
+          button is rendered inside DocumentTools rightActions (md:hidden), so
+          hiding it here prevents both from showing simultaneously around the
+          md breakpoint (issue #321). */}
+      {hasOptions && (
+        <div className="hidden md:block">
+          <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
+        </div>
+      )}
       {editActions}
     </>
   ) : null
