@@ -1,39 +1,27 @@
-import { useLocation, useNavigate, useNavigation } from '@remix-run/react'
-import { UnpackedHypermediaId } from '@seed-hypermedia/client'
-import {
-  createWebHMUrl,
-  NavRoute,
-  OptimizedImageSize,
-  routeToHref,
-  UniversalAppProvider,
-} from '@shm/shared'
-import { DAEMON_FILE_URL, SEED_ASSET_HOST, SITE_BASE_URL } from '@shm/shared/constants'
-import { languagePacks } from '@shm/shared/language-packs'
-import { registerQueryClient } from '@shm/shared/models/query-client'
-import { defaultRoute } from '@shm/shared/routes'
-import { NavAction, NavContextProvider, NavState, navStateReducer } from '@shm/shared/utils/navigation'
-import type { StateStream } from '@shm/shared/utils/stream'
-import { writeableStateStream } from '@shm/shared/utils/stream'
-import { copyTextToClipboard } from '@shm/ui/copy-to-clipboard'
-import { Spinner } from '@shm/ui/spinner'
-import { toast, Toaster } from '@shm/ui/toast'
-import { TooltipProvider } from '@shm/ui/tooltip'
-import { DehydratedState, hydrate, QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { keyPairStore } from './auth'
-import { webUniversalClient } from './universal-client'
-import { isPerfEnabled, markNavEnd, markNavStart } from './web-perf-marks'
+import {useLocation, useNavigate, useNavigation} from '@remix-run/react'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client'
+import {createWebHMUrl, NavRoute, OptimizedImageSize, routeToHref, UniversalAppProvider} from '@shm/shared'
+import {DAEMON_FILE_URL, SEED_ASSET_HOST, SITE_BASE_URL} from '@shm/shared/constants'
+import {languagePacks} from '@shm/shared/language-packs'
+import {registerQueryClient} from '@shm/shared/models/query-client'
+import {defaultRoute} from '@shm/shared/routes'
+import {NavAction, NavContextProvider, NavState, navStateReducer} from '@shm/shared/utils/navigation'
+import type {StateStream} from '@shm/shared/utils/stream'
+import {writeableStateStream} from '@shm/shared/utils/stream'
+import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {Spinner} from '@shm/ui/spinner'
+import {toast, Toaster} from '@shm/ui/toast'
+import {TooltipProvider} from '@shm/ui/tooltip'
+import {DehydratedState, hydrate, QueryClient, QueryClientProvider, useQueryClient} from '@tanstack/react-query'
+import {createContext, useContext, useEffect, useMemo, useState} from 'react'
+import {keyPairStore} from './auth'
+import {webUniversalClient} from './universal-client'
+import {isPerfEnabled, markNavEnd, markNavStart} from './web-perf-marks'
 
 const selectedIdentity: StateStream<string | null> = {
-  get: () => {
-    const kp = keyPairStore.get()
-    return kp?.delegatedAccountUid ?? kp?.id ?? null
-  },
+  get: () => keyPairStore.get()?.id ?? null,
   subscribe: (handler) => {
-    const wrapped = () => {
-      const kp = keyPairStore.get()
-      handler(kp?.delegatedAccountUid ?? kp?.id ?? null)
-    }
+    const wrapped = () => handler(keyPairStore.get()?.id ?? null)
     return keyPairStore.subscribe(wrapped)
   },
 }

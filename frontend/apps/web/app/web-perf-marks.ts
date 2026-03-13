@@ -30,7 +30,8 @@ const PERF_MARKS = {
   NAV: 'perf:nav',
 } as const
 
-function shouldLog(): boolean {
+/** Returns true when perf instrumentation is enabled (set by the test runner). */
+export function isPerfEnabled(): boolean {
   try {
     return typeof window !== 'undefined' && (window as any).__SEED_PERF_MARKS === true
   } catch {
@@ -39,7 +40,7 @@ function shouldLog(): boolean {
 }
 
 function safeMark(name: string): void {
-  if (typeof performance === 'undefined') return
+  if (!isPerfEnabled()) return
   try {
     performance.mark(name)
   } catch {
@@ -48,12 +49,10 @@ function safeMark(name: string): void {
 }
 
 function safeMeasure(name: string, startMark: string, endMark: string): PerformanceMeasure | undefined {
-  if (typeof performance === 'undefined') return undefined
+  if (!isPerfEnabled()) return undefined
   try {
     const measure = performance.measure(name, startMark, endMark)
-    if (shouldLog()) {
-      console.log(`[perf] ${name}: ${measure.duration.toFixed(1)}ms`)
-    }
+    console.log(`[perf] ${name}: ${measure.duration.toFixed(1)}ms`)
     return measure
   } catch {
     return undefined

@@ -1,6 +1,6 @@
 import {lazy, useEffect, useState} from 'react'
 import {WebCommentingProps} from './commenting'
-import {markEditorLoadStart, markPanelOpenStart} from './web-perf-marks'
+import {isPerfEnabled, markEditorLoadStart, markPanelOpenStart} from './web-perf-marks'
 
 function clientLazy<ComponentProps extends {}>(doImport: () => Promise<{default: React.FC<ComponentProps>}>) {
   const ClientComponent = lazy(doImport)
@@ -16,8 +16,10 @@ function clientLazy<ComponentProps extends {}>(doImport: () => Promise<{default:
 }
 
 export const WebCommenting = clientLazy<WebCommentingProps>(async () => {
-  markEditorLoadStart()
-  markPanelOpenStart()
+  if (isPerfEnabled()) {
+    markEditorLoadStart()
+    markPanelOpenStart()
+  }
   const mod = await import('./commenting')
   return {default: mod.default}
 })

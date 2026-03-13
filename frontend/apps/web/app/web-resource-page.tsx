@@ -31,8 +31,7 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
     const handler = (e: MouseEvent) => {
       if (preloaded.current) return
       const target = e.target as HTMLElement
-      // Match the Comments tab button or any element with comment-related text
-      if (target.closest?.('a[href*="comments"], button')?.textContent?.includes('Comments')) {
+      if (target.closest?.('[data-tab="comments"]')) {
         preloaded.current = true
         preloadCommenting()
       }
