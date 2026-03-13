@@ -148,6 +148,7 @@ const textBlockProperties = {
 
 const parentBlockAttributes = {
   childrenType: HMBlockChildrenTypeSchema.optional(),
+  columnCount: z.number().optional(),
 }
 
 export const HMBlockParagraphSchema = z
