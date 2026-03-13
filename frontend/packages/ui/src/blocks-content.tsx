@@ -58,8 +58,8 @@ import {useNavigate} from '@shm/shared/utils/navigation'
 import {generateInstagramEmbedHtml, loadInstagramScript, loadTwitterScript} from '@shm/shared/utils/web-embed-scripts'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
-import {common} from 'lowlight'
-import {AlertCircle, ChevronDown, ChevronRight, File, Link, MessageSquare, Undo2, X} from 'lucide-react'
+import { common } from 'lowlight'
+import { AlertCircle, ChevronDown, ChevronRight, File, Link, MessageSquare, Undo2, X } from 'lucide-react'
 import React, {
   PropsWithChildren,
   ReactNode,
@@ -73,9 +73,9 @@ import React, {
   useRef,
   useState,
 } from 'react'
-import {createPortal} from 'react-dom'
-import {ErrorBoundary} from 'react-error-boundary'
-import {contentLayoutUnit, contentTextUnit} from './blocks-content-constants'
+import { createPortal } from 'react-dom'
+import { ErrorBoundary } from 'react-error-boundary'
+import { contentLayoutUnit, contentTextUnit } from './blocks-content-constants'
 import './blocks-content.css'
 import {Button} from './button'
 import {CommentContent, Discussions} from './comments'
@@ -97,7 +97,7 @@ import {Spinner} from './spinner'
 import {SizableText, Text, TextProps} from './text'
 import {Tooltip} from './tooltip'
 import useMedia from './use-media'
-import {cn} from './utils'
+import { cn } from './utils'
 
 import {HMCitation, HMResource} from '@seed-hypermedia/client/hm-types'
 import {getCommentTargetId} from '@shm/shared'
@@ -472,11 +472,13 @@ export function BlockNodeList({
   children,
   childrenType = 'Group',
   listLevel,
+  columnCount,
   ...props
 }: {
   children: React.ReactNode
   childrenType?: HMBlockChildrenType
   listLevel?: string | number
+  columnCount?: number
   className?: string
 }) {
   const getListClasses = (
@@ -486,7 +488,14 @@ export function BlockNodeList({
   ): string => {
     const classes: string[] = ['blocknode-list', 'w-full', 'marker:text-muted-foreground marker:text-sm']
 
-    if (type === 'Unordered') {
+    if (type === 'Grid') {
+      classes.push('grid', 'gap-2', '[&>*]:min-w-0', '[&>*]:overflow-hidden')
+      const cols = columnCount || 3
+      if (cols === 1) classes.push('grid-cols-1')
+      else if (cols === 2) classes.push('grid-cols-1', 'sm:grid-cols-2')
+      else if (cols === 4) classes.push('grid-cols-1', 'sm:grid-cols-2', 'lg:grid-cols-4')
+      else classes.push('grid-cols-1', 'sm:grid-cols-2', 'md:grid-cols-3') // default 3
+    } else if (type === 'Unordered') {
       classes.push('list-disc', 'pl-6')
       // if (level === 2) classes.push('list-[circle]')
       // if (level === 3) classes.push('list-[square]')
@@ -502,6 +511,7 @@ export function BlockNodeList({
   }
 
   const Tag = useMemo(() => {
+    if (childrenType === 'Grid') return 'div'
     if (childrenType === 'Ordered') return 'ol'
     if (childrenType === 'Blockquote') return 'blockquote'
     return 'ul'
@@ -880,6 +890,8 @@ export function BlockNodeContent({
         <BlockNodeList
           // @ts-expect-error
           childrenType={blockNode.block?.attributes?.childrenType}
+          // @ts-expect-error — columnCount exists on parentBlockAttributes
+          columnCount={blockNode.block?.attributes?.columnCount}
           listLevel={listLevel}
         >
           {bnChildren}

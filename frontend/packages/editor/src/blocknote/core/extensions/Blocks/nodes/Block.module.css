@@ -46,6 +46,50 @@ NESTED BLOCKS
   margin-left: 1.5em;
 }
 
+/* Grid containers: constrain children to cell width and don't show indentation */
+.blockChildren[data-list-type='Grid'] {
+  margin-left: 0;
+}
+
+.blockChildren[data-list-type='Grid'] > .blockNode {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Force media containers to respect grid cell bounds */
+.blockChildren[data-list-type='Grid'] > .blockNode div[style] {
+  max-width: 100% !important;
+}
+
+/* Constrain images and videos inside grid cells to fit within their cell */
+.blockChildren[data-list-type='Grid'] > .blockNode img,
+.blockChildren[data-list-type='Grid'] > .blockNode video {
+  max-width: 100% !important;
+  max-height: 200px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+}
+
+/* Prevent negative margins from breaking grid layout (e.g. query block) */
+.blockChildren[data-list-type='Grid'] > .blockNode > .blockContent {
+  overflow: hidden;
+}
+
+/* Responsive grid: collapse to 1 column on narrow screens */
+@media (max-width: 640px) {
+  .blockChildren[data-list-type='Grid'] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 768px) {
+  .blockChildren[data-list-type='Grid'][data-column-count='3'],
+  .blockChildren[data-list-type='Grid'][data-column-count='4'] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
 .blockChildren .blockChildren > .blockNode {
   position: relative;
 }
