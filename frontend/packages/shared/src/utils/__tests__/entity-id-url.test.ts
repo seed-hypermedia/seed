@@ -371,8 +371,8 @@ describe('createWebHMUrl', () => {
     )
   })
 
-  test('doc URL with latest', () => {
-    expect(createWebHMUrl('abc', {hostname: 'https://gw.com', latest: true})).toBe('https://gw.com/hm/abc?l')
+  test('doc URL with latest (no version = no ?l)', () => {
+    expect(createWebHMUrl('abc', {hostname: 'https://gw.com', latest: true})).toBe('https://gw.com/hm/abc')
   })
 
   test('latest=true ignores version', () => {
@@ -382,7 +382,7 @@ describe('createWebHMUrl', () => {
         latest: true,
         version: 'v1hash',
       }),
-    ).toBe('https://gw.com/hm/abc?l')
+    ).toBe('https://gw.com/hm/abc')
   })
 
   test('doc URL with blockRef', () => {
@@ -518,7 +518,7 @@ describe('createSiteUrl', () => {
         path: ['page'],
         latest: true,
       }),
-    ).toBe('https://mysite.com/page?l')
+    ).toBe('https://mysite.com/page')
   })
 
   test('site URL with blockRef + expanded', () => {
@@ -779,7 +779,7 @@ describe('createSiteUrl with viewTerm and panel', () => {
         panel: 'comments/z6Mk/abc',
         latest: true,
       }),
-    ).toBe('https://mysite.com/doc/:comments?l&panel=comments/z6Mk/abc')
+    ).toBe('https://mysite.com/doc/:comments?panel=comments/z6Mk/abc')
   })
 
   test('site URL with viewTerm + panel + blockRef', () => {
@@ -817,7 +817,7 @@ describe('createCommentUrl', () => {
         siteUrl: 'https://seedteamtalks.hyper.media',
         latest: true,
       }),
-    ).toBe('https://seedteamtalks.hyper.media/human-interface-library/:comments/z6MkAuthor/tsid123?l')
+    ).toBe('https://seedteamtalks.hyper.media/human-interface-library/:comments/z6MkAuthor/tsid123')
   })
 
   test('with siteUrl + blockRef', () => {
@@ -842,7 +842,7 @@ describe('createCommentUrl', () => {
         blockRef: 'blk1',
         blockRange: {start: 10, end: 20},
       }),
-    ).toBe('https://seedteamtalks.hyper.media/human-interface-library/:comments/z6MkAuthor/tsid123?l#blk1[10:20]')
+    ).toBe('https://seedteamtalks.hyper.media/human-interface-library/:comments/z6MkAuthor/tsid123#blk1[10:20]')
   })
 
   test('without siteUrl (gateway)', () => {
@@ -852,7 +852,7 @@ describe('createCommentUrl', () => {
         commentId: 'z6MkAuthor/tsid123',
         latest: true,
       }),
-    ).toContain('/hm/z6MkOwner/human-interface-library/:comments/z6MkAuthor/tsid123?l')
+    ).toContain('/hm/z6MkOwner/human-interface-library/:comments/z6MkAuthor/tsid123')
   })
 
   test('gateway with blockRef', () => {
@@ -876,7 +876,7 @@ describe('createCommentUrl', () => {
         siteUrl: 'https://gabo.es',
         latest: true,
       }),
-    ).toBe('https://gabo.es/:comments/zDnae.../z6FK...?l')
+    ).toBe('https://gabo.es/:comments/zDnae.../z6FK...')
   })
 })
 
@@ -937,5 +937,23 @@ describe('roundtrip: createWebHMUrl -> unpackHmId', () => {
     const unpacked = unpackHmId(url)
     expect(unpacked?.blockRef).toBe('XK6l8B4d')
     expect(unpacked?.blockRange).toEqual({start: 21, end: 41})
+  })
+
+  test('doc URL with latest (no version) roundtrips as latest', () => {
+    const url = createWebHMUrl('abc', {hostname: 'https://gw.com', latest: true})
+    expect(url).toBe('https://gw.com/hm/abc')
+    const unpacked = unpackHmId(url)
+    expect(unpacked?.latest).toBe(true)
+    expect(unpacked?.version).toBeNull()
+  })
+})
+
+describe('packHmId with latest and version', () => {
+  test('emits ?l only when version is also present', () => {
+    expect(packHmId(hmId('abc', {version: 'v1', latest: true}))).toBe('hm://abc?v=v1&l')
+  })
+
+  test('omits ?l when no version', () => {
+    expect(packHmId(hmId('abc', {latest: true}))).toBe('hm://abc')
   })
 })

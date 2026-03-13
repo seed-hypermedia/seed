@@ -406,7 +406,7 @@ function getHMQueryString({
   if (version) {
     query.v = version
   }
-  if (latest) {
+  if (latest && version) {
     query.l = null
   }
   if (panel) {

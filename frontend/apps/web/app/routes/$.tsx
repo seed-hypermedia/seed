@@ -140,7 +140,7 @@ export const loader = async ({params, request}: {params: Params; request: Reques
   }
   const {url, hostname, pathParts} = parsedRequest
   const version = url.searchParams.get('v')
-  const latest = url.searchParams.get('l') === ''
+  const latest = url.searchParams.get('l') === '' || !version
   const panelParam = url.searchParams.get('panel')
 
   const serviceConfig = await instrument(ctx, 'getConfig', () => getConfig(hostname))

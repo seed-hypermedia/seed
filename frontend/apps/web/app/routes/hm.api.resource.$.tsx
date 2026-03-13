@@ -16,7 +16,7 @@ export const loader = async ({
   const parsedRequest = parseRequest(request)
   const {url} = parsedRequest
   const version = url.searchParams.get('v')
-  const latest = url.searchParams.get('l') === 'true'
+  const latest = url.searchParams.get('l') === '' || !version
   const entityPath = params['*']?.split('/')
   const uid = entityPath?.[0]
   const path = entityPath?.slice(1).filter((term) => term !== '')

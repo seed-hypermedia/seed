@@ -222,7 +222,7 @@ function extractCommentId(pathParts: string[]): string | null {
 
 function getHmIdOfRequest({pathParts, url}: ParsedRequest, originAccountId: string | undefined) {
   const version = url.searchParams.get('v')
-  const latest = url.searchParams.get('l') === ''
+  const latest = url.searchParams.get('l') === '' || !version
   if (pathParts.length === 0) {
     if (!originAccountId) return null
     return hmId(originAccountId, {path: [], version, latest})
