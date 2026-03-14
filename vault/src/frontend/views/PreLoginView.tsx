@@ -58,13 +58,22 @@ export function PreLoginView() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-left text-xl">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-600">
-            <SeedLogo className="size-4 text-white" />
-          </div>
-          Good to see you again
-        </CardTitle>
-        <CardDescription className="text-left">Use your Hypermedia account to access this site.</CardDescription>
+        {delegationRequest ? (
+          <>
+            <CardTitle className="flex items-center gap-2 text-left text-xl">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-600">
+                <SeedLogo className="size-4 text-white" />
+              </div>
+              Good to see you again
+            </CardTitle>
+            <CardDescription className="text-left">Use your Hypermedia account to access this site.</CardDescription>
+          </>
+        ) : (
+          <>
+            <CardTitle className="text-left text-xl">Sign In</CardTitle>
+            <CardDescription className="text-left">Enter your email to continue</CardDescription>
+          </>
+        )}
       </CardHeader>
       <CardContent>
         <ErrorMessage message={error} />
