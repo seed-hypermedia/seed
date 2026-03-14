@@ -43,7 +43,7 @@ import {Button} from './button'
 import {copyTextToClipboard, copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
-import {AuthorNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
+import {AuthorNameLink, getContextualProfileRoute, InlineDescriptor, Timestamp} from './inline-descriptor'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
@@ -534,10 +534,11 @@ export const Comment = memo(function Comment({
   const currentAccountId = useSelectedAccountId()
   const deleteCommentMutation = useDeleteComment()
   const deleteCommentDialog = useDeleteCommentDialog()
+  const currentRoute = useNavRoute()
 
   const authorHmId = comment.author || authorId ? hmId(authorId || comment.author) : null
-
-  const authorLink = useRouteLink(authorHmId ? {key: 'profile', id: authorHmId} : null)
+  const docId = getCommentTargetId(comment)
+  const authorLink = useRouteLink(getContextualProfileRoute(currentRoute, authorHmId, docId?.uid))
 
   const externalTargetLink = useRouteLink(externalTarget ? {key: 'document', id: externalTarget.id} : null)
 
@@ -546,9 +547,7 @@ export const Comment = memo(function Comment({
       setShowReplies(defaultExpandReplies)
     }
   }, [defaultExpandReplies])
-  const currentRoute = useNavRoute()
   const navigate = useNavigate('replace')
-  const docId = getCommentTargetId(comment)
   const options: MenuItemType[] = []
   if (currentAccountId) {
     options.push({
@@ -621,6 +620,7 @@ export const Comment = memo(function Comment({
                       id: authorHmId,
                       metadata: authorMetadata ?? undefined,
                     }}
+                    siteUid={docId?.uid}
                   />
                 ) : (
                   <span>Someone</span>
