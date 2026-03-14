@@ -44,7 +44,7 @@ export function CreatePasswordDialog({open, onOpenChange}: {open: boolean; onOpe
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Create your password</DialogTitle>
           <DialogDescription>Please enter your new password to secure your account.</DialogDescription>

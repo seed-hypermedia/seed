@@ -5,6 +5,7 @@ import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardHeader, CardTitle} from '@/frontend/components/ui/card'
 import {Input} from '@/frontend/components/ui/input'
 import {Label} from '@/frontend/components/ui/label'
+import {StepIndicator} from '@/frontend/components/StepIndicator'
 import {useActions, useAppState} from '@/frontend/store'
 import {Plus} from 'lucide-react'
 
@@ -70,12 +71,11 @@ export function CreateProfileView() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-left">
-          <span className="text-muted-foreground font-normal">Step 3 of 3</span> — Create your profile
-        </CardTitle>
+        <StepIndicator currentStep={3} />
+        <CardTitle className="text-left text-xl">Create your profile</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-muted-foreground mb-6 text-sm">Add a name so people recognize you.</p>
+        <p className="text-muted-foreground mb-6 text-sm">Add a name and short bio so people recognize you.</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <ErrorMessage message={error} />

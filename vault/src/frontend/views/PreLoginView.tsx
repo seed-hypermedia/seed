@@ -3,6 +3,7 @@ import type React from 'react'
 import {useEffect, useRef} from 'react'
 import {Navigate} from 'react-router-dom'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
+import {SeedLogo} from '@/frontend/components/SeedLogo'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
 import {Input} from '@/frontend/components/ui/input'
@@ -57,20 +58,34 @@ export function PreLoginView() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-center">Sign In</CardTitle>
-        <CardDescription className="text-center">Enter your email to continue</CardDescription>
+        {delegationRequest ? (
+          <>
+            <CardTitle className="flex items-center gap-2 text-left text-xl">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-600">
+                <SeedLogo className="size-4 text-white" />
+              </div>
+              Good to see you again
+            </CardTitle>
+            <CardDescription className="text-left">Use your Hypermedia account to access this site.</CardDescription>
+          </>
+        ) : (
+          <>
+            <CardTitle className="text-left text-xl">Sign In</CardTitle>
+            <CardDescription className="text-left">Enter your email to continue</CardDescription>
+          </>
+        )}
       </CardHeader>
       <CardContent>
         <ErrorMessage message={error} />
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Email address</Label>
             <Input
               id="email"
               name="email"
               type="email"
-              placeholder="Email address"
+              placeholder="you@example.com"
               value={email}
               onChange={(e) => actions.setEmail(e.target.value)}
               required
