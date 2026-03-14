@@ -5,8 +5,8 @@ import {
   UnpackedHypermediaId,
   unpackedHmIdSchema,
 } from '@seed-hypermedia/client/hm-types'
-import {activitySlugToFilter} from './utils/entity-id-url'
-import type {ViewRouteKey} from './utils/entity-id-url'
+import {activitySlugToFilter, isSiteProfileTab, SITE_PROFILE_TABS} from './utils/entity-id-url'
+import type {SiteProfileTab, ViewRouteKey} from './utils/entity-id-url'
 
 export const defaultRoute: NavRoute = {key: 'library'}
 
@@ -23,6 +23,14 @@ export const profileRouteSchema = z.object({
   key: z.literal('profile'),
   id: unpackedHmIdSchema,
 })
+
+export const siteProfileRouteSchema = z.object({
+  key: z.literal('site-profile'),
+  id: unpackedHmIdSchema,
+  accountUid: z.string().optional(),
+  tab: z.enum(SITE_PROFILE_TABS),
+})
+export type SiteProfileRoute = z.infer<typeof siteProfileRouteSchema>
 export type ProfileRoute = z.infer<typeof profileRouteSchema>
 
 // Shared panel schemas for use in page-level routes
@@ -211,6 +219,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   libraryRouteSchema,
   contactsRouteSchema,
   profileRouteSchema,
+  siteProfileRouteSchema,
   contactRouteSchema,
   settingsRouteSchema,
   notificationsRouteSchema,
@@ -354,12 +363,17 @@ export function createDocumentNavRoute(
   viewTerm?: ViewRouteKey | null,
   panelParam?: string | null,
   openComment?: string | null,
+  accountUid?: string | null,
 ): NavRoute {
   // Create properly typed panel route if panelParam provided.
   // Cast needed: each route schema has a narrow panel union (excluding itself),
   // but createPanelRoute returns the broader DocumentPanelRoute.
   // Same pattern used in document-tools.tsx panelFor().
   const panel = (panelParam ? createPanelRoute(panelParam, docId) : null) as any
+
+  if (isSiteProfileTab(viewTerm)) {
+    return {key: 'site-profile', id: docId, accountUid: accountUid || undefined, tab: viewTerm as SiteProfileTab}
+  }
 
   switch (viewTerm) {
     case 'activity': {

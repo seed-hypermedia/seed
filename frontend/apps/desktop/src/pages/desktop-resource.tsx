@@ -44,7 +44,7 @@ export default function DesktopResourcePage() {
   const replace = useNavigate('replace')
 
   // Only handle document-related routes
-  const supportedKeys = ['document', 'directory', 'collaborators', 'activity', 'comments']
+  const supportedKeys = ['document', 'directory', 'collaborators', 'activity', 'comments', 'site-profile']
   if (!supportedKeys.includes(route.key)) {
     throw new Error(`DesktopResourcePage: unsupported route ${route.key}`)
   }
