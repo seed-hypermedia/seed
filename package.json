@@ -131,7 +131,9 @@
       "@trpc/server": "10.45.4",
       "rfc6902": "5.2.0",
       "nodemailer": "7.0.13",
-      "happy-dom": "20.8.3"
+      "happy-dom": "20.8.3",
+      "flatted": "3.4.0",
+      "undici": "6.24.0"
     },
     "patchedDependencies": {
       "electron-installer-redhat": "patches/electron-installer-redhat.patch"
