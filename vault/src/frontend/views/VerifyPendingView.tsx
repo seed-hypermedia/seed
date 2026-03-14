@@ -3,6 +3,7 @@ import {useNavigate} from 'react-router-dom'
 import {Alert, AlertDescription} from '@/frontend/components/ui/alert'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
+import {StepIndicator} from '@/frontend/components/StepIndicator'
 import {useActions, useAppState} from '@/frontend/store'
 
 function Countdown({seconds}: {seconds: number}) {
@@ -37,9 +38,8 @@ export function VerifyPendingView() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-left">
-          <span className="text-muted-foreground font-normal">Step 1 of 3</span> — Check your email
-        </CardTitle>
+        <StepIndicator currentStep={1} />
+        <CardTitle className="text-left text-xl">Check your email</CardTitle>
         <CardDescription className="text-left">
           We've sent a verification link to <strong>{email}</strong>
         </CardDescription>

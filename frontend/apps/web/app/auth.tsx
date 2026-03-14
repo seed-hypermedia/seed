@@ -13,6 +13,7 @@ import {Field} from '@shm/ui/form-fields'
 import {FormInput} from '@shm/ui/form-input'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Spinner} from '@shm/ui/spinner'
+import {SeedLogo} from '@shm/ui/seed-logo'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -389,14 +390,17 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
 
   return (
     <>
-      <DialogTitle className="max-sm:text-base" onClick={secretTap.tap}>
+      <DialogTitle className="flex items-center gap-2 max-sm:text-base" onClick={secretTap.tap}>
         {localAccountUnlocked ? (
           tx('create_account_title', ({siteName}: {siteName: string}) => `Create Account on ${siteName}`, {
             siteName: siteName || 'this site',
           })
         ) : (
           <>
-            <span className="font-normal">Step 1 of 3 &mdash;</span> Join the conversation
+            <div className="flex size-8 items-center justify-center rounded-full bg-emerald-600">
+              <SeedLogo className="size-4 text-white" />
+            </div>
+            Join the conversation
           </>
         )}
       </DialogTitle>
@@ -421,8 +425,8 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
       ) : (
         <>
           <DialogDescription className="max-sm:text-sm">
-            To join <span className="font-medium">{siteName || 'this site'}</span>, you&apos;ll need a free Seed
-            Hypermedia account. One account works across this site and others.
+            To comment on <span className="font-medium">{siteName || 'this site'}</span> and join the discussion,
+            you&apos;ll need a free Hypermedia account.
           </DialogDescription>
 
           <form
@@ -448,7 +452,16 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
                 autoFocus
               />
               <SizableText size="xs" className="text-neutral-500 dark:text-neutral-400">
-                We&apos;ll send you a verification link. No spam.
+                By continuing, you agree to our{' '}
+                <a
+                  href="https://hyper.media/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-emerald-600 underline underline-offset-2 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+                >
+                  Terms and Privacy Policy
+                </a>
+                .
               </SizableText>
             </div>
 

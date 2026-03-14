@@ -1,6 +1,7 @@
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardHeader, CardTitle} from '@/frontend/components/ui/card'
+import {StepIndicator} from '@/frontend/components/StepIndicator'
 import {useActions, useAppState} from '@/frontend/store'
 
 /**
@@ -13,9 +14,8 @@ export function ChooseAuthView() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-left">
-          <span className="text-muted-foreground font-normal">Step 2 of 3</span> — Pick how to secure your account
-        </CardTitle>
+        <StepIndicator currentStep={2} />
+        <CardTitle className="text-left text-xl">Pick how to secure your account</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         <ErrorMessage message={error} />
@@ -32,6 +32,17 @@ export function ChooseAuthView() {
             <Button onClick={actions.handleSetPasskey} loading={loading} className="w-full">
               Use passkey
             </Button>
+            <p className="text-muted-foreground text-center text-sm">
+              Not familiar with passkey?{' '}
+              <a
+                href="https://hyper.media/passkeys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-emerald-600 underline underline-offset-2 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+              >
+                Learn how it works
+              </a>
+            </p>
           </div>
         )}
       </CardContent>
