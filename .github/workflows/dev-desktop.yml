@@ -392,6 +392,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
           AWS_DEFAULT_REGION: eu-west-2
         run: |
+          RPM_VERSION=$(echo "${VERSION}" | sed 's/-/./g')
           cat > latest.json << EOF
           {
             "name": "${VERSION}",
@@ -403,7 +404,7 @@ jobs:
                   "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev_${VERSION}_amd64.deb"
                 },
                 "rpm": {
-                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev-${VERSION}-1.x86_64.rpm"
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev-${RPM_VERSION}-1.x86_64.rpm"
                 },
                 "app_image": {
                   "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-${VERSION}-x64.AppImage"
@@ -414,17 +415,15 @@ jobs:
               },
               "macos": {
                 "x64": {
-                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/velopack/darwin/x64/",
-                  "zip_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-darwin-x64-${VERSION}.zip"
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/velopack/darwin/x64/SeedDev-dev-Setup.pkg"
                 },
                 "arm64": {
-                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/velopack/darwin/arm64/",
-                  "zip_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-darwin-arm64-${VERSION}.zip"
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/velopack/darwin/arm64/SeedDev-dev-Setup.pkg"
                 }
               },
               "win32": {
                 "x64": {
-                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/velopack/win32/x64/"
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/velopack/win32/x64/SeedDev-dev-Setup.exe"
                 }
               }
             }
