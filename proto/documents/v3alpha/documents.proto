@@ -480,6 +480,9 @@ message Contact {
   // Key that signed this contact.
   // When omitted in legacy storage, it matches account.
   string signer = 7;
+
+  // Additional metadata from the contact blob (e.g., following preferences).
+  google.protobuf.Struct metadata = 8;
 }
 
 // Request to list a directory.

@@ -266,7 +266,7 @@ function ToolLink({
       asChild
       variant={active ? 'accent' : 'ghost'}
     >
-      <a {...linkProps}>
+      <a {...linkProps} data-tab={route.key}>
         <Icon className="size-4" />
         {label && showLabel ? <span className="hidden truncate text-sm md:block">{label}</span> : null}
         {count ? <span className="text-sm">{count}</span> : null}

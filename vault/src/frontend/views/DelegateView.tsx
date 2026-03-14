@@ -11,7 +11,7 @@ import {
 import {useActions, useAppState} from '@/frontend/store'
 import * as blobs from '@shm/shared/blobs'
 import * as hmauth from '@shm/shared/hmauth'
-import {ExternalLink, Plus, Shield, User} from 'lucide-react'
+import {Plus, User} from 'lucide-react'
 import {useEffect} from 'react'
 import {Navigate, useSearchParams} from 'react-router-dom'
 
@@ -50,6 +50,13 @@ export function DelegateView() {
       actions.ensureProfileLoaded(principal)
     })
   }, [accounts, actions])
+
+  // Auto-select when there's exactly one account
+  useEffect(() => {
+    if (accounts.length === 1 && selectedAccountIndex !== 0) {
+      actions.selectAccount(0)
+    }
+  }, [accounts.length, selectedAccountIndex, actions])
 
   if (!delegationRequest && !searchParams.has(hmauth.PARAM_CLIENT_ID)) {
     return <Navigate to="/" replace />
@@ -94,26 +101,20 @@ export function DelegateView() {
   return (
     <Card>
       <CardHeader>
-        <div className="mb-2 flex items-center justify-center">
-          <div className="flex size-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
-            <Shield className="size-6 text-amber-600 dark:text-amber-400" />
-          </div>
-        </div>
-        <CardTitle className="text-center">Authorize Access</CardTitle>
-        <CardDescription className="text-center">
-          <ExternalLink className="inline size-3.5 align-text-bottom" />{' '}
-          <span className="text-foreground font-medium">{delegationRequest.clientId}</span> is requesting access to act
-          on behalf of your account.
+        <CardTitle className="text-left text-xl">Connect your Hypermedia account</CardTitle>
+        <CardDescription className="text-left">
+          This will link your account so you can join and participate on{' '}
+          <span className="text-foreground font-medium">{delegationRequest.clientId}</span>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {!creatingAccount && <ErrorMessage message={error} />}
 
-        {/* Account selection */}
+        {/* Account selection — only shown for multiple accounts */}
         {accounts.length > 1 && (
           <div className="space-y-2">
-            <p className="text-sm font-medium">Select an account</p>
-            <div className="space-y-1">
+            <p className="text-sm font-medium">Choose an account to use</p>
+            <div className="space-y-2">
               {accounts.map((account, index) => {
                 const kp = blobs.nobleKeyPairFromSeed(account.seed)
                 const principal = blobs.principalToString(kp.principal)
@@ -121,7 +122,6 @@ export function DelegateView() {
                 return (
                   <AccountSelectionItem
                     key={principal}
-                    principal={principal}
                     profile={profiles[principal]}
                     profileLoadState={profileLoadStates[principal]}
                     backendHttpBaseUrl={backendHttpBaseUrl}
@@ -142,10 +142,10 @@ export function DelegateView() {
             disabled={!hasValidSelection}
             onClick={actions.completeDelegation}
           >
-            Authorize
+            Confirm & join
           </Button>
           <Button variant="ghost" className="w-full" disabled={loading} onClick={actions.cancelDelegation}>
-            Deny
+            Cancel
           </Button>
         </div>
       </CardContent>
@@ -154,14 +154,12 @@ export function DelegateView() {
 }
 
 function AccountSelectionItem({
-  principal,
   profile,
   profileLoadState,
   backendHttpBaseUrl,
   isSelected,
   onClick,
 }: {
-  principal: string
   profile?: AccountProfileSummary
   profileLoadState?: ProfileLoadState
   backendHttpBaseUrl: string
@@ -174,12 +172,12 @@ function AccountSelectionItem({
   return (
     <button
       type="button"
-      className={`flex w-full cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 text-left transition-colors ${
-        isSelected ? 'border-primary bg-primary/5 ring-primary/20 ring-1' : 'hover:bg-muted/50 border-transparent'
+      className={`flex w-full cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+        isSelected ? 'border-primary bg-primary/5 ring-primary/20 ring-1' : 'hover:bg-muted/50 border-border'
       }`}
       onClick={onClick}
     >
-      <div className="bg-primary/10 flex size-8 shrink-0 items-center justify-center rounded-full">
+      <div className="bg-primary/10 flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full">
         {profile?.avatar ? (
           <img
             src={getProfileAvatarImageSrc(backendHttpBaseUrl, profile.avatar)}
@@ -190,10 +188,7 @@ function AccountSelectionItem({
           <User className="text-primary size-4" />
         )}
       </div>
-      <div className="min-w-0">
-        <div className={`truncate text-sm font-medium ${statusTextClass}`}>{name}</div>
-        <div className="text-muted-foreground truncate font-mono text-xs">{principal}</div>
-      </div>
+      <div className={`truncate text-sm font-medium ${statusTextClass}`}>{name}</div>
     </button>
   )
 }

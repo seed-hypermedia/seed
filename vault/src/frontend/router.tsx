@@ -50,19 +50,17 @@ function LockedView() {
   const navigate = useNavigate()
 
   return (
-    <Card className="mx-auto max-w-md">
+    <Card className="mx-auto max-w-lg">
       <CardHeader>
-        <CardTitle className="text-center">🔒 Vault Locked</CardTitle>
-        <CardDescription className="text-center">Authenticate to unlock your vault</CardDescription>
+        <CardTitle className="text-left text-xl">Add your passkey to continue</CardTitle>
+        <CardDescription className="text-left">Sign in using your device.</CardDescription>
       </CardHeader>
       <CardContent>
         <ErrorMessage message={error} />
 
-        <p className="text-muted-foreground mb-6 text-center text-sm">Signed in as {session?.email}</p>
-
         {passkeySupported && (
           <Button onClick={actions.handleQuickUnlock} loading={loading} className="w-full">
-            🔑 Unlock with Passkey
+            Use passkey
           </Button>
         )}
 
@@ -70,7 +68,7 @@ function LockedView() {
           <>
             <Divider>or</Divider>
             <Button variant="secondary" onClick={() => navigate('/login')} disabled={loading} className="w-full">
-              🔒 Use Master Password
+              Use Master Password
             </Button>
           </>
         )}
@@ -109,7 +107,7 @@ function EnsureUnlocked() {
 /** Narrow container for auth flows. */
 function NarrowLayout() {
   return (
-    <div className="w-full max-w-md">
+    <div className="w-full max-w-lg">
       <Outlet />
     </div>
   )
@@ -152,7 +150,7 @@ function RootView() {
   if (session?.authenticated) {
     if (!decryptedDEK) {
       return (
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-lg">
           <LockedView />
         </div>
       )
@@ -169,7 +167,7 @@ function RootView() {
   }
 
   return (
-    <div className="w-full max-w-md">
+    <div className="w-full max-w-lg">
       <PreLoginView />
     </div>
   )

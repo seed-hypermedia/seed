@@ -3,6 +3,7 @@ import {
   deleteContact as deleteContactBlob,
   updateContact as updateContactBlob,
 } from '@seed-hypermedia/client'
+import {ContactSubscribe} from '@seed-hypermedia/client/contact'
 import type {HMAccountsMetadata, HMContact, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
 import {getContactMetadata} from '../content'
@@ -16,20 +17,36 @@ import {queryKeys} from './query-keys'
 export function useSaveContact() {
   const client = useUniversalClient()
   return useMutation({
-    mutationFn: async (contact: {accountUid: string; name: string; subjectUid: string; editId?: string}) => {
+    mutationFn: async (contact: {
+      accountUid: string
+      name: string
+      subjectUid: string
+      subscribe?: ContactSubscribe
+      editId?: string
+    }) => {
       if (!client.getSigner) throw new Error('Signing not available on this platform')
       const signer = client.getSigner(contact.accountUid)
       if (contact.editId) {
         await client.publish(
           await updateContactBlob(
-            {contactId: contact.editId, subjectUid: contact.subjectUid, name: contact.name},
+            {
+              contactId: contact.editId,
+              subjectUid: contact.subjectUid,
+              name: contact.name,
+              subscribe: contact.subscribe,
+            },
             signer,
           ),
         )
       } else {
         await client.publish(
           await createContactBlob(
-            {subjectUid: contact.subjectUid, name: contact.name, accountUid: contact.accountUid},
+            {
+              subjectUid: contact.subjectUid,
+              name: contact.name,
+              accountUid: contact.accountUid,
+              subscribe: contact.subscribe,
+            },
             signer,
           ),
         )

@@ -3,6 +3,11 @@ import {base58btc} from 'multiformats/bases/base58'
 import type {HMPublishBlobsInput, HMSigner} from './hm-types'
 import {signObject, toPublishInput} from './signing'
 
+export type ContactSubscribe = {
+  site?: boolean
+  profile?: boolean
+}
+
 export type CreateContactInput = {
   /** The subject account UID (base58btc-encoded principal) */
   subjectUid: string
@@ -10,6 +15,8 @@ export type CreateContactInput = {
   accountUid?: string
   /** The display name for the contact */
   name?: string
+  /** The subscribe information for the contact */
+  subscribe?: ContactSubscribe
 }
 
 export type UpdateContactInput = {
@@ -21,6 +28,8 @@ export type UpdateContactInput = {
   accountUid?: string
   /** The updated display name */
   name?: string
+  /** The subscribe information for the contact */
+  subscribe?: ContactSubscribe
 }
 
 export type DeleteContactInput = {
@@ -104,6 +113,9 @@ export async function createContact(input: CreateContactInput, signer: HMSigner)
   if (input.accountUid) {
     unsigned.account = new Uint8Array(base58btc.decode(input.accountUid))
   }
+  if (input.subscribe) {
+    unsigned.subscribe = input.subscribe
+  }
   console.log('SIGNING BLOB', unsigned)
   unsigned.sig = await signObject(signer, unsigned)
 
@@ -138,7 +150,9 @@ export async function updateContact(input: UpdateContactInput, signer: HMSigner)
   if (accountUid) {
     unsigned.account = new Uint8Array(base58btc.decode(accountUid))
   }
-
+  if (input.subscribe) {
+    unsigned.subscribe = input.subscribe
+  }
   unsigned.sig = await signObject(signer, unsigned)
 
   return toPublishInput(cborEncode(unsigned))

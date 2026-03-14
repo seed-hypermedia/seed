@@ -17,6 +17,12 @@ const TypeContact Type = "Contact"
 
 const contactNameMaxLength = 256
 
+// ContactSubscribe represents the subscription preferences for a contact.
+type ContactSubscribe struct {
+	Site    bool `refmt:"site,omitempty"`
+	Profile bool `refmt:"profile,omitempty"`
+}
+
 // Contact is a blob that
 type Contact struct {
 	BaseBlob
@@ -36,10 +42,13 @@ type Contact struct {
 
 	// Name is the public name of the contact that we know them by.
 	Name string `refmt:"name,omitempty"`
+
+	// Subscribe contains the subscription preferences for the contact.
+	Subscribe *ContactSubscribe `refmt:"subscribe,omitempty"`
 }
 
 // NewContact creates a new Contact blob.
-func NewContact(kp *core.KeyPair, id TSID, account, subject core.Principal, name string, ts time.Time) (eb Encoded[*Contact], err error) {
+func NewContact(kp *core.KeyPair, id TSID, account, subject core.Principal, name string, subscribe *ContactSubscribe, ts time.Time) (eb Encoded[*Contact], err error) {
 	if account == nil {
 		return eb, fmt.Errorf("account cannot be nil")
 	}
@@ -54,10 +63,11 @@ func NewContact(kp *core.KeyPair, id TSID, account, subject core.Principal, name
 			Signer: kp.Principal(),
 			Ts:     ts,
 		},
-		Account: account,
-		ID:      id,
-		Subject: subject,
-		Name:    name,
+		Account:   account,
+		ID:        id,
+		Subject:   subject,
+		Name:      name,
+		Subscribe: subscribe,
 	}
 
 	if err = Sign(kp, cu, &cu.BaseBlob.Sig); err != nil {
@@ -82,6 +92,7 @@ func (c *Contact) AccountPrincipal() core.Principal {
 }
 
 func init() {
+	cbornode.RegisterCborType(ContactSubscribe{})
 	cbornode.RegisterCborType(Contact{})
 
 	matcher := makeCBORTypeMatch(TypeContact)
@@ -145,6 +156,18 @@ func indexContact(ictx *indexingCtx, id int64, eb Encoded[*Contact]) error {
 		}
 		extraAttrs["subject"] = subjectID
 		extraAttrs["name"] = v.Name
+		if v.Subscribe != nil {
+			subscribe := map[string]any{}
+			if v.Subscribe.Site {
+				subscribe["site"] = true
+			}
+			if v.Subscribe.Profile {
+				subscribe["profile"] = true
+			}
+			if len(subscribe) > 0 {
+				extraAttrs["subscribe"] = subscribe
+			}
+		}
 		if err := dbFTSInsertOrReplace(ictx.conn, v.Name, "contact", id, "", sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
 			return fmt.Errorf("failed to insert record in fts table: %w", err)
 		}

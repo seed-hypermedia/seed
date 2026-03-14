@@ -664,6 +664,8 @@ export function useSiteMembers(id: UnpackedHypermediaId) {
     })
     const grantedMembers: HMSiteMember[] = []
     contacts.data?.forEach((contact) => {
+      // Only include contacts that are subscribed to the site
+      if (!contact.subscribe?.site) return
       if (seen.has(contact.account)) return
       seen.add(contact.account)
       members.push({
