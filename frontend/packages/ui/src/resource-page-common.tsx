@@ -12,10 +12,18 @@ import {
   hmId,
   NavRoute,
   unpackHmId,
+  useRouteLink,
   useUniversalAppContext,
 } from '@shm/shared'
 import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
-import {useAccountsMetadata, useDirectory, useIsLatest, useResource, useResources} from '@shm/shared/models/entity'
+import {
+  useAccount,
+  useAccountsMetadata,
+  useDirectory,
+  useIsLatest,
+  useResource,
+  useResources,
+} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
@@ -32,6 +40,7 @@ import {CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useSt
 import {BlockRangeSelectOptions, BlocksContent, BlocksContentProvider} from './blocks-content'
 import {CollaboratorsPage} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
+import {Tabs, TabsList, TabsTrigger} from './components/tabs'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
@@ -39,6 +48,7 @@ import {DocumentCover} from './document-cover'
 import {AuthorPayload, BreadcrumbEntry, DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
+import {HMIcon} from './hm-icon'
 import {FeedFilters} from './feed-filters'
 import {HistoryIcon, Link} from './icons'
 import {useDocumentLayout} from './layout'
@@ -57,6 +67,7 @@ import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-mess
 import {PanelLayout} from './panel-layout'
 import {GotoLatestBanner, SiteHeader} from './site-header'
 import {Spinner} from './spinner'
+import {SizableText} from './text'
 import {UnreferencedDocuments} from './unreferenced-documents'
 import {useBlockScroll} from './use-block-scroll'
 import {useMedia} from './use-media'
@@ -122,7 +133,16 @@ function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
   return params as DocumentPanelRoute
 }
 
-export type ActiveView = 'content' | 'activity' | 'comments' | 'directory' | 'collaborators'
+export type ActiveView = 'content' | 'activity' | 'comments' | 'directory' | 'collaborators' | 'site-profile'
+
+type SiteAccountTab = 'profile' | 'membership' | 'followers' | 'following'
+
+const SITE_ACCOUNT_TABS: {label: string; value: SiteAccountTab}[] = [
+  {label: 'Profile', value: 'profile'},
+  {label: 'Membership', value: 'membership'},
+  {label: 'Followers', value: 'followers'},
+  {label: 'Following', value: 'following'},
+]
 
 function getActiveView(routeKey: string): ActiveView {
   switch (routeKey) {
@@ -134,6 +154,8 @@ function getActiveView(routeKey: string): ActiveView {
       return 'directory'
     case 'collaborators':
       return 'collaborators'
+    case 'site-profile':
+      return 'site-profile'
     default:
       return 'content'
   }
@@ -194,13 +216,16 @@ export function ResourcePage({
   inlineCards,
   rightActions,
 }: ResourcePageProps) {
+  const route = useNavRoute()
+  const isSiteProfile = route.key === 'site-profile'
+
   // Load document data via React Query (hydrated from SSR prefetch)
   const resource = useResource(docId, {
     subscribed: true,
     recursive: true,
   })
 
-  // Load home site entity for header (always load this so header can show)
+  // docId.uid determines the site header — for site-profile, docId IS the site context
   const siteHomeId = hmId(docId.uid)
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
   const homeDirectory = useDirectory(siteHomeId)
@@ -210,6 +235,24 @@ export function ResourcePage({
 
   // Compute header data
   const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data)
+
+  // Site profile view: render profile content regardless of document status
+  if (isSiteProfile) {
+    const accountUid = route.key === 'site-profile' ? route.accountUid || docId.uid : docId.uid
+    const tab = route.key === 'site-profile' ? route.tab : 'profile'
+    return (
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={siteHomeId}
+        headerData={headerData}
+        document={siteHomeDocument || undefined}
+        rightActions={rightActions}
+      >
+        <SiteAccountPage siteUid={docId.uid} accountUid={accountUid} tab={tab} />
+        {pageFooter}
+      </PageWrapper>
+    )
+  }
 
   // Loading state - should not show during SSR if data was prefetched
   if (resource.isInitialLoading) {
@@ -1033,7 +1076,7 @@ function DocumentBody({
             activeView === 'activity' &&
             activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
               ? 'citations'
-              : activeView === 'activity' || activeView === 'directory'
+              : activeView === 'activity' || activeView === 'directory' || activeView === 'site-profile'
               ? undefined
               : activeView
           }
@@ -1058,10 +1101,14 @@ function DocumentBody({
                   <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
                 </div>
               )}
-              {activeView !== 'content' && !isMobile && (
+              {activeView !== 'content' && activeView !== 'site-profile' && !isMobile && (
                 <OpenInPanelButton
                   id={docId}
-                  panelRoute={route.key === activeView ? extractPanelRoute(route) : {key: activeView, id: docId}}
+                  panelRoute={
+                    route.key === activeView
+                      ? extractPanelRoute(route)
+                      : {key: activeView as Exclude<ActiveView, 'content' | 'site-profile'>, id: docId}
+                  }
                 />
               )}
             </div>
@@ -1466,6 +1513,113 @@ function ContentViewWithOutline({
       </div>
 
       {showSidebars && <div {...sidebarProps} />}
+    </div>
+  )
+}
+
+function SiteAccountPage({siteUid, accountUid, tab}: {siteUid: string; accountUid: string; tab: SiteAccountTab}) {
+  const account = useAccount(accountUid)
+
+  return (
+    <ScrollArea className="flex-1">
+      <PageLayout contentMaxWidth={720}>
+        <div className="space-y-6 py-8">
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <HMIcon
+                id={hmId(accountUid)}
+                size={64}
+                icon={account.data?.metadata?.icon}
+                name={account.data?.metadata?.name}
+              />
+              <div className="min-w-0 space-y-1">
+                <h1 className="truncate text-2xl font-bold">{account.data?.metadata?.name || accountUid}</h1>
+                <SizableText color="muted" size="sm" className="truncate">
+                  {accountUid}
+                </SizableText>
+              </div>
+            </div>
+            <SiteAccountTabs siteUid={siteUid} accountUid={accountUid} tab={tab} />
+          </div>
+          <SiteAccountTabBody
+            tab={tab}
+            accountUid={accountUid}
+            accountName={account.data?.metadata?.name || accountUid}
+            hasSite={account.data?.hasSite}
+          />
+        </div>
+      </PageLayout>
+    </ScrollArea>
+  )
+}
+
+function SiteAccountTabs({siteUid, accountUid, tab}: {siteUid: string; accountUid: string; tab: SiteAccountTab}) {
+  return (
+    <Tabs value={tab}>
+      <TabsList className="w-full justify-start">
+        {SITE_ACCOUNT_TABS.map((tabItem) => (
+          <SiteAccountTabLink key={tabItem.value} siteUid={siteUid} accountUid={accountUid} tab={tabItem} />
+        ))}
+      </TabsList>
+    </Tabs>
+  )
+}
+
+function SiteAccountTabLink({
+  siteUid,
+  accountUid,
+  tab,
+}: {
+  siteUid: string
+  accountUid: string
+  tab: {label: string; value: SiteAccountTab}
+}) {
+  const linkProps = useRouteLink({
+    key: 'site-profile',
+    id: hmId(siteUid),
+    accountUid: accountUid !== siteUid ? accountUid : undefined,
+    tab: tab.value,
+  })
+
+  return (
+    <TabsTrigger value={tab.value} asChild>
+      <a {...linkProps}>{tab.label}</a>
+    </TabsTrigger>
+  )
+}
+
+function SiteAccountTabBody({
+  tab,
+  accountUid,
+  accountName,
+  hasSite,
+}: {
+  tab: SiteAccountTab
+  accountUid: string
+  accountName: string
+  hasSite?: boolean
+}) {
+  if (tab === 'profile') {
+    return (
+      <div className="rounded-xl border p-6">
+        <SizableText weight="medium" size="lg">
+          {accountName}
+        </SizableText>
+        <SizableText color="muted" size="sm" className="mt-2">
+          {hasSite ? 'This account has a site.' : 'This account does not have a site yet.'}
+        </SizableText>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl border p-6">
+      <SizableText weight="medium" size="lg">
+        {SITE_ACCOUNT_TABS.find((tabItem) => tabItem.value === tab)?.label}
+      </SizableText>
+      <SizableText color="muted" size="sm" className="mt-2">
+        {accountName} ({accountUid})
+      </SizableText>
     </div>
   )
 }

@@ -21,7 +21,15 @@ import {Code} from '@connectrpc/connect'
 import {HeadersFunction} from '@remix-run/node'
 import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {commentIdToHmId, createDocumentNavRoute, hmId, VIEW_TERMS, ViewRouteKey} from '@shm/shared'
+import {
+  commentIdToHmId,
+  createDocumentNavRoute,
+  hmId,
+  isSiteProfileTab,
+  VIEW_TERMS,
+  viewTermToRouteKey,
+  ViewRouteKey,
+} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {SizableText} from '@shm/ui/text'
 
@@ -30,6 +38,7 @@ type ExtendedSitePayload = SiteDocumentPayload & {
   viewTerm?: ViewRouteKey | null
   panelParam?: string | null // Supports extended format like "comments/BLOCKID" or "comments/COMMENT_ID"
   openComment?: string | null
+  accountUid?: string | null
 }
 
 type DocumentPayload = ExtendedSitePayload | 'unregistered' | 'no-site'
@@ -43,6 +52,7 @@ function extractViewTermFromPath(pathParts: string[]): {
   viewTerm: ViewRouteKey | null
   activityFilter?: string
   commentId?: string
+  accountUid?: string
 } {
   if (pathParts.length === 0) return {path: [], viewTerm: null}
 
@@ -70,15 +80,31 @@ function extractViewTermFromPath(pathParts: string[]): {
     }
   }
 
+  if (pathParts.length >= 2) {
+    const secondToLast = pathParts[pathParts.length - 2]
+    const lastPart = pathParts[pathParts.length - 1]
+    if (secondToLast && lastPart) {
+      const tab = secondToLast.startsWith(':') ? secondToLast.slice(1) : null
+      if (isSiteProfileTab(tab)) {
+        return {
+          path: pathParts.slice(0, -2),
+          viewTerm: tab,
+          accountUid: lastPart,
+        }
+      }
+    }
+  }
+
   const lastPart = pathParts[pathParts.length - 1]
   const viewTermMatch = VIEW_TERMS.find((term) => lastPart === term)
 
   if (viewTermMatch) {
-    // Map :activity -> activity, etc.
-    const viewTerm = viewTermMatch.slice(1) as ViewRouteKey
-    return {
-      path: pathParts.slice(0, -1),
-      viewTerm,
+    const viewTerm = viewTermToRouteKey(viewTermMatch)
+    if (viewTerm) {
+      return {
+        path: pathParts.slice(0, -1),
+        viewTerm,
+      }
     }
   }
 
@@ -195,6 +221,7 @@ export const loader = async ({params, request}: {params: Params; request: Reques
   // Merge activity filter slug from path into panelParam for createDocumentNavRoute
   let effectivePanelParam = panelParam
   let openComment: string | null = null
+  let accountUid: string | null = null
 
   // Determine document type based on URL pattern
   if (pathParts[0] === 'hm' && pathParts.length > 1) {
@@ -207,6 +234,7 @@ export const loader = async ({params, request}: {params: Params; request: Reques
     if (extracted.commentId) {
       openComment = extracted.commentId
     }
+    accountUid = extracted.accountUid || null
     documentId = hmId(pathParts[1], {
       path: extracted.path,
       version,
@@ -223,6 +251,7 @@ export const loader = async ({params, request}: {params: Params; request: Reques
     if (extracted.commentId) {
       openComment = extracted.commentId
     }
+    accountUid = extracted.accountUid || null
     documentId = hmId(registeredAccountUid, {
       path: extracted.path,
       version,
@@ -236,6 +265,7 @@ export const loader = async ({params, request}: {params: Params; request: Reques
       viewTerm,
       panelParam: effectivePanelParam,
       openComment,
+      accountUid,
       instrumentationCtx: ctx,
     }),
   )
@@ -260,12 +290,23 @@ export default function UnifiedDocumentPage() {
 
   // The not found error is handled by the DocumentPage component,
   // and here we handle the rest of the errors.
-  if (data.daemonError && data.daemonError.code !== Code.NotFound) {
+  // For profile views, skip error handling since we don't need the document to exist
+  if (
+    data.daemonError &&
+    data.daemonError.code !== Code.NotFound &&
+    !['profile', 'membership', 'followers', 'following'].includes(data.viewTerm || '')
+  ) {
     return <DaemonErrorPage message={data.daemonError.message} code={data.daemonError.code} />
   }
 
   // Render unified ResourcePage or FeedPage with WebSiteProvider for navigation context
-  const initialRoute = createDocumentNavRoute(data.id, data.viewTerm, data.panelParam, data.openComment)
+  const initialRoute = createDocumentNavRoute(
+    data.id,
+    data.viewTerm,
+    data.panelParam,
+    data.openComment,
+    data.accountUid,
+  )
 
   return (
     <WebSiteProvider

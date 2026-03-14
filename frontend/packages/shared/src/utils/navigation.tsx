@@ -54,6 +54,10 @@ export function getRouteKey(route: NavRoute): string {
   if (route.key === 'draft') {
     return `draft:${route.id}`
   }
+  if (route.key === 'site-profile') {
+    const accountUid = route.accountUid || route.id.uid
+    return `site-profile:${route.id.uid}:${route.id.path?.join(':')}:${route.tab}:${accountUid}`
+  }
   if (
     route.key === 'document' ||
     route.key === 'comments' ||

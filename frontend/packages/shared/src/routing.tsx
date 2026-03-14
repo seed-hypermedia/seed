@@ -169,6 +169,12 @@ export function routeToHref(
     origin?: string | null
   },
 ) {
+  if (typeof route !== 'string' && route.key === 'site-profile') {
+    const docId = route.id
+    const siteBase = options?.originHomeId?.uid === docId.uid ? '' : `/hm/${docId.uid}`
+    const accountSuffix = route.accountUid && route.accountUid !== docId.uid ? `/${route.accountUid}` : ''
+    return `${siteBase}/:${route.tab}${accountSuffix}`
+  }
   if (typeof route !== 'string' && route.key == 'profile') {
     return `/hm/profile/${route.id.uid}`
   }

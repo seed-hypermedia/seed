@@ -29,6 +29,7 @@ import {
   displayHostname,
   extractViewTermFromUrl,
   hmId,
+  isSiteProfileTab,
   routeToUrl,
   unpackHmId,
   viewTermToRouteKey,
@@ -597,7 +598,8 @@ function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
     route.key === 'collaborators' ||
     route.key === 'comments' ||
     route.key === 'profile' ||
-    route.key === 'contact'
+    route.key === 'contact' ||
+    route.key === 'site-profile'
   ) {
     return route.id
   }
@@ -625,7 +627,8 @@ function isUrlDisplayableRoute(route: NavRoute): boolean {
     route.key === 'activity' ||
     route.key === 'directory' ||
     route.key === 'collaborators' ||
-    route.key === 'comments'
+    route.key === 'comments' ||
+    route.key === 'site-profile'
   )
 }
 
@@ -733,7 +736,7 @@ export function Omnibar() {
   const handleUrlNavigation = useCallback(
     async (url: string): Promise<boolean> => {
       // Extract view term (e.g., /:activity) from URL before processing
-      const {url: cleanUrl, viewTerm, activityFilter, commentId} = extractViewTermFromUrl(url)
+      const {url: cleanUrl, viewTerm, activityFilter, commentId, accountUid} = extractViewTermFromUrl(url)
       const routeKey = viewTermToRouteKey(viewTerm)
 
       // Helper to apply view term to route
@@ -742,6 +745,9 @@ export function Omnibar() {
         if (route.key === 'document') {
           if (routeKey === 'comments' && commentId) {
             return {key: 'comments', id: route.id, openComment: commentId}
+          }
+          if (isSiteProfileTab(routeKey)) {
+            return {key: 'site-profile', id: route.id, accountUid: accountUid || undefined, tab: routeKey}
           }
           const viewRoute: NavRoute = {key: routeKey, id: route.id}
           if (routeKey === 'activity' && activityFilter && viewRoute.key === 'activity') {

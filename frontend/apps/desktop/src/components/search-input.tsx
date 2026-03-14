@@ -17,6 +17,7 @@ import {createDocumentNavRoute, NavRoute} from '@shm/shared/routes'
 import {
   extractViewTermFromUrl,
   isHypermediaScheme,
+  isSiteProfileTab,
   packHmId,
   parseCustomURL,
   parseFragment,
@@ -104,12 +105,23 @@ export const SearchInput = forwardRef<
             return
           }
 
-          const unpacked = unpackHmId(search)
+          // Extract view term before processing
+          const {
+            url: cleanSearch,
+            viewTerm: searchViewTerm,
+            commentId: searchCommentId,
+            accountUid: searchAccountUid,
+          } = extractViewTermFromUrl(search)
+          const searchRouteKey = viewTermToRouteKey(searchViewTerm)
+          const unpacked = unpackHmId(cleanSearch)
           const appRoute = unpacked ? appRouteOfId(unpacked) : null
 
           if ((unpacked?.scheme === HYPERMEDIA_SCHEME || unpacked?.hostname === gwHost) && appRoute && unpacked) {
             onClose?.()
-            onSelect({route: appRoute, id: unpacked})
+            onSelect({
+              route: applyViewTermToRoute(appRoute, searchRouteKey, searchCommentId, searchAccountUid),
+              id: unpacked,
+            })
           } else if (search.startsWith('http://') || search.startsWith('https://') || search.includes('.')) {
             if (allowWebURL) {
               onSelect({webUrl: search})
@@ -353,11 +365,15 @@ function applyViewTermToRoute(
   route: NavRoute,
   routeKey: ReturnType<typeof viewTermToRouteKey>,
   commentId?: string,
+  accountUid?: string,
 ): NavRoute {
   if (!routeKey) return route
   if (route.key === 'document') {
     if (routeKey === 'comments' && commentId) {
       return {key: 'comments', id: route.id, openComment: commentId}
+    }
+    if (isSiteProfileTab(routeKey)) {
+      return {key: 'site-profile', id: route.id, accountUid: accountUid || undefined, tab: routeKey}
     }
     return {key: routeKey, id: route.id}
   }
@@ -380,7 +396,7 @@ function useURLHandler() {
     const httpSearch = isHttpUrl(search) ? search : `https://${search}`
 
     // Extract view term (e.g., /:activity) before making request
-    const {url: cleanUrl, viewTerm, commentId} = extractViewTermFromUrl(httpSearch)
+    const {url: cleanUrl, viewTerm, commentId, accountUid} = extractViewTermFromUrl(httpSearch)
     const routeKey = viewTermToRouteKey(viewTerm)
 
     connect.mutate(cleanUrl)
@@ -391,7 +407,7 @@ function useURLHandler() {
         const res = await resolveHypermediaUrl(webResult.hypermedia.url)
         const resId = res?.id ? unpackHmId(res.id) : null
         const navRoute = resId ? appRouteOfId(resId) : null
-        if (navRoute) return applyViewTermToRoute(navRoute, routeKey, commentId)
+        if (navRoute) return applyViewTermToRoute(navRoute, routeKey, commentId, accountUid)
         console.log('Failed to open this hypermedia content', webResult.hypermedia)
         toast.error('Failed to open this hypermedia content')
         return null
@@ -432,7 +448,7 @@ function useURLHandler() {
           route = appRouteOfId({...result.hmId, ...idFragment})
         }
       }
-      if (route) return applyViewTermToRoute(route, routeKey, commentId)
+      if (route) return applyViewTermToRoute(route, routeKey, commentId, accountUid)
       toast.error('Failed to open this hypermedia content')
       return null
     }
