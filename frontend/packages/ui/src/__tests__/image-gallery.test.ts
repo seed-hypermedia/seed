@@ -70,22 +70,13 @@ describe('collectImageBlocks', () => {
   })
 
   it('skips non-image blocks', () => {
-    const blocks: HMBlockNode[] = [
-      makeParagraphBlock('p1'),
-      makeHeadingBlock('h1'),
-      makeParagraphBlock('p2'),
-    ]
+    const blocks: HMBlockNode[] = [makeParagraphBlock('p1'), makeHeadingBlock('h1'), makeParagraphBlock('p2')]
     expect(collectImageBlocks(blocks)).toEqual([])
   })
 
   it('skips image blocks with empty link', () => {
-    const blocks: HMBlockNode[] = [
-      makeImageBlock('img1', ''),
-      makeImageBlock('img2', 'ipfs://cid2'),
-    ]
-    expect(collectImageBlocks(blocks)).toEqual([
-      {blockId: 'img2', link: 'ipfs://cid2', name: undefined},
-    ])
+    const blocks: HMBlockNode[] = [makeImageBlock('img1', ''), makeImageBlock('img2', 'ipfs://cid2')]
+    expect(collectImageBlocks(blocks)).toEqual([{blockId: 'img2', link: 'ipfs://cid2', name: undefined}])
   })
 
   it('collects from nested children in DFS order', () => {
@@ -93,10 +84,7 @@ describe('collectImageBlocks', () => {
       makeImageBlock('imgA', 'ipfs://a'),
       {
         ...makeParagraphBlock('p1'),
-        children: [
-          makeImageBlock('imgB', 'ipfs://b'),
-          makeImageBlock('imgC', 'ipfs://c'),
-        ],
+        children: [makeImageBlock('imgB', 'ipfs://b'), makeImageBlock('imgC', 'ipfs://c')],
       },
       makeImageBlock('imgD', 'ipfs://d'),
     ]
@@ -121,9 +109,7 @@ describe('collectImageBlocks', () => {
         ],
       },
     ]
-    expect(collectImageBlocks(blocks)).toEqual([
-      {blockId: 'deep', link: 'ipfs://deep', name: undefined},
-    ])
+    expect(collectImageBlocks(blocks)).toEqual([{blockId: 'deep', link: 'ipfs://deep', name: undefined}])
   })
 
   it('preserves name attribute', () => {

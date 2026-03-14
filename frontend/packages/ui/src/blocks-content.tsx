@@ -271,7 +271,7 @@ function ImageGalleryProvider({blocks, children}: {blocks: HMBlockNode[]; childr
           key={activeIndex}
           alt={activeImage.name}
           src={imageUrl(activeImage.link, 'L')}
-          className="animate-in fade-in duration-150 object-contain"
+          className="animate-in fade-in object-contain duration-150"
           style={{maxWidth: '90vw', maxHeight: '90vh', width: '100%', height: '100%'}}
           onClick={(e) => e.stopPropagation()}
         />
