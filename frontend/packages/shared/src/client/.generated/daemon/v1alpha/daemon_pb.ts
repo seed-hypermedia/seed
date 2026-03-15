@@ -227,6 +227,55 @@ export class RegisterKeyRequest extends Message<RegisterKeyRequest> {
 }
 
 /**
+ * Request to import an existing account key from a .hmkey.json file path.
+ *
+ * @generated from message com.seed.daemon.v1alpha.ImportKeyRequest
+ */
+export class ImportKeyRequest extends Message<ImportKeyRequest> {
+  /**
+   * Required. Absolute path to a .hmkey.json key export file.
+   *
+   * @generated from field: string file_path = 1;
+   */
+  filePath = "";
+
+  /**
+   * Optional. Password to decrypt encrypted key exports.
+   *
+   * @generated from field: string password = 2;
+   */
+  password = "";
+
+  constructor(data?: PartialMessage<ImportKeyRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.ImportKeyRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "file_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "password", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ImportKeyRequest {
+    return new ImportKeyRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ImportKeyRequest {
+    return new ImportKeyRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ImportKeyRequest {
+    return new ImportKeyRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ImportKeyRequest | PlainMessage<ImportKeyRequest> | undefined, b: ImportKeyRequest | PlainMessage<ImportKeyRequest> | undefined): boolean {
+    return proto3.util.equals(ImportKeyRequest, a, b);
+  }
+}
+
+/**
  * Request to get basic information about the running daemon.
  *
  * @generated from message com.seed.daemon.v1alpha.GetInfoRequest

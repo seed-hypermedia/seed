@@ -18,6 +18,9 @@ service Daemon {
   // create an account binding between the device and account.
   rpc RegisterKey(RegisterKeyRequest) returns (NamedKey);
 
+  // Imports an existing signing key from a .hmkey.json file on disk.
+  rpc ImportKey(ImportKeyRequest) returns (NamedKey);
+
   // Get generic information about the running node.
   rpc GetInfo(GetInfoRequest) returns (Info);
 
@@ -86,6 +89,15 @@ message RegisterKeyRequest {
   // Name must be unique across all the registered keys.
   string name = 3;
 
+}
+
+// Request to import an existing account key from a .hmkey.json file path.
+message ImportKeyRequest {
+  // Required. Absolute path to a .hmkey.json key export file.
+  string file_path = 1;
+
+  // Optional. Password to decrypt encrypted key exports.
+  string password = 2;
 }
 
 // Request to get basic information about the running daemon.

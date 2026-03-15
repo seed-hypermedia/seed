@@ -52,44 +52,6 @@ function wrapLogger(logFn: (...args: any[]) => void) {
   }
 }
 
-const securitySensitiveMethods = new Set(['Daemon.Register', 'Daemon.GenMnemonic'])
-const enabledLogMessages = new Set<string>([
-  // 'Accounts.ListAccounts',
-  // 'Comments.ListComments',
-  // etc.. add the messages you need to see here, please comment out before committing!
-])
-const hiddenLogMessages = new Set<string>(['Daemon.GetInfo', 'Networking.GetPeerInfo'])
-// const loggingInterceptor: Interceptor = (next) => async (req) => {
-//   const serviceLabel = req.service.typeName.split('.').at(-1)
-//   const methodFullname = `${serviceLabel}.${req.method.name}`
-//   const isSensitive = securitySensitiveMethods.has(methodFullname)
-//   try {
-//     const result = await next(req)
-//     if (
-//       enabledLogMessages.has(methodFullname) &&
-//       !hiddenLogMessages.has(methodFullname)
-//     ) {
-//       const request = req.message
-//       const response = result?.message
-//       logger.log(`🔃 to ${methodFullname}`, request, response)
-//     } else if (!hiddenLogMessages.has(methodFullname)) {
-//       logger.log(`🔃 to ${methodFullname}`)
-//     }
-//     return result
-//   } catch (e) {
-//     let error = e
-//     if (e.message.match('stream.getReader is not a function')) {
-//       error = new Error('RPC broken, try running pnpm install and ./dev gen')
-//     }
-//     if (isSensitive) {
-//       logger.error(`🚨 to ${methodFullname} `, 'HIDDEN FROM LOGS', error)
-//       throw error
-//     }
-//     logger.error(`🚨 to ${methodFullname} `, req.message, error)
-//     throw error
-//   }
-// }
-
 function useWindowUtils(ipc: AppIPC): WindowUtils {
   // const win = getCurrent()
   const [isMaximized, setIsMaximized] = useState<boolean | undefined>(false)
@@ -241,6 +203,9 @@ declare global {
     appWindowEvents?: {
       subscribe: (handler: (event: AppWindowEvent) => void) => () => void
     }
+    keyImport?: {
+      pickFile: () => Promise<string | null>
+    }
     windowMaximizedState?: {
       get: () => boolean
     }
@@ -345,6 +310,9 @@ function MainApp({}: {}) {
           }}
           openDirectory={async (directory: string) => {
             ipc.send?.('open-directory', directory)
+          }}
+          pickKeyImportFile={() => {
+            return window.keyImport?.pickFile() ?? Promise.resolve(null)
           }}
           saveCidAsFile={async (cid: string, name: string) => {
             ipc.send?.('save-file', {cid, name})

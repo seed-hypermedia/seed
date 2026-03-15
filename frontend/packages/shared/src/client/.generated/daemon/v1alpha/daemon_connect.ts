@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, SignDataRequest, SignDataResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
+import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetInfoRequest, ImportKeyRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, SignDataRequest, SignDataResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -36,6 +36,17 @@ export const Daemon = {
     registerKey: {
       name: "RegisterKey",
       I: RegisterKeyRequest,
+      O: NamedKey,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Imports an existing signing key from a .hmkey.json file on disk.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.ImportKey
+     */
+    importKey: {
+      name: "ImportKey",
+      I: ImportKeyRequest,
       O: NamedKey,
       kind: MethodKind.Unary,
     },

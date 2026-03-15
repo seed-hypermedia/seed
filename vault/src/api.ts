@@ -6,6 +6,41 @@ import type {
 } from '@simplewebauthn/server'
 import type {Account} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 
+/**
+ * Pure service method definition without transport-specific concerns.
+ * This serves as the source of truth for both client and server types.
+ */
+export interface ServiceDefinition {
+  // Auth.
+  preLogin(req: PreLoginRequest): Promise<PreLoginResponse>
+  registerStart(req: RegisterStartRequest): Promise<RegisterStartResponse>
+  registerPoll(req: RegisterPollRequest): Promise<RegisterPollResponse>
+  registerVerifyLink(req: RegisterVerifyLinkRequest): Promise<RegisterVerifyLinkResponse>
+  addPassword(req: AddPasswordRequest): Promise<AddPasswordResponse>
+  changePassword(req: ChangePasswordRequest): Promise<ChangePasswordResponse>
+  login(req: LoginRequest): Promise<LoginResponse>
+  logout(): Promise<LogoutResponse>
+  getSession(): Promise<GetSessionResponse>
+  getAccount(req: GetAccountRequest): Promise<GetAccountResponse>
+  getConfig(): Promise<GetConfigResponse>
+
+  // Vault updates.
+  getVault(): Promise<GetVaultResponse>
+  saveVaultData(req: SaveVaultDataRequest): Promise<SaveVaultDataResponse>
+
+  // Email change.
+  changeEmailStart(req: ChangeEmailStartRequest): Promise<ChangeEmailStartResponse>
+  changeEmailPoll(req: ChangeEmailPollRequest): Promise<ChangeEmailPollResponse>
+  changeEmailVerifyLink(req: ChangeEmailVerifyLinkRequest): Promise<ChangeEmailVerifyLinkResponse>
+
+  // WebAuthn.
+  webAuthnRegisterStart(): Promise<WebAuthnRegisterStartResponse>
+  webAuthnRegisterComplete(req: WebAuthnRegisterCompleteRequest): Promise<WebAuthnRegisterCompleteResponse>
+  webAuthnLoginStart(req: WebAuthnLoginStartRequest): Promise<WebAuthnLoginStartResponse>
+  webAuthnLoginComplete(req: WebAuthnLoginCompleteRequest): Promise<WebAuthnLoginCompleteResponse>
+  webAuthnVaultStore(req: WebAuthnVaultStoreRequest): Promise<WebAuthnVaultStoreResponse>
+}
+
 // Pre-login.
 export type PreLoginRequest = {
   email: string
@@ -197,45 +232,6 @@ export type ChangePasswordRequest = {
 }
 export type ChangePasswordResponse = {
   success: boolean
-}
-
-// ============================================================================
-// Service Definition and Mapped Types.
-// ============================================================================
-
-/**
- * Pure service method definition without transport-specific concerns.
- * This serves as the source of truth for both client and server types.
- */
-export interface ServiceDefinition {
-  // Auth.
-  preLogin(req: PreLoginRequest): Promise<PreLoginResponse>
-  registerStart(req: RegisterStartRequest): Promise<RegisterStartResponse>
-  registerPoll(req: RegisterPollRequest): Promise<RegisterPollResponse>
-  registerVerifyLink(req: RegisterVerifyLinkRequest): Promise<RegisterVerifyLinkResponse>
-  addPassword(req: AddPasswordRequest): Promise<AddPasswordResponse>
-  changePassword(req: ChangePasswordRequest): Promise<ChangePasswordResponse>
-  login(req: LoginRequest): Promise<LoginResponse>
-  logout(): Promise<LogoutResponse>
-  getSession(): Promise<GetSessionResponse>
-  getAccount(req: GetAccountRequest): Promise<GetAccountResponse>
-  getConfig(): Promise<GetConfigResponse>
-
-  // Vault updates.
-  getVault(): Promise<GetVaultResponse>
-  saveVaultData(req: SaveVaultDataRequest): Promise<SaveVaultDataResponse>
-
-  // Email change.
-  changeEmailStart(req: ChangeEmailStartRequest): Promise<ChangeEmailStartResponse>
-  changeEmailPoll(req: ChangeEmailPollRequest): Promise<ChangeEmailPollResponse>
-  changeEmailVerifyLink(req: ChangeEmailVerifyLinkRequest): Promise<ChangeEmailVerifyLinkResponse>
-
-  // WebAuthn.
-  webAuthnRegisterStart(): Promise<WebAuthnRegisterStartResponse>
-  webAuthnRegisterComplete(req: WebAuthnRegisterCompleteRequest): Promise<WebAuthnRegisterCompleteResponse>
-  webAuthnLoginStart(req: WebAuthnLoginStartRequest): Promise<WebAuthnLoginStartResponse>
-  webAuthnLoginComplete(req: WebAuthnLoginCompleteRequest): Promise<WebAuthnLoginCompleteResponse>
-  webAuthnVaultStore(req: WebAuthnVaultStoreRequest): Promise<WebAuthnVaultStoreResponse>
 }
 
 /**

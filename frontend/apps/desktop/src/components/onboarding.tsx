@@ -1,8 +1,9 @@
 import {grpcClient} from '@/grpc-client'
 import {desktopUniversalClient} from '@/desktop-universal-client'
-import {useMnemonics, useRegisterKey} from '@/models/daemon'
+import {useImportKey, useMnemonics, useRegisterKey} from '@/models/daemon'
 import {client} from '@/trpc'
 import {fileUpload} from '@/utils/file-upload'
+import {getImportKeyFilePathError, normalizeImportKeyFilePath} from '@/utils/onboarding-import'
 import {extractWords, isWordsValid} from '@/utils/onboarding'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMPrepareDocumentChangeInput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -27,6 +28,7 @@ import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useState} from 'react'
+import {useAppContext} from '../app-context'
 import {
   cleanupOnboardingFormData,
   getOnboardingState,
@@ -222,6 +224,14 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
         setOnboardingStep('ready')
       }
       setCurrentStep('ready')
+    } else if (currentStep === 'import') {
+      console.log('Moving from import to ready')
+      if (modal) {
+        setLocalState((prev) => ({...prev, currentStep: 'ready'}))
+      } else {
+        setOnboardingStep('ready')
+      }
+      setCurrentStep('ready')
     } else if (currentStep === 'ready') {
       console.log('Completing onboarding')
       if (modal) {
@@ -272,13 +282,22 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
     setSelectedIdentity,
   ])
 
-  const handleExistingSite = useCallback(() => {
+  const handleUseRecoveryPhrase = useCallback(() => {
     if (modal) {
       setLocalState((prev) => ({...prev, currentStep: 'existing'}))
     } else {
       setOnboardingStep('existing')
     }
     setCurrentStep('existing')
+  }, [modal])
+
+  const handleImportKeyFile = useCallback(() => {
+    if (modal) {
+      setLocalState((prev) => ({...prev, currentStep: 'import'}))
+    } else {
+      setOnboardingStep('import')
+    }
+    setCurrentStep('import')
   }, [modal])
 
   const handlePrev = useCallback(() => {
@@ -303,6 +322,14 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       setCurrentStep('welcome')
     } else if (currentStep === 'existing') {
       // Reset the existing account flag when going back
+      setIsExistingAccountPath(false)
+      if (modal) {
+        setLocalState((prev) => ({...prev, currentStep: 'profile'}))
+      } else {
+        setOnboardingStep('profile')
+      }
+      setCurrentStep('profile')
+    } else if (currentStep === 'import') {
       setIsExistingAccountPath(false)
       if (modal) {
         setLocalState((prev) => ({...prev, currentStep: 'profile'}))
@@ -348,7 +375,8 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
           onSkip={modal ? handleSkip : undefined}
           onNext={handleNext}
           onPrev={handlePrev}
-          onExistingSite={handleExistingSite}
+          onUseRecoveryPhrase={handleUseRecoveryPhrase}
+          onImportKeyFile={handleImportKeyFile}
         />
       )}
       {currentStep === 'recovery' && (
@@ -366,6 +394,20 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       )}
       {currentStep === 'existing' && (
         <ExistingStep
+          onNext={handleNext}
+          onPrev={handlePrev}
+          onAccountCreate={(id) => {
+            console.log('🔄 Setting account:', id)
+            setAccount(id)
+            setSelectedIdentity?.(id.uid)
+            handleSubscription(id)
+            setInitialAccountIdCount(globalState.initialAccountIdCount + 1)
+            setIsExistingAccountPath(true)
+          }}
+        />
+      )}
+      {currentStep === 'import' && (
+        <ImportKeyStep
           onNext={handleNext}
           onPrev={handlePrev}
           onAccountCreate={(id) => {
@@ -453,12 +495,14 @@ function ProfileStep({
   onSkip,
   onNext,
   onPrev,
-  onExistingSite,
+  onUseRecoveryPhrase,
+  onImportKeyFile,
 }: {
   onSkip?: () => void
   onNext: () => void
   onPrev: () => void
-  onExistingSite: () => void
+  onUseRecoveryPhrase: () => void
+  onImportKeyFile: () => void
 }) {
   // Initialize form data from store
   const [formData, setFormData] = useState<ProfileFormData>(() => {
@@ -522,7 +566,13 @@ function ProfileStep({
         for. Whether it's personal, professional, or creative, this is your space to shine.
       </Text>
 
-      <form onSubmit={onNext} className="no-window-drag flex w-full max-w-[400px] flex-1 flex-col gap-4 pt-4">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          onNext()
+        }}
+        className="no-window-drag flex w-full max-w-[400px] flex-1 flex-col gap-4 pt-4"
+      >
         <div className="no-window-drag flex w-full flex-1 flex-col gap-4 pt-4">
           <div className="flex flex-col">
             <Label htmlFor="account-name">Account Name</Label>
@@ -578,12 +628,17 @@ function ProfileStep({
           </div>
         </div>
         <div className="no-window-drag flex flex-col gap-4 self-center">
-          <Button id="profile-existing" size="sm" variant="link" onClick={onExistingSite}>
-            I already have a Site
-          </Button>
+          <div className="flex flex-col items-center gap-1">
+            <Button id="profile-existing" type="button" size="sm" variant="link" onClick={onUseRecoveryPhrase}>
+              Use Recovery Phrase
+            </Button>
+            <Button id="profile-import-key" type="button" size="sm" variant="link" onClick={onImportKeyFile}>
+              Import Key File
+            </Button>
+          </div>
           <div className="no-window-drag mt-8 flex items-center justify-center gap-4">
             {onSkip && (
-              <Button onClick={onSkip} variant="link" id="profile-skip">
+              <Button type="button" onClick={onSkip} variant="link" id="profile-skip">
                 SKIP
               </Button>
             )}
@@ -591,6 +646,123 @@ function ProfileStep({
               NEXT
             </Button>
           </div>
+        </div>
+      </form>
+    </StepWrapper>
+  )
+}
+
+function ImportKeyStep({
+  onNext,
+  onPrev,
+  onAccountCreate,
+}: {
+  onNext: () => void
+  onPrev: () => void
+  onAccountCreate: (id: UnpackedHypermediaId) => void
+}) {
+  const {pickKeyImportFile} = useAppContext()
+  const importKey = useImportKey()
+  const [filePath, setFilePath] = useState('')
+  const [password, setPassword] = useState('')
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const handleChooseFile = async () => {
+    try {
+      const selectedPath = await pickKeyImportFile()
+      if (!selectedPath) return
+
+      setFilePath(selectedPath)
+      setSubmitError(null)
+    } catch (error) {
+      console.error('❌ Failed to open key import file picker:', error)
+      toast.error('Failed to open file picker')
+    }
+  }
+
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault()
+
+    const normalizedPath = normalizeImportKeyFilePath(filePath)
+    const validationError = getImportKeyFilePathError(normalizedPath)
+
+    setFilePath(normalizedPath)
+
+    if (validationError) {
+      setSubmitError(validationError)
+      return
+    }
+
+    try {
+      const importedAccount = await importKey.mutateAsync({
+        filePath: normalizedPath,
+        password: password.length > 0 ? password : undefined,
+      })
+      setSubmitError(null)
+      onAccountCreate(hmId(importedAccount.accountId))
+      onNext()
+    } catch (error) {
+      console.error('❌ Failed to import account key:', error)
+      const message = error instanceof Error ? error.message : 'Unknown import error'
+      setSubmitError(message)
+      toast.error('Failed to import key: ' + message)
+    }
+  }
+
+  return (
+    <StepWrapper onPrev={onPrev}>
+      <StepTitle>IMPORT KEY FILE</StepTitle>
+      <Text size="lg" className="text-muted-foreground text-center">
+        Choose an exported `.hmkey.json` file. Seed passes the selected file path (and optional password) to the daemon,
+        which reads the key file directly from disk.
+      </Text>
+
+      <form onSubmit={handleSubmit} className="flex w-full max-w-[420px] flex-1 flex-col gap-4 pt-4">
+        <div className="border-border bg-background/70 flex flex-col gap-2 rounded-lg border p-4">
+          <Text size="sm" className="text-secondary-foreground">
+            Leave password empty for plaintext exports. Enter a password only if the key file was exported with
+            encryption.
+          </Text>
+        </div>
+
+        {filePath ? (
+          <div className="flex flex-col gap-2">
+            <Text size="sm" className="text-muted-foreground">
+              Selected File
+            </Text>
+            <div className="border-border bg-background rounded-md border px-3 py-2">
+              <Text size="sm" className="font-mono break-all">
+                {filePath}
+              </Text>
+            </div>
+          </div>
+        ) : null}
+
+        {submitError ? (
+          <Text size="sm" className="text-destructive">
+            {submitError}
+          </Text>
+        ) : null}
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="import-key-password">Password (optional)</Label>
+          <Input
+            id="import-key-password"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.currentTarget.value)}
+            autoComplete="off"
+            placeholder="Only needed for encrypted files"
+          />
+        </div>
+
+        <div className="mt-auto flex gap-4">
+          <Button type="button" variant="outline" className="flex-1" onClick={handleChooseFile}>
+            Choose File
+          </Button>
+          <Button type="submit" variant="default" className="flex-1" disabled={importKey.isPending}>
+            {importKey.isPending ? 'IMPORTING...' : 'IMPORT KEY'}
+          </Button>
         </div>
       </form>
     </StepWrapper>
@@ -1117,14 +1289,14 @@ function StepWrapper({children, onPrev}: {children: React.ReactNode; onPrev?: ()
 }
 
 function OnboardingProgress({currentStep}: {currentStep: OnboardingStep}) {
-  const showExistingStep = currentStep === 'existing'
+  const showExistingStep = currentStep === 'existing' || currentStep === 'import'
 
   return (
     <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 transform gap-2 pt-4">
       <OnboardingProgressStep active={currentStep === 'welcome'} />
       <OnboardingProgressStep active={currentStep === 'profile'} />
       {showExistingStep ? (
-        <OnboardingProgressStep active={currentStep === 'existing'} />
+        <OnboardingProgressStep active={currentStep === 'existing' || currentStep === 'import'} />
       ) : (
         <OnboardingProgressStep active={currentStep === 'recovery'} />
       )}

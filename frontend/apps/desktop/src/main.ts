@@ -596,6 +596,24 @@ function initializeIpcHandlers() {
   ipcMain.on('open_path', (event, path) => shell.openPath(path))
   ipcMain.on('open-external-link', (_event, linkUrl) => shell.openExternal(linkUrl))
   ipcMain.on('open-directory', (_event, directory) => shell.openPath(directory))
+  ipcMain.handle('pick-key-import-file', async () => {
+    const focusedWindow = getFocusedWindow()
+    const options: OpenDialogOptions = {
+      title: 'Select Seed HM key file (.hmkey.json)',
+      properties: ['openFile'],
+      filters: [{name: 'Seed HM Key Files (*.hmkey.json)', extensions: ['json']}],
+    }
+
+    const result = focusedWindow
+      ? await dialog.showOpenDialog(focusedWindow, options)
+      : await dialog.showOpenDialog(options)
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return null
+    }
+
+    return result.filePaths[0] ?? null
+  })
 
   // Markdown file handlers
   ipcMain.on('open-markdown-directory', async (event, accountId: string) => {

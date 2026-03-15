@@ -4,6 +4,16 @@ import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import {Alert, AlertDescription, AlertTitle} from '@/frontend/components/ui/alert'
 import {Button} from '@/frontend/components/ui/button'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/frontend/components/ui/dialog'
+import {Input} from '@/frontend/components/ui/input'
+import {Label} from '@/frontend/components/ui/label'
+import {
   getProfileAvatarImageSrc,
   getProfileDisplayName,
   type AccountProfileSummary,
@@ -11,6 +21,7 @@ import {
 } from '@/frontend/profile'
 import {Separator} from '@/frontend/components/ui/separator'
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from '@/frontend/components/ui/tooltip'
+import {saveAccountKeyFile} from '@/frontend/key-export'
 import {useActions, useAppState} from '@/frontend/store'
 import type * as vault from '@/frontend/vault'
 import {
@@ -38,7 +49,7 @@ import {
   Tablet,
   User,
 } from 'lucide-react'
-import {useEffect, useState} from 'react'
+import {type FormEvent, useEffect, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
 
 function getProfileStatusTextClass(profileLoadState?: ProfileLoadState) {
@@ -287,6 +298,11 @@ function AccountDetails({
   const principal = blobs.principalToString(kp.principal)
   const [copied, setCopied] = useState(false)
   const [editingProfile, setEditingProfile] = useState(false)
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
+  const [exportPassword, setExportPassword] = useState('')
+  const [exportState, setExportState] = useState<
+    {status: 'idle'} | {status: 'pending'} | {status: 'done'; fileName: string} | {status: 'error'; message: string}
+  >({status: 'idle'})
   const name = getProfileDisplayName(profile, profileLoadState)
   const statusTextClass = getProfileStatusTextClass(profileLoadState)
   const isProfileNotFound = profileLoadState === 'not_found'
@@ -307,6 +323,43 @@ function AccountDetails({
     const didUpdate = await actions.updateAccountProfile(principal, nextProfile)
     if (didUpdate) {
       setEditingProfile(false)
+    }
+  }
+
+  function openExportDialog() {
+    setExportPassword('')
+    setExportState({status: 'idle'})
+    setIsExportDialogOpen(true)
+  }
+
+  async function handleExportKey(event?: FormEvent) {
+    event?.preventDefault()
+    setExportState({status: 'pending'})
+
+    try {
+      const result = await saveAccountKeyFile({
+        publicKey: principal,
+        account,
+        password: exportPassword.length > 0 ? exportPassword : undefined,
+        profile: profile
+          ? {
+              name: profile.name,
+              description: profile.description,
+            }
+          : undefined,
+      })
+      setExportState({status: 'done', fileName: result.fileName})
+      setIsExportDialogOpen(false)
+      setExportPassword('')
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        setExportState({status: 'idle'})
+        return
+      }
+      setExportState({
+        status: 'error',
+        message: (error as Error).message || 'Failed to export account key',
+      })
     }
   }
 
@@ -400,23 +453,119 @@ function AccountDetails({
       <Separator />
 
       <div>
-        <div className="mb-3 space-y-2">
-          <Button
-            variant="outline"
-            className="w-full sm:w-auto"
-            onClick={() => setEditingProfile(true)}
-            disabled={loading || !canEditProfile}
-          >
-            {profileActionLabel}
-          </Button>
+        <div className="mb-3 space-y-3">
+          <div className="flex flex-wrap gap-3">
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => setEditingProfile(true)}
+              disabled={loading || !canEditProfile}
+            >
+              {profileActionLabel}
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={openExportDialog}
+              disabled={exportState.status === 'pending'}
+            >
+              Export Key
+            </Button>
+            <DeleteAccountButton principal={principal} />
+          </div>
+          {exportState.status === 'done' ? (
+            <Alert>
+              <AlertTitle>Key Exported</AlertTitle>
+              <AlertDescription>
+                <p>Downloaded `{exportState.fileName}`.</p>
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {exportState.status === 'error' ? (
+            <Alert variant="destructive">
+              <AlertTriangle />
+              <AlertTitle>Export Failed</AlertTitle>
+              <AlertDescription>
+                <p>{exportState.message}</p>
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {!canEditProfile && (
             <p className="text-muted-foreground text-xs">
               Profile editing is temporarily unavailable while the current profile state cannot be loaded.
             </p>
           )}
         </div>
-        <DeleteAccountButton principal={principal} />
       </div>
+
+      <Dialog
+        open={isExportDialogOpen}
+        onOpenChange={(open) => {
+          if (exportState.status === 'pending') return
+          setIsExportDialogOpen(open)
+          if (!open) {
+            setExportPassword('')
+            setExportState({status: 'idle'})
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Export Key File</DialogTitle>
+            <DialogDescription>Choose whether to protect the exported key file with a password.</DialogDescription>
+          </DialogHeader>
+
+          <form className="space-y-4" onSubmit={handleExportKey}>
+            <Alert variant="warning">
+              <AlertTriangle />
+              <AlertTitle>Security Warning</AlertTitle>
+              <AlertDescription>
+                <p>
+                  Exported key files can grant full account control. Use a password whenever possible and delete the
+                  file when you no longer need it.
+                </p>
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-2">
+              <Label htmlFor="export-key-password">Password (optional)</Label>
+              <Input
+                id="export-key-password"
+                type="password"
+                value={exportPassword}
+                onChange={(event) => setExportPassword(event.currentTarget.value)}
+                autoComplete="off"
+                placeholder="Leave empty for plaintext export"
+                disabled={exportState.status === 'pending'}
+              />
+            </div>
+
+            {exportState.status === 'error' ? (
+              <Alert variant="destructive">
+                <AlertTriangle />
+                <AlertTitle>Export Failed</AlertTitle>
+                <AlertDescription>
+                  <p>{exportState.message}</p>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsExportDialogOpen(false)}
+                disabled={exportState.status === 'pending'}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={exportState.status === 'pending'}>
+                {exportState.status === 'pending' ? 'Exporting Key...' : 'Export Key'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AccountProfileDialog
         open={editingProfile}

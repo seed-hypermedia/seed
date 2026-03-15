@@ -183,6 +183,39 @@ export function useRegisterKey(
   })
 }
 
+/**
+ * Imports an existing account key from a daemon-readable file path.
+ */
+export function useImportKey(opts?: UseMutationOptions<NamedKey, unknown, {filePath: string; password?: string}>) {
+  return useMutation({
+    ...opts,
+    mutationFn: async ({filePath, password}) => {
+      const registration = await grpcClient.daemon.importKey({
+        filePath,
+        password,
+      })
+
+      grpcClient.subscriptions
+        .subscribe({
+          account: registration.publicKey,
+          recursive: true,
+          path: '',
+        })
+        .catch((e) => {
+          console.error('Failed to subscribe to imported account!', e)
+        })
+        .then(() => {
+          console.log('Subscribed to imported account')
+        })
+
+      return registration
+    },
+    onSuccess: () => {
+      invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
+    },
+  })
+}
+
 export function useDeleteKey(opts?: UseMutationOptions<any, unknown, {accountId: string}>) {
   return useMutation({
     mutationFn: async ({accountId}) => {

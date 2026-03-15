@@ -2,11 +2,16 @@ package daemon
 
 import (
 	"context"
+	"crypto/ed25519"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"math/rand"
 	"net"
+	"os"
+	"path/filepath"
 	"seed/backend/api/apitest"
 	documentsimpl "seed/backend/api/documents/v3alpha"
 	"seed/backend/blob"
@@ -48,7 +53,7 @@ func TestDaemonRegisterKey(t *testing.T) {
 	dmn := makeTestApp(t, "alice", makeTestConfig(t), false)
 	ctx := context.Background()
 
-	conn, err := grpc.Dial(dmn.GRPCListener.Addr().String(), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(dmn.GRPCListener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -91,6 +96,36 @@ func TestDaemonRegisterKey(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, keys.Keys, 2, "there must only be two keys after registering second key")
 	}
+}
+
+func TestDaemonImportKey(t *testing.T) {
+	t.Parallel()
+	dmn := makeTestApp(t, "alice", makeTestConfig(t), false)
+	ctx := context.Background()
+
+	conn, err := grpc.NewClient(dmn.GRPCListener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer conn.Close()
+
+	dc := daemon.NewDaemonClient(conn)
+
+	seed := make([]byte, ed25519.SeedSize)
+	for i := range seed {
+		seed[i] = byte(i + 11)
+	}
+	filePath := writeImportKeyFile(t, seed)
+
+	reg, err := dc.ImportKey(ctx, &daemon.ImportKeyRequest{FilePath: filePath})
+	require.NoError(t, err)
+	require.NotEmpty(t, reg.PublicKey)
+	require.Equal(t, reg.PublicKey, reg.AccountId)
+	require.Equal(t, reg.PublicKey, reg.Name)
+
+	keys, err := dc.ListKeys(ctx, &daemon.ListKeysRequest{})
+	require.NoError(t, err)
+	require.Len(t, keys.Keys, 1)
+	require.Equal(t, reg.PublicKey, keys.Keys[0].PublicKey)
+	require.Equal(t, reg.PublicKey, keys.Keys[0].AccountId)
 }
 
 func TestDaemonUpdateProfile(t *testing.T) {
@@ -185,6 +220,24 @@ func TestDaemonUpdateProfile(t *testing.T) {
 			IgnoreFields(documents.Document{}, "CreateTime", "UpdateTime", "Version", "Genesis", "GenerationInfo").
 			Compare(t, "profile document must match")
 	}
+}
+
+func writeImportKeyFile(t *testing.T, seed []byte) string {
+	t.Helper()
+
+	privateKey := ed25519.NewKeyFromSeed(seed)
+	payload := map[string]string{
+		"createTime": time.Now().UTC().Format(time.RFC3339),
+		"publicKey":  core.NewPublicKey(privateKey.Public().(ed25519.PublicKey)).String(),
+		"keyB64":     base64.RawURLEncoding.EncodeToString(seed),
+	}
+
+	data, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	filePath := filepath.Join(t.TempDir(), "import-key.hmkey.json")
+	require.NoError(t, os.WriteFile(filePath, data, 0600))
+	return filePath
 }
 
 func TestConnectivity(t *testing.T) {

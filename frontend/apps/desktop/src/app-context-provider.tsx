@@ -13,6 +13,7 @@ export function AppContextProvider({
   ipc,
   externalOpen,
   openDirectory,
+  pickKeyImportFile,
   openMarkdownFiles,
   openMarkdownDirectories,
   openLatexFiles,
@@ -30,6 +31,7 @@ export function AppContextProvider({
   ipc: AppIPC
   externalOpen: (url: string) => Promise<void>
   openDirectory: (directory: string) => Promise<void>
+  pickKeyImportFile: () => Promise<string | null>
   openMarkdownFiles: (accountId: string) => Promise<{
     documents: {
       markdownContent: string
@@ -95,6 +97,7 @@ export function AppContextProvider({
       ipc,
       externalOpen,
       openDirectory,
+      pickKeyImportFile,
       openMarkdownFiles,
       openMarkdownDirectories,
       openLatexFiles,

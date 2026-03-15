@@ -2,15 +2,17 @@ import type {Interceptor} from '@connectrpc/connect'
 import {createGrpcWebTransport} from '@connectrpc/connect-node'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {createGRPCClient} from '@shm/shared/grpc-client'
+import {isSensitiveRPCMethod} from '@shm/shared'
 import {connectionMonitor} from './network-debug'
 import * as log from './logger'
 import {randomUUID} from 'crypto'
 
 let isGrpcReady = false
 
-const loggingInterceptor: Interceptor = (next) => async (req) => {
+export const loggingInterceptor: Interceptor = (next) => async (req) => {
   const requestId = randomUUID()
   const startTime = Date.now()
+  const isSensitive = isSensitiveRPCMethod(req.service.typeName, req.method.name)
 
   connectionMonitor.trackRequest(requestId, req.method.name)
   log.debug(`🚀 Starting ${req.method.name}`, {requestId})
@@ -38,7 +40,10 @@ const loggingInterceptor: Interceptor = (next) => async (req) => {
     if (e.message.match('stream.getReader is not a function')) {
       error = new Error('RPC broken, try running pnpm install and ./dev gen')
     } else {
-      log.error(`🚨 ${req.method.name} error`, {message: req.message, error})
+      log.error(`🚨 ${req.method.name} error`, {
+        message: isSensitive ? '[REDACTED]' : req.message,
+        error: isSensitive ? (error instanceof Error ? error.message : String(error)) : error,
+      })
     }
     throw error
   }

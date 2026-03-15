@@ -18,7 +18,8 @@
 - Keep changes minimal and consistent with nearby code.
 - Prefer existing files over creating tiny one-off modules. Add a new file only when it materially improves structure,
   ownership, or reuse.
-- Before making any changes or plans, Ask clarifying questions when requirements or constraints are ambiguous until you are 95% sure what needs to be done
+- Before making any changes or plans, Ask clarifying questions when requirements or constraints are ambiguous until you
+  are 95% sure what needs to be done
 - Never modify the `.git` directory directly.
 - Do not run git commands that write state, including commit, amend, rebase, reset, checkout, merge, cherry-pick, stash,
   tag, branch deletion, or push, unless explicitly asked.
@@ -26,7 +27,9 @@
 - Use pnpm workflows for the main repository, and Bun workflows for `vault/**`.
 - Run relevant tests, type checks, and linters for touched areas before finishing.
 - Use `.local/` for temporary plans and scratch files.
-- Prefer writing doc comments on every exported symbol. Even trivial ones.
-- Avoid banner-style comments, splitting the file into sections — they are often forgotten when code is moved around.
+- Write doc comments on every exported symbol. Even trivial ones.
+- Avoid banner-style comments splitting the file into sections — they are often forgotten when code is moved around.
 - Write tests. Prefer broader tests that exercise real functionality and public interfaces over minutiae and excessive
-  mocking.
+  mocking. Avoid useless tests that give false confidence.
+- Avoid writing tiny helper functions, especially if they are not used elsewhere. Colocate related code for better
+  comprehension.

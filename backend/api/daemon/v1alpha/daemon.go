@@ -4,7 +4,12 @@ package daemon
 
 import (
 	context "context"
+	"crypto/ed25519"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"seed/backend/blob"
 	"seed/backend/core"
 	taskmanager "seed/backend/daemon/taskmanager"
@@ -13,6 +18,7 @@ import (
 	"seed/backend/ipfs"
 	"seed/backend/storage"
 	"seed/backend/util/colx"
+	"strings"
 	sync "sync"
 	"time"
 
@@ -22,6 +28,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multicodec"
+	"golang.org/x/crypto/argon2"
+	"golang.org/x/crypto/chacha20poly1305"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -39,6 +47,31 @@ type Node interface {
 // Blockstore is a subset of the IPFS blockstore.
 type Blockstore interface {
 	PutMany(context.Context, []blocks.Block) error
+}
+
+const (
+	importKeyFileSuffix  = ".hmkey.json"
+	importKeyFileMaxSize = 1 << 20 // 1 MiB
+)
+
+type importedKeyFile struct {
+	PublicKey  string                     `json:"publicKey"`
+	KeyB64     string                     `json:"keyB64"`
+	Encryption *importedKeyFileEncryption `json:"encryption,omitempty"`
+}
+
+type importedKeyFileEncryption struct {
+	KDF      string                 `json:"kdf"`
+	Argon2   *importedKeyFileArgon2 `json:"argon2"`
+	Cipher   string                 `json:"cipher"`
+	NonceB64 string                 `json:"nonceB64"`
+}
+
+type importedKeyFileArgon2 struct {
+	MemoryCost  uint32 `json:"memoryCost"`
+	TimeCost    uint32 `json:"timeCost"`
+	Parallelism uint8  `json:"parallelism"`
+	SaltB64     string `json:"saltB64"`
 }
 
 // Server implements the Daemon gRPC API.
@@ -114,6 +147,51 @@ func (srv *Server) RegisterKey(ctx context.Context, req *daemon.RegisterKeyReque
 	}, nil
 }
 
+// ImportKey implements the corresponding gRPC method.
+func (srv *Server) ImportKey(ctx context.Context, req *daemon.ImportKeyRequest) (*daemon.NamedKey, error) {
+	// We only want one concurrent register/import request to happen.
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+
+	if req.FilePath == "" {
+		return nil, status.Error(codes.InvalidArgument, "file path is required")
+	}
+
+	if !filepath.IsAbs(req.FilePath) {
+		return nil, status.Error(codes.InvalidArgument, "file path must be absolute")
+	}
+
+	if !isImportKeyFilePath(req.FilePath) {
+		return nil, status.Errorf(codes.InvalidArgument, "file path must end with %s", importKeyFileSuffix)
+	}
+
+	kp, err := loadKeyPairFromExportFile(req.FilePath, req.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	accountID := kp.PublicKey.String()
+	existingKeys, err := srv.store.KeyStore().ListKeys(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to list existing keys: %v", err)
+	}
+	for _, key := range existingKeys {
+		if key.PublicKey.String() == accountID {
+			return nil, status.Errorf(codes.AlreadyExists, "key for account %s already exists as %s", accountID, key.Name)
+		}
+	}
+
+	if err := srv.RegisterAccount(ctx, accountID, kp); err != nil {
+		return nil, err
+	}
+
+	return &daemon.NamedKey{
+		PublicKey: accountID,
+		Name:      accountID,
+		AccountId: accountID,
+	}, nil
+}
+
 // DeleteKey implement the corresponding gRPC method.
 func (srv *Server) DeleteKey(ctx context.Context, req *daemon.DeleteKeyRequest) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, srv.store.KeyStore().DeleteKey(ctx, req.Name)
@@ -171,6 +249,147 @@ func (srv *Server) RegisterAccount(ctx context.Context, name string, kp *core.Ke
 	}
 
 	return nil
+}
+
+func isImportKeyFilePath(filePath string) bool {
+	return strings.HasSuffix(strings.ToLower(filePath), importKeyFileSuffix)
+}
+
+func loadKeyPairFromExportFile(filePath string, password string) (*core.KeyPair, error) {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, status.Errorf(codes.NotFound, "key file not found: %s", filePath)
+		}
+		return nil, status.Errorf(codes.Internal, "failed to stat key file %s: %v", filePath, err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, status.Errorf(codes.InvalidArgument, "key file must be a regular file: %s", filePath)
+	}
+	if info.Size() > importKeyFileMaxSize {
+		return nil, status.Errorf(codes.InvalidArgument, "key file exceeds size limit: %d bytes", importKeyFileMaxSize)
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, status.Errorf(codes.NotFound, "key file not found: %s", filePath)
+		}
+		return nil, status.Errorf(codes.Internal, "failed to read key file %s: %v", filePath, err)
+	}
+
+	var keyFile importedKeyFile
+	if err := json.Unmarshal(data, &keyFile); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid key file JSON: %v", err)
+	}
+
+	if keyFile.KeyB64 == "" {
+		return nil, status.Error(codes.InvalidArgument, "keyB64 is required")
+	}
+
+	var seed []byte
+	if keyFile.Encryption != nil {
+		seed, err = decryptImportedSeed(keyFile, password)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		seed, err = decodeBase64URL(keyFile.KeyB64)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid keyB64: %v", err)
+		}
+	}
+
+	if len(seed) != ed25519.SeedSize {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid private key length: expected %d bytes, got %d", ed25519.SeedSize, len(seed))
+	}
+
+	privateKey := ed25519.NewKeyFromSeed(seed)
+	derivedPublicKey := core.NewPublicKey(privateKey.Public().(ed25519.PublicKey))
+	if keyFile.PublicKey != "" {
+		decodedPublicKey, err := core.DecodePublicKey(keyFile.PublicKey)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid publicKey: %v", err)
+		}
+		if !decodedPublicKey.Equal(derivedPublicKey) {
+			return nil, status.Error(codes.InvalidArgument, "publicKey does not match private key")
+		}
+	}
+
+	return core.NewKeyPair(privateKey), nil
+}
+
+func decryptImportedSeed(keyFile importedKeyFile, password string) ([]byte, error) {
+	encryption := keyFile.Encryption
+	if encryption == nil {
+		return nil, status.Error(codes.InvalidArgument, "encryption metadata is required")
+	}
+	if password == "" {
+		return nil, status.Error(codes.InvalidArgument, "password is required for encrypted key files")
+	}
+	if encryption.KDF != "argon2id" {
+		return nil, status.Errorf(codes.InvalidArgument, "unsupported key derivation function %q", encryption.KDF)
+	}
+	if encryption.Cipher != "xchacha20poly1305" {
+		return nil, status.Errorf(codes.InvalidArgument, "unsupported cipher %q", encryption.Cipher)
+	}
+	if encryption.Argon2 == nil {
+		return nil, status.Error(codes.InvalidArgument, "argon2 parameters are required")
+	}
+	if encryption.Argon2.MemoryCost == 0 || encryption.Argon2.TimeCost == 0 || encryption.Argon2.Parallelism == 0 {
+		return nil, status.Error(codes.InvalidArgument, "argon2 parameters must be greater than zero")
+	}
+	if encryption.Argon2.SaltB64 == "" || encryption.NonceB64 == "" {
+		return nil, status.Error(codes.InvalidArgument, "saltB64 and nonceB64 are required for encrypted key files")
+	}
+
+	salt, err := decodeBase64URL(encryption.Argon2.SaltB64)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid saltB64: %v", err)
+	}
+
+	nonce, err := decodeBase64URL(encryption.NonceB64)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid nonceB64: %v", err)
+	}
+	if len(nonce) != chacha20poly1305.NonceSizeX {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid nonce length: expected %d bytes, got %d", chacha20poly1305.NonceSizeX, len(nonce))
+	}
+
+	ciphertext, err := decodeBase64URL(keyFile.KeyB64)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid keyB64: %v", err)
+	}
+
+	derivedKey := argon2.IDKey(
+		[]byte(password),
+		salt,
+		encryption.Argon2.TimeCost,
+		encryption.Argon2.MemoryCost,
+		encryption.Argon2.Parallelism,
+		chacha20poly1305.KeySize,
+	)
+
+	aead, err := chacha20poly1305.NewX(derivedKey)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to initialize cipher: %v", err)
+	}
+
+	seed, err := aead.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "failed to decrypt key material")
+	}
+
+	return seed, nil
+}
+
+func decodeBase64URL(value string) ([]byte, error) {
+	decoded, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil {
+		return nil, fmt.Errorf("must be base64url without padding: %w", err)
+	}
+
+	return decoded, nil
 }
 
 // GetInfo implements the corresponding gRPC method.
