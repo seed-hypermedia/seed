@@ -141,6 +141,9 @@ func (srv *Server) ListContacts(ctx context.Context, in *documents.ListContactsR
 			return nil, status.Errorf(codes.InvalidArgument, "invalid subject: %v", err)
 		}
 
+		// Find the subject's public key ID first for use in subquery
+		subjectPkId := "(SELECT id FROM public_keys WHERE principal = ?)"
+
 		query = `
 			SELECT
 				latest_sb.id,
@@ -163,7 +166,19 @@ func (srv *Server) ListContacts(ctx context.Context, in *documents.ListContactsR
 				FROM structural_blobs sb
 				LEFT JOIN resources res ON res.id = sb.resource
 				WHERE sb.type = 'Contact'
-				AND sb.extra_attrs->>'subject' = (SELECT id FROM public_keys WHERE principal = ?)
+				AND (
+					-- Include contacts for this subject
+					sb.extra_attrs->>'subject' = ` + subjectPkId + `
+					-- Also include tombstones (deleted contacts) whose TSID matches contacts for this subject
+					OR (sb.extra_attrs->>'deleted' IS NOT NULL
+						AND sb.extra_attrs->>'tsid' IN (
+							SELECT sb2.extra_attrs->>'tsid'
+							FROM structural_blobs sb2
+							WHERE sb2.type = 'Contact'
+							AND sb2.extra_attrs->>'subject' = ` + subjectPkId + `
+						)
+					)
+				)
 			) latest_sb
 			JOIN public_keys pk_account ON pk_account.id = latest_sb.account_id
 			JOIN public_keys pk_signer ON pk_signer.id = latest_sb.author
@@ -174,7 +189,8 @@ func (srv *Server) ListContacts(ctx context.Context, in *documents.ListContactsR
 			ORDER BY latest_sb.id DESC
 			LIMIT ?
 		`
-		args = []any{subjectPrincipal, cursor.ContactID, in.PageSize + 1}
+		// Note: subjectPrincipal is used twice in the query (once for subject match, once for tombstone TSID lookup)
+		args = []any{subjectPrincipal, subjectPrincipal, cursor.ContactID, in.PageSize + 1}
 	}
 
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) (err error) {

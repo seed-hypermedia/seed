@@ -9,6 +9,7 @@ import {
   DocumentPanelRoute,
   findContentBlock,
   getBlockText,
+  hasProfileSubscription,
   hmId,
   NavRoute,
   unpackHmId,
@@ -55,6 +56,7 @@ import {FollowButton} from './follow-button'
 import {HMIcon} from './hm-icon'
 import {HistoryIcon, Link} from './icons'
 import {useDocumentLayout} from './layout'
+import {MembershipContent} from './membership'
 import {MobilePanelSheet} from './mobile-panel-sheet'
 import {
   DocNavigationItem,
@@ -1544,9 +1546,11 @@ function SiteAccountPage({siteUid, accountUid, tab}: {siteUid: string; accountUi
   )
 }
 
-function ProfileHeader({siteUid, accountUid}: {siteUid: string; accountUid: string}) {
+function ProfileHeader({siteUid: _siteUid, accountUid}: {siteUid: string; accountUid: string}) {
   const account = useAccount(accountUid)
-  const {isFollowing, isPending, isOwnAccount, followProfile} = useFollowProfile({profileUid: accountUid})
+  const {isFollowing, isPending, isOwnAccount, followProfile, unfollowProfile} = useFollowProfile({
+    profileUid: accountUid,
+  })
 
   return (
     <div className="flex items-center gap-4">
@@ -1557,12 +1561,18 @@ function ProfileHeader({siteUid, accountUid}: {siteUid: string; accountUid: stri
           {accountUid}
         </SizableText>
       </div>
-      {!isOwnAccount && <FollowButton onClick={followProfile} disabled={isPending} isFollowing={isFollowing} />}
+      {!isOwnAccount && (
+        <FollowButton
+          onClick={isFollowing ? unfollowProfile : followProfile}
+          disabled={isPending}
+          isFollowing={isFollowing}
+        />
+      )}
     </div>
   )
 }
 
-function ProfileContent({siteUid, accountUid}: {siteUid: string; accountUid: string}) {
+function ProfileContent({siteUid: _siteUid, accountUid}: {siteUid: string; accountUid: string}) {
   return (
     <div className="flex flex-col gap-4">
       <Feed filterAuthors={[accountUid]} filterResource={undefined} />
@@ -1570,22 +1580,19 @@ function ProfileContent({siteUid, accountUid}: {siteUid: string; accountUid: str
   )
 }
 
-function MembershipContent({siteUid, accountUid}: {siteUid: string; accountUid: string}) {
-  return (
-    <div>
-      <h1>Membership</h1>
-    </div>
-  )
-}
-
 function FollowersContent({siteUid, accountUid}: {siteUid: string; accountUid: string}) {
-  const followers = useContactListOfSubject(accountUid)
+  const allContacts = useContactListOfSubject(accountUid)
+  // Filter to only show contacts with profile subscription (explicit or implicit for legacy)
+  const followers = useMemo(() => {
+    return allContacts.data?.filter((c) => hasProfileSubscription(c)) ?? []
+  }, [allContacts.data])
+  console.log('followers', followers)
   const followerUids = useMemo(() => {
-    return followers.data?.map((c) => c.account) ?? []
-  }, [followers.data])
+    return followers.map((c) => c.account)
+  }, [followers])
   const followerAccounts = useAccountsMetadata(followerUids)
 
-  if (followers.isLoading) {
+  if (allContacts.isLoading) {
     return (
       <div className="flex justify-center py-8">
         <Spinner />
@@ -1593,7 +1600,7 @@ function FollowersContent({siteUid, accountUid}: {siteUid: string; accountUid: s
     )
   }
 
-  if (!followers.data?.length) {
+  if (!followers.length) {
     return (
       <div className="py-8 text-center">
         <SizableText color="muted">No followers yet</SizableText>
@@ -1603,7 +1610,7 @@ function FollowersContent({siteUid, accountUid}: {siteUid: string; accountUid: s
 
   return (
     <div className="flex flex-col gap-2">
-      {followers.data.map((contact) => {
+      {followers.map((contact) => {
         const accountData = followerAccounts.data[contact.account]
         return (
           <FollowerItem
@@ -1651,7 +1658,7 @@ function FollowerItem({
   )
 }
 
-function FollowingContent({siteUid, accountUid}: {siteUid: string; accountUid: string}) {
+function FollowingContent({siteUid: _siteUid, accountUid: _accountUid}: {siteUid: string; accountUid: string}) {
   return (
     <div>
       <h1>Following</h1>
@@ -1690,41 +1697,5 @@ function SiteAccountTabLink({
     <TabsTrigger value={tab.value} asChild>
       <a {...linkProps}>{tab.label}</a>
     </TabsTrigger>
-  )
-}
-
-function SiteAccountTabBody({
-  tab,
-  accountUid,
-  accountName,
-  hasSite,
-}: {
-  tab: SiteAccountTab
-  accountUid: string
-  accountName: string
-  hasSite?: boolean
-}) {
-  if (tab === 'profile') {
-    return (
-      <div className="rounded-xl border p-6">
-        <SizableText weight="medium" size="lg">
-          {accountName}
-        </SizableText>
-        <SizableText color="muted" size="sm" className="mt-2">
-          {hasSite ? 'This account has a site.' : 'This account does not have a site yet.'}
-        </SizableText>
-      </div>
-    )
-  }
-
-  return (
-    <div className="rounded-xl border p-6">
-      <SizableText weight="medium" size="lg">
-        {SITE_ACCOUNT_TABS.find((tabItem) => tabItem.value === tab)?.label}
-      </SizableText>
-      <SizableText color="muted" size="sm" className="mt-2">
-        {accountName} ({accountUid})
-      </SizableText>
-    </div>
   )
 }
