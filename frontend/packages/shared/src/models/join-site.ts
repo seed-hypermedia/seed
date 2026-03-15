@@ -37,3 +37,34 @@ export function useJoinSite({siteUid}: {siteUid: string}) {
     joinSite,
   }
 }
+
+/** Hook for following a profile (saving it as a contact). */
+export function useFollowProfile({profileUid}: {profileUid: string}) {
+  const selectedAccountId = useSelectedAccountId()
+  const selectedAccountContacts = useSelectedAccountContacts()
+  const saveContact = useSaveContact()
+
+  const hasContact = selectedAccountContacts.data?.some((c) => c.subject === profileUid) ?? false
+
+  const isOwnAccount = selectedAccountId === profileUid
+
+  const isFollowing = isOwnAccount || hasContact
+
+  const followProfile = async () => {
+    if (!selectedAccountId) {
+      throw new Error('No account selected')
+    }
+    await saveContact.mutateAsync({
+      accountUid: selectedAccountId,
+      name: '',
+      subjectUid: profileUid,
+    })
+  }
+
+  return {
+    isFollowing,
+    isPending: saveContact.isPending,
+    isOwnAccount,
+    followProfile,
+  }
+}

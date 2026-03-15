@@ -12,6 +12,8 @@ import {
   hmId,
   NavRoute,
   unpackHmId,
+  useContactListOfSubject,
+  useFollowProfile,
   useRouteLink,
   useUniversalAppContext,
 } from '@shm/shared'
@@ -48,8 +50,9 @@ import {DocumentCover} from './document-cover'
 import {AuthorPayload, BreadcrumbEntry, DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
-import {HMIcon} from './hm-icon'
 import {FeedFilters} from './feed-filters'
+import {FollowButton} from './follow-button'
+import {HMIcon} from './hm-icon'
 import {HistoryIcon, Link} from './icons'
 import {useDocumentLayout} from './layout'
 import {MobilePanelSheet} from './mobile-panel-sheet'
@@ -1518,41 +1521,143 @@ function ContentViewWithOutline({
 }
 
 function SiteAccountPage({siteUid, accountUid, tab}: {siteUid: string; accountUid: string; tab: SiteAccountTab}) {
-  const account = useAccount(accountUid)
-
+  let TabComponent = ProfileContent
+  if (tab === 'membership') {
+    TabComponent = MembershipContent
+  } else if (tab === 'followers') {
+    TabComponent = FollowersContent
+  } else if (tab === 'following') {
+    TabComponent = FollowingContent
+  }
   return (
     <ScrollArea className="flex-1">
       <PageLayout contentMaxWidth={720}>
         <div className="space-y-6 py-8">
           <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <HMIcon
-                id={hmId(accountUid)}
-                size={64}
-                icon={account.data?.metadata?.icon}
-                name={account.data?.metadata?.name}
-              />
-              <div className="min-w-0 space-y-1">
-                <h1 className="truncate text-2xl font-bold">{account.data?.metadata?.name || accountUid}</h1>
-                <SizableText color="muted" size="sm" className="truncate">
-                  {accountUid}
-                </SizableText>
-              </div>
-            </div>
+            <ProfileHeader siteUid={siteUid} accountUid={accountUid} />
             <SiteAccountTabs siteUid={siteUid} accountUid={accountUid} tab={tab} />
           </div>
-          <SiteAccountTabBody
-            tab={tab}
-            accountUid={accountUid}
-            accountName={account.data?.metadata?.name || accountUid}
-            hasSite={account.data?.hasSite}
-          />
+          <TabComponent siteUid={siteUid} accountUid={accountUid} />
         </div>
       </PageLayout>
     </ScrollArea>
   )
 }
 
+function ProfileHeader({siteUid, accountUid}: {siteUid: string; accountUid: string}) {
+  const account = useAccount(accountUid)
+  const {isFollowing, isPending, isOwnAccount, followProfile} = useFollowProfile({profileUid: accountUid})
+
+  return (
+    <div className="flex items-center gap-4">
+      <HMIcon id={hmId(accountUid)} size={64} icon={account.data?.metadata?.icon} name={account.data?.metadata?.name} />
+      <div className="min-w-0 flex-1 space-y-1">
+        <h1 className="truncate text-2xl font-bold">{account.data?.metadata?.name || accountUid}</h1>
+        <SizableText color="muted" size="sm" className="truncate">
+          {accountUid}
+        </SizableText>
+      </div>
+      {!isOwnAccount && <FollowButton onClick={followProfile} disabled={isPending} isFollowing={isFollowing} />}
+    </div>
+  )
+}
+
+function ProfileContent({siteUid, accountUid}: {siteUid: string; accountUid: string}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <Feed filterAuthors={[accountUid]} filterResource={undefined} />
+    </div>
+  )
+}
+
+function MembershipContent({siteUid, accountUid}: {siteUid: string; accountUid: string}) {
+  return (
+    <div>
+      <h1>Membership</h1>
+    </div>
+  )
+}
+
+function FollowersContent({siteUid, accountUid}: {siteUid: string; accountUid: string}) {
+  const followers = useContactListOfSubject(accountUid)
+  const followerUids = useMemo(() => {
+    return followers.data?.map((c) => c.account) ?? []
+  }, [followers.data])
+  const followerAccounts = useAccountsMetadata(followerUids)
+
+  if (followers.isLoading) {
+    return (
+      <div className="flex justify-center py-8">
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (!followers.data?.length) {
+    return (
+      <div className="py-8 text-center">
+        <SizableText color="muted">No followers yet</SizableText>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {followers.data.map((contact) => {
+        const accountData = followerAccounts.data[contact.account]
+        return (
+          <FollowerItem
+            key={contact.id}
+            accountUid={contact.account}
+            metadata={accountData?.metadata}
+            siteUid={siteUid}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+function FollowerItem({
+  accountUid,
+  metadata,
+  siteUid,
+}: {
+  accountUid: string
+  metadata?: {name?: string; icon?: string} | null
+  siteUid: string
+}) {
+  const linkProps = useRouteLink({
+    key: 'site-profile',
+    id: hmId(siteUid),
+    accountUid: accountUid !== siteUid ? accountUid : undefined,
+    tab: 'profile',
+  })
+
+  return (
+    <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-lg p-3 transition-colors">
+      <HMIcon id={hmId(accountUid)} size={40} icon={metadata?.icon} name={metadata?.name} />
+      <div className="min-w-0 flex-1">
+        <SizableText weight="medium" className="truncate">
+          {metadata?.name || accountUid}
+        </SizableText>
+        {metadata?.name && (
+          <SizableText color="muted" size="sm" className="truncate">
+            {accountUid}
+          </SizableText>
+        )}
+      </div>
+    </a>
+  )
+}
+
+function FollowingContent({siteUid, accountUid}: {siteUid: string; accountUid: string}) {
+  return (
+    <div>
+      <h1>Following</h1>
+    </div>
+  )
+}
 function SiteAccountTabs({siteUid, accountUid, tab}: {siteUid: string; accountUid: string; tab: SiteAccountTab}) {
   return (
     <Tabs value={tab}>
