@@ -82,8 +82,7 @@ export function useLeaveSite({siteUid}: {siteUid: string}) {
 
     // Check if contact has profile subscription
     const hasProfileSubscription =
-      siteContact.subscribe?.profile ||
-      (!siteContact.subscribe?.site && !siteContact.subscribe?.profile) // Legacy: implicit profile
+      siteContact.subscribe?.profile || (!siteContact.subscribe?.site && !siteContact.subscribe?.profile) // Legacy: implicit profile
 
     if (hasProfileSubscription) {
       // Update contact to remove site subscription, keep profile

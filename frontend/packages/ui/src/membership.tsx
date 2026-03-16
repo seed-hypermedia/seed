@@ -24,7 +24,7 @@ export function MembershipContent({accountUid}: {accountUid: string}) {
   if (!uniqueSiteSubscribed?.length) {
     return (
       <div className="py-8 text-center">
-        <SizableText color="muted">No site memberships yet</SizableText>
+        <SizableText color="muted">No sites joined yet.</SizableText>
       </div>
     )
   }

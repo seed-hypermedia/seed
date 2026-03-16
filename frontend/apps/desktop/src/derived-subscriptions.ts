@@ -179,10 +179,7 @@ export async function initDerivedSubscriptions() {
 
   // 2. Subscribe to query invalidations to react to changes
   onQueryInvalidation((queryKey) => {
-    if (
-      queryKey[0] === queryKeys.LOCAL_ACCOUNT_ID_LIST ||
-      queryKey[0] === queryKeys.CONTACTS_ACCOUNT
-    ) {
+    if (queryKey[0] === queryKeys.LOCAL_ACCOUNT_ID_LIST || queryKey[0] === queryKeys.CONTACTS_ACCOUNT) {
       logger.debug(`DerivedSubscriptions: query invalidated ${queryKey[0]}`)
       debouncedSyncSubscriptions()
     }

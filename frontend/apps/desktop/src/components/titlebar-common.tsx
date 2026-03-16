@@ -9,7 +9,7 @@ import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
-import {useSelectedAccountId} from '@/selected-account'
+import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {pathNameify} from '@/utils/path'
@@ -36,6 +36,7 @@ import {
 } from '@shm/shared/utils/entity-id-url'
 import {appRouteOfId, useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
+import {HMIcon} from '@shm/ui/hm-icon'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Back, CloudOff, Download, Forward, Link, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
@@ -341,12 +342,43 @@ function NotificationButton() {
   )
 }
 
+function AccountProfileButton() {
+  const navigate = useNavigate()
+  const route = useNavRoute()
+  const accountUid = useSelectedAccountId()
+  const selectedAccount = useSelectedAccount()
+  const doc = selectedAccount?.document
+
+  if (!accountUid) return null
+
+  const isActive = route.key === 'profile' && route.id?.uid === accountUid
+
+  return (
+    <Tooltip content="My Profile" asChild>
+      <Button
+        className={cn(
+          'window-no-drag relative h-8 w-8 overflow-hidden rounded-full border-1 p-0',
+          isActive
+            ? 'cursor-default border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
+            : 'border-transparent',
+        )}
+        aria-current={isActive ? 'page' : undefined}
+        aria-disabled={isActive || undefined}
+        onClick={isActive ? undefined : () => navigate({key: 'profile', id: hmId(accountUid)})}
+      >
+        <HMIcon id={hmId(accountUid)} name={doc?.metadata?.name} icon={doc?.metadata?.icon} size={32} />
+      </Button>
+    </Tooltip>
+  )
+}
+
 export function PageActionButtons(props: TitleBarProps) {
   const route = useNavRoute()
   return (
     <TitlebarSection>
       {route.key == 'document' || route.key == 'feed' ? <DocumentTitlebarButtons route={route} /> : null}
       <NotificationButton />
+      <AccountProfileButton />
     </TitlebarSection>
   )
 }

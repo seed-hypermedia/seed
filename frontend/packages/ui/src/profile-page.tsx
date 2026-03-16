@@ -1,4 +1,3 @@
-
 // function ProfileHeader({
 //   profile,
 //   onEditProfile,

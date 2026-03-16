@@ -80,8 +80,10 @@ export function WebAccountFooter({
   const profileLinkProps = useRouteLink(
     keyPair
       ? {
-          key: 'profile',
-          id: hmId(keyPair.id, {latest: true}),
+          key: 'site-profile',
+          id: hmId(siteUid, {latest: true}),
+          accountUid: keyPair.id,
+          tab: 'profile' as const,
         }
       : null,
   )

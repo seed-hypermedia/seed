@@ -14,17 +14,11 @@ import {
   unpackHmId,
   useUniversalAppContext,
 } from '@shm/shared'
-import { IS_DESKTOP, NOTIFY_SERVICE_HOST } from '@shm/shared/constants'
-import {
-  useAccountsMetadata,
-  useDirectory,
-  useIsLatest,
-  useResource,
-  useResources,
-} from '@shm/shared/models/entity'
-import { useInteractionSummary } from '@shm/shared/models/interaction-summary'
-import { getRoutePanel } from '@shm/shared/routes'
-import { getBreadcrumbDocumentIds } from '@shm/shared/utils/breadcrumbs'
+import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {useAccountsMetadata, useDirectory, useIsLatest, useResource, useResources} from '@shm/shared/models/entity'
+import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
+import {getRoutePanel} from '@shm/shared/routes'
+import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
 import {
   activityFilterToSlug,
   createSiteUrl,
@@ -32,24 +26,24 @@ import {
   getCommentTargetId,
   parseFragment,
 } from '@shm/shared/utils/entity-id-url'
-import { useNavigate, useNavRoute } from '@shm/shared/utils/navigation'
-import { Folder } from 'lucide-react'
-import { CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AccountPage } from './account-page'
-import { BlockRangeSelectOptions, BlocksContent, BlocksContentProvider } from './blocks-content'
-import { CollaboratorsPage } from './collaborators-page'
-import { ScrollArea } from './components/scroll-area'
-import { copyUrlToClipboardWithFeedback } from './copy-to-clipboard'
-import { DirectoryPageContent } from './directory-page'
-import { DiscussionsPageContent } from './discussions-page'
-import { DocumentCover } from './document-cover'
-import { AuthorPayload, BreadcrumbEntry, DocumentHeader } from './document-header'
-import { DocumentTools } from './document-tools'
-import { Feed } from './feed'
-import { FeedFilters } from './feed-filters'
-import { HistoryIcon, Link } from './icons'
-import { useDocumentLayout } from './layout'
-import { MobilePanelSheet } from './mobile-panel-sheet'
+import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
+import {Folder} from 'lucide-react'
+import {CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {AccountPage} from './account-page'
+import {BlockRangeSelectOptions, BlocksContent, BlocksContentProvider} from './blocks-content'
+import {CollaboratorsPage} from './collaborators-page'
+import {ScrollArea} from './components/scroll-area'
+import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
+import {DirectoryPageContent} from './directory-page'
+import {DiscussionsPageContent} from './discussions-page'
+import {DocumentCover} from './document-cover'
+import {AuthorPayload, BreadcrumbEntry, DocumentHeader} from './document-header'
+import {DocumentTools} from './document-tools'
+import {Feed} from './feed'
+import {FeedFilters} from './feed-filters'
+import {HistoryIcon, Link} from './icons'
+import {useDocumentLayout} from './layout'
+import {MobilePanelSheet} from './mobile-panel-sheet'
 import {
   DocNavigationItem,
   DocNavigationWrapper,
@@ -57,17 +51,17 @@ import {
   getSiteNavDirectory,
   useNodesOutline,
 } from './navigation'
-import { OpenInPanelButton } from './open-in-panel'
-import { MenuItemType, OptionsDropdown } from './options-dropdown'
-import { PageLayout } from './page-layout'
-import { PageDeleted, PageDiscovery, PageNotFound, PagePrivate } from './page-message-states'
-import { PanelLayout } from './panel-layout'
-import { GotoLatestBanner, SiteHeader } from './site-header'
-import { Spinner } from './spinner'
-import { UnreferencedDocuments } from './unreferenced-documents'
-import { useBlockScroll } from './use-block-scroll'
-import { useMedia } from './use-media'
-import { cn } from './utils'
+import {OpenInPanelButton} from './open-in-panel'
+import {MenuItemType, OptionsDropdown} from './options-dropdown'
+import {PageLayout} from './page-layout'
+import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
+import {PanelLayout} from './panel-layout'
+import {GotoLatestBanner, SiteHeader} from './site-header'
+import {Spinner} from './spinner'
+import {UnreferencedDocuments} from './unreferenced-documents'
+import {useBlockScroll} from './use-block-scroll'
+import {useMedia} from './use-media'
+import {cn} from './utils'
 
 /** Common menu items generated internally for all document views */
 export function useCommonMenuItems(docId: UnpackedHypermediaId): MenuItemType[] {
@@ -174,6 +168,10 @@ export interface ResourcePageProps {
   inlineCards?: ReactNode
   /** Platform-specific actions rendered in the site header right side */
   rightActions?: ReactNode
+  /** Callback to open edit profile dialog for site profile pages (only shown for own account) */
+  onEditProfile?: () => void
+  /** Additional header buttons for site profile pages (e.g., logout) - only shown for own account */
+  profileHeaderButtons?: ReactNode
 }
 
 /** Get panel title for display */
@@ -202,6 +200,8 @@ export function ResourcePage({
   pageFooter,
   inlineCards,
   rightActions,
+  onEditProfile,
+  profileHeaderButtons,
 }: ResourcePageProps) {
   const route = useNavRoute()
   const isSiteProfile = route.key === 'site-profile'
@@ -235,7 +235,13 @@ export function ResourcePage({
         document={siteHomeDocument || undefined}
         rightActions={rightActions}
       >
-        <AccountPage siteUid={docId.uid} accountUid={accountUid} tab={tab} />
+        <AccountPage
+          siteUid={docId.uid}
+          accountUid={accountUid}
+          tab={tab}
+          onEditProfile={onEditProfile}
+          headerButtons={profileHeaderButtons}
+        />
         {pageFooter}
       </PageWrapper>
     )

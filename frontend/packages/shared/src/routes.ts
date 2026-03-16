@@ -4,12 +4,16 @@ import {
   unpackedHmIdSchema,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import { z } from 'zod'
-import type { SiteProfileTab, ViewRouteKey } from './utils/entity-id-url'
-import { activitySlugToFilter, isSiteProfileTab, SITE_PROFILE_TABS } from './utils/entity-id-url'
+import {z} from 'zod'
+import type {SiteProfileTab, ViewRouteKey} from './utils/entity-id-url'
+import {activitySlugToFilter, isSiteProfileTab, SITE_PROFILE_TABS} from './utils/entity-id-url'
 
-export const PROFILE_TABS = ['profile', //default tab
- 'membership', 'followers', 'following'] as const
+export const PROFILE_TABS = [
+  'profile', //default tab
+  'membership',
+  'followers',
+  'following',
+] as const
 export type ProfileTab = (typeof PROFILE_TABS)[number]
 
 export const defaultRoute: NavRoute = {key: 'library'}

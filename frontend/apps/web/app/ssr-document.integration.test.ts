@@ -99,6 +99,8 @@ vi.mock('@/auth', () => ({
   useLocalKeyPair: () => null,
   useCreateAccount: () => ({content: null, createAccount: () => {}}),
   AccountFooterActions: () => null,
+  EditProfileDialog: () => null,
+  LogoutButton: () => null,
 }))
 
 // Mock navigation hooks used by WebResourcePage

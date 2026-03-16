@@ -368,8 +368,10 @@ export function routeToUrl(
     return `${urlHost}${siteBase}/:${route.tab}${accountSuffix}`
   }
   if (route.key === 'profile') {
-    const urlHost = opts?.hostname ?? DEFAULT_GATEWAY_URL
-    return `${urlHost}/hm/profile/${route.id.uid}`
+    const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
+    const siteBase = opts?.originHomeId?.uid === route.id.uid ? '' : `/hm/${route.id.uid}`
+    const tab = route.tab || 'profile'
+    return `${urlHost}${siteBase}/:${tab}`
   }
   if (route.key === 'contact') {
     const urlHost = opts?.hostname ?? DEFAULT_GATEWAY_URL

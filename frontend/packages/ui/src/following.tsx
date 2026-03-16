@@ -1,9 +1,9 @@
-import { hasProfileSubscription, hmId, useContactListOfAccount, useRouteLink } from '@shm/shared'
-import { useAccountsMetadata } from '@shm/shared/models/entity'
-import { useMemo } from 'react'
-import { HMIcon } from './hm-icon'
-import { Spinner } from './spinner'
-import { SizableText } from './text'
+import {hasProfileSubscription, hmId, useContactListOfAccount, useRouteLink} from '@shm/shared'
+import {useAccountsMetadata} from '@shm/shared/models/entity'
+import {useMemo} from 'react'
+import {HMIcon} from './hm-icon'
+import {Spinner} from './spinner'
+import {SizableText} from './text'
 
 /** Shows accounts that this account is following (contacts with profile subscription). */
 export function FollowingContent({siteUid, accountUid}: {siteUid?: string | null; accountUid: string}) {
@@ -63,16 +63,20 @@ function FollowingItem({
   metadata?: {name?: string; icon?: string} | null
   siteUid?: string | null
 }) {
-  const linkProps = useRouteLink(siteUid ? {
-    key: 'site-profile',
-    id: hmId(siteUid),
-    accountUid: accountUid !== siteUid ? accountUid : undefined,
-    tab: 'profile',
-  } : {
-    key: 'profile',
-    id: hmId(accountUid),
-    tab: 'profile',
-  })
+  const linkProps = useRouteLink(
+    siteUid
+      ? {
+          key: 'site-profile',
+          id: hmId(siteUid),
+          accountUid: accountUid !== siteUid ? accountUid : undefined,
+          tab: 'profile',
+        }
+      : {
+          key: 'profile',
+          id: hmId(accountUid),
+          tab: 'profile',
+        },
+  )
 
   return (
     <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-lg p-3 transition-colors">
