@@ -10,6 +10,10 @@ import { SizableText } from './text'
 export function MembershipContent({siteUid, accountUid}: {siteUid: string; accountUid: string}) {
   const contacts = useContactListOfAccount(accountUid)
   const siteSubscribed = contacts.data?.filter((contact) => contact.subscribe?.site)
+  // Deduplicate by subject (account being subscribed to)
+  const uniqueSiteSubscribed = siteSubscribed?.filter(
+    (contact, index, arr) => arr.findIndex((c) => c.subject === contact.subject) === index,
+  )
   if (contacts.isLoading) {
     return (
       <div className="flex justify-center py-8">
@@ -17,7 +21,7 @@ export function MembershipContent({siteUid, accountUid}: {siteUid: string; accou
       </div>
     )
   }
-  if (!siteSubscribed?.length) {
+  if (!uniqueSiteSubscribed?.length) {
     return (
       <div className="py-8 text-center">
         <SizableText color="muted">No site memberships yet</SizableText>
@@ -26,8 +30,8 @@ export function MembershipContent({siteUid, accountUid}: {siteUid: string; accou
   }
   return (
     <div className="flex flex-col gap-2">
-      {siteSubscribed?.map((contact) => {
-        return <MembershipItem key={contact.id} contact={contact} siteUid={siteUid} />
+      {uniqueSiteSubscribed?.map((contact) => {
+        return <MembershipItem key={contact.subject} contact={contact} siteUid={siteUid} />
       })}
     </div>
   )
@@ -49,13 +53,8 @@ function MembershipItem({contact, siteUid: _siteUid}: {contact: HMContactRecord;
       <HMIcon id={hmId(contact.subject)} size={40} icon={icon} name={name} />
       <div className="min-w-0 flex-1">
         <SizableText weight="medium" className="truncate">
-          {name || contact.subject}
+          {name || 'Untitled'}
         </SizableText>
-        {name && (
-          <SizableText color="muted" size="sm" className="truncate">
-            {contact.subject}
-          </SizableText>
-        )}
       </div>
     </a>
   )

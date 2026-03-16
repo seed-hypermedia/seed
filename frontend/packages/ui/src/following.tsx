@@ -9,8 +9,10 @@ import {SizableText} from './text'
 export function FollowingContent({siteUid, accountUid}: {siteUid: string; accountUid: string}) {
   const allContacts = useContactListOfAccount(accountUid)
   // Filter to only show contacts with profile subscription (explicit or implicit for legacy)
+  // Deduplicate by subject (account being followed)
   const following = useMemo(() => {
-    return allContacts.data?.filter((c) => hasProfileSubscription(c)) ?? []
+    const filtered = allContacts.data?.filter((c) => hasProfileSubscription(c)) ?? []
+    return filtered.filter((contact, index, arr) => arr.findIndex((c) => c.subject === contact.subject) === index)
   }, [allContacts.data])
 
   const followingUids = useMemo(() => {
@@ -73,13 +75,8 @@ function FollowingItem({
       <HMIcon id={hmId(accountUid)} size={40} icon={metadata?.icon} name={metadata?.name} />
       <div className="min-w-0 flex-1">
         <SizableText weight="medium" className="truncate">
-          {metadata?.name || accountUid}
+          {metadata?.name || 'Untitled'}
         </SizableText>
-        {metadata?.name && (
-          <SizableText color="muted" size="sm" className="truncate">
-            {accountUid}
-          </SizableText>
-        )}
       </div>
     </a>
   )
