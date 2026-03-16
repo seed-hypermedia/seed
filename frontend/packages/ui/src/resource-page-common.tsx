@@ -13,10 +13,9 @@ import {
   NavRoute,
   unpackHmId,
   useFollowProfile,
-  useRouteLink,
   useUniversalAppContext,
 } from '@shm/shared'
-import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import { IS_DESKTOP, NOTIFY_SERVICE_HOST } from '@shm/shared/constants'
 import {
   useAccount,
   useAccountsMetadata,
@@ -25,9 +24,9 @@ import {
   useResource,
   useResources,
 } from '@shm/shared/models/entity'
-import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
-import {getRoutePanel} from '@shm/shared/routes'
-import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
+import { useInteractionSummary } from '@shm/shared/models/interaction-summary'
+import { getRoutePanel } from '@shm/shared/routes'
+import { getBreadcrumbDocumentIds } from '@shm/shared/utils/breadcrumbs'
 import {
   activityFilterToSlug,
   createSiteUrl,
@@ -35,29 +34,28 @@ import {
   getCommentTargetId,
   parseFragment,
 } from '@shm/shared/utils/entity-id-url'
-import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {Folder} from 'lucide-react'
-import {CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {BlockRangeSelectOptions, BlocksContent, BlocksContentProvider} from './blocks-content'
-import {CollaboratorsPage} from './collaborators-page'
-import {ScrollArea} from './components/scroll-area'
-import {Tabs, TabsList, TabsTrigger} from './components/tabs'
-import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
-import {DirectoryPageContent} from './directory-page'
-import {DiscussionsPageContent} from './discussions-page'
-import {DocumentCover} from './document-cover'
-import {AuthorPayload, BreadcrumbEntry, DocumentHeader} from './document-header'
-import {DocumentTools} from './document-tools'
-import {Feed} from './feed'
-import {FeedFilters} from './feed-filters'
-import {FollowButton} from './follow-button'
-import {HMIcon} from './hm-icon'
-import {HistoryIcon, Link} from './icons'
-import {useDocumentLayout} from './layout'
-import {FollowersContent} from './followers'
-import {FollowingContent} from './following'
-import {MembershipContent} from './membership'
-import {MobilePanelSheet} from './mobile-panel-sheet'
+import { useNavigate, useNavRoute } from '@shm/shared/utils/navigation'
+import { Folder } from 'lucide-react'
+import { CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { BlockRangeSelectOptions, BlocksContent, BlocksContentProvider } from './blocks-content'
+import { CollaboratorsPage } from './collaborators-page'
+import { ScrollArea } from './components/scroll-area'
+import { copyUrlToClipboardWithFeedback } from './copy-to-clipboard'
+import { DirectoryPageContent } from './directory-page'
+import { DiscussionsPageContent } from './discussions-page'
+import { DocumentCover } from './document-cover'
+import { AuthorPayload, BreadcrumbEntry, DocumentHeader } from './document-header'
+import { DocumentTools } from './document-tools'
+import { Feed } from './feed'
+import { FeedFilters } from './feed-filters'
+import { FollowButton } from './follow-button'
+import { FollowersContent } from './followers'
+import { FollowingContent } from './following'
+import { HMIcon } from './hm-icon'
+import { HistoryIcon, Link } from './icons'
+import { useDocumentLayout } from './layout'
+import { MembershipContent } from './membership'
+import { MobilePanelSheet } from './mobile-panel-sheet'
 import {
   DocNavigationItem,
   DocNavigationWrapper,
@@ -65,18 +63,18 @@ import {
   getSiteNavDirectory,
   useNodesOutline,
 } from './navigation'
-import {OpenInPanelButton} from './open-in-panel'
-import {MenuItemType, OptionsDropdown} from './options-dropdown'
-import {PageLayout} from './page-layout'
-import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
-import {PanelLayout} from './panel-layout'
-import {GotoLatestBanner, SiteHeader} from './site-header'
-import {Spinner} from './spinner'
-import {SizableText} from './text'
-import {UnreferencedDocuments} from './unreferenced-documents'
-import {useBlockScroll} from './use-block-scroll'
-import {useMedia} from './use-media'
-import {cn} from './utils'
+import { OpenInPanelButton } from './open-in-panel'
+import { MenuItemType, OptionsDropdown } from './options-dropdown'
+import { PageLayout } from './page-layout'
+import { PageDeleted, PageDiscovery, PageNotFound, PagePrivate } from './page-message-states'
+import { PageTabItem, PageTabs } from './page-tabs'
+import { PanelLayout } from './panel-layout'
+import { GotoLatestBanner, SiteHeader } from './site-header'
+import { Spinner } from './spinner'
+import { UnreferencedDocuments } from './unreferenced-documents'
+import { useBlockScroll } from './use-block-scroll'
+import { useMedia } from './use-media'
+import { cn } from './utils'
 
 /** Common menu items generated internally for all document views */
 export function useCommonMenuItems(docId: UnpackedHypermediaId): MenuItemType[] {
@@ -1557,9 +1555,6 @@ function ProfileHeader({siteUid: _siteUid, accountUid}: {siteUid: string; accoun
       <HMIcon id={hmId(accountUid)} size={64} icon={account.data?.metadata?.icon} name={account.data?.metadata?.name} />
       <div className="min-w-0 flex-1 space-y-1">
         <h1 className="truncate text-2xl font-bold">{account.data?.metadata?.name || accountUid}</h1>
-        <SizableText color="muted" size="sm" className="truncate">
-          {accountUid}
-        </SizableText>
       </div>
       {!isOwnAccount && (
         <FollowButton
@@ -1581,36 +1576,16 @@ function ProfileContent({siteUid: _siteUid, accountUid}: {siteUid: string; accou
 }
 
 function SiteAccountTabs({siteUid, accountUid, tab}: {siteUid: string; accountUid: string; tab: SiteAccountTab}) {
-  return (
-    <Tabs value={tab}>
-      <TabsList className="w-full justify-start">
-        {SITE_ACCOUNT_TABS.map((tabItem) => (
-          <SiteAccountTabLink key={tabItem.value} siteUid={siteUid} accountUid={accountUid} tab={tabItem} />
-        ))}
-      </TabsList>
-    </Tabs>
-  )
-}
+  const tabs: PageTabItem[] = SITE_ACCOUNT_TABS.map((t) => ({
+    key: t.value,
+    label: t.label,
+    route: {
+      key: 'site-profile',
+      id: hmId(siteUid),
+      accountUid: accountUid !== siteUid ? accountUid : undefined,
+      tab: t.value,
+    },
+  }))
 
-function SiteAccountTabLink({
-  siteUid,
-  accountUid,
-  tab,
-}: {
-  siteUid: string
-  accountUid: string
-  tab: {label: string; value: SiteAccountTab}
-}) {
-  const linkProps = useRouteLink({
-    key: 'site-profile',
-    id: hmId(siteUid),
-    accountUid: accountUid !== siteUid ? accountUid : undefined,
-    tab: tab.value,
-  })
-
-  return (
-    <TabsTrigger value={tab.value} asChild>
-      <a {...linkProps}>{tab.label}</a>
-    </TabsTrigger>
-  )
+  return <PageTabs tabs={tabs} activeTab={tab} />
 }

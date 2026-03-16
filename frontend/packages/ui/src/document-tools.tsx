@@ -1,11 +1,9 @@
 import {HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {activitySlugToFilter, DocumentPanelRoute, NavRoute, useRouteLink} from '@shm/shared'
+import {activitySlugToFilter, DocumentPanelRoute, NavRoute} from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {MessageSquare, Newspaper, Quote, Users} from 'lucide-react'
+import {LucideIcon, MessageSquare, Newspaper, Quote, Users} from 'lucide-react'
 import {useRef, useState} from 'react'
-import {Button, ButtonProps} from './button'
-import {IconComponent} from './icons'
-import {Tooltip} from './tooltip'
+import {PageTab} from './page-tabs'
 import {cn} from './utils'
 
 export function DocumentTools({
@@ -82,7 +80,7 @@ export function DocumentTools({
   const buttons: {
     label: string
     tooltip: string
-    icon: IconComponent
+    icon: LucideIcon
     count?: number
     active: boolean
     route: NavRoute
@@ -145,7 +143,7 @@ export function DocumentTools({
         aria-hidden="true"
       >
         {buttons.map((button) => (
-          <ToolLink
+          <PageTab
             key={button.label}
             active={button.active}
             route={button.route}
@@ -159,7 +157,7 @@ export function DocumentTools({
         ))}
       </div>
       {buttons.map((button) => (
-        <ToolLink
+        <PageTab
           key={button.label}
           active={button.active}
           route={button.route}
@@ -238,40 +236,4 @@ export function DocumentTools({
       ) : null}
     </div>
   )
-}
-
-function ToolLink({
-  route,
-  label,
-  tooltip,
-  count,
-  icon: Icon,
-  active = false,
-  showLabel = true,
-  bg,
-}: ButtonProps & {
-  route: NavRoute
-  label?: string
-  count?: number
-  icon: any
-  tooltip?: string
-  active?: boolean
-  showLabel?: boolean
-  bg?: string
-}) {
-  const linkProps = useRouteLink(route)
-  let btn = (
-    <Button
-      className={cn('plausible-event-name=Open+Document+Comments flex-1 rounded-full', bg)}
-      asChild
-      variant={active ? 'accent' : 'ghost'}
-    >
-      <a {...linkProps} data-tab={route.key}>
-        <Icon className="size-4" />
-        {label && showLabel ? <span className="hidden truncate text-sm md:block">{label}</span> : null}
-        {count ? <span className="text-sm">{count}</span> : null}
-      </a>
-    </Button>
-  )
-  return <Tooltip content={active ? '' : tooltip || ''}>{btn}</Tooltip>
 }
