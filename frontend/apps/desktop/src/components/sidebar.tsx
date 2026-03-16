@@ -1,27 +1,25 @@
-import {useBookmarks} from '@/models/bookmarks'
-import {useComments} from '@/models/comments'
-import {useContactList} from '@/models/contacts'
-import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
-import {useSubscribedDocuments} from '@/models/library'
-import {useSelectedAccountId} from '@/selected-account'
-import {hasProfileSubscription, useFollowProfile, useLeaveSite} from '@shm/shared/models/join-site'
-import {HMContactRecord} from '@seed-hypermedia/client/hm-types'
-import {useNavigate} from '@/utils/useNavigate'
-import {useRouteLink} from '@shm/shared'
-import {getContactMetadata} from '@shm/shared/content'
+import { useBookmarks } from '@/models/bookmarks'
+import { useComments } from '@/models/comments'
+import { useContactList } from '@/models/contacts'
+import { useSubscribedDocuments } from '@/models/library'
+import { useSelectedAccountId } from '@/selected-account'
+import { useNavigate } from '@/utils/useNavigate'
 import {
   HMAccountsMetadata,
   HMActivitySummary,
-  HMComment,
-  HMMetadata,
+  HMComment, HMContactRecord, HMMetadata,
   HMResourceVisibility,
-  UnpackedHypermediaId,
+  UnpackedHypermediaId
 } from '@seed-hypermedia/client/hm-types'
-import {useResource, useResources} from '@shm/shared/models/entity'
-import {hmId} from '@shm/shared/utils/entity-id-url'
-import {useNavRoute} from '@shm/shared/utils/navigation'
-import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
-import {UIAvatar} from '@shm/ui/avatar'
+import { useRouteLink } from '@shm/shared'
+import { getContactMetadata } from '@shm/shared/content'
+import { useSelectedAccountContacts } from '@shm/shared/models/contacts'
+import { useResource, useResources } from '@shm/shared/models/entity'
+import { hasProfileSubscription, useFollowProfile, useLeaveSite } from '@shm/shared/models/join-site'
+import { hmId } from '@shm/shared/utils/entity-id-url'
+import { useNavRoute } from '@shm/shared/utils/navigation'
+import { LibraryEntryUpdateSummary } from '@shm/ui/activity'
+import { UIAvatar } from '@shm/ui/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,17 +39,17 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from '@shm/ui/components/sidebar'
-import {useImageUrl} from '@shm/ui/get-file-url'
-import {HMIcon} from '@shm/ui/hm-icon'
-import {CircleOff} from '@shm/ui/icons'
-import {SmallListItem} from '@shm/ui/list-item'
-import {SizableText} from '@shm/ui/text'
-import {cn} from '@shm/ui/utils'
-import {AlertCircle, ChevronDown, ChevronRight, Contact, File, Library, Lock, MoreHorizontal} from 'lucide-react'
-import React, {memo} from 'react'
-import {CreateDocumentButton} from './create-doc-button'
-import {GenericSidebarContainer} from './sidebar-base'
-import {SidebarFooter as AppSidebarFooter} from './sidebar-footer'
+import { useImageUrl } from '@shm/ui/get-file-url'
+import { HMIcon } from '@shm/ui/hm-icon'
+import { CircleOff } from '@shm/ui/icons'
+import { SmallListItem } from '@shm/ui/list-item'
+import { SizableText } from '@shm/ui/text'
+import { cn } from '@shm/ui/utils'
+import { AlertCircle, ChevronDown, ChevronRight, Contact, File, Library, Lock, MoreHorizontal } from 'lucide-react'
+import React, { memo } from 'react'
+import { CreateDocumentButton } from './create-doc-button'
+import { GenericSidebarContainer } from './sidebar-base'
+import { SidebarFooter as AppSidebarFooter } from './sidebar-footer'
 
 export const AppSidebar = memo(MainAppSidebar)
 
@@ -463,7 +461,7 @@ function FollowingSection() {
               id={id}
               contact={contact}
               metadata={metadata}
-              active={route.key === 'document' && route.id.id === id.id}
+              active={route.key === 'profile' && route.id.id === id.id}
             />
           </SidebarMenuItem>
         )
@@ -484,7 +482,7 @@ function FollowingListItem({
   metadata: HMMetadata
   active: boolean
 }) {
-  const linkProps = useRouteLink({key: 'document', id})
+  const linkProps = useRouteLink({key: 'profile', id})
   const {unfollowProfile, isPending} = useFollowProfile({profileUid: contact.subject})
   return (
     <>

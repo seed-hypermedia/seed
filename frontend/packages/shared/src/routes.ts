@@ -1,12 +1,16 @@
-import {z} from 'zod'
 import {
   BlockRangeSchema,
   HMResourceVisibilitySchema,
-  UnpackedHypermediaId,
   unpackedHmIdSchema,
+  UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {activitySlugToFilter, isSiteProfileTab, SITE_PROFILE_TABS} from './utils/entity-id-url'
-import type {SiteProfileTab, ViewRouteKey} from './utils/entity-id-url'
+import { z } from 'zod'
+import type { SiteProfileTab, ViewRouteKey } from './utils/entity-id-url'
+import { activitySlugToFilter, isSiteProfileTab, SITE_PROFILE_TABS } from './utils/entity-id-url'
+
+export const PROFILE_TABS = ['profile', //default tab
+ 'membership', 'followers', 'following'] as const
+export type ProfileTab = (typeof PROFILE_TABS)[number]
 
 export const defaultRoute: NavRoute = {key: 'library'}
 
@@ -21,6 +25,7 @@ export type ContactRoute = z.infer<typeof contactRouteSchema>
 
 export const profileRouteSchema = z.object({
   key: z.literal('profile'),
+  tab: z.enum(PROFILE_TABS).optional(),
   id: unpackedHmIdSchema,
 })
 

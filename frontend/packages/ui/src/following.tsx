@@ -1,12 +1,12 @@
-import {hasProfileSubscription, hmId, useContactListOfAccount, useRouteLink} from '@shm/shared'
-import {useAccountsMetadata} from '@shm/shared/models/entity'
-import {useMemo} from 'react'
-import {HMIcon} from './hm-icon'
-import {Spinner} from './spinner'
-import {SizableText} from './text'
+import { hasProfileSubscription, hmId, useContactListOfAccount, useRouteLink } from '@shm/shared'
+import { useAccountsMetadata } from '@shm/shared/models/entity'
+import { useMemo } from 'react'
+import { HMIcon } from './hm-icon'
+import { Spinner } from './spinner'
+import { SizableText } from './text'
 
 /** Shows accounts that this account is following (contacts with profile subscription). */
-export function FollowingContent({siteUid, accountUid}: {siteUid: string; accountUid: string}) {
+export function FollowingContent({siteUid, accountUid}: {siteUid?: string | null; accountUid: string}) {
   const allContacts = useContactListOfAccount(accountUid)
   // Filter to only show contacts with profile subscription (explicit or implicit for legacy)
   // Deduplicate by subject (account being followed)
@@ -61,12 +61,16 @@ function FollowingItem({
 }: {
   accountUid: string
   metadata?: {name?: string; icon?: string} | null
-  siteUid: string
+  siteUid?: string | null
 }) {
-  const linkProps = useRouteLink({
+  const linkProps = useRouteLink(siteUid ? {
     key: 'site-profile',
     id: hmId(siteUid),
     accountUid: accountUid !== siteUid ? accountUid : undefined,
+    tab: 'profile',
+  } : {
+    key: 'profile',
+    id: hmId(accountUid),
     tab: 'profile',
   })
 

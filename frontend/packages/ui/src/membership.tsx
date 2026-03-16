@@ -7,7 +7,7 @@ import { Spinner } from './spinner'
 import { SizableText } from './text'
 
 /** Shows sites/accounts that this account has membership in (all contacts). */
-export function MembershipContent({siteUid, accountUid}: {siteUid: string; accountUid: string}) {
+export function MembershipContent({accountUid}: {accountUid: string}) {
   const contacts = useContactListOfAccount(accountUid)
   const siteSubscribed = contacts.data?.filter((contact) => contact.subscribe?.site)
   // Deduplicate by subject (account being subscribed to)
@@ -31,14 +31,14 @@ export function MembershipContent({siteUid, accountUid}: {siteUid: string; accou
   return (
     <div className="flex flex-col gap-2">
       {uniqueSiteSubscribed?.map((contact) => {
-        return <MembershipItem key={contact.subject} contact={contact} siteUid={siteUid} />
+        return <MembershipItem key={contact.subject} contact={contact} />
       })}
     </div>
   )
 }
 
 /** Single item showing a site/account membership. */
-function MembershipItem({contact, siteUid: _siteUid}: {contact: HMContactRecord; siteUid: string}) {
+function MembershipItem({contact}: {contact: HMContactRecord}) {
   const subject = useAccount(contact.subject)
   const linkProps = useRouteLink({
     key: 'document',

@@ -12,12 +12,10 @@ import {
   hmId,
   NavRoute,
   unpackHmId,
-  useFollowProfile,
   useUniversalAppContext,
 } from '@shm/shared'
 import { IS_DESKTOP, NOTIFY_SERVICE_HOST } from '@shm/shared/constants'
 import {
-  useAccount,
   useAccountsMetadata,
   useDirectory,
   useIsLatest,
@@ -37,6 +35,7 @@ import {
 import { useNavigate, useNavRoute } from '@shm/shared/utils/navigation'
 import { Folder } from 'lucide-react'
 import { CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AccountPage } from './account-page'
 import { BlockRangeSelectOptions, BlocksContent, BlocksContentProvider } from './blocks-content'
 import { CollaboratorsPage } from './collaborators-page'
 import { ScrollArea } from './components/scroll-area'
@@ -48,13 +47,8 @@ import { AuthorPayload, BreadcrumbEntry, DocumentHeader } from './document-heade
 import { DocumentTools } from './document-tools'
 import { Feed } from './feed'
 import { FeedFilters } from './feed-filters'
-import { FollowButton } from './follow-button'
-import { FollowersContent } from './followers'
-import { FollowingContent } from './following'
-import { HMIcon } from './hm-icon'
 import { HistoryIcon, Link } from './icons'
 import { useDocumentLayout } from './layout'
-import { MembershipContent } from './membership'
 import { MobilePanelSheet } from './mobile-panel-sheet'
 import {
   DocNavigationItem,
@@ -67,7 +61,6 @@ import { OpenInPanelButton } from './open-in-panel'
 import { MenuItemType, OptionsDropdown } from './options-dropdown'
 import { PageLayout } from './page-layout'
 import { PageDeleted, PageDiscovery, PageNotFound, PagePrivate } from './page-message-states'
-import { PageTabItem, PageTabs } from './page-tabs'
 import { PanelLayout } from './panel-layout'
 import { GotoLatestBanner, SiteHeader } from './site-header'
 import { Spinner } from './spinner'
@@ -137,15 +130,6 @@ function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
 }
 
 export type ActiveView = 'content' | 'activity' | 'comments' | 'directory' | 'collaborators' | 'site-profile'
-
-type SiteAccountTab = 'profile' | 'membership' | 'followers' | 'following'
-
-const SITE_ACCOUNT_TABS: {label: string; value: SiteAccountTab}[] = [
-  {label: 'Profile', value: 'profile'},
-  {label: 'Membership', value: 'membership'},
-  {label: 'Followers', value: 'followers'},
-  {label: 'Following', value: 'following'},
-]
 
 function getActiveView(routeKey: string): ActiveView {
   switch (routeKey) {
@@ -251,7 +235,7 @@ export function ResourcePage({
         document={siteHomeDocument || undefined}
         rightActions={rightActions}
       >
-        <SiteAccountPage siteUid={docId.uid} accountUid={accountUid} tab={tab} />
+        <AccountPage siteUid={docId.uid} accountUid={accountUid} tab={tab} />
         {pageFooter}
       </PageWrapper>
     )
@@ -1518,74 +1502,4 @@ function ContentViewWithOutline({
       {showSidebars && <div {...sidebarProps} />}
     </div>
   )
-}
-
-function SiteAccountPage({siteUid, accountUid, tab}: {siteUid: string; accountUid: string; tab: SiteAccountTab}) {
-  let TabComponent = ProfileContent
-  if (tab === 'membership') {
-    TabComponent = MembershipContent
-  } else if (tab === 'followers') {
-    TabComponent = FollowersContent
-  } else if (tab === 'following') {
-    TabComponent = FollowingContent
-  }
-  return (
-    <ScrollArea className="flex-1">
-      <PageLayout contentMaxWidth={720}>
-        <div className="space-y-6 py-8">
-          <div className="space-y-4">
-            <ProfileHeader siteUid={siteUid} accountUid={accountUid} />
-            <SiteAccountTabs siteUid={siteUid} accountUid={accountUid} tab={tab} />
-          </div>
-          <TabComponent siteUid={siteUid} accountUid={accountUid} />
-        </div>
-      </PageLayout>
-    </ScrollArea>
-  )
-}
-
-function ProfileHeader({siteUid: _siteUid, accountUid}: {siteUid: string; accountUid: string}) {
-  const account = useAccount(accountUid)
-  const {isFollowing, isPending, isOwnAccount, followProfile, unfollowProfile} = useFollowProfile({
-    profileUid: accountUid,
-  })
-
-  return (
-    <div className="flex items-center gap-4">
-      <HMIcon id={hmId(accountUid)} size={64} icon={account.data?.metadata?.icon} name={account.data?.metadata?.name} />
-      <div className="min-w-0 flex-1 space-y-1">
-        <h1 className="truncate text-2xl font-bold">{account.data?.metadata?.name || accountUid}</h1>
-      </div>
-      {!isOwnAccount && (
-        <FollowButton
-          onClick={isFollowing ? unfollowProfile : followProfile}
-          disabled={isPending}
-          isFollowing={isFollowing}
-        />
-      )}
-    </div>
-  )
-}
-
-function ProfileContent({siteUid: _siteUid, accountUid}: {siteUid: string; accountUid: string}) {
-  return (
-    <div className="flex flex-col gap-4">
-      <Feed filterAuthors={[accountUid]} filterResource={undefined} />
-    </div>
-  )
-}
-
-function SiteAccountTabs({siteUid, accountUid, tab}: {siteUid: string; accountUid: string; tab: SiteAccountTab}) {
-  const tabs: PageTabItem[] = SITE_ACCOUNT_TABS.map((t) => ({
-    key: t.value,
-    label: t.label,
-    route: {
-      key: 'site-profile',
-      id: hmId(siteUid),
-      accountUid: accountUid !== siteUid ? accountUid : undefined,
-      tab: t.value,
-    },
-  }))
-
-  return <PageTabs tabs={tabs} activeTab={tab} />
 }
