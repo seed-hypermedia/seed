@@ -30,6 +30,7 @@ import {
   getWorkspaceDirs,
   checkContainersHealthy,
   getContainerImages,
+  checkGpuAcceleration,
   ensureSeedDir,
   environmentPresets,
   buildCrontab,
@@ -732,6 +733,46 @@ describe('getContainerImages', () => {
     expect(images.get('seed-proxy')).toBe('sha256:abc123')
     expect(images.get('seed-web')).toBe('sha256:def456')
     expect(images.get('seed-daemon')).toBe('sha256:ghi789')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// checkGpuAcceleration (mock shell)
+// ---------------------------------------------------------------------------
+
+describe('checkGpuAcceleration', () => {
+  test('not-running when daemon is not running', () => {
+    const result = checkGpuAcceleration(makeNoopShell())
+    expect(result).toEqual({available: false, reason: 'not-running'})
+  })
+
+  test('no-dev-dri when /dev/dri is missing inside container', () => {
+    const shell = makeMockShell({
+      "docker inspect seed-daemon --format '{{.State.Status}}'": 'running',
+      // docker exec ls /dev/dri/renderD* fails (not mocked → throws → runSafe returns null)
+    })
+    const result = checkGpuAcceleration(shell)
+    expect(result).toEqual({available: false, reason: 'no-dev-dri'})
+  })
+
+  test('no-vulkan-icd when /dev/dri exists but no ICD files', () => {
+    const shell = makeMockShell({
+      "docker inspect seed-daemon --format '{{.State.Status}}'": 'running',
+      'ls /dev/dri/renderD': '/dev/dri/renderD128',
+      // docker exec ls /usr/share/vulkan/icd.d/*.json fails → runSafe returns null
+    })
+    const result = checkGpuAcceleration(shell)
+    expect(result).toEqual({available: false, reason: 'no-vulkan-icd'})
+  })
+
+  test('available when /dev/dri and Vulkan ICD both present', () => {
+    const shell = makeMockShell({
+      "docker inspect seed-daemon --format '{{.State.Status}}'": 'running',
+      'ls /dev/dri/renderD': '/dev/dri/renderD128',
+      'ls /usr/share/vulkan/icd.d/': 'radeon_icd.x86_64.json',
+    })
+    const result = checkGpuAcceleration(shell)
+    expect(result).toEqual({available: true})
   })
 })
 

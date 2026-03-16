@@ -803,6 +803,20 @@ export async function getContainerImages(shell: ShellRunner): Promise<Map<string
   return images
 }
 
+/** Result of checking GPU acceleration inside the daemon container. */
+export type GpuStatus = {available: true} | {available: false; reason: 'not-running' | 'no-dev-dri' | 'no-vulkan-icd'}
+
+/** Check whether the daemon container has GPU acceleration via Vulkan. */
+export function checkGpuAcceleration(shell: ShellRunner): GpuStatus {
+  const status = shell.runSafe(`docker inspect seed-daemon --format '{{.State.Status}}' 2>/dev/null`)
+  if (status !== 'running') return {available: false, reason: 'not-running'}
+  const renderNodes = shell.runSafe(`docker exec seed-daemon ls /dev/dri/renderD* 2>/dev/null`)
+  if (!renderNodes) return {available: false, reason: 'no-dev-dri'}
+  const vulkanIcd = shell.runSafe(`docker exec seed-daemon ls /usr/share/vulkan/icd.d/*.json 2>/dev/null`)
+  if (!vulkanIcd) return {available: false, reason: 'no-vulkan-icd'}
+  return {available: true}
+}
+
 export function buildComposeEnv(config: SeedConfig, paths: DeployPaths): string {
   const dns = extractDns(config.domain)
   const testnetName = config.testnet ? 'dev' : ''
@@ -1368,6 +1382,19 @@ async function cmdDoctor(paths: DeployPaths, shell: ShellRunner): Promise<void> 
 
   if (hasUnhealthy) {
     console.log(`\n  Tip: Check logs with '${cmd('logs daemon|web|proxy')}'`)
+  }
+
+  // GPU acceleration check (only when daemon is running)
+  const gpu = checkGpuAcceleration(shell)
+  if (gpu.available) {
+    console.log(`  \u2714 GPU            available via Vulkan`)
+  } else if (gpu.reason !== 'not-running') {
+    console.log(`  \u26A0 GPU            not available, embeddings will use CPU (slower)`)
+    if (gpu.reason === 'no-dev-dri') {
+      console.log(`      \u2514 /dev/dri not found in container; host may lack a GPU`)
+    } else {
+      console.log(`      \u2514 /dev/dri present but no Vulkan ICD found; install GPU vendor drivers on host`)
+    }
   }
 
   // Monitoring export check (only shown when metrics profile is active)
