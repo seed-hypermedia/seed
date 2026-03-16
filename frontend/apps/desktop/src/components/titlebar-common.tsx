@@ -577,13 +577,15 @@ function useCurrentRouteUrl(): {
     if (routeId) {
       const url = routeToUrl(route, {
         hostname: siteHostname || gwUrl,
-        originHomeId: siteHostname ? hmId(routeId.uid) : undefined,
+        // Only apply originHomeId optimization when entity has a custom site URL,
+        // not when falling back to hostname from the URL (e.g., gateway URL)
+        originHomeId: entitySiteUrl ? hmId(routeId.uid) : undefined,
       })
       return {displayUrl: url, copyableUrl: url}
     }
 
     return {displayUrl: null, copyableUrl: null}
-  }, [routeId, route, siteHostname, gwUrl, draftTitle, draftData])
+  }, [routeId, route, siteHostname, gwUrl, draftTitle, draftData, entitySiteUrl])
 }
 
 /**
