@@ -1,13 +1,15 @@
-import {HMContactRecord} from '@seed-hypermedia/client/hm-types'
-import {useContactListOfAccount} from '@shm/shared/models/contacts'
-import {useAccount} from '@shm/shared/models/entity'
-import {hmId} from '@shm/shared/utils/entity-id-url'
-import {HMIcon} from './hm-icon'
-import {Spinner} from './spinner'
-import {SizableText} from './text'
+import { HMContactRecord } from '@seed-hypermedia/client/hm-types'
+import { hmId, useRouteLink } from '@shm/shared'
+import { useContactListOfAccount } from '@shm/shared/models/contacts'
+import { useAccount } from '@shm/shared/models/entity'
+import { HMIcon } from './hm-icon'
+import { Spinner } from './spinner'
+import { SizableText } from './text'
 
-export function MembershipContent({accountUid}: {accountUid: string}) {
+/** Shows sites/accounts that this account has membership in (all contacts). */
+export function MembershipContent({siteUid, accountUid}: {siteUid: string; accountUid: string}) {
   const contacts = useContactListOfAccount(accountUid)
+  const siteSubscribed = contacts.data?.filter((contact) => contact.subscribe?.site)
   if (contacts.isLoading) {
     return (
       <div className="flex justify-center py-8">
@@ -15,31 +17,46 @@ export function MembershipContent({accountUid}: {accountUid: string}) {
       </div>
     )
   }
-  if (!contacts.data?.length) {
+  if (!siteSubscribed?.length) {
     return (
       <div className="py-8 text-center">
-        <SizableText color="muted">No contacts yet</SizableText>
+        <SizableText color="muted">No site memberships yet</SizableText>
       </div>
     )
   }
   return (
     <div className="flex flex-col gap-2">
-      {contacts.data.map((contact) => {
-        return <MembershipItem key={contact.id} contact={contact} />
+      {siteSubscribed?.map((contact) => {
+        return <MembershipItem key={contact.id} contact={contact} siteUid={siteUid} />
       })}
     </div>
   )
 }
 
-function MembershipItem({contact}: {contact: HMContactRecord}) {
+/** Single item showing a site/account membership. */
+function MembershipItem({contact, siteUid: _siteUid}: {contact: HMContactRecord; siteUid: string}) {
   const subject = useAccount(contact.subject)
+  const linkProps = useRouteLink({
+    key: 'document',
+    id: hmId(contact.subject),
+  })
+
+  const name = contact.name || subject.data?.metadata?.name
+  const icon = subject.data?.metadata?.icon
 
   return (
-    <div className="flex items-center gap-2">
-      <HMIcon id={hmId(contact.subject)} size={40} name={contact.name} />
-      <SizableText weight="medium" className="truncate">
-        {contact.name || subject.data?.metadata?.name}
-      </SizableText>
-    </div>
+    <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-lg p-3 transition-colors">
+      <HMIcon id={hmId(contact.subject)} size={40} icon={icon} name={name} />
+      <div className="min-w-0 flex-1">
+        <SizableText weight="medium" className="truncate">
+          {name || contact.subject}
+        </SizableText>
+        {name && (
+          <SizableText color="muted" size="sm" className="truncate">
+            {contact.subject}
+          </SizableText>
+        )}
+      </div>
+    </a>
   )
 }

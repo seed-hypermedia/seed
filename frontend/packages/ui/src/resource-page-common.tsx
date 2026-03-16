@@ -9,11 +9,9 @@ import {
   DocumentPanelRoute,
   findContentBlock,
   getBlockText,
-  hasProfileSubscription,
   hmId,
   NavRoute,
   unpackHmId,
-  useContactListOfSubject,
   useFollowProfile,
   useRouteLink,
   useUniversalAppContext,
@@ -56,6 +54,8 @@ import {FollowButton} from './follow-button'
 import {HMIcon} from './hm-icon'
 import {HistoryIcon, Link} from './icons'
 import {useDocumentLayout} from './layout'
+import {FollowersContent} from './followers'
+import {FollowingContent} from './following'
 import {MembershipContent} from './membership'
 import {MobilePanelSheet} from './mobile-panel-sheet'
 import {
@@ -1580,91 +1580,6 @@ function ProfileContent({siteUid: _siteUid, accountUid}: {siteUid: string; accou
   )
 }
 
-function FollowersContent({siteUid, accountUid}: {siteUid: string; accountUid: string}) {
-  const allContacts = useContactListOfSubject(accountUid)
-  // Filter to only show contacts with profile subscription (explicit or implicit for legacy)
-  const followers = useMemo(() => {
-    return allContacts.data?.filter((c) => hasProfileSubscription(c)) ?? []
-  }, [allContacts.data])
-  console.log('followers', followers)
-  const followerUids = useMemo(() => {
-    return followers.map((c) => c.account)
-  }, [followers])
-  const followerAccounts = useAccountsMetadata(followerUids)
-
-  if (allContacts.isLoading) {
-    return (
-      <div className="flex justify-center py-8">
-        <Spinner />
-      </div>
-    )
-  }
-
-  if (!followers.length) {
-    return (
-      <div className="py-8 text-center">
-        <SizableText color="muted">No followers yet</SizableText>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      {followers.map((contact) => {
-        const accountData = followerAccounts.data[contact.account]
-        return (
-          <FollowerItem
-            key={contact.id}
-            accountUid={contact.account}
-            metadata={accountData?.metadata}
-            siteUid={siteUid}
-          />
-        )
-      })}
-    </div>
-  )
-}
-
-function FollowerItem({
-  accountUid,
-  metadata,
-  siteUid,
-}: {
-  accountUid: string
-  metadata?: {name?: string; icon?: string} | null
-  siteUid: string
-}) {
-  const linkProps = useRouteLink({
-    key: 'site-profile',
-    id: hmId(siteUid),
-    accountUid: accountUid !== siteUid ? accountUid : undefined,
-    tab: 'profile',
-  })
-
-  return (
-    <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-lg p-3 transition-colors">
-      <HMIcon id={hmId(accountUid)} size={40} icon={metadata?.icon} name={metadata?.name} />
-      <div className="min-w-0 flex-1">
-        <SizableText weight="medium" className="truncate">
-          {metadata?.name || accountUid}
-        </SizableText>
-        {metadata?.name && (
-          <SizableText color="muted" size="sm" className="truncate">
-            {accountUid}
-          </SizableText>
-        )}
-      </div>
-    </a>
-  )
-}
-
-function FollowingContent({siteUid: _siteUid, accountUid: _accountUid}: {siteUid: string; accountUid: string}) {
-  return (
-    <div>
-      <h1>Following</h1>
-    </div>
-  )
-}
 function SiteAccountTabs({siteUid, accountUid, tab}: {siteUid: string; accountUid: string; tab: SiteAccountTab}) {
   return (
     <Tabs value={tab}>
