@@ -8,13 +8,8 @@
  * 3. Contacts with subscribe.profile === true (followed profiles)
  * 4. Legacy contacts with no subscribe field (implicit profile subscription)
  *
- * Updates are triggered by:
- * - Query invalidation (when user follows/unfollows via UI)
- * - Periodic polling (to catch contacts synced from network)
+ * When contacts or keys change, subscriptions are automatically updated.
  */
-
-// How often to poll for contacts synced from network (in ms)
-const SYNC_POLL_INTERVAL_MS = 30_000 // 30 seconds
 
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {grpcClient} from './app-grpc'
@@ -172,9 +167,6 @@ function debouncedSyncSubscriptions() {
   }, 500) // 500ms debounce
 }
 
-// Polling interval reference
-let pollIntervalId: NodeJS.Timeout | null = null
-
 /**
  * Initializes the derived subscriptions system.
  * Computes initial subscriptions and sets up listeners for changes.
@@ -185,7 +177,7 @@ export async function initDerivedSubscriptions() {
   // 1. Compute and sync initial subscriptions
   await syncDerivedSubscriptions()
 
-  // 2. Subscribe to query invalidations to react to UI-driven changes
+  // 2. Subscribe to query invalidations to react to changes
   onQueryInvalidation((queryKey) => {
     if (
       queryKey[0] === queryKeys.LOCAL_ACCOUNT_ID_LIST ||
@@ -195,26 +187,4 @@ export async function initDerivedSubscriptions() {
       debouncedSyncSubscriptions()
     }
   })
-
-  // 3. Poll periodically to catch contacts synced from network
-  // (Network-synced contacts don't trigger query invalidation)
-  pollIntervalId = setInterval(() => {
-    logger.debug('DerivedSubscriptions: periodic poll')
-    debouncedSyncSubscriptions()
-  }, SYNC_POLL_INTERVAL_MS)
-}
-
-/**
- * Stops the derived subscriptions system.
- * Call this when the app is shutting down.
- */
-export function stopDerivedSubscriptions() {
-  if (pollIntervalId) {
-    clearInterval(pollIntervalId)
-    pollIntervalId = null
-  }
-  if (syncSubscriptionsTimeout) {
-    clearTimeout(syncSubscriptionsTimeout)
-    syncSubscriptionsTimeout = null
-  }
 }
