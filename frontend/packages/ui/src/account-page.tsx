@@ -1,5 +1,6 @@
-import { hmId, ProfileTab, useFollowProfile } from '@shm/shared'
-import { useAccount } from '@shm/shared/models/entity'
+import { HMMetadataPayload } from '@seed-hypermedia/client/hm-types'
+import { hmId, hostnameStripProtocol, ProfileTab, useFollowProfile, useRouteLink } from '@shm/shared'
+import { useAccount, useResource } from '@shm/shared/models/entity'
 import { ReactNode } from 'react'
 import { Button } from './button'
 import { ScrollArea } from './components/scroll-area'
@@ -94,6 +95,7 @@ function ProfileHeader({
       <HMIcon id={hmId(accountUid)} size={64} icon={account.data?.metadata?.icon} name={account.data?.metadata?.name} />
       <div className="min-w-0 flex-1 space-y-1">
         <h1 className="truncate text-2xl font-bold">{account.data?.metadata?.name || accountUid}</h1>
+        <SiteLink account={account.data} />
       </div>
       <div className="flex items-center gap-2">
         {isOwnAccount && onEditProfile && (
@@ -113,6 +115,18 @@ function ProfileHeader({
       </div>
     </div>
   )
+}
+
+function SiteLink({account}: {account?: HMMetadataPayload | null}) {
+  const homeDocument = useResource(hmId(account?.id.uid), {subscribed: true})
+  const homeDocData = homeDocument.data?.type === 'document' ? homeDocument.data.document : null
+  const hasSite = !!account?.metadata?.siteUrl || !!homeDocData?.content?.length
+  const linkProps = useRouteLink({
+    key: 'document',
+    id: hmId(account?.id.uid),
+  })
+  if (!hasSite) return null
+  return <a className="text-blue-500" {...linkProps}>{ account?.metadata?.siteUrl ? hostnameStripProtocol(account.metadata.siteUrl) : 'Open Site'}</a>
 }
 
 function ProfileContent({siteUid: _siteUid, accountUid}: {siteUid?: string | null; accountUid: string}) {
