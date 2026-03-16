@@ -21,12 +21,33 @@ export function useJoinSite({siteUid}: {siteUid: string}) {
       throw new Error('No account selected')
     }
     console.log('Joining Site', {selectedAccountId, siteUid})
-    await saveContact.mutateAsync({
-      accountUid: selectedAccountId,
-      name: '',
-      subjectUid: siteUid,
-      subscribe: {site: true},
-    })
+    // Check if there's an existing contact for this subject (might have profile subscription only)
+    const existingContact = selectedAccountContacts.data?.find((c) => c.subject === siteUid)
+    if (existingContact) {
+      // Check if existing contact has profile subscription (explicit or implicit legacy)
+      const hadProfileSubscription = hasProfileSubscription(existingContact)
+      // Update existing contact to add site subscription, preserving profile if it existed
+      await saveContact.mutateAsync({
+        accountUid: selectedAccountId,
+        name: existingContact.name,
+        subjectUid: siteUid,
+        subscribe: {
+          ...existingContact.subscribe,
+          site: true,
+          // Explicitly preserve profile subscription (handles legacy contacts with implicit profile)
+          ...(hadProfileSubscription && {profile: true}),
+        },
+        editId: existingContact.id,
+      })
+    } else {
+      // Create new contact with site subscription
+      await saveContact.mutateAsync({
+        accountUid: selectedAccountId,
+        name: '',
+        subjectUid: siteUid,
+        subscribe: {site: true},
+      })
+    }
   }
 
   return {
@@ -35,6 +56,60 @@ export function useJoinSite({siteUid}: {siteUid: string}) {
     siteName,
     isOwnAccount,
     joinSite,
+  }
+}
+
+/** Hook for leaving a site (removing subscribe.site from a contact). */
+export function useLeaveSite({siteUid}: {siteUid: string}) {
+  const selectedAccountId = useSelectedAccountId()
+  const selectedAccountContacts = useSelectedAccountContacts()
+  const saveContact = useSaveContact()
+  const deleteContact = useDeleteContact()
+
+  // Find contact with site subscription
+  const siteContact = selectedAccountContacts.data?.find((c) => c.subject === siteUid && c.subscribe?.site)
+
+  const isOwnAccount = selectedAccountId === siteUid
+  const isSiteMember = isOwnAccount || !!siteContact
+
+  const leaveSite = async () => {
+    if (!selectedAccountId) {
+      throw new Error('No account selected')
+    }
+    if (!siteContact) {
+      return // Not a member, nothing to do
+    }
+
+    // Check if contact has profile subscription
+    const hasProfileSubscription =
+      siteContact.subscribe?.profile ||
+      (!siteContact.subscribe?.site && !siteContact.subscribe?.profile) // Legacy: implicit profile
+
+    if (hasProfileSubscription) {
+      // Update contact to remove site subscription, keep profile
+      await saveContact.mutateAsync({
+        accountUid: selectedAccountId,
+        name: siteContact.name,
+        subjectUid: siteUid,
+        subscribe: {profile: true},
+        editId: siteContact.id,
+      })
+    } else {
+      // No profile subscription, delete the contact
+      await deleteContact.mutateAsync({
+        id: siteContact.id,
+        account: siteContact.account,
+        subject: siteContact.subject,
+        signer: siteContact.signer,
+      })
+    }
+  }
+
+  return {
+    isSiteMember,
+    isPending: saveContact.isPending || deleteContact.isPending,
+    isOwnAccount,
+    leaveSite,
   }
 }
 
