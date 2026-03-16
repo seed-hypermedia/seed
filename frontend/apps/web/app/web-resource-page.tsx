@@ -6,9 +6,11 @@ import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useCallback, useEffect, useMemo, useRef} from 'react'
-import {EditProfileDialog, LogoutButton, useLocalKeyPair} from './auth'
+import {EditProfileDialog, LogoutButton, useCreateAccount, useLocalKeyPair} from './auth'
 import {preloadCommenting} from './client-lazy'
+import {setPendingIntent} from './local-db'
 import {PageFooter} from './page-footer'
+import {processPendingIntent} from './pending-intent'
 import {WebAccountFooter} from './web-utils'
 
 export interface WebResourcePageProps {
@@ -32,7 +34,8 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
   // Determine if viewing own profile on site-profile page
   const isSiteProfile = route.key === 'site-profile'
   const profileAccountUid = isSiteProfile ? route.accountUid || docId.uid : null
-  const isOwnProfile = isSiteProfile && userKeyPair && profileAccountUid === userKeyPair.id
+  const ownAccountUid = userKeyPair?.delegatedAccountUid ?? userKeyPair?.id
+  const isOwnProfile = isSiteProfile && !!userKeyPair && profileAccountUid === ownAccountUid
   const isDelegated = !!userKeyPair?.delegatedAccountUid
 
   // Profile edit callback - only for non-delegated own profile
@@ -46,6 +49,22 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
     if (!isOwnProfile) return undefined
     return <LogoutButton />
   }, [isOwnProfile])
+
+  // Follow intent flow for unauthenticated users
+  const {content: followAccountContent, createAccount: openFollowAccountDialog} = useCreateAccount({
+    onClose: () => {
+      processPendingIntent(originHomeId ?? undefined)
+    },
+  })
+
+  const onFollowClick = useMemo(() => {
+    if (userKeyPair) return undefined
+    if (!isSiteProfile || !profileAccountUid) return undefined
+    return async () => {
+      await setPendingIntent({type: 'follow', profileUid: profileAccountUid})
+      openFollowAccountDialog()
+    }
+  }, [userKeyPair, isSiteProfile, profileAccountUid, openFollowAccountDialog])
 
   // Preload the comment editor chunk on first hover over any Comments-related element
   const preloaded = useRef(false)
@@ -142,9 +161,11 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
           pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />}
           onEditProfile={onEditProfile}
           profileHeaderButtons={profileHeaderButtons}
+          onFollowClick={onFollowClick}
         />
       </CommentsProvider>
       {editProfileDialog.content}
+      {followAccountContent}
     </WebAccountFooter>
   )
 }

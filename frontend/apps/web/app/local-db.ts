@@ -249,7 +249,12 @@ export interface PendingJoinIntent {
   subjectUid: string
 }
 
-export type PendingIntent = PendingCommentIntent | PendingJoinIntent
+export interface PendingFollowIntent {
+  type: 'follow'
+  profileUid: string
+}
+
+export type PendingIntent = PendingCommentIntent | PendingJoinIntent | PendingFollowIntent
 
 // Zod schemas for validating stored intent data
 const PendingCommentIntentSchema = z.object({
@@ -268,7 +273,16 @@ const PendingJoinIntentSchema = z.object({
   subjectUid: z.string(),
 })
 
-const PendingIntentSchema = z.discriminatedUnion('type', [PendingCommentIntentSchema, PendingJoinIntentSchema])
+const PendingFollowIntentSchema = z.object({
+  type: z.literal('follow'),
+  profileUid: z.string(),
+})
+
+const PendingIntentSchema = z.discriminatedUnion('type', [
+  PendingCommentIntentSchema,
+  PendingJoinIntentSchema,
+  PendingFollowIntentSchema,
+])
 
 const PENDING_INTENT_KEY = 'pending'
 

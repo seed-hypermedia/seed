@@ -28,6 +28,7 @@ export function AccountPage({
   tab,
   onEditProfile,
   headerButtons,
+  onFollowClick,
 }: {
   siteUid?: string | null
   accountUid: string
@@ -36,6 +37,8 @@ export function AccountPage({
   onEditProfile?: () => void
   /** Additional header buttons (e.g., logout, link keys) - only shown for own account */
   headerButtons?: ReactNode
+  /** Override follow button click (web: saves intent + opens signup for unauthenticated users) */
+  onFollowClick?: () => void
 }) {
   let ActiveTabContent = ProfileContent
   if (tab === 'membership') {
@@ -55,6 +58,7 @@ export function AccountPage({
               accountUid={accountUid}
               onEditProfile={onEditProfile}
               headerButtons={headerButtons}
+              onFollowClick={onFollowClick}
             />
             <AccountPageTabs siteUid={siteUid} accountUid={accountUid} tab={tab} />
           </div>
@@ -70,16 +74,20 @@ function ProfileHeader({
   accountUid,
   onEditProfile,
   headerButtons,
+  onFollowClick,
 }: {
   siteUid?: string | null
   accountUid: string
   onEditProfile?: () => void
   headerButtons?: ReactNode
+  onFollowClick?: () => void
 }) {
   const account = useAccount(accountUid)
   const {isFollowing, isPending, isOwnAccount, followProfile, unfollowProfile} = useFollowProfile({
     profileUid: accountUid,
   })
+
+  const handleFollowClick = onFollowClick ?? followProfile
 
   return (
     <div className="flex items-center gap-4">
@@ -97,7 +105,7 @@ function ProfileHeader({
         {isOwnAccount && headerButtons}
         {!isOwnAccount && (
           <FollowButton
-            onClick={isFollowing ? unfollowProfile : followProfile}
+            onClick={isFollowing ? unfollowProfile : handleFollowClick}
             disabled={isPending}
             isFollowing={isFollowing}
           />

@@ -172,6 +172,8 @@ export interface ResourcePageProps {
   onEditProfile?: () => void
   /** Additional header buttons for site profile pages (e.g., logout) - only shown for own account */
   profileHeaderButtons?: ReactNode
+  /** Override follow button click on profile pages (web: saves intent + opens signup for unauthenticated users) */
+  onFollowClick?: () => void
 }
 
 /** Get panel title for display */
@@ -202,6 +204,7 @@ export function ResourcePage({
   rightActions,
   onEditProfile,
   profileHeaderButtons,
+  onFollowClick,
 }: ResourcePageProps) {
   const route = useNavRoute()
   const isSiteProfile = route.key === 'site-profile'
@@ -241,6 +244,7 @@ export function ResourcePage({
           tab={tab}
           onEditProfile={onEditProfile}
           headerButtons={profileHeaderButtons}
+          onFollowClick={onFollowClick}
         />
         {pageFooter}
       </PageWrapper>
