@@ -142,7 +142,7 @@ func (srv *Server) ListContacts(ctx context.Context, in *documents.ListContactsR
 		}
 
 		// Find the subject's public key ID first for use in subquery
-		subjectPkId := "(SELECT id FROM public_keys WHERE principal = ?)"
+		subjectPkID := "(SELECT id FROM public_keys WHERE principal = ?)"
 
 		query = `
 			SELECT
@@ -168,14 +168,14 @@ func (srv *Server) ListContacts(ctx context.Context, in *documents.ListContactsR
 				WHERE sb.type = 'Contact'
 				AND (
 					-- Include contacts for this subject
-					sb.extra_attrs->>'subject' = ` + subjectPkId + `
+					sb.extra_attrs->>'subject' = ` + subjectPkID + `
 					-- Also include tombstones (deleted contacts) whose TSID matches contacts for this subject
 					OR (sb.extra_attrs->>'deleted' IS NOT NULL
 						AND sb.extra_attrs->>'tsid' IN (
 							SELECT sb2.extra_attrs->>'tsid'
 							FROM structural_blobs sb2
 							WHERE sb2.type = 'Contact'
-							AND sb2.extra_attrs->>'subject' = ` + subjectPkId + `
+							AND sb2.extra_attrs->>'subject' = ` + subjectPkID + `
 						)
 					)
 				)
