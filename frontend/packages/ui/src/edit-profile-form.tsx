@@ -49,12 +49,7 @@ export function EditProfileForm({
           <ImageField control={form.control} name="icon" label={tx('Profile Icon')} processImage={processImage} />
         </Field>
         <div>
-          <Button
-            type="submit"
-            variant="default"
-            size="lg"
-            className={`w-full`}
-          >
+          <Button type="submit" variant="default" size="lg" className={`w-full`}>
             {submitLabel || tx('Save')}
           </Button>
         </div>
@@ -89,7 +84,7 @@ function ImageField<Fields extends FieldValues>({
         onChange={(event) => {
           const file = event.target.files?.[0]
           if (!file) return
-if (processImage) {
+          if (processImage) {
             processImage(file).then((blob) => {
               c.field.onChange(blob)
             })

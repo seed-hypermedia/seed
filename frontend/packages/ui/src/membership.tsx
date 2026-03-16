@@ -1,10 +1,10 @@
-import { HMContactRecord } from '@seed-hypermedia/client/hm-types'
-import { hmId, useRouteLink } from '@shm/shared'
-import { useContactListOfAccount } from '@shm/shared/models/contacts'
-import { useAccount } from '@shm/shared/models/entity'
-import { HMIcon } from './hm-icon'
-import { Spinner } from './spinner'
-import { SizableText } from './text'
+import {HMContactRecord} from '@seed-hypermedia/client/hm-types'
+import {hmId, useRouteLink} from '@shm/shared'
+import {useContactListOfAccount} from '@shm/shared/models/contacts'
+import {useAccount} from '@shm/shared/models/entity'
+import {HMIcon} from './hm-icon'
+import {Spinner} from './spinner'
+import {SizableText} from './text'
 
 /** Shows sites/accounts that this account has membership in (all contacts). */
 export function MembershipContent({accountUid}: {accountUid: string}) {

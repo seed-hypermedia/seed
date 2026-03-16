@@ -1,18 +1,18 @@
-import { HMMetadataPayload } from '@seed-hypermedia/client/hm-types'
-import { hmId, hostnameStripProtocol, ProfileTab, useFollowProfile, useRouteLink } from '@shm/shared'
-import { useAccount, useResource } from '@shm/shared/models/entity'
-import { ReactNode } from 'react'
-import { Button } from './button'
-import { ScrollArea } from './components/scroll-area'
-import { Feed } from './feed'
-import { FollowButton } from './follow-button'
-import { FollowersContent } from './followers'
-import { FollowingContent } from './following'
-import { HMIcon } from './hm-icon'
-import { Pencil } from './icons'
-import { MembershipContent } from './membership'
-import { PageLayout } from './page-layout'
-import { PageTabItem, PageTabs } from './page-tabs'
+import {HMMetadataPayload} from '@seed-hypermedia/client/hm-types'
+import {hmId, hostnameStripProtocol, ProfileTab, useFollowProfile, useRouteLink} from '@shm/shared'
+import {useAccount, useResource} from '@shm/shared/models/entity'
+import {ReactNode} from 'react'
+import {Button} from './button'
+import {ScrollArea} from './components/scroll-area'
+import {Feed} from './feed'
+import {FollowButton} from './follow-button'
+import {FollowersContent} from './followers'
+import {FollowingContent} from './following'
+import {HMIcon} from './hm-icon'
+import {Pencil} from './icons'
+import {MembershipContent} from './membership'
+import {PageLayout} from './page-layout'
+import {PageTabItem, PageTabs} from './page-tabs'
 
 export type SiteAccountTab = 'profile' | 'membership' | 'followers' | 'following'
 
@@ -126,7 +126,11 @@ function SiteLink({account}: {account?: HMMetadataPayload | null}) {
     id: hmId(account?.id.uid),
   })
   if (!hasSite) return null
-  return <a className="text-blue-500" {...linkProps}>{ account?.metadata?.siteUrl ? hostnameStripProtocol(account.metadata.siteUrl) : 'Open Site'}</a>
+  return (
+    <a className="text-blue-500" {...linkProps}>
+      {account?.metadata?.siteUrl ? hostnameStripProtocol(account.metadata.siteUrl) : 'Open Site'}
+    </a>
+  )
 }
 
 function ProfileContent({siteUid: _siteUid, accountUid}: {siteUid?: string | null; accountUid: string}) {

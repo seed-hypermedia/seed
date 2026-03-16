@@ -59,9 +59,7 @@ async function followProfile(signer: HMSigner, profileUid: string) {
     {
       subjectUid: profileUid,
       accountUid,
-      subscribe: existingContact
-        ? {...existingContact.subscribe, profile: true}
-        : {profile: true},
+      subscribe: existingContact ? {...existingContact.subscribe, profile: true} : {profile: true},
     },
     signer,
   )
