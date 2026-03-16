@@ -94,11 +94,18 @@ vi.mock('@shm/shared/models/search', async (importOriginal) => {
   }
 })
 
+// Mock editor to avoid pulling in blocknote CSS modules that vitest can't resolve
+vi.mock('@shm/editor/comment-editor', () => ({
+  CommentEditor: () => null,
+}))
+
 // Mock auth module used by WebResourcePage's account button
 vi.mock('@/auth', () => ({
   useLocalKeyPair: () => null,
   useCreateAccount: () => ({content: null, createAccount: () => {}}),
   AccountFooterActions: () => null,
+  EditProfileDialog: () => null,
+  LogoutButton: () => null,
 }))
 
 // Mock navigation hooks used by WebResourcePage

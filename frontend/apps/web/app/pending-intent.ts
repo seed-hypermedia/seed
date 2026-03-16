@@ -39,6 +39,36 @@ async function joinSite(signer: HMSigner, siteUid: string) {
   invalidateQueries([queryKeys.CONTACTS_ACCOUNT, accountUid])
   invalidateQueries([queryKeys.CONTACTS_SUBJECT, siteUid])
 }
+
+async function followProfile(signer: HMSigner, profileUid: string) {
+  console.log('[followProfile] Following profile', {profileUid})
+  const accountUid = await getCurrentAccountUidWithDelegation()
+  if (!accountUid) {
+    throw new Error('No account UID available to follow profile')
+  }
+  const contacts = await webUniversalClient.request('AccountContacts', accountUid)
+  const existingContact = contacts.find((c) => c.subject === profileUid)
+
+  // Already following if has explicit profile subscription or legacy (no subscribe field)
+  if (existingContact && (existingContact.subscribe?.profile || !existingContact.subscribe)) {
+    console.log('[followProfile] Already following profile', {existingContact})
+    return
+  }
+
+  const contactPayload = await createContact(
+    {
+      subjectUid: profileUid,
+      accountUid,
+      subscribe: existingContact ? {...existingContact.subscribe, profile: true} : {profile: true},
+    },
+    signer,
+  )
+  await webUniversalClient.publish(contactPayload)
+
+  invalidateQueries([queryKeys.CONTACTS_ACCOUNT, accountUid])
+  invalidateQueries([queryKeys.CONTACTS_SUBJECT, profileUid])
+}
+
 /**
  * Process any pending intent saved before auth redirect.
  * Returns a relative URL path to navigate to (for comment intents), or null.
@@ -73,6 +103,13 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
     console.log('[processPendingIntent] Join intent', intent)
     await joinSite(signer, intent.subjectUid)
 
+    await clearPendingIntent()
+    return null
+  }
+
+  if (intent.type === 'follow') {
+    console.log('[processPendingIntent] Follow intent', intent)
+    await followProfile(signer, intent.profileUid)
     await clearPendingIntent()
     return null
   }

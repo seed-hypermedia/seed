@@ -1,9 +1,17 @@
 import {describe, expect, test} from 'vitest'
-import {createDocumentNavRoute} from '../routes'
+import {createDocumentNavRoute, type NavRoute} from '../routes'
 import {routeToHref} from '../routing'
-import {hmId} from '../utils/entity-id-url'
+import {extractViewTermFromUrl, hmId, routeToUrl, unpackHmId, viewTermToRouteKey} from '../utils/entity-id-url'
+import {appRouteOfId} from '../utils/navigation'
 
 const testDocId = hmId('testuid123')
+
+function assertDocumentRoute(route: NavRoute | undefined): Extract<NavRoute, {key: 'document'}> {
+  if (!route || route.key !== 'document') {
+    throw new Error('Expected document route')
+  }
+  return route
+}
 
 describe('createDocumentNavRoute', () => {
   describe('no panel param', () => {
@@ -382,5 +390,234 @@ describe('routeToHref', () => {
       const href = routeToHref({key: 'collaborators', id: hmId('uid1')}, {originHomeId: originHome})
       expect(href).toBe('/:collaborators')
     })
+  })
+
+  describe('site-profile route', () => {
+    test('self profile on same-origin site generates /:profile', () => {
+      const href = routeToHref({key: 'site-profile', id: hmId('uid1'), tab: 'profile'}, {originHomeId: originHome})
+      expect(href).toBe('/:profile')
+    })
+
+    test('self profile on different site generates /hm/uid/:profile', () => {
+      const href = routeToHref({key: 'site-profile', id: hmId('uid2'), tab: 'profile'}, {originHomeId: originHome})
+      expect(href).toBe('/hm/uid2/:profile')
+    })
+
+    test('other person profile within same-origin site uses /:profile/accountUid', () => {
+      const href = routeToHref(
+        {key: 'site-profile', id: hmId('uid1'), accountUid: 'otherPerson', tab: 'profile'},
+        {originHomeId: originHome},
+      )
+      expect(href).toBe('/:profile/otherPerson')
+    })
+
+    test('other person profile on different site (gateway) generates /hm/siteUid/:profile/accountUid', () => {
+      const href = routeToHref(
+        {key: 'site-profile', id: hmId('uid2'), accountUid: 'otherPerson', tab: 'profile'},
+        {originHomeId: originHome},
+      )
+      expect(href).toBe('/hm/uid2/:profile/otherPerson')
+    })
+
+    test('other tabs follow the same pattern', () => {
+      const href = routeToHref(
+        {key: 'site-profile', id: hmId('uid2'), accountUid: 'otherPerson', tab: 'followers'},
+        {originHomeId: originHome},
+      )
+      expect(href).toBe('/hm/uid2/:followers/otherPerson')
+    })
+  })
+})
+
+describe('createDocumentNavRoute - site-profile', () => {
+  test.each([
+    ['profile', 'profile'],
+    ['membership', 'membership'],
+    ['followers', 'followers'],
+    ['following', 'following'],
+  ] as const)('%s viewTerm returns site-profile route', (viewTerm, tab) => {
+    const route = createDocumentNavRoute(testDocId, viewTerm)
+    expect(route).toEqual({key: 'site-profile', id: testDocId, accountUid: undefined, tab})
+  })
+
+  test('profile-family viewTerm with accountUid returns site-profile route with accountUid', () => {
+    const route = createDocumentNavRoute(testDocId, 'profile', null, null, 'otherUid')
+    expect(route).toEqual({key: 'site-profile', id: testDocId, accountUid: 'otherUid', tab: 'profile'})
+  })
+})
+
+describe('site-profile URL round-trip', () => {
+  test('gateway URL with profile of another person round-trips correctly', () => {
+    const originalUrl = 'https://gw.com/hm/siteUid/:profile/personUid'
+
+    const {url: cleanUrl, viewTerm, accountUid} = extractViewTermFromUrl(originalUrl)
+    expect(cleanUrl).toBe('https://gw.com/hm/siteUid')
+    expect(viewTerm).toBe(':profile')
+    expect(accountUid).toBe('personUid')
+
+    const route = {key: 'site-profile' as const, id: hmId('siteUid'), accountUid, tab: 'profile' as const}
+    expect(route).toEqual({
+      key: 'site-profile',
+      id: hmId('siteUid'),
+      accountUid: 'personUid',
+      tab: 'profile',
+    })
+
+    const regeneratedUrl = routeToUrl(route, {hostname: 'https://gw.com'})
+    expect(regeneratedUrl).toBe(originalUrl)
+  })
+
+  test('site-domain URL with profile of another person round-trips correctly', () => {
+    const originHome = hmId('siteUid')
+    const inputUrl = 'https://mysite.com/:profile/personUid'
+    const {url: cleanUrl, viewTerm, accountUid} = extractViewTermFromUrl(inputUrl)
+    expect(cleanUrl).toBe('https://mysite.com')
+    expect(viewTerm).toBe(':profile')
+    expect(accountUid).toBe('personUid')
+
+    const route = {key: 'site-profile' as const, id: hmId('siteUid'), accountUid, tab: 'profile' as const}
+    const regeneratedUrl = routeToUrl(route, {hostname: 'https://mysite.com', originHomeId: originHome})
+    expect(regeneratedUrl).toBe(inputUrl)
+  })
+
+  test('self profile URL round-trips correctly', () => {
+    const originalUrl = 'https://gw.com/hm/siteUid/:profile'
+
+    const {url: cleanUrl, viewTerm, accountUid} = extractViewTermFromUrl(originalUrl)
+    expect(cleanUrl).toBe('https://gw.com/hm/siteUid')
+    expect(viewTerm).toBe(':profile')
+    expect(accountUid).toBeUndefined()
+
+    const route = {key: 'site-profile' as const, id: hmId('siteUid'), accountUid, tab: 'profile' as const}
+
+    const regeneratedUrl = routeToUrl(route, {hostname: 'https://gw.com'})
+    expect(regeneratedUrl).toBe(originalUrl)
+  })
+
+  test('routeToHref round-trips for gateway followers URL', () => {
+    const originHome = hmId('originUid')
+    const route = {
+      key: 'site-profile' as const,
+      id: hmId('siteUid'),
+      accountUid: 'personUid',
+      tab: 'followers' as const,
+    }
+    const href = routeToHref(route, {originHomeId: originHome})
+    expect(href).toBe('/hm/siteUid/:followers/personUid')
+
+    const {url: cleanHref, viewTerm, accountUid} = extractViewTermFromUrl(href!)
+    expect(cleanHref).toBe('/hm/siteUid')
+    expect(viewTerm).toBe(':followers')
+    expect(accountUid).toBe('personUid')
+  })
+
+  test('non-profile gateway URL is not misidentified', () => {
+    const cleanUrl = 'https://gw.com/hm/siteUid/some/path'
+    const parsed = extractViewTermFromUrl(cleanUrl)
+    expect(parsed).toEqual({url: cleanUrl, viewTerm: null})
+  })
+
+  test('site with custom domain: other tabs use the same site-domain format', () => {
+    const siteDomain = 'https://formula-1.dev.hyper.media'
+    const route = {
+      key: 'site-profile' as const,
+      id: hmId('siteUid'),
+      accountUid: 'personUid',
+      tab: 'following' as const,
+    }
+    const displayUrl = routeToUrl(route, {hostname: siteDomain, originHomeId: hmId('siteUid')})
+    expect(displayUrl).toBe(`${siteDomain}/:following/personUid`)
+  })
+
+  test('gateway URL: profile-family URLs include siteUid once', () => {
+    const displayUrl = routeToUrl(
+      {key: 'site-profile', id: hmId('siteUid'), accountUid: 'personUid', tab: 'membership'},
+      {hostname: 'https://dev.hyper.media'},
+    )
+    expect(displayUrl).toBe('https://dev.hyper.media/hm/siteUid/:membership/personUid')
+    expect(displayUrl.includes('/hm/siteUid/hm/personUid')).toBe(false)
+  })
+})
+
+describe('search-input gateway shortcut: profile URL via unpackHmId', () => {
+  function applyViewTermToRoute(
+    route: Extract<NavRoute, {key: 'document'}>,
+    routeKey: ReturnType<typeof viewTermToRouteKey>,
+    accountUid?: string,
+  ): NavRoute {
+    if (!routeKey) return route
+    if (routeKey === 'profile' || routeKey === 'membership' || routeKey === 'followers' || routeKey === 'following') {
+      return {key: 'site-profile', id: route.id, accountUid: accountUid || undefined, tab: routeKey}
+    }
+    return {key: routeKey, id: route.id}
+  }
+
+  test('gateway profile URL is correctly parsed via unpackHmId + view term extraction', () => {
+    const inputUrl = 'https://dev.hyper.media/hm/z6MkjYX464/:profile/z6Mkf6sj8W'
+
+    const rawUnpacked = unpackHmId(inputUrl)
+    expect(rawUnpacked).not.toBeNull()
+    expect(rawUnpacked!.uid).toBe('z6MkjYX464')
+    expect(rawUnpacked!.path).toEqual([':profile', 'z6Mkf6sj8W'])
+
+    const {url: cleanUrl, viewTerm, accountUid} = extractViewTermFromUrl(inputUrl)
+    expect(cleanUrl).toBe('https://dev.hyper.media/hm/z6MkjYX464')
+    expect(viewTerm).toBe(':profile')
+    expect(accountUid).toBe('z6Mkf6sj8W')
+    const routeKey = viewTermToRouteKey(viewTerm)
+    expect(routeKey).toBe('profile')
+
+    const unpacked = unpackHmId(cleanUrl)
+    expect(unpacked).not.toBeNull()
+    expect(unpacked!.uid).toBe('z6MkjYX464')
+    expect(unpacked!.path).toEqual([])
+
+    const docRoute = assertDocumentRoute(appRouteOfId(unpacked!))
+    expect(docRoute).not.toBeNull()
+    expect(docRoute.key).toBe('document')
+
+    const finalRoute = applyViewTermToRoute(docRoute, routeKey, accountUid)
+    expect(finalRoute).toEqual({
+      key: 'site-profile',
+      id: expect.objectContaining({uid: 'z6MkjYX464', path: []}),
+      accountUid: 'z6Mkf6sj8W',
+      tab: 'profile',
+    })
+
+    const regeneratedUrl = routeToUrl(finalRoute, {hostname: 'https://dev.hyper.media'})
+    expect(regeneratedUrl).toBe(inputUrl)
+  })
+
+  test('self profile URL via gateway shortcut', () => {
+    const inputUrl = 'https://dev.hyper.media/hm/z6MkjYX464/:profile'
+
+    const {url: cleanUrl, viewTerm, accountUid} = extractViewTermFromUrl(inputUrl)
+    const routeKey = viewTermToRouteKey(viewTerm)
+
+    const unpacked = unpackHmId(cleanUrl)
+    expect(unpacked!.uid).toBe('z6MkjYX464')
+    expect(unpacked!.path).toEqual([])
+    expect(accountUid).toBeUndefined()
+
+    const docRoute = assertDocumentRoute(appRouteOfId(unpacked!))
+    const finalRoute = applyViewTermToRoute(docRoute, routeKey, accountUid)
+    expect(finalRoute).toEqual({
+      key: 'site-profile',
+      id: expect.objectContaining({uid: 'z6MkjYX464'}),
+      accountUid: undefined,
+      tab: 'profile',
+    })
+
+    const regeneratedUrl = routeToUrl(finalRoute, {hostname: 'https://dev.hyper.media'})
+    expect(regeneratedUrl).toBe(inputUrl)
+  })
+
+  test('without view term extraction, /:profile ends up in path (the bug)', () => {
+    const inputUrl = 'https://dev.hyper.media/hm/z6MkjYX464/:profile/z6Mkf6sj8W'
+
+    const unpacked = unpackHmId(inputUrl)
+    expect(unpacked!.path).toEqual([':profile', 'z6Mkf6sj8W'])
+    const docRoute = assertDocumentRoute(appRouteOfId(unpacked!))
+    expect(docRoute.id.path).toEqual([':profile', 'z6Mkf6sj8W'])
   })
 })

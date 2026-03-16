@@ -172,10 +172,15 @@ function getRoleDisplayName(role: string | undefined): string {
 }
 
 /** Publisher/Owner display component */
-function PublisherCollaborator({uid}: {uid: string}) {
+function PublisherCollaborator({uid, siteUid}: {uid: string; siteUid: string}) {
   const publisherId = hmId(uid)
   const resource = useResource(publisherId)
-  const linkProps = useRouteLink({key: 'profile', id: publisherId})
+  const linkProps = useRouteLink({
+    key: 'site-profile',
+    id: hmId(siteUid),
+    accountUid: uid !== siteUid ? uid : undefined,
+    tab: 'profile',
+  })
 
   const metadata = resource.data?.type === 'document' ? resource.data.document?.metadata : undefined
   const isLoading = resource.isLoading
@@ -203,7 +208,12 @@ function PublisherCollaborator({uid}: {uid: string}) {
 function CollaboratorListItem({capability, docId}: {capability: HMCapability; docId: UnpackedHypermediaId}) {
   const collaboratorId = hmId(capability.accountUid)
   const resource = useResource(collaboratorId)
-  const linkProps = useRouteLink({key: 'profile', id: collaboratorId})
+  const linkProps = useRouteLink({
+    key: 'site-profile',
+    id: hmId(docId.uid),
+    accountUid: capability.accountUid !== docId.uid ? capability.accountUid : undefined,
+    tab: 'profile',
+  })
 
   const metadata = resource.data?.type === 'document' ? resource.data.document?.metadata : undefined
   const isLoading = resource.isLoading
@@ -251,18 +261,18 @@ function SiteMembers({docId}: {docId: UnpackedHypermediaId}) {
   return (
     <div className="flex flex-col gap-4">
       <AddCollaboratorForm id={docId} />
-      <PublisherCollaborator uid={docId.uid} />
+      <PublisherCollaborator uid={docId.uid} siteUid={docId.uid} />
       {grantedMembers.length > 0 && (
         <div className="flex flex-col gap-1">
           {grantedMembers.map((member) => (
-            <MemberListItem member={member} key={member.account.uid} />
+            <MemberListItem member={member} siteUid={docId.uid} key={member.account.uid} />
           ))}
         </div>
       )}
       {members.length > 0 && (
         <div className="flex flex-col gap-1">
           {members.map((member) => (
-            <MemberListItem member={member} key={member.account.uid} />
+            <MemberListItem member={member} siteUid={docId.uid} key={member.account.uid} />
           ))}
         </div>
       )}
@@ -275,9 +285,14 @@ function SiteMembers({docId}: {docId: UnpackedHypermediaId}) {
   )
 }
 
-function MemberListItem({member}: {member: HMSiteMember}) {
+function MemberListItem({member, siteUid}: {member: HMSiteMember; siteUid: string}) {
   const resource = useAccount(member.account.uid)
-  const linkProps = useRouteLink({key: 'profile', id: member.account})
+  const linkProps = useRouteLink({
+    key: 'site-profile',
+    id: hmId(siteUid),
+    accountUid: member.account.uid !== siteUid ? member.account.uid : undefined,
+    tab: 'profile',
+  })
 
   const metadata = resource.data?.metadata
   const isLoading = resource.isLoading
@@ -320,7 +335,7 @@ function DocumentCollaborators({docId}: {docId: UnpackedHypermediaId}) {
       <AddCollaboratorForm id={docId} />
 
       {/* Publisher always shown first */}
-      <PublisherCollaborator uid={publisherUid} />
+      <PublisherCollaborator uid={publisherUid} siteUid={docId.uid} />
 
       {/* Parent capabilities section */}
       {parentCapabilities.length > 0 && (
@@ -351,8 +366,6 @@ function DocumentCollaborators({docId}: {docId: UnpackedHypermediaId}) {
     </div>
   )
 }
-
-// ── Tag Input components (for collaborator search/selection) ──────────────
 
 interface TagInputProps extends Omit<Ariakit.ComboboxProps, 'onChange'> {
   label: string

@@ -1,5 +1,6 @@
 import {HMContactItem, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {abbreviateUid, AnyTimestamp, formattedDateShort, NavRoute, normalizeDate, useRouteLink} from '@shm/shared'
+import {abbreviateUid, AnyTimestamp, formattedDateShort, hmId, NavRoute, normalizeDate, useRouteLink} from '@shm/shared'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Tooltip} from './tooltip'
 
 function formatUTC(date: Date) {
@@ -35,9 +36,50 @@ export function InlineDescriptor({children}: {children: React.ReactNode}) {
   return <p className="text-muted-foreground text-sm">{children}</p>
 }
 
-export function AuthorNameLink({author}: {author: HMContactItem | null}) {
+function getSiteContextUid(route: NavRoute | null): string | null {
+  if (!route) return null
+
+  switch (route.key) {
+    case 'document':
+    case 'feed':
+    case 'activity':
+    case 'comments':
+    case 'directory':
+    case 'collaborators':
+    case 'site-profile':
+    case 'profile':
+    case 'contact':
+      return route.id.uid
+    default:
+      return null
+  }
+}
+
+/** Builds a profile route that prefers the current site context when one exists. */
+export function getContextualProfileRoute(
+  currentRoute: NavRoute | null,
+  accountId: UnpackedHypermediaId | null,
+  siteUid?: string | null,
+): NavRoute | null {
+  if (!accountId) return null
+
+  const effectiveSiteUid = siteUid || getSiteContextUid(currentRoute)
+  if (!effectiveSiteUid) {
+    return {key: 'profile', id: accountId}
+  }
+
+  return {
+    key: 'site-profile',
+    id: hmId(effectiveSiteUid),
+    accountUid: accountId.uid !== effectiveSiteUid ? accountId.uid : undefined,
+    tab: 'profile',
+  }
+}
+
+export function AuthorNameLink({author, siteUid}: {author: HMContactItem | null; siteUid?: string}) {
+  const currentRoute = useNavRoute()
   const authorName = author?.metadata?.name || abbreviateUid(author?.id?.uid)
-  const linkProps = useRouteLink(author?.id ? {key: 'profile', id: author.id} : null)
+  const linkProps = useRouteLink(getContextualProfileRoute(currentRoute, author?.id || null, siteUid))
   return (
     <a className="text-foreground text-sm font-bold" {...linkProps}>
       {authorName}

@@ -61,12 +61,18 @@ export function useSaveContact() {
 
 export function useDeleteContact() {
   const client = useUniversalClient()
-  const selectedAccountId = useSelectedAccountId()
   return useMutation({
-    mutationFn: async (contact: {id: string; account: string; subject: string}) => {
-      if (!selectedAccountId) throw new Error('No selected account')
+    mutationFn: async (contact: {id: string; account: string; subject: string; signer: string}) => {
       if (!client.getSigner) throw new Error('Signing not available on this platform')
-      const signer = client.getSigner(selectedAccountId)
+      // Try to get original signer first, fall back to any key with agent capability for the account.
+      // This handles web linked accounts where the original signer key may not be available.
+      let signer = client.getSigner(contact.signer)
+      if (!signer) {
+        signer = client.getSigner(contact.account)
+      }
+      if (!signer) {
+        throw new Error('No signing key available for this contact')
+      }
       await client.publish(await deleteContactBlob({contactId: contact.id}, signer))
     },
     onSuccess: (_, contact) => {

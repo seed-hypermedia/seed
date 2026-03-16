@@ -294,6 +294,11 @@ function getPageComponent(navRoute: NavRoute) {
         PageComponent: Profile,
         Fallback: BaseLoading,
       }
+    case 'site-profile':
+      return {
+        PageComponent: Document,
+        Fallback: DocumentPlaceholder,
+      }
     case 'preview':
       return {
         PageComponent: Preview,

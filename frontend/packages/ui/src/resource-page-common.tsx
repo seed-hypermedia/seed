@@ -29,6 +29,7 @@ import {
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Folder} from 'lucide-react'
 import {CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {AccountPage} from './account-page'
 import {BlockRangeSelectOptions, BlocksContent, BlocksContentProvider} from './blocks-content'
 import {CollaboratorsPage} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
@@ -122,7 +123,7 @@ function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
   return params as DocumentPanelRoute
 }
 
-export type ActiveView = 'content' | 'activity' | 'comments' | 'directory' | 'collaborators'
+export type ActiveView = 'content' | 'activity' | 'comments' | 'directory' | 'collaborators' | 'site-profile'
 
 function getActiveView(routeKey: string): ActiveView {
   switch (routeKey) {
@@ -134,6 +135,8 @@ function getActiveView(routeKey: string): ActiveView {
       return 'directory'
     case 'collaborators':
       return 'collaborators'
+    case 'site-profile':
+      return 'site-profile'
     default:
       return 'content'
   }
@@ -165,6 +168,12 @@ export interface ResourcePageProps {
   inlineCards?: ReactNode
   /** Platform-specific actions rendered in the site header right side */
   rightActions?: ReactNode
+  /** Callback to open edit profile dialog for site profile pages (only shown for own account) */
+  onEditProfile?: () => void
+  /** Additional header buttons for site profile pages (e.g., logout) - only shown for own account */
+  profileHeaderButtons?: ReactNode
+  /** Override follow button click on profile pages (web: saves intent + opens signup for unauthenticated users) */
+  onFollowClick?: () => void
 }
 
 /** Get panel title for display */
@@ -193,14 +202,20 @@ export function ResourcePage({
   pageFooter,
   inlineCards,
   rightActions,
+  onEditProfile,
+  profileHeaderButtons,
+  onFollowClick,
 }: ResourcePageProps) {
+  const route = useNavRoute()
+  const isSiteProfile = route.key === 'site-profile'
+
   // Load document data via React Query (hydrated from SSR prefetch)
   const resource = useResource(docId, {
     subscribed: true,
     recursive: true,
   })
 
-  // Load home site entity for header (always load this so header can show)
+  // docId.uid determines the site header — for site-profile, docId IS the site context
   const siteHomeId = hmId(docId.uid)
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
   const homeDirectory = useDirectory(siteHomeId)
@@ -210,6 +225,31 @@ export function ResourcePage({
 
   // Compute header data
   const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data)
+
+  // Site profile view: render profile content regardless of document status
+  if (isSiteProfile) {
+    const accountUid = route.key === 'site-profile' ? route.accountUid || docId.uid : docId.uid
+    const tab = route.key === 'site-profile' ? route.tab : 'profile'
+    return (
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={siteHomeId}
+        headerData={headerData}
+        document={siteHomeDocument || undefined}
+        rightActions={rightActions}
+      >
+        <AccountPage
+          siteUid={docId.uid}
+          accountUid={accountUid}
+          tab={tab}
+          onEditProfile={onEditProfile}
+          headerButtons={profileHeaderButtons}
+          onFollowClick={onFollowClick}
+        />
+        {pageFooter}
+      </PageWrapper>
+    )
+  }
 
   // Loading state - should not show during SSR if data was prefetched
   if (resource.isInitialLoading) {
@@ -1033,7 +1073,7 @@ function DocumentBody({
             activeView === 'activity' &&
             activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
               ? 'citations'
-              : activeView === 'activity' || activeView === 'directory'
+              : activeView === 'activity' || activeView === 'directory' || activeView === 'site-profile'
               ? undefined
               : activeView
           }
@@ -1058,10 +1098,14 @@ function DocumentBody({
                   <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
                 </div>
               )}
-              {activeView !== 'content' && !isMobile && (
+              {activeView !== 'content' && activeView !== 'site-profile' && !isMobile && (
                 <OpenInPanelButton
                   id={docId}
-                  panelRoute={route.key === activeView ? extractPanelRoute(route) : {key: activeView, id: docId}}
+                  panelRoute={
+                    route.key === activeView
+                      ? extractPanelRoute(route)
+                      : {key: activeView as Exclude<ActiveView, 'content' | 'site-profile'>, id: docId}
+                  }
                 />
               )}
             </div>

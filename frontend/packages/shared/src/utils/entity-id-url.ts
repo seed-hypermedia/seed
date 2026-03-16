@@ -27,6 +27,12 @@ export function activitySlugToFilter(slug: string): string[] | undefined {
   return ACTIVITY_FILTER_SLUGS[slug]
 }
 
+export const SITE_PROFILE_TABS = ['profile', 'membership', 'followers', 'following'] as const
+export type SiteProfileTab = (typeof SITE_PROFILE_TABS)[number]
+
+export const SITE_PROFILE_VIEW_TERMS = [':profile', ':membership', ':followers', ':following'] as const
+export type SiteProfileViewTerm = (typeof SITE_PROFILE_VIEW_TERMS)[number]
+
 // View terms for URL paths (e.g., /:activity, /:directory)
 // ':discussions' and ':comment' kept for backward compat URL parsing
 export const VIEW_TERMS = [
@@ -37,11 +43,12 @@ export const VIEW_TERMS = [
   ':collaborators',
   ':directory',
   ':feed',
+  ...SITE_PROFILE_VIEW_TERMS,
 ] as const
 export type ViewTerm = (typeof VIEW_TERMS)[number]
 
 // Route keys that correspond to view terms (excludes 'options' which is panel-only)
-export type ViewRouteKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'feed'
+export type ViewRouteKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'feed' | SiteProfileTab
 
 // Panel keys that can be encoded in URL query param
 export type PanelQueryKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'options'
@@ -55,6 +62,7 @@ export function extractViewTermFromUrl(url: string): {
   viewTerm: ViewTerm | null
   activityFilter?: string
   commentId?: string
+  accountUid?: string
 } {
   // Check for :comments/UID/TSID or :comment/UID/TSID pattern (2 path segments)
   const commentsPattern = /\/\:comments?\/([^/?#]+\/[^/?#]+)(?=[?#]|$)/
@@ -75,6 +83,17 @@ export function extractViewTermFromUrl(url: string): {
       url: url.replace(activitySlugMatch[0], ''),
       viewTerm: ':activity',
       activityFilter: activitySlugMatch[1],
+    }
+  }
+
+  // Check for profile-family patterns like /:profile or /:profile/accountUid
+  const profileFamilyPattern = /\/\:(profile|membership|followers|following)(?:\/([^/?#]+))?(?=[?#]|$)/
+  const profileFamilyMatch = url.match(profileFamilyPattern)
+  if (profileFamilyMatch) {
+    return {
+      url: url.replace(profileFamilyMatch[0], ''),
+      viewTerm: `:${profileFamilyMatch[1]}` as SiteProfileViewTerm,
+      accountUid: profileFamilyMatch[2],
     }
   }
 
@@ -104,8 +123,16 @@ export function viewTermToRouteKey(viewTerm: ViewTerm | null): ViewRouteKey | nu
     ':collaborators': 'collaborators',
     ':directory': 'directory',
     ':feed': 'feed',
+    ':profile': 'profile',
+    ':membership': 'membership',
+    ':followers': 'followers',
+    ':following': 'following',
   }
   return mapping[viewTerm] ?? null
+}
+
+export function isSiteProfileTab(value: string | null | undefined): value is SiteProfileTab {
+  return !!value && (SITE_PROFILE_TABS as readonly string[]).includes(value)
 }
 
 export function createSiteUrl({
@@ -334,9 +361,17 @@ export function routeToUrl(
       panel: effectivePanelParam,
     })
   }
+  if (route.key === 'site-profile') {
+    const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
+    const siteBase = opts?.originHomeId?.uid === route.id.uid ? '' : `/hm/${route.id.uid}`
+    const accountSuffix = route.accountUid && route.accountUid !== route.id.uid ? `/${route.accountUid}` : ''
+    return `${urlHost}${siteBase}/:${route.tab}${accountSuffix}`
+  }
   if (route.key === 'profile') {
-    const urlHost = opts?.hostname ?? DEFAULT_GATEWAY_URL
-    return `${urlHost}/hm/profile/${route.id.uid}`
+    const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
+    const siteBase = opts?.originHomeId?.uid === route.id.uid ? '' : `/hm/${route.id.uid}`
+    const tab = route.tab || 'profile'
+    return `${urlHost}${siteBase}/:${tab}`
   }
   if (route.key === 'contact') {
     const urlHost = opts?.hostname ?? DEFAULT_GATEWAY_URL

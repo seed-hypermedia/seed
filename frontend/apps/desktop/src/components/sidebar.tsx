@@ -1,22 +1,23 @@
 import {useBookmarks} from '@/models/bookmarks'
 import {useComments} from '@/models/comments'
 import {useContactList} from '@/models/contacts'
-import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useSubscribedDocuments} from '@/models/library'
-import {useListSubscriptions, useSubscription} from '@/models/subscription'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
-import {useRouteLink} from '@shm/shared'
-import {getContactMetadata} from '@shm/shared/content'
 import {
   HMAccountsMetadata,
   HMActivitySummary,
   HMComment,
+  HMContactRecord,
   HMMetadata,
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
+import {useRouteLink} from '@shm/shared'
+import {getContactMetadata} from '@shm/shared/content'
+import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useResource, useResources} from '@shm/shared/models/entity'
+import {hasProfileSubscription, useFollowProfile, useLeaveSite} from '@shm/shared/models/join-site'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
@@ -46,7 +47,7 @@ import {CircleOff} from '@shm/ui/icons'
 import {SmallListItem} from '@shm/ui/list-item'
 import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
-import {AlertCircle, ChevronDown, ChevronRight, Contact, File, Library, Lock, MoreHorizontal} from 'lucide-react'
+import {AlertCircle, ChevronDown, ChevronRight, File, Library, Lock, MoreHorizontal} from 'lucide-react'
 import React, {memo} from 'react'
 import {CreateDocumentButton} from './create-doc-button'
 import {GenericSidebarContainer} from './sidebar-base'
@@ -76,7 +77,7 @@ export function MainAppSidebar() {
                 rightHover={[]}
               />
             </SidebarMenuItem>
-            <SidebarMenuItem>
+            {/* <SidebarMenuItem>
               <SmallListItem
                 active={route.key == 'contacts'}
                 onClick={() => {
@@ -86,7 +87,7 @@ export function MainAppSidebar() {
                 title="Contacts"
                 bold
               />
-            </SidebarMenuItem>
+            </SidebarMenuItem> */}
             <SidebarMenuItem>
               <SmallListItem
                 active={route.key == 'drafts'}
@@ -109,6 +110,7 @@ export function MainAppSidebar() {
       <SidebarContent>
         <MySiteSection selectedAccountId={selectedAccountId ?? undefined} />
         <SubscriptionsSection />
+        <FollowingSection />
         <BookmarksSection />
       </SidebarContent>
     </GenericSidebarContainer>
@@ -240,18 +242,25 @@ function BookmarkListItem({
 }
 
 function SubscriptionsSection() {
-  const subscriptions = useListSubscriptions()
   const selectedAccountId = useSelectedAccountId()
+  const contacts = useSelectedAccountContacts()
   // accountList is already sorted by activity from backend (default sort)
   const accountList = useContactList()
-  // filter out subscription to current selected account (auto-subscribed on creation)
-  const filteredSubs =
-    subscriptions.data?.filter((sub) => sub.id.uid !== selectedAccountId || sub.id.path?.length) || []
-  // sort by activity using the backend's account order (already sorted by activity desc)
-  const sortedSubs = [...filteredSubs].sort((a, b) => {
-    const accounts = accountList.data?.accounts || []
-    const indexA = accounts.findIndex((acc) => acc.id === a.id.uid)
-    const indexB = accounts.findIndex((acc) => acc.id === b.id.uid)
+
+  // Filter contacts with site subscription, excluding own account
+  const siteSubscribed = contacts.data?.filter(
+    (contact) => contact.subscribe?.site && contact.subject !== selectedAccountId,
+  )
+
+  // Fetch site resources for all joined sites to ensure metadata is available
+  const siteIds = siteSubscribed?.map((contact) => hmId(contact.subject)) || []
+  const siteResources = useResources(siteIds, {subscribed: true})
+
+  // Sort by activity using the backend's account order (already sorted by activity desc)
+  const accounts = accountList.data?.accounts || []
+  const sortedContacts = [...(siteSubscribed || [])].sort((a, b) => {
+    const indexA = accounts.findIndex((acc) => acc.id === a.subject)
+    const indexB = accounts.findIndex((acc) => acc.id === b.subject)
     // items not found in accounts list go to end
     if (indexA === -1 && indexB === -1) return 0
     if (indexA === -1) return 1
@@ -259,75 +268,54 @@ function SubscriptionsSection() {
     return indexA - indexB
   })
 
-  const subscriptionIds = sortedSubs.map((sub) => sub.id)
-  const subscriptionEntities = useResources(subscriptionIds)
-  const contacts = useSelectedAccountContacts()
   const route = useNavRoute()
 
   const accountsMetadata = accountList.data?.accountsMetadata
-  const accounts = accountList.data?.accounts || []
 
-  // Fetch document-level activity for sub-document subscriptions
+  // Fetch document-level activity
   const subscribedDocs = useSubscribedDocuments()
 
-  // Fetch comments for account-level activity (for home subscriptions)
+  // Fetch comments for account-level activity
   const commentIds = accounts
     .map((acc) => acc.activitySummary?.latestCommentId)
     .filter((id): id is string => !!id && id.length > 0)
     .map((id) => hmId(id))
   const comments = useComments(commentIds)
 
-  if (!sortedSubs.length) return null
+  if (!sortedContacts.length) return null
 
   return (
     <SidebarSection title="Joined Sites">
-      {sortedSubs.map((sub, index) => {
-        const entity = subscriptionEntities[index]
-        if (!entity?.data) return null
-        if (entity.data.type === 'error') {
-          return (
-            <SidebarMenuItem key={entity.data.id.id}>
-              <ErrorListItem
-                id={entity.data.id}
-                active={route.key === 'document' && route.id.id === entity.data.id.id}
-              />
-            </SidebarMenuItem>
-          )
-        }
-        if (entity.data.type !== 'document') return null
-        const {id, document} = entity.data
-        const isHomeSubscription = !id.path?.length
+      {sortedContacts.map((contact) => {
+        const id = hmId(contact.subject)
+        // Get account from the backend's account list (has metadata)
+        const account = accounts.find((acc) => acc.id === contact.subject)
+        const accountMeta = accountsMetadata?.[contact.subject]
+        // Get metadata from fetched site resource (most reliable source)
+        const siteResource = siteResources.find((r) => r.data?.id?.uid === contact.subject)
+        const siteMeta = siteResource?.data?.type === 'document' ? siteResource.data.document?.metadata : undefined
 
-        // Get document data from listDocuments (has proper metadata + activity)
+        // Build metadata: prefer contact name, then site resource, then account metadata
+        const name = contact.name || siteMeta?.name || accountMeta?.metadata?.name || account?.metadata?.name
+        const icon = siteMeta?.icon || accountMeta?.metadata?.icon || account?.metadata?.icon
+        const metadata: HMMetadata = {name, icon}
+
+        // Skip if no name and still loading
+        if (!name && siteResource?.isLoading) return null
+        if (!name) return null
+
+        // Get activity data
         const docData = subscribedDocs.data?.get(id.id)
 
-        // For home subscriptions, also check account-level data
-        const account = isHomeSubscription ? accounts.find((acc) => acc.id === id.uid) : undefined
-
-        // Skip subscriptions with no discoverable data (not synced yet)
-        if (!docData && !account && !document?.metadata?.name) {
-          return null
-        }
-
-        // Use best available metadata:
-        // 1. For home subs: prefer contact name override, then docData, then entity
-        // 2. For sub-docs: prefer docData, then entity
-        const baseMetadata = docData?.metadata || document?.metadata
-        const metadata = isHomeSubscription ? getContactMetadata(id.uid, baseMetadata, contacts.data) : baseMetadata
-        if (!metadata) return null
-
-        // Use account-level activity for home subs (if available), else document-level
         let activitySummary: HMActivitySummary | undefined
         let latestComment: HMComment | undefined
 
-        if (isHomeSubscription && account?.activitySummary) {
-          // Prefer account-level activity for home subscriptions
+        if (account?.activitySummary) {
           activitySummary = account.activitySummary as HMActivitySummary
           latestComment = activitySummary?.latestCommentId
             ? comments.data?.find((c) => c?.id === activitySummary?.latestCommentId)
             : undefined
         } else {
-          // Fall back to document-level activity
           activitySummary = docData?.activitySummary
           latestComment = docData?.latestComment ?? undefined
         }
@@ -335,8 +323,9 @@ function SubscriptionsSection() {
         const isUnread = activitySummary?.isUnread ?? false
         return (
           <SidebarMenuItem key={id.id}>
-            <SubscriptionListItem
+            <JoinedSiteListItem
               id={id}
+              contact={contact}
               metadata={metadata}
               active={route.key === 'document' && route.id.id === id.id}
               isUnread={isUnread}
@@ -351,8 +340,10 @@ function SubscriptionsSection() {
   )
 }
 
-function SubscriptionListItem({
+/** Sidebar item for a joined site with leave functionality. */
+function JoinedSiteListItem({
   id,
+  contact,
   metadata,
   active,
   isUnread,
@@ -361,6 +352,7 @@ function SubscriptionListItem({
   accountsMetadata,
 }: {
   id: UnpackedHypermediaId
+  contact: HMContactRecord
   metadata: HMMetadata
   active: boolean
   isUnread: boolean
@@ -369,7 +361,7 @@ function SubscriptionListItem({
   accountsMetadata?: HMAccountsMetadata
 }) {
   const linkProps = useRouteLink({key: 'document', id})
-  const subscription = useSubscription(id)
+  const {leaveSite, isPending} = useLeaveSite({siteUid: contact.subject})
   return (
     <>
       <SidebarMenuButton isActive={active} className="min-h-10 items-start pr-8" onClick={linkProps.onClick}>
@@ -398,13 +390,129 @@ function SubscriptionListItem({
           <DropdownMenuContent side="right" align="start">
             <DropdownMenuItem
               variant="destructive"
+              disabled={isPending}
               onClick={(e) => {
                 e.stopPropagation()
-                subscription.setSubscription('none')
+                leaveSite()
               }}
             >
               <CircleOff className="size-4" />
-              Unsubscribe
+              Leave Site
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuAction>
+    </>
+  )
+}
+
+/** Section showing profiles the user is following. */
+function FollowingSection() {
+  const selectedAccountId = useSelectedAccountId()
+  const contacts = useSelectedAccountContacts()
+  const accountList = useContactList()
+
+  // Filter contacts with profile subscription, excluding own account
+  const profileSubscribed = contacts.data?.filter(
+    (contact) => hasProfileSubscription(contact) && contact.subject !== selectedAccountId,
+  )
+
+  // Fetch profile resources for all followed contacts to ensure metadata is available
+  const profileIds = profileSubscribed?.map((contact) => hmId(contact.subject)) || []
+  const profileResources = useResources(profileIds, {subscribed: true})
+
+  // Sort by activity using the backend's account order
+  const accounts = accountList.data?.accounts || []
+  const sortedContacts = [...(profileSubscribed || [])].sort((a, b) => {
+    const indexA = accounts.findIndex((acc) => acc.id === a.subject)
+    const indexB = accounts.findIndex((acc) => acc.id === b.subject)
+    if (indexA === -1 && indexB === -1) return 0
+    if (indexA === -1) return 1
+    if (indexB === -1) return -1
+    return indexA - indexB
+  })
+
+  const route = useNavRoute()
+  const accountsMetadata = accountList.data?.accountsMetadata
+
+  if (!sortedContacts.length) return null
+
+  return (
+    <SidebarSection title="Following">
+      {sortedContacts.map((contact) => {
+        const id = hmId(contact.subject)
+        const account = accounts.find((acc) => acc.id === contact.subject)
+        const accountMeta = accountsMetadata?.[contact.subject]
+        // Get metadata from fetched profile resource (most reliable source)
+        const profileResource = profileResources.find((r) => r.data?.id?.uid === contact.subject)
+        const profileMeta =
+          profileResource?.data?.type === 'document' ? profileResource.data.document?.metadata : undefined
+
+        // Priority: contact name > profile resource metadata > accountMeta > account metadata
+        const name = contact.name || profileMeta?.name || accountMeta?.metadata?.name || account?.metadata?.name
+        const icon = profileMeta?.icon || accountMeta?.metadata?.icon || account?.metadata?.icon
+        const metadata: HMMetadata = {name, icon}
+
+        // Skip if no name and still loading
+        if (!name && profileResource?.isLoading) return null
+        if (!name) return null
+
+        return (
+          <SidebarMenuItem key={id.id}>
+            <FollowingListItem
+              id={id}
+              contact={contact}
+              metadata={metadata}
+              active={route.key === 'profile' && route.id.id === id.id}
+            />
+          </SidebarMenuItem>
+        )
+      })}
+    </SidebarSection>
+  )
+}
+
+/** Sidebar item for a followed profile with unfollow functionality. */
+function FollowingListItem({
+  id,
+  contact,
+  metadata,
+  active,
+}: {
+  id: UnpackedHypermediaId
+  contact: HMContactRecord
+  metadata: HMMetadata
+  active: boolean
+}) {
+  const linkProps = useRouteLink({key: 'profile', id})
+  const {unfollowProfile, isPending} = useFollowProfile({profileUid: contact.subject})
+  return (
+    <>
+      <SidebarMenuButton isActive={active} className="min-h-10 items-start pr-8" onClick={linkProps.onClick}>
+        <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} className="mt-0.5 shrink-0 self-center" />
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <span className="truncate text-left text-sm select-none">{metadata?.name || 'Untitled'}</span>
+        </div>
+      </SidebarMenuButton>
+      <SidebarMenuAction>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className="hover:bg-sidebar-accent flex items-center justify-center rounded-md p-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MoreHorizontal className="size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="start">
+            <DropdownMenuItem
+              variant="destructive"
+              disabled={isPending}
+              onClick={(e) => {
+                e.stopPropagation()
+                unfollowProfile()
+              }}
+            >
+              <CircleOff className="size-4" />
+              Unfollow
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

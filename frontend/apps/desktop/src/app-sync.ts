@@ -259,14 +259,50 @@ function processEvents(events: Event[]) {
     if (resource && isResourceSubscribed(resource)) {
       scheduleInvalidation(resource)
     }
+
+    // Handle contact events specially - invalidate contact queries
+    if (event.data.case === 'newBlob' && event.data.value.blobType?.toLowerCase() === 'contact') {
+      const author = event.data.value.author
+      const extraAttrsStr = event.data.value.extraAttrs
+      if (author) {
+        // Invalidate contacts owned by this account
+        appInvalidateQueries([queryKeys.CONTACTS_ACCOUNT, author])
+
+        // Parse extra_attrs to get tsid, then fetch contact for subject
+        // extra_attrs is a JSON string like {"tsid": "abc123"}
+        if (extraAttrsStr) {
+          try {
+            const extraAttrs = JSON.parse(extraAttrsStr) as {tsid?: string}
+            if (extraAttrs.tsid) {
+              const contactId = `${author}/${extraAttrs.tsid}`
+              grpcClient.documents
+                .getContact({id: contactId})
+                .then((contact) => {
+                  if (contact.subject) {
+                    appInvalidateQueries([queryKeys.CONTACTS_SUBJECT, contact.subject])
+                  }
+                })
+                .catch(() => {
+                  // Ignore errors - contact might be a tombstone or unavailable
+                })
+            }
+          } catch {
+            // Ignore JSON parse errors
+          }
+        }
+      }
+    }
   }
 }
+
+// Event types to poll from the activity feed
+const ACTIVITY_EVENT_TYPES = ['Ref', 'Comment', 'Capability', 'Contact']
 
 async function fetchNewEvents(): Promise<Event[]> {
   if (!state.lastEventId) {
     const response = await grpcClient.activityFeed.listEvents({
       pageSize: 1,
-      filterEventType: ['Ref', 'Comment', 'Capability'],
+      filterEventType: ACTIVITY_EVENT_TYPES,
     })
     if (response.events[0]) {
       state.lastEventId = getEventId(response.events[0])
@@ -281,7 +317,7 @@ async function fetchNewEvents(): Promise<Event[]> {
     const response = await grpcClient.activityFeed.listEvents({
       pageToken: currentPageToken,
       pageSize: ACTIVITY_PAGE_SIZE,
-      filterEventType: ['Ref', 'Comment', 'Capability'],
+      filterEventType: ACTIVITY_EVENT_TYPES,
     })
 
     for (const event of response.events) {

@@ -747,6 +747,72 @@ describe('extractViewTermFromUrl', () => {
     const result = extractViewTermFromUrl('https://site.com/path/:comment')
     expect(result).toEqual({url: 'https://site.com/path', viewTerm: ':comment'})
   })
+
+  test('extracts profile-family view term without account uid', () => {
+    const result = extractViewTermFromUrl('https://site.com/:profile')
+    expect(result).toEqual({
+      url: 'https://site.com',
+      viewTerm: ':profile',
+      accountUid: undefined,
+    })
+  })
+
+  test('extracts profile-family view term with account uid', () => {
+    const result = extractViewTermFromUrl('https://site.com/:followers/personUid')
+    expect(result).toEqual({
+      url: 'https://site.com',
+      viewTerm: ':followers',
+      accountUid: 'personUid',
+    })
+  })
+})
+
+describe('routeToUrl - site-profile', () => {
+  test('self profile generates :profile URL', () => {
+    const url = routeToUrl({key: 'site-profile', id: hmId('siteUid'), tab: 'profile'}, {hostname: 'https://gw.com'})
+    expect(url).toBe('https://gw.com/hm/siteUid/:profile')
+  })
+
+  test('self profile on origin site omits /hm/ prefix', () => {
+    const url = routeToUrl(
+      {key: 'site-profile', id: hmId('siteUid'), tab: 'profile'},
+      {hostname: 'https://mysite.com', originHomeId: hmId('siteUid')},
+    )
+    expect(url).toBe('https://mysite.com/:profile')
+  })
+
+  test('other person profile on gateway includes /hm/siteUid/:profile/personUid', () => {
+    const url = routeToUrl(
+      {key: 'site-profile', id: hmId('siteUid'), accountUid: 'personUid', tab: 'profile'},
+      {hostname: 'https://gw.com'},
+    )
+    expect(url).toBe('https://gw.com/hm/siteUid/:profile/personUid')
+  })
+
+  test('other person profile on origin site uses /:profile/personUid', () => {
+    const url = routeToUrl(
+      {key: 'site-profile', id: hmId('siteUid'), accountUid: 'personUid', tab: 'profile'},
+      {hostname: 'https://mysite.com', originHomeId: hmId('siteUid')},
+    )
+    expect(url).toBe('https://mysite.com/:profile/personUid')
+  })
+
+  test('other tabs follow the same route pattern', () => {
+    const url = routeToUrl(
+      {key: 'site-profile', id: hmId('siteUid'), accountUid: 'personUid', tab: 'followers'},
+      {hostname: 'https://mysite.com', originHomeId: hmId('siteUid')},
+    )
+    expect(url).toBe('https://mysite.com/:followers/personUid')
+  })
+
+  test('double /hm/ profile URLs are not emitted', () => {
+    const url = routeToUrl(
+      {key: 'site-profile', id: hmId('siteUid'), accountUid: 'personUid', tab: 'membership'},
+      {hostname: 'https://gw.com'},
+    )
+    expect(url).toBe('https://gw.com/hm/siteUid/:membership/personUid')
+    expect(url.includes('/hm/siteUid/hm/personUid')).toBe(false)
+  })
 })
 
 describe('createSiteUrl with viewTerm and panel', () => {

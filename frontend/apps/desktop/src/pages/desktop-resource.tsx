@@ -3,6 +3,7 @@ import {BranchDialog} from '@/components/branch-dialog'
 import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
 import {CreateDocumentButton} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
+import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {DesktopDocumentActionsProvider} from '@/components/document-actions-provider'
 import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
 import {MoveDialog} from '@/components/move-dialog'
@@ -44,7 +45,7 @@ export default function DesktopResourcePage() {
   const replace = useNavigate('replace')
 
   // Only handle document-related routes
-  const supportedKeys = ['document', 'directory', 'collaborators', 'activity', 'comments']
+  const supportedKeys = ['document', 'directory', 'collaborators', 'activity', 'comments', 'site-profile']
   if (!supportedKeys.includes(route.key)) {
     throw new Error(`DesktopResourcePage: unsupported route ${route.key}`)
   }
@@ -146,6 +147,16 @@ export default function DesktopResourcePage() {
       createInlineDraft,
     ],
   )
+
+  // Profile editing for site-profile pages
+  const editProfileDialog = useEditProfileDialog()
+  const isSiteProfile = route.key === 'site-profile'
+  const profileAccountUid = isSiteProfile && route.key === 'site-profile' ? route.accountUid || docId.uid : null
+  const isOwnProfile = isSiteProfile && !!profileAccountUid && !!myAccountIds.data?.includes(profileAccountUid)
+  const onEditProfile = useMemo(() => {
+    if (!isOwnProfile || !profileAccountUid) return undefined
+    return () => editProfileDialog.open({accountUid: profileAccountUid})
+  }, [isOwnProfile, profileAccountUid, editProfileDialog])
 
   const {exportDocument, openDirectory} = useAppContext()
   const deleteEntity = useDeleteDialog()
@@ -414,6 +425,7 @@ export default function DesktopResourcePage() {
               existingDraft={existingDraft}
               inlineCards={inlineCards}
               rightActions={<SubscriptionButton id={docId} />}
+              onEditProfile={onEditProfile}
             />
           </QueryBlockDraftsProvider>
         </DesktopDocumentActionsProvider>
@@ -425,6 +437,7 @@ export default function DesktopResourcePage() {
       {deleteEntity.content}
       {branchDialog.content}
       {moveDialog.content}
+      {editProfileDialog.content}
     </div>
   )
 }

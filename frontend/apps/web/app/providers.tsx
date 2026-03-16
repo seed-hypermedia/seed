@@ -18,10 +18,16 @@ import {keyPairStore} from './auth'
 import {webUniversalClient} from './universal-client'
 import {isPerfEnabled, markNavEnd, markNavStart} from './web-perf-marks'
 
+function getSelectedIdentity(): string | null {
+  const kp = keyPairStore.get()
+  if (!kp) return null
+  return kp.delegatedAccountUid ?? kp.id
+}
+
 const selectedIdentity: StateStream<string | null> = {
-  get: () => keyPairStore.get()?.id ?? null,
+  get: getSelectedIdentity,
   subscribe: (handler) => {
-    const wrapped = () => handler(keyPairStore.get()?.id ?? null)
+    const wrapped = () => handler(getSelectedIdentity())
     return keyPairStore.subscribe(wrapped)
   },
 }

@@ -97,7 +97,8 @@ export function getContactMetadata(
 ) {
   const contact = contacts?.find((c) => c.subject === accountUid)
   if (contact) {
-    return {...(metadata || {}), name: contact.name}
+    // Only use contact.name if it's not empty, otherwise fall back to metadata name
+    return {...(metadata || {}), name: contact.name || metadata?.name || 'Untitled Contact'}
   }
   return {...(metadata || {}), name: metadata?.name || 'Untitled Contact'}
 }

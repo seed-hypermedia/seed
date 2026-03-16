@@ -54,8 +54,9 @@ export function WebAccountFooter({
   liftForPageFooter?: boolean
 }) {
   const keyPair = useLocalKeyPair()
+  const accountId = keyPair?.delegatedAccountUid ?? keyPair?.id
 
-  const myAccount = useAccount(keyPair?.id || undefined, {
+  const myAccount = useAccount(accountId || undefined, {
     retry: 3,
     retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
     refetchOnWindowFocus: false,
@@ -80,8 +81,10 @@ export function WebAccountFooter({
   const profileLinkProps = useRouteLink(
     keyPair
       ? {
-          key: 'profile',
-          id: hmId(keyPair.id, {latest: true}),
+          key: 'site-profile',
+          id: hmId(siteUid, {latest: true}),
+          accountUid: accountId!,
+          tab: 'profile' as const,
         }
       : null,
   )
@@ -94,7 +97,7 @@ export function WebAccountFooter({
     accountButton = (
       <a {...profileLinkProps} className="flex rounded-full shadow-lg">
         <HMIcon
-          id={account?.id ?? hmId(keyPair.id, {latest: true})}
+          id={account?.id ?? hmId(accountId!, {latest: true})}
           name={account?.metadata?.name}
           icon={account?.metadata?.icon}
           size={32}

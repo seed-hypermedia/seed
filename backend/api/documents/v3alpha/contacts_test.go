@@ -619,3 +619,109 @@ func TestContactSubscribeMetadata(t *testing.T) {
 		require.True(t, site.GetBoolValue(), "site should be true")
 	})
 }
+
+// TestListContactsBySubjectWithTombstone verifies that when querying contacts by subject,
+// tombstones properly filter out deleted contacts even when the tombstone is signed by
+// a different key than the original contact (e.g., web linked accounts scenario).
+func TestListContactsBySubjectWithTombstone(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	// Create bob as the subject of the contact.
+	bob := coretest.NewTester("bob")
+
+	// Create a delegate key that will act on behalf of alice's account.
+	// Using carol's account as a "linked key" for alice (simulating web linked accounts).
+	delegate := coretest.NewTester("carol")
+
+	// All times must be rounded for blob encoding.
+	now := time.Now().Round(blob.ClockPrecision)
+
+	// Grant the delegate key WRITER capability for alice's account.
+	capability, err := blob.NewCapability(
+		alice.me.Account,
+		delegate.Account.Principal(),
+		alice.me.Account.Principal(),
+		"",       // empty path = root level access
+		"WRITER", // role
+		"",       // label
+		now,
+	)
+	require.NoError(t, err)
+	require.NoError(t, alice.idx.Put(ctx, capability))
+
+	// Create a contact from alice to bob using alice's main key.
+	contact, err := blob.NewContact(
+		alice.me.Account,
+		"", // empty TSID = generate new one
+		alice.me.Account.Principal(),
+		bob.Account.Principal(),
+		"Bob",
+		nil,
+		now,
+	)
+	require.NoError(t, err)
+	require.NoError(t, alice.idx.Put(ctx, contact))
+
+	// Verify the contact appears in ListContacts by subject.
+	resp, err := alice.ListContacts(ctx, &documents.ListContactsRequest{
+		PageSize: 10,
+		Filter: &documents.ListContactsRequest_Subject{
+			Subject: bob.Account.PublicKey.String(),
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Contacts, 1, "Contact should appear when querying by subject")
+	require.Equal(t, "Bob", resp.Contacts[0].Name)
+
+	// Create a tombstone for the contact using the DELEGATE key (different signer).
+	// This simulates the web linked accounts scenario where the user deletes a contact
+	// using a different key than the one that created it.
+	tombstoneTime := now.Add(time.Second)
+	tombstone, err := blob.NewContact(
+		delegate.Account,             // Different signer!
+		contact.TSID(),               // Same TSID as original contact
+		alice.me.Account.Principal(), // Same account
+		nil,                          // nil subject = tombstone
+		"",                           // empty name for tombstone
+		nil,
+		tombstoneTime,
+	)
+	require.NoError(t, err)
+	require.NoError(t, alice.idx.Put(ctx, tombstone))
+
+	// Verify the contact is now filtered out when querying by subject.
+	// The tombstone has a later timestamp, so it should "win" in the ROW_NUMBER partition.
+	resp, err = alice.ListContacts(ctx, &documents.ListContactsRequest{
+		PageSize: 10,
+		Filter: &documents.ListContactsRequest_Subject{
+			Subject: bob.Account.PublicKey.String(),
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Contacts, 0, "Tombstoned contact should not appear when querying by subject")
+
+	// Also verify GetContact returns not found.
+	contactID := blob.RecordID{
+		Authority: alice.me.Account.Principal(),
+		TSID:      contact.TSID(),
+	}.String()
+	_, err = alice.GetContact(ctx, &documents.GetContactRequest{
+		Id: contactID,
+	})
+	require.Error(t, err)
+	st, _ := status.FromError(err)
+	require.Equal(t, codes.NotFound, st.Code(), "GetContact should return NotFound for tombstoned contact")
+
+	// Also verify the contact is filtered out when querying by account.
+	resp, err = alice.ListContacts(ctx, &documents.ListContactsRequest{
+		PageSize: 10,
+		Filter: &documents.ListContactsRequest_Account{
+			Account: alice.me.Account.PublicKey.String(),
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Contacts, 0, "Tombstoned contact should not appear when querying by account")
+}

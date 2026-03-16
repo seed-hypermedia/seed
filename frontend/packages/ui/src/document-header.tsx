@@ -6,12 +6,14 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {abbreviateUid, getMetadataName, useRouteLink} from '@shm/shared'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useMemo} from 'react'
 import {Container} from './container'
 import {DocumentDate} from './document-date'
 import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
 import {Home} from './icons'
+import {getContextualProfileRoute} from './inline-descriptor'
 import {PrivateBadge} from './private-badge'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
@@ -106,7 +108,7 @@ export function DocumentHeader({
                             </span>
                           </span>
                         ) : (
-                          <AuthorLink name={getMetadataName(a.metadata)} id={a.id} key={a.id.id} />
+                          <AuthorLink name={getMetadataName(a.metadata)} id={a.id} key={a.id.id} siteUid={docId?.uid} />
                         ),
                         index !== authors.length - 1 ? (
                           index === authors.length - 2 ? (
@@ -135,8 +137,9 @@ export function DocumentHeader({
   )
 }
 
-function AuthorLink({name, id}: {name: string; id: UnpackedHypermediaId}) {
-  const linkProps = useRouteLink({key: 'profile', id})
+function AuthorLink({name, id, siteUid}: {name: string; id: UnpackedHypermediaId; siteUid?: string}) {
+  const currentRoute = useNavRoute()
+  const linkProps = useRouteLink(getContextualProfileRoute(currentRoute, id, siteUid))
   return (
     <a {...linkProps} className="no-underline underline-offset-4 hover:underline" style={{}}>
       {name}

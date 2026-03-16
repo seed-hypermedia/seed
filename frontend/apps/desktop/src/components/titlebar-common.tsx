@@ -9,7 +9,7 @@ import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
-import {useSelectedAccountId} from '@/selected-account'
+import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {pathNameify} from '@/utils/path'
@@ -29,12 +29,14 @@ import {
   displayHostname,
   extractViewTermFromUrl,
   hmId,
+  isSiteProfileTab,
   routeToUrl,
   unpackHmId,
   viewTermToRouteKey,
 } from '@shm/shared/utils/entity-id-url'
 import {appRouteOfId, useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
+import {HMIcon} from '@shm/ui/hm-icon'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Back, CloudOff, Download, Forward, Link, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
@@ -340,12 +342,43 @@ function NotificationButton() {
   )
 }
 
+function AccountProfileButton() {
+  const navigate = useNavigate()
+  const route = useNavRoute()
+  const accountUid = useSelectedAccountId()
+  const selectedAccount = useSelectedAccount()
+  const doc = selectedAccount?.document
+
+  if (!accountUid) return null
+
+  const isActive = route.key === 'profile' && route.id?.uid === accountUid
+
+  return (
+    <Tooltip content="My Profile" asChild>
+      <Button
+        className={cn(
+          'window-no-drag relative h-8 w-8 overflow-hidden rounded-full border-1 p-0',
+          isActive
+            ? 'cursor-default border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
+            : 'border-transparent',
+        )}
+        aria-current={isActive ? 'page' : undefined}
+        aria-disabled={isActive || undefined}
+        onClick={isActive ? undefined : () => navigate({key: 'profile', id: hmId(accountUid)})}
+      >
+        <HMIcon id={hmId(accountUid)} name={doc?.metadata?.name} icon={doc?.metadata?.icon} size={32} />
+      </Button>
+    </Tooltip>
+  )
+}
+
 export function PageActionButtons(props: TitleBarProps) {
   const route = useNavRoute()
   return (
     <TitlebarSection>
       {route.key == 'document' || route.key == 'feed' ? <DocumentTitlebarButtons route={route} /> : null}
       <NotificationButton />
+      <AccountProfileButton />
     </TitlebarSection>
   )
 }
@@ -576,13 +609,15 @@ function useCurrentRouteUrl(): {
     if (routeId) {
       const url = routeToUrl(route, {
         hostname: siteHostname || gwUrl,
-        originHomeId: siteHostname ? hmId(routeId.uid) : undefined,
+        // Only apply originHomeId optimization when entity has a custom site URL,
+        // not when falling back to hostname from the URL (e.g., gateway URL)
+        originHomeId: entitySiteUrl ? hmId(routeId.uid) : undefined,
       })
       return {displayUrl: url, copyableUrl: url}
     }
 
     return {displayUrl: null, copyableUrl: null}
-  }, [routeId, route, siteHostname, gwUrl, draftTitle, draftData])
+  }, [routeId, route, siteHostname, gwUrl, draftTitle, draftData, entitySiteUrl])
 }
 
 /**
@@ -597,7 +632,8 @@ function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
     route.key === 'collaborators' ||
     route.key === 'comments' ||
     route.key === 'profile' ||
-    route.key === 'contact'
+    route.key === 'contact' ||
+    route.key === 'site-profile'
   ) {
     return route.id
   }
@@ -625,7 +661,8 @@ function isUrlDisplayableRoute(route: NavRoute): boolean {
     route.key === 'activity' ||
     route.key === 'directory' ||
     route.key === 'collaborators' ||
-    route.key === 'comments'
+    route.key === 'comments' ||
+    route.key === 'site-profile'
   )
 }
 
@@ -733,7 +770,7 @@ export function Omnibar() {
   const handleUrlNavigation = useCallback(
     async (url: string): Promise<boolean> => {
       // Extract view term (e.g., /:activity) from URL before processing
-      const {url: cleanUrl, viewTerm, activityFilter, commentId} = extractViewTermFromUrl(url)
+      const {url: cleanUrl, viewTerm, activityFilter, commentId, accountUid} = extractViewTermFromUrl(url)
       const routeKey = viewTermToRouteKey(viewTerm)
 
       // Helper to apply view term to route
@@ -742,6 +779,9 @@ export function Omnibar() {
         if (route.key === 'document') {
           if (routeKey === 'comments' && commentId) {
             return {key: 'comments', id: route.id, openComment: commentId}
+          }
+          if (isSiteProfileTab(routeKey)) {
+            return {key: 'site-profile', id: route.id, accountUid: accountUid || undefined, tab: routeKey}
           }
           const viewRoute: NavRoute = {key: routeKey, id: route.id}
           if (routeKey === 'activity' && activityFilter && viewRoute.key === 'activity') {

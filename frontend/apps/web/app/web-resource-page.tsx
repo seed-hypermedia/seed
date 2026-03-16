@@ -4,9 +4,13 @@ import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comment
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
-import {useCallback, useEffect, useRef} from 'react'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {useCallback, useEffect, useMemo, useRef} from 'react'
+import {EditProfileDialog, LogoutButton, useCreateAccount, useLocalKeyPair} from './auth'
 import {preloadCommenting} from './client-lazy'
+import {setPendingIntent} from './local-db'
 import {PageFooter} from './page-footer'
+import {processPendingIntent} from './pending-intent'
 import {WebAccountFooter} from './web-utils'
 
 export interface WebResourcePageProps {
@@ -24,6 +28,43 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
   const route = useNavRoute()
   const navigate = useNavigate()
   const replaceRoute = useNavigate('replace')
+  const userKeyPair = useLocalKeyPair()
+  const editProfileDialog = useAppDialog(EditProfileDialog)
+
+  // Determine if viewing own profile on site-profile page
+  const isSiteProfile = route.key === 'site-profile'
+  const profileAccountUid = isSiteProfile ? route.accountUid || docId.uid : null
+  const ownAccountUid = userKeyPair?.delegatedAccountUid ?? userKeyPair?.id
+  const isOwnProfile = isSiteProfile && !!userKeyPair && profileAccountUid === ownAccountUid
+  const isDelegated = !!userKeyPair?.delegatedAccountUid
+
+  // Profile edit callback - only for non-delegated own profile
+  const onEditProfile = useMemo(() => {
+    if (!isOwnProfile || isDelegated || !profileAccountUid) return undefined
+    return () => editProfileDialog.open({accountUid: profileAccountUid})
+  }, [isOwnProfile, isDelegated, profileAccountUid, editProfileDialog])
+
+  // Profile header buttons (logout) - only for own profile
+  const profileHeaderButtons = useMemo(() => {
+    if (!isOwnProfile) return undefined
+    return <LogoutButton />
+  }, [isOwnProfile])
+
+  // Follow intent flow for unauthenticated users
+  const {content: followAccountContent, createAccount: openFollowAccountDialog} = useCreateAccount({
+    onClose: () => {
+      processPendingIntent(originHomeId ?? undefined)
+    },
+  })
+
+  const onFollowClick = useMemo(() => {
+    if (userKeyPair) return undefined
+    if (!isSiteProfile || !profileAccountUid) return undefined
+    return async () => {
+      await setPendingIntent({type: 'follow', profileUid: profileAccountUid})
+      openFollowAccountDialog()
+    }
+  }, [userKeyPair, isSiteProfile, profileAccountUid, openFollowAccountDialog])
 
   // Preload the comment editor chunk on first hover over any Comments-related element
   const preloaded = useRef(false)
@@ -118,8 +159,13 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
           docId={docId}
           CommentEditor={CommentEditor}
           pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />}
+          onEditProfile={onEditProfile}
+          profileHeaderButtons={profileHeaderButtons}
+          onFollowClick={onFollowClick}
         />
       </CommentsProvider>
+      {editProfileDialog.content}
+      {followAccountContent}
     </WebAccountFooter>
   )
 }

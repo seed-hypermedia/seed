@@ -1,4 +1,3 @@
-import {zodResolver} from '@hookform/resolvers/zod'
 import {useNavigate} from '@remix-run/react'
 import {createSeedClient} from '@seed-hypermedia/client'
 import {HMDocument, HMPrepareDocumentChangeInput, HMSigner} from '@seed-hypermedia/client/hm-types'
@@ -9,9 +8,7 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
-import {Field} from '@shm/ui/form-fields'
-import {FormInput} from '@shm/ui/form-input'
-import {getDaemonFileUrl} from '@shm/ui/get-file-url'
+import {EditProfileForm, SiteMetaFields} from '@shm/ui/edit-profile-form'
 import {Spinner} from '@shm/ui/spinner'
 import {SeedLogo} from '@shm/ui/seed-logo'
 import {SizableText} from '@shm/ui/text'
@@ -21,8 +18,7 @@ import {useMutation} from '@tanstack/react-query'
 import {LogOut, Monitor, Smartphone} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react'
-import {Control, FieldValues, Path, SubmitHandler, useController, useForm} from 'react-hook-form'
-import {z} from 'zod'
+import {SubmitHandler} from 'react-hook-form'
 import {encodeBlock, rawCodec} from './api'
 import {createSecretTapUnlock} from './secret-tap-unlock'
 import * as authSession from './auth-session'
@@ -63,8 +59,6 @@ export async function getCurrentSigner(): Promise<HMSigner | null> {
   if (!stored) return null
   return createSignerFromKeyPair(stored.keyPair)
 }
-
-let AccountWithImage: boolean = false
 
 export type LocalWebIdentity = CryptoKeyPair & {
   id: string
@@ -228,12 +222,6 @@ export async function generateAndStoreKeyPair() {
   await writeLocalKeys(keyPair)
   return keyPair
 }
-
-export const siteMetaSchema = z.object({
-  name: z.string(),
-  icon: z.string().or(z.instanceof(Blob)).nullable(),
-})
-export type SiteMetaFields = z.infer<typeof siteMetaSchema>
 
 export async function updateProfile({
   keyPair,
@@ -420,6 +408,7 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
             submitLabel={tx('create_account_submit', ({siteName}: {siteName: string}) => `Create ${siteName} Account`, {
               siteName,
             })}
+            processImage={optimizeImage}
           />
         </>
       ) : (
@@ -533,54 +522,6 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
   )
 }
 
-function EditProfileForm({
-  onSubmit,
-  defaultValues,
-  submitLabel,
-}: {
-  onSubmit: (data: SiteMetaFields) => void
-  defaultValues?: SiteMetaFields
-  submitLabel?: string
-}) {
-  const tx = useTxString()
-  const form = useForm<SiteMetaFields>({
-    resolver: zodResolver(siteMetaSchema),
-    defaultValues: defaultValues || {
-      name: createDefaultAccountName(),
-      icon: null,
-    },
-  })
-  useEffect(() => {
-    setTimeout(() => {
-      form.setFocus('name', {shouldSelect: true})
-    }, 300) // wait for animation
-  }, [form.setFocus])
-  return (
-    <form onSubmit={form.handleSubmit(onSubmit)}>
-      <div className="flex flex-col gap-2">
-        <Field id="name" label={tx('Account Name')}>
-          <FormInput control={form.control} name="name" placeholder={tx('My New Public Name')} />
-        </Field>
-        <Field id="icon" label={tx('Profile Icon')}>
-          <ImageField control={form.control} name="icon" label={tx('Profile Icon')} />
-        </Field>
-        <div>
-          <Button
-            type="submit"
-            variant="default"
-            size="lg"
-            className={`plausible-event-name=finish-create-account w-full plausible-event-image=${
-              AccountWithImage || 'false'
-            }`}
-          >
-            {submitLabel || tx('Save')}
-          </Button>
-        </div>
-      </div>
-    </form>
-  )
-}
-
 async function optimizeImage(file: File): Promise<Blob> {
   const response = await fetch('/hm/api/site-image', {
     method: 'POST',
@@ -597,60 +538,6 @@ async function optimizeImage(file: File): Promise<Blob> {
   const contentType = response.headers.get('content-type') || 'image/png'
   const responseBlob = await response.blob()
   return new Blob([responseBlob], {type: contentType})
-}
-
-function ImageField<Fields extends FieldValues>({
-  control,
-  name,
-  label,
-}: {
-  control: Control<Fields>
-  name: Path<Fields>
-  label: string
-}) {
-  const c = useController({control, name})
-  const tx = useTxString()
-  const currentImgURL = c.field.value
-    ? typeof c.field.value === 'string'
-      ? getDaemonFileUrl(c.field.value)
-      : URL.createObjectURL(c.field.value)
-    : null
-  return (
-    <div className="group relative flex h-[128px] w-[128px] cursor-pointer overflow-hidden rounded-sm border-2 border-dashed border-neutral-300 hover:border-neutral-400 max-sm:h-16 max-sm:w-16 dark:border-neutral-600 dark:hover:border-neutral-500">
-      <input
-        type="file"
-        accept="image/*"
-        onChange={(event) => {
-          const file = event.target.files?.[0]
-          if (!file) return
-          AccountWithImage = true
-          optimizeImage(file).then((blob) => {
-            c.field.onChange(blob)
-          })
-        }}
-        className="absolute inset-0 z-10 cursor-pointer opacity-0"
-      />
-      {!c.field.value && (
-        <div className="pointer-events-none absolute inset-0 flex h-full w-full items-center justify-center bg-neutral-100 dark:bg-neutral-800">
-          <SizableText size="xs" className="text-center text-neutral-600 dark:text-neutral-400">
-            {tx('add', ({what}: {what: string}) => `Add ${what}`, {
-              what: label,
-            })}
-          </SizableText>
-        </div>
-      )}
-      {c.field.value && (
-        <img src={currentImgURL || undefined} alt={label} className="absolute inset-0 h-full w-full object-cover" />
-      )}
-      {c.field.value && (
-        <div className="pointer-events-none absolute inset-0 flex h-full w-full items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-          <SizableText size="xs" className="text-center text-white">
-            Edit {label}
-          </SizableText>
-        </div>
-      )}
-    </div>
-  )
 }
 
 function LogoutDialog({onClose}: {onClose: () => void}) {
@@ -735,6 +622,7 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
           onSubmit={(newValues) => {
             update.mutateAsync(newValues).then(() => onClose())
           }}
+          processImage={optimizeImage}
         />
       )}
     </>
