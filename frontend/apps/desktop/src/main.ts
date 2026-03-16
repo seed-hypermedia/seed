@@ -53,6 +53,7 @@ import {saveMarkdownFile} from './save-markdown-file'
 import {State} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {BIG_INT, IS_PROD_DESKTOP, OS_PROTOCOL_SCHEME, VERSION} from '@shm/shared/constants'
 import {defaultRoute} from '@shm/shared/routes'
+import {initDerivedSubscriptions} from './derived-subscriptions'
 import {initCommentDrafts} from './app-comments'
 import {initDrafts} from './app-drafts'
 import {getStoredEmbeddingEnabled} from './app-experiments'
@@ -312,12 +313,12 @@ app.whenReady().then(async () => {
       ])
     })
     .then(() => {
-      initAccountSubscriptions()
+      initDerivedSubscriptions()
         .then(() => {
-          logger.info('InitAccountSubscriptionsComplete')
+          logger.info('InitDerivedSubscriptionsComplete')
         })
         .catch((e) => {
-          logger.error('InitAccountSubscriptionsError ' + e.message)
+          logger.error('InitDerivedSubscriptionsError ' + e.message)
         })
 
       grpcClient.daemon.listKeys({}).then(async (response) => {
@@ -396,35 +397,6 @@ app.on('window-all-closed', () => {
 
 app.on('second-instance', handleSecondInstance)
 
-async function initAccountSubscriptions() {
-  logger.info('InitAccountSubscriptions')
-  const keys = await grpcClient.daemon.listKeys({})
-  const subs = await grpcClient.subscriptions.listSubscriptions({
-    pageSize: BIG_INT,
-  })
-  const recursiveSubs = new Set(
-    subs.subscriptions
-      .map((sub) => {
-        if (sub.path !== '/' || !sub.recursive) return null
-        return sub.account
-      })
-      .filter((s) => !!s),
-  )
-  const keysToSubscribeTo = keys.keys.filter((key) => {
-    if (recursiveSubs.has(key.accountId)) return false
-    return true
-  })
-
-  for (const key of keysToSubscribeTo) {
-    logger.debug('WillInitAccountSubscriptions')
-    await grpcClient.subscriptions.subscribe({
-      account: key.accountId,
-      recursive: true,
-      path: '',
-    })
-  }
-}
-
 function initializeIpcHandlers() {
   setupOnboardingHandlers()
 
@@ -446,12 +418,12 @@ function initializeIpcHandlers() {
       }),
     ])
       .then(() => {
-        initAccountSubscriptions()
+        initDerivedSubscriptions()
           .then(() => {
-            logger.info('InitAccountSubscriptionsComplete')
+            logger.info('InitDerivedSubscriptionsComplete')
           })
           .catch((e: Error) => {
-            logger.error('InitAccountSubscriptionsError ' + e.message)
+            logger.error('InitDerivedSubscriptionsError ' + e.message)
           })
 
         grpcClient.daemon.listKeys({}).then(async (response) => {
