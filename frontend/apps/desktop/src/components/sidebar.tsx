@@ -45,7 +45,7 @@ import { CircleOff } from '@shm/ui/icons'
 import { SmallListItem } from '@shm/ui/list-item'
 import { SizableText } from '@shm/ui/text'
 import { cn } from '@shm/ui/utils'
-import { AlertCircle, ChevronDown, ChevronRight, Contact, File, Library, Lock, MoreHorizontal } from 'lucide-react'
+import { AlertCircle, ChevronDown, ChevronRight, File, Library, Lock, MoreHorizontal } from 'lucide-react'
 import React, { memo } from 'react'
 import { CreateDocumentButton } from './create-doc-button'
 import { GenericSidebarContainer } from './sidebar-base'
@@ -75,7 +75,7 @@ export function MainAppSidebar() {
                 rightHover={[]}
               />
             </SidebarMenuItem>
-            <SidebarMenuItem>
+            {/* <SidebarMenuItem>
               <SmallListItem
                 active={route.key == 'contacts'}
                 onClick={() => {
@@ -85,7 +85,7 @@ export function MainAppSidebar() {
                 title="Contacts"
                 bold
               />
-            </SidebarMenuItem>
+            </SidebarMenuItem> */}
             <SidebarMenuItem>
               <SmallListItem
                 active={route.key == 'drafts'}
