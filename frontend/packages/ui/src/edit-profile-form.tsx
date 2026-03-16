@@ -15,8 +15,6 @@ export const siteMetaSchema = z.object({
 })
 export type SiteMetaFields = z.infer<typeof siteMetaSchema>
 
-let AccountWithImage = false
-
 export function EditProfileForm({
   onSubmit,
   defaultValues,
@@ -91,8 +89,7 @@ function ImageField<Fields extends FieldValues>({
         onChange={(event) => {
           const file = event.target.files?.[0]
           if (!file) return
-          AccountWithImage = true
-          if (processImage) {
+if (processImage) {
             processImage(file).then((blob) => {
               c.field.onChange(blob)
             })
