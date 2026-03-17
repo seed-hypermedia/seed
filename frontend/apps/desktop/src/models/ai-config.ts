@@ -159,13 +159,20 @@ export function useOpenAIModelsForProvider(providerId: string | null) {
     queryKey: [queryKeys.OPENAI_MODELS, providerId, 'provider'],
     queryFn: () => client.aiConfig.listOpenaiModelsForProvider.query(providerId!),
     enabled: !!providerId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
   })
 }
 
 export function useStartOpenaiLogin() {
   return useMutation({
-    mutationFn: (input: {providerId: string}) => client.aiConfig.startOpenaiLogin.mutate(input),
+    mutationFn: (input: {
+      providerId?: string
+      draft?: {
+        label?: string
+        model?: string
+        baseUrl?: string
+      }
+    }) => client.aiConfig.startOpenaiLogin.mutate(input),
     onError() {
       toast.error('Could not start OpenAI login')
     },

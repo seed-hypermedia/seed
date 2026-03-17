@@ -1,7 +1,14 @@
 import crypto from 'crypto'
 import fs from 'fs/promises'
 import path from 'path'
+import {VERSION} from '@shm/shared/constants'
 import z from 'zod'
+import {
+  DEFAULT_OPENAI_API_KEY_MODEL,
+  getDefaultOpenAIModel,
+  pickOpenAILoginModelsFromCatalog,
+  normalizeOpenAILoginModel,
+} from './openai-models'
 import {appInvalidateQueries} from './app-invalidation'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
@@ -44,9 +51,17 @@ type AIConfig = {
 
 type OpenAILoginSessionStatus = 'pending' | 'success' | 'error'
 
+type OpenAILoginDraftProvider = {
+  label: string
+  model: string
+  baseUrl?: string
+}
+
 type OpenAILoginSession = {
   id: string
-  providerId: string
+  providerId?: string
+  createdProviderId?: string
+  draftProvider?: OpenAILoginDraftProvider
   userCode: string
   deviceAuthId: string
   verificationUrl: string
@@ -83,7 +98,18 @@ type OpenAIRefreshResponse = {
   refresh_token?: string
 }
 
+type OpenAIModelCatalogItemResponse = {
+  slug?: unknown
+  visibility?: unknown
+  priority?: unknown
+}
+
+type OpenAIModelsResponse = {
+  models?: unknown
+}
+
 const OPENAI_AUTH_ISSUER = 'https://auth.openai.com'
+const OPENAI_CHATGPT_BACKEND_URL = 'https://chatgpt.com/backend-api/codex'
 const OPENAI_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann'
 const OPENAI_REFRESH_TOKEN_URL = `${OPENAI_AUTH_ISSUER}/oauth/token`
 const OPENAI_REFRESH_INTERVAL_MS = 8 * 60 * 1000
@@ -117,24 +143,55 @@ async function writeConfig(config: AIConfig): Promise<void> {
 // Migration from old format
 
 function migrateConfig(config: AIConfig): AIConfig {
-  if (config.agentProviders) return config
-  const legacyKey = config.providers?.openai?.apiKey
-  if (!legacyKey) return config
-  const provider: AgentProvider = {
-    id: crypto.randomUUID(),
-    label: 'OpenAI',
-    type: 'openai',
-    model: 'gpt-4o-mini',
-    apiKey: legacyKey,
-    authMode: 'apiKey',
+  let migrated = config
+  let shouldPersist = false
+
+  if (!migrated.agentProviders) {
+    const legacyKey = migrated.providers?.openai?.apiKey
+    if (!legacyKey) return migrated
+    const provider: AgentProvider = {
+      id: crypto.randomUUID(),
+      label: 'OpenAI',
+      type: 'openai',
+      model: DEFAULT_OPENAI_API_KEY_MODEL,
+      apiKey: legacyKey,
+      authMode: 'apiKey',
+    }
+    migrated = {
+      ...migrated,
+      agentProviders: [provider],
+      selectedProviderId: provider.id,
+    }
+    shouldPersist = true
   }
-  const migrated: AIConfig = {
-    ...config,
-    agentProviders: [provider],
-    selectedProviderId: provider.id,
+
+  if (migrated.agentProviders) {
+    const normalizedProviders = migrated.agentProviders.map((provider) => {
+      if (provider.type !== 'openai') return provider
+      const authMode: OpenAIAuthMode = provider.authMode || (provider.openaiAuth ? 'login' : 'apiKey')
+      return {
+        ...provider,
+        authMode,
+        model:
+          authMode === 'login'
+            ? normalizeOpenAILoginModel(provider.model)
+            : provider.model || getDefaultOpenAIModel('apiKey'),
+        ...(authMode === 'login' ? {apiKey: undefined} : {}),
+      }
+    })
+
+    if (JSON.stringify(normalizedProviders) !== JSON.stringify(migrated.agentProviders)) {
+      migrated = {
+        ...migrated,
+        agentProviders: normalizedProviders,
+      }
+      shouldPersist = true
+    }
   }
-  // Write migrated config back (fire-and-forget)
-  writeConfig(migrated).catch(() => {})
+
+  if (shouldPersist) {
+    writeConfig(migrated).catch(() => {})
+  }
   return migrated
 }
 
@@ -411,7 +468,17 @@ async function runOpenAILoginSession(sessionId: string) {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
     })
-    await persistOpenAILoginForProvider(activeSession.providerId, authSession)
+    let providerId = activeSession.providerId
+    if (!providerId) {
+      if (!activeSession.draftProvider) {
+        throw new Error('OpenAI login is missing provider details.')
+      }
+      providerId = await createOpenAIProviderFromDraft(activeSession.draftProvider)
+      activeSession.providerId = providerId
+      activeSession.createdProviderId = providerId
+    }
+
+    await persistOpenAILoginForProvider(providerId, authSession)
     completeLoginSessionSuccess(activeSession, authSession)
   } catch (error) {
     const activeSession = openaiLoginSessions.get(sessionId)
@@ -442,6 +509,27 @@ async function persistOpenAILoginForProvider(providerId: string, authSession: Op
   }
   config.agentProviders = providers
   await writeConfig(config)
+}
+
+async function createOpenAIProviderFromDraft(draft: OpenAILoginDraftProvider): Promise<string> {
+  const config = await readConfig()
+  const providers = config.agentProviders || []
+  const provider: AgentProvider = {
+    id: crypto.randomUUID(),
+    label: draft.label || DEFAULT_LABELS.openai,
+    type: 'openai',
+    model: draft.model || getDefaultOpenAIModel('login'),
+    apiKey: undefined,
+    baseUrl: draft.baseUrl,
+    authMode: 'login',
+  }
+  providers.push(provider)
+  config.agentProviders = providers
+  if (!config.selectedProviderId) {
+    config.selectedProviderId = provider.id
+  }
+  await writeConfig(config)
+  return provider.id
 }
 
 async function resolveOpenAIProvider(
@@ -504,6 +592,21 @@ const updateProviderSchema = z.object({
   authMode: openAIAuthModeSchema.optional(),
 })
 
+const startOpenaiLoginSchema = z
+  .object({
+    providerId: z.string().optional(),
+    draft: z
+      .object({
+        label: z.string().optional(),
+        model: z.string().optional(),
+        baseUrl: z.string().optional(),
+      })
+      .optional(),
+  })
+  .refine((input) => Boolean(input.providerId || input.draft), {
+    message: 'providerId or draft is required',
+  })
+
 const DEFAULT_LABELS: Record<AgentProviderType, string> = {
   openai: 'OpenAI',
   anthropic: 'Anthropic',
@@ -511,7 +614,7 @@ const DEFAULT_LABELS: Record<AgentProviderType, string> = {
 }
 
 const DEFAULT_MODELS: Record<AgentProviderType, string> = {
-  openai: 'gpt-4o-mini',
+  openai: DEFAULT_OPENAI_API_KEY_MODEL,
   anthropic: 'claude-sonnet-4-20250514',
   ollama: 'llama3',
 }
@@ -526,6 +629,61 @@ export async function resolveProviderForUsage(providerId: string): Promise<Agent
   const {provider} = await resolveOpenAIProvider(providerId)
   if (!shouldRefreshOpenAIAuth(provider)) return provider
   return await refreshOpenAILoginProvider(providerId)
+}
+
+function getOpenAIClientVersion(): string {
+  const match = VERSION.match(/\d+\.\d+\.\d+/)
+  return match?.[0] || '0.0.0'
+}
+
+function normalizeOpenAIModelCatalogItem(item: OpenAIModelCatalogItemResponse) {
+  if (typeof item.slug !== 'string' || !item.slug) return null
+  return {
+    slug: item.slug,
+    visibility: typeof item.visibility === 'string' ? item.visibility : undefined,
+    priority: typeof item.priority === 'number' && Number.isFinite(item.priority) ? item.priority : undefined,
+  }
+}
+
+async function listOpenAIModelsFromLogin(provider: AgentProvider): Promise<string[]> {
+  if (!isOpenAIProviderUsingLogin(provider)) return []
+  const accessToken = provider.openaiAuth?.accessToken
+  if (!accessToken) return []
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5000)
+  try {
+    const baseUrl = (provider.baseUrl || OPENAI_CHATGPT_BACKEND_URL).replace(/\/$/, '')
+    const url = new URL(`${baseUrl}/models`)
+    url.searchParams.set('client_version', getOpenAIClientVersion())
+
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        ...(provider.openaiAuth?.chatgptAccountId ? {'ChatGPT-Account-ID': provider.openaiAuth.chatgptAccountId} : {}),
+      },
+      signal: controller.signal,
+    })
+
+    if (!res.ok) {
+      const message = await parseFailedResponseMessage(res)
+      throw new Error(`OpenAI models request failed: ${message}`)
+    }
+
+    const data = (await res.json()) as OpenAIModelsResponse
+    if (!Array.isArray(data.models)) return []
+
+    const models = data.models.flatMap((item) => {
+      const normalized = normalizeOpenAIModelCatalogItem(item as OpenAIModelCatalogItemResponse)
+      return normalized ? [normalized] : []
+    })
+
+    return pickOpenAILoginModelsFromCatalog(models)
+  } catch {
+    return []
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 async function listOpenAIModelsFromApiKey(apiKey: string): Promise<string[]> {
@@ -601,7 +759,8 @@ export const aiConfigApi = t.router({
       id: crypto.randomUUID(),
       label: input.label || DEFAULT_LABELS[input.type],
       type: input.type,
-      model: input.model || DEFAULT_MODELS[input.type],
+      model:
+        input.model || (input.type === 'openai' ? getDefaultOpenAIModel(openAIAuthMode) : DEFAULT_MODELS[input.type]),
       apiKey: input.type === 'openai' && openAIAuthMode === 'login' ? undefined : input.apiKey,
       baseUrl: input.type === 'ollama' ? input.baseUrl || 'http://localhost:11434' : input.baseUrl,
       ...(input.type === 'openai' ? {authMode: openAIAuthMode} : {}),
@@ -696,13 +855,28 @@ export const aiConfigApi = t.router({
     return config.lastUsedProviderId || null
   }),
 
-  startOpenaiLogin: t.procedure.input(z.object({providerId: z.string()})).mutation(async ({input}) => {
-    const {provider} = await resolveOpenAIProvider(input.providerId)
-    if (provider.type !== 'openai') throw new Error('Provider is not OpenAI')
+  startOpenaiLogin: t.procedure.input(startOpenaiLoginSchema).mutation(async ({input}) => {
+    let sessionProviderId = input.providerId
+    let draftProvider: OpenAILoginDraftProvider | undefined
+
+    if (sessionProviderId) {
+      const {provider} = await resolveOpenAIProvider(sessionProviderId)
+      if (provider.type !== 'openai') throw new Error('Provider is not OpenAI')
+    } else {
+      draftProvider = {
+        label: input.draft?.label || DEFAULT_LABELS.openai,
+        model: input.draft?.model || getDefaultOpenAIModel('login'),
+        baseUrl: input.draft?.baseUrl,
+      }
+    }
 
     const sessionsToDelete: string[] = []
     openaiLoginSessions.forEach((existingSession) => {
-      if (existingSession.providerId === input.providerId && existingSession.status === 'pending') {
+      if (
+        sessionProviderId &&
+        existingSession.providerId === sessionProviderId &&
+        existingSession.status === 'pending'
+      ) {
         setLoginSessionError(existingSession, 'Superseded by a newer login attempt.')
         clearTimeout(existingSession.timeout)
         sessionsToDelete.push(existingSession.id)
@@ -721,7 +895,8 @@ export const aiConfigApi = t.router({
 
     const session: OpenAILoginSession = {
       id: sessionId,
-      providerId: input.providerId,
+      providerId: sessionProviderId,
+      draftProvider,
       userCode: deviceCode.userCode,
       deviceAuthId: deviceCode.deviceAuthId,
       verificationUrl: OPENAI_DEVICE_AUTH_BROWSER_URL,
@@ -737,6 +912,7 @@ export const aiConfigApi = t.router({
       sessionId,
       authUrl: OPENAI_DEVICE_AUTH_BROWSER_URL,
       userCode: session.userCode,
+      providerId: session.providerId || null,
     }
   }),
 
@@ -750,6 +926,7 @@ export const aiConfigApi = t.router({
       message: session.message,
       userCode: session.userCode,
       verificationUrl: session.verificationUrl,
+      providerId: session.createdProviderId || session.providerId || null,
       email: session.email,
       chatgptPlanType: session.chatgptPlanType,
       chatgptAccountId: session.chatgptAccountId,
@@ -763,7 +940,11 @@ export const aiConfigApi = t.router({
   listOpenaiModelsForProvider: t.procedure.input(z.string()).query(async ({input: providerId}) => {
     try {
       const provider = await resolveProviderForUsage(providerId)
-      if (provider.type !== 'openai' || !provider.apiKey) return []
+      if (provider.type !== 'openai') return []
+      if (provider.authMode === 'login') {
+        return await listOpenAIModelsFromLogin(provider)
+      }
+      if (!provider.apiKey) return []
       return await listOpenAIModelsFromApiKey(provider.apiKey)
     } catch {
       return []

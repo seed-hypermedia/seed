@@ -16,6 +16,7 @@ import {t} from './app-trpc'
 import {getAllWindows} from './app-windows'
 import {desktopRequest} from './desktop-api'
 import {grpcClient} from './grpc-client'
+import {getChatProviderRequestOptions} from './chat-provider-options'
 import * as log from './logger'
 
 const chatDir = path.join(userDataPath, 'chat-sessions')
@@ -647,7 +648,7 @@ export const chatApi = t.router({
 
         const result = streamText({
           model,
-          system,
+          ...getChatProviderRequestOptions(provider, system),
           messages,
           tools: chatTools,
           stopWhen: stepCountIs(5),
