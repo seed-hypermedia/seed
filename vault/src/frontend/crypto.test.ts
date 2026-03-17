@@ -4,6 +4,7 @@
  */
 import {describe, expect, test} from 'bun:test'
 import * as base64 from '@shm/shared/base64'
+import * as encryption from '@shm/shared/encryption'
 import * as crypto from './crypto'
 
 describe('crypto utilities', () => {
@@ -57,30 +58,30 @@ describe('base64url encoding', () => {
 describe('key derivation', () => {
   test('deriveKeyFromPassword returns 32 bytes', async () => {
     const salt = crypto.generatePasswordSalt()
-    const key = await crypto.deriveKeyFromPassword('testpassword', salt, crypto.DEFAULT_ARGON2_PARAMS)
+    const key = await encryption.deriveKeyFromPassword('testpassword', salt, encryption.DEFAULT_PARAMS)
     expect(key).toBeInstanceOf(Uint8Array)
     expect(key.length).toBe(32)
   })
 
   test('same password and salt produce same key', async () => {
     const salt = crypto.generatePasswordSalt()
-    const key1 = await crypto.deriveKeyFromPassword('mypassword', salt, crypto.DEFAULT_ARGON2_PARAMS)
-    const key2 = await crypto.deriveKeyFromPassword('mypassword', salt, crypto.DEFAULT_ARGON2_PARAMS)
+    const key1 = await encryption.deriveKeyFromPassword('mypassword', salt, encryption.DEFAULT_PARAMS)
+    const key2 = await encryption.deriveKeyFromPassword('mypassword', salt, encryption.DEFAULT_PARAMS)
     expect(key1).toEqual(key2)
   })
 
   test('different passwords produce different keys', async () => {
     const salt = crypto.generatePasswordSalt()
-    const key1 = await crypto.deriveKeyFromPassword('password1', salt, crypto.DEFAULT_ARGON2_PARAMS)
-    const key2 = await crypto.deriveKeyFromPassword('password2', salt, crypto.DEFAULT_ARGON2_PARAMS)
+    const key1 = await encryption.deriveKeyFromPassword('password1', salt, encryption.DEFAULT_PARAMS)
+    const key2 = await encryption.deriveKeyFromPassword('password2', salt, encryption.DEFAULT_PARAMS)
     expect(key1).not.toEqual(key2)
   })
 
   test('different salts produce different keys', async () => {
     const salt1 = crypto.generatePasswordSalt()
     const salt2 = crypto.generatePasswordSalt()
-    const key1 = await crypto.deriveKeyFromPassword('samepassword', salt1, crypto.DEFAULT_ARGON2_PARAMS)
-    const key2 = await crypto.deriveKeyFromPassword('samepassword', salt2, crypto.DEFAULT_ARGON2_PARAMS)
+    const key1 = await encryption.deriveKeyFromPassword('samepassword', salt1, encryption.DEFAULT_PARAMS)
+    const key2 = await encryption.deriveKeyFromPassword('samepassword', salt2, encryption.DEFAULT_PARAMS)
     expect(key1).not.toEqual(key2)
   })
 
@@ -165,7 +166,7 @@ describe('full key derivation flow', () => {
     const salt = crypto.generatePasswordSalt()
 
     // Derive master key.
-    const masterKey = await crypto.deriveKeyFromPassword(password, salt, crypto.DEFAULT_ARGON2_PARAMS)
+    const masterKey = await encryption.deriveKeyFromPassword(password, salt, encryption.DEFAULT_PARAMS)
     expect(masterKey.length).toBe(32)
 
     const encryptionKey = await crypto.deriveEncryptionKey(masterKey)

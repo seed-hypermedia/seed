@@ -1,6 +1,7 @@
 import type * as api from '@/api'
 import * as base64 from '@shm/shared/base64'
 import * as blobs from '@shm/shared/blobs'
+import * as encryption from '@shm/shared/encryption'
 import * as hmauth from '@shm/shared/hmauth'
 import * as webauthn from '@simplewebauthn/browser'
 import {code as rawCodec} from 'multiformats/codecs/raw'
@@ -116,7 +117,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
   }
 
   async function derivePasswordMaterial(password: string, salt: string) {
-    const masterKey = await localCrypto.deriveKeyFromPassword(password, base64.decode(salt))
+    const masterKey = await encryption.deriveKeyFromPassword(password, base64.decode(salt))
     const encryptionKey = await localCrypto.deriveEncryptionKey(masterKey)
     const authKey = await localCrypto.deriveAuthKey(masterKey)
     return {encryptionKey, authKey}

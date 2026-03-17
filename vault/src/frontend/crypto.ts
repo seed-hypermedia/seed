@@ -1,43 +1,4 @@
 import {xchacha20poly1305} from '@noble/ciphers/chacha.js'
-import {argon2id} from 'hash-wasm'
-
-/**
- * Default Argon2id params (Bitwarden defaults).
- */
-export const DEFAULT_ARGON2_PARAMS = {
-  memoryCost: 65536, // 64 MiB in KiB.
-  timeCost: 3,
-  parallelism: 4,
-}
-
-/**
- * Argon2id parameters for key derivation.
- */
-export interface Argon2Params {
-  memoryCost: number
-  timeCost: number
-  parallelism: number
-}
-
-/**
- * Derive a 256-bit key from password using Argon2id.
- */
-export async function deriveKeyFromPassword(
-  password: string,
-  salt: Uint8Array,
-  params: Argon2Params = DEFAULT_ARGON2_PARAMS,
-): Promise<Uint8Array> {
-  const hash = await argon2id({
-    password,
-    salt,
-    parallelism: params.parallelism,
-    iterations: params.timeCost,
-    memorySize: params.memoryCost,
-    hashLength: 32,
-    outputType: 'binary',
-  })
-  return new Uint8Array(hash)
-}
 
 /**
  * Generate a random password salt for Argon2id.
@@ -50,8 +11,7 @@ export function generatePasswordSalt(): Uint8Array {
  * Derive a 256-bit key from the master key using HKDF-SHA256.
  */
 async function deriveHKDFKey(masterKey: Uint8Array, info: string): Promise<Uint8Array> {
-  const rawMasterKey = masterKey.slice()
-  const baseKey = await crypto.subtle.importKey('raw', rawMasterKey.buffer as ArrayBuffer, {name: 'HKDF'}, false, [
+  const baseKey = await crypto.subtle.importKey('raw', masterKey.buffer as ArrayBuffer, {name: 'HKDF'}, false, [
     'deriveBits',
   ])
 

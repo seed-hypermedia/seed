@@ -333,15 +333,15 @@ func writeEncryptedImportKeyFile(
 	aead, err := chacha20poly1305.NewX(derivedKey)
 	require.NoError(t, err)
 	ciphertext := aead.Seal(nil, nonce, seed, nil)
+	encrypted := append(append([]byte{}, nonce...), ciphertext...)
 
 	return writeImportKeyFile(t, importedKeyFile{
 		PublicKey: core.NewPublicKey(publicKey).String(),
-		KeyB64:    base64.RawURLEncoding.EncodeToString(ciphertext),
+		KeyB64:    base64.RawURLEncoding.EncodeToString(encrypted),
 		Encryption: &importedKeyFileEncryption{
-			KDF:      "argon2id",
-			Argon2:   &params,
-			Cipher:   "xchacha20poly1305",
-			NonceB64: base64.RawURLEncoding.EncodeToString(nonce),
+			KDF:    "argon2id",
+			Argon2: &params,
+			Cipher: "xchacha20poly1305",
 		},
 	}, filename)
 }

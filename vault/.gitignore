@@ -38,3 +38,4 @@ certs
 *.sqlite-*
 
 data/
+!bun.lock

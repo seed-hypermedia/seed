@@ -21,7 +21,6 @@ import {
 } from '@/frontend/profile'
 import {Separator} from '@/frontend/components/ui/separator'
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from '@/frontend/components/ui/tooltip'
-import {saveAccountKeyFile} from '@/frontend/key-export'
 import {useActions, useAppState} from '@/frontend/store'
 import type * as vault from '@/frontend/vault'
 import {
@@ -36,6 +35,7 @@ import {
 import {SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy} from '@dnd-kit/sortable'
 import {CSS} from '@dnd-kit/utilities'
 import * as blobs from '@shm/shared/blobs'
+import * as keyfile from '@shm/shared/keyfile'
 import {
   AlertTriangle,
   Check,
@@ -337,9 +337,9 @@ function AccountDetails({
     setExportState({status: 'pending'})
 
     try {
-      const result = await saveAccountKeyFile({
+      const payload = await keyfile.create({
         publicKey: principal,
-        account,
+        key: account.seed,
         password: exportPassword.length > 0 ? exportPassword : undefined,
         profile: profile
           ? {
@@ -348,7 +348,20 @@ function AccountDetails({
             }
           : undefined,
       })
-      setExportState({status: 'done', fileName: result.fileName})
+      const fileName = `${principal}.hmkey.json`
+      const contents = keyfile.stringify(payload)
+      const blob = new Blob([contents], {type: 'application/json'})
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = fileName
+      anchor.style.display = 'none'
+      document.body.append(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+
+      setExportState({status: 'done', fileName})
       setIsExportDialogOpen(false)
       setExportPassword('')
     } catch (error) {

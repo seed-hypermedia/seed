@@ -61,10 +61,9 @@ type importedKeyFile struct {
 }
 
 type importedKeyFileEncryption struct {
-	KDF      string                 `json:"kdf"`
-	Argon2   *importedKeyFileArgon2 `json:"argon2"`
-	Cipher   string                 `json:"cipher"`
-	NonceB64 string                 `json:"nonceB64"`
+	KDF    string                 `json:"kdf"`
+	Argon2 *importedKeyFileArgon2 `json:"argon2"`
+	Cipher string                 `json:"cipher"`
 }
 
 type importedKeyFileArgon2 struct {
@@ -339,8 +338,8 @@ func decryptImportedSeed(keyFile importedKeyFile, password string) ([]byte, erro
 	if encryption.Argon2.MemoryCost == 0 || encryption.Argon2.TimeCost == 0 || encryption.Argon2.Parallelism == 0 {
 		return nil, status.Error(codes.InvalidArgument, "argon2 parameters must be greater than zero")
 	}
-	if encryption.Argon2.SaltB64 == "" || encryption.NonceB64 == "" {
-		return nil, status.Error(codes.InvalidArgument, "saltB64 and nonceB64 are required for encrypted key files")
+	if encryption.Argon2.SaltB64 == "" {
+		return nil, status.Error(codes.InvalidArgument, "saltB64 is required for encrypted key files")
 	}
 
 	salt, err := decodeBase64URL(encryption.Argon2.SaltB64)
@@ -348,18 +347,15 @@ func decryptImportedSeed(keyFile importedKeyFile, password string) ([]byte, erro
 		return nil, status.Errorf(codes.InvalidArgument, "invalid saltB64: %v", err)
 	}
 
-	nonce, err := decodeBase64URL(encryption.NonceB64)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid nonceB64: %v", err)
-	}
-	if len(nonce) != chacha20poly1305.NonceSizeX {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid nonce length: expected %d bytes, got %d", chacha20poly1305.NonceSizeX, len(nonce))
-	}
-
-	ciphertext, err := decodeBase64URL(keyFile.KeyB64)
+	data, err := decodeBase64URL(keyFile.KeyB64)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid keyB64: %v", err)
 	}
+	if len(data) < chacha20poly1305.NonceSizeX {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid encrypted key length: expected at least %d bytes, got %d", chacha20poly1305.NonceSizeX, len(data))
+	}
+	nonce := data[:chacha20poly1305.NonceSizeX]
+	ciphertext := data[chacha20poly1305.NonceSizeX:]
 
 	derivedKey := argon2.IDKey(
 		[]byte(password),

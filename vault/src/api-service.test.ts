@@ -1,6 +1,7 @@
 import type {Database} from 'bun:sqlite'
 import {afterAll, beforeAll, beforeEach, describe, expect, test} from 'bun:test'
 import * as base64 from '@shm/shared/base64'
+import * as encryption from '@shm/shared/encryption'
 import {APIError, Service} from '@/api-service'
 import type * as api from '@/api'
 import type * as email from '@/email'
@@ -81,7 +82,7 @@ async function derivePasswordCredential(
   salt = base64.encode(crypto.generatePasswordSalt()),
   dek?: Uint8Array,
 ) {
-  const masterKey = await crypto.deriveKeyFromPassword(password, base64.decode(salt), crypto.DEFAULT_ARGON2_PARAMS)
+  const masterKey = await encryption.deriveKeyFromPassword(password, base64.decode(salt), encryption.DEFAULT_PARAMS)
   const encryptionKey = await crypto.deriveEncryptionKey(masterKey)
   const authKey = await crypto.deriveAuthKey(masterKey)
   const plaintextDEK = dek ?? crypto.generateDEK()
