@@ -522,8 +522,8 @@ function mergeAdjacentAnnotations(annotations: HMAnnotation[]): HMAnnotation[] {
   }
 
   const result: HMAnnotation[] = []
-  for (const [, anns] of byType) {
-    anns.sort((a, b) => (a.starts[0] ?? 0) - (b.starts[0] ?? 0))
+  for (const [, anns] of Array.from(byType)) {
+    anns.sort((a: HMAnnotation, b: HMAnnotation) => (a.starts[0] ?? 0) - (b.starts[0] ?? 0))
     let current = {...anns[0]!, starts: [...anns[0]!.starts], ends: [...anns[0]!.ends]}
     for (let i = 1; i < anns.length; i++) {
       const next = anns[i]!
