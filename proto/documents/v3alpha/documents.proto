@@ -100,6 +100,9 @@ service Documents {
 
   // Returns details about a Ref.
   rpc GetRef(GetRefRequest) returns (Ref);
+
+  // Lists Refs for a document.
+  rpc ListRefs(ListRefsRequest) returns (ListRefsResponse);
 }
 
 // Request for getting a single document.
@@ -654,6 +657,34 @@ message CreateRefRequest {
 message GetRefRequest {
   // Required. ID of the Ref blob to retrieve.
   string id = 1;
+}
+
+// Request to list Refs for a document.
+message ListRefsRequest {
+  // Required. Account ID where the document is located.
+  string account = 1;
+
+  // Required. Path of the document.
+  // Empty string means root document.
+  string path = 2;
+
+  // Optional. Number of items to return per page.
+  // Pagination parameters are currently accepted but ignored.
+  int32 page_size = 3;
+
+  // Optional. Token from a previous ListRefsResponse.next_page_token.
+  // Pagination parameters are currently accepted but ignored.
+  string page_token = 4;
+}
+
+// Response to list Refs for a document.
+message ListRefsResponse {
+  // Refs for the requested document.
+  repeated Ref refs = 1;
+
+  // Optional. Token for fetching the next page.
+  // Empty while pagination is not implemented.
+  string next_page_token = 2;
 }
 
 // Information about a particular document version.

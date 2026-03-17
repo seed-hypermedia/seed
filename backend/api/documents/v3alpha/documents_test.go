@@ -850,6 +850,111 @@ func TestTombstoneRef(t *testing.T) {
 	}
 }
 
+func TestListRefs(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	baseTS := time.UnixMilli(1730000000000).UTC()
+
+	docV1, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "/refs-list",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Refs list v1"},
+			}},
+		},
+		Timestamp: timestamppb.New(baseTS),
+	})
+	require.NoError(t, err)
+
+	docV2, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "/refs-list",
+		BaseVersion:    docV1.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Refs list v2"},
+			}},
+		},
+		Timestamp: timestamppb.New(baseTS.Add(1 * time.Second)),
+	})
+	require.NoError(t, err)
+
+	tombstone, err := alice.CreateRef(ctx, &documents.CreateRefRequest{
+		SigningKeyName: "main",
+		Account:        docV2.Account,
+		Path:           docV2.Path,
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Tombstone_{
+				Tombstone: &documents.RefTarget_Tombstone{},
+			},
+		},
+		Timestamp: timestamppb.New(baseTS.Add(2 * time.Second)),
+	})
+	require.NoError(t, err)
+
+	highGen, err := alice.CreateRef(ctx, &documents.CreateRefRequest{
+		SigningKeyName: "main",
+		Account:        docV2.Account,
+		Path:           docV2.Path,
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Version_{
+				Version: &documents.RefTarget_Version{
+					Genesis: docV2.Genesis,
+					Version: docV2.Version,
+				},
+			},
+		},
+		Generation: docV2.GenerationInfo.Generation + 100,
+		Timestamp:  timestamppb.New(baseTS.Add(-1 * time.Second)),
+	})
+	require.NoError(t, err)
+
+	refs, err := alice.ListRefs(ctx, &documents.ListRefsRequest{
+		Account:  docV2.Account,
+		Path:     docV2.Path,
+		PageSize: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, refs.Refs, 4)
+	require.Empty(t, refs.NextPageToken)
+
+	require.Equal(t, highGen.Id, refs.Refs[0].Id)
+	require.IsType(t, &documents.RefTarget_Version_{}, refs.Refs[0].Target.Target)
+	require.Equal(t, tombstone.Id, refs.Refs[1].Id)
+	require.IsType(t, &documents.RefTarget_Tombstone_{}, refs.Refs[1].Target.Target)
+
+	for i := range refs.Refs {
+		require.Equal(t, docV2.Account, refs.Refs[i].Account)
+		require.Equal(t, docV2.Path, refs.Refs[i].Path)
+
+		if i > 0 {
+			prev := refs.Refs[i-1]
+			curr := refs.Refs[i]
+			isNewerGeneration := prev.GenerationInfo.Generation > curr.GenerationInfo.Generation
+			hasEqualGeneration := prev.GenerationInfo.Generation == curr.GenerationInfo.Generation
+			isNewerOrEqualTimestamp := !prev.Timestamp.AsTime().Before(curr.Timestamp.AsTime())
+
+			require.True(t, isNewerGeneration || (hasEqualGeneration && isNewerOrEqualTimestamp))
+		}
+	}
+
+	require.IsType(t, &documents.RefTarget_Version_{}, refs.Refs[2].Target.Target)
+	require.IsType(t, &documents.RefTarget_Version_{}, refs.Refs[3].Target.Target)
+
+	empty, err := alice.ListRefs(ctx, &documents.ListRefsRequest{
+		Account: docV2.Account,
+		Path:    "/unknown-path",
+	})
+	require.NoError(t, err)
+	require.Empty(t, empty.Refs)
+}
+
 func TestListDirectory(t *testing.T) {
 	t.Parallel()
 

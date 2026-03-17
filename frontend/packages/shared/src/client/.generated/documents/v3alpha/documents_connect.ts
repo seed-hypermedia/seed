@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, BatchGetDocumentInfoRequest, BatchGetDocumentInfoResponse, Contact, CreateAliasRequest, CreateContactRequest, CreateDocumentChangeRequest, CreateRefRequest, DeleteContactRequest, DeleteDocumentRequest, Document, DocumentChangeInfo, DocumentInfo, GetAccountRequest, GetContactRequest, GetDocumentChangeRequest, GetDocumentInfoRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListContactsRequest, ListContactsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, PrepareChangeRequest, PrepareChangeResponse, Ref, UpdateContactRequest, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
+import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, BatchGetDocumentInfoRequest, BatchGetDocumentInfoResponse, Contact, CreateAliasRequest, CreateContactRequest, CreateDocumentChangeRequest, CreateRefRequest, DeleteContactRequest, DeleteDocumentRequest, Document, DocumentChangeInfo, DocumentInfo, GetAccountRequest, GetContactRequest, GetDocumentChangeRequest, GetDocumentInfoRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListContactsRequest, ListContactsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRefsRequest, ListRefsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, PrepareChangeRequest, PrepareChangeResponse, Ref, UpdateContactRequest, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -285,6 +285,17 @@ export const Documents = {
       name: "GetRef",
       I: GetRefRequest,
       O: Ref,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Lists Refs for a document.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.ListRefs
+     */
+    listRefs: {
+      name: "ListRefs",
+      I: ListRefsRequest,
+      O: ListRefsResponse,
       kind: MethodKind.Unary,
     },
   }

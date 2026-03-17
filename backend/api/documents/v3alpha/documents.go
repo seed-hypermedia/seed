@@ -1542,6 +1542,74 @@ func (srv *Server) GetRef(ctx context.Context, in *documents.GetRefRequest) (*do
 	return refToProto(ref.CID, ref.Value)
 }
 
+// ListRefs implements Documents API v3.
+func (srv *Server) ListRefs(ctx context.Context, in *documents.ListRefsRequest) (*documents.ListRefsResponse, error) {
+	if in.Account == "" {
+		return nil, errutil.MissingArgument("account")
+	}
+
+	ns, err := core.DecodePrincipal(in.Account)
+	if err != nil {
+		return nil, err
+	}
+
+	iri, err := blob.NewIRI(ns, in.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	var refCIDs []cid.Cid
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) (err error) {
+		rows, discard, check := sqlitex.Query(conn, qListRefsForDocument(), iri).All()
+		defer discard(&err)
+
+		for row := range rows {
+			codec := row.ColumnInt64(0)
+			hash := row.ColumnBytes(1)
+			refCIDs = append(refCIDs, cid.NewCidV1(uint64(codec), hash))
+		}
+
+		if err := check(); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	out := &documents.ListRefsResponse{Refs: make([]*documents.Ref, 0, len(refCIDs))}
+	for _, c := range refCIDs {
+		ref, err := srv.getRef(ctx, c)
+		if err != nil {
+			return nil, err
+		}
+
+		if srv.cfg.PublicOnly && ref.Value.Visibility == blob.VisibilityPrivate {
+			continue
+		}
+
+		pb, err := refToProto(ref.CID, ref.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		out.Refs = append(out.Refs, pb)
+	}
+
+	return out, nil
+}
+
+var qListRefsForDocument = dqb.Str(`
+	SELECT b.codec, b.multihash
+	FROM structural_blobs sb
+	JOIN resources r ON r.id = sb.resource
+	JOIN blobs b ON b.id = sb.id
+	WHERE sb.type = 'Ref'
+	AND r.iri = ?
+	ORDER BY CAST(COALESCE(sb.extra_attrs->>'generation', '0') AS INTEGER) DESC, sb.ts DESC, sb.id DESC
+`)
+
 // CreateAlias implements Documents API v3.
 func (srv *Server) CreateAlias(ctx context.Context, in *documents.CreateAliasRequest) (*emptypb.Empty, error) {
 	{

@@ -44,6 +44,7 @@ const (
 	Documents_UpdateDocumentReadStatus_FullMethodName = "/com.seed.documents.v3alpha.Documents/UpdateDocumentReadStatus"
 	Documents_CreateRef_FullMethodName                = "/com.seed.documents.v3alpha.Documents/CreateRef"
 	Documents_GetRef_FullMethodName                   = "/com.seed.documents.v3alpha.Documents/GetRef"
+	Documents_ListRefs_FullMethodName                 = "/com.seed.documents.v3alpha.Documents/ListRefs"
 )
 
 // DocumentsClient is the client API for Documents service.
@@ -109,6 +110,8 @@ type DocumentsClient interface {
 	CreateRef(ctx context.Context, in *CreateRefRequest, opts ...grpc.CallOption) (*Ref, error)
 	// Returns details about a Ref.
 	GetRef(ctx context.Context, in *GetRefRequest, opts ...grpc.CallOption) (*Ref, error)
+	// Lists Refs for a document.
+	ListRefs(ctx context.Context, in *ListRefsRequest, opts ...grpc.CallOption) (*ListRefsResponse, error)
 }
 
 type documentsClient struct {
@@ -360,6 +363,16 @@ func (c *documentsClient) GetRef(ctx context.Context, in *GetRefRequest, opts ..
 	return out, nil
 }
 
+func (c *documentsClient) ListRefs(ctx context.Context, in *ListRefsRequest, opts ...grpc.CallOption) (*ListRefsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRefsResponse)
+	err := c.cc.Invoke(ctx, Documents_ListRefs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DocumentsServer is the server API for Documents service.
 // All implementations should embed UnimplementedDocumentsServer
 // for forward compatibility.
@@ -423,6 +436,8 @@ type DocumentsServer interface {
 	CreateRef(context.Context, *CreateRefRequest) (*Ref, error)
 	// Returns details about a Ref.
 	GetRef(context.Context, *GetRefRequest) (*Ref, error)
+	// Lists Refs for a document.
+	ListRefs(context.Context, *ListRefsRequest) (*ListRefsResponse, error)
 }
 
 // UnimplementedDocumentsServer should be embedded to have
@@ -503,6 +518,9 @@ func (UnimplementedDocumentsServer) CreateRef(context.Context, *CreateRefRequest
 }
 func (UnimplementedDocumentsServer) GetRef(context.Context, *GetRefRequest) (*Ref, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRef not implemented")
+}
+func (UnimplementedDocumentsServer) ListRefs(context.Context, *ListRefsRequest) (*ListRefsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListRefs not implemented")
 }
 func (UnimplementedDocumentsServer) testEmbeddedByValue() {}
 
@@ -956,6 +974,24 @@ func _Documents_GetRef_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Documents_ListRefs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRefsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).ListRefs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_ListRefs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).ListRefs(ctx, req.(*ListRefsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Documents_ServiceDesc is the grpc.ServiceDesc for Documents service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1058,6 +1094,10 @@ var Documents_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRef",
 			Handler:    _Documents_GetRef_Handler,
+		},
+		{
+			MethodName: "ListRefs",
+			Handler:    _Documents_ListRefs_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

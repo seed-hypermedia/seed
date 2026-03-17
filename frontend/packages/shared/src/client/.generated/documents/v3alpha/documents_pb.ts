@@ -2330,6 +2330,124 @@ export class GetRefRequest extends Message<GetRefRequest> {
 }
 
 /**
+ * Request to list Refs for a document.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListRefsRequest
+ */
+export class ListRefsRequest extends Message<ListRefsRequest> {
+  /**
+   * Required. Account ID where the document is located.
+   *
+   * @generated from field: string account = 1;
+   */
+  account = "";
+
+  /**
+   * Required. Path of the document.
+   * Empty string means root document.
+   *
+   * @generated from field: string path = 2;
+   */
+  path = "";
+
+  /**
+   * Optional. Number of items to return per page.
+   * Pagination parameters are currently accepted but ignored.
+   *
+   * @generated from field: int32 page_size = 3;
+   */
+  pageSize = 0;
+
+  /**
+   * Optional. Token from a previous ListRefsResponse.next_page_token.
+   * Pagination parameters are currently accepted but ignored.
+   *
+   * @generated from field: string page_token = 4;
+   */
+  pageToken = "";
+
+  constructor(data?: PartialMessage<ListRefsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListRefsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListRefsRequest {
+    return new ListRefsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListRefsRequest {
+    return new ListRefsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListRefsRequest {
+    return new ListRefsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListRefsRequest | PlainMessage<ListRefsRequest> | undefined, b: ListRefsRequest | PlainMessage<ListRefsRequest> | undefined): boolean {
+    return proto3.util.equals(ListRefsRequest, a, b);
+  }
+}
+
+/**
+ * Response to list Refs for a document.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListRefsResponse
+ */
+export class ListRefsResponse extends Message<ListRefsResponse> {
+  /**
+   * Refs for the requested document.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.Ref refs = 1;
+   */
+  refs: Ref[] = [];
+
+  /**
+   * Optional. Token for fetching the next page.
+   * Empty while pagination is not implemented.
+   *
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken = "";
+
+  constructor(data?: PartialMessage<ListRefsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListRefsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "refs", kind: "message", T: Ref, repeated: true },
+    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListRefsResponse {
+    return new ListRefsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListRefsResponse {
+    return new ListRefsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListRefsResponse {
+    return new ListRefsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListRefsResponse | PlainMessage<ListRefsResponse> | undefined, b: ListRefsResponse | PlainMessage<ListRefsResponse> | undefined): boolean {
+    return proto3.util.equals(ListRefsResponse, a, b);
+  }
+}
+
+/**
  * Information about a particular document version.
  *
  * @generated from message com.seed.documents.v3alpha.DocumentChangeInfo
