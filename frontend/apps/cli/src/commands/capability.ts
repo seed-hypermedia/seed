@@ -6,7 +6,7 @@ import type {Command} from 'commander'
 import {createCapability} from '@seed-hypermedia/client'
 import type {CapabilityRole} from '@seed-hypermedia/client'
 import {getClient} from '../index'
-import {printError, printSuccess, printInfo} from '../output'
+import {printError, printSuccess} from '../output'
 import {resolveKey} from '../utils/keyring'
 import {createSignerFromKey} from '../utils/signer'
 
@@ -58,10 +58,7 @@ Examples:
         )
         await client.publish(result)
 
-        printSuccess('Capability created')
-        if (!globalOpts.quiet) {
-          printInfo(`Delegated ${role} to ${options.delegate}`)
-        }
+        if (!globalOpts.quiet) printSuccess(`Capability created: delegated ${role} to ${options.delegate}`)
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)

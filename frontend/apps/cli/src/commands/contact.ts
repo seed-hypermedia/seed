@@ -4,8 +4,8 @@
 
 import type {Command} from 'commander'
 import {createContact, deleteContact, contactRecordIdFromBlob} from '@seed-hypermedia/client'
-import {getClient, getOutputFormat} from '../index'
-import {formatOutput, printError, printSuccess, printInfo} from '../output'
+import {getClient, getOutputFormat, isPretty} from '../index'
+import {formatOutput, printError, printSuccess} from '../output'
 import {resolveKey} from '../utils/keyring'
 import {createSignerFromKey} from '../utils/signer'
 
@@ -63,12 +63,7 @@ Examples:
         )
         await client.publish(contactResult)
 
-        printSuccess('Contact created')
-        if (globalOpts.quiet) {
-          console.log(contactResult.recordId)
-        } else {
-          printInfo(`Contact ID: ${contactResult.recordId}`)
-        }
+        if (!globalOpts.quiet) printSuccess(`Contact created: ${contactResult.recordId}`)
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)
@@ -94,10 +89,7 @@ Examples:
 
         await client.publish(await deleteContact({contactId}, signer))
 
-        printSuccess('Contact deleted')
-        if (!globalOpts.quiet) {
-          printInfo(`Deleted contact: ${contactId}`)
-        }
+        if (!globalOpts.quiet) printSuccess(`Contact deleted: ${contactId}`)
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)
@@ -108,12 +100,15 @@ Examples:
 
   contact
     .command('list [accountId]')
-    .description('List contacts for an account. Shows both directions by default, or filter with --account / --subject.')
+    .description(
+      'List contacts for an account. Shows both directions by default, or filter with --account / --subject.',
+    )
     .option('--account', 'Only show contacts signed by the account')
     .option('--subject', 'Only show contacts where the account is the subject')
     .action(async (accountId: string | undefined, options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       if (!accountId) {
         printError('Provide an account ID')
@@ -152,7 +147,7 @@ Examples:
             console.log(`${c.id}\t${c.name}\t${c.subject}`)
           })
         } else {
-          console.log(formatOutput(results, format))
+          console.log(formatOutput(results, format, pretty))
         }
       } catch (error) {
         printError((error as Error).message)

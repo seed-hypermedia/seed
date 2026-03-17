@@ -1,6 +1,6 @@
 {
   "name": "@seed-hypermedia/cli",
-  "version": "0.1.1",
+  "version": "0.0.1",
   "description": "Command-line interface for Seed Hypermedia",
   "type": "module",
   "bin": {
@@ -16,9 +16,10 @@
   ],
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target node && node -e \"const fs=require('fs'); const f='dist/index.js'; let c=fs.readFileSync(f,'utf8'); c=c.replace(/^#!.*\\n/,''); fs.writeFileSync(f, '#!/usr/bin/env node\\n' + c)\"",
+    "build": "bun build src/index.ts --outdir dist --target node --external canvas && node -e \"const fs=require('fs'); const f='dist/index.js'; let c=fs.readFileSync(f,'utf8'); c=c.replace(/^#!.*\\n/,''); fs.writeFileSync(f, '#!/usr/bin/env node\\n' + c)\"",
     "typecheck": "tsc --noEmit",
     "test": "bun test src/test/cli-fixture.test.ts",
+    "test:unit": "FORCE_COLOR=1 bun test src/output.test.ts src/config.test.ts src/utils/blocks-json.test.ts src/utils/block-diff.test.ts src/utils/key-derivation.test.ts src/utils/depth.test.ts",
     "test:daemon": "bun test src/test/cli.test.ts",
     "test:live": "bun test src/test/cli-live.test.ts",
     "prepublishOnly": "npm run build"
@@ -55,8 +56,11 @@
     "@noble/hashes": "^1.7.0",
     "@seed-hypermedia/client": "workspace:*",
     "bip39": "^3.1.0",
+    "pdfjs-dist": "^3.11.174",
     "chalk": "^5.3.0",
     "commander": "^12.1.0",
+    "marked": "^15.0.0",
+    "marked-terminal": "^7.2.0",
     "multiformats": "^13.3.1",
     "yaml": "^2.6.0"
   },

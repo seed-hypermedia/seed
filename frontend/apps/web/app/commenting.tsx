@@ -17,10 +17,8 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {useMutation} from '@tanstack/react-query'
-import {MemoryBlockstore} from 'blockstore-core/memory'
-import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
+import {filesToIpfsBlobs} from '@seed-hypermedia/client'
 import {SendHorizontal} from 'lucide-react'
-import type {CID} from 'multiformats'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useCommentDraftPersistence} from './comment-draft-utils'
 import {EmailNotificationsForm} from './email-notifications'
@@ -388,33 +386,8 @@ export default function WebCommenting({
   )
 }
 
-async function prepareAttachment(binary: Uint8Array, blockstore: MemoryBlockstore): Promise<CID> {
-  // const fileBlock = await encodeBlock(fileBinary, rawCodec)
-  const results = unixFSImporter([{content: binary}], blockstore)
-
-  const result = await results.next()
-  if (!result.value) {
-    throw new Error('Failed to prepare attachment')
-  }
-  return result.value.cid
-}
-
 async function prepareAttachments(binaries: Uint8Array[]) {
-  const blockstore = new MemoryBlockstore()
-  const resultCIDs: string[] = []
-  for (const binary of binaries) {
-    const cid = await prepareAttachment(binary, blockstore)
-    resultCIDs.push(cid.toString())
-  }
-  const allAttachmentBlobs = blockstore.getAll()
-  const blobs: {cid: string; data: Uint8Array}[] = []
-  for await (const blob of allAttachmentBlobs) {
-    blobs.push({
-      cid: blob.cid.toString(),
-      data: blob.block,
-    })
-  }
-  return {blobs, resultCIDs}
+  return filesToIpfsBlobs(binaries)
 }
 
 // UUID v4 with safe fallback for browsers without crypto.randomUUID (Safari < 15.4)

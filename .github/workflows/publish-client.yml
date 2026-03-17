@@ -1,18 +1,40 @@
-name: Publish @seed-hypermedia/client
+name: Publish npm packages
 
 on:
   push:
     branches: [main]
     paths:
-      - "frontend/packages/client/src/**"
+      - 'frontend/packages/client/src/**'
+      - 'frontend/apps/cli/src/**'
 
 permissions:
   contents: read
   id-token: write
 
 jobs:
-  publish:
+  detect-changes:
     runs-on: ubuntu-latest
+    outputs:
+      client: ${{ steps.filter.outputs.client }}
+      cli: ${{ steps.filter.outputs.cli }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            client:
+              - 'frontend/packages/client/src/**'
+            cli:
+              - 'frontend/apps/cli/src/**'
+
+  publish-client:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.client == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -71,3 +93,71 @@ jobs:
 
       - name: Publish
         run: pnpm --filter @seed-hypermedia/client publish --no-git-checks --provenance
+
+  publish-cli:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.cli == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm --filter @seed-hypermedia/cli build
+
+      - name: Determine version
+        id: version
+        run: |
+          PKG_NAME=$(node -p "require('./frontend/apps/cli/package.json').name")
+          PKG_VERSION=$(node -p "require('./frontend/apps/cli/package.json').version")
+
+          # Get the latest published version from npm (empty if never published)
+          NPM_VERSION=$(npm view "${PKG_NAME}" version 2>/dev/null || echo "")
+
+          if [ -z "$NPM_VERSION" ]; then
+            # Package never published -- use package.json version as-is
+            echo "First publish: ${PKG_VERSION}"
+            echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
+          else
+            # Compare: if package.json version is higher, use it (intentional bump)
+            HIGHER=$(node -e "
+              const [pMaj, pMin, pPat] = '${PKG_VERSION}'.split('.').map(Number);
+              const [nMaj, nMin, nPat] = '${NPM_VERSION}'.split('.').map(Number);
+              const gt = pMaj > nMaj || (pMaj === nMaj && (pMin > nMin || (pMin === nMin && pPat > nPat)));
+              console.log(gt ? '${PKG_VERSION}' : '');
+            ")
+
+            if [ -n "$HIGHER" ]; then
+              echo "Intentional bump to ${PKG_VERSION} (npm has ${NPM_VERSION})"
+              echo "version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
+            else
+              # Auto-increment patch from the npm version
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$NPM_VERSION"
+              PATCH=$((PATCH + 1))
+              NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+              echo "Auto-patching: ${NPM_VERSION} -> ${NEW_VERSION}"
+              cd frontend/apps/cli
+              npm version "$NEW_VERSION" --no-git-tag-version
+              echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Publish
+        run: pnpm --filter @seed-hypermedia/cli publish --no-git-checks --provenance

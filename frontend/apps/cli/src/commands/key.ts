@@ -16,7 +16,7 @@ import {
   renameKey as keyringRenameKey,
 } from '../utils/keyring'
 import {setConfigValue} from '../config'
-import {getOutputFormat} from '../index'
+import {getOutputFormat, isPretty} from '../index'
 
 export function registerKeyCommands(program: Command) {
   const key = program.command('key').alias('keys').description('Manage signing keys')
@@ -53,11 +53,12 @@ export function registerKeyCommands(program: Command) {
           console.log()
         }
 
-        printSuccess(`Key "${options.name}" created`)
-        printInfo(`Account ID: ${stored.accountId}`)
-
-        if (!options.showMnemonic) {
-          printInfo('Use --show-mnemonic to display the recovery phrase')
+        if (!globalOpts.quiet) {
+          printSuccess(`Key "${options.name}" created`)
+          printInfo(`Account ID: ${stored.accountId}`)
+          if (!options.showMnemonic) {
+            printInfo('Use --show-mnemonic to display the recovery phrase')
+          }
         }
       } catch (error) {
         printError((error as Error).message)
@@ -84,8 +85,10 @@ export function registerKeyCommands(program: Command) {
 
         const stored = keyringStoreKey(options.name, keyPair.privateKey, dev)
 
-        printSuccess(`Key "${options.name}" imported`)
-        printInfo(`Account ID: ${stored.accountId}`)
+        if (!globalOpts.quiet) {
+          printSuccess(`Key "${options.name}" imported`)
+          printInfo(`Account ID: ${stored.accountId}`)
+        }
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)
@@ -99,6 +102,7 @@ export function registerKeyCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const dev = !!globalOpts.dev
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const keys = keyringListKeys(dev)
@@ -111,7 +115,7 @@ export function registerKeyCommands(program: Command) {
         if (globalOpts.quiet) {
           keys.forEach((k) => console.log(`${k.name}\t${k.accountId}`))
         } else {
-          console.log(formatOutput(keys, format))
+          console.log(formatOutput(keys, format, pretty))
         }
       } catch (error) {
         printError((error as Error).message)
@@ -126,6 +130,7 @@ export function registerKeyCommands(program: Command) {
       const globalOpts = cmd.optsWithGlobals()
       const dev = !!globalOpts.dev
       const format = getOutputFormat(globalOpts)
+      const pretty = isPretty(globalOpts)
 
       try {
         const stored = nameOrId ? keyringGetKey(nameOrId, dev) : keyringGetDefaultKey(dev)
@@ -135,7 +140,7 @@ export function registerKeyCommands(program: Command) {
           process.exit(1)
         }
 
-        console.log(formatOutput({name: stored.name, accountId: stored.accountId}, format))
+        console.log(formatOutput({name: stored.name, accountId: stored.accountId}, format, pretty))
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)
@@ -166,7 +171,7 @@ export function registerKeyCommands(program: Command) {
 
         const removed = keyringRemoveKey(nameOrId, dev)
         if (removed) {
-          printSuccess(`Key "${stored.name}" removed`)
+          if (!globalOpts.quiet) printSuccess(`Key "${stored.name}" removed`)
         } else {
           printError(`Failed to remove key "${nameOrId}"`)
           process.exit(1)
@@ -186,7 +191,7 @@ export function registerKeyCommands(program: Command) {
 
       try {
         keyringRenameKey(currentName, newName, dev)
-        printSuccess(`Key "${currentName}" renamed to "${newName}"`)
+        if (!globalOpts.quiet) printSuccess(`Key "${currentName}" renamed to "${newName}"`)
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)
@@ -218,7 +223,7 @@ export function registerKeyCommands(program: Command) {
         }
 
         setConfigValue('defaultAccount', stored.accountId)
-        printSuccess(`Default key set to "${stored.name}"`)
+        if (!globalOpts.quiet) printSuccess(`Default key set to "${stored.name}"`)
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)
