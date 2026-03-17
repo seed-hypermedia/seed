@@ -1,0 +1,770 @@
+.TH "SEED\-CLI" "1" "February 2026" "0.1.1" "Seed Hypermedia"
+.SH "NAME"
+\fBseed-cli\fR \- interact with the Seed Hypermedia network
+.SH SYNOPSIS
+.P
+\fBseed\-cli\fP [global\-options] <command> [command\-options]
+.P
+\fBseed\-cli\fP document get <id> [\-\-md] [\-\-resolve] \fBseed\-cli\fP document create <account> \-\-body\-file <file> \-\-key <key>
+.br
+\fBseed\-cli\fP document update <id> \-\-replace\-body <file> \-\-key <key> \fBseed\-cli\fP comment create <target> \-\-body <text> \-\-key
+.br
+<key>\fBseed\-cli\fP account list \fBseed\-cli\fP key generate \-\-name <name> \-\-show\-mnemonic
+.SH DESCRIPTION
+.P
+\fBseed\-cli\fP is a command\-line interface for interacting with the Seed Hypermedia network\. It queries documents, manages
+.br
+accounts, searches content, creates and updates documents, posts comments, and manages cryptographic signing keys\.
+.P
+Seed servers are open\-source, self\-hostable nodes on a peer\-to\-peer hypermedia network\. Every piece of content is
+.br
+identified by a Hypermedia ID (\fBhm://\fP), signed with Ed25519 keys, and stored as content\-addressed CBOR blobs\. The CLI
+.br
+communicates with any Seed server over its HTTP API\.
+.P
+Source code: https://github.com/seed-hypermedia/seed Website: https://seed.hyper.media
+.SH GLOBAL OPTIONS
+
+.RS 1
+.IP \(bu 2
+\fB\-s\fP, \fB\-\-server\fP <url>: Server URL\. Default: \fBhttps://hyper\.media\fP\|\. Override per session with the \fBSEED_SERVER\fP
+.br
+environment variable\.
+.IP \(bu 2
+\fB\-\-json\fP: JSON output (default)\.
+.IP \(bu 2
+\fB\-\-yaml\fP: YAML output\.
+.IP \(bu 2
+\fB\-\-pretty\fP: Pretty\-printed JSON output\.
+.IP \(bu 2
+\fB\-q\fP, \fB\-\-quiet\fP: Minimal output\. Typically prints one value per line, tab\-separated\. Useful for scripting\.
+.IP \(bu 2
+\fB\-\-dev\fP: Use the development keyring (\fBseed\-daemon\-dev\fP) instead of the production keyring (\fBseed\-daemon\-main\fP)\. Keys
+.br
+are shared with the local Seed desktop daemon\.
+.IP \(bu 2
+\fB\-V\fP, \fB\-\-version\fP: Print version number and exit\.
+.IP \(bu 2
+\fB\-h\fP, \fB\-\-help\fP: Print help text and exit\.
+
+.RE
+.SH HYPERMEDIA ID FORMAT
+.P
+Seed uses Hypermedia IDs to reference all content:
+.RS 2
+.nf
+hm://<account>[/<path>][?v=<version>][#<block\-ref>]
+.fi
+.RE
+
+.RS 1
+.IP \(bu 2
+\fB<account>\fP: A base58btc\-encoded Ed25519 public key, starting with \fBz6Mk\fP\|\. Identifies the owner/space\.
+.IP \(bu 2
+\fB<path>\fP: Optional slash\-separated path segments\. Documents form a tree under each account: \fB/\fP is the home document,
+.br
+\fB/projects\fP is a child, \fB/projects/alpha\fP is a grandchild\.
+.IP \(bu 2
+\fB?v=<version>\fP: Optional version CID (\fBbafy2bz\.\.\.\fP)\. Pins the reference to a specific document version\.
+.IP \(bu 2
+\fB#<block\-ref>\fP: Optional block ID\. References a specific block within the document\. Used for block\-level comments and
+.br
+citations\.
+
+.RE
+.P
+Examples:
+.RS 2
+.nf
+hm://z6MkrbYs\.\.\.
+hm://z6MkrbYs\.\.\./projects/alpha
+hm://z6MkrbYs\.\.\./projects/alpha?v=bafy2bzace\.\.\.
+hm://z6MkrbYs\.\.\./projects/alpha#Urol\-mKf
+.fi
+.RE
+.SH COMMANDS
+.SS Document Operations
+.SS document get <id>
+.P
+Fetch a document by Hypermedia ID and display its content\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-m\fP, \fB\-\-metadata\fP: Fetch metadata only (title, summary, icon)\. Faster than full fetch\.
+.IP \(bu 2
+\fB\-\-md\fP: Output as GitHub\-flavored Markdown\. Headings, bold, italic, code, links, images, embeds, and queries are all
+.br
+converted\.
+.IP \(bu 2
+\fB\-\-frontmatter\fP: Include YAML frontmatter with document metadata (use with \fB\-\-md\fP)\.
+.IP \(bu 2
+\fB\-r\fP, \fB\-\-resolve\fP: Resolve embedded documents and queries inline (use with \fB\-\-md\fP)\.
+.IP \(bu 2
+\fB\-q\fP, \fB\-\-quiet\fP: Print only the document title (or ID if untitled)\.
+
+.RE
+.P
+Examples:
+.RS 2
+.nf
+seed\-cli document get "hm://z6Mk\.\.\./blog/post" \-\-md
+seed\-cli document get "hm://z6Mk\.\.\." \-\-md \-\-resolve \-\-frontmatter
+seed\-cli document get "hm://z6Mk\.\.\.?v=bafy\.\.\." \-\-json
+.fi
+.RE
+.SS document create <account>
+.P
+Create a new document from Markdown content\. This is the "genesis trick": the CLI creates three signed CBOR blobs in
+.br
+sequence:
+
+.RS 1
+.IP \(bu 2
+\fBGenesis change\fR \-\- the document's immutable identity anchor\. Its CID is computed from the signed blob (which
+.br
+includes the signer's public key), cryptographically binding the document identity to the creating key\.
+.IP \(bu 2
+\fBDocument change\fR \-\- contains the actual content operations (SetAttributes for title, ReplaceBlock + MoveBlocks for
+.br
+each content block), referencing genesis as both parent and dependency\.
+.IP \(bu 2
+\fBRef\fR \-\- a version pointer linking the genesis to a path under the target account space\.
+
+.RE
+.P
+The server stores the genesis first, then the change and ref that reference it\. After creation the document is
+.br
+immediately accessible at \fBhm://<account>/<path>\fP\|\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-p\fP, \fB\-\-path\fP <path>: Document path (e\.g\. \fBmy\-document\fP)\. Auto\-generated from title if omitted\.
+.IP \(bu 2
+\fB\-\-title\fP <title>: Document title\. Overrides H1 extracted from Markdown\.
+.IP \(bu 2
+\fB\-\-body\fP <text>: Inline Markdown content\.
+.IP \(bu 2
+\fB\-\-body\-file\fP <file>: Read Markdown content from a file\.
+.IP \(bu 2
+\fB\-k\fP, \fB\-\-key\fP <name>: Signing key name or account ID\.
+
+.RE
+.P
+Examples:
+.RS 2
+.nf
+seed\-cli document create z6MkAccount \\
+  \-\-path /blog/first\-post \\
+  \-\-body\-file post\.md \\
+  \-\-key mykey
+
+seed\-cli document create z6MkAccount \\
+  \-\-title "Quick Note" \\
+  \-\-body "Hello **world**" \\
+  \-\-key mykey
+.fi
+.RE
+.SS document update <id>
+.P
+Update an existing document's metadata, append content, replace content, or delete blocks\.
+.P
+The command fetches the current document state, computes the DAG depth from the change history, creates a new signed
+.br
+Change + Ref pair referencing the current heads as dependencies, and submits them to the server\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-\-title\fP <title>: Set document title\.
+.IP \(bu 2
+\fB\-\-summary\fP <summary>: Set document summary\.
+.IP \(bu 2
+\fB\-\-body\fP <text>: Markdown content to \fBappend\fR (inline)\.
+.IP \(bu 2
+\fB\-\-body\-file\fP <file>: Markdown content to \fBappend\fR from file\.
+.IP \(bu 2
+\fB\-\-replace\-body\fP <file>: Replace all document content with the Markdown in <file>\|\. Uses positional block matching to
+.br
+preserve block IDs where the block type at each position is unchanged\. This keeps block\-level comments and citations
+.br
+attached to their blocks when you edit content in place\. Cannot be combined with \fB\-\-body\fP, \fB\-\-body\-file\fP, or
+.br
+\fB\-\-delete\-blocks\fP\|\.
+.IP \(bu 2
+\fB\-\-parent\fP <blockId>: Parent block ID for appended content (default: document root)\.
+.IP \(bu 2
+\fB\-\-delete\-blocks\fP <ids>: Comma\-separated block IDs to delete\.
+.IP \(bu 2
+\fB\-k\fP, \fB\-\-key\fP <name>: Signing key name or account ID\.
+
+.RE
+.P
+Examples:
+.RS 2
+.nf
+# Update title and summary
+seed\-cli document update "hm://z6Mk\.\.\./path" \\
+  \-\-title "New Title" \-\-summary "Updated" \-\-key mykey
+
+# Append a new section
+seed\-cli document update "hm://z6Mk\.\.\./path" \\
+  \-\-body\-file new\-section\.md \-\-key mykey
+
+# Full content replacement (preserves block IDs)
+seed\-cli document update "hm://z6Mk\.\.\./path" \\
+  \-\-replace\-body updated\-content\.md \-\-key mykey
+
+# Delete specific blocks
+seed\-cli document update "hm://z6Mk\.\.\./path" \\
+  \-\-delete\-blocks "blockId1,blockId2" \-\-key mykey
+.fi
+.RE
+.SS document changes <targetId>
+.P
+List the change history (version DAG) of a document\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-q\fP, \fB\-\-quiet\fP: Output \fBCID<tab>author\fP per line\.
+
+.RE
+.SS document stats <id>
+.P
+Get interaction statistics: citation count, comment count, change count, child document count, and per\-block
+.br
+citation/comment counts\.
+.SS document cid <cid>
+.P
+Fetch and decode a raw IPFS block by its CID\.
+.SS Comment Operations
+.SS comment create <targetId>
+.P
+Create a comment on a document\. Comments are signed CBOR blobs posted to the target document's server\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-\-body\fP <text>: Comment text (inline)\. Supports inline mentions with the syntax \fB@[DisplayName](hm://accountId)\fP\|\.
+.IP \(bu 2
+\fB\-\-file\fP <path>: Read comment text from a file\.
+.IP \(bu 2
+\fB\-\-reply\fP <commentId>: Reply to an existing comment, creating a thread\.
+.IP \(bu 2
+\fB\-k\fP, \fB\-\-key\fP <name>: Signing key name or account ID\.
+
+.RE
+.P
+\fBBlock\-level comments\.\fR To anchor a comment to a specific block, include the block ID as a URL fragment in the target
+.br
+ID:
+.RS 2
+.nf
+seed\-cli comment create \\
+  "hm://z6Mk\.\.\./path?v=bafy\.\.\.#blockId" \\
+  \-\-body "Comment on this block" \-\-key mykey
+.fi
+.RE
+.P
+The CLI wraps the comment body in an Embed block whose \fBlink\fP field contains the full HM URL with the \fB#blockId\fP
+.br
+fragment\. This matches the behavior of the Seed desktop and web apps\.
+.P
+\fBInline mentions\.\fR Reference accounts in comment text using \fB@[DisplayName](hm://accountId)\fP:
+.RS 2
+.nf
+seed\-cli comment create "hm://z6Mk\.\.\./path" \\
+  \-\-body "@[Julio](hm://z6MkJulio\.\.\.) check this out" \\
+  \-\-key mykey
+.fi
+.RE
+.P
+The display name is stripped during encoding; the account link is stored as an Embed annotation at the U+FFFC position
+.br
+in the text\. The mentioned account appears as a clickable link in the Seed desktop and web apps\.
+.SS comment get <id>
+.P
+Fetch a single comment by its ID\.
+.SS comment list <targetId>
+.P
+List all comments on a document\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-q\fP, \fB\-\-quiet\fP: Output \fBcommentId<tab>authorName\fP per line\.
+
+.RE
+.SS comment discussions <targetId>
+.P
+List threaded discussions on a document\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-c\fP, \fB\-\-comment\fP <id>: Filter to a specific thread\.
+.IP \(bu 2
+\fB\-q\fP, \fB\-\-quiet\fP: Minimal output\.
+
+.RE
+.SS Account Operations
+.SS account get <uid>
+.P
+Get account information (name, icon, site URL)\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-q\fP, \fB\-\-quiet\fP: Print only the account name (or ID if unnamed)\.
+
+.RE
+.SS account list
+.P
+List all accounts known to the server\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-q\fP, \fB\-\-quiet\fP: Output \fBhmId<tab>name\fP per line\.
+
+.RE
+.SS account contacts <uid>
+.P
+List contacts for an account\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-q\fP, \fB\-\-quiet\fP: Print names only\.
+
+.RE
+.SS account capabilities <id>
+.P
+List access control capabilities for a document or account\. Output includes capability ID, issuer, delegate, role, path,
+.br
+and recursion flag\.
+.SS Search and Query
+.SS search <query>
+.P
+Full\-text search across documents on the server\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-a\fP, \fB\-\-account\fP <uid>: Limit search to a specific account\.
+.IP \(bu 2
+\fB\-q\fP, \fB\-\-quiet\fP: Output \fBid<tab>title\fP per line\.
+
+.RE
+.SS query <space>
+.P
+List documents in a space (account) with filtering and sorting\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-p\fP, \fB\-\-path\fP <path>: Path prefix to filter\.
+.IP \(bu 2
+\fB\-m\fP, \fB\-\-mode\fP <mode>: \fBChildren\fP (default) or \fBAllDescendants\fP\|\.
+.IP \(bu 2
+\fB\-l\fP, \fB\-\-limit\fP <n>: Maximum results\.
+.IP \(bu 2
+\fB\-\-sort\fP <term>: Sort by: \fBPath\fP, \fBTitle\fP, \fBCreateTime\fP, \fBUpdateTime\fP, \fBDisplayTime\fP\|\.
+.IP \(bu 2
+\fB\-\-reverse\fP: Reverse sort order\.
+.IP \(bu 2
+\fB\-q\fP, \fB\-\-quiet\fP: Output \fBid<tab>name\fP per line\.
+
+.RE
+.SS children <space>
+.P
+Shorthand for \fBquery \-\-mode Children\fP\|\.
+.SS citations <id>
+.P
+List documents that cite (link to) a given resource\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-q\fP, \fB\-\-quiet\fP: Output source IDs only\.
+
+.RE
+.SS Activity
+.SS activity
+.P
+List recent activity events\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-l\fP, \fB\-\-limit\fP <n>: Page size\.
+.IP \(bu 2
+\fB\-t\fP, \fB\-\-token\fP <token>: Pagination token (from previous response)\.
+.IP \(bu 2
+\fB\-\-authors\fP <uids>: Filter by author UIDs (comma\-separated)\.
+.IP \(bu 2
+\fB\-\-resource\fP <id>: Filter by resource HM ID\.
+.IP \(bu 2
+\fB\-q\fP, \fB\-\-quiet\fP: Summary output only\.
+
+.RE
+.SS Key Management
+.P
+Keys are stored in the OS keyring, shared with the Seed desktop daemon\. Production keys use the \fBseed\-daemon\-main\fP
+.br
+keyring; development keys (\fB\-\-dev\fP) use \fBseed\-daemon\-dev\fP\|\.
+.SS key generate
+.P
+Generate a new signing key from a BIP\-39 mnemonic\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-n\fP, \fB\-\-name\fP <name>: Key name (default: \fBdefault\fP)\.
+.IP \(bu 2
+\fB\-w\fP, \fB\-\-words\fP <count>: Mnemonic word count: \fB12\fP or \fB24\fP (default: \fB12\fP)\.
+.IP \(bu 2
+\fB\-\-passphrase\fP <pass>: Optional BIP\-39 passphrase for key derivation\.
+.IP \(bu 2
+\fB\-\-show\-mnemonic\fP: Display the generated mnemonic\. \fBSave it securely\.\fR
+
+.RE
+.SS key import <mnemonic>
+.P
+Import an existing key from a BIP\-39 mnemonic phrase\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-n\fP, \fB\-\-name\fP <name>: Key name (default: \fBimported\fP)\.
+.IP \(bu 2
+\fB\-\-passphrase\fP <pass>: Optional BIP\-39 passphrase\.
+
+.RE
+.SS key list
+.P
+List all stored signing keys (name and account ID)\.
+.SS key show [nameOrId]
+.P
+Show details for a specific key, or the default key if none given\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-\-show\-mnemonic\fP: Also display the mnemonic\. \fBHandle with care\.\fR
+
+.RE
+.SS key default [nameOrId]
+.P
+Set or show the default signing key\.
+.SS key remove <nameOrId>
+.P
+Remove a stored key\. Requires \fB\-\-force\fP to confirm\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-f\fP, \fB\-\-force\fP: Skip confirmation prompt\.
+
+.RE
+.SS key derive <mnemonic>
+.P
+Derive and display the account ID from a mnemonic without storing the key\. Useful for verifying a mnemonic matches an
+.br
+expected account\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-\-passphrase\fP <pass>: Optional BIP\-39 passphrase\.
+
+.RE
+.SS key rename <nameOrId> <newName>
+.P
+Rename an existing key\.
+.SS Configuration
+.SS config
+.P
+Manage CLI configuration stored in \fB~/\.seed/config\.json\fP\|\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-\-server\fP <url>: Set default server URL\.
+.IP \(bu 2
+\fB\-\-show\fP: Print current configuration\.
+
+.RE
+.SH WORKFLOWS
+.SS Publishing a Markdown File as a New Document
+.RS 2
+.nf
+seed\-cli document create z6MkAccountUID \\
+  \-\-path /blog/my\-post \\
+  \-\-body\-file post\.md \\
+  \-\-key mykey
+.fi
+.RE
+.P
+The first H1 heading in the Markdown becomes the document title (override with \fB\-\-title\fP)\. The path is auto\-generated
+.br
+from the title if \fB\-\-path\fP is omitted\.
+.SS Replacing Document Content
+.P
+To update all content in an existing document while preserving block IDs (so that block\-level comments and citations
+.br
+remain attached):
+.RS 2
+.nf
+seed\-cli document update "hm://z6Mk\.\.\./path" \\
+  \-\-replace\-body updated\.md \-\-key mykey
+.fi
+.RE
+.P
+The CLI matches new blocks to existing blocks by position and type\. Blocks at the same position with the same type reuse
+.br
+their existing ID and only emit a \fBReplaceBlock\fP if content changed\. New blocks get fresh IDs\. Blocks removed from the
+.br
+document are deleted\.
+.SS Hierarchical Documents
+.P
+Documents form trees under an account\. The path determines hierarchy:
+.RS 2
+.nf
+/                   home document
+/projects           child of home
+/projects/alpha     grandchild
+.fi
+.RE
+.P
+Create children by specifying deeper paths:
+.RS 2
+.nf
+seed\-cli document create z6Mk\.\.\. \\
+  \-\-path /projects/alpha \\
+  \-\-body\-file alpha\.md \-\-key mykey
+.fi
+.RE
+.P
+List children of a document:
+.RS 2
+.nf
+seed\-cli query z6Mk\.\.\. \-\-path projects \-\-mode Children \-q
+.fi
+.RE
+.P
+List all descendants recursively:
+.RS 2
+.nf
+seed\-cli query z6Mk\.\.\. \-\-mode AllDescendants \-q
+.fi
+.RE
+.SS Block\-Level Comments
+
+.RS 1
+.IP \(bu 2
+Find the target block ID\. Fetch the document as JSON and inspect the \fBcontent[]\.block\.id\fP fields:
+.RS 2
+.nf
+seed\-cli document get "hm://z6Mk\.\.\./path" \-\-json
+.fi
+.RE
+.IP \(bu 2
+Post the comment with the block ID as a URL fragment:
+.P
+seed\-cli comment create 
+.br
+"hm://z6Mk\.\.\./path?v=bafy\.\.\.#blockId" 
+.br
+\-\-body "My comment on this block" \-\-key mykey
+.IP \(bu 2
+Verify:
+.P
+seed\-cli comment list "hm://z6Mk\.\.\./path" \-\-json
+
+.RE
+.SS Finding an Account by Name
+.RS 2
+.nf
+seed\-cli account list \-s https://server\.com \-q | grep \-i horacio
+.fi
+.RE
+.P
+Or with JSON for exact matching:
+.RS 2
+.nf
+seed\-cli account list \-s https://server\.com \-\-json | \\
+  jq '\.accounts[] | select(\.metadata\.name == "horacio") | \.id\.uid'
+.fi
+.RE
+.SS Commenting with Mentions
+.P
+Reference another account in a comment:
+.RS 2
+.nf
+seed\-cli comment create "hm://z6Mk\.\.\./path" \\
+  \-\-body "@[horacio](hm://z6MkHoracio\.\.\.) what do you think?" \\
+  \-\-key mykey
+.fi
+.RE
+.P
+The mention renders as a clickable account link in the Seed UI\.
+.SS Replying to a Comment
+.RS 2
+.nf
+seed\-cli comment create "hm://z6Mk\.\.\./path" \\
+  \-\-body "I agree" \\
+  \-\-reply "z6MkAuthor\.\.\./z6FNCommentTsid" \\
+  \-\-key mykey
+.fi
+.RE
+.SS Exporting Documents as Markdown
+.RS 2
+.nf
+seed\-cli query z6MkAccount \-\-mode AllDescendants \-q | \\
+  while IFS=$'\\t' read \-r id name; do
+    filename=$(echo "$name" | tr ' /' '_')
+    seed\-cli document get "$id" \-\-md > "${filename}\.md"
+  done
+.fi
+.RE
+.SS Using a Different Server
+.RS 2
+.nf
+# Per command
+seed\-cli document get "hm://z6Mk\.\.\." \-s https://myserver\.com
+
+# Set as default
+seed\-cli config \-\-server https://myserver\.com
+.fi
+.RE
+.SS CI/Automation with a Bot Key
+.P
+Import a key from a mnemonic stored in an environment variable:
+.RS 2
+.nf
+seed\-cli key import \-n bot "$BOT_MNEMONIC"
+BOT_ID=$(seed\-cli key show bot \-q)
+seed\-cli document update "hm://\.\.\." \\
+  \-\-replace\-body content\.md \-\-key "$BOT_ID"
+.fi
+.RE
+.SH ENVIRONMENT
+
+.RS 1
+.IP \(bu 2
+\fBSEED_SERVER\fP: Default server URL\. Overrides the built\-in default (\fBhttps://hyper\.media\fP) and the config file value\.
+.br
+The \fB\-\-server\fP flag takes precedence over this variable\.
+
+.RE
+.SH FILES
+
+.RS 1
+.IP \(bu 2
+\fB~/\.seed/config\.json\fP: CLI configuration (server URL, default account)\.
+.IP \(bu 2
+\fB~/\.seed/keys\.json\fP: Stored signing keys (mnemonics and derived account IDs)\. Created with mode \fB0600\fP (owner
+.br
+read/write only)\.
+
+.RE
+.SH KEYRINGS
+.P
+The CLI stores keys in OS keyrings shared with the Seed desktop daemon:
+
+.RS 1
+.IP \(bu 2
+Production: \fBseed\-daemon\-main\fP (default)
+.IP \(bu 2
+Development: \fBseed\-daemon\-dev\fP (with \fB\-\-dev\fP flag)
+
+.RE
+.P
+Keys generated or imported in the CLI are immediately available to the desktop app and vice versa\.
+.SH VERIFICATION
+.P
+Always verify writes by reading back:
+.RS 2
+.nf
+seed\-cli document get "hm://z6Mk\.\.\./path" \-\-md
+seed\-cli comment list "hm://z6Mk\.\.\./path" \-\-json
+.fi
+.RE
+.P
+For automated pipelines, check exit codes: 0 = success, 1 = error\.
+.SH TROUBLESHOOTING
+
+.RS 1
+.IP \(bu 2
+\fB"No signing keys found"\fR: No keys in the keyring\. Run \fBseed\-cli key generate\fP or \fBseed\-cli key import\fP\|\.
+.IP \(bu 2
+\fB"Key not found: xyz"\fR: The specified key name or account ID doesn't exist\. Check \fBseed\-cli key list\fP\|\.
+.IP \(bu 2
+\fB"API error (403)"\fR: The signing key lacks write permission on the target document\. The key must be the document
+.br
+owner or have a delegated capability (Writer or Editor role)\.
+.IP \(bu 2
+\fB"No changes found for document"\fR: The Hypermedia ID doesn't match any known document on the server\. Verify the
+.br
+account ID, path, and server URL\.
+.IP \(bu 2
+\fB"Target is not\-found, expected a document"\fR: The document doesn't exist at the given HM ID\. Check path spelling and
+.br
+whether the document has been published\.
+.IP \(bu 2
+\fB"API error (500)"\fR: Server\-side error\. Verify the server URL is correct and the server is running\. Try again; if
+.br
+persistent, check server logs\.
+.IP \(bu 2
+\fBBlock IDs lost after update\fR: If you used \fB\-\-delete\-blocks\fP followed by \fB\-\-body\-file\fP, all blocks get new IDs\. Use
+.br
+\fB\-\-replace\-body\fP instead to preserve block IDs through positional matching\.
+
+.RE
+.SH EXIT CODES
+
+.RS 1
+.IP \(bu 2
+\fB0\fP: Success\.
+.IP \(bu 2
+\fB1\fP: Error (invalid input, network error, not found, permission denied)\.
+
+.RE
+.SH SEE ALSO
+
+.RS 1
+.IP \(bu 2
+Seed CLI web docs: https://seed.hyper.media/resources/cli
+.IP \(bu 2
+Seed Hypermedia repository: https://github.com/seed-hypermedia/seed
+.IP \(bu 2
+Seed desktop app: https://download.seed.hyper.media
+
+.RE
+.SH AUTHORS
+.P
+Seed Hypermedia team\. MIT License\.
+

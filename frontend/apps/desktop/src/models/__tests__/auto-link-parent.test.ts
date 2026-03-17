@@ -1,7 +1,7 @@
 import {HMBlockNode, HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
 import {describe, expect, it} from 'vitest'
-import {documentContainsLinkToChild, documentHasSelfQuery} from '../auto-link-utils'
+import {documentContainsLinkToChild, documentHasSelfQuery} from '@seed-hypermedia/client'
 
 // Helper to create a minimal HMDocument for testing
 function createDocument(content: HMBlockNode[]): HMDocument {

@@ -216,7 +216,7 @@ export async function startDaemonWithFixture(config: TestConfig = {}): Promise<T
  */
 export async function runCli(
   args: string[],
-  options: {server?: string; env?: Record<string, string>} = {},
+  options: {server?: string; env?: Record<string, string>; cwd?: string} = {},
 ): Promise<{stdout: string; stderr: string; exitCode: number}> {
   return new Promise((resolve) => {
     // Find CLI directory
@@ -229,7 +229,7 @@ export async function runCli(
     const serverArgs = options.server ? ['--server', options.server] : []
 
     const proc = spawn('bun', ['run', cliPath, ...serverArgs, ...args], {
-      cwd: cliDir,
+      cwd: options.cwd || cliDir,
       env: {...process.env, ...options.env},
       stdio: ['ignore', 'pipe', 'pipe'],
     })

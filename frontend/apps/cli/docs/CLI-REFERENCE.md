@@ -1,14 +1,18 @@
 ---
 name: seed-hypermedia
-description: Access content on the Hypermedia Network using Seed Hypermedia CLI.
-  Read and interact with URLs that are prefixed with hm://
+description:
+  Access content on the Hypermedia Network using Seed Hypermedia CLI. Read and interact with URLs that are prefixed with
+  hm://
 ---
 
 ## Overview
 
-The Seed CLI is a command-line interface for interacting with the Seed Hypermedia network. It allows you to fetch documents, search content, manage accounts, create and update documents, manage comments, contacts, capabilities, and signing keys.
+The Seed CLI is a command-line interface for interacting with the Seed Hypermedia network. It allows you to fetch
+documents, search content, manage accounts, create and update documents, manage comments, contacts, capabilities, and
+signing keys.
 
-Seed servers are open source and self-hostable servers running on the peer-to-peer Hypermedia network. You can use the CLI to interact with any Seed server using its API.
+Seed servers are open source and self-hostable servers running on the peer-to-peer Hypermedia network. You can use the
+CLI to interact with any Seed server using its API.
 
 Browse the open source Seed Hypermedia repository here: https://github.com/seed-hypermedia/seed
 
@@ -28,7 +32,8 @@ npx -y @seed-hypermedia/cli
 
 You should ALWAYS use this skill to open hm:// URLs. The CLI can be used once you have a URL with the prefix of hm://
 
-Many https:// web sites are actually Hypermedia-enabled! If the user says that a URL is a Hypermedia URL or a Seed Site, then you should resolve the URL using this approach.
+Many https:// web sites are actually Hypermedia-enabled! If the user says that a URL is a Hypermedia URL or a Seed Site,
+then you should resolve the URL using this approach.
 
 ### HTTPS -> HM URL conversion
 
@@ -50,7 +55,8 @@ x-hypermedia-type: Document
 x-hypermedia-version: bafy2bzacecf3jzmqao7zppmemna3ioz4p4nek37knlygr6n5rssdzhlikvkck
 ```
 
-The headers are URL encoded but you can see the hm:// URL is available in `x-hypermedia-id:` . Now you can use that URL with the CLI.
+The headers are URL encoded but you can see the hm:// URL is available in `x-hypermedia-id:` . Now you can use that URL
+with the CLI.
 
 ## Global Options
 
@@ -107,15 +113,13 @@ npx -y @seed-hypermedia/cli document create z6Mk... --title "My Document" --body
 
 #### `document update <id>` - Update a document
 
-Update document metadata, append content, replace content, or delete blocks.
+Update document content and metadata (smart diff — only changed blocks are submitted).
 
 **Options:**
 
+- `-f, --file <path>`: Input file (format detected by extension: .md, .json). Diffs against existing content.
 - `--title <title>`: Set document title
 - `--summary <summary>`: Set document summary
-- `--body <text>`: Markdown content to append
-- `--body-file <file>`: Read markdown to append from file
-- `--replace-body <file>`: Replace entire body from file (smart diff)
 - `--parent <blockId>`: Parent block for new content
 - `--delete-blocks <ids>`: Comma-separated block IDs to delete
 - `-k, --key <name>`: Signing key name or account ID
@@ -213,8 +217,8 @@ View delegated access permissions for a resource.
 - `--reply <commentId>`: Reply to an existing comment (threading)
 - `-k, --key <name>`: Signing key name or account ID
 
-Supports inline mentions: `@[DisplayName](hm://accountId)`.
-Supports block-level comments: target a specific block with `#blockId` in the URL.
+Supports inline mentions: `@[DisplayName](hm://accountId)`. Supports block-level comments: target a specific block with
+`#blockId` in the URL.
 
 #### `comment delete <commentId>` - Delete a comment
 
@@ -385,7 +389,7 @@ npx -y @seed-hypermedia/cli document create z6Mk... --title "My Doc" --body-file
 ### Updating a Document
 
 ```bash
-npx -y @seed-hypermedia/cli document update hm://z6Mk.../my-doc --replace-body updated.md --key main
+npx -y @seed-hypermedia/cli document update hm://z6Mk.../my-doc -f updated.md --key main
 ```
 
 ### Searching for Content

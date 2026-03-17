@@ -1081,8 +1081,8 @@ export function usePushResource() {
 // Auto-link child to parent on first publish
 // ============================================================================
 
-// Re-export utility functions from auto-link-utils.ts for easier testing
-export {documentContainsLinkToChild, documentHasSelfQuery} from './auto-link-utils'
+// Re-export utility functions from client SDK for easier testing
+export {documentContainsLinkToChild, documentHasSelfQuery} from '@seed-hypermedia/client'
 
 /**
  * Add an embed link to a parent draft file

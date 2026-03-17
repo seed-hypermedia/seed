@@ -52,28 +52,22 @@ function readKeyringRaw(serviceName: string): string | null {
 
   try {
     if (os === 'linux') {
-      const result = execSync(
-        `secret-tool lookup service ${esc(serviceName)} username ${esc(
-          KEYRING_ACCOUNT,
-        )}`,
-        {encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe']},
-      )
+      const result = execSync(`secret-tool lookup service ${esc(serviceName)} username ${esc(KEYRING_ACCOUNT)}`, {
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      })
       return result.trim()
     }
 
     if (os === 'darwin') {
-      const result = execSync(
-        `security find-generic-password -s ${esc(serviceName)} -a ${esc(
-          KEYRING_ACCOUNT,
-        )} -w`,
-        {encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe']},
-      )
+      const result = execSync(`security find-generic-password -s ${esc(serviceName)} -a ${esc(KEYRING_ACCOUNT)} -w`, {
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      })
       return result.trim()
     }
 
-    throw new Error(
-      `Unsupported platform: ${os}. Only linux and darwin are supported.`,
-    )
+    throw new Error(`Unsupported platform: ${os}. Only linux and darwin are supported.`)
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     if (
@@ -98,28 +92,23 @@ function writeKeyringRaw(serviceName: string, value: string): void {
 
   if (os === 'linux') {
     const label = `Password for '${KEYRING_ACCOUNT}' on '${serviceName}'`
-    execSync(
-      `secret-tool store --label ${esc(label)} service ${esc(
-        serviceName,
-      )} username ${esc(KEYRING_ACCOUNT)}`,
-      {input: value, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe']},
-    )
+    execSync(`secret-tool store --label ${esc(label)} service ${esc(serviceName)} username ${esc(KEYRING_ACCOUNT)}`, {
+      input: value,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
     return
   }
 
   if (os === 'darwin') {
-    execSync(
-      `security add-generic-password -U -s ${esc(serviceName)} -a ${esc(
-        KEYRING_ACCOUNT,
-      )} -w ${esc(value)}`,
-      {encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe']},
-    )
+    execSync(`security add-generic-password -U -s ${esc(serviceName)} -a ${esc(KEYRING_ACCOUNT)} -w ${esc(value)}`, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
     return
   }
 
-  throw new Error(
-    `Unsupported platform: ${os}. Only linux and darwin are supported.`,
-  )
+  throw new Error(`Unsupported platform: ${os}. Only linux and darwin are supported.`)
 }
 
 /**
@@ -143,9 +132,7 @@ function readCollection(serviceName: string): Record<string, string> {
   try {
     return JSON.parse(jsonStr)
   } catch {
-    throw new Error(
-      'Failed to parse keyring data. The keyring entry may be corrupted.',
-    )
+    throw new Error('Failed to parse keyring data. The keyring entry may be corrupted.')
   }
 }
 
@@ -154,10 +141,7 @@ function readCollection(serviceName: string): Record<string, string> {
  *
  * Uses the `go-keyring-base64:` format for compatibility with the Go daemon.
  */
-function writeCollection(
-  serviceName: string,
-  collection: Record<string, string>,
-): void {
+function writeCollection(serviceName: string, collection: Record<string, string>): void {
   const json = JSON.stringify(collection)
   const encoded = `go-keyring-base64:${Buffer.from(json).toString('base64')}`
   writeKeyringRaw(serviceName, encoded)
@@ -174,9 +158,7 @@ function decodeLibp2pKey(base64Data: string): {
   const raw = Buffer.from(base64Data, 'base64')
 
   if (raw.length !== 68) {
-    throw new Error(
-      `Unexpected key length: ${raw.length} bytes (expected 68 for Ed25519 libp2p key)`,
-    )
+    throw new Error(`Unexpected key length: ${raw.length} bytes (expected 68 for Ed25519 libp2p key)`)
   }
 
   for (let i = 0; i < LIBP2P_ED25519_HEADER.length; i++) {
@@ -194,10 +176,7 @@ function decodeLibp2pKey(base64Data: string): {
 /**
  * Encodes an Ed25519 key pair into libp2p protobuf format.
  */
-function encodeLibp2pKey(
-  privateKey: Uint8Array,
-  publicKey: Uint8Array,
-): string {
+function encodeLibp2pKey(privateKey: Uint8Array, publicKey: Uint8Array): string {
   const buf = new Uint8Array(68)
   buf.set(LIBP2P_ED25519_HEADER, 0)
   buf.set(privateKey, 4)
@@ -209,9 +188,7 @@ function encodeLibp2pKey(
  * Computes the account ID from raw public key bytes.
  */
 function computeAccountId(publicKey: Uint8Array): string {
-  const withPrefix = new Uint8Array(
-    ED25519_MULTICODEC_PREFIX.length + publicKey.length,
-  )
+  const withPrefix = new Uint8Array(ED25519_MULTICODEC_PREFIX.length + publicKey.length)
   withPrefix.set(ED25519_MULTICODEC_PREFIX, 0)
   withPrefix.set(publicKey, ED25519_MULTICODEC_PREFIX.length)
   return base58btc.encode(withPrefix)
@@ -242,10 +219,7 @@ export function listKeys(dev: boolean): KeyringKeyInfo[] {
 /**
  * Gets a key by name or account ID from the OS keyring.
  */
-export function getKey(
-  nameOrAccountId: string,
-  dev: boolean,
-): KeyringKey | null {
+export function getKey(nameOrAccountId: string, dev: boolean): KeyringKey | null {
   const serviceName = getServiceName(dev)
   const collection = readCollection(serviceName)
 
@@ -307,15 +281,9 @@ export function getDefaultKey(dev: boolean): KeyringKey | null {
 /**
  * Stores a key in the OS keyring.
  */
-export function storeKey(
-  name: string,
-  privateKey: Uint8Array,
-  dev: boolean,
-): KeyringKey {
+export function storeKey(name: string, privateKey: Uint8Array, dev: boolean): KeyringKey {
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-    throw new Error(
-      'Invalid key name. Use only alphanumeric characters, hyphens, and underscores.',
-    )
+    throw new Error('Invalid key name. Use only alphanumeric characters, hyphens, and underscores.')
   }
 
   const publicKey = ed25519.getPublicKey(privateKey)
@@ -323,17 +291,13 @@ export function storeKey(
   const collection = readCollection(serviceName)
 
   if (collection[name]) {
-    throw new Error(
-      `Key "${name}" already exists. Remove it first with "seed-cli key remove".`,
-    )
+    throw new Error(`Key "${name}" already exists. Remove it first with "seed-cli key remove".`)
   }
 
   collection[name] = encodeLibp2pKey(privateKey, publicKey)
   writeCollection(serviceName, collection)
 
-  const publicKeyWithPrefix = new Uint8Array(
-    ED25519_MULTICODEC_PREFIX.length + publicKey.length,
-  )
+  const publicKeyWithPrefix = new Uint8Array(ED25519_MULTICODEC_PREFIX.length + publicKey.length)
   publicKeyWithPrefix.set(ED25519_MULTICODEC_PREFIX, 0)
   publicKeyWithPrefix.set(publicKey, ED25519_MULTICODEC_PREFIX.length)
 
@@ -377,17 +341,14 @@ export function removeKey(nameOrAccountId: string, dev: boolean): boolean {
 
 /**
  * Resolves the signing key from an optional --key flag, falling back to the default.
+ * The `dev` parameter selects the keyring: `seed-daemon-dev` (true) or `seed-daemon-main` (false).
  */
-export function resolveKey(
-  keyFlag: string | undefined,
-  dev: boolean,
-): KeyringKey {
+export function resolveKey(keyFlag: string | undefined, dev: boolean): KeyringKey {
+  const envHint = dev ? ' --dev' : ''
   if (keyFlag) {
     const key = getKey(keyFlag, dev)
     if (!key) {
-      throw new Error(
-        `Key "${keyFlag}" not found. Use "seed-cli key list" to see available keys.`,
-      )
+      throw new Error(`Key "${keyFlag}" not found. Use "seed-cli key list${envHint}" to see available keys.`)
     }
     return key
   }
@@ -395,7 +356,7 @@ export function resolveKey(
   const key = getDefaultKey(dev)
   if (!key) {
     throw new Error(
-      'No signing keys found. Use "seed-cli key generate" or "seed-cli key import" first.',
+      `No signing keys found. Use "seed-cli key generate${envHint}" or "seed-cli key import${envHint}" first.`,
     )
   }
   return key
@@ -404,15 +365,9 @@ export function resolveKey(
 /**
  * Renames a key in the OS keyring.
  */
-export function renameKey(
-  currentName: string,
-  newName: string,
-  dev: boolean,
-): void {
+export function renameKey(currentName: string, newName: string, dev: boolean): void {
   if (!/^[a-zA-Z0-9_-]+$/.test(newName)) {
-    throw new Error(
-      'Invalid key name. Use only alphanumeric characters, hyphens, and underscores.',
-    )
+    throw new Error('Invalid key name. Use only alphanumeric characters, hyphens, and underscores.')
   }
 
   const serviceName = getServiceName(dev)
@@ -435,9 +390,7 @@ export function renameKey(
 
 function decodeKeyEntry(name: string, base64Data: string): KeyringKey {
   const {privateKey, publicKey} = decodeLibp2pKey(base64Data)
-  const publicKeyWithPrefix = new Uint8Array(
-    ED25519_MULTICODEC_PREFIX.length + publicKey.length,
-  )
+  const publicKeyWithPrefix = new Uint8Array(ED25519_MULTICODEC_PREFIX.length + publicKey.length)
   publicKeyWithPrefix.set(ED25519_MULTICODEC_PREFIX, 0)
   publicKeyWithPrefix.set(publicKey, ED25519_MULTICODEC_PREFIX.length)
 

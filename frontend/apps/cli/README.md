@@ -1,13 +1,9 @@
 # Seed Hypermedia CLI
 
-A command-line interface for interacting with the Seed Hypermedia network. Create,
-read, update, and delete documents; manage accounts, comments, contacts, and
-capabilities; sign content with Ed25519 keys — all from your terminal.
+A command-line interface for interacting with the Seed Hypermedia network. Create, read, update, and delete documents;
+manage accounts, comments, contacts, and capabilities; sign content with Ed25519 keys — all from your terminal.
 
-**Package:** `@seed-hypermedia/cli`
-**Version:** 0.1.1
-**License:** MIT
-**Requires:** Node.js >= 18.0.0
+**Package:** `@seed-hypermedia/cli` **Version:** 0.1.1 **License:** MIT **Requires:** Node.js >= 18.0.0
 
 ## Table of Contents
 
@@ -121,16 +117,16 @@ seed-cli account list
 
 These options apply to every command and must appear before the subcommand:
 
-| Option               | Description                                              |
-| -------------------- | -------------------------------------------------------- |
+| Option               | Description                                                   |
+| -------------------- | ------------------------------------------------------------- |
 | `-s, --server <url>` | Server URL (default: `https://hyper.media` or `$SEED_SERVER`) |
-| `--json`             | JSON output (default)                                    |
-| `--yaml`             | YAML output                                              |
-| `--pretty`           | Pretty-formatted colorized output                        |
-| `-q, --quiet`        | Minimal output (tab-separated values for scripting)      |
-| `--dev`              | Use development keyring (`seed-daemon-dev`)              |
-| `-V, --version`      | Display version number                                   |
-| `-h, --help`         | Display help                                             |
+| `--json`             | JSON output (default)                                         |
+| `--yaml`             | YAML output                                                   |
+| `--pretty`           | Pretty-formatted colorized output                             |
+| `-q, --quiet`        | Minimal output (tab-separated values for scripting)           |
+| `--dev`              | Use development keyring (`seed-daemon-dev`)                   |
+| `-V, --version`      | Display version number                                        |
+| `-h, --help`         | Display help                                                  |
 
 **Examples:**
 
@@ -176,9 +172,9 @@ seed-cli config --server https://my-server.example.com
 
 **Config fields:**
 
-| Field            | Description                          |
-| ---------------- | ------------------------------------ |
-| `server`         | Default server URL                   |
+| Field            | Description                           |
+| ---------------- | ------------------------------------- |
+| `server`         | Default server URL                    |
 | `defaultAccount` | Account ID of the default signing key |
 
 ---
@@ -195,13 +191,13 @@ Fetch a document, comment, or entity by Hypermedia ID.
 seed-cli document get <id> [options]
 ```
 
-| Option              | Description                                         |
-| ------------------- | --------------------------------------------------- |
-| `-m, --metadata`    | Fetch metadata only (faster, skips content)         |
-| `--md`              | Output as Markdown                                  |
-| `--frontmatter`     | Include YAML frontmatter (requires `--md`)          |
-| `-r, --resolve`     | Resolve embeds, mentions, and queries (requires `--md`) |
-| `-q, --quiet`       | Print document title only (or ID if untitled)       |
+| Option           | Description                                             |
+| ---------------- | ------------------------------------------------------- |
+| `-m, --metadata` | Fetch metadata only (faster, skips content)             |
+| `--md`           | Output as Markdown                                      |
+| `--frontmatter`  | Include YAML frontmatter (requires `--md`)              |
+| `-r, --resolve`  | Resolve embeds, mentions, and queries (requires `--md`) |
+| `-q, --quiet`    | Print document title only (or ID if untitled)           |
 
 **Examples:**
 
@@ -249,15 +245,15 @@ Create a new document from Markdown or HMBlockNodes JSON.
 seed-cli document create <account> [options]
 ```
 
-| Option                  | Description                                     |
-| ----------------------- | ----------------------------------------------- |
-| `--title <title>`       | **Required.** Document title                    |
-| `-p, --path <path>`     | Document path (default: slugified title)        |
-| `--body <text>`         | Markdown content (inline)                       |
-| `--body-file <file>`    | Read Markdown content from a file               |
-| `--blocks <json>`       | HMBlockNodes JSON (inline)                      |
-| `--blocks-file <file>`  | Read HMBlockNodes JSON from a file              |
-| `-k, --key <name>`      | Signing key name or account ID                  |
+| Option                 | Description                              |
+| ---------------------- | ---------------------------------------- |
+| `--title <title>`      | **Required.** Document title             |
+| `-p, --path <path>`    | Document path (default: slugified title) |
+| `--body <text>`        | Markdown content (inline)                |
+| `--body-file <file>`   | Read Markdown content from a file        |
+| `--blocks <json>`      | HMBlockNodes JSON (inline)               |
+| `--blocks-file <file>` | Read HMBlockNodes JSON from a file       |
+| `-k, --key <name>`     | Signing key name or account ID           |
 
 **Constraints:**
 
@@ -311,20 +307,17 @@ Update document metadata, append content, replace content, or delete blocks.
 seed-cli document update <id> [options]
 ```
 
-| Option                     | Description                                              |
-| -------------------------- | -------------------------------------------------------- |
-| `--title <title>`          | Set document title                                       |
-| `--summary <summary>`      | Set document summary                                     |
-| `--body <text>`            | Markdown content to append (inline)                      |
-| `--body-file <file>`       | Read Markdown content to append from file                |
-| `--replace-body <file>`    | Replace entire document body from file (smart positional diff) |
-| `--parent <blockId>`       | Parent block ID for appended content (default: root)     |
-| `--delete-blocks <ids>`    | Comma-separated block IDs to delete                      |
-| `-k, --key <name>`         | Signing key name or account ID                           |
+| Option                  | Description                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------------- |
+| `-f, --file <path>`     | Input file (format detected by extension: .md, .json). Diffs against existing content. |
+| `--title <title>`       | Set document title                                                                     |
+| `--summary <summary>`   | Set document summary                                                                   |
+| `--parent <blockId>`    | Parent block ID for new content (default: root)                                        |
+| `--delete-blocks <ids>` | Comma-separated block IDs to delete                                                    |
+| `-k, --key <name>`      | Signing key name or account ID                                                         |
 
 **Constraints:**
 
-- `--replace-body` cannot be combined with `--body`, `--body-file`, or `--delete-blocks`.
 - At least one update option must be specified.
 
 **Examples:**
@@ -333,33 +326,29 @@ seed-cli document update <id> [options]
 # Update the title
 seed-cli document update hm://z6Mk.../my-doc --title "New Title"
 
-# Append a paragraph
-seed-cli document update hm://z6Mk.../my-doc --body "A new paragraph."
-
-# Append content under a specific parent block
-seed-cli document update hm://z6Mk.../my-doc --body "Child content" --parent blk-abc123
-
-# Replace entire body from a Markdown file (smart diff preserves block IDs)
-seed-cli document update hm://z6Mk.../my-doc --replace-body updated.md
+# Update content from a Markdown file (smart diff — only changed blocks are submitted)
+seed-cli document update hm://z6Mk.../my-doc -f updated.md
 
 # Delete specific blocks
 seed-cli document update hm://z6Mk.../my-doc --delete-blocks "blk-abc123,blk-def456"
 
 # Combine metadata and content updates
-seed-cli document update hm://z6Mk.../my-doc --title "Updated" --summary "A summary" --body "New content"
+seed-cli document update hm://z6Mk.../my-doc --title "Updated" --summary "A summary" -f content.md
 ```
 
-**Smart replace (`--replace-body`):**
+**Smart diff (`-f`):**
 
-The `--replace-body` option uses a positional matching algorithm to preserve existing
-block IDs where possible:
+When `-f` is used, the CLI performs a per-block diff against the existing document:
 
-1. Walk the old and new block trees in parallel.
-2. If a position has the same block type, reuse the old block ID.
-3. Compute minimal `ReplaceBlock`, `DeleteBlocks`, and `MoveBlocks` operations.
+1. Each input block's ID is checked against the old document's block map.
+2. If the ID exists: content is compared, and only changed blocks get a `ReplaceBlock` op.
+3. If the ID doesn't exist: the block is treated as new (emits `ReplaceBlock`).
+4. Old blocks whose IDs are absent from the input are deleted (`DeleteBlocks`).
+5. Block ordering is updated via `MoveBlocks`.
 
-This is useful for editing Markdown externally and pushing changes back without
-losing block-level comment anchors or citation references.
+This means editing a document exported with `document get` (which includes `<!-- id:... -->` comments in Markdown, or
+block IDs in JSON) produces minimal updates. Plain Markdown without ID comments results in a full body replacement,
+since none of the generated IDs will match the existing document.
 
 ---
 
@@ -371,16 +360,16 @@ Delete a document by publishing a tombstone ref.
 seed-cli document delete <id> [options]
 ```
 
-| Option             | Description                        |
-| ------------------ | ---------------------------------- |
-| `-k, --key <name>` | Signing key name or account ID    |
+| Option             | Description                    |
+| ------------------ | ------------------------------ |
+| `-k, --key <name>` | Signing key name or account ID |
 
 ```bash
 seed-cli document delete hm://z6Mk.../my-doc --key author
 ```
 
-The document isn't physically removed — a tombstone ref is published, which tells
-clients the document has been intentionally deleted.
+The document isn't physically removed — a tombstone ref is published, which tells clients the document has been
+intentionally deleted.
 
 ---
 
@@ -392,9 +381,9 @@ Fork a document to a new location (creates a copy).
 seed-cli document fork <sourceId> <destinationId> [options]
 ```
 
-| Option             | Description                        |
-| ------------------ | ---------------------------------- |
-| `-k, --key <name>` | Signing key name or account ID    |
+| Option             | Description                    |
+| ------------------ | ------------------------------ |
+| `-k, --key <name>` | Signing key name or account ID |
 
 ```bash
 seed-cli document fork hm://z6Mk.../original hm://z6Mk.../copy --key author
@@ -416,9 +405,9 @@ Move a document to a new location (fork + redirect at source).
 seed-cli document move <sourceId> <destinationId> [options]
 ```
 
-| Option             | Description                        |
-| ------------------ | ---------------------------------- |
-| `-k, --key <name>` | Signing key name or account ID    |
+| Option             | Description                    |
+| ------------------ | ------------------------------ |
+| `-k, --key <name>` | Signing key name or account ID |
 
 ```bash
 seed-cli document move hm://z6Mk.../old-path hm://z6Mk.../new-path --key author
@@ -440,11 +429,11 @@ Create a redirect from one document to another.
 seed-cli document redirect <id> [options]
 ```
 
-| Option                | Description                                     |
-| --------------------- | ----------------------------------------------- |
-| `--to <targetId>`     | **Required.** Target Hypermedia ID to redirect to |
-| `--republish`         | Republish target content at this location       |
-| `-k, --key <name>`   | Signing key name or account ID                  |
+| Option             | Description                                       |
+| ------------------ | ------------------------------------------------- |
+| `--to <targetId>`  | **Required.** Target Hypermedia ID to redirect to |
+| `--republish`      | Republish target content at this location         |
+| `-k, --key <name>` | Signing key name or account ID                    |
 
 ```bash
 # Simple redirect
@@ -464,9 +453,9 @@ List document change history (version DAG).
 seed-cli document changes <targetId> [options]
 ```
 
-| Option        | Description                        |
-| ------------- | ---------------------------------- |
-| `-q, --quiet` | Output `CID<tab>author` per line   |
+| Option        | Description                      |
+| ------------- | -------------------------------- |
+| `-q, --quiet` | Output `CID<tab>author` per line |
 
 ```bash
 # Full change history
@@ -536,9 +525,9 @@ Get account information.
 seed-cli account get <uid> [options]
 ```
 
-| Option        | Description                              |
-| ------------- | ---------------------------------------- |
-| `-q, --quiet` | Print name only (or UID if no name set)  |
+| Option        | Description                             |
+| ------------- | --------------------------------------- |
+| `-q, --quiet` | Print name only (or UID if no name set) |
 
 ```bash
 # Full account info
@@ -561,9 +550,9 @@ List all known accounts on the server.
 seed-cli account list [options]
 ```
 
-| Option        | Description                              |
-| ------------- | ---------------------------------------- |
-| `-q, --quiet` | Output `ID<tab>name` per line            |
+| Option        | Description                   |
+| ------------- | ----------------------------- |
+| `-q, --quiet` | Output `ID<tab>name` per line |
 
 ```bash
 # Full JSON
@@ -583,9 +572,9 @@ List contacts for an account.
 seed-cli account contacts <uid> [options]
 ```
 
-| Option        | Description         |
-| ------------- | ------------------- |
-| `-q, --quiet` | Output names only   |
+| Option        | Description       |
+| ------------- | ----------------- |
+| `-q, --quiet` | Output names only |
 
 ```bash
 seed-cli account contacts z6Mk...
@@ -636,9 +625,9 @@ List all comments on a document.
 seed-cli comment list <targetId> [options]
 ```
 
-| Option        | Description                          |
-| ------------- | ------------------------------------ |
-| `-q, --quiet` | Output `ID<tab>authorName` per line  |
+| Option        | Description                         |
+| ------------- | ----------------------------------- |
+| `-q, --quiet` | Output `ID<tab>authorName` per line |
 
 ```bash
 seed-cli comment list hm://z6Mk.../my-doc
@@ -680,8 +669,8 @@ seed-cli comment create hm://z6Mk.../my-doc --file review.txt --key reviewer
 
 **Inline mentions:**
 
-Comment text supports inline mentions using the format `@[DisplayName](hm://accountId)`.
-Mentions are converted to `Embed` annotations with a U+FFFC object replacement character.
+Comment text supports inline mentions using the format `@[DisplayName](hm://accountId)`. Mentions are converted to
+`Embed` annotations with a U+FFFC object replacement character.
 
 ```bash
 seed-cli comment create hm://z6Mk.../doc --body "cc @[Alice](hm://z6MkAlice...)" --key bob
@@ -689,15 +678,13 @@ seed-cli comment create hm://z6Mk.../doc --body "cc @[Alice](hm://z6MkAlice...)"
 
 **Block-level comments:**
 
-When the target ID includes a `#blockId` fragment, the comment body is automatically
-wrapped in an `Embed` block referencing the specific block. This matches the behavior
-of the desktop and web apps for block-level annotations.
+When the target ID includes a `#blockId` fragment, the comment body is automatically wrapped in an `Embed` block
+referencing the specific block. This matches the behavior of the desktop and web apps for block-level annotations.
 
 **Threading:**
 
-When `--reply` is specified, the CLI fetches the parent comment to determine the
-thread root. If the parent is already a reply, the thread root is inherited. Otherwise,
-the parent comment itself becomes the thread root.
+When `--reply` is specified, the CLI fetches the parent comment to determine the thread root. If the parent is already a
+reply, the thread root is inherited. Otherwise, the parent comment itself becomes the thread root.
 
 ---
 
@@ -709,9 +696,9 @@ Delete a comment by publishing a tombstone.
 seed-cli comment delete <commentId> [options]
 ```
 
-| Option             | Description                        |
-| ------------------ | ---------------------------------- |
-| `-k, --key <name>` | Signing key name or account ID    |
+| Option             | Description                    |
+| ------------------ | ------------------------------ |
+| `-k, --key <name>` | Signing key name or account ID |
 
 ```bash
 seed-cli comment delete bafy... --key reviewer
@@ -753,11 +740,11 @@ Create a contact (a named reference to another account).
 seed-cli contact create [options]
 ```
 
-| Option                    | Description                              |
-| ------------------------- | ---------------------------------------- |
-| `--subject <accountId>`   | **Required.** Account ID being described |
-| `--name <name>`           | **Required.** Display name for the contact |
-| `-k, --key <name>`        | Signing key name or account ID           |
+| Option                  | Description                                |
+| ----------------------- | ------------------------------------------ |
+| `--subject <accountId>` | **Required.** Account ID being described   |
+| `--name <name>`         | **Required.** Display name for the contact |
+| `-k, --key <name>`      | Signing key name or account ID             |
 
 ```bash
 seed-cli contact create --subject z6MkAlice... --name "Alice" --key mykey
@@ -775,12 +762,12 @@ Delete a contact by publishing a tombstone.
 seed-cli contact delete <contactIdOrCid> [options]
 ```
 
-| Option             | Description                        |
-| ------------------ | ---------------------------------- |
-| `-k, --key <name>` | Signing key name or account ID    |
+| Option             | Description                    |
+| ------------------ | ------------------------------ |
+| `-k, --key <name>` | Signing key name or account ID |
 
-Accepts either a record ID (`authority/tsid`) or a CID. If given a CID, the CLI
-fetches the blob to compute the record ID.
+Accepts either a record ID (`authority/tsid`) or a CID. If given a CID, the CLI fetches the blob to compute the record
+ID.
 
 ```bash
 seed-cli contact delete z6Mk.../zQ3sh... --key mykey
@@ -797,9 +784,9 @@ List contacts for an account.
 seed-cli contact list [accountId] [options]
 ```
 
-| Option      | Description                                     |
-| ----------- | ----------------------------------------------- |
-| `--account` | Only show contacts signed by the account        |
+| Option      | Description                                         |
+| ----------- | --------------------------------------------------- |
+| `--account` | Only show contacts signed by the account            |
 | `--subject` | Only show contacts where the account is the subject |
 
 By default, shows contacts in both directions (signed by and about the account).
@@ -829,13 +816,13 @@ Create a capability (delegate access to another account).
 seed-cli capability create [options]
 ```
 
-| Option                    | Description                                |
-| ------------------------- | ------------------------------------------ |
-| `--delegate <accountId>`  | **Required.** Account receiving access     |
-| `--role <role>`           | **Required.** Role: `WRITER` or `AGENT`    |
-| `--path <path>`           | Path scope for the capability              |
-| `--label <label>`         | Human-readable label                       |
-| `-k, --key <name>`        | Signing key name or account ID             |
+| Option                   | Description                             |
+| ------------------------ | --------------------------------------- |
+| `--delegate <accountId>` | **Required.** Account receiving access  |
+| `--role <role>`          | **Required.** Role: `WRITER` or `AGENT` |
+| `--path <path>`          | Path scope for the capability           |
+| `--label <label>`        | Human-readable label                    |
+| `-k, --key <name>`       | Signing key name or account ID          |
 
 ```bash
 # Grant full write access
@@ -851,9 +838,8 @@ seed-cli capability create --delegate z6MkBot... --role AGENT --path /blog --lab
 
 All key commands live under `seed-cli key <subcommand>`. The `keys` alias also works.
 
-Keys are stored in the **OS keyring** (macOS Keychain / Linux libsecret), shared
-with the Seed desktop app and Go daemon. Keys created in the desktop app are
-immediately available to the CLI, and vice versa.
+Keys are stored in the **OS keyring** (macOS Keychain / Linux libsecret), shared with the Seed desktop app and Go
+daemon. Keys created in the desktop app are immediately available to the CLI, and vice versa.
 
 ### key generate
 
@@ -863,12 +849,12 @@ Generate a new signing key from a BIP-39 mnemonic.
 seed-cli key generate [options]
 ```
 
-| Option                | Description                                 |
-| --------------------- | ------------------------------------------- |
-| `-n, --name <name>`   | Key name (default: `main`)                 |
+| Option                | Description                                       |
+| --------------------- | ------------------------------------------------- |
+| `-n, --name <name>`   | Key name (default: `main`)                        |
 | `-w, --words <count>` | Mnemonic word count: `12` or `24` (default: `12`) |
-| `--passphrase <pass>` | Optional BIP-39 passphrase                  |
-| `--show-mnemonic`     | Display the mnemonic (save it securely!)    |
+| `--passphrase <pass>` | Optional BIP-39 passphrase                        |
+| `--show-mnemonic`     | Display the mnemonic (save it securely!)          |
 
 ```bash
 # Generate with default settings
@@ -893,10 +879,10 @@ Import a key from an existing BIP-39 mnemonic.
 seed-cli key import <mnemonic> [options]
 ```
 
-| Option                | Description                            |
-| --------------------- | -------------------------------------- |
-| `-n, --name <name>`   | Key name (default: `imported`)        |
-| `--passphrase <pass>` | Optional BIP-39 passphrase             |
+| Option                | Description                    |
+| --------------------- | ------------------------------ |
+| `-n, --name <name>`   | Key name (default: `imported`) |
+| `--passphrase <pass>` | Optional BIP-39 passphrase     |
 
 ```bash
 seed-cli key import -n restored "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
@@ -1025,8 +1011,7 @@ seed-cli key derive "abandon abandon abandon abandon abandon abandon abandon aba
 # Output: z6MkiTBz1ymuepAQ4HEHYSF1H8quG5GLVVQR3djdX3mDooWp
 ```
 
-Useful for verifying a mnemonic maps to the expected account without writing it
-to the keyring.
+Useful for verifying a mnemonic maps to the expected account without writing it to the keyring.
 
 ---
 
@@ -1099,8 +1084,8 @@ Shorthand for `query --mode Children`.
 seed-cli children <space> [options]
 ```
 
-| Option              | Description                    |
-| ------------------- | ------------------------------ |
+| Option              | Description                   |
+| ------------------- | ----------------------------- |
 | `-p, --path <path>` | Path prefix                   |
 | `-l, --limit <n>`   | Limit results                 |
 | `-q, --quiet`       | Output `ID<tab>name` per line |
@@ -1173,13 +1158,13 @@ Seed uses Hypermedia IDs (HM IDs) as universal resource identifiers:
 hm://<uid>[/<path>][?v=<version>][?c=<commentCID>][#<blockRef>]
 ```
 
-| Component   | Description                                      | Example                      |
-| ----------- | ------------------------------------------------ | ---------------------------- |
-| `uid`       | Account's Ed25519 public key ID                 | `z6MkrbYsRzKb1VA...`        |
-| `path`      | Forward-slash-separated path segments            | `/projects/alpha`            |
-| `version`   | CID of a specific document version               | `?v=bafy2bzace...`           |
-| `commentCID`| CID of a comment                                 | `?c=bafy2bzace...`           |
-| `blockRef`  | Specific block ID within the document            | `#blk-abc123`                |
+| Component    | Description                           | Example              |
+| ------------ | ------------------------------------- | -------------------- |
+| `uid`        | Account's Ed25519 public key ID       | `z6MkrbYsRzKb1VA...` |
+| `path`       | Forward-slash-separated path segments | `/projects/alpha`    |
+| `version`    | CID of a specific document version    | `?v=bafy2bzace...`   |
+| `commentCID` | CID of a comment                      | `?c=bafy2bzace...`   |
+| `blockRef`   | Specific block ID within the document | `#blk-abc123`        |
 
 **Examples:**
 
@@ -1261,23 +1246,22 @@ seed-cli account list -q
 
 ### Document to Markdown (`--md`)
 
-When using `document get --md`, the CLI converts the internal block tree to
-GitHub-flavored Markdown:
+When using `document get --md`, the CLI converts the internal block tree to GitHub-flavored Markdown:
 
-| Block type  | Markdown rendering                                  |
-| ----------- | --------------------------------------------------- |
-| Heading     | `#`, `##`, `###`, etc. based on depth               |
-| Paragraph   | Plain text with inline formatting                   |
-| Code        | Fenced code blocks with language tag                |
-| Math        | `$$...$$` LaTeX blocks                              |
-| Image       | `![alt](gateway-url)` (IPFS CIDs converted to gateway URLs) |
-| Embed       | Blockquote with link (or inlined content with `--resolve`) |
-| Query       | Resolved to a list of linked documents (with `--resolve`) |
-| Button      | `[text](url)` link                                  |
-| Bold        | `**text**`                                          |
-| Italic      | `*text*`                                            |
-| Code (inline) | `` `text` ``                                     |
-| Link        | `[text](url)`                                       |
+| Block type    | Markdown rendering                                          |
+| ------------- | ----------------------------------------------------------- |
+| Heading       | `#`, `##`, `###`, etc. based on depth                       |
+| Paragraph     | Plain text with inline formatting                           |
+| Code          | Fenced code blocks with language tag                        |
+| Math          | `$$...$$` LaTeX blocks                                      |
+| Image         | `![alt](gateway-url)` (IPFS CIDs converted to gateway URLs) |
+| Embed         | Blockquote with link (or inlined content with `--resolve`)  |
+| Query         | Resolved to a list of linked documents (with `--resolve`)   |
+| Button        | `[text](url)` link                                          |
+| Bold          | `**text**`                                                  |
+| Italic        | `*text*`                                                    |
+| Code (inline) | `` `text` ``                                                |
+| Link          | `[text](url)`                                               |
 
 **Frontmatter (`--frontmatter`):**
 
@@ -1293,24 +1277,24 @@ authors:
 
 **Resolve mode (`--resolve`):**
 
-Fetches embedded documents and query results from the server and inlines their
-content directly in the Markdown output, up to a default recursion depth of 2.
+Fetches embedded documents and query results from the server and inlines their content directly in the Markdown output,
+up to a default recursion depth of 2.
 
 ### Markdown to Blocks (input)
 
-When creating or updating documents with `--body` or `--body-file`, the CLI
-parses Markdown into the internal block tree:
+When creating or updating documents with `--body` or `--body-file`, the CLI parses Markdown into the internal block
+tree:
 
-| Markdown element    | Block type                                            |
-| ------------------- | ----------------------------------------------------- |
-| `# Heading`         | `Heading` container with children                     |
-| Paragraphs          | `Paragraph` blocks                                    |
-| `` ```code``` ``    | `Code` block with `language` attribute                |
-| `**bold**`          | `Bold` annotation                                     |
-| `*italic*`          | `Italic` annotation                                   |
-| `` `code` ``        | `Code` annotation                                     |
-| `[text](url)`       | `Link` annotation                                     |
-| `- item` / `1. item`| Children with `childrenType: Unordered/Ordered`       |
+| Markdown element     | Block type                                      |
+| -------------------- | ----------------------------------------------- |
+| `# Heading`          | `Heading` container with children               |
+| Paragraphs           | `Paragraph` blocks                              |
+| ` ```code``` `       | `Code` block with `language` attribute          |
+| `**bold**`           | `Bold` annotation                               |
+| `*italic*`           | `Italic` annotation                             |
+| `` `code` ``         | `Code` annotation                               |
+| `[text](url)`        | `Link` annotation                               |
+| `- item` / `1. item` | Children with `childrenType: Unordered/Ordered` |
 
 ---
 
@@ -1325,20 +1309,19 @@ Keys are stored in the **OS keyring**, not on disk:
 | macOS    | Keychain                         | `security`    |
 | Linux    | D-Bus Secret Service (libsecret) | `secret-tool` |
 
-The keyring is shared with the Go daemon and desktop app. Keys registered in any
-Seed application are available in all others.
+The keyring is shared with the Go daemon and desktop app. Keys registered in any Seed application are available in all
+others.
 
 ### Keyring Service Names
 
-| Environment | Service Name       | Selected by        |
-| ----------- | ------------------ | ------------------ |
-| Production  | `seed-daemon-main` | Default            |
+| Environment | Service Name       | Selected by         |
+| ----------- | ------------------ | ------------------- |
+| Production  | `seed-daemon-main` | Default             |
 | Development | `seed-daemon-dev`  | `--dev` global flag |
 
 ### Key Encoding Format
 
-Each key is stored as a 68-byte libp2p protobuf-encoded Ed25519 key pair,
-base64-encoded:
+Each key is stored as a 68-byte libp2p protobuf-encoded Ed25519 key pair, base64-encoded:
 
 ```
 [08 01 12 40] [32-byte private seed] [32-byte public key]
@@ -1346,6 +1329,7 @@ base64-encoded:
 ```
 
 The 4-byte header is:
+
 - `08 01` — protobuf field 1 (key type) = 1 (Ed25519)
 - `12 40` — protobuf field 2 (key data) length = 64 bytes
 
@@ -1382,15 +1366,15 @@ The keyring JSON payload uses two formats:
 1. **Plain JSON** — written by the CLI
 2. **`go-keyring-base64:<base64>`** — written by the Go daemon
 
-The CLI reads both formats transparently. When writing, it uses the `go-keyring-base64:`
-format for compatibility with the daemon.
+The CLI reads both formats transparently. When writing, it uses the `go-keyring-base64:` format for compatibility with
+the daemon.
 
 ---
 
 ## Signing & Blob Architecture
 
-All mutable data in Seed is stored as signed CBOR blobs. The CLI creates and signs
-these blobs client-side before publishing them to the server.
+All mutable data in Seed is stored as signed CBOR blobs. The CLI creates and signs these blobs client-side before
+publishing them to the server.
 
 ### Signing Process
 
@@ -1436,19 +1420,19 @@ these blobs client-side before publishing them to the server.
 
 Changes contain arrays of operations:
 
-| Operation        | Description                              |
-| ---------------- | ---------------------------------------- |
-| `SetAttributes`  | Set metadata key-value pairs             |
-| `ReplaceBlock`   | Insert or replace a block                |
-| `MoveBlocks`     | Move blocks under a new parent           |
-| `DeleteBlocks`   | Remove blocks by ID                      |
+| Operation       | Description                    |
+| --------------- | ------------------------------ |
+| `SetAttributes` | Set metadata key-value pairs   |
+| `ReplaceBlock`  | Insert or replace a block      |
+| `MoveBlocks`    | Move blocks under a new parent |
+| `DeleteBlocks`  | Remove blocks by ID            |
 
 ---
 
 ## Environment Variables
 
-| Variable      | Description                                       |
-| ------------- | ------------------------------------------------- |
+| Variable      | Description                                          |
+| ------------- | ---------------------------------------------------- |
 | `SEED_SERVER` | Default server URL (overrides `https://hyper.media`) |
 
 ---
@@ -1466,13 +1450,13 @@ Changes contain arrays of operations:
 
 **Common errors:**
 
-| Error                    | Cause                                              |
-| ------------------------ | -------------------------------------------------- |
-| `Invalid Hypermedia ID`  | Malformed `hm://` URL                              |
-| `API error (500): ...`   | Server-side error or resource not found             |
-| `Key "name" not found`   | No key with that name or account ID in the keyring  |
-| `No signing keys found`  | Must run `key generate` or `key import` first       |
-| `Cannot combine --body/--body-file with --blocks/--blocks-file` | Mutually exclusive options |
+| Error                                                           | Cause                                              |
+| --------------------------------------------------------------- | -------------------------------------------------- |
+| `Invalid Hypermedia ID`                                         | Malformed `hm://` URL                              |
+| `API error (500): ...`                                          | Server-side error or resource not found            |
+| `Key "name" not found`                                          | No key with that name or account ID in the keyring |
+| `No signing keys found`                                         | Must run `key generate` or `key import` first      |
+| `Cannot combine --body/--body-file with --blocks/--blocks-file` | Mutually exclusive options                         |
 
 ---
 
@@ -1513,7 +1497,7 @@ for file in docs/*.md; do
   DOC_PATH=$(basename "$file" .md)
   ID="hm://z6Mk.../$DOC_PATH"
   echo "Updating $ID from $file"
-  seed-cli document update "$ID" --replace-body "$file" --key main
+  seed-cli document update "$ID" -f "$file" --key main
 done
 ```
 
@@ -1619,7 +1603,7 @@ frontend/apps/cli/
 │   │   ├── signing.ts        # CBOR blob signing (genesis, changes)
 │   │   ├── markdown.ts       # Markdown → blocks parser
 │   │   ├── blocks-json.ts    # HMBlockNodes JSON parser
-│   │   ├── block-diff.ts     # Smart block diffing for --replace-body
+│   │   ├── block-diff.ts     # Smart block diffing for document update
 │   │   ├── depth.ts          # Change DAG depth resolution
 │   │   └── hm-id.ts          # Hypermedia ID pack/unpack
 │   └── test/
@@ -1636,18 +1620,18 @@ frontend/apps/cli/
 
 ### Dependencies
 
-| Package                     | Purpose                       |
-| --------------------------- | ----------------------------- |
-| `commander`                 | CLI framework                 |
-| `multiformats`              | CID/IPLD handling             |
-| `@ipld/dag-cbor`            | CBOR encoding                 |
-| `@noble/ed25519`            | Ed25519 signatures            |
-| `@noble/hashes`             | Cryptographic hashing         |
-| `@exodus/slip10`            | SLIP-10 key derivation        |
-| `bip39`                     | BIP-39 mnemonics              |
-| `chalk`                     | Terminal colors                |
-| `yaml`                      | YAML formatting               |
-| `@seed-hypermedia/client`   | SDK for document operations   |
+| Package                   | Purpose                     |
+| ------------------------- | --------------------------- |
+| `commander`               | CLI framework               |
+| `multiformats`            | CID/IPLD handling           |
+| `@ipld/dag-cbor`          | CBOR encoding               |
+| `@noble/ed25519`          | Ed25519 signatures          |
+| `@noble/hashes`           | Cryptographic hashing       |
+| `@exodus/slip10`          | SLIP-10 key derivation      |
+| `bip39`                   | BIP-39 mnemonics            |
+| `chalk`                   | Terminal colors             |
+| `yaml`                    | YAML formatting             |
+| `@seed-hypermedia/client` | SDK for document operations |
 
 ---
 

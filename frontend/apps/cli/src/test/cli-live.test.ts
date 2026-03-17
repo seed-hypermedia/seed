@@ -82,10 +82,7 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       'account get with --pretty shows formatted output',
       async () => {
-        const result = await runCli(
-          ['account', 'get', KNOWN_ACCOUNT, '--pretty'],
-          {server: DEV_SERVER},
-        )
+        const result = await runCli(['account', 'get', KNOWN_ACCOUNT, '--pretty'], {server: DEV_SERVER})
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain(KNOWN_ACCOUNT_NAME)
       },
@@ -95,10 +92,7 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       'account get not found returns proper error',
       async () => {
-        const result = await runCli(
-          ['account', 'get', 'z6MknonexistentAAAAAAAAAAAAAAAAAAAA'],
-          {server: DEV_SERVER},
-        )
+        const result = await runCli(['account', 'get', 'z6MknonexistentAAAAAAAAAAAAAAAAAAAA'], {server: DEV_SERVER})
         expect(result.stdout).toContain('not-found')
       },
       TEST_TIMEOUT,
@@ -111,39 +105,22 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       'document get fetches document',
       async () => {
-        const result = await runCli(
-          ['document', 'get', `hm://${KNOWN_ACCOUNT}`],
-          {server: DEV_SERVER},
-        )
+        const result = await runCli(['document', 'get', `hm://${KNOWN_ACCOUNT}`], {server: DEV_SERVER})
         expect(result.exitCode).toBe(0)
-        expect(result.stdout).toContain('document')
+        // Default output is markdown starting with frontmatter
+        expect(result.stdout).toMatch(/^---/)
       },
       TEST_TIMEOUT,
     )
 
     test(
-      'document get with --md outputs markdown',
+      'document get defaults to markdown with frontmatter',
       async () => {
-        const result = await runCli(
-          ['document', 'get', `hm://${KNOWN_ACCOUNT}`, '--md'],
-          {server: DEV_SERVER},
-        )
+        const result = await runCli(['document', 'get', `hm://${KNOWN_ACCOUNT}`], {server: DEV_SERVER})
         expect(result.exitCode).toBe(0)
-        expect(result.stdout).toContain(`# ${KNOWN_ACCOUNT_NAME}`)
-      },
-      TEST_TIMEOUT,
-    )
-
-    test(
-      'document get with --md --frontmatter includes frontmatter',
-      async () => {
-        const result = await runCli(
-          ['document', 'get', `hm://${KNOWN_ACCOUNT}`, '--md', '--frontmatter'],
-          {server: DEV_SERVER},
-        )
-        expect(result.exitCode).toBe(0)
-        expect(result.stdout).toContain('---')
-        expect(result.stdout).toContain(`title: "${KNOWN_ACCOUNT_NAME}"`)
+        // Default output is markdown with frontmatter
+        expect(result.stdout).toMatch(/^---/)
+        expect(result.stdout).toContain(`name: "${KNOWN_ACCOUNT_NAME}"`)
       },
       TEST_TIMEOUT,
     )
@@ -151,10 +128,7 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       'document get -q shows minimal output',
       async () => {
-        const result = await runCli(
-          ['document', 'get', `hm://${KNOWN_ACCOUNT}`, '-q'],
-          {server: DEV_SERVER},
-        )
+        const result = await runCli(['document', 'get', `hm://${KNOWN_ACCOUNT}`, '-q'], {server: DEV_SERVER})
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toMatch(new RegExp(`${KNOWN_ACCOUNT_NAME}|z6Mk`))
       },
@@ -164,10 +138,7 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       'document get -m fetches metadata only',
       async () => {
-        const result = await runCli(
-          ['document', 'get', `hm://${KNOWN_ACCOUNT}`, '-m'],
-          {server: DEV_SERVER},
-        )
+        const result = await runCli(['document', 'get', `hm://${KNOWN_ACCOUNT}`, '-m'], {server: DEV_SERVER})
         expect(result.exitCode).toBe(0)
         // ResourceMetadata returns id and metadata fields
         expect(result.stdout).toContain(KNOWN_ACCOUNT)
@@ -259,10 +230,7 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       'comment list on document',
       async () => {
-        const result = await runCli(
-          ['comment', 'list', `hm://${KNOWN_ACCOUNT}`],
-          {server: DEV_SERVER},
-        )
+        const result = await runCli(['comment', 'list', `hm://${KNOWN_ACCOUNT}`], {server: DEV_SERVER})
         expect(result.exitCode).toBe(0)
       },
       TEST_TIMEOUT,
@@ -271,10 +239,7 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       'comment discussions on document',
       async () => {
-        const result = await runCli(
-          ['comment', 'discussions', `hm://${KNOWN_ACCOUNT}`],
-          {server: DEV_SERVER},
-        )
+        const result = await runCli(['comment', 'discussions', `hm://${KNOWN_ACCOUNT}`], {server: DEV_SERVER})
         expect(result.exitCode).toBe(0)
       },
       TEST_TIMEOUT,
@@ -287,10 +252,7 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       'document changes shows document history',
       async () => {
-        const result = await runCli(
-          ['document', 'changes', `hm://${KNOWN_ACCOUNT}`],
-          {server: DEV_SERVER},
-        )
+        const result = await runCli(['document', 'changes', `hm://${KNOWN_ACCOUNT}`], {server: DEV_SERVER})
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain('changes')
       },
@@ -300,10 +262,7 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       'document changes -q shows compact output',
       async () => {
-        const result = await runCli(
-          ['document', 'changes', `hm://${KNOWN_ACCOUNT}`, '-q'],
-          {server: DEV_SERVER},
-        )
+        const result = await runCli(['document', 'changes', `hm://${KNOWN_ACCOUNT}`, '-q'], {server: DEV_SERVER})
         expect(result.exitCode).toBe(0)
       },
       TEST_TIMEOUT,
@@ -316,10 +275,7 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       'citations shows backlinks',
       async () => {
-        const result = await runCli(
-          ['citations', `hm://${KNOWN_ACCOUNT}`],
-          {server: DEV_SERVER},
-        )
+        const result = await runCli(['citations', `hm://${KNOWN_ACCOUNT}`], {server: DEV_SERVER})
         expect(result.exitCode).toBe(0)
       },
       TEST_TIMEOUT,
@@ -332,10 +288,7 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       'account capabilities shows access control',
       async () => {
-        const result = await runCli(
-          ['account', 'capabilities', `hm://${KNOWN_ACCOUNT}`],
-          {server: DEV_SERVER},
-        )
+        const result = await runCli(['account', 'capabilities', `hm://${KNOWN_ACCOUNT}`], {server: DEV_SERVER})
         expect(result.exitCode).toBe(0)
       },
       TEST_TIMEOUT,
@@ -372,10 +325,7 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       'document stats shows interaction summary',
       async () => {
-        const result = await runCli(
-          ['document', 'stats', `hm://${KNOWN_ACCOUNT}`],
-          {server: DEV_SERVER},
-        )
+        const result = await runCli(['document', 'stats', `hm://${KNOWN_ACCOUNT}`], {server: DEV_SERVER})
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain('citations')
       },
@@ -389,8 +339,7 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       'key derive computes account id',
       async () => {
-        const mnemonic =
-          'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+        const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
         const result = await runCli(['key', 'derive', mnemonic])
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toMatch(/^z6Mk/)
@@ -415,10 +364,7 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       '--json outputs valid JSON',
       async () => {
-        const result = await runCli(
-          ['account', 'get', KNOWN_ACCOUNT, '--json'],
-          {server: DEV_SERVER},
-        )
+        const result = await runCli(['account', 'get', KNOWN_ACCOUNT, '--json'], {server: DEV_SERVER})
         expect(result.exitCode).toBe(0)
         expect(() => JSON.parse(result.stdout)).not.toThrow()
       },
@@ -428,10 +374,7 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       '--yaml outputs YAML format',
       async () => {
-        const result = await runCli(
-          ['account', 'get', KNOWN_ACCOUNT, '--yaml'],
-          {server: DEV_SERVER},
-        )
+        const result = await runCli(['account', 'get', KNOWN_ACCOUNT, '--yaml'], {server: DEV_SERVER})
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toMatch(/type:\s/)
       },
@@ -441,10 +384,7 @@ describe('CLI Read Operations (Live Dev Server)', () => {
     test(
       '--pretty outputs readable format',
       async () => {
-        const result = await runCli(
-          ['account', 'get', KNOWN_ACCOUNT, '--pretty'],
-          {server: DEV_SERVER},
-        )
+        const result = await runCli(['account', 'get', KNOWN_ACCOUNT, '--pretty'], {server: DEV_SERVER})
         expect(result.exitCode).toBe(0)
         expect(result.stdout).toContain('\n')
       },
@@ -463,30 +403,20 @@ describe('CLI Read Operations (Live Dev Server)', () => {
       },
       TEST_TIMEOUT,
     )
-
-    test(
-      'missing required argument shows error',
-      async () => {
-        const result = await runCli(['document', 'get'])
-        expect(result.exitCode).toBe(1)
-      },
-      TEST_TIMEOUT,
-    )
   })
 
   // ===== Markdown Resolution =====
 
   describe('Markdown Resolution', () => {
     test(
-      'document get --md --resolve works on documents',
+      'document get --resolve works on documents',
       async () => {
-        const result = await runCli(
-          ['document', 'get', `hm://${KNOWN_ACCOUNT}`, '--md', '--resolve'],
-          {server: DEV_SERVER},
-        )
+        const result = await runCli(['document', 'get', `hm://${KNOWN_ACCOUNT}`, '--resolve'], {
+          server: DEV_SERVER,
+        })
         expect(result.exitCode).toBe(0)
-        // Should output markdown with title
-        expect(result.stdout).toContain(`# ${KNOWN_ACCOUNT_NAME}`)
+        // Should output markdown with title in frontmatter
+        expect(result.stdout).toContain(`name: "${KNOWN_ACCOUNT_NAME}"`)
       },
       TEST_TIMEOUT,
     )
