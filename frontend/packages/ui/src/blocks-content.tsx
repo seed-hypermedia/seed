@@ -1496,16 +1496,26 @@ export function BlockEmbedCard({
 }: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean}) {
   const id = unpackHmId(block.link) ?? undefined
   const doc = useResource(id, {subscribed: true})
+  // Check tombstone on latest version for version-pinned embeds.
+  // Version-specific fetches skip the backend's tombstone check.
+  const latestCheckId = id?.version && !id?.latest ? hmId(id.uid, {path: id.path}) : undefined
+  const latestCheck = useResource(latestCheckId)
   const document = doc.data?.type === 'document' ? doc.data.document : undefined
   const authors = useResources(document?.authors.map((uid: string) => hmId(uid)) || [])
+  const isDeleted =
+    doc.isTombstone ||
+    doc.data?.type === 'tombstone' ||
+    latestCheck.data?.type === 'tombstone' ||
+    latestCheck.isTombstone
   if (doc.isInitialLoading)
     return (
       <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
-  if (doc.isTombstone || doc.data?.type === 'tombstone') {
-    return <ErrorBlock message="Embedded content has been deleted" />
+  // No content available at all — banner without toggle
+  if (doc.data?.type === 'tombstone') {
+    return <DeletedEmbedBanner />
   }
   if (doc.data?.type === 'not-found') {
     if (doc.isDiscovering) {
@@ -1539,7 +1549,7 @@ export function BlockEmbedCard({
 
   if (!id) return <ErrorBlock message="Invalid Embed URL" />
 
-  return (
+  const card = (
     <EmbedWrapper
       id={id}
       parentBlockId={parentBlockId}
@@ -1558,6 +1568,12 @@ export function BlockEmbedCard({
       />
     </EmbedWrapper>
   )
+
+  if (isDeleted) {
+    return <DeletedEmbedBanner>{card}</DeletedEmbedBanner>
+  }
+
+  return card
 }
 
 export function BlockEmbedContent({
@@ -1574,19 +1590,30 @@ export function BlockEmbedContent({
     id && resourceId && resourceId.uid === id.uid && resourceId.path?.join('/') === id.path?.join('/') && id.latest
 
   const resource = useResource(id, {subscribed: true})
+  // Check tombstone on latest version for version-pinned embeds.
+  // Version-specific fetches skip the backend's tombstone check.
+  const latestCheckId = id?.version && !id?.latest ? hmId(id.uid, {path: id.path}) : null
+  const latestCheck = useResource(latestCheckId)
   const document = resource.data?.type === 'document' ? resource.data.document : undefined
   const comment = resource.data?.type === 'comment' ? resource.data.comment : undefined
   const commentTargetResource = useResource(getCommentTargetId(comment))
 
   const author = useResource(comment?.author ? hmId(comment?.author) : null)
 
+  const isDeleted =
+    resource.isTombstone ||
+    resource.data?.type === 'tombstone' ||
+    latestCheck.data?.type === 'tombstone' ||
+    latestCheck.isTombstone
+
   if (isSelfEmbed) {
     // this avoids a dangerous recursive embedding of the same document
     return <ErrorBlock message="Cannot embed the latest version of a document within itself" />
   }
   if (!id) return <ErrorBlock message="Invalid embed link" />
-  if (resource.isTombstone || resource.data?.type === 'tombstone') {
-    return <ErrorBlock message="Embedded content has been deleted" />
+  // No content available at all — banner without toggle
+  if (resource.data?.type === 'tombstone') {
+    return <DeletedEmbedBanner />
   }
   if (resource.data?.type === 'not-found') {
     if (resource.isDiscovering) {
@@ -1617,7 +1644,7 @@ export function BlockEmbedContent({
     return <ErrorBlock message="Could not load embed" />
   }
   if (comment) {
-    return (
+    const commentContent = (
       <BlockEmbedContentComment
         parentBlockId={parentBlockId}
         depth={depth}
@@ -1630,9 +1657,13 @@ export function BlockEmbedContent({
         openOnClick={openOnClick}
       />
     )
+    if (isDeleted) {
+      return <DeletedEmbedBanner>{commentContent}</DeletedEmbedBanner>
+    }
+    return commentContent
   }
 
-  return (
+  const embedContent = (
     <BlockEmbedContentDocument
       id={id}
       depth={depth}
@@ -1649,6 +1680,12 @@ export function BlockEmbedContent({
       openOnClick={openOnClick}
     />
   )
+
+  if (isDeleted) {
+    return <DeletedEmbedBanner>{embedContent}</DeletedEmbedBanner>
+  }
+
+  return embedContent
 }
 
 export function BlockEmbedComments({
@@ -1659,18 +1696,26 @@ export function BlockEmbedComments({
   const client = useUniversalClient()
   const id = unpackHmId(block.link)
 
-  useResource(id, {
+  const resource = useResource(id, {
     recursive: true,
     subscribed: true,
   })
+  // Check tombstone on latest version for version-pinned embeds.
+  const latestCheckId = id?.version && !id?.latest ? hmId(id.uid, {path: id.path}) : null
+  const latestCheck = useResource(latestCheckId)
 
   if (!id) {
     return <ErrorBlock message="Invalid embed link" />
   }
+  // No content available at all — banner without toggle
+  if (resource.data?.type === 'tombstone') {
+    return <DeletedEmbedBanner />
+  }
 
+  const isDeleted = resource.isTombstone || latestCheck.data?.type === 'tombstone' || latestCheck.isTombstone
   const CommentEditor = client.CommentEditor
 
-  return (
+  const content = (
     <EmbedWrapper id={id} parentBlockId={parentBlockId} hideBorder openOnClick={openOnClick}>
       {CommentEditor ? (
         <div
@@ -1684,6 +1729,12 @@ export function BlockEmbedComments({
       <Discussions targetId={id} />
     </EmbedWrapper>
   )
+
+  if (isDeleted) {
+    return <DeletedEmbedBanner>{content}</DeletedEmbedBanner>
+  }
+
+  return content
 }
 
 export function ErrorBlock({
@@ -1719,6 +1770,35 @@ export function ErrorBlock({
         ) : null}
       </div>
     </Tooltip>
+  )
+}
+
+/** Warning banner for embeds whose document has been deleted. Shows a toggle when content is available. */
+function DeletedEmbedBanner({children}: {children?: ReactNode}) {
+  const [showContent, setShowContent] = useState(false)
+  const hasContent = !!children
+  return (
+    <div className="block-content flex flex-col gap-1">
+      <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-100 p-2 dark:border-amber-600 dark:bg-amber-900/30">
+        <AlertCircle className="size-3 shrink-0 text-amber-600 dark:text-amber-400" />
+        <SizableText className="flex-1 text-sm text-amber-800 dark:text-amber-200">
+          This embedded document has been deleted
+        </SizableText>
+        {hasContent ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowContent((v) => !v)
+            }}
+          >
+            {showContent ? 'Hide content' : 'Show content'}
+          </Button>
+        ) : null}
+      </div>
+      {showContent && hasContent ? children : null}
+    </div>
   )
 }
 
