@@ -36,13 +36,18 @@ export type {EmbeddedPdfResult} from './pdf-to-blocks-embedded'
 
 export {trimTrailingEmptyBlocks} from './comment'
 export {
+  codePointLength,
   entityQueryPathToHmIdPath,
   getHMQueryString,
   hmIdPathToEntityQueryPath,
   HYPERMEDIA_SCHEME,
+  isSurrogate,
   packBaseId,
   packHmId,
+  parseCustomURL,
+  parseFragment,
   serializeBlockRange,
+  unpackHmId,
 } from './hm-types'
 export type {HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'
 

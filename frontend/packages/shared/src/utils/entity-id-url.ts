@@ -1,4 +1,9 @@
-import type {BlockRange, HMComment, ParsedFragment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {BlockRange, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {
+  parseCustomURL as _parseCustomURL,
+  parseFragment as _parseFragment,
+  unpackHmId as _unpackHmId,
+} from '@seed-hypermedia/client/hm-types'
 import {DEFAULT_GATEWAY_URL, HYPERMEDIA_SCHEME, OS_PROTOCOL_SCHEME} from '../constants'
 import {NavRoute} from '../routes'
 import {entityQueryPathToHmIdPath} from './path-api'
@@ -474,28 +479,8 @@ export function hmDocId(uid: string, opts?: Parameters<typeof hmId>[1]) {
   return hmId(uid, opts)
 }
 
-type ParsedURL = {
-  scheme: string | null
-  path: string[]
-  query: Record<string, string>
-  fragment: string | null
-}
-
-export function parseCustomURL(url: string): ParsedURL | null {
-  if (!url) return null
-  const [scheme, rest] = url.split('://')
-  if (!rest) return null
-  const [pathAndQuery, fragment = null] = rest.split('#')
-  const [path, queryString] = pathAndQuery?.split('?') || []
-  const query = new URLSearchParams(queryString)
-  const queryObject = Object.fromEntries(query.entries())
-  return {
-    scheme: scheme || null,
-    path: path?.split('/') || [],
-    query: queryObject,
-    fragment,
-  }
-}
+/** @deprecated Import from `@seed-hypermedia/client/hm-types` instead. */
+export const parseCustomURL = _parseCustomURL
 
 // this is used to convert an object that is a superset of HMId to an exact HMId. This is used in the case of embed props (but maybe we should reconsider this approach of spreading id directly into embed props)
 export function narrowHmId(id: UnpackedHypermediaId): UnpackedHypermediaId {
@@ -538,63 +523,8 @@ export function hmId(
   }
 }
 
-// Special static paths that should not be treated as Hypermedia document UIDs
-const STATIC_HM_PATHS = new Set(['download', 'connect', 'register', 'device-link', 'profile', 'contact'])
-
-export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
-  if (!hypermediaId) return null
-  const parsed = parseCustomURL(hypermediaId)
-  if (!parsed) return null
-  let uid
-  let path: string[]
-  let hostname = null
-  if (parsed.scheme === 'https' || parsed.scheme === 'http') {
-    if (parsed.path[1] !== 'hm') return null
-    hostname = parsed.path[0]
-    uid = parsed.path[2]
-    // Skip special static paths
-    if (uid && STATIC_HM_PATHS.has(uid)) return null
-    path = parsed.path.slice(3)
-  } else if (parsed.scheme === HYPERMEDIA_SCHEME || parsed.scheme === 'hm') {
-    // Accept 'hm' scheme for compatibility
-    uid = parsed.path[0]
-    path = parsed.path.slice(1)
-  } else {
-    return null
-  }
-  const version = parsed.query.v || null
-  const fragment = parseFragment(parsed.fragment)
-
-  // When blockRef is present, version takes precedence over latest
-  // because the block only exists in a specific version
-  const hasBlockRef = !!fragment?.blockId
-  const latest = hasBlockRef ? false : parsed.query.l === null || parsed.query.l === '' || !version
-
-  let blockRange = null
-  if (fragment) {
-    if ('start' in fragment) {
-      blockRange = {
-        start: fragment.start,
-        end: fragment.end,
-      }
-    } else if ('expanded' in fragment) {
-      blockRange = {
-        expanded: fragment.expanded,
-      }
-    }
-  }
-  return {
-    id: packBaseId(uid || '', path),
-    uid: uid || '',
-    path: path || null,
-    version,
-    blockRef: fragment ? fragment.blockId : null,
-    blockRange,
-    hostname: hostname || null,
-    latest,
-    scheme: parsed.scheme,
-  }
-}
+/** @deprecated Import from `@seed-hypermedia/client/hm-types` instead. */
+export const unpackHmId = _unpackHmId
 
 export function isHypermediaScheme(url?: string) {
   return !!url?.startsWith(`${HYPERMEDIA_SCHEME}://`) || !!url?.startsWith('hm://')
@@ -700,41 +630,8 @@ export function extractBlockRangeOfUrl(url: string | null | undefined): BlockRan
   }
 }
 
-export function parseFragment(input: string | null): ParsedFragment | null {
-  if (!input) return null
-  // Match blockId (any chars except + or [) followed by optional suffix
-  const regex = /^([^\+\[]+)((\+)|\[(\d+)\:(\d+)\])?$/
-  const match = input.match(regex)
-  if (match) {
-    const blockId = match[1] || ''
-    const expanded = match[3] // '+' or undefined
-    const rangeStart = match[4] // start number or undefined
-    const rangeEnd = match[5] // end number or undefined
-
-    if (expanded === '+') {
-      return {
-        blockId,
-        expanded: true,
-      }
-    } else if (typeof rangeStart !== 'undefined' && typeof rangeEnd !== 'undefined') {
-      return {
-        blockId,
-        start: parseInt(rangeStart),
-        end: parseInt(rangeEnd),
-      }
-    } else {
-      return {
-        blockId,
-        expanded: false,
-      }
-    }
-  } else {
-    return {
-      blockId: input,
-      expanded: false,
-    }
-  }
-}
+/** @deprecated Import from `@seed-hypermedia/client/hm-types` instead. */
+export const parseFragment = _parseFragment
 
 export function serializeBlockRange(range: BlockRange | null | undefined): string {
   let res = ''

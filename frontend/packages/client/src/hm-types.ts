@@ -1718,3 +1718,131 @@ export function entityQueryPathToHmIdPath(path: string | null | undefined): stri
   if (path === '/') return []
   return path.split('/').filter(Boolean)
 }
+
+// ─── HM ID unpacking utilities ──────────────────────────────────────────────
+//
+// These functions were moved from @shm/shared to break the cyclic dependency
+// between client and shared. The shared package re-exports them for backward
+// compatibility.
+
+/** Parsed URL components from parseCustomURL. */
+type ParsedURL = {
+  scheme: string | null
+  path: string[]
+  query: Record<string, string>
+  fragment: string | null
+}
+
+/** Split a URL into scheme, path segments, query params, and fragment. */
+export function parseCustomURL(url: string): ParsedURL | null {
+  if (!url) return null
+  const [scheme, rest] = url.split('://')
+  if (!rest) return null
+  const [pathAndQuery, fragment = null] = rest.split('#')
+  const [path, queryString] = pathAndQuery?.split('?') || []
+  const query = new URLSearchParams(queryString)
+  const queryObject = Object.fromEntries(query.entries())
+  return {
+    scheme: scheme || null,
+    path: path?.split('/') || [],
+    query: queryObject,
+    fragment,
+  }
+}
+
+/** Parse a URL fragment like `blockId`, `blockId+`, or `blockId[start:end]`. */
+export function parseFragment(input: string | null): ParsedFragment | null {
+  if (!input) return null
+  const regex = /^([^\+\[]+)((\+)|\[(\d+)\:(\d+)\])?$/
+  const match = input.match(regex)
+  if (match) {
+    const blockId = match[1] || ''
+    const expanded = match[3]
+    const rangeStart = match[4]
+    const rangeEnd = match[5]
+
+    if (expanded === '+') {
+      return {blockId, expanded: true}
+    } else if (typeof rangeStart !== 'undefined' && typeof rangeEnd !== 'undefined') {
+      return {blockId, start: parseInt(rangeStart), end: parseInt(rangeEnd)}
+    } else {
+      return {blockId, expanded: false}
+    }
+  } else {
+    return {blockId: input, expanded: false}
+  }
+}
+
+/** Special static paths that should not be treated as Hypermedia document UIDs. */
+const STATIC_HM_PATHS = new Set(['download', 'connect', 'register', 'device-link', 'profile', 'contact'])
+
+/** Parse a hypermedia URL string into an UnpackedHypermediaId. */
+export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
+  if (!hypermediaId) return null
+  const parsed = parseCustomURL(hypermediaId)
+  if (!parsed) return null
+  let uid
+  let path: string[]
+  let hostname = null
+  if (parsed.scheme === 'https' || parsed.scheme === 'http') {
+    if (parsed.path[1] !== 'hm') return null
+    hostname = parsed.path[0]
+    uid = parsed.path[2]
+    if (uid && STATIC_HM_PATHS.has(uid)) return null
+    path = parsed.path.slice(3)
+  } else if (parsed.scheme === HYPERMEDIA_SCHEME || parsed.scheme === 'hm') {
+    uid = parsed.path[0]
+    path = parsed.path.slice(1)
+  } else {
+    return null
+  }
+  const version = parsed.query.v || null
+  const fragment = parseFragment(parsed.fragment)
+
+  const hasBlockRef = !!fragment?.blockId
+  const latest = hasBlockRef ? false : parsed.query.l === null || parsed.query.l === '' || !version
+
+  let blockRange = null
+  if (fragment) {
+    if ('start' in fragment) {
+      blockRange = {start: fragment.start, end: fragment.end}
+    } else if ('expanded' in fragment) {
+      blockRange = {expanded: fragment.expanded}
+    }
+  }
+  return {
+    id: packBaseId(uid || '', path),
+    uid: uid || '',
+    path: path || null,
+    version,
+    blockRef: fragment ? fragment.blockId : null,
+    blockRange,
+    hostname: hostname || null,
+    latest,
+    scheme: parsed.scheme,
+  }
+}
+
+// ─── Unicode utilities ──────────────────────────────────────────────────────
+//
+// Moved from @shm/shared to break the cyclic dependency. Used for measuring
+// text length in code points (needed for annotation offsets in TEI/PDF parsing).
+
+/** Count Unicode code points in a string, correctly handling surrogate pairs. */
+export function codePointLength(entry: string) {
+  let count = 0
+  if (!entry) return 0
+  for (let i = 0; i < entry.length; i++) {
+    count++
+    if (isSurrogate(entry, i)) {
+      i++
+    }
+  }
+  return count
+}
+
+/** Check if a UTF-16 code unit at index i is the start of a surrogate pair. */
+export function isSurrogate(s: string, i: number) {
+  const code = s.charCodeAt(i)
+  return 0xd800 <= code && code <= 0xdbff
+}

@@ -126,21 +126,5 @@ export function pushSpanToAnnotation(annotation: Annotation, start: number, end:
   annotation.ends.push(end)
 }
 
-export function codePointLength(entry: string) {
-  let count = 0
-  if (!entry) return 0
-  for (let i = 0; i < entry.length; i++) {
-    count++
-
-    if (isSurrogate(entry, i)) {
-      i++
-    }
-  }
-  return count
-}
-
-// Checks if a UTF-16 code unit i in string s is start of a surrogate pair.
-export function isSurrogate(s: string, i: number) {
-  const code = s.charCodeAt(i)
-  return 0xd800 <= code && code <= 0xdbff
-}
+/** @deprecated Import from `@seed-hypermedia/client/hm-types` instead. */
+export {codePointLength, isSurrogate} from '@seed-hypermedia/client/hm-types'

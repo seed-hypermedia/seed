@@ -41,7 +41,6 @@
   },
   "dependencies": {
     "@ipld/dag-cbor": "^9.2.5",
-    "@shm/shared": "workspace:*",
     "blockstore-core": "^5.0.2",
     "cheerio": "^1.2.0",
     "ipfs-unixfs-importer": "^15.3.2",

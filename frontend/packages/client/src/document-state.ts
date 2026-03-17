@@ -8,7 +8,7 @@
 
 import type {SeedClient} from './client'
 import type {HMListChangesOutput} from './hm-types'
-import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {unpackHmId} from './hm-types'
 
 /** The resolved state of a document's change DAG. */
 export type DocumentState = {

@@ -11,13 +11,12 @@
  */
 
 import type {HMBlockNode, HMDocument, HMSigner, UnpackedHypermediaId} from './hm-types'
-import {hmIdPathToEntityQueryPath, packHmId} from './hm-types'
+import {hmIdPathToEntityQueryPath, packHmId, unpackHmId} from './hm-types'
 import type {SeedClient} from './client'
 import type {DocumentOperation} from './change'
 import {createChangeOps, createChange} from './change'
 import {createVersionRef} from './ref'
 import {resolveDocumentState} from './document-state'
-import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {CID} from 'multiformats/cid'
 
 // ── Layer 1: Pure decision logic (no I/O) ────────────────────────────────────
