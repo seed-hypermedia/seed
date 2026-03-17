@@ -46,12 +46,10 @@ export const sendNotificationsEmail = async (
   opts: {adminToken: string},
   notifications: FullNotification[],
 ) => {
-  const {subject, text, html, subscriberNames} = await createNotificationsEmail(
-    email,
-    opts,
-    notifications,
-  )
+  const result = await createNotificationsEmail(email, opts, notifications)
+  if (!result) return
 
+  const {subject, text, html, subscriberNames} = result
   await sendEmail(
     email,
     subject,

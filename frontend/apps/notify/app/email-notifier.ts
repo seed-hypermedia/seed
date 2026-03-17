@@ -1,6 +1,12 @@
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import {createDesktopNotificationsEmail, createNotificationsEmail, Notification} from '@shm/emails/notifier'
+import {
+  createCommentEmail,
+  createMentionEmail,
+  createNotificationsEmail,
+  createReplyEmail,
+  Notification,
+} from '@shm/emails/notifier'
 import {
   HMBlockNode,
   HMComment,
@@ -561,6 +567,53 @@ function withActionUrlLogContext(notification: QueuedNotification) {
   }
 }
 
+/** Build an individual email for a single immediate notification using the new mockup-matching templates. */
+function buildImmediateNotificationEmail(
+  notification: QueuedNotification,
+): {subject: string; text: string; html: string} | null {
+  const {notif, adminToken} = notification
+  const unsubscribeUrl = `${notificationEmailHost}/hm/email-notifications?token=${adminToken}`
+  const authorName = notif.authorMeta?.name || 'Someone'
+  const documentName = notif.targetMeta?.name || 'Untitled Document'
+
+  if (notif.reason === 'mention') {
+    const subjectName = notification.accountMeta?.name || 'you'
+    return createMentionEmail({
+      authorName,
+      subjectName,
+      documentName,
+      commentBlocks: notif.comment?.content || [],
+      actionUrl: notif.actionUrl || notif.url,
+      unsubscribeUrl,
+      resolvedNames: notif.resolvedNames,
+    })
+  }
+
+  if (notif.reason === 'reply') {
+    return createReplyEmail({
+      authorName,
+      documentName,
+      commentBlocks: notif.comment.content,
+      actionUrl: notif.actionUrl || notif.url,
+      unsubscribeUrl,
+      resolvedNames: notif.resolvedNames,
+    })
+  }
+
+  if (notif.reason === 'discussion') {
+    return createCommentEmail({
+      authorName,
+      documentName,
+      commentBlocks: notif.comment.content,
+      actionUrl: notif.actionUrl || notif.url,
+      unsubscribeUrl,
+    })
+  }
+
+  // Fallback for any other reason — should not happen for immediate notifications
+  return null
+}
+
 async function sendImmediateNotificationEmails(notificationsToSend: NotificationsByEmail) {
   const emailsToSend = Object.entries(notificationsToSend)
   logNotifDebug('immediate notifications ready', {
@@ -571,18 +624,21 @@ async function sendImmediateNotificationEmails(notificationsToSend: Notification
   for (const [email, notifications] of emailsToSend) {
     for (const notification of notifications) {
       const notificationWithAction = withImmediateActionUrl(notification)
-      const notificationEmail = await createDesktopNotificationsEmail(email, {adminToken: notification.adminToken}, [
-        notificationWithAction,
-      ])
+      const notificationEmail = buildImmediateNotificationEmail(notificationWithAction)
       if (!notificationEmail) continue
       const {subject, text, html} = notificationEmail
+      const reason = notificationWithAction.notif.reason
+      const unsubscribeUrl = `${notificationEmailHost}/hm/api/unsubscribe?token=${notification.adminToken}`
       logNotifDebug('sending immediate notification email', {
         email,
         subject,
-        reason: notificationWithAction.notif.reason,
+        reason,
         ...withActionUrlLogContext(notificationWithAction),
       })
-      await sendEmail(email, subject, {text, html})
+      await sendEmail(email, subject, {text, html}, undefined, {
+        unsubscribeUrl,
+        feedbackId: reason,
+      })
     }
   }
 }
@@ -604,13 +660,17 @@ async function sendBatchNotificationEmails(notificationsToSend: NotificationsByE
     )
     if (!notificationEmail) continue
     const {subject, text, html} = notificationEmail
+    const batchUnsubscribeUrl = `${notificationEmailHost}/hm/api/unsubscribe?token=${firstNotification.adminToken}`
     logNotifDebug('sending batch notification email', {
       email,
       subject,
       notificationsCount: notifications.length,
       reasons: notifications.map((notification) => notification.notif.reason),
     })
-    await sendEmail(email, subject, {text, html})
+    await sendEmail(email, subject, {text, html}, undefined, {
+      unsubscribeUrl: batchUnsubscribeUrl,
+      feedbackId: 'batch',
+    })
   }
 }
 

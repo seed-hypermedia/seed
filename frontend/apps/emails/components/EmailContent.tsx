@@ -324,7 +324,25 @@ function renderChange({targetDocName, isNewDocument}: {targetDocName: string; is
   )
 }
 
-function renderBlocks(blocks: HMBlockNode[], notifUrl: string, resolvedNames?: Record<string, string>) {
+/** Gray box wrapper for quoted comment/discussion content in the new email templates. */
+export function QuotedContent({
+  blocks,
+  resolvedNames,
+}: {
+  blocks: HMBlockNode[]
+  resolvedNames?: Record<string, string>
+}) {
+  return (
+    <MjmlSection padding="0 24px 16px">
+      <MjmlColumn backgroundColor="#f3f4f6" borderRadius="8px" padding="12px 16px">
+        {renderBlocks(blocks, '', resolvedNames)}
+      </MjmlColumn>
+    </MjmlSection>
+  )
+}
+
+/** Recursively render HMBlockNode[] to MJML elements. */
+export function renderBlocks(blocks: HMBlockNode[], notifUrl: string, resolvedNames?: Record<string, string>) {
   return blocks.map((blockNode, index) => (
     <React.Fragment key={index}>
       {renderBlock(blockNode, notifUrl, resolvedNames)}
@@ -333,7 +351,7 @@ function renderBlocks(blocks: HMBlockNode[], notifUrl: string, resolvedNames?: R
   ))
 }
 
-function renderBlock(blockNode: HMBlockNode, notifUrl: string, resolvedNames?: Record<string, string>) {
+export function renderBlock(blockNode: HMBlockNode, notifUrl: string, resolvedNames?: Record<string, string>) {
   const block = blockNode.block as {
     type: string
     text?: string
@@ -460,7 +478,8 @@ function renderBlock(blockNode: HMBlockNode, notifUrl: string, resolvedNames?: R
   return null
 }
 
-function renderInlineTextWithAnnotations(text: string, annotations: any[], resolvedNames?: Record<string, string>) {
+/** Render inline text with bold/italic/link/embed annotations to HTML string. */
+export function renderInlineTextWithAnnotations(text: string, annotations: any[], resolvedNames?: Record<string, string>) {
   if (!annotations.length) return text
 
   let result = []

@@ -1,77 +1,22 @@
-import {
-  MjmlColumn,
-  MjmlGroup,
-  MjmlImage,
-  MjmlSection,
-  MjmlText,
-} from '@faire/mjml-react'
+import {MjmlColumn, MjmlImage, MjmlSection, MjmlText} from '@faire/mjml-react'
 
+/** Centered logo + brand text header for all outbound emails. */
 export function EmailHeader() {
   return (
-    <MjmlSection padding="16px 24px" border-bottom="1px solid #eee">
-      {/* <MjmlColumn width="50%" verticalAlign="middle"> */}
-      <MjmlGroup width="70%">
-        <MjmlColumn width="24px" paddingRight="10px" verticalAlign="middle">
-          <MjmlImage
-            src="https://iili.io/FJ0pBl1.png"
-            alt="Seed Logo"
-            width="16px"
-            height="20px"
-            padding="0"
-          />
-        </MjmlColumn>
-        <MjmlColumn padding="0" verticalAlign="middle">
-          <MjmlText
-            fontSize="16px"
-            fontWeight="bold"
-            color="#068f7b"
-            padding="0"
-          >
-            Seed Hypermedia
-          </MjmlText>
-        </MjmlColumn>
-      </MjmlGroup>
-      {/* <MjmlColumn width="30%" verticalAlign="middle">
-        {avatarUrl ? (
-          <MjmlImage
-            src={getDaemonFileUrl(avatarUrl)}
-            alt="User Avatar"
-            align="right"
-            borderRadius="50%"
-            width="28px"
-            height="28px"
-          />
-        ) : (
-          <MjmlRaw>
-            <table
-              role="presentation"
-              border={0}
-              cellPadding="0"
-              cellSpacing="0"
-              style={{float: 'right'}}
-            >
-              <tr>
-                <td
-                  style={{
-                    width: '24px',
-                    height: '24px',
-                    borderRadius: '50%',
-                    backgroundColor: '#ccc',
-                    textAlign: 'center',
-                    lineHeight: '24px',
-                    fontWeight: 'bold',
-                    fontSize: '12px',
-                    color: '#ffffff',
-                    fontFamily: 'sans-serif',
-                  }}
-                >
-                  {fallbackLetter}
-                </td>
-              </tr>
-            </table>
-          </MjmlRaw>
-        )}
-      </MjmlColumn> */}
+    <MjmlSection padding="24px 24px 16px" borderBottom="1px solid #eeeeee">
+      <MjmlColumn>
+        <MjmlImage
+          src="https://static.hyper.media/email/seed-logo.png"
+          alt="Seed Logo"
+          width="24px"
+          height="30px"
+          padding="0"
+          align="center"
+        />
+        <MjmlText fontSize="16px" fontWeight="bold" color="#068f7b" padding="8px 0 0" align="center">
+          Seed Hypermedia
+        </MjmlText>
+      </MjmlColumn>
     </MjmlSection>
   )
 }

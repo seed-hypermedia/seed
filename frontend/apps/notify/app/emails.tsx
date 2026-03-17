@@ -1,127 +1,12 @@
-import {PlainMessage} from '@bufbuild/protobuf'
-import {Mjml, MjmlBody, MjmlButton, MjmlHead, MjmlPreview, MjmlSection, MjmlText, MjmlTitle} from '@faire/mjml-react'
-import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
-import {NotifSettings} from '@shm/emails/components/NotifSettings'
-import {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {Comment} from '@shm/shared'
-import {NOTIFY_SERVICE_HOST, SITE_BASE_URL} from '@shm/shared/constants'
-import mjml2html from 'mjml'
-import {MJMLParseResults} from 'mjml-core'
-import React from 'react'
+import {Mjml, MjmlBody, MjmlColumn, MjmlHead, MjmlPreview, MjmlSection, MjmlText, MjmlTitle} from '@faire/mjml-react'
+import {EmailFooter} from '@shm/emails/components/EmailFooter'
+import {EmailHeader} from '@shm/emails/components/EmailHeader'
+import {renderReactToMjml} from '@shm/emails/notifier'
+import {HMMetadata} from '@seed-hypermedia/client/hm-types'
+import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {sendEmail} from './mailer'
 
-export async function sendNotificationsEmail(
-  email: string,
-  opts: {adminToken: string; isUnsubscribed: boolean; createdAt: string},
-  notifications: FullNotification[],
-) {
-  if (!notifications.length) return
-  const subscriberNames: Set<string> = new Set()
-  const notificationsByDocument: Record<string, FullNotification[]> = {}
-  for (const notification of notifications) {
-    if (!notificationsByDocument[notification.notif.targetId.id]) {
-      notificationsByDocument[notification.notif.targetId.id] = []
-    }
-    // @ts-expect-error
-    notificationsByDocument[notification.notif.targetId.id].push(notification)
-    subscriberNames.add(notification.accountMeta?.name || 'You')
-  }
-  const docNotifs = Object.values(notificationsByDocument)
-  const baseNotifsSubject = notifications.length > 1 ? `${notifications.length} Notifications` : 'Notification'
-  let subject = baseNotifsSubject
-  const singleDocumentTitle = notifications.every(
-    // @ts-expect-error
-    (n) => n.notif.targetMeta?.name === notifications[0].notif.targetMeta?.name,
-  )
-    ? // @ts-expect-error
-      notifications[0].notif.targetMeta?.name
-    : undefined
-  if (singleDocumentTitle) {
-    subject = `${baseNotifsSubject} on ${singleDocumentTitle}`
-  }
-  const firstNotificationSummary = getNotificationSummary(
-    // @ts-expect-error
-    notifications[0].notif,
-    // @ts-expect-error
-    notifications[0].accountMeta,
-  )
-  const notifSettingsUrl = `${SITE_BASE_URL.replace(/\/$/, '')}/hm/email-notifications?token=${opts.adminToken}`
-
-  const text = `${baseNotifsSubject}
-
-${docNotifs
-  .map((notifications) => {
-    const docName =
-      // @ts-expect-error
-      notifications[0].notif.targetMeta?.name || 'Untitled Document'
-
-    // @ts-expect-error
-    const firstNotifUrl = notifications[0].notif.url
-
-    return `${docName}
-
-${notifications
-  .map((notification) => {
-    const comment = notification.notif.comment
-    return `New ${notification.notif.type} from ${comment.author} on ${notification.notif.url}`
-  })
-  .join('\n')}
-
-${firstNotifUrl}
-
-`
-  })
-  .join('\n')}
-
-Subscribed by mistake? Click here to unsubscribe or manage notifications: ${notifSettingsUrl}`
-  const {html} = renderReactToMjml(
-    <Mjml>
-      <MjmlHead>
-        <MjmlTitle>{subject}</MjmlTitle>
-        {/* This preview is visible from the email client before the user clicks on the email */}
-        <MjmlPreview>
-          {notifications.length > 1 ? `${firstNotificationSummary} and more` : firstNotificationSummary}
-        </MjmlPreview>
-      </MjmlHead>
-      <MjmlBody width={500}>
-        {/* <MjmlSection fullWidth backgroundColor="#efefef">
-            <MjmlColumn>
-              <MjmlImage src="https://static.wixstatic.com/media/5cb24728abef45dabebe7edc1d97ddd2.jpg" />
-            </MjmlColumn>
-          </MjmlSection> */}
-        {docNotifs.map((notifications) => {
-          return (
-            <MjmlSection>
-              <MjmlText fontSize={20} fontWeight={'bold'}>
-                {/* @ts-expect-error */}
-                {notifications[0].notif.targetMeta?.name || 'Untitled Document'}
-              </MjmlText>
-              {notifications.map((notification) => {
-                return (
-                  <MjmlText paddingBottom={8} paddingTop={8}>
-                    {getNotificationSummary(notification.notif, notification.accountMeta)}
-                  </MjmlText>
-                )
-              })}
-              <MjmlButton
-                padding="8px"
-                backgroundColor="#346DB7"
-                // @ts-expect-error
-                href={notifications[0].notif.url}
-              >
-                Open Document
-              </MjmlButton>
-            </MjmlSection>
-          )
-        })}
-        <NotifSettings url={notifSettingsUrl} />
-      </MjmlBody>
-    </Mjml>,
-  )
-
-  await sendEmail(email, subject, {text, html}, `Hypermedia Updates for ${Array.from(subscriberNames).join(', ')}`)
-}
-
+/** Send the welcome email after a user subscribes to notifications. */
 export async function sendNotificationWelcomeEmail(
   email: string,
   accountMeta: HMMetadata,
@@ -150,19 +35,27 @@ export async function sendNotificationWelcomeEmail(
 
 ${primaryMessage}
 
-Subscribed by mistake? Click here to unsubscribe or manage notifications: ${notifSettingsUrl}`
+Manage notifications: ${notifSettingsUrl}`
+
   const {html} = renderReactToMjml(
     <Mjml>
       <MjmlHead>
         <MjmlTitle>{subject}</MjmlTitle>
-        {/* This preview is visible from the email client before the user clicks on the email */}
         <MjmlPreview>Welcome! You're now subscribed to receive email notifications.</MjmlPreview>
       </MjmlHead>
-      <MjmlBody width={500}>
-        <MjmlSection>
-          <MjmlText>{primaryMessage}</MjmlText>
+      <MjmlBody width={500} backgroundColor="#ffffff">
+        <EmailHeader />
+        <MjmlSection padding="24px">
+          <MjmlColumn>
+            <MjmlText fontSize="18px" fontWeight="bold" lineHeight="1.4">
+              Welcome!
+            </MjmlText>
+            <MjmlText fontSize="15px" lineHeight="1.6" paddingTop="8px">
+              {primaryMessage}
+            </MjmlText>
+          </MjmlColumn>
         </MjmlSection>
-        <NotifSettings url={notifSettingsUrl} />
+        <EmailFooter unsubscribeUrl={notifSettingsUrl} />
       </MjmlBody>
     </Mjml>,
   )
@@ -173,46 +66,4 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
     {text, html},
     accountMeta?.name ? `Hypermedia Updates for ${accountMeta?.name}` : 'Hypermedia Updates',
   )
-}
-
-export type Notification =
-  | {
-      type: 'mention'
-      comment: PlainMessage<Comment>
-      commentAuthorMeta: HMMetadata | null
-      targetMeta: HMMetadata | null
-      targetId: UnpackedHypermediaId
-      parentComments: PlainMessage<Comment>[]
-      url: string
-    }
-  | {
-      type: 'reply'
-      comment: PlainMessage<Comment>
-      commentAuthorMeta: HMMetadata | null
-      targetMeta: HMMetadata | null
-      targetId: UnpackedHypermediaId
-      parentComments: PlainMessage<Comment>[]
-      url: string
-    }
-
-export type FullNotification = {
-  accountId: string
-  accountMeta: HMMetadata | null
-  notif: Notification
-}
-
-function getNotificationSummary(notification: Notification, accountMeta: HMMetadata | null): string {
-  if (notification.type === 'mention') {
-    return `${accountMeta?.name || 'You were'} mentioned by ${
-      notification.commentAuthorMeta?.name || notification.comment.author
-    }.`
-  }
-  if (notification.type === 'reply') {
-    return `Reply from ${notification.commentAuthorMeta?.name || notification.comment.author}.`
-  }
-  return ''
-}
-
-export function renderReactToMjml(email: React.ReactElement): MJMLParseResults {
-  return mjml2html(renderToMjml(email))
 }

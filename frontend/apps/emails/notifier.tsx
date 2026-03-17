@@ -1,5 +1,7 @@
 import {
   Mjml,
+  MjmlAll,
+  MjmlAttributes,
   MjmlBody,
   MjmlButton,
   MjmlColumn,
@@ -10,20 +12,359 @@ import {
   MjmlTitle,
 } from '@faire/mjml-react'
 import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
-import {HMComment, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMBlockNode, HMComment, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getMentionNotificationTitle, getNotificationDocumentName} from '@shm/shared/models/notification-titles'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import mjml2html from 'mjml'
 import {MJMLParseResults} from 'mjml-core'
 import React from 'react'
-import {EmailContent} from './components/EmailContent'
+import {EmailContent, QuotedContent} from './components/EmailContent'
+import {EmailFooter} from './components/EmailFooter'
 import {EmailHeader} from './components/EmailHeader'
-import {NotifSettings} from './components/NotifSettings'
 
 type GroupedNotifications = Record<Notification['reason'], Record<string, FullNotification[]>>
 
 function getNotifyServiceHost() {
   return (NOTIFY_SERVICE_HOST || 'https://hyper.media').replace(/\/$/, '')
+}
+
+/** System font stack used across all email templates. */
+const SYSTEM_FONT_FAMILY =
+  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+
+/** Standard MJML <head> attributes applied to all new-style emails. */
+function EmailHeadDefaults({children}: {children?: React.ReactNode}) {
+  return (
+    <MjmlHead>
+      <MjmlAttributes>
+        <MjmlAll fontFamily={SYSTEM_FONT_FAMILY} />
+      </MjmlAttributes>
+      {children}
+    </MjmlHead>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// New individual email templates (match design mockups)
+// ---------------------------------------------------------------------------
+
+export type CreateMentionEmailInput = {
+  authorName: string
+  subjectName: string
+  documentName: string
+  sectionName?: string
+  commentBlocks: HMBlockNode[]
+  actionUrl: string
+  unsubscribeUrl: string
+  resolvedNames?: Record<string, string>
+}
+
+/** Build an individual "mention" notification email matching the design mockup. */
+export function createMentionEmail(input: CreateMentionEmailInput) {
+  const subject = `${input.authorName} mentioned ${input.subjectName} in a comment on ${input.documentName}`
+
+  const text = `${subject}
+${input.sectionName ? `Section: ${input.sectionName}\n` : ''}
+View comment: ${input.actionUrl}
+
+Manage notifications: ${input.unsubscribeUrl}`
+
+  const {html} = renderReactToMjml(
+    <Mjml>
+      <EmailHeadDefaults>
+        <MjmlTitle>{subject}</MjmlTitle>
+        <MjmlPreview>{subject}</MjmlPreview>
+      </EmailHeadDefaults>
+      <MjmlBody width={500} backgroundColor="#ffffff">
+        <EmailHeader />
+
+        <MjmlSection padding="24px 24px 0">
+          <MjmlColumn>
+            <MjmlText fontSize="18px" fontWeight="bold" lineHeight="1.4">
+              {input.authorName} mentioned {input.subjectName} in a comment on <em>{input.documentName}</em>
+            </MjmlText>
+          </MjmlColumn>
+        </MjmlSection>
+
+        {input.sectionName ? (
+          <MjmlSection padding="8px 24px 0">
+            <MjmlColumn>
+              <MjmlText fontSize="14px" color="#6b7280">
+                Section: {input.sectionName}
+              </MjmlText>
+            </MjmlColumn>
+          </MjmlSection>
+        ) : null}
+
+        {input.commentBlocks.length > 0 ? (
+          <QuotedContent blocks={input.commentBlocks} resolvedNames={input.resolvedNames} />
+        ) : null}
+
+        <MjmlSection padding="0 24px 24px">
+          <MjmlColumn>
+            <MjmlButton
+              href={input.actionUrl}
+              backgroundColor="#068f7b"
+              color="#ffffff"
+              borderRadius="6px"
+              fontSize="14px"
+              fontWeight="600"
+              innerPadding="12px 24px"
+              align="center"
+            >
+              View comment
+            </MjmlButton>
+          </MjmlColumn>
+        </MjmlSection>
+
+        <EmailFooter unsubscribeUrl={input.unsubscribeUrl} />
+      </MjmlBody>
+    </Mjml>,
+  )
+
+  return {subject, text, html}
+}
+
+export type CreateReplyEmailInput = {
+  authorName: string
+  documentName: string
+  sectionName?: string
+  commentBlocks: HMBlockNode[]
+  actionUrl: string
+  unsubscribeUrl: string
+  resolvedNames?: Record<string, string>
+}
+
+/** Build an individual "reply" notification email matching the design mockup. */
+export function createReplyEmail(input: CreateReplyEmailInput) {
+  const subject = `${input.authorName} replied to your comment in ${input.documentName}`
+
+  const text = `${subject}
+${input.sectionName ? `Section: ${input.sectionName}\n` : ''}
+Continue the discussion: ${input.actionUrl}
+
+Manage notifications: ${input.unsubscribeUrl}`
+
+  const {html} = renderReactToMjml(
+    <Mjml>
+      <EmailHeadDefaults>
+        <MjmlTitle>{subject}</MjmlTitle>
+        <MjmlPreview>{subject}</MjmlPreview>
+      </EmailHeadDefaults>
+      <MjmlBody width={500} backgroundColor="#ffffff">
+        <EmailHeader />
+
+        <MjmlSection padding="24px 24px 0">
+          <MjmlColumn>
+            <MjmlText fontSize="18px" fontWeight="bold" lineHeight="1.4">
+              {input.authorName} replied to your comment in <em>{input.documentName}</em>
+            </MjmlText>
+          </MjmlColumn>
+        </MjmlSection>
+
+        {input.sectionName ? (
+          <MjmlSection padding="8px 24px 0">
+            <MjmlColumn>
+              <MjmlText fontSize="14px" color="#6b7280">
+                Section: {input.sectionName}
+              </MjmlText>
+            </MjmlColumn>
+          </MjmlSection>
+        ) : null}
+
+        {input.commentBlocks.length > 0 ? (
+          <QuotedContent blocks={input.commentBlocks} resolvedNames={input.resolvedNames} />
+        ) : null}
+
+        <MjmlSection padding="0 24px 24px">
+          <MjmlColumn>
+            <MjmlButton
+              href={input.actionUrl}
+              backgroundColor="#068f7b"
+              color="#ffffff"
+              borderRadius="6px"
+              fontSize="14px"
+              fontWeight="600"
+              innerPadding="12px 24px"
+              align="center"
+            >
+              Continue the discussion
+            </MjmlButton>
+          </MjmlColumn>
+        </MjmlSection>
+
+        <EmailFooter unsubscribeUrl={input.unsubscribeUrl} />
+      </MjmlBody>
+    </Mjml>,
+  )
+
+  return {subject, text, html}
+}
+
+export type CreateDocUpdateEmailInput = {
+  authorName: string
+  documentName: string
+  sectionName?: string
+  changes?: string[]
+  actionUrl: string
+  unsubscribeUrl: string
+}
+
+/** Build an individual "document update" notification email matching the design mockup. */
+export function createDocUpdateEmail(input: CreateDocUpdateEmailInput) {
+  const subject = `${input.documentName} was updated by ${input.authorName}`
+
+  const changesList = input.changes?.length
+    ? input.changes.map((c) => `  - ${c}`).join('\n')
+    : ''
+
+  const text = `${subject}
+${input.sectionName ? `Section: ${input.sectionName}\n` : ''}${changesList ? `What changed:\n${changesList}\n` : ''}
+Review changes: ${input.actionUrl}
+
+Manage notifications: ${input.unsubscribeUrl}`
+
+  const {html} = renderReactToMjml(
+    <Mjml>
+      <EmailHeadDefaults>
+        <MjmlTitle>{subject}</MjmlTitle>
+        <MjmlPreview>{subject}</MjmlPreview>
+      </EmailHeadDefaults>
+      <MjmlBody width={500} backgroundColor="#ffffff">
+        <EmailHeader />
+
+        <MjmlSection padding="24px 24px 0">
+          <MjmlColumn>
+            <MjmlText fontSize="18px" fontWeight="bold" lineHeight="1.4">
+              <em>{input.documentName}</em> was updated by {input.authorName}
+            </MjmlText>
+          </MjmlColumn>
+        </MjmlSection>
+
+        {input.sectionName ? (
+          <MjmlSection padding="8px 24px 0">
+            <MjmlColumn>
+              <MjmlText fontSize="14px" color="#6b7280">
+                Section: {input.sectionName}
+              </MjmlText>
+            </MjmlColumn>
+          </MjmlSection>
+        ) : null}
+
+        {input.changes?.length ? (
+          <MjmlSection padding="12px 24px 16px">
+            <MjmlColumn backgroundColor="#f3f4f6" borderRadius="8px" padding="12px 16px">
+              <MjmlText fontSize="14px" fontWeight="bold" paddingBottom="4px">
+                What changed:
+              </MjmlText>
+              {input.changes.map((change, i) => (
+                <MjmlText key={i} fontSize="14px" paddingBottom="2px">
+                  {'• '}{change}
+                </MjmlText>
+              ))}
+            </MjmlColumn>
+          </MjmlSection>
+        ) : null}
+
+        <MjmlSection padding="0 24px 24px">
+          <MjmlColumn>
+            <MjmlButton
+              href={input.actionUrl}
+              backgroundColor="#068f7b"
+              color="#ffffff"
+              borderRadius="6px"
+              fontSize="14px"
+              fontWeight="600"
+              innerPadding="12px 24px"
+              align="center"
+            >
+              Review changes
+            </MjmlButton>
+          </MjmlColumn>
+        </MjmlSection>
+
+        <EmailFooter unsubscribeUrl={input.unsubscribeUrl} />
+      </MjmlBody>
+    </Mjml>,
+  )
+
+  return {subject, text, html}
+}
+
+export type CreateCommentEmailInput = {
+  authorName: string
+  documentName: string
+  sectionName?: string
+  commentBlocks: HMBlockNode[]
+  actionUrl: string
+  unsubscribeUrl: string
+  resolvedNames?: Record<string, string>
+}
+
+/** Build an individual "new comment" notification email matching the design mockup. */
+export function createCommentEmail(input: CreateCommentEmailInput) {
+  const subject = `${input.authorName} left a comment on your document ${input.documentName}`
+
+  const text = `${subject}
+${input.sectionName ? `Section: ${input.sectionName}\n` : ''}
+View comment: ${input.actionUrl}
+
+Manage notifications: ${input.unsubscribeUrl}`
+
+  const {html} = renderReactToMjml(
+    <Mjml>
+      <EmailHeadDefaults>
+        <MjmlTitle>{subject}</MjmlTitle>
+        <MjmlPreview>{subject}</MjmlPreview>
+      </EmailHeadDefaults>
+      <MjmlBody width={500} backgroundColor="#ffffff">
+        <EmailHeader />
+
+        <MjmlSection padding="24px 24px 0">
+          <MjmlColumn>
+            <MjmlText fontSize="18px" fontWeight="bold" lineHeight="1.4">
+              {input.authorName} left a comment on your document <em>{input.documentName}</em>
+            </MjmlText>
+          </MjmlColumn>
+        </MjmlSection>
+
+        {input.sectionName ? (
+          <MjmlSection padding="8px 24px 0">
+            <MjmlColumn>
+              <MjmlText fontSize="14px" color="#6b7280">
+                Section: {input.sectionName}
+              </MjmlText>
+            </MjmlColumn>
+          </MjmlSection>
+        ) : null}
+
+        {input.commentBlocks.length > 0 ? (
+          <QuotedContent blocks={input.commentBlocks} resolvedNames={input.resolvedNames} />
+        ) : null}
+
+        <MjmlSection padding="0 24px 24px">
+          <MjmlColumn>
+            <MjmlButton
+              href={input.actionUrl}
+              backgroundColor="#068f7b"
+              color="#ffffff"
+              borderRadius="6px"
+              fontSize="14px"
+              fontWeight="600"
+              innerPadding="12px 24px"
+              align="center"
+            >
+              View comment
+            </MjmlButton>
+          </MjmlColumn>
+        </MjmlSection>
+
+        <EmailFooter unsubscribeUrl={input.unsubscribeUrl} />
+      </MjmlBody>
+    </Mjml>,
+  )
+
+  return {subject, text, html}
 }
 
 function getNotificationActionUrl(notification: Notification) {
@@ -49,21 +390,31 @@ If you did not request notification emails, you can ignore this message.`
 
   const {html: emailHtml} = renderReactToMjml(
     <Mjml>
-      <MjmlHead>
+      <EmailHeadDefaults>
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>Confirm your email to receive mention and reply notifications</MjmlPreview>
-      </MjmlHead>
-      <MjmlBody width={500}>
+      </EmailHeadDefaults>
+      <MjmlBody width={500} backgroundColor="#ffffff">
         <EmailHeader />
-        <MjmlSection padding="8px 0px">
+        <MjmlSection padding="24px">
           <MjmlColumn>
             <MjmlText fontSize="20px" fontWeight="bold">
               Verify your email
             </MjmlText>
-            <MjmlText fontSize="15px" lineHeight="1.6">
+            <MjmlText fontSize="15px" lineHeight="1.6" paddingTop="8px">
               Confirm this email address to enable notification emails for mentions and replies.
             </MjmlText>
-            <MjmlButton align="left" href={input.verificationUrl} backgroundColor="#0d9488" padding="6px 0px 0px">
+            <MjmlButton
+              href={input.verificationUrl}
+              backgroundColor="#068f7b"
+              color="#ffffff"
+              borderRadius="6px"
+              fontSize="14px"
+              fontWeight="600"
+              innerPadding="12px 24px"
+              align="center"
+              padding="16px 0px 0px"
+            >
               Verify Email
             </MjmlButton>
             <MjmlText fontSize="13px" color="#6b7280" lineHeight="1.5" padding="12px 0px 0px">
@@ -71,6 +422,7 @@ If you did not request notification emails, you can ignore this message.`
             </MjmlText>
           </MjmlColumn>
         </MjmlSection>
+        <EmailFooter />
       </MjmlBody>
     </Mjml>,
   )
@@ -325,7 +677,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
           )
         })}
 
-        <NotifSettings url={notifSettingsUrl} />
+        <EmailFooter unsubscribeUrl={notifSettingsUrl} />
       </MjmlBody>
       ;
     </Mjml>,
@@ -432,7 +784,7 @@ Manage notification emails: ${notifSettingsUrl}`
           )
         })}
 
-        <NotifSettings url={notifSettingsUrl} />
+        <EmailFooter unsubscribeUrl={notifSettingsUrl} />
       </MjmlBody>
     </Mjml>,
   )
