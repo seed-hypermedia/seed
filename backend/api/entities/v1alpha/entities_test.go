@@ -38,6 +38,35 @@ func TestIsValidIriFilter(t *testing.T) {
 	}
 }
 
+func TestSanitizeSearchQuery(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"plain text unchanged", "hello world", "hello world"},
+		{"hyphen replaced with space", "Zero-knowledge", "Zero knowledge"},
+		{"multiple hyphens", "state-of-the-art", "state of the art"},
+		{"apostrophe splits tokens", "don't", "don t"},
+		{"symbols stripped to space", "C++", "C"},
+		{"parentheses removed", "(test)", "test"},
+		{"only special chars yields empty", "---", ""},
+		{"consecutive special chars", "foo--bar", "foo bar"},
+		{"underscores preserved", "snake_case", "snake_case"},
+		{"mixed punctuation", "hello, world!", "hello world"},
+		{"email-like input", "user@domain.com", "user domain com"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeSearchQuery(tt.input)
+			require.Equal(t, tt.want, got, "sanitizeSearchQuery(%q)", tt.input)
+		})
+	}
+}
+
 func TestBuildRankMap(t *testing.T) {
 	t.Parallel()
 

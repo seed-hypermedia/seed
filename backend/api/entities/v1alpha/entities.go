@@ -690,6 +690,16 @@ type MovedResource struct {
 	LatestVersion string
 }
 
+// sanitizeSearchQuery strips characters from a raw search query that are not
+// alphanumeric, underscore, or space, replacing them with spaces to match how
+// FTS5's unicode61 tokenizer treats those characters as token separators.
+// Multiple consecutive spaces are collapsed into one.
+func sanitizeSearchQuery(raw string) string {
+	re := regexp.MustCompile(`[^A-Za-z0-9_ ]+`)
+	clean := re.ReplaceAllString(raw, " ")
+	return strings.Join(strings.Fields(clean), " ")
+}
+
 // SearchEntities implements the Fuzzy search of entpb.
 func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesRequest) (*entpb.SearchEntitiesResponse, error) {
 	type value struct {
@@ -706,10 +716,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		Multihash string `json:"multihash"`
 		Codec     uint64 `json:"codec"`
 	}
-	re := regexp.MustCompile(`[^A-Za-z0-9_ ]+`)
-	cleanQuery := re.ReplaceAllString(in.Query, "")
-	// collapse multiple spaces to a single space
-	cleanQuery = strings.Join(strings.Fields(cleanQuery), " ")
+	cleanQuery := sanitizeSearchQuery(in.Query)
 	if strings.ReplaceAll(cleanQuery, " ", "") == "" {
 		return nil, nil
 	}
