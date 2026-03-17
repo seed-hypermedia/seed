@@ -256,11 +256,21 @@ export function getSlashMenuItems({
               for (let d = $pos.depth; d >= 0; d--) {
                 const node = $pos.node(d)
                 if (node.type.name === 'blockChildren') {
-                  state.tr.setNodeMarkup($pos.before(d), null, {
+                  const tr = state.tr
+                  tr.setNodeMarkup($pos.before(d), null, {
                     ...node.attrs,
                     listType: 'Grid',
                     columnCount: '3',
                   })
+                  // Add empty children to fill remaining columns
+                  const schema = state.schema
+                  const groupStart = $pos.before(d) + 1
+                  const insertPos = groupStart + node.content.size
+                  for (let i = 0; i < 2; i++) {
+                    const para = schema.nodes['paragraph'].create()
+                    const blockNode = schema.nodes['blockNode'].create({}, para)
+                    tr.insert(insertPos + i * blockNode.nodeSize, blockNode)
+                  }
                   break
                 }
               }
@@ -284,10 +294,7 @@ export function getSlashMenuItems({
             }
 
             // Create blockChildren with Grid type
-            const gridGroup = schema.nodes['blockChildren'].create(
-              {listType: 'Grid', columnCount: '3'},
-              emptyChildren,
-            )
+            const gridGroup = schema.nodes['blockChildren'].create({listType: 'Grid', columnCount: '3'}, emptyChildren)
 
             // Insert after the block content node
             state.tr.insert(blockInfo.blockContent.afterPos, gridGroup)

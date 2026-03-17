@@ -53,7 +53,6 @@ NESTED BLOCKS
 
 .blockChildren[data-list-type='Grid'] > .blockNode {
   min-width: 0;
-  overflow: hidden;
 }
 
 /* Force media containers to respect grid cell bounds */
@@ -61,9 +60,8 @@ NESTED BLOCKS
   max-width: 100% !important;
 }
 
-/* Constrain images and videos inside grid cells to fit within their cell */
-.blockChildren[data-list-type='Grid'] > .blockNode img,
-.blockChildren[data-list-type='Grid'] > .blockNode video {
+/* Constrain images inside grid cells to fit within their cell */
+.blockChildren[data-list-type='Grid'] > .blockNode img {
   max-width: 100% !important;
   max-height: 200px !important;
   width: auto !important;
@@ -71,7 +69,14 @@ NESTED BLOCKS
   object-fit: contain !important;
 }
 
-/* Prevent negative margins from breaking grid layout (e.g. query block) */
+/* Video containers in grid: ensure black bars with vertical videos */
+.blockChildren[data-list-type='Grid'] > .blockNode video {
+  max-width: 100% !important;
+  object-fit: contain !important;
+  background: black !important;
+}
+
+/* Clip block content inside grid cells to prevent negative margins from overflowing. */
 .blockChildren[data-list-type='Grid'] > .blockNode > .blockContent {
   overflow: hidden;
 }

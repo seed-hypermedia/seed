@@ -58,7 +58,7 @@ export const updateGroupCommand = (
       return false
 
     // If block is not the first in its' group, sink list item and then update group
-    if (group.firstChild && container && group.firstChild.attrs.id !== container.attrs.id && !tab) {
+    if (group.firstChild && container && group.firstChild.attrs.id !== container.attrs.id && !tab && !turnInto) {
       setTimeout(() => {
         editor
           .chain()

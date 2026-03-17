@@ -653,7 +653,7 @@ export function BlockNodeList({
     const classes: string[] = ['blocknode-list', 'w-full', 'marker:text-muted-foreground marker:text-sm']
 
     if (type === 'Grid') {
-      classes.push('grid', 'gap-2', '[&>*]:min-w-0', '[&>*]:overflow-hidden')
+      classes.push('grid', 'gap-2', '[&>*]:min-w-0')
       const cols = columnCount || 3
       if (cols === 1) classes.push('grid-cols-1')
       else if (cols === 2) classes.push('grid-cols-1', 'sm:grid-cols-2')

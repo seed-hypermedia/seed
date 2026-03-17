@@ -30,6 +30,33 @@ import {MobileTextMarkerDialog} from './mobile-text-marker-dialog'
 import {MobileTextTypeDialog} from './mobile-text-type-dialog'
 import {useMobile} from './use-mobile'
 
+/**
+ * Ensures a grid has at least columnCount number of children.
+ */
+function fillGridChildren(tiptap: any, columnCount: number) {
+  setTimeout(() => {
+    tiptap.commands.command(({state, dispatch}: {state: any; dispatch: any}) => {
+      if (!dispatch) return true
+      const {group, $pos, depth} = getGroupInfoFromPos(state.selection.from, state)
+      if (group.attrs.listType !== 'Grid') return true
+      const currentCount = group.childCount
+      if (currentCount >= columnCount) return true
+      const schema = state.schema
+      const tr = state.tr
+      // Insert position: just before the closing of the blockChildren node
+      const groupStart = $pos.before(depth) + 1 // inside blockChildren
+      const insertPos = groupStart + group.content.size
+      for (let i = 0; i < columnCount - currentCount; i++) {
+        const para = schema.nodes['paragraph'].create()
+        const blockNode = schema.nodes['blockNode'].create({}, para)
+        tr.insert(insertPos + i * blockNode.nodeSize, blockNode)
+      }
+      dispatch(tr)
+      return true
+    })
+  })
+}
+
 const toggleStyles = [
   {
     name: 'Bold (Mod+B)',
@@ -87,6 +114,14 @@ const groupTypeOptions = [
   {label: 'Bullets', value: 'Unordered'},
   {label: 'Numbers', value: 'Ordered'},
   {label: 'Block Quote', value: 'Blockquote'},
+  {label: 'Grid', value: 'Grid'},
+]
+
+const columnCountOptions = [
+  {label: '1 Column', value: '1'},
+  {label: '2 Columns', value: '2'},
+  {label: '3 Columns', value: '3'},
+  {label: '4 Columns', value: '4'},
 ]
 
 const textTypeOptions = [
@@ -101,6 +136,7 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
   },
 ) {
   const [currentGroupType, setCurrentGroupType] = useState<string>('Group')
+  const [currentColumnCount, setCurrentColumnCount] = useState<string>('3')
   const [currentBlockType, setCurrentBlockType] = useState<string>('paragraph')
   const [isTextMarkerDialogOpen, setIsTextMarkerDialogOpen] = useState(false)
   const [isTextTypeDialogOpen, setIsTextTypeDialogOpen] = useState(false)
@@ -113,8 +149,10 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
     try {
       const groupInfo = getGroupInfoFromPos(state.selection.from, state)
       setCurrentGroupType(groupInfo.group.attrs.listType || 'Group')
+      setCurrentColumnCount(String(groupInfo.group.attrs.columnCount || 3))
     } catch {
       setCurrentGroupType('Group')
+      setCurrentColumnCount('3')
     }
 
     try {
@@ -195,14 +233,47 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
                 if (listType !== currentGroupType) {
                   const tiptap = props.editor._tiptapEditor
                   const {state} = tiptap
-                  const {$pos} = getGroupInfoFromPos(state.selection.from, state)
+                  const {$pos, group, depth} = getGroupInfoFromPos(state.selection.from, state)
                   tiptap.commands.command(
                     updateGroupCommand($pos.pos, listType as HMBlockChildrenType, false, false, true),
                   )
+                  // When switching to Grid, set default columnCount and fill with empty blocks
+                  if (listType === 'Grid') {
+                    const colCount = group.attrs.columnCount || 3
+                    if (!group.attrs.columnCount) {
+                      const info = getGroupInfoFromPos(tiptap.state.selection.from, tiptap.state)
+                      const tr = tiptap.state.tr
+                      tr.setNodeAttribute(info.$pos.before(info.depth), 'columnCount', colCount)
+                      tiptap.view.dispatch(tr)
+                    }
+                    setCurrentColumnCount(String(colCount))
+                    fillGridChildren(tiptap, colCount)
+                  }
                   setCurrentGroupType(listType)
                 }
               }}
               options={groupTypeOptions}
+            />
+          )}
+
+          {/* Column count dropdown - only shown when inside a Grid */}
+          {currentGroupType === 'Grid' && !isMobile && (
+            <FormatDropdown
+              testId="column-count-dropdown"
+              value={currentColumnCount}
+              onChange={(colCount) => {
+                if (colCount !== currentColumnCount) {
+                  const tiptap = props.editor._tiptapEditor
+                  const {$pos, depth} = getGroupInfoFromPos(tiptap.state.selection.from, tiptap.state)
+                  const newCount = parseInt(colCount, 10)
+                  const tr = tiptap.state.tr
+                  tr.setNodeAttribute($pos.before(depth), 'columnCount', newCount)
+                  tiptap.view.dispatch(tr)
+                  setCurrentColumnCount(colCount)
+                  fillGridChildren(tiptap, newCount)
+                }
+              }}
+              options={columnCountOptions}
             />
           )}
 
