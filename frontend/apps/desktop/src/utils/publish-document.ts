@@ -18,10 +18,12 @@ type PublishDesktopDocumentDeps = {
   getSigner: (accountUid: string) => HMSigner
 }
 
+/** Uses the daemon publish path for updates to existing published documents. */
 export function shouldUseDaemonCreateDocumentChange(input: PublishDocumentInput): boolean {
-  return (input.path ?? '') === '' && !!input.baseVersion
+  return !!input.baseVersion && !!input.genesis
 }
 
+/** Normalizes document publish input into a daemon create-document-change request. */
 export function createDocumentChangeRequest(input: PublishDocumentInput): CreateDocumentChangeRequest {
   return {
     signingKeyName: input.signerAccountUid,
@@ -36,6 +38,7 @@ export function createDocumentChangeRequest(input: PublishDocumentInput): Create
   }
 }
 
+/** Publishes a desktop document through the daemon or the generic client publish path. */
 export async function publishDesktopDocument(
   deps: PublishDesktopDocumentDeps,
   input: PublishDocumentInput,

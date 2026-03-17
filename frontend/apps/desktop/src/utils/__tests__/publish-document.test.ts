@@ -14,6 +14,20 @@ describe('shouldUseDaemonCreateDocumentChange', () => {
         account: 'alice',
         path: '',
         baseVersion: 'bafy-base',
+        genesis: 'bafy-genesis',
+        changes: [],
+      }),
+    ).toBe(true)
+  })
+
+  it('uses daemon createDocumentChange for existing non-home documents', () => {
+    expect(
+      shouldUseDaemonCreateDocumentChange({
+        signerAccountUid: 'alice',
+        account: 'alice',
+        path: '/foo',
+        baseVersion: 'bafy-base',
+        genesis: 'bafy-genesis',
         changes: [],
       }),
     ).toBe(true)
@@ -30,7 +44,7 @@ describe('shouldUseDaemonCreateDocumentChange', () => {
     ).toBe(false)
   })
 
-  it('keeps non-home documents on the seed client path', () => {
+  it('keeps documents without a known genesis on the seed client path', () => {
     expect(
       shouldUseDaemonCreateDocumentChange({
         signerAccountUid: 'alice',
@@ -44,20 +58,21 @@ describe('shouldUseDaemonCreateDocumentChange', () => {
 })
 
 describe('createDocumentChangeRequest', () => {
-  it('normalizes an existing home document publish for daemon createDocumentChange', () => {
+  it('normalizes an existing document publish for daemon createDocumentChange', () => {
     const request = createDocumentChangeRequest({
       signerAccountUid: 'alice',
       account: 'alice',
-      path: '',
+      path: '/foo',
       baseVersion: 'bafy-base',
+      genesis: 'bafy-genesis',
       capability: 'bafy-cap',
       visibility: ResourceVisibility.PRIVATE,
-      changes: [{op: {case: 'setMetadata', value: {key: 'name', value: 'Home'}}}],
+      changes: [{op: {case: 'setMetadata', value: {key: 'name', value: 'Foo'}}}],
     })
 
     expect(request.signingKeyName).toBe('alice')
     expect(request.account).toBe('alice')
-    expect(request.path).toBe('')
+    expect(request.path).toBe('/foo')
     expect(request.baseVersion).toBe('bafy-base')
     expect(request.capability).toBe('bafy-cap')
     expect(request.visibility).toBe(ResourceVisibility.UNSPECIFIED)
@@ -84,6 +99,7 @@ describe('publishDesktopDocument', () => {
         account: 'alice',
         path: '',
         baseVersion: 'bafy-base',
+        genesis: 'bafy-genesis',
         changes: [{op: {case: 'setMetadata', value: {key: 'name', value: 'Home'}}}],
       },
     )
@@ -93,7 +109,33 @@ describe('publishDesktopDocument', () => {
     expect(getSigner).not.toHaveBeenCalled()
   })
 
-  it('uses the seed client path for non-home documents', async () => {
+  it('uses daemon createDocumentChange for existing non-home documents', async () => {
+    const createDocumentChange = vi.fn().mockResolvedValue(undefined)
+    const publishDocument = vi.fn().mockResolvedValue(undefined)
+    const getSigner = vi.fn()
+
+    await publishDesktopDocument(
+      {
+        createDocumentChange,
+        publishDocument,
+        getSigner,
+      },
+      {
+        signerAccountUid: 'alice',
+        account: 'alice',
+        path: '/foo',
+        baseVersion: 'bafy-base',
+        genesis: 'bafy-genesis',
+        changes: [{op: {case: 'setMetadata', value: {key: 'name', value: 'Foo'}}}],
+      },
+    )
+
+    expect(createDocumentChange).toHaveBeenCalledTimes(1)
+    expect(publishDocument).not.toHaveBeenCalled()
+    expect(getSigner).not.toHaveBeenCalled()
+  })
+
+  it('uses the seed client path for documents without a known genesis', async () => {
     const createDocumentChange = vi.fn().mockResolvedValue(undefined)
     const publishDocument = vi.fn().mockResolvedValue(undefined)
     const signer = {
