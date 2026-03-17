@@ -4,7 +4,7 @@ import {BIG_INT} from './constants'
 import {GRPCClient} from './grpc-client'
 import {HMInteractionSummaryRequest} from '@seed-hypermedia/client/hm-types'
 import {calculateInteractionSummary} from './interaction-summary'
-import {getErrorMessage, HMRedirectError} from './models/entity'
+import {getErrorMessage, HMNotFoundError, HMRedirectError, HMResourceTombstoneError} from './models/entity'
 import {hmIdPathToEntityQueryPath} from './utils'
 
 export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryRequest> = {
@@ -48,7 +48,7 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
       // queryResource handles following redirects, so this query will be
       // re-fetched with the correct (target) ID after redirect resolution.
       const err = getErrorMessage(e)
-      if (err instanceof HMRedirectError) {
+      if (err instanceof HMRedirectError || err instanceof HMResourceTombstoneError || err instanceof HMNotFoundError) {
         return {citations: 0, comments: 0, changes: 0, children: 0, authorUids: [], blocks: {}}
       }
       throw e
