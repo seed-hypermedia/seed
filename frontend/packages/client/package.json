@@ -55,7 +55,7 @@
     "zod": "3.25.76"
   },
   "peerDependencies": {
-    "pdfjs-dist": "^3.11.174 || ^4.0.0",
+    "pdfjs-dist": "^4.2.67",
     "zod": ">=3.20.0"
   },
   "peerDependenciesMeta": {
