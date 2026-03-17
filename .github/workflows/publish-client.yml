@@ -6,6 +6,7 @@ on:
     paths:
       - 'frontend/packages/client/src/**'
       - 'frontend/apps/cli/src/**'
+  workflow_dispatch:
 
 permissions:
   contents: read
