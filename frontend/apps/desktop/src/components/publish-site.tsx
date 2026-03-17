@@ -38,7 +38,7 @@ import {CelebrationDotsLeft, CelebrationDotsRight, CongratsGraphic, WebPublished
 export function usePublishSite() {
   return useAppDialog(PublishSiteDialog, {
     className: 'h-[90vh] max-h-[900px] min-h-[500px] w-[90vw] max-w-[900px]',
-    contentClassName: 'p-0 flex items-center justify-center overflow-hidden',
+    contentClassName: 'p-0 overflow-hidden',
   })
 }
 
@@ -91,7 +91,7 @@ function PublishDialogContainer({
   backButton,
 }: React.PropsWithChildren<{heading?: string; backButton?: React.ReactNode}>) {
   return (
-    <div className="flex max-w-xl flex-col gap-6">
+    <div className="m-auto flex max-w-xl flex-col gap-6">
       {heading ? (
         <SizableText size="3xl" weight="bold" className="text-center">
           {heading}
@@ -125,7 +125,7 @@ function SeedHostContainer({
   footer?: React.ReactNode
 }>) {
   return (
-    <div className="relative flex h-full w-full flex-col items-center gap-4 rounded-lg bg-gray-900 p-4">
+    <div className="relative flex h-full w-full flex-col items-center gap-4 overflow-y-auto rounded-lg bg-gray-900 p-4">
       <SeedHostHeader />
       {backButton ? <div className="absolute top-4 left-4">{backButton}</div> : null}
       <div className="flex flex-1 flex-col items-center justify-center gap-3">
@@ -858,7 +858,7 @@ const activelyWatchedDomainIds = new Set<string>()
 export function useSeedHostDialog() {
   const {open, content} = useAppDialog(SeedHostDomainPublishedDialog, {
     className: 'h-[90vh] max-h-[900px] min-h-[500px] w-[90vw] max-w-[900px]',
-    contentClassName: 'p-0 flex items-center justify-center overflow-hidden',
+    contentClassName: 'p-0',
   })
   const {pendingDomains} = useHostSession()
   const watchingDomainsInProgress = useRef<
