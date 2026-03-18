@@ -210,7 +210,10 @@ export default function PublishDraftButton() {
   // Get the editable path segment (last part of the path)
   const editablePath = editableLocation?.path?.at(-1) || ''
 
-  function handlePublishPress() {
+  // Wrap handlePublishPress as async so errors from handlePublish are awaited
+  // and unhandled-promise-rejection warnings are avoided. Errors that need
+  // user-facing feedback are handled (toasted) inside handlePublish / mutations.
+  async function handlePublishPress() {
     if (!draftId) throw new Error('No Draft ID?!')
 
     if (!draft.data) {
@@ -330,7 +333,9 @@ export default function PublishDraftButton() {
 
     if (editId && signingAccountId) {
       // Editing existing document
-      handlePublish(editId, signingAccountId)
+      await handlePublish(editId, signingAccountId).catch((err) => {
+        console.error('Publish failed:', err)
+      })
     } else if (editableLocation && signingAccountId) {
       // First publish with editable location from popover
       if (!isLocationAvailable.current) {
@@ -342,7 +347,9 @@ export default function PublishDraftButton() {
         toast.error(pathError)
         return
       }
-      handlePublish(editableLocation, signingAccountId)
+      await handlePublish(editableLocation, signingAccountId).catch((err) => {
+        console.error('Publish failed:', err)
+      })
     } else {
       toast.error('Cannot publish: missing location or account')
     }

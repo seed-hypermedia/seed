@@ -7,7 +7,7 @@ import {useOpenUrl} from '@/open-url'
 import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
-import {ConnectError} from '@connectrpc/connect'
+import {Code, ConnectError} from '@connectrpc/connect'
 import {createRedirectRef, createVersionRef} from '@seed-hypermedia/client'
 import {
   HMAnnotation,
@@ -341,10 +341,15 @@ export function usePublishResource(
           }
         } catch (error) {
           const connectErr = ConnectError.from(error)
-          if (connectErr.rawMessage.includes('path already exists')) {
-            toast.error(`Can't publish to this path. You already have a document at this location.`)
+          const isDuplicatePath =
+            connectErr.code === Code.FailedPrecondition &&
+            connectErr.rawMessage.toLowerCase().includes('path already exists')
+          if (isDuplicatePath) {
+            toast.error(
+              'A document already exists at this path. Please choose a different path name before publishing.',
+            )
           } else {
-            toast.error(`Publish error: ${connectErr.rawMessage}`)
+            toast.error(`Failed to publish: ${connectErr.rawMessage}`)
           }
 
           throw Error(connectErr.rawMessage)
