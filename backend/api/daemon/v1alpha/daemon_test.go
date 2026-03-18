@@ -236,6 +236,116 @@ func TestImportKey(t *testing.T) {
 	})
 }
 
+func TestExportKey(t *testing.T) {
+	srv := newTestServer(t, "alice")
+	ctx := context.Background()
+
+	seed := make([]byte, ed25519.SeedSize)
+	for i := range seed {
+		seed[i] = byte(i + 1)
+	}
+	keyPair := core.NewKeyPair(ed25519.NewKeyFromSeed(seed))
+	require.NoError(t, srv.RegisterAccount(ctx, "main", keyPair))
+
+	t.Run("exports plaintext file that can be re-imported", func(t *testing.T) {
+		filePath := filepath.Join(t.TempDir(), "plaintext.hmkey.json")
+
+		_, err := srv.ExportKey(ctx, &daemon.ExportKeyRequest{
+			Name:     "main",
+			FilePath: filePath,
+		})
+		require.NoError(t, err)
+
+		data, err := os.ReadFile(filePath)
+		require.NoError(t, err)
+		require.Equal(t, byte('\n'), data[len(data)-1])
+
+		otherSrv := newTestServer(t, "bob")
+		resp, err := otherSrv.ImportKey(ctx, &daemon.ImportKeyRequest{FilePath: filePath})
+		require.NoError(t, err)
+		require.Equal(t, keyPair.PublicKey.String(), resp.PublicKey)
+	})
+
+	t.Run("exports encrypted file that can be re-imported with password", func(t *testing.T) {
+		filePath := filepath.Join(t.TempDir(), "encrypted.hmkey.json")
+		password := "correct horse battery staple"
+
+		_, err := srv.ExportKey(ctx, &daemon.ExportKeyRequest{
+			Name:     "main",
+			FilePath: filePath,
+			Password: password,
+		})
+		require.NoError(t, err)
+
+		var exported exportedKeyFile
+		data, err := os.ReadFile(filePath)
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(data, &exported))
+		require.NotNil(t, exported.Encryption)
+		require.Equal(t, "argon2id", exported.Encryption.KDF)
+		require.Equal(t, "xchacha20poly1305", exported.Encryption.Cipher)
+
+		otherSrv := newTestServer(t, "carol")
+		resp, err := otherSrv.ImportKey(ctx, &daemon.ImportKeyRequest{FilePath: filePath, Password: password})
+		require.NoError(t, err)
+		require.Equal(t, keyPair.PublicKey.String(), resp.PublicKey)
+	})
+
+	t.Run("missing key name", func(t *testing.T) {
+		_, err := srv.ExportKey(ctx, &daemon.ExportKeyRequest{
+			FilePath: filepath.Join(t.TempDir(), "missing-name.hmkey.json"),
+		})
+		require.Error(t, err)
+		stat, ok := status.FromError(err)
+		require.True(t, ok)
+		require.Equal(t, codes.InvalidArgument, stat.Code())
+	})
+
+	t.Run("missing key", func(t *testing.T) {
+		_, err := srv.ExportKey(ctx, &daemon.ExportKeyRequest{
+			Name:     "unknown",
+			FilePath: filepath.Join(t.TempDir(), "missing-key.hmkey.json"),
+		})
+		require.Error(t, err)
+		stat, ok := status.FromError(err)
+		require.True(t, ok)
+		require.Equal(t, codes.NotFound, stat.Code())
+	})
+
+	t.Run("relative path", func(t *testing.T) {
+		_, err := srv.ExportKey(ctx, &daemon.ExportKeyRequest{
+			Name:     "main",
+			FilePath: "relative.hmkey.json",
+		})
+		require.Error(t, err)
+		stat, ok := status.FromError(err)
+		require.True(t, ok)
+		require.Equal(t, codes.InvalidArgument, stat.Code())
+	})
+
+	t.Run("wrong file suffix", func(t *testing.T) {
+		_, err := srv.ExportKey(ctx, &daemon.ExportKeyRequest{
+			Name:     "main",
+			FilePath: filepath.Join(t.TempDir(), "wrong.json"),
+		})
+		require.Error(t, err)
+		stat, ok := status.FromError(err)
+		require.True(t, ok)
+		require.Equal(t, codes.InvalidArgument, stat.Code())
+	})
+
+	t.Run("missing parent directory", func(t *testing.T) {
+		_, err := srv.ExportKey(ctx, &daemon.ExportKeyRequest{
+			Name:     "main",
+			FilePath: filepath.Join(t.TempDir(), "missing", "dir.hmkey.json"),
+		})
+		require.Error(t, err)
+		stat, ok := status.FromError(err)
+		require.True(t, ok)
+		require.Equal(t, codes.InvalidArgument, stat.Code())
+	})
+}
+
 func TestSignData(t *testing.T) {
 	srv := newTestServer(t, "alice")
 	ctx := context.Background()

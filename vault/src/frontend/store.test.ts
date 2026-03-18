@@ -1,6 +1,7 @@
 import * as base64 from '@shm/shared/base64'
 import * as blobs from '@shm/shared/blobs'
 import {Account, Profile} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import * as keyfile from '@shm/shared/keyfile'
 import * as simplewebauthn from '@simplewebauthn/browser'
 import {afterEach, beforeEach, describe, expect, mock, spyOn, test} from 'bun:test'
 import {code as rawCodec} from 'multiformats/codecs/raw'
@@ -705,6 +706,105 @@ describe('Store', () => {
       const decoded = blobs.decodeBlob<blobs.Profile>(profileBlob!.data, CID.parse(profileBlob!.cid))
       expect(decoded.decoded.avatar).toBe(`ipfs://${published[0]!.cid}`)
       expect(decoded.decoded.description).toBe('Description')
+    })
+  })
+
+  describe('importAccount', () => {
+    test('imports a plaintext key file into the vault', async () => {
+      const saveVaultDataCalls: unknown[] = []
+      const client = createMockClient({
+        saveVaultData: async (req) => {
+          saveVaultDataCalls.push(req)
+          return {success: true}
+        },
+      })
+      const {state, actions} = createStore(client, createMockBlockstore())
+      const kp = blobs.generateNobleKeyPair()
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [],
+      }
+      state.selectedAccountIndex = -1
+
+      const payload = await keyfile.create({
+        publicKey: blobs.principalToString(kp.principal),
+        key: kp.seed,
+        createTime: '2026-03-17T00:00:00.000Z',
+      })
+
+      const principal = await actions.importAccount(keyfile.stringify(payload))
+
+      expect(principal).toBe(blobs.principalToString(kp.principal))
+      expect(state.vaultData!.accounts).toHaveLength(1)
+      expect(state.vaultData!.accounts[0]!.seed).toEqual(kp.seed)
+      expect(state.selectedAccountIndex).toBe(0)
+      expect(state.error).toBe('')
+      expect(saveVaultDataCalls).toHaveLength(1)
+    })
+
+    test('imports an encrypted key file into the vault', async () => {
+      const {state, actions} = createStore(
+        createMockClient({
+          saveVaultData: async () => ({success: true}),
+        }),
+        createMockBlockstore(),
+      )
+      const kp = blobs.generateNobleKeyPair()
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [],
+      }
+
+      const payload = await keyfile.create({
+        publicKey: blobs.principalToString(kp.principal),
+        key: kp.seed,
+        password: 'secret-password',
+        createTime: '2026-03-17T00:00:00.000Z',
+      })
+
+      await actions.importAccount(keyfile.stringify(payload), 'secret-password')
+
+      expect(state.vaultData!.accounts).toHaveLength(1)
+      expect(state.vaultData!.accounts[0]!.seed).toEqual(kp.seed)
+    })
+
+    test('rejects duplicate account imports', async () => {
+      const {state, actions} = createStore(
+        createMockClient({
+          saveVaultData: async () => ({success: true}),
+        }),
+        createMockBlockstore(),
+      )
+      const kp = blobs.generateNobleKeyPair()
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [
+          {
+            seed: kp.seed,
+            createTime: Date.now(),
+            delegations: [],
+          },
+        ],
+      }
+      state.selectedAccountIndex = 0
+
+      const payload = await keyfile.create({
+        publicKey: blobs.principalToString(kp.principal),
+        key: kp.seed,
+        createTime: '2026-03-17T00:00:00.000Z',
+      })
+
+      await expect(actions.importAccount(keyfile.stringify(payload))).rejects.toThrow(
+        `Account ${blobs.principalToString(kp.principal)} already exists in vault`,
+      )
+      expect(state.vaultData!.accounts).toHaveLength(1)
+      expect(state.selectedAccountIndex).toBe(0)
     })
   })
 

@@ -169,6 +169,10 @@ contextBridge.exposeInMainWorld('keyImport', {
   pickFile: () => ipcRenderer.invoke('pick-key-import-file'),
 })
 
+contextBridge.exposeInMainWorld('keyExport', {
+  pickFile: (defaultFileName: string) => ipcRenderer.invoke('pick-key-export-file', defaultFileName),
+})
+
 ipcRenderer.addListener('openRoute', (info, route) => {
   routeHandlers.forEach((handler) => handler(route))
 })

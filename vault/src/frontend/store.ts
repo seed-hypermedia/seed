@@ -3,6 +3,7 @@ import * as base64 from '@shm/shared/base64'
 import * as blobs from '@shm/shared/blobs'
 import * as encryption from '@shm/shared/encryption'
 import * as hmauth from '@shm/shared/hmauth'
+import * as keyfile from '@shm/shared/keyfile'
 import * as webauthn from '@simplewebauthn/browser'
 import {code as rawCodec} from 'multiformats/codecs/raw'
 import {CID} from 'multiformats/cid'
@@ -1122,6 +1123,53 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         state.error =
           state.error ||
           (didSaveAccount ? getProfilePublishErrorMessage(e) : getErrorMessage(e, 'Failed to create account'))
+      } finally {
+        state.loading = false
+      }
+    },
+
+    async importAccount(keyFileJSON: string, password?: string) {
+      if (!state.vaultData || !state.decryptedDEK) {
+        state.error = 'Vault must be unlocked first'
+        throw new Error(state.error)
+      }
+
+      state.loading = true
+      state.error = ''
+
+      const previousSelectedAccountIndex = state.selectedAccountIndex
+      let insertedAccount = false
+
+      try {
+        const loaded = await keyfile.load(keyFileJSON, password)
+        const alreadyExists = state.vaultData.accounts.some((candidate) => {
+          const kp = blobs.nobleKeyPairFromSeed(candidate.seed)
+          return blobs.principalToString(kp.principal) === loaded.publicKey
+        })
+
+        if (alreadyExists) {
+          throw new Error(`Account ${loaded.publicKey} already exists in vault`)
+        }
+
+        state.vaultData.accounts.push({
+          seed: loaded.seed,
+          createTime: Date.now(),
+          delegations: [],
+        })
+        insertedAccount = true
+        state.selectedAccountIndex = state.vaultData.accounts.length - 1
+
+        await actions.saveVaultData()
+        return loaded.publicKey
+      } catch (e) {
+        if (insertedAccount) {
+          state.vaultData.accounts.pop()
+          state.selectedAccountIndex = previousSelectedAccountIndex
+        }
+
+        console.error('Failed to import account:', e)
+        state.error = state.error || getErrorMessage(e, 'Failed to import account')
+        throw e
       } finally {
         state.loading = false
       }

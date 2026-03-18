@@ -3,6 +3,7 @@ import {isSensitiveRPCMethod, loggingInterceptor} from './client-utils'
 
 describe('isSensitiveRPCMethod', () => {
   it('matches sensitive daemon methods by service and method', () => {
+    expect(isSensitiveRPCMethod('com.seed.daemon.v1alpha.Daemon', 'ExportKey')).toBe(true)
     expect(isSensitiveRPCMethod('com.seed.daemon.v1alpha.Daemon', 'ImportKey')).toBe(true)
     expect(isSensitiveRPCMethod('com.seed.daemon.v1alpha.Daemon', 'RegisterKey')).toBe(true)
     expect(isSensitiveRPCMethod('com.seed.daemon.v1alpha.Daemon', 'GenMnemonic')).toBe(true)
@@ -16,7 +17,7 @@ describe('loggingInterceptor redaction', () => {
     const secretPayload = {password: 'super-secret'}
     const req = {
       service: {typeName: 'com.seed.daemon.v1alpha.Daemon'},
-      method: {name: 'ImportKey'},
+      method: {name: 'ExportKey'},
       message: secretPayload,
       init: {},
     }

@@ -5,6 +5,7 @@ package daemon
 import (
 	context "context"
 	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -67,6 +68,26 @@ type importedKeyFileEncryption struct {
 }
 
 type importedKeyFileArgon2 struct {
+	MemoryCost  uint32 `json:"memoryCost"`
+	TimeCost    uint32 `json:"timeCost"`
+	Parallelism uint8  `json:"parallelism"`
+	SaltB64     string `json:"saltB64"`
+}
+
+type exportedKeyFile struct {
+	CreateTime string                     `json:"createTime"`
+	PublicKey  string                     `json:"publicKey"`
+	KeyB64     string                     `json:"keyB64"`
+	Encryption *exportedKeyFileEncryption `json:"encryption,omitempty"`
+}
+
+type exportedKeyFileEncryption struct {
+	KDF    string                 `json:"kdf"`
+	Argon2 *exportedKeyFileArgon2 `json:"argon2"`
+	Cipher string                 `json:"cipher"`
+}
+
+type exportedKeyFileArgon2 struct {
 	MemoryCost  uint32 `json:"memoryCost"`
 	TimeCost    uint32 `json:"timeCost"`
 	Parallelism uint8  `json:"parallelism"`
@@ -191,6 +212,44 @@ func (srv *Server) ImportKey(ctx context.Context, req *daemon.ImportKeyRequest) 
 	}, nil
 }
 
+// ExportKey implements the corresponding gRPC method.
+func (srv *Server) ExportKey(ctx context.Context, req *daemon.ExportKeyRequest) (*emptypb.Empty, error) {
+	if req.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+
+	if err := validateExportKeyFilePath(req.FilePath); err != nil {
+		return nil, err
+	}
+
+	keyPair, err := srv.store.KeyStore().GetKey(ctx, req.Name)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "key not found: %s", req.Name)
+	}
+
+	seed, err := exportedSeed(keyPair)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to extract private key: %v", err)
+	}
+
+	payload, err := createExportedKeyFile(keyPair.PublicKey.String(), seed, req.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to serialize key file: %v", err)
+	}
+	data = append(data, '\n')
+
+	if err := os.WriteFile(req.FilePath, data, 0o600); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to write key file %s: %v", req.FilePath, err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 // DeleteKey implement the corresponding gRPC method.
 func (srv *Server) DeleteKey(ctx context.Context, req *daemon.DeleteKeyRequest) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, srv.store.KeyStore().DeleteKey(ctx, req.Name)
@@ -252,6 +311,110 @@ func (srv *Server) RegisterAccount(ctx context.Context, name string, kp *core.Ke
 
 func isImportKeyFilePath(filePath string) bool {
 	return strings.HasSuffix(strings.ToLower(filePath), importKeyFileSuffix)
+}
+
+func validateExportKeyFilePath(filePath string) error {
+	if filePath == "" {
+		return status.Error(codes.InvalidArgument, "file path is required")
+	}
+	if !filepath.IsAbs(filePath) {
+		return status.Error(codes.InvalidArgument, "file path must be absolute")
+	}
+	if !isImportKeyFilePath(filePath) {
+		return status.Errorf(codes.InvalidArgument, "file path must end with %s", importKeyFileSuffix)
+	}
+
+	info, err := os.Stat(filePath)
+	switch {
+	case err == nil:
+		if !info.Mode().IsRegular() {
+			return status.Errorf(codes.InvalidArgument, "key file must be a regular file: %s", filePath)
+		}
+	case os.IsNotExist(err):
+		parent := filepath.Dir(filePath)
+		parentInfo, parentErr := os.Stat(parent)
+		if parentErr != nil {
+			if os.IsNotExist(parentErr) {
+				return status.Errorf(codes.InvalidArgument, "parent directory does not exist: %s", parent)
+			}
+			return status.Errorf(codes.Internal, "failed to stat parent directory %s: %v", parent, parentErr)
+		}
+		if !parentInfo.IsDir() {
+			return status.Errorf(codes.InvalidArgument, "parent path is not a directory: %s", parent)
+		}
+	default:
+		return status.Errorf(codes.Internal, "failed to stat key file %s: %v", filePath, err)
+	}
+
+	return nil
+}
+
+func exportedSeed(keyPair *core.KeyPair) ([]byte, error) {
+	rawKey, err := keyPair.Libp2pKey().Raw()
+	if err != nil {
+		return nil, err
+	}
+	if len(rawKey) != ed25519.PrivateKeySize {
+		return nil, fmt.Errorf("invalid ed25519 private key length: expected %d bytes, got %d", ed25519.PrivateKeySize, len(rawKey))
+	}
+
+	seed := ed25519.PrivateKey(rawKey).Seed()
+	return seed, nil
+}
+
+func createExportedKeyFile(publicKey string, seed []byte, password string) (*exportedKeyFile, error) {
+	payload := &exportedKeyFile{
+		CreateTime: time.Now().UTC().Format(time.RFC3339Nano),
+		PublicKey:  publicKey,
+	}
+
+	if password == "" {
+		payload.KeyB64 = base64.RawURLEncoding.EncodeToString(seed)
+		return payload, nil
+	}
+
+	ciphertext, salt, err := encryptExportedSeed(seed, password)
+	if err != nil {
+		return nil, err
+	}
+
+	payload.KeyB64 = base64.RawURLEncoding.EncodeToString(ciphertext)
+	payload.Encryption = &exportedKeyFileEncryption{
+		KDF:    "argon2id",
+		Cipher: "xchacha20poly1305",
+		Argon2: &exportedKeyFileArgon2{
+			MemoryCost:  65536,
+			TimeCost:    3,
+			Parallelism: 4,
+			SaltB64:     base64.RawURLEncoding.EncodeToString(salt),
+		},
+	}
+
+	return payload, nil
+}
+
+func encryptExportedSeed(seed []byte, password string) ([]byte, []byte, error) {
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
+		return nil, nil, status.Errorf(codes.Internal, "failed to generate encryption salt: %v", err)
+	}
+
+	derivedKey := argon2.IDKey([]byte(password), salt, 3, 65536, 4, chacha20poly1305.KeySize)
+	aead, err := chacha20poly1305.NewX(derivedKey)
+	if err != nil {
+		return nil, nil, status.Errorf(codes.Internal, "failed to initialize cipher: %v", err)
+	}
+
+	nonce := make([]byte, chacha20poly1305.NonceSizeX)
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, nil, status.Errorf(codes.Internal, "failed to generate encryption nonce: %v", err)
+	}
+
+	ciphertext := aead.Seal(nil, nonce, seed, nil)
+	output := make([]byte, 0, len(nonce)+len(ciphertext))
+	output = append(output, nonce...)
+	output = append(output, ciphertext...)
+	return output, salt, nil
 }
 
 func loadKeyPairFromExportFile(filePath string, password string) (*core.KeyPair, error) {

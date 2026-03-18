@@ -206,6 +206,9 @@ declare global {
     keyImport?: {
       pickFile: () => Promise<string | null>
     }
+    keyExport?: {
+      pickFile: (defaultFileName: string) => Promise<string | null>
+    }
     windowMaximizedState?: {
       get: () => boolean
     }
@@ -313,6 +316,9 @@ function MainApp({}: {}) {
           }}
           pickKeyImportFile={() => {
             return window.keyImport?.pickFile() ?? Promise.resolve(null)
+          }}
+          pickKeyExportFile={(defaultFileName: string) => {
+            return window.keyExport?.pickFile(defaultFileName) ?? Promise.resolve(null)
           }}
           saveCidAsFile={async (cid: string, name: string) => {
             ipc.send?.('save-file', {cid, name})

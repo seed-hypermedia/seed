@@ -23,6 +23,7 @@ const (
 	Daemon_GenMnemonic_FullMethodName             = "/com.seed.daemon.v1alpha.Daemon/GenMnemonic"
 	Daemon_RegisterKey_FullMethodName             = "/com.seed.daemon.v1alpha.Daemon/RegisterKey"
 	Daemon_ImportKey_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ImportKey"
+	Daemon_ExportKey_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ExportKey"
 	Daemon_GetInfo_FullMethodName                 = "/com.seed.daemon.v1alpha.Daemon/GetInfo"
 	Daemon_ForceSync_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ForceSync"
 	Daemon_ForceReindex_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/ForceReindex"
@@ -51,6 +52,8 @@ type DaemonClient interface {
 	RegisterKey(ctx context.Context, in *RegisterKeyRequest, opts ...grpc.CallOption) (*NamedKey, error)
 	// Imports an existing signing key from a .hmkey.json file on disk.
 	ImportKey(ctx context.Context, in *ImportKeyRequest, opts ...grpc.CallOption) (*NamedKey, error)
+	// Exports an existing signing key to a .hmkey.json file on disk.
+	ExportKey(ctx context.Context, in *ExportKeyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Get generic information about the running node.
 	GetInfo(ctx context.Context, in *GetInfoRequest, opts ...grpc.CallOption) (*Info, error)
 	// Force-trigger periodic background sync of Seed objects.
@@ -114,6 +117,16 @@ func (c *daemonClient) ImportKey(ctx context.Context, in *ImportKeyRequest, opts
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(NamedKey)
 	err := c.cc.Invoke(ctx, Daemon_ImportKey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonClient) ExportKey(ctx context.Context, in *ExportKeyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Daemon_ExportKey_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -245,6 +258,8 @@ type DaemonServer interface {
 	RegisterKey(context.Context, *RegisterKeyRequest) (*NamedKey, error)
 	// Imports an existing signing key from a .hmkey.json file on disk.
 	ImportKey(context.Context, *ImportKeyRequest) (*NamedKey, error)
+	// Exports an existing signing key to a .hmkey.json file on disk.
+	ExportKey(context.Context, *ExportKeyRequest) (*emptypb.Empty, error)
 	// Get generic information about the running node.
 	GetInfo(context.Context, *GetInfoRequest) (*Info, error)
 	// Force-trigger periodic background sync of Seed objects.
@@ -291,6 +306,9 @@ func (UnimplementedDaemonServer) RegisterKey(context.Context, *RegisterKeyReques
 }
 func (UnimplementedDaemonServer) ImportKey(context.Context, *ImportKeyRequest) (*NamedKey, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ImportKey not implemented")
+}
+func (UnimplementedDaemonServer) ExportKey(context.Context, *ExportKeyRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExportKey not implemented")
 }
 func (UnimplementedDaemonServer) GetInfo(context.Context, *GetInfoRequest) (*Info, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetInfo not implemented")
@@ -395,6 +413,24 @@ func _Daemon_ImportKey_Handler(srv interface{}, ctx context.Context, dec func(in
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DaemonServer).ImportKey(ctx, req.(*ImportKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Daemon_ExportKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExportKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServer).ExportKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Daemon_ExportKey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServer).ExportKey(ctx, req.(*ExportKeyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -615,6 +651,10 @@ var Daemon_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ImportKey",
 			Handler:    _Daemon_ImportKey_Handler,
+		},
+		{
+			MethodName: "ExportKey",
+			Handler:    _Daemon_ExportKey_Handler,
 		},
 		{
 			MethodName: "GetInfo",

@@ -1,4 +1,5 @@
 import * as base64 from './base64'
+import * as blobs from './blobs'
 import * as encryption from './encryption'
 
 /**
@@ -37,6 +38,15 @@ export interface Payload {
   keyB64: string
   encryption?: Encryption
   profile?: Profile
+}
+
+/**
+ * Validated key material read from a serialized `.hmkey.json` file.
+ */
+export interface LoadedPayload {
+  payload: Payload
+  seed: Uint8Array
+  publicKey: string
 }
 
 /**
@@ -150,4 +160,27 @@ export async function decrypt(payload: Payload, password?: string): Promise<Uint
   )
 
   return encryption.decrypt(base64.decode(payload.keyB64), derivedKey)
+}
+
+/**
+ * Parses, decrypts, and validates a serialized `.hmkey.json` payload.
+ */
+export async function load(json: string, password?: string): Promise<LoadedPayload> {
+  const payload = parse(json)
+  const seed = await decrypt(payload, password)
+
+  if (seed.length !== 32) {
+    throw new Error(`invalid private key length: expected 32 bytes, got ${seed.length}`)
+  }
+
+  const publicKey = blobs.principalToString(blobs.nobleKeyPairFromSeed(seed).principal)
+  if (payload.publicKey && payload.publicKey !== publicKey) {
+    throw new Error('publicKey does not match private key')
+  }
+
+  return {
+    payload,
+    seed,
+    publicKey,
+  }
 }

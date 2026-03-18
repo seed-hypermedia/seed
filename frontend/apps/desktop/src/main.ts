@@ -586,6 +586,25 @@ function initializeIpcHandlers() {
 
     return result.filePaths[0] ?? null
   })
+  ipcMain.handle('pick-key-export-file', async (_event, defaultFileName?: string) => {
+    const focusedWindow = getFocusedWindow()
+    const options = {
+      title: 'Export Seed HM key file (.hmkey.json)',
+      defaultPath: path.join(app.getPath('downloads'), defaultFileName || 'account.hmkey.json'),
+      buttonLabel: 'Export',
+      filters: [{name: 'Seed HM Key Files (*.hmkey.json)', extensions: ['json']}],
+    }
+
+    const result = focusedWindow
+      ? await dialog.showSaveDialog(focusedWindow, options)
+      : await dialog.showSaveDialog(options)
+
+    if (result.canceled || !result.filePath) {
+      return null
+    }
+
+    return result.filePath
+  })
 
   // Markdown file handlers
   ipcMain.on('open-markdown-directory', async (event, accountId: string) => {

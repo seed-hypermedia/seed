@@ -276,6 +276,63 @@ export class ImportKeyRequest extends Message<ImportKeyRequest> {
 }
 
 /**
+ * Request to export an existing account key to a .hmkey.json file path.
+ *
+ * @generated from message com.seed.daemon.v1alpha.ExportKeyRequest
+ */
+export class ExportKeyRequest extends Message<ExportKeyRequest> {
+  /**
+   * Required. Name of the key to export.
+   *
+   * @generated from field: string name = 1;
+   */
+  name = "";
+
+  /**
+   * Required. Absolute path to a .hmkey.json key export file.
+   *
+   * @generated from field: string file_path = 2;
+   */
+  filePath = "";
+
+  /**
+   * Optional. Password to encrypt the exported key file.
+   *
+   * @generated from field: string password = 3;
+   */
+  password = "";
+
+  constructor(data?: PartialMessage<ExportKeyRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.ExportKeyRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "file_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "password", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ExportKeyRequest {
+    return new ExportKeyRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ExportKeyRequest {
+    return new ExportKeyRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ExportKeyRequest {
+    return new ExportKeyRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ExportKeyRequest | PlainMessage<ExportKeyRequest> | undefined, b: ExportKeyRequest | PlainMessage<ExportKeyRequest> | undefined): boolean {
+    return proto3.util.equals(ExportKeyRequest, a, b);
+  }
+}
+
+/**
  * Request to get basic information about the running daemon.
  *
  * @generated from message com.seed.daemon.v1alpha.GetInfoRequest
@@ -1234,4 +1291,3 @@ export class NamedKey extends Message<NamedKey> {
     return proto3.util.equals(NamedKey, a, b);
   }
 }
-

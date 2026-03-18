@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package com.seed.daemon.v1alpha;
 
-import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "seed/backend/genproto/daemon/v1alpha;daemon";
 
@@ -20,6 +20,9 @@ service Daemon {
 
   // Imports an existing signing key from a .hmkey.json file on disk.
   rpc ImportKey(ImportKeyRequest) returns (NamedKey);
+
+  // Exports an existing signing key to a .hmkey.json file on disk.
+  rpc ExportKey(ExportKeyRequest) returns (google.protobuf.Empty);
 
   // Get generic information about the running node.
   rpc GetInfo(GetInfoRequest) returns (Info);
@@ -88,7 +91,6 @@ message RegisterKeyRequest {
   // Required. Private name/label for the signing key, to easily identify keys when they are more than one.
   // Name must be unique across all the registered keys.
   string name = 3;
-
 }
 
 // Request to import an existing account key from a .hmkey.json file path.
@@ -98,6 +100,18 @@ message ImportKeyRequest {
 
   // Optional. Password to decrypt encrypted key exports.
   string password = 2;
+}
+
+// Request to export an existing account key to a .hmkey.json file path.
+message ExportKeyRequest {
+  // Required. Name of the key to export.
+  string name = 1;
+
+  // Required. Absolute path to a .hmkey.json key export file.
+  string file_path = 2;
+
+  // Optional. Password to encrypt the exported key file.
+  string password = 3;
 }
 
 // Request to get basic information about the running daemon.

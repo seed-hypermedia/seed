@@ -14,6 +14,7 @@ export type AppContext = {
   externalOpen: (url: string) => Promise<void>
   openDirectory: (directory: string) => Promise<void>
   pickKeyImportFile: () => Promise<string | null>
+  pickKeyExportFile: (defaultFileName: string) => Promise<string | null>
   openMarkdownDirectories: (accountId: string) => Promise<{
     documents: {
       markdownContent: string

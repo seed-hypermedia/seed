@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetInfoRequest, ImportKeyRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, SignDataRequest, SignDataResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
+import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetInfoRequest, ImportKeyRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, SignDataRequest, SignDataResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -48,6 +48,17 @@ export const Daemon = {
       name: "ImportKey",
       I: ImportKeyRequest,
       O: NamedKey,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Exports an existing signing key to a .hmkey.json file on disk.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.ExportKey
+     */
+    exportKey: {
+      name: "ExportKey",
+      I: ExportKeyRequest,
+      O: Empty,
       kind: MethodKind.Unary,
     },
     /**
@@ -180,4 +191,3 @@ export const Daemon = {
     },
   }
 } as const;
-

@@ -72,9 +72,11 @@ export function AccountWallet({
     ))
   }
   return (
-    <>
+    <div className="flex">
       <Button
         variant="inverse"
+        size="sm"
+        className="self-start"
         onClick={() => {
           createWallet.mutateAsync({accountUid}).catch((e) => {
             console.error(e)
@@ -84,7 +86,7 @@ export function AccountWallet({
       >
         Create Account Wallet
       </Button>
-    </>
+    </div>
   )
 }
 

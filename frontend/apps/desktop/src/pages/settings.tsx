@@ -1,8 +1,8 @@
-import {useIPC} from '@/app-context'
+import {useAppContext, useIPC} from '@/app-context'
 import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {useAutoUpdatePreference} from '@/models/app-settings'
-import {useDaemonInfo, useDeleteKey, useMyAccountIds, useSavedMnemonics} from '@/models/daemon'
+import {useDaemonInfo, useDeleteKey, useExportKey, useListKeys, useSavedMnemonics} from '@/models/daemon'
 import {useWriteExperiments} from '@/models/experiments'
 import {
   useGatewayUrl,
@@ -38,6 +38,7 @@ import {
   AlertDialogTrigger,
 } from '@shm/ui/components/alert-dialog'
 import {Checkbox} from '@shm/ui/components/checkbox'
+import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
@@ -59,7 +60,20 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {useMutation, useQuery} from '@tanstack/react-query'
-import {AtSign, Check, Code2, Cog, Eye, EyeOff, Info, Plus, RadioTower, Trash, UserRoundPlus} from 'lucide-react'
+import {
+  AtSign,
+  Check,
+  Code2,
+  Cog,
+  Download,
+  Eye,
+  EyeOff,
+  Info,
+  Plus,
+  RadioTower,
+  Trash,
+  UserRoundPlus,
+} from 'lucide-react'
 import {useEffect, useId, useMemo, useState} from 'react'
 
 export default function Settings() {
@@ -345,20 +359,22 @@ export function DeveloperSettings() {
 }
 
 function AccountKeys() {
+  const {pickKeyExportFile} = useAppContext()
   const deleteKey = useDeleteKey()
-  const keys = useMyAccountIds()
+  const exportKey = useExportKey()
+  const keys = useListKeys()
   const deleteWords = useMutation({
     mutationFn: (name: string) => client.secureStorage.delete.mutate(name),
   })
   const [walletId, setWalletId] = useState<string | undefined>(undefined)
-  const [selectedAccount, setSelectedAccount] = useState<undefined | string>(() => {
-    if (keys.data && keys.data.length) {
-      return keys.data[0]
-    }
-    return undefined
-  })
+  const [selectedAccount, setSelectedAccount] = useState<undefined | string>(undefined)
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
+  const [exportPassword, setExportPassword] = useState('')
+  const [exportError, setExportError] = useState<string | null>(null)
 
-  const {data: mnemonics, refetch: mnemonicsRefetch} = useSavedMnemonics(selectedAccount)
+  const selectedKey = keys.data?.find((key) => key.publicKey === selectedAccount)
+
+  const {data: mnemonics, refetch: mnemonicsRefetch} = useSavedMnemonics(selectedKey?.name)
 
   const selectedAccountId = selectedAccount ? hmId(selectedAccount) : undefined
 
@@ -369,15 +385,20 @@ function AccountKeys() {
 
   useEffect(() => {
     if (keys.data && keys.data.length) {
-      setSelectedAccount(keys.data[0])
+      setSelectedAccount((current) => {
+        if (current && keys.data.some((key) => key.publicKey === current)) {
+          return current
+        }
+        return keys.data[0].publicKey
+      })
     }
   }, [keys.data])
 
   useEffect(() => {
-    if (selectedAccount) {
+    if (selectedKey?.name) {
       mnemonicsRefetch()
     }
-  }, [selectedAccount])
+  }, [mnemonicsRefetch, selectedKey?.name])
 
   function handleDeleteCurrentAccount() {
     if (!selectedAccount) return
@@ -386,6 +407,33 @@ function AccountKeys() {
       toast.success('Profile removed correctly')
     })
   }
+
+  async function handleExportCurrentAccount(e?: React.FormEvent) {
+    e?.preventDefault()
+    if (!selectedAccount || !selectedKey) return
+
+    setExportError(null)
+
+    try {
+      const filePath = await pickKeyExportFile(`${selectedAccount}.hmkey.json`)
+      if (!filePath) return
+
+      await exportKey.mutateAsync({
+        name: selectedKey.name,
+        filePath,
+        password: exportPassword.length > 0 ? exportPassword : undefined,
+      })
+
+      setIsExportDialogOpen(false)
+      setExportPassword('')
+      toast.success(`Key exported to ${filePath}`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown export error'
+      setExportError(message)
+      toast.error('Failed to export key: ' + message)
+    }
+  }
+
   if (walletId && selectedAccount)
     return (
       <WalletPage
@@ -401,28 +449,80 @@ function AccountKeys() {
       <div className="flex max-w-[25%] flex-1 flex-col gap-2">
         <div className="flex flex-1 flex-col">
           {keys.data?.map((key) => (
-            <KeyItem item={key} isActive={key == selectedAccount} onSelect={() => setSelectedAccount(key)} />
+            <KeyItem
+              key={key.publicKey}
+              item={key.publicKey}
+              isActive={key.publicKey == selectedAccount}
+              onSelect={() => setSelectedAccount(key.publicKey)}
+            />
           ))}
         </div>
       </div>
       <div className={cn('border-border dark:bg-background bg-muted flex flex-[3] flex-col rounded-lg border')}>
         <div className="flex flex-col gap-4 p-4">
-          <div className="mb-4 flex gap-4">
-            {selectedAccountId ? (
-              <HMIcon
-                id={selectedAccountId}
-                name={profileDocument?.metadata?.name}
-                icon={profileDocument?.metadata?.icon}
-                size={80}
-              />
-            ) : null}
-            <div className="mt-2 flex flex-1 flex-col gap-3">
-              <Field id="username" label="Profile Name">
-                <Input disabled value={getMetadataName(profileDocument?.metadata)} />
-              </Field>
-              <Field id="accountid" label="Account ID">
-                <Input disabled value={selectedAccount} />
-              </Field>
+          <div className="mb-4 flex flex-col gap-4">
+            <div className="grid grid-cols-[96px_minmax(0,1fr)] items-start gap-x-4 gap-y-4">
+              <div className="flex w-24 justify-center pt-1">
+                {selectedAccountId ? (
+                  <HMIcon
+                    id={selectedAccountId}
+                    name={profileDocument?.metadata?.name}
+                    icon={profileDocument?.metadata?.icon}
+                    size={80}
+                  />
+                ) : null}
+              </div>
+              <div className="flex flex-1 flex-col gap-3">
+                <Field id="username" label="Profile Name">
+                  <Input disabled value={getMetadataName(profileDocument?.metadata)} />
+                </Field>
+                <Field id="accountid" label="Account ID">
+                  <Input disabled value={selectedAccount} />
+                </Field>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 px-3">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setExportPassword('')
+                  setExportError(null)
+                  setIsExportDialogOpen(true)
+                }}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export Key
+              </Button>
+              <AlertDialog>
+                <Tooltip content="Delete account from device">
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm" variant="destructive">
+                      <Trash className="mr-2 h-4 w-4" />
+                      Delete Account
+                    </Button>
+                  </AlertDialogTrigger>
+                </Tooltip>
+                <AlertDialogPortal>
+                  <AlertDialogContent className="max-w-[600px] gap-4">
+                    <AlertDialogTitle className="text-2xl font-bold">Delete Account</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure? This account will be removed. Make sure you have saved the Secret Recovery Phrase
+                      for this account if you want to recover it later.
+                    </AlertDialogDescription>
+                    <div className="flex justify-end gap-3">
+                      <AlertDialogCancel asChild>
+                        <Button variant="ghost">Cancel</Button>
+                      </AlertDialogCancel>
+                      <AlertDialogAction asChild>
+                        <Button variant="destructive" onClick={handleDeleteCurrentAccount}>
+                          Delete Permanently
+                        </Button>
+                      </AlertDialogAction>
+                    </div>
+                  </AlertDialogContent>
+                </AlertDialogPortal>
+              </AlertDialog>
             </div>
           </div>
           {mnemonics ? (
@@ -480,7 +580,7 @@ function AccountKeys() {
                               <Button
                                 variant="destructive"
                                 onClick={() =>
-                                  deleteWords.mutateAsync(selectedAccount).then(() => {
+                                  deleteWords.mutateAsync(selectedKey?.name || selectedAccount).then(() => {
                                     toast.success('Words deleted!')
                                     invalidateQueries([queryKeys.SECURE_STORAGE])
                                   })
@@ -498,35 +598,6 @@ function AccountKeys() {
               </Field>
             </div>
           ) : null}
-          <AlertDialog>
-            <Tooltip content="Delete account from device">
-              <AlertDialogTrigger asChild>
-                <Button size="sm" variant="destructive" className="self-end">
-                  <Trash className="mr-2 h-4 w-4" />
-                  Delete Account
-                </Button>
-              </AlertDialogTrigger>
-            </Tooltip>
-            <AlertDialogPortal>
-              <AlertDialogContent className="max-w-[600px] gap-4">
-                <AlertDialogTitle className="text-2xl font-bold">Delete Account</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure? This account will be removed. Make sure you have saved the Secret Recovery Phrase for
-                  this account if you want to recover it later.
-                </AlertDialogDescription>
-                <div className="flex justify-end gap-3">
-                  <AlertDialogCancel asChild>
-                    <Button variant="ghost">Cancel</Button>
-                  </AlertDialogCancel>
-                  <AlertDialogAction asChild>
-                    <Button variant="destructive" onClick={handleDeleteCurrentAccount}>
-                      Delete Permanently
-                    </Button>
-                  </AlertDialogAction>
-                </div>
-              </AlertDialogContent>
-            </AlertDialogPortal>
-          </AlertDialog>
           <SettingsSection title="Wallets">
             <AccountWallet accountUid={selectedAccount} onOpenWallet={(walletId) => setWalletId(walletId)} />
           </SettingsSection>
@@ -535,6 +606,42 @@ function AccountKeys() {
           </SettingsSection>
         </div>
       </div>
+      <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+        <DialogContent className="max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Export Key File</DialogTitle>
+            <DialogDescription>
+              Choose whether to protect the exported `.hmkey.json` file with a password.
+            </DialogDescription>
+          </DialogHeader>
+          <form className="flex flex-col gap-4" onSubmit={handleExportCurrentAccount}>
+            <div className="text-muted-foreground rounded-lg border p-3 text-sm">
+              Exported key files can grant full account control. Use a password whenever possible and store the file
+              securely.
+            </div>
+            {exportError ? <p className="text-destructive text-sm">{exportError}</p> : null}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="export-key-password">Password (optional)</Label>
+              <Input
+                id="export-key-password"
+                type="password"
+                value={exportPassword}
+                onChange={(event) => setExportPassword(event.currentTarget.value)}
+                autoComplete="off"
+                placeholder="Only needed for encrypted exports"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button type="button" variant="ghost" onClick={() => setIsExportDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={exportKey.isPending}>
+                {exportKey.isPending ? 'Exporting...' : 'Export Key'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   ) : (
     <div className="flex h-full flex-1 flex-col items-center justify-center gap-4 p-6">

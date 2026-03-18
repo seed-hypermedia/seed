@@ -118,30 +118,17 @@ export function useMyAccounts() {
 }
 
 /**
- * Returns a list of keys from the daemon.
- * This is a hook that is used to list keys from the daemon.
- * It is used to check if the user has any accounts.
- * If the user has no accounts, it will show the onboarding screen.
- * If the user has accounts, it will show the main app.
- *
- * @returns
+ * Returns the daemon key records available on this device.
  */
-export function useListKeys() {
-  const [keys, setKeys] = useState<NamedKey[]>([])
-  useEffect(() => {
-    keys()
-
-    async function keys() {
-      try {
-        const q = await grpcClient.daemon.listKeys({})
-        setKeys([...q?.keys])
-      } catch (e) {
-        console.error('Failed to list keys', e)
-      }
-    }
-  }, [])
-
-  return keys
+export function useListKeys(opts: UseQueryOptions<NamedKey[]> = {}) {
+  return useQuery({
+    queryKey: [queryKeys.LOCAL_ACCOUNT_ID_LIST, 'keys'],
+    queryFn: async () => {
+      const q = await grpcClient.daemon.listKeys({})
+      return [...q.keys].sort((a, b) => a.accountId.localeCompare(b.accountId))
+    },
+    ...opts,
+  })
 }
 
 export function useRegisterKey(
@@ -212,6 +199,24 @@ export function useImportKey(opts?: UseMutationOptions<NamedKey, unknown, {fileP
     },
     onSuccess: () => {
       invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
+    },
+  })
+}
+
+/**
+ * Exports an existing account key to a daemon-writable file path.
+ */
+export function useExportKey(
+  opts?: UseMutationOptions<void, unknown, {name: string; filePath: string; password?: string}>,
+) {
+  return useMutation({
+    ...opts,
+    mutationFn: async ({name, filePath, password}) => {
+      await grpcClient.daemon.exportKey({
+        name,
+        filePath,
+        password,
+      })
     },
   })
 }

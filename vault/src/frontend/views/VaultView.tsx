@@ -47,6 +47,7 @@ import {
   Settings,
   Smartphone,
   Tablet,
+  Upload,
   User,
 } from 'lucide-react'
 import {type FormEvent, useEffect, useState} from 'react'
@@ -69,6 +70,7 @@ export function VaultView() {
   const actions = useActions()
   const navigate = useNavigate()
   const [mobilePanel, setMobilePanel] = useState<'list' | 'detail'>('list')
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
 
   const accounts = vaultData?.accounts ?? []
   const hasAccounts = accounts.length > 0
@@ -112,7 +114,8 @@ export function VaultView() {
     return (
       <>
         {!creatingAccount && <ErrorMessage message={error} />}
-        <EmptyState />
+        <EmptyState onImport={() => setIsImportDialogOpen(true)} />
+        <ImportAccountDialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen} />
         <CreateAccountDialog />
       </>
     )
@@ -168,10 +171,16 @@ export function VaultView() {
             </DndContext>
           </div>
           <div className="border-t p-3">
-            <Button variant="outline" className="w-full" size="sm" onClick={() => actions.setCreatingAccount(true)}>
-              <Plus className="size-4" />
-              Create Account
-            </Button>
+            <div className="flex flex-col gap-2">
+              <Button variant="outline" className="w-full" size="sm" onClick={() => actions.setCreatingAccount(true)}>
+                <Plus className="size-4" />
+                Create Account
+              </Button>
+              <Button variant="ghost" className="w-full" size="sm" onClick={() => setIsImportDialogOpen(true)}>
+                <Upload className="size-4" />
+                Import Key
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -191,12 +200,13 @@ export function VaultView() {
           )}
         </div>
       </div>
+      <ImportAccountDialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen} />
       <CreateAccountDialog />
     </>
   )
 }
 
-function EmptyState() {
+function EmptyState({onImport}: {onImport: () => void}) {
   const actions = useActions()
 
   return (
@@ -208,11 +218,98 @@ function EmptyState() {
       <p className="text-muted-foreground mb-6 max-w-sm">
         Create your first Hypermedia identity account to get started.
       </p>
-      <Button size="lg" onClick={() => actions.setCreatingAccount(true)}>
-        <Plus className="size-4" />
-        Create your first Hypermedia Account
-      </Button>
+      <div className="flex w-full max-w-md flex-col gap-3">
+        <Button size="lg" className="w-full" onClick={() => actions.setCreatingAccount(true)}>
+          <Plus className="size-4" />
+          Create your first Hypermedia Account
+        </Button>
+        <Button variant="outline" size="lg" className="w-full" onClick={onImport}>
+          <Upload className="size-4" />
+          Import Key
+        </Button>
+      </div>
     </div>
+  )
+}
+
+function ImportAccountDialog({open, onOpenChange}: {open: boolean; onOpenChange: (open: boolean) => void}) {
+  const {loading} = useAppState()
+  const actions = useActions()
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [password, setPassword] = useState('')
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open) {
+      setSelectedFile(null)
+      setPassword('')
+      setSubmitError(null)
+    }
+  }, [open])
+
+  async function handleSubmit(event?: FormEvent) {
+    event?.preventDefault()
+
+    if (!selectedFile) {
+      setSubmitError('Key file is required')
+      return
+    }
+
+    try {
+      const contents = await selectedFile.text()
+      await actions.importAccount(contents, password.length > 0 ? password : undefined)
+      onOpenChange(false)
+    } catch (error) {
+      setSubmitError((error as Error).message || 'Failed to import account')
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:w-fit sm:max-w-[calc(100vw-2rem)]">
+        <DialogHeader>
+          <DialogTitle>Import Key File</DialogTitle>
+          <DialogDescription>
+            Choose an exported `.hmkey.json` file. Enter a password only if the key file was exported with encryption.
+          </DialogDescription>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <div className="space-y-2">
+            <Label htmlFor="import-key-file">Key File</Label>
+            <Input
+              id="import-key-file"
+              type="file"
+              accept=".hmkey.json,application/json"
+              onChange={(event) => {
+                setSelectedFile(event.target.files?.[0] ?? null)
+                setSubmitError(null)
+              }}
+            />
+            {selectedFile ? <p className="text-muted-foreground text-sm break-all">{selectedFile.name}</p> : null}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="import-key-password">Password (optional)</Label>
+            <Input
+              id="import-key-password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.currentTarget.value)}
+              autoComplete="off"
+              placeholder="Only needed for encrypted files"
+            />
+          </div>
+          {submitError ? <p className="text-destructive text-sm">{submitError}</p> : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Importing...' : 'Import Key'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 

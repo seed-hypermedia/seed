@@ -14,6 +14,7 @@ export function AppContextProvider({
   externalOpen,
   openDirectory,
   pickKeyImportFile,
+  pickKeyExportFile,
   openMarkdownFiles,
   openMarkdownDirectories,
   openLatexFiles,
@@ -32,6 +33,7 @@ export function AppContextProvider({
   externalOpen: (url: string) => Promise<void>
   openDirectory: (directory: string) => Promise<void>
   pickKeyImportFile: () => Promise<string | null>
+  pickKeyExportFile: (defaultFileName: string) => Promise<string | null>
   openMarkdownFiles: (accountId: string) => Promise<{
     documents: {
       markdownContent: string
@@ -98,6 +100,7 @@ export function AppContextProvider({
       externalOpen,
       openDirectory,
       pickKeyImportFile,
+      pickKeyExportFile,
       openMarkdownFiles,
       openMarkdownDirectories,
       openLatexFiles,

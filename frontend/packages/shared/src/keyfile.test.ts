@@ -1,8 +1,13 @@
 import {describe, expect, test} from 'vitest'
+import * as blobs from './blobs'
 import * as keyfile from './keyfile'
 
 function makeKey(fill = 7): Uint8Array {
   return new Uint8Array(32).fill(fill)
+}
+
+function makePublicKey(fill = 7): string {
+  return blobs.principalToString(blobs.nobleKeyPairFromSeed(makeKey(fill)).principal)
 }
 
 describe('keyfile', () => {
@@ -81,6 +86,59 @@ describe('keyfile', () => {
         'secret-password',
       ),
     ).rejects.toThrow('saltB64 is required')
+  })
+
+  test('load parses, decrypts, and validates plaintext payloads', async () => {
+    const payload = await keyfile.create({
+      publicKey: makePublicKey(),
+      key: makeKey(),
+      createTime: '2026-03-17T00:00:00.000Z',
+    })
+
+    await expect(keyfile.load(keyfile.stringify(payload))).resolves.toEqual({
+      payload,
+      seed: makeKey(),
+      publicKey: makePublicKey(),
+    })
+  })
+
+  test('load parses, decrypts, and validates encrypted payloads', async () => {
+    const payload = await keyfile.create({
+      publicKey: makePublicKey(),
+      key: makeKey(),
+      password: 'secret-password',
+      createTime: '2026-03-17T00:00:00.000Z',
+    })
+
+    await expect(keyfile.load(keyfile.stringify(payload), 'secret-password')).resolves.toEqual({
+      payload,
+      seed: makeKey(),
+      publicKey: makePublicKey(),
+    })
+  })
+
+  test('load rejects a mismatched public key', async () => {
+    const payload = await keyfile.create({
+      publicKey: makePublicKey(),
+      key: makeKey(),
+      createTime: '2026-03-17T00:00:00.000Z',
+    })
+
+    payload.publicKey = makePublicKey(9)
+
+    await expect(keyfile.load(keyfile.stringify(payload))).rejects.toThrow('publicKey does not match private key')
+  })
+
+  test('load rejects invalid seed lengths', async () => {
+    await expect(
+      keyfile.load(
+        JSON.stringify({
+          createTime: '2026-03-17T00:00:00.000Z',
+          publicKey: 'z6MkgShort',
+          keyB64: 'AA',
+        }),
+      ),
+    ).rejects.toThrow('invalid private key length: expected 32 bytes, got 1')
   })
 
   test('stringify preserves field names and base64url encoding', async () => {

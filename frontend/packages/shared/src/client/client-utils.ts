@@ -1,6 +1,11 @@
 const ENABLE_VERBOSE_LOGGING = process.env.VERBOSE === 'true'
 const REDACTED_MESSAGE = '[REDACTED]'
-const SENSITIVE_RPC_METHODS = new Set(['Daemon.ImportKey', 'Daemon.RegisterKey', 'Daemon.GenMnemonic'])
+const SENSITIVE_RPC_METHODS = new Set([
+  'Daemon.ExportKey',
+  'Daemon.ImportKey',
+  'Daemon.RegisterKey',
+  'Daemon.GenMnemonic',
+])
 
 /**
  * Reports whether an RPC method should have request payloads redacted from logs.
