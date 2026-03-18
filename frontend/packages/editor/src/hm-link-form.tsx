@@ -121,7 +121,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
         />
       </div>
 
-      {(props.type === 'embed' || props.type === 'card') && isSeedLink && (
+      {(props.type === 'embed' || props.type === 'card' || props.type === 'inline-embed') && isSeedLink && (
         <div className="my-3 flex flex-col gap-3">
           <SwitchField
             label="Show Latest Version"
@@ -318,9 +318,10 @@ const SearchInput = ({
           onMouseEnter: () => {},
           onSelect: () => {
             const newText = type === 'link' ? text : title ? item.title : text
-            setLink(item.id.id)
-            setSearch(item.id.id)
-            updateLink(item.id.id, newText, true)
+            const packedUrl = type === 'inline-embed' ? packHmId({...item.id, latest: !item.id.blockRef}) : item.id.id
+            setLink(packedUrl)
+            setSearch(packedUrl)
+            updateLink(packedUrl, newText, true)
           },
           subtitle: 'Document',
         }
