@@ -52,7 +52,6 @@ import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '@shm/shared/
 import {eventStream} from '@shm/shared/utils/stream'
 import {DocNavigationItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {PushResourceStatus} from '@shm/ui/push-toast'
-import {toast} from '@shm/ui/toast'
 import {
   UseInfiniteQueryOptions,
   useMutation,
@@ -341,18 +340,16 @@ export function usePublishResource(
           }
         } catch (error) {
           const connectErr = ConnectError.from(error)
+          const msg = connectErr.rawMessage.toLowerCase()
           const isDuplicatePath =
-            connectErr.code === Code.FailedPrecondition &&
-            connectErr.rawMessage.toLowerCase().includes('path already exists')
+            (connectErr.code === Code.FailedPrecondition && msg.includes('path already exists')) ||
+            msg.includes('preparedocumentchange')
           if (isDuplicatePath) {
-            toast.error(
+            throw new Error(
               'A document already exists at this path. Please choose a different path name before publishing.',
             )
-          } else {
-            toast.error(`Failed to publish: ${connectErr.rawMessage}`)
           }
-
-          throw Error(connectErr.rawMessage)
+          throw new Error(`Failed to publish: ${connectErr.rawMessage}`)
         }
       }
       throw new Error('Unhandled publish')
