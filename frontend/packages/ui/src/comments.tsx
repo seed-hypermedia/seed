@@ -34,7 +34,7 @@ import {
   useUpdateComment,
 } from '@shm/shared/comments-service-provider'
 import {HMListDiscussionsOutput} from '@seed-hypermedia/client/hm-types'
-import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
+import {useIsCurrentUser, useResource} from '@shm/shared/models/entity'
 import {getRoutePanel} from '@shm/shared/routes'
 import {useTxString} from '@shm/shared/translation'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
@@ -564,7 +564,7 @@ export const Comment = memo(function Comment({
   const [viewingVersion, setViewingVersion] = useState<HMComment | null>(null)
   const commentsContext = useCommentsServiceContext()
   const {data: replyCount} = useCommentReplyCount({id: comment.id})
-  const currentAccountId = useSelectedAccountId()
+  const isAuthor = useIsCurrentUser(comment.author)
   const deleteCommentMutation = useDeleteComment()
   const updateCommentMutation = useUpdateComment()
   const deleteCommentDialog = useDeleteCommentDialog()
@@ -583,7 +583,7 @@ export const Comment = memo(function Comment({
   }, [defaultExpandReplies])
   const navigate = useNavigate('replace')
   const options: MenuItemType[] = []
-  if (currentAccountId && currentAccountId === comment.author) {
+  if (isAuthor) {
     options.push({
       icon: <Pencil className="size-4" />,
       label: 'Edit',
@@ -591,7 +591,7 @@ export const Comment = memo(function Comment({
       key: 'edit',
     })
   }
-  if (currentAccountId && currentAccountId === comment.author) {
+  if (isAuthor) {
     options.push({
       icon: <Trash2 className="size-4" />,
       label: 'Delete',
@@ -606,7 +606,7 @@ export const Comment = memo(function Comment({
               (routePanel?.key === 'comments' && routePanel.openComment === comment.id)
 
             deleteCommentMutation.mutate(
-              {comment, signingAccountId: currentAccountId},
+              {comment, signingAccountId: comment.author},
               {
                 onSuccess: () => {
                   if (!isFocusedComment) return
@@ -731,9 +731,8 @@ export const Comment = memo(function Comment({
               comment={comment}
               onCancel={() => setIsEditing(false)}
               onSave={(newContent) => {
-                if (!currentAccountId) return
                 updateCommentMutation.mutate(
-                  {comment, newContent, signingAccountId: currentAccountId},
+                  {comment, newContent, signingAccountId: comment.author},
                   {onSuccess: () => setIsEditing(false)},
                 )
               }}

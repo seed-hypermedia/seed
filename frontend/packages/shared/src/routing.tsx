@@ -49,6 +49,10 @@ type UniversalAppContextValue = {
   languagePack?: LanguagePack
   selectedIdentity?: StateStream<string | null>
   setSelectedIdentity?: (keyId: string | null) => void
+  // The UID of the key that actually signs blobs. On desktop this equals
+  // selectedIdentity. On web with vault accounts the signing key differs
+  // from the vault account identity, so both must be checked for authorship.
+  signingIdentity?: StateStream<string | null>
   universalClient: UniversalClient
 
   experiments?: AppExperiments
@@ -100,6 +104,7 @@ export function UniversalAppProvider(props: {
   languagePack?: LanguagePack
   selectedIdentity?: StateStream<string | null>
   setSelectedIdentity?: (keyId: string | null) => void
+  signingIdentity?: StateStream<string | null>
   universalClient: UniversalClient
   experiments?: AppExperiments
   contacts?: HMContactRecord[]
@@ -121,6 +126,7 @@ export function UniversalAppProvider(props: {
         languagePack: props.languagePack,
         selectedIdentity: props.selectedIdentity,
         setSelectedIdentity: props.setSelectedIdentity,
+        signingIdentity: props.signingIdentity,
         universalClient: props.universalClient,
         experiments: props.experiments,
         contacts: props.contacts,
