@@ -1,6 +1,11 @@
 {
   "name": "@seed-hypermedia/cli",
   "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seed-hypermedia/seed",
+    "directory": "frontend/apps/cli"
+  },
   "description": "Command-line interface for Seed Hypermedia",
   "type": "module",
   "bin": {

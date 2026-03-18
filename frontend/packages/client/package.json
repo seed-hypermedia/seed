@@ -1,6 +1,11 @@
 {
   "name": "@seed-hypermedia/client",
   "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seed-hypermedia/seed",
+    "directory": "frontend/packages/client"
+  },
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {
