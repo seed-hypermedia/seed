@@ -17,7 +17,7 @@ const configPath = path.join(userDataPath, 'ai-config.json')
 
 // Types
 
-export type AgentProviderType = 'openai' | 'anthropic' | 'ollama'
+export type AgentProviderType = 'openai' | 'anthropic' | 'gemini' | 'ollama'
 export type OpenAIAuthMode = 'apiKey' | 'login'
 
 type OpenAIAuthSession = {
@@ -108,6 +108,17 @@ type OpenAIModelsResponse = {
   models?: unknown
 }
 
+type GeminiModelResponse = {
+  name?: unknown
+  baseModelId?: unknown
+  supportedGenerationMethods?: unknown
+}
+
+type GeminiModelsResponse = {
+  models?: unknown
+  nextPageToken?: unknown
+}
+
 const OPENAI_AUTH_ISSUER = 'https://auth.openai.com'
 const OPENAI_CHATGPT_BACKEND_URL = 'https://chatgpt.com/backend-api/codex'
 const OPENAI_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann'
@@ -184,6 +195,30 @@ function migrateConfig(config: AIConfig): AIConfig {
       migrated = {
         ...migrated,
         agentProviders: normalizedProviders,
+      }
+      shouldPersist = true
+    }
+
+    const currentProviders = migrated.agentProviders || []
+    const validProviderIds = new Set(currentProviders.map((provider) => provider.id))
+    const fallbackProviderId = currentProviders[0]?.id
+    const nextSelectedProviderId =
+      migrated.selectedProviderId && validProviderIds.has(migrated.selectedProviderId)
+        ? migrated.selectedProviderId
+        : fallbackProviderId
+    const nextLastUsedProviderId =
+      migrated.lastUsedProviderId && validProviderIds.has(migrated.lastUsedProviderId)
+        ? migrated.lastUsedProviderId
+        : nextSelectedProviderId
+
+    if (
+      nextSelectedProviderId !== migrated.selectedProviderId ||
+      nextLastUsedProviderId !== migrated.lastUsedProviderId
+    ) {
+      migrated = {
+        ...migrated,
+        selectedProviderId: nextSelectedProviderId,
+        lastUsedProviderId: nextLastUsedProviderId,
       }
       shouldPersist = true
     }
@@ -626,7 +661,7 @@ async function refreshOpenAILoginProvider(providerId: string): Promise<AgentProv
 
 // Zod schemas
 
-const agentProviderTypeSchema = z.enum(['openai', 'anthropic', 'ollama'])
+const agentProviderTypeSchema = z.enum(['openai', 'anthropic', 'gemini', 'ollama'])
 const openAIAuthModeSchema = z.enum(['apiKey', 'login'])
 
 const addProviderSchema = z.object({
@@ -666,12 +701,14 @@ const startOpenaiLoginSchema = z
 const DEFAULT_LABELS: Record<AgentProviderType, string> = {
   openai: 'OpenAI',
   anthropic: 'Anthropic',
+  gemini: 'Gemini',
   ollama: 'Ollama',
 }
 
 const DEFAULT_MODELS: Record<AgentProviderType, string> = {
   openai: DEFAULT_OPENAI_API_KEY_MODEL,
   anthropic: 'claude-sonnet-4-20250514',
+  gemini: 'gemini-2.5-flash',
   ollama: 'llama3',
 }
 
@@ -770,6 +807,60 @@ async function listOpenAIModelsFromApiKey(apiKey: string): Promise<string[]> {
       .map((m: any) => m.id as string)
       .sort()
     return models
+  } catch {
+    return []
+  }
+}
+
+async function listGeminiModels(apiKey: string): Promise<string[]> {
+  try {
+    const modelIds = new Set<string>()
+    let pageToken: string | undefined
+
+    do {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 5000)
+
+      try {
+        const url = new URL('https://generativelanguage.googleapis.com/v1beta/models')
+        url.searchParams.set('key', apiKey)
+        url.searchParams.set('pageSize', '1000')
+        if (pageToken) {
+          url.searchParams.set('pageToken', pageToken)
+        }
+
+        const res = await fetch(url, {signal: controller.signal})
+        if (!res.ok) return []
+
+        const data = (await res.json()) as GeminiModelsResponse
+        const models = Array.isArray(data.models) ? data.models : []
+
+        models.forEach((item) => {
+          const model = item as GeminiModelResponse
+          const modelId =
+            typeof model.baseModelId === 'string' && model.baseModelId
+              ? model.baseModelId
+              : typeof model.name === 'string'
+              ? model.name.replace(/^models\//, '')
+              : null
+
+          const supportedGenerationMethods = Array.isArray(model.supportedGenerationMethods)
+            ? model.supportedGenerationMethods.filter((method): method is string => typeof method === 'string')
+            : []
+
+          if (!modelId?.startsWith('gemini-')) return
+          if (!supportedGenerationMethods.includes('generateContent')) return
+
+          modelIds.add(modelId)
+        })
+
+        pageToken = typeof data.nextPageToken === 'string' && data.nextPageToken ? data.nextPageToken : undefined
+      } finally {
+        clearTimeout(timeout)
+      }
+    } while (pageToken)
+
+    return Array.from(modelIds).sort()
   } catch {
     return []
   }
@@ -1025,6 +1116,10 @@ export const aiConfigApi = t.router({
     } catch {
       return []
     }
+  }),
+
+  listGeminiModels: t.procedure.input(z.string()).query(async ({input: apiKey}) => {
+    return await listGeminiModels(apiKey)
   }),
 
   listOllamaModels: t.procedure.input(z.string()).query(async ({input}) => {

@@ -27,7 +27,7 @@ import {
   Trash2,
   Wrench,
 } from 'lucide-react'
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {Markdown} from './markdown'
 
 export function AssistantPanel({
@@ -90,6 +90,13 @@ function ChatView({
   const providers = useAIProviders()
   const setSessionProvider = useSetSessionProvider()
   const sessionProviderId = session.data?.providerId
+  const activeProviderId = useMemo(() => {
+    const providerItems = providers.data || []
+    if (!providerItems.length) return undefined
+    return providerItems.some((provider) => provider.id === sessionProviderId)
+      ? sessionProviderId
+      : providerItems[0]?.id
+  }, [providers.data, sessionProviderId])
 
   // Document context from current route
   const navRoute = useNavRoute()
@@ -126,6 +133,7 @@ function ChatView({
   const isBusy = isStreaming || streamComplete
   const showStreamingBlock =
     isStreaming || (streamComplete && !!(streamingText || pendingToolCalls?.length || pendingToolResults?.length))
+  const showLoadingIndicator = isStreaming && !streamingText && !pendingToolCalls?.length && !pendingToolResults?.length
 
   // Auto-select first session
   useEffect(() => {
@@ -201,7 +209,7 @@ function ChatView({
     sendMessage.mutate({
       sessionId,
       content,
-      providerId: sessionProviderId,
+      providerId: activeProviderId,
       documentContext,
     })
   }
@@ -274,7 +282,7 @@ function ChatView({
       {providers.data && providers.data.length > 0 && (
         <div className="border-border flex items-center gap-1 border-b px-2 py-1">
           <select
-            value={sessionProviderId || ''}
+            value={activeProviderId || ''}
             onChange={(e) => {
               if (e.target.value && selectedSessionId) {
                 setSessionProvider.mutate({sessionId: selectedSessionId, providerId: e.target.value})
@@ -311,6 +319,14 @@ function ChatView({
               )
               return streamToolItems.map((item) => <ToolCallItem key={item.id} item={item} />)
             })()}
+            {showLoadingIndicator ? (
+              <div className="bg-muted my-1 mr-6 rounded-lg px-3 py-2 text-xs">
+                <div className="text-muted-foreground flex items-center gap-2">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  <span>Thinking...</span>
+                </div>
+              </div>
+            ) : null}
             {streamingText && (
               <div className="bg-muted my-1 rounded-lg px-3 py-2 text-xs">
                 <Markdown>{streamingText}</Markdown>
@@ -383,6 +399,7 @@ function ChatView({
 
 function ChatMessageBubble({message}: {message: any}) {
   const isUser = message.role === 'user'
+  const showInlineErrorState = !isUser && message.isError && !message.errorMessage
   const toolItems = mergeToolCallsAndResults(message.toolCalls, message.toolResults)
 
   return (
@@ -393,12 +410,22 @@ function ChatMessageBubble({message}: {message: any}) {
       {message.content && (
         <div
           className={`rounded-lg px-3 py-2 text-xs ${
-            isUser ? 'bg-primary text-primary-foreground ml-6' : 'bg-muted mr-6'
+            isUser
+              ? 'bg-primary text-primary-foreground ml-6'
+              : showInlineErrorState
+              ? 'border-destructive/30 bg-destructive/10 text-destructive mr-6 border'
+              : 'bg-muted mr-6'
           }`}
         >
           {isUser ? <p className="whitespace-pre-wrap">{message.content}</p> : <Markdown>{message.content}</Markdown>}
         </div>
       )}
+      {message.errorMessage ? (
+        <div className="border-destructive/30 bg-destructive/10 text-destructive mt-1 mr-6 rounded-lg border px-3 py-2 text-xs">
+          <div className="mb-1 font-medium">Error</div>
+          <p className="whitespace-pre-wrap">{message.errorMessage}</p>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -58,7 +58,7 @@ export function useSelectedProvider() {
 export function useAddProvider() {
   return useMutation({
     mutationFn: (input: {
-      type: 'openai' | 'anthropic' | 'ollama'
+      type: 'openai' | 'anthropic' | 'gemini' | 'ollama'
       label?: string
       model?: string
       apiKey?: string
@@ -79,7 +79,7 @@ export function useUpdateProvider() {
     mutationFn: (input: {
       id: string
       label?: string
-      type?: 'openai' | 'anthropic' | 'ollama'
+      type?: 'openai' | 'anthropic' | 'gemini' | 'ollama'
       model?: string
       apiKey?: string
       baseUrl?: string
@@ -193,6 +193,15 @@ export function useAnthropicModels(apiKey: string | null) {
   return useQuery({
     queryKey: [queryKeys.ANTHROPIC_MODELS, apiKey],
     queryFn: () => client.aiConfig.listAnthropicModels.query(apiKey!),
+    enabled: !!apiKey && apiKey.length > 10,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useGeminiModels(apiKey: string | null) {
+  return useQuery({
+    queryKey: [queryKeys.GEMINI_MODELS, apiKey],
+    queryFn: () => client.aiConfig.listGeminiModels.query(apiKey!),
     enabled: !!apiKey && apiKey.length > 10,
     staleTime: 5 * 60 * 1000,
   })

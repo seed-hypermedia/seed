@@ -7,6 +7,7 @@ import {
   useAnthropicModels,
   useDeleteProvider,
   useDuplicateProvider,
+  useGeminiModels,
   useOllamaModels,
   useOpenaiLoginStatus,
   useOpenAIModels,
@@ -111,6 +112,7 @@ import React, {useEffect, useId, useMemo, useRef, useState} from 'react'
 
 // Fallback model lists when a live model list is not yet available.
 const ANTHROPIC_MODELS_FALLBACK = ['claude-opus-4-20250514', 'claude-sonnet-4-20250514', 'claude-haiku-4-20250414']
+const GEMINI_MODELS_FALLBACK = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite']
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('accounts')
@@ -1311,7 +1313,7 @@ function SettingsSection({title, children}: React.PropsWithChildren<{title: stri
 
 type ProviderFormData = {
   label: string
-  type: 'openai' | 'anthropic' | 'ollama'
+  type: 'openai' | 'anthropic' | 'gemini' | 'ollama'
   model: string
   authMode: 'apiKey' | 'login'
   apiKey: string
@@ -1354,6 +1356,12 @@ const PROVIDER_TYPE_META: Record<
     label: 'Anthropic',
     description: 'Claude models over the Anthropic API.',
     model: 'claude-sonnet-4-20250514',
+    baseUrl: '',
+  },
+  gemini: {
+    label: 'Gemini',
+    description: 'Gemini models over the Google AI API.',
+    model: 'gemini-2.5-flash',
     baseUrl: '',
   },
   ollama: {
@@ -1517,13 +1525,13 @@ function ProviderSetupOverview({
             : 'Set up the assistant with a model provider.'}
         </SizableText>
         <SizableText size="sm" className="text-muted-foreground max-w-[720px]">
-          OpenAI supports ChatGPT Pro sign-in or API keys. Anthropic uses API keys. Ollama connects to a local server
-          running on this machine or your network.
+          OpenAI supports ChatGPT Pro sign-in or API keys. Gemini and Anthropic use API keys. Ollama connects to a local
+          server running on this machine or your network.
         </SizableText>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
-        {(['openai', 'anthropic', 'ollama'] as const).map((type) => (
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {(['openai', 'gemini', 'anthropic', 'ollama'] as const).map((type) => (
           <ProviderTypeCard
             key={type}
             label={PROVIDER_TYPE_META[type].label}
@@ -1764,8 +1772,8 @@ export function AIProvidersSettings() {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-col gap-2">
           <SizableText size="sm" className="text-muted-foreground max-w-[720px]">
-            Configure the model backends the assistant can use. OpenAI supports ChatGPT Pro sign-in or API keys,
-            Anthropic uses API keys, and Ollama connects to a local model server.
+            Configure the model backends the assistant can use. OpenAI supports ChatGPT Pro sign-in or API keys, Gemini
+            and Anthropic use API keys, and Ollama connects to a local model server.
           </SizableText>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">
@@ -1830,7 +1838,7 @@ export function AIProvidersSettings() {
                   No providers configured yet.
                 </SizableText>
                 <SizableText size="xs" className="text-muted-foreground">
-                  Start with OpenAI if you want ChatGPT Pro sign-in, or pick another provider on the right.
+                  Start with OpenAI if you want ChatGPT Pro sign-in, or pick Gemini, Anthropic, or Ollama on the right.
                 </SizableText>
               </div>
             )}
@@ -1870,7 +1878,7 @@ function ProviderForm({
   const [form, setForm] = useState<ProviderFormData>(() => createProviderForm(initialType))
   const [draftProviderId, setDraftProviderId] = useState<string | null>(null)
 
-  function handleTypeChange(type: 'openai' | 'anthropic' | 'ollama') {
+  function handleTypeChange(type: 'openai' | 'anthropic' | 'gemini' | 'ollama') {
     const preset = PROVIDER_TYPE_META[type]
     setForm((current) => ({
       ...current,
@@ -2029,7 +2037,7 @@ function ProviderEditForm({
     })
   }
 
-  function handleTypeChange(type: 'openai' | 'anthropic' | 'ollama') {
+  function handleTypeChange(type: 'openai' | 'anthropic' | 'gemini' | 'ollama') {
     const preset = PROVIDER_TYPE_META[type]
     setNonNullForm((current) => {
       if (!current) return current
@@ -2086,7 +2094,7 @@ function ProviderFormFields({
   showLabelField?: boolean
   showTypeSelector?: boolean
   requireExplicitOpenAIAuthModeSelection?: boolean
-  onTypeChange: (type: 'openai' | 'anthropic' | 'ollama') => void
+  onTypeChange: (type: 'openai' | 'anthropic' | 'gemini' | 'ollama') => void
   onProviderIdChange?: (providerId: string) => void
   onLoginProviderAdded?: (providerId: string) => void
   onSave: () => void
@@ -2112,6 +2120,7 @@ function ProviderFormFields({
   )
   const openaiLoginStatus = useOpenaiLoginStatus(openaiLoginSessionId)
   const anthropicModels = useAnthropicModels(form.type === 'anthropic' ? form.apiKey || null : null)
+  const geminiModels = useGeminiModels(form.type === 'gemini' ? form.apiKey || null : null)
   const [showApiKey, setShowApiKey] = useState(false)
   const openaiModels = form.authMode === 'login' ? openaiModelsProvider : openaiModelsApiKey
   const activeOpenaiUserCode = openaiLoginStatus.data?.userCode || openaiLoginUserCode
@@ -2125,6 +2134,7 @@ function ProviderFormFields({
     startOpenaiLogin.isLoading || openaiLoginStatus.data?.status === 'pending' || !!openaiLoginSessionId
   const hasOpenAIApiKey = form.apiKey.trim().length > 10
   const hasAnthropicApiKey = form.apiKey.trim().length > 10
+  const hasGeminiApiKey = form.apiKey.trim().length > 10
   const hasOllamaBaseUrl = form.baseUrl.trim().length > 0
   const isAddProviderConnectionChecking =
     isAddProviderFlow &&
@@ -2134,6 +2144,8 @@ function ProviderFormFields({
         : openaiModelsApiKey.isFetching
       : form.type === 'anthropic'
       ? anthropicModels.isFetching
+      : form.type === 'gemini'
+      ? geminiModels.isFetching
       : ollamaModels.isFetching)
   const isAddProviderConnectionConfirmed = !isAddProviderFlow
     ? true
@@ -2145,6 +2157,8 @@ function ProviderFormFields({
       : hasOpenAIApiKey && !!openaiModelsApiKey.data?.length
     : form.type === 'anthropic'
     ? hasAnthropicApiKey && !!anthropicModels.data?.length
+    : form.type === 'gemini'
+    ? hasGeminiApiKey && !!geminiModels.data?.length
     : hasOllamaBaseUrl && !!ollamaModels.data?.length
   const shouldShowModelSection = !isAddProviderFlow || isAddProviderConnectionConfirmed
   const addProviderConnectionHint = isAddProviderFlow
@@ -2164,6 +2178,12 @@ function ProviderFormFields({
         : anthropicModels.isFetching
         ? 'Confirming the Anthropic connection...'
         : 'Seed could not confirm the Anthropic connection yet. Check the API key and try again.'
+      : form.type === 'gemini'
+      ? !hasGeminiApiKey
+        ? 'Enter a Gemini API key to confirm the connection before choosing a model.'
+        : geminiModels.isFetching
+        ? 'Confirming the Gemini connection...'
+        : 'Seed could not confirm the Gemini connection yet. Check the API key and try again.'
       : !hasOllamaBaseUrl
       ? 'Enter an Ollama base URL to confirm the connection before choosing a model.'
       : ollamaModels.isFetching
@@ -2177,6 +2197,8 @@ function ProviderFormFields({
         : 'Choose the OpenAI model this provider should use.'
       : form.type === 'anthropic'
       ? 'Choose the Claude model this provider should use.'
+      : form.type === 'gemini'
+      ? 'Choose the Gemini model this provider should use.'
       : 'Choose the local Ollama model. If Seed cannot fetch the list, type the model name manually.'
 
   function startOpenaiLoginFlow() {
@@ -2324,6 +2346,10 @@ function ProviderFormFields({
       anthropicModels.refetch().catch(() => {})
       return
     }
+    if (form.type === 'gemini' && form.apiKey) {
+      geminiModels.refetch().catch(() => {})
+      return
+    }
     if (form.type === 'ollama' && form.baseUrl) {
       ollamaModels.refetch().catch(() => {})
     }
@@ -2340,13 +2366,17 @@ function ProviderFormFields({
       ? anthropicModels.data?.length
         ? anthropicModels.data
         : ANTHROPIC_MODELS_FALLBACK
+      : form.type === 'gemini'
+      ? geminiModels.data?.length
+        ? geminiModels.data
+        : GEMINI_MODELS_FALLBACK
       : ollamaModels.data || []
 
   return (
     <div className="flex flex-col gap-4">
       {showTypeSelector ? (
-        <div className="grid gap-2 md:grid-cols-3">
-          {(['openai', 'anthropic', 'ollama'] as const).map((type) => (
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          {(['openai', 'gemini', 'anthropic', 'ollama'] as const).map((type) => (
             <ProviderTypeCard
               key={type}
               label={PROVIDER_TYPE_META[type].label}
@@ -2369,7 +2399,7 @@ function ProviderFormFields({
       ) : null}
 
       <ProviderFormSection
-        title={form.type === 'openai' ? 'Authentication' : form.type === 'anthropic' ? 'Credentials' : 'Endpoint'}
+        title={form.type === 'openai' ? 'Authentication' : form.type === 'ollama' ? 'Endpoint' : 'Credentials'}
         description={
           form.type === 'openai'
             ? isOpenAIAuthModeChoicePending
@@ -2377,6 +2407,8 @@ function ProviderFormFields({
               : null
             : form.type === 'anthropic'
             ? 'Anthropic providers use an API key stored on this device.'
+            : form.type === 'gemini'
+            ? 'Gemini providers use a Google AI API key stored on this device.'
             : 'Point Seed at the Ollama server that hosts your local models.'
         }
         action={
@@ -2554,7 +2586,7 @@ function ProviderFormFields({
               </div>
             ) : null}
           </div>
-        ) : form.type === 'anthropic' ? (
+        ) : form.type === 'anthropic' || form.type === 'gemini' ? (
           <div className="flex flex-col gap-4">
             <Field id="provider-apikey" label="API Key">
               <div className="flex items-center gap-2">
@@ -2562,7 +2594,7 @@ function ProviderFormFields({
                   type={showApiKey ? 'text' : 'password'}
                   value={form.apiKey}
                   onChangeText={(v) => setForm((current) => ({...current, apiKey: v}))}
-                  placeholder="sk-ant-..."
+                  placeholder={form.type === 'anthropic' ? 'sk-ant-...' : 'AIza...'}
                   className="flex-1"
                 />
                 <button
@@ -2659,6 +2691,16 @@ function ProviderFormFields({
               {form.type === 'anthropic' && anthropicModels.isFetching ? (
                 <SizableText size="xs" className="text-muted-foreground mt-1">
                   Refreshing models from Anthropic...
+                </SizableText>
+              ) : null}
+              {form.type === 'gemini' && geminiModels.isFetching ? (
+                <SizableText size="xs" className="text-muted-foreground mt-1">
+                  Refreshing models from Gemini...
+                </SizableText>
+              ) : null}
+              {form.type === 'gemini' && !geminiModels.isFetching && !geminiModels.data?.length ? (
+                <SizableText size="xs" className="text-muted-foreground mt-1">
+                  Could not load the live model list from Gemini. Showing a fallback catalog.
                 </SizableText>
               ) : null}
               {form.type === 'ollama' && ollamaModels.isFetching ? (

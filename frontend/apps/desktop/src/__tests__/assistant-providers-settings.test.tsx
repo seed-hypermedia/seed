@@ -18,6 +18,7 @@ const openUrlMock = vi.fn()
 const updateProviderMutateMock = vi.fn()
 
 let mockAnthropicModels: string[] = []
+let mockGeminiModels: string[] = []
 let mockProviders: Array<Record<string, any>> = []
 let mockOllamaModels: string[] = []
 let mockOpenAIModels: string[] = []
@@ -32,6 +33,7 @@ vi.mock('@/models/ai-config', () => ({
   useSetSelectedProvider: () => ({mutate: setSelectedProviderMutateMock}),
   useAddProvider: () => ({isLoading: false, mutate: addProviderMutateMock}),
   useAnthropicModels: () => ({data: mockAnthropicModels, isFetching: false}),
+  useGeminiModels: () => ({data: mockGeminiModels, isFetching: false, refetch: vi.fn()}),
   useOllamaModels: () => ({data: mockOllamaModels, isFetching: false, isLoading: false}),
   useOpenaiLoginStatus: (sessionId: string | null) => ({data: sessionId ? mockOpenaiLoginStatus : null}),
   useOpenAIModels: () => ({data: mockOpenAIModels, isFetching: false, refetch: vi.fn()}),
@@ -202,6 +204,7 @@ describe('AIProvidersSettings', () => {
   beforeEach(() => {
     ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
     mockAnthropicModels = []
+    mockGeminiModels = []
     mockProviders = []
     mockOllamaModels = []
     mockOpenAIModels = []
@@ -273,6 +276,7 @@ describe('AIProvidersSettings', () => {
     expect(dialogOpenMock).toHaveBeenCalledWith('choose')
     expect(container.textContent).toContain('Add Provider')
     expect(container.textContent).toContain('Choose a provider and complete the remaining details here.')
+    expect(container.textContent).toContain('Gemini')
     expect(container.textContent).toContain('Anthropic')
     expect(container.textContent).toContain('Ollama')
 
@@ -323,6 +327,49 @@ describe('AIProvidersSettings', () => {
       expect.objectContaining({
         label: 'OpenAI - gpt-5',
         type: 'openai',
+      }),
+      expect.anything(),
+    )
+
+    cleanupRendered(root, container, queryClient)
+  })
+
+  it('confirms Gemini providers with a live model list before enabling model selection', async () => {
+    mockGeminiModels = ['gemini-2.5-flash']
+    addProviderMutateMock.mockImplementation((_input, options) => {
+      options?.onSuccess?.()
+    })
+
+    const {container, root, queryClient} = renderSettings()
+
+    await act(async () => {
+      findButton(container, 'Gemini')?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      await Promise.resolve()
+    })
+
+    expect(container.textContent).not.toContain('Choose the Gemini model this provider should use.')
+
+    const apiKeyInput = findInputByPlaceholder(container, 'AIza...')
+    expect(apiKeyInput).toBeDefined()
+
+    await act(async () => {
+      if (apiKeyInput) {
+        setInputValue(apiKeyInput, 'AIza-test-gemini-key')
+      }
+    })
+
+    await waitForText(container, 'Choose the Gemini model this provider should use.')
+    expect(findButtonExact(container, 'Add Provider')).toBeDefined()
+
+    await act(async () => {
+      findButtonExact(container, 'Add Provider')?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      await Promise.resolve()
+    })
+
+    expect(addProviderMutateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: 'Gemini - gemini-2.5-flash',
+        type: 'gemini',
       }),
       expect.anything(),
     )
@@ -385,6 +432,7 @@ describe('AIProvidersSettings', () => {
     await waitForProviderNameValue(container, 'Local Server')
     expect(findButtonExact(container, 'Save')).toBeUndefined()
     expect(findButtonExact(container, 'OpenAI')).toBeUndefined()
+    expect(findButtonExact(container, 'Gemini')).toBeUndefined()
     expect(findButtonExact(container, 'Anthropic')).toBeUndefined()
     expect(findButtonExact(container, 'Ollama')).toBeUndefined()
 
@@ -426,6 +474,7 @@ describe('AIProvidersSettings', () => {
     const dialog = findDialog(container)
     expect(dialog?.textContent).toContain('Add OpenAI Provider')
     expect(dialog?.textContent).toContain('Complete the remaining provider details here.')
+    expect(dialog?.textContent).not.toContain('Gemini')
     expect(dialog?.textContent).not.toContain('Anthropic')
     expect(dialog?.textContent).not.toContain('Ollama')
     expect(findProviderNameInput(container)).toBeNull()

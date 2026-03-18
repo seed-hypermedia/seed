@@ -1,4 +1,5 @@
 import {createAnthropic} from '@ai-sdk/anthropic'
+import {createGoogleGenerativeAI} from '@ai-sdk/google'
 import {createOpenAI} from '@ai-sdk/openai'
 import {HMBlockNode, HMComment, HMCommentSchema} from '@seed-hypermedia/client/hm-types'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
@@ -17,6 +18,7 @@ import {getAllWindows} from './app-windows'
 import {desktopRequest} from './desktop-api'
 import {grpcClient} from './grpc-client'
 import {getChatProviderRequestOptions} from './chat-provider-options'
+import {resolveChatStreamError} from './chat-stream-error'
 import * as log from './logger'
 
 const chatDir = path.join(userDataPath, 'chat-sessions')
@@ -24,6 +26,8 @@ const chatDir = path.join(userDataPath, 'chat-sessions')
 export type ChatMessage = {
   role: 'user' | 'assistant' | 'tool'
   content: string
+  errorMessage?: string
+  isError?: boolean
   toolCalls?: Array<{
     id: string
     name: string
@@ -108,6 +112,21 @@ ipcMain.on('chatStopStream', (_, sessionId: string) => {
   }
 })
 
+/**
+ * Resolves the preferred provider order against the currently configured providers.
+ */
+export function resolveConfiguredProvider(
+  providers: AgentProvider[],
+  preferredProviderIds: Array<string | null | undefined>,
+): AgentProvider | undefined {
+  for (const providerId of preferredProviderIds) {
+    if (!providerId) continue
+    const provider = providers.find((candidate) => candidate.id === providerId)
+    if (provider) return provider
+  }
+  return providers[0]
+}
+
 // Provider model factory
 
 function createProviderModel(provider: AgentProvider) {
@@ -146,6 +165,16 @@ function createProviderModel(provider: AgentProvider) {
         ...(provider.baseUrl ? {baseURL: provider.baseUrl} : {}),
       })
       return anthropic(provider.model)
+    }
+    case 'gemini': {
+      if (!provider.apiKey) {
+        throw new Error('Gemini credentials are missing. Reconnect in Settings > Assistant Providers.')
+      }
+      const google = createGoogleGenerativeAI({
+        apiKey: provider.apiKey,
+        ...(provider.baseUrl ? {baseURL: provider.baseUrl} : {}),
+      })
+      return google(provider.model)
     }
     case 'ollama': {
       const ollama = createOpenAI({
@@ -512,10 +541,14 @@ export const chatApi = t.router({
     const id = crypto.randomUUID()
     const now = new Date().toISOString()
     const config = await readConfig()
+    const preferredProvider = resolveConfiguredProvider(config.agentProviders || [], [
+      config.lastUsedProviderId,
+      config.selectedProviderId,
+    ])
     const session: ChatSession = {
       id,
       title: input?.title || 'New Chat',
-      providerId: config.lastUsedProviderId || config.selectedProviderId,
+      providerId: preferredProvider?.id,
       messages: [],
       createdAt: now,
       updatedAt: now,
@@ -567,9 +600,12 @@ export const chatApi = t.router({
 
       const config = await readConfig()
       const providers = config.agentProviders || []
-      const providerId =
-        input.providerId || session.providerId || config.lastUsedProviderId || config.selectedProviderId
-      const selectedProvider = providerId ? providers.find((p) => p.id === providerId) : providers[0]
+      const selectedProvider = resolveConfiguredProvider(providers, [
+        input.providerId,
+        session.providerId,
+        config.lastUsedProviderId,
+        config.selectedProviderId,
+      ])
       if (!selectedProvider) throw new Error('No AI provider configured. Add one in Settings > Assistant Providers.')
 
       const provider = await resolveProviderForUsage(selectedProvider.id).catch((error) => {
@@ -630,16 +666,22 @@ export const chatApi = t.router({
       }
       const system = systemParts.join('\n')
 
-      const messages: ModelMessage[] = session.messages.map((m) => {
-        if (m.role === 'user') return {role: 'user' as const, content: m.content}
-        return {role: 'assistant' as const, content: m.content}
-      })
+      const messages = session.messages.reduce<ModelMessage[]>((items, m) => {
+        if (m.isError || !m.content) return items
+        if (m.role === 'user') {
+          items.push({role: 'user', content: m.content})
+        } else {
+          items.push({role: 'assistant', content: m.content})
+        }
+        return items
+      }, [])
 
       const model = createProviderModel(provider)
       const abortController = new AbortController()
       activeStreams.set(input.sessionId, abortController)
 
       let fullText = ''
+      let lastStreamError: unknown
       const allToolCalls: ChatMessage['toolCalls'] = []
       const allToolResults: ChatMessage['toolResults'] = []
 
@@ -653,6 +695,9 @@ export const chatApi = t.router({
           tools: chatTools,
           stopWhen: stepCountIs(5),
           abortSignal: abortController.signal,
+          onError: ({error}) => {
+            lastStreamError = error
+          },
           onStepFinish: ({toolCalls, toolResults}) => {
             if (toolCalls && toolCalls.length > 0) {
               const mappedCalls = toolCalls.map((tc: any) => ({
@@ -763,10 +808,27 @@ export const chatApi = t.router({
           return assistantMessage
         }
 
-        const errMsg = (error as Error).message
+        const chatError = resolveChatStreamError(error, lastStreamError)
+        const errMsg = chatError.message
+        const assistantMessage: ChatMessage = {
+          role: 'assistant',
+          content: fullText,
+          errorMessage: errMsg,
+          isError: true,
+          ...(allToolCalls.length > 0 ? {toolCalls: allToolCalls} : {}),
+          ...(allToolResults.length > 0 ? {toolResults: allToolResults} : {}),
+          createdAt: new Date().toISOString(),
+        }
+
         log.error('Chat stream error', {error: errMsg})
-        broadcastChatEvent({type: 'stream_error', sessionId: input.sessionId, error: errMsg})
-        throw error
+        session.messages.push(assistantMessage)
+        session.updatedAt = new Date().toISOString()
+        await writeSession(session)
+
+        broadcastChatEvent({type: 'stream_end', sessionId: input.sessionId, message: assistantMessage})
+        appInvalidateQueries(['CHAT_SESSION', input.sessionId])
+
+        return assistantMessage
       } finally {
         activeStreams.delete(input.sessionId)
       }

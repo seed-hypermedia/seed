@@ -141,6 +141,7 @@ export const queryKeys = {
   OLLAMA_MODELS: 'OLLAMA_MODELS', // baseUrl: string
   OPENAI_MODELS: 'OPENAI_MODELS', // apiKey: string
   ANTHROPIC_MODELS: 'ANTHROPIC_MODELS', // apiKey: string
+  GEMINI_MODELS: 'GEMINI_MODELS', // apiKey: string
 
   // chat
   CHAT_SESSIONS: 'CHAT_SESSIONS',
