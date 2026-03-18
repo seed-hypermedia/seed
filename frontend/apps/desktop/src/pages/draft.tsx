@@ -1,5 +1,4 @@
 import {CoverImage} from '@/components/cover-image'
-import {useDeleteDraftDialog} from '@/components/delete-draft-dialog'
 import {DiscussionsPanel} from '@/components/discussions-panel'
 import {DocNavigationDraftLoader} from '@/components/doc-navigation'
 import {EditNavPopover} from '@/components/edit-navigation-popover'
@@ -347,13 +346,15 @@ export default function DraftPage() {
             <XIcon className="size-4" />
             <span className="sr-only">Close</span>
           </button>
-          <AlertDialogTitle>Leave Draft?</AlertDialogTitle>
-          <p className="text-muted-foreground text-sm">Do you want to save your draft before leaving?</p>
+          <AlertDialogTitle>Exit editing</AlertDialogTitle>
+          <p className="text-muted-foreground text-sm">
+            You have unsaved changes. Would you like to save them before leaving?
+          </p>
           <AlertDialogFooter>
-            <Button variant="destructive" onClick={handleLeaveDraftDiscard}>
-              Discard
+            <Button variant="outline" onClick={handleLeaveDraftDiscard}>
+              Leave without saving
             </Button>
-            <Button onClick={handleLeaveDraftSave}>Save</Button>
+            <Button onClick={handleLeaveDraftSave}>Save changes</Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1227,7 +1228,8 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
   const editId = draftEditId(draft.data)
   const locationId = draftLocationId(draft.data)
   const editIdWriteCap = useSelectedAccountCapability(editId || locationId, 'writer')
-  const deleteDialog = useDeleteDraftDialog()
+  const [showExitDialog, setShowExitDialog] = useState(false)
+  const deleteDraft = useDeleteDraft()
 
   const menuItems: MenuItemType[] = [
     {
@@ -1242,19 +1244,12 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
       },
     },
     {
-      key: 'delete-draft',
-      label: 'Discard Changes',
+      key: 'exit-editing',
+      label: 'Exit editing',
       icon: <Undo className="size-4" />,
-      variant: 'destructive',
       onClick: () => {
-        if (draftId) {
-          deleteDialog.open({
-            draftId,
-            onSuccess: () => {
-              clearNavigationGuard()
-              dispatch({type: 'closeBack'})
-            },
-          })
+        if (draftId && draft.data) {
+          setShowExitDialog(true)
         } else {
           clearNavigationGuard()
           dispatch({type: 'closeBack'})
@@ -1298,7 +1293,41 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
         </Tooltip>
       ) : null}
       <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />
-      {deleteDialog.content}
+      <AlertDialog open={showExitDialog} onOpenChange={(open) => !open && setShowExitDialog(false)}>
+        <AlertDialogContent>
+          <AlertDialogTitle>Exit editing</AlertDialogTitle>
+          <p className="text-muted-foreground text-sm">
+            You have unsaved changes. Would you like to save them before leaving?
+          </p>
+          <AlertDialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowExitDialog(false)
+                if (draftId) {
+                  deleteDraft.mutate(draftId, {
+                    onSettled: () => {
+                      clearNavigationGuard()
+                      dispatch({type: 'closeBack'})
+                    },
+                  })
+                }
+              }}
+            >
+              Leave without saving
+            </Button>
+            <Button
+              onClick={() => {
+                setShowExitDialog(false)
+                clearNavigationGuard()
+                dispatch({type: 'closeBack'})
+              }}
+            >
+              Save changes
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
