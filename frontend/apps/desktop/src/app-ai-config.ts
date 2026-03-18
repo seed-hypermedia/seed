@@ -299,6 +299,41 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function isRetryableOpenAINetworkError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  const message = error.message.toLowerCase()
+  return (
+    error.name === 'AbortError' ||
+    message.includes('fetch failed') ||
+    message.includes('network') ||
+    message.includes('timeout') ||
+    message.includes('timed out') ||
+    message.includes('socket') ||
+    message.includes('econnreset') ||
+    message.includes('eai_again') ||
+    message.includes('enotfound')
+  )
+}
+
+function getOpenAINetworkRetryDelayMs(attempt: number): number {
+  return Math.min(1000 * 2 ** Math.max(0, attempt - 1), 5000)
+}
+
+async function withOpenAINetworkRetry<T>(operation: () => Promise<T>, maxAttempts: number): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await operation()
+    } catch (error) {
+      if (!isRetryableOpenAINetworkError(error) || attempt === maxAttempts) {
+        throw error
+      }
+      await delay(getOpenAINetworkRetryDelayMs(attempt))
+    }
+  }
+
+  throw new Error('OpenAI request failed.')
+}
+
 function parseDeviceAuthIntervalSeconds(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
     return Math.floor(value)
@@ -315,11 +350,15 @@ async function requestOpenAIDeviceCode(): Promise<{
   deviceAuthId: string
   intervalSeconds: number
 }> {
-  const res = await fetch(OPENAI_DEVICE_AUTH_USER_CODE_URL, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({client_id: OPENAI_CLIENT_ID}),
-  })
+  const res = await withOpenAINetworkRetry(
+    () =>
+      fetch(OPENAI_DEVICE_AUTH_USER_CODE_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({client_id: OPENAI_CLIENT_ID}),
+      }),
+    3,
+  )
   if (!res.ok) {
     const message = await parseFailedResponseMessage(res)
     throw new Error(`OpenAI device login request failed: ${message}`)
@@ -350,14 +389,27 @@ async function pollOpenAIDeviceAuthorizationCode(
     if (!session) throw new Error('OpenAI login session expired.')
     if (session.status !== 'pending') throw new Error(session.message || 'OpenAI login was cancelled.')
 
-    const res = await fetch(OPENAI_DEVICE_AUTH_TOKEN_URL, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        device_auth_id: session.deviceAuthId,
-        user_code: session.userCode,
-      }),
-    })
+    let res: Response
+    try {
+      res = await withOpenAINetworkRetry(
+        () =>
+          fetch(OPENAI_DEVICE_AUTH_TOKEN_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              device_auth_id: session.deviceAuthId,
+              user_code: session.userCode,
+            }),
+          }),
+        3,
+      )
+    } catch (error) {
+      if (isRetryableOpenAINetworkError(error)) {
+        await delay(Math.max(1, initialSession.intervalSeconds) * 1000)
+        continue
+      }
+      throw error
+    }
 
     if (res.ok) {
       const data = (await res.json()) as OpenAIDevicePollSuccessResponse
@@ -409,11 +461,15 @@ async function exchangeAuthorizationCode(params: {
     client_id: OPENAI_CLIENT_ID,
     code_verifier: params.codeVerifier,
   })
-  const res = await fetch(OPENAI_REFRESH_TOKEN_URL, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body,
-  })
+  const res = await withOpenAINetworkRetry(
+    () =>
+      fetch(OPENAI_REFRESH_TOKEN_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body,
+      }),
+    3,
+  )
   if (!res.ok) {
     const message = await parseFailedResponseMessage(res)
     throw new Error(`OpenAI login failed: ${message}`)

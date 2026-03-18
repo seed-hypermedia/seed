@@ -78,7 +78,7 @@ import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Field} from '@shm/ui/form-fields'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Copy, ExternalLink} from '@shm/ui/icons'
+import {Copy, ExternalLink, Undo} from '@shm/ui/icons'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
@@ -107,7 +107,7 @@ import {
   Trash,
   UserRoundPlus,
 } from 'lucide-react'
-import {useEffect, useId, useMemo, useState} from 'react'
+import React, {useEffect, useId, useMemo, useRef, useState} from 'react'
 
 // Fallback model lists when a live model list is not yet available.
 const ANTHROPIC_MODELS_FALLBACK = ['claude-opus-4-20250514', 'claude-sonnet-4-20250514', 'claude-haiku-4-20250414']
@@ -129,7 +129,7 @@ export default function Settings() {
             <Tab value="accounts" active={activeTab === 'accounts'} icon={AtSign} label="Accounts" />
             <Tab value="general" active={activeTab === 'general'} icon={Cog} label="General" />
             <Tab value="gateway" active={activeTab === 'gateway'} icon={RadioTower} label="Gateway" />
-            <Tab value="ai-providers" active={activeTab === 'ai-providers'} icon={Bot} label="Assistant Providers" />
+            <Tab value="ai-providers" active={activeTab === 'ai-providers'} icon={Bot} label="Assistant" />
             <Tab value="app-info" active={activeTab === 'app-info'} icon={Info} label="App Info" />
             <Tab value="developer" active={activeTab === 'developer'} icon={Code2} label="Developers" />
           </TabsList>
@@ -1377,6 +1377,24 @@ function createProviderForm(type: ProviderFormData['type'] = 'openai'): Provider
   }
 }
 
+function getGeneratedProviderLabel(type: ProviderFormData['type'], model: string) {
+  const label = PROVIDER_TYPE_META[type].label
+  const normalizedModel = model.trim() || PROVIDER_TYPE_META[type].model
+  return `${label} - ${normalizedModel}`
+}
+
+function buildProviderMutationInput(providerId: string, form: ProviderFormData) {
+  return {
+    id: providerId,
+    label: form.label.trim() || getGeneratedProviderLabel(form.type, form.model),
+    type: form.type,
+    model: form.model,
+    apiKey: form.type === 'openai' && form.authMode === 'login' ? undefined : form.apiKey || undefined,
+    baseUrl: form.baseUrl || undefined,
+    authMode: form.type === 'openai' ? form.authMode : undefined,
+  }
+}
+
 function getProviderConnectionSummary(provider: ProviderListItem) {
   if (provider.type === 'openai' && provider.authMode === 'login') {
     if (provider.openaiAuth?.email) return `Connected as ${provider.openaiAuth.email}`
@@ -1428,19 +1446,55 @@ function ProviderTypeCard({
 function ProviderFormSection({
   title,
   description,
+  action,
   children,
-}: React.PropsWithChildren<{title: string; description: string}>) {
+}: React.PropsWithChildren<{title: string; description?: string | null; action?: React.ReactNode}>) {
   return (
     <div className="bg-background/70 flex flex-col gap-4 rounded-lg border p-4">
-      <div className="flex flex-col gap-1">
-        <SizableText size="sm" weight="bold">
-          {title}
-        </SizableText>
-        <SizableText size="xs" className="text-muted-foreground">
-          {description}
-        </SizableText>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <SizableText size="sm" weight="bold">
+            {title}
+          </SizableText>
+          {description ? (
+            <SizableText size="xs" className="text-muted-foreground">
+              {description}
+            </SizableText>
+          ) : null}
+        </div>
+        {action}
       </div>
       {children}
+    </div>
+  )
+}
+
+type AddProviderDialogInput = ProviderFormData['type'] | 'choose'
+
+function AddProviderDialog({input, onClose}: {input: AddProviderDialogInput; onClose: () => void}) {
+  const isSpecificProvider = input !== 'choose'
+  const initialType = input === 'choose' ? 'openai' : input
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-2">
+        <DialogTitle>
+          {isSpecificProvider ? `Add ${PROVIDER_TYPE_META[input].label} Provider` : 'Add Provider'}
+        </DialogTitle>
+        <DialogDescription>
+          {isSpecificProvider
+            ? 'Complete the remaining provider details here.'
+            : 'Choose a provider and complete the remaining details here.'}
+        </DialogDescription>
+      </div>
+
+      <ProviderForm
+        initialType={initialType}
+        onSave={onClose}
+        onCancel={onClose}
+        showTypeSelector={!isSpecificProvider}
+        requireExplicitOpenAIAuthModeSelection
+      />
     </div>
   )
 }
@@ -1657,33 +1711,52 @@ function ProviderListRow({
   )
 }
 
-function AIProvidersSettings() {
+/** Renders the assistant provider settings section. */
+export function AIProvidersSettings() {
   const providers = useAIProviders()
   const deleteProvider = useDeleteProvider()
   const duplicateProvider = useDuplicateProvider()
   const selectedProvider = useSelectedProvider()
   const setSelectedProvider = useSetSelectedProvider()
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [isAdding, setIsAdding] = useState(false)
-  const [newProviderType, setNewProviderType] = useState<ProviderFormData['type']>('openai')
+  const addProviderDialog = useAppDialog(AddProviderDialog, {
+    className: 'w-[min(920px,calc(100vw-2rem))] max-h-[90vh]',
+  })
   const providerItems = (providers.data || []) as ProviderListItem[]
   const selectedProviderId = selectedProvider.data?.id || null
 
   useEffect(() => {
-    if (editingId && !providerItems.some((provider) => provider.id === editingId)) {
-      setEditingId(null)
+    if (!providerItems.length) {
+      if (editingId) setEditingId(null)
+      return
     }
-  }, [editingId, providerItems])
 
-  function beginAdd(type: ProviderFormData['type'] = 'openai') {
-    setNewProviderType(type)
-    setIsAdding(true)
-    setEditingId(null)
+    if (editingId && providerItems.some((provider) => provider.id === editingId)) {
+      return
+    }
+
+    setEditingId(selectedProviderId || providerItems[0]?.id || null)
+  }, [editingId, providerItems, selectedProviderId])
+
+  function beginAdd(type: AddProviderDialogInput = 'choose') {
+    addProviderDialog.open(type)
   }
 
   function beginEdit(providerId: string) {
     setEditingId(providerId)
-    setIsAdding(false)
+  }
+
+  if (!providerItems.length) {
+    return (
+      <SettingsSection title="Assistant Providers">
+        <ProviderSetupOverview
+          providers={providerItems}
+          selectedProviderLabel={selectedProvider.data?.label || null}
+          onCreate={beginAdd}
+        />
+        {addProviderDialog.content}
+      </SettingsSection>
+    )
   }
 
   return (
@@ -1701,7 +1774,7 @@ function AIProvidersSettings() {
             {selectedProvider.data ? <Badge variant="secondary">Default: {selectedProvider.data.label}</Badge> : null}
           </div>
         </div>
-        <Button size="sm" onClick={() => beginAdd('openai')}>
+        <Button size="sm" onClick={() => beginAdd()}>
           <Plus className="mr-2 h-4 w-4" />
           Add Provider
         </Button>
@@ -1727,7 +1800,7 @@ function AIProvidersSettings() {
                 <ProviderListRow
                   key={provider.id}
                   provider={provider}
-                  isActive={!isAdding && editingId === provider.id}
+                  isActive={editingId === provider.id}
                   isDefault={selectedProviderId === provider.id}
                   onSelect={() => beginEdit(provider.id)}
                   onEdit={() => beginEdit(provider.id)}
@@ -1735,13 +1808,16 @@ function AIProvidersSettings() {
                     duplicateProvider.mutate(provider.id, {
                       onSuccess: (duplicate) => {
                         setEditingId(duplicate.id)
-                        setIsAdding(false)
                       },
                     })
                   }
                   onDelete={() => {
                     if (editingId === provider.id) {
-                      setEditingId(null)
+                      const fallbackProviderId =
+                        providerItems.find((item) => item.id !== provider.id && item.id === selectedProviderId)?.id ||
+                        providerItems.find((item) => item.id !== provider.id)?.id ||
+                        null
+                      setEditingId(fallbackProviderId)
                     }
                     deleteProvider.mutate(provider.id)
                   }}
@@ -1761,32 +1837,16 @@ function AIProvidersSettings() {
           </div>
         </div>
 
-        {isAdding ? (
-          <ProviderForm
-            initialType={newProviderType}
-            onSave={() => {
-              setIsAdding(false)
-              setEditingId(null)
-            }}
-            onCancel={() => {
-              setIsAdding(false)
-              setEditingId(null)
-            }}
-          />
-        ) : editingId ? (
+        {editingId ? (
           <ProviderEditForm
+            key={editingId}
             providerId={editingId}
             onSave={() => setEditingId(null)}
             onCancel={() => setEditingId(null)}
           />
-        ) : (
-          <ProviderSetupOverview
-            providers={providerItems}
-            selectedProviderLabel={selectedProvider.data?.label || null}
-            onCreate={beginAdd}
-          />
-        )}
+        ) : null}
       </div>
+      {addProviderDialog.content}
     </SettingsSection>
   )
 }
@@ -1795,10 +1855,14 @@ function ProviderForm({
   initialType = 'openai',
   onSave,
   onCancel,
+  showTypeSelector = true,
+  requireExplicitOpenAIAuthModeSelection = false,
 }: {
   initialType?: ProviderFormData['type']
   onSave: () => void
   onCancel: () => void
+  showTypeSelector?: boolean
+  requireExplicitOpenAIAuthModeSelection?: boolean
 }) {
   const addProvider = useAddProvider()
   const updateProvider = useUpdateProvider()
@@ -1827,7 +1891,7 @@ function ProviderForm({
     }
 
     const input = {
-      label: form.label || undefined,
+      label: getGeneratedProviderLabel(form.type, form.model),
       type: form.type,
       model: form.model || undefined,
       apiKey: form.type === 'openai' && form.authMode === 'login' ? undefined : form.apiKey || undefined,
@@ -1864,8 +1928,12 @@ function ProviderForm({
       providerId={draftProviderId}
       form={form}
       setForm={setForm}
+      showLabelField={false}
+      showTypeSelector={showTypeSelector}
+      requireExplicitOpenAIAuthModeSelection={requireExplicitOpenAIAuthModeSelection}
       onTypeChange={handleTypeChange}
       onProviderIdChange={setDraftProviderId}
+      onLoginProviderAdded={onSave}
       onSave={handleSave}
       onCancel={handleCancel}
       saveLabel={
@@ -1896,10 +1964,12 @@ function ProviderEditForm({
     queryFn: () => client.aiConfig.getProvider.query(providerId),
   })
   const [form, setForm] = useState<ProviderFormData | null>(null)
+  const lastSavedInputRef = useRef<string | null>(null)
+  const pendingInputRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (providerQuery.data && !form) {
-      setForm({
+      const initialForm = {
         label: providerQuery.data.label,
         type: providerQuery.data.type as ProviderFormData['type'],
         model: providerQuery.data.model,
@@ -1913,9 +1983,40 @@ function ProviderEditForm({
           providerQuery.data.type === 'openai'
             ? (providerQuery.data.openaiAuth as ProviderFormData['openaiAuth'] | undefined)
             : undefined,
-      })
+      }
+      lastSavedInputRef.current = JSON.stringify(buildProviderMutationInput(providerId, initialForm))
+      setForm(initialForm)
     }
-  }, [providerQuery.data, form])
+  }, [form, providerId, providerQuery.data])
+
+  useEffect(() => {
+    if (!form || !lastSavedInputRef.current) return
+    const nextInput = buildProviderMutationInput(providerId, form)
+    const serializedInput = JSON.stringify(nextInput)
+
+    if (serializedInput === lastSavedInputRef.current || serializedInput === pendingInputRef.current) {
+      return
+    }
+
+    const timeout = window.setTimeout(() => {
+      pendingInputRef.current = serializedInput
+      updateProvider.mutate(nextInput, {
+        onSuccess: () => {
+          lastSavedInputRef.current = serializedInput
+          if (pendingInputRef.current === serializedInput) {
+            pendingInputRef.current = null
+          }
+        },
+        onError: () => {
+          if (pendingInputRef.current === serializedInput) {
+            pendingInputRef.current = null
+          }
+        },
+      })
+    }, 250)
+
+    return () => window.clearTimeout(timeout)
+  }, [form, providerId, updateProvider])
 
   if (!form) return <Spinner size="small" />
 
@@ -1945,31 +2046,17 @@ function ProviderEditForm({
     })
   }
 
-  function handleSave() {
-    if (!form) return
-    updateProvider.mutate(
-      {
-        id: providerId,
-        label: form.label,
-        type: form.type,
-        model: form.model,
-        apiKey: form.type === 'openai' && form.authMode === 'login' ? undefined : form.apiKey || undefined,
-        baseUrl: form.baseUrl || undefined,
-        authMode: form.type === 'openai' ? form.authMode : undefined,
-      },
-      {onSuccess: onSave},
-    )
-  }
-
   return (
     <ProviderFormFields
       providerId={providerId}
       form={form}
       setForm={setNonNullForm}
+      showTypeSelector={false}
       onTypeChange={handleTypeChange}
-      onSave={handleSave}
+      showActions={false}
+      onSave={onSave}
       onCancel={onCancel}
-      saveLabel="Save"
+      saveLabel=""
       isSaving={updateProvider.isLoading}
     />
   )
@@ -1979,8 +2066,13 @@ function ProviderFormFields({
   providerId,
   form,
   setForm,
+  showActions = true,
+  showLabelField = true,
+  showTypeSelector = true,
+  requireExplicitOpenAIAuthModeSelection = false,
   onTypeChange,
   onProviderIdChange,
+  onLoginProviderAdded,
   onSave,
   onCancel,
   saveLabel,
@@ -1990,8 +2082,13 @@ function ProviderFormFields({
   providerId: string | null
   form: ProviderFormData
   setForm: React.Dispatch<React.SetStateAction<ProviderFormData>>
+  showActions?: boolean
+  showLabelField?: boolean
+  showTypeSelector?: boolean
+  requireExplicitOpenAIAuthModeSelection?: boolean
   onTypeChange: (type: 'openai' | 'anthropic' | 'ollama') => void
   onProviderIdChange?: (providerId: string) => void
+  onLoginProviderAdded?: (providerId: string) => void
   onSave: () => void
   onCancel: () => void
   saveLabel: string
@@ -2009,15 +2106,70 @@ function ProviderFormFields({
   const startOpenaiLogin = useStartOpenaiLogin()
   const [openaiLoginSessionId, setOpenaiLoginSessionId] = useState<string | null>(null)
   const [openaiLoginUserCode, setOpenaiLoginUserCode] = useState<string | null>(null)
+  const [openaiLoginError, setOpenaiLoginError] = useState<string | null>(null)
+  const [isOpenAIAuthModeCommitted, setIsOpenAIAuthModeCommitted] = useState(
+    () => !(requireExplicitOpenAIAuthModeSelection && form.type === 'openai'),
+  )
   const openaiLoginStatus = useOpenaiLoginStatus(openaiLoginSessionId)
   const anthropicModels = useAnthropicModels(form.type === 'anthropic' ? form.apiKey || null : null)
   const [showApiKey, setShowApiKey] = useState(false)
   const openaiModels = form.authMode === 'login' ? openaiModelsProvider : openaiModelsApiKey
   const activeOpenaiUserCode = openaiLoginStatus.data?.userCode || openaiLoginUserCode
   const openaiVerificationUrl = openaiLoginStatus.data?.verificationUrl || 'https://auth.openai.com/codex/device'
-  const isOpenAILoginMissingConnection = form.type === 'openai' && form.authMode === 'login' && !form.openaiAuth
+  const isAddProviderFlow = !!onProviderIdChange || !!onLoginProviderAdded
+  const isOpenAIAuthModeChoicePending =
+    requireExplicitOpenAIAuthModeSelection && form.type === 'openai' && !isOpenAIAuthModeCommitted
+  const isOpenAILoginMissingConnection =
+    form.type === 'openai' && isOpenAIAuthModeCommitted && form.authMode === 'login' && !form.openaiAuth
   const isOpenAILoginPending =
     startOpenaiLogin.isLoading || openaiLoginStatus.data?.status === 'pending' || !!openaiLoginSessionId
+  const hasOpenAIApiKey = form.apiKey.trim().length > 10
+  const hasAnthropicApiKey = form.apiKey.trim().length > 10
+  const hasOllamaBaseUrl = form.baseUrl.trim().length > 0
+  const isAddProviderConnectionChecking =
+    isAddProviderFlow &&
+    (form.type === 'openai'
+      ? form.authMode === 'login'
+        ? isOpenAILoginPending
+        : openaiModelsApiKey.isFetching
+      : form.type === 'anthropic'
+      ? anthropicModels.isFetching
+      : ollamaModels.isFetching)
+  const isAddProviderConnectionConfirmed = !isAddProviderFlow
+    ? true
+    : form.type === 'openai'
+    ? isOpenAIAuthModeChoicePending
+      ? false
+      : form.authMode === 'login'
+      ? !!form.openaiAuth
+      : hasOpenAIApiKey && !!openaiModelsApiKey.data?.length
+    : form.type === 'anthropic'
+    ? hasAnthropicApiKey && !!anthropicModels.data?.length
+    : hasOllamaBaseUrl && !!ollamaModels.data?.length
+  const shouldShowModelSection = !isAddProviderFlow || isAddProviderConnectionConfirmed
+  const addProviderConnectionHint = isAddProviderFlow
+    ? form.type === 'openai'
+      ? isOpenAIAuthModeChoicePending
+        ? null
+        : form.authMode === 'login'
+        ? 'Complete ChatGPT Pro sign-in first. Seed will show model options after the connection is confirmed.'
+        : !hasOpenAIApiKey
+        ? 'Enter an OpenAI API key to confirm the connection before choosing a model.'
+        : openaiModelsApiKey.isFetching
+        ? 'Confirming the OpenAI connection...'
+        : 'Seed could not confirm the OpenAI connection yet. Check the API key and try again.'
+      : form.type === 'anthropic'
+      ? !hasAnthropicApiKey
+        ? 'Enter an Anthropic API key to confirm the connection before choosing a model.'
+        : anthropicModels.isFetching
+        ? 'Confirming the Anthropic connection...'
+        : 'Seed could not confirm the Anthropic connection yet. Check the API key and try again.'
+      : !hasOllamaBaseUrl
+      ? 'Enter an Ollama base URL to confirm the connection before choosing a model.'
+      : ollamaModels.isFetching
+      ? 'Confirming the Ollama connection...'
+      : 'Seed could not confirm the Ollama connection yet. Check the server URL and try again.'
+    : null
   const modelSectionDescription =
     form.type === 'openai'
       ? form.authMode === 'login'
@@ -2027,45 +2179,120 @@ function ProviderFormFields({
       ? 'Choose the Claude model this provider should use.'
       : 'Choose the local Ollama model. If Seed cannot fetch the list, type the model name manually.'
 
+  function startOpenaiLoginFlow() {
+    setOpenaiLoginError(null)
+    setOpenaiLoginUserCode(null)
+    startOpenaiLogin.mutate(
+      providerId
+        ? {providerId}
+        : {
+            draft: {
+              label: form.label || undefined,
+              model: form.model || undefined,
+              baseUrl: form.baseUrl || undefined,
+            },
+          },
+      {
+        onSuccess: (result) => {
+          if (result.providerId) {
+            onProviderIdChange?.(result.providerId)
+          }
+          setOpenaiLoginError(null)
+          setOpenaiLoginSessionId(result.sessionId)
+          setOpenaiLoginUserCode(result.userCode || null)
+          openUrl(result.authUrl)
+        },
+        onError: (error) => {
+          setOpenaiLoginSessionId(null)
+          setOpenaiLoginUserCode(null)
+          setOpenaiLoginError((error as Error).message || 'Could not start OpenAI login.')
+        },
+      },
+    )
+  }
+
   useEffect(() => {
     if (!openaiLoginSessionId) return
     if (!openaiLoginStatus.data) return
     if (openaiLoginStatus.data.status === 'success') {
       const connectedProviderId = openaiLoginStatus.data.providerId || providerId
-      if (connectedProviderId && connectedProviderId !== providerId) {
+      const shouldCloseAddedProviderDialog = !!connectedProviderId && !providerId
+
+      if (connectedProviderId && connectedProviderId !== providerId && !shouldCloseAddedProviderDialog) {
         onProviderIdChange?.(connectedProviderId)
       }
-      setForm((current) => ({
-        ...current,
-        authMode: 'login',
-        openaiAuth: {
-          email: openaiLoginStatus.data.email || undefined,
-          chatgptAccountId: openaiLoginStatus.data.chatgptAccountId || undefined,
-          chatgptPlanType: openaiLoginStatus.data.chatgptPlanType || undefined,
-          lastRefreshAt: new Date().toISOString(),
-        },
-      }))
+
+      if (!shouldCloseAddedProviderDialog) {
+        setForm((current) => ({
+          ...current,
+          authMode: 'login',
+          openaiAuth: {
+            email: openaiLoginStatus.data.email || undefined,
+            chatgptAccountId: openaiLoginStatus.data.chatgptAccountId || undefined,
+            chatgptPlanType: openaiLoginStatus.data.chatgptPlanType || undefined,
+            lastRefreshAt: new Date().toISOString(),
+          },
+        }))
+      }
+
+      setOpenaiLoginError(null)
       toast.success('Connected to OpenAI')
       setOpenaiLoginSessionId(null)
       setOpenaiLoginUserCode(null)
+
+      if (shouldCloseAddedProviderDialog && connectedProviderId) {
+        onLoginProviderAdded?.(connectedProviderId)
+        return
+      }
+
       if (connectedProviderId && connectedProviderId === providerId) {
         openaiModelsProvider.refetch().catch(() => {})
       }
       return
     }
     if (openaiLoginStatus.data.status === 'error') {
-      toast.error(openaiLoginStatus.data.message || 'OpenAI login failed')
+      const message = openaiLoginStatus.data.message || 'OpenAI login failed'
+      setOpenaiLoginError(message)
+      toast.error(message)
       setOpenaiLoginSessionId(null)
       setOpenaiLoginUserCode(null)
     }
-  }, [onProviderIdChange, openaiLoginSessionId, openaiLoginStatus.data, openaiModelsProvider, providerId, setForm])
+  }, [
+    onLoginProviderAdded,
+    onProviderIdChange,
+    openaiLoginSessionId,
+    openaiLoginStatus.data,
+    openaiModelsProvider,
+    providerId,
+    setForm,
+  ])
+
+  useEffect(() => {
+    if (!requireExplicitOpenAIAuthModeSelection) {
+      setIsOpenAIAuthModeCommitted(true)
+      return
+    }
+    if (form.type === 'openai') {
+      setIsOpenAIAuthModeCommitted(false)
+      return
+    }
+    setIsOpenAIAuthModeCommitted(true)
+  }, [form.type, requireExplicitOpenAIAuthModeSelection])
 
   useEffect(() => {
     if (form.type !== 'openai' || form.authMode !== 'login') {
       setOpenaiLoginSessionId(null)
       setOpenaiLoginUserCode(null)
+      setOpenaiLoginError(null)
     }
   }, [form.authMode, form.type])
+
+  function returnToOpenAIAuthModeSelection() {
+    setOpenaiLoginSessionId(null)
+    setOpenaiLoginUserCode(null)
+    setOpenaiLoginError(null)
+    setIsOpenAIAuthModeCommitted(false)
+  }
 
   useEffect(() => {
     if (form.type !== 'openai' || form.authMode !== 'login') return
@@ -2117,10 +2344,7 @@ function ProviderFormFields({
 
   return (
     <div className="flex flex-col gap-4">
-      <ProviderFormSection
-        title="Provider"
-        description="Choose the backend and set the label you will see throughout the app."
-      >
+      {showTypeSelector ? (
         <div className="grid gap-2 md:grid-cols-3">
           {(['openai', 'anthropic', 'ollama'] as const).map((type) => (
             <ProviderTypeCard
@@ -2132,7 +2356,9 @@ function ProviderFormFields({
             />
           ))}
         </div>
+      ) : null}
 
+      {showLabelField ? (
         <Field id="provider-label" label="Label">
           <Input
             value={form.label}
@@ -2140,77 +2366,80 @@ function ProviderFormFields({
             placeholder="Provider name"
           />
         </Field>
-      </ProviderFormSection>
+      ) : null}
 
       <ProviderFormSection
         title={form.type === 'openai' ? 'Authentication' : form.type === 'anthropic' ? 'Credentials' : 'Endpoint'}
         description={
           form.type === 'openai'
-            ? 'Choose whether Seed should use ChatGPT Pro sign-in or a standard OpenAI API key.'
+            ? isOpenAIAuthModeChoicePending
+              ? 'Choose whether Seed should use ChatGPT Pro sign-in or a standard OpenAI API key.'
+              : null
             : form.type === 'anthropic'
             ? 'Anthropic providers use an API key stored on this device.'
             : 'Point Seed at the Ollama server that hosts your local models.'
         }
+        action={
+          form.type === 'openai' && requireExplicitOpenAIAuthModeSelection && isOpenAIAuthModeCommitted ? (
+            <Button size="sm" variant="ghost" className="h-auto px-2 py-1" onClick={returnToOpenAIAuthModeSelection}>
+              <Undo className="size-4" />
+              Cancel
+            </Button>
+          ) : null
+        }
       >
         {form.type === 'openai' ? (
           <div className="flex flex-col gap-4">
-            <div className="grid gap-2 md:grid-cols-2">
-              {(
-                [
-                  {
-                    value: 'login',
-                    label: 'ChatGPT Pro Sign In',
-                    description: 'Browser-based sign-in using your ChatGPT plan.',
-                  },
-                  {
-                    value: 'apiKey',
-                    label: 'API Key',
-                    description: 'Use a standard OpenAI API key for API access.',
-                  },
-                ] as const
-              ).map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => {
-                    setOpenaiLoginSessionId(null)
-                    setOpenaiLoginUserCode(null)
-                    setForm((current) => ({
-                      ...current,
-                      authMode: option.value,
-                      model:
-                        option.value === 'login'
-                          ? normalizeOpenAILoginModel(current.model)
-                          : current.model || getDefaultOpenAIModel('apiKey'),
-                      ...(option.value === 'apiKey' ? {openaiAuth: undefined} : {}),
-                    }))
-                  }}
-                  className={cn(
-                    'flex min-h-[96px] flex-col items-start gap-2 rounded-lg border p-3 text-left transition-colors',
-                    form.authMode === option.value
-                      ? 'border-primary bg-background shadow-sm'
-                      : 'bg-background/60 hover:border-border hover:bg-background',
-                  )}
-                >
-                  <div className="flex w-full items-center justify-between gap-2">
-                    <SizableText size="sm" weight="bold">
-                      {option.label}
+            {isOpenAIAuthModeChoicePending ? (
+              <div className="grid gap-2 md:grid-cols-2">
+                {(
+                  [
+                    {
+                      value: 'login',
+                      label: 'ChatGPT Pro Sign In',
+                      description: 'Browser-based sign-in using your ChatGPT plan.',
+                    },
+                    {
+                      value: 'apiKey',
+                      label: 'API Key',
+                      description: 'Use a standard OpenAI API key for API access.',
+                    },
+                  ] as const
+                ).map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      setOpenaiLoginSessionId(null)
+                      setOpenaiLoginUserCode(null)
+                      setOpenaiLoginError(null)
+                      setIsOpenAIAuthModeCommitted(true)
+                      setForm((current) => ({
+                        ...current,
+                        authMode: option.value,
+                        model:
+                          option.value === 'login'
+                            ? normalizeOpenAILoginModel(current.model)
+                            : current.model || getDefaultOpenAIModel('apiKey'),
+                        ...(option.value === 'apiKey' ? {openaiAuth: undefined} : {}),
+                      }))
+                    }}
+                    className="bg-background/60 hover:border-border hover:bg-background flex min-h-[96px] flex-col items-start gap-2 rounded-lg border p-3 text-left transition-colors"
+                  >
+                    <div className="flex w-full items-center justify-between gap-2">
+                      <SizableText size="sm" weight="bold">
+                        {option.label}
+                      </SizableText>
+                    </div>
+                    <SizableText size="xs" className="text-muted-foreground">
+                      {option.description}
                     </SizableText>
-                    {form.authMode === option.value ? <Check className="text-primary size-4" /> : null}
-                  </div>
-                  <SizableText size="xs" className="text-muted-foreground">
-                    {option.description}
-                  </SizableText>
-                </button>
-              ))}
-            </div>
-
-            {form.authMode === 'login' ? (
+                  </button>
+                ))}
+              </div>
+            ) : form.authMode === 'login' ? (
               <>
                 <div className="flex flex-col gap-1">
-                  <SizableText size="sm" weight="bold">
-                    ChatGPT Pro
-                  </SizableText>
                   <SizableText size="xs" className="text-muted-foreground">
                     Seed uses OpenAI&apos;s device-code flow. The browser opens immediately and this page waits for
                     confirmation.
@@ -2222,29 +2451,7 @@ function ProviderFormFields({
                     size="sm"
                     variant="brand"
                     disabled={startOpenaiLogin.isLoading || openaiLoginStatus.data?.status === 'pending'}
-                    onClick={() => {
-                      startOpenaiLogin.mutate(
-                        providerId
-                          ? {providerId}
-                          : {
-                              draft: {
-                                label: form.label || undefined,
-                                model: form.model || undefined,
-                                baseUrl: form.baseUrl || undefined,
-                              },
-                            },
-                        {
-                          onSuccess: (result) => {
-                            if (result.providerId) {
-                              onProviderIdChange?.(result.providerId)
-                            }
-                            setOpenaiLoginSessionId(result.sessionId)
-                            setOpenaiLoginUserCode(result.userCode || null)
-                            openUrl(result.authUrl)
-                          },
-                        },
-                      )
-                    }}
+                    onClick={startOpenaiLoginFlow}
                   >
                     {form.openaiAuth ? 'Reset ChatGPT Authentication' : 'Start ChatGPT Pro Sign In'}
                   </Button>
@@ -2256,12 +2463,6 @@ function ProviderFormFields({
                     </Button>
                   ) : null}
                 </div>
-
-                {!providerId && !form.openaiAuth ? (
-                  <SizableText size="xs" className="text-muted-foreground">
-                    Start sign-in first. The provider is only created after authentication succeeds.
-                  </SizableText>
-                ) : null}
 
                 {form.openaiAuth ? (
                   <SizableText size="xs" className="text-muted-foreground">
@@ -2301,10 +2502,26 @@ function ProviderFormFields({
                   </div>
                 ) : null}
 
-                {openaiLoginStatus.data?.status === 'error' ? (
-                  <SizableText size="xs" className="text-destructive">
-                    {openaiLoginStatus.data.message || 'OpenAI login failed.'}
-                  </SizableText>
+                {openaiLoginError ? (
+                  <div className="border-destructive/30 bg-destructive/5 flex flex-col gap-2 rounded-lg border p-3">
+                    <SizableText size="xs" className="text-destructive">
+                      {openaiLoginError}
+                    </SizableText>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="link"
+                        className="text-destructive h-auto p-0"
+                        disabled={startOpenaiLogin.isLoading}
+                        onClick={startOpenaiLoginFlow}
+                      >
+                        Retry sign in
+                      </Button>
+                      <SizableText size="xs" className="text-muted-foreground">
+                        Seed already retries transient connection failures automatically.
+                      </SizableText>
+                    </div>
+                  </div>
                 ) : null}
               </>
             ) : (
@@ -2327,111 +2544,150 @@ function ProviderFormFields({
                 </div>
               </Field>
             )}
+
+            {addProviderConnectionHint ? (
+              <div className="flex items-center gap-2">
+                {isAddProviderConnectionChecking ? <Spinner size="small" /> : null}
+                <SizableText size="xs" className="text-muted-foreground">
+                  {addProviderConnectionHint}
+                </SizableText>
+              </div>
+            ) : null}
           </div>
         ) : form.type === 'anthropic' ? (
-          <Field id="provider-apikey" label="API Key">
-            <div className="flex items-center gap-2">
-              <Input
-                type={showApiKey ? 'text' : 'password'}
-                value={form.apiKey}
-                onChangeText={(v) => setForm((current) => ({...current, apiKey: v}))}
-                placeholder="sk-ant-..."
-                className="flex-1"
-              />
-              <button
-                type="button"
-                onClick={() => setShowApiKey((value) => !value)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                {showApiKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </button>
-            </div>
-          </Field>
+          <div className="flex flex-col gap-4">
+            <Field id="provider-apikey" label="API Key">
+              <div className="flex items-center gap-2">
+                <Input
+                  type={showApiKey ? 'text' : 'password'}
+                  value={form.apiKey}
+                  onChangeText={(v) => setForm((current) => ({...current, apiKey: v}))}
+                  placeholder="sk-ant-..."
+                  className="flex-1"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey((value) => !value)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  {showApiKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+            </Field>
+
+            {addProviderConnectionHint ? (
+              <div className="flex items-center gap-2">
+                {isAddProviderConnectionChecking ? <Spinner size="small" /> : null}
+                <SizableText size="xs" className="text-muted-foreground">
+                  {addProviderConnectionHint}
+                </SizableText>
+              </div>
+            ) : null}
+          </div>
         ) : (
-          <Field id="provider-baseurl" label="Base URL">
-            <Input
-              value={form.baseUrl}
-              onChangeText={(v) => setForm((current) => ({...current, baseUrl: v}))}
-              placeholder="http://localhost:11434"
-            />
-          </Field>
+          <div className="flex flex-col gap-4">
+            <Field id="provider-baseurl" label="Base URL">
+              <Input
+                value={form.baseUrl}
+                onChangeText={(v) => setForm((current) => ({...current, baseUrl: v}))}
+                placeholder="http://localhost:11434"
+              />
+            </Field>
+
+            {addProviderConnectionHint ? (
+              <div className="flex items-center gap-2">
+                {isAddProviderConnectionChecking ? <Spinner size="small" /> : null}
+                <SizableText size="xs" className="text-muted-foreground">
+                  {addProviderConnectionHint}
+                </SizableText>
+              </div>
+            ) : null}
+          </div>
         )}
       </ProviderFormSection>
 
-      <ProviderFormSection title="Model" description={modelSectionDescription}>
-        {isOpenAILoginMissingConnection ? (
-          <SizableText size="xs" className="text-muted-foreground">
-            Complete ChatGPT Pro sign-in first. Once connected, Seed loads the models available to your account.
-          </SizableText>
-        ) : (
-          <Field id="provider-model" label="Model">
-            {modelOptions.length > 0 ? (
-              <Select
-                value={form.model}
-                onValueChange={(v) => setForm((current) => ({...current, model: v}))}
-                onOpenChange={handleModelPickerOpenChange}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {modelOptions.map((m: string) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Input
-                value={form.model}
-                onChangeText={(v) => setForm((current) => ({...current, model: v}))}
-                placeholder={form.type === 'ollama' ? 'e.g. llama3' : 'Model name'}
-              />
-            )}
-            {form.type === 'openai' && openaiModels.isFetching ? (
-              <SizableText size="xs" className="text-muted-foreground mt-1">
-                Refreshing models from OpenAI...
-              </SizableText>
-            ) : null}
-            {form.type === 'openai' &&
-            form.authMode === 'login' &&
-            form.openaiAuth &&
-            !openaiModels.isFetching &&
-            !openaiModels.data?.length ? (
-              <SizableText size="xs" className="text-muted-foreground mt-1">
-                Could not load the live model list from OpenAI. Showing a fallback catalog.
-              </SizableText>
-            ) : null}
-            {form.type === 'anthropic' && anthropicModels.isFetching ? (
-              <SizableText size="xs" className="text-muted-foreground mt-1">
-                Refreshing models from Anthropic...
-              </SizableText>
-            ) : null}
-            {form.type === 'ollama' && ollamaModels.isFetching ? (
-              <SizableText size="xs" className="text-muted-foreground mt-1">
-                Refreshing models from Ollama...
-              </SizableText>
-            ) : null}
-            {form.type === 'ollama' && !ollamaModels.isLoading && ollamaModels.data?.length === 0 && form.baseUrl ? (
-              <SizableText size="xs" className="text-muted-foreground mt-1">
-                Could not connect to Ollama. Type a model name manually.
-              </SizableText>
-            ) : null}
-          </Field>
-        )}
-      </ProviderFormSection>
+      {shouldShowModelSection ? (
+        <ProviderFormSection title="Model" description={modelSectionDescription}>
+          {isOpenAIAuthModeChoicePending ? (
+            <SizableText size="xs" className="text-muted-foreground">
+              Choose ChatGPT Pro sign-in or API key access first.
+            </SizableText>
+          ) : isOpenAILoginMissingConnection ? (
+            <SizableText size="xs" className="text-muted-foreground">
+              Complete ChatGPT Pro sign-in first. Once connected, Seed loads the models available to your account.
+            </SizableText>
+          ) : (
+            <Field id="provider-model" label="Model">
+              {modelOptions.length > 0 ? (
+                <Select
+                  value={form.model}
+                  onValueChange={(v) => setForm((current) => ({...current, model: v}))}
+                  onOpenChange={handleModelPickerOpenChange}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {modelOptions.map((m: string) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  value={form.model}
+                  onChangeText={(v) => setForm((current) => ({...current, model: v}))}
+                  placeholder={form.type === 'ollama' ? 'e.g. llama3' : 'Model name'}
+                />
+              )}
+              {form.type === 'openai' && openaiModels.isFetching ? (
+                <SizableText size="xs" className="text-muted-foreground mt-1">
+                  Refreshing models from OpenAI...
+                </SizableText>
+              ) : null}
+              {form.type === 'openai' &&
+              form.authMode === 'login' &&
+              form.openaiAuth &&
+              !openaiModels.isFetching &&
+              !openaiModels.data?.length ? (
+                <SizableText size="xs" className="text-muted-foreground mt-1">
+                  Could not load the live model list from OpenAI. Showing a fallback catalog.
+                </SizableText>
+              ) : null}
+              {form.type === 'anthropic' && anthropicModels.isFetching ? (
+                <SizableText size="xs" className="text-muted-foreground mt-1">
+                  Refreshing models from Anthropic...
+                </SizableText>
+              ) : null}
+              {form.type === 'ollama' && ollamaModels.isFetching ? (
+                <SizableText size="xs" className="text-muted-foreground mt-1">
+                  Refreshing models from Ollama...
+                </SizableText>
+              ) : null}
+              {form.type === 'ollama' && !ollamaModels.isLoading && ollamaModels.data?.length === 0 && form.baseUrl ? (
+                <SizableText size="xs" className="text-muted-foreground mt-1">
+                  Could not connect to Ollama. Type a model name manually.
+                </SizableText>
+              ) : null}
+            </Field>
+          )}
+        </ProviderFormSection>
+      ) : null}
 
-      <div className="flex justify-end gap-2 border-t pt-4">
-        <Button size="sm" variant="ghost" onClick={onCancel} disabled={isSaving}>
-          Cancel
-        </Button>
-        {!isOpenAILoginMissingConnection ? (
-          <Button size="sm" onClick={onSave} disabled={isSaving || saveDisabled}>
-            {saveLabel}
+      {showActions ? (
+        <div className="flex justify-end gap-2">
+          <Button size="sm" variant="ghost" onClick={onCancel} disabled={isSaving}>
+            Cancel
           </Button>
-        ) : null}
-      </div>
+          {!isOpenAIAuthModeChoicePending && !isOpenAILoginMissingConnection && shouldShowModelSection ? (
+            <Button variant="brand" size="sm" onClick={onSave} disabled={isSaving || saveDisabled}>
+              {saveLabel}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }
