@@ -2,6 +2,7 @@ import {
   HMCapability,
   HMComment,
   HMContactItem,
+  HMContactSubscribe,
   HMDocument,
   HMMetadata,
   HMRoleSchema,
@@ -68,6 +69,7 @@ export type LoadedContactEvent = {
   contact: {
     id: UnpackedHypermediaId
     name: string
+    subscribe?: HMContactSubscribe
     subject: HMContactItem
   }
   //   contactData: HMContact | null
@@ -431,6 +433,8 @@ export async function loadContactEvent(
     const grpcContact = await grpcClient.documents.getContact({
       id: contactId,
     })
+    const metadata = grpcContact.metadata?.toJson() as Record<string, unknown> | undefined
+    const subscribe = metadata?.subscribe as HMContactSubscribe | undefined
 
     const subject = await cache.getAccount(grpcContact.subject)
 
@@ -449,7 +453,8 @@ export async function loadContactEvent(
       author,
       contact: {
         id: contactUnpackedId,
-        name: extraAttrs.name || '',
+        name: grpcContact.name || extraAttrs.name || '',
+        subscribe,
         subject,
       },
       id: event.newBlob.cid,

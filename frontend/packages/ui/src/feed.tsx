@@ -341,9 +341,19 @@ function EventHeaderContent({
   }
 
   if (event.type == 'contact') {
+    const contactAction =
+      event.contact.subscribe?.site && event.contact.subscribe?.profile
+        ? 'followed and joined'
+        : event.contact.subscribe?.profile
+        ? 'followed'
+        : event.contact.subscribe?.site
+        ? 'joined'
+        : 'added'
+    const contactName = event.contact.name?.trim() || null
+
     return (
       <InlineDescriptor>
-        <AuthorNameLink author={event.author} /> <span>added</span>{' '}
+        <AuthorNameLink author={event.author} /> <span>{contactAction}</span>{' '}
         {event.contact.subject?.id && event.contact.subject.metadata?.icon ? (
           <HMIcon
             className="mx-1 mb-1 inline-block align-middle"
@@ -353,10 +363,16 @@ function EventHeaderContent({
             name={event.contact.subject.metadata.name}
           />
         ) : null}
-        <AuthorNameLink author={event.contact.subject} /> <span>as</span>{' '}
-        <span className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
-          {event.contact.name}
-        </span>{' '}
+        <AuthorNameLink author={event.contact.subject} />
+        {contactName ? (
+          <>
+            {' '}
+            <span>as</span>{' '}
+            <span className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
+              {contactName}
+            </span>
+          </>
+        ) : null}{' '}
         <Timestamp time={event.time} route={route} />
       </InlineDescriptor>
     )
