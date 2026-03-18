@@ -78,6 +78,9 @@ export default function PublishDraftButton() {
   // Track if location is available (not already taken)
   const isLocationAvailable = useRef(true)
 
+  // Inline error shown below the path input when publish fails during first publish
+  const [publishError, setPublishError] = useState<string | null>(null)
+
   // Parent auto-link state for first publish
   type ParentPublishInfo = {
     parentId: UnpackedHypermediaId
@@ -210,7 +213,10 @@ export default function PublishDraftButton() {
   // Get the editable path segment (last part of the path)
   const editablePath = editableLocation?.path?.at(-1) || ''
 
-  function handlePublishPress() {
+  // Wrap handlePublishPress as async so errors from handlePublish are awaited
+  // and unhandled-promise-rejection warnings are avoided. Errors that need
+  // user-facing feedback are handled (toasted) inside handlePublish / mutations.
+  async function handlePublishPress() {
     if (!draftId) throw new Error('No Draft ID?!')
 
     if (!draft.data) {
@@ -328,21 +334,29 @@ export default function PublishDraftButton() {
       }
     }
 
+    setPublishError(null)
+
     if (editId && signingAccountId) {
       // Editing existing document
-      handlePublish(editId, signingAccountId)
+      await handlePublish(editId, signingAccountId).catch((err) => {
+        console.error('Publish failed:', err)
+        toast.error(err.message || 'Publish failed')
+      })
     } else if (editableLocation && signingAccountId) {
       // First publish with editable location from popover
       if (!isLocationAvailable.current) {
-        toast.error('This location is unavailable. Create a new path name.')
+        setPublishError('This location is unavailable. Create a new path name.')
         return
       }
       const pathError = validatePublishPath(!!isPrivate, editableLocation.path, validatePath)
       if (pathError) {
-        toast.error(pathError)
+        setPublishError(pathError)
         return
       }
-      handlePublish(editableLocation, signingAccountId)
+      await handlePublish(editableLocation, signingAccountId).catch((err) => {
+        console.error('Publish failed:', err)
+        setPublishError(err.message || 'Failed to publish. Try a different path name.')
+      })
     } else {
       toast.error('Cannot publish: missing location or account')
     }
@@ -450,6 +464,7 @@ export default function PublishDraftButton() {
                       const raw = e.target.value.replace(/^\//, '')
                       const newPath = [...(editableLocation.path?.slice(0, -1) || []), pathNameify(raw)]
                       setEditableLocation(hmId(editableLocation.uid, {path: newPath}))
+                      setPublishError(null)
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
@@ -458,8 +473,9 @@ export default function PublishDraftButton() {
                       }
                     }}
                     placeholder="/document-path"
-                    className="h-8 text-xs"
+                    className={`h-8 text-xs ${publishError ? 'border-red-500' : ''}`}
                   />
+                  {publishError && <p className="text-destructive text-xs">{publishError}</p>}
                 </div>
               )}
             </div>
