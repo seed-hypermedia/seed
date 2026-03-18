@@ -12,24 +12,46 @@ use the **seed-hypermedia-read** skill. For LLM-powered PDF import see the **see
 
 ## Prerequisites
 
-### 1. Check CLI Availability
+### 1. Ensure CLI is Available and Up-to-Date
 
-Try the globally installed command first:
+The Seed CLI is distributed as the npm package **`@seed-hypermedia/cli`** (binary: `seed-cli`). Run this detection flow
+**once per session** to set `SEED_CLI` for all subsequent commands:
 
 ```bash
-seed-cli --help
+# 1. Check for existing global install
+if command -v seed-cli &>/dev/null; then
+  SEED_CLI="seed-cli"
+
+  # Check for updates: compare local vs. npm registry version
+  LOCAL_V=$(seed-cli --version 2>/dev/null)
+  LATEST_V=$(npm view @seed-hypermedia/cli version 2>/dev/null)
+  if [ -n "$LATEST_V" ] && [ "$LOCAL_V" != "$LATEST_V" ]; then
+    npm install -g @seed-hypermedia/cli@latest 2>/dev/null && echo "Updated seed-cli $LOCAL_V → $LATEST_V"
+  fi
+
+# 2. Not installed — install globally from npm
+elif command -v npm &>/dev/null; then
+  npm install -g @seed-hypermedia/cli
+  SEED_CLI="seed-cli"
+
+# 3. Global install not possible — use npx (downloads on demand)
+elif command -v npx &>/dev/null; then
+  SEED_CLI="npx -y @seed-hypermedia/cli"
+
+# 4. Last resort — run from repository source (only inside the seed repo)
+elif [ -f "frontend/apps/cli/src/index.ts" ]; then
+  SEED_CLI="bun run frontend/apps/cli/src/index.ts"
+  # If dependencies are missing: cd frontend/apps/cli && bun install
+
+else
+  echo "ERROR: Cannot find or install seed-cli. Install Node.js and run: npm install -g @seed-hypermedia/cli"
+fi
 ```
 
-If `seed-cli` is not found, fall back to running from source at `frontend/apps/cli/`:
+Verify the CLI is working:
 
 ```bash
-bun run frontend/apps/cli/src/index.ts --help
-```
-
-If the source path also fails (dependencies missing):
-
-```bash
-cd frontend/apps/cli && bun install
+$SEED_CLI --help
 ```
 
 ### 2. Check Available Keys
@@ -43,20 +65,20 @@ publish with `--dev`, and `key list` (no flag) when targeting mainnet.
 
 ```bash
 # List keys (mainnet — production)
-bun run frontend/apps/cli/src/index.ts key list
+$SEED_CLI key list
 
 # List keys (devnet — development)
-bun run frontend/apps/cli/src/index.ts key list --dev
+$SEED_CLI key list --dev
 ```
 
 If no keys exist, the user must import or generate one:
 
 ```bash
 # Import from mnemonic (recovers existing account)
-bun run frontend/apps/cli/src/index.ts key import -n mykey "word1 word2 ... word12"
+$SEED_CLI key import -n mykey "word1 word2 ... word12"
 
 # Generate a new key
-bun run frontend/apps/cli/src/index.ts key generate -n mykey --show-mnemonic
+$SEED_CLI key generate -n mykey --show-mnemonic
 ```
 
 ### 3. Determine Server & Environment
@@ -102,16 +124,9 @@ $SEED_CLI document create -f content.md --key mykey --server http://localhost:40
 
 ## CLI Alias
 
-For convenience in all examples below, define `SEED_CLI` using whichever invocation is available — prefer the global
-install:
-
-```bash
-if command -v seed-cli &>/dev/null; then
-  SEED_CLI="seed-cli"
-else
-  SEED_CLI="bun run frontend/apps/cli/src/index.ts"
-fi
-```
+All examples below use `$SEED_CLI`, which was set during the prerequisite detection step above. If you skipped
+prerequisites, run the detection flow from
+[Ensure CLI is Available and Up-to-Date](#1-ensure-cli-is-available-and-up-to-date) first.
 
 ## Draft Management
 

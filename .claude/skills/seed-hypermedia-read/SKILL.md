@@ -159,9 +159,20 @@ For exporting documents as markdown (with frontmatter and block IDs), use the Se
 `document get` command outputs round-trip-compatible markdown by default:
 
 ```bash
+# Detect / install the CLI (npm package: @seed-hypermedia/cli)
 if command -v seed-cli &>/dev/null; then
   SEED_CLI="seed-cli"
-else
+  # Check for updates (once per session)
+  LOCAL_V=$(seed-cli --version 2>/dev/null)
+  LATEST_V=$(npm view @seed-hypermedia/cli version 2>/dev/null)
+  if [ -n "$LATEST_V" ] && [ "$LOCAL_V" != "$LATEST_V" ]; then
+    npm install -g @seed-hypermedia/cli@latest 2>/dev/null
+  fi
+elif command -v npm &>/dev/null; then
+  npm install -g @seed-hypermedia/cli && SEED_CLI="seed-cli"
+elif command -v npx &>/dev/null; then
+  SEED_CLI="npx -y @seed-hypermedia/cli"
+elif [ -f "frontend/apps/cli/src/index.ts" ]; then
   SEED_CLI="bun run frontend/apps/cli/src/index.ts"
 fi
 

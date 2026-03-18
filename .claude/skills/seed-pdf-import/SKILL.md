@@ -16,7 +16,8 @@ For CLI setup, key management, and environment configuration, see the **seed-hyp
 
 ## Prerequisites
 
-1. **Seed CLI** -- See the **seed-hypermedia-write** skill for CLI setup, key management, and environment configuration.
+1. **Seed CLI** (`@seed-hypermedia/cli` on npm, binary: `seed-cli`) -- See the **seed-hypermedia-write** skill for
+   detection, installation, updates, key management, and environment configuration.
 2. **For image extraction** (optional) -- `poppler-utils` for `pdfimages`, or Python `pypdfium2`. See
    [references/pdf-extraction.md](references/pdf-extraction.md).
 
