@@ -22,6 +22,7 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
 import {UIAvatar} from '@shm/ui/avatar'
+import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -559,8 +560,9 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
   return (
     <SidebarSection title="My Site">
       <Tooltip content="Create your site to publish documents and share your profile.">
-        <SidebarMenuButton
-          className="bg-green-600 text-white hover:bg-green-700 hover:text-white my-2"
+        <Button
+          className="w-full"
+          variant="default"
           onClick={() =>
             navigate({
               key: 'draft',
@@ -571,7 +573,7 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
           }
         >
           Create my Site
-        </SidebarMenuButton>
+        </Button>
       </Tooltip>
     </SidebarSection>
   )
