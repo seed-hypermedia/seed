@@ -4,11 +4,12 @@ import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {CloseButton} from '@/components/window-controls'
 import appError from '@/errors'
 import {useConnectPeer} from '@/models/contacts'
-import {useMyAccounts} from '@/models/daemon'
+import {useMyAccountIds} from '@/models/daemon'
 import {SidebarContextProvider, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {getWindowType} from '@/utils/window-types'
+import {useAccounts} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
@@ -365,29 +366,13 @@ function AccountSelectorDialogContent({
   }
   onClose: () => void
 }) {
-  const myAccounts = useMyAccounts()
+  const myAccountIds = useMyAccountIds()
+  const accountQueries = useAccounts(myAccountIds.data || [])
   const [selectedAccountUid, setSelectedAccountUid] = useState<string | null>(null)
 
-  const accountOptions = myAccounts
-    ?.map((a) => {
-      const id = a.data?.id
-      const doc = a.data?.type === 'document' ? a.data.document : undefined
-      if (id) {
-        return {
-          id,
-          metadata: doc?.metadata,
-        }
-      }
-      return null
-    })
-    .filter((d) => {
-      if (!d) return false
-      if (typeof d.metadata === 'undefined') return false
-      return true
-    })
+  const accountOptions = accountQueries.map((q) => q.data).filter((d) => !!d)
 
-  const selectedAccount = myAccounts?.find((a) => a.data?.id?.uid === selectedAccountUid)
-  const selectedAccountDoc = selectedAccount?.data?.type === 'document' ? selectedAccount.data.document : undefined
+  const selectedAccountData = accountOptions.find((a) => a.id.uid === selectedAccountUid)
 
   return (
     <>
@@ -409,7 +394,7 @@ function AccountSelectorDialogContent({
                 {option.id ? (
                   <HMIcon id={option?.id} name={option?.metadata?.name} icon={option?.metadata?.icon} />
                 ) : null}
-                <span className="flex-1">{option.metadata?.name}</span>
+                <span className="flex-1">{option.metadata?.name || `?${option.id.uid?.slice(-8)}`}</span>
               </div>
             ) : null,
           )}
@@ -424,7 +409,7 @@ function AccountSelectorDialogContent({
           disabled={!selectedAccountUid}
           onClick={() => {
             if (selectedAccountUid) {
-              const accountName = selectedAccountDoc?.metadata?.name || 'Account'
+              const accountName = selectedAccountData?.metadata?.name || 'Account'
               input.onAccountSelected(selectedAccountUid, accountName)
               onClose()
             }

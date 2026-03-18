@@ -46,8 +46,10 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {CircleOff} from '@shm/ui/icons'
 import {SmallListItem} from '@shm/ui/list-item'
 import {SizableText} from '@shm/ui/text'
+import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {AlertCircle, ChevronDown, ChevronRight, File, Library, Lock, MoreHorizontal} from 'lucide-react'
+import {nanoid} from 'nanoid'
 import React, {memo} from 'react'
 import {CreateDocumentButton} from './create-doc-button'
 import {GenericSidebarContainer} from './sidebar-base'
@@ -526,30 +528,51 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
   const imageUrl = useImageUrl()
   const navigate = useNavigate()
 
-  if (resource.data?.type !== 'document' || !resource.data.document) return null
+  if (!selectedAccountId) return null
 
-  const {document} = resource.data
+  // Account has a home document — show the existing site section
+  if (resource.data?.type === 'document' && resource.data.document) {
+    const {document} = resource.data
+    return (
+      <SidebarSection title="My Site">
+        <div
+          className="border-border hover:bg-sidebar-accent my-2 flex cursor-pointer items-center gap-2 rounded-lg border p-2"
+          onClick={() => navigate({key: 'document', id: hmId(selectedAccountId)})}
+        >
+          <UIAvatar
+            id={selectedAccountId}
+            label={document.metadata.name}
+            size={40}
+            url={document.metadata.icon ? imageUrl(document.metadata.icon) : ''}
+            className="shrink-0"
+          />
+          <span className="truncate text-sm font-bold select-none">{document.metadata.name}</span>
+        </div>
+      </SidebarSection>
+    )
+  }
+
+  // Account has no home document — show a CTA to create one.
+  // Don't show CTA while still loading/discovering.
+  if (resource.isInitialLoading || resource.isDiscovering) return null
+
   return (
     <SidebarSection title="My Site">
-      <div
-        className="border-border hover:bg-sidebar-accent my-2 flex cursor-pointer items-center gap-2 rounded-lg border p-2"
-        onClick={
-          selectedAccountId
-            ? () => {
-                navigate({key: 'document', id: hmId(selectedAccountId!)})
-              }
-            : undefined
-        }
-      >
-        <UIAvatar
-          id={selectedAccountId}
-          label={document.metadata.name}
-          size={40}
-          url={document.metadata.icon ? imageUrl(document.metadata.icon) : ''}
-          className="shrink-0"
-        />
-        <span className="truncate text-sm font-bold select-none">{document.metadata.name}</span>
-      </div>
+      <Tooltip content="Create your site to publish documents and share your profile.">
+        <SidebarMenuButton
+          className="bg-green-600 text-white hover:bg-green-700 hover:text-white my-2"
+          onClick={() =>
+            navigate({
+              key: 'draft',
+              id: nanoid(10),
+              editUid: selectedAccountId,
+              editPath: [],
+            })
+          }
+        >
+          Create my Site
+        </SidebarMenuButton>
+      </Tooltip>
     </SidebarSection>
   )
 }

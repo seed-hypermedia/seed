@@ -50,7 +50,7 @@ export function MoveDialog({
             location={location}
             setLocation={setLocation}
             newName={document?.metadata.name || 'Untitled'}
-            account={selectedAccount.id.uid}
+            account={selectedAccount.id?.uid}
             actionLabel="move"
             onAvailable={(isAvail) => {
               isAvailable.current = isAvail
@@ -84,8 +84,8 @@ export function MoveDialog({
               >
                 <HMIcon
                   id={selectedAccount.id}
-                  name={selectedAccount.document?.metadata?.name}
-                  icon={selectedAccount.document?.metadata?.icon}
+                  name={selectedAccount.metadata?.name}
+                  icon={selectedAccount.metadata?.icon}
                   size={24}
                 />
                 Move

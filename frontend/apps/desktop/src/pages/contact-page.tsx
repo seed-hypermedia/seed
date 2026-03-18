@@ -428,8 +428,8 @@ function ContactFormDialog({
           {selectedAccount?.id ? (
             <HMIcon
               id={selectedAccount?.id}
-              name={selectedAccount?.document?.metadata?.name}
-              icon={selectedAccount?.document?.metadata?.icon}
+              name={selectedAccount?.metadata?.name}
+              icon={selectedAccount?.metadata?.icon}
               size={24}
             />
           ) : null}
