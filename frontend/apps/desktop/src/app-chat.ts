@@ -1,25 +1,26 @@
-import {createAnthropic} from '@ai-sdk/anthropic'
-import {createGoogleGenerativeAI} from '@ai-sdk/google'
-import {createOpenAI} from '@ai-sdk/openai'
-import {HMBlockNode, HMComment, HMCommentSchema} from '@seed-hypermedia/client/hm-types'
-import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
-import {unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {jsonSchema, stepCountIs, streamText, type ModelMessage} from 'ai'
+import { createAnthropic } from '@ai-sdk/anthropic'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { createOpenAI } from '@ai-sdk/openai'
+import { HMBlockNode, HMComment, HMCommentSchema } from '@seed-hypermedia/client/hm-types'
+import { unpackHmId } from '@shm/shared/utils/entity-id-url'
+import { hmIdPathToEntityQueryPath } from '@shm/shared/utils/path-api'
+import { jsonSchema, stepCountIs, streamText, type ModelMessage } from 'ai'
 import crypto from 'crypto'
-import {ipcMain} from 'electron'
+import { ipcMain } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 import z from 'zod'
-import {navigateDesktopUrl} from './assistant-navigation'
-import {readConfig, resolveProviderForUsage, setLastUsedProvider, type AgentProvider} from './app-ai-config'
-import {appInvalidateQueries} from './app-invalidation'
-import {userDataPath} from './app-paths'
-import {t} from './app-trpc'
-import {getAllWindows} from './app-windows'
-import {desktopRequest} from './desktop-api'
-import {grpcClient} from './grpc-client'
-import {getChatProviderRequestOptions} from './chat-provider-options'
-import {resolveChatStreamError} from './chat-stream-error'
+import { readConfig, resolveProviderForUsage, setLastUsedProvider, type AgentProvider } from './app-ai-config'
+import { appInvalidateQueries } from './app-invalidation'
+import { userDataPath } from './app-paths'
+import { t } from './app-trpc'
+import { getAllWindows } from './app-windows'
+import { navigateDesktopUrl } from './assistant-navigation'
+import { getChatProviderRequestOptions } from './chat-provider-options'
+import { resolveChatStreamError } from './chat-stream-error'
+import { desktopRequest } from './desktop-api'
+import { grpcClient } from './grpc-client'
+import * as log from './logger'
 import {
   appendChatTextPart,
   appendChatToolCalls,
@@ -28,7 +29,7 @@ import {
   type ChatToolCall,
   type ChatToolResult,
 } from './models/chat-parts'
-import * as log from './logger'
+import { resolveOmnibarUrlToHypermediaUrl } from './omnibar-url'
 
 const chatDir = path.join(userDataPath, 'chat-sessions')
 
@@ -461,40 +462,16 @@ async function readCollaborators(id: ReturnType<typeof unpackHmId>) {
 // Plain tool objects using inputSchema (not parameters) to match AI SDK v4 internal expectations.
 // Typed as Record<string, any> to avoid excessive type instantiation depth with Zod + AI SDK.
 const chatTools: Record<string, any> = {
-  getCurrentTime: {
-    description: 'Get the current date and time',
-    inputSchema: jsonSchema({type: 'object', properties: {}, additionalProperties: false}),
-    execute: async () => {
-      return new Date().toISOString()
-    },
-  },
-  calculate: {
-    description: 'Evaluate a mathematical expression',
-    inputSchema: jsonSchema({
-      type: 'object',
-      properties: {expression: {type: 'string', description: 'The math expression to evaluate'}},
-      required: ['expression'],
-      additionalProperties: false,
-    }),
-    execute: async ({expression}: {expression: string}) => {
-      try {
-        const result = Function(`"use strict"; return (${expression})`)()
-        return String(result)
-      } catch (e) {
-        return `Error: ${(e as Error).message}`
-      }
-    },
-  },
   read: {
     description:
-      'Read a Hypermedia document, its comments, directory listing, version history, citations, or collaborators. Supports hm:// URLs with optional view term suffixes: /:comments for discussions, /:directory for child documents, /:activity/versions for version history, /:activity/citations for citations/backlinks, /:collaborators for access control. Without a suffix, reads the document content as markdown.',
+      'Read a Hypermedia document, its comments, directory listing, version history, citations, or collaborators.',
     inputSchema: jsonSchema({
       type: 'object',
       properties: {
         url: {
           type: 'string',
           description:
-            'The hm:// URL to read. Examples: "hm://z6Mk.../path" reads the document, "hm://z6Mk.../path/:comments" reads comments, "hm://z6Mk.../path/:directory" lists children, "hm://z6Mk.../path/:activity/versions" lists version history, "hm://z6Mk.../path/:activity/citations" lists citations, "hm://z6Mk.../path/:collaborators" lists collaborators.',
+            'The hm:// URL to read',
         },
       },
       required: ['url'],
@@ -529,20 +506,43 @@ const chatTools: Record<string, any> = {
       }
     },
   },
-  navigate: {
+  resolveUrl: {
     description:
-      'Open a Hypermedia document or document view inside the desktop app. Accepts parseable hm:// or gateway-style Hypermedia URLs, including view suffixes like /:comments, /:collaborators, /:activity/citations, and block fragments like #block or #block[5:15].',
+      'Use when the user provides a Web https URL. Once you have a hm:// URL, resolution is not needed. Use this before reading or navigating to a http(s) URL. Once you have resolved to a HM URL, skip this tool. that format (hm:// paths are consistent with web).',
     inputSchema: jsonSchema({
       type: 'object',
       properties: {
         url: {
           type: 'string',
           description:
-            'The Hypermedia URL to open. Examples: "hm://z6Mk.../path", "hm://z6Mk.../path/:comments", "hm://z6Mk.../path/:comments/comment123", "hm://z6Mk.../path/:activity/citations#block-id".',
+            'The URL to resolve. Accepts http(s) URLs. Returns the matching hm:// URL.',
+        },
+      },
+      required: ['url'],
+      additionalProperties: false,
+    }),
+    execute: async ({url}: {url: string}) => {
+      const resolved = await resolveOmnibarUrlToHypermediaUrl(url)
+      if (!resolved) {
+        return `Error: Could not resolve "${url}" to a Hypermedia URL.`
+      }
+      return resolved
+    },
+  },
+  navigate: {
+    description:
+      'Use when the user asks for navigation, opening, showing, or if the intent is strongly implied. Opens a Hypermedia resource in the app. Accepts parseable hm:// URLs, including view suffixes like /:comments, /:collaborators, /:activity/citations, and block fragments like #block or #block[5:15].',
+    inputSchema: jsonSchema({
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description:
+            'The hm:// URL to open',
         },
         newWindow: {
           type: 'boolean',
-          description: 'When true, open the destination in a new window instead of the current one.',
+          description: 'True to open in a new window instead of the current window.',
         },
       },
       required: ['url'],
@@ -668,28 +668,23 @@ export const chatApi = t.router({
 
       // Build system prompt with document context
       const systemParts: string[] = [
-        'You are a helpful assistant integrated into Seed, a Hypermedia document editor and collaboration platform.',
-        'You can read documents, their comments/discussions, and directory listings using the `read` tool.',
-        'You can open documents and document views inside the app with the `navigate` tool.',
-        'When you mention an hm:// document or view in your reply, format it as a Markdown link with a descriptive label, for example `[Project notes](hm://z6Mk.../notes)`.',
-        'Do not leave hm:// references as bare text unless the user explicitly asks for the raw URL.',
-        '',
-        'Documents in Seed use hm:// URLs. For example: hm://z6Mk.../path-segment',
-        'Use the `read` tool with an hm:// URL to read a document.',
-        'Use the `navigate` tool only when the user explicitly asks to open, go to, show, or navigate somewhere, or when that intent is strongly implied.',
-        'Append suffixes to the URL for different views:',
-        '  - read("hm://…/path") - Read the document content as markdown',
-        '  - read("hm://…/path/:comments") - Read discussions/comments on the document',
-        '  - read("hm://…/path/:directory") - List child documents (subdocuments)',
-        '  - read("hm://…/path/:activity/versions") - List version history (changes/authors/dates)',
-        '  - read("hm://…/path/:activity/citations") - List citations/backlinks to this document',
-        '  - read("hm://…/path/:collaborators") - List collaborators and their access roles',
-        '  - navigate({url: "hm://…/path/:comments"}) - Open the comments view in the app',
-        '  - navigate({url: "hm://…/path/:collaborators"}) - Open the collaborators view in the app',
-        '  - navigate({url: "hm://…/path/:activity/citations"}) - Open filtered activity in the app',
-        '  - navigate({url: "hm://…/path#block-id", newWindow: true}) - Open a specific block in a new window',
-        '',
+        'You are the Seed Assistant. Part of Seed desktop app. Connected to the p2p Hypermedia (HM) network, an augmented web.',
+        'Be nice but not overly friendly and "helpful". Be consise. Do not offer follow-up help. Don\'t say anything that the user hasnt asked for.',
+        'There are many HM resource types: document, comments, contacts, capabilities. Documents have human-readable paths.',
+        'Resources in Seed use hm:// URLs. For example: hm://z6Mk.../path-segment',
+        'When you mention an hm:// resource or view in your reply, format it as a Markdown link with a descriptive label, for example `[Project notes](hm://z6Mk.../notes)`.',
+        'Document URLs support suffixes for different views:',
+        '  - "hm://…/path?version=VERSION_ID" - Exact version of the document',
+        '  - "hm://…/path#BLOCK_ID" - A specific block in the document',
+        '  - "hm://…/path#BLOCK_ID+" - A block plus children blocks (a section)',
+        '  - "hm://…/path/:comments" - Read discussions/comments on the document',
+        '  - "hm://…/path/:comments/COMMENT_ID" - Read discussions/comments on the document',
+        '  - "hm://…/path/:directory" - List child documents (subdocuments)',
+        '  - "hm://…/path/:activity/versions" - List version history (changes/authors/dates)',
+        '  - "hm://…/path/:activity/citations" - List citations/backlinks to this document',
+        '  - "hm://…/path/:collaborators" - List collaborators and their access roles',
         'To explore a section of a site, read the directory first, then read each child document.',
+        `The current time is: ${new Date().toISOString()}`
       ]
       if (input.documentContext?.url) {
         systemParts.push('')
