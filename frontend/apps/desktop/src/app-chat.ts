@@ -10,6 +10,7 @@ import {ipcMain} from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 import z from 'zod'
+import {navigateDesktopUrl} from './assistant-navigation'
 import {readConfig, resolveProviderForUsage, setLastUsedProvider, type AgentProvider} from './app-ai-config'
 import {appInvalidateQueries} from './app-invalidation'
 import {userDataPath} from './app-paths'
@@ -528,6 +529,29 @@ const chatTools: Record<string, any> = {
       }
     },
   },
+  navigate: {
+    description:
+      'Open a Hypermedia document or document view inside the desktop app. Accepts parseable hm:// or gateway-style Hypermedia URLs, including view suffixes like /:comments, /:collaborators, /:activity/citations, and block fragments like #block or #block[5:15].',
+    inputSchema: jsonSchema({
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description:
+            'The Hypermedia URL to open. Examples: "hm://z6Mk.../path", "hm://z6Mk.../path/:comments", "hm://z6Mk.../path/:comments/comment123", "hm://z6Mk.../path/:activity/citations#block-id".',
+        },
+        newWindow: {
+          type: 'boolean',
+          description: 'When true, open the destination in a new window instead of the current one.',
+        },
+      },
+      required: ['url'],
+      additionalProperties: false,
+    }),
+    execute: async ({url, newWindow = false}: {url: string; newWindow?: boolean}) => {
+      return navigateDesktopUrl(url, {newWindow})
+    },
+  },
 }
 
 /** Chat-related TRPC routes backed by local session storage and live stream events. */
@@ -646,9 +670,11 @@ export const chatApi = t.router({
       const systemParts: string[] = [
         'You are a helpful assistant integrated into Seed, a Hypermedia document editor and collaboration platform.',
         'You can read documents, their comments/discussions, and directory listings using the `read` tool.',
+        'You can open documents and document views inside the app with the `navigate` tool.',
         '',
         'Documents in Seed use hm:// URLs. For example: hm://z6Mk.../path-segment',
         'Use the `read` tool with an hm:// URL to read a document.',
+        'Use the `navigate` tool only when the user explicitly asks to open, go to, show, or navigate somewhere, or when that intent is strongly implied.',
         'Append suffixes to the URL for different views:',
         '  - read("hm://…/path") - Read the document content as markdown',
         '  - read("hm://…/path/:comments") - Read discussions/comments on the document',
@@ -656,6 +682,10 @@ export const chatApi = t.router({
         '  - read("hm://…/path/:activity/versions") - List version history (changes/authors/dates)',
         '  - read("hm://…/path/:activity/citations") - List citations/backlinks to this document',
         '  - read("hm://…/path/:collaborators") - List collaborators and their access roles',
+        '  - navigate({url: "hm://…/path/:comments"}) - Open the comments view in the app',
+        '  - navigate({url: "hm://…/path/:collaborators"}) - Open the collaborators view in the app',
+        '  - navigate({url: "hm://…/path/:activity/citations"}) - Open filtered activity in the app',
+        '  - navigate({url: "hm://…/path#block-id", newWindow: true}) - Open a specific block in a new window',
         '',
         'To explore a section of a site, read the directory first, then read each child document.',
       ]
@@ -665,7 +695,9 @@ export const chatApi = t.router({
         if (input.documentContext.title) {
           systemParts.push(`Document title: "${input.documentContext.title}"`)
         }
-        systemParts.push('You can use this URL with the `read` tool to access the document they are looking at.')
+        systemParts.push(
+          'You can use this URL with the `read` tool to inspect the document or with `navigate` to reopen specific views.',
+        )
       }
       const system = systemParts.join('\n')
 

@@ -706,6 +706,15 @@ describe('extractViewTermFromUrl', () => {
     })
   })
 
+  test('extracts :comments with a single-segment comment id', () => {
+    const result = extractViewTermFromUrl('https://site.com/path/:comments/comment123')
+    expect(result).toEqual({
+      url: 'https://site.com/path',
+      viewTerm: ':comments',
+      commentId: 'comment123',
+    })
+  })
+
   test('extracts :comments/UID/TSID with query params', () => {
     const result = extractViewTermFromUrl('https://site.com/path/:comments/z6Mk123/z6FC456?panel=comments/other')
     expect(result).toEqual({

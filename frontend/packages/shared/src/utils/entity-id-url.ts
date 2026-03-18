@@ -69,8 +69,9 @@ export function extractViewTermFromUrl(url: string): {
   commentId?: string
   accountUid?: string
 } {
-  // Check for :comments/UID/TSID or :comment/UID/TSID pattern (2 path segments)
-  const commentsPattern = /\/\:comments?\/([^/?#]+\/[^/?#]+)(?=[?#]|$)/
+  // Check for :comments/<comment-id> or :comment/<comment-id> pattern.
+  // Comment IDs may be a single segment or a slash-delimited path.
+  const commentsPattern = /\/\:comments?\/([^?#]+?)(?=[?#]|$)/
   const commentsMatch = url.match(commentsPattern)
   if (commentsMatch) {
     return {

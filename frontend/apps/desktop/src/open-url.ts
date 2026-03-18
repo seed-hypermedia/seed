@@ -1,7 +1,7 @@
 import {useAppContext} from '@/app-context'
 import {useNavigate} from '@/utils/useNavigate'
-import {unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {appRouteOfId, isHttpUrl} from '@shm/shared/utils/navigation'
+import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
+import {isHttpUrl} from '@shm/shared/utils/navigation'
 import {toast} from '@shm/ui/toast'
 import {useMemo} from 'react'
 
@@ -13,12 +13,7 @@ export function useOpenUrl() {
   return useMemo(() => {
     return (url?: string, newWindow?: boolean) => {
       if (!url) return
-      const unpacked = unpackHmId(url)
-      // if (!unpacked) {
-      //   toast.error(`Failed to resolve route for "${url}"`)
-      //   return
-      // }
-      const appRoute = unpacked && appRouteOfId(unpacked)
+      const appRoute = hypermediaUrlToRoute(url)
       if (appRoute) {
         if (newWindow) {
           spawn(appRoute)

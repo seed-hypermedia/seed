@@ -1,13 +1,12 @@
 import {parseDeepLink} from '@/utils/deep-links'
 import type {AppWindowEvent} from '@/utils/window-events'
-import {appRouteOfId} from '@shm/shared/utils/navigation'
 
 import {DAEMON_HTTP_URL, OS_PROTOCOL_SCHEME} from '@shm/shared/constants'
 
 import {grpcClient} from '@/grpc-client'
 import {HMHostConfigSchema, SiteDiscoverRequest} from '@seed-hypermedia/client/hm-types'
-import {createDocumentNavRoute, defaultRoute, NavRoute, navRouteSchema} from '@shm/shared/routes'
-import {parseCustomURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {defaultRoute, NavRoute, navRouteSchema} from '@shm/shared/routes'
+import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {app, BrowserWindow, dialog, ipcMain, NativeImage, WebContentsView} from 'electron'
 import {createIPCHandler} from 'electron-trpc/main'
 import {writeFile} from 'fs-extra'
@@ -455,10 +454,7 @@ export async function handleUrlOpen(url: string) {
   }
 
   log.info('Deep Link Open', {url: url})
-  const id = unpackHmId(url)
-  const parsed = parseCustomURL(url)
-  const panel = parsed?.query?.panel || null
-  const appRoute = id ? (panel ? createDocumentNavRoute(id, null, panel) : appRouteOfId(id)) : null
+  const appRoute = hypermediaUrlToRoute(url)
   if (appRoute) {
     // Get selectedIdentity from last focused window
     const lastFocusedWindow = getLastFocusedWindow()
