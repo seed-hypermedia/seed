@@ -1,6 +1,7 @@
 {
   "scripts": {
-    "setup": "pnpm i",
-    "run": "pnpm web:standalone"
+    "setup": "direnv allow && pnpm i",
+    "teardown": null,
+    "run": "./dev run-desktop"
   }
 }

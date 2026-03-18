@@ -7,4 +7,5 @@
   - if you can add tests to the current feature/fix worked, please do.
   - make sure `pnpm typecheck` pass.
   - make sure all tests pass (`pnpm test`).
+  - make sure `pnpm audit` pass.
   - make sure run `pnpm format:write`
