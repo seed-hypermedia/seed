@@ -376,7 +376,7 @@ function AutocompletePopupInner(
         let item = suggestions[group][idx]
 
         // @ts-ignore
-        onCreate(item.id.id, range)
+        onCreate(packHmId({...item.id, latest: !item.id.blockRef}), range)
         onClose()
       }
       return true
@@ -472,7 +472,7 @@ function AutocompletePopupInner(
                             onFocus: () => {},
                             onMouseEnter: () => {},
                             onSelect: () => {
-                              onCreate(item.id.id, range)
+                              onCreate(packHmId({...item.id, latest: !item.id.blockRef}), range)
                               onClose()
                             },
                             subtitle: 'Document',
