@@ -518,6 +518,7 @@ export const HMCommentSchema = z.object({
   targetPath: z.string().optional(),
   targetVersion: z.string(),
   replyParent: z.string().optional(),
+  replyParentVersion: z.string().optional(),
   threadRoot: z.string().optional(),
   threadRootVersion: z.string().optional(),
   capability: z.string().optional(),
@@ -525,6 +526,7 @@ export const HMCommentSchema = z.object({
   createTime: HMTimestampSchema,
   updateTime: HMTimestampSchema,
   visibility: HMResourceVisibilitySchema,
+  isEdited: z.boolean().optional(),
 })
 
 export type HMComment = z.infer<typeof HMCommentSchema>
@@ -1578,6 +1580,24 @@ export const HMPrepareDocumentChangeRequestSchema = z.object({
 })
 export type HMPrepareDocumentChangeRequest = z.infer<typeof HMPrepareDocumentChangeRequestSchema>
 
+// ListCommentVersions - lists all versions of a comment (edit history)
+export const HMListCommentVersionsInputSchema = z.object({
+  id: z.string(),
+})
+export type HMListCommentVersionsInput = z.infer<typeof HMListCommentVersionsInputSchema>
+
+export const HMListCommentVersionsOutputSchema = z.object({
+  versions: z.array(HMCommentSchema),
+})
+export type HMListCommentVersionsOutput = z.infer<typeof HMListCommentVersionsOutputSchema>
+
+export const HMListCommentVersionsRequestSchema = z.object({
+  key: z.literal('ListCommentVersions'),
+  input: HMListCommentVersionsInputSchema,
+  output: HMListCommentVersionsOutputSchema,
+})
+export type HMListCommentVersionsRequest = z.infer<typeof HMListCommentVersionsRequestSchema>
+
 // GET request union — all read-only API endpoints
 export const HMGetRequestSchema = z.discriminatedUnion('key', [
   HMResourceRequestSchema,
@@ -1600,6 +1620,7 @@ export const HMGetRequestSchema = z.discriminatedUnion('key', [
   HMListChangesRequestSchema,
   HMListCapabilitiesRequestSchema,
   HMInteractionSummaryRequestSchema,
+  HMListCommentVersionsRequestSchema,
 ])
 export type HMGetRequest = z.infer<typeof HMGetRequestSchema>
 
@@ -1632,6 +1653,7 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMListChangesRequestSchema,
   HMListCapabilitiesRequestSchema,
   HMInteractionSummaryRequestSchema,
+  HMListCommentVersionsRequestSchema,
   HMPublishBlobsRequestSchema,
   HMPrepareDocumentChangeRequestSchema,
 ])

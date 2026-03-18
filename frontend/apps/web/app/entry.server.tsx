@@ -270,19 +270,17 @@ async function handleOptionsRequest(request: Request) {
             }
           } catch (e) {}
         }
-        if (targetDocument) {
-          Object.assign(
-            headers,
-            metadataToHeaders(
-              createResourceMetadata({
-                id: commentId,
-                document: targetDocument,
-                comment,
-                commentAuthorTitle,
-              }),
-            ),
-          )
-        }
+        Object.assign(
+          headers,
+          metadataToHeaders(
+            createResourceMetadata({
+              id: commentId,
+              document: targetDocument,
+              comment,
+              commentAuthorTitle,
+            }),
+          ),
+        )
         return new Response(null, {status: 200, headers})
       }
     }

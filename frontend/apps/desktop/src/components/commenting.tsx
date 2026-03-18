@@ -8,8 +8,10 @@ import {CommentEditor} from '@shm/editor/comment-editor'
 import {queryClient, queryKeys} from '@shm/shared'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {useCommentsService} from '@shm/shared/comments-service-provider'
+import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider'
 import {
   HMBlockNode,
+  HMComment,
   HMCommentGroup,
   HMListDiscussionsOutput,
   UnpackedHypermediaId,
@@ -23,8 +25,8 @@ import {Button} from '@shm/ui/button'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useMutation} from '@tanstack/react-query'
-import {SendHorizonal} from 'lucide-react'
-import {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {Check, SendHorizonal, X} from 'lucide-react'
+import {memo, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 
 export function useCommentGroupAuthors(commentGroups: HMCommentGroup[]): HMListDiscussionsOutput['authors'] {
   const commentGroupAuthors = new Set<string>()
@@ -343,3 +345,77 @@ export function triggerCommentDraftFocus(docId: string, commentId?: string) {
 }
 
 const focusSubscribers = new Map<string, Set<() => void>>()
+
+/** Renders a CommentEditor pre-filled with the comment's content for inline editing. */
+export function renderDesktopInlineEditor({comment, onSave, onCancel, isSaving}: InlineEditCommentProps): ReactNode {
+  return (
+    <InlineEditBox comment={comment} onSave={onSave} onCancel={onCancel} isSaving={isSaving} />
+  )
+}
+
+/** Inline comment editor used when editing an existing comment in-place. */
+function InlineEditBox({
+  comment,
+  onSave,
+  onCancel,
+  isSaving,
+}: InlineEditCommentProps) {
+  const account = useSelectedAccount()
+  const selectedAccountId = useSelectedAccountId()
+  const contentRef = useRef<HMBlockNode[]>(comment.content)
+
+  const handleFileAttachment = useCallback(async (file: File) => {
+    const props = await handleDragMedia(file)
+    if (!props) throw new Error('Failed to handle file')
+    return {displaySrc: props.url}
+  }, [])
+
+  const handleSubmit = useCallback(
+    async (
+      getContent: (
+        prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+          blobs: {cid: string; data: Uint8Array}[]
+          resultCIDs: string[]
+        }>,
+      ) => Promise<{blockNodes: HMBlockNode[]; blobs: {cid: string; data: Uint8Array}[]}>,
+      reset: () => void,
+    ) => {
+      const {blockNodes} = await getContent(async (binaries) => ({blobs: [], resultCIDs: []}))
+      onSave(blockNodes)
+    },
+    [onSave],
+  )
+
+  return (
+    <div className="flex flex-col gap-2">
+      <CommentEditor
+        autoFocus
+        isReplying={false}
+        handleSubmit={handleSubmit}
+        initialBlocks={comment.content}
+        handleFileAttachment={handleFileAttachment}
+        account={account ? {id: account.id, metadata: account.document?.metadata} : undefined}
+        perspectiveAccountUid={selectedAccountId}
+        submitButton={({getContent, reset}) => (
+          <>
+            <Button variant="ghost" size="icon" onClick={onCancel} disabled={isSaving}>
+              <X className="size-4" />
+            </Button>
+            <Tooltip content="Save edit">
+              <Button
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleSubmit(getContent, reset)
+                }}
+                disabled={isSaving}
+              >
+                <Check className="size-4" />
+              </Button>
+            </Tooltip>
+          </>
+        )}
+      />
+    </div>
+  )
+}

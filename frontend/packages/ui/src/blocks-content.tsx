@@ -1644,6 +1644,10 @@ export function BlockEmbedContent({
     return <ErrorBlock message="Could not load embed" />
   }
   if (comment) {
+    // Detect stale version for version-pinned comment embeds
+    const latestComment = latestCheck.data?.type === 'comment' ? latestCheck.data.comment : undefined
+    const isStaleCommentVersion = !!(latestComment && comment.version !== latestComment.version)
+
     const commentContent = (
       <BlockEmbedContentComment
         parentBlockId={parentBlockId}
@@ -1655,10 +1659,11 @@ export function BlockEmbedContent({
         targetResource={commentTargetResource.data ?? undefined}
         author={author.data?.type === 'document' || author.data?.type === 'comment' ? author.data : undefined}
         openOnClick={openOnClick}
+        isStaleVersion={isStaleCommentVersion}
       />
     )
     if (isDeleted) {
-      return <DeletedEmbedBanner>{commentContent}</DeletedEmbedBanner>
+      return <DeletedEmbedBanner entityLabel="comment">{commentContent}</DeletedEmbedBanner>
     }
     return commentContent
   }
@@ -1773,8 +1778,8 @@ export function ErrorBlock({
   )
 }
 
-/** Warning banner for embeds whose document has been deleted. Shows a toggle when content is available. */
-function DeletedEmbedBanner({children}: {children?: ReactNode}) {
+/** Warning banner for embeds whose content has been deleted. Shows a toggle when content is available. */
+function DeletedEmbedBanner({children, entityLabel = 'document'}: {children?: ReactNode; entityLabel?: string}) {
   const [showContent, setShowContent] = useState(false)
   const hasContent = !!children
   return (
@@ -1782,7 +1787,7 @@ function DeletedEmbedBanner({children}: {children?: ReactNode}) {
       <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-100 p-2 dark:border-amber-600 dark:bg-amber-900/30">
         <AlertCircle className="size-3 shrink-0 text-amber-600 dark:text-amber-400" />
         <SizableText className="flex-1 text-sm text-amber-800 dark:text-amber-200">
-          This embedded document has been deleted
+          This embedded {entityLabel} has been deleted
         </SizableText>
         {hasContent ? (
           <Button
@@ -1802,6 +1807,7 @@ function DeletedEmbedBanner({children}: {children?: ReactNode}) {
   )
 }
 
+/** Info banner for version-pinned comment embeds whose content has changed since embedding. */
 export function BlockEmbedContentComment({
   id,
   parentBlockId,
@@ -1811,6 +1817,7 @@ export function BlockEmbedContentComment({
   block,
   targetResource,
   openOnClick = true,
+  isStaleVersion = false,
 }: {
   id: UnpackedHypermediaId
   parentBlockId: string | null
@@ -1821,6 +1828,7 @@ export function BlockEmbedContentComment({
   author: HMResolvedResource | null | undefined
   targetResource: HMResource | undefined
   openOnClick?: boolean
+  isStaleVersion?: boolean
 }) {
   return (
     <EmbedWrapper
@@ -1839,7 +1847,14 @@ export function BlockEmbedContentComment({
         },
       }}
     >
-      {author && <CommentEmbedHeader comment={comment} author={author} targetResource={targetResource} />}
+      {author && (
+        <CommentEmbedHeader
+          comment={comment}
+          author={author}
+          targetResource={targetResource}
+          isStaleVersion={isStaleVersion}
+        />
+      )}
       <CommentContent comment={comment} zoomBlockRef={id.blockRef} allowHighlight={false} openOnClick={openOnClick} />
     </EmbedWrapper>
   )
@@ -1849,28 +1864,47 @@ function CommentEmbedHeader({
   comment,
   author,
   targetResource,
+  isStaleVersion = false,
 }: {
   comment: HMComment
   author: HMResolvedResource
   targetResource: HMResource | undefined
+  isStaleVersion?: boolean
 }) {
   const authorMetadata = author.type === 'document' ? author.document?.metadata : undefined
   return (
-    <div className="flex flex-wrap justify-between p-3">
-      <div className="flex items-center gap-2">
-        {author.id && <HMIcon size={24} id={author.id} name={authorMetadata?.name} icon={authorMetadata?.icon} />}
-        <SizableText weight="bold">{authorMetadata?.name || '?'}</SizableText>
-        {targetResource && targetResource.type === 'document' ? (
-          <>
-            {' on '}
-            <DocumentNameLink metadata={targetResource.document?.metadata} id={targetResource.id} />
-          </>
-        ) : null}
+    <div className="flex flex-col">
+      <div className="flex flex-wrap justify-between p-3">
+        <div className="flex items-center gap-2">
+          {author.id && <HMIcon size={24} id={author.id} name={authorMetadata?.name} icon={authorMetadata?.icon} />}
+          <SizableText weight="bold">{authorMetadata?.name || '?'}</SizableText>
+          {targetResource && targetResource.type === 'document' ? (
+            <>
+              {' on '}
+              <DocumentNameLink metadata={targetResource.document?.metadata} id={targetResource.id} />
+            </>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-1.5">
+          {comment.createTime ? (
+            <SizableText size="sm" color="muted">
+              {formattedDateMedium(comment.createTime)}
+            </SizableText>
+          ) : null}
+          {comment.isEdited ? (
+            <SizableText size="xs" className="text-muted-foreground">
+              (edited)
+            </SizableText>
+          ) : null}
+        </div>
       </div>
-      {comment.createTime ? (
-        <SizableText size="sm" color="muted">
-          {formattedDateMedium(comment.createTime)}
-        </SizableText>
+      {isStaleVersion ? (
+        <div className="mx-3 mb-2 flex items-center gap-2 rounded-md border border-blue-300 bg-blue-50 px-2 py-1 dark:border-blue-600 dark:bg-blue-900/30">
+          <AlertCircle className="size-3 shrink-0 text-blue-600 dark:text-blue-400" />
+          <SizableText size="xs" className="text-blue-800 dark:text-blue-200">
+            This is an older version — the comment has been edited since it was embedded
+          </SizableText>
+        </div>
       ) : null}
     </div>
   )

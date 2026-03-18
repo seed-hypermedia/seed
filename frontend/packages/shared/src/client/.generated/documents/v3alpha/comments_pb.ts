@@ -509,6 +509,13 @@ export class Comment extends Message<Comment> {
    */
   visibility = "";
 
+  /**
+   * Whether this comment has been edited (i.e. has multiple versions).
+   *
+   * @generated from field: bool is_edited = 16;
+   */
+  isEdited = false;
+
   constructor(data?: PartialMessage<Comment>) {
     super();
     proto3.util.initPartial(data, this);
@@ -532,6 +539,7 @@ export class Comment extends Message<Comment> {
     { no: 11, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 14, name: "update_time", kind: "message", T: Timestamp },
     { no: 15, name: "visibility", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 16, name: "is_edited", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Comment {
@@ -731,6 +739,88 @@ export class GetCommentReplyCountResponse extends Message<GetCommentReplyCountRe
 
   static equals(a: GetCommentReplyCountResponse | PlainMessage<GetCommentReplyCountResponse> | undefined, b: GetCommentReplyCountResponse | PlainMessage<GetCommentReplyCountResponse> | undefined): boolean {
     return proto3.util.equals(GetCommentReplyCountResponse, a, b);
+  }
+}
+
+/**
+ * Request to list all versions of a comment.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListCommentVersionsRequest
+ */
+export class ListCommentVersionsRequest extends Message<ListCommentVersionsRequest> {
+  /**
+   * Required. ID of the comment (record ID format: `{publicKey}/{tsid}`).
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  constructor(data?: PartialMessage<ListCommentVersionsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListCommentVersionsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListCommentVersionsRequest {
+    return new ListCommentVersionsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListCommentVersionsRequest {
+    return new ListCommentVersionsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListCommentVersionsRequest {
+    return new ListCommentVersionsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListCommentVersionsRequest | PlainMessage<ListCommentVersionsRequest> | undefined, b: ListCommentVersionsRequest | PlainMessage<ListCommentVersionsRequest> | undefined): boolean {
+    return proto3.util.equals(ListCommentVersionsRequest, a, b);
+  }
+}
+
+/**
+ * Response with a list of comment versions.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListCommentVersionsResponse
+ */
+export class ListCommentVersionsResponse extends Message<ListCommentVersionsResponse> {
+  /**
+   * All versions of the comment, ordered newest first.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.Comment versions = 1;
+   */
+  versions: Comment[] = [];
+
+  constructor(data?: PartialMessage<ListCommentVersionsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListCommentVersionsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "versions", kind: "message", T: Comment, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListCommentVersionsResponse {
+    return new ListCommentVersionsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListCommentVersionsResponse {
+    return new ListCommentVersionsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListCommentVersionsResponse {
+    return new ListCommentVersionsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListCommentVersionsResponse | PlainMessage<ListCommentVersionsResponse> | undefined, b: ListCommentVersionsResponse | PlainMessage<ListCommentVersionsResponse> | undefined): boolean {
+    return proto3.util.equals(ListCommentVersionsResponse, a, b);
   }
 }
 

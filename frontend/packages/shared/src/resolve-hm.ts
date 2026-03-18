@@ -53,9 +53,10 @@ export async function resolveHypermediaUrl(url: string) {
     const type = response.headers.get('x-hypermedia-type')
     if (id) {
       const hmId = unpackHmId(id)
-      // When blockRef is present, ensure version is included in hmId
-      // so it gets packed correctly when creating links
-      const resolvedVersion = blockRef ? version ?? hmId?.version ?? null : hmId?.version ?? null
+      // Include version from server response or parsed HM ID.
+      // This ensures version-pinned links (e.g. comment embeds with ?v=CID)
+      // preserve the version when creating embed blocks.
+      const resolvedVersion = version ?? hmId?.version ?? null
       // Preserve the site hostname from the input URL.
       // If the URL is NOT a gateway URL (no /hm/ prefix), the host is the siteURL.
       let siteHostname: string | null = null

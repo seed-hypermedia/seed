@@ -493,7 +493,9 @@ type Comment struct {
 	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
 	// Visibility of the comment, inherited from the target document at creation time.
 	// Empty string means public visibility.
-	Visibility    string `protobuf:"bytes,15,opt,name=visibility,proto3" json:"visibility,omitempty"`
+	Visibility string `protobuf:"bytes,15,opt,name=visibility,proto3" json:"visibility,omitempty"`
+	// Whether this comment has been edited (i.e. has multiple versions).
+	IsEdited      bool `protobuf:"varint,16,opt,name=is_edited,json=isEdited,proto3" json:"is_edited,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -631,6 +633,13 @@ func (x *Comment) GetVisibility() string {
 		return x.Visibility
 	}
 	return ""
+}
+
+func (x *Comment) GetIsEdited() bool {
+	if x != nil {
+		return x.IsEdited
+	}
+	return false
 }
 
 // Request to update a comment.
@@ -838,6 +847,98 @@ func (x *GetCommentReplyCountResponse) GetReplyCount() int64 {
 	return 0
 }
 
+// Request to list all versions of a comment.
+type ListCommentVersionsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Required. ID of the comment (record ID format: `{publicKey}/{tsid}`).
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCommentVersionsRequest) Reset() {
+	*x = ListCommentVersionsRequest{}
+	mi := &file_documents_v3alpha_comments_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCommentVersionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCommentVersionsRequest) ProtoMessage() {}
+
+func (x *ListCommentVersionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_documents_v3alpha_comments_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCommentVersionsRequest.ProtoReflect.Descriptor instead.
+func (*ListCommentVersionsRequest) Descriptor() ([]byte, []int) {
+	return file_documents_v3alpha_comments_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ListCommentVersionsRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+// Response with a list of comment versions.
+type ListCommentVersionsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// All versions of the comment, ordered newest first.
+	Versions      []*Comment `protobuf:"bytes,1,rep,name=versions,proto3" json:"versions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCommentVersionsResponse) Reset() {
+	*x = ListCommentVersionsResponse{}
+	mi := &file_documents_v3alpha_comments_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCommentVersionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCommentVersionsResponse) ProtoMessage() {}
+
+func (x *ListCommentVersionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_documents_v3alpha_comments_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCommentVersionsResponse.ProtoReflect.Descriptor instead.
+func (*ListCommentVersionsResponse) Descriptor() ([]byte, []int) {
+	return file_documents_v3alpha_comments_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ListCommentVersionsResponse) GetVersions() []*Comment {
+	if x != nil {
+		return x.Versions
+	}
+	return nil
+}
+
 var File_documents_v3alpha_comments_proto protoreflect.FileDescriptor
 
 const file_documents_v3alpha_comments_proto_rawDesc = "" +
@@ -874,7 +975,7 @@ const file_documents_v3alpha_comments_proto_rawDesc = "" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\"\x7f\n" +
 	"\x14ListCommentsResponse\x12?\n" +
 	"\bcomments\x18\x01 \x03(\v2#.com.seed.documents.v3alpha.CommentR\bcomments\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xdb\x04\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xf8\x04\n" +
 	"\aComment\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12%\n" +
 	"\x0etarget_account\x18\x02 \x01(\tR\rtargetAccount\x12\x1f\n" +
@@ -899,7 +1000,8 @@ const file_documents_v3alpha_comments_proto_rawDesc = "" +
 	"updateTime\x12\x1e\n" +
 	"\n" +
 	"visibility\x18\x0f \x01(\tR\n" +
-	"visibility\"\x7f\n" +
+	"visibility\x12\x1b\n" +
+	"\tis_edited\x18\x10 \x01(\bR\bisEdited\"\x7f\n" +
 	"\x14UpdateCommentRequest\x12=\n" +
 	"\acomment\x18\x01 \x01(\v2#.com.seed.documents.v3alpha.CommentR\acomment\x12(\n" +
 	"\x10signing_key_name\x18\x02 \x01(\tR\x0esigningKeyName\"P\n" +
@@ -910,7 +1012,11 @@ const file_documents_v3alpha_comments_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"?\n" +
 	"\x1cGetCommentReplyCountResponse\x12\x1f\n" +
 	"\vreply_count\x18\x01 \x01(\x03R\n" +
-	"replyCount2\x99\a\n" +
+	"replyCount\",\n" +
+	"\x1aListCommentVersionsRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"^\n" +
+	"\x1bListCommentVersionsResponse\x12?\n" +
+	"\bversions\x18\x01 \x03(\v2#.com.seed.documents.v3alpha.CommentR\bversions2\xa2\b\n" +
 	"\bComments\x12f\n" +
 	"\rCreateComment\x120.com.seed.documents.v3alpha.CreateCommentRequest\x1a#.com.seed.documents.v3alpha.Comment\x12`\n" +
 	"\n" +
@@ -920,7 +1026,8 @@ const file_documents_v3alpha_comments_proto_rawDesc = "" +
 	"\x14ListCommentsByAuthor\x127.com.seed.documents.v3alpha.ListCommentsByAuthorRequest\x1a0.com.seed.documents.v3alpha.ListCommentsResponse\x12f\n" +
 	"\rUpdateComment\x120.com.seed.documents.v3alpha.UpdateCommentRequest\x1a#.com.seed.documents.v3alpha.Comment\x12Y\n" +
 	"\rDeleteComment\x120.com.seed.documents.v3alpha.DeleteCommentRequest\x1a\x16.google.protobuf.Empty\x12\x89\x01\n" +
-	"\x14GetCommentReplyCount\x127.com.seed.documents.v3alpha.GetCommentReplyCountRequest\x1a8.com.seed.documents.v3alpha.GetCommentReplyCountResponseB3Z1seed/backend/genproto/documents/v3alpha;documentsb\x06proto3"
+	"\x14GetCommentReplyCount\x127.com.seed.documents.v3alpha.GetCommentReplyCountRequest\x1a8.com.seed.documents.v3alpha.GetCommentReplyCountResponse\x12\x86\x01\n" +
+	"\x13ListCommentVersions\x126.com.seed.documents.v3alpha.ListCommentVersionsRequest\x1a7.com.seed.documents.v3alpha.ListCommentVersionsResponseB3Z1seed/backend/genproto/documents/v3alpha;documentsb\x06proto3"
 
 var (
 	file_documents_v3alpha_comments_proto_rawDescOnce sync.Once
@@ -934,7 +1041,7 @@ func file_documents_v3alpha_comments_proto_rawDescGZIP() []byte {
 	return file_documents_v3alpha_comments_proto_rawDescData
 }
 
-var file_documents_v3alpha_comments_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_documents_v3alpha_comments_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_documents_v3alpha_comments_proto_goTypes = []any{
 	(*CreateCommentRequest)(nil),         // 0: com.seed.documents.v3alpha.CreateCommentRequest
 	(*GetCommentRequest)(nil),            // 1: com.seed.documents.v3alpha.GetCommentRequest
@@ -948,39 +1055,44 @@ var file_documents_v3alpha_comments_proto_goTypes = []any{
 	(*DeleteCommentRequest)(nil),         // 9: com.seed.documents.v3alpha.DeleteCommentRequest
 	(*GetCommentReplyCountRequest)(nil),  // 10: com.seed.documents.v3alpha.GetCommentReplyCountRequest
 	(*GetCommentReplyCountResponse)(nil), // 11: com.seed.documents.v3alpha.GetCommentReplyCountResponse
-	(*BlockNode)(nil),                    // 12: com.seed.documents.v3alpha.BlockNode
-	(*timestamppb.Timestamp)(nil),        // 13: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                // 14: google.protobuf.Empty
+	(*ListCommentVersionsRequest)(nil),   // 12: com.seed.documents.v3alpha.ListCommentVersionsRequest
+	(*ListCommentVersionsResponse)(nil),  // 13: com.seed.documents.v3alpha.ListCommentVersionsResponse
+	(*BlockNode)(nil),                    // 14: com.seed.documents.v3alpha.BlockNode
+	(*timestamppb.Timestamp)(nil),        // 15: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                // 16: google.protobuf.Empty
 }
 var file_documents_v3alpha_comments_proto_depIdxs = []int32{
-	12, // 0: com.seed.documents.v3alpha.CreateCommentRequest.content:type_name -> com.seed.documents.v3alpha.BlockNode
+	14, // 0: com.seed.documents.v3alpha.CreateCommentRequest.content:type_name -> com.seed.documents.v3alpha.BlockNode
 	7,  // 1: com.seed.documents.v3alpha.BatchGetCommentsResponse.comments:type_name -> com.seed.documents.v3alpha.Comment
 	7,  // 2: com.seed.documents.v3alpha.ListCommentsResponse.comments:type_name -> com.seed.documents.v3alpha.Comment
-	12, // 3: com.seed.documents.v3alpha.Comment.content:type_name -> com.seed.documents.v3alpha.BlockNode
-	13, // 4: com.seed.documents.v3alpha.Comment.create_time:type_name -> google.protobuf.Timestamp
-	13, // 5: com.seed.documents.v3alpha.Comment.update_time:type_name -> google.protobuf.Timestamp
+	14, // 3: com.seed.documents.v3alpha.Comment.content:type_name -> com.seed.documents.v3alpha.BlockNode
+	15, // 4: com.seed.documents.v3alpha.Comment.create_time:type_name -> google.protobuf.Timestamp
+	15, // 5: com.seed.documents.v3alpha.Comment.update_time:type_name -> google.protobuf.Timestamp
 	7,  // 6: com.seed.documents.v3alpha.UpdateCommentRequest.comment:type_name -> com.seed.documents.v3alpha.Comment
-	0,  // 7: com.seed.documents.v3alpha.Comments.CreateComment:input_type -> com.seed.documents.v3alpha.CreateCommentRequest
-	1,  // 8: com.seed.documents.v3alpha.Comments.GetComment:input_type -> com.seed.documents.v3alpha.GetCommentRequest
-	2,  // 9: com.seed.documents.v3alpha.Comments.BatchGetComments:input_type -> com.seed.documents.v3alpha.BatchGetCommentsRequest
-	4,  // 10: com.seed.documents.v3alpha.Comments.ListComments:input_type -> com.seed.documents.v3alpha.ListCommentsRequest
-	5,  // 11: com.seed.documents.v3alpha.Comments.ListCommentsByAuthor:input_type -> com.seed.documents.v3alpha.ListCommentsByAuthorRequest
-	8,  // 12: com.seed.documents.v3alpha.Comments.UpdateComment:input_type -> com.seed.documents.v3alpha.UpdateCommentRequest
-	9,  // 13: com.seed.documents.v3alpha.Comments.DeleteComment:input_type -> com.seed.documents.v3alpha.DeleteCommentRequest
-	10, // 14: com.seed.documents.v3alpha.Comments.GetCommentReplyCount:input_type -> com.seed.documents.v3alpha.GetCommentReplyCountRequest
-	7,  // 15: com.seed.documents.v3alpha.Comments.CreateComment:output_type -> com.seed.documents.v3alpha.Comment
-	7,  // 16: com.seed.documents.v3alpha.Comments.GetComment:output_type -> com.seed.documents.v3alpha.Comment
-	3,  // 17: com.seed.documents.v3alpha.Comments.BatchGetComments:output_type -> com.seed.documents.v3alpha.BatchGetCommentsResponse
-	6,  // 18: com.seed.documents.v3alpha.Comments.ListComments:output_type -> com.seed.documents.v3alpha.ListCommentsResponse
-	6,  // 19: com.seed.documents.v3alpha.Comments.ListCommentsByAuthor:output_type -> com.seed.documents.v3alpha.ListCommentsResponse
-	7,  // 20: com.seed.documents.v3alpha.Comments.UpdateComment:output_type -> com.seed.documents.v3alpha.Comment
-	14, // 21: com.seed.documents.v3alpha.Comments.DeleteComment:output_type -> google.protobuf.Empty
-	11, // 22: com.seed.documents.v3alpha.Comments.GetCommentReplyCount:output_type -> com.seed.documents.v3alpha.GetCommentReplyCountResponse
-	15, // [15:23] is the sub-list for method output_type
-	7,  // [7:15] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	7,  // 7: com.seed.documents.v3alpha.ListCommentVersionsResponse.versions:type_name -> com.seed.documents.v3alpha.Comment
+	0,  // 8: com.seed.documents.v3alpha.Comments.CreateComment:input_type -> com.seed.documents.v3alpha.CreateCommentRequest
+	1,  // 9: com.seed.documents.v3alpha.Comments.GetComment:input_type -> com.seed.documents.v3alpha.GetCommentRequest
+	2,  // 10: com.seed.documents.v3alpha.Comments.BatchGetComments:input_type -> com.seed.documents.v3alpha.BatchGetCommentsRequest
+	4,  // 11: com.seed.documents.v3alpha.Comments.ListComments:input_type -> com.seed.documents.v3alpha.ListCommentsRequest
+	5,  // 12: com.seed.documents.v3alpha.Comments.ListCommentsByAuthor:input_type -> com.seed.documents.v3alpha.ListCommentsByAuthorRequest
+	8,  // 13: com.seed.documents.v3alpha.Comments.UpdateComment:input_type -> com.seed.documents.v3alpha.UpdateCommentRequest
+	9,  // 14: com.seed.documents.v3alpha.Comments.DeleteComment:input_type -> com.seed.documents.v3alpha.DeleteCommentRequest
+	10, // 15: com.seed.documents.v3alpha.Comments.GetCommentReplyCount:input_type -> com.seed.documents.v3alpha.GetCommentReplyCountRequest
+	12, // 16: com.seed.documents.v3alpha.Comments.ListCommentVersions:input_type -> com.seed.documents.v3alpha.ListCommentVersionsRequest
+	7,  // 17: com.seed.documents.v3alpha.Comments.CreateComment:output_type -> com.seed.documents.v3alpha.Comment
+	7,  // 18: com.seed.documents.v3alpha.Comments.GetComment:output_type -> com.seed.documents.v3alpha.Comment
+	3,  // 19: com.seed.documents.v3alpha.Comments.BatchGetComments:output_type -> com.seed.documents.v3alpha.BatchGetCommentsResponse
+	6,  // 20: com.seed.documents.v3alpha.Comments.ListComments:output_type -> com.seed.documents.v3alpha.ListCommentsResponse
+	6,  // 21: com.seed.documents.v3alpha.Comments.ListCommentsByAuthor:output_type -> com.seed.documents.v3alpha.ListCommentsResponse
+	7,  // 22: com.seed.documents.v3alpha.Comments.UpdateComment:output_type -> com.seed.documents.v3alpha.Comment
+	16, // 23: com.seed.documents.v3alpha.Comments.DeleteComment:output_type -> google.protobuf.Empty
+	11, // 24: com.seed.documents.v3alpha.Comments.GetCommentReplyCount:output_type -> com.seed.documents.v3alpha.GetCommentReplyCountResponse
+	13, // 25: com.seed.documents.v3alpha.Comments.ListCommentVersions:output_type -> com.seed.documents.v3alpha.ListCommentVersionsResponse
+	17, // [17:26] is the sub-list for method output_type
+	8,  // [8:17] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_documents_v3alpha_comments_proto_init() }
@@ -995,7 +1107,7 @@ func file_documents_v3alpha_comments_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_documents_v3alpha_comments_proto_rawDesc), len(file_documents_v3alpha_comments_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

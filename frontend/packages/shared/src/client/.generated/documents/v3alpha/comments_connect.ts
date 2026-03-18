@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { BatchGetCommentsRequest, BatchGetCommentsResponse, Comment, CreateCommentRequest, DeleteCommentRequest, GetCommentReplyCountRequest, GetCommentReplyCountResponse, GetCommentRequest, ListCommentsByAuthorRequest, ListCommentsRequest, ListCommentsResponse, UpdateCommentRequest } from "./comments_pb";
+import { BatchGetCommentsRequest, BatchGetCommentsResponse, Comment, CreateCommentRequest, DeleteCommentRequest, GetCommentReplyCountRequest, GetCommentReplyCountResponse, GetCommentRequest, ListCommentsByAuthorRequest, ListCommentsRequest, ListCommentsResponse, ListCommentVersionsRequest, ListCommentVersionsResponse, UpdateCommentRequest } from "./comments_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -100,6 +100,17 @@ export const Comments = {
       name: "GetCommentReplyCount",
       I: GetCommentReplyCountRequest,
       O: GetCommentReplyCountResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Lists all versions of a comment (edit history).
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Comments.ListCommentVersions
+     */
+    listCommentVersions: {
+      name: "ListCommentVersions",
+      I: ListCommentVersionsRequest,
+      O: ListCommentVersionsResponse,
       kind: MethodKind.Unary,
     },
   }

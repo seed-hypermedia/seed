@@ -1,10 +1,11 @@
 import {useCreateAccount} from '@/auth'
 import {useNavigate} from '@remix-run/react'
 import {createComment} from '@seed-hypermedia/client'
-import {HMBlockNode, HMPublishBlobsOutput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMBlockNode, HMComment, HMPublishBlobsOutput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {CommentEditor} from '@shm/editor/comment-editor'
 import {idToUrl, queryKeys, unpackHmId, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {useCommentsService} from '@shm/shared/comments-service-provider'
+import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -18,8 +19,8 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {useMutation} from '@tanstack/react-query'
 import {filesToIpfsBlobs} from '@seed-hypermedia/client'
-import {SendHorizontal} from 'lucide-react'
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {Check, SendHorizontal, X} from 'lucide-react'
+import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useCommentDraftPersistence} from './comment-draft-utils'
 import {EmailNotificationsForm} from './email-notifications'
 import {hasPromptedEmailNotifications, setHasPromptedEmailNotifications, setPendingIntent} from './local-db'
@@ -580,4 +581,61 @@ function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
     )
   }
   return null
+}
+
+/** Renders an inline editor for editing a comment on the web. */
+export function renderWebInlineEditor({comment, onSave, onCancel, isSaving}: InlineEditCommentProps): ReactNode {
+  return <WebInlineEditBox comment={comment} onSave={onSave} onCancel={onCancel} isSaving={isSaving} />
+}
+
+/** Inline comment editor for the web platform. */
+export function WebInlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentProps) {
+  const myAccount = useAccount(undefined)
+
+  const handleSubmit = useCallback(
+    async (
+      getContent: (
+        prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+          blobs: {cid: string; data: Uint8Array}[]
+          resultCIDs: string[]
+        }>,
+      ) => Promise<{blockNodes: HMBlockNode[]; blobs: {cid: string; data: Uint8Array}[]}>,
+      reset: () => void,
+    ) => {
+      const {blockNodes} = await getContent(async (binaries) => ({blobs: [], resultCIDs: []}))
+      onSave(blockNodes)
+    },
+    [onSave],
+  )
+
+  return (
+    <div className="flex flex-col gap-2">
+      <CommentEditor
+        autoFocus
+        isReplying={false}
+        handleSubmit={handleSubmit}
+        initialBlocks={comment.content}
+        account={myAccount.data}
+        submitButton={({getContent, reset}) => (
+          <>
+            <Button variant="ghost" size="icon" onClick={onCancel} disabled={isSaving}>
+              <X className="size-4" />
+            </Button>
+            <Tooltip content="Save edit">
+              <Button
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleSubmit(getContent, reset)
+                }}
+                disabled={isSaving}
+              >
+                <Check className="size-4" />
+              </Button>
+            </Tooltip>
+          </>
+        )}
+      />
+    </div>
+  )
 }

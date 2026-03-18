@@ -28,6 +28,7 @@ const (
 	Comments_UpdateComment_FullMethodName        = "/com.seed.documents.v3alpha.Comments/UpdateComment"
 	Comments_DeleteComment_FullMethodName        = "/com.seed.documents.v3alpha.Comments/DeleteComment"
 	Comments_GetCommentReplyCount_FullMethodName = "/com.seed.documents.v3alpha.Comments/GetCommentReplyCount"
+	Comments_ListCommentVersions_FullMethodName  = "/com.seed.documents.v3alpha.Comments/ListCommentVersions"
 )
 
 // CommentsClient is the client API for Comments service.
@@ -52,6 +53,8 @@ type CommentsClient interface {
 	DeleteComment(ctx context.Context, in *DeleteCommentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Gets a single comment by ID.
 	GetCommentReplyCount(ctx context.Context, in *GetCommentReplyCountRequest, opts ...grpc.CallOption) (*GetCommentReplyCountResponse, error)
+	// Lists all versions of a comment (edit history).
+	ListCommentVersions(ctx context.Context, in *ListCommentVersionsRequest, opts ...grpc.CallOption) (*ListCommentVersionsResponse, error)
 }
 
 type commentsClient struct {
@@ -142,6 +145,16 @@ func (c *commentsClient) GetCommentReplyCount(ctx context.Context, in *GetCommen
 	return out, nil
 }
 
+func (c *commentsClient) ListCommentVersions(ctx context.Context, in *ListCommentVersionsRequest, opts ...grpc.CallOption) (*ListCommentVersionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCommentVersionsResponse)
+	err := c.cc.Invoke(ctx, Comments_ListCommentVersions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CommentsServer is the server API for Comments service.
 // All implementations should embed UnimplementedCommentsServer
 // for forward compatibility.
@@ -164,6 +177,8 @@ type CommentsServer interface {
 	DeleteComment(context.Context, *DeleteCommentRequest) (*emptypb.Empty, error)
 	// Gets a single comment by ID.
 	GetCommentReplyCount(context.Context, *GetCommentReplyCountRequest) (*GetCommentReplyCountResponse, error)
+	// Lists all versions of a comment (edit history).
+	ListCommentVersions(context.Context, *ListCommentVersionsRequest) (*ListCommentVersionsResponse, error)
 }
 
 // UnimplementedCommentsServer should be embedded to have
@@ -196,6 +211,9 @@ func (UnimplementedCommentsServer) DeleteComment(context.Context, *DeleteComment
 }
 func (UnimplementedCommentsServer) GetCommentReplyCount(context.Context, *GetCommentReplyCountRequest) (*GetCommentReplyCountResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetCommentReplyCount not implemented")
+}
+func (UnimplementedCommentsServer) ListCommentVersions(context.Context, *ListCommentVersionsRequest) (*ListCommentVersionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListCommentVersions not implemented")
 }
 func (UnimplementedCommentsServer) testEmbeddedByValue() {}
 
@@ -361,6 +379,24 @@ func _Comments_GetCommentReplyCount_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Comments_ListCommentVersions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCommentVersionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommentsServer).ListCommentVersions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Comments_ListCommentVersions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommentsServer).ListCommentVersions(ctx, req.(*ListCommentVersionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Comments_ServiceDesc is the grpc.ServiceDesc for Comments service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -399,6 +435,10 @@ var Comments_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetCommentReplyCount",
 			Handler:    _Comments_GetCommentReplyCount_Handler,
+		},
+		{
+			MethodName: "ListCommentVersions",
+			Handler:    _Comments_ListCommentVersions_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
