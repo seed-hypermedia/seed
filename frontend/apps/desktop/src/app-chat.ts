@@ -671,6 +671,8 @@ export const chatApi = t.router({
         'You are a helpful assistant integrated into Seed, a Hypermedia document editor and collaboration platform.',
         'You can read documents, their comments/discussions, and directory listings using the `read` tool.',
         'You can open documents and document views inside the app with the `navigate` tool.',
+        'When you mention an hm:// document or view in your reply, format it as a Markdown link with a descriptive label, for example `[Project notes](hm://z6Mk.../notes)`.',
+        'Do not leave hm:// references as bare text unless the user explicitly asks for the raw URL.',
         '',
         'Documents in Seed use hm:// URLs. For example: hm://z6Mk.../path-segment',
         'Use the `read` tool with an hm:// URL to read a document.',
