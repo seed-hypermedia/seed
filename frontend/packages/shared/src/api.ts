@@ -7,7 +7,13 @@ import {ListCapabilities, ListCapabilitiesParams} from './api-capabilities'
 import {ListChanges, ListChangesParams} from './api-changes'
 import {ListCitations, ListCitationsParams} from './api-citations'
 import {Comment} from './api-comment'
-import {GetCommentReplyCount, ListComments, ListCommentsByReference, ListCommentVersions, ListDiscussions} from './api-comments'
+import {
+  GetCommentReplyCount,
+  ListComments,
+  ListCommentsByReference,
+  ListCommentVersions,
+  ListDiscussions,
+} from './api-comments'
 import {GetCID} from './api-get-cid'
 import {InteractionSummary} from './api-interaction-summary'
 import {ListAccounts} from './api-list-accounts'

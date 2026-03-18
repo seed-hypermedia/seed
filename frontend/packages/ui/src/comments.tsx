@@ -1007,13 +1007,7 @@ function EditedIndicator({
 }
 
 /** Popover list of comment versions. Clicking a past version triggers onSelect. */
-function CommentVersionList({
-  commentId,
-  onSelect,
-}: {
-  commentId: string
-  onSelect: (version: HMComment) => void
-}) {
+function CommentVersionList({commentId, onSelect}: {commentId: string; onSelect: (version: HMComment) => void}) {
   const {data, isLoading, error} = useCommentVersions(commentId)
 
   if (isLoading) {
@@ -1055,7 +1049,7 @@ function CommentVersionList({
               >
                 <div className="flex items-center gap-2">
                   <SizableText size="xs">Version {versionNumber}</SizableText>
-                  <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-[10px] font-medium leading-none">
+                  <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-[10px] leading-none font-medium">
                     current
                   </span>
                 </div>
@@ -1111,7 +1105,7 @@ function VersionPreview({version, onDismiss}: {version: HMComment; onDismiss: ()
         <Button
           variant="ghost"
           size="icon"
-          className="text-yellow-800 hover:bg-yellow-200 dark:text-yellow-200 dark:hover:bg-yellow-900 size-6"
+          className="size-6 text-yellow-800 hover:bg-yellow-200 dark:text-yellow-200 dark:hover:bg-yellow-900"
           onClick={onDismiss}
         >
           <X className="size-3.5" />

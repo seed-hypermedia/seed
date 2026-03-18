@@ -438,10 +438,7 @@ export type UpdateCommentInput = {
 }
 
 /** Creates a signed update blob for an existing comment. */
-export async function updateComment(
-  input: UpdateCommentInput,
-  signer: HMSigner,
-): Promise<HMPublishBlobsInput> {
+export async function updateComment(input: UpdateCommentInput, signer: HMSigner): Promise<HMPublishBlobsInput> {
   // Extract TSID from comment ID (format: "authority/tsid")
   const parts = input.commentId.split('/')
   const tsid = parts[1]

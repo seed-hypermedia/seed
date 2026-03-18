@@ -1,6 +1,10 @@
 import {HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useUniversalAppContext} from '@shm/shared'
-import {CommentsProvider, InlineEditCommentProps, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
+import {
+  CommentsProvider,
+  InlineEditCommentProps,
+  isRouteEqualToCommentTarget,
+} from '@shm/shared/comments-service-provider'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
@@ -15,9 +19,7 @@ import {processPendingIntent} from './pending-intent'
 import {WebAccountFooter} from './web-utils'
 
 /** Lazy-loaded inline comment editor — avoids pulling the full editor bundle eagerly. */
-const LazyWebInlineEditor = lazy(() =>
-  import('./commenting').then((mod) => ({default: mod.WebInlineEditBox})),
-)
+const LazyWebInlineEditor = lazy(() => import('./commenting').then((mod) => ({default: mod.WebInlineEditBox})))
 
 /** Renders the inline editor for web comment editing, lazy-loaded. */
 function renderWebInlineEditor(props: InlineEditCommentProps) {
@@ -169,7 +171,11 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
   return (
     <WebAccountFooter liftForPageFooter={true} siteUid={docId.uid}>
       {showBanner && <HypermediaHostBanner origin={origin} />}
-      <CommentsProvider onReplyClick={onReplyClick} onReplyCountClick={onReplyCountClick} renderInlineEditor={renderWebInlineEditor}>
+      <CommentsProvider
+        onReplyClick={onReplyClick}
+        onReplyCountClick={onReplyCountClick}
+        renderInlineEditor={renderWebInlineEditor}
+      >
         <ResourcePage
           docId={docId}
           CommentEditor={CommentEditor}

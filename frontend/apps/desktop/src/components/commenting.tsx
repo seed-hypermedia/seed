@@ -348,18 +348,11 @@ const focusSubscribers = new Map<string, Set<() => void>>()
 
 /** Renders a CommentEditor pre-filled with the comment's content for inline editing. */
 export function renderDesktopInlineEditor({comment, onSave, onCancel, isSaving}: InlineEditCommentProps): ReactNode {
-  return (
-    <InlineEditBox comment={comment} onSave={onSave} onCancel={onCancel} isSaving={isSaving} />
-  )
+  return <InlineEditBox comment={comment} onSave={onSave} onCancel={onCancel} isSaving={isSaving} />
 }
 
 /** Inline comment editor used when editing an existing comment in-place. */
-function InlineEditBox({
-  comment,
-  onSave,
-  onCancel,
-  isSaving,
-}: InlineEditCommentProps) {
+function InlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentProps) {
   const account = useSelectedAccount()
   const selectedAccountId = useSelectedAccountId()
   const contentRef = useRef<HMBlockNode[]>(comment.content)

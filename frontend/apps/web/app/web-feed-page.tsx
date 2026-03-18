@@ -5,9 +5,7 @@ import {FeedPage} from '@shm/ui/feed-page-common'
 import {lazy, Suspense} from 'react'
 import {WebAccountFooter, useWebMenuItems} from './web-utils'
 
-const LazyWebInlineEditor = lazy(() =>
-  import('./commenting').then((mod) => ({default: mod.WebInlineEditBox})),
-)
+const LazyWebInlineEditor = lazy(() => import('./commenting').then((mod) => ({default: mod.WebInlineEditBox})))
 
 function renderWebInlineEditor(props: InlineEditCommentProps) {
   return (
