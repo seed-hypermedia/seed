@@ -318,8 +318,7 @@ const SearchInput = ({
           onMouseEnter: () => {},
           onSelect: () => {
             const newText = type === 'link' ? text : title ? item.title : text
-            const packedUrl =
-              type === 'inline-embed' ? packHmId({...item.id, latest: !item.id.blockRef}) : item.id.id
+            const packedUrl = type === 'inline-embed' ? packHmId({...item.id, latest: !item.id.blockRef}) : item.id.id
             setLink(packedUrl)
             setSearch(packedUrl)
             updateLink(packedUrl, newText, true)
