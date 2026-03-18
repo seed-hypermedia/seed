@@ -25,7 +25,7 @@
     "notify:standalone": "concurrently -n \"BACKEND,NOTIFY\" -c \"blue,magenta\" -p \"[{name}]\" \"./dev run-backend -- -http.port=54001 -grpc.port=54002 -p2p.port=54000 -data-dir=$PWD/data/notify-standalone\" \"DATA_DIR=$PWD/data/notify-standalone SEED_BASE_URL=\\\"http://localhost:3061\\\" PORT=3061 DAEMON_HTTP_URL=http://localhost:54001 DAEMON_FILE_URL=http://localhost:54001/ipfs DAEMON_HTTP_PORT=54001 pnpm notify\"",
     "notify:build": "cd frontend/apps/notify && pnpm build",
     "notify:prod": "cd frontend/apps/notify && pnpm start:prod",
-    "desktop": "concurrently -n \"DESKTOP:APP,UI\" -c \"blue,green\" -p \"[{name}]\" \"pnpm --filter @shm/desktop dev\" \"pnpm watch\"",
+    "desktop": "pnpm --filter @shm/desktop dev",
     "types:suppress": "node scripts/suppress-ts-errors.mjs",
     "types:count": "node scripts/count-ts-directives.mjs",
     "types:dashboard": "mkdir -p reports/ts-directives && echo '[]' > reports/ts-directives/existing-data.json && node scripts/count-ts-directives.mjs --output=json --output-file=reports/ts-directives/current.json && node scripts/generate-ts-dashboard.mjs",
