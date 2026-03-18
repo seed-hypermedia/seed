@@ -8,6 +8,7 @@ import {
   useSendChatMessage,
   useSetSessionProvider,
 } from '@/models/chat'
+import {buildLegacyChatMessageParts, type ChatMessagePart, type ChatToolPart} from '@/models/chat-parts'
 import {useNavigate} from '@/utils/useNavigate'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -30,6 +31,7 @@ import {
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {Markdown} from './markdown'
 
+/** Renders the desktop assistant chat panel. */
 export function AssistantPanel({
   initialSessionId,
   onSessionChange,
@@ -79,8 +81,7 @@ function ChatView({
   }
   const session = useChatSession(selectedSessionId)
   const sendMessage = useSendChatMessage()
-  const {streamingText, isStreaming, streamComplete, pendingToolCalls, pendingToolResults, clearStream, stopStream} =
-    useChatStream(selectedSessionId)
+  const {streamParts = [], isStreaming, streamComplete, clearStream, stopStream} = useChatStream(selectedSessionId)
   const [input, setInput] = useState('')
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -131,9 +132,8 @@ function ChatView({
   const scrollingToBottomRef = useRef(false)
 
   const isBusy = isStreaming || streamComplete
-  const showStreamingBlock =
-    isStreaming || (streamComplete && !!(streamingText || pendingToolCalls?.length || pendingToolResults?.length))
-  const showLoadingIndicator = isStreaming && !streamingText && !pendingToolCalls?.length && !pendingToolResults?.length
+  const showStreamingBlock = isStreaming || (streamComplete && streamParts.length > 0)
+  const showLoadingIndicator = isStreaming && streamParts.length === 0
 
   // Auto-select first session
   useEffect(() => {
@@ -190,7 +190,7 @@ function ChatView({
     } else if (isStreaming || messages.length > lastMessageCountRef.current) {
       setShowScrollButton(true)
     }
-  }, [messages.length, streamingText, isNearBottom, isStreaming])
+  }, [messages.length, streamParts, isNearBottom, isStreaming])
 
   const scrollToBottom = useCallback(() => {
     scrollingToBottomRef.current = true
@@ -312,13 +312,7 @@ function ChatView({
         {/* Streaming state — kept visible until persisted message confirmed */}
         {showStreamingBlock && (
           <>
-            {(() => {
-              const streamToolItems = mergeToolCallsAndResults(
-                pendingToolCalls as Array<{id: string; name: string; args: Record<string, unknown>}>,
-                pendingToolResults as Array<{id: string; name: string; result: string}>,
-              )
-              return streamToolItems.map((item) => <ToolCallItem key={item.id} item={item} />)
-            })()}
+            {streamParts.length > 0 ? <AssistantMessageParts parts={streamParts} isStreaming={isStreaming} /> : null}
             {showLoadingIndicator ? (
               <div className="bg-muted my-1 mr-6 rounded-lg px-3 py-2 text-xs">
                 <div className="text-muted-foreground flex items-center gap-2">
@@ -327,12 +321,6 @@ function ChatView({
                 </div>
               </div>
             ) : null}
-            {streamingText && (
-              <div className="bg-muted my-1 rounded-lg px-3 py-2 text-xs">
-                <Markdown>{streamingText}</Markdown>
-                {isStreaming && <span className="bg-foreground inline-block h-3 w-1 animate-pulse" />}
-              </div>
-            )}
           </>
         )}
         <div ref={messagesEndRef} />
@@ -399,26 +387,15 @@ function ChatView({
 
 function ChatMessageBubble({message}: {message: any}) {
   const isUser = message.role === 'user'
-  const showInlineErrorState = !isUser && message.isError && !message.errorMessage
-  const toolItems = mergeToolCallsAndResults(message.toolCalls, message.toolResults)
 
   return (
     <div className="my-1.5">
-      {toolItems.map((item) => (
-        <ToolCallItem key={item.id} item={item} />
-      ))}
-      {message.content && (
-        <div
-          className={`rounded-lg px-3 py-2 text-xs ${
-            isUser
-              ? 'bg-primary text-primary-foreground ml-6'
-              : showInlineErrorState
-              ? 'border-destructive/30 bg-destructive/10 text-destructive mr-6 border'
-              : 'bg-muted mr-6'
-          }`}
-        >
-          {isUser ? <p className="whitespace-pre-wrap">{message.content}</p> : <Markdown>{message.content}</Markdown>}
+      {isUser ? (
+        <div className="bg-primary text-primary-foreground ml-6 rounded-lg px-3 py-2 text-xs">
+          <p className="whitespace-pre-wrap">{message.content}</p>
         </div>
+      ) : (
+        <AssistantMessageParts parts={getAssistantMessageParts(message)} />
       )}
       {message.errorMessage ? (
         <div className="border-destructive/30 bg-destructive/10 text-destructive mt-1 mr-6 rounded-lg border px-3 py-2 text-xs">
@@ -430,45 +407,44 @@ function ChatMessageBubble({message}: {message: any}) {
   )
 }
 
-type MergedToolItem = {
-  id: string
-  name: string
-  args?: Record<string, unknown>
-  result?: string
-  pending?: boolean
+function AssistantMessageParts({parts, isStreaming = false}: {parts: ChatMessagePart[]; isStreaming?: boolean}) {
+  return parts.map((part, index) => {
+    if (part.type === 'tool') {
+      return <ToolCallItem key={`${part.id}:${index}`} item={part} />
+    }
+
+    const showCursor = isStreaming && index === parts.length - 1
+    return (
+      <div key={`text:${index}`} className="bg-muted my-1 mr-6 rounded-lg px-3 py-2 text-xs">
+        <Markdown>{part.text}</Markdown>
+        {showCursor && <span className="bg-foreground inline-block h-3 w-1 animate-pulse" />}
+      </div>
+    )
+  })
 }
 
-function mergeToolCallsAndResults(
-  toolCalls?: Array<{id: string; name: string; args: Record<string, unknown>}>,
-  toolResults?: Array<{id: string; name: string; result: string}>,
-): MergedToolItem[] {
-  const itemsById = new Map<string, MergedToolItem>()
-
-  if (toolCalls) {
-    for (const tc of toolCalls) {
-      itemsById.set(tc.id, {id: tc.id, name: tc.name, args: tc.args, pending: true})
-    }
+function getAssistantMessageParts(message: {
+  parts?: ChatMessagePart[]
+  content?: string
+  toolCalls?: Array<{id: string; name: string; args: Record<string, unknown>}>
+  toolResults?: Array<{id: string; name: string; result: string}>
+}) {
+  if (message.parts && message.parts.length > 0) {
+    return message.parts
   }
 
-  if (toolResults) {
-    for (const tr of toolResults) {
-      const existing = itemsById.get(tr.id)
-      if (existing) {
-        existing.result = tr.result
-        existing.pending = false
-      } else {
-        itemsById.set(tr.id, {id: tr.id, name: tr.name, result: tr.result})
-      }
-    }
-  }
-
-  return Array.from(itemsById.values())
+  return buildLegacyChatMessageParts({
+    content: message.content,
+    toolCalls: message.toolCalls,
+    toolResults: message.toolResults,
+  })
 }
 
-function ToolCallItem({item}: {item: MergedToolItem}) {
+function ToolCallItem({item}: {item: ChatToolPart}) {
   const [expanded, setExpanded] = useState(false)
   const hasArgs = item.args && Object.keys(item.args).length > 0
   const hasResult = item.result !== undefined
+  const isPending = !hasResult
 
   return (
     <div className="bg-muted/50 border-border my-1 overflow-hidden rounded border text-xs">
@@ -476,7 +452,7 @@ function ToolCallItem({item}: {item: MergedToolItem}) {
         onClick={() => setExpanded(!expanded)}
         className="hover:bg-muted flex w-full items-center gap-2 px-2 py-1.5 text-left"
       >
-        {item.pending ? (
+        {isPending ? (
           <Loader2 className="text-muted-foreground size-3 shrink-0 animate-spin" />
         ) : (
           <Wrench className="text-muted-foreground size-3 shrink-0" />
@@ -524,7 +500,7 @@ function ToolCallItem({item}: {item: MergedToolItem}) {
               </div>
             </div>
           )}
-          {item.pending && !hasResult && <div className="text-muted-foreground italic">Running...</div>}
+          {isPending && <div className="text-muted-foreground italic">Running...</div>}
         </div>
       )}
     </div>

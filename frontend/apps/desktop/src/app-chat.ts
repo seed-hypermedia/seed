@@ -19,25 +19,27 @@ import {desktopRequest} from './desktop-api'
 import {grpcClient} from './grpc-client'
 import {getChatProviderRequestOptions} from './chat-provider-options'
 import {resolveChatStreamError} from './chat-stream-error'
+import {
+  appendChatTextPart,
+  appendChatToolCalls,
+  applyChatToolResults,
+  type ChatMessagePart,
+  type ChatToolCall,
+  type ChatToolResult,
+} from './models/chat-parts'
 import * as log from './logger'
 
 const chatDir = path.join(userDataPath, 'chat-sessions')
 
+/** A persisted chat message within a local assistant session. */
 export type ChatMessage = {
   role: 'user' | 'assistant' | 'tool'
   content: string
   errorMessage?: string
   isError?: boolean
-  toolCalls?: Array<{
-    id: string
-    name: string
-    args: Record<string, unknown>
-  }>
-  toolResults?: Array<{
-    id: string
-    name: string
-    result: string
-  }>
+  parts?: ChatMessagePart[]
+  toolCalls?: ChatToolCall[]
+  toolResults?: ChatToolResult[]
   createdAt: string
 }
 
@@ -528,6 +530,7 @@ const chatTools: Record<string, any> = {
   },
 }
 
+/** Chat-related TRPC routes backed by local session storage and live stream events. */
 export const chatApi = t.router({
   listSessions: t.procedure.query(async () => {
     return await listSessions()
@@ -682,8 +685,9 @@ export const chatApi = t.router({
 
       let fullText = ''
       let lastStreamError: unknown
-      const allToolCalls: ChatMessage['toolCalls'] = []
-      const allToolResults: ChatMessage['toolResults'] = []
+      let orderedParts: ChatMessagePart[] = []
+      const allToolCalls: ChatToolCall[] = []
+      const allToolResults: ChatToolResult[] = []
 
       try {
         broadcastChatEvent({type: 'stream_start', sessionId: input.sessionId})
@@ -698,82 +702,67 @@ export const chatApi = t.router({
           onError: ({error}) => {
             lastStreamError = error
           },
-          onStepFinish: ({toolCalls, toolResults}) => {
-            if (toolCalls && toolCalls.length > 0) {
-              const mappedCalls = toolCalls.map((tc: any) => ({
-                id: tc.toolCallId,
-                name: tc.toolName,
-                args: tc.input ?? tc.args ?? {},
-              }))
-              broadcastChatEvent({
-                type: 'tool_calls',
-                sessionId: input.sessionId,
-                toolCalls: mappedCalls,
-              })
-              for (const mc of mappedCalls) {
-                allToolCalls.push(mc)
+          onChunk: ({chunk}) => {
+            switch (chunk.type) {
+              case 'text-delta': {
+                if (!chunk.text) break
+
+                fullText += chunk.text
+                orderedParts = appendChatTextPart(orderedParts, chunk.text)
+                broadcastChatEvent({type: 'text_delta', sessionId: input.sessionId, delta: chunk.text})
+                break
               }
-            }
-            if (toolResults && toolResults.length > 0) {
-              const mappedResults = toolResults.map((tr: any) => {
-                const result = tr.output ?? tr.result
-                return {
-                  id: tr.toolCallId,
-                  name: tr.toolName,
-                  result: typeof result === 'string' ? result : JSON.stringify(result),
+              case 'tool-call': {
+                if (allToolCalls.some((existing) => existing.id === chunk.toolCallId)) break
+
+                const mappedCall: ChatToolCall = {
+                  id: chunk.toolCallId,
+                  name: chunk.toolName,
+                  args: ((chunk as any).input ?? (chunk as any).args ?? {}) as Record<string, unknown>,
                 }
-              })
-              broadcastChatEvent({
-                type: 'tool_results',
-                sessionId: input.sessionId,
-                toolResults: mappedResults,
-              })
-              for (const mr of mappedResults) {
-                allToolResults.push(mr)
+
+                orderedParts = appendChatToolCalls(orderedParts, [mappedCall])
+                allToolCalls.push(mappedCall)
+                broadcastChatEvent({
+                  type: 'tool_calls',
+                  sessionId: input.sessionId,
+                  toolCalls: [mappedCall],
+                })
+                break
+              }
+              case 'tool-result': {
+                if (chunk.preliminary) break
+
+                const mappedResult: ChatToolResult = {
+                  id: chunk.toolCallId,
+                  name: chunk.toolName,
+                  result: typeof chunk.output === 'string' ? chunk.output : JSON.stringify(chunk.output),
+                }
+
+                orderedParts = applyChatToolResults(orderedParts, [mappedResult])
+                const existingResultIndex = allToolResults.findIndex((existing) => existing.id === mappedResult.id)
+                if (existingResultIndex >= 0) {
+                  allToolResults[existingResultIndex] = mappedResult
+                } else {
+                  allToolResults.push(mappedResult)
+                }
+                broadcastChatEvent({
+                  type: 'tool_results',
+                  sessionId: input.sessionId,
+                  toolResults: [mappedResult],
+                })
+                break
               }
             }
           },
         })
 
-        for await (const chunk of result.textStream) {
-          fullText += chunk
-          broadcastChatEvent({type: 'text_delta', sessionId: input.sessionId, delta: chunk})
-        }
-
-        // Collect tool usage from the final result (only for non-aborted streams)
-        const finalResult = await result
-        const steps = await finalResult.steps
-        for (const step of steps) {
-          if (step.toolCalls) {
-            for (const tc of step.toolCalls) {
-              const id = (tc as any).toolCallId
-              if (!allToolCalls.some((existing) => existing.id === id)) {
-                allToolCalls.push({
-                  id,
-                  name: (tc as any).toolName,
-                  args: (tc as any).input ?? (tc as any).args ?? {},
-                })
-              }
-            }
-          }
-          if (step.toolResults) {
-            for (const tr of step.toolResults) {
-              const id = (tr as any).toolCallId
-              if (!allToolResults.some((existing) => existing.id === id)) {
-                const trResult = (tr as any).output ?? (tr as any).result
-                allToolResults.push({
-                  id,
-                  name: (tr as any).toolName,
-                  result: typeof trResult === 'string' ? trResult : JSON.stringify(trResult),
-                })
-              }
-            }
-          }
-        }
+        await result.consumeStream()
 
         const assistantMessage: ChatMessage = {
           role: 'assistant',
           content: fullText,
+          ...(orderedParts.length > 0 ? {parts: orderedParts} : {}),
           ...(allToolCalls.length > 0 ? {toolCalls: allToolCalls} : {}),
           ...(allToolResults.length > 0 ? {toolResults: allToolResults} : {}),
           createdAt: new Date().toISOString(),
@@ -793,6 +782,7 @@ export const chatApi = t.router({
           const assistantMessage: ChatMessage = {
             role: 'assistant',
             content: fullText || '(stopped)',
+            ...(orderedParts.length > 0 ? {parts: orderedParts} : {}),
             ...(allToolCalls.length > 0 ? {toolCalls: allToolCalls} : {}),
             ...(allToolResults.length > 0 ? {toolResults: allToolResults} : {}),
             createdAt: new Date().toISOString(),
@@ -815,6 +805,7 @@ export const chatApi = t.router({
           content: fullText,
           errorMessage: errMsg,
           isError: true,
+          ...(orderedParts.length > 0 ? {parts: orderedParts} : {}),
           ...(allToolCalls.length > 0 ? {toolCalls: allToolCalls} : {}),
           ...(allToolResults.length > 0 ? {toolResults: allToolResults} : {}),
           createdAt: new Date().toISOString(),

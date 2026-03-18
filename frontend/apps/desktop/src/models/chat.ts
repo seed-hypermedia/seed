@@ -3,18 +3,28 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {toast} from '@shm/ui/toast'
-import {useCallback, useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useState} from 'react'
+import {
+  appendChatTextPart,
+  appendChatToolCalls,
+  applyChatToolResults,
+  type ChatMessagePart,
+  type ChatToolCall,
+  type ChatToolResult,
+} from './chat-parts'
 
+/** A chat stream event emitted by the desktop main process while an assistant response is in flight. */
 export type ChatStreamEvent = {
   type: 'stream_start' | 'text_delta' | 'tool_calls' | 'tool_results' | 'stream_end' | 'stream_error' | 'message_added'
   sessionId: string
   delta?: string
   message?: any
-  toolCalls?: Array<{id: string; name: string; args: Record<string, unknown>}>
-  toolResults?: Array<{id: string; name: string; result: string}>
+  toolCalls?: ChatToolCall[]
+  toolResults?: ChatToolResult[]
   error?: string
 }
 
+/** Lists available local chat sessions. */
 export function useChatSessions() {
   return useQuery({
     queryKey: [queryKeys.CHAT_SESSIONS],
@@ -22,6 +32,7 @@ export function useChatSessions() {
   })
 }
 
+/** Loads a single chat session with its message history. */
 export function useChatSession(sessionId: string | null) {
   return useQuery({
     queryKey: [queryKeys.CHAT_SESSION, sessionId],
@@ -30,6 +41,7 @@ export function useChatSession(sessionId: string | null) {
   })
 }
 
+/** Creates a new empty chat session. */
 export function useCreateChatSession() {
   return useMutation({
     mutationFn: (input?: {title?: string}) => client.chat.createSession.mutate(input),
@@ -42,6 +54,7 @@ export function useCreateChatSession() {
   })
 }
 
+/** Deletes a chat session and refreshes the local session list. */
 export function useDeleteChatSession() {
   return useMutation({
     mutationFn: (sessionId: string) => client.chat.deleteSession.mutate(sessionId),
@@ -51,6 +64,7 @@ export function useDeleteChatSession() {
   })
 }
 
+/** Sets the provider used for future messages in a chat session. */
 export function useSetSessionProvider() {
   return useMutation({
     mutationFn: (input: {sessionId: string; providerId: string}) => client.chat.setSessionProvider.mutate(input),
@@ -61,6 +75,7 @@ export function useSetSessionProvider() {
   })
 }
 
+/** Sends a user message to the assistant for a given session. */
 export function useSendChatMessage() {
   return useMutation({
     mutationFn: (input: {
@@ -78,19 +93,14 @@ export function useSendChatMessage() {
   })
 }
 
+/** Tracks the ordered live stream for the current assistant response. */
 export function useChatStream(sessionId: string | null) {
-  const [streamingText, setStreamingText] = useState('')
+  const [streamParts, setStreamParts] = useState<ChatMessagePart[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamComplete, setStreamComplete] = useState(false)
-  const [pendingToolCalls, setPendingToolCalls] = useState<ChatStreamEvent['toolCalls']>([])
-  const [pendingToolResults, setPendingToolResults] = useState<ChatStreamEvent['toolResults']>([])
-  const streamingTextRef = useRef('')
 
   const clearStream = useCallback(() => {
-    setStreamingText('')
-    streamingTextRef.current = ''
-    setPendingToolCalls([])
-    setPendingToolResults([])
+    setStreamParts([])
     setStreamComplete(false)
   }, [])
 
@@ -105,20 +115,16 @@ export function useChatStream(sessionId: string | null) {
         case 'stream_start':
           setIsStreaming(true)
           setStreamComplete(false)
-          setStreamingText('')
-          streamingTextRef.current = ''
-          setPendingToolCalls([])
-          setPendingToolResults([])
+          setStreamParts([])
           break
         case 'text_delta':
-          streamingTextRef.current += event.delta || ''
-          setStreamingText(streamingTextRef.current)
+          setStreamParts((prev) => appendChatTextPart(prev, event.delta || ''))
           break
         case 'tool_calls':
-          setPendingToolCalls((prev) => [...(prev || []), ...(event.toolCalls || [])])
+          setStreamParts((prev) => appendChatToolCalls(prev, event.toolCalls || []))
           break
         case 'tool_results':
-          setPendingToolResults((prev) => [...(prev || []), ...(event.toolResults || [])])
+          setStreamParts((prev) => applyChatToolResults(prev, event.toolResults || []))
           break
         case 'stream_end':
           setIsStreaming(false)
@@ -143,5 +149,5 @@ export function useChatStream(sessionId: string | null) {
     }
   }, [sessionId])
 
-  return {streamingText, isStreaming, streamComplete, pendingToolCalls, pendingToolResults, clearStream, stopStream}
+  return {streamParts, isStreaming, streamComplete, clearStream, stopStream}
 }
