@@ -854,7 +854,7 @@ func TestCommentUpdateAndDeleteWorkflow(t *testing.T) {
 	require.False(t, hasDeleted, "deleted comment must not be in the list of comments.")
 }
 
-func TestCommentIsEdited(t *testing.T) {
+func TestCommentEditTimestamps(t *testing.T) {
 	t.Parallel()
 
 	alice := newTestDocsAPI(t, "alice")
@@ -872,7 +872,7 @@ func TestCommentIsEdited(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// New comment must not be marked as edited.
+	// New comment: create_time and update_time must be equal.
 	cmt, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
 		SigningKeyName: "bob",
 		TargetAccount:  alice.me.Account.PublicKey.String(),
@@ -883,9 +883,9 @@ func TestCommentIsEdited(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.False(t, cmt.IsEdited, "newly created comment must not be marked as edited")
+	require.Equal(t, cmt.CreateTime.AsTime(), cmt.UpdateTime.AsTime(), "newly created comment must have equal create and update times")
 
-	// Updated comment must be marked as edited.
+	// Updated comment: update_time must be after create_time.
 	updated, err := alice.UpdateComment(ctx, &pb.UpdateCommentRequest{
 		Comment: &pb.Comment{
 			Id:            cmt.Id,
@@ -899,22 +899,21 @@ func TestCommentIsEdited(t *testing.T) {
 		SigningKeyName: "bob",
 	})
 	require.NoError(t, err)
-	require.True(t, updated.IsEdited, "updated comment must be marked as edited")
-	require.True(t, updated.UpdateTime.AsTime().After(updated.CreateTime.AsTime()), "update time must be after create time")
+	require.True(t, updated.UpdateTime.AsTime().After(updated.CreateTime.AsTime()), "update time must be after create time for edited comment")
 
-	// Fetching via GetComment must also show edited flag.
+	// Fetching via GetComment must preserve timestamps.
 	got, err := alice.GetComment(ctx, &pb.GetCommentRequest{Id: cmt.Id})
 	require.NoError(t, err)
-	require.True(t, got.IsEdited, "fetched comment must be marked as edited")
+	require.True(t, got.UpdateTime.AsTime().After(got.CreateTime.AsTime()), "fetched edited comment must have update_time > create_time")
 
-	// Listing comments must also show edited flag.
+	// Listing comments must also preserve timestamps.
 	list, err := alice.ListComments(ctx, &pb.ListCommentsRequest{
 		TargetAccount: alice.me.Account.PublicKey.String(),
 		TargetPath:    "",
 	})
 	require.NoError(t, err)
 	require.Len(t, list.Comments, 1)
-	require.True(t, list.Comments[0].IsEdited, "listed comment must be marked as edited")
+	require.True(t, list.Comments[0].UpdateTime.AsTime().After(list.Comments[0].CreateTime.AsTime()), "listed edited comment must have update_time > create_time")
 }
 
 func TestListCommentVersions(t *testing.T) {

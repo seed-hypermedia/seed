@@ -170,9 +170,6 @@ message Comment {
   // Visibility of the comment, inherited from the target document at creation time.
   // Empty string means public visibility.
   string visibility = 15;
-
-  // Whether this comment has been edited (i.e. has multiple versions).
-  bool is_edited = 16;
 }
 
 // Request to update a comment.

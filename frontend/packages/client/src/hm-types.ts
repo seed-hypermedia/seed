@@ -526,7 +526,6 @@ export const HMCommentSchema = z.object({
   createTime: HMTimestampSchema,
   updateTime: HMTimestampSchema,
   visibility: HMResourceVisibilitySchema,
-  isEdited: z.boolean().optional(),
 })
 
 export type HMComment = z.infer<typeof HMCommentSchema>

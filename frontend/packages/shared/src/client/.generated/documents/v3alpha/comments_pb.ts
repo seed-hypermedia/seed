@@ -537,13 +537,6 @@ export class Comment extends Message<Comment> {
    */
   visibility = ''
 
-  /**
-   * Whether this comment has been edited (i.e. has multiple versions).
-   *
-   * @generated from field: bool is_edited = 16;
-   */
-  isEdited = false
-
   constructor(data?: PartialMessage<Comment>) {
     super()
     proto3.util.initPartial(data, this)
@@ -567,7 +560,6 @@ export class Comment extends Message<Comment> {
     {no: 11, name: 'version', kind: 'scalar', T: 9 /* ScalarType.STRING */},
     {no: 14, name: 'update_time', kind: 'message', T: Timestamp},
     {no: 15, name: 'visibility', kind: 'scalar', T: 9 /* ScalarType.STRING */},
-    {no: 16, name: 'is_edited', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
   ])
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Comment {

@@ -454,7 +454,6 @@ func commentToProto(lookup *blob.LookupCache, c cid.Cid, cmt *blob.Comment, tsid
 		Version:       c.String(),
 		UpdateTime:    timestamppb.New(cmt.Ts),
 		Visibility:    string(cmt.Visibility),
-		IsEdited:      !cmt.Ts.Equal(createTime),
 	}
 
 	// Handle deleted attribute
