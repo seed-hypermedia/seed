@@ -1,14 +1,16 @@
 import {useCreateAccount} from '@/auth'
-import {useNavigate} from '@remix-run/react'
+import {useNavigate as useRemixNavigate} from '@remix-run/react'
 import {createComment} from '@seed-hypermedia/client'
-import {HMBlockNode, HMPublishBlobsOutput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMBlockNode, HMMetadataPayload, HMPublishBlobsOutput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {CommentEditor} from '@shm/editor/comment-editor'
 import {idToUrl, queryKeys, unpackHmId, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {useCommentsService} from '@shm/shared/comments-service-provider'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
-import {invalidateQueries} from '@shm/shared/models/query-client'
+import {invalidateQueries, useQueryClient} from '@shm/shared/models/query-client'
+import {applyOptimisticComment, buildOptimisticComment, navigateToComment} from '@shm/shared/optimistic-comment'
 import {useTxString} from '@shm/shared/translation'
+import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button, buttonVariants} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
 import {EmailNotificationsSuccess} from '@shm/ui/email-notifications'
@@ -111,12 +113,45 @@ export default function WebCommenting({
     }
   }, [])
 
+  const queryClient = useQueryClient()
+  const route = useNavRoute()
+  const navNavigate = useNavigate('replace')
+
+  type PostCommentVars = {commentPayload: PublishCommentInput; contentBlocks: HMBlockNode[]}
+
   const postComment = useMutation({
-    mutationFn: async (commentPayload: PublishCommentInput) => {
+    mutationFn: async ({commentPayload}: PostCommentVars) => {
       const response = await publish(commentPayload)
       const commentId = response.cids[0]
       if (!commentId) throw new Error('Failed to publish comment blob')
       return {response, commentId, commentPayload}
+    },
+    onMutate: async ({commentPayload, contentBlocks}: PostCommentVars) => {
+      await queryClient.cancelQueries({queryKey: [queryKeys.DOCUMENT_COMMENTS, docId]})
+
+      const authorMetadata: HMMetadataPayload | null = myAccount.data
+        ? {id: myAccount.data.id, metadata: myAccount.data.metadata || null}
+        : null
+
+      const optimisticComment = await buildOptimisticComment({
+        commentPayload,
+        authorUid: userKeyPair!.id,
+        docId,
+        docVersion: docVersion!,
+        contentBlocks,
+        replyParentId: replyCommentId || undefined,
+        threadRootVersion: rootReplyCommentVersion || undefined,
+        quotingBlockId,
+        visibility: 'PUBLIC',
+      })
+
+      applyOptimisticComment(queryClient, docId, optimisticComment, authorMetadata, quotingBlockId)
+      navigateToComment(navNavigate, route, optimisticComment.id)
+    },
+    onError: (_err) => {
+      // Keep the optimistic comment visible — the publish can be retried later.
+      // Do NOT roll back cache or navigation; do NOT invalidate queries (would crash offline).
+      console.warn('Comment publish failed, keeping optimistic comment:', _err)
     },
     onSuccess: ({response, commentId, commentPayload}) => {
       if (isPerfEnabled()) markCommentSubmitEnd()
@@ -136,7 +171,7 @@ export default function WebCommenting({
   })
 
   const docVersion = docId.version
-  const navigate = useNavigate()
+  const remixNavigate = useRemixNavigate()
 
   const {
     content: createAccountContent,
@@ -150,7 +185,7 @@ export default function WebCommenting({
           console.log('[commenting] processPendingIntent result:', commentUrl)
           if (commentUrl) {
             clearDraft()
-            navigate(commentUrl)
+            remixNavigate(commentUrl)
           }
         })
         .catch((e) => {
@@ -233,9 +268,16 @@ export default function WebCommenting({
         if (isPerfEnabled()) markCommentSubmitStart()
         if (!getSigner) throw new Error('getSigner not available')
         const signer = getSigner(userKeyPair.id)
+        // Wrap getContent to capture block nodes before they're consumed by createComment
+        let capturedBlocks: HMBlockNode[] = []
+        const wrappedGetContent: typeof getContent = async (prepareAttachments) => {
+          const result = await getContent(prepareAttachments)
+          capturedBlocks = result.blockNodes
+          return result
+        }
         const commentPayload = await createComment(
           {
-            getContent,
+            getContent: wrappedGetContent,
             docId,
             docVersion,
             replyCommentVersion,
@@ -245,7 +287,7 @@ export default function WebCommenting({
           },
           signer,
         )
-        await postComment.mutateAsync(commentPayload)
+        await postComment.mutateAsync({commentPayload, contentBlocks: capturedBlocks})
         console.log('✅ Comment posted successfully, calling promptEmailNotifications')
         clearDraft()
         // Clean up associated media from IndexedDB after successful publish
