@@ -94,10 +94,15 @@ export function PageNotFound() {
 }
 
 /**
- * Shown when a document has been deleted (tombstone).
+ * Shown when a document or comment has been deleted (tombstone).
  */
-export function PageDeleted() {
-  return <PageMessageBox title="Document Deleted" message="This document has been deleted by its owner." />
+export function PageDeleted({entityType = 'document'}: {entityType?: 'document' | 'comment'}) {
+  const labels = {
+    document: {title: 'Document Deleted', message: 'This document has been deleted by its owner.'},
+    comment: {title: 'Comment Deleted', message: 'This comment has been deleted by its author.'},
+  }
+  const {title, message} = labels[entityType]
+  return <PageMessageBox title={title} message={message} />
 }
 
 /**

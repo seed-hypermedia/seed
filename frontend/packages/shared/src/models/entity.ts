@@ -508,6 +508,19 @@ export function useSelectedAccountId() {
   return useStream(selectedIdentity) ?? null
 }
 
+/**
+ * Returns true if the given UID belongs to the current user.
+ * Checks both the selected identity (vault/account UID) and the signing
+ * identity (web session key UID) to handle vault delegation on web.
+ */
+export function useIsCurrentUser(uid: string | null | undefined): boolean {
+  const {selectedIdentity, signingIdentity} = useUniversalAppContext()
+  const selectedId = useStream(selectedIdentity) ?? null
+  const signingId = useStream(signingIdentity) ?? null
+  if (!uid) return false
+  return uid === selectedId || uid === signingId
+}
+
 export function useDirectory(
   id: UnpackedHypermediaId | null | undefined,
   options?: {mode?: 'Children' | 'AllDescendants'},

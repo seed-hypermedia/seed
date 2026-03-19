@@ -24,10 +24,24 @@ function getSelectedIdentity(): string | null {
   return kp.delegatedAccountUid ?? kp.id
 }
 
+function getSigningIdentity(): string | null {
+  const kp = keyPairStore.get()
+  if (!kp) return null
+  return kp.id
+}
+
 const selectedIdentity: StateStream<string | null> = {
   get: getSelectedIdentity,
   subscribe: (handler) => {
     const wrapped = () => handler(getSelectedIdentity())
+    return keyPairStore.subscribe(wrapped)
+  },
+}
+
+const signingIdentity: StateStream<string | null> = {
+  get: getSigningIdentity,
+  subscribe: (handler) => {
+    const wrapped = () => handler(getSigningIdentity())
     return keyPairStore.subscribe(wrapped)
   },
 }
@@ -271,6 +285,7 @@ export function WebSiteProvider(props: {
       }}
       universalClient={webUniversalClient}
       selectedIdentity={selectedIdentity}
+      signingIdentity={signingIdentity}
       openRoute={(route: NavRoute, replace?: boolean) => {
         if (isPerfEnabled()) markNavStart()
         // Update navigation state

@@ -185,6 +185,7 @@ export function createSiteUrl({
 export function createCommentUrl({
   docId,
   commentId,
+  commentVersion,
   siteUrl,
   blockRef,
   blockRange,
@@ -192,6 +193,8 @@ export function createCommentUrl({
 }: {
   docId: UnpackedHypermediaId
   commentId: string
+  /** CID of the comment version to pin. When set, the URL resolves to this exact version. */
+  commentVersion?: string | null
   siteUrl?: string | null
   blockRef?: string | null
   blockRange?: BlockRange | null
@@ -203,6 +206,7 @@ export function createCommentUrl({
       path: docId.path,
       hostname: siteUrl,
       latest: latest ?? undefined,
+      version: commentVersion ?? undefined,
       viewTerm: viewTermWithComment,
       blockRef,
       blockRange,
@@ -211,6 +215,7 @@ export function createCommentUrl({
   return createWebHMUrl(docId.uid, {
     path: docId.path,
     latest,
+    version: commentVersion,
     viewTerm: viewTermWithComment,
     blockRef,
     blockRange,
@@ -225,12 +230,13 @@ export function getCommentTargetId(comment: HMComment | undefined): UnpackedHype
   })
 }
 
-export function commentIdToHmId(commentId: string): UnpackedHypermediaId {
+export function commentIdToHmId(commentId: string, version?: string | null): UnpackedHypermediaId {
   const commentIdParts = commentId.split('/')
   const uid = commentIdParts[0]!
   const tsid = commentIdParts[1]!
   return hmId(uid, {
     path: [tsid],
+    version: version ?? undefined,
   })
 }
 

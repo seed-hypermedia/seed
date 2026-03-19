@@ -425,6 +425,52 @@ export async function deleteComment(input: DeleteCommentInput, signer: HMSigner)
   return toPublishInput(encoded, [])
 }
 
+/** Input for updating an existing comment. */
+export type UpdateCommentInput = {
+  commentId: string // record ID: "authority/tsid"
+  targetAccount: string // space uid
+  targetPath: string // path (e.g., "/doc1")
+  targetVersion: string // version string (e.g., "cid1.cid2")
+  content: HMBlockNode[]
+  replyParentVersion?: string | null
+  rootReplyCommentVersion?: string | null
+  visibility?: 'Private' | ''
+}
+
+/** Creates a signed update blob for an existing comment. */
+export async function updateComment(input: UpdateCommentInput, signer: HMSigner): Promise<HMPublishBlobsInput> {
+  // Extract TSID from comment ID (format: "authority/tsid")
+  const parts = input.commentId.split('/')
+  const tsid = parts[1]
+  if (!tsid) {
+    throw new Error(`Invalid comment ID format: ${input.commentId}`)
+  }
+
+  const signerKey = await signer.getPublicKey()
+  cleanContentOfUndefined(input.content)
+  const trimmedContent = trimTrailingEmptyBlocks(input.content)
+
+  const comment: Record<string, unknown> = {
+    type: 'Comment',
+    id: tsid,
+    body: blocksToPublishable(trimmedContent),
+    space: new Uint8Array(base58btc.decode(input.targetAccount)),
+    path: input.targetPath,
+    version: input.targetVersion.split('.').map((v) => CID.parse(v)),
+    signer: new Uint8Array(signerKey),
+    ts: BigInt(Date.now()),
+    sig: new Uint8Array(64),
+  }
+  if (input.replyParentVersion) comment.replyParent = CID.parse(input.replyParentVersion)
+  if (input.rootReplyCommentVersion) comment.threadRoot = CID.parse(input.rootReplyCommentVersion)
+  if (input.visibility) comment.visibility = input.visibility
+
+  comment.sig = await signObject(signer, comment)
+
+  const encoded = cborEncode(comment)
+  return toPublishInput(encoded, [])
+}
+
 /**
  * Compute the record ID ("authority/tsid") from raw CBOR-encoded comment blob bytes.
  * The TSID is a 10-byte base58btc value: 6 bytes ms timestamp + 4 bytes SHA256 prefix.

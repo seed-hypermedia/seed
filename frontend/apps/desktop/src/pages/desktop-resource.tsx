@@ -1,6 +1,6 @@
 import {useAppContext} from '@/app-context'
 import {BranchDialog} from '@/components/branch-dialog'
-import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
+import {CommentBox, renderDesktopInlineEditor, triggerCommentDraftFocus} from '@/components/commenting'
 import {CreateDocumentButton} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
@@ -414,6 +414,8 @@ export default function DesktopResourcePage() {
         useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
+        renderInlineEditor={renderDesktopInlineEditor}
+        showDeletedContent
       >
         <DesktopDocumentActionsProvider>
           <QueryBlockDraftsProvider {...queryBlockDraftsValue}>
