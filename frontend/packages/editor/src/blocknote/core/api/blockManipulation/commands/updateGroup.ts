@@ -58,7 +58,13 @@ export const updateGroupCommand = (
       return false
 
     // If block is not the first in its' group, sink list item and then update group
-    if (group.firstChild && container && group.firstChild.attrs.id !== container.attrs.id && !tab) {
+    if (
+      group.firstChild &&
+      container &&
+      group.firstChild.attrs.id !== container.attrs.id &&
+      !tab &&
+      !(turnInto && group.attrs.listType === 'Grid')
+    ) {
       setTimeout(() => {
         editor
           .chain()
@@ -78,7 +84,7 @@ export const updateGroupCommand = (
       group.attrs.listType !== listType &&
       container &&
       !tab &&
-      !turnInto &&
+      !(turnInto && group.attrs.listType === 'Grid') &&
       !isSank
     ) {
       setTimeout(() => {

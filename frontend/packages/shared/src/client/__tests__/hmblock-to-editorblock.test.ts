@@ -787,6 +787,74 @@ describe('HMBlock to EditorBlock', () => {
   })
 
   describe('childrenType', () => {
+    test('Grid', () => {
+      const hmBlock: HMBlock = {
+        id: 'foo',
+        type: 'Paragraph',
+        text: 'Hello world',
+        annotations: [],
+        revision: 'revision123',
+        attributes: {
+          childrenType: 'Grid',
+          columnCount: 3,
+        },
+      }
+
+      const result: EditorBlock = {
+        id: 'foo',
+        type: 'paragraph',
+        children: [],
+        props: {
+          childrenType: 'Grid',
+          columnCount: '3',
+          revision: 'revision123',
+        },
+        content: [
+          {
+            type: 'text',
+            text: 'Hello world',
+            styles: {},
+          },
+        ],
+      }
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('Grid without columnCount defaults gracefully', () => {
+      const hmBlock: HMBlock = {
+        id: 'foo',
+        type: 'Paragraph',
+        text: 'Hello world',
+        annotations: [],
+        revision: 'revision123',
+        attributes: {
+          childrenType: 'Grid',
+        },
+      }
+
+      const result: EditorBlock = {
+        id: 'foo',
+        type: 'paragraph',
+        children: [],
+        props: {
+          childrenType: 'Grid',
+          revision: 'revision123',
+        },
+        content: [
+          {
+            type: 'text',
+            text: 'Hello world',
+            styles: {},
+          },
+        ],
+      }
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect(val).toEqual(result)
+    })
+
     test('Group', () => {
       const result: EditorBlock = {
         id: 'foo',

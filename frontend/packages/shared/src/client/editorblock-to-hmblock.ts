@@ -56,6 +56,11 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     block.attributes.childrenType = 'Ordered'
   } else if (editorBlock.props.childrenType == 'Blockquote') {
     block.attributes.childrenType = 'Blockquote'
+  } else if (editorBlock.props.childrenType == 'Grid') {
+    block.attributes.childrenType = 'Grid'
+    if (editorBlock.props.columnCount) {
+      block.attributes.columnCount = Number(editorBlock.props.columnCount)
+    }
   }
 
   // if (parentBlock && editorBlock.props.start) {

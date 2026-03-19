@@ -58,6 +58,36 @@ function getDraggableBlockFromCoords(coords: {left: number; top: number}, view: 
     return undefined
   }
 
+  // When hovering between grid cells, find the nearest grid child to attach the side menu.
+  const gridContainer = (node as HTMLElement).querySelector?.('[data-list-type="Grid"]')
+  if (gridContainer) {
+    const gridRect = gridContainer.getBoundingClientRect()
+    if (
+      coords.left >= gridRect.left &&
+      coords.left <= gridRect.right &&
+      coords.top >= gridRect.top &&
+      coords.top <= gridRect.bottom
+    ) {
+      let closestChild: HTMLElement | null = null
+      let closestDist = Infinity
+      for (const child of Array.from(gridContainer.children) as HTMLElement[]) {
+        if (!child.hasAttribute('data-id')) continue
+        const rect = child.getBoundingClientRect()
+        // Distance from cursor to center of child
+        const dx = coords.left - (rect.left + rect.width / 2)
+        const dy = coords.top - (rect.top + rect.height / 2)
+        const dist = dx * dx + dy * dy
+        if (dist < closestDist) {
+          closestDist = dist
+          closestChild = child
+        }
+      }
+      if (closestChild) {
+        return {node: closestChild, id: closestChild.getAttribute('data-id')!}
+      }
+    }
+  }
+
   // @ts-expect-error
   return {node, id: node.getAttribute('data-id')!}
 }
@@ -393,11 +423,18 @@ export class SideMenuView<BSchema extends BlockSchema> implements PluginView {
     this.horizontalPosAnchor = editorBoundingBox.x
 
     // Gets block at mouse cursor's vertical position.
+    // First try with actual cursor X to correctly identify grid cells,
+    // then fall back to editor center for blocks in single-column layouts
+    // (e.g. when hovering the left margin outside block content).
     const coords = {
-      left: editorBoundingBox.left + editorBoundingBox.width / 2, // take middle of editor
+      left: event.clientX,
       top: event.clientY,
     }
-    const block = getDraggableBlockFromCoords(coords, this.pmView)
+    let block = getDraggableBlockFromCoords(coords, this.pmView)
+    if (!block) {
+      coords.left = editorBoundingBox.left + editorBoundingBox.width / 2
+      block = getDraggableBlockFromCoords(coords, this.pmView)
+    }
 
     // Closes the menu if the mouse cursor is beyond the editor vertically.
     if (!block || !this.editor.isEditable) {
@@ -416,6 +453,21 @@ export class SideMenuView<BSchema extends BlockSchema> implements PluginView {
       this.hoveredBlock?.getAttribute('data-id') === block.id
     ) {
       return
+    }
+
+    // When the side menu is showing for a grid child and the cursor is to the
+    // left of (or vertically aligned with) that block, keep the menu on the
+    // current block so it remains clickable.
+    if (this.sideMenuState?.show && this.hoveredBlock) {
+      const parentEl = this.hoveredBlock.parentElement
+      if (parentEl?.getAttribute('data-list-type') === 'Grid') {
+        const hoveredRect = this.hoveredBlock.getBoundingClientRect()
+        const isLeftOfBlock = event.clientX < hoveredRect.left
+        const isVerticallyAligned = event.clientY >= hoveredRect.top && event.clientY <= hoveredRect.bottom
+        if (isLeftOfBlock && isVerticallyAligned) {
+          return
+        }
+      }
     }
 
     if (

@@ -636,11 +636,13 @@ export function BlockNodeList({
   children,
   childrenType = 'Group',
   listLevel,
+  columnCount,
   ...props
 }: {
   children: React.ReactNode
   childrenType?: HMBlockChildrenType
   listLevel?: string | number
+  columnCount?: number
   className?: string
 }) {
   const getListClasses = (
@@ -650,7 +652,14 @@ export function BlockNodeList({
   ): string => {
     const classes: string[] = ['blocknode-list', 'w-full', 'marker:text-muted-foreground marker:text-sm']
 
-    if (type === 'Unordered') {
+    if (type === 'Grid') {
+      classes.push('grid', 'gap-2', '[&>*]:min-w-0')
+      const cols = columnCount || 3
+      if (cols === 1) classes.push('grid-cols-1')
+      else if (cols === 2) classes.push('grid-cols-1', 'sm:grid-cols-2')
+      else if (cols === 4) classes.push('grid-cols-1', 'sm:grid-cols-2', 'lg:grid-cols-4')
+      else classes.push('grid-cols-1', 'sm:grid-cols-2', 'md:grid-cols-3') // default 3
+    } else if (type === 'Unordered') {
       classes.push('list-disc', 'pl-6')
       // if (level === 2) classes.push('list-[circle]')
       // if (level === 3) classes.push('list-[square]')
@@ -666,6 +675,7 @@ export function BlockNodeList({
   }
 
   const Tag = useMemo(() => {
+    if (childrenType === 'Grid') return 'div'
     if (childrenType === 'Ordered') return 'ol'
     if (childrenType === 'Blockquote') return 'blockquote'
     return 'ul'
@@ -1044,6 +1054,8 @@ export function BlockNodeContent({
         <BlockNodeList
           // @ts-expect-error
           childrenType={blockNode.block?.attributes?.childrenType}
+          // @ts-expect-error — columnCount exists on parentBlockAttributes
+          columnCount={blockNode.block?.attributes?.columnCount}
           listLevel={listLevel}
         >
           {bnChildren}

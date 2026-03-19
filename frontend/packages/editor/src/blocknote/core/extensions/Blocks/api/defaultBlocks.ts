@@ -13,7 +13,7 @@ export const defaultProps = {
   },
   childrenType: {
     default: 'Group' as const,
-    values: ['Group', 'Unordered', 'Ordered', 'Blockquote'] as const,
+    values: ['Group', 'Unordered', 'Ordered', 'Blockquote', 'Grid'] as const,
   },
   listLevel: {
     default: '1' as const,

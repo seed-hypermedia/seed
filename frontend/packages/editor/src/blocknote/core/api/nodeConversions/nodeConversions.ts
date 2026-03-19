@@ -163,8 +163,12 @@ export function blockToNode<BSchema extends BlockSchema>(block: PartialBlock<BSc
     }
   }
 
+  const groupAttrs: Record<string, unknown> = {listType: block.props?.childrenType || 'Group'}
+  if (block.props?.childrenType === 'Grid' && block.props?.columnCount) {
+    groupAttrs.columnCount = block.props.columnCount
+  }
   // @ts-ignore
-  const groupNode = schema.nodes['blockChildren'].create({listType: 'Group'}, children)
+  const groupNode = schema.nodes['blockChildren'].create(groupAttrs, children)
 
   // @ts-ignore
   return schema.nodes['blockNode'].create(
@@ -415,10 +419,13 @@ export function nodeToBlock<BSchema extends BlockSchema>(
   }
 
   if (node.lastChild!.attrs.listType) {
-    const {listType, listLevel, start} = node.lastChild!.attrs
+    const {listType, listLevel, start, columnCount} = node.lastChild!.attrs
     props['childrenType'] = listType
     props['listLevel'] = listLevel
     props['start'] = start
+    if (listType === 'Grid' && columnCount) {
+      props['columnCount'] = columnCount
+    }
   }
 
   const content = contentNodeToInlineContent(node.firstChild!)
