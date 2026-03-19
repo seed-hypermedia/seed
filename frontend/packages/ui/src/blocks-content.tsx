@@ -1891,8 +1891,7 @@ function CommentEmbedHeader({
               {formattedDateMedium(comment.createTime)}
             </SizableText>
           ) : null}
-          {comment.createTime?.seconds !== comment.updateTime?.seconds ||
-          comment.createTime?.nanos !== comment.updateTime?.nanos ? (
+          {JSON.stringify(comment.createTime) !== JSON.stringify(comment.updateTime) ? (
             <SizableText size="xs" className="text-muted-foreground">
               (edited)
             </SizableText>

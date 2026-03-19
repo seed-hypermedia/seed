@@ -679,8 +679,7 @@ export const Comment = memo(function Comment({
                   </>
                 ) : null}
                 <CommentDate comment={comment} />
-                {comment.createTime?.seconds !== comment.updateTime?.seconds ||
-                comment.createTime?.nanos !== comment.updateTime?.nanos ? (
+                {JSON.stringify(comment.createTime) !== JSON.stringify(comment.updateTime) ? (
                   <EditedIndicator commentId={comment.id} onSelectVersion={setViewingVersion} />
                 ) : null}
               </InlineDescriptor>
