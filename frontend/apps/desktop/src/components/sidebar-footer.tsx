@@ -1,4 +1,4 @@
-import {useMyAccountIds, useMyAccounts} from '@/models/daemon'
+import {useMyAccountIds} from '@/models/daemon'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmId, useUniversalAppContext} from '@shm/shared'
 import {useStream} from '@shm/shared/use-stream'
@@ -6,7 +6,7 @@ import {Button} from '@shm/ui/button'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 
 import {LinkDeviceDialog} from '@/components/link-device-dialog'
-import {useResources} from '@shm/shared/models/entity'
+import {useAccount, useAccounts} from '@shm/shared/models/entity'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {useHighlighter} from '@shm/ui/highlight-context'
 import {HMIcon} from '@shm/ui/hm-icon'
@@ -21,15 +21,13 @@ export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: bo
   const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
   const selectedIdentityValue = useStream(selectedIdentity)
   const myAccounts = useMyAccountIds()
-  const myAccountResources = useResources(myAccounts.data?.map((a) => hmId(a)) || [])
+  const accountQueries = useAccounts(myAccounts.data || [])
 
   const accountOptions = myAccounts.data
-    ?.map((a) => {
-      const resourceData = myAccountResources.find((r) => r.data?.id?.uid === a)?.data
-      if (!resourceData) return null
-      if (resourceData.type !== 'document') return null
-      if (typeof resourceData.document?.metadata === 'undefined') return null
-      return resourceData
+    ?.map((uid, index) => {
+      const accountData = accountQueries[index]?.data
+      if (!accountData) return null
+      return accountData
     })
     .filter((d) => !!d)
 
@@ -48,8 +46,7 @@ export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: bo
       setSelectedIdentity(firstValidAccount)
     }
   }, [setSelectedIdentity, myAccounts.data])
-  const selectedAccount = myAccountResources.find((a) => a.data?.id?.uid === selectedIdentityValue)
-  const selectedAccountDoc = selectedAccount?.data?.type === 'document' ? selectedAccount.data.document : undefined
+  const selectedAccountData = accountQueries.find((q) => q.data?.id?.uid === selectedIdentityValue)?.data
   const [isOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
@@ -75,22 +72,19 @@ export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: bo
           {...highlighter(hmId(selectedIdentityValue))}
         >
           <>
-            {/* <Button className="justify-start items-center pr-3 pl-2 w-full min-w-0 bg-transparent bg-blue-500 rounded-sm hover:bg-gray-200"> */}
-            {selectedAccount?.data ? (
+            {selectedAccountData ? (
               <HMIcon
-                key={selectedAccount.data?.id?.uid}
-                id={selectedAccount.data?.id}
-                name={selectedAccountDoc?.metadata?.name}
-                icon={selectedAccountDoc?.metadata?.icon}
+                key={selectedAccountData.id?.uid}
+                id={selectedAccountData.id}
+                name={selectedAccountData.metadata?.name}
+                icon={selectedAccountData.metadata?.icon}
                 size={24}
               />
             ) : null}
 
             <p className="truncate text-sm select-none">
-              {selectedAccountDoc?.metadata?.name || `?${selectedIdentityValue?.slice(-8) || 'Unknown'}`}
+              {selectedAccountData?.metadata?.name || `?${selectedIdentityValue?.slice(-8) || 'Unknown'}`}
             </p>
-
-            {/* </Button> */}
           </>
         </PopoverTrigger>
         <PopoverContent
@@ -105,7 +99,7 @@ export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: bo
                   key={option.id.uid}
                   className={cn(
                     'hover:bg-sidebar-accent flex flex-row items-center gap-4 rounded-md p-2',
-                    selectedAccount?.data?.id?.uid === option.id.uid ? 'bg-sidebar-accent' : '',
+                    selectedAccountData?.id?.uid === option.id.uid ? 'bg-sidebar-accent' : '',
                   )}
                   onClick={() => {
                     setSelectedIdentity?.(option.id.uid || null)
@@ -113,14 +107,8 @@ export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: bo
                   }}
                   {...highlighter(option.id)}
                 >
-                  {option.id ? (
-                    <HMIcon
-                      id={option?.id}
-                      name={option?.document?.metadata?.name}
-                      icon={option?.document?.metadata?.icon}
-                    />
-                  ) : null}
-                  {option?.document?.metadata?.name}
+                  <HMIcon id={option.id} name={option.metadata?.name} icon={option.metadata?.icon} />
+                  {option.metadata?.name || `?${option.id.uid?.slice(-8)}`}
                 </div>
               ) : null,
             )}
@@ -137,13 +125,10 @@ export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: bo
 function LinkKeyButton() {
   const {selectedIdentity} = useUniversalAppContext()
   const selectedIdentityValue = useStream(selectedIdentity)
-  const myAccounts = useMyAccounts()
+  const account = useAccount(selectedIdentityValue)
   const linkDevice = useAppDialog(LinkDeviceDialog)
 
-  const selectedAccount = myAccounts?.find((a) => a.data?.id?.uid === selectedIdentityValue)
-  const selectedAccountDoc = selectedAccount?.data?.type === 'document' ? selectedAccount.data.document : undefined
-
-  const accountName = selectedAccountDoc?.metadata?.name || 'Account'
+  const accountName = account.data?.metadata?.name || 'Account'
 
   return (
     <>

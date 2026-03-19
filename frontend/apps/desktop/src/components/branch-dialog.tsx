@@ -78,8 +78,8 @@ export function BranchDialog({onClose, input}: {onClose: () => void; input: Unpa
               >
                 <HMIcon
                   id={selectedAccount.id}
-                  name={selectedAccount.document?.metadata.name}
-                  icon={selectedAccount.document?.metadata.icon}
+                  name={selectedAccount.metadata?.name}
+                  icon={selectedAccount.metadata?.icon}
                   size={24}
                 />
                 Create Document Branch

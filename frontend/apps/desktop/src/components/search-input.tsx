@@ -163,6 +163,7 @@ export const SearchInput = forwardRef<
       // ?.sort((a, b) => Number(!!b.id.latest) - Number(!!a.id.latest))
       ?.map((item, index) => {
         const title = item.title || item.id.uid
+        const route = item.type === 'contact' ? ({key: 'profile', id: item.id} as NavRoute) : appRouteOfId(item.id)
         return {
           key: packHmId(item.id),
           title,
@@ -174,8 +175,8 @@ export const SearchInput = forwardRef<
           onMouseEnter: () => {
             setFocusedIndex(index)
           },
-          onSelect: () => onSelect({id: item.id, route: appRouteOfId(item.id)}),
-          subtitle: 'Document',
+          onSelect: () => onSelect({id: item.id, route}),
+          subtitle: item.type === 'contact' ? 'Contact' : 'Document',
           searchQuery: item.searchQuery,
           versionTime: item.versionTime || '',
         }

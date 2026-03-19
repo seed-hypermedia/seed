@@ -315,11 +315,11 @@ function _CommentBox(props: {
       handleFileAttachment={handleFileAttachment}
       account={{
         id: account.id,
-        metadata: account.document?.metadata,
+        metadata: account.metadata,
       }}
       perspectiveAccountUid={selectedAccountId}
       submitButton={({getContent, reset}) => (
-        <Tooltip content={`Publish Comment as "${account?.document?.metadata?.name}"`}>
+        <Tooltip content={`Publish Comment as "${account?.metadata?.name}"`}>
           <Button
             size="icon"
             onClick={(e) => {
