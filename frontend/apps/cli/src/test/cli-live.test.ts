@@ -143,6 +143,9 @@ describe('CLI Read Operations (Live Dev Server)', () => {
         // ResourceMetadata returns id and metadata fields
         expect(result.stdout).toContain(KNOWN_ACCOUNT)
         expect(result.stdout).toContain('id')
+        const parsed = JSON.parse(result.stdout)
+        expect(parsed.metadata).not.toBeNull()
+        expect(parsed.metadata).toBeObject()
       },
       TEST_TIMEOUT,
     )
