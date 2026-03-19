@@ -15,26 +15,16 @@ import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
+import {resolveOmnibarUrlToRoute} from '@/omnibar-url'
 import {hostnameStripProtocol} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
-import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
-import {createDocumentNavRoute, DocumentRoute, DraftRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
+import {DocumentRoute, DraftRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
-import {
-  activitySlugToFilter,
-  createWebHMUrl,
-  displayHostname,
-  extractViewTermFromUrl,
-  hmId,
-  isSiteProfileTab,
-  routeToUrl,
-  unpackHmId,
-  viewTermToRouteKey,
-} from '@shm/shared/utils/entity-id-url'
-import {appRouteOfId, useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
+import {createWebHMUrl, displayHostname, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
@@ -769,67 +759,10 @@ export function Omnibar() {
   // Handle URL navigation - returns true if navigation was synchronous
   const handleUrlNavigation = useCallback(
     async (url: string): Promise<boolean> => {
-      // Extract view term (e.g., /:activity) from URL before processing
-      const {url: cleanUrl, viewTerm, activityFilter, commentId, accountUid} = extractViewTermFromUrl(url)
-      const routeKey = viewTermToRouteKey(viewTerm)
-
-      // Helper to apply view term to route
-      const applyViewTerm = (route: NavRoute): NavRoute => {
-        if (!routeKey) return route
-        if (route.key === 'document') {
-          if (routeKey === 'comments' && commentId) {
-            return {key: 'comments', id: route.id, openComment: commentId}
-          }
-          if (isSiteProfileTab(routeKey)) {
-            return {key: 'site-profile', id: route.id, accountUid: accountUid || undefined, tab: routeKey}
-          }
-          const viewRoute: NavRoute = {key: routeKey, id: route.id}
-          if (routeKey === 'activity' && activityFilter && viewRoute.key === 'activity') {
-            viewRoute.filterEventType = activitySlugToFilter(activityFilter)
-          }
-          return viewRoute
-        }
-        return route
-      }
-
-      // First try to parse as hm:// URL (synchronous)
-      const unpacked = unpackHmId(cleanUrl)
-      if (unpacked) {
-        // Extract panel param from URL if present
-        let panel: string | null = null
-        try {
-          const urlObj = new URL(cleanUrl)
-          panel = urlObj.searchParams.get('panel')
-        } catch {
-          // hm:// URLs might not parse as standard URLs, try manual extraction
-          const panelMatch = cleanUrl.match(/[?&]panel=([^&]+)/)
-          if (panelMatch) panel = decodeURIComponent(panelMatch[1])
-        }
-        const navRoute = panel ? createDocumentNavRoute(unpacked, null, panel) : appRouteOfId(unpacked)
-        if (navRoute) {
-          navigate(applyViewTerm(navRoute))
-          return true
-        }
-      }
-
-      // If it looks like an HTTP URL, try to resolve it (async)
-      if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
-        try {
-          const result = await resolveHypermediaUrl(cleanUrl)
-          if (result?.hmId) {
-            // Use createDocumentNavRoute if panel param is present to preserve panel state
-            const navRoute = result.panel
-              ? createDocumentNavRoute(result.hmId, null, result.panel)
-              : appRouteOfId(result.hmId)
-            if (navRoute) {
-              const finalRoute = applyViewTerm(navRoute)
-              navigate(finalRoute)
-              return true
-            }
-          }
-        } catch (error) {
-          console.error('Failed to resolve URL:', error)
-        }
+      const route = await resolveOmnibarUrlToRoute(url)
+      if (route) {
+        navigate(route)
+        return true
       }
       return false
     },

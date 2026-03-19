@@ -10,6 +10,7 @@ import {
   packHmId,
   parseCustomURL,
   parseFragment,
+  routeToHmUrl,
   routeToUrl,
   serializeBlockRange,
   unpackHmId,
@@ -678,6 +679,35 @@ describe('routeToUrl', () => {
   })
 })
 
+describe('routeToHmUrl', () => {
+  test('document route with panel produces hm url with panel query', () => {
+    const url = routeToHmUrl({
+      key: 'document',
+      id: hmId('uid1', {path: ['docs']}),
+      panel: {key: 'comments', id: hmId('uid1', {path: ['docs']})},
+    })
+    expect(url).toBe('hm://uid1/docs?panel=comments')
+  })
+
+  test('comments route with openComment preserves view term and fragment', () => {
+    const url = routeToHmUrl({
+      key: 'comments',
+      id: hmId('uid1', {blockRef: 'blk1', blockRange: {expanded: true}}),
+      openComment: 'comment123',
+    })
+    expect(url).toBe('hm://uid1/:comments/comment123#blk1+')
+  })
+
+  test('activity route with filter produces hm view url', () => {
+    const url = routeToHmUrl({
+      key: 'activity',
+      id: hmId('uid1'),
+      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+    })
+    expect(url).toBe('hm://uid1/:activity/citations')
+  })
+})
+
 describe('idToUrl', () => {
   test('converts UnpackedHypermediaId to web URL', () => {
     const id = hmId('abc', {
@@ -703,6 +733,15 @@ describe('extractViewTermFromUrl', () => {
       url: 'https://site.com/path',
       viewTerm: ':comments',
       commentId: 'z6Mk123/z6FC456',
+    })
+  })
+
+  test('extracts :comments with a single-segment comment id', () => {
+    const result = extractViewTermFromUrl('https://site.com/path/:comments/comment123')
+    expect(result).toEqual({
+      url: 'https://site.com/path',
+      viewTerm: ':comments',
+      commentId: 'comment123',
     })
   })
 

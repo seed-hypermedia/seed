@@ -3,6 +3,7 @@ import {useAppContext, useListen} from '@/app-context'
 import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {CloseButton} from '@/components/window-controls'
 import appError from '@/errors'
+import {useAIProviders} from '@/models/ai-config'
 import {useConnectPeer} from '@/models/contacts'
 import {useMyAccounts} from '@/models/daemon'
 import {SidebarContextProvider, useSidebarContext} from '@/sidebar-context'
@@ -22,10 +23,12 @@ import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {lazy, ReactElement, ReactNode, useEffect, useMemo, useRef, useState} from 'react'
+import React, {lazy, ReactElement, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
-import {ImperativePanelGroupHandle, Panel, PanelGroup} from 'react-resizable-panels'
+import {ImperativePanelGroupHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
+import {ipc} from '@/ipc'
 import {AppErrorPage, RootAppError} from '../components/app-error'
+import {AssistantPanel} from '../components/assistant-panel'
 import {AutoUpdater} from '../components/auto-updater'
 import Footer from '../components/footer'
 import {HypermediaHighlight} from '../components/hypermedia-highlight'
@@ -48,9 +51,58 @@ var Profile = lazy(() => import('./profile'))
 var Preview = lazy(() => import('./preview'))
 var Notifications = lazy(() => import('./notifications'))
 
+/** Renders the main desktop app window and optional assistant sidebar. */
 export default function Main({className}: {className?: string}) {
   const navR = useNavRoute()
   const navigate = useNavigate()
+  const initNavState = (window as any).initNavState
+  const [assistantOpen, setAssistantOpen] = useState(initNavState?.assistantOpen || false)
+  const [assistantSessionId, setAssistantSessionId] = useState<string | null>(initNavState?.assistantSessionId || null)
+  const [assistantNewChatRequest, setAssistantNewChatRequest] = useState(0)
+  const providers = useAIProviders()
+  const hasAssistantProviders = (providers.data?.length || 0) > 0
+  const shouldRenderAssistantPanel = assistantOpen && (hasAssistantProviders || !providers.isSuccess)
+
+  const sendAssistantState = useCallback((open: boolean, sessionId: string | null) => {
+    ipc.send('windowAssistantState', {assistantOpen: open, assistantSessionId: sessionId})
+  }, [])
+
+  const handleToggleAssistant = useCallback(() => {
+    setAssistantOpen((prev: boolean) => {
+      const next = !prev
+      sendAssistantState(next, assistantSessionId)
+      return next
+    })
+  }, [assistantSessionId, sendAssistantState])
+
+  const handleNewAssistantChat = useCallback(() => {
+    if (!hasAssistantProviders) {
+      return
+    }
+
+    setAssistantOpen((prev: boolean) => {
+      if (!prev) {
+        sendAssistantState(true, assistantSessionId)
+      }
+      return true
+    })
+    setAssistantNewChatRequest((prev) => prev + 1)
+  }, [assistantSessionId, hasAssistantProviders, sendAssistantState])
+
+  const handleSessionChange = useCallback(
+    (sessionId: string | null) => {
+      setAssistantSessionId(sessionId)
+      sendAssistantState(assistantOpen, sessionId)
+    },
+    [assistantOpen, sendAssistantState],
+  )
+
+  useEffect(() => {
+    if (providers.isSuccess && !hasAssistantProviders && assistantOpen) {
+      setAssistantOpen(false)
+      sendAssistantState(false, assistantSessionId)
+    }
+  }, [assistantOpen, assistantSessionId, hasAssistantProviders, providers.isSuccess, sendAssistantState])
 
   const {platform} = useAppContext()
   const {PageComponent, Fallback} = useMemo(() => getPageComponent(navR), [navR])
@@ -105,30 +157,52 @@ export default function Main({className}: {className?: string}) {
 
   return (
     <div className={cn(windowContainerStyles, 'p-0', className)}>
-      <SidebarContextProvider>
-        {titlebar}
+      <PanelGroup direction="horizontal" autoSaveId="main-assistant">
+        <Panel id="app-content" order={1}>
+          <div className="flex h-full flex-col">
+            <SidebarContextProvider>
+              {titlebar}
 
-        <PanelContent>
-          {sidebar}
-          <Panel id="page" order={2} className="pl-1">
-            <ErrorBoundary
-              key={routeKey}
-              FallbackComponent={RootAppError}
-              onReset={() => {
-                window.location.reload()
-              }}
-            >
-              <PageComponent />
-            </ErrorBoundary>
-          </Panel>
-        </PanelContent>
+              <PanelContent>
+                {sidebar}
+                <Panel id="page" order={2} className="pl-1">
+                  <ErrorBoundary
+                    key={routeKey}
+                    FallbackComponent={RootAppError}
+                    onReset={() => {
+                      window.location.reload()
+                    }}
+                  >
+                    <PageComponent />
+                  </ErrorBoundary>
+                </Panel>
+              </PanelContent>
 
-        <Footer />
-        <AutoUpdater />
-        <ConfirmConnectionDialog />
-        <DeviceLinkHandler />
-        <HypermediaHighlight />
-      </SidebarContextProvider>
+              <Footer
+                assistantOpen={assistantOpen}
+                onNewAssistantChat={hasAssistantProviders ? handleNewAssistantChat : undefined}
+                onToggleAssistant={hasAssistantProviders ? handleToggleAssistant : undefined}
+              />
+              <AutoUpdater />
+              <ConfirmConnectionDialog />
+              <DeviceLinkHandler />
+              <HypermediaHighlight />
+            </SidebarContextProvider>
+          </div>
+        </Panel>
+        {shouldRenderAssistantPanel && (
+          <>
+            <PanelResizeHandle className="panel-resize-handle" />
+            <Panel id="assistant" order={2} minSize={15} maxSize={40} defaultSize={25} className="border-l">
+              <AssistantPanel
+                initialSessionId={assistantSessionId}
+                newChatRequest={assistantNewChatRequest}
+                onSessionChange={handleSessionChange}
+              />
+            </Panel>
+          </>
+        )}
+      </PanelGroup>
     </div>
   )
 }

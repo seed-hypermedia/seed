@@ -69,8 +69,9 @@ export function extractViewTermFromUrl(url: string): {
   commentId?: string
   accountUid?: string
 } {
-  // Check for :comments/UID/TSID or :comment/UID/TSID pattern (2 path segments)
-  const commentsPattern = /\/\:comments?\/([^/?#]+\/[^/?#]+)(?=[?#]|$)/
+  // Check for :comments/<comment-id> or :comment/<comment-id> pattern.
+  // Comment IDs may be a single segment or a slash-delimited path.
+  const commentsPattern = /\/\:comments?\/([^?#]+?)(?=[?#]|$)/
   const commentsMatch = url.match(commentsPattern)
   if (commentsMatch) {
     return {
@@ -383,6 +384,66 @@ export function routeToUrl(
     return `${urlHost}/hm/contact/${route.id.uid}`
   }
   return 'TODO'
+}
+
+/**
+ * Serializes an application route into an hm:// URL.
+ */
+export function routeToHmUrl(route: NavRoute): string | null {
+  const panelParam = getRoutePanelParam(route)
+
+  if (route.key === 'document') {
+    let url = packBaseId(route.id.uid, route.id.path)
+    url += getHMQueryString({
+      version: route.id.version,
+      latest: route.id.latest,
+      panel: panelParam,
+    })
+    if (route.id.blockRef) {
+      url += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
+    }
+    return url
+  }
+
+  if (
+    route.key === 'feed' ||
+    route.key === 'activity' ||
+    route.key === 'directory' ||
+    route.key === 'collaborators' ||
+    route.key === 'comments'
+  ) {
+    let viewTermPath = `:${route.key}`
+    if (route.key === 'activity') {
+      const filterSlug = activityFilterToSlug(route.filterEventType)
+      if (filterSlug) viewTermPath = `:activity/${filterSlug}`
+    }
+    if (route.key === 'comments' && route.openComment) {
+      viewTermPath = `:comments/${route.openComment}`
+    }
+
+    let url = packBaseId(route.id.uid, route.id.path)
+    url += `/${viewTermPath}`
+    url += getHMQueryString({
+      version: route.id.version,
+      latest: route.id.latest,
+      panel: panelParam,
+    })
+    if (route.id.blockRef) {
+      url += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
+    }
+    return url
+  }
+
+  if (route.key === 'site-profile') {
+    const accountSuffix = route.accountUid && route.accountUid !== route.id.uid ? `/${route.accountUid}` : ''
+    return `${packBaseId(route.id.uid)}/:${route.tab}${accountSuffix}`
+  }
+
+  if (route.key === 'profile') {
+    return `${packBaseId(route.id.uid)}/:${route.tab || 'profile'}`
+  }
+
+  return null
 }
 
 export function createWebHMUrl(

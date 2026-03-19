@@ -17,12 +17,25 @@ import {HoverCard, HoverCardContent, HoverCardTrigger} from '@shm/ui/hover-card'
 import {Cable} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
+import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
+import {Bot, MessageCirclePlus} from 'lucide-react'
 import {ReactNode, useEffect, useState} from 'react'
 import {OnlineIndicator} from './indicator'
 import {useNetworkDialog} from './network-dialog'
 
-export default function Footer({children}: {children?: ReactNode}) {
+/** Renders the desktop app footer and status actions. */
+export default function Footer({
+  children,
+  assistantOpen,
+  onNewAssistantChat,
+  onToggleAssistant,
+}: {
+  children?: ReactNode
+  assistantOpen?: boolean
+  onNewAssistantChat?: () => void
+  onToggleAssistant?: () => void
+}) {
   const updateStatus = useUpdateStatus()
   return (
     <FooterWrapper className="flex-none">
@@ -46,11 +59,38 @@ export default function Footer({children}: {children?: ReactNode}) {
         <DaemonTasksIndicator />
         <DiscoveryIndicator />
         {children}
+        {onToggleAssistant && (
+          <Tooltip content={assistantOpen ? 'Close assistant panel' : 'Open assistant panel'}>
+            <Button
+              size="xs"
+              variant={'ghost'}
+              className={cn('px-2', assistantOpen && 'text-brand hover:text-brand-hover')}
+              onClick={onToggleAssistant}
+              aria-label="Toggle assistant"
+            >
+              <Bot className="size-3" />
+            </Button>
+          </Tooltip>
+        )}
+        {onNewAssistantChat && (
+          <Tooltip content="New assistant chat">
+            <Button
+              size="xs"
+              variant={'ghost'}
+              className="px-2"
+              onClick={onNewAssistantChat}
+              aria-label="New assistant chat"
+            >
+              <MessageCirclePlus className="size-3" />
+            </Button>
+          </Tooltip>
+        )}
       </div>
     </FooterWrapper>
   )
 }
 
+/** Renders a footer action button with optional active styling. */
 export function FooterButton({
   active,
   label,

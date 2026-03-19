@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {getSelectedIdentityFromWindowState, type WindowNavState} from '../utils/account-selection'
+import {getSelectedIdentityFromWindowState, mergeWindowNavState, type WindowNavState} from '../utils/account-selection'
 
 describe('getSelectedIdentityFromWindowState', () => {
   it('returns null when windowId is null', () => {
@@ -136,5 +136,62 @@ describe('getSelectedIdentityFromWindowState', () => {
 
     const result = getSelectedIdentityFromWindowState(windowNavState, 'window-1')
     expect(result).toBe(null)
+  })
+})
+
+describe('mergeWindowNavState', () => {
+  it('preserves assistant state when navigation updates omit assistant fields', () => {
+    const currentState: WindowNavState = {
+      routes: [{key: 'document'}],
+      routeIndex: 0,
+      sidebarLocked: true,
+      sidebarWidth: 15,
+      accessoryWidth: 20,
+      selectedIdentity: 'account-1',
+      assistantOpen: true,
+      assistantSessionId: 'session-1',
+    }
+
+    const result = mergeWindowNavState(currentState, {
+      routes: [{key: 'library'}],
+      routeIndex: 0,
+      sidebarLocked: false,
+      sidebarWidth: 18,
+      accessoryWidth: 24,
+      selectedIdentity: 'account-2',
+    })
+
+    expect(result).toMatchObject({
+      routes: [{key: 'library'}],
+      routeIndex: 0,
+      sidebarLocked: false,
+      sidebarWidth: 18,
+      accessoryWidth: 24,
+      selectedIdentity: 'account-2',
+      assistantOpen: true,
+      assistantSessionId: 'session-1',
+    })
+  })
+
+  it('updates assistant state when assistant fields are provided', () => {
+    const currentState: WindowNavState = {
+      routes: [{key: 'document'}],
+      routeIndex: 0,
+      sidebarLocked: true,
+      sidebarWidth: 15,
+      accessoryWidth: 20,
+      selectedIdentity: 'account-1',
+      assistantOpen: false,
+      assistantSessionId: null,
+    }
+
+    const result = mergeWindowNavState(currentState, {
+      assistantOpen: true,
+      assistantSessionId: 'session-2',
+    })
+
+    expect(result.assistantOpen).toBe(true)
+    expect(result.assistantSessionId).toBe('session-2')
+    expect(result.routes).toEqual(currentState.routes)
   })
 })

@@ -23,8 +23,10 @@ process.once('loaded', async () => {
 //   writeableStateStream<NavState | null>(null)
 
 const [dispatchAppWindow, appWindowEvents] = eventStream<AppWindowEvent>()
+const [dispatchChatStream, chatStreamEvents] = eventStream<any>()
 
 contextBridge.exposeInMainWorld('appWindowEvents', appWindowEvents)
+contextBridge.exposeInMainWorld('chatStreamEvents', chatStreamEvents)
 
 const AppInfo = {
   platform: () => process.platform,
@@ -191,6 +193,10 @@ ipcRenderer.addListener('appWindowEvent', (info, event) => {
 
 ipcRenderer.addListener('find_in_page', (info, event) => {
   dispatchAppWindow(event)
+})
+
+ipcRenderer.addListener('chatStreamEvent', (info, event) => {
+  dispatchChatStream(event)
 })
 
 // Add a state stream for window maximized state
