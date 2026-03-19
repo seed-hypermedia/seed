@@ -1,6 +1,7 @@
 import {AlertDialogDescription, AlertDialogTitle} from '@radix-ui/react-alert-dialog'
 import {
   BlockRange,
+  HMBlockNode,
   HMComment,
   HMCommentGroup,
   HMDocument,
@@ -12,6 +13,7 @@ import {
 import {
   commentIdToHmId,
   createCommentUrl,
+  formattedDateShort,
   getCommentTargetId,
   hmId,
   NavRoute,
@@ -25,16 +27,18 @@ import {
   useCommentReplyCount,
   useCommentsService,
   useCommentsServiceContext,
+  useCommentVersions,
   useDeleteComment,
   useDiscussionsService,
   useHackyAuthorsSubscriptions,
+  useUpdateComment,
 } from '@shm/shared/comments-service-provider'
 import {HMListDiscussionsOutput} from '@seed-hypermedia/client/hm-types'
-import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
+import {useIsCurrentUser, useResource} from '@shm/shared/models/entity'
 import {getRoutePanel} from '@shm/shared/routes'
 import {useTxString} from '@shm/shared/translation'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {Link, MessageSquare, Trash2} from 'lucide-react'
+import {Pencil, Link, MessageSquare, Trash2, X} from 'lucide-react'
 import {memo, ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {toast} from 'sonner'
 import {SelectionContent} from './accessories'
@@ -45,6 +49,7 @@ import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
 import {AuthorNameLink, getContextualProfileRoute, InlineDescriptor, Timestamp} from './inline-descriptor'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
+import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
@@ -102,7 +107,13 @@ export function CommentDiscussions({
 
   useHackyAuthorsSubscriptions(allAuthorIds)
 
+  const {showDeletedContent} = useCommentsServiceContext()
+
   const commentFound = commentsService.data?.comments?.some((c) => c.id === commentId)
+
+  // On desktop, fetch version history for deleted comments so we can show their content
+  const shouldFetchDeletedVersions = showDeletedContent && !commentFound && !!commentsService.data && !!commentId
+  const deletedVersions = useCommentVersions(shouldFetchDeletedVersions ? commentId : null)
 
   // Find the actual focused comment
   const focusedComment = useMemo(() => {
@@ -146,11 +157,31 @@ export function CommentDiscussions({
   }
 
   if (!commentFound && commentsService.data) {
+    // On desktop, show the pre-deletion content if version history is available
+    const deletedLastVersion = deletedVersions.data?.versions?.[0]
+    if (showDeletedContent && deletedLastVersion) {
+      return (
+        <SelectionContent>
+          <div className="p-2">
+            <DeletedCommentPreview comment={deletedLastVersion} />
+          </div>
+        </SelectionContent>
+      )
+    }
+    if (showDeletedContent && deletedVersions.isLoading) {
+      return (
+        <SelectionContent>
+          <div className="flex items-center justify-center p-4">
+            <Spinner />
+          </div>
+        </SelectionContent>
+      )
+    }
     return (
       <SelectionContent>
         <div className="flex flex-col items-center gap-2 p-4">
           <SizableText color="muted" size="sm">
-            This comment is not available in the current document version
+            This comment could not be found. It may have been deleted.
           </SizableText>
         </div>
       </SelectionContent>
@@ -529,10 +560,13 @@ export const Comment = memo(function Comment({
 }) {
   const tx = useTxString()
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
+  const [isEditing, setIsEditing] = useState(false)
+  const [viewingVersion, setViewingVersion] = useState<HMComment | null>(null)
   const commentsContext = useCommentsServiceContext()
   const {data: replyCount} = useCommentReplyCount({id: comment.id})
-  const currentAccountId = useSelectedAccountId()
+  const isAuthor = useIsCurrentUser(comment.author)
   const deleteCommentMutation = useDeleteComment()
+  const updateCommentMutation = useUpdateComment()
   const deleteCommentDialog = useDeleteCommentDialog()
   const currentRoute = useNavRoute()
 
@@ -549,7 +583,15 @@ export const Comment = memo(function Comment({
   }, [defaultExpandReplies])
   const navigate = useNavigate('replace')
   const options: MenuItemType[] = []
-  if (currentAccountId) {
+  if (isAuthor) {
+    options.push({
+      icon: <Pencil className="size-4" />,
+      label: 'Edit',
+      onClick: () => setIsEditing(true),
+      key: 'edit',
+    })
+  }
+  if (isAuthor) {
     options.push({
       icon: <Trash2 className="size-4" />,
       label: 'Delete',
@@ -564,7 +606,7 @@ export const Comment = memo(function Comment({
               (routePanel?.key === 'comments' && routePanel.openComment === comment.id)
 
             deleteCommentMutation.mutate(
-              {comment, signingAccountId: currentAccountId},
+              {comment, signingAccountId: comment.author},
               {
                 onSuccess: () => {
                   if (!isFocusedComment) return
@@ -637,37 +679,43 @@ export const Comment = memo(function Comment({
                   </>
                 ) : null}
                 <CommentDate comment={comment} />
+                {JSON.stringify(comment.createTime) !== JSON.stringify(comment.updateTime) ? (
+                  <EditedIndicator commentId={comment.id} onSelectVersion={setViewingVersion} />
+                ) : null}
               </InlineDescriptor>
             )}
             <div className="flex items-center gap-2">
-              <Tooltip content={tx('Copy Comment Link')}>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
-                  onClick={() => {
-                    if (docId) {
-                      const routeLatest =
-                        currentRoute.key === 'document' ||
-                        currentRoute.key === 'comments' ||
-                        currentRoute.key === 'activity'
-                          ? currentRoute.id.latest
-                          : undefined
-                      const url = createCommentUrl({
-                        docId,
-                        commentId: comment.id,
-                        siteUrl: targetDomain,
-                        latest: routeLatest,
-                      })
-                      copyTextToClipboard(url)
-                      toast.success('Copied Comment URL')
-                    }
-                  }}
-                >
-                  <Link className="size-3" />
-                </Button>
-              </Tooltip>
-              {currentAccountId == comment.author ? (
+              {!isEditing && (
+                <Tooltip content={tx('Copy Comment Link')}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                    onClick={() => {
+                      if (docId) {
+                        const routeLatest =
+                          currentRoute.key === 'document' ||
+                          currentRoute.key === 'comments' ||
+                          currentRoute.key === 'activity'
+                            ? currentRoute.id.latest
+                            : undefined
+                        const url = createCommentUrl({
+                          docId,
+                          commentId: comment.id,
+                          commentVersion: comment.version,
+                          siteUrl: targetDomain,
+                          latest: routeLatest,
+                        })
+                        copyTextToClipboard(url)
+                        toast.success('Copied Comment URL')
+                      }
+                    }}
+                  >
+                    <Link className="size-3" />
+                  </Button>
+                </Tooltip>
+              )}
+              {!isEditing && options.length > 0 ? (
                 <OptionsDropdown
                   side="bottom"
                   align="end"
@@ -678,9 +726,25 @@ export const Comment = memo(function Comment({
             </div>
           </div>
 
-          <CommentContent comment={comment} selection={selection} />
+          {isEditing ? (
+            <InlineCommentEditor
+              comment={comment}
+              onCancel={() => setIsEditing(false)}
+              onSave={(newContent) => {
+                updateCommentMutation.mutate(
+                  {comment, newContent, signingAccountId: comment.author},
+                  {onSuccess: () => setIsEditing(false)},
+                )
+              }}
+              isSaving={updateCommentMutation.isPending}
+            />
+          ) : viewingVersion ? (
+            <VersionPreview version={viewingVersion} onDismiss={() => setViewingVersion(null)} />
+          ) : (
+            <CommentContent comment={comment} selection={selection} />
+          )}
 
-          {!isEntirelyHighlighted && (
+          {!isEntirelyHighlighted && !isEditing && (
             <div className={cn('-ml-1 flex items-center gap-2 py-1', !heading && 'mb-2')}>
               {enableReplies || commentsContext.onReplyClick ? (
                 <Button
@@ -909,6 +973,179 @@ function DeleteCommentDialog({input, onClose}: {input: {onConfirm: () => void}; 
       </Button>
     </>
   )
+}
+
+/** "(edited)" label with popover listing versions. Clicking a version calls onSelectVersion. */
+function EditedIndicator({
+  commentId,
+  onSelectVersion,
+}: {
+  commentId: string
+  onSelectVersion: (version: HMComment | null) => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button className="text-muted-foreground ml-1 cursor-pointer text-[11px] hover:underline">(edited)</button>
+      </PopoverTrigger>
+      <PopoverContent side="bottom" align="start" className="w-72 p-0">
+        {open ? (
+          <CommentVersionList
+            commentId={commentId}
+            onSelect={(version) => {
+              onSelectVersion(version)
+              setOpen(false)
+            }}
+          />
+        ) : null}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/** Popover list of comment versions. Clicking a past version triggers onSelect. */
+function CommentVersionList({commentId, onSelect}: {commentId: string; onSelect: (version: HMComment) => void}) {
+  const {data, isLoading, error} = useCommentVersions(commentId)
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-4">
+        <Spinner />
+      </div>
+    )
+  }
+
+  if (error || !data?.versions?.length) {
+    return (
+      <div className="p-4">
+        <SizableText size="sm" color="muted">
+          Could not load edit history
+        </SizableText>
+      </div>
+    )
+  }
+
+  const editCount = data.versions.length - 1
+
+  return (
+    <div className="flex flex-col">
+      <div className="border-border border-b px-3 py-2">
+        <SizableText size="sm" className="font-semibold">
+          Edited {editCount} {editCount === 1 ? 'time' : 'times'}
+        </SizableText>
+      </div>
+      <div className="max-h-80 overflow-y-auto">
+        {data.versions.map((version, index) => {
+          const versionNumber = data.versions.length - index
+          const isCurrent = index === 0
+          if (isCurrent) {
+            return (
+              <div
+                key={version.version || index}
+                className="border-border flex w-full items-center justify-between border-b px-3 py-2 last:border-b-0"
+              >
+                <div className="flex items-center gap-2">
+                  <SizableText size="xs">Version {versionNumber}</SizableText>
+                  <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-[10px] leading-none font-medium">
+                    current
+                  </span>
+                </div>
+                <SizableText size="xs" color="muted">
+                  {version.updateTime ? formattedDateShort(version.updateTime) : ''}
+                </SizableText>
+              </div>
+            )
+          }
+          return (
+            <button
+              key={version.version || index}
+              className="hover:bg-accent border-border flex w-full items-center justify-between border-b px-3 py-2 text-left last:border-b-0"
+              onClick={() => onSelect(version)}
+            >
+              <SizableText size="xs">Version {versionNumber}</SizableText>
+              <SizableText size="xs" color="muted">
+                {version.updateTime ? formattedDateShort(version.updateTime) : ''}
+              </SizableText>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** Red inline banner showing the content of a deleted comment (pre-deletion version from history). */
+function DeletedCommentPreview({comment}: {comment: HMComment}) {
+  return (
+    <div className="rounded-md border border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-950">
+      <div className="flex items-center px-3 py-1.5">
+        <SizableText size="xs" className="text-red-800 dark:text-red-200">
+          This comment was deleted
+          {comment.updateTime ? ` · ${formattedDateShort(comment.updateTime)}` : ''}
+        </SizableText>
+      </div>
+      <div className="px-1 pb-2">
+        <CommentContent comment={comment} size="sm" openOnClick={false} />
+      </div>
+    </div>
+  )
+}
+
+/** Yellow inline banner showing a previous version of the comment in place of the current content. */
+function VersionPreview({version, onDismiss}: {version: HMComment; onDismiss: () => void}) {
+  return (
+    <div className="rounded-md border border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950">
+      <div className="flex items-center justify-between px-3 py-1.5">
+        <SizableText size="xs" className="text-yellow-800 dark:text-yellow-200">
+          Viewing previous version {version.updateTime ? `\u00b7 ${formattedDateShort(version.updateTime)}` : ''}
+        </SizableText>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6 text-yellow-800 hover:bg-yellow-200 dark:text-yellow-200 dark:hover:bg-yellow-900"
+          onClick={onDismiss}
+        >
+          <X className="size-3.5" />
+        </Button>
+      </div>
+      <div className="px-1 pb-2">
+        <CommentContent comment={version} size="sm" openOnClick={false} />
+      </div>
+    </div>
+  )
+}
+
+/** Inline editor for editing an existing comment in-place. Uses context-provided renderer. */
+function InlineCommentEditor({
+  comment,
+  onCancel,
+  onSave,
+  isSaving,
+}: {
+  comment: HMComment
+  onCancel: () => void
+  onSave: (content: HMBlockNode[]) => void
+  isSaving: boolean
+}) {
+  const {renderInlineEditor} = useCommentsServiceContext()
+
+  if (!renderInlineEditor) {
+    // Fallback: show cancel button if no editor renderer is provided
+    return (
+      <div className="flex flex-col gap-2">
+        <SizableText size="sm" color="muted">
+          Inline editing is not available.
+        </SizableText>
+        <Button variant="ghost" size="xs" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    )
+  }
+
+  return renderInlineEditor({comment, onSave, onCancel, isSaving})
 }
 
 function NoComments({}: {}) {

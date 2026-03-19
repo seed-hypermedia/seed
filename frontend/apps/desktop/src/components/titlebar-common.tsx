@@ -337,7 +337,6 @@ function AccountProfileButton() {
   const route = useNavRoute()
   const accountUid = useSelectedAccountId()
   const selectedAccount = useSelectedAccount()
-  const doc = selectedAccount?.document
 
   if (!accountUid) return null
 
@@ -356,7 +355,12 @@ function AccountProfileButton() {
         aria-disabled={isActive || undefined}
         onClick={isActive ? undefined : () => navigate({key: 'profile', id: hmId(accountUid)})}
       >
-        <HMIcon id={hmId(accountUid)} name={doc?.metadata?.name} icon={doc?.metadata?.icon} size={32} />
+        <HMIcon
+          id={hmId(accountUid)}
+          name={selectedAccount?.metadata?.name}
+          icon={selectedAccount?.metadata?.icon}
+          size={32}
+        />
       </Button>
     </Tooltip>
   )

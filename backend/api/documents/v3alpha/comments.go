@@ -415,6 +415,22 @@ AND bl.type IN ('comment/reply-parent', 'comment/thread-root')
 AND (SELECT sb.extra_attrs->>'deleted' FROM structural_blobs sb WHERE id = source) is not true
 `)
 
+var qListCommentVersions = dqb.Str(`
+	SELECT
+		sb.id,
+		b.codec,
+		b.multihash,
+		b.data,
+		sb.extra_attrs->>'tsid' AS tsid
+	FROM structural_blobs sb
+	JOIN blobs b ON b.id = sb.id
+	WHERE sb.type = 'Comment'
+	AND sb.author = (SELECT id FROM public_keys WHERE principal = :authority)
+	AND sb.extra_attrs->>'tsid' = :tsid
+	AND sb.extra_attrs->>'deleted' IS NULL
+	ORDER BY sb.ts DESC
+`)
+
 func commentToProto(lookup *blob.LookupCache, c cid.Cid, cmt *blob.Comment, tsid blob.TSID) (*documents.Comment, error) {
 	var content []*documents.BlockNode
 	var err error
@@ -696,4 +712,46 @@ func (srv *Server) GetCommentReplyCount(ctx context.Context, in *documents.GetCo
 	}
 
 	return resp, nil
+}
+
+// ListCommentVersions implements Comments API.
+func (srv *Server) ListCommentVersions(ctx context.Context, in *documents.ListCommentVersionsRequest) (*documents.ListCommentVersionsResponse, error) {
+	if in.Id == "" {
+		return nil, errutil.MissingArgument("id")
+	}
+
+	rid, err := blob.DecodeRecordID(in.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode comment ID: %v", err)
+	}
+
+	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.ListCommentVersionsResponse, error) {
+		resp := &documents.ListCommentVersionsResponse{}
+		lookup := blob.NewLookupCache(conn)
+
+		versions, discard, check := sqlitex.QueryType(conn, srv.commentDBMapper(), qListCommentVersions(), rid.Authority, rid.TSID.String()).All()
+		defer discard(&err)
+
+		for v := range versions {
+			// Skip tombstones (deleted versions).
+			if len(v.Comment.Body) == 0 {
+				continue
+			}
+			pb, err := commentToProto(lookup, v.CID, v.Comment, v.TSID)
+			if err != nil {
+				return nil, err
+			}
+			resp.Versions = append(resp.Versions, pb)
+		}
+
+		if err := check(); err != nil {
+			return nil, err
+		}
+
+		if len(resp.Versions) == 0 {
+			return nil, status.Errorf(codes.NotFound, "comment %s not found or has been deleted", in.Id)
+		}
+
+		return resp, nil
+	})
 }

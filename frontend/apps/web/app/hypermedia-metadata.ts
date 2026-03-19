@@ -29,20 +29,24 @@ export type HypermediaResourceMetadata = {
  */
 export function createResourceMetadata(opts: {
   id: UnpackedHypermediaId
-  document: HMDocument
+  document?: HMDocument | null
   comment?: HMComment | null
   commentAuthorTitle?: string
 }): HypermediaResourceMetadata {
   if (opts.comment) {
     const targetId = getCommentTargetId(opts.comment)
+    const docTitle = opts.document ? getDocumentTitle(opts.document) : 'a document'
     return {
       id: opts.id.id,
       version: opts.comment.version,
-      title: `${opts.commentAuthorTitle || 'Somebody'} on ${getDocumentTitle(opts.document)}`,
+      title: `${opts.commentAuthorTitle || 'Somebody'} on ${docTitle}`,
       type: 'Comment',
       authors: [opts.comment.author],
       target: targetId ? packHmId(targetId) : undefined,
     }
+  }
+  if (!opts.document) {
+    throw new Error('createResourceMetadata requires a document for non-comment resources')
   }
   return {
     id: opts.id.id,

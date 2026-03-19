@@ -375,9 +375,7 @@ export default function PublishDraftButton() {
     <>
       <SaveIndicatorStatus />
       <Popover {...popoverState}>
-        <Tooltip
-          content={signingAccount ? `Publish as ${signingAccount?.document?.metadata.name}` : 'Publish Document...'}
-        >
+        <Tooltip content={signingAccount ? `Publish as ${signingAccount?.metadata?.name}` : 'Publish Document...'}>
           <PopoverTrigger asChild>
             <Button size="sm" className="hover:bg-hover dark:bg-background bg-white px-2">
               <Share className="size-4" />

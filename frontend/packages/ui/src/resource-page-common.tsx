@@ -285,9 +285,10 @@ export function ResourcePage({
 
   // Handle tombstone (deleted)
   if (resource.isTombstone || resource.data.type === 'tombstone') {
+    const isCommentRoute = route.key === 'comments'
     return (
       <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
-        <PageDeleted />
+        <PageDeleted entityType={isCommentRoute ? 'comment' : 'document'} />
         {pageFooter}
       </PageWrapper>
     )

@@ -143,10 +143,8 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       if (account) {
         // Ensure the account is selected when onboarding was previously completed
         setSelectedIdentity?.(account.uid)
-        navigate({
-          key: 'document',
-          id: account,
-        })
+        // Navigate to library — vault-created accounts may not have home docs.
+        navigate({key: 'library'})
       }
       onComplete()
     }
@@ -249,11 +247,8 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
 
         // Navigate based on account type
         if (isExistingAccountPath) {
-          // For existing accounts, go to document route
-          navigate({
-            key: 'document',
-            id: account,
-          })
+          // For existing/imported accounts, go to library — they may not have home docs.
+          navigate({key: 'library'})
         } else {
           // For new accounts, go to draft with welcome content
           navigate({

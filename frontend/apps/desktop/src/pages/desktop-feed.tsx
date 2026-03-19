@@ -1,4 +1,4 @@
-import {triggerCommentDraftFocus} from '@/components/commenting'
+import {renderDesktopInlineEditor, triggerCommentDraftFocus} from '@/components/commenting'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {DesktopDocumentActionsProvider} from '@/components/document-actions-provider'
 import {useGatewayUrl} from '@/models/gateway-settings'
@@ -123,6 +123,8 @@ export default function DesktopFeedPage() {
         useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
+        renderInlineEditor={renderDesktopInlineEditor}
+        showDeletedContent
       >
         <DesktopDocumentActionsProvider>
           <FeedPage docId={docId} extraMenuItems={menuItems} />

@@ -196,10 +196,11 @@ export default function DraftPage() {
   const headerDocId = headerDocIdRef.current
 
   // Layout: useDocumentLayout lives here so elementRef can wrap PanelLayout (matching resource-page-common.tsx)
-  const showOutline = typeof state.context.metadata.showOutline == 'undefined' || state.context.metadata.showOutline
+  const metadata = state.context.metadata
+  const showOutline = typeof metadata?.showOutline == 'undefined' || metadata?.showOutline
 
   const {showSidebars, elementRef, showCollapsed, mainContentProps, sidebarProps, wrapperProps} = useDocumentLayout({
-    contentWidth: state.context.metadata.contentWidth || 'M',
+    contentWidth: metadata?.contentWidth || 'M',
     showSidebars: showOutline && !isEditingHomeDoc,
   })
 
@@ -511,7 +512,7 @@ function DocumentEditor({
     return undefined
   }, [route, draftQuery.data])
 
-  const cover = useSelector(actor, (s) => s.context.metadata.cover)
+  const cover = useSelector(actor, (s) => s.context.metadata?.cover)
 
   const editId = useMemo(() => {
     if (route.editUid) {
@@ -957,14 +958,14 @@ function DraftMetadataEditor({
   const [showIcon, setShowIcon] = useState(false)
 
   const name = useSelector(draftActor, (s) => {
-    return s.context.metadata.name
+    return s.context.metadata?.name
   })
   const summary = useSelector(draftActor, (s) => {
-    return s.context.metadata.summary
+    return s.context.metadata?.summary
   })
 
   const icon = useSelector(draftActor, (s) => {
-    return s.context.metadata.icon
+    return s.context.metadata?.icon
   })
   const stateEditUid = useSelector(draftActor, (s) => {
     return s.context.editUid
@@ -1144,7 +1145,7 @@ function DraftCover({
   if (route.key !== 'draft') throw new Error('DraftHeader must have draft route')
 
   const cover = useSelector(draftActor, (s) => {
-    return s.context.metadata.cover
+    return s.context.metadata?.cover
   })
 
   return (
@@ -1263,7 +1264,7 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
     return (
       <div className="flex items-center gap-2">
         <SizableText size="sm">
-          <span className="font-bold">{selectedAccount?.document?.metadata.name}</span>
+          <span className="font-bold">{selectedAccount?.metadata?.name}</span>
           {' - '}
           Not Allowed to Publish Here
         </SizableText>

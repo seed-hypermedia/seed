@@ -3,8 +3,23 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { BatchGetCommentsRequest, BatchGetCommentsResponse, Comment, CreateCommentRequest, DeleteCommentRequest, GetCommentReplyCountRequest, GetCommentReplyCountResponse, GetCommentRequest, ListCommentsByAuthorRequest, ListCommentsRequest, ListCommentsResponse, UpdateCommentRequest } from "./comments_pb";
-import { Empty, MethodKind } from "@bufbuild/protobuf";
+import {
+  BatchGetCommentsRequest,
+  BatchGetCommentsResponse,
+  Comment,
+  CreateCommentRequest,
+  DeleteCommentRequest,
+  GetCommentReplyCountRequest,
+  GetCommentReplyCountResponse,
+  GetCommentRequest,
+  ListCommentsByAuthorRequest,
+  ListCommentsRequest,
+  ListCommentsResponse,
+  ListCommentVersionsRequest,
+  ListCommentVersionsResponse,
+  UpdateCommentRequest,
+} from './comments_pb'
+import {Empty, MethodKind} from '@bufbuild/protobuf'
 
 /**
  * Comments service allows users to add comments to documents.
@@ -12,7 +27,7 @@ import { Empty, MethodKind } from "@bufbuild/protobuf";
  * @generated from service com.seed.documents.v3alpha.Comments
  */
 export const Comments = {
-  typeName: "com.seed.documents.v3alpha.Comments",
+  typeName: 'com.seed.documents.v3alpha.Comments',
   methods: {
     /**
      * Creates a new comment.
@@ -20,7 +35,7 @@ export const Comments = {
      * @generated from rpc com.seed.documents.v3alpha.Comments.CreateComment
      */
     createComment: {
-      name: "CreateComment",
+      name: 'CreateComment',
       I: CreateCommentRequest,
       O: Comment,
       kind: MethodKind.Unary,
@@ -31,7 +46,7 @@ export const Comments = {
      * @generated from rpc com.seed.documents.v3alpha.Comments.GetComment
      */
     getComment: {
-      name: "GetComment",
+      name: 'GetComment',
       I: GetCommentRequest,
       O: Comment,
       kind: MethodKind.Unary,
@@ -42,7 +57,7 @@ export const Comments = {
      * @generated from rpc com.seed.documents.v3alpha.Comments.BatchGetComments
      */
     batchGetComments: {
-      name: "BatchGetComments",
+      name: 'BatchGetComments',
       I: BatchGetCommentsRequest,
       O: BatchGetCommentsResponse,
       kind: MethodKind.Unary,
@@ -53,7 +68,7 @@ export const Comments = {
      * @generated from rpc com.seed.documents.v3alpha.Comments.ListComments
      */
     listComments: {
-      name: "ListComments",
+      name: 'ListComments',
       I: ListCommentsRequest,
       O: ListCommentsResponse,
       kind: MethodKind.Unary,
@@ -64,7 +79,7 @@ export const Comments = {
      * @generated from rpc com.seed.documents.v3alpha.Comments.ListCommentsByAuthor
      */
     listCommentsByAuthor: {
-      name: "ListCommentsByAuthor",
+      name: 'ListCommentsByAuthor',
       I: ListCommentsByAuthorRequest,
       O: ListCommentsResponse,
       kind: MethodKind.Unary,
@@ -75,7 +90,7 @@ export const Comments = {
      * @generated from rpc com.seed.documents.v3alpha.Comments.UpdateComment
      */
     updateComment: {
-      name: "UpdateComment",
+      name: 'UpdateComment',
       I: UpdateCommentRequest,
       O: Comment,
       kind: MethodKind.Unary,
@@ -86,7 +101,7 @@ export const Comments = {
      * @generated from rpc com.seed.documents.v3alpha.Comments.DeleteComment
      */
     deleteComment: {
-      name: "DeleteComment",
+      name: 'DeleteComment',
       I: DeleteCommentRequest,
       O: Empty,
       kind: MethodKind.Unary,
@@ -97,11 +112,21 @@ export const Comments = {
      * @generated from rpc com.seed.documents.v3alpha.Comments.GetCommentReplyCount
      */
     getCommentReplyCount: {
-      name: "GetCommentReplyCount",
+      name: 'GetCommentReplyCount',
       I: GetCommentReplyCountRequest,
       O: GetCommentReplyCountResponse,
       kind: MethodKind.Unary,
     },
-  }
-} as const;
-
+    /**
+     * Lists all versions of a comment (edit history).
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Comments.ListCommentVersions
+     */
+    listCommentVersions: {
+      name: 'ListCommentVersions',
+      I: ListCommentVersionsRequest,
+      O: ListCommentVersionsResponse,
+      kind: MethodKind.Unary,
+    },
+  },
+} as const

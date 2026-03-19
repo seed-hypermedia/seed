@@ -33,6 +33,9 @@ service Comments {
 
   // Gets a single comment by ID.
   rpc GetCommentReplyCount(GetCommentReplyCountRequest) returns (GetCommentReplyCountResponse);
+
+  // Lists all versions of a comment (edit history).
+  rpc ListCommentVersions(ListCommentVersionsRequest) returns (ListCommentVersionsResponse);
 }
 
 // Request to create a comment.
@@ -200,4 +203,16 @@ message GetCommentReplyCountRequest {
 message GetCommentReplyCountResponse {
   // The number of replies to the comment.
   int64 reply_count = 1;
+}
+
+// Request to list all versions of a comment.
+message ListCommentVersionsRequest {
+  // Required. ID of the comment (record ID format: `{publicKey}/{tsid}`).
+  string id = 1;
+}
+
+// Response with a list of comment versions.
+message ListCommentVersionsResponse {
+  // All versions of the comment, ordered newest first.
+  repeated Comment versions = 1;
 }
