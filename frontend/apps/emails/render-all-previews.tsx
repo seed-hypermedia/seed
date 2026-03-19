@@ -5,21 +5,25 @@
  *
  * Then open email-previews/index.html in your browser.
  */
+import {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import fs from 'fs'
 import {createLoginConfirmationEmail} from './email-confirmation'
 import {
   createCommentEmail,
+  createDiscussionEmail,
   createDocUpdateEmail,
   createMentionEmail,
   createNotificationVerificationEmail,
   createReplyEmail,
+  createWelcomeEmail,
 } from './notifier'
 
-const mockBlocks = [
+const mockBlocks: HMBlockNode[] = [
   {
     block: {
       id: 'block1',
       type: 'Paragraph',
+      attributes: {},
       text: 'Hey, I think we should revisit the color palette for the navigation bar. The current teal feels too muted on mobile screens.',
       annotations: [
         {type: 'Bold', starts: [4], ends: [7]},
@@ -32,6 +36,7 @@ const mockBlocks = [
     block: {
       id: 'block2',
       type: 'Paragraph',
+      attributes: {},
       text: 'What do you think?',
       annotations: [],
     },
@@ -39,39 +44,53 @@ const mockBlocks = [
   },
 ]
 
+const mentionBlocks: HMBlockNode[] = [
+  {
+    block: {
+      id: 'block1',
+      type: 'Paragraph',
+      attributes: {},
+      text: '@Bea — I think this approach solves the accessibility issue.',
+      annotations: [
+        {type: 'Embed', starts: [0], ends: [4], link: 'hm://bea-account-id'},
+      ],
+    },
+    children: [],
+  },
+]
+
 const previews: Array<{name: string; result: {subject: string; text: string; html: string}}> = [
   {
-    name: 'mention',
-    result: createMentionEmail({
-      authorName: 'Eric Alex',
-      subjectName: 'you',
-      documentName: 'Design Guidelines',
-      sectionName: 'Design',
-      commentBlocks: mockBlocks,
-      actionUrl: 'https://hyper.media/d/abc123',
-      unsubscribeUrl: 'https://hyper.media/hm/email-notifications?token=test123',
+    name: 'verification',
+    result: createNotificationVerificationEmail({
+      verificationUrl: 'https://hyper.media/hm/notification-email-verify?token=verify123',
+      recipientName: 'First Name',
     }),
   },
   {
-    name: 'reply',
-    result: createReplyEmail({
-      authorName: 'Gabo',
-      documentName: 'User test Round III',
-      sectionName: 'Design',
-      commentBlocks: mockBlocks,
-      actionUrl: 'https://hyper.media/d/abc123',
-      unsubscribeUrl: 'https://hyper.media/hm/email-notifications?token=test123',
+    name: 'login',
+    result: createLoginConfirmationEmail({
+      loginUrl: 'https://hyper.media/login?token=login123',
+      recipientName: 'First Name',
     }),
   },
   {
-    name: 'doc-update',
-    result: createDocUpdateEmail({
+    name: 'welcome',
+    result: createWelcomeEmail({
+      recipientName: 'First Name',
+      siteName: '<sitename>',
+      siteUrl: 'https://seedteamtalks.hyper.media',
+    }),
+  },
+  {
+    name: 'discussion',
+    result: createDiscussionEmail({
       authorName: 'Gabo',
       documentName: 'Inspiration',
-      sectionName: 'Design',
-      changes: ['Updated the hero section layout', 'Added new color tokens', 'Removed deprecated spacing variables'],
-      actionUrl: 'https://hyper.media/d/abc123',
+      commentBlocks: mockBlocks,
+      actionUrl: 'https://seedteamtalks.hyper.media/d/abc123',
       unsubscribeUrl: 'https://hyper.media/hm/email-notifications?token=test123',
+      siteUrl: 'https://seedteamtalks.hyper.media',
     }),
   },
   {
@@ -81,20 +100,46 @@ const previews: Array<{name: string; result: {subject: string; text: string; htm
       documentName: 'User Onboarding',
       sectionName: 'Design',
       commentBlocks: mockBlocks,
-      actionUrl: 'https://hyper.media/d/abc123',
+      actionUrl: 'https://seedteamtalks.hyper.media/d/abc123',
       unsubscribeUrl: 'https://hyper.media/hm/email-notifications?token=test123',
+      siteUrl: 'https://seedteamtalks.hyper.media',
     }),
   },
   {
-    name: 'verification',
-    result: createNotificationVerificationEmail({
-      verificationUrl: 'https://hyper.media/hm/notification-email-verify?token=verify123',
+    name: 'mention',
+    result: createMentionEmail({
+      authorName: 'Eric Alex',
+      subjectName: 'you',
+      documentName: 'Design Guidelines',
+      commentBlocks: mentionBlocks,
+      actionUrl: 'https://seedteamtalks.hyper.media/d/abc123',
+      unsubscribeUrl: 'https://hyper.media/hm/email-notifications?token=test123',
+      siteUrl: 'https://seedteamtalks.hyper.media',
+      resolvedNames: {'hm://bea-account-id': 'Bea'},
     }),
   },
   {
-    name: 'login',
-    result: createLoginConfirmationEmail({
-      loginUrl: 'https://hyper.media/login?token=login123',
+    name: 'reply',
+    result: createReplyEmail({
+      authorName: 'Gabo',
+      documentName: 'User test Round III',
+      sectionName: 'Design',
+      commentBlocks: mockBlocks,
+      actionUrl: 'https://seedteamtalks.hyper.media/d/abc123',
+      unsubscribeUrl: 'https://hyper.media/hm/email-notifications?token=test123',
+      siteUrl: 'https://seedteamtalks.hyper.media',
+    }),
+  },
+  {
+    name: 'doc-update',
+    result: createDocUpdateEmail({
+      authorName: 'Gabo',
+      documentName: 'Inspiration',
+      sectionName: 'Design',
+      changes: ['Updated the hero section layout', 'Added new color tokens', 'Removed deprecated spacing variables'],
+      actionUrl: 'https://seedteamtalks.hyper.media/d/abc123',
+      unsubscribeUrl: 'https://hyper.media/hm/email-notifications?token=test123',
+      siteUrl: 'https://seedteamtalks.hyper.media',
     }),
   },
 ]

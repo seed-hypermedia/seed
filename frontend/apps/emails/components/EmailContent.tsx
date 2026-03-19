@@ -324,14 +324,27 @@ function renderChange({targetDocName, isNewDocument}: {targetDocName: string; is
   )
 }
 
-/** Gray box wrapper for quoted comment/discussion content in the new email templates. */
+/** Wrapper for quoted comment/discussion content in the new email templates. */
 export function QuotedContent({
   blocks,
   resolvedNames,
+  variant = 'box',
 }: {
   blocks: HMBlockNode[]
   resolvedNames?: Record<string, string>
+  /** 'box' = gray background (comments/discussions), 'border' = left green border (mentions). */
+  variant?: 'box' | 'border'
 }) {
+  if (variant === 'border') {
+    return (
+      <MjmlSection padding="8px 24px 16px">
+        <MjmlColumn borderLeft="3px solid #068f7b" paddingLeft="16px">
+          {renderBlocks(blocks, '', resolvedNames)}
+        </MjmlColumn>
+      </MjmlSection>
+    )
+  }
+
   return (
     <MjmlSection padding="0 24px 16px">
       <MjmlColumn backgroundColor="#f3f4f6" borderRadius="8px" padding="12px 16px">

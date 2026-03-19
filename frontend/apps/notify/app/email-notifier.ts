@@ -2,6 +2,7 @@ import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {
   createCommentEmail,
+  createDiscussionEmail,
   createMentionEmail,
   createNotificationsEmail,
   createReplyEmail,
@@ -575,6 +576,7 @@ function buildImmediateNotificationEmail(
   const unsubscribeUrl = `${notificationEmailHost}/hm/email-notifications?token=${adminToken}`
   const authorName = notif.authorMeta?.name || 'Someone'
   const documentName = notif.targetMeta?.name || 'Untitled Document'
+  const siteUrl = extractSiteOrigin(notif.url)
 
   if (notif.reason === 'mention') {
     const subjectName = notification.accountMeta?.name || 'you'
@@ -585,6 +587,7 @@ function buildImmediateNotificationEmail(
       commentBlocks: notif.comment?.content || [],
       actionUrl: notif.actionUrl || notif.url,
       unsubscribeUrl,
+      siteUrl,
       resolvedNames: notif.resolvedNames,
     })
   }
@@ -596,22 +599,33 @@ function buildImmediateNotificationEmail(
       commentBlocks: notif.comment.content,
       actionUrl: notif.actionUrl || notif.url,
       unsubscribeUrl,
+      siteUrl,
       resolvedNames: notif.resolvedNames,
     })
   }
 
   if (notif.reason === 'discussion') {
-    return createCommentEmail({
+    return createDiscussionEmail({
       authorName,
       documentName,
       commentBlocks: notif.comment.content,
       actionUrl: notif.actionUrl || notif.url,
       unsubscribeUrl,
+      siteUrl,
     })
   }
 
   // Fallback for any other reason — should not happen for immediate notifications
   return null
+}
+
+/** Extract the origin (protocol + host) from a URL. */
+function extractSiteOrigin(url: string): string | undefined {
+  try {
+    return new URL(url).origin
+  } catch {
+    return undefined
+  }
 }
 
 async function sendImmediateNotificationEmails(notificationsToSend: NotificationsByEmail) {

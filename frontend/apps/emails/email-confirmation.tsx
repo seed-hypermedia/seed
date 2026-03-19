@@ -3,7 +3,6 @@ import {
   MjmlBody,
   MjmlButton,
   MjmlColumn,
-  MjmlHead,
   MjmlPreview,
   MjmlSection,
   MjmlText,
@@ -11,55 +10,64 @@ import {
 } from '@faire/mjml-react'
 import {EmailFooter} from './components/EmailFooter'
 import {EmailHeader} from './components/EmailHeader'
-import {renderReactToMjml} from './notifier'
+import {EmailHeadDefaults, renderReactToMjml} from './notifier'
 
 export type LoginConfirmationEmailProps = {
   loginUrl: string
+  recipientName?: string
 }
 
-/** Build the one-time login link email. */
-export function createLoginConfirmationEmail({loginUrl}: LoginConfirmationEmailProps) {
-  const subject = 'Your login link for Seed Hypermedia'
-  const text = `Your login link for Seed Hypermedia
+/** Build the login link email matching the "New sign-in" design. */
+export function createLoginConfirmationEmail({loginUrl, recipientName}: LoginConfirmationEmailProps) {
+  const subject = 'New sign-in to your account'
+  const greeting = recipientName ? `Hi ${recipientName},` : 'Hi there,'
+  const text = `${subject}
 
-Click the link below to log in:
+${greeting}
+
+We detected a new sign-in to your Seed Hypermedia. This is your login link.
+
 ${loginUrl}
 
-This link will expire in 15 minutes. If you didn't request this, you can safely ignore this email.
-
-Seed Hypermedia`
+If you don't recognise this activity, please change your password immediately.
+This link will expire in 15 minutes.`
 
   const {html} = renderReactToMjml(
     <Mjml>
-      <MjmlHead>
+      <EmailHeadDefaults>
         <MjmlTitle>{subject}</MjmlTitle>
-        <MjmlPreview>Click to log in to Seed Hypermedia</MjmlPreview>
-      </MjmlHead>
+        <MjmlPreview>A new sign-in was detected on your Seed Hypermedia account</MjmlPreview>
+      </EmailHeadDefaults>
       <MjmlBody width={500} backgroundColor="#ffffff">
         <EmailHeader />
 
-        <MjmlSection padding="24px">
+        <MjmlSection padding="24px 24px 0">
           <MjmlColumn>
-            <MjmlText fontSize="24px" fontWeight="bold" color="#1a1a1a" padding="0 0 24px">
-              Your login link
+            <MjmlText fontSize="24px" fontWeight="bold" lineHeight="1.3" padding="0 0 16px">
+              New sign-in to your account
             </MjmlText>
-
+            <MjmlText fontSize="15px" lineHeight="1.6" padding="0 0 4px">
+              {greeting}
+            </MjmlText>
+            <MjmlText fontSize="15px" lineHeight="1.6" padding="0 0 16px">
+              We detected a new sign-in to your Seed Hypermedia. This is your login link.
+            </MjmlText>
             <MjmlButton
               href={loginUrl}
               backgroundColor="#068f7b"
               color="#ffffff"
-              fontSize="16px"
-              fontWeight="600"
               borderRadius="6px"
-              padding="0 0 24px"
-              innerPadding="14px 28px"
+              fontSize="14px"
+              fontWeight="600"
+              innerPadding="12px 24px"
               align="center"
+              padding="0 0 16px"
             >
-              Log in to Seed Hypermedia
+              Log in to Hyper.media
             </MjmlButton>
-
-            <MjmlText fontSize="14px" color="#71717a" lineHeight="1.5" padding="0">
-              This link will expire in 15 minutes. If you didn't request this, you can safely ignore this email.
+            <MjmlText fontSize="13px" color="#6b7280" lineHeight="1.5" padding="0 0 24px">
+              If you don't recognise this activity, please change your password immediately. This link will expire in 15
+              minutes.
             </MjmlText>
           </MjmlColumn>
         </MjmlSection>
