@@ -18,6 +18,7 @@ describe('chat parts', () => {
         id: 'tool-1',
         name: 'read',
         result: 'Document body',
+        rawOutput: {markdown: '# Seed'},
       },
     ])
 
@@ -31,6 +32,7 @@ describe('chat parts', () => {
         name: 'read',
         args: {url: 'hm://site/doc'},
         result: 'Document body',
+        rawOutput: {markdown: '# Seed'},
       },
       {type: 'text', text: 'Here is the summary.'},
     ])
@@ -46,7 +48,7 @@ describe('chat parts', () => {
     const parts = buildLegacyChatMessageParts({
       content: 'Final answer',
       toolCalls: [{id: 'tool-1', name: 'read', args: {url: 'hm://site/doc'}}],
-      toolResults: [{id: 'tool-1', name: 'read', result: 'Document body'}],
+      toolResults: [{id: 'tool-1', name: 'read', result: 'Document body', rawOutput: {markdown: '# Seed'}}],
     })
 
     expect(parts).toEqual([
@@ -56,6 +58,7 @@ describe('chat parts', () => {
         name: 'read',
         args: {url: 'hm://site/doc'},
         result: 'Document body',
+        rawOutput: {markdown: '# Seed'},
       },
       {type: 'text', text: 'Final answer'},
     ])

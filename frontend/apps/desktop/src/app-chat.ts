@@ -2,7 +2,7 @@ import {createAnthropic} from '@ai-sdk/anthropic'
 import {createGoogleGenerativeAI} from '@ai-sdk/google'
 import {createOpenAI} from '@ai-sdk/openai'
 import {HMBlockNode, HMComment, HMCommentSchema} from '@seed-hypermedia/client/hm-types'
-import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {extractViewTermFromUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {jsonSchema, stepCountIs, streamText, type ModelMessage} from 'ai'
 import crypto from 'crypto'
@@ -193,10 +193,6 @@ function createProviderModel(provider: AgentProvider) {
   }
 }
 
-// View term suffixes that can be appended to hm:// URLs
-// Supports sub-paths like :activity/versions, :activity/citations
-const VIEW_TERM_PATTERN = /\/:(comments|directory|activity|collaborators|feed)(?:\/(.+))?$/
-
 /**
  * Parse a URL, extracting any view term suffix.
  * e.g. "hm://z6Mk.../path/:comments" → {id, viewTerm: "comments"}
@@ -204,20 +200,16 @@ const VIEW_TERM_PATTERN = /\/:(comments|directory|activity|collaborators|feed)(?
  * e.g. "hm://z6Mk.../path" → {id, viewTerm: null}
  */
 function parseDocumentUrl(url: string) {
-  let viewTerm: string | null = null
-  let viewArg: string | undefined
-  let cleanUrl = url
-
-  const viewMatch = url.match(VIEW_TERM_PATTERN)
-  if (viewMatch) {
-    viewTerm = viewMatch[1]
-    viewArg = viewMatch[2]
-    cleanUrl = url.replace(VIEW_TERM_PATTERN, '')
-  }
-
+  const extracted = extractViewTermFromUrl(url)
+  const cleanUrl = extracted.url
   const id = unpackHmId(cleanUrl)
   if (!id) return null
-  return {id, viewTerm, viewArg}
+
+  return {
+    id,
+    viewTerm: extracted.viewTerm ? extracted.viewTerm.slice(1) : null,
+    viewArg: extracted.commentId || extracted.activityFilter || extracted.accountUid,
+  }
 }
 
 // Helper: convert HMBlockNode[] to markdown
@@ -331,6 +323,105 @@ function displayName(names: Record<string, string>, uid: string | undefined): st
   return names[uid] || uid.slice(0, 12) + '...'
 }
 
+async function readResourceTitle(id: ReturnType<typeof unpackHmId>): Promise<string | undefined> {
+  if (!id) return undefined
+
+  try {
+    const result = await desktopRequest('ResourceMetadata', id)
+    const metadata = getPlainMetadata(result.metadata)
+    return typeof metadata?.name === 'string' && metadata.name ? metadata.name : undefined
+  } catch {
+    return undefined
+  }
+}
+
+async function readSiteName(uid: string): Promise<string | undefined> {
+  const homeId = unpackHmId(`hm://${uid}`)
+  if (!homeId) return undefined
+  return readResourceTitle(homeId)
+}
+
+function formatDocumentDisplayLabel(title?: string, siteName?: string): string {
+  if (title && siteName && title !== siteName) {
+    return `${title} in ${siteName}`
+  }
+  return title || siteName || 'Untitled document'
+}
+
+function formatCommentsDisplayLabel(title?: string): string {
+  return title ? `${title} Comments` : 'Comments'
+}
+
+type ChatReadToolView = 'document' | 'comments' | 'directory' | 'versions' | 'citations' | 'collaborators'
+
+type ChatReadToolOutput = {
+  summary: string
+  resourceUrl: string
+  view: ChatReadToolView
+  markdown: string
+  title?: string
+  displayLabel?: string
+}
+
+function createToolErrorOutput(summary: string, extra: Record<string, unknown> = {}) {
+  return {
+    summary,
+    isError: true,
+    ...extra,
+  }
+}
+
+function describeReadView(view: ChatReadToolView): string {
+  switch (view) {
+    case 'document':
+      return 'document'
+    case 'comments':
+      return 'comments'
+    case 'directory':
+      return 'directory'
+    case 'versions':
+      return 'version history'
+    case 'citations':
+      return 'citations'
+    case 'collaborators':
+      return 'collaborators'
+  }
+}
+
+function createReadToolOutput(input: {
+  url: string
+  view: ChatReadToolView
+  markdown: string
+  title?: string
+  displayLabel?: string
+}): ChatReadToolOutput {
+  return {
+    summary:
+      input.view === 'document'
+        ? `Read ${input.title ? `"${input.title}"` : 'the document'}.`
+        : `Read the ${describeReadView(input.view)} view.`,
+    resourceUrl: input.url,
+    view: input.view,
+    markdown: input.markdown,
+    ...(input.title ? {title: input.title} : {}),
+    ...(input.displayLabel ? {displayLabel: input.displayLabel} : {}),
+  }
+}
+
+function summarizeToolOutput(output: unknown): string {
+  if (typeof output === 'string') return output
+  if (output && typeof output === 'object' && 'summary' in output && typeof output.summary === 'string') {
+    return output.summary
+  }
+  if (output === undefined) return 'Completed.'
+
+  try {
+    return JSON.stringify(output)
+  } catch {
+    return String(output)
+  }
+}
+
 // Read handlers for each view type
 
 async function readDocument(id: ReturnType<typeof unpackHmId>) {
@@ -343,10 +434,13 @@ async function readDocument(id: ReturnType<typeof unpackHmId>) {
   const metadata = getPlainMetadata(doc.metadata)
   const title = metadata?.name || 'Untitled'
   const content = doc.content ? blockNodesToMarkdown(doc.content as HMBlockNode[]) : '(empty document)'
-  return `# ${title}\n\n${content}`
+  return {
+    title,
+    markdown: `# ${title}\n\n${content}`,
+  }
 }
 
-async function readComments(id: ReturnType<typeof unpackHmId>) {
+async function readComments(id: ReturnType<typeof unpackHmId>, commentId?: string) {
   if (!id) return 'Error: invalid document ID'
   const res = await grpcClient.comments.listComments({
     targetAccount: id.uid,
@@ -355,15 +449,23 @@ async function readComments(id: ReturnType<typeof unpackHmId>) {
   })
   const parsed = res.comments.map(parseComment).filter((c): c is HMComment => c !== null)
   if (parsed.length === 0) return 'No comments found on this document.'
-  const authorUids = parsed.map((c) => c.author).filter(Boolean) as string[]
+  const selectedComments =
+    commentId && parsed.some((comment) => comment.id === commentId)
+      ? parsed.filter((comment) => comment.id === commentId)
+      : parsed
+  const authorUids = selectedComments.map((c) => c.author).filter(Boolean) as string[]
   const names = await resolveAccountNames(authorUids)
   const comments: string[] = []
-  for (const c of parsed) {
+  for (const c of selectedComments) {
     const content = c.content ? blockNodesToMarkdown(c.content as HMBlockNode[]) : ''
     const replyInfo = c.replyParent ? ` (reply to ${c.replyParent})` : ''
     comments.push(`**${displayName(names, c.author)}**${replyInfo}:\n${content}`)
   }
-  return `## Comments\n\n${comments.join('\n\n---\n\n')}`
+  return {
+    markdown: `## Comments\n\n${comments.join('\n\n---\n\n')}`,
+    commentAuthorName:
+      commentId && selectedComments.length === 1 ? displayName(names, selectedComments[0].author) : undefined,
+  }
 }
 
 async function readDirectory(id: ReturnType<typeof unpackHmId>) {
@@ -518,7 +620,7 @@ const chatTools: Record<string, any> = {
       try {
         return await executeChatSearch(input)
       } catch (e) {
-        return `Error: ${(e as Error).message}`
+        return createToolErrorOutput(`Error: ${(e as Error).message}`, {query: input.query})
       }
     },
   },
@@ -539,29 +641,87 @@ const chatTools: Record<string, any> = {
     execute: async ({url}: {url: string}) => {
       try {
         const parsed = parseDocumentUrl(url)
-        if (!parsed) return `Error: Could not parse URL "${url}". Use an hm:// URL.`
+        if (!parsed) {
+          return createToolErrorOutput(`Error: Could not parse URL "${url}". Use an hm:// URL.`, {resourceUrl: url})
+        }
         const {id, viewTerm, viewArg} = parsed
+        const [resourceTitle, siteName] = await Promise.all([readResourceTitle(id), readSiteName(id.uid)])
         switch (viewTerm) {
-          case 'comments':
-            return await readComments(id)
+          case 'comments': {
+            const commentsResult = await readComments(id, viewArg)
+            if (typeof commentsResult === 'string') {
+              return createToolErrorOutput(commentsResult, {resourceUrl: url})
+            }
+
+            return createReadToolOutput({
+              url,
+              view: 'comments',
+              markdown: commentsResult.markdown,
+              title: resourceTitle,
+              displayLabel: commentsResult.commentAuthorName
+                ? `Comment by ${commentsResult.commentAuthorName}`
+                : formatCommentsDisplayLabel(resourceTitle),
+            })
+          }
           case 'directory':
-            return await readDirectory(id)
+            return createReadToolOutput({
+              url,
+              view: 'directory',
+              markdown: await readDirectory(id),
+              title: resourceTitle,
+              displayLabel: formatDocumentDisplayLabel(resourceTitle, siteName),
+            })
           case 'activity':
             switch (viewArg) {
               case 'versions':
-                return await readVersions(id)
+                return createReadToolOutput({
+                  url,
+                  view: 'versions',
+                  markdown: await readVersions(id),
+                  title: resourceTitle,
+                  displayLabel: formatDocumentDisplayLabel(resourceTitle, siteName),
+                })
               case 'citations':
-                return await readCitations(id)
+                return createReadToolOutput({
+                  url,
+                  view: 'citations',
+                  markdown: await readCitations(id),
+                  title: resourceTitle,
+                  displayLabel: formatDocumentDisplayLabel(resourceTitle, siteName),
+                })
               default:
-                return await readVersions(id)
+                return createReadToolOutput({
+                  url,
+                  view: 'versions',
+                  markdown: await readVersions(id),
+                  title: resourceTitle,
+                  displayLabel: formatDocumentDisplayLabel(resourceTitle, siteName),
+                })
             }
           case 'collaborators':
-            return await readCollaborators(id)
-          default:
-            return await readDocument(id)
+            return createReadToolOutput({
+              url,
+              view: 'collaborators',
+              markdown: await readCollaborators(id),
+              title: resourceTitle,
+              displayLabel: formatDocumentDisplayLabel(resourceTitle, siteName),
+            })
+          default: {
+            const documentResult = await readDocument(id)
+            if (typeof documentResult === 'string') {
+              return createToolErrorOutput(documentResult, {resourceUrl: url})
+            }
+            return createReadToolOutput({
+              url,
+              view: 'document',
+              markdown: documentResult.markdown,
+              title: documentResult.title,
+              displayLabel: formatDocumentDisplayLabel(documentResult.title, siteName),
+            })
+          }
         }
       } catch (e) {
-        return `Error: ${(e as Error).message}`
+        return createToolErrorOutput(`Error: ${(e as Error).message}`, {resourceUrl: url})
       }
     },
   },
@@ -582,9 +742,14 @@ const chatTools: Record<string, any> = {
     execute: async ({url}: {url: string}) => {
       const resolved = await resolveOmnibarUrlToHypermediaUrl(url)
       if (!resolved) {
-        return `Error: Could not resolve "${url}" to a Hypermedia URL.`
+        return createToolErrorOutput(`Error: Could not resolve "${url}" to a Hypermedia URL.`, {inputUrl: url})
       }
-      return resolved
+      return {
+        summary: `Resolved the URL to ${resolved}.`,
+        inputUrl: url,
+        resourceUrl: resolved,
+        resolvedUrl: resolved,
+      }
     },
   },
   navigate: {
@@ -606,7 +771,12 @@ const chatTools: Record<string, any> = {
       additionalProperties: false,
     }),
     execute: async ({url, newWindow = false}: {url: string; newWindow?: boolean}) => {
-      return navigateDesktopUrl(url, {newWindow})
+      const summary = navigateDesktopUrl(url, {newWindow})
+      return {
+        summary,
+        resourceUrl: url,
+        newWindow,
+      }
     },
   },
 }
@@ -822,7 +992,8 @@ export const chatApi = t.router({
                 const mappedResult: ChatToolResult = {
                   id: chunk.toolCallId,
                   name: chunk.toolName,
-                  result: typeof chunk.output === 'string' ? chunk.output : JSON.stringify(chunk.output),
+                  result: summarizeToolOutput(chunk.output),
+                  rawOutput: chunk.output,
                 }
 
                 orderedParts = applyChatToolResults(orderedParts, [mappedResult])

@@ -10,6 +10,7 @@ export type ChatToolResult = {
   id: string
   name: string
   result: string
+  rawOutput?: unknown
 }
 
 /** A markdown text fragment within an assistant message. */
@@ -25,6 +26,7 @@ export type ChatToolPart = {
   name: string
   args?: Record<string, unknown>
   result?: string
+  rawOutput?: unknown
 }
 
 /** Ordered assistant message content used to interleave text and tool activity. */
@@ -71,7 +73,7 @@ export function applyChatToolResults(parts: ChatMessagePart[], toolResults: Chat
     if (!toolResult) return part
 
     seenResults.add(toolResult.id)
-    return {...part, result: toolResult.result}
+    return {...part, result: toolResult.result, rawOutput: toolResult.rawOutput}
   })
 
   for (const toolResult of toolResults) {
@@ -82,6 +84,7 @@ export function applyChatToolResults(parts: ChatMessagePart[], toolResults: Chat
       id: toolResult.id,
       name: toolResult.name,
       result: toolResult.result,
+      rawOutput: toolResult.rawOutput,
     })
   }
 

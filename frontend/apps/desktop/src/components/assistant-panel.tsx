@@ -9,19 +9,28 @@ import {
   useSetSessionProvider,
 } from '@/models/chat'
 import {buildLegacyChatMessageParts, type ChatMessagePart, type ChatToolPart} from '@/models/chat-parts'
+import {useOpenUrl} from '@/open-url'
 import {useNavigate} from '@/utils/useNavigate'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
+import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {SizableText} from '@shm/ui/text'
+import {cn} from '@shm/ui/utils'
 import {
   ArrowDown,
+  ArrowUpRight,
+  BookOpenText,
   Bot,
+  Compass,
   ChevronDown,
   ChevronRight,
+  Info,
   Loader2,
+  Link2,
   Plus,
+  Search,
   Send,
   Settings,
   Square,
@@ -486,7 +495,7 @@ function getAssistantMessageParts(message: {
   parts?: ChatMessagePart[]
   content?: string
   toolCalls?: Array<{id: string; name: string; args: Record<string, unknown>}>
-  toolResults?: Array<{id: string; name: string; result: string}>
+  toolResults?: Array<{id: string; name: string; result: string; rawOutput?: unknown}>
 }) {
   if (message.parts && message.parts.length > 0) {
     return message.parts
@@ -499,69 +508,435 @@ function getAssistantMessageParts(message: {
   })
 }
 
-function ToolCallItem({item}: {item: ChatToolPart}) {
-  const [expanded, setExpanded] = useState(false)
-  const hasArgs = item.args && Object.keys(item.args).length > 0
-  const hasResult = item.result !== undefined
-  const isPending = !hasResult
+type SearchToolResultItem = {
+  title: string
+  url: string
+  type: string
+  parentNames: string[]
+  versionTime?: string
+}
+
+type SearchToolOutput = {
+  summary: string
+  markdown: string
+  query: string
+  searchType: string
+  includeBody: boolean
+  results: SearchToolResultItem[]
+}
+
+type ReadToolOutput = {
+  summary: string
+  resourceUrl: string
+  view: string
+  markdown: string
+  title?: string
+  displayLabel?: string
+}
+
+type ResolveToolOutput = {
+  summary: string
+  inputUrl: string
+  resourceUrl?: string
+  resolvedUrl?: string
+}
+
+type NavigateToolOutput = {
+  summary: string
+  resourceUrl: string
+  newWindow: boolean
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function getStringArg(args: Record<string, unknown> | undefined, key: string): string | undefined {
+  if (!args) return undefined
+  const value = args[key]
+  return typeof value === 'string' ? value : undefined
+}
+
+function getBooleanArg(args: Record<string, unknown> | undefined, key: string): boolean | undefined {
+  if (!args) return undefined
+  const value = args[key]
+  return typeof value === 'boolean' ? value : undefined
+}
+
+function getSearchToolOutput(rawOutput: unknown): SearchToolOutput | null {
+  if (!isRecord(rawOutput) || typeof rawOutput.markdown !== 'string' || !Array.isArray(rawOutput.results)) {
+    return null
+  }
+
+  const results = rawOutput.results.flatMap((result) => {
+    if (
+      !isRecord(result) ||
+      typeof result.title !== 'string' ||
+      typeof result.url !== 'string' ||
+      typeof result.type !== 'string' ||
+      !Array.isArray(result.parentNames)
+    ) {
+      return []
+    }
+
+    return [
+      {
+        title: result.title,
+        url: result.url,
+        type: result.type,
+        parentNames: result.parentNames.filter((parent): parent is string => typeof parent === 'string'),
+        versionTime: typeof result.versionTime === 'string' ? result.versionTime : undefined,
+      },
+    ]
+  })
+
+  return {
+    summary: typeof rawOutput.summary === 'string' ? rawOutput.summary : '',
+    markdown: rawOutput.markdown,
+    query: typeof rawOutput.query === 'string' ? rawOutput.query : '',
+    searchType: typeof rawOutput.searchType === 'string' ? rawOutput.searchType : 'hybrid',
+    includeBody: rawOutput.includeBody === true,
+    results,
+  }
+}
+
+function getReadToolOutput(rawOutput: unknown): ReadToolOutput | null {
+  if (
+    !isRecord(rawOutput) ||
+    typeof rawOutput.resourceUrl !== 'string' ||
+    typeof rawOutput.view !== 'string' ||
+    typeof rawOutput.markdown !== 'string'
+  ) {
+    return null
+  }
+
+  return {
+    summary: typeof rawOutput.summary === 'string' ? rawOutput.summary : '',
+    resourceUrl: rawOutput.resourceUrl,
+    view: rawOutput.view,
+    markdown: rawOutput.markdown,
+    title: typeof rawOutput.title === 'string' ? rawOutput.title : undefined,
+    displayLabel: typeof rawOutput.displayLabel === 'string' ? rawOutput.displayLabel : undefined,
+  }
+}
+
+function getResolveToolOutput(rawOutput: unknown): ResolveToolOutput | null {
+  if (!isRecord(rawOutput) || typeof rawOutput.inputUrl !== 'string') {
+    return null
+  }
+
+  return {
+    summary: typeof rawOutput.summary === 'string' ? rawOutput.summary : '',
+    inputUrl: rawOutput.inputUrl,
+    resourceUrl: typeof rawOutput.resourceUrl === 'string' ? rawOutput.resourceUrl : undefined,
+    resolvedUrl: typeof rawOutput.resolvedUrl === 'string' ? rawOutput.resolvedUrl : undefined,
+  }
+}
+
+function getNavigateToolOutput(rawOutput: unknown): NavigateToolOutput | null {
+  if (!isRecord(rawOutput) || typeof rawOutput.resourceUrl !== 'string' || typeof rawOutput.newWindow !== 'boolean') {
+    return null
+  }
+
+  return {
+    summary: typeof rawOutput.summary === 'string' ? rawOutput.summary : '',
+    resourceUrl: rawOutput.resourceUrl,
+    newWindow: rawOutput.newWindow,
+  }
+}
+
+function formatToolDebugValue(value: unknown): string {
+  if (value === undefined) return '(none)'
+  if (typeof value === 'string') return value
+
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
+function formatCompactValue(value: unknown): string {
+  if (typeof value === 'string') return value
+
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function getToolResourceUrl(item: ChatToolPart): string | undefined {
+  if (isRecord(item.rawOutput) && typeof item.rawOutput.resourceUrl === 'string') {
+    return item.rawOutput.resourceUrl
+  }
+  return getStringArg(item.args, 'url')
+}
+
+function ToolChip({children}: {children: React.ReactNode}) {
+  return (
+    <span className="bg-background/75 text-muted-foreground rounded-full border px-1.5 py-0.5 text-[9px] font-medium">
+      {children}
+    </span>
+  )
+}
+
+function ToolResourceLink({url, label}: {url: string; label: string}) {
+  const openUrl = useOpenUrl()
 
   return (
-    <div className="bg-muted/50 border-border my-1 overflow-hidden rounded border text-xs">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="hover:bg-muted flex w-full items-center gap-2 px-2 py-1.5 text-left"
-      >
-        {isPending ? (
-          <Loader2 className="text-muted-foreground size-3 shrink-0 animate-spin" />
-        ) : (
-          <Wrench className="text-muted-foreground size-3 shrink-0" />
-        )}
-        <span className="font-medium">{item.name}</span>
-        {hasArgs && !expanded && (
-          <span className="text-muted-foreground min-w-0 flex-1 truncate">
-            (
-            {Object.entries(item.args!)
-              .map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`)
-              .join(', ')}
-            )
-          </span>
-        )}
-        <span className="ml-auto shrink-0">
-          {expanded ? (
-            <ChevronDown className="text-muted-foreground size-3" />
-          ) : (
-            <ChevronRight className="text-muted-foreground size-3" />
-          )}
-        </span>
-      </button>
-      {expanded && (
-        <div className="border-border border-t px-2 py-1.5">
-          {hasArgs && (
-            <div className="mb-1">
-              <div className="text-muted-foreground mb-0.5 text-[10px] font-medium uppercase">Arguments</div>
-              <div className="bg-background rounded p-1.5">
-                {Object.entries(item.args!).map(([key, value]) => (
-                  <div key={key} className="flex gap-1">
-                    <span className="text-muted-foreground shrink-0">{key}:</span>
-                    <span className="min-w-0 break-all">
-                      {typeof value === 'string' ? value : JSON.stringify(value)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {hasResult && (
-            <div>
-              <div className="text-muted-foreground mb-0.5 text-[10px] font-medium uppercase">Result</div>
-              <div className="bg-background max-h-40 overflow-y-auto rounded p-1.5">
-                <pre className="break-all whitespace-pre-wrap">{item.result}</pre>
-              </div>
-            </div>
-          )}
-          {isPending && <div className="text-muted-foreground italic">Running...</div>}
-        </div>
-      )}
-    </div>
+    <button
+      type="button"
+      title={url}
+      onClick={(event) => openUrl(url, event.metaKey || event.shiftKey)}
+      className="bg-background/75 hover:bg-background inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.75 text-left text-[10px] font-medium transition-colors"
+    >
+      <span className="truncate">{label}</span>
+      <ArrowUpRight className="size-2.5 shrink-0" />
+    </button>
   )
+}
+
+function ToolCallDebugDialog({
+  item,
+  open,
+  onOpenChange,
+}: {
+  item: ChatToolPart
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] w-[min(44rem,calc(100vw-2rem))]">
+        <DialogHeader>
+          <DialogTitle>{item.name}</DialogTitle>
+          <DialogDescription>Raw tool call payload captured during the assistant response.</DialogDescription>
+        </DialogHeader>
+        <div className="grid min-h-0 gap-3">
+          <div className="min-h-0 space-y-1">
+            <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">Input</div>
+            <pre className="bg-muted max-h-48 overflow-auto rounded-xl p-3 text-[11px] whitespace-pre-wrap">
+              {formatToolDebugValue(item.args)}
+            </pre>
+          </div>
+          <div className="min-h-0 space-y-1">
+            <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">Output</div>
+            <pre className="bg-muted max-h-72 overflow-auto rounded-xl p-3 text-[11px] whitespace-pre-wrap">
+              {formatToolDebugValue(item.rawOutput ?? item.result)}
+            </pre>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ToolCallBubble({
+  item,
+  icon: Icon,
+  label,
+  bubbleClassName,
+  iconClassName,
+  hideResultText,
+  children,
+}: {
+  item: ChatToolPart
+  icon: React.ComponentType<{className?: string}>
+  label: string
+  bubbleClassName: string
+  iconClassName: string
+  hideResultText?: boolean
+  children?: React.ReactNode
+}) {
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const isPending = item.result === undefined && item.rawOutput === undefined
+
+  return (
+    <>
+      <div
+        className={cn(
+          'group relative my-1.5 mr-6 overflow-hidden rounded-xl border px-2.5 py-2 text-[11px] shadow-sm',
+          bubbleClassName,
+        )}
+      >
+        <button
+          type="button"
+          title="View raw tool input/output"
+          onClick={() => setDetailsOpen(true)}
+          className="bg-background/85 text-muted-foreground hover:text-foreground absolute top-1.5 right-1.5 rounded-full border p-0.75 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
+        >
+          <Info className="size-3" />
+        </button>
+        <div className="flex items-start gap-2.5 pr-7">
+          <div
+            className={cn('mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border', iconClassName)}
+          >
+            {isPending ? <Loader2 className="size-3 animate-spin" /> : <Icon className="size-3" />}
+          </div>
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-medium">{label}</span>
+              {isPending ? <ToolChip>Running</ToolChip> : null}
+            </div>
+            {hideResultText ? null : <p className="text-foreground/80">{item.result || 'Running...'}</p>}
+            {children}
+          </div>
+        </div>
+      </div>
+      <ToolCallDebugDialog item={item} open={detailsOpen} onOpenChange={setDetailsOpen} />
+    </>
+  )
+}
+
+function SearchToolCallBubble({item}: {item: ChatToolPart}) {
+  const [expanded, setExpanded] = useState(false)
+  const searchOutput = getSearchToolOutput(item.rawOutput)
+  const hasExpandableContent = Boolean(searchOutput)
+
+  return (
+    <ToolCallBubble
+      item={item}
+      icon={Search}
+      label="Search"
+      bubbleClassName="border-sky-500/30 bg-sky-500/10"
+      iconClassName="border-sky-500/25 bg-background/80 text-sky-500"
+    >
+      {searchOutput ? (
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap gap-1.5">
+            {searchOutput.query ? <ToolChip>&ldquo;{searchOutput.query}&rdquo;</ToolChip> : null}
+            <ToolChip>
+              {searchOutput.results.length} result{searchOutput.results.length === 1 ? '' : 's'}
+            </ToolChip>
+            <ToolChip>{searchOutput.searchType}</ToolChip>
+            <ToolChip>{searchOutput.includeBody ? 'body included' : 'titles only'}</ToolChip>
+          </div>
+          {hasExpandableContent ? (
+            <button
+              type="button"
+              onClick={() => setExpanded((current) => !current)}
+              className="hover:bg-background/70 inline-flex items-center gap-1 rounded-full border px-2 py-0.75 text-[10px] font-medium transition-colors"
+            >
+              <span>{expanded ? 'Hide results' : 'Show results'}</span>
+              {expanded ? <ChevronDown className="size-2.5" /> : <ChevronRight className="size-2.5" />}
+            </button>
+          ) : null}
+          {expanded ? (
+            <div className="bg-background/60 rounded-xl border px-2.5 py-2">
+              <Markdown>{searchOutput.markdown}</Markdown>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </ToolCallBubble>
+  )
+}
+
+function ReadToolCallBubble({item}: {item: ChatToolPart}) {
+  const readOutput = getReadToolOutput(item.rawOutput)
+  const resourceUrl = readOutput?.resourceUrl || getToolResourceUrl(item)
+  const resourceLabel =
+    readOutput?.displayLabel ||
+    (readOutput?.view === 'comments' ? (readOutput.title ? `${readOutput.title} Comments` : 'Comments') : undefined) ||
+    readOutput?.title ||
+    resourceUrl ||
+    'Untitled document'
+
+  return (
+    <ToolCallBubble
+      item={item}
+      icon={BookOpenText}
+      label="Read"
+      bubbleClassName="border-emerald-500/30 bg-emerald-500/10"
+      iconClassName="border-emerald-500/25 bg-background/80 text-emerald-500"
+      hideResultText
+    >
+      <div className="flex flex-wrap gap-2">{readOutput?.view ? <ToolChip>{readOutput.view}</ToolChip> : null}</div>
+      {resourceUrl ? <ToolResourceLink url={resourceUrl} label={resourceLabel} /> : null}
+    </ToolCallBubble>
+  )
+}
+
+function ResolveToolCallBubble({item}: {item: ChatToolPart}) {
+  const resolveOutput = getResolveToolOutput(item.rawOutput)
+  const sourceUrl = resolveOutput?.inputUrl || getStringArg(item.args, 'url')
+  const resolvedUrl = resolveOutput?.resolvedUrl
+
+  return (
+    <ToolCallBubble
+      item={item}
+      icon={Link2}
+      label="Resolve URL"
+      bubbleClassName="border-violet-500/30 bg-violet-500/10"
+      iconClassName="border-violet-500/25 bg-background/80 text-violet-500"
+    >
+      {sourceUrl ? (
+        <div className="bg-background/70 text-muted-foreground rounded-xl border px-2 py-1.5 text-[10px] break-all">
+          {sourceUrl}
+        </div>
+      ) : null}
+      {resolvedUrl ? <ToolResourceLink url={resolvedUrl} label={resolvedUrl} /> : null}
+    </ToolCallBubble>
+  )
+}
+
+function NavigateToolCallBubble({item}: {item: ChatToolPart}) {
+  const navigateOutput = getNavigateToolOutput(item.rawOutput)
+  const resourceUrl = navigateOutput?.resourceUrl || getToolResourceUrl(item)
+  const opensInNewWindow = navigateOutput?.newWindow ?? getBooleanArg(item.args, 'newWindow')
+
+  return (
+    <ToolCallBubble
+      item={item}
+      icon={Compass}
+      label="Navigate"
+      bubbleClassName="border-amber-500/30 bg-amber-500/10"
+      iconClassName="border-amber-500/25 bg-background/80 text-amber-500"
+    >
+      <div className="flex flex-wrap gap-2">
+        <ToolChip>{opensInNewWindow ? 'new window' : 'current window'}</ToolChip>
+      </div>
+      {resourceUrl ? <ToolResourceLink url={resourceUrl} label="Open target" /> : null}
+    </ToolCallBubble>
+  )
+}
+
+function GenericToolCallBubble({item}: {item: ChatToolPart}) {
+  const hasArgs = Boolean(item.args && Object.keys(item.args).length > 0)
+
+  return (
+    <ToolCallBubble
+      item={item}
+      icon={Wrench}
+      label={item.name}
+      bubbleClassName="border-border bg-muted/60"
+      iconClassName="border-border bg-background/80 text-muted-foreground"
+    >
+      {hasArgs ? (
+        <div className="bg-background/70 text-muted-foreground rounded-xl border px-2 py-1.5 text-[10px]">
+          {Object.entries(item.args!).map(([key, value], index) => (
+            <div key={key} className={cn('break-all', index > 0 && 'mt-1')}>
+              <span className="font-medium">{key}:</span> {formatCompactValue(value)}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </ToolCallBubble>
+  )
+}
+
+function ToolCallItem({item}: {item: ChatToolPart}) {
+  switch (item.name) {
+    case 'search':
+      return <SearchToolCallBubble item={item} />
+    case 'read':
+      return <ReadToolCallBubble item={item} />
+    case 'resolveUrl':
+      return <ResolveToolCallBubble item={item} />
+    case 'navigate':
+      return <NavigateToolCallBubble item={item} />
+    default:
+      return <GenericToolCallBubble item={item} />
+  }
 }

@@ -11,7 +11,7 @@ export default defineConfig(({command, mode}) => {
   // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
   return {
     define: {
-      __SENTRY_DSN__: JSON.stringify(process.env.VITE_DESKTOP_SENTRY_DSN),
+      __SENTRY_DSN__: JSON.stringify(process.env.VITE_DESKTOP_SENTRY_DSN || ''),
       __FORCE_LOADING_WINDOW__: JSON.stringify(process.env.VITE_FORCE_LOADING_WINDOW),
 
       // Electron Forge environment variables for main process

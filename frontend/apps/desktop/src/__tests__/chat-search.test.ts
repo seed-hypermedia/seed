@@ -62,12 +62,29 @@ describe('executeChatSearch', () => {
       searchType: SearchType.SEARCH_HYBRID,
       pageSize: undefined,
     })
-    expect(result).toContain('Search results for "seed" (2 results, search type: hybrid, include body: no)')
-    expect(result).toContain('1. Seed Notes')
-    expect(result).toContain('URL: hm://z6Mkabc/projects/seed')
-    expect(result).toContain('2. Seed Contact')
-    expect(result).toContain('URL: hm://z6Mkperson')
-    expect(result).not.toContain('3. ')
+    expect(result.summary).toBe('Found 2 results for "seed".')
+    expect(result.markdown).toContain('Search results for "seed" (2 results, search type: hybrid, include body: no)')
+    expect(result.markdown).toContain('1. [Seed Notes](hm://z6Mkabc/projects/seed)')
+    expect(result.markdown).toContain('- URL: hm://z6Mkabc/projects/seed')
+    expect(result.markdown).toContain('2. [Seed Contact](hm://z6Mkperson)')
+    expect(result.markdown).toContain('- URL: hm://z6Mkperson')
+    expect(result.markdown).not.toContain('3. ')
+    expect(result.results).toEqual([
+      {
+        title: 'Seed Notes',
+        url: 'hm://z6Mkabc/projects/seed',
+        type: 'document',
+        parentNames: ['Projects'],
+        versionTime: '3/19/2026, 10:00 AM',
+      },
+      {
+        title: 'Seed Contact',
+        url: 'hm://z6Mkperson',
+        type: 'contact',
+        parentNames: [],
+        versionTime: undefined,
+      },
+    ])
   })
 
   it('passes through explicit search options and reports empty results', async () => {
@@ -95,6 +112,8 @@ describe('executeChatSearch', () => {
       searchType: SearchType.SEARCH_SEMANTIC,
       pageSize: 5,
     })
-    expect(result).toContain('No results found for "concepts" (search type: semantic, include body: yes).')
+    expect(result.summary).toContain('No results found for "concepts" (search type: semantic, include body: yes).')
+    expect(result.markdown).toContain('No results found for "concepts" (search type: semantic, include body: yes).')
+    expect(result.results).toEqual([])
   })
 })
