@@ -16,6 +16,7 @@ import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
 import {getAllWindows} from './app-windows'
 import {navigateDesktopUrl} from './assistant-navigation'
+import {executeChatSearch} from './chat-search'
 import {getChatProviderRequestOptions} from './chat-provider-options'
 import {resolveChatStreamError} from './chat-stream-error'
 import {desktopRequest} from './desktop-api'
@@ -462,6 +463,65 @@ async function readCollaborators(id: ReturnType<typeof unpackHmId>) {
 // Plain tool objects using inputSchema (not parameters) to match AI SDK v4 internal expectations.
 // Typed as Record<string, any> to avoid excessive type instantiation depth with Zod + AI SDK.
 const chatTools: Record<string, any> = {
+  search: {
+    description:
+      'Search Hypermedia documents and contacts when you do not know the exact hm:// URL yet. Supports the full client search request fields: query, accountUid, includeBody, contextSize, perspectiveAccountUid, searchType, and pageSize. Use this before read or navigate when the user asks about a title, topic, or person rather than a specific URL.',
+    inputSchema: jsonSchema({
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          minLength: 1,
+          description: 'The search query. Supports phrases and wildcards.',
+        },
+        accountUid: {
+          type: 'string',
+          description: 'Optional account UID to scope search to a single account.',
+        },
+        includeBody: {
+          type: 'boolean',
+          description: 'Set true to search document bodies and comments in addition to titles and contacts.',
+        },
+        contextSize: {
+          type: 'integer',
+          minimum: 0,
+          description: 'Optional match context size in runes. Defaults to 48.',
+        },
+        perspectiveAccountUid: {
+          type: 'string',
+          description: 'Optional logged-in account UID used when filtering contact visibility.',
+        },
+        searchType: {
+          type: 'string',
+          enum: ['keyword', 'semantic', 'hybrid'],
+          description:
+            'Search strategy. Use hybrid for general discovery, keyword for exact text, semantic for concept matches.',
+        },
+        pageSize: {
+          type: 'integer',
+          minimum: 1,
+          description: 'Maximum number of results to return.',
+        },
+      },
+      required: ['query'],
+      additionalProperties: false,
+    }),
+    execute: async (input: {
+      query: string
+      accountUid?: string
+      includeBody?: boolean
+      contextSize?: number
+      perspectiveAccountUid?: string
+      searchType?: 'keyword' | 'semantic' | 'hybrid'
+      pageSize?: number
+    }) => {
+      try {
+        return await executeChatSearch(input)
+      } catch (e) {
+        return `Error: ${(e as Error).message}`
+      }
+    },
+  },
   read: {
     description:
       'Read a Hypermedia document, its comments, directory listing, version history, citations, or collaborators.',
