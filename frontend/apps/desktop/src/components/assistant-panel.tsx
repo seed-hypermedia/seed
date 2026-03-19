@@ -23,16 +23,15 @@ import {
   ArrowUpRight,
   BookOpenText,
   Bot,
-  Compass,
   ChevronDown,
   ChevronRight,
+  Compass,
   Info,
-  Loader2,
   Link2,
+  Loader2,
   Plus,
   Search,
   Send,
-  Settings,
   Square,
   Trash2,
   Wrench,
@@ -54,20 +53,13 @@ export function AssistantPanel({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-border flex items-center justify-between border-b px-3 py-2">
-        <div className="flex items-center gap-2">
+      <div className="border-border window-drag flex h-10 items-center justify-between border-b px-3 py-2">
+        <div className="no-select flex items-center gap-2">
           <Bot className="text-muted-foreground size-4" />
           <SizableText size="sm" className="font-medium">
             Assistant
           </SizableText>
         </div>
-        <button
-          onClick={() => navigate({key: 'settings'})}
-          className="text-muted-foreground hover:text-foreground"
-          title="Assistant Providers"
-        >
-          <Settings className="size-4" />
-        </button>
       </div>
       <ChatView initialSessionId={initialSessionId} newChatRequest={newChatRequest} onSessionChange={onSessionChange} />
     </div>

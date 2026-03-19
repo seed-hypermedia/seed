@@ -1300,10 +1300,17 @@ function Tab(
   )
 }
 
-function SettingsSection({title, children}: React.PropsWithChildren<{title: string}>) {
+function SettingsSection({
+  title,
+  children,
+  afterTitle,
+}: React.PropsWithChildren<{title: string; afterTitle?: React.ReactNode}>) {
   return (
     <div className={cn('dark:bg-background bg-muted flex flex-col gap-3 rounded p-3')}>
-      <SizableText size="2xl">{title}</SizableText>
+      <div className="flex items-center justify-start gap-3">
+        <SizableText size="2xl">{title}</SizableText>
+        {afterTitle}
+      </div>
       {children}
     </div>
   )
@@ -1756,7 +1763,7 @@ export function AIProvidersSettings() {
 
   if (!providerItems.length) {
     return (
-      <SettingsSection title="Assistant Providers">
+      <SettingsSection title="Agent Assistant Providers" afterTitle={<BetaTag />}>
         <ProviderSetupOverview
           providers={providerItems}
           selectedProviderLabel={selectedProvider.data?.label || null}
@@ -1768,13 +1775,9 @@ export function AIProvidersSettings() {
   }
 
   return (
-    <SettingsSection title="Assistant Providers">
+    <SettingsSection title="Agent Assistant Providers" afterTitle={<BetaTag />}>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-col gap-2">
-          <SizableText size="sm" className="text-muted-foreground max-w-[720px]">
-            Configure the model backends the assistant can use. OpenAI supports ChatGPT Pro sign-in or API keys, Gemini
-            and Anthropic use API keys, and Ollama connects to a local model server.
-          </SizableText>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">
               {providerItems.length} provider{providerItems.length === 1 ? '' : 's'}
@@ -1782,10 +1785,6 @@ export function AIProvidersSettings() {
             {selectedProvider.data ? <Badge variant="secondary">Default: {selectedProvider.data.label}</Badge> : null}
           </div>
         </div>
-        <Button size="sm" onClick={() => beginAdd()}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Provider
-        </Button>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
@@ -1795,11 +1794,7 @@ export function AIProvidersSettings() {
               <SizableText size="sm" weight="bold">
                 Configured Providers
               </SizableText>
-              <SizableText size="xs" className="text-muted-foreground">
-                Choose a provider to edit it or set it as the default assistant backend.
-              </SizableText>
             </div>
-            <Badge variant="outline">{providerItems.length}</Badge>
           </div>
 
           <div className="flex flex-col gap-2 p-3">
@@ -1842,6 +1837,10 @@ export function AIProvidersSettings() {
                 </SizableText>
               </div>
             )}
+            <Button size="sm" onClick={() => beginAdd()} className="w-full">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Provider
+            </Button>
           </div>
         </div>
 
@@ -1856,6 +1855,14 @@ export function AIProvidersSettings() {
       </div>
       {addProviderDialog.content}
     </SettingsSection>
+  )
+}
+
+function BetaTag() {
+  return (
+    <Badge variant="warning">
+      <span className="text-lg">BETA</span>
+    </Badge>
   )
 }
 
