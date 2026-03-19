@@ -7,7 +7,8 @@ const mockState = vi.hoisted(() => ({
   assistantPanelProps: null as null | Record<string, unknown>,
   footerProps: null as null | Record<string, unknown>,
   ipcSend: vi.fn(),
-  providers: [] as Array<{id: string; label?: string; model?: string}>,
+  providers: undefined as undefined | Array<{id: string; label?: string; model?: string}>,
+  providersStatus: 'success' as 'pending' | 'success',
 }))
 
 vi.mock('@/app-context', () => ({
@@ -44,7 +45,11 @@ vi.mock('@/ipc', () => ({
 }))
 
 vi.mock('@/models/ai-config', () => ({
-  useAIProviders: () => ({data: mockState.providers}),
+  useAIProviders: () => ({
+    data: mockState.providers,
+    isLoading: mockState.providersStatus === 'pending',
+    isSuccess: mockState.providersStatus === 'success',
+  }),
 }))
 
 vi.mock('@/models/contacts', () => ({
@@ -234,14 +239,18 @@ function renderMain() {
   const root = createRoot(container)
 
   act(() => {
-    root.render(
-      <Suspense fallback={null}>
-        <Main />
-      </Suspense>,
-    )
+    root.render(renderMainTree())
   })
 
   return {container, root}
+}
+
+function renderMainTree() {
+  return (
+    <Suspense fallback={null}>
+      <Main />
+    </Suspense>
+  )
 }
 
 function cleanupRendered(root: Root, container: HTMLDivElement) {
@@ -264,6 +273,7 @@ describe('Main assistant visibility', () => {
     mockState.footerProps = null
     mockState.ipcSend.mockReset()
     mockState.providers = []
+    mockState.providersStatus = 'success'
     ;(window as any).initNavState = {
       assistantOpen: true,
       assistantSessionId: 'session-1',
@@ -293,6 +303,7 @@ describe('Main assistant visibility', () => {
 
   it('shows assistant controls when at least one provider is configured', async () => {
     mockState.providers = [{id: 'provider-1', label: 'OpenAI', model: 'gpt-5'}]
+    mockState.providersStatus = 'success'
 
     const {container, root} = renderMain()
 
@@ -308,6 +319,7 @@ describe('Main assistant visibility', () => {
 
   it('opens the assistant panel and requests a new chat from the footer action', async () => {
     mockState.providers = [{id: 'provider-1', label: 'OpenAI', model: 'gpt-5'}]
+    mockState.providersStatus = 'success'
     ;(window as any).initNavState = {
       assistantOpen: false,
       assistantSessionId: 'session-1',
@@ -331,6 +343,35 @@ describe('Main assistant visibility', () => {
       assistantOpen: true,
       assistantSessionId: 'session-1',
     })
+
+    cleanupRendered(root, container)
+  })
+
+  it('keeps the saved assistant state while providers are still loading', async () => {
+    mockState.providers = undefined
+    mockState.providersStatus = 'pending'
+
+    const {container, root} = renderMain()
+
+    await flushEffects()
+
+    expect(container.querySelector('[data-testid="assistant-panel"]')).not.toBeNull()
+    expect(mockState.ipcSend).not.toHaveBeenCalledWith('windowAssistantState', {
+      assistantOpen: false,
+      assistantSessionId: 'session-1',
+    })
+
+    mockState.providers = [{id: 'provider-1', label: 'OpenAI', model: 'gpt-5'}]
+    mockState.providersStatus = 'success'
+
+    act(() => {
+      root.render(renderMainTree())
+    })
+
+    await flushEffects()
+
+    expect(container.querySelector('[data-testid="assistant-panel"]')).not.toBeNull()
+    expect(mockState.assistantPanelProps?.initialSessionId).toBe('session-1')
 
     cleanupRendered(root, container)
   })

@@ -61,6 +61,7 @@ export default function Main({className}: {className?: string}) {
   const [assistantNewChatRequest, setAssistantNewChatRequest] = useState(0)
   const providers = useAIProviders()
   const hasAssistantProviders = (providers.data?.length || 0) > 0
+  const shouldRenderAssistantPanel = assistantOpen && (hasAssistantProviders || !providers.isSuccess)
 
   const sendAssistantState = useCallback((open: boolean, sessionId: string | null) => {
     ipc.send('windowAssistantState', {assistantOpen: open, assistantSessionId: sessionId})
@@ -97,11 +98,11 @@ export default function Main({className}: {className?: string}) {
   )
 
   useEffect(() => {
-    if (!hasAssistantProviders && assistantOpen) {
+    if (providers.isSuccess && !hasAssistantProviders && assistantOpen) {
       setAssistantOpen(false)
       sendAssistantState(false, assistantSessionId)
     }
-  }, [assistantOpen, assistantSessionId, hasAssistantProviders, sendAssistantState])
+  }, [assistantOpen, assistantSessionId, hasAssistantProviders, providers.isSuccess, sendAssistantState])
 
   const {platform} = useAppContext()
   const {PageComponent, Fallback} = useMemo(() => getPageComponent(navR), [navR])
@@ -189,7 +190,7 @@ export default function Main({className}: {className?: string}) {
             </SidebarContextProvider>
           </div>
         </Panel>
-        {assistantOpen && hasAssistantProviders && (
+        {shouldRenderAssistantPanel && (
           <>
             <PanelResizeHandle className="panel-resize-handle" />
             <Panel id="assistant" order={2} minSize={15} maxSize={40} defaultSize={25} className="border-l">

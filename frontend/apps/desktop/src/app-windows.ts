@@ -12,6 +12,7 @@ import {appStore} from './app-store.mjs'
 import {getDaemonState, subscribeDaemonState} from './daemon'
 import {childLogger, debug, info, warn} from './logger'
 import {logWindowOpen, logWindowClose} from './memory-profiler-window'
+import {mergeWindowNavState, type WindowNavState} from './utils/account-selection'
 
 let windowIdCount = 1
 
@@ -206,7 +207,7 @@ function validateWindowPosition(bounds: {x: number; y: number; width: number; he
 
 let lastFocusedWindowId: string | null = null
 
-const windowNavState: Record<string, Omit<AppWindow, 'bounds'>> = {}
+const windowNavState: Record<string, WindowNavState> = {}
 
 export function getWindowNavState() {
   return windowNavState
@@ -494,7 +495,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   const selectedIdentity =
     input.selectedIdentity || (lastFocusedWindowId && windowNavState[lastFocusedWindowId]?.selectedIdentity) || null
 
-  const initNavState = {
+  const initNavState: WindowNavState = {
     routes: initRoutes,
     routeIndex: initRouteIndex,
     sidebarLocked: typeof input.sidebarLocked === 'boolean' ? input.sidebarLocked : true,
@@ -566,14 +567,14 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     info: any,
     {routes, routeIndex, sidebarLocked, sidebarWidth, accessoryWidth, selectedIdentity}: NavState,
   ) => {
-    windowNavState[windowId] = {
+    windowNavState[windowId] = mergeWindowNavState(windowNavState[windowId], {
       routes,
       routeIndex,
       sidebarLocked: typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
       sidebarWidth: sidebarWidth || 15,
       accessoryWidth: accessoryWidth || 20,
       selectedIdentity: selectedIdentity || null,
-    }
+    })
     updateWindowState(windowId, (window) => ({
       ...window,
       routes,
@@ -592,11 +593,10 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     info: any,
     {assistantOpen, assistantSessionId}: {assistantOpen: boolean; assistantSessionId: string | null},
   ) => {
-    windowNavState[windowId] = {
-      ...windowNavState[windowId],
+    windowNavState[windowId] = mergeWindowNavState(windowNavState[windowId], {
       assistantOpen,
       assistantSessionId,
-    }
+    })
     updateWindowState(windowId, (window) => ({
       ...window,
       assistantOpen,
