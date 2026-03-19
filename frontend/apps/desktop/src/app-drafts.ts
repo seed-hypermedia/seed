@@ -9,9 +9,8 @@ import {
   HMNavigationItemSchema,
   HMResourceVisibilitySchema,
 } from '@seed-hypermedia/client/hm-types'
-import {blocksToMarkdown, slugify, draftFilename, parseDraftFilename} from '@seed-hypermedia/client/blocks-to-markdown'
+import {parseDraftFilename} from '@seed-hypermedia/client/blocks-to-markdown'
 import {parseMarkdown, markdownBlockNodesToHMBlockNodes} from '@seed-hypermedia/client/markdown-to-blocks'
-import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {hmIdPathToEntityQueryPath, pathMatches} from '@shm/shared'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -528,34 +527,22 @@ export const draftsApi = t.router({
       draftIndex = [...draftIndex.filter((d) => d.id !== draftId), newDraft]
       await saveDraftIndex()
 
-      // Convert editor blocks to markdown and save as <slug>_<nanoid>.md
+      // Save content as JSON (preserves all block types losslessly).
+      // Markdown write path will be enabled once all block types can roundtrip.
+      const draftPath = join(draftsDir, `${draftId}.json`)
+      const draft: HMDraftContent = {
+        content: input.content,
+        // @ts-expect-error
+        signingAccount: input.signingAccount,
+        deps: input.deps,
+        navigation: input.navigation,
+      }
+
+      HMDraftContentSchema.parse(draft)
+
       try {
-        const editorBlocks = Array.isArray(input.content) ? input.content : []
-        const hmNodes = editorBlocksToHMBlockNodes(editorBlocks)
-        const markdown = blocksToMarkdown({
-          content: hmNodes,
-          metadata: input.metadata,
-          version: '',
-          authors: [],
-        } as any)
-
-        const slug = slugify(input.metadata.name || '')
-        const filename = draftFilename(slug, draftId)
-        const mdPath = join(draftsDir, filename)
-
-        // Remove old file if the slug changed (different filename)
-        const oldFilename = draftFileMap.get(draftId)
-        if (oldFilename && oldFilename !== filename) {
-          try {
-            await fs.unlink(join(draftsDir, oldFilename))
-          } catch {
-            // old file didn't exist
-          }
-        }
-
-        await fs.writeFile(mdPath, markdown)
-        draftFileMap.set(draftId, filename)
-
+        await fs.writeFile(draftPath, JSON.stringify(draft, null, 2))
+        draftFileMap.set(draftId, `${draftId}.json`)
         appInvalidateQueries([queryKeys.DRAFTS_LIST])
         appInvalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
         return {id: draftId}

@@ -1,4 +1,3 @@
-import _ from 'lodash'
 import {
   EditorBlock,
   EditorBlockProps,
@@ -394,7 +393,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
         ;((inlineBlockContent as EditorLink).content as HMInlineContent[]).push(typedLeaf)
       }
     } else {
-      if (leaf && !_.isEqual(leaf, {type: 'text', text: '', styles: {}})) {
+      if (leaf && !(leaf.type === 'text' && leaf.text === '' && Object.keys(leaf.styles).length === 0)) {
         leaves.push(leaf)
       }
     }
