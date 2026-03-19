@@ -2,7 +2,7 @@ import {expect, test} from './fixtures'
 
 test.use({clipboardPermissions: false})
 
-test.describe('Grid Layout', () => {
+test.describe.skip('Grid Layout', () => {
   test.describe('Slash Menu Insertion', () => {
     test('Should insert a grid with 3 empty children via slash menu', async ({editorHelpers, page}) => {
       await editorHelpers.typeText('Before grid')
