@@ -18,6 +18,10 @@ const mockState = vi.hoisted(() => ({
   createSessionMutateAsync: vi.fn(),
   deleteSessionMutate: vi.fn(),
   navigate: vi.fn(),
+  navigationContext: {
+    state: {},
+    dispatch: vi.fn(),
+  } as any,
   openUrl: vi.fn(),
   providers: [] as any[],
   sendMessageMutate: vi.fn(),
@@ -46,13 +50,26 @@ vi.mock('@/open-url', () => ({
   useOpenUrl: () => mockState.openUrl,
 }))
 
-vi.mock('@shm/shared/utils/navigation', () => ({
-  useNavRoute: () => ({key: 'library'}),
-}))
+vi.mock('@shm/shared/utils/navigation', async () => {
+  const actual = await vi.importActual<typeof import('@shm/shared/utils/navigation')>('@shm/shared/utils/navigation')
 
-vi.mock('@shm/shared/utils/entity-id-url', () => ({
-  packHmId: vi.fn(),
-}))
+  return {
+    ...actual,
+    useNavRoute: () => ({key: 'library'}),
+    useNavigation: (overrideNavigation: unknown) => overrideNavigation ?? mockState.navigationContext,
+  }
+})
+
+vi.mock('@shm/shared/utils/entity-id-url', async () => {
+  const actual = await vi.importActual<typeof import('@shm/shared/utils/entity-id-url')>(
+    '@shm/shared/utils/entity-id-url',
+  )
+
+  return {
+    ...actual,
+    packHmId: vi.fn(),
+  }
+})
 
 vi.mock('../components/markdown', () => ({
   Markdown: ({children}: {children: React.ReactNode}) => React.createElement('div', null, children),
