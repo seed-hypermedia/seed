@@ -4,25 +4,26 @@ import {client} from '@/trpc'
 import {handleDragMedia} from '@/utils/media-drag'
 import {useNavigate} from '@/utils/useNavigate'
 import {createComment} from '@seed-hypermedia/client'
+import {
+  HMBlockNode,
+  HMCommentGroup,
+  HMListDiscussionsOutput,
+  HMMetadataPayload,
+  HMPublishBlobsInput,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {CommentEditor} from '@shm/editor/comment-editor'
 import {queryClient, queryKeys} from '@shm/shared'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
-import {useCommentsService} from '@shm/shared/comments-service-provider'
 import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider'
-import {
-  HMBlockNode,
-  HMComment,
-  HMCommentGroup,
-  HMListDiscussionsOutput,
-  UnpackedHypermediaId,
-} from '@seed-hypermedia/client/hm-types'
-import {useResource} from '@shm/shared/models/entity'
+import {useCommentsService} from '@shm/shared/comments-service-provider'
 import {useContacts} from '@shm/shared/models/contacts'
+import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
+import {applyOptimisticComment, buildOptimisticComment, navigateToComment} from '@shm/shared/optimistic-comment'
 import {useUniversalClient} from '@shm/shared/routing'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
-import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useMutation} from '@tanstack/react-query'
 import {Check, SendHorizonal, X} from 'lucide-react'
@@ -144,46 +145,42 @@ function _CommentBox(props: {
   })
 
   // Publish comment mutation
+  type PublishCommentVars = {commentPayload: HMPublishBlobsInput; contentBlocks: HMBlockNode[]}
+
   const publishComment = useMutation({
-    mutationFn: async ({
-      getContent,
-      signingKeyName,
-    }: {
-      getContent: (
-        prepareAttachments: (binaries: Uint8Array[]) => Promise<{
-          blobs: {cid: string; data: Uint8Array}[]
-          resultCIDs: string[]
-        }>,
-      ) => Promise<{
-        blockNodes: HMBlockNode[]
-        blobs: {cid: string; data: Uint8Array}[]
-      }>
-      signingKeyName: string
-    }) => {
-      if (!getSigner) throw new Error('getSigner not available')
-      const targetDoc = targetEntity.data?.type === 'document' ? targetEntity.data.document : undefined
-      const targetVersion = targetDoc?.version
-
-      const signer = getSigner(signingKeyName)
-      const response = await publish(
-        await createComment(
-          {
-            getContent,
-            docId,
-            docVersion: targetVersion || docId.version || '',
-            replyCommentVersion: resolvedReply?.replyCommentVersion,
-            rootReplyCommentVersion: resolvedReply?.rootReplyCommentVersion,
-            quotingBlockId,
-            visibility: targetDoc?.visibility === 'PRIVATE' ? 'Private' : '',
-          },
-          signer,
-        ),
-      )
+    mutationFn: async ({commentPayload}: PublishCommentVars) => {
+      const response = await publish(commentPayload)
       if (!response.cids[0]) throw new Error('Failed to publish comment blob')
+      return response
+    },
+    onMutate: async ({commentPayload, contentBlocks}: PublishCommentVars) => {
+      await queryClient.cancelQueries({queryKey: [queryKeys.DOCUMENT_COMMENTS, docId]})
 
-      writeRecentSigner.mutateAsync(signingKeyName).then(() => {
-        invalidateQueries([queryKeys.RECENT_SIGNERS])
+      const targetDoc = targetEntity.data?.type === 'document' ? targetEntity.data.document : undefined
+      const authorMetadata: HMMetadataPayload | null = account
+        ? {id: account.id, metadata: account.metadata || null}
+        : null
+
+      const optimisticComment = await buildOptimisticComment({
+        commentPayload,
+        authorUid: account!.id.uid,
+        docId,
+        docVersion: targetDoc?.version || docId.version || '',
+        contentBlocks,
+        replyParentId: commentId || undefined,
+        threadRootVersion: resolvedReply?.rootReplyCommentVersion,
+        quotingBlockId,
+        visibility: targetDoc?.visibility === 'PRIVATE' ? 'PRIVATE' : 'PUBLIC',
       })
+
+      applyOptimisticComment(queryClient, docId, optimisticComment, authorMetadata, quotingBlockId)
+      navigateToComment(navigate, route, optimisticComment.id)
+    },
+    onError: (err: {message: string}) => {
+      // Keep the optimistic comment visible — the publish can be retried later.
+      // Do NOT roll back cache or navigation; do NOT invalidate queries (would fail offline).
+      setIsSubmitting(false)
+      console.warn('Comment publish failed, keeping optimistic comment:', err.message)
     },
     onSuccess: () => {
       setIsSubmitting(false)
@@ -204,10 +201,6 @@ function _CommentBox(props: {
       invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY])
       invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
       invalidateQueries([queryKeys.ACTIVITY_FEED])
-    },
-    onError: (err: {message: string}) => {
-      setIsSubmitting(false)
-      toast.error(`Failed to create comment: ${err.message}`)
     },
   })
 
@@ -269,9 +262,36 @@ function _CommentBox(props: {
       setIsSubmitting(true)
 
       try {
-        await publishComment.mutateAsync({
-          getContent,
-          signingKeyName: account.id.uid,
+        if (!getSigner) throw new Error('getSigner not available')
+        const targetDoc = targetEntity.data?.type === 'document' ? targetEntity.data.document : undefined
+        const targetVersion = targetDoc?.version
+        const signer = getSigner(account.id.uid)
+
+        // Wrap getContent to capture block nodes before they're consumed by createComment
+        let capturedBlocks: HMBlockNode[] = []
+        const wrappedGetContent: typeof getContent = async (prepareAttachments) => {
+          const result = await getContent(prepareAttachments)
+          capturedBlocks = result.blockNodes
+          return result
+        }
+
+        const commentPayload = await createComment(
+          {
+            getContent: wrappedGetContent,
+            docId,
+            docVersion: targetVersion || docId.version || '',
+            replyCommentVersion: resolvedReply?.replyCommentVersion,
+            rootReplyCommentVersion: resolvedReply?.rootReplyCommentVersion,
+            quotingBlockId,
+            visibility: targetDoc?.visibility === 'PRIVATE' ? 'Private' : '',
+          },
+          signer,
+        )
+
+        await publishComment.mutateAsync({commentPayload, contentBlocks: capturedBlocks})
+
+        writeRecentSigner.mutateAsync(account.id.uid).then(() => {
+          invalidateQueries([queryKeys.RECENT_SIGNERS])
         })
 
         reset()
@@ -280,7 +300,17 @@ function _CommentBox(props: {
         console.error('Failed to submit comment:', err)
       }
     },
-    [isSubmitting, account, publishComment],
+    [
+      isSubmitting,
+      account,
+      publishComment,
+      getSigner,
+      targetEntity.data,
+      docId,
+      resolvedReply,
+      quotingBlockId,
+      writeRecentSigner,
+    ],
   )
 
   // Desktop file attachment handler
@@ -387,7 +417,7 @@ function InlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentP
         handleSubmit={handleSubmit}
         initialBlocks={comment.content}
         handleFileAttachment={handleFileAttachment}
-        account={account ? {id: account.id, metadata: account.document?.metadata} : undefined}
+        account={account ? {id: account.id, metadata: account.metadata} : undefined}
         perspectiveAccountUid={selectedAccountId}
         submitButton={({getContent, reset}) => (
           <>
