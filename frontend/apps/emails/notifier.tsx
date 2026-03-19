@@ -10,6 +10,7 @@ import {
   MjmlSection,
   MjmlText,
   MjmlTitle,
+  MjmlWrapper,
 } from '@faire/mjml-react'
 import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
 import {HMBlockNode, HMComment, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -76,7 +77,8 @@ Manage notifications: ${input.unsubscribeUrl}`
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>{subject}</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#ffffff">
+      <MjmlBody width={500} backgroundColor="#f4f4f5">
+        <MjmlWrapper backgroundColor="#ffffff" padding="0">
         <EmailHeader />
 
         <MjmlSection padding="24px 24px 0">
@@ -119,6 +121,7 @@ Manage notifications: ${input.unsubscribeUrl}`
         </MjmlSection>
 
         <EmailFooter siteUrl={input.siteUrl} unsubscribeUrl={input.unsubscribeUrl} manageNotificationsUrl={input.unsubscribeUrl} />
+        </MjmlWrapper>
       </MjmlBody>
     </Mjml>,
   )
@@ -153,7 +156,8 @@ Manage notifications: ${input.unsubscribeUrl}`
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>{subject}</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#ffffff">
+      <MjmlBody width={500} backgroundColor="#f4f4f5">
+        <MjmlWrapper backgroundColor="#ffffff" padding="0">
         <EmailHeader />
 
         <MjmlSection padding="24px 24px 0">
@@ -196,6 +200,7 @@ Manage notifications: ${input.unsubscribeUrl}`
         </MjmlSection>
 
         <EmailFooter siteUrl={input.siteUrl} unsubscribeUrl={input.unsubscribeUrl} manageNotificationsUrl={input.unsubscribeUrl} />
+        </MjmlWrapper>
       </MjmlBody>
     </Mjml>,
   )
@@ -233,7 +238,8 @@ Manage notifications: ${input.unsubscribeUrl}`
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>{subject}</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#ffffff">
+      <MjmlBody width={500} backgroundColor="#f4f4f5">
+        <MjmlWrapper backgroundColor="#ffffff" padding="0">
         <EmailHeader />
 
         <MjmlSection padding="24px 24px 0">
@@ -287,6 +293,7 @@ Manage notifications: ${input.unsubscribeUrl}`
         </MjmlSection>
 
         <EmailFooter siteUrl={input.siteUrl} unsubscribeUrl={input.unsubscribeUrl} manageNotificationsUrl={input.unsubscribeUrl} />
+        </MjmlWrapper>
       </MjmlBody>
     </Mjml>,
   )
@@ -321,7 +328,8 @@ Manage notifications: ${input.unsubscribeUrl}`
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>{subject}</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#ffffff">
+      <MjmlBody width={500} backgroundColor="#f4f4f5">
+        <MjmlWrapper backgroundColor="#ffffff" padding="0">
         <EmailHeader />
 
         <MjmlSection padding="24px 24px 0">
@@ -367,6 +375,7 @@ Manage notifications: ${input.unsubscribeUrl}`
         </MjmlSection>
 
         <EmailFooter siteUrl={input.siteUrl} unsubscribeUrl={input.unsubscribeUrl} manageNotificationsUrl={input.unsubscribeUrl} />
+        </MjmlWrapper>
       </MjmlBody>
     </Mjml>,
   )
@@ -400,7 +409,8 @@ Manage notifications: ${input.unsubscribeUrl}`
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>{subject}</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#ffffff">
+      <MjmlBody width={500} backgroundColor="#f4f4f5">
+        <MjmlWrapper backgroundColor="#ffffff" padding="0">
         <EmailHeader />
 
         <MjmlSection padding="24px 24px 0">
@@ -433,6 +443,7 @@ Manage notifications: ${input.unsubscribeUrl}`
         </MjmlSection>
 
         <EmailFooter siteUrl={input.siteUrl} unsubscribeUrl={input.unsubscribeUrl} manageNotificationsUrl={input.unsubscribeUrl} />
+        </MjmlWrapper>
       </MjmlBody>
     </Mjml>,
   )
@@ -464,7 +475,8 @@ Go to ${input.siteName}: ${input.siteUrl}`
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>Welcome to Seed Hypermedia — you're all set!</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#ffffff">
+      <MjmlBody width={500} backgroundColor="#f4f4f5">
+        <MjmlWrapper backgroundColor="#ffffff" padding="0">
         <EmailHeader />
 
         <MjmlSection padding="24px 24px 0">
@@ -496,6 +508,7 @@ Go to ${input.siteName}: ${input.siteUrl}`
         </MjmlSection>
 
         <EmailFooter />
+        </MjmlWrapper>
       </MjmlBody>
     </Mjml>,
   )
@@ -535,7 +548,8 @@ This link expires in 2 hours. If you didn't create an account, you can safely ig
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>Confirm your email to complete your registration</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#ffffff">
+      <MjmlBody width={500} backgroundColor="#f4f4f5">
+        <MjmlWrapper backgroundColor="#ffffff" padding="0">
         <EmailHeader />
         <MjmlSection padding="24px 24px 0">
           <MjmlColumn>
@@ -568,6 +582,7 @@ This link expires in 2 hours. If you didn't create an account, you can safely ig
           </MjmlColumn>
         </MjmlSection>
         <EmailFooter />
+        </MjmlWrapper>
       </MjmlBody>
     </Mjml>,
   )
@@ -696,7 +711,8 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
           {notifications.length > 1 ? `${firstNotificationSummary} and more` : firstNotificationSummary}
         </MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#ffffff">
+      <MjmlBody width={500} backgroundColor="#f4f4f5">
+        <MjmlWrapper backgroundColor="#ffffff" padding="0">
         <EmailHeader />
 
         {(['site-doc-update', 'site-new-discussion', 'discussion', 'mention', 'reply'] as const).map((reason) => {
@@ -808,6 +824,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
         })}
 
         <EmailFooter siteUrl={batchSiteUrl} unsubscribeUrl={notifSettingsUrl} manageNotificationsUrl={notifSettingsUrl} />
+        </MjmlWrapper>
       </MjmlBody>
     </Mjml>,
   )
@@ -870,7 +887,8 @@ Manage notification emails: ${notifSettingsUrl}`
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>{preview}</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#ffffff">
+      <MjmlBody width={500} backgroundColor="#f4f4f5">
+        <MjmlWrapper backgroundColor="#ffffff" padding="0">
         <EmailHeader />
 
         <MjmlSection padding="8px 24px 0">
@@ -925,6 +943,7 @@ Manage notification emails: ${notifSettingsUrl}`
         })}
 
         <EmailFooter siteUrl={desktopSiteUrl} unsubscribeUrl={notifSettingsUrl} manageNotificationsUrl={notifSettingsUrl} />
+        </MjmlWrapper>
       </MjmlBody>
     </Mjml>,
   )

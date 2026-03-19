@@ -7,6 +7,7 @@ import {
   MjmlSection,
   MjmlText,
   MjmlTitle,
+  MjmlWrapper,
 } from '@faire/mjml-react'
 import {EmailFooter} from './components/EmailFooter'
 import {EmailHeader} from './components/EmailHeader'
@@ -38,7 +39,8 @@ This link will expire in 15 minutes.`
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>A new sign-in was detected on your Seed Hypermedia account</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#ffffff">
+      <MjmlBody width={500} backgroundColor="#f4f4f5">
+        <MjmlWrapper backgroundColor="#ffffff" padding="0">
         <EmailHeader />
 
         <MjmlSection padding="24px 24px 0">
@@ -73,6 +75,7 @@ This link will expire in 15 minutes.`
         </MjmlSection>
 
         <EmailFooter />
+        </MjmlWrapper>
       </MjmlBody>
     </Mjml>,
   )
