@@ -14,44 +14,27 @@ use the **seed-hypermedia-read** skill. For LLM-powered PDF import see the **see
 
 ### 1. Ensure CLI is Available and Up-to-Date
 
-The Seed CLI is distributed as the npm package **`@seed-hypermedia/cli`** (binary: `seed-cli`). Run this detection flow
-**once per session** to set `SEED_CLI` for all subsequent commands:
+The Seed CLI is distributed as the npm package **`@seed-hypermedia/cli`** (binary: `seed-cli`). Run the following **once
+per session** to install or update it:
 
 ```bash
-# 1. Check for existing global install
-if command -v seed-cli &>/dev/null; then
-  SEED_CLI="seed-cli"
-
-  # Check for updates: compare local vs. npm registry version
-  LOCAL_V=$(seed-cli --version 2>/dev/null)
-  LATEST_V=$(npm view @seed-hypermedia/cli version 2>/dev/null)
-  if [ -n "$LATEST_V" ] && [ "$LOCAL_V" != "$LATEST_V" ]; then
-    npm install -g @seed-hypermedia/cli@latest 2>/dev/null && echo "Updated seed-cli $LOCAL_V → $LATEST_V"
-  fi
-
-# 2. Not installed — install globally from npm
-elif command -v npm &>/dev/null; then
+# Install seed-cli if not present
+if ! command -v seed-cli &>/dev/null; then
   npm install -g @seed-hypermedia/cli
-  SEED_CLI="seed-cli"
+fi
 
-# 3. Global install not possible — use npx (downloads on demand)
-elif command -v npx &>/dev/null; then
-  SEED_CLI="npx -y @seed-hypermedia/cli"
-
-# 4. Last resort — run from repository source (only inside the seed repo)
-elif [ -f "frontend/apps/cli/src/index.ts" ]; then
-  SEED_CLI="bun run frontend/apps/cli/src/index.ts"
-  # If dependencies are missing: cd frontend/apps/cli && bun install
-
-else
-  echo "ERROR: Cannot find or install seed-cli. Install Node.js and run: npm install -g @seed-hypermedia/cli"
+# Update to latest if outdated
+LOCAL_V=$(seed-cli --version 2>/dev/null)
+LATEST_V=$(npm view @seed-hypermedia/cli version 2>/dev/null)
+if [ -n "$LATEST_V" ] && [ "$LOCAL_V" != "$LATEST_V" ]; then
+  npm install -g @seed-hypermedia/cli@latest
 fi
 ```
 
 Verify the CLI is working:
 
 ```bash
-$SEED_CLI --help
+seed-cli --help
 ```
 
 ### 2. Check Available Keys
@@ -65,20 +48,20 @@ publish with `--dev`, and `key list` (no flag) when targeting mainnet.
 
 ```bash
 # List keys (mainnet — production)
-$SEED_CLI key list
+seed-cli key list
 
 # List keys (devnet — development)
-$SEED_CLI key list --dev
+seed-cli key list --dev
 ```
 
 If no keys exist, the user must import or generate one:
 
 ```bash
 # Import from mnemonic (recovers existing account)
-$SEED_CLI key import -n mykey "word1 word2 ... word12"
+seed-cli key import -n mykey "word1 word2 ... word12"
 
 # Generate a new key
-$SEED_CLI key generate -n mykey --show-mnemonic
+seed-cli key generate -n mykey --show-mnemonic
 ```
 
 ### 3. Determine Server & Environment
@@ -108,25 +91,19 @@ and keep it consistent across the entire session.
 
 ```bash
 # Mainnet (default — no flags needed)
-$SEED_CLI key list
-$SEED_CLI search "topic" --type hybrid --limit 40
-$SEED_CLI document create -f content.md --key mykey
+seed-cli key list
+seed-cli search "topic" --type hybrid --limit 40
+seed-cli document create -f content.md --key mykey
 
 # Devnet — --dev on EVERY command
-$SEED_CLI key list --dev
-$SEED_CLI search "topic" --type hybrid --limit 40 --dev
-$SEED_CLI document create -f content.md --key mykey --dev
+seed-cli key list --dev
+seed-cli search "topic" --type hybrid --limit 40 --dev
+seed-cli document create -f content.md --key mykey --dev
 
 # Custom server — --server on EVERY command (combine with --dev if targeting a dev server)
-$SEED_CLI search "topic" --type hybrid --limit 40 --server http://localhost:4000
-$SEED_CLI document create -f content.md --key mykey --server http://localhost:4000
+seed-cli search "topic" --type hybrid --limit 40 --server http://localhost:4000
+seed-cli document create -f content.md --key mykey --server http://localhost:4000
 ```
-
-## CLI Alias
-
-All examples below use `$SEED_CLI`, which was set during the prerequisite detection step above. If you skipped
-prerequisites, run the detection flow from
-[Ensure CLI is Available and Up-to-Date](#1-ensure-cli-is-available-and-up-to-date) first.
 
 ## Draft Management
 
@@ -146,25 +123,25 @@ drafts created by the desktop app.
 
 ```bash
 # Save a draft (validates content, saves to <drafts-dir>/<slug>.md)
-$SEED_CLI draft create -f content.md
+seed-cli draft create -f content.md
 
 # Save to a custom path
-$SEED_CLI draft create -f content.md -o /path/to/custom-name.md
+seed-cli draft create -f content.md -o /path/to/custom-name.md
 
 # Review a draft (raw markdown) — works with both .md and .json drafts
-$SEED_CLI draft get <slug>
+seed-cli draft get <slug>
 
 # Review with terminal-rendered pretty output
-$SEED_CLI draft get <slug> --pretty
+seed-cli draft get <slug> --pretty
 
 # List all drafts (both .md and .json)
-$SEED_CLI draft list
+seed-cli draft list
 
 # Remove a specific draft
-$SEED_CLI draft rm <slug> --force
+seed-cli draft rm <slug> --force
 
 # Remove all .md drafts
-$SEED_CLI draft rm --all --force
+seed-cli draft rm --all --force
 ```
 
 **Collision handling:** If a draft with the same slug already exists, `draft create` will error. Use `-o` to explicitly
@@ -221,7 +198,7 @@ For precise control over the block tree structure, use JSON. See
 [references/seed-document-format.md](references/seed-document-format.md) for the complete block format reference.
 
 ```bash
-$SEED_CLI document create -f blocks.json --name "Title" --key mykey
+seed-cli document create -f blocks.json --name "Title" --key mykey
 ```
 
 ## Write Operations
@@ -232,28 +209,28 @@ The account ID is derived automatically from the signing key — no positional a
 
 ```bash
 # From a markdown file
-$SEED_CLI document create -f content.md --key mykey
+seed-cli document create -f content.md --key mykey
 
 # From markdown with explicit metadata flags (override frontmatter)
-$SEED_CLI document create -f content.md --name "My Document" --summary "Description" --key mykey
+seed-cli document create -f content.md --name "My Document" --summary "Description" --key mykey
 
 # From JSON blocks
-$SEED_CLI document create -f blocks.json --name "Title" --key mykey
+seed-cli document create -f blocks.json --name "Title" --key mykey
 
 # From stdin (piped markdown)
-echo "# Hello World" | $SEED_CLI document create --name "Hello" --key mykey
+echo "# Hello World" | seed-cli document create --name "Hello" --key mykey
 
 # PDF import (built-in extraction)
-$SEED_CLI document create -f paper.pdf --key mykey
+seed-cli document create -f paper.pdf --key mykey
 
 # With GROBID for better PDF extraction
-$SEED_CLI document create -f paper.pdf --grobid-url http://localhost:8070 --key mykey
+seed-cli document create -f paper.pdf --grobid-url http://localhost:8070 --key mykey
 
 # Preview PDF extraction without publishing
-$SEED_CLI document create -f paper.pdf --dry-run
+seed-cli document create -f paper.pdf --dry-run
 
 # Custom path and development mode
-$SEED_CLI document create -f content.md -p my-document --key mykey --dev
+seed-cli document create -f content.md -p my-document --key mykey --dev
 ```
 
 **Parameters:**
@@ -300,22 +277,22 @@ Fields that accept `file://` paths (`--icon`, `--cover`, `--seed-experimental-lo
 
 ```bash
 # Update title
-$SEED_CLI document update <hm-id> --name "New Title" --key mykey
+seed-cli document update <hm-id> --name "New Title" --key mykey
 
 # Update metadata fields
-$SEED_CLI document update <hm-id> --summary "New summary" --display-author "New Author" --key mykey
+seed-cli document update <hm-id> --summary "New summary" --display-author "New Author" --key mykey
 
 # Update content from file (smart diff — only changed blocks are submitted)
-$SEED_CLI document update <hm-id> -f updated-content.md --key mykey
+seed-cli document update <hm-id> -f updated-content.md --key mykey
 
 # Delete specific blocks
-$SEED_CLI document update <hm-id> --delete-blocks "blockId1,blockId2" --key mykey
+seed-cli document update <hm-id> --delete-blocks "blockId1,blockId2" --key mykey
 
 # Combine metadata and content update
-$SEED_CLI document update <hm-id> -f content.md --name "New Title" --key mykey
+seed-cli document update <hm-id> -f content.md --name "New Title" --key mykey
 
 # Development mode
-$SEED_CLI document update <hm-id> --name "Title" --key mykey --dev
+seed-cli document update <hm-id> --name "Title" --key mykey --dev
 ```
 
 **Parameters:**
@@ -340,16 +317,16 @@ When using `-f`, the CLI performs a per-block diff against the existing document
 
 ```bash
 # Inline text
-$SEED_CLI comment create <target-hm-id> --body "My comment" --key mykey
+seed-cli comment create <target-hm-id> --body "My comment" --key mykey
 
 # From a file
-$SEED_CLI comment create <target-hm-id> --file comment.md --key mykey
+seed-cli comment create <target-hm-id> --file comment.md --key mykey
 
 # Reply to an existing comment
-$SEED_CLI comment create <target-hm-id> --body "Reply text" --reply <comment-id> --key mykey
+seed-cli comment create <target-hm-id> --body "Reply text" --reply <comment-id> --key mykey
 
 # Development mode
-$SEED_CLI comment create <target-hm-id> --body "Comment" --key mykey --dev
+seed-cli comment create <target-hm-id> --body "Comment" --key mykey --dev
 ```
 
 **Parameters:**
@@ -376,10 +353,10 @@ the draft-first workflow. **Never publish directly unless the user explicitly as
 
    ```bash
    # If targeting devnet:
-   $SEED_CLI key list --dev
+   seed-cli key list --dev
 
    # If targeting mainnet:
-   $SEED_CLI key list
+   seed-cli key list
    ```
 
    **Hint for batched prompts:** If you need to ask the user about the environment _and_ the signing key in the same
@@ -389,7 +366,7 @@ the draft-first workflow. **Never publish directly unless the user explicitly as
    free-text option for the user to paste a raw key:
 
    - **Public key** (starts with `z6Mk`): look it up in the matching keyring.
-   - **Private key or mnemonic**: derive the account ID using `$SEED_CLI key derive`.
+   - **Private key or mnemonic**: derive the account ID using `seed-cli key derive`.
 
 3. **Ask for the document path** — Before creating a document, always ask the user what path (`-p`) to publish under.
    The path determines the document's permanent URL (e.g., `hm://z6Mk.../the-path`). Never auto-generate or assume a
@@ -407,7 +384,7 @@ the draft-first workflow. **Never publish directly unless the user explicitly as
 7. **Save draft** — Write the markdown to a temporary file, then save it as a draft:
 
    ```bash
-   $SEED_CLI draft create -f <temp-file>
+   seed-cli draft create -f <temp-file>
    ```
 
    The CLI validates the content (parses markdown, checks structure) and saves to the platform-specific drafts
@@ -416,7 +393,7 @@ the draft-first workflow. **Never publish directly unless the user explicitly as
 8. **Validate** — Run a dry-run using the draft slug to check the content renders correctly:
 
    ```bash
-   $SEED_CLI draft get <slug> --pretty
+   seed-cli draft get <slug> --pretty
    ```
 
    Check stdout/stderr for any errors. If there are problems, fix the content, re-save the draft, and re-check.
@@ -427,15 +404,15 @@ the draft-first workflow. **Never publish directly unless the user explicitly as
    ```
    Draft saved as "<slug>"
 
-   Review:    $SEED_CLI draft get <slug> --pretty
-   Publish:   $SEED_CLI document create -f <path-from-output> --key <key> -p <path> [--server <url>]
-   Clean up:  $SEED_CLI draft rm <slug>
+   Review:    seed-cli draft get <slug> --pretty
+   Publish:   seed-cli document create -f <path-from-output> --key <key> -p <path> [--server <url>]
+   Clean up:  seed-cli draft rm <slug>
    ```
 
    For document updates, replace the publish command with:
 
    ```
-   Publish:   $SEED_CLI document update <hm-id> -f <path-from-output> --key <key> [--server <url>]
+   Publish:   seed-cli document update <hm-id> -f <path-from-output> --key <key> [--server <url>]
    ```
 
 ### Publish Mode
@@ -444,7 +421,7 @@ When the user explicitly says "publish", "publish it", "push it live", or simila
 
 - If a draft already exists for the document, publish from the draft (use the path from `draft create` output):
   ```bash
-  $SEED_CLI document create -f <path-from-draft-create-output> --key <key> -p <path> [--dev] [--server <url>]
+  seed-cli document create -f <path-from-draft-create-output> --key <key> -p <path> [--dev] [--server <url>]
   ```
 - If no draft exists, generate content and publish directly (steps 1–6 from Draft Mode, then publish).
 - **Verify** — Read the document again to confirm the change was applied.
@@ -474,10 +451,10 @@ targeting a non-default server:
 
 ```bash
 # Mainnet (default)
-$SEED_CLI search "topic or key phrase" --type hybrid --context-size 300 --limit 40
+seed-cli search "topic or key phrase" --type hybrid --context-size 300 --limit 40
 
 # Custom server
-$SEED_CLI search "topic or key phrase" --type hybrid --context-size 300 --limit 40 --server <url>
+seed-cli search "topic or key phrase" --type hybrid --context-size 300 --limit 40 --server <url>
 ```
 
 The `--type hybrid` flag combines keyword and semantic (embedding-based) search with reciprocal rank fusion, returning
@@ -510,10 +487,10 @@ For each candidate, fetch the full document to validate relevance:
 
 ```bash
 # Fetch a document
-$SEED_CLI document get hm://z6Mk.../path
+seed-cli document get hm://z6Mk.../path
 
 # Fetch a comment
-$SEED_CLI comment get <comment-id>
+seed-cli comment get <comment-id>
 ```
 
 Read the full content and confirm that the connection to the document being written is strong enough to cite.
@@ -560,20 +537,20 @@ If the user refers to a document by name rather than ID, search for it:
 
 ```bash
 # Search for documents by name
-$SEED_CLI search "document name"
+seed-cli search "document name"
 
 # Semantic search (finds conceptually similar documents even with different wording)
-$SEED_CLI search "document name" --type semantic
+seed-cli search "document name" --type semantic
 
 # List all documents in a space
-$SEED_CLI query z6Mk... --mode AllDescendants -q
+seed-cli query z6Mk... --mode AllDescendants -q
 ```
 
 ## Error Handling
 
 | Error                   | Cause                                                                                                                                                                                           | Fix                                                                                                       |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| "No signing keys found" | No keys in keyring for the target environment                                                                                                                                                   | Run `$SEED_CLI key import` or `$SEED_CLI key generate` (with `--dev` if targeting devnet)                 |
+| "No signing keys found" | No keys in keyring for the target environment                                                                                                                                                   | Run `seed-cli key import` or `seed-cli key generate` (with `--dev` if targeting devnet)                   |
 | "Key not found"         | Key doesn't exist in the target environment's keyring. Most common cause: listing keys from mainnet but publishing with `--dev`, or vice versa. Networks are isolated — keys do not cross over. | Run `key list` with the **same** environment flag (`--dev` or none) you are using for the failing command |
 | "No input provided"     | No `-f` flag and no piped stdin                                                                                                                                                                 | Provide content via `-f <file>` or pipe to stdin                                                          |
 | "No changes found"      | Document doesn't exist on the target network                                                                                                                                                    | Verify the HM ID is correct and that you are targeting the right network (`--dev` or mainnet)             |
@@ -585,35 +562,35 @@ $SEED_CLI query z6Mk... --mode AllDescendants -q
 ### List Keys
 
 ```bash
-$SEED_CLI key list          # Production keyring
-$SEED_CLI key list --dev    # Development keyring
+seed-cli key list          # Production keyring
+seed-cli key list --dev    # Development keyring
 ```
 
 ### Import Key from Mnemonic
 
 ```bash
-$SEED_CLI key import -n <name> "<12 or 24 word mnemonic>"
-$SEED_CLI key import -n <name> --passphrase "optional" "<mnemonic>" --dev
+seed-cli key import -n <name> "<12 or 24 word mnemonic>"
+seed-cli key import -n <name> --passphrase "optional" "<mnemonic>" --dev
 ```
 
 ### Generate New Key
 
 ```bash
-$SEED_CLI key generate -n <name> --show-mnemonic
-$SEED_CLI key generate -n <name> -w 24 --show-mnemonic --dev
+seed-cli key generate -n <name> --show-mnemonic
+seed-cli key generate -n <name> -w 24 --show-mnemonic --dev
 ```
 
 ### Show Key Details
 
 ```bash
-$SEED_CLI key show <name-or-id>
-$SEED_CLI key show  # Shows default key
+seed-cli key show <name-or-id>
+seed-cli key show  # Shows default key
 ```
 
 ### Remove Key
 
 ```bash
-$SEED_CLI key remove <name-or-id> --force
+seed-cli key remove <name-or-id> --force
 ```
 
 ## Hypermedia ID Format
@@ -645,13 +622,13 @@ structured output.
 
 ```bash
 # Default: markdown with frontmatter and block IDs
-$SEED_CLI document get hm://z6Mk.../my-doc
+seed-cli document get hm://z6Mk.../my-doc
 
 # Structured output
-$SEED_CLI document get hm://z6Mk.../my-doc --json
+seed-cli document get hm://z6Mk.../my-doc --json
 
 # Write to file
-$SEED_CLI document get hm://z6Mk.../my-doc -o doc.md
+seed-cli document get hm://z6Mk.../my-doc -o doc.md
 ```
 
 ### Block ID Preservation
@@ -665,17 +642,17 @@ Block IDs are embedded as HTML comments (`<!-- id:XXXXXXXX -->`). When the outpu
 
 ```bash
 # Export, edit, re-import (only changed blocks are submitted)
-$SEED_CLI document get hm://z6Mk.../my-doc -o doc.md
+seed-cli document get hm://z6Mk.../my-doc -o doc.md
 # ... edit doc.md ...
-$SEED_CLI document update hm://z6Mk.../my-doc -f doc.md --key mykey
+seed-cli document update hm://z6Mk.../my-doc -f doc.md --key mykey
 
 # Same works with JSON (block IDs are always present in JSON output)
-$SEED_CLI document get hm://z6Mk.../my-doc --json -o doc.json
+seed-cli document get hm://z6Mk.../my-doc --json -o doc.json
 # ... edit doc.json ...
-$SEED_CLI document update hm://z6Mk.../my-doc -f doc.json --key mykey
+seed-cli document update hm://z6Mk.../my-doc -f doc.json --key mykey
 
 # Plain markdown (no ID comments) → full body replacement
-echo "# New Content" | $SEED_CLI document update hm://z6Mk.../my-doc -f - --key mykey
+echo "# New Content" | seed-cli document update hm://z6Mk.../my-doc -f - --key mykey
 ```
 
 ### Frontmatter in Output
@@ -714,17 +691,17 @@ Default server: `https://hyper.media`
 Override per-command:
 
 ```bash
-$SEED_CLI --server http://localhost:4000 document create -f content.md --key mykey
+seed-cli --server http://localhost:4000 document create -f content.md --key mykey
 ```
 
 Or set globally:
 
 ```bash
-$SEED_CLI config --server http://localhost:4000
+seed-cli config --server http://localhost:4000
 ```
 
 Environment variable:
 
 ```bash
-SEED_SERVER=http://localhost:4000 $SEED_CLI document create -f content.md --key mykey
+SEED_SERVER=http://localhost:4000 seed-cli document create -f content.md --key mykey
 ```

@@ -90,7 +90,7 @@ More content...
 Then publish:
 
 ```bash
-$SEED_CLI document create -f extracted.md --key <keyname>
+seed-cli document create -f extracted.md --key <keyname>
 ```
 
 #### Option B: JSON Blocks (Precise Control)
@@ -114,13 +114,13 @@ Key rules:
 Then publish:
 
 ```bash
-$SEED_CLI document create -f blocks.json --name "Paper Title" --display-author "Jane Doe" --key <keyname>
+seed-cli document create -f blocks.json --name "Paper Title" --display-author "Jane Doe" --key <keyname>
 ```
 
 Or pipe JSON via stdin:
 
 ```bash
-cat blocks.json | $SEED_CLI document create --name "Paper Title" --key <keyname>
+cat blocks.json | seed-cli document create --name "Paper Title" --key <keyname>
 ```
 
 ### Step 4: Publish and Verify
@@ -129,26 +129,26 @@ Publish using the Seed CLI (see **seed-hypermedia-write** skill for full referen
 
 ```bash
 # Create the document
-$SEED_CLI document create -f content.md --key <keyname>
+seed-cli document create -f content.md --key <keyname>
 
 # Or with explicit metadata overrides
-$SEED_CLI document create -f content.md \
+seed-cli document create -f content.md \
   --name "Paper Title" \
   --display-author "Jane Doe, John Smith" \
   --display-publish-time "2024-06-15" \
   --key <keyname>
 
 # Preview extraction without publishing
-$SEED_CLI document create -f content.md --dry-run
+seed-cli document create -f content.md --dry-run
 
 # Append to an existing document
-$SEED_CLI document update <hm-id> -f additional-content.md --key <keyname>
+seed-cli document update <hm-id> -f additional-content.md --key <keyname>
 ```
 
 Verify the result:
 
 ```bash
-$SEED_CLI document get <hm-id> --md
+seed-cli document get <hm-id> --md
 ```
 
 ## Built-in PDF Extraction
@@ -157,13 +157,13 @@ The CLI also has built-in PDF extraction (pdfjs-dist + optional GROBID) which ca
 
 ```bash
 # Built-in extraction
-$SEED_CLI document create -f paper.pdf --key <keyname>
+seed-cli document create -f paper.pdf --key <keyname>
 
 # With GROBID for better academic paper extraction
-$SEED_CLI document create -f paper.pdf --grobid-url http://localhost:8070 --key <keyname>
+seed-cli document create -f paper.pdf --grobid-url http://localhost:8070 --key <keyname>
 
 # Preview extraction result
-$SEED_CLI document create -f paper.pdf --dry-run
+seed-cli document create -f paper.pdf --dry-run
 ```
 
 The LLM-powered approach (this skill) produces higher quality results for complex layouts, figures, and multi-column

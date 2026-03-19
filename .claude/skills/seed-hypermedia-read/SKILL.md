@@ -159,31 +159,24 @@ For exporting documents as markdown (with frontmatter and block IDs), use the Se
 `document get` command outputs round-trip-compatible markdown by default:
 
 ```bash
-# Detect / install the CLI (npm package: @seed-hypermedia/cli)
-if command -v seed-cli &>/dev/null; then
-  SEED_CLI="seed-cli"
-  # Check for updates (once per session)
-  LOCAL_V=$(seed-cli --version 2>/dev/null)
-  LATEST_V=$(npm view @seed-hypermedia/cli version 2>/dev/null)
-  if [ -n "$LATEST_V" ] && [ "$LOCAL_V" != "$LATEST_V" ]; then
-    npm install -g @seed-hypermedia/cli@latest 2>/dev/null
-  fi
-elif command -v npm &>/dev/null; then
-  npm install -g @seed-hypermedia/cli && SEED_CLI="seed-cli"
-elif command -v npx &>/dev/null; then
-  SEED_CLI="npx -y @seed-hypermedia/cli"
-elif [ -f "frontend/apps/cli/src/index.ts" ]; then
-  SEED_CLI="bun run frontend/apps/cli/src/index.ts"
+# Install or update seed-cli (once per session, npm package: @seed-hypermedia/cli)
+if ! command -v seed-cli &>/dev/null; then
+  npm install -g @seed-hypermedia/cli
+fi
+LOCAL_V=$(seed-cli --version 2>/dev/null)
+LATEST_V=$(npm view @seed-hypermedia/cli version 2>/dev/null)
+if [ -n "$LATEST_V" ] && [ "$LOCAL_V" != "$LATEST_V" ]; then
+  npm install -g @seed-hypermedia/cli@latest
 fi
 
 # Default output: markdown with frontmatter and block IDs
-$SEED_CLI document get hm://z6Mk.../my-doc
+seed-cli document get hm://z6Mk.../my-doc
 
 # Write to file
-$SEED_CLI document get hm://z6Mk.../my-doc -o doc.md
+seed-cli document get hm://z6Mk.../my-doc -o doc.md
 
 # Structured output (JSON/YAML)
-$SEED_CLI document get hm://z6Mk.../my-doc --json
+seed-cli document get hm://z6Mk.../my-doc --json
 ```
 
 For piping exported markdown back into write operations, see the **seed-hypermedia-write** skill.
