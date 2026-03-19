@@ -1075,6 +1075,10 @@ const HMDraftMetaBaseSchema = z.object({
   editPath: z.array(z.string()).optional(),
   metadata: HMDocumentMetadataSchema,
   visibility: HMResourceVisibilitySchema.optional().default('PUBLIC'),
+  // deps and navigation live in the index entry for .md drafts
+  // (for .json drafts they come from the content file for backwards compat)
+  deps: z.array(z.string().min(1)).default([]),
+  navigation: z.array(HMNavigationItemSchema).optional(),
 })
 
 const draftLocationRefinement = (data: {editUid?: string; locationUid?: string}) => data.editUid || data.locationUid
@@ -1090,6 +1094,8 @@ type HMDraftMetaBase = {
   editPath?: string[]
   metadata: HMMetadata
   visibility: HMResourceVisibility
+  deps: string[]
+  navigation?: HMNavigationItem[]
 }
 
 export type HMDraftMeta = HMDraftMetaBase &

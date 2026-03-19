@@ -5,7 +5,7 @@ import {createReactBlockSpec, useEditorSelectionChange} from '@shm/editor/blockn
 import {getNodesInSelection} from '@shm/editor/utils'
 import {entityQueryPathToHmIdPath} from '@shm/shared'
 import {queryBlockSortedItems} from '@shm/shared/content'
-import {EditorQueryBlock} from '@shm/shared/editor-types'
+import {EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
 import {HMAccountsMetadata, HMBlockQuery, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'

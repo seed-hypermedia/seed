@@ -373,3 +373,52 @@ function formatMediaUrl(url: string, useGateway: boolean): string {
 function indent(depth: number): string {
   return '  '.repeat(depth)
 }
+
+/**
+ * Convert a title string into a URL-safe slug.
+ *
+ * - Lowercases the string
+ * - Replaces non-alphanumeric characters with hyphens
+ * - Trims leading/trailing hyphens
+ * - Truncates to 60 characters
+ */
+export function slugify(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60)
+}
+
+/**
+ * Build a draft filename from a slug and nanoid.
+ * Format: `<slug>_<nanoid>.md` — human-readable + collision-safe.
+ * If the slug is empty, the filename is just `<nanoid>.md`.
+ */
+export function draftFilename(slug: string, id: string): string {
+  if (!slug) return `${id}.md`
+  return `${slug}_${id}.md`
+}
+
+/**
+ * Extract the draft ID (nanoid) from a draft filename.
+ *
+ * Handles both formats:
+ * - `<slug>_<nanoid>.md` → returns the nanoid part
+ * - `<nanoid>.md` → returns the nanoid (legacy/no-slug)
+ * - `<nanoid>.json` → returns the nanoid (legacy JSON)
+ */
+export function parseDraftFilename(filename: string): {id: string; ext: string} {
+  const lastDot = filename.lastIndexOf('.')
+  const ext = lastDot >= 0 ? filename.slice(lastDot) : ''
+  const base = lastDot >= 0 ? filename.slice(0, lastDot) : filename
+
+  const lastUnderscore = base.lastIndexOf('_')
+  if (lastUnderscore >= 0 && ext === '.md') {
+    // <slug>_<nanoid>.md format
+    return {id: base.slice(lastUnderscore + 1), ext}
+  }
+
+  // <nanoid>.md or <nanoid>.json (legacy)
+  return {id: base, ext}
+}

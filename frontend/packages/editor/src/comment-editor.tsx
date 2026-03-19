@@ -1,5 +1,6 @@
-import {EditorBlock, useOpenUrl, writeableStateStream} from '@shm/shared'
-import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
+import {useOpenUrl, writeableStateStream} from '@shm/shared'
+import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {HMBlockNode, HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {useAccount} from '@shm/shared/models/entity'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'

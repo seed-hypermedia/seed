@@ -1,6 +1,6 @@
 import {HMBlockNode, HMDraft, HMResourceFetchResult, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getMetadataName} from './content'
-import {HMInlineContent} from './editor-types'
+import {HMInlineContent} from '@seed-hypermedia/client/editor-types'
 import {unpackHmId} from './utils'
 
 type IconDefinition = React.FC<{size: any; color: any}>

@@ -16,6 +16,7 @@ import {
   createChange,
   pdfToBlocks,
   fileToIpfsBlobs,
+  slugify,
   type DocumentOperation,
   type CollectedBlob,
 } from '@seed-hypermedia/client'
@@ -1042,13 +1043,8 @@ async function resolveMetadataFileLinks(metadata: HMMetadata): Promise<{metadata
   return {metadata: resolved, blobs: allBlobs}
 }
 
-export function slugify(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60)
-}
+// Re-export slugify from SDK client for backwards compatibility
+export {slugify} from '@seed-hypermedia/client'
 
 /**
  * Convert API BlockNode (with optional children) to the APIBlockNode shape

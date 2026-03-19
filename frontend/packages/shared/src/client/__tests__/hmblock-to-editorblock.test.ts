@@ -11,7 +11,7 @@ import {
   EditorQueryBlock,
   EditorVideoBlock,
   EditorWebEmbedBlock,
-} from '../../editor-types'
+} from '@seed-hypermedia/client/editor-types'
 import {
   HMBlock,
   HMBlockCode,
@@ -24,7 +24,7 @@ import {
   HMBlockQuery,
   HMBlockWebEmbed,
 } from '@seed-hypermedia/client/hm-types'
-import {hmBlockToEditorBlock} from '../hmblock-to-editorblock'
+import {hmBlockToEditorBlock} from '@seed-hypermedia/client/hmblock-to-editorblock'
 
 describe('HMBlock to EditorBlock', () => {
   describe('blockTypes', () => {

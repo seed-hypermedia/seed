@@ -107,8 +107,8 @@ seed-cli document create -f content.md --key mykey --server http://localhost:400
 
 ## Draft Management
 
-The CLI has a `draft` subcommand for managing local document drafts before publishing. Drafts are stored in the
-platform-specific Seed app data directory (shared with the desktop app):
+The CLI has a `draft` subcommand for managing local document drafts before publishing. Drafts are stored as markdown
+files in the platform-specific Seed app data directory (shared with the desktop app):
 
 - Linux: `~/.config/Seed/drafts/`
 - macOS: `~/Library/Application Support/Seed/drafts/`
@@ -116,36 +116,59 @@ platform-specific Seed app data directory (shared with the desktop app):
 
 With `--dev`, "Seed" becomes "Seed-local". Override with `SEED_CLI_DRAFTS_DIR` env var.
 
-The slug is auto-generated from the document title (lowercase, hyphens, max 60 chars). The CLI can also read `.json`
-drafts created by the desktop app.
+Draft filenames follow the format `<slug>_<nanoid>.md` (e.g., `my-document_aBcDeFgHiJ.md`). The slug is auto-generated
+from the document title (lowercase, hyphens, max 60 chars) and the nanoid is a unique 10-character ID. The CLI can also
+read `.json` drafts created by older versions of the desktop app.
+
+Drafts are also registered in `index.json` which stores routing metadata (publish target, visibility, dependencies) that
+cannot be expressed in markdown frontmatter. The desktop app reads both the `.md` files and `index.json` to display
+drafts — CLI-created drafts appear in the desktop app without restarting it.
 
 ### Draft Commands
 
 ```bash
-# Save a draft (validates content, saves to <drafts-dir>/<slug>.md)
+# Save a draft (validates content, saves to <drafts-dir>/<slug>_<nanoid>.md)
 seed-cli draft create -f content.md
 
-# Save to a custom path
+# Save a draft with a publish target (edits an existing document)
+seed-cli draft create -f content.md --edit hm://z6Mk.../docs/intro
+
+# Save a draft as a new child document under a parent
+seed-cli draft create -f content.md --location hm://z6Mk.../docs
+
+# Save a draft with explicit visibility
+seed-cli draft create -f content.md --visibility PRIVATE
+
+# Save to a custom path (bypasses drafts directory and index.json)
 seed-cli draft create -f content.md -o /path/to/custom-name.md
 
 # Review a draft (raw markdown) — works with both .md and .json drafts
-seed-cli draft get <slug>
+seed-cli draft get <slug-or-id>
 
 # Review with terminal-rendered pretty output
-seed-cli draft get <slug> --pretty
+seed-cli draft get <slug-or-id> --pretty
 
 # List all drafts (both .md and .json)
 seed-cli draft list
 
 # Remove a specific draft
-seed-cli draft rm <slug> --force
+seed-cli draft rm <slug-or-id> --force
 
 # Remove all .md drafts
 seed-cli draft rm --all --force
 ```
 
-**Collision handling:** If a draft with the same slug already exists, `draft create` will error. Use `-o` to explicitly
-overwrite, or `draft rm` to remove the old draft first.
+**Routing flags for `draft create`:**
+
+| Flag                   | Description                                                                      |
+| ---------------------- | -------------------------------------------------------------------------------- |
+| `--edit <hm-url>`      | HM URL of the document to edit (sets `editUid`/`editPath` in index)              |
+| `--location <hm-url>`  | HM URL of the parent to create a child under (sets `locationUid`/`locationPath`) |
+| `--visibility <value>` | Document visibility: `PUBLIC` or `PRIVATE` (default: `PUBLIC`)                   |
+
+When `--edit` or `--location` is provided, the CLI writes the routing metadata to `index.json` so the desktop app knows
+the draft's publish target. Without these flags, the draft appears in the desktop as a "no target" draft and the user is
+prompted to choose a publish location.
 
 ## Content Input
 

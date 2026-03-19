@@ -1,8 +1,8 @@
 import _ from 'lodash'
 import {DocumentChange_SetAttribute} from '../client'
 import {Block, DocumentChange} from '../client/.generated/documents/v3alpha/documents_pb'
-import {editorBlockToHMBlock} from '../client/editorblock-to-hmblock'
-import {EditorBlock} from '../editor-types'
+import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
+import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {HMBlock, HMBlockNode, HMMetadata, HMQuery} from '@seed-hypermedia/client/hm-types'
 
 export type AttributeValueType = 'boolValue' | 'nullValue' | 'intValue' | 'stringValue'

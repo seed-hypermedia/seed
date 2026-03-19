@@ -15,7 +15,7 @@
  */
 
 import {parse as parseYaml} from 'yaml'
-import type {HMMetadata} from './hm-types'
+import type {HMBlockNode, HMMetadata} from './hm-types'
 import type {DocumentOperation} from './change'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -705,6 +705,50 @@ export function parseMarkdown(markdown: string): {
   }
 
   return {tree: rootNodes, metadata}
+}
+
+/**
+ * Convert the markdown parser's BlockNode tree into HMBlockNode tree.
+ *
+ * Maps flat SeedBlock properties (childrenType, language) into the
+ * HMBlock attributes object, and annotations into the HMAnnotation shape.
+ * The resulting tree can be fed into `hmBlocksToEditorContent()` to get
+ * BlockNote editor blocks.
+ */
+export function markdownBlockNodesToHMBlockNodes(nodes: BlockNode[]): HMBlockNode[] {
+  return nodes.map((node) => {
+    const {block} = node
+    const attributes: Record<string, unknown> = {}
+
+    if (block.childrenType !== undefined) {
+      attributes.childrenType = block.childrenType
+    }
+    if (block.language !== undefined) {
+      attributes.language = block.language
+    }
+
+    const hmBlock: Record<string, unknown> = {
+      type: block.type,
+      id: block.id,
+      text: block.text,
+      annotations: block.annotations.map((a) => ({
+        type: a.type,
+        starts: a.starts,
+        ends: a.ends,
+        ...(a.link !== undefined ? {link: a.link} : {}),
+      })),
+      attributes,
+    }
+
+    if (block.link !== undefined) {
+      hmBlock.link = block.link
+    }
+
+    return {
+      block: hmBlock,
+      children: node.children.length > 0 ? markdownBlockNodesToHMBlockNodes(node.children) : undefined,
+    } as HMBlockNode
+  })
 }
 
 // ─── Operations builder ──────────────────────────────────────────────────────

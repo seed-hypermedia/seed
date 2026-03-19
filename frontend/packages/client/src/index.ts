@@ -54,9 +54,15 @@ export type {HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'
 export {fileToIpfsBlobs, filesToIpfsBlobs, resolveFileLinksInBlocks, hasFileLinks} from './file-to-ipfs'
 export type {CollectedBlob} from './file-to-ipfs'
 
-export {parseMarkdown, flattenToOperations, parseInlineFormatting, parseFrontmatter} from './markdown-to-blocks'
+export {
+  parseMarkdown,
+  flattenToOperations,
+  parseInlineFormatting,
+  parseFrontmatter,
+  markdownBlockNodesToHMBlockNodes,
+} from './markdown-to-blocks'
 export type {BlockNode, SeedBlock, Annotation} from './markdown-to-blocks'
-export {blocksToMarkdown, emitFrontmatter} from './blocks-to-markdown'
+export {blocksToMarkdown, emitFrontmatter, slugify, draftFilename, parseDraftFilename} from './blocks-to-markdown'
 export type {BlocksToMarkdownOptions} from './blocks-to-markdown'
 
 export {createBlocksMap, matchBlockIds, computeReplaceOps, hmBlockNodeToBlockNode} from './block-diff'
@@ -72,3 +78,36 @@ export {
 export type {AutoLinkChildToParentOptions} from './auto-link'
 export {resolveDocumentState} from './document-state'
 export type {DocumentState} from './document-state'
+
+export {editorBlockToHMBlock, editorBlocksToHMBlockNodes} from './editorblock-to-hmblock'
+export {hmBlocksToEditorContent, hmBlockToEditorBlock, annotationContains} from './hmblock-to-editorblock'
+export {AnnotationSet, addSpanToAnnotation, pushSpanToAnnotation} from './unicode'
+export type {MutableAnnotation, SpanAnnotation} from './unicode'
+export type {
+  EditorBlock,
+  EditorBaseBlock,
+  EditorBlockProps,
+  EditorBlockType,
+  EditorParagraphBlock,
+  EditorHeadingBlock,
+  EditorCodeBlock,
+  EditorImageBlock,
+  EditorVideoBlock,
+  EditorFileBlock,
+  EditorButtonBlock,
+  EditorEmbedBlock,
+  EditorWebEmbedBlock,
+  EditorMathBlock,
+  EditorNostrBlock,
+  EditorQueryBlock,
+  EditorUnknownBlock,
+  EditorText,
+  EditorLink,
+  EditorInlineEmbed,
+  EditorInlineStyles,
+  EditorAnnotationType,
+  HMInlineContent,
+  MediaBlockProps,
+  DraftMediaRef,
+  SearchResult,
+} from './editor-types'

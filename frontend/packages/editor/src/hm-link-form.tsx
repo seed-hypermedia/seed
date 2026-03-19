@@ -1,4 +1,4 @@
-import {SearchResult} from '@shm/shared/editor-types'
+import {SearchResult} from '@seed-hypermedia/client/editor-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'

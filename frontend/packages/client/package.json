@@ -49,6 +49,7 @@
     "blockstore-core": "^5.0.2",
     "cheerio": "^1.2.0",
     "ipfs-unixfs-importer": "^15.3.2",
+    "lodash": "^4.17.21",
     "multiformats": "^13.4.1",
     "superjson": "2.2.1",
     "yaml": "^2.6.0"

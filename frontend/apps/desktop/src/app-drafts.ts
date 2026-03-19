@@ -9,6 +9,10 @@ import {
   HMNavigationItemSchema,
   HMResourceVisibilitySchema,
 } from '@seed-hypermedia/client/hm-types'
+import {blocksToMarkdown, slugify, draftFilename, parseDraftFilename} from '@seed-hypermedia/client/blocks-to-markdown'
+import {parseMarkdown, markdownBlockNodesToHMBlockNodes} from '@seed-hypermedia/client/markdown-to-blocks'
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
+import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {hmIdPathToEntityQueryPath, pathMatches} from '@shm/shared'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -59,6 +63,12 @@ const draftsDir = join(userDataPath, 'drafts')
 const draftIndexPath = join(draftsDir, 'index.json')
 
 let draftIndex: HMListedDraft[] | undefined = undefined
+
+/**
+ * Map from draft ID → filename on disk.
+ * Needed because filenames include a slug prefix that can change.
+ */
+let draftFileMap: Map<string, string> = new Map()
 
 export async function initDrafts() {
   await fs.mkdir(draftsDir, {recursive: true})
@@ -123,6 +133,8 @@ export async function initDrafts() {
       metadata: metadata || {},
       lastUpdateTime: lastUpdateTime || Date.now(),
       visibility: visibility || 'PUBLIC',
+      deps,
+      navigation: undefined,
     } as HMListedDraft
     const newDraft = {
       ...restDraft,
@@ -166,11 +178,9 @@ export async function initDrafts() {
     console.log('Migrating Draft Index', newDraftIndex)
     draftIndex = newDraftIndex
     await saveDraftIndex()
-    // console.log('Removing old drafts', oldDraftsToRm)
-    // await Promise.all(oldDraftsToRm.map(fs.unlink))
     // we can leave old drafts in place, they don't really harm anything and its possible we will need to recover data from them
   } else {
-    // draftIndexPath exits!
+    // draftIndexPath exists!
     const draftIndexJSON = await fs.readFile(draftIndexPath, 'utf-8')
     const rawDrafts = JSON.parse(draftIndexJSON) as any[]
 
@@ -194,6 +204,121 @@ export async function initDrafts() {
       }),
     ) as HMListedDraft[]
   }
+
+  // Build the file map from disk
+  await rebuildFileMap()
+}
+
+/**
+ * Scan the drafts directory and build a map of draft ID → filename.
+ * Also discovers new .md files not in the index (CLI-created drafts).
+ */
+async function rebuildFileMap() {
+  let allFiles: string[]
+  try {
+    allFiles = await fs.readdir(draftsDir)
+  } catch {
+    return
+  }
+
+  draftFileMap.clear()
+  const indexedIds = new Set(draftIndex?.map((d) => d.id) || [])
+  let discovered = 0
+
+  for (const file of allFiles) {
+    const {id, ext} = parseDraftFilename(file)
+    if (ext !== '.md' && ext !== '.json') continue
+    if (file === 'index.json') continue
+
+    // Prefer .md over .json when both exist for the same ID
+    if (draftFileMap.has(id) && ext === '.json') continue
+    draftFileMap.set(id, file)
+
+    // Discover .md files not in the index
+    if (ext === '.md' && !indexedIds.has(id)) {
+      try {
+        const raw = await fs.readFile(join(draftsDir, file), 'utf-8')
+        const {metadata} = parseMarkdown(raw)
+        const stat = await fs.stat(join(draftsDir, file))
+
+        // location/edit left undefined — user will be prompted on publish (same as legacy drafts)
+        const entry = {
+          id,
+          metadata: fixDraftMetadata(metadata),
+          lastUpdateTime: stat.mtimeMs,
+          visibility: 'PUBLIC',
+          deps: [],
+        } as unknown as HMListedDraft
+
+        draftIndex?.push(entry)
+        indexedIds.add(id)
+        discovered++
+      } catch (e) {
+        console.warn(`Failed to discover markdown draft ${file}:`, e)
+      }
+    }
+  }
+
+  if (discovered > 0) {
+    console.log(`Discovered ${discovered} new markdown draft(s)`)
+    await saveDraftIndex()
+  }
+}
+
+/**
+ * Quick check for new .md files not yet in the index.
+ * Compares readdir() filenames against the index — only parses frontmatter
+ * for genuinely new files. Called on each list query.
+ */
+async function discoverNewDrafts() {
+  if (!draftIndex) return
+
+  let allFiles: string[]
+  try {
+    allFiles = await fs.readdir(draftsDir)
+  } catch {
+    return
+  }
+
+  const indexedIds = new Set(draftIndex.map((d) => d.id))
+  let discovered = 0
+
+  for (const file of allFiles) {
+    const {id, ext} = parseDraftFilename(file)
+    if (ext !== '.md') continue
+    if (indexedIds.has(id)) {
+      // Update the file map in case the file was renamed (slug changed)
+      draftFileMap.set(id, file)
+      continue
+    }
+
+    try {
+      const raw = await fs.readFile(join(draftsDir, file), 'utf-8')
+      const {metadata} = parseMarkdown(raw)
+      const stat = await fs.stat(join(draftsDir, file))
+
+      const entry = {
+        id,
+        metadata: fixDraftMetadata(metadata),
+        lastUpdateTime: stat.mtimeMs,
+        visibility: 'PUBLIC',
+        deps: [],
+      } as unknown as HMListedDraft
+
+      draftIndex.push(entry)
+      draftFileMap.set(id, file)
+      discovered++
+    } catch (e) {
+      console.warn(`Failed to discover markdown draft ${file}:`, e)
+    }
+  }
+
+  if (discovered > 0) {
+    console.log(`Discovered ${discovered} new markdown draft(s)`)
+    await saveDraftIndex()
+    appInvalidateQueries([queryKeys.DRAFTS_LIST])
+    appInvalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
+  }
 }
 
 function fixDraftMetadata(metadata: any): HMMetadata {
@@ -210,8 +335,97 @@ async function saveDraftIndex() {
   await fs.writeFile(draftIndexPath, JSON.stringify(draftIndex, null, 2))
 }
 
+/**
+ * Resolve the filename on disk for a given draft ID.
+ * Checks the file map first, then falls back to scanning common patterns.
+ */
+async function resolveDraftFile(draftId: string): Promise<{path: string; ext: string} | null> {
+  // Check file map first
+  const mapped = draftFileMap.get(draftId)
+  if (mapped) {
+    const fullPath = join(draftsDir, mapped)
+    try {
+      await fs.access(fullPath)
+      const {ext} = parseDraftFilename(mapped)
+      return {path: fullPath, ext}
+    } catch {
+      // File was deleted — clear from map
+      draftFileMap.delete(draftId)
+    }
+  }
+
+  // Fall back: try common patterns
+  // 1. <nanoid>.md (simple)
+  const simpleMd = join(draftsDir, `${draftId}.md`)
+  try {
+    await fs.access(simpleMd)
+    draftFileMap.set(draftId, `${draftId}.md`)
+    return {path: simpleMd, ext: '.md'}
+  } catch {}
+
+  // 2. <nanoid>.json (legacy)
+  const legacyJson = join(draftsDir, `${draftId}.json`)
+  try {
+    await fs.access(legacyJson)
+    draftFileMap.set(draftId, `${draftId}.json`)
+    return {path: legacyJson, ext: '.json'}
+  } catch {}
+
+  // 3. Scan for <slug>_<nanoid>.md pattern
+  try {
+    const allFiles = await fs.readdir(draftsDir)
+    for (const file of allFiles) {
+      const {id, ext} = parseDraftFilename(file)
+      if (id === draftId) {
+        draftFileMap.set(draftId, file)
+        return {path: join(draftsDir, file), ext}
+      }
+    }
+  } catch {}
+
+  return null
+}
+
+/**
+ * Read a draft's content from disk. Supports both .md (new) and .json (legacy) formats.
+ */
+async function readDraftContent(draftId: string, indexEntry: HMListedDraft): Promise<HMDraftContent | null> {
+  const file = await resolveDraftFile(draftId)
+  if (!file) return null
+
+  if (file.ext === '.md') {
+    try {
+      const raw = await fs.readFile(file.path, 'utf-8')
+      const {tree} = parseMarkdown(raw)
+      const hmNodes = markdownBlockNodesToHMBlockNodes(tree)
+      const editorBlocks = hmBlocksToEditorContent(hmNodes)
+
+      return {
+        content: editorBlocks,
+        deps: indexEntry.deps || [],
+        navigation: indexEntry.navigation,
+      }
+    } catch (e) {
+      console.error(`Failed to read markdown draft ${draftId}:`, e)
+      return null
+    }
+  }
+
+  // .json (legacy format)
+  try {
+    const fileContent = await fs.readFile(file.path, 'utf-8')
+    return HMDraftContentSchema.parse(JSON.parse(fileContent))
+  } catch (e) {
+    console.error(`Failed to read json draft ${draftId}:`, e)
+    return null
+  }
+}
+
 export const draftsApi = t.router({
-  list: t.procedure.query((): HMListedDraft[] => {
+  list: t.procedure.query(async (): Promise<HMListedDraft[]> => {
+    // Check for new CLI-created drafts on every list call
+    await discoverNewDrafts()
+
     return (
       draftIndex?.map((d) => ({
         ...d,
@@ -220,8 +434,12 @@ export const draftsApi = t.router({
       })) || []
     )
   }),
-  listAccount: t.procedure.input(z.string().optional()).query(({input}): HMListedDraft[] => {
+  listAccount: t.procedure.input(z.string().optional()).query(async ({input}): Promise<HMListedDraft[]> => {
     if (!input) return []
+
+    // Check for new CLI-created drafts
+    await discoverNewDrafts()
+
     return (
       draftIndex
         ?.filter((d) => !!input && ((d.locationUid && d.locationUid === input) || (d.editUid && d.editUid === input)))
@@ -247,13 +465,14 @@ export const draftsApi = t.router({
     }),
   get: t.procedure.input(z.string().optional()).query(async ({input: draftId}) => {
     if (!draftId) return null
-    const draftPath = join(draftsDir, `${draftId}.json`)
 
     try {
       const draftIndexEntry = draftIndex?.find((d) => d.id === draftId)
       if (!draftIndexEntry) return null
-      const fileContent = await fs.readFile(draftPath, 'utf-8')
-      const draftContent = HMDraftContentSchema.parse(JSON.parse(fileContent))
+
+      const draftContent = await readDraftContent(draftId, draftIndexEntry)
+      if (!draftContent) return null
+
       const draft: HMDraft = {
         ...draftIndexEntry,
         ...draftContent,
@@ -291,8 +510,8 @@ export const draftsApi = t.router({
       }
 
       const draftId = input.id || nanoid(10)
-      const draftPath = join(draftsDir, `${draftId}.json`)
 
+      // Build the index entry with deps and navigation included
       const newDraft = {
         id: draftId,
         locationUid: input.locationUid,
@@ -302,40 +521,69 @@ export const draftsApi = t.router({
         metadata: input.metadata,
         lastUpdateTime: Date.now(),
         visibility: input.visibility,
+        deps: input.deps,
+        navigation: input.navigation,
       } as HMListedDraft
 
       draftIndex = [...draftIndex.filter((d) => d.id !== draftId), newDraft]
       await saveDraftIndex()
-      const draft: HMDraftContent = {
-        content: input.content,
-        // @ts-expect-error
-        signingAccount: input.signingAccount,
-        deps: input.deps,
-        navigation: input.navigation,
-      }
 
-      // Validate draft content
-      HMDraftContentSchema.parse(draft)
-
+      // Convert editor blocks to markdown and save as <slug>_<nanoid>.md
       try {
-        await fs.writeFile(draftPath, JSON.stringify(draft, null, 2))
+        const editorBlocks = Array.isArray(input.content) ? input.content : []
+        const hmNodes = editorBlocksToHMBlockNodes(editorBlocks)
+        const markdown = blocksToMarkdown({
+          content: hmNodes,
+          metadata: input.metadata,
+          version: '',
+          authors: [],
+        } as any)
+
+        const slug = slugify(input.metadata.name || '')
+        const filename = draftFilename(slug, draftId)
+        const mdPath = join(draftsDir, filename)
+
+        // Remove old file if the slug changed (different filename)
+        const oldFilename = draftFileMap.get(draftId)
+        if (oldFilename && oldFilename !== filename) {
+          try {
+            await fs.unlink(join(draftsDir, oldFilename))
+          } catch {
+            // old file didn't exist
+          }
+        }
+
+        await fs.writeFile(mdPath, markdown)
+        draftFileMap.set(draftId, filename)
+
         appInvalidateQueries([queryKeys.DRAFTS_LIST])
         appInvalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
         return {id: draftId}
-      } catch (error) {
-        throw Error(`[DRAFT]: Error writing draft: ${JSON.stringify(error, null)}`)
+      } catch (err) {
+        throw Error(`[DRAFT]: Error writing draft: ${JSON.stringify(err, null)}`)
       }
     }),
   delete: t.procedure.input(z.string()).mutation(async ({input}) => {
     draftIndex = draftIndex?.filter((d) => d.id !== input)
     await saveDraftIndex()
-    const draftPath = join(draftsDir, `${input}.json`)
-    try {
-      await fs.unlink(draftPath)
-      appInvalidateQueries(['trpc.drafts.list'])
-      appInvalidateQueries(['trpc.drafts.listAccount'])
-    } catch (e) {
-      error('[DRAFT]: Error deleting draft', {input: input, error: e})
+
+    // Remove the file from disk using the file map
+    const filename = draftFileMap.get(input)
+    if (filename) {
+      try {
+        await fs.unlink(join(draftsDir, filename))
+      } catch {}
+      draftFileMap.delete(input)
     }
+
+    // Also try removing legacy patterns
+    for (const ext of ['.md', '.json']) {
+      try {
+        await fs.unlink(join(draftsDir, `${input}${ext}`))
+      } catch {}
+    }
+
+    appInvalidateQueries(['trpc.drafts.list'])
+    appInvalidateQueries(['trpc.drafts.listAccount'])
   }),
 })

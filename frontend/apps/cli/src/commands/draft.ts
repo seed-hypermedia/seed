@@ -24,13 +24,13 @@ import {existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkS
 import {homedir} from 'os'
 import {join, dirname, extname} from 'path'
 import * as readline from 'readline'
-import {readInput, mergeMetadata, slugify} from './document'
+import {readInput, mergeMetadata} from './document'
 import {getOutputFormat, isPretty} from '../index'
 import {formatOutput, renderMarkdown, printError, printSuccess, printInfo, printWarning} from '../output'
 import {documentToMarkdown} from '../markdown'
 import {parseMarkdown} from '../utils/markdown'
-import {blocksToMarkdown} from '@seed-hypermedia/client'
-import {editorBlockToHMBlock} from '@shm/shared/client/editorblock-to-hmblock'
+import {blocksToMarkdown, slugify, draftFilename, parseDraftFilename} from '@seed-hypermedia/client'
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import type {HMDocument, HMBlockNode, HMMetadata} from '@seed-hypermedia/client/hm-types'
 
 /**
@@ -67,18 +67,33 @@ function getDraftsDir(options: Record<string, unknown>): string {
  * Resolve a slug-or-path argument to a file path.
  *
  * If the argument contains `/` or ends with `.md`/`.json`, treat it as a
- * direct path. Otherwise, look for `<slug>.md` first, then `<slug>.json`
- * in the drafts directory (excluding `index.json`).
+ * direct path. Otherwise, search the drafts directory for files whose
+ * parsed ID or full basename matches the argument. This handles both old
+ * `<slug>.md` and new `<slug>_<nanoid>.md` filename formats.
  */
 function resolveDraftPath(slugOrPath: string, options: Record<string, unknown>): string {
   if (slugOrPath.includes('/') || slugOrPath.endsWith('.md') || slugOrPath.endsWith('.json')) {
     return slugOrPath
   }
   const draftsDir = getDraftsDir(options)
+
+  // Try exact filename matches first (legacy formats)
   const mdPath = join(draftsDir, `${slugOrPath}.md`)
   if (existsSync(mdPath)) return mdPath
   const jsonPath = join(draftsDir, `${slugOrPath}.json`)
   if (existsSync(jsonPath) && slugOrPath !== 'index') return jsonPath
+
+  // Scan for <slug>_<nanoid>.md or match by nanoid
+  try {
+    const files = readdirSync(draftsDir)
+    for (const file of files) {
+      const {id} = parseDraftFilename(file)
+      if (id === slugOrPath) return join(draftsDir, file)
+      // Also match by slug prefix (e.g. "my-document" matches "my-document_aBcDeFgHiJ.md")
+      if (file.endsWith('.md') && file.startsWith(slugOrPath + '_')) return join(draftsDir, file)
+    }
+  } catch {}
+
   return mdPath
 }
 
@@ -98,34 +113,18 @@ function readDraftIndex(draftsDir: string): Array<{id: string; metadata?: HMMeta
 }
 
 /**
- * Convert BlockNote editor blocks (desktop draft format) to HMBlockNode tree.
+ * Upsert an entry in the draft index (index.json).
  *
- * Uses `editorBlockToHMBlock` from the shared package for per-block conversion
- * and recursively processes children. Unsupported block types are rendered as
- * placeholder paragraphs.
+ * Reads the current index, replaces or appends the entry, and writes it back.
+ * Creates the index file if it doesn't exist.
  */
-function editorBlocksToHMBlockNodes(editorBlocks: unknown[]): HMBlockNode[] {
-  return editorBlocks
-    .map((block: any) => {
-      try {
-        return {
-          block: editorBlockToHMBlock(block),
-          children: block.children?.length ? editorBlocksToHMBlockNodes(block.children) : undefined,
-        }
-      } catch {
-        return {
-          block: {
-            id: block.id || 'unknown',
-            type: 'Paragraph' as const,
-            text: `[Unsupported block type: ${block.type}]`,
-            annotations: [],
-            attributes: {},
-          },
-          children: block.children?.length ? editorBlocksToHMBlockNodes(block.children) : undefined,
-        }
-      }
-    })
-    .filter(Boolean) as HMBlockNode[]
+function upsertDraftIndex(draftsDir: string, entry: {id: string; metadata?: HMMetadata; [key: string]: unknown}) {
+  const indexPath = join(draftsDir, 'index.json')
+  const index = readDraftIndex(draftsDir)
+  const filtered = index.filter((d) => d.id !== entry.id)
+  filtered.push(entry)
+  mkdirSync(draftsDir, {recursive: true})
+  writeFileSync(indexPath, JSON.stringify(filtered, null, 2))
 }
 
 /**
@@ -201,6 +200,9 @@ export function registerDraftCommands(program: Command) {
     .option('--import-categories <value>', 'Import categories (comma-separated)')
     .option('--import-tags <value>', 'Import tags (comma-separated)')
     .option('--grobid-url <url>', 'GROBID server URL for PDF extraction')
+    .option('--edit <hm-url>', 'HM URL of the document to edit (e.g. hm://z6Mk.../docs/intro)')
+    .option('--location <hm-url>', 'HM URL of the parent to create a child under (e.g. hm://z6Mk.../docs)')
+    .option('--visibility <value>', 'Document visibility: PUBLIC or PRIVATE (default: PUBLIC)')
     .action(async (options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
 
@@ -242,22 +244,59 @@ export function registerDraftCommands(program: Command) {
           throw new Error('Unexpected state: no parsed blocks and no raw content.')
         }
 
-        // Determine output path
+        // Generate draft ID and filename: <slug>_<nanoid>.md
+        const {nanoid} = await import('nanoid')
+        const draftId = nanoid(10)
         const slug = slugify(metadata.name || 'untitled')
+        const filename = draftFilename(slug, draftId)
         const draftsDir = getDraftsDir(globalOpts)
-        const defaultPath = join(draftsDir, `${slug}.md`)
-        const outputPath = options.output || defaultPath
 
-        // Check for collision (only when using default path, not explicit -o)
-        if (!options.output && existsSync(outputPath)) {
-          throw new Error(
-            `Draft "${slug}" already exists. Use -o to specify a different path, or remove it with 'draft rm ${slug}'.`,
-          )
-        }
+        // Determine output path
+        const defaultPath = join(draftsDir, filename)
+        const outputPath = options.output || defaultPath
 
         // Ensure directory exists and save
         mkdirSync(dirname(outputPath), {recursive: true})
         writeFileSync(outputPath, draftContent, 'utf-8')
+
+        // Write entry to index.json so the desktop app can discover it immediately
+        if (!options.output) {
+          // Parse --edit or --location HM URLs into uid + path
+          let editUid: string | undefined
+          let editPath: string[] | undefined
+          let locationUid: string | undefined
+          let locationPath: string[] | undefined
+
+          if (options.edit) {
+            const {unpackHmId} = await import('@shm/shared/utils/entity-id-url')
+            const parsed = unpackHmId(options.edit)
+            if (parsed) {
+              editUid = parsed.uid
+              editPath = parsed.path || []
+            }
+          }
+
+          if (options.location) {
+            const {unpackHmId} = await import('@shm/shared/utils/entity-id-url')
+            const parsed = unpackHmId(options.location)
+            if (parsed) {
+              locationUid = parsed.uid
+              locationPath = parsed.path || []
+            }
+          }
+
+          const visibility = options.visibility === 'PRIVATE' ? 'PRIVATE' : 'PUBLIC'
+
+          upsertDraftIndex(draftsDir, {
+            id: draftId,
+            metadata,
+            lastUpdateTime: Date.now(),
+            visibility,
+            deps: [],
+            ...(editUid ? {editUid, editPath} : {}),
+            ...(locationUid ? {locationUid, locationPath} : {}),
+          })
+        }
 
         if (!globalOpts.quiet) printSuccess(`Draft saved to ${outputPath}`)
       } catch (error) {
@@ -442,9 +481,20 @@ export function registerDraftCommands(program: Command) {
             }
           }
 
+          // Collect IDs of files being removed
+          const removedIds = new Set(files.map((f) => parseDraftFilename(f).id))
+
           for (const file of files) {
             unlinkSync(join(draftsDir, file))
             if (!globalOpts.quiet) printSuccess(`Removed ${file}`)
+          }
+
+          // Clean up index.json entries for removed drafts
+          const index = readDraftIndex(draftsDir)
+          const filtered = index.filter((d) => !removedIds.has(d.id))
+          if (filtered.length !== index.length) {
+            const indexPath = join(draftsDir, 'index.json')
+            writeFileSync(indexPath, JSON.stringify(filtered, null, 2))
           }
           return
         }
@@ -464,6 +514,16 @@ export function registerDraftCommands(program: Command) {
             printInfo('Cancelled.')
             return
           }
+        }
+
+        // Extract draft ID and remove from index.json
+        const filename = filePath.split('/').pop() || ''
+        const {id} = parseDraftFilename(filename)
+        const index = readDraftIndex(draftsDir)
+        const filtered = index.filter((d) => d.id !== id)
+        if (filtered.length !== index.length) {
+          const indexPath = join(draftsDir, 'index.json')
+          writeFileSync(indexPath, JSON.stringify(filtered, null, 2))
         }
 
         unlinkSync(filePath)
