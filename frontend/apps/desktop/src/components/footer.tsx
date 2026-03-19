@@ -17,6 +17,7 @@ import {HoverCard, HoverCardContent, HoverCardTrigger} from '@shm/ui/hover-card'
 import {Cable} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
+import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {Bot, MessageCirclePlus} from 'lucide-react'
 import {ReactNode, useEffect, useState} from 'react'
@@ -59,26 +60,30 @@ export default function Footer({
         <DiscoveryIndicator />
         {children}
         {onToggleAssistant && (
-          <Button
-            size="xs"
-            variant={'ghost'}
-            className={cn('px-2', assistantOpen && 'text-brand hover:text-brand-hover')}
-            onClick={onToggleAssistant}
-            aria-label="Toggle assistant"
-          >
-            <Bot className="size-3" />
-          </Button>
+          <Tooltip content={assistantOpen ? 'Close assistant panel' : 'Open assistant panel'}>
+            <Button
+              size="xs"
+              variant={'ghost'}
+              className={cn('px-2', assistantOpen && 'text-brand hover:text-brand-hover')}
+              onClick={onToggleAssistant}
+              aria-label="Toggle assistant"
+            >
+              <Bot className="size-3" />
+            </Button>
+          </Tooltip>
         )}
         {onNewAssistantChat && (
-          <Button
-            size="xs"
-            variant={'ghost'}
-            className="px-2"
-            onClick={onNewAssistantChat}
-            aria-label="New assistant chat"
-          >
-            <MessageCirclePlus className="size-3" />
-          </Button>
+          <Tooltip content="New assistant chat">
+            <Button
+              size="xs"
+              variant={'ghost'}
+              className="px-2"
+              onClick={onNewAssistantChat}
+              aria-label="New assistant chat"
+            >
+              <MessageCirclePlus className="size-3" />
+            </Button>
+          </Tooltip>
         )}
       </div>
     </FooterWrapper>

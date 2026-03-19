@@ -14,9 +14,11 @@ import {useNavigate} from '@/utils/useNavigate'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
+import {AlertDialogFooter, AlertDialogTitle} from '@shm/ui/components/alert-dialog'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {SizableText} from '@shm/ui/text'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {
   ArrowDown,
@@ -29,7 +31,7 @@ import {
   Info,
   Link2,
   Loader2,
-  Plus,
+  MessageCirclePlus,
   Search,
   Send,
   Square,
@@ -298,20 +300,30 @@ function ChatView({
     }
   }, [isBusy])
 
+  const deleteDialog = useAppDialog(DeleteSessionDialog, {isAlert: true})
+
   function handleDeleteSession() {
     if (!selectedSessionId) return
-    deleteSession.mutate(selectedSessionId)
-    setSelectedSessionId(null)
+    const sessionTitle = sessions.data?.find((s) => s.id === selectedSessionId)?.title
+    deleteDialog.open({
+      sessionId: selectedSessionId,
+      sessionTitle,
+      onConfirm: () => {
+        deleteSession.mutate(selectedSessionId)
+        setSelectedSessionId(null)
+      },
+    })
   }
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
+      {deleteDialog.content}
       {/* Session selector + provider selector */}
       <div className="border-border flex items-center gap-1 border-b px-2 py-1.5">
         <select
           value={selectedSessionId || ''}
           onChange={(e) => setSelectedSessionId(e.target.value || null)}
-          className="bg-muted text-foreground flex-1 rounded px-2 py-1 text-xs"
+          className="bg-muted text-foreground min-w-0 flex-1 truncate rounded px-2 py-1 text-xs"
         >
           <option value="">Select a session...</option>
           {sessions.data?.map((s) => (
@@ -325,7 +337,7 @@ function ChatView({
           className="text-muted-foreground hover:text-foreground p-1"
           title="New chat"
         >
-          <Plus className="size-3.5" />
+          <MessageCirclePlus className="size-3.5" />
         </button>
         {selectedSessionId && (
           <button
@@ -442,6 +454,38 @@ function ChatView({
         )}
       </div>
     </div>
+  )
+}
+
+/** Confirmation dialog for deleting a chat session. */
+function DeleteSessionDialog({
+  onClose,
+  input,
+}: {
+  onClose: () => void
+  input: {sessionId: string; sessionTitle?: string; onConfirm: () => void}
+}) {
+  return (
+    <>
+      <AlertDialogTitle>Delete Chat</AlertDialogTitle>
+      <SizableText className="text-muted-foreground text-sm">
+        {input.sessionTitle ? `Permanently delete "${input.sessionTitle}"?` : 'Permanently delete this chat?'}
+      </SizableText>
+      <AlertDialogFooter className="flex-col">
+        <Button onClick={onClose} variant="ghost">
+          Cancel
+        </Button>
+        <Button
+          variant="destructive"
+          onClick={() => {
+            input.onConfirm()
+            onClose()
+          }}
+        >
+          Delete
+        </Button>
+      </AlertDialogFooter>
+    </>
   )
 }
 
