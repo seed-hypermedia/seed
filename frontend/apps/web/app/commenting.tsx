@@ -1,7 +1,12 @@
 import {useCreateAccount} from '@/auth'
 import {useNavigate as useRemixNavigate} from '@remix-run/react'
 import {createComment} from '@seed-hypermedia/client'
-import {HMBlockNode, HMMetadataPayload, HMPublishBlobsOutput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {
+  HMBlockNode,
+  HMMetadataPayload,
+  HMPublishBlobsOutput,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {CommentEditor} from '@shm/editor/comment-editor'
 import {idToUrl, queryKeys, unpackHmId, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {useCommentsService} from '@shm/shared/comments-service-provider'

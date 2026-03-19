@@ -160,7 +160,7 @@ function _CommentBox(props: {
 
       const targetDoc = targetEntity.data?.type === 'document' ? targetEntity.data.document : undefined
       const authorMetadata: HMMetadataPayload | null = account
-        ? {id: account.id, metadata: account.document?.metadata || null}
+        ? {id: account.id, metadata: account.metadata || null}
         : null
 
       const optimisticComment = await buildOptimisticComment({
@@ -302,7 +302,17 @@ function _CommentBox(props: {
         console.error('Failed to submit comment:', err)
       }
     },
-    [isSubmitting, account, publishComment, getSigner, targetEntity.data, docId, resolvedReply, quotingBlockId, writeRecentSigner],
+    [
+      isSubmitting,
+      account,
+      publishComment,
+      getSigner,
+      targetEntity.data,
+      docId,
+      resolvedReply,
+      quotingBlockId,
+      writeRecentSigner,
+    ],
   )
 
   // Desktop file attachment handler
@@ -409,7 +419,7 @@ function InlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentP
         handleSubmit={handleSubmit}
         initialBlocks={comment.content}
         handleFileAttachment={handleFileAttachment}
-        account={account ? {id: account.id, metadata: account.document?.metadata} : undefined}
+        account={account ? {id: account.id, metadata: account.metadata} : undefined}
         perspectiveAccountUid={selectedAccountId}
         submitButton={({getContent, reset}) => (
           <>

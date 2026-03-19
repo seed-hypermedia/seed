@@ -34,9 +34,7 @@ export type BuildOptimisticCommentParams = {
  * Uses `commentRecordIdFromBlob` to compute the real authority/tsid record ID
  * from the CBOR blob, so the optimistic comment has a valid `id` field.
  */
-export async function buildOptimisticComment(
-  params: BuildOptimisticCommentParams,
-): Promise<HMComment> {
+export async function buildOptimisticComment(params: BuildOptimisticCommentParams): Promise<HMComment> {
   const blobData = params.commentPayload.blobs[0]?.data
   if (!blobData) throw new Error('No blob data in comment payload')
 
