@@ -34,9 +34,11 @@ import {Markdown} from './markdown'
 /** Renders the desktop assistant chat panel. */
 export function AssistantPanel({
   initialSessionId,
+  newChatRequest,
   onSessionChange,
 }: {
   initialSessionId?: string | null
+  newChatRequest?: number
   onSessionChange?: (sessionId: string | null) => void
 }) {
   const navigate = useNavigate()
@@ -58,27 +60,90 @@ export function AssistantPanel({
           <Settings className="size-4" />
         </button>
       </div>
-      <ChatView initialSessionId={initialSessionId} onSessionChange={onSessionChange} />
+      <ChatView initialSessionId={initialSessionId} newChatRequest={newChatRequest} onSessionChange={onSessionChange} />
     </div>
   )
 }
 
 function ChatView({
   initialSessionId,
+  newChatRequest,
   onSessionChange,
 }: {
   initialSessionId?: string | null
+  newChatRequest?: number
   onSessionChange?: (sessionId: string | null) => void
 }) {
   const sessions = useChatSessions()
   const createSession = useCreateChatSession()
   const deleteSession = useDeleteChatSession()
   const [selectedSessionId, setSelectedSessionIdRaw] = useState<string | null>(initialSessionId || null)
+  const pendingSessionCreationRef = useRef<Promise<string> | null>(null)
+  const lastNewChatRequestRef = useRef(0)
 
-  const setSelectedSessionId = (id: string | null) => {
-    setSelectedSessionIdRaw(id)
-    onSessionChange?.(id)
-  }
+  const setSelectedSessionId = useCallback(
+    (id: string | null) => {
+      setSelectedSessionIdRaw(id)
+      onSessionChange?.(id)
+    },
+    [onSessionChange],
+  )
+
+  const focusInput = useCallback(() => {
+    inputRef.current?.focus()
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }, [])
+
+  const createAndSelectSession = useCallback(
+    async ({focusInputAfterCreate = false}: {focusInputAfterCreate?: boolean} = {}) => {
+      const createPromise = createSession.mutateAsync(undefined).then((newSession) => {
+        setSelectedSessionId(newSession.id)
+        if (focusInputAfterCreate) {
+          focusInput()
+        }
+        return newSession.id
+      })
+
+      pendingSessionCreationRef.current = createPromise
+
+      try {
+        return await createPromise
+      } finally {
+        if (pendingSessionCreationRef.current === createPromise) {
+          pendingSessionCreationRef.current = null
+        }
+      }
+    },
+    [createSession, focusInput, setSelectedSessionId],
+  )
+
+  const ensureSessionId = useCallback(async () => {
+    if (pendingSessionCreationRef.current) {
+      return pendingSessionCreationRef.current
+    }
+    if (selectedSessionId) {
+      return selectedSessionId
+    }
+    return createAndSelectSession()
+  }, [createAndSelectSession, selectedSessionId])
+
+  const handleNewSession = useCallback(
+    async ({focusInputAfterCreate = false}: {focusInputAfterCreate?: boolean} = {}) => {
+      return createAndSelectSession({focusInputAfterCreate})
+    },
+    [createAndSelectSession],
+  )
+
+  useEffect(() => {
+    if (!newChatRequest || newChatRequest === lastNewChatRequestRef.current) {
+      return
+    }
+
+    lastNewChatRequestRef.current = newChatRequest
+    focusInput()
+    void handleNewSession({focusInputAfterCreate: true})
+  }, [focusInput, handleNewSession, newChatRequest])
+
   const session = useChatSession(selectedSessionId)
   const sendMessage = useSendChatMessage()
   const {streamParts = [], isStreaming, streamComplete, clearStream, stopStream} = useChatStream(selectedSessionId)
@@ -137,10 +202,10 @@ function ChatView({
 
   // Auto-select first session
   useEffect(() => {
-    if (!selectedSessionId && sessions.data && sessions.data.length > 0) {
+    if (!selectedSessionId && !pendingSessionCreationRef.current && sessions.data && sessions.data.length > 0) {
       setSelectedSessionId(sessions.data[0].id)
     }
-  }, [sessions.data, selectedSessionId])
+  }, [sessions.data, selectedSessionId, setSelectedSessionId])
 
   // Clear streaming state once the persisted message appears in query data
   const messages = session.data?.messages || []
@@ -200,12 +265,7 @@ function ChatView({
   }, [])
 
   async function doSendMessage(content: string | string[]) {
-    let sessionId = selectedSessionId
-    if (!sessionId) {
-      const newSession = await createSession.mutateAsync(undefined)
-      sessionId = newSession.id
-      setSelectedSessionId(sessionId)
-    }
+    const sessionId = await ensureSessionId()
     sendMessage.mutate({
       sessionId,
       content,
@@ -237,11 +297,6 @@ function ChatView({
     }
   }, [isBusy])
 
-  async function handleNewSession() {
-    const newSession = await createSession.mutateAsync(undefined)
-    setSelectedSessionId(newSession.id)
-  }
-
   function handleDeleteSession() {
     if (!selectedSessionId) return
     deleteSession.mutate(selectedSessionId)
@@ -264,7 +319,11 @@ function ChatView({
             </option>
           ))}
         </select>
-        <button onClick={handleNewSession} className="text-muted-foreground hover:text-foreground p-1" title="New chat">
+        <button
+          onClick={() => void handleNewSession({focusInputAfterCreate: true})}
+          className="text-muted-foreground hover:text-foreground p-1"
+          title="New chat"
+        >
           <Plus className="size-3.5" />
         </button>
         {selectedSessionId && (

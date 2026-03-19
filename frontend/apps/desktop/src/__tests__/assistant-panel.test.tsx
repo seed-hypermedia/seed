@@ -55,13 +55,13 @@ vi.mock('../components/markdown', () => ({
 
 import {AssistantPanel} from '../components/assistant-panel'
 
-function renderAssistantPanel() {
+function renderAssistantPanel(props: React.ComponentProps<typeof AssistantPanel> = {}) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
 
   act(() => {
-    root.render(<AssistantPanel initialSessionId="session-1" />)
+    root.render(<AssistantPanel initialSessionId="session-1" {...props} />)
   })
 
   return {container, root}
@@ -72,6 +72,13 @@ function cleanupRendered(root: Root, container: HTMLDivElement) {
     root.unmount()
   })
   container.remove()
+}
+
+async function flushAsyncWork() {
+  await act(async () => {
+    await Promise.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
 }
 
 describe('AssistantPanel', () => {
@@ -99,6 +106,7 @@ describe('AssistantPanel', () => {
       stopStream: vi.fn(),
     }
     mockState.createSessionMutateAsync.mockReset()
+    mockState.createSessionMutateAsync.mockResolvedValue({id: 'session-2'})
     mockState.deleteSessionMutate.mockReset()
     mockState.navigate.mockReset()
     mockState.providers = [{id: 'provider-1', label: 'Gemini', model: 'gemini-2.5-flash'}]
@@ -149,6 +157,19 @@ describe('AssistantPanel', () => {
 
     expect(container.textContent).toContain('Thinking...')
     expect(container.querySelector('svg.animate-spin')).not.toBeNull()
+
+    cleanupRendered(root, container)
+  })
+
+  it('creates a fresh chat and focuses the input when requested from outside the panel', async () => {
+    const {container, root} = renderAssistantPanel({newChatRequest: 1})
+
+    await flushAsyncWork()
+
+    const input = container.querySelector('input')
+
+    expect(mockState.createSessionMutateAsync).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).toBe(input)
 
     cleanupRendered(root, container)
   })

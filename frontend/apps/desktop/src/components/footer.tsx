@@ -18,18 +18,21 @@ import {Cable} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
-import {Bot} from 'lucide-react'
+import {Bot, MessageCirclePlus} from 'lucide-react'
 import {ReactNode, useEffect, useState} from 'react'
 import {OnlineIndicator} from './indicator'
 import {useNetworkDialog} from './network-dialog'
 
+/** Renders the desktop app footer and status actions. */
 export default function Footer({
   children,
   assistantOpen,
+  onNewAssistantChat,
   onToggleAssistant,
 }: {
   children?: ReactNode
   assistantOpen?: boolean
+  onNewAssistantChat?: () => void
   onToggleAssistant?: () => void
 }) {
   const updateStatus = useUpdateStatus()
@@ -61,8 +64,20 @@ export default function Footer({
             variant={'ghost'}
             className={cn('px-2', assistantOpen && 'text-brand hover:text-brand-hover')}
             onClick={onToggleAssistant}
+            aria-label="Toggle assistant"
           >
             <Bot className="size-3" />
+          </Button>
+        )}
+        {onNewAssistantChat && (
+          <Button
+            size="xs"
+            variant={'ghost'}
+            className="px-2"
+            onClick={onNewAssistantChat}
+            aria-label="New assistant chat"
+          >
+            <MessageCirclePlus className="size-3" />
           </Button>
         )}
       </div>
@@ -70,6 +85,7 @@ export default function Footer({
   )
 }
 
+/** Renders a footer action button with optional active styling. */
 export function FooterButton({
   active,
   label,

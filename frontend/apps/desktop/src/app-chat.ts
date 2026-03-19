@@ -1,25 +1,25 @@
-import { createAnthropic } from '@ai-sdk/anthropic'
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
-import { createOpenAI } from '@ai-sdk/openai'
-import { HMBlockNode, HMComment, HMCommentSchema } from '@seed-hypermedia/client/hm-types'
-import { unpackHmId } from '@shm/shared/utils/entity-id-url'
-import { hmIdPathToEntityQueryPath } from '@shm/shared/utils/path-api'
-import { jsonSchema, stepCountIs, streamText, type ModelMessage } from 'ai'
+import {createAnthropic} from '@ai-sdk/anthropic'
+import {createGoogleGenerativeAI} from '@ai-sdk/google'
+import {createOpenAI} from '@ai-sdk/openai'
+import {HMBlockNode, HMComment, HMCommentSchema} from '@seed-hypermedia/client/hm-types'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {jsonSchema, stepCountIs, streamText, type ModelMessage} from 'ai'
 import crypto from 'crypto'
-import { ipcMain } from 'electron'
+import {ipcMain} from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 import z from 'zod'
-import { readConfig, resolveProviderForUsage, setLastUsedProvider, type AgentProvider } from './app-ai-config'
-import { appInvalidateQueries } from './app-invalidation'
-import { userDataPath } from './app-paths'
-import { t } from './app-trpc'
-import { getAllWindows } from './app-windows'
-import { navigateDesktopUrl } from './assistant-navigation'
-import { getChatProviderRequestOptions } from './chat-provider-options'
-import { resolveChatStreamError } from './chat-stream-error'
-import { desktopRequest } from './desktop-api'
-import { grpcClient } from './grpc-client'
+import {readConfig, resolveProviderForUsage, setLastUsedProvider, type AgentProvider} from './app-ai-config'
+import {appInvalidateQueries} from './app-invalidation'
+import {userDataPath} from './app-paths'
+import {t} from './app-trpc'
+import {getAllWindows} from './app-windows'
+import {navigateDesktopUrl} from './assistant-navigation'
+import {getChatProviderRequestOptions} from './chat-provider-options'
+import {resolveChatStreamError} from './chat-stream-error'
+import {desktopRequest} from './desktop-api'
+import {grpcClient} from './grpc-client'
 import * as log from './logger'
 import {
   appendChatTextPart,
@@ -29,7 +29,7 @@ import {
   type ChatToolCall,
   type ChatToolResult,
 } from './models/chat-parts'
-import { resolveOmnibarUrlToHypermediaUrl } from './omnibar-url'
+import {resolveOmnibarUrlToHypermediaUrl} from './omnibar-url'
 
 const chatDir = path.join(userDataPath, 'chat-sessions')
 
@@ -470,8 +470,7 @@ const chatTools: Record<string, any> = {
       properties: {
         url: {
           type: 'string',
-          description:
-            'The hm:// URL to read',
+          description: 'The hm:// URL to read',
         },
       },
       required: ['url'],
@@ -514,8 +513,7 @@ const chatTools: Record<string, any> = {
       properties: {
         url: {
           type: 'string',
-          description:
-            'The URL to resolve. Accepts http(s) URLs. Returns the matching hm:// URL.',
+          description: 'The URL to resolve. Accepts http(s) URLs. Returns the matching hm:// URL.',
         },
       },
       required: ['url'],
@@ -537,8 +535,7 @@ const chatTools: Record<string, any> = {
       properties: {
         url: {
           type: 'string',
-          description:
-            'The hm:// URL to open',
+          description: 'The hm:// URL to open',
         },
         newWindow: {
           type: 'boolean',
@@ -684,7 +681,7 @@ export const chatApi = t.router({
         '  - "hm://…/path/:activity/citations" - List citations/backlinks to this document',
         '  - "hm://…/path/:collaborators" - List collaborators and their access roles',
         'To explore a section of a site, read the directory first, then read each child document.',
-        `The current time is: ${new Date().toISOString()}`
+        `The current time is: ${new Date().toISOString()}`,
       ]
       if (input.documentContext?.url) {
         systemParts.push('')
