@@ -45,13 +45,13 @@ This link will expire in 15 minutes.`
 
         <MjmlSection padding="24px 24px 0">
           <MjmlColumn>
-            <MjmlText fontSize="24px" fontWeight="bold" lineHeight="1.3" padding="0 0 16px">
+            <MjmlText fontSize="20px" fontWeight="bold" lineHeight="1.3" padding="0 0 16px">
               New sign-in to your account
             </MjmlText>
-            <MjmlText fontSize="15px" lineHeight="1.6" padding="0 0 4px">
+            <MjmlText fontSize="14px" lineHeight="1.6" padding="0 0 4px">
               {greeting}
             </MjmlText>
-            <MjmlText fontSize="15px" lineHeight="1.6" padding="0 0 16px">
+            <MjmlText fontSize="14px" lineHeight="1.6" padding="0 0 16px">
               We detected a new sign-in to your Seed Hypermedia. This is your login link.
             </MjmlText>
             <MjmlButton

@@ -83,7 +83,7 @@ Manage notifications: ${input.unsubscribeUrl}`
 
         <MjmlSection padding="24px 24px 0">
           <MjmlColumn>
-            <MjmlText fontSize="18px" fontWeight="bold" lineHeight="1.4">
+            <MjmlText fontSize="20px" fontWeight="bold" lineHeight="1.3" padding="0">
               {input.authorName} mentioned {input.subjectName} in a comment on <em>{input.documentName}</em>
             </MjmlText>
           </MjmlColumn>
@@ -162,7 +162,7 @@ Manage notifications: ${input.unsubscribeUrl}`
 
         <MjmlSection padding="24px 24px 0">
           <MjmlColumn>
-            <MjmlText fontSize="18px" fontWeight="bold" lineHeight="1.4">
+            <MjmlText fontSize="20px" fontWeight="bold" lineHeight="1.3" padding="0">
               {input.authorName} replied to your comment in <em>{input.documentName}</em>
             </MjmlText>
           </MjmlColumn>
@@ -244,7 +244,7 @@ Manage notifications: ${input.unsubscribeUrl}`
 
         <MjmlSection padding="24px 24px 0">
           <MjmlColumn>
-            <MjmlText fontSize="18px" fontWeight="bold" lineHeight="1.4">
+            <MjmlText fontSize="20px" fontWeight="bold" lineHeight="1.3" padding="0">
               <em>{input.documentName}</em> was updated by {input.authorName}
             </MjmlText>
           </MjmlColumn>
@@ -334,7 +334,7 @@ Manage notifications: ${input.unsubscribeUrl}`
 
         <MjmlSection padding="24px 24px 0">
           <MjmlColumn>
-            <MjmlText fontSize="18px" fontWeight="bold" lineHeight="1.4">
+            <MjmlText fontSize="20px" fontWeight="bold" lineHeight="1.3" padding="0">
               {input.authorName} left a comment on your document{' '}
               <strong>
                 <em>{input.documentName}</em>
@@ -415,7 +415,7 @@ Manage notifications: ${input.unsubscribeUrl}`
 
         <MjmlSection padding="24px 24px 0">
           <MjmlColumn>
-            <MjmlText fontSize="18px" fontWeight="bold" lineHeight="1.4">
+            <MjmlText fontSize="20px" fontWeight="bold" lineHeight="1.3" padding="0">
               A new discussion in <em>{input.documentName}</em> was created by {input.authorName}
             </MjmlText>
           </MjmlColumn>
@@ -481,13 +481,13 @@ Go to ${input.siteName}: ${input.siteUrl}`
 
         <MjmlSection padding="24px 24px 0">
           <MjmlColumn>
-            <MjmlText fontSize="24px" fontWeight="bold" lineHeight="1.3" padding="0 0 16px">
+            <MjmlText fontSize="20px" fontWeight="bold" lineHeight="1.3" padding="0 0 16px">
               You're in. Welcome to the community.
             </MjmlText>
-            <MjmlText fontSize="15px" lineHeight="1.6" padding="0 0 4px">
+            <MjmlText fontSize="14px" lineHeight="1.6" padding="0 0 4px">
               {greeting}
             </MjmlText>
-            <MjmlText fontSize="15px" lineHeight="1.6" padding="0 0 16px">
+            <MjmlText fontSize="14px" lineHeight="1.6" padding="0 0 16px">
               We're thrilled to have you as part of Seed Hypermedia. You can now participate, comment, follow authors,
               bookmark content and much more!
             </MjmlText>
@@ -553,13 +553,13 @@ This link expires in 2 hours. If you didn't create an account, you can safely ig
         <EmailHeader />
         <MjmlSection padding="24px 24px 0">
           <MjmlColumn>
-            <MjmlText fontSize="24px" fontWeight="bold" lineHeight="1.3" padding="0 0 16px">
+            <MjmlText fontSize="20px" fontWeight="bold" lineHeight="1.3" padding="0 0 16px">
               Confirm your email address
             </MjmlText>
-            <MjmlText fontSize="15px" lineHeight="1.6" padding="0 0 4px">
+            <MjmlText fontSize="14px" lineHeight="1.6" padding="0 0 4px">
               {greeting}
             </MjmlText>
-            <MjmlText fontSize="15px" lineHeight="1.6" padding="0 0 16px">
+            <MjmlText fontSize="14px" lineHeight="1.6" padding="0 0 16px">
               Thanks for signing up for Seed Hypermedia. To complete your registration and access the community, please
               verify your email address.
             </MjmlText>
