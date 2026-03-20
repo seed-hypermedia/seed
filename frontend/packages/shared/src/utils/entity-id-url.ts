@@ -452,6 +452,23 @@ export function routeToHmUrl(route: NavRoute): string | null {
   return null
 }
 
+/** Build a bookmark URL from a NavRoute, keeping only baseId + view term. */
+export function bookmarkUrlFromRoute(route: NavRoute): string | null {
+  if (route.key === 'document') {
+    return packBaseId(route.id.uid, route.id.path)
+  }
+  if (
+    route.key === 'feed' ||
+    route.key === 'activity' ||
+    route.key === 'directory' ||
+    route.key === 'collaborators' ||
+    route.key === 'comments'
+  ) {
+    return `${packBaseId(route.id.uid, route.id.path)}/:${route.key}`
+  }
+  return null
+}
+
 export function createWebHMUrl(
   uid: string,
   {

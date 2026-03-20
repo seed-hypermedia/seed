@@ -1,4 +1,6 @@
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {bookmarkUrlFromRoute} from '@shm/shared/utils/entity-id-url'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useHover} from '@shm/shared/use-hover'
 import {Button} from '@shm/ui/button'
 import {Star} from '@shm/ui/icons'
@@ -44,7 +46,13 @@ export function BookmarkButton({
   active?: boolean
   className?: string
 }) {
-  const bookmark = useBookmark(id)
+  const route = useNavRoute()
+  const routeBookmarkUrl = bookmarkUrlFromRoute(route)
+  // Use route-derived URL (with view term) only when we're on a page for this document.
+  // In list contexts the route is the parent page, so fall back to the base document ID.
+  const isCurrentDoc = 'id' in route && (route as any).id?.id === id.id
+  const bookmarkUrl = isCurrentDoc && routeBookmarkUrl ? routeBookmarkUrl : id.id
+  const bookmark = useBookmark(bookmarkUrl)
   if (bookmark.isBookmarked) {
     return (
       <RemoveBookmarkButton

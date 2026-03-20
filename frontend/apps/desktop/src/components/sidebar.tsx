@@ -18,7 +18,8 @@ import {getContactMetadata} from '@shm/shared/content'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import {hasProfileSubscription, useFollowProfile, useLeaveSite} from '@shm/shared/models/join-site'
-import {hmId} from '@shm/shared/utils/entity-id-url'
+import {bookmarkUrlFromRoute, hmId, ViewTerm, viewTermToRouteKey} from '@shm/shared/utils/entity-id-url'
+import {createDocumentNavRoute} from '@shm/shared/routes'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
 import {UIAvatar} from '@shm/ui/avatar'
@@ -49,7 +50,20 @@ import {SmallListItem} from '@shm/ui/list-item'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
-import {AlertCircle, ChevronDown, ChevronRight, File, Library, Lock, MoreHorizontal} from 'lucide-react'
+import {
+  AlertCircle,
+  ChevronDown,
+  ChevronRight,
+  File,
+  Folder,
+  History,
+  Library,
+  Lock,
+  MessageSquare,
+  MoreHorizontal,
+  Quote,
+  Users,
+} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import React, {memo} from 'react'
 import {CreateDocumentButton} from './create-doc-button'
@@ -166,36 +180,40 @@ function SidebarSection({
 function BookmarksSection() {
   const bookmarks = useBookmarks()
   const contacts = useSelectedAccountContacts()
-  const bookmarkEntities = useResources(bookmarks || [])
+  const bookmarkIds = bookmarks.map((b) => b.id)
+  const bookmarkEntities = useResources(bookmarkIds)
   const route = useNavRoute()
+  const currentBookmarkUrl = bookmarkUrlFromRoute(route)
   if (!bookmarkEntities.length) return null
   return (
     <SidebarSection title="Bookmarks">
-      {bookmarkEntities?.map((bookmark) => {
-        if (!bookmark.data) return null
-        if (bookmark.data.type === 'error') {
+      {bookmarks.map((bookmarkItem, i) => {
+        const entity = bookmarkEntities[i]
+        if (!entity?.data) return null
+        if (entity.data.type === 'error') {
           return (
-            <SidebarMenuItem key={bookmark.data.id.id}>
+            <SidebarMenuItem key={bookmarkItem.url}>
               <ErrorListItem
-                id={bookmark.data.id}
-                active={route.key === 'document' && route.id.id === bookmark.data.id.id}
+                id={entity.data.id}
+                active={currentBookmarkUrl === bookmarkItem.url}
               />
             </SidebarMenuItem>
           )
         }
-        if (bookmark.data.type !== 'document') return null
-        const {id, document} = bookmark.data
+        if (entity.data.type !== 'document') return null
+        const {id, document} = entity.data
         const metadata = id.path?.length
           ? document?.metadata
           : getContactMetadata(id.uid, document?.metadata, contacts.data)
         if (!metadata) return null
         return (
-          <SidebarMenuItem key={id.id}>
+          <SidebarMenuItem key={bookmarkItem.url}>
             <BookmarkListItem
               id={id}
               metadata={metadata}
-              active={route.key === 'document' && route.id.id === id.id}
+              active={currentBookmarkUrl === bookmarkItem.url}
               visibility={document?.visibility}
+              viewTerm={bookmarkItem.viewTerm}
             />
           </SidebarMenuItem>
         )
@@ -219,18 +237,32 @@ function ErrorListItem({id, active}: {id: UnpackedHypermediaId; active: boolean}
   )
 }
 
+const VIEW_TERM_ICONS: Record<string, React.ElementType> = {
+  ':comments': MessageSquare,
+  ':activity': Quote,
+  ':collaborators': Users,
+  ':directory': Folder,
+  ':feed': History,
+}
+
 function BookmarkListItem({
   id,
   metadata,
   active,
   visibility,
+  viewTerm,
 }: {
   id: UnpackedHypermediaId
   metadata: HMMetadata
   active: boolean
   visibility?: HMResourceVisibility
+  viewTerm: ViewTerm | null
 }) {
-  const linkProps = useRouteLink({key: 'document', id})
+  const navRoute = viewTerm
+    ? createDocumentNavRoute(id, viewTermToRouteKey(viewTerm))
+    : {key: 'document' as const, id}
+  const linkProps = useRouteLink(navRoute)
+  const ViewTermIcon = viewTerm ? VIEW_TERM_ICONS[viewTerm] : null
   return (
     <SmallListItem
       key={id.id}
@@ -238,7 +270,12 @@ function BookmarkListItem({
       active={active}
       title={metadata?.name || 'Untitled'}
       icon={<HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />}
-      accessory={visibility === 'PRIVATE' ? <Lock size={12} /> : null}
+      accessory={
+        <>
+          {ViewTermIcon ? <ViewTermIcon size={12} className="text-muted-foreground" /> : null}
+          {visibility === 'PRIVATE' ? <Lock size={12} /> : null}
+        </>
+      }
       {...linkProps}
     />
   )

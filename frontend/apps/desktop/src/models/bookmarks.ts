@@ -3,6 +3,7 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 // @ts-expect-error
 import {UnpackedHypermediaId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {extractViewTermFromUrl, ViewTerm} from '@shm/shared/utils/entity-id-url'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useMemo} from 'react'
 
@@ -10,25 +11,29 @@ export type BookmarkItem = {
   key: 'document'
   id: UnpackedHypermediaId
   url: string
+  viewTerm: ViewTerm | null
 }
 
-export function useBookmarks() {
+export function useBookmarks(): BookmarkItem[] {
   const bookmarksQuery = useQuery({
     queryKey: [queryKeys.BOOKMARKS],
     queryFn: () => client.bookmarks.get.query(),
   })
-  const {bookmarks} = useMemo(() => {
-    const unpackedIds = bookmarksQuery.data?.bookmarks?.map((bookmark) => {
-      return unpackHmId(bookmark.url)
-    })
-    return {
-      bookmarks: unpackedIds || [],
-    }
+  return useMemo(() => {
+    if (!bookmarksQuery.data?.bookmarks) return []
+    return bookmarksQuery.data.bookmarks
+      .map((bookmark) => {
+        const {url: cleanUrl, viewTerm} = extractViewTermFromUrl(bookmark.url)
+        const id = unpackHmId(cleanUrl)
+        if (!id) return null
+        return {key: 'document' as const, id, url: bookmark.url, viewTerm}
+      })
+      .filter((b): b is BookmarkItem => b !== null)
   }, [bookmarksQuery.data])
-  return bookmarks
 }
 
-export function useBookmark(id?: UnpackedHypermediaId) {
+/** Check bookmark state for a specific bookmark URL (including view term). */
+export function useBookmark(bookmarkUrl: string | null) {
   const bookmarks = useBookmarks()
   const setBookmark = useMutation({
     mutationFn: (input: {url: string; isBookmark: boolean}) => client.bookmarks.setBookmark.mutate(input),
@@ -36,20 +41,20 @@ export function useBookmark(id?: UnpackedHypermediaId) {
       invalidateQueries([queryKeys.BOOKMARKS])
     },
   })
-  if (!id)
+  if (!bookmarkUrl)
     return {
       isBookmarked: false,
       removeBookmark: () => {},
       addBookmark: () => {},
     }
-  const isBookmarked = bookmarks?.some((bookmark) => bookmark && bookmark.id === id.id)
+  const isBookmarked = bookmarks.some((bookmark) => bookmark.url === bookmarkUrl)
   return {
     isBookmarked,
     removeBookmark: () => {
-      setBookmark.mutate({url: id.id, isBookmark: false})
+      setBookmark.mutate({url: bookmarkUrl, isBookmark: false})
     },
     addBookmark: () => {
-      setBookmark.mutate({url: id.id, isBookmark: true})
+      setBookmark.mutate({url: bookmarkUrl, isBookmark: true})
     },
   }
 }

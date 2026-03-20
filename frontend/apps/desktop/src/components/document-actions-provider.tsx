@@ -47,14 +47,14 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
 
   const isBookmarked = useCallback(
     (id: UnpackedHypermediaId) => {
-      return bookmarks?.some((bookmark) => bookmark && bookmark.id === id.id) ?? false
+      return bookmarks?.some((bookmark) => bookmark.url === id.id) ?? false
     },
     [bookmarks],
   )
 
   const onBookmarkToggle = useCallback(
     (id: UnpackedHypermediaId) => {
-      const bookmarked = bookmarks?.some((bookmark) => bookmark && bookmark.id === id.id) ?? false
+      const bookmarked = bookmarks?.some((bookmark) => bookmark.url === id.id) ?? false
       setBookmark.mutate({url: id.id, isBookmark: !bookmarked})
     },
     [bookmarks, setBookmark],

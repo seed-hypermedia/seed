@@ -118,7 +118,7 @@ export function useLibrary({
     if (displayMode === 'subscribed') {
       accts = accts?.filter((acct) => subscriptions.data?.find((sub) => sub.account === acct.id))
     } else if (displayMode === 'bookmarks') {
-      accts = accts?.filter((acct) => bookmarks?.find((bm) => bm && bm.uid === acct.id))
+      accts = accts?.filter((acct) => bookmarks?.find((bm) => bm && bm.id.uid === acct.id))
     }
     // @ts-expect-error
     items = accts?.map((account) => {
