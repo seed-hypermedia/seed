@@ -220,6 +220,17 @@ View delegated access permissions for a resource.
 Supports inline mentions: `@[DisplayName](hm://accountId)`. Supports block-level comments: target a specific block with
 `#blockId` in the URL.
 
+#### `comment edit <commentId>` - Edit an existing comment
+
+**Options:**
+
+- `--body <text>`: Updated comment text
+- `--file <path>`: Read updated comment text from file
+- `-k, --key <name>`: Signing key name or account ID
+
+Preserves reply threading metadata for replies and keeps block-level comment anchors intact when editing comments that
+were originally attached to a specific block.
+
 #### `comment delete <commentId>` - Delete a comment
 
 **Options:**

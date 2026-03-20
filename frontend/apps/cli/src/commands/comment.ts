@@ -1,11 +1,11 @@
 /**
- * Comment commands — get, list, create, discussions.
+ * Comment commands — get, list, create, edit, discussions.
  */
 
 import type {Command} from 'commander'
 import {readFileSync} from 'fs'
-import {createComment, deleteComment} from '@seed-hypermedia/client'
-import type {HMAnnotation, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {createComment, deleteComment, updateComment} from '@seed-hypermedia/client'
+import type {HMAnnotation, HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {getClient, getOutputFormat, isPretty} from '../index'
 import {formatOutput, printError, printSuccess} from '../output'
@@ -13,7 +13,7 @@ import {resolveKey} from '../utils/keyring'
 import {createSignerFromKey} from '../utils/signer'
 
 export function registerCommentCommands(program: Command) {
-  const comment = program.command('comment').description('Manage comments (get, list, create, discussions)')
+  const comment = program.command('comment').description('Manage comments (get, list, create, edit, discussions)')
 
   // ── get ──────────────────────────────────────────────────────────────────
 
@@ -85,15 +85,7 @@ export function registerCommentCommands(program: Command) {
 
       try {
         const key = resolveKey(options.key, dev)
-
-        let text: string
-        if (options.body) {
-          text = options.body
-        } else if (options.file) {
-          text = readFileSync(options.file, 'utf-8')
-        } else {
-          throw new Error('Provide comment text with --body or --file.')
-        }
+        const text = readCommentText(options)
 
         // Parse the target ID to extract an optional block reference.
         const unpacked = unpackHmId(targetId)
@@ -178,6 +170,57 @@ export function registerCommentCommands(program: Command) {
         }
 
         if (!globalOpts.quiet) printSuccess(`Comment published: ${commentId}`)
+      } catch (error) {
+        printError((error as Error).message)
+        process.exit(1)
+      }
+    })
+
+  // ── edit ─────────────────────────────────────────────────────────────────
+
+  comment
+    .command('edit <commentId>')
+    .description('Edit an existing comment')
+    .option('--body <text>', 'Updated comment text')
+    .option('--file <path>', 'Read updated comment text from file')
+    .option('-k, --key <name>', 'Signing key name or account ID')
+    .action(async (commentId: string, options, cmd) => {
+      const globalOpts = cmd.optsWithGlobals()
+      const dev = !!globalOpts.dev
+      const client = getClient(globalOpts)
+
+      try {
+        const key = resolveKey(options.key, dev)
+        const text = readCommentText(options)
+        if (!text.trim()) {
+          throw new Error('Comment text cannot be empty.')
+        }
+
+        const existing = await client.request('Comment', commentId)
+        if (existing.content.length === 0) {
+          throw new Error('Cannot edit a deleted comment.')
+        }
+
+        const signer = createSignerFromKey(key)
+        const updatedContent = preserveBlockCommentWrapper(existing, textToBlocks(text))
+
+        await client.publish(
+          await updateComment(
+            {
+              commentId,
+              targetAccount: existing.targetAccount,
+              targetPath: existing.targetPath || '',
+              targetVersion: existing.targetVersion,
+              content: updatedContent,
+              replyParentVersion: existing.replyParentVersion || null,
+              rootReplyCommentVersion: existing.threadRootVersion || null,
+              visibility: existing.visibility === 'PRIVATE' ? 'Private' : '',
+            },
+            signer,
+          ),
+        )
+
+        if (!globalOpts.quiet) printSuccess(`Comment updated: ${commentId}`)
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)
@@ -316,6 +359,33 @@ function textToBlocks(text: string): HMBlockNode[] {
       children: [],
     }
   })
+}
+
+function readCommentText(options: {body?: string; file?: string}): string {
+  if (options.body) return options.body
+  if (options.file) return readFileSync(options.file, 'utf-8')
+  throw new Error('Provide comment text with --body or --file.')
+}
+
+function preserveBlockCommentWrapper(comment: HMComment, content: HMBlockNode[]): HMBlockNode[] {
+  const firstNode = comment.content[0]
+  if (!firstNode || comment.content.length !== 1) return content
+  if (firstNode.block.type !== 'Embed' || !firstNode.block.link) return content
+
+  const quotedTarget = unpackHmId(firstNode.block.link)
+  if (!quotedTarget?.blockRef) return content
+
+  const quotedPath = quotedTarget.path?.length ? `/${quotedTarget.path.join('/')}` : ''
+  if (quotedTarget.uid !== comment.targetAccount) return content
+  if (quotedPath !== (comment.targetPath || '')) return content
+  if (quotedTarget.version !== comment.targetVersion) return content
+
+  return [
+    {
+      ...firstNode,
+      children: content,
+    },
+  ]
 }
 
 let blockCounter = 0

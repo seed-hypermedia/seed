@@ -1,7 +1,7 @@
 import {describe, it, expect, vi} from 'vitest'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import type {HMBlockNode, HMSigner, UnpackedHypermediaId} from '../src/hm-types'
-import {createComment} from '../src/comment'
+import {createComment, updateComment} from '../src/comment'
 
 const TEST_DOC_ID: UnpackedHypermediaId = {
   id: 'hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou/test-doc',
@@ -29,6 +29,7 @@ function makeBlocks(text: string): HMBlockNode[] {
         id: 'blk-1',
         type: 'Paragraph',
         text,
+        attributes: {},
         annotations: [],
       },
       children: [],
@@ -74,6 +75,7 @@ describe('createComment', () => {
                 id: 'blk-empty',
                 type: 'Paragraph',
                 text: '',
+                attributes: {},
                 annotations: [],
               },
               children: [],
@@ -97,5 +99,47 @@ describe('createComment', () => {
       cid: 'bafyeditor',
       data: new Uint8Array([8, 9]),
     })
+  })
+})
+
+describe('updateComment', () => {
+  it('creates a publish-ready payload that preserves reply metadata', async () => {
+    const signer = makeSigner()
+    const publishInput = await updateComment(
+      {
+        commentId: 'z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou/zb2rhiKhUepk2',
+        targetAccount: TEST_DOC_ID.uid,
+        targetPath: '/test-doc',
+        targetVersion: 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi',
+        content: [
+          {
+            block: {
+              id: 'blk-embed',
+              type: 'Embed',
+              text: '',
+              link: 'hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou/test-doc?v=bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi#quoted-block',
+              annotations: [],
+              attributes: {childrenType: 'Group', view: 'Content'},
+            },
+            children: makeBlocks('updated text'),
+          } as HMBlockNode,
+        ],
+        replyParentVersion: 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi',
+        rootReplyCommentVersion: 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi',
+      },
+      signer,
+    )
+
+    expect(publishInput.blobs).toHaveLength(1)
+
+    const decodedComment = cborDecode(publishInput.blobs[0]!.data) as any
+    expect(decodedComment.type).toBe('Comment')
+    expect(decodedComment.id).toBe('zb2rhiKhUepk2')
+    expect(decodedComment.path).toBe('/test-doc')
+    expect(decodedComment.body).toHaveLength(1)
+    expect(decodedComment.body[0].type).toBe('Embed')
+    expect(decodedComment.body[0].children[0].text).toBe('updated text')
+    expect(decodedComment.replyParent).toBeTruthy()
+    expect(decodedComment.threadRoot).toBeTruthy()
   })
 })

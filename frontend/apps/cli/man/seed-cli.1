@@ -9,7 +9,9 @@
 .br
 \fBseed\-cli\fP document update <id> \-\-replace\-body <file> \-\-key <key> \fBseed\-cli\fP comment create <target> \-\-body <text> \-\-key
 .br
-<key>\fBseed\-cli\fP account list \fBseed\-cli\fP key generate \-\-name <name> \-\-show\-mnemonic
+<key> \fBseed\-cli\fP comment edit <commentId> \-\-body <text> \-\-key <key> \fBseed\-cli\fP account list \fBseed\-cli\fP key generate
+.br
+\-\-name <name> \-\-show\-mnemonic
 .SH DESCRIPTION
 .P
 \fBseed\-cli\fP is a command\-line interface for interacting with the Seed Hypermedia network\. It queries documents, manages
@@ -289,6 +291,25 @@ seed\-cli comment create "hm://z6Mk\.\.\./path" \\
 The display name is stripped during encoding; the account link is stored as an Embed annotation at the U+FFFC position
 .br
 in the text\. The mentioned account appears as a clickable link in the Seed desktop and web apps\.
+.SS comment edit <commentId>
+.P
+Edit an existing comment\.
+.P
+Options:
+
+.RS 1
+.IP \(bu 2
+\fB\-\-body\fP <text>: Updated comment text (inline)\.
+.IP \(bu 2
+\fB\-\-file\fP <path>: Read updated comment text from a file\.
+.IP \(bu 2
+\fB\-k\fP, \fB\-\-key\fP <name>: Signing key name or account ID\.
+
+.RE
+.P
+The CLI preserves reply threading metadata for replies and keeps block-level anchor wrappers when editing comments that
+.br
+were originally attached to a specific block\.
 .SS comment get <id>
 .P
 Fetch a single comment by its ID\.
@@ -767,4 +788,3 @@ Seed desktop app: https://download.seed.hyper.media
 .SH AUTHORS
 .P
 Seed Hypermedia team\. MIT License\.
-
