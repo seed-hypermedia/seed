@@ -1196,9 +1196,13 @@ function DocumentBody({
                     docId={docId}
                     quotingBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
                     commentId={panelRoute?.key === 'comments' ? panelRoute.openComment : undefined}
-                    isReplying={panelRoute?.key === 'comments' ? (panelRoute.isReplying ?? !!panelRoute.openComment) : false}
+                    isReplying={
+                      panelRoute?.key === 'comments' ? panelRoute.isReplying ?? !!panelRoute.openComment : false
+                    }
                     replyCommentVersion={panelRoute?.key === 'comments' ? panelRoute.replyCommentVersion : undefined}
-                    rootReplyCommentVersion={panelRoute?.key === 'comments' ? panelRoute.rootReplyCommentVersion : undefined}
+                    rootReplyCommentVersion={
+                      panelRoute?.key === 'comments' ? panelRoute.rootReplyCommentVersion : undefined
+                    }
                     autoFocus
                   />
                 ) : undefined
