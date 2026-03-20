@@ -148,6 +148,10 @@ export interface CommentEditorProps {
   commentId?: string
   isReplying?: boolean
   autoFocus?: boolean
+  /** CID version of the comment being replied to. */
+  replyCommentVersion?: string
+  /** CID version of the thread root comment. */
+  rootReplyCommentVersion?: string
 }
 
 export interface ResourcePageProps {
@@ -726,6 +730,9 @@ function DocumentBody({
           blockId: route.blockId,
           blockRange: route.blockRange,
           autoFocus: route.autoFocus,
+          isReplying: route.isReplying,
+          replyCommentVersion: route.replyCommentVersion,
+          rootReplyCommentVersion: route.rootReplyCommentVersion,
         }
       : undefined
 
@@ -1189,7 +1196,13 @@ function DocumentBody({
                     docId={docId}
                     quotingBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
                     commentId={panelRoute?.key === 'comments' ? panelRoute.openComment : undefined}
-                    isReplying={panelRoute?.key === 'comments' ? !!panelRoute.openComment : false}
+                    isReplying={
+                      panelRoute?.key === 'comments' ? panelRoute.isReplying ?? !!panelRoute.openComment : false
+                    }
+                    replyCommentVersion={panelRoute?.key === 'comments' ? panelRoute.replyCommentVersion : undefined}
+                    rootReplyCommentVersion={
+                      panelRoute?.key === 'comments' ? panelRoute.rootReplyCommentVersion : undefined
+                    }
                     autoFocus
                   />
                 ) : undefined
@@ -1284,7 +1297,9 @@ function PanelContentRenderer({
                 docId={docId}
                 quotingBlockId={panelRoute.targetBlockId}
                 commentId={panelRoute.openComment}
-                isReplying={!!panelRoute.openComment}
+                isReplying={panelRoute.isReplying ?? !!panelRoute.openComment}
+                replyCommentVersion={panelRoute.replyCommentVersion}
+                rootReplyCommentVersion={panelRoute.rootReplyCommentVersion}
                 autoFocus
               />
             ) : undefined
@@ -1343,6 +1358,9 @@ function MainContent({
     blockId?: string
     blockRange?: import('@seed-hypermedia/client/hm-types').BlockRange | null
     autoFocus?: boolean
+    isReplying?: boolean
+    replyCommentVersion?: string
+    rootReplyCommentVersion?: string
   }
   activityFilterEventType?: string[]
   onActivityFilterChange?: (filter: {filterEventType?: string[]}) => void
@@ -1404,7 +1422,9 @@ function MainContent({
                 docId={docId}
                 quotingBlockId={discussionsParams?.targetBlockId}
                 commentId={discussionsParams?.openComment}
-                isReplying={!!discussionsParams?.openComment}
+                isReplying={discussionsParams?.isReplying ?? !!discussionsParams?.openComment}
+                replyCommentVersion={discussionsParams?.replyCommentVersion}
+                rootReplyCommentVersion={discussionsParams?.rootReplyCommentVersion}
                 autoFocus={discussionsParams?.autoFocus}
               />
             ) : undefined

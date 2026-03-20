@@ -56,6 +56,10 @@ export default function DesktopFeedPage() {
 
   const onReplyClick = useCallback(
     (replyComment: HMComment) => {
+      const replyVersionData = {
+        replyCommentVersion: replyComment.version,
+        rootReplyCommentVersion: replyComment.threadRootVersion || replyComment.version,
+      }
       const targetRoute = isRouteEqualToCommentTarget({
         id: docId,
         comment: replyComment,
@@ -69,6 +73,7 @@ export default function DesktopFeedPage() {
             id: targetRoute,
             openComment: replyComment.id,
             isReplying: true,
+            ...replyVersionData,
           },
         })
       } else {
@@ -79,6 +84,7 @@ export default function DesktopFeedPage() {
             id: docId,
             openComment: replyComment.id,
             isReplying: true,
+            ...replyVersionData,
           },
         })
       }

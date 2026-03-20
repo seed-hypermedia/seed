@@ -23,6 +23,8 @@ function _DiscussionsPanel(props: {docId: UnpackedHypermediaId; selection: Comme
       quotingBlockId={selection.targetBlockId}
       context="accessory"
       autoFocus={selection.autoFocus}
+      replyCommentVersion={selection.replyCommentVersion}
+      rootReplyCommentVersion={selection.rootReplyCommentVersion}
     />
   )
 

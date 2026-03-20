@@ -388,6 +388,10 @@ export default function DesktopResourcePage() {
 
   const onReplyClick = useCallback(
     (replyComment: HMComment) => {
+      const replyVersionData = {
+        replyCommentVersion: replyComment.version,
+        rootReplyCommentVersion: replyComment.threadRootVersion || replyComment.version,
+      }
       const targetRoute = isRouteEqualToCommentTarget({
         id: docId,
         comment: replyComment,
@@ -401,11 +405,12 @@ export default function DesktopResourcePage() {
             id: targetRoute,
             openComment: replyComment.id,
             isReplying: true,
+            ...replyVersionData,
           },
         })
       } else if (route.key === 'comments') {
         // Already viewing discussions in main — update in place
-        replace({...route, openComment: replyComment.id, isReplying: true})
+        replace({...route, openComment: replyComment.id, isReplying: true, ...replyVersionData})
       } else {
         replace({
           ...route,
@@ -414,6 +419,7 @@ export default function DesktopResourcePage() {
             id: docId,
             openComment: replyComment.id,
             isReplying: true,
+            ...replyVersionData,
           },
         } as any)
       }
@@ -439,7 +445,13 @@ export default function DesktopResourcePage() {
           },
         })
       } else if (route.key === 'comments') {
-        replace({...route, openComment: replyComment.id})
+        replace({
+          ...route,
+          openComment: replyComment.id,
+          isReplying: undefined,
+          replyCommentVersion: undefined,
+          rootReplyCommentVersion: undefined,
+        })
       } else {
         replace({
           ...route,

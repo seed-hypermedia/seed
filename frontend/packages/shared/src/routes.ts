@@ -134,6 +134,8 @@ export const commentsRouteSchema = z.object({
   blockRange: BlockRangeSchema.nullable().optional(),
   autoFocus: z.boolean().optional(),
   isReplying: z.boolean().optional(),
+  replyCommentVersion: z.string().optional(),
+  rootReplyCommentVersion: z.string().optional(),
   panel: commentsPagePanelSchema.nullable().optional(),
 })
 export type CommentsRoute = z.infer<typeof commentsRouteSchema>
