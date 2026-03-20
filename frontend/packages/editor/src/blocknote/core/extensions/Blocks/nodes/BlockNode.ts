@@ -175,7 +175,7 @@ export const BlockNode = Node.create<{
   domAttributes?: BlockNoteDOMAttributes
 }>({
   name: 'blockNode',
-  group: 'blockNodeChild block',
+  group: 'blockNodeChild',
   // A block always contains content, and optionally a blockChildren which contains nested blocks
   content: 'block blockChildren?',
   // Ensures content-specific keyboard handlers trigger first.
