@@ -193,10 +193,7 @@ function BookmarksSection() {
         if (entity.data.type === 'error') {
           return (
             <SidebarMenuItem key={bookmarkItem.url}>
-              <ErrorListItem
-                id={entity.data.id}
-                active={currentBookmarkUrl === bookmarkItem.url}
-              />
+              <ErrorListItem id={entity.data.id} active={currentBookmarkUrl === bookmarkItem.url} />
             </SidebarMenuItem>
           )
         }
@@ -258,9 +255,7 @@ function BookmarkListItem({
   visibility?: HMResourceVisibility
   viewTerm: ViewTerm | null
 }) {
-  const navRoute = viewTerm
-    ? createDocumentNavRoute(id, viewTermToRouteKey(viewTerm))
-    : {key: 'document' as const, id}
+  const navRoute = viewTerm ? createDocumentNavRoute(id, viewTermToRouteKey(viewTerm)) : {key: 'document' as const, id}
   const linkProps = useRouteLink(navRoute)
   const ViewTermIcon = viewTerm ? VIEW_TERM_ICONS[viewTerm] : null
   return (
