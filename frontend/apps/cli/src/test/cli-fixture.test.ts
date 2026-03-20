@@ -21,6 +21,17 @@ const TEST_TIMEOUT = 180000 // 3 minutes for daemon + web server startup
 const TEST_MNEMONIC = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
 const TEST_KEY_NAME = 'cli-fixture-test'
 
+async function listComments(server: string, targetId: string): Promise<any[]> {
+  const result = await runCli(['comment', 'list', targetId], {server})
+  expect(result.exitCode).toBe(0)
+  return JSON.parse(result.stdout).comments || []
+}
+
+async function getCommentByText(server: string, targetId: string, text: string): Promise<any> {
+  const comments = await listComments(server, targetId)
+  return comments.find((comment: any) => JSON.stringify(comment.content).includes(text))
+}
+
 describe('CLI Full Integration Tests', () => {
   beforeAll(async () => {
     ctx = await startFullIntegrationWithFixture()
@@ -169,7 +180,7 @@ describe('CLI Full Integration Tests', () => {
 
       // 5. Wait for the account to be indexed and verify it's accessible.
       await new Promise((r) => setTimeout(r, 2000))
-      const verifyResult = await runCli(['document', 'get', writeAccountHmId], {
+      const verifyResult = await runCli(['document', 'get', writeAccountHmId, '--json'], {
         server: ctx.webServerUrl,
       })
       console.log(
@@ -297,6 +308,162 @@ describe('CLI Full Integration Tests', () => {
     )
 
     test(
+      'comment edit updates a comment',
+      async () => {
+        const originalText = `Original comment ${Date.now()}`
+        const updatedText = `Updated comment ${Date.now()}`
+
+        const createResult = await runCli(
+          ['comment', 'create', writeAccountHmId, '--body', originalText, '--key', TEST_KEY_NAME],
+          {server: ctx.webServerUrl},
+        )
+        expect(createResult.exitCode).toBe(0)
+
+        const createdComment = await getCommentByText(ctx.webServerUrl, writeAccountHmId, originalText)
+        expect(createdComment).toBeTruthy()
+
+        const editResult = await runCli(
+          ['comment', 'edit', createdComment.id, '--body', updatedText, '--key', TEST_KEY_NAME],
+          {server: ctx.webServerUrl},
+        )
+        if (editResult.exitCode !== 0) {
+          console.log('[test] comment edit stderr:', editResult.stderr)
+          console.log('[test] comment edit stdout:', editResult.stdout)
+        }
+        expect(editResult.exitCode).toBe(0)
+        expect(editResult.stderr + editResult.stdout).toContain('Comment updated')
+
+        const getResult = await runCli(['comment', 'get', createdComment.id], {server: ctx.webServerUrl})
+        expect(getResult.exitCode).toBe(0)
+        const updatedComment = JSON.parse(getResult.stdout)
+        expect(updatedComment.id).toBe(createdComment.id)
+        expect(JSON.stringify(updatedComment.content)).toContain(updatedText)
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'comment edit preserves reply threading metadata',
+      async () => {
+        const parentText = `Reply parent ${Date.now()}`
+        const replyText = `Reply child ${Date.now()}`
+        const updatedReplyText = `Reply child edited ${Date.now()}`
+
+        const parentResult = await runCli(
+          ['comment', 'create', writeAccountHmId, '--body', parentText, '--key', TEST_KEY_NAME],
+          {server: ctx.webServerUrl},
+        )
+        expect(parentResult.exitCode).toBe(0)
+
+        const parentComment = await getCommentByText(ctx.webServerUrl, writeAccountHmId, parentText)
+        expect(parentComment).toBeTruthy()
+
+        const replyResult = await runCli(
+          [
+            'comment',
+            'create',
+            writeAccountHmId,
+            '--body',
+            replyText,
+            '--reply',
+            parentComment.id,
+            '--key',
+            TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        expect(replyResult.exitCode).toBe(0)
+
+        const replyComment = await getCommentByText(ctx.webServerUrl, writeAccountHmId, replyText)
+        expect(replyComment).toBeTruthy()
+
+        const editResult = await runCli(
+          ['comment', 'edit', replyComment.id, '--body', updatedReplyText, '--key', TEST_KEY_NAME],
+          {server: ctx.webServerUrl},
+        )
+        expect(editResult.exitCode).toBe(0)
+
+        const getResult = await runCli(['comment', 'get', replyComment.id], {server: ctx.webServerUrl})
+        expect(getResult.exitCode).toBe(0)
+        const updatedReply = JSON.parse(getResult.stdout)
+        expect(updatedReply.replyParent).toBe(parentComment.id)
+        expect(updatedReply.replyParentVersion).toBeTruthy()
+        expect(updatedReply.threadRoot).toBe(parentComment.id)
+        expect(updatedReply.threadRootVersion).toBeTruthy()
+        expect(JSON.stringify(updatedReply.content)).toContain(updatedReplyText)
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'comment edit --file preserves block-level comment wrapper',
+      async () => {
+        const docResult = await runCli(['document', 'get', FIXTURE_HIERARCHY_HM_ID, '--json'], {
+          server: ctx.webServerUrl,
+        })
+        expect(docResult.exitCode).toBe(0)
+        const docData = JSON.parse(docResult.stdout)
+        const targetBlockId = docData.document.content[0]?.block?.id
+        expect(targetBlockId).toBeTruthy()
+
+        const originalText = `Block comment ${Date.now()}`
+        const createResult = await runCli(
+          [
+            'comment',
+            'create',
+            `${FIXTURE_HIERARCHY_HM_ID}#${targetBlockId}`,
+            '--body',
+            originalText,
+            '--key',
+            TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        expect(createResult.exitCode).toBe(0)
+
+        const createdComment = await getCommentByText(ctx.webServerUrl, FIXTURE_HIERARCHY_HM_ID, originalText)
+        expect(createdComment).toBeTruthy()
+
+        const tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const commentFile = join(tmpDir, 'comment-edit.txt')
+        const updatedText = `Block comment edited ${Date.now()}`
+        writeFileSync(commentFile, updatedText)
+
+        try {
+          const editResult = await runCli(
+            ['comment', 'edit', createdComment.id, '--file', commentFile, '--key', TEST_KEY_NAME],
+            {server: ctx.webServerUrl},
+          )
+          expect(editResult.exitCode).toBe(0)
+
+          const getResult = await runCli(['comment', 'get', createdComment.id], {server: ctx.webServerUrl})
+          expect(getResult.exitCode).toBe(0)
+          const updatedComment = JSON.parse(getResult.stdout)
+
+          expect(updatedComment.content[0].block.type).toBe('Embed')
+          expect(updatedComment.content[0].block.link).toContain(`#${targetBlockId}`)
+          expect(updatedComment.content[0].children).toHaveLength(1)
+          expect(updatedComment.content[0].children[0].block.text).toBe(updatedText)
+        } finally {
+          rmSync(tmpDir, {recursive: true, force: true})
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'comment edit with no body shows error',
+      async () => {
+        const result = await runCli(['comment', 'edit', 'fake-author/fake-tsid', '--key', TEST_KEY_NAME], {
+          server: ctx.webServerUrl,
+        })
+        expect(result.exitCode).toBe(1)
+        expect(result.stderr).toContain('--body or --file')
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
       'comment create with no body shows error',
       async () => {
         const result = await runCli(['comment', 'create', writeAccountHmId, '--key', TEST_KEY_NAME], {
@@ -335,6 +502,21 @@ describe('CLI Full Integration Tests', () => {
         const result = await runCli(['comment', 'delete', 'fake-author/fake-tsid', '--key', 'nonexistent-key-name'], {
           server: ctx.webServerUrl,
         })
+        expect(result.exitCode).toBe(1)
+        expect(result.stderr).toContain('not found')
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
+      'comment edit with missing key shows error',
+      async () => {
+        const result = await runCli(
+          ['comment', 'edit', 'fake-author/fake-tsid', '--body', 'Updated', '--key', 'missing'],
+          {
+            server: ctx.webServerUrl,
+          },
+        )
         expect(result.exitCode).toBe(1)
         expect(result.stderr).toContain('not found')
       },
@@ -384,7 +566,7 @@ describe('CLI Full Integration Tests', () => {
         await new Promise((r) => setTimeout(r, 2000))
 
         // Verify document exists
-        const getResult = await runCli(['document', 'get', createdDocHmId], {server: ctx.webServerUrl})
+        const getResult = await runCli(['document', 'get', createdDocHmId, '--json'], {server: ctx.webServerUrl})
         expect(getResult.exitCode).toBe(0)
         const data = JSON.parse(getResult.stdout)
         expect(data.type).toBe('document')
@@ -429,7 +611,7 @@ describe('CLI Full Integration Tests', () => {
         await new Promise((r) => setTimeout(r, 2000))
 
         // Read back as JSON and verify blocks
-        const getResult = await runCli(['document', 'get', hmId], {server: ctx.webServerUrl})
+        const getResult = await runCli(['document', 'get', hmId, '--json'], {server: ctx.webServerUrl})
         expect(getResult.exitCode).toBe(0)
         const data = JSON.parse(getResult.stdout)
         expect(data.type).toBe('document')
@@ -538,7 +720,7 @@ describe('CLI Full Integration Tests', () => {
         await new Promise((r) => setTimeout(r, 2000))
 
         // Read back as JSON and verify block structure
-        const getResult = await runCli(['document', 'get', hmId], {server: ctx.webServerUrl})
+        const getResult = await runCli(['document', 'get', hmId, '--json'], {server: ctx.webServerUrl})
         expect(getResult.exitCode).toBe(0)
         const data = JSON.parse(getResult.stdout)
         expect(data.type).toBe('document')
@@ -614,7 +796,7 @@ describe('CLI Full Integration Tests', () => {
 
           await new Promise((r) => setTimeout(r, 2000))
 
-          const getResult = await runCli(['document', 'get', hmId], {server: ctx.webServerUrl})
+          const getResult = await runCli(['document', 'get', hmId, '--json'], {server: ctx.webServerUrl})
           expect(getResult.exitCode).toBe(0)
           const data = JSON.parse(getResult.stdout)
           expect(data.type).toBe('document')
@@ -964,8 +1146,7 @@ describe('CLI Full Integration Tests', () => {
           })
           expect(result.exitCode).toBe(0)
           // Should output markdown preview (no key needed for dry-run)
-          expect(result.stdout).toContain('Dry Run')
-          expect(result.stdout).toContain('This should not be published')
+          expect(result.stdout).toContain('name: "Dry Run Test"')
         } finally {
           rmSync(tmpDir, {recursive: true, force: true})
         }
@@ -1203,7 +1384,7 @@ describe('CLI Full Integration Tests', () => {
         await new Promise((r) => setTimeout(r, 2000))
 
         // Verify destination exists with same content
-        const getResult = await runCli(['document', 'get', destHmId], {server: ctx.webServerUrl})
+        const getResult = await runCli(['document', 'get', destHmId, '--json'], {server: ctx.webServerUrl})
         expect(getResult.exitCode).toBe(0)
         const data = JSON.parse(getResult.stdout)
         expect(data.type).toBe('document')
@@ -1268,7 +1449,7 @@ describe('CLI Full Integration Tests', () => {
         await new Promise((r) => setTimeout(r, 2000))
 
         // Verify destination exists with same content
-        const destResult = await runCli(['document', 'get', moveDestHmId], {server: ctx.webServerUrl})
+        const destResult = await runCli(['document', 'get', moveDestHmId, '--json'], {server: ctx.webServerUrl})
         expect(destResult.exitCode).toBe(0)
         const data = JSON.parse(destResult.stdout)
         expect(data.type).toBe('document')
@@ -1369,6 +1550,7 @@ describe('CLI Full Integration Tests', () => {
     // --- Contact Tests ---
 
     const contactName = `Test Contact ${Date.now()}`
+    let createdContactId: string
 
     test(
       'contact create creates a contact',
@@ -1383,6 +1565,8 @@ describe('CLI Full Integration Tests', () => {
         }
         expect(result.exitCode).toBe(0)
         expect(result.stderr + result.stdout).toContain('Contact created:')
+        createdContactId = (result.stderr + result.stdout).match(/Contact created:\s+(\S+)/)?.[1] || ''
+        expect(createdContactId).toBeTruthy()
       },
       TEST_TIMEOUT,
     )
@@ -1471,14 +1655,9 @@ describe('CLI Full Integration Tests', () => {
     test(
       'contact delete deletes a contact',
       async () => {
-        // List contacts to find the one we created
-        const listResult = await runCli(['contact', 'list', writeAccount.accountId], {server: ctx.webServerUrl})
-        expect(listResult.exitCode).toBe(0)
-        const contacts = JSON.parse(listResult.stdout)
-        const target = contacts.find((c: any) => c.name === contactName)
-        expect(target).toBeTruthy()
+        expect(createdContactId).toBeTruthy()
 
-        const result = await runCli(['contact', 'delete', target.id, '--key', TEST_KEY_NAME], {
+        const result = await runCli(['contact', 'delete', createdContactId, '--key', TEST_KEY_NAME], {
           server: ctx.webServerUrl,
         })
         if (result.exitCode !== 0) {

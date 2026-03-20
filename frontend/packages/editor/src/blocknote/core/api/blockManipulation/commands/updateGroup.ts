@@ -84,7 +84,7 @@ export const updateGroupCommand = (
       group.attrs.listType !== listType &&
       container &&
       !tab &&
-      !(turnInto && group.attrs.listType === 'Grid') &&
+      !turnInto &&
       !isSank
     ) {
       setTimeout(() => {

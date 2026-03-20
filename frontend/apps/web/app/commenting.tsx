@@ -1,6 +1,6 @@
 import {useCreateAccount} from '@/auth'
 import {useNavigate as useRemixNavigate} from '@remix-run/react'
-import {createComment} from '@seed-hypermedia/client'
+import {createComment, filesToIpfsBlobs} from '@seed-hypermedia/client'
 import {
   HMBlockNode,
   HMMetadataPayload,
@@ -9,8 +9,8 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {CommentEditor} from '@shm/editor/comment-editor'
 import {idToUrl, queryKeys, unpackHmId, useUniversalAppContext, useUniversalClient} from '@shm/shared'
-import {useCommentsService} from '@shm/shared/comments-service-provider'
 import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider'
+import {useCommentsService} from '@shm/shared/comments-service-provider'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
 import {invalidateQueries, useQueryClient} from '@shm/shared/models/query-client'
@@ -25,7 +25,6 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {useMutation} from '@tanstack/react-query'
-import {filesToIpfsBlobs} from '@seed-hypermedia/client'
 import {Check, SendHorizontal, X} from 'lucide-react'
 import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useCommentDraftPersistence} from './comment-draft-utils'

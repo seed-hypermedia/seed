@@ -4,28 +4,26 @@ import {client} from '@/trpc'
 import {handleDragMedia} from '@/utils/media-drag'
 import {useNavigate} from '@/utils/useNavigate'
 import {createComment} from '@seed-hypermedia/client'
-import {CommentEditor} from '@shm/editor/comment-editor'
-import {queryClient, queryKeys} from '@shm/shared'
-import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
-import {useCommentsService} from '@shm/shared/comments-service-provider'
-import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider'
 import {
   HMBlockNode,
-  HMComment,
   HMCommentGroup,
   HMListDiscussionsOutput,
   HMMetadataPayload,
   HMPublishBlobsInput,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {useResource} from '@shm/shared/models/entity'
+import {CommentEditor} from '@shm/editor/comment-editor'
+import {queryClient, queryKeys} from '@shm/shared'
+import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider'
+import {useCommentsService} from '@shm/shared/comments-service-provider'
 import {useContacts} from '@shm/shared/models/contacts'
+import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {applyOptimisticComment, buildOptimisticComment, navigateToComment} from '@shm/shared/optimistic-comment'
 import {useUniversalClient} from '@shm/shared/routing'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
-import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useMutation} from '@tanstack/react-query'
 import {Check, SendHorizonal, X} from 'lucide-react'

@@ -688,6 +688,35 @@ reply, the thread root is inherited. Otherwise, the parent comment itself become
 
 ---
 
+### comment edit
+
+Edit an existing comment.
+
+```
+seed-cli comment edit <commentId> [options]
+```
+
+| Option             | Description                    |
+| ------------------ | ------------------------------ |
+| `--body <text>`    | Updated comment text (inline)  |
+| `--file <path>`    | Read updated text from file    |
+| `-k, --key <name>` | Signing key name or account ID |
+
+**Examples:**
+
+```bash
+# Edit inline
+seed-cli comment edit z6MkAuthor.../zb2rComment... --body "Updated wording" --key reviewer
+
+# Edit from file
+seed-cli comment edit z6MkAuthor.../zb2rComment... --file review-update.txt --key reviewer
+```
+
+The CLI preserves reply threading metadata for replies and keeps the block-level anchor wrapper for comments that were
+originally attached to a specific block.
+
+---
+
 ### comment delete
 
 Delete a comment by publishing a tombstone.

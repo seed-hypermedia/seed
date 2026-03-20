@@ -24,7 +24,7 @@ export function createMinimalSchema(): Schema {
       },
       blockNode: {
         content: 'paragraph blockChildren?',
-        group: 'blockNodeChild block',
+        group: 'blockNodeChild',
         attrs: {id: {default: null}},
       },
       paragraph: {
