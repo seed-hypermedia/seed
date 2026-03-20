@@ -3,11 +3,14 @@ import {BranchDialog} from '@/components/branch-dialog'
 import {CommentBox, renderDesktopInlineEditor, triggerCommentDraftFocus} from '@/components/commenting'
 import {CreateDocumentButton} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
+import {usePublishSite, useRemoveSiteDialog} from '@/components/publish-site'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {DesktopDocumentActionsProvider} from '@/components/document-actions-provider'
 import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
 import {MoveDialog} from '@/components/move-dialog'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
+import {useGatewayUrl} from '@/models/gateway-settings'
+import {useHostSession} from '@/models/host'
 import {useMyAccountIds} from '@/models/daemon'
 import {useChildDrafts, useCreateInlineDraft, useDeleteDraft, useUpdateDraftMetadata} from '@/models/documents'
 import {useExistingDraft} from '@/models/drafts'
@@ -15,7 +18,8 @@ import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
-import {hmId} from '@shm/shared'
+import {hmId, hostnameStripProtocol} from '@shm/shared'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {findSelfQueryBlock} from '@shm/shared/content'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
@@ -24,7 +28,7 @@ import {HMBlockNode, HMComment} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useNavRoute, useNavigationDispatch} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
-import {Download, SubscribeSpace, Trash} from '@shm/ui/icons'
+import {CloudOff, Download, SubscribeSpace, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {ResourcePage} from '@shm/ui/resource-page-common'
 import {SizableText} from '@shm/ui/text'
@@ -64,6 +68,12 @@ export default function DesktopResourcePage() {
   const siteHomeResource = useResource(hmId(docId.uid), {subscribed: true})
   const siteUrl =
     siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document?.metadata?.siteUrl : undefined
+
+  // Publishing / unpublishing
+  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
+  const removeSiteDialog = useRemoveSiteDialog()
+  const publishSite = usePublishSite()
+  const pendingDomain = useHostSession().pendingDomains?.find((pending) => pending.siteUid === docId.uid)
 
   // Hooks for options dropdown
   const resource = useResource(docId)
@@ -292,6 +302,42 @@ export default function DesktopResourcePage() {
     })
   }
 
+  // Publish / Unpublish site options (only for home documents)
+  if (!docId.path?.length && canEdit) {
+    if (siteUrl) {
+      const siteHost = hostnameStripProtocol(siteUrl)
+      const gwHost = hostnameStripProtocol(gwUrl)
+      if (siteHost.endsWith(gwHost) && !pendingDomain) {
+        menuItems.push({
+          key: 'publish-custom-domain',
+          label: 'Publish Custom Domain',
+          icon: <UploadCloud className="size-4" />,
+          onClick: () => {
+            publishSite.open({id: docId, step: 'seed-host-custom-domain'})
+          },
+        })
+      }
+      menuItems.push({
+        key: 'remove-site',
+        label: 'Remove Site from Publication',
+        icon: <CloudOff className="size-4" />,
+        variant: 'destructive',
+        onClick: () => {
+          removeSiteDialog.open(docId)
+        },
+      })
+    } else {
+      menuItems.push({
+        key: 'publish-site',
+        label: 'Publish Site to Domain',
+        icon: <UploadCloud className="size-4" />,
+        onClick: () => {
+          publishSite.open({id: docId})
+        },
+      })
+    }
+  }
+
   const editActions = canEdit ? (
     <>
       <Tooltip content={existingDraft ? 'Resume Editing' : 'Edit'}>
@@ -440,6 +486,8 @@ export default function DesktopResourcePage() {
       {branchDialog.content}
       {moveDialog.content}
       {editProfileDialog.content}
+      {removeSiteDialog.content}
+      {publishSite.content}
     </div>
   )
 }
