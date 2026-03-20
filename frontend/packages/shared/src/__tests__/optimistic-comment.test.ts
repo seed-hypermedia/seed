@@ -50,7 +50,13 @@ describe('navigateToComment', () => {
     const route = {key: 'comments' as const, id: docId}
     const prev = navigateToComment(navigate, route, commentRecordId)
 
-    expect(navigate).toHaveBeenCalledWith({...route, openComment: commentRecordId})
+    expect(navigate).toHaveBeenCalledWith({
+      ...route,
+      openComment: commentRecordId,
+      isReplying: undefined,
+      replyCommentVersion: undefined,
+      rootReplyCommentVersion: undefined,
+    })
     expect(prev).toEqual(route)
   })
 
@@ -62,7 +68,13 @@ describe('navigateToComment', () => {
 
     expect(navigate).toHaveBeenCalledWith({
       ...route,
-      panel: {...panel, openComment: commentRecordId},
+      panel: {
+        ...panel,
+        openComment: commentRecordId,
+        isReplying: undefined,
+        replyCommentVersion: undefined,
+        rootReplyCommentVersion: undefined,
+      },
     })
     expect(prev).toBeTruthy()
   })
@@ -93,6 +105,45 @@ describe('navigateToComment', () => {
     expect(navigate).toHaveBeenCalledWith(
       expect.objectContaining({targetBlockId: 'blk1', width: 400, openComment: commentRecordId}),
     )
+  })
+
+  it('clears stale reply data on a comments route after posting', () => {
+    const navigate = vi.fn()
+    const route = {
+      key: 'comments' as const,
+      id: docId,
+      openComment: 'old-comment/id',
+      isReplying: true,
+      replyCommentVersion: 'bafyOldReplyVersion',
+      rootReplyCommentVersion: 'bafyOldRootVersion',
+    }
+    navigateToComment(navigate, route, commentRecordId)
+
+    const navigatedRoute = navigate.mock.calls[0][0]
+    expect(navigatedRoute.openComment).toBe(commentRecordId)
+    expect(navigatedRoute.isReplying).toBeUndefined()
+    expect(navigatedRoute.replyCommentVersion).toBeUndefined()
+    expect(navigatedRoute.rootReplyCommentVersion).toBeUndefined()
+  })
+
+  it('clears stale reply data on a document route with comments panel after posting', () => {
+    const navigate = vi.fn()
+    const panel = {
+      key: 'comments' as const,
+      id: docId,
+      openComment: 'old-comment/id',
+      isReplying: true,
+      replyCommentVersion: 'bafyOldReplyVersion',
+      rootReplyCommentVersion: 'bafyOldRootVersion',
+    }
+    const route = {key: 'document' as const, id: docId, panel}
+    navigateToComment(navigate, route, commentRecordId)
+
+    const navigatedRoute = navigate.mock.calls[0][0]
+    expect(navigatedRoute.panel.openComment).toBe(commentRecordId)
+    expect(navigatedRoute.panel.isReplying).toBeUndefined()
+    expect(navigatedRoute.panel.replyCommentVersion).toBeUndefined()
+    expect(navigatedRoute.panel.rootReplyCommentVersion).toBeUndefined()
   })
 })
 

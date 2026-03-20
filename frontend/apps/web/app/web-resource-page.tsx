@@ -104,6 +104,10 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
 
   const onReplyClick = useCallback(
     (replyComment: HMComment) => {
+      const replyVersionData = {
+        replyCommentVersion: replyComment.version,
+        rootReplyCommentVersion: replyComment.threadRootVersion || replyComment.version,
+      }
       const targetRoute = isRouteEqualToCommentTarget({
         id: docId,
         comment: replyComment,
@@ -117,10 +121,11 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
             id: targetRoute,
             openComment: replyComment.id,
             isReplying: true,
+            ...replyVersionData,
           },
         })
       } else if (route.key === 'comments') {
-        replaceRoute({...route, openComment: replyComment.id, isReplying: true})
+        replaceRoute({...route, openComment: replyComment.id, isReplying: true, ...replyVersionData})
       } else {
         replaceRoute({
           ...route,
@@ -129,6 +134,7 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
             id: docId,
             openComment: replyComment.id,
             isReplying: true,
+            ...replyVersionData,
           },
         } as any)
       }
@@ -153,7 +159,13 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
           },
         })
       } else if (route.key === 'comments') {
-        replaceRoute({...route, openComment: replyComment.id})
+        replaceRoute({
+          ...route,
+          openComment: replyComment.id,
+          isReplying: undefined,
+          replyCommentVersion: undefined,
+          rootReplyCommentVersion: undefined,
+        })
       } else {
         replaceRoute({
           ...route,

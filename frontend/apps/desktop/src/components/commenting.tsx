@@ -55,6 +55,10 @@ function _CommentBox(props: {
   isReplying?: boolean
   autoFocus?: boolean
   context?: 'accessory' | 'feed' | 'document-content'
+  /** CID version of the comment being replied to, passed from the route. */
+  replyCommentVersion?: string
+  /** CID version of the thread root comment, passed from the route. */
+  rootReplyCommentVersion?: string
 }) {
   const {docId, quotingBlockId, commentId, isReplying, autoFocus, context} = props
 
@@ -76,6 +80,10 @@ function _CommentBox(props: {
       rootReplyCommentVersion: comment.threadRootVersion || comment.version,
     }
   }, [commentId, commentsService.data?.comments])
+
+  // Use route-provided version data first, fall back to resolved values from comments service
+  const finalReplyVersion = props.replyCommentVersion || resolvedReply?.replyCommentVersion
+  const finalRootVersion = props.rootReplyCommentVersion || resolvedReply?.rootReplyCommentVersion
 
   const draft = useCommentDraft(
     quotingBlockId ? {...docId, blockRef: quotingBlockId} : docId,
@@ -168,7 +176,7 @@ function _CommentBox(props: {
         docVersion: targetDoc?.version || docId.version || '',
         contentBlocks,
         replyParentId: commentId || undefined,
-        threadRootVersion: resolvedReply?.rootReplyCommentVersion,
+        threadRootVersion: finalRootVersion,
         quotingBlockId,
         visibility: targetDoc?.visibility === 'PRIVATE' ? 'PRIVATE' : 'PUBLIC',
       })
@@ -280,8 +288,8 @@ function _CommentBox(props: {
             getContent: wrappedGetContent,
             docId,
             docVersion: targetVersion || docId.version || '',
-            replyCommentVersion: resolvedReply?.replyCommentVersion,
-            rootReplyCommentVersion: resolvedReply?.rootReplyCommentVersion,
+            replyCommentVersion: finalReplyVersion,
+            rootReplyCommentVersion: finalRootVersion,
             quotingBlockId,
             visibility: targetDoc?.visibility === 'PRIVATE' ? 'Private' : '',
           },
@@ -307,7 +315,8 @@ function _CommentBox(props: {
       getSigner,
       targetEntity.data,
       docId,
-      resolvedReply,
+      finalReplyVersion,
+      finalRootVersion,
       quotingBlockId,
       writeRecentSigner,
     ],

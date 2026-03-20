@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {createDocumentNavRoute, type NavRoute} from '../routes'
+import {commentsRouteSchema, createDocumentNavRoute, type NavRoute} from '../routes'
 import {routeToHref} from '../routing'
 import {extractViewTermFromUrl, hmId, routeToUrl, unpackHmId, viewTermToRouteKey} from '../utils/entity-id-url'
 import {appRouteOfId} from '../utils/navigation'
@@ -619,5 +619,40 @@ describe('search-input gateway shortcut: profile URL via unpackHmId', () => {
     expect(unpacked!.path).toEqual([':profile', 'z6Mkf6sj8W'])
     const docRoute = assertDocumentRoute(appRouteOfId(unpacked!))
     expect(docRoute.id.path).toEqual([':profile', 'z6Mkf6sj8W'])
+  })
+})
+
+describe('commentsRouteSchema reply version fields', () => {
+  const baseRoute = {key: 'comments' as const, id: testDocId}
+
+  test('accepts replyCommentVersion and rootReplyCommentVersion', () => {
+    const route = {
+      ...baseRoute,
+      openComment: 'author/tsid',
+      isReplying: true,
+      replyCommentVersion: 'bafyReplyVersion123',
+      rootReplyCommentVersion: 'bafyRootVersion456',
+    }
+    const parsed = commentsRouteSchema.parse(route)
+    expect(parsed.replyCommentVersion).toBe('bafyReplyVersion123')
+    expect(parsed.rootReplyCommentVersion).toBe('bafyRootVersion456')
+    expect(parsed.isReplying).toBe(true)
+  })
+
+  test('version fields are optional', () => {
+    const parsed = commentsRouteSchema.parse(baseRoute)
+    expect(parsed.replyCommentVersion).toBeUndefined()
+    expect(parsed.rootReplyCommentVersion).toBeUndefined()
+  })
+
+  test('version fields can be set independently', () => {
+    const route = {
+      ...baseRoute,
+      openComment: 'author/tsid',
+      replyCommentVersion: 'bafyReplyOnly',
+    }
+    const parsed = commentsRouteSchema.parse(route)
+    expect(parsed.replyCommentVersion).toBe('bafyReplyOnly')
+    expect(parsed.rootReplyCommentVersion).toBeUndefined()
   })
 })

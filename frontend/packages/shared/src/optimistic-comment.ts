@@ -160,13 +160,28 @@ export function navigateToComment(
 ): NavRoute | null {
   if (route.key === 'comments') {
     const previousRoute = {...route}
-    navigate({...route, openComment: recordId})
+    navigate({
+      ...route,
+      openComment: recordId,
+      isReplying: undefined,
+      replyCommentVersion: undefined,
+      rootReplyCommentVersion: undefined,
+    })
     return previousRoute
   }
 
   if (route.key === 'document' && route.panel?.key === 'comments') {
     const previousRoute = {...route, panel: {...route.panel}}
-    navigate({...route, panel: {...route.panel, openComment: recordId}})
+    navigate({
+      ...route,
+      panel: {
+        ...route.panel,
+        openComment: recordId,
+        isReplying: undefined,
+        replyCommentVersion: undefined,
+        rootReplyCommentVersion: undefined,
+      },
+    })
     return previousRoute
   }
 
