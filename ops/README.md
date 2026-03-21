@@ -6,7 +6,7 @@ orchestration, backups, and automatic updates.
 ## Quick Start
 
 ```sh
-curl -fsSL https://deploy.seed.hyper.media/deploy.sh | sh
+curl -fsSL https://deploy.seed.hyper.media | sh
 ```
 
 The bootstrap script installs Docker and Bun (if missing), downloads the deployment engine, and launches an interactive

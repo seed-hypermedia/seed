@@ -96,16 +96,35 @@ fi
 
 if ! command_exists unzip; then
   info "Installing unzip (required for Bun)..."
+  installed_unzip=0
   if command_exists apt-get; then
-    sudo apt-get update -qq && sudo apt-get install -y -qq unzip
-  elif command_exists dnf; then
-    sudo dnf install -y -q unzip
-  elif command_exists yum; then
-    sudo yum install -y -q unzip
-  elif command_exists apk; then
-    sudo apk add --quiet unzip
-  else
+    # apt-get update may fail on EOL distros with broken repos, so we try
+    # installing without update first, then with update, then fall through.
+    if sudo apt-get install -y -qq unzip 2>/dev/null; then
+      installed_unzip=1
+    elif sudo apt-get update -qq 2>/dev/null && sudo apt-get install -y -qq unzip 2>/dev/null; then
+      installed_unzip=1
+    fi
+  fi
+  if [ "$installed_unzip" = 0 ] && command_exists dnf; then
+    sudo dnf install -y -q unzip && installed_unzip=1
+  fi
+  if [ "$installed_unzip" = 0 ] && command_exists yum; then
+    sudo yum install -y -q unzip && installed_unzip=1
+  fi
+  if [ "$installed_unzip" = 0 ] && command_exists apk; then
+    sudo apk add --quiet unzip && installed_unzip=1
+  fi
+  if [ "$installed_unzip" = 0 ] && command_exists busybox && busybox unzip -l /dev/null >/dev/null 2>&1; then
+    # busybox provides a built-in unzip applet on many minimal systems.
+    info "Using busybox unzip as fallback..."
+    sudo ln -sf "$(command -v busybox)" /usr/local/bin/unzip
+    installed_unzip=1
+  fi
+  if [ "$installed_unzip" = 0 ]; then
     echo "ERROR: 'unzip' is required to install Bun but could not be installed automatically." >&2
+    echo "Your system's package manager could not install it (repositories may be" >&2
+    echo "broken or the OS may have reached end-of-life)." >&2
     echo "Please install 'unzip' manually and re-run this script." >&2
     exit 1
   fi
