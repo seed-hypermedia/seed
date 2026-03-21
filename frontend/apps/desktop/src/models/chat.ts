@@ -82,7 +82,17 @@ export function useSendChatMessage() {
       sessionId: string
       content: string | string[]
       providerId?: string
-      documentContext?: {url?: string; title?: string}
+      documentContext?: {
+        url?: string
+        title?: string
+        view?: 'document' | 'comments' | 'directory' | 'activity' | 'collaborators' | 'feed' | 'draft'
+        activePanel?: 'comments' | 'activity' | 'directory' | 'collaborators' | 'options'
+        openComment?: string
+        focusedBlockId?: string
+        focusedBlockRange?: {start: number; end: number}
+        isDraft?: boolean
+        editingDocumentUrl?: string
+      }
     }) => client.chat.sendMessage.mutate(input),
     onSuccess(_data, variables) {
       invalidateQueries([queryKeys.CHAT_SESSION, variables.sessionId])

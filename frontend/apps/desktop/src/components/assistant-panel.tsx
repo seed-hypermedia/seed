@@ -11,7 +11,8 @@ import {
 import {buildLegacyChatMessageParts, type ChatMessagePart, type ChatToolPart} from '@/models/chat-parts'
 import {useOpenUrl} from '@/open-url'
 import {useNavigate} from '@/utils/useNavigate'
-import {packHmId} from '@shm/shared/utils/entity-id-url'
+import {useResource} from '@shm/shared/models/entity'
+import {hmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {AlertDialogFooter, AlertDialogTitle} from '@shm/ui/components/alert-dialog'
@@ -169,25 +170,99 @@ function ChatView({
 
   // Document context from current route
   const navRoute = useNavRoute()
+  const routeId =
+    'id' in navRoute && navRoute.key !== 'draft' ? (navRoute.id as import('@seed-hypermedia/client/hm-types').UnpackedHypermediaId) : undefined
+  const resource = useResource(routeId)
+  const documentTitle = resource.data?.type === 'document' ? (resource.data.document?.metadata?.name || undefined) : undefined
+
   const documentContext = useMemo(() => {
-    if (
-      navRoute.key === 'document' ||
-      navRoute.key === 'comments' ||
-      navRoute.key === 'directory' ||
-      navRoute.key === 'activity' ||
-      navRoute.key === 'collaborators' ||
-      navRoute.key === 'feed'
-    ) {
-      const id = navRoute.id
-      try {
-        const url = packHmId(id)
-        return {url, title: undefined as string | undefined}
-      } catch {
-        return undefined
-      }
+    type DocCtx = {
+      url?: string
+      title?: string
+      view?: 'document' | 'comments' | 'directory' | 'activity' | 'collaborators' | 'feed' | 'draft'
+      activePanel?: 'comments' | 'activity' | 'directory' | 'collaborators' | 'options'
+      openComment?: string
+      focusedBlockId?: string
+      focusedBlockRange?: {start: number; end: number}
+      isDraft?: boolean
+      editingDocumentUrl?: string
     }
-    return undefined
-  }, [navRoute])
+
+    const panel = 'panel' in navRoute ? (navRoute.panel as {key: string; openComment?: string} | null | undefined) : undefined
+    const activePanel = panel?.key as DocCtx['activePanel']
+
+    switch (navRoute.key) {
+      case 'document':
+      case 'directory':
+      case 'activity':
+      case 'collaborators':
+      case 'feed': {
+        const id = navRoute.id
+        try {
+          const ctx: DocCtx = {
+            url: packHmId(id),
+            title: documentTitle,
+            view: navRoute.key,
+            activePanel,
+          }
+          if (id.blockRef) ctx.focusedBlockId = id.blockRef
+          if (id.blockRange) {
+            ctx.focusedBlockRange = {
+              start: id.blockRange.start ?? 0,
+              end: id.blockRange.end ?? 0,
+            }
+          }
+          // Extract openComment from comments side panel
+          if (panel?.key === 'comments' && panel.openComment) {
+            ctx.openComment = panel.openComment
+          }
+          return ctx
+        } catch {
+          return undefined
+        }
+      }
+      case 'comments': {
+        const id = navRoute.id
+        try {
+          const ctx: DocCtx = {
+            url: packHmId(id),
+            title: documentTitle,
+            view: 'comments',
+            activePanel,
+          }
+          if (navRoute.openComment) ctx.openComment = navRoute.openComment
+          if (navRoute.targetBlockId) ctx.focusedBlockId = navRoute.targetBlockId
+          else if (navRoute.blockId) ctx.focusedBlockId = navRoute.blockId
+          if (navRoute.blockRange) {
+            ctx.focusedBlockRange = {
+              start: navRoute.blockRange.start ?? 0,
+              end: navRoute.blockRange.end ?? 0,
+            }
+          }
+          return ctx
+        } catch {
+          return undefined
+        }
+      }
+      case 'draft': {
+        const ctx: DocCtx = {
+          view: 'draft',
+          isDraft: true,
+          activePanel,
+        }
+        if (navRoute.editUid) {
+          try {
+            ctx.editingDocumentUrl = packHmId(hmId(navRoute.editUid, {path: navRoute.editPath}))
+          } catch {
+            // ignore if packing fails
+          }
+        }
+        return ctx
+      }
+      default:
+        return undefined
+    }
+  }, [navRoute, documentTitle])
 
   // Message queue for messages sent while streaming
   const queuedMessagesRef = useRef<string[]>([])

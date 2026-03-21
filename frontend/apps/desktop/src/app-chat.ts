@@ -426,14 +426,13 @@ function summarizeToolOutput(output: unknown): string {
 
 async function readDocument(id: ReturnType<typeof unpackHmId>) {
   if (!id) return 'Error: invalid document ID'
-  const doc = await grpcClient.documents.getDocument({
-    account: id.uid,
-    path: hmIdPathToEntityQueryPath(id.path),
-    version: id.version || undefined,
-  })
-  const metadata = getPlainMetadata(doc.metadata)
-  const title = metadata?.name || 'Untitled'
-  const content = doc.content ? blockNodesToMarkdown(doc.content as HMBlockNode[]) : '(empty document)'
+  const resource = await desktopRequest('Resource', id)
+  if (resource.type !== 'document' || !resource.document) {
+    return 'Error: resource is not a document'
+  }
+  const doc = resource.document
+  const title = doc.metadata?.name || 'Untitled'
+  const content = doc.content?.length ? blockNodesToMarkdown(doc.content) : '(empty document)'
   return {
     title,
     markdown: `# ${title}\n\n${content}`,
@@ -844,6 +843,20 @@ export const chatApi = t.router({
           .object({
             url: z.string().optional(),
             title: z.string().optional(),
+            view: z
+              .enum(['document', 'comments', 'directory', 'activity', 'collaborators', 'feed', 'draft'])
+              .optional(),
+            activePanel: z.enum(['comments', 'activity', 'directory', 'collaborators', 'options']).optional(),
+            openComment: z.string().optional(),
+            focusedBlockId: z.string().optional(),
+            focusedBlockRange: z
+              .object({
+                start: z.number(),
+                end: z.number(),
+              })
+              .optional(),
+            isDraft: z.boolean().optional(),
+            editingDocumentUrl: z.string().optional(),
           })
           .optional(),
       }),
@@ -913,14 +926,38 @@ export const chatApi = t.router({
         'To explore a section of a site, read the directory first, then read each child document.',
         `The current time is: ${new Date().toISOString()}`,
       ]
-      if (input.documentContext?.url) {
+      if (input.documentContext?.url || input.documentContext?.isDraft) {
         systemParts.push('')
-        systemParts.push(`The user is currently viewing: ${input.documentContext.url}`)
+        systemParts.push('## Current window')
+        if (input.documentContext.url) {
+          systemParts.push(`URL: ${input.documentContext.url}`)
+        }
         if (input.documentContext.title) {
-          systemParts.push(`Document title: "${input.documentContext.title}"`)
+          systemParts.push(`Title: "${input.documentContext.title}"`)
+        }
+        if (input.documentContext.view) {
+          systemParts.push(`View: ${input.documentContext.view}`)
+        }
+        if (input.documentContext.activePanel) {
+          systemParts.push(`Side panel: ${input.documentContext.activePanel}`)
+        }
+        if (input.documentContext.openComment) {
+          systemParts.push(`Open comment: ${input.documentContext.openComment}`)
+        }
+        if (input.documentContext.focusedBlockId) {
+          const rangeStr = input.documentContext.focusedBlockRange
+            ? `[${input.documentContext.focusedBlockRange.start}:${input.documentContext.focusedBlockRange.end}]`
+            : ''
+          systemParts.push(`Focused block: ${input.documentContext.focusedBlockId}${rangeStr}`)
+        }
+        if (input.documentContext.isDraft) {
+          systemParts.push('The user is editing a draft.')
+          if (input.documentContext.editingDocumentUrl) {
+            systemParts.push(`Editing document: ${input.documentContext.editingDocumentUrl}`)
+          }
         }
         systemParts.push(
-          'You can use this URL with the `read` tool to inspect the document or with `navigate` to reopen specific views.',
+          'Treat this as the default referent when the user says "this document", "this comment", etc. Use `read` to verify content before answering.',
         )
       }
       const system = systemParts.join('\n')

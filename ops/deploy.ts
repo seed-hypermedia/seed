@@ -564,10 +564,33 @@ async function runMigrationWizard(old: OldInstallInfo, paths: DeployPaths, shell
   await writeConfig(config, paths)
   p.log.success(`Config written to ${paths.configPath}`)
 
+  // Copy data directories from the old workspace into the new seed directory
+  // so the node keeps its identity, documents, and web state across migration.
+  // Only copy if the target directory is empty — if it already has data this
+  // is a reconfiguration, not a fresh migration.
+  if (old.workspace !== paths.seedDir) {
+    const dataDirs = ['daemon', 'web']
+    for (const dir of dataDirs) {
+      const src = join(old.workspace, dir)
+      const dst = join(paths.seedDir, dir)
+      const srcExists = shell.runSafe(`test -d "${src}" && echo yes`) === 'yes'
+      const dstEmpty = shell.runSafe(`find "${dst}" -mindepth 1 -maxdepth 1 2>/dev/null | head -1`) === ''
+      if (srcExists && dstEmpty) {
+        p.log.info(`Copying ${src} → ${dst} ...`)
+        // Use cp -a to preserve permissions, symlinks, and timestamps.
+        // Try without sudo first, fall back to sudo if needed.
+        if (!shell.runSafe(`cp -a "${src}/." "${dst}/" 2>/dev/null`)) {
+          shell.run(`sudo cp -a "${src}/." "${dst}/"`)
+        }
+        p.log.success(`Migrated ${dir}/ data.`)
+      }
+    }
+  }
+
   // Migrate file ownership from the old UID 1001 (hardcoded in the previous
   // web Dockerfile) to the current user. The new docker-compose.yml runs the
   // web container as the host user, so the data directory must be owned by them.
-  const webDir = join(old.workspace, 'web')
+  const webDir = join(paths.seedDir, 'web')
   const currentUid = String(process.getuid!())
   const currentGid = String(process.getgid!())
   const owner = shell.runSafe(`stat -c '%u:%g' "${webDir}" 2>/dev/null`)
