@@ -568,7 +568,10 @@ async function runMigrationWizard(old: OldInstallInfo, paths: DeployPaths, shell
   // so the node keeps its identity, documents, and web state across migration.
   // Only copy if the target directory is empty — if it already has data this
   // is a reconfiguration, not a fresh migration.
+  // Stop old containers first to avoid copying files while they're being written.
   if (old.workspace !== paths.seedDir) {
+    p.log.info('Stopping old containers before migrating data...')
+    shell.runSafe('docker stop seed-site seed-daemon seed-web seed-proxy autoupdater grafana prometheus 2>/dev/null')
     const dataDirs = ['daemon', 'web']
     for (const dir of dataDirs) {
       const src = join(old.workspace, dir)
