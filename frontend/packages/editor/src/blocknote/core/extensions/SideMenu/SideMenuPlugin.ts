@@ -212,19 +212,37 @@ export function unsetDragImage(rootEl?: Document | ShadowRoot) {
   }
 }
 
-function dragStart(e: {dataTransfer: DataTransfer | null; clientY: number}, view: EditorView) {
+function dragStart(
+  e: {dataTransfer: DataTransfer | null; clientX?: number; clientY: number},
+  view: EditorView,
+  hoveredBlockEl?: HTMLElement,
+) {
   if (!e.dataTransfer) {
     return
   }
 
-  const editorBoundingBox = view.dom.getBoundingClientRect()
-
-  const coords = {
-    left: editorBoundingBox.left + editorBoundingBox.width / 2, // take middle of editor
-    top: e.clientY,
+  // If the caller provides the hovered block element, use posAtDOM directly
+  let pos: number | null = null
+  if (hoveredBlockEl) {
+    try {
+      const docView = (view as any).docView
+      const desc = docView.nearestDesc(hoveredBlockEl, true)
+      if (desc && desc !== docView) {
+        pos = desc.posBefore
+      }
+    } catch {
+      // fall through to coordinate-based lookup
+    }
   }
 
-  const pos = blockPositionFromCoords(coords, view)
+  if (pos == null) {
+    const editorBoundingBox = view.dom.getBoundingClientRect()
+    const coords = {
+      left: editorBoundingBox.left + editorBoundingBox.width / 2, // take middle of editor
+      top: e.clientY,
+    }
+    pos = blockPositionFromCoords(coords, view)
+  }
   if (pos != null) {
     const selection = view.state.selection
     const doc = view.state.doc
@@ -271,7 +289,7 @@ export class SideMenuView<BSchema extends BlockSchema> implements PluginView {
   private horizontalPosAnchoredAtRoot: boolean
   private horizontalPosAnchor: number
 
-  private hoveredBlock: HTMLElement | undefined
+  hoveredBlock: HTMLElement | undefined
 
   // Used to check if currently dragged content comes from this editor instance.
   public isDragging = false
@@ -332,12 +350,12 @@ export class SideMenuView<BSchema extends BlockSchema> implements PluginView {
     if (!pos || pos.inside === -1) {
       const evt = new Event('drop', event) as any
       const editorBoundingBox = (this.pmView.dom.firstChild! as HTMLElement).getBoundingClientRect()
-      evt.clientX = editorBoundingBox.left + editorBoundingBox.width / 2
+      evt.clientX = Math.max(editorBoundingBox.left, Math.min(event.clientX, editorBoundingBox.right))
       evt.clientY = event.clientY
       evt.dataTransfer = event.dataTransfer
       evt.preventDefault = () => event.preventDefault()
       evt.synthetic = true // prevent recursion
-      console.log('dispatch fake drop', evt)
+      // console.log('dispatch fake drop', evt)
       this.pmView.dom.dispatchEvent(evt)
     }
   }
@@ -362,12 +380,11 @@ export class SideMenuView<BSchema extends BlockSchema> implements PluginView {
     if (!pos || pos.inside === -1) {
       const evt = new Event('dragover', event) as any
       const editorBoundingBox = (this.pmView.dom.firstChild! as HTMLElement).getBoundingClientRect()
-      evt.clientX = editorBoundingBox.left + editorBoundingBox.width / 2
+      evt.clientX = Math.max(editorBoundingBox.left, Math.min(event.clientX, editorBoundingBox.right))
       evt.clientY = event.clientY
       evt.dataTransfer = event.dataTransfer
       evt.preventDefault = () => event.preventDefault()
       evt.synthetic = true // prevent recursion
-      // console.log("dispatch fake dragover");
       this.pmView.dom.dispatchEvent(evt)
     }
   }
@@ -455,16 +472,18 @@ export class SideMenuView<BSchema extends BlockSchema> implements PluginView {
       return
     }
 
-    // When the side menu is showing for a grid child and the cursor is to the
-    // left of (or vertically aligned with) that block, keep the menu on the
-    // current block so it remains clickable.
+    // When the side menu is showing for a grid child and the cursor is slightly
+    // to the left of that block, keep the menu on the current block so the user
+    // can click the drag handle. Cap the distance so moving far left into another
+    // column re-resolves correctly.
     if (this.sideMenuState?.show && this.hoveredBlock) {
       const parentEl = this.hoveredBlock.parentElement
       if (parentEl?.getAttribute('data-list-type') === 'Grid') {
         const hoveredRect = this.hoveredBlock.getBoundingClientRect()
-        const isLeftOfBlock = event.clientX < hoveredRect.left
+        const distLeft = hoveredRect.left - event.clientX
+        const isSlightlyLeft = distLeft > 0 && distLeft < 60
         const isVerticallyAligned = event.clientY >= hoveredRect.top && event.clientY <= hoveredRect.bottom
-        if (isLeftOfBlock && isVerticallyAligned) {
+        if (isSlightlyLeft && isVerticallyAligned) {
           return
         }
       }
@@ -630,9 +649,9 @@ export class SideMenuProsemirrorPlugin<BSchema extends BlockSchema> extends Even
   /**
    * Handles drag & drop events for blocks.
    */
-  blockDragStart = (event: {dataTransfer: DataTransfer | null; clientY: number}) => {
+  blockDragStart = (event: {dataTransfer: DataTransfer | null; clientX?: number; clientY: number}) => {
     this.sideMenuView!.isDragging = true
-    dragStart(event, this.editor.prosemirrorView)
+    dragStart(event, this.editor.prosemirrorView, this.sideMenuView!.hoveredBlock)
   }
 
   /**

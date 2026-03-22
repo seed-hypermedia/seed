@@ -225,12 +225,18 @@ function dragStart(e: DragEvent, view: EditorView) {
 
   const editorBoundingBox = view.dom.getBoundingClientRect()
 
+  // Use actual clientX to correctly identify grid cells
   let coords = {
-    left: editorBoundingBox.left + editorBoundingBox.width / 2, // take middle of editor
+    left: e.clientX ?? editorBoundingBox.left + editorBoundingBox.width / 2,
     top: e.clientY,
   }
 
   let pos = blockPositionFromCoords(coords, view)
+  // Fall back to editor center X if the actual position didn't resolve
+  if (pos == null) {
+    coords.left = editorBoundingBox.left + editorBoundingBox.width / 2
+    pos = blockPositionFromCoords(coords, view)
+  }
   if (pos != null) {
     const selection = view.state.selection
     const doc = view.state.doc
@@ -338,12 +344,11 @@ export class BlockMenuView<BSchema extends BlockSchema> {
     if (!pos || pos.inside === -1) {
       const evt = new Event('drop', event) as any
       const editorBoundingBox = (this.ttEditor.view.dom.firstChild! as HTMLElement).getBoundingClientRect()
-      evt.clientX = editorBoundingBox.left + editorBoundingBox.width / 2
+      evt.clientX = Math.max(editorBoundingBox.left, Math.min(event.clientX, editorBoundingBox.right))
       evt.clientY = event.clientY
       evt.dataTransfer = event.dataTransfer
       evt.preventDefault = () => event.preventDefault()
       evt.synthetic = true // prevent recursion
-      // console.log("dispatch fake drop");
       this.ttEditor.view.dom.dispatchEvent(evt)
     }
   }
@@ -371,12 +376,11 @@ export class BlockMenuView<BSchema extends BlockSchema> {
     if (!pos || pos.inside === -1) {
       const evt = new Event('dragover', event) as any
       const editorBoundingBox = (this.ttEditor.view.dom.firstChild! as HTMLElement).getBoundingClientRect()
-      evt.clientX = editorBoundingBox.left + editorBoundingBox.width / 2
+      evt.clientX = Math.max(editorBoundingBox.left, Math.min(event.clientX, editorBoundingBox.right))
       evt.clientY = event.clientY
       evt.dataTransfer = event.dataTransfer
       evt.preventDefault = () => event.preventDefault()
       evt.synthetic = true // prevent recursion
-      // console.log("dispatch fake dragover");
       this.ttEditor.view.dom.dispatchEvent(evt)
     }
   }

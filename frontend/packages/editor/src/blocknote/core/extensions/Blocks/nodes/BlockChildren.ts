@@ -1,12 +1,76 @@
 import {HMBlockChildrenType} from '@seed-hypermedia/client/hm-types'
 import {InputRule, mergeAttributes, Node} from '@tiptap/core'
-import {Slice} from '@tiptap/pm/model'
+import {Fragment, Slice} from '@tiptap/pm/model'
 import {EditorState, Plugin} from '@tiptap/pm/state'
+import {EditorView} from '@tiptap/pm/view'
 import {updateGroupCommand} from '../../../api/blockManipulation/commands/updateGroup'
 import {mergeCSSClasses} from '../../../shared/utils'
 import {BlockNoteDOMAttributes} from '../api/blockTypes'
 import styles from './Block.module.css'
 import {normalizeFragment} from './normalizeFragment'
+
+/**
+ * Custom drop handler for Grid containers. This handler finds
+ * the nearest grid cell from the mouse coordinates and inserts the dragged
+ * block at the correct position.
+ */
+function handleGridDrop(view: EditorView, event: DragEvent, _slice: Slice, moved: boolean): boolean {
+  if (!event.dataTransfer) return false
+
+  // Use ProseMirror's own spatial lookup to find what's under the cursor.
+  const resolved = view.posAtCoords({left: event.clientX, top: event.clientY})
+  if (!resolved) return false
+
+  const $pos = view.state.doc.resolve(resolved.pos)
+
+  // Walk up to find a blockNode whose parent is a Grid blockChildren
+  let blockNodeDepth = -1
+  for (let d = $pos.depth; d >= 1; d--) {
+    if ($pos.node(d).type.name === 'blockNode') {
+      const parent = $pos.node(d - 1)
+      if (parent?.type.name === 'blockChildren' && parent.attrs.listType === 'Grid') {
+        blockNodeDepth = d
+        break
+      }
+    }
+  }
+  if (blockNodeDepth === -1) return false
+
+  const cellStart = $pos.before(blockNodeDepth)
+
+  // Use drag direction to decide if to insert before or after node
+  const sourcePos = view.state.selection.from
+  const insertAfter = sourcePos < cellStart
+  const insertPos = insertAfter ? $pos.after(blockNodeDepth) : $pos.before(blockNodeDepth)
+  const sourceSlice: Slice = moved && (view as any).dragging?.slice ? (view as any).dragging.slice : _slice
+
+  const blockNodes: any[] = []
+  sourceSlice.content.forEach((node: any) => {
+    if (node.type.name === 'blockNode') {
+      blockNodes.push(node)
+    } else if (node.type.name === 'blockChildren') {
+      node.forEach((child: any) => {
+        if (child.type.name === 'blockNode') blockNodes.push(child)
+      })
+    }
+  })
+
+  if (blockNodes.length === 0) return false
+
+  const tr = view.state.tr
+
+  // Delete source block
+  if (moved) {
+    const {from, to} = view.state.selection
+    tr.delete(from, to)
+  }
+
+  tr.insert(tr.mapping.map(insertPos), Fragment.from(blockNodes))
+  view.dispatch(tr)
+  view.focus()
+
+  return true
+}
 
 export const BlockChildren = Node.create<{
   domAttributes?: BlockNoteDOMAttributes
@@ -211,6 +275,7 @@ export const BlockChildren = Node.create<{
     return [
       new Plugin({
         props: {
+          handleDrop: handleGridDrop,
           transformPasted: (slice, view) => {
             console.log('original slice', slice)
             const {state} = view
