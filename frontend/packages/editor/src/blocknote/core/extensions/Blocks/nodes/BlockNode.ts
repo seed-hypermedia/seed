@@ -273,7 +273,11 @@ export const BlockNode = Node.create<{
             return false
           }
           let {block, blockContent} = blockInfo
-          if (block.node.childCount == 1) {
+          const $blockPos = state.doc.resolve(block.beforePos)
+          const parentGroup = $blockPos.node($blockPos.depth)
+          const isInGrid = parentGroup?.type.name === 'blockChildren' && parentGroup.attrs.listType === 'Grid'
+
+          if (block.node.childCount == 1 && !isInGrid) {
             setTimeout(() => {
               this.editor
                 .chain()
