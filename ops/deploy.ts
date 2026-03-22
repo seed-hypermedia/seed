@@ -1011,30 +1011,37 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
   }
 
   await ensureSeedDir(paths, shell)
-  // Strip GPU-related directives (devices, group_add) when the host lacks
-  // /dev/dri or the required groups. Many servers and VMs don't have a GPU,
-  // and docker will refuse to start the container if the group doesn't exist.
+  // Inject GPU-related directives (devices, group_add) into the seed-daemon
+  // service when the host has /dev/dri and the required groups. The compose
+  // file ships without these so it works on any server out of the box.
   let finalCompose = composeContent
   const hasGpu = shell.runSafe('test -d /dev/dri && echo yes') === 'yes'
-  if (!hasGpu) {
-    finalCompose = finalCompose
-      .replace(/^\s*devices:\s*\n(\s*-\s*\/dev\/dri.*\n)*/gm, '')
-      .replace(/^\s*group_add:\s*\n(\s*-\s*(video|render)\s*\n)*/gm, '')
-    log('GPU not detected — removed devices and group_add from compose file.')
-  } else {
-    // Even with /dev/dri, the 'render' or 'video' groups may not exist.
+  if (hasGpu) {
     const groups: string[] = []
     if (shell.runSafe('getent group video >/dev/null 2>&1 && echo yes') === 'yes') groups.push('video')
     if (shell.runSafe('getent group render >/dev/null 2>&1 && echo yes') === 'yes') groups.push('render')
-    if (groups.length === 0) {
-      finalCompose = finalCompose.replace(/^\s*group_add:\s*\n(\s*-\s*(video|render)\s*\n)*/gm, '')
-      log('GPU present but no video/render groups found — removed group_add from compose file.')
-    } else if (groups.length < 2) {
-      // Keep only the group that exists
-      const missing = groups.includes('video') ? 'render' : 'video'
-      finalCompose = finalCompose.replace(new RegExp(`^\\s*-\\s*${missing}\\s*\\n`, 'gm'), '')
-      log(`Removed missing '${missing}' group from compose file.`)
+
+    // Insert devices and group_add before the "volumes:" line of seed-daemon.
+    // We match the first "volumes:" that appears after "seed-daemon:" in the file.
+    const gpuLines: string[] = ['    devices:', '      - /dev/dri:/dev/dri']
+    if (groups.length > 0) {
+      gpuLines.push('    group_add:')
+      for (const g of groups) gpuLines.push(`      - ${g}`)
     }
+    // Find the volumes: line inside the seed-daemon service block and inject before it.
+    let inDaemon = false
+    const lines = finalCompose.split('\n')
+    const result: string[] = []
+    for (const line of lines) {
+      if (/^\s+container_name:\s*seed-daemon/.test(line)) inDaemon = true
+      if (inDaemon && /^\s{4}volumes:/.test(line)) {
+        result.push(...gpuLines)
+        inDaemon = false // only inject once
+      }
+      result.push(line)
+    }
+    finalCompose = result.join('\n')
+    log(`GPU detected — added devices${groups.length ? ` and group_add (${groups.join(', ')})` : ''} to compose file.`)
   }
   await writeFile(paths.composePath, finalCompose, 'utf-8')
 
