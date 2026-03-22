@@ -7,7 +7,7 @@
  */
 
 import {describe, test, expect, beforeEach, afterEach} from 'bun:test'
-import {mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync, readFileSync} from 'fs'
+import {mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync} from 'fs'
 import {tmpdir} from 'os'
 import {join} from 'path'
 import {runCli} from './setup'
@@ -40,6 +40,26 @@ function writeTestFile(name: string, content: string): string {
   const filePath = join(workDir, name)
   writeFileSync(filePath, content, 'utf-8')
   return filePath
+}
+
+/**
+ * Find draft files in the drafts directory (excludes index.json).
+ * Returns filenames sorted alphabetically.
+ */
+function findDraftFiles(ext?: '.json' | '.md'): string[] {
+  if (!existsSync(draftsDir)) return []
+  return readdirSync(draftsDir)
+    .filter((f) => f !== 'index.json' && (!ext || f.endsWith(ext)))
+    .sort()
+}
+
+/**
+ * Read the index.json from the drafts directory.
+ */
+function readIndex(): Array<{id: string; metadata?: {name?: string}; [key: string]: unknown}> {
+  const indexPath = join(draftsDir, 'index.json')
+  if (!existsSync(indexPath)) return []
+  return JSON.parse(readFileSync(indexPath, 'utf-8'))
 }
 
 const SAMPLE_MD = `---
@@ -103,7 +123,7 @@ const SAMPLE_INDEX = [
 
 describe('draft create', () => {
   test(
-    'saves markdown to <drafts-dir>/<slug>.md',
+    'saves draft as JSON by default',
     async () => {
       const inputFile = writeTestFile('input.md', SAMPLE_MD)
 
@@ -111,17 +131,27 @@ describe('draft create', () => {
 
       expect(result.exitCode).toBe(0)
       expect(result.stderr).toContain('Draft saved to')
-      expect(result.stderr).toContain('my-test-document')
 
-      // Verify the draft file was created in the env-specified drafts dir
-      const draftPath = join(draftsDir, 'my-test-document.md')
-      expect(existsSync(draftPath)).toBe(true)
+      // Verify a .json draft file was created
+      const jsonFiles = findDraftFiles('.json')
+      expect(jsonFiles.length).toBe(1)
 
-      // Verify content is preserved
-      const saved = readFileSync(draftPath, 'utf-8')
-      expect(saved).toContain('My Test Document')
-      expect(saved).toContain('# Introduction')
-      expect(saved).toContain('**bold**')
+      // Verify JSON content matches HMDraftContent schema
+      const saved = JSON.parse(readFileSync(join(draftsDir, jsonFiles[0]), 'utf-8'))
+      expect(Array.isArray(saved.content)).toBe(true)
+      expect(Array.isArray(saved.deps)).toBe(true)
+      expect(saved.content.length).toBeGreaterThan(0)
+
+      // Verify editor blocks have expected structure
+      const block = saved.content[0]
+      expect(block).toHaveProperty('id')
+      expect(block).toHaveProperty('type')
+      expect(block).toHaveProperty('content')
+
+      // Verify index.json was created with metadata
+      const index = readIndex()
+      expect(index.length).toBe(1)
+      expect(index[0].metadata?.name).toBe('My Test Document')
     },
     TEST_TIMEOUT,
   )
@@ -130,65 +160,62 @@ describe('draft create', () => {
     'respects -o flag for custom output path',
     async () => {
       const inputFile = writeTestFile('input.md', SAMPLE_MD)
-      const outputPath = join(workDir, 'custom-output.md')
+      const outputPath = join(workDir, 'custom-output.json')
 
       const result = await run(['draft', 'create', '-f', inputFile, '-o', outputPath])
 
       expect(result.exitCode).toBe(0)
       expect(existsSync(outputPath)).toBe(true)
+
+      // Verify it's valid JSON draft content
+      const saved = JSON.parse(readFileSync(outputPath, 'utf-8'))
+      expect(Array.isArray(saved.content)).toBe(true)
     },
     TEST_TIMEOUT,
   )
 
   test(
-    'errors on collision without -o',
+    'creates unique filenames (no collisions with nanoid)',
     async () => {
       const inputFile = writeTestFile('input.md', SAMPLE_MD)
 
-      // First create
       const first = await run(['draft', 'create', '-f', inputFile])
       expect(first.exitCode).toBe(0)
 
-      // Second create should fail
       const second = await run(['draft', 'create', '-f', inputFile])
-      expect(second.exitCode).not.toBe(0)
-      expect(second.stderr).toContain('already exists')
-      expect(second.stderr).toContain('draft rm')
+      expect(second.exitCode).toBe(0)
+
+      // Both should succeed and create separate files
+      const jsonFiles = findDraftFiles('.json')
+      expect(jsonFiles.length).toBe(2)
+
+      // Index should have 2 entries
+      const index = readIndex()
+      expect(index.length).toBe(2)
     },
     TEST_TIMEOUT,
   )
 
   test(
-    'allows overwrite with explicit -o to the same path',
+    '--markdown flag saves as raw markdown',
     async () => {
       const inputFile = writeTestFile('input.md', SAMPLE_MD)
-      const outputPath = join(draftsDir, 'my-test-document.md')
 
-      // First create
-      const first = await run(['draft', 'create', '-f', inputFile])
-      expect(first.exitCode).toBe(0)
-
-      // Overwrite with -o targeting the same file
-      const second = await run(['draft', 'create', '-f', inputFile, '-o', outputPath])
-      expect(second.exitCode).toBe(0)
-    },
-    TEST_TIMEOUT,
-  )
-
-  test(
-    'generates slug from document title',
-    async () => {
-      const content = `---
-name: Hello World! Special Characters & More
----
-
-Some content.
-`
-      const inputFile = writeTestFile('input.md', content)
-      const result = await run(['draft', 'create', '-f', inputFile])
+      const result = await run(['draft', 'create', '-f', inputFile, '--markdown'])
 
       expect(result.exitCode).toBe(0)
-      expect(result.stderr).toContain('hello-world-special-characters-more')
+      expect(result.stderr).toContain('Draft saved to')
+
+      // Verify a .md draft file was created (not .json)
+      const mdFiles = findDraftFiles('.md')
+      expect(mdFiles.length).toBe(1)
+      expect(findDraftFiles('.json').length).toBe(0)
+
+      // Verify markdown content is preserved
+      const saved = readFileSync(join(draftsDir, mdFiles[0]), 'utf-8')
+      expect(saved).toContain('My Test Document')
+      expect(saved).toContain('# Introduction')
+      expect(saved).toContain('**bold**')
     },
     TEST_TIMEOUT,
   )
@@ -229,27 +256,34 @@ Some content.
 
 describe('draft get', () => {
   test(
-    'displays draft content by slug',
+    'displays JSON draft content as markdown by draft ID',
     async () => {
       const inputFile = writeTestFile('input.md', SAMPLE_MD)
       await run(['draft', 'create', '-f', inputFile])
 
-      const result = await run(['draft', 'get', 'my-test-document'])
+      // Get the draft ID from the created file
+      const jsonFiles = findDraftFiles('.json')
+      expect(jsonFiles.length).toBe(1)
+      const draftId = jsonFiles[0].replace(/\.json$/, '')
+
+      const result = await run(['draft', 'get', draftId])
 
       expect(result.exitCode).toBe(0)
+      // JSON drafts are converted to markdown for display
       expect(result.stdout).toContain('My Test Document')
-      expect(result.stdout).toContain('# Introduction')
+      expect(result.stdout).toContain('Introduction')
     },
     TEST_TIMEOUT,
   )
 
   test(
-    'displays draft content by file path',
+    'displays JSON draft content by file path',
     async () => {
       const inputFile = writeTestFile('input.md', SAMPLE_MD)
       await run(['draft', 'create', '-f', inputFile])
 
-      const draftPath = join(draftsDir, 'my-test-document.md')
+      const jsonFiles = findDraftFiles('.json')
+      const draftPath = join(draftsDir, jsonFiles[0])
       const result = await run(['draft', 'get', draftPath])
 
       expect(result.exitCode).toBe(0)
@@ -264,10 +298,12 @@ describe('draft get', () => {
       const inputFile = writeTestFile('input.md', SAMPLE_MD)
       await run(['draft', 'create', '-f', inputFile])
 
-      const result = await run(['draft', 'get', 'my-test-document', '--pretty'])
+      const jsonFiles = findDraftFiles('.json')
+      const draftId = jsonFiles[0].replace(/\.json$/, '')
+
+      const result = await run(['draft', 'get', draftId, '--pretty'])
 
       expect(result.exitCode).toBe(0)
-      // Pretty output should contain the content but with ANSI codes
       expect(result.stdout).toContain('Introduction')
       expect(result.stdout).toContain('bold')
     },
@@ -290,8 +326,11 @@ describe('draft get', () => {
       const inputFile = writeTestFile('input.md', SAMPLE_MD)
       await run(['draft', 'create', '-f', inputFile])
 
+      const jsonFiles = findDraftFiles('.json')
+      const draftId = jsonFiles[0].replace(/\.json$/, '')
+
       const outFile = join(workDir, 'output.md')
-      const result = await run(['draft', 'get', 'my-test-document', '-o', outFile])
+      const result = await run(['draft', 'get', draftId, '-o', outFile])
 
       expect(result.exitCode).toBe(0)
       expect(existsSync(outFile)).toBe(true)
@@ -302,7 +341,7 @@ describe('draft get', () => {
   )
 
   test(
-    'reads desktop JSON draft and renders as markdown',
+    'reads manually-created JSON draft and renders as markdown',
     async () => {
       // Set up a JSON draft with an index
       mkdirSync(draftsDir, {recursive: true})
@@ -322,7 +361,7 @@ describe('draft get', () => {
   )
 
   test(
-    'reads desktop JSON draft by direct .json path',
+    'reads JSON draft by direct .json path',
     async () => {
       mkdirSync(draftsDir, {recursive: true})
       writeFileSync(join(draftsDir, 'testdraft01.json'), JSON.stringify(SAMPLE_JSON_DRAFT), 'utf-8')
@@ -350,6 +389,26 @@ describe('draft get', () => {
     },
     TEST_TIMEOUT,
   )
+
+  test(
+    'displays --markdown draft content by slug',
+    async () => {
+      const inputFile = writeTestFile('input.md', SAMPLE_MD)
+      await run(['draft', 'create', '-f', inputFile, '--markdown'])
+
+      // --markdown creates <slug>_<id>.md, resolvable by slug prefix
+      const mdFiles = findDraftFiles('.md')
+      expect(mdFiles.length).toBe(1)
+      const slug = mdFiles[0].replace(/_[^_]+\.md$/, '')
+
+      const result = await run(['draft', 'get', slug])
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain('My Test Document')
+      expect(result.stdout).toContain('# Introduction')
+    },
+    TEST_TIMEOUT,
+  )
 })
 
 describe('draft list', () => {
@@ -364,7 +423,7 @@ describe('draft list', () => {
   )
 
   test(
-    'lists drafts with title and slug',
+    'lists JSON drafts with title',
     async () => {
       const inputFile = writeTestFile('input.md', SAMPLE_MD)
       await run(['draft', 'create', '-f', inputFile])
@@ -372,15 +431,14 @@ describe('draft list', () => {
       const result = await run(['draft', 'list'])
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain('my-test-document')
       expect(result.stdout).toContain('My Test Document')
-      expect(result.stdout).toContain('md')
+      expect(result.stdout).toContain('json')
     },
     TEST_TIMEOUT,
   )
 
   test(
-    'quiet mode outputs one slug per line',
+    'quiet mode outputs one ID per line',
     async () => {
       const inputFile = writeTestFile('input.md', SAMPLE_MD)
       await run(['draft', 'create', '-f', inputFile])
@@ -388,7 +446,11 @@ describe('draft list', () => {
       const result = await run(['draft', 'list', '-q'])
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toBe('my-test-document')
+      // Quiet output is the draft ID (nanoid stripped from filename)
+      const output = result.stdout.trim()
+      expect(output.length).toBeGreaterThan(0)
+      // Should match the file in draftsDir
+      expect(existsSync(join(draftsDir, `${output}.json`))).toBe(true)
     },
     TEST_TIMEOUT,
   )
@@ -405,8 +467,8 @@ describe('draft list', () => {
       const result = await run(['draft', 'list', '-q'])
       expect(result.exitCode).toBe(0)
 
-      const slugs = result.stdout.split('\n').sort()
-      expect(slugs).toEqual(['alpha-doc', 'beta-doc'])
+      const ids = result.stdout.trim().split('\n')
+      expect(ids.length).toBe(2)
     },
     TEST_TIMEOUT,
   )
@@ -423,9 +485,8 @@ describe('draft list', () => {
       const data = JSON.parse(result.stdout)
       expect(Array.isArray(data)).toBe(true)
       expect(data.length).toBe(1)
-      expect(data[0].slug).toBe('my-test-document')
       expect(data[0].title).toBe('My Test Document')
-      expect(data[0].format).toBe('md')
+      expect(data[0].format).toBe('json')
     },
     TEST_TIMEOUT,
   )
@@ -433,27 +494,32 @@ describe('draft list', () => {
   test(
     'lists both .md and .json drafts',
     async () => {
-      // Create an .md draft
+      // Create a JSON draft via CLI (default)
       const inputFile = writeTestFile('input.md', SAMPLE_MD)
       await run(['draft', 'create', '-f', inputFile])
 
-      // Create a .json draft manually
+      // Create a separate .json draft manually (simulates desktop-created)
       writeFileSync(join(draftsDir, 'testdraft01.json'), JSON.stringify(SAMPLE_JSON_DRAFT), 'utf-8')
-      writeFileSync(join(draftsDir, 'index.json'), JSON.stringify(SAMPLE_INDEX), 'utf-8')
+      // Update index.json to include both the CLI-created and manually-created drafts
+      const existingIndex = readIndex()
+      writeFileSync(
+        join(draftsDir, 'index.json'),
+        JSON.stringify([...existingIndex, ...SAMPLE_INDEX]),
+        'utf-8',
+      )
+
+      // Also create an .md draft with --markdown
+      const md2 = writeTestFile('doc2.md', '---\nname: Markdown Draft\n---\nContent.')
+      await run(['draft', 'create', '-f', md2, '--markdown'])
 
       const result = await run(['draft', 'list', '--json'])
       expect(result.exitCode).toBe(0)
 
       const data = JSON.parse(result.stdout)
-      expect(data.length).toBe(2)
-
       const mdDraft = data.find((d: any) => d.format === 'md')
-      const jsonDraft = data.find((d: any) => d.format === 'json')
+      const jsonDrafts = data.filter((d: any) => d.format === 'json')
       expect(mdDraft).toBeDefined()
-      expect(jsonDraft).toBeDefined()
-      expect(mdDraft.slug).toBe('my-test-document')
-      expect(jsonDraft.slug).toBe('testdraft01')
-      expect(jsonDraft.title).toBe('Strategy Document')
+      expect(jsonDrafts.length).toBe(2)
     },
     TEST_TIMEOUT,
   )
@@ -461,18 +527,20 @@ describe('draft list', () => {
   test(
     'quiet mode lists both .md and .json slugs',
     async () => {
-      // Create an .md draft
+      // Create a JSON draft via CLI
       const inputFile = writeTestFile('input.md', SAMPLE_MD)
       await run(['draft', 'create', '-f', inputFile])
 
       // Create a .json draft manually
+      mkdirSync(draftsDir, {recursive: true})
       writeFileSync(join(draftsDir, 'testdraft01.json'), JSON.stringify(SAMPLE_JSON_DRAFT), 'utf-8')
 
       const result = await run(['draft', 'list', '-q'])
       expect(result.exitCode).toBe(0)
 
-      const slugs = result.stdout.split('\n').sort()
-      expect(slugs).toEqual(['my-test-document', 'testdraft01'])
+      const slugs = result.stdout.trim().split('\n').sort()
+      expect(slugs.length).toBe(2)
+      expect(slugs).toContain('testdraft01')
     },
     TEST_TIMEOUT,
   )
@@ -480,18 +548,19 @@ describe('draft list', () => {
 
 describe('draft rm', () => {
   test(
-    'removes a draft by slug with --force',
+    'removes a JSON draft by ID with --force',
     async () => {
       const inputFile = writeTestFile('input.md', SAMPLE_MD)
       await run(['draft', 'create', '-f', inputFile])
 
-      const draftPath = join(draftsDir, 'my-test-document.md')
-      expect(existsSync(draftPath)).toBe(true)
+      const jsonFiles = findDraftFiles('.json')
+      expect(jsonFiles.length).toBe(1)
+      const draftId = jsonFiles[0].replace(/\.json$/, '')
 
-      const result = await run(['draft', 'rm', 'my-test-document', '--force'])
+      const result = await run(['draft', 'rm', draftId, '--force'])
       expect(result.exitCode).toBe(0)
       expect(result.stderr).toContain('Removed')
-      expect(existsSync(draftPath)).toBe(false)
+      expect(existsSync(join(draftsDir, jsonFiles[0]))).toBe(false)
     },
     TEST_TIMEOUT,
   )
@@ -502,7 +571,8 @@ describe('draft rm', () => {
       const inputFile = writeTestFile('input.md', SAMPLE_MD)
       await run(['draft', 'create', '-f', inputFile])
 
-      const draftPath = join(draftsDir, 'my-test-document.md')
+      const jsonFiles = findDraftFiles('.json')
+      const draftPath = join(draftsDir, jsonFiles[0])
       const result = await run(['draft', 'rm', draftPath, '--force'])
       expect(result.exitCode).toBe(0)
       expect(existsSync(draftPath)).toBe(false)
@@ -521,7 +591,7 @@ describe('draft rm', () => {
   )
 
   test(
-    '--all --force removes all drafts',
+    '--all --force removes all drafts (both .md and .json)',
     async () => {
       const md1 = writeTestFile('doc1.md', '---\nname: Alpha Doc\n---\nContent one.')
       const md2 = writeTestFile('doc2.md', '---\nname: Beta Doc\n---\nContent two.')
@@ -529,9 +599,13 @@ describe('draft rm', () => {
       await run(['draft', 'create', '-f', md1])
       await run(['draft', 'create', '-f', md2])
 
-      // Verify both exist
+      // Also create a --markdown draft
+      const md3 = writeTestFile('doc3.md', '---\nname: Gamma Doc\n---\nContent three.')
+      await run(['draft', 'create', '-f', md3, '--markdown'])
+
+      // Verify all exist
       const listBefore = await run(['draft', 'list', '-q'])
-      expect(listBefore.stdout.split('\n').length).toBe(2)
+      expect(listBefore.stdout.trim().split('\n').length).toBe(3)
 
       // Remove all
       const result = await run(['draft', 'rm', '--all', '--force'])
