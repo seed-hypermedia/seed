@@ -428,6 +428,55 @@ export async function detectOldInstall(shell: ShellRunner): Promise<OldInstallIn
 }
 
 // ---------------------------------------------------------------------------
+// Data Migration
+// ---------------------------------------------------------------------------
+
+/**
+ * Copies daemon/ and web/ data from an old installation into the current seed
+ * directory. Only copies when the target directory is empty — if it already has
+ * data this is a no-op. Called from deploy() so it works on both first-time
+ * migration and subsequent headless runs.
+ */
+async function migrateDataFromOldInstall(paths: DeployPaths, shell: ShellRunner): Promise<void> {
+  const oldInstall = await detectOldInstall(shell)
+  if (!oldInstall || oldInstall.workspace === paths.seedDir) return
+
+  const dataDirs = ['daemon', 'web']
+  let needsStop = true
+  for (const dir of dataDirs) {
+    const src = join(oldInstall.workspace, dir)
+    const dst = join(paths.seedDir, dir)
+    const srcExists = shell.runSafe(`test -d "${src}" && echo yes`) === 'yes'
+    const dstEmpty = shell.runSafe(`find "${dst}" -mindepth 1 -maxdepth 1 2>/dev/null | head -1`) === ''
+    if (srcExists && dstEmpty) {
+      if (needsStop) {
+        log('Stopping old containers before migrating data...')
+        shell.runSafe('docker stop seed-site seed-daemon seed-web seed-proxy autoupdater grafana prometheus 2>/dev/null')
+        needsStop = false
+      }
+      log(`Copying ${src} → ${dst} ...`)
+      if (!shell.runSafe(`cp -a "${src}/." "${dst}/" 2>/dev/null`)) {
+        shell.run(`sudo cp -a "${src}/." "${dst}/"`)
+      }
+      log(`Migrated ${dir}/ data.`)
+    }
+  }
+
+  // Fix file ownership on the web directory — old installs used UID 1001
+  // (hardcoded in previous Dockerfile), but the new compose runs as host user.
+  const webDir = join(paths.seedDir, 'web')
+  const currentUid = String(process.getuid!())
+  const currentGid = String(process.getgid!())
+  const owner = shell.runSafe(`stat -c '%u:%g' "${webDir}" 2>/dev/null`)
+  if (owner && owner !== `${currentUid}:${currentGid}`) {
+    log(`Updating ownership of ${webDir} from ${owner} to ${currentUid}:${currentGid}`)
+    if (!shell.runSafe(`chown -R ${currentUid}:${currentGid} "${webDir}" 2>/dev/null`)) {
+      shell.runSafe(`sudo chown -R ${currentUid}:${currentGid} "${webDir}"`)
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Migration Wizard
 // ---------------------------------------------------------------------------
 
@@ -563,50 +612,6 @@ async function runMigrationWizard(old: OldInstallInfo, paths: DeployPaths, shell
 
   await writeConfig(config, paths)
   p.log.success(`Config written to ${paths.configPath}`)
-
-  // Copy data directories from the old workspace into the new seed directory
-  // so the node keeps its identity, documents, and web state across migration.
-  // Only copy if the target directory is empty — if it already has data this
-  // is a reconfiguration, not a fresh migration.
-  // Stop old containers first to avoid copying files while they're being written.
-  if (old.workspace !== paths.seedDir) {
-    p.log.info('Stopping old containers before migrating data...')
-    shell.runSafe('docker stop seed-site seed-daemon seed-web seed-proxy autoupdater grafana prometheus 2>/dev/null')
-    const dataDirs = ['daemon', 'web']
-    for (const dir of dataDirs) {
-      const src = join(old.workspace, dir)
-      const dst = join(paths.seedDir, dir)
-      const srcExists = shell.runSafe(`test -d "${src}" && echo yes`) === 'yes'
-      const dstEmpty = shell.runSafe(`find "${dst}" -mindepth 1 -maxdepth 1 2>/dev/null | head -1`) === ''
-      if (srcExists && dstEmpty) {
-        p.log.info(`Copying ${src} → ${dst} ...`)
-        // Use cp -a to preserve permissions, symlinks, and timestamps.
-        // Try without sudo first, fall back to sudo if needed.
-        if (!shell.runSafe(`cp -a "${src}/." "${dst}/" 2>/dev/null`)) {
-          shell.run(`sudo cp -a "${src}/." "${dst}/"`)
-        }
-        p.log.success(`Migrated ${dir}/ data.`)
-      }
-    }
-  }
-
-  // Migrate file ownership from the old UID 1001 (hardcoded in the previous
-  // web Dockerfile) to the current user. The new docker-compose.yml runs the
-  // web container as the host user, so the data directory must be owned by them.
-  const webDir = join(paths.seedDir, 'web')
-  const currentUid = String(process.getuid!())
-  const currentGid = String(process.getgid!())
-  const owner = shell.runSafe(`stat -c '%u:%g' "${webDir}" 2>/dev/null`)
-  if (owner && owner !== `${currentUid}:${currentGid}`) {
-    p.log.warn(
-      `The web data directory (${webDir}) is owned by a different user (${owner}).` +
-        ` Updating ownership so the web container can write to it.`,
-    )
-    if (!shell.runSafe(`chown -R ${currentUid}:${currentGid} "${webDir}" 2>/dev/null`)) {
-      shell.runSafe(`sudo chown -R ${currentUid}:${currentGid} "${webDir}"`)
-    }
-    p.log.success('File ownership updated.')
-  }
 
   return config
 }
@@ -1050,6 +1055,10 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
   for (const dir of dirs) {
     await mkdir(dir, {recursive: true})
   }
+
+  // If an old installation exists and our data dirs are empty, copy the data
+  // over. This runs on every deploy but is a no-op once data exists.
+  await migrateDataFromOldInstall(paths, shell)
 
   step('Generating Caddyfile...')
   const caddyfile = generateCaddyfile(config)
