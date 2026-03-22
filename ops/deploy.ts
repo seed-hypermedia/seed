@@ -1011,7 +1011,32 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
   }
 
   await ensureSeedDir(paths, shell)
-  await writeFile(paths.composePath, composeContent, 'utf-8')
+  // Strip GPU-related directives (devices, group_add) when the host lacks
+  // /dev/dri or the required groups. Many servers and VMs don't have a GPU,
+  // and docker will refuse to start the container if the group doesn't exist.
+  let finalCompose = composeContent
+  const hasGpu = shell.runSafe('test -d /dev/dri && echo yes') === 'yes'
+  if (!hasGpu) {
+    finalCompose = finalCompose
+      .replace(/^\s*devices:\s*\n(\s*-\s*\/dev\/dri.*\n)*/gm, '')
+      .replace(/^\s*group_add:\s*\n(\s*-\s*(video|render)\s*\n)*/gm, '')
+    log('GPU not detected — removed devices and group_add from compose file.')
+  } else {
+    // Even with /dev/dri, the 'render' or 'video' groups may not exist.
+    const groups: string[] = []
+    if (shell.runSafe('getent group video >/dev/null 2>&1 && echo yes') === 'yes') groups.push('video')
+    if (shell.runSafe('getent group render >/dev/null 2>&1 && echo yes') === 'yes') groups.push('render')
+    if (groups.length === 0) {
+      finalCompose = finalCompose.replace(/^\s*group_add:\s*\n(\s*-\s*(video|render)\s*\n)*/gm, '')
+      log('GPU present but no video/render groups found — removed group_add from compose file.')
+    } else if (groups.length < 2) {
+      // Keep only the group that exists
+      const missing = groups.includes('video') ? 'render' : 'video'
+      finalCompose = finalCompose.replace(new RegExp(`^\\s*-\\s*${missing}\\s*\\n`, 'gm'), '')
+      log(`Removed missing '${missing}' group from compose file.`)
+    }
+  }
+  await writeFile(paths.composePath, finalCompose, 'utf-8')
 
   step('Setting up workspace directories...')
   const dirs = getWorkspaceDirs(paths)
