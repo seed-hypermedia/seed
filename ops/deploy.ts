@@ -441,26 +441,23 @@ async function migrateDataFromOldInstall(paths: DeployPaths, shell: ShellRunner)
   const oldInstall = await detectOldInstall(shell)
   if (!oldInstall || oldInstall.workspace === paths.seedDir) return
 
-  const dataDirs = ['daemon', 'web']
-  let needsStop = true
-  for (const dir of dataDirs) {
-    const src = join(oldInstall.workspace, dir)
-    const dst = join(paths.seedDir, dir)
-    const srcExists = shell.runSafe(`test -d "${src}" && echo yes`) === 'yes'
-    const dstEmpty = shell.runSafe(`find "${dst}" -mindepth 1 -maxdepth 1 2>/dev/null | head -1`) === ''
-    if (srcExists && dstEmpty) {
-      if (needsStop) {
-        log('Stopping old containers before migrating data...')
-        shell.runSafe('docker stop seed-site seed-daemon seed-web seed-proxy autoupdater grafana prometheus 2>/dev/null')
-        needsStop = false
-      }
-      log(`Copying ${src} → ${dst} ...`)
-      if (!shell.runSafe(`cp -a "${src}/." "${dst}/" 2>/dev/null`)) {
-        shell.run(`sudo cp -a "${src}/." "${dst}/"`)
-      }
-      log(`Migrated ${dir}/ data.`)
-    }
+  // Check if the daemon dir is empty — if it already has data, migration
+  // already happened (or the node was set up fresh). The daemon dir is the
+  // most reliable indicator since it's never pre-populated by the deploy script.
+  const daemonDir = join(paths.seedDir, 'daemon')
+  const daemonEmpty = shell.runSafe(`find "${daemonDir}" -mindepth 1 -maxdepth 1 2>/dev/null | head -1`) === ''
+  if (!daemonEmpty) return
+
+  log('Stopping old containers before migrating data...')
+  shell.runSafe('docker stop seed-site seed-daemon seed-web seed-proxy autoupdater grafana prometheus 2>/dev/null')
+
+  // Copy all contents from old workspace into the new seed directory.
+  // This preserves daemon identity, web state, proxy TLS certs, monitoring, etc.
+  log(`Copying ${oldInstall.workspace} → ${paths.seedDir} ...`)
+  if (!shell.runSafe(`cp -a "${oldInstall.workspace}/." "${paths.seedDir}/" 2>/dev/null`)) {
+    shell.run(`sudo cp -a "${oldInstall.workspace}/." "${paths.seedDir}/"`)
   }
+  log('Migrated all data from old installation.')
 
   // Fix file ownership on the web directory — old installs used UID 1001
   // (hardcoded in previous Dockerfile), but the new compose runs as host user.
