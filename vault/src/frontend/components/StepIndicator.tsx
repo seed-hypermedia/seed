@@ -16,7 +16,7 @@ export function StepIndicator({currentStep, totalSteps = 3}: StepIndicatorProps)
           key={i}
           className={cn(
             'size-2.5 rounded-full',
-            i + 1 === currentStep ? 'bg-emerald-600' : 'bg-neutral-300 dark:bg-neutral-600',
+            i + 1 === currentStep ? 'bg-brand' : 'bg-neutral-300 dark:bg-neutral-600',
           )}
         />
       ))}

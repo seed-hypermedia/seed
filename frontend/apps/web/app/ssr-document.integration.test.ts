@@ -103,6 +103,7 @@ vi.mock('@shm/editor/comment-editor', () => ({
 vi.mock('@/auth', () => ({
   useLocalKeyPair: () => null,
   useCreateAccount: () => ({content: null, createAccount: () => {}}),
+  useVaultSuccessDialog: () => null,
   AccountFooterActions: () => null,
   EditProfileDialog: () => null,
   LogoutButton: () => null,

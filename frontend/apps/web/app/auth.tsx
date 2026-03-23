@@ -7,7 +7,7 @@ import {useAccount, useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
-import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
+import {DialogDescription, DialogFooter, DialogTitle} from '@shm/ui/components/dialog'
 import {EditProfileForm, SiteMetaFields} from '@shm/ui/edit-profile-form'
 import {Spinner} from '@shm/ui/spinner'
 import {SeedLogo} from '@shm/ui/seed-logo'
@@ -427,7 +427,7 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
               }
             }}
           >
-            <div className="flex flex-col gap-1.5">
+            <div className="mb-4 flex flex-col gap-1.5">
               <SizableText size="sm" className="font-medium">
                 Enter your email to continue
               </SizableText>
@@ -520,6 +520,67 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
       )}
     </>
   )
+}
+
+function VaultSuccessDialog({input, onClose}: {input: {variant: 'comment' | 'join'}; onClose: () => void}) {
+  const {origin} = useUniversalAppContext()
+  const siteName = hostnameStripProtocol(origin)
+
+  useEffect(() => {
+    if (input.variant !== 'comment') return
+    const timer = setTimeout(onClose, 4000)
+    return () => clearTimeout(timer)
+  }, [input.variant, onClose])
+
+  return (
+    <>
+      <DialogTitle className="flex items-center gap-2">
+        You are in <span aria-hidden>🎉</span>
+      </DialogTitle>
+      {input.variant === 'comment' ? (
+        <>
+          <DialogDescription>
+            You joined the site, posting your comment now...
+            <br />
+            This post will be signed by you and shared across the network.
+          </DialogDescription>
+          <div className="flex justify-center py-2">
+            <Spinner />
+          </div>
+        </>
+      ) : (
+        <>
+          <DialogDescription>
+            You've joined <span className="font-medium">{siteName || 'this site'}</span> as a member!
+            <br />
+            Your Hypermedia account is ready. You can now comment, interact, and participate across the network.
+          </DialogDescription>
+          <DialogFooter>
+            <Button onClick={onClose}>Got it</Button>
+          </DialogFooter>
+        </>
+      )}
+    </>
+  )
+}
+
+/** Detects `?vault_success=comment|join` in the URL and shows a success dialog. */
+export function useVaultSuccessDialog() {
+  const dialog = useAppDialog(VaultSuccessDialog)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    const variant = url.searchParams.get('vault_success')
+    if (variant === 'comment' || variant === 'join') {
+      url.searchParams.delete('vault_success')
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+      dialog.open({variant})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return dialog.content
 }
 
 async function optimizeImage(file: File): Promise<Blob> {
@@ -659,6 +720,7 @@ export function LinkKeysDialog() {
       </DialogDescription>
       <div className="flex flex-wrap gap-2">
         <Button variant="default" asChild>
+          http://localhost:56001/ipfs/bafybeieswa4lfaruhtyuy2xrwhxszta2mqxfkbmmcckofd65kcy243fdw4
           <a href="/hm/device-link" target="_blank">
             <Monitor /> {tx('Link with Desktop App')}
           </a>

@@ -4,6 +4,7 @@ import {
   AUTH_STATE_DELEGATION_VAULT_URL,
   deleteAuthState,
   getAuthState,
+  getPendingIntent,
   writeLocalKeys,
 } from '@/local-db'
 import {processPendingIntent} from '@/pending-intent'
@@ -109,11 +110,17 @@ export default function AuthCallbackRoute() {
         await deleteAuthState(AUTH_STATE_DELEGATION_VAULT_URL)
         await deleteAuthState(AUTH_STATE_DELEGATION_RETURN_URL)
 
+        // Snapshot intent type before processing clears it.
+        const intent = await getPendingIntent()
+        const intentType = intent?.type ?? 'join'
+
         // Process any pending intent (comment or join) saved before vault redirect.
         const commentUrl = await processPendingIntent(originHomeId)
 
-        toast.success('Signed in successfully')
-        navigate(commentUrl || returnUrl, {replace: true})
+        const targetUrl = commentUrl || returnUrl
+        const sep = targetUrl.includes('?') ? '&' : '?'
+        const successVariant = intentType === 'comment' ? 'comment' : 'join'
+        navigate(`${targetUrl}${sep}vault_success=${successVariant}`, {replace: true})
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         setError(message)

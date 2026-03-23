@@ -568,7 +568,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         })
 
         if (!completeData.backupState) {
-          alert('⚠️ Your passkey is not backed up. Consider adding a password or more passkeys for account recovery.')
+          alert(
+            'Your passkey is not backed up to the cloud. If you lose this device, you may not be able to sign in. Consider adding a password or another passkey as a backup.',
+          )
         }
 
         state.decryptedDEK = dek
@@ -653,7 +655,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
 
         if (!wrapKey) {
-          state.error = 'PRF not supported by this authenticator. Please use your password.'
+          state.error =
+            'This passkey does not support the encryption needed to protect your vault. Please sign in with your password instead.'
           state.loading = false
           return
         }
@@ -661,7 +664,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         const vaultData = await client.getVault()
         const passkeyCredential = getPasskeyCredential(vaultData, authResponse.id)
         if (!passkeyCredential) {
-          state.error = 'No vault found for this passkey'
+          state.error =
+            'This passkey is not linked to any account. Try a different passkey or sign in with your password.'
           state.loading = false
           return
         }
@@ -673,7 +677,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         await actions.checkSession()
       } catch (e) {
         console.error('Passkey login error:', e)
-        state.error = (e as Error).message || 'Passkey sign in failed. Try using your password.'
+        state.error = (e as Error).message || 'Passkey sign-in failed. Please try again or sign in with your password.'
       } finally {
         state.loading = false
       }
@@ -722,7 +726,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
 
         if (!wrapKey) {
-          state.error = 'PRF not supported by this authenticator. Please use your password.'
+          state.error =
+            'This passkey does not support the encryption needed to protect your vault. Please sign in with your password instead.'
           state.loading = false
           return
         }
@@ -730,7 +735,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         const vaultData = await client.getVault()
         const passkeyCredential = getPasskeyCredential(vaultData, authResponse.id)
         if (!passkeyCredential) {
-          state.error = 'No vault found for this passkey'
+          state.error =
+            'This passkey is not linked to any account. Try a different passkey or sign in with your password.'
           return
         }
 
@@ -739,7 +745,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         await actions.loadVaultData(vaultData)
       } catch (e) {
         console.error('Quick unlock error:', e)
-        state.error = (e as Error).message || 'Unlock failed. Try using your password.'
+        state.error =
+          (e as Error).message || 'Could not unlock your vault. Please try again or sign in with your password.'
       } finally {
         state.loading = false
       }
@@ -801,14 +808,16 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
 
         if (!wrapKey) {
-          state.error = 'PRF not supported by this authenticator. Please use your password.'
+          state.error =
+            'This passkey does not support the encryption needed to protect your vault. Please sign in with your password instead.'
           return
         }
 
         const vaultData = await client.getVault()
         const passkeyCredential = getPasskeyCredential(vaultData, authResponse.id)
         if (!passkeyCredential) {
-          state.error = 'No vault found for this passkey'
+          state.error =
+            'This passkey is not linked to any account. Try a different passkey or sign in with your password.'
           return
         }
 
@@ -860,14 +869,16 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
 
         if (!wrapKey) {
-          state.error = 'PRF not supported by this authenticator. Please use your password.'
+          state.error =
+            'This passkey does not support the encryption needed to protect your vault. Please sign in with your password instead.'
           return
         }
 
         const vaultData = await client.getVault()
         const passkeyCredential = getPasskeyCredential(vaultData, authResponse.id)
         if (!passkeyCredential) {
-          state.error = 'No vault found for this passkey'
+          state.error =
+            'This passkey is not linked to any account. Try a different passkey or sign in with your password.'
           return
         }
 
@@ -879,7 +890,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       } catch (e) {
         if ((e as Error).name === 'AbortError') return
         console.error('Modal passkey login error:', e)
-        state.error = (e as Error).message || 'Passkey sign in failed.'
+        state.error = (e as Error).message || 'Passkey sign-in failed. Please try again or sign in with your password.'
       } finally {
         state.loading = false
       }
@@ -970,7 +981,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
             "Passkey registered for authentication, but it doesn't support encryption. Please set up a password instead."
           state.loading = false
           if (!data.backupState) {
-            alert('⚠️ Your passkey is not backed up.')
+            alert(
+              'Your passkey is not backed up to the cloud. If you lose this device, you may not be able to sign in. Consider adding a password or another passkey as a backup.',
+            )
           }
           return
         }
@@ -995,7 +1008,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         })
 
         if (!data.backupState) {
-          alert('⚠️ Your passkey is not backed up. Consider adding more passkeys for account recovery.')
+          alert(
+            'Your passkey is not backed up to the cloud. If you lose this device, you may not be able to sign in. Consider adding a password or another passkey as a backup.',
+          )
         }
 
         state.decryptedDEK = dek
@@ -1004,7 +1019,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         await actions.checkSession()
       } catch (e) {
         console.error('Passkey registration error:', e)
-        state.error = (e as Error).message || 'Passkey registration failed.'
+        state.error = (e as Error).message || 'Could not set up your passkey. Please try again.'
       } finally {
         state.loading = false
       }

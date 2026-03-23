@@ -127,7 +127,9 @@ export function VaultView() {
       <div className="bg-card flex min-h-[480px] overflow-hidden rounded-xl border max-md:flex-col">
         {/* Left sidebar */}
         <div
-          className={`flex shrink-0 flex-col max-md:w-full max-md:border-r-0 md:w-[280px] md:border-r ${mobilePanel === 'list' ? 'max-md:border-b' : 'max-md:hidden'}`}
+          className={`flex shrink-0 flex-col max-md:w-full max-md:border-r-0 md:w-[280px] md:border-r ${
+            mobilePanel === 'list' ? 'max-md:border-b' : 'max-md:hidden'
+          }`}
         >
           <div className="flex items-center justify-between border-b p-4">
             <h2 className="text-muted-foreground text-sm font-semibold tracking-wide uppercase">Accounts</h2>

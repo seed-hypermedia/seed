@@ -171,9 +171,12 @@ function ChatView({
   // Document context from current route
   const navRoute = useNavRoute()
   const routeId =
-    'id' in navRoute && navRoute.key !== 'draft' ? (navRoute.id as import('@seed-hypermedia/client/hm-types').UnpackedHypermediaId) : undefined
+    'id' in navRoute && navRoute.key !== 'draft'
+      ? (navRoute.id as import('@seed-hypermedia/client/hm-types').UnpackedHypermediaId)
+      : undefined
   const resource = useResource(routeId)
-  const documentTitle = resource.data?.type === 'document' ? (resource.data.document?.metadata?.name || undefined) : undefined
+  const documentTitle =
+    resource.data?.type === 'document' ? resource.data.document?.metadata?.name || undefined : undefined
 
   const documentContext = useMemo(() => {
     type DocCtx = {
@@ -188,7 +191,8 @@ function ChatView({
       editingDocumentUrl?: string
     }
 
-    const panel = 'panel' in navRoute ? (navRoute.panel as {key: string; openComment?: string} | null | undefined) : undefined
+    const panel =
+      'panel' in navRoute ? (navRoute.panel as {key: string; openComment?: string} | null | undefined) : undefined
     const activePanel = panel?.key as DocCtx['activePanel']
 
     switch (navRoute.key) {
