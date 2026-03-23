@@ -17,9 +17,101 @@ on:
       - "renovate/**"
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    outputs:
+      test_web: ${{ steps.compute.outputs.test_web }}
+      test_shared: ${{ steps.compute.outputs.test_shared }}
+      test_desktop: ${{ steps.compute.outputs.test_desktop }}
+      run_e2e_editor: ${{ steps.compute.outputs.run_e2e_editor }}
+      run_integration: ${{ steps.compute.outputs.run_integration }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared:
+              - 'frontend/packages/shared/**'
+            client:
+              - 'frontend/packages/client/**'
+            ui:
+              - 'frontend/packages/ui/**'
+            editor:
+              - 'frontend/packages/editor/**'
+            web:
+              - 'frontend/apps/web/**'
+            desktop:
+              - 'frontend/apps/desktop/**'
+            workflow:
+              - '.github/workflows/test-frontend-parallel.yml'
+
+      - name: Compute affected test suites
+        id: compute
+        run: |
+          shared="${{ steps.filter.outputs.shared }}"
+          client="${{ steps.filter.outputs.client }}"
+          ui="${{ steps.filter.outputs.ui }}"
+          editor="${{ steps.filter.outputs.editor }}"
+          web="${{ steps.filter.outputs.web }}"
+          desktop="${{ steps.filter.outputs.desktop }}"
+          workflow="${{ steps.filter.outputs.workflow }}"
+
+          echo "Filter results: shared=$shared client=$client ui=$ui editor=$editor web=$web desktop=$desktop workflow=$workflow"
+
+          # client or workflow change -> run everything
+          run_all="false"
+          if [ "$client" = "true" ] || [ "$workflow" = "true" ]; then
+            run_all="true"
+          fi
+
+          # web depends on: editor, ui, shared, client
+          test_web="false"
+          if [ "$run_all" = "true" ] || [ "$web" = "true" ] || [ "$ui" = "true" ] || [ "$editor" = "true" ] || [ "$shared" = "true" ]; then
+            test_web="true"
+          fi
+
+          # shared has its own tests
+          test_shared="false"
+          if [ "$run_all" = "true" ] || [ "$shared" = "true" ]; then
+            test_shared="true"
+          fi
+
+          # desktop depends on: shared, client
+          test_desktop="false"
+          if [ "$run_all" = "true" ] || [ "$desktop" = "true" ] || [ "$shared" = "true" ]; then
+            test_desktop="true"
+          fi
+
+          # editor E2E depends on: editor, ui, shared, client
+          run_e2e_editor="false"
+          if [ "$run_all" = "true" ] || [ "$editor" = "true" ] || [ "$ui" = "true" ] || [ "$shared" = "true" ]; then
+            run_e2e_editor="true"
+          fi
+
+          # integration tests (full web app): same deps as web
+          run_integration="false"
+          if [ "$run_all" = "true" ] || [ "$web" = "true" ] || [ "$ui" = "true" ] || [ "$editor" = "true" ] || [ "$shared" = "true" ]; then
+            run_integration="true"
+          fi
+
+          echo "Results: test_web=$test_web test_shared=$test_shared test_desktop=$test_desktop run_e2e_editor=$run_e2e_editor run_integration=$run_integration"
+
+          echo "test_web=$test_web" >> "$GITHUB_OUTPUT"
+          echo "test_shared=$test_shared" >> "$GITHUB_OUTPUT"
+          echo "test_desktop=$test_desktop" >> "$GITHUB_OUTPUT"
+          echo "run_e2e_editor=$run_e2e_editor" >> "$GITHUB_OUTPUT"
+          echo "run_integration=$run_integration" >> "$GITHUB_OUTPUT"
+
   # Job 1: All unit tests together (fast)
   unit-tests:
     name: Unit Tests
+    needs: [detect-changes]
+    # Always run (typecheck + format are fast and catch issues everywhere).
+    # !cancelled() ensures this runs even when detect-changes is skipped (workflow_call).
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -42,12 +134,24 @@ jobs:
         run: pnpm typecheck
 
       - name: Run Web Unit tests
+        if: |
+          github.event_name != 'pull_request' ||
+          needs.detect-changes.result == 'failure' ||
+          needs.detect-changes.outputs.test_web == 'true'
         run: pnpm --filter @shm/web test
 
       - name: Run Shared Unit Tests
+        if: |
+          github.event_name != 'pull_request' ||
+          needs.detect-changes.result == 'failure' ||
+          needs.detect-changes.outputs.test_shared == 'true'
         run: pnpm --filter @shm/shared test
 
       - name: Run Desktop Unit Tests
+        if: |
+          github.event_name != 'pull_request' ||
+          needs.detect-changes.result == 'failure' ||
+          needs.detect-changes.outputs.test_desktop == 'true'
         id: desktop_tests
         timeout-minutes: 3
         continue-on-error: true
@@ -67,6 +171,14 @@ jobs:
 
   # Job 2: Integration tests (only for docker workflows)
   integration-tests:
+    needs: [detect-changes]
+    if: |
+      !cancelled() &&
+      (github.event_name != 'workflow_call' || inputs.run-integration-tests) &&
+      (
+        needs.detect-changes.result != 'success' ||
+        needs.detect-changes.outputs.run_integration == 'true'
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -124,6 +236,12 @@ jobs:
   # Job 3: E2E tests (desktop and editor in parallel)
   e2e-tests:
     name: E2E Tests - ${{ matrix.suite }}
+    needs: [detect-changes]
+    if: |
+      !cancelled() && (
+        needs.detect-changes.result != 'success' ||
+        needs.detect-changes.outputs.run_e2e_editor == 'true'
+      )
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -190,18 +308,17 @@ jobs:
             exit 1
           fi
 
-          # Check integration tests (only if they were supposed to run)
-          if [ "${{ inputs.run-integration-tests }}" == "true" ]; then
-            if [ "${{ needs.integration-tests.result }}" != "success" ]; then
-              echo "Integration tests failed!"
-              exit 1
-            fi
+          # Check integration tests (must succeed or be skipped)
+          result="${{ needs.integration-tests.result }}"
+          if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+            echo "Integration tests failed!"
+            exit 1
           fi
 
-          # Check E2E tests (always run)
-          # if [ "${{ needs.e2e-tests.result }}" != "success" ]; then
+          # Check E2E tests (must succeed or be skipped)
+          # if [ "${{ needs.e2e-tests.result }}" != "success" ] && [ "${{ needs.e2e-tests.result }}" != "skipped" ]; then
           #   echo "E2E tests failed!"
           #   exit 1
           # fi
 
-          echo "✅ All tests passed!"
+          echo "All tests passed!"

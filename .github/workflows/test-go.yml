@@ -22,7 +22,117 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    outputs:
+      packages: ${{ steps.detect.outputs.packages }}
+      has_changes: ${{ steps.detect.outputs.has_changes }}
+      llm_needed: ${{ steps.detect.outputs.llm_needed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.4"
+
+      - name: Detect affected packages
+        id: detect
+        run: |
+          set -eo pipefail
+
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          changed=$(git diff --name-only "origin/$BASE_REF"...HEAD)
+
+          # If go.mod, go.sum, or workflow file changed -> run everything
+          if echo "$changed" | grep -qE '^(go\.(mod|sum)|\.github/workflows/test-go\.yml)$'; then
+            echo "Global dependency changed, running all tests"
+            echo "packages=./backend/..." >> "$GITHUB_OUTPUT"
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "llm_needed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Filter to Go files in backend/
+          go_files=$(echo "$changed" | grep -E '^backend/.*\.go$' || true)
+
+          if [ -z "$go_files" ]; then
+            echo "No Go files changed"
+            echo "packages=" >> "$GITHUB_OUTPUT"
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "llm_needed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Map changed files to package import paths
+          changed_pkgs=$(echo "$go_files" | xargs -I{} dirname {} | sort -u | sed 's|^|seed/|')
+          echo "Changed packages:"
+          echo "$changed_pkgs"
+
+          # Get dependency graph for all backend packages.
+          # CGO_ENABLED=0 avoids needing C headers; -e tolerates packages with errors.
+          dep_graph=$(CGO_ENABLED=0 go list -e -tags cpu \
+            -f '{{.ImportPath}}|{{join .Deps ","}}|{{join .TestImports ","}}|{{join .XTestImports ","}}' \
+            ./backend/... 2>/dev/null || true)
+
+          # Find affected packages (changed + their reverse dependencies)
+          affected=""
+          while IFS='|' read -r pkg deps test_imports xtest_imports; do
+            [ -z "$pkg" ] && continue
+            all_deps=",$deps,$test_imports,$xtest_imports,"
+
+            for cpkg in $changed_pkgs; do
+              if [ "$pkg" = "$cpkg" ] || [[ "$all_deps" == *",$cpkg,"* ]]; then
+                affected="$affected $pkg"
+                break
+              fi
+            done
+          done <<< "$dep_graph"
+
+          affected=$(echo "$affected" | tr ' ' '\n' | sort -u | grep -v '^$' | tr '\n' ' ' | xargs)
+
+          if [ -z "$affected" ]; then
+            echo "No affected packages found"
+            echo "packages=" >> "$GITHUB_OUTPUT"
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "llm_needed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Affected packages: $affected"
+
+          # Check if any affected package needs the llama.cpp build.
+          # A package needs it if it is under llm/ or transitively depends on llm.
+          llm_needed="false"
+          for pkg in $affected; do
+            if [[ "$pkg" == seed/backend/llm* ]]; then
+              llm_needed="true"
+              break
+            fi
+            pkg_deps=$(echo "$dep_graph" | grep "^${pkg}|" | head -1 | cut -d'|' -f2)
+            if [[ ",$pkg_deps," == *",seed/backend/llm/"* ]] || [[ ",$pkg_deps," == *",seed/backend/llm,"* ]]; then
+              llm_needed="true"
+              break
+            fi
+          done
+
+          echo "LLM needed: $llm_needed"
+          echo "packages=$affected" >> "$GITHUB_OUTPUT"
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          echo "llm_needed=$llm_needed" >> "$GITHUB_OUTPUT"
+
   test-go:
+    needs: [detect-changes]
+    # Run when: push to main, detection failed (failsafe), or changes detected.
+    # !cancelled() ensures this runs even when detect-changes is skipped (push events).
+    if: |
+      !cancelled() && (
+        needs.detect-changes.result != 'success' ||
+        needs.detect-changes.outputs.has_changes == 'true'
+      )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,6 +140,7 @@ jobs:
           submodules: recursive
 
       - name: Cache GGUF model
+        if: needs.detect-changes.result != 'success' || needs.detect-changes.outputs.llm_needed == 'true'
         uses: actions/cache@v4
         with:
           path: backend/llm/backends/llamacpp/models/*.gguf
@@ -37,6 +148,7 @@ jobs:
           enableCrossOsArchive: true
 
       - name: Download GGUF model
+        if: needs.detect-changes.result != 'success' || needs.detect-changes.outputs.llm_needed == 'true'
         run: |
           if [ ! -f backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf ]; then
             mkdir -p backend/llm/backends/llamacpp/models
@@ -50,18 +162,28 @@ jobs:
           go-version: "1.25.4"
 
       - name: Install build dependencies
+        if: needs.detect-changes.result != 'success' || needs.detect-changes.outputs.llm_needed == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake g++
 
       - name: Build llama.cpp (CPU-only for tests)
+        if: needs.detect-changes.result != 'success' || needs.detect-changes.outputs.llm_needed == 'true'
         run: |
           cd backend/util/llama-go
           # Tests run without GPU hardware, so we build CPU-only
           CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF" make libbinding.a
 
       - name: Run tests
-        run: go test -tags cpu --count 1 ./backend/...
+        run: |
+          PKGS="${{ needs.detect-changes.outputs.packages }}"
+          if [ "${{ github.event_name }}" = "push" ] || [ -z "$PKGS" ]; then
+            echo "Running all backend tests"
+            go test -tags cpu --count 1 ./backend/...
+          else
+            echo "Running affected tests: $PKGS"
+            go test -tags cpu --count 1 $PKGS
+          fi
         env:
           CGO_ENABLED: 1
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
@@ -71,7 +193,15 @@ jobs:
       # Run tests again with the race-detector.
       # Using the same job to reuse the build cache.
       - name: Run tests with race detector
-        run: go test -tags cpu --count 1 -race ./backend/...
+        run: |
+          PKGS="${{ needs.detect-changes.outputs.packages }}"
+          if [ "${{ github.event_name }}" = "push" ] || [ -z "$PKGS" ]; then
+            echo "Running all backend tests with race detector"
+            go test -tags cpu --count 1 -race ./backend/...
+          else
+            echo "Running affected tests with race detector: $PKGS"
+            go test -tags cpu --count 1 -race $PKGS
+          fi
         env:
           CGO_ENABLED: 1
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
