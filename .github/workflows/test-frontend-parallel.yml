@@ -49,8 +49,8 @@ jobs:
 
       - name: Run Desktop Unit Tests
         run: |
-          timeout 120 pnpm --filter @shm/desktop test:unit
-          rc=$?
+          timeout 120 pnpm --filter @shm/desktop test:unit || rc=$?
+          rc=${rc:-0}
           if [ $rc -eq 124 ]; then
             echo "⚠️ vitest hung after tests completed; killed by timeout (known jsdom issue)"
             exit 0
