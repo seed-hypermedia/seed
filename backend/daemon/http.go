@@ -39,7 +39,7 @@ var (
 	date   string
 )
 
-func makeBlobDebugHandler(bs blockstore.Blockstore) http.HandlerFunc {
+func makeBlobDebugHandler(cfg config.Base, bs blockstore.Blockstore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cs := mux.Vars(r)["cid"]
 		if cs == "" {
@@ -53,7 +53,12 @@ func makeBlobDebugHandler(bs blockstore.Blockstore) http.HandlerFunc {
 			return
 		}
 
-		blk, err := bs.Get(r.Context(), c)
+		ctx := r.Context()
+		if cfg.PublicOnly {
+			ctx = blob.WithPublicOnly(ctx)
+		}
+
+		blk, err := bs.Get(ctx, c)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
@@ -139,7 +144,7 @@ func initHTTP(
 		router.Handle("/debug/grpc", grpcLogsHandler(), RouteNav)
 		router.Handle("/debug/buildinfo", buildInfoHandler(), RouteNav)
 		router.Handle("/debug/version", gitVersionHandler(), RouteNav)
-		router.Handle("/debug/cid/{cid}", corsMiddleware(makeBlobDebugHandler(blobs)), 0)
+		router.Handle("/debug/cid/{cid}", corsMiddleware(makeBlobDebugHandler(cfg, blobs)), 0)
 		router.Handle("/debug/traces", eztrc.Handler(), RouteNav)
 		router.Handle("/debug/logs", logging.DebugHandler(), RouteNav)
 		router.Handle("/debug/requests", http.DefaultServeMux, RouteNav)
