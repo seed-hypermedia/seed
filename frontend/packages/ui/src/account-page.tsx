@@ -1,6 +1,7 @@
 import {HMMetadataPayload} from '@seed-hypermedia/client/hm-types'
 import {hmId, hostnameStripProtocol, ProfileTab, useFollowProfile, useRouteLink} from '@shm/shared'
 import {useAccount, useResource} from '@shm/shared/models/entity'
+import {ActivityIcon, LucideIcon, Rss, UserCheck, Users} from 'lucide-react'
 import {ReactNode} from 'react'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
@@ -16,11 +17,11 @@ import {PageTabItem, PageTabs} from './page-tabs'
 
 export type SiteAccountTab = 'profile' | 'membership' | 'followers' | 'following'
 
-const SITE_ACCOUNT_TABS: {label: string; value: SiteAccountTab}[] = [
-  {label: 'Activity', value: 'profile'},
-  {label: 'Site Membership', value: 'membership'},
-  {label: 'Followers', value: 'followers'},
-  {label: 'Following', value: 'following'},
+const SITE_ACCOUNT_TABS: {label: string; value: SiteAccountTab; icon: LucideIcon}[] = [
+  {label: 'Activity', value: 'profile', icon: ActivityIcon},
+  {label: 'Site Membership', value: 'membership', icon: Users},
+  {label: 'Followers', value: 'followers', icon: UserCheck},
+  {label: 'Following', value: 'following', icon: Rss},
 ]
 
 export function AccountPage({
@@ -49,40 +50,6 @@ export function AccountPage({
   } else if (tab === 'following') {
     ActiveTabContent = FollowingContent
   }
-  return (
-    <ScrollArea className="flex-1">
-      <PageLayout contentMaxWidth={720}>
-        <div className="space-y-6 py-8">
-          <div className="space-y-4">
-            <ProfileHeader
-              siteUid={siteUid}
-              accountUid={accountUid}
-              onEditProfile={onEditProfile}
-              headerButtons={headerButtons}
-              onFollowClick={onFollowClick}
-            />
-            <AccountPageTabs siteUid={siteUid} accountUid={accountUid} tab={tab} />
-          </div>
-          <ActiveTabContent siteUid={siteUid} accountUid={accountUid} />
-        </div>
-      </PageLayout>
-    </ScrollArea>
-  )
-}
-
-function ProfileHeader({
-  siteUid: _siteUid,
-  accountUid,
-  onEditProfile,
-  headerButtons,
-  onFollowClick,
-}: {
-  siteUid?: string | null
-  accountUid: string
-  onEditProfile?: () => void
-  headerButtons?: ReactNode
-  onFollowClick?: () => void
-}) {
   const account = useAccount(accountUid)
   const {isFollowing, isPending, isOwnAccount, followProfile, unfollowProfile} = useFollowProfile({
     profileUid: accountUid,
@@ -91,29 +58,44 @@ function ProfileHeader({
   const handleFollowClick = onFollowClick ?? followProfile
 
   return (
-    <div className="flex items-center gap-4">
-      <HMIcon id={hmId(accountUid)} size={64} icon={account.data?.metadata?.icon} name={account.data?.metadata?.name} />
-      <div className="min-w-0 flex-1 space-y-1">
-        <h1 className="truncate text-2xl font-bold">{account.data?.metadata?.name || accountUid}</h1>
-        <SiteLink account={account.data} />
-      </div>
-      <div className="flex items-center gap-2">
-        {isOwnAccount && onEditProfile && (
-          <Button variant="outline" onClick={onEditProfile}>
-            <Pencil className="size-4" />
-            Edit
-          </Button>
-        )}
-        {isOwnAccount && headerButtons}
-        {!isOwnAccount && (
-          <FollowButton
-            onClick={isFollowing ? unfollowProfile : handleFollowClick}
-            disabled={isPending}
-            isFollowing={isFollowing}
-          />
-        )}
-      </div>
-    </div>
+    <ScrollArea className="flex-1">
+      <PageLayout contentMaxWidth={720}>
+        <div className="space-y-6 py-8">
+          <div className="m-4 flex-col space-y-6">
+            <div className="flex items-center gap-4">
+              <HMIcon
+                id={hmId(accountUid)}
+                size={64}
+                icon={account.data?.metadata?.icon}
+                name={account.data?.metadata?.name}
+              />
+              <div className="min-w-0 flex-1 space-y-1">
+                <h1 className="truncate text-2xl font-bold">{account.data?.metadata?.name || accountUid}</h1>
+                <SiteLink account={account.data} />
+              </div>
+              <div className="flex items-center gap-2">
+                {isOwnAccount && onEditProfile && (
+                  <Button variant="outline" onClick={onEditProfile}>
+                    <Pencil className="size-4" />
+                    Edit
+                  </Button>
+                )}
+                {isOwnAccount && headerButtons}
+                {!isOwnAccount && (
+                  <FollowButton
+                    onClick={isFollowing ? unfollowProfile : handleFollowClick}
+                    disabled={isPending}
+                    isFollowing={isFollowing}
+                  />
+                )}
+              </div>
+            </div>
+            <AccountPageTabs siteUid={siteUid} accountUid={accountUid} tab={tab} />
+          </div>
+          <ActiveTabContent siteUid={siteUid} accountUid={accountUid} />
+        </div>
+      </PageLayout>
+    </ScrollArea>
   )
 }
 
@@ -153,6 +135,7 @@ function AccountPageTabs({
   const tabs: PageTabItem[] = SITE_ACCOUNT_TABS.map((t) => ({
     key: t.value,
     label: t.label,
+    icon: t.icon,
     route: siteUid
       ? {
           key: 'site-profile',

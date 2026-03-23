@@ -24,12 +24,12 @@ export function MembershipContent({accountUid}: {accountUid: string}) {
   if (!uniqueSiteSubscribed?.length) {
     return (
       <div className="py-8 text-center">
-        <SizableText color="muted">No sites joined yet.</SizableText>
+        <SizableText color="muted">No sites joined yet</SizableText>
       </div>
     )
   }
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 py-4">
       {uniqueSiteSubscribed?.map((contact) => {
         return <MembershipItem key={contact.subject} contact={contact} />
       })}
@@ -47,9 +47,8 @@ function MembershipItem({contact}: {contact: HMContactRecord}) {
 
   const name = contact.name || subject.data?.metadata?.name
   const icon = subject.data?.metadata?.icon
-
   return (
-    <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-lg p-3 transition-colors">
+    <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-lg px-6 py-3 transition-colors">
       <HMIcon id={hmId(contact.subject)} size={40} icon={icon} name={name} />
       <div className="min-w-0 flex-1">
         <SizableText weight="medium" className="truncate">
