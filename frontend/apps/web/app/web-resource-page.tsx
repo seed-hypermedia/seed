@@ -11,7 +11,7 @@ import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
 import {Spinner} from '@shm/ui/spinner'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {lazy, Suspense, useCallback, useEffect, useMemo, useRef} from 'react'
-import {EditProfileDialog, LogoutButton, useCreateAccount, useLocalKeyPair} from './auth'
+import {EditProfileDialog, LogoutButton, useCreateAccount, useLocalKeyPair, useVaultSuccessDialog} from './auth'
 import {preloadCommenting} from './client-lazy'
 import {setPendingIntent} from './local-db'
 import {PageFooter} from './page-footer'
@@ -47,6 +47,7 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
   const replaceRoute = useNavigate('replace')
   const userKeyPair = useLocalKeyPair()
   const editProfileDialog = useAppDialog(EditProfileDialog)
+  const vaultSuccessContent = useVaultSuccessDialog()
 
   // Determine if viewing own profile on site-profile page
   const isSiteProfile = route.key === 'site-profile'
@@ -199,6 +200,7 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
       </CommentsProvider>
       {editProfileDialog.content}
       {followAccountContent}
+      {vaultSuccessContent}
     </WebAccountFooter>
   )
 }
