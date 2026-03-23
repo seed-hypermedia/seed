@@ -1,7 +1,8 @@
-import {useEffect} from 'react'
-import {useParams} from 'react-router-dom'
+import {useCallback, useEffect} from 'react'
+import {useNavigate, useParams} from 'react-router-dom'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import {Spinner} from '@/frontend/components/Spinner'
+import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardHeader, CardTitle} from '@/frontend/components/ui/card'
 import {useActions, useAppState} from '@/frontend/store'
 
@@ -12,10 +13,18 @@ import {useActions, useAppState} from '@/frontend/store'
 export function ChangeEmailVerifyView() {
   const {newEmail, loading, error} = useAppState()
   const actions = useActions()
+  const navigate = useNavigate()
   const {challengeId, token} = useParams<{
     challengeId: string
     token: string
   }>()
+
+  const handleBackToLogin = useCallback(() => {
+    window.close()
+    // window.close() is blocked by browsers for tabs not opened via window.open().
+    // Fall back to navigating to the login screen.
+    setTimeout(() => navigate('/'), 100)
+  }, [navigate])
 
   useEffect(() => {
     if (challengeId && token) {
@@ -45,8 +54,16 @@ export function ChangeEmailVerifyView() {
               Email change to <strong>{newEmail}</strong> has been confirmed.
             </p>
 
-            <p className="mt-6 text-center opacity-80">You can now close this window.</p>
+            <Button variant="ghost" className="mt-6 w-full" onClick={handleBackToLogin}>
+              ← Back to login screen
+            </Button>
           </>
+        )}
+
+        {error && (
+          <Button variant="ghost" className="mt-6 w-full" onClick={handleBackToLogin}>
+            ← Back to login screen
+          </Button>
         )}
 
         {loading && (
