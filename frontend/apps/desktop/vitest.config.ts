@@ -4,6 +4,7 @@ import {defineConfig} from 'vitest/config'
 export default defineConfig({
   test: {
     testTimeout: 10000, // 10 seconds
+    teardownTimeout: 5000,
     setupFiles: ['fake-indexeddb/auto'],
     environment: 'jsdom',
   },
