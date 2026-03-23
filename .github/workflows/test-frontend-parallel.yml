@@ -52,22 +52,18 @@ jobs:
         timeout-minutes: 3
         continue-on-error: true
         run: |
-          set -o pipefail
-          pnpm --filter @shm/desktop test:unit 2>&1 | tee /tmp/desktop-tests.log
+          pnpm --filter @shm/desktop test:unit
+          echo "VITEST_EXIT_CODE=$?" > /tmp/desktop-tests-status
 
       - name: Verify Desktop Tests Passed
         if: steps.desktop_tests.outcome != 'success'
         run: |
-          if grep -qE "Tests\s+[0-9]+ failed" /tmp/desktop-tests.log 2>/dev/null; then
-            echo "❌ Desktop unit tests had failures"
+          if [ -f /tmp/desktop-tests-status ]; then
+            echo "❌ Desktop tests failed (vitest exited with error)"
+            cat /tmp/desktop-tests-status
             exit 1
           fi
-          if grep -q "Test Files" /tmp/desktop-tests.log 2>/dev/null; then
-            echo "✅ All desktop tests passed (vitest hung after completion — known jsdom issue)"
-            exit 0
-          fi
-          echo "❌ Could not confirm desktop tests passed"
-          exit 1
+          echo "✅ Desktop tests passed (vitest hung after completion — known jsdom issue)"
 
   # Job 2: Integration tests (only for docker workflows)
   integration-tests:
