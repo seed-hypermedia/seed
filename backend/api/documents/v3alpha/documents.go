@@ -1539,6 +1539,10 @@ func (srv *Server) GetRef(ctx context.Context, in *documents.GetRefRequest) (*do
 		return nil, err
 	}
 
+	if srv.cfg.PublicOnly && ref.Value.Visibility == blob.VisibilityPrivate {
+		return nil, status.Errorf(codes.PermissionDenied, "access to private refs is not allowed")
+	}
+
 	return refToProto(ref.CID, ref.Value)
 }
 

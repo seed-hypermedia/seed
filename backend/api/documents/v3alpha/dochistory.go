@@ -63,6 +63,10 @@ func (srv *Server) ListDocumentChanges(ctx context.Context, in *documents.ListDo
 		return nil, err
 	}
 
+	if srv.cfg.PublicOnly && doc.Visibility() == blob.VisibilityPrivate {
+		return nil, status.Errorf(codes.PermissionDenied, "access to private documents is not allowed")
+	}
+
 	var cursor struct {
 		StartFrom string
 	}
@@ -119,6 +123,10 @@ func (srv *Server) GetDocumentChange(ctx context.Context, in *documents.GetDocum
 	c, err := cid.Decode(in.Id)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode change ID '%s': %v", in.Id, err)
+	}
+
+	if srv.cfg.PublicOnly {
+		ctx = blob.WithPublicOnly(ctx)
 	}
 
 	blk, err := srv.idx.Get(ctx, c)

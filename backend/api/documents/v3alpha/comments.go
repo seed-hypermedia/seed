@@ -699,6 +699,15 @@ func (srv *Server) GetCommentReplyCount(ctx context.Context, in *documents.GetCo
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode comment ID: %v", err)
 	}
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		if srv.cfg.PublicOnly {
+			icmt, err := srv.getComment(conn, in.Id)
+			if err != nil {
+				return err
+			}
+			if icmt.Comment.Visibility == blob.VisibilityPrivate {
+				return status.Errorf(codes.PermissionDenied, "access to private comments is not allowed")
+			}
+		}
 		if err := sqlitex.Exec(conn, qGetReplyCountByID(), func(stmt *sqlite.Stmt) error {
 			resp.ReplyCount = stmt.ColumnInt64(0)
 			return nil
