@@ -22,6 +22,27 @@ type DeleteEntitiesInput = {
   signingAccountUid: string
 }
 
+/**
+ * Pushes deleted entity updates to peers without converting a successful local
+ * delete into a failed mutation when propagation is unavailable.
+ */
+export async function pushDeletedEntitiesBestEffort(
+  push: (id: UnpackedHypermediaId) => Promise<unknown>,
+  ids: UnpackedHypermediaId[],
+): Promise<void> {
+  const results = await Promise.allSettled(
+    ids.map(async (id) => {
+      return push(id)
+    }),
+  )
+
+  results.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      console.error('Failed to push deleted entity update', ids[index].id, result.reason)
+    }
+  })
+}
+
 export function useDeleteEntities(opts: UseMutationOptions<void, unknown, DeleteEntitiesInput>) {
   const push = usePushResource()
   const deleteRecent = useDeleteRecent()
@@ -51,7 +72,7 @@ export function useDeleteEntities(opts: UseMutationOptions<void, unknown, Delete
           await universalClient.publish(refInput)
         }),
       )
-      await Promise.all(ids.map((id) => push(id)))
+      await pushDeletedEntitiesBestEffort(push, ids)
     },
     onSuccess: (result: void, input: DeleteEntitiesInput, context) => {
       invalidateQueries([])

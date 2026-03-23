@@ -45,7 +45,8 @@ export function DeleteDocumentDialog({
   const deleteEntity = useDeleteEntities({
     onSuccess: () => {
       toast.success(`Successfully deleted ${childDocs.length + 1} documents`)
-      onClose?.(), onSuccess?.()
+      onClose?.()
+      onSuccess?.()
     },
   })
   const cap = useSelectedAccountCapability(id)
