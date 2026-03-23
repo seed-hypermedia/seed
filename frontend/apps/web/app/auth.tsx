@@ -427,7 +427,7 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
               }
             }}
           >
-            <div className="flex flex-col gap-1.5 mb-4">
+            <div className="mb-4 flex flex-col gap-1.5">
               <SizableText size="sm" className="font-medium">
                 Enter your email to continue
               </SizableText>
@@ -522,13 +522,7 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
   )
 }
 
-function VaultSuccessDialog({
-  input,
-  onClose,
-}: {
-  input: {variant: 'comment' | 'join'}
-  onClose: () => void
-}) {
+function VaultSuccessDialog({input, onClose}: {input: {variant: 'comment' | 'join'}; onClose: () => void}) {
   const {origin} = useUniversalAppContext()
   const siteName = hostnameStripProtocol(origin)
 
@@ -725,7 +719,8 @@ export function LinkKeysDialog() {
         </div>
       </DialogDescription>
       <div className="flex flex-wrap gap-2">
-        <Button variant="default" asChild>http://localhost:56001/ipfs/bafybeieswa4lfaruhtyuy2xrwhxszta2mqxfkbmmcckofd65kcy243fdw4
+        <Button variant="default" asChild>
+          http://localhost:56001/ipfs/bafybeieswa4lfaruhtyuy2xrwhxszta2mqxfkbmmcckofd65kcy243fdw4
           <a href="/hm/device-link" target="_blank">
             <Monitor /> {tx('Link with Desktop App')}
           </a>
