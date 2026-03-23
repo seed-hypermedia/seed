@@ -770,11 +770,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	} else if len(cleanQuery) < 3 {
 		resultsLmit = 100
 	}
-	ftsStrKeySearch := strings.ReplaceAll(cleanQuery, " ", "+")
-	if ftsStrKeySearch[len(ftsStrKeySearch)-1] == '+' {
-		ftsStrKeySearch = ftsStrKeySearch[:len(ftsStrKeySearch)-1]
+	tokens := strings.Fields(cleanQuery)
+	for i, t := range tokens {
+		tokens[i] = `"` + t + `"`
 	}
-	ftsStrKeySearch += "*"
+	ftsStrKeySearch := strings.Join(tokens, " ") + "*"
 	if in.ContextSize < 2 {
 		in.ContextSize = 48
 	}
