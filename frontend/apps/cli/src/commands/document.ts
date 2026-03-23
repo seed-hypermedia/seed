@@ -635,7 +635,7 @@ export function registerDocumentCommands(program: Command) {
           process.exit(1)
         }
         const doc = resource.document
-        const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 1
+        const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 0
 
         const refInput = await createTombstoneRef(
           {

@@ -58,7 +58,7 @@ export function useDeleteEntities(opts: UseMutationOptions<void, unknown, Delete
           const resource = await universalClient.request('Resource', id)
           if (resource.type !== 'document') throw new Error(`Cannot delete: resource is ${resource.type}`)
           const doc = resource.document
-          const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : Number(doc.genesis ? 1 : 0)
+          const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 0
           const refInput = await createTombstoneRef(
             {
               space: id.uid || '',

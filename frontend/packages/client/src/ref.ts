@@ -95,7 +95,10 @@ function buildUnsignedRef({
     ts: BigInt(Date.now()),
     sig: new Uint8Array(64),
     genesisBlob: CID.parse(genesis),
-    generation,
+  }
+
+  if (generation !== 0) {
+    unsigned.generation = generation
   }
 
   // Only include space if different from signer
