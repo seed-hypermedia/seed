@@ -1595,7 +1595,7 @@ func (srv *Server) ListEntityMentions(ctx context.Context, in *entpb.ListEntityM
 			})
 
 			return nil
-		}, eid, cursor.BlobID, in.PageSize); err != nil {
+		}, eid, cursor.BlobID, in.PageSize, srv.cfg.PublicOnly); err != nil {
 			return err
 		}
 
@@ -1668,8 +1668,10 @@ FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
+LEFT JOIN public_blobs pb3 ON pb3.id = blobs.id
 WHERE resource_links.target = :target
 AND structural_blobs.type IN ('Change')
+AND (:publicOnly = 0 OR pb3.id IS NOT NULL)
 )
 SELECT
     resources.iri,
@@ -1693,9 +1695,11 @@ JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN resources ON resources.id = structural_blobs.resource
+LEFT JOIN public_blobs pb ON pb.id = blobs.id
 WHERE resource_links.target = :target
 AND blobs.id %s :blob_id
 AND structural_blobs.type IN ('Comment')
+AND (:publicOnly = 0 OR pb.id IS NOT NULL)
 GROUP BY resources.iri, link_id, target_version, target_fragment
 
 UNION ALL
@@ -1720,8 +1724,10 @@ FROM structural_blobs
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN resources ON resources.id = structural_blobs.resource
+LEFT JOIN public_blobs pb2 ON pb2.id = blobs.id
 JOIN changes ON (((changes.genesis_blob = structural_blobs.genesis_blob OR changes.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (changes.id = structural_blobs.id AND structural_blobs.type = 'Comment'))
 AND blobs.id %s :blob_id
+AND (:publicOnly = 0 OR pb2.id IS NOT NULL)
 GROUP BY resources.iri, changes.link_id, target_version, target_fragment
 ORDER BY blobs.id %s
 LIMIT :page_size + 1;
