@@ -1088,7 +1088,8 @@ export const HMDraftMetaSchema = HMDraftMetaBaseSchema.refine(draftLocationRefin
   message: 'Either editUid or locationUid must be provided',
 })
 
-// TypeScript union type: editUid OR locationUid must be present
+// Drafts may have editUid (editing existing doc), locationUid (creating child),
+// both, or neither (location chosen at publish time).
 type HMDraftMetaBase = {
   id: string
   locationPath?: string[]
@@ -1099,8 +1100,10 @@ type HMDraftMetaBase = {
   navigation?: HMNavigationItem[]
 }
 
-export type HMDraftMeta = HMDraftMetaBase &
-  ({editUid: string; locationUid?: string} | {editUid?: undefined; locationUid: string})
+export type HMDraftMeta = HMDraftMetaBase & {
+  editUid?: string
+  locationUid?: string
+}
 
 // Schema with refinement for writing new drafts
 export const HMListedDraftSchema = HMDraftMetaBaseSchema.extend({

@@ -358,10 +358,12 @@ export const draftMachine = setup({
               },
             ],
             onError: {
+              target: 'idle',
               actions: [
-                () => {
-                  console.log('=== DRAFT onError: ')
+                ({event}: {event: any}) => {
+                  console.error('Draft create failed:', event.error)
                 },
+                {type: 'setDraftStatus', params: {status: 'error'}},
               ],
             },
           },
@@ -414,10 +416,12 @@ export const draftMachine = setup({
               },
             ],
             onError: {
+              target: 'idle',
               actions: [
-                () => {
-                  console.log('=== DRAFT onError: ')
+                ({event}: {event: any}) => {
+                  console.error('Draft save failed:', event.error)
                 },
+                {type: 'setDraftStatus', params: {status: 'error'}},
               ],
             },
           },

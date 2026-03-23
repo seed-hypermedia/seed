@@ -247,7 +247,7 @@ async function rebuildFileMap() {
           lastUpdateTime: stat.mtimeMs,
           visibility: 'PUBLIC',
           deps: [],
-        } as unknown as HMListedDraft
+        } as HMListedDraft
 
         draftIndex?.push(entry)
         indexedIds.add(id)
@@ -271,6 +271,24 @@ async function rebuildFileMap() {
  */
 async function discoverNewDrafts() {
   if (!draftIndex) return
+
+  // Merge entries written to disk by CLI since last in-memory load.
+  // This preserves CLI-set metadata (editUid, locationUid, etc.) that
+  // would otherwise be lost when we create stripped-down entries from
+  // parsing .md frontmatter below.
+  try {
+    const diskIndexJSON = await fs.readFile(draftIndexPath, 'utf-8')
+    const diskEntries = JSON.parse(diskIndexJSON) as any[]
+    const memoryIds = new Set(draftIndex.map((d) => d.id))
+    for (const entry of diskEntries) {
+      if (entry.id && !memoryIds.has(entry.id)) {
+        draftIndex.push({
+          ...entry,
+          metadata: fixDraftMetadata(entry.metadata),
+        } as HMListedDraft)
+      }
+    }
+  } catch {}
 
   let allFiles: string[]
   try {
@@ -302,7 +320,7 @@ async function discoverNewDrafts() {
         lastUpdateTime: stat.mtimeMs,
         visibility: 'PUBLIC',
         deps: [],
-      } as unknown as HMListedDraft
+      } as HMListedDraft
 
       draftIndex.push(entry)
       draftFileMap.set(id, file)
@@ -502,10 +520,6 @@ export const draftsApi = t.router({
     .mutation(async ({input}) => {
       if (!draftIndex) {
         throw Error('[DRAFT]: Draft Index not initialized')
-      }
-
-      if (!input.editUid && !input.locationUid) {
-        throw Error('[DRAFT]: Either editUid or locationUid must be provided')
       }
 
       const draftId = input.id || nanoid(10)
