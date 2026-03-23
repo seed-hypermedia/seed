@@ -396,7 +396,7 @@ function loadedEventToPayload(event: LoadedEventWithNotifMeta, reason: string): 
           name: e.target?.metadata?.name ?? e.source?.metadata?.name ?? null,
         },
     commentId: e.comment?.id ?? null,
-    sourceId: isCitation ? null : (e.source?.id?.uid ?? null),
+    sourceId: isCitation ? null : e.source?.id?.uid ?? null,
     citationType: e.citationType === 'd' || e.citationType === 'c' ? e.citationType : null,
   }
 }
