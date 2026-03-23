@@ -89,7 +89,7 @@ function createMentionPayload(overrides: Partial<NotificationPayload> = {}): Not
     author: {uid: 'author', name: 'Alice', icon: null},
     target: {uid: 'source', path: ['doc'], name: 'Source Doc'},
     commentId: null,
-    sourceId: 'source',
+    sourceId: null,
     citationType: 'd',
     ...overrides,
   }
@@ -288,6 +288,129 @@ describe('notifications page helpers', () => {
     const notifications = [createMentionPayload({eventAtMs: 10}), createReplyPayload({eventAtMs: 20})]
     expect(getMaxLoadedNotificationEventAtMs(notifications, 1)).toBe(20)
     expect(getMaxLoadedNotificationEventAtMs([], 99)).toBe(99)
+  })
+
+  it('creates route for ref (site-doc-update) notifications', () => {
+    const payload: NotificationPayload = {
+      feedEventId: 'ref-event-1',
+      eventAtMs: 3_000,
+      reason: 'site-doc-update',
+      eventType: 'ref',
+      author: {uid: 'author', name: 'Alice', icon: null},
+      target: {uid: 'site-owner', path: ['updated-page'], name: 'Updated Page'},
+      commentId: null,
+      sourceId: null,
+      citationType: null,
+    }
+    const route = notificationRouteForPayload(payload)
+    expect(route).toEqual({
+      key: 'document',
+      id: expect.objectContaining({uid: 'site-owner', path: ['updated-page']}),
+    })
+  })
+
+  it('returns null for ref notifications without target uid', () => {
+    const payload: NotificationPayload = {
+      feedEventId: 'ref-event-2',
+      eventAtMs: 3_000,
+      reason: 'site-doc-update',
+      eventType: 'ref',
+      author: {uid: 'author', name: 'Alice', icon: null},
+      target: {uid: '', path: null, name: null},
+      commentId: null,
+      sourceId: null,
+      citationType: null,
+    }
+    expect(notificationRouteForPayload(payload)).toBeNull()
+  })
+
+  it('creates correct route for citation with source path', () => {
+    // Simulates the corrected payload where target contains the source (citing) doc info
+    const payload = createMentionPayload({
+      target: {uid: 'citing-account', path: ['their', 'document'], name: 'Their Doc'},
+    })
+    const route = notificationRouteForPayload(payload)
+    expect(route).toEqual({
+      key: 'document',
+      id: expect.objectContaining({uid: 'citing-account', path: ['their', 'document']}),
+    })
+  })
+
+  it('navigates to source document path for citation mention, not home document', () => {
+    // Regression: citation mentions previously lost the source path, navigating to
+    // the home document of the citing account instead of the specific sub-document.
+    const payload: NotificationPayload = {
+      feedEventId: 'regression-1',
+      eventAtMs: 1_000,
+      reason: 'mention',
+      eventType: 'citation',
+      author: {uid: 'author', name: 'Alice', icon: null},
+      // target must contain source (citing) doc info per server convention
+      target: {uid: 'other-account', path: ['deep', 'nested', 'page'], name: 'Nested Page'},
+      commentId: null,
+      sourceId: null,
+      citationType: 'd',
+    }
+    const route = notificationRouteForPayload(payload)
+    expect(route).toEqual({
+      key: 'document',
+      id: expect.objectContaining({
+        uid: 'other-account',
+        path: ['deep', 'nested', 'page'],
+      }),
+    })
+    // Must NOT navigate to the home document (path: null)
+    expect((route as any).id.path).not.toBeNull()
+  })
+
+  it('navigates to comment on source document for comment citation', () => {
+    const payload: NotificationPayload = {
+      feedEventId: 'regression-2',
+      eventAtMs: 1_000,
+      reason: 'mention',
+      eventType: 'citation',
+      author: {uid: 'author', name: 'Alice', icon: null},
+      target: {uid: 'site-owner', path: ['blog-post'], name: 'Blog Post'},
+      commentId: 'comment-abc',
+      sourceId: null,
+      citationType: 'c',
+    }
+    const route = notificationRouteForPayload(payload)
+    expect(route).toEqual({
+      key: 'comments',
+      id: expect.objectContaining({uid: 'site-owner', path: ['blog-post']}),
+      openComment: 'comment-abc',
+    })
+  })
+
+  it('does not navigate when route is null for unknown event types', () => {
+    const payload: NotificationPayload = {
+      feedEventId: 'unknown-1',
+      eventAtMs: 1_000,
+      reason: 'mention',
+      eventType: 'unknown',
+      author: {uid: 'author', name: 'Alice', icon: null},
+      target: {uid: 'account', path: null, name: null},
+      commentId: null,
+      sourceId: null,
+      citationType: null,
+    }
+    expect(notificationRouteForPayload(payload)).toBeNull()
+  })
+
+  it('does not navigate when comment notification has empty target uid', () => {
+    const payload: NotificationPayload = {
+      feedEventId: 'empty-uid-1',
+      eventAtMs: 1_000,
+      reason: 'reply',
+      eventType: 'comment',
+      author: {uid: 'author', name: 'Alice', icon: null},
+      target: {uid: '', path: null, name: null},
+      commentId: 'comment-1',
+      sourceId: null,
+      citationType: null,
+    }
+    expect(notificationRouteForPayload(payload)).toBeNull()
   })
 
   it('applies read rules with watermark and explicit read event IDs', () => {

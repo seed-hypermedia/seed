@@ -277,6 +277,176 @@ describe('app notification inbox', () => {
     })
   })
 
+  it('stores source document info in target field for citation notifications', async () => {
+    storeData['NotificationInbox-v003'] = {
+      version: 2,
+      cursorEventId: 'blob-old-cursor',
+      accounts: {},
+      registeredAccounts: {},
+      registeredHost: null,
+      lastPollAtMs: null,
+      lastError: null,
+    }
+
+    listKeysMock.mockResolvedValue({
+      keys: [{publicKey: 'account-a'}],
+    })
+    listRawEventsMock.mockResolvedValue({
+      toJson: () => ({events: [rawNewBlobEvent('latest-cid')]}),
+    })
+    listResolvedEventsMock.mockResolvedValue({
+      events: [
+        createCitationMentionEvent({
+          eventId: 'mention-event',
+          accountUid: 'account-a',
+        }),
+        {
+          type: 'comment',
+          feedEventId: 'blob-old-cursor',
+          eventAtMs: 1000,
+          time: '2026-02-17T00:00:02.000Z',
+          author: null,
+          comment: null,
+          replyParentAuthor: null,
+          target: null,
+        },
+      ],
+      nextPageToken: '',
+    })
+
+    const {caller, runPoll} = await loadInboxCaller()
+    await runPoll()
+
+    const inbox = await caller.getLocalInbox({accountUid: 'account-a'})
+    expect(inbox).toHaveLength(1)
+    // target must contain the SOURCE (citing) document info, not the cited account
+    expect(inbox[0]).toMatchObject({
+      reason: 'mention',
+      eventType: 'citation',
+      target: {uid: 'site-a', path: ['doc'], name: 'Doc'},
+      sourceId: null,
+    })
+  })
+
+  it('preserves source path for citation of sub-document mention', async () => {
+    storeData['NotificationInbox-v003'] = {
+      version: 2,
+      cursorEventId: 'blob-old-cursor',
+      accounts: {},
+      registeredAccounts: {},
+      registeredHost: null,
+      lastPollAtMs: null,
+      lastError: null,
+    }
+
+    listKeysMock.mockResolvedValue({
+      keys: [{publicKey: 'account-a'}],
+    })
+    listRawEventsMock.mockResolvedValue({
+      toJson: () => ({events: [rawNewBlobEvent('latest-cid')]}),
+    })
+
+    // Citation where source is a nested sub-document
+    const citationWithDeepPath = {
+      type: 'citation',
+      id: 'deep-cite',
+      feedEventId: 'deep-cite',
+      eventAtMs: 2000,
+      time: '2026-02-17T00:00:00.000Z',
+      author: {id: {uid: 'author-a', path: null}, metadata: {name: 'Author'}},
+      source: {
+        id: {uid: 'other-site', path: ['projects', 'alpha', 'notes']},
+        metadata: {name: 'Alpha Notes'},
+      },
+      target: {
+        id: {uid: 'account-a', path: null},
+        metadata: {name: 'My Account'},
+      },
+      citationType: 'd',
+      comment: null,
+      replyCount: 0,
+    } as any
+
+    listResolvedEventsMock.mockResolvedValue({
+      events: [
+        citationWithDeepPath,
+        {
+          type: 'comment',
+          feedEventId: 'blob-old-cursor',
+          eventAtMs: 1000,
+          time: '2026-02-17T00:00:02.000Z',
+          author: null,
+          comment: null,
+          replyParentAuthor: null,
+          target: null,
+        },
+      ],
+      nextPageToken: '',
+    })
+
+    const {caller, runPoll} = await loadInboxCaller()
+    await runPoll()
+
+    const inbox = await caller.getLocalInbox({accountUid: 'account-a'})
+    expect(inbox).toHaveLength(1)
+    // Must navigate to the source's deep path, NOT the cited account's root
+    expect(inbox[0]).toMatchObject({
+      target: {uid: 'other-site', path: ['projects', 'alpha', 'notes'], name: 'Alpha Notes'},
+      sourceId: null,
+    })
+  })
+
+  it('keeps target as the commented document for comment events', async () => {
+    storeData['NotificationInbox-v003'] = {
+      version: 2,
+      cursorEventId: 'blob-old-cursor',
+      accounts: {},
+      registeredAccounts: {},
+      registeredHost: null,
+      lastPollAtMs: null,
+      lastError: null,
+    }
+
+    listKeysMock.mockResolvedValue({
+      keys: [{publicKey: 'account-a'}],
+    })
+    listRawEventsMock.mockResolvedValue({
+      toJson: () => ({events: [rawNewBlobEvent('latest-cid')]}),
+    })
+    listResolvedEventsMock.mockResolvedValue({
+      events: [
+        createReplyEvent({
+          eventId: 'reply-event',
+          accountUid: 'account-a',
+        }),
+        {
+          type: 'comment',
+          feedEventId: 'blob-old-cursor',
+          eventAtMs: 1000,
+          time: '2026-02-17T00:00:02.000Z',
+          author: null,
+          comment: null,
+          replyParentAuthor: null,
+          target: null,
+        },
+      ],
+      nextPageToken: '',
+    })
+
+    const {caller, runPoll} = await loadInboxCaller()
+    await runPoll()
+
+    const inbox = await caller.getLocalInbox({accountUid: 'account-a'})
+    expect(inbox).toHaveLength(1)
+    // Comment events should keep the actual document target (not swapped)
+    expect(inbox[0]).toMatchObject({
+      reason: 'reply',
+      eventType: 'comment',
+      target: {uid: 'site-b', path: ['post'], name: 'Post'},
+      commentId: 'comment-version',
+    })
+  })
+
   it('does not duplicate discussion notifications when citation mirror event exists', async () => {
     storeData['NotificationInbox-v003'] = {
       version: 2,
