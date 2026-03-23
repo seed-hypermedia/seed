@@ -2643,6 +2643,115 @@ func TestCommentImageSync(t *testing.T) {
 	}
 }
 
+// TestCommentEmbedSync tests that documents embedded in comments via hm:// links
+// are synced to peers during discovery-based sync.
+// Embeds render inline content, so the embedded document must be available locally.
+// TODO: Currently fails because resource_links (hm:// embeds) are not traversed during discovery.
+func TestCommentEmbedSync(t *testing.T) {
+	t.Skip("Embedded documents are not yet synced during discovery — resource_links not traversed")
+	t.Parallel()
+
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+	ctx := context.Background()
+
+	aliceAccount := must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main")).String()
+
+	// Alice creates a document that will be embedded.
+	embeddedDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/embedded-doc",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Embedded Document"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "This is the embedded content that should be synced.",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Alice creates another document where the comment will be posted.
+	targetDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/target-doc",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Target Document"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "This document has a comment with an embed.",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Alice creates a comment with an embed block referencing the other document.
+	embedLink := "hm://" + embeddedDoc.Account + embeddedDoc.Path + "?v=" + embeddedDoc.Version
+	comment, err := alice.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+		TargetAccount:  targetDoc.Account,
+		TargetPath:     targetDoc.Path,
+		TargetVersion:  targetDoc.Version,
+		SigningKeyName: "main",
+		Content: []*documents.BlockNode{
+			{Block: &documents.Block{
+				Id:   "c1",
+				Type: "Embed",
+				Text: "",
+				Link: embedLink,
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Connect bob to alice.
+	require.NoError(t, bob.Net.ForceConnect(ctx, alice.Net.AddrInfo()))
+	time.Sleep(200 * time.Millisecond)
+
+	// Bob discovers the comment via discovery.
+	require.Eventually(t, func() bool {
+		res, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+			Account: targetDoc.Account,
+			Path:    strings.TrimPrefix(comment.Id, targetDoc.Account),
+		})
+		require.NoError(t, err)
+		require.Equal(t, "", res.LastError, "comment discovery must not produce any errors")
+		return res.Version == comment.Version
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Bob should have the comment with the embed link.
+	bobGotComment, err := bob.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
+		Id: comment.Id,
+	})
+	require.NoError(t, err)
+	testutil.StructsEqual(comment, bobGotComment).Compare(t, "bob must get alice's comment with embed link intact")
+
+	// Bob should also have the embedded document so the embed can render.
+	bobGotEmbed, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: embeddedDoc.Account,
+		Path:    embeddedDoc.Path,
+	})
+	require.NoError(t, err, "Bob must have the embedded document to render the comment's embed")
+	require.Equal(t, embeddedDoc.Content, bobGotEmbed.Content, "embedded document content must match")
+}
+
 func TestActivityFeed(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
