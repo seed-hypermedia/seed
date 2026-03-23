@@ -2539,6 +2539,110 @@ func TestCommentDiscovery(t *testing.T) {
 	testutil.StructsEqual(comment, bobGotComment).Compare(t, "bob must get alice's comment intact")
 }
 
+// TestCommentImageSync tests that images referenced in comments via ipfs:// links
+// are synced to peers during discovery-based sync (not push-based).
+// This reproduces https://github.com/seed-hypermedia/seed/issues/380.
+func TestCommentImageSync(t *testing.T) {
+	t.Parallel()
+
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+	ctx := context.Background()
+
+	// Alice creates a document.
+	aliceDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main")).String(),
+		Path:           "/test-doc",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Test Document"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "This is a test document for image comment syncing.",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Alice creates a multi-block image file in her IPFS blockstore.
+	// 4MB ensures the file is split into multiple UnixFS chunks.
+	const imageSize = 4 * 1024 * 1024
+	var fileCID cid.Cid
+	{
+		r := io.LimitReader(rand.New(rand.NewSource(42)), imageSize)
+		dag := alice.Index.DAGService()
+		f, err := ipfs.WriteUnixFSFile(dag, r)
+		require.NoError(t, err)
+		fileCID = f.Cid()
+	}
+
+	// Alice creates a comment with an image link.
+	comment, err := alice.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+		TargetAccount:  aliceDoc.Account,
+		TargetPath:     aliceDoc.Path,
+		TargetVersion:  aliceDoc.Version,
+		SigningKeyName: "main",
+		Content: []*documents.BlockNode{
+			{Block: &documents.Block{
+				Id:   "c1",
+				Type: "paragraph",
+				Text: "Here is an image",
+				Link: "ipfs://" + fileCID.String(),
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Connect bob to alice.
+	require.NoError(t, bob.Net.ForceConnect(ctx, alice.Net.AddrInfo()))
+
+	// Wait a little bit for the connection to warm up.
+	time.Sleep(200 * time.Millisecond)
+
+	// Bob discovers the comment via discovery (not push).
+	require.Eventually(t, func() bool {
+		res, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+			Account: aliceDoc.Account,
+			Path:    strings.TrimPrefix(comment.Id, aliceDoc.Account),
+		})
+		require.NoError(t, err)
+		require.Equal(t, "", res.LastError, "comment discovery must not produce any errors")
+		return res.Version == comment.Version
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Bob should be able to get the comment with the image link.
+	bobGotComment, err := bob.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
+		Id: comment.Id,
+	})
+	require.NoError(t, err)
+	testutil.StructsEqual(comment, bobGotComment).Compare(t, "bob must get alice's comment with image link intact")
+
+	// Bob should be able to retrieve the image file from his local IPFS blockstore.
+	// This is expected to fail when the bug is present: the comment structural blob syncs,
+	// but the IPFS data blocks referenced via ipfs:// link are not fetched proactively.
+	{
+		dag := bob.Index.DAGService()
+		root, err := dag.Get(ctx, fileCID)
+		require.NoError(t, err, "Bob must be able to retrieve the image root block from Alice's comment")
+		fileNode, err := unixfile.NewUnixfsFile(ctx, dag, root)
+		require.NoError(t, err, "Bob must be able to assemble the UnixFS file")
+
+		file := fileNode.(files.File)
+		n, err := io.Copy(io.Discard, file)
+		require.NoError(t, err, "Bob must be able to read the entire image file")
+
+		require.Equal(t, int64(imageSize), n, "image file received by Bob must match the size Alice uploaded")
+	}
+}
+
 func TestActivityFeed(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

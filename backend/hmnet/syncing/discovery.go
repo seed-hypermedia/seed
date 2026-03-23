@@ -630,25 +630,31 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 				return err
 			}
 		}
-		// Fill media files.
-		{
-			const q = `INSERT OR IGNORE INTO rbsr_blobs
+	}
+
+	// Fill media files (always, not just for push).
+	// Uses a recursive CTE to traverse blob_links transitively,
+	// handling chains like comment → DagPB root → Raw chunks.
+	{
+		const q = `WITH RECURSIVE media (id) AS (
 				SELECT target
 				FROM blob_links bl
 				LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = bl.target
-				WHERE bl.source IN rbsr_blobs`
+				WHERE bl.source IN rbsr_blobs
+				AND stashed_blobs.id IS NULL
+				UNION
+				SELECT bl.target
+				FROM blob_links bl
+				JOIN media m ON m.id = bl.source
+				LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = bl.target
+				WHERE stashed_blobs.id IS NULL
+			)
+			INSERT OR IGNORE INTO rbsr_blobs
+			SELECT id FROM media;`
 
-			if err := sqlitex.Exec(conn, q, nil); err != nil {
-				return err
-			}
+		if err := sqlitex.Exec(conn, q, nil); err != nil {
+			return err
 		}
-		/*
-			blobCountAfter, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
-			if err != nil {
-				return err
-			}
-			fmt.Println(blobCountBefore, "->", blobCountAfter)
-		*/
 	}
 
 	return nil
