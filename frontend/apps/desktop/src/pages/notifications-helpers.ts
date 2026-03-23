@@ -37,6 +37,15 @@ export function notificationRouteForPayload(payload: NotificationPayload): NavRo
     }
   }
 
+  if (payload.eventType === 'ref') {
+    if (!payload.target.uid) return null
+    const targetId = hmId(payload.target.uid, {path: payload.target.path ?? undefined})
+    return {
+      key: 'document',
+      id: targetId,
+    }
+  }
+
   return null
 }
 

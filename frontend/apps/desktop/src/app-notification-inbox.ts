@@ -369,6 +369,11 @@ function loadedEventToPayload(event: LoadedEventWithNotifMeta, reason: string): 
   // Use 'any' for property access since LoadedEvent is a discriminated union
   // and the classifier already confirmed the event type is relevant
   const e = event as any
+  // For citation events, put the SOURCE (citing) document info in `target` and
+  // leave `sourceId` null. This matches the server convention in
+  // notification-persistence.ts and is what notificationRouteForPayload expects:
+  // the `target` field should contain the document we want to navigate TO.
+  const isCitation = e.type === 'citation'
   return {
     feedEventId: event.feedEventId,
     eventAtMs: event.eventAtMs,
@@ -379,13 +384,19 @@ function loadedEventToPayload(event: LoadedEventWithNotifMeta, reason: string): 
       name: e.author?.metadata?.name ?? null,
       icon: e.author?.metadata?.icon ?? null,
     },
-    target: {
-      uid: e.target?.id?.uid ?? e.source?.id?.uid ?? '',
-      path: e.target?.id?.path ?? e.source?.id?.path ?? null,
-      name: e.target?.metadata?.name ?? e.source?.metadata?.name ?? null,
-    },
+    target: isCitation
+      ? {
+          uid: e.source?.id?.uid ?? '',
+          path: e.source?.id?.path ?? null,
+          name: e.source?.metadata?.name ?? null,
+        }
+      : {
+          uid: e.target?.id?.uid ?? e.source?.id?.uid ?? '',
+          path: e.target?.id?.path ?? e.source?.id?.path ?? null,
+          name: e.target?.metadata?.name ?? e.source?.metadata?.name ?? null,
+        },
     commentId: e.comment?.id ?? null,
-    sourceId: e.source?.id?.uid ?? null,
+    sourceId: isCitation ? null : e.source?.id?.uid ?? null,
     citationType: e.citationType === 'd' || e.citationType === 'c' ? e.citationType : null,
   }
 }
