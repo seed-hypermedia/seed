@@ -62,8 +62,8 @@ export function MobileMentionsDialog({isOpen, onClose, onSelect, perspectiveAcco
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="h-full max-h-full w-full max-w-full rounded-none p-0" showCloseButton={false}>
-        <div className="flex h-full flex-col">
+      <DialogContent className="h-[100dvh] max-h-[100dvh] w-full max-w-full rounded-none p-0" showCloseButton={false}>
+        <div className="flex h-full flex-col overflow-hidden">
           <DialogHeader className="border-b p-4">
             <div className="flex items-center justify-between">
               <DialogTitle>Mention Contact, Site, or Document</DialogTitle>
