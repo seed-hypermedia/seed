@@ -1,10 +1,4 @@
-import {
-  BlockRange,
-  HMComment,
-  HMDocument,
-  HMExistingDraft,
-  UnpackedHypermediaId,
-} from '@seed-hypermedia/client/hm-types'
+import {BlockRange, HMDocument, HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   DocumentPanelRoute,
   findContentBlock,
@@ -230,6 +224,16 @@ export function ResourcePage({
   // Compute header data
   const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data)
 
+  // Comment handling: when resource is a comment, resolve and load its target document.
+  // Hooks must be called unconditionally, so we always call useResource for the target
+  // (it no-ops when targetDocId is null).
+  const comment = resource.data?.type === 'comment' ? resource.data.comment : null
+  const targetDocId = comment ? getCommentTargetId(comment) : null
+  const targetResource = useResource(targetDocId, {
+    subscribed: true,
+    recursive: true,
+  })
+
   // Site profile view: render profile content regardless of document status
   if (isSiteProfile) {
     const accountUid = route.key === 'site-profile' ? route.accountUid || docId.uid : docId.uid
@@ -320,15 +324,54 @@ export function ResourcePage({
     )
   }
 
-  // Handle comment - render target document's discussions view with comment open
-  if (resource.data.type === 'comment') {
+  // Handle comment — show the target document's discussions view with this comment open.
+  // Uses the same PageWrapper as all other branches so the site header stays mounted.
+  if (comment) {
+    if (!targetDocId || targetResource.data?.type === 'not-found') {
+      return (
+        <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+          <PageNotFound />
+          {pageFooter}
+        </PageWrapper>
+      )
+    }
+    if (targetResource.isInitialLoading) {
+      return (
+        <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+          <div className="flex flex-1 items-center justify-center">
+            <Spinner />
+          </div>
+          {pageFooter}
+        </PageWrapper>
+      )
+    }
+    if (targetResource.data?.type !== 'document') {
+      return (
+        <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+          <PageNotFound />
+          {pageFooter}
+        </PageWrapper>
+      )
+    }
+    const targetDocument = targetResource.data.document
     return (
-      <CommentResourcePage
-        comment={resource.data.comment}
-        commentId={docId}
-        CommentEditor={CommentEditor}
-        pageFooter={pageFooter}
-      />
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={targetDocId}
+        headerData={headerData}
+        document={targetDocument}
+        rightActions={rightActions}
+      >
+        <DocumentBody
+          docId={targetDocId}
+          document={targetDocument}
+          activeView="comments"
+          openComment={comment.id}
+          CommentEditor={CommentEditor}
+          siteUrl={siteHomeDocument?.metadata?.siteUrl}
+          pageFooter={pageFooter}
+        />
+      </PageWrapper>
     )
   }
 
@@ -354,6 +397,7 @@ export function ResourcePage({
       <DocumentBody
         docId={docId}
         document={document}
+        activeView={getActiveView(route.key)}
         isLatest={isLatest}
         siteUrl={siteHomeDocument?.metadata?.siteUrl}
         CommentEditor={CommentEditor}
@@ -365,214 +409,6 @@ export function ResourcePage({
         inlineCards={inlineCards}
       />
     </PageWrapper>
-  )
-}
-
-/** Renders the target document's discussions view when the route points to a comment entity */
-function CommentResourcePage({
-  comment,
-  commentId,
-  CommentEditor,
-  pageFooter,
-}: {
-  comment: HMComment
-  commentId: UnpackedHypermediaId
-  CommentEditor?: React.ComponentType<CommentEditorProps>
-  pageFooter?: ReactNode
-}) {
-  const targetDocId = getCommentTargetId(comment)
-
-  // Load target document's site header
-  const siteHomeId = targetDocId ? hmId(targetDocId.uid) : hmId(commentId.uid)
-  const siteHomeResource = useResource(siteHomeId, {subscribed: true})
-  const homeDirectory = useDirectory(siteHomeId)
-  const siteHomeDocument = siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
-  const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data)
-
-  // Load target document
-  const targetResource = useResource(targetDocId, {
-    subscribed: true,
-    recursive: true,
-  })
-
-  if (!targetDocId) {
-    return (
-      <PageWrapper siteHomeId={siteHomeId} docId={commentId} headerData={headerData}>
-        <PageNotFound />
-        {pageFooter}
-      </PageWrapper>
-    )
-  }
-
-  if (targetResource.isInitialLoading) {
-    return (
-      <PageWrapper siteHomeId={siteHomeId} docId={targetDocId} headerData={headerData}>
-        <div className="flex flex-1 items-center justify-center">
-          <Spinner />
-        </div>
-        {pageFooter}
-      </PageWrapper>
-    )
-  }
-
-  if (targetResource.data?.type !== 'document') {
-    return (
-      <PageWrapper siteHomeId={siteHomeId} docId={targetDocId} headerData={headerData}>
-        <PageNotFound />
-        {pageFooter}
-      </PageWrapper>
-    )
-  }
-
-  const document = targetResource.data.document
-  const isHomeDoc = !targetDocId.path?.length
-
-  return (
-    <PageWrapper siteHomeId={siteHomeId} docId={targetDocId} headerData={headerData} document={document}>
-      <CommentPageBody
-        docId={targetDocId}
-        document={document}
-        isHomeDoc={isHomeDoc}
-        openComment={comment.id}
-        CommentEditor={CommentEditor}
-        siteUrl={siteHomeDocument?.metadata?.siteUrl}
-        pageFooter={pageFooter}
-      />
-    </PageWrapper>
-  )
-}
-
-/** Simplified body for comment pages: target doc header + discussions tab */
-function CommentPageBody({
-  docId,
-  document,
-  isHomeDoc,
-  openComment,
-  CommentEditor,
-  siteUrl,
-  pageFooter,
-}: {
-  docId: UnpackedHypermediaId
-  document: HMDocument
-  isHomeDoc: boolean
-  openComment: string
-  CommentEditor?: React.ComponentType<CommentEditorProps>
-  siteUrl?: string
-  pageFooter?: ReactNode
-}) {
-  const interactionSummary = useInteractionSummary(docId)
-
-  const breadcrumbIds = useMemo(() => {
-    if (isHomeDoc) return []
-    return getBreadcrumbDocumentIds(docId)
-  }, [docId, isHomeDoc])
-
-  const breadcrumbResults = useResources(breadcrumbIds)
-  const breadcrumbs = useMemo((): BreadcrumbEntry[] | undefined => {
-    if (isHomeDoc) return undefined
-    const items: BreadcrumbEntry[] = breadcrumbIds.map((id, i) => {
-      const result = breadcrumbResults[i]
-      const data = result?.data
-      const metadata = data?.type === 'document' ? data.document?.metadata || {} : {}
-      const fallbackName = id.path?.at(-1) || id.uid.slice(0, 8)
-      return {
-        id,
-        metadata,
-        fallbackName,
-        isLoading: result?.isDiscovering || result?.isLoading,
-        isTombstone: result?.isTombstone,
-        isNotFound: data?.type === 'not-found' && !result?.isDiscovering,
-        isError: result?.isError && !result?.isDiscovering && !result?.isTombstone,
-      }
-    })
-    items.push({label: 'Comments'})
-    return items
-  }, [isHomeDoc, breadcrumbIds, breadcrumbResults])
-
-  const {contentMaxWidth, wrapperProps, sidebarProps, mainContentProps, showSidebars} = useDocumentLayout({
-    contentWidth: document.metadata?.contentWidth,
-    showSidebars: false,
-  })
-  const media = useMedia()
-  const isMobile = media.xs
-
-  // Fetch author metadata for document header
-  const commentAccountsMetadata = useAccountsMetadata(document.authors || [])
-  const commentAuthorPayloads: AuthorPayload[] = useMemo(() => {
-    return (document.authors || []).map((uid) => {
-      const data = commentAccountsMetadata.data[uid]
-      if (data) return data
-      return {
-        id: hmId(uid),
-        metadata: null,
-        isDiscovering: true,
-      }
-    })
-  }, [document.authors, commentAccountsMetadata.data])
-  return (
-    <div className="flex flex-1 flex-col overflow-auto">
-      <div
-        className={cn(
-          'flex flex-1 flex-col',
-          pageFooter &&
-            'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]',
-        )}
-      >
-        <DocumentCover cover={document.metadata?.cover} />
-        {!isHomeDoc && (
-          <div
-            className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
-            style={{maxWidth: contentMaxWidth}}
-          >
-            <DocumentHeader
-              docId={docId}
-              docMetadata={document.metadata}
-              authors={commentAuthorPayloads}
-              updateTime={document.updateTime}
-              breadcrumbs={breadcrumbs}
-              visibility={document.visibility}
-            />
-          </div>
-        )}
-        <div className="dark:bg-background sticky top-0 z-10 bg-white py-1">
-          <DocumentTools
-            id={docId}
-            activeTab="comments"
-            commentsCount={interactionSummary.data?.comments || 0}
-            layoutProps={
-              isMobile
-                ? undefined
-                : {
-                    wrapperProps,
-                    sidebarProps,
-                    mainContentProps,
-                    showSidebars,
-                  }
-            }
-            rightActions={
-              !isMobile ? (
-                <OpenInPanelButton
-                  id={docId}
-                  panelRoute={{
-                    key: 'comments',
-                    id: docId,
-                    openComment,
-                  }}
-                />
-              ) : undefined
-            }
-          />
-        </div>
-        <DiscussionsPageContent
-          docId={docId}
-          openComment={openComment}
-          contentMaxWidth={contentMaxWidth}
-          targetDomain={siteUrl}
-          commentEditor={CommentEditor ? <CommentEditor docId={docId} autoFocus /> : undefined}
-        />
-        {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
-      </div>
-    </div>
   )
 }
 
@@ -690,6 +526,7 @@ export function PageWrapper({
 function DocumentBody({
   docId,
   document,
+  activeView,
   isLatest = true,
   siteUrl,
   CommentEditor,
@@ -699,9 +536,12 @@ function DocumentBody({
   floatingButtons,
   pageFooter,
   inlineCards,
+  openComment,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
+  /** Which tab/view to display */
+  activeView: ActiveView
   isLatest?: boolean
   siteUrl?: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
@@ -711,16 +551,17 @@ function DocumentBody({
   floatingButtons?: ReactNode
   pageFooter?: ReactNode
   inlineCards?: ReactNode
+  /** Comment to open in discussions view (used when navigating to a comment entity) */
+  openComment?: string
 }) {
   const route = useNavRoute()
   const navigate = useNavigate()
-  const activeView = getActiveView(route.key)
 
   // Extract panel from route (only document/feed routes have panels)
   const panelRoute = getRoutePanel(route) as DocumentPanelRoute | null
   const panelKey = panelRoute?.key ?? null
 
-  // Extract discussions-specific params from route
+  // Extract discussions-specific params from route or from explicit props
   const discussionsParams =
     route.key === 'comments'
       ? {
@@ -733,6 +574,8 @@ function DocumentBody({
           replyCommentVersion: route.replyCommentVersion,
           rootReplyCommentVersion: route.rootReplyCommentVersion,
         }
+      : openComment
+      ? {openComment}
       : undefined
 
   // Extract blockRef from route for scroll-to-block and highlighting
