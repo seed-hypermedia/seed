@@ -72,7 +72,9 @@ export function useDeleteEntities(opts: UseMutationOptions<void, unknown, Delete
           await universalClient.publish(refInput)
         }),
       )
-      await pushDeletedEntitiesBestEffort(push, ids)
+      void pushDeletedEntitiesBestEffort(push, ids).catch((error) => {
+        console.error('Failed to push deleted entity updates', error)
+      })
     },
     onSuccess: (result: void, input: DeleteEntitiesInput, context) => {
       invalidateQueries([])

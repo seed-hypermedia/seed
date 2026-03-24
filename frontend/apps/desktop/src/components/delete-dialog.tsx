@@ -12,7 +12,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ReactNode} from 'react'
+import React, {ReactNode} from 'react'
 import {useDeleteEntities} from '../models/entities'
 
 export type DeleteDialogProps = {
@@ -42,15 +42,11 @@ export function DeleteDocumentDialog({
       if (id.path.length === item.path.length) return false
       return item.path.join('/').startsWith(id.path.join('/'))
     }) || []
-  const deleteEntity = useDeleteEntities({
-    onSuccess: () => {
-      toast.success(`Successfully deleted ${childDocs.length + 1} documents`)
-      onClose?.()
-      onSuccess?.()
-    },
-  })
+  const deleteEntity = useDeleteEntities({})
   const cap = useSelectedAccountCapability(id)
   const doc = useResource(id)
+  const deletedDocumentCount = childDocs.length + 1
+  const documentLabel = deletedDocumentCount === 1 ? 'document' : 'documents'
 
   if (doc.isLoading)
     return (
@@ -104,12 +100,34 @@ export function DeleteDocumentDialog({
         <Button
           variant="destructive"
           onClick={() => {
-            if (!cap || !roleCanWrite(cap?.role)) throw new Error('Not allowed to delete')
-            deleteEntity.mutate({
+            if (!cap || !roleCanWrite(cap.role)) {
+              toast.error('Not allowed to delete')
+              return
+            }
+
+            const deletePromise = deleteEntity.mutateAsync({
               ids: [id, ...childDocIds],
               signingAccountUid: cap.accountUid,
               capabilityId: cap.capabilityId,
             })
+
+            toast.promise(deletePromise, {
+              loading:
+                deletedDocumentCount === 1 ? 'Deleting document...' : `Deleting ${deletedDocumentCount} documents...`,
+              success:
+                deletedDocumentCount === 1
+                  ? 'Successfully deleted document'
+                  : `Successfully deleted ${deletedDocumentCount} documents`,
+              error: (error) => {
+                const message = error instanceof Error ? error.message : 'Unknown error'
+                return deletedDocumentCount === 1
+                  ? `Failed to delete document: ${message}`
+                  : `Failed to delete ${documentLabel}: ${message}`
+              },
+            })
+
+            onClose?.()
+            onSuccess?.()
           }}
         >
           {childDocs.length ? 'Delete Documents' : 'Delete Document'}
