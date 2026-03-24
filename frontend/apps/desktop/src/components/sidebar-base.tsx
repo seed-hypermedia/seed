@@ -31,8 +31,6 @@ export function GenericSidebarContainer({
   const prevIsLocked = useRef<boolean | undefined>(undefined)
   const media = useMedia()
 
-  const [wasLocked, setWasLocked] = useState(isLocked)
-
   const {platform} = useAppContext()
 
   // Enforce 250px minimum when locking sidebar open
@@ -90,27 +88,23 @@ export function GenericSidebarContainer({
     prevIsLocked.current = isLocked
   }, [isLocked, sidebarWidth, ctx])
 
-  useEffect(() => {
-    // This is needed to ensure the left sidebar is not visible on mobile. and if it was locked, it will be expanded when on desktop.
-    if (media.gtSm) {
-      const panel = ref.current
-      if (!panel) return
-      if (wasLocked) {
-        panel.resize(sidebarWidth || 0)
-        panel.expand()
-      }
-      if (!isLocked) {
-        setWasLocked(false)
-      }
-    } else {
+  // When window shrinks past the breakpoint, close the sidebar (and restore it when growing back)
+  const prevMediaGtSm = useRef(media.gtSm)
+  const wasLockedBeforeCollapse = useRef(false)
+  useLayoutEffect(() => {
+    if (prevMediaGtSm.current && !media.gtSm) {
       if (isLocked) {
-        setWasLocked(true)
+        wasLockedBeforeCollapse.current = true
+        ctx.onCloseSidebar()
       }
-      const panel = ref.current
-      if (!panel) return
-      panel.collapse()
+    } else if (!prevMediaGtSm.current && media.gtSm) {
+      if (wasLockedBeforeCollapse.current) {
+        wasLockedBeforeCollapse.current = false
+        ctx.onLockSidebarOpen()
+      }
     }
-  }, [media.gtSm, wasLocked, isLocked])
+    prevMediaGtSm.current = media.gtSm
+  }, [media.gtSm])
 
   return (
     <>
