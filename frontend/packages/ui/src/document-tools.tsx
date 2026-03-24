@@ -36,7 +36,6 @@ export function DocumentTools({
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
-  const rightActionsRef = useRef<HTMLDivElement>(null)
   const [showLabels, setShowLabels] = useState(true)
 
   useIsomorphicLayoutEffect(() => {
@@ -192,11 +191,7 @@ export function DocumentTools({
               {tabButtons}
             </div>
             <div {...sidebarProps} className={cn(sidebarProps.className, 'flex !h-auto items-center !p-0')}>
-              {rightActions ? (
-                <div ref={rightActionsRef} className="flex shrink-0 items-center">
-                  {rightActions}
-                </div>
-              ) : null}
+              {rightActions ? <div className="flex shrink-0 items-center">{rightActions}</div> : null}
             </div>
           </div>
         </div>
@@ -214,11 +209,7 @@ export function DocumentTools({
           >
             {tabButtons}
           </div>
-          {rightActions && (
-            <div ref={rightActionsRef} className="flex shrink-0 items-center">
-              {rightActions}
-            </div>
-          )}
+          {rightActions && <div className="flex shrink-0 items-center">{rightActions}</div>}
         </div>
       </div>
     )
@@ -229,11 +220,7 @@ export function DocumentTools({
       <div ref={containerRef} className="flex flex-1 items-center gap-2 p-1 md:gap-4 md:p-2">
         {tabButtons}
       </div>
-      {rightActions ? (
-        <div ref={rightActionsRef} className="flex shrink-0 items-center px-4">
-          {rightActions}
-        </div>
-      ) : null}
+      {rightActions ? <div className="flex shrink-0 items-center px-4">{rightActions}</div> : null}
     </div>
   )
 }

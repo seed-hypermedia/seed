@@ -509,7 +509,6 @@ function CommentPageBody({
       }
     })
   }, [document.authors, commentAccountsMetadata.data])
-
   return (
     <div className="flex flex-1 flex-col overflow-auto">
       <div
@@ -520,11 +519,11 @@ function CommentPageBody({
         )}
       >
         <DocumentCover cover={document.metadata?.cover} />
-        <div
-          className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
-          style={{maxWidth: contentMaxWidth}}
-        >
-          {!isHomeDoc && (
+        {!isHomeDoc && (
+          <div
+            className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
+            style={{maxWidth: contentMaxWidth}}
+          >
             <DocumentHeader
               docId={docId}
               docMetadata={document.metadata}
@@ -533,8 +532,8 @@ function CommentPageBody({
               breadcrumbs={breadcrumbs}
               visibility={document.visibility}
             />
-          )}
-        </div>
+          </div>
+        )}
         <div className="dark:bg-background sticky top-0 z-10 bg-white py-1">
           <DocumentTools
             id={docId}
@@ -1030,10 +1029,10 @@ function DocumentBody({
       <DocumentCover cover={document.metadata?.cover} />
 
       {!isMobile ? (
-        <div style={wrapperProps.style} className={cn('mx-auto flex w-full justify-between', isHomeDoc && 'mt-10')}>
+        <div style={wrapperProps.style} className={cn('mx-auto flex w-full justify-between')}>
           {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
-          <div {...mainContentProps} className={cn(mainContentProps.className, 'flex flex-col')}>
-            {!isHomeDoc && (
+          {!isHomeDoc && (
+            <div {...mainContentProps} className={cn(mainContentProps.className, 'flex flex-col')}>
               <DocumentHeader
                 docId={docId}
                 docMetadata={document.metadata}
@@ -1042,16 +1041,16 @@ function DocumentBody({
                 breadcrumbs={breadcrumbs}
                 visibility={document.visibility}
               />
-            )}
-          </div>
+            </div>
+          )}
           {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
         </div>
       ) : (
-        <div
-          className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
-          style={{maxWidth: contentMaxWidth}}
-        >
-          {!isHomeDoc && (
+        !isHomeDoc && (
+          <div
+            className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
+            style={{maxWidth: contentMaxWidth}}
+          >
             <DocumentHeader
               docId={docId}
               docMetadata={document.metadata}
@@ -1060,8 +1059,8 @@ function DocumentBody({
               breadcrumbs={breadcrumbs}
               visibility={document.visibility}
             />
-          )}
-        </div>
+          </div>
+        )
       )}
 
       {/* Sentinel element - important for doc tools sticky checking */}
@@ -1070,7 +1069,7 @@ function DocumentBody({
       {/* DocumentTools - sticky with compact padding */}
       <div
         className={cn(
-          'dark:bg-background sticky top-0 z-10 bg-white py-1',
+          'dark:bg-background sticky top-0 z-10 bg-white px-5 py-1',
           isToolsSticky ? 'shadow-md' : 'shadow-none',
           'transition-shadow',
         )}
@@ -1100,7 +1099,7 @@ function DocumentBody({
                 }
           }
           rightActions={
-            <div className="flex items-center gap-1 pr-2 md:pr-0">
+            <div className="flex items-center gap-1">
               {hasOptions && (
                 <div className="md:hidden">
                   <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
