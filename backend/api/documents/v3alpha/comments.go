@@ -165,14 +165,13 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 		resp = &documents.ListCommentsResponse{}
 		lookup := blob.NewLookupCache(conn)
 
-		comments, discard, check := sqlitex.QueryType(conn, srv.commentDBMapper(), qIterComments(), iri).All()
+		q := qIterComments()
+		if srv.cfg.PublicOnly {
+			q = qIterCommentsPublicOnly()
+		}
+		comments, discard, check := sqlitex.QueryType(conn, srv.commentDBMapper(), q, iri).All()
 		defer discard(&err)
 		for comment := range comments {
-			// Skip private comments when PublicOnly mode is enabled.
-			if srv.cfg.PublicOnly && comment.Comment.Visibility == blob.VisibilityPrivate {
-				continue
-			}
-
 			pb, err := commentToProto(lookup, comment.CID, comment.Comment, comment.TSID)
 			if err != nil {
 				return nil, err
@@ -214,15 +213,14 @@ func (srv *Server) ListCommentsByAuthor(ctx context.Context, in *documents.ListC
 
 		lookup := blob.NewLookupCache(conn)
 
-		comments, discard, check := sqlitex.QueryType(conn, srv.commentDBMapper(), qIterCommentsByAuthor(), author, cursor.CommentID, in.PageSize+1).All()
+		q := qIterCommentsByAuthor()
+		if srv.cfg.PublicOnly {
+			q = qIterCommentsByAuthorPublicOnly()
+		}
+		comments, discard, check := sqlitex.QueryType(conn, srv.commentDBMapper(), q, author, cursor.CommentID, in.PageSize+1).All()
 		defer discard(&err)
 
 		for result := range comments {
-			// Skip private comments when PublicOnly mode is enabled.
-			if srv.cfg.PublicOnly && result.Comment.Visibility == blob.VisibilityPrivate {
-				continue
-			}
-
 			if len(resp.Comments) == int(in.PageSize) {
 				resp.NextPageToken = apiutil.EncodePageToken(cursor, nil)
 				break
@@ -304,6 +302,28 @@ var qIterComments = dqb.Str(`
 	ORDER BY sb.ts
 `)
 
+var qIterCommentsPublicOnly = dqb.Str(`
+	SELECT
+		sb.id,
+        b.codec,
+		b.multihash,
+		b.data,
+		sb.extra_attrs->>'tsid' AS tsid
+	FROM (
+		SELECT
+        	sb.*,
+         	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
+        FROM structural_blobs sb
+  		WHERE sb.type = 'Comment'
+    	AND sb.resource = (SELECT id FROM resources WHERE iri = :iri)
+	) sb
+	JOIN blobs b ON b.id = sb.id
+	WHERE sb.rn = 1
+	AND sb.extra_attrs->>'deleted' IS NULL
+	AND sb.extra_attrs->>'visibility' IS NOT 'Private'
+	ORDER BY sb.ts
+`)
+
 var qIterCommentsByAuthor = dqb.Str(`
 	SELECT
 		sb.id,
@@ -322,6 +342,30 @@ var qIterCommentsByAuthor = dqb.Str(`
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.rn = 1
 	AND sb.extra_attrs->>'deleted' IS NULL
+	AND sb.id < :afterID
+	ORDER BY sb.id DESC
+	LIMIT :limit
+`)
+
+var qIterCommentsByAuthorPublicOnly = dqb.Str(`
+	SELECT
+		sb.id,
+		b.codec,
+		b.multihash,
+		b.data,
+		sb.extra_attrs->>'tsid' AS tsid
+	FROM (
+        SELECT
+        	sb.*,
+         	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
+        FROM structural_blobs sb
+  		WHERE sb.type = 'Comment'
+    	AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
+	) sb
+	JOIN blobs b ON b.id = sb.id
+	WHERE sb.rn = 1
+	AND sb.extra_attrs->>'deleted' IS NULL
+	AND sb.extra_attrs->>'visibility' IS NOT 'Private'
 	AND sb.id < :afterID
 	ORDER BY sb.id DESC
 	LIMIT :limit

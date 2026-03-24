@@ -420,6 +420,10 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 
 		qb := baseListDocumentsQuery()
 
+		if srv.cfg.PublicOnly {
+			qb.Where("json_extract(dg.metadata, '$.\"$db.visibility\"') IS NOT 'Private'")
+		}
+
 		qb.Where("(r.iri = ? OR r.iri GLOB ?)")
 		args.Append(baseIRI, baseIRI+"/*")
 
@@ -489,11 +493,6 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		item, err := documentInfoFromRow(lookup, row)
 		if err != nil {
 			return nil, err
-		}
-
-		// Skip private documents when PublicOnly mode is enabled.
-		if srv.cfg.PublicOnly && item.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
-			continue
 		}
 
 		count++
@@ -997,6 +996,10 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 	{
 		qb := baseListDocumentsQuery().OrderBy("last_activity_time DESC")
 
+		if srv.cfg.PublicOnly {
+			qb.Where("json_extract(dg.metadata, '$.\"$db.visibility\"') IS NOT 'Private'")
+		}
+
 		qb.Where("r.iri GLOB 'hm://*'")
 		qb.Where("r.iri NOT GLOB 'hm://*/*'")
 
@@ -1028,11 +1031,6 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 		item, err := documentInfoFromRow(lookup, row)
 		if err != nil {
 			return nil, err
-		}
-
-		// Skip private documents when PublicOnly mode is enabled.
-		if srv.cfg.PublicOnly && item.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
-			continue
 		}
 
 		count++
@@ -1082,6 +1080,10 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 	{
 		qb := baseListDocumentsQuery().OrderBy("last_activity_time DESC")
 
+		if srv.cfg.PublicOnly {
+			qb.Where("json_extract(dg.metadata, '$.\"$db.visibility\"') IS NOT 'Private'")
+		}
+
 		if in.Account == "" {
 			qb.Where("r.iri GLOB 'hm://*'")
 		} else {
@@ -1126,11 +1128,6 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		item, err := documentInfoFromRow(lookup, row)
 		if err != nil {
 			return nil, err
-		}
-
-		// Skip private documents when PublicOnly mode is enabled.
-		if srv.cfg.PublicOnly && item.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
-			continue
 		}
 
 		count++
