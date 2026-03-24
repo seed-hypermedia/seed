@@ -72,6 +72,19 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
   const syncNow = useSyncNotificationReadState()
   const inbox = useNotificationInbox(accountUid)
   const notifications = inbox.data || []
+  const [filter, setFilter] = useState<'all' | 'unread'>('all')
+
+  const filteredNotifications = useMemo(() => {
+    if (filter === 'all') return notifications
+    return notifications.filter(
+      (item) =>
+        !isNotificationEventRead({
+          readState: readState.data,
+          eventId: item.feedEventId,
+          eventAtMs: item.eventAtMs,
+        }),
+    )
+  }, [notifications, filter, readState.data])
 
   const maxLoadedEventAtMs = useMemo(() => {
     return getMaxLoadedNotificationEventAtMs(notifications)
@@ -115,6 +128,25 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
             </div>
           </div>
 
+          <div className="flex rounded-md border self-start">
+            <Button
+              size="sm"
+              variant={filter === 'all' ? 'secondary' : 'ghost'}
+              className="rounded-r-none border-0"
+              onClick={() => setFilter('all')}
+            >
+              All
+            </Button>
+            <Button
+              size="sm"
+              variant={filter === 'unread' ? 'secondary' : 'ghost'}
+              className="rounded-l-none border-0"
+              onClick={() => setFilter('unread')}
+            >
+              Unread
+            </Button>
+          </div>
+
           {inbox.isLoading ? (
             <div className="flex flex-1 items-center justify-center">
               <Spinner />
@@ -127,9 +159,17 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
               <SizableText size="xl">No notifications yet</SizableText>
               <p className="text-muted-foreground max-w-lg text-center">Mentions and replies will appear here.</p>
             </div>
+          ) : filteredNotifications.length === 0 ? (
+            <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
+              <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
+                <Bell size={50} className="text-muted-foreground" />
+              </div>
+              <SizableText size="xl">All caught up</SizableText>
+              <p className="text-muted-foreground max-w-lg text-center">No unread notifications.</p>
+            </div>
           ) : (
             <div className="divide-border flex flex-col divide-y rounded-lg border">
-              {notifications.map((item) => {
+              {filteredNotifications.map((item) => {
                 const isRead = isNotificationEventRead({
                   readState: readState.data,
                   eventId: item.feedEventId,
