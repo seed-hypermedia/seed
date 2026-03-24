@@ -80,16 +80,14 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
   let topOffset = useMemo(() => {
     if (block && referencePos.current) {
       let lhValue = parseInt(lh, 10)
+      // blockContent has padding: 3px 0 (symmetric).
+      // First line center = paddingTop + lineHeight/2 from top of blockContent.
+      // Tippy centers on the reference, so offset = firstLineCenter - height/2.
+      const paddingTop = 3
 
-      switch (block.type) {
-        case 'paragraph':
-        case 'heading':
-          return (referencePos?.current?.height / 2) * -1 + lhValue
-        default:
-          return 8
-      }
+      return -(referencePos.current.height / 2) + lhValue / 2 + paddingTop
     } else {
-      return 8
+      return 0
     }
   }, [referencePos.current])
 
@@ -105,7 +103,8 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
         if (node.attrs.id === block.id) {
           const {group} = getGroupInfoFromPos(pos, state)
 
-          offset = group.attrs.listType !== 'Group' ? 20 : 8
+          // 28 clears the 1.5em list gutter; 8 for non-list blocks
+          offset = group.attrs.listType !== 'Group' ? 28 : 8
           return
         }
       })
