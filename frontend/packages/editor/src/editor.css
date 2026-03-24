@@ -503,15 +503,33 @@ ul[data-list-type='Unordered'] > [data-node-type='blockNode'] > [data-list-type=
   margin-left: 0;
 }
 
-/* Default margin for all heading containers */
-[data-node-type='blockNode']:has(> [data-content-type='heading']) {
-  margin-bottom: 1em;
+/* Heading margins scaled by level — 2:1 top:bottom ratio */
+[data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='1']),
+[data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='2']) {
+  margin-top: 1.5em;
+  margin-bottom: 0.75em;
 }
 
-/* Reset margin for consecutive headings */
-[data-node-type='blockNode']:has([data-content-type='heading'])
+[data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='3']) {
+  margin-top: 1.25em;
+  margin-bottom: 0.5em;
+}
+
+[data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='4']),
+[data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='5']) {
+  margin-top: 1em;
+  margin-bottom: 0.4em;
+}
+
+/* First block in a group: no top margin */
+[data-node-type='blockChildren'] > [data-node-type='blockNode']:first-child {
+  margin-top: 0;
+}
+
+/* Consecutive headings: collapse top margin */
+[data-node-type='blockNode']:has(> [data-content-type='heading'])
   + [data-node-type='blockNode']:has(> [data-content-type='heading']) {
-  margin-top: -1em; /* Cancel out the previous element's margin */
+  margin-top: 0;
 }
 
 .bn-focused-heading-block {

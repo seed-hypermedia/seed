@@ -50,13 +50,23 @@ vi.mock('@/open-url', () => ({
   useOpenUrl: () => mockState.openUrl,
 }))
 
-vi.mock('@shm/shared/utils/navigation', async () => {
-  const actual = await vi.importActual<typeof import('@shm/shared/utils/navigation')>('@shm/shared/utils/navigation')
-
+// Avoid vi.importActual here: navigation → routing → utils barrel → url-to-route → navigation
+// forms a circular dependency that deadlocks vitest's module loader.
+vi.mock('@shm/shared/utils/navigation', () => {
+  const React = require('react')
+  const NavContext = React.createContext(null)
   return {
-    ...actual,
     useNavRoute: () => ({key: 'library'}),
     useNavigation: (overrideNavigation: unknown) => overrideNavigation ?? mockState.navigationContext,
+    NavContextProvider: NavContext.Provider,
+    navStateReducer: (state: any) => state,
+    getRouteKey: () => 'library',
+    appRouteOfId: () => undefined,
+    isHttpUrl: () => false,
+    useNavigate: () => vi.fn(),
+    useNavigationState: () => ({}),
+    useNavigationDispatch: () => vi.fn(),
+    useRouteDocId: () => null,
   }
 })
 
@@ -73,6 +83,10 @@ vi.mock('@shm/shared/utils/entity-id-url', async () => {
 
 vi.mock('../components/markdown', () => ({
   Markdown: ({children}: {children: React.ReactNode}) => React.createElement('div', null, children),
+}))
+
+vi.mock('@shm/shared/models/entity', () => ({
+  useResource: () => ({data: null}),
 }))
 
 import {AssistantPanel} from '../components/assistant-panel'

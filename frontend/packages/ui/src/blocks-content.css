@@ -219,14 +219,38 @@ p.block-paragraph.is-comment *:not(.text-code) {
   padding-left: 0 !important;
 }
 
-/* Default margin for all headings */
-[data-block-type='Heading'] {
-  margin-bottom: 20px;
+/* Heading margins scaled by depth — 2:1 top:bottom ratio */
+[data-block-type='Heading'][data-depth='1'],
+[data-block-type='Heading'][data-depth='2'] {
+  margin-top: 1.5em;
+  margin-bottom: 0.75em;
 }
 
-/* Reset margin for consecutive headings */
+[data-block-type='Heading'][data-depth='3'] {
+  margin-top: 1.25em;
+  margin-bottom: 0.5em;
+}
+
+[data-block-type='Heading'][data-depth='4'],
+[data-block-type='Heading'][data-depth='5'] {
+  margin-top: 1em;
+  margin-bottom: 0.4em;
+}
+
+/* Fallback for headings without depth */
+[data-block-type='Heading']:not([data-depth]) {
+  margin-top: 1.5em;
+  margin-bottom: 0.75em;
+}
+
+/* First heading in a container: no top margin */
+[data-block-type='Heading']:first-child {
+  margin-top: 0;
+}
+
+/* Consecutive headings: collapse top margin */
 [data-block-type='Heading'] + [data-block-type='Heading'] {
-  margin-top: -20px; /* Cancel out the previous element's margin */
+  margin-top: 0;
 }
 
 .bottom-gradient {
