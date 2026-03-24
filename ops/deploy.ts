@@ -196,6 +196,8 @@ export interface SeedConfig {
   compose_url: string
   /** SHA-256 of the last deployed docker-compose.yml — used to detect changes */
   compose_sha: string
+  /** SHA-256 of the last deployed compose env vars — detects config changes */
+  compose_env_sha?: string
   /** Environment variables passed through to compose services */
   compose_envs: {
     LOG_LEVEL: 'debug' | 'info' | 'warn' | 'error'
@@ -579,6 +581,7 @@ async function runMigrationWizard(old: OldInstallInfo, paths: DeployPaths, shell
     email: (answers.email as string) || '',
     compose_url: DEFAULT_COMPOSE_URL,
     compose_sha: '',
+    compose_env_sha: '',
     compose_envs: {
       LOG_LEVEL: answers.log_level as SeedConfig['compose_envs']['LOG_LEVEL'],
     },
@@ -726,6 +729,7 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig): Promis
     email: (answers.email as string) || '',
     compose_url: DEFAULT_COMPOSE_URL,
     compose_sha: existing?.compose_sha ?? '',
+    compose_env_sha: existing?.compose_env_sha ?? '',
     compose_envs: {
       LOG_LEVEL: answers.log_level as SeedConfig['compose_envs']['LOG_LEVEL'],
     },
@@ -829,6 +833,28 @@ export async function getContainerImages(shell: ShellRunner): Promise<Map<string
     if (image) images.set(name, image)
   }
   return images
+}
+
+/**
+ * Extract environment variables from a running container as a key-value map.
+ * Returns an empty object if the container doesn't exist or isn't running.
+ */
+export function getContainerEnvs(shell: ShellRunner, containerName: string): Record<string, string> {
+  const raw = shell.runSafe(`docker inspect ${containerName} --format '{{json .Config.Env}}' 2>/dev/null`)
+  if (!raw) return {}
+  try {
+    const envs = JSON.parse(raw) as string[]
+    const result: Record<string, string> = {}
+    for (const entry of envs) {
+      const idx = entry.indexOf('=')
+      if (idx > 0) {
+        result[entry.slice(0, idx)] = entry.slice(idx + 1)
+      }
+    }
+    return result
+  } catch {
+    return {}
+  }
 }
 
 /** Result of checking GPU acceleration inside the daemon container. */
@@ -995,11 +1021,13 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
   }
   const composeContent = await composeResponse.text()
   const composeSha = sha256(composeContent)
+  const envString = buildComposeEnv(config, paths)
+  const envSha = sha256(envString)
 
   const containersHealthy = await checkContainersHealthy(shell)
-  if (config.compose_sha === composeSha && containersHealthy) {
+  if (config.compose_sha === composeSha && config.compose_env_sha === envSha && containersHealthy) {
     spinner?.stop('No changes detected — all containers healthy. Skipping redeployment.')
-    log('No changes detected — compose SHA matches and containers are healthy. Skipping.')
+    log('No changes detected — compose SHA and env SHA match, containers are healthy. Skipping.')
     if (isInteractive) {
       console.log(`\n  To change your node's configuration, run '${cmd('deploy --reconfigure')}'.\n`)
     }
@@ -1010,6 +1038,9 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
 
   if (config.compose_sha && config.compose_sha !== composeSha) {
     step(`Compose file changed: ${config.compose_sha.slice(0, 8)} -> ${composeSha.slice(0, 8)}`)
+  }
+  if (config.compose_env_sha && config.compose_env_sha !== envSha) {
+    step(`Configuration changed: ${config.compose_env_sha.slice(0, 8)} -> ${envSha.slice(0, 8)}`)
   }
 
   await ensureSeedDir(paths, shell)
@@ -1131,6 +1162,7 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
   }
 
   config.compose_sha = composeSha
+  config.compose_env_sha = envSha
   config.last_script_run = new Date().toISOString()
   await writeConfig(config, paths)
 
@@ -1446,6 +1478,62 @@ async function cmdDoctor(paths: DeployPaths, shell: ShellRunner): Promise<void> 
 
   if (hasUnhealthy) {
     console.log(`\n  Tip: Check logs with '${cmd('logs daemon|web|proxy')}'`)
+  }
+
+  // Configuration sync — compare running container state against config
+  if (config) {
+    const presets = environmentPresets(config.environment)
+    const expectedTag = config.release_channel
+    const expectedLightning = config.testnet ? LIGHTNING_URL_TESTNET : LIGHTNING_URL_MAINNET
+    const expectedTestnetName = presets.testnet ? 'dev' : ''
+
+    const checks: Array<{container: string; envVar: string; expected: string; label?: string}> = [
+      {container: 'seed-daemon', envVar: 'SEED_P2P_TESTNET_NAME', expected: expectedTestnetName, label: expectedTestnetName || '(empty, mainnet)'},
+      {container: 'seed-daemon', envVar: 'LIGHTNING_API_URL', expected: expectedLightning},
+      {container: 'seed-daemon', envVar: 'SEED_LOG_LEVEL', expected: config.compose_envs.LOG_LEVEL},
+      {container: 'seed-web', envVar: 'SEED_BASE_URL', expected: config.domain},
+      {container: 'seed-web', envVar: 'SEED_IS_GATEWAY', expected: String(config.gateway)},
+      {container: 'seed-web', envVar: 'SEED_ENABLE_STATISTICS', expected: String(config.analytics)},
+    ]
+
+    // Gather env vars from running containers
+    const daemonEnvs = getContainerEnvs(shell, 'seed-daemon')
+    const webEnvs = getContainerEnvs(shell, 'seed-web')
+    const envMaps: Record<string, Record<string, string>> = {
+      'seed-daemon': daemonEnvs,
+      'seed-web': webEnvs,
+    }
+
+    // Check image tags
+    const imageChecks: Array<{container: string; expectedImage: string}> = [
+      {container: 'seed-web', expectedImage: `seedhypermedia/web:${expectedTag}`},
+      {container: 'seed-daemon', expectedImage: `seedhypermedia/site:${expectedTag}`},
+    ]
+
+    let hasMismatch = false
+    const mismatches: string[] = []
+
+    for (const {container, envVar, expected, label} of checks) {
+      const actual = envMaps[container]?.[envVar]
+      if (actual !== undefined && actual !== expected) {
+        hasMismatch = true
+        mismatches.push(`  \u26A0 ${container.padEnd(14)} ${envVar}: expected ${JSON.stringify(label ?? expected)}, got ${JSON.stringify(actual)}`)
+      }
+    }
+
+    for (const {container, expectedImage} of imageChecks) {
+      const actualImage = shell.runSafe(`docker inspect ${container} --format '{{.Config.Image}}' 2>/dev/null`)
+      if (actualImage && actualImage !== expectedImage) {
+        hasMismatch = true
+        mismatches.push(`  \u26A0 ${container.padEnd(14)} image: expected ${expectedImage}, got ${actualImage}`)
+      }
+    }
+
+    if (hasMismatch) {
+      console.log(`\nConfiguration Sync:`)
+      for (const m of mismatches) console.log(m)
+      console.log(`\n  Tip: Run '${cmd('deploy')}' to reconcile running containers with config.`)
+    }
   }
 
   // GPU acceleration check (only when daemon is running)
