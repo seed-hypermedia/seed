@@ -927,6 +927,7 @@ export function BlockNodeContent({
       ref={elm}
       data-node-type="blockContainer"
       data-block-type={blockNode.block?.type}
+      data-depth={depth}
       className={cn(
         'blocknode-content',
         isHighlightExpanded ? 'bg-brand-12 blocknode-highlight' : 'bg-transparent',

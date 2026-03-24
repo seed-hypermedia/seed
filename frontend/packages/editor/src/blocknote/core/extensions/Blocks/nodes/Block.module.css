@@ -8,7 +8,7 @@ BASIC STYLES
   position: relative;
   line-height: 1.5;
   transition: margin 0.2s;
-  /* padding-left: 0.5em; */
+  contain: layout style;
 }
 
 /*Ensures block content inside React node views spans editor width*/
@@ -21,15 +21,15 @@ BASIC STYLES
 }
 
 .blockContent {
-  padding: 12px 0 3px 0;
+  padding: 3px 0;
   flex-grow: 1;
   transition: font-size 0.2s;
   max-width: 100%;
   max-height: 100%;
-  /*
-  because the content elements are display: block
-  we use flex to position them next to list markers
-  */
+}
+
+.blockNode + .blockNode {
+  margin-top: 2px;
 }
 
 .blockContent::before {
@@ -119,7 +119,7 @@ NESTED BLOCKS
   margin-top: 0;
   margin-bottom: 0;
   padding: 0;
-  padding-inline-start: 1em;
+  padding-inline-start: 1.5em;
 }
 
 .blockChildren[data-list-type='Unordered'] {
@@ -157,7 +157,7 @@ NESTED BLOCKS
 }
 
 .inlineContent {
-  font-size: 0.9em;
+  font-size: 1em;
 
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
