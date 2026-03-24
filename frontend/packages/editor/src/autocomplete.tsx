@@ -300,11 +300,11 @@ function AutocompletePopupInner(
 
     editor.options.onMentionsQuery(debouncedText).then((results: InlineMentionsResult) => {
       const t1 = performance.now()
-      const totalItems = results
-        ? Object.values(results).reduce((sum, arr) => sum + arr.length, 0)
-        : 0
+      const totalItems = results ? Object.values(results).reduce((sum, arr) => sum + arr.length, 0) : 0
       console.log(
-        `[SEARCH-DEBUG] autocomplete results received | debouncedText="${debouncedText}" | ${(t1 - t0).toFixed(1)}ms | ${totalItems} total items | isActive=${isActive}`,
+        `[SEARCH-DEBUG] autocomplete results received | debouncedText="${debouncedText}" | ${(t1 - t0).toFixed(
+          1,
+        )}ms | ${totalItems} total items | isActive=${isActive}`,
       )
 
       if (!isActive) return

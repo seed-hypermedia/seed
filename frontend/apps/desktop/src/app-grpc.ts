@@ -15,19 +15,12 @@ export const loggingInterceptor: Interceptor = (next) => async (req) => {
   const isSensitive = isSensitiveRPCMethod(req.service.typeName, req.method.name)
 
   connectionMonitor.trackRequest(requestId, req.method.name)
-  const isSearch = req.method.name === 'SearchEntities'
-  if (isSearch) {
-    log.debug(`[SEARCH-DEBUG] gRPC interceptor START | SearchEntities`, {requestId})
-  }
   log.debug(`🚀 Starting ${req.method.name}`, {requestId})
 
   try {
     const result = await next(req)
     const duration = Date.now() - startTime
     connectionMonitor.completeRequest(requestId, true)
-    if (isSearch) {
-      log.debug(`[SEARCH-DEBUG] gRPC interceptor END | SearchEntities | ${duration}ms`, {requestId, duration})
-    }
     log.debug(`✅ ${req.method.name} completed`, {requestId, duration})
     // @ts-ignore
     // log.debug(`🔃 to ${req.method.name} `, req.message, result?.message)

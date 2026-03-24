@@ -67,7 +67,9 @@ export function useSearch(
       })
       const t1 = performance.now()
       console.log(
-        `[SEARCH-DEBUG] useSearch queryFn client.request done | query="${query}" | ${(t1 - t0).toFixed(1)}ms | ${out.entities.length} entities from API`,
+        `[SEARCH-DEBUG] useSearch queryFn client.request done | query="${query}" | ${(t1 - t0).toFixed(1)}ms | ${
+          out.entities.length
+        } entities from API`,
       )
       const alreadySeenIds = new Set<string>()
       const entities: SearchResultItem[] = []
@@ -83,7 +85,9 @@ export function useSearch(
       }
       const t2 = performance.now()
       console.log(
-        `[SEARCH-DEBUG] useSearch queryFn END | query="${query}" | total=${(t2 - t0).toFixed(1)}ms | dedup=${(t2 - t1).toFixed(1)}ms | ${entities.length} final entities`,
+        `[SEARCH-DEBUG] useSearch queryFn END | query="${query}" | total=${(t2 - t0).toFixed(1)}ms | dedup=${(
+          t2 - t1
+        ).toFixed(1)}ms | ${entities.length} final entities`,
       )
       return {out, entities}
     },

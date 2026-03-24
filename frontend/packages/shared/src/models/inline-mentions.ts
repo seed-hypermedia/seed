@@ -30,7 +30,9 @@ export function useInlineMentions(perspectiveAccountUid?: string | null | undefi
     })
     const t1 = performance.now()
     console.log(
-      `[SEARCH-DEBUG] onMentionsQuery client.request done | query="${query}" | ${(t1 - t0).toFixed(1)}ms | ${resp.entities.length} raw entities`,
+      `[SEARCH-DEBUG] onMentionsQuery client.request done | query="${query}" | ${(t1 - t0).toFixed(1)}ms | ${
+        resp.entities.length
+      } raw entities`,
     )
     const alreadySeenIds = new Set<string>()
     const entities: SearchResultItem[] = []
@@ -70,7 +72,9 @@ export function useInlineMentions(perspectiveAccountUid?: string | null | undefi
     }, emptyRespose)
     const t2 = performance.now()
     console.log(
-      `[SEARCH-DEBUG] onMentionsQuery END | query="${query}" | total=${(t2 - t0).toFixed(1)}ms | Sites=${response.Sites.length} Docs=${response.Documents.length} Contacts=${response.Contacts.length}`,
+      `[SEARCH-DEBUG] onMentionsQuery END | query="${query}" | total=${(t2 - t0).toFixed(1)}ms | Sites=${
+        response.Sites.length
+      } Docs=${response.Documents.length} Contacts=${response.Contacts.length}`,
     )
     return response
   }

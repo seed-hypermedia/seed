@@ -19,7 +19,9 @@ export const Search: HMRequestImplementation<HMSearchRequest> = {
     })
     const t1 = performance.now()
     console.log(
-      `[SEARCH-DEBUG] gRPC searchEntities END | query="${query}" | ${(t1 - t0).toFixed(1)}ms | ${result.entities.length} raw entities`,
+      `[SEARCH-DEBUG] gRPC searchEntities END | query="${query}" | ${(t1 - t0).toFixed(1)}ms | ${
+        result.entities.length
+      } raw entities`,
     )
     return {
       searchQuery: query,

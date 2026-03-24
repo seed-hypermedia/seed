@@ -31,15 +31,7 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useMutation} from '@tanstack/react-query'
 import {useDebounce} from '@shm/shared/utils/use-debounce'
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import {forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState} from 'react'
 
 export interface SearchInputHandle {
   handleArrowUp: () => void
@@ -100,7 +92,11 @@ export const SearchInput = forwardRef<
     if (searchResults.data && searchTimestampRef.current > 0) {
       const elapsed = performance.now() - searchTimestampRef.current
       console.log(
-        `[SEARCH-DEBUG] SearchInput results received | query="${debouncedSearch}" | ${elapsed.toFixed(1)}ms since debouncedSearch changed | ${searchResults.data.entities.length} results | isFetching=${searchResults.isFetching}`,
+        `[SEARCH-DEBUG] SearchInput results received | query="${debouncedSearch}" | ${elapsed.toFixed(
+          1,
+        )}ms since debouncedSearch changed | ${searchResults.data.entities.length} results | isFetching=${
+          searchResults.isFetching
+        }`,
       )
     }
   }, [searchResults.data])
