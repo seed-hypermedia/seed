@@ -97,14 +97,26 @@ describe('navigateToComment', () => {
     expect(prev).toBeNull()
   })
 
-  it('preserves existing route fields when navigating', () => {
+  it('preserves non-block route fields and clears targetBlockId when navigating', () => {
     const navigate = vi.fn()
     const route = {key: 'comments' as const, id: docId, targetBlockId: 'blk1', width: 400}
     navigateToComment(navigate, route, commentRecordId)
 
-    expect(navigate).toHaveBeenCalledWith(
-      expect.objectContaining({targetBlockId: 'blk1', width: 400, openComment: commentRecordId}),
-    )
+    const navigatedRoute = navigate.mock.calls[0][0]
+    expect(navigatedRoute.width).toBe(400)
+    expect(navigatedRoute.openComment).toBe(commentRecordId)
+    expect(navigatedRoute.targetBlockId).toBeUndefined()
+  })
+
+  it('clears targetBlockId on document route panel when navigating to comment', () => {
+    const navigate = vi.fn()
+    const panel = {key: 'comments' as const, id: docId, targetBlockId: 'blk1'}
+    const route = {key: 'document' as const, id: docId, panel}
+    navigateToComment(navigate, route, commentRecordId)
+
+    const navigatedRoute = navigate.mock.calls[0][0]
+    expect(navigatedRoute.panel.openComment).toBe(commentRecordId)
+    expect(navigatedRoute.panel.targetBlockId).toBeUndefined()
   })
 
   it('clears stale reply data on a comments route after posting', () => {

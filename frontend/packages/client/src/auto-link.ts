@@ -147,7 +147,7 @@ export type AutoLinkChildToParentOptions = {
   account: string
   /** Full path of the child document (e.g. "/tests/benefits-of-cli"). */
   path: string
-  /** hm:// URL of the published child document (with version). */
+  /** hm:// URL of the published child document (without version). */
   childHmUrl: string
   /** Signer for the parent document change. */
   signer: HMSigner

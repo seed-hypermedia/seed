@@ -163,6 +163,7 @@ export function navigateToComment(
     navigate({
       ...route,
       openComment: recordId,
+      targetBlockId: undefined,
       isReplying: undefined,
       replyCommentVersion: undefined,
       rootReplyCommentVersion: undefined,
@@ -177,6 +178,7 @@ export function navigateToComment(
       panel: {
         ...route.panel,
         openComment: recordId,
+        targetBlockId: undefined,
         isReplying: undefined,
         replyCommentVersion: undefined,
         rootReplyCommentVersion: undefined,

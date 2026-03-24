@@ -239,7 +239,6 @@ export default function PublishDraftButton() {
       const resultPath = entityQueryPathToHmIdPath(res.path)
       const childResultId = hmId(res.account, {
         path: resultPath,
-        version: res.version,
       })
       const resultDocId = hmId(res.account, {
         path: resultPath,

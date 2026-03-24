@@ -439,7 +439,7 @@ export function registerDocumentCommands(program: Command) {
 
         // Auto-link: add embed card in parent document if it exists (same as desktop app)
         try {
-          const childHmUrl = `hm://${account}${path}?v=${changeBlock.cid.toString()}`
+          const childHmUrl = `hm://${account}${path}`
           const linked = await autoLinkChildToParent({client, account, path, childHmUrl, signer})
           if (linked && !globalOpts.quiet) {
             printInfo('Parent document updated with link')
