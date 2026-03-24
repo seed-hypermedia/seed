@@ -748,7 +748,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	if strings.ReplaceAll(cleanQuery, " ", "") == "" {
 		return nil, nil
 	}
-	srv.log.Debug("[SEARCH-DEBUG] SearchEntities START",
+	srv.log.Debug("SearchEntitiesRequest",
 		zap.String("query", in.Query),
 		zap.String("cleanQuery", cleanQuery),
 		zap.Int32("searchType", int32(in.SearchType)),
@@ -873,7 +873,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			keywordDur = time.Since(t)
 		}()
 		wg.Wait()
-		srv.log.Debug("[SEARCH-DEBUG] hybrid search completed",
+		srv.log.Debug("SearchHybridCompleted",
 			zap.String("query", query),
 			zap.Duration("semanticDur", semanticDur),
 			zap.Duration("keywordDur", keywordDur),
@@ -893,13 +893,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			winners = keywordResults
 		} else {
 			// Blend results with RRF.
-			blendStart := time.Now()
 			winners = blendSearchResults(semanticResults, keywordResults, resultsLmit*2, query)
-			srv.log.Debug("[SEARCH-DEBUG] blend completed",
-				zap.String("query", query),
-				zap.Duration("blendDur", time.Since(blendStart)),
-				zap.Int("blendedResults", len(winners)),
-			)
 		}
 
 	case entpb.SearchType_SEARCH_SEMANTIC:
@@ -922,7 +916,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			return nil, fmt.Errorf("keyword search failed: %w", err)
 		}
 	}
-	srv.log.Debug("[SEARCH-DEBUG] search phase done",
+	srv.log.Debug("SearchPhaseCompleted",
 		zap.String("query", query),
 		zap.Duration("totalSearchDur", time.Since(searchPhaseStart)),
 		zap.Int("winners", len(winners)),
@@ -1031,12 +1025,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	}); err != nil {
 		return nil, err
 	}
-	srv.log.Debug("[SEARCH-DEBUG] enrichment (qGetFTSByIDs) done",
+	srv.log.Debug("SearchEnrichmentCompleted",
 		zap.String("query", cleanQuery),
 		zap.Duration("enrichDur", time.Since(enrichStart)),
 		zap.Int("rawResults", len(searchResults)),
 	)
-	dedupStart := time.Now()
 	seen := make(map[string]int)
 	var uniqueResults []fullDataSearchResult
 	var uniqueBodyMatches []fuzzy.Match
@@ -1061,14 +1054,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	}
 	bodyMatches = uniqueBodyMatches
 	searchResults = uniqueResults
-	srv.log.Debug("[SEARCH-DEBUG] dedup done",
-		zap.String("query", cleanQuery),
-		zap.Duration("dedupDur", time.Since(dedupStart)),
-		zap.Int("uniqueResults", len(searchResults)),
-	)
-
 	// Authority-based re-ranking.
-	authorityStart := time.Now()
 	if in.AuthorityWeight > 0 {
 		if in.AuthorityWeight > 1 {
 			return nil, status.Errorf(codes.InvalidArgument, "authority_weight must be between 0 and 1")
@@ -1114,39 +1100,43 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		if err != nil {
 			return nil, fmt.Errorf("authority ranking failed: %w", err)
 		}
-		srv.log.Debug("[SEARCH-DEBUG] authority ranking done",
-			zap.String("query", cleanQuery),
-			zap.Duration("authorityDur", time.Since(authorityStart)),
-		)
 	}
 
 	// Trim results to a reasonable limit before expensive post-processing.
 	// The version-upgrade heuristic and comment-deletion checks run per-result,
 	// so processing 238 results when the client only needs 50 wastes ~100ms.
-	// Sort by score first so we keep the best results.
+	// Co-sort searchResults and bodyMatches by score, then trim.
 	if in.PageSize > 0 {
-		slices.SortFunc(searchResults, func(a, b fullDataSearchResult) int {
-			if a.score > b.score {
+		indices := make([]int, len(searchResults))
+		for i := range indices {
+			indices[i] = i
+		}
+		slices.SortFunc(indices, func(a, b int) int {
+			if searchResults[a].score > searchResults[b].score {
 				return -1
 			}
-			if a.score < b.score {
+			if searchResults[a].score < searchResults[b].score {
 				return 1
 			}
 			return 0
 		})
-		// Rebuild bodyMatches to match new order and limit.
-		limit := int(in.PageSize) * 2 // 2x headroom for deleted/filtered results.
+
+		sorted := make([]fullDataSearchResult, len(searchResults))
+		sortedMatches := make([]fuzzy.Match, len(bodyMatches))
+		for newIdx, oldIdx := range indices {
+			sorted[newIdx] = searchResults[oldIdx]
+			bm := bodyMatches[oldIdx]
+			bm.Index = newIdx
+			sortedMatches[newIdx] = bm
+		}
+		searchResults = sorted
+		bodyMatches = sortedMatches
+
+		// Trim to 2x page size for headroom against deleted/filtered results.
+		limit := int(in.PageSize) * 2
 		if limit < len(searchResults) {
 			searchResults = searchResults[:limit]
-			trimmedMatches := make([]fuzzy.Match, limit)
-			for i, r := range searchResults {
-				trimmedMatches[i] = fuzzy.Match{
-					Str:   r.rawContent,
-					Index: i,
-					Score: 1,
-				}
-			}
-			bodyMatches = trimmedMatches
+			bodyMatches = bodyMatches[:limit]
 		}
 	}
 
@@ -1459,7 +1449,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		}
 	}
 
-	srv.log.Debug("[SEARCH-DEBUG] SearchEntities END",
+	srv.log.Debug("SearchEntitiesCompleted",
 		zap.String("query", cleanQuery),
 		zap.Duration("totalDur", time.Since(searchStart)),
 		zap.Duration("postProcessDur", time.Since(postProcessStart)),
