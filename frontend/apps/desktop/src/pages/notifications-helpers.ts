@@ -3,6 +3,9 @@ import {getMentionNotificationTitle, getNotificationDocumentName} from '@shm/sha
 import {NavRoute} from '@shm/shared/routes'
 import {abbreviateUid, hmId} from '@shm/shared'
 
+/**
+ * Returns the navigation route targeted by a notification payload.
+ */
 export function notificationRouteForPayload(payload: NotificationPayload): NavRoute | null {
   if (payload.eventType === 'comment') {
     if (!payload.target.uid) return null
@@ -49,14 +52,36 @@ export function notificationRouteForPayload(payload: NotificationPayload): NavRo
   return null
 }
 
-export function notificationTitle(payload: NotificationPayload): string {
-  const authorName = payload.author.name || (payload.author.uid ? abbreviateUid(payload.author.uid) : 'Someone')
+function getNotificationAuthorName(payload: NotificationPayload, authorName?: string | null): string {
+  const resolvedAuthorName = authorName?.trim()
+  if (resolvedAuthorName) return resolvedAuthorName
+  return payload.author.name || (payload.author.uid ? abbreviateUid(payload.author.uid) : 'Someone')
+}
+
+function getNotificationTargetName(payload: NotificationPayload, targetName?: string | null): string {
+  const resolvedTargetName = targetName?.trim()
+  if (resolvedTargetName) return resolvedTargetName
+
+  return getNotificationDocumentName({
+    targetMeta: payload.target.name ? {name: payload.target.name} : null,
+    targetId: payload.target.uid ? hmId(payload.target.uid, {path: payload.target.path ?? undefined}) : undefined,
+  })
+}
+
+/**
+ * Builds a notification title, preferring resolved metadata when available.
+ */
+export function notificationTitle(
+  payload: NotificationPayload,
+  overrides?: {
+    authorName?: string | null
+    targetName?: string | null
+  },
+): string {
+  const authorName = getNotificationAuthorName(payload, overrides?.authorName)
 
   if (payload.reason === 'mention') {
-    const sourceName = getNotificationDocumentName({
-      targetMeta: payload.target.name ? {name: payload.target.name} : null,
-      targetId: payload.target.uid ? hmId(payload.target.uid, {path: payload.target.path ?? undefined}) : undefined,
-    })
+    const sourceName = getNotificationTargetName(payload, overrides?.targetName)
     return getMentionNotificationTitle({
       actorName: authorName,
       subjectName: 'you',
@@ -65,30 +90,33 @@ export function notificationTitle(payload: NotificationPayload): string {
   }
 
   if (payload.reason === 'discussion') {
-    const targetName = payload.target.name
+    const targetName = overrides?.targetName || payload.target.name
     return `${authorName} started a discussion${targetName ? ` on ${targetName}` : ''}`
   }
 
   if (payload.reason === 'site-doc-update') {
-    const targetName = payload.target.name
+    const targetName = overrides?.targetName || payload.target.name
     return `${authorName} updated${targetName ? ` ${targetName}` : ' a document'}`
   }
 
   if (payload.reason === 'site-new-discussion') {
-    const targetName = payload.target.name
+    const targetName = overrides?.targetName || payload.target.name
     return `${authorName} started a discussion${targetName ? ` on ${targetName}` : ''}`
   }
 
   if (payload.reason === 'user-comment') {
-    const targetName = payload.target.name
+    const targetName = overrides?.targetName || payload.target.name
     return `${authorName} commented${targetName ? ` on ${targetName}` : ''}`
   }
 
   // reply
-  const targetName = payload.target.name
+  const targetName = overrides?.targetName || payload.target.name
   return `${authorName} replied to your comment${targetName ? ` in ${targetName}` : ''}`
 }
 
+/**
+ * Returns the latest event timestamp represented by the currently loaded notifications.
+ */
 export function getMaxLoadedNotificationEventAtMs(notifications: NotificationPayload[], nowMs: number = Date.now()) {
   if (!notifications.length) return nowMs
   return notifications.reduce((maxEventAtMs, item) => {
@@ -96,6 +124,9 @@ export function getMaxLoadedNotificationEventAtMs(notifications: NotificationPay
   }, 0)
 }
 
+/**
+ * Marks a notification as read before navigating to its target route.
+ */
 export async function markNotificationReadAndNavigate(input: {
   accountUid: string
   item: NotificationPayload

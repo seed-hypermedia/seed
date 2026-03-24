@@ -284,6 +284,32 @@ describe('notifications page helpers', () => {
     expect(notificationTitle(payload)).toBe('Alice mentioned you in fallback-doc')
   })
 
+  it('prefers resolved author and target metadata when building notification titles', () => {
+    const payload = createReplyPayload({
+      author: {uid: 'author-2', name: 'Old Name', icon: null},
+      target: {uid: 'site', path: ['post'], name: 'Old Post'},
+    })
+    expect(
+      notificationTitle(payload, {
+        authorName: 'Updated Name',
+        targetName: 'Updated Post',
+      }),
+    ).toBe('Updated Name replied to your comment in Updated Post')
+  })
+
+  it('falls back to payload metadata when resolved notification metadata is unavailable', () => {
+    const payload = createReplyPayload({
+      author: {uid: 'author-2', name: 'Stored Name', icon: null},
+      target: {uid: 'site', path: ['post'], name: 'Stored Post'},
+    })
+    expect(
+      notificationTitle(payload, {
+        authorName: null,
+        targetName: undefined,
+      }),
+    ).toBe('Stored Name replied to your comment in Stored Post')
+  })
+
   it('computes mark-all timestamp from latest loaded event', () => {
     const notifications = [createMentionPayload({eventAtMs: 10}), createReplyPayload({eventAtMs: 20})]
     expect(getMaxLoadedNotificationEventAtMs(notifications, 1)).toBe(20)

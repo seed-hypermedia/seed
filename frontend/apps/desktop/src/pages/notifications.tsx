@@ -23,7 +23,10 @@ import {
 } from '@/pages/notifications-helpers'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
-import {formattedDateShort, hmId} from '@shm/shared'
+import {getDocumentTitle} from '@shm/shared/content'
+import {useAccount, useResource} from '@shm/shared/models/entity'
+import type {NotificationPayload} from '@shm/shared/models/notification-payload'
+import {abbreviateUid, formattedDateShort, hmId} from '@shm/shared'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
@@ -128,7 +131,7 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
             </div>
           </div>
 
-          <div className="flex rounded-md border self-start">
+          <div className="flex self-start rounded-md border">
             <Button
               size="sm"
               variant={filter === 'all' ? 'secondary' : 'ghost'}
@@ -175,12 +178,12 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
                   eventId: item.feedEventId,
                   eventAtMs: item.eventAtMs,
                 })
-                const authorId = item.author.uid ? hmId(item.author.uid) : null
                 return (
-                  <button
+                  <NotificationListItem
                     key={item.feedEventId}
-                    className="group hover:bg-muted/40 flex w-full items-center gap-3 p-4 text-left"
-                    onClick={async () => {
+                    item={item}
+                    isRead={isRead}
+                    onOpen={async () => {
                       await markNotificationReadAndNavigate({
                         accountUid,
                         item,
@@ -188,52 +191,26 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
                         navigate,
                       })
                     }}
-                  >
-                    <div className="pt-0.5">
-                      {authorId ? (
-                        <HMIcon size={24} id={authorId} name={item.author.name} icon={item.author.icon} />
-                      ) : (
-                        <div className="bg-muted h-6 w-6 rounded-full" />
-                      )}
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        {!isRead ? <span className="bg-brand inline-block h-2 w-2 rounded-full" /> : null}
-                        <p className="truncate text-sm">{notificationTitle(item)}</p>
-                      </div>
-                      <p className="text-muted-foreground text-xs">{formattedDateShort(new Date(item.eventAtMs))}</p>
-                    </div>
-                    <Tooltip content={isRead ? 'Mark as unread' : 'Mark as read'}>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          e.preventDefault()
-                          if (isRead) {
-                            markEventUnread.mutate({
-                              accountUid,
-                              eventId: item.feedEventId,
-                              eventAtMs: item.eventAtMs,
-                              otherLoadedEvents: notifications.map((n) => ({
-                                eventId: n.feedEventId,
-                                eventAtMs: n.eventAtMs,
-                              })),
-                            })
-                          } else {
-                            markEventRead.mutate({
-                              accountUid,
-                              eventId: item.feedEventId,
-                              eventAtMs: item.eventAtMs,
-                            })
-                          }
-                        }}
-                      >
-                        <Check size={16} className={isRead ? 'text-brand' : 'text-muted-foreground'} />
-                      </Button>
-                    </Tooltip>
-                  </button>
+                    onToggleRead={() => {
+                      if (isRead) {
+                        markEventUnread.mutate({
+                          accountUid,
+                          eventId: item.feedEventId,
+                          eventAtMs: item.eventAtMs,
+                          otherLoadedEvents: notifications.map((n) => ({
+                            eventId: n.feedEventId,
+                            eventAtMs: n.eventAtMs,
+                          })),
+                        })
+                      } else {
+                        markEventRead.mutate({
+                          accountUid,
+                          eventId: item.feedEventId,
+                          eventAtMs: item.eventAtMs,
+                        })
+                      }
+                    }}
+                  />
                 )
               })}
             </div>
@@ -241,6 +218,64 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
         </Container>
       </MainWrapper>
     </PanelContainer>
+  )
+}
+
+function NotificationListItem({
+  item,
+  isRead,
+  onOpen,
+  onToggleRead,
+}: {
+  item: NotificationPayload
+  isRead: boolean
+  onOpen: () => Promise<void>
+  onToggleRead: () => void
+}) {
+  const authorId = item.author.uid ? hmId(item.author.uid) : null
+  const targetId = item.target.uid ? hmId(item.target.uid, {path: item.target.path ?? undefined}) : null
+  const author = useAccount(item.author.uid || undefined)
+  const target = useResource(targetId, {subscribed: true})
+
+  const authorName =
+    author.data?.metadata?.name || item.author.name || (item.author.uid ? abbreviateUid(item.author.uid) : undefined)
+  const authorIcon = author.data?.metadata?.icon || item.author.icon || undefined
+  const targetName = target.data?.type === 'document' ? getDocumentTitle(target.data.document) || undefined : undefined
+
+  return (
+    <button
+      className="group hover:bg-muted/40 flex w-full items-center gap-3 p-4 text-left"
+      onClick={() => void onOpen()}
+    >
+      <div className="pt-0.5">
+        {authorId ? (
+          <HMIcon size={24} id={authorId} name={authorName} icon={authorIcon} />
+        ) : (
+          <div className="bg-muted h-6 w-6 rounded-full" />
+        )}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-center gap-2">
+          {!isRead ? <span className="bg-brand inline-block h-2 w-2 rounded-full" /> : null}
+          <p className="truncate text-sm">{notificationTitle(item, {authorName, targetName})}</p>
+        </div>
+        <p className="text-muted-foreground text-xs">{formattedDateShort(new Date(item.eventAtMs))}</p>
+      </div>
+      <Tooltip content={isRead ? 'Mark as unread' : 'Mark as read'}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            onToggleRead()
+          }}
+        >
+          <Check size={16} className={isRead ? 'text-brand' : 'text-muted-foreground'} />
+        </Button>
+      </Tooltip>
+    </button>
   )
 }
 
