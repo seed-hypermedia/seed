@@ -30,10 +30,10 @@ import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useMutation} from '@tanstack/react-query'
+import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {
   forwardRef,
   useCallback,
-  useDeferredValue,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -69,8 +69,9 @@ export const SearchInput = forwardRef<
   const [internalSearch, setInternalSearch] = useState('')
   const search = externalSearch !== undefined ? externalSearch : internalSearch
   const setSearch = onExternalSearchChange || setInternalSearch
-  const deferredSearch = useDeferredValue(search)
-  const isSearchPending = search !== deferredSearch
+  const debouncedSearch = useDebounce(search, 200)
+  const isSearchPending = search !== debouncedSearch
+  const searchTimestampRef = useRef<number>(0)
 
   const [focusedIndex, setFocusedIndex] = useState(0)
   const [actionPromise, setActionPromise] = useState<Promise<void> | null>(null)
@@ -80,19 +81,36 @@ export const SearchInput = forwardRef<
   const selectedAccountId = useSelectedAccountId()
   const triggerWindowEvent = useTriggerWindowEvent()
 
-  const searchResults = useSearch(deferredSearch, {
+  useEffect(() => {
+    searchTimestampRef.current = performance.now()
+    console.log(
+      `[SEARCH-DEBUG] SearchInput debouncedSearch changed | value="${debouncedSearch}" | isPending=${isSearchPending}`,
+    )
+  }, [debouncedSearch])
+
+  const searchResults = useSearch(debouncedSearch, {
     includeBody: true,
-    contextSize: 48 - deferredSearch.length,
+    contextSize: 48 - debouncedSearch.length,
     perspectiveAccountUid: selectedAccountId ?? undefined,
-    searchType: SearchType.SEARCH_HYBRID,
+    searchType: debouncedSearch.length < 3 ? SearchType.SEARCH_KEYWORD : SearchType.SEARCH_HYBRID,
+    pageSize: 50,
   })
+
+  useEffect(() => {
+    if (searchResults.data && searchTimestampRef.current > 0) {
+      const elapsed = performance.now() - searchTimestampRef.current
+      console.log(
+        `[SEARCH-DEBUG] SearchInput results received | query="${debouncedSearch}" | ${elapsed.toFixed(1)}ms since debouncedSearch changed | ${searchResults.data.entities.length} results | isFetching=${searchResults.isFetching}`,
+      )
+    }
+  }, [searchResults.data])
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   let queryItem: null | SearchResult = useMemo(() => {
     if (
-      isHypermediaScheme(deferredSearch) ||
-      deferredSearch.startsWith('http://') ||
-      deferredSearch.startsWith('https://') ||
-      deferredSearch.includes('.')
+      isHypermediaScheme(debouncedSearch) ||
+      debouncedSearch.startsWith('http://') ||
+      debouncedSearch.startsWith('https://') ||
+      debouncedSearch.includes('.')
     ) {
       return {
         key: 'mtt-link',
@@ -155,12 +173,22 @@ export const SearchInput = forwardRef<
       }
     }
     return null
-  }, [deferredSearch, search, triggerWindowEvent])
+  }, [debouncedSearch, search, triggerWindowEvent])
 
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
-      ?.slice(0, 50) // Limit to 50 results for performance
-      // ?.sort((a, b) => Number(!!b.id.latest) - Number(!!a.id.latest))
+      ?.sort((a, b) => {
+        // Contacts/profiles first
+        if (a.type === 'contact' && b.type !== 'contact') return -1
+        if (a.type !== 'contact' && b.type === 'contact') return 1
+        // Latest versions first
+        const aLatest = a.id.latest ? 1 : 0
+        const bLatest = b.id.latest ? 1 : 0
+        if (aLatest !== bLatest) return bLatest - aLatest
+        // Preserve backend score order
+        return 0
+      })
+      ?.slice(0, 50)
       ?.map((item, index) => {
         const title = item.title || item.id.uid
         const route = item.type === 'contact' ? ({key: 'profile', id: item.id} as NavRoute) : appRouteOfId(item.id)
@@ -215,7 +243,7 @@ export const SearchInput = forwardRef<
           },
         }
       }) || []
-  const isDisplayingRecents = !deferredSearch.length
+  const isDisplayingRecents = !debouncedSearch.length
   const activeItems = isDisplayingRecents ? recentItems : [...(queryItem ? [queryItem] : []), ...searchItems]
 
   // Expose keyboard handlers via ref

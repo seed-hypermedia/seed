@@ -629,6 +629,33 @@ var qIsDeletedComment = dqb.Str(`
     LIMIT 1;
 `)
 
+// qBatchDeletedComments checks deletion status for a batch of comments in one query.
+// The parameter is a JSON array of objects: [{"author_id": N, "tsid": "..."}, ...]
+// Returns one row per comment: (author_id INTEGER, tsid TEXT, is_deleted INTEGER).
+var qBatchDeletedComments = dqb.Str(`
+    SELECT
+        c.author_id,
+        c.tsid,
+        CASE WHEN sb.extra_attrs->>'deleted' = '1' THEN 1 ELSE 0 END AS is_deleted
+    FROM (
+        SELECT
+            CAST(je.value->>'author_id' AS INTEGER) AS author_id,
+            je.value->>'tsid' AS tsid
+        FROM json_each(?) je
+    ) c
+    JOIN structural_blobs sb
+      ON sb.type = 'Comment'
+     AND sb.author = c.author_id
+     AND sb.extra_attrs->>'tsid' = c.tsid
+    WHERE sb.ts = (
+        SELECT MAX(sb2.ts)
+        FROM structural_blobs sb2
+        WHERE sb2.type = 'Comment'
+          AND sb2.author = c.author_id
+          AND sb2.extra_attrs->>'tsid' = c.tsid
+    );
+`)
+
 var qGetMetadata = dqb.Str(`
 	select dg.metadata, r.iri, pk.principal from document_generations dg
 	INNER JOIN resources r ON r.id = dg.resource
@@ -716,10 +743,18 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		Multihash string `json:"multihash"`
 		Codec     uint64 `json:"codec"`
 	}
+	searchStart := time.Now()
 	cleanQuery := sanitizeSearchQuery(in.Query)
 	if strings.ReplaceAll(cleanQuery, " ", "") == "" {
 		return nil, nil
 	}
+	srv.log.Debug("[SEARCH-DEBUG] SearchEntities START",
+		zap.String("query", in.Query),
+		zap.String("cleanQuery", cleanQuery),
+		zap.Int32("searchType", int32(in.SearchType)),
+		zap.Bool("includeBody", in.IncludeBody),
+		zap.Float32("authorityWeight", in.AuthorityWeight),
+	)
 	var bodyMatches []fuzzy.Match
 	contentTypes := map[string]bool{}
 	if len(in.ContentTypeFilter) > 0 {
@@ -812,26 +847,40 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		}
 	}
 
+	searchPhaseStart := time.Now()
 	switch in.SearchType {
 	case entpb.SearchType_SEARCH_HYBRID:
 		// Hybrid search: run semantic + keyword concurrently, blend with RRF
 		var semanticResults, keywordResults llm.SearchResultMap
 		var semanticErr, keywordErr error
+		var semanticDur, keywordDur time.Duration
 		var wg sync.WaitGroup
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
+			t := time.Now()
 			semanticResults, semanticErr = srv.embedder.SemanticSearch(ctx, query, resultsLmit*3, contentTypes, iriGlob, semanticThreshold, srv.cfg.PublicOnly)
+			semanticDur = time.Since(t)
 		}()
 		go func() {
 			defer wg.Done()
+			t := time.Now()
 			keywordErr = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 				var err error
 				keywordResults, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit*3, contentTypes, iriGlob, srv.cfg.PublicOnly)
 				return err
 			})
+			keywordDur = time.Since(t)
 		}()
 		wg.Wait()
+		srv.log.Debug("[SEARCH-DEBUG] hybrid search completed",
+			zap.String("query", query),
+			zap.Duration("semanticDur", semanticDur),
+			zap.Duration("keywordDur", keywordDur),
+			zap.Int("semanticResults", len(semanticResults)),
+			zap.Int("keywordResults", len(keywordResults)),
+			zap.Error(semanticErr),
+		)
 		if keywordErr != nil {
 			return nil, fmt.Errorf("keyword search failed: %w", keywordErr)
 		}
@@ -844,7 +893,13 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			winners = keywordResults
 		} else {
 			// Blend results with RRF.
+			blendStart := time.Now()
 			winners = blendSearchResults(semanticResults, keywordResults, resultsLmit*2, query)
+			srv.log.Debug("[SEARCH-DEBUG] blend completed",
+				zap.String("query", query),
+				zap.Duration("blendDur", time.Since(blendStart)),
+				zap.Int("blendedResults", len(winners)),
+			)
 		}
 
 	case entpb.SearchType_SEARCH_SEMANTIC:
@@ -867,6 +922,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			return nil, fmt.Errorf("keyword search failed: %w", err)
 		}
 	}
+	srv.log.Debug("[SEARCH-DEBUG] search phase done",
+		zap.String("query", query),
+		zap.Duration("totalSearchDur", time.Since(searchPhaseStart)),
+		zap.Int("winners", len(winners)),
+	)
 
 	// Short-circuit when there are no results to avoid running the expensive
 	// entity resolution query with an empty input set.
@@ -874,6 +934,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		return &entpb.SearchEntitiesResponse{}, nil
 	}
 
+	enrichStart := time.Now()
 	winnerIDsJSON, err := json.Marshal(winners.Keys())
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal winner IDs: %w", err)
@@ -970,6 +1031,12 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	}); err != nil {
 		return nil, err
 	}
+	srv.log.Debug("[SEARCH-DEBUG] enrichment (qGetFTSByIDs) done",
+		zap.String("query", cleanQuery),
+		zap.Duration("enrichDur", time.Since(enrichStart)),
+		zap.Int("rawResults", len(searchResults)),
+	)
+	dedupStart := time.Now()
 	seen := make(map[string]int)
 	var uniqueResults []fullDataSearchResult
 	var uniqueBodyMatches []fuzzy.Match
@@ -994,8 +1061,14 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	}
 	bodyMatches = uniqueBodyMatches
 	searchResults = uniqueResults
+	srv.log.Debug("[SEARCH-DEBUG] dedup done",
+		zap.String("query", cleanQuery),
+		zap.Duration("dedupDur", time.Since(dedupStart)),
+		zap.Int("uniqueResults", len(searchResults)),
+	)
 
 	// Authority-based re-ranking.
+	authorityStart := time.Now()
 	if in.AuthorityWeight > 0 {
 		if in.AuthorityWeight > 1 {
 			return nil, status.Errorf(codes.InvalidArgument, "authority_weight must be between 0 and 1")
@@ -1041,8 +1114,43 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		if err != nil {
 			return nil, fmt.Errorf("authority ranking failed: %w", err)
 		}
+		srv.log.Debug("[SEARCH-DEBUG] authority ranking done",
+			zap.String("query", cleanQuery),
+			zap.Duration("authorityDur", time.Since(authorityStart)),
+		)
 	}
 
+	// Trim results to a reasonable limit before expensive post-processing.
+	// The version-upgrade heuristic and comment-deletion checks run per-result,
+	// so processing 238 results when the client only needs 50 wastes ~100ms.
+	// Sort by score first so we keep the best results.
+	if in.PageSize > 0 {
+		slices.SortFunc(searchResults, func(a, b fullDataSearchResult) int {
+			if a.score > b.score {
+				return -1
+			}
+			if a.score < b.score {
+				return 1
+			}
+			return 0
+		})
+		// Rebuild bodyMatches to match new order and limit.
+		limit := int(in.PageSize) * 2 // 2x headroom for deleted/filtered results.
+		if limit < len(searchResults) {
+			searchResults = searchResults[:limit]
+			trimmedMatches := make([]fuzzy.Match, limit)
+			for i, r := range searchResults {
+				trimmedMatches[i] = fuzzy.Match{
+					Str:   r.rawContent,
+					Index: i,
+					Score: 1,
+				}
+			}
+			bodyMatches = trimmedMatches
+		}
+	}
+
+	postProcessStart := time.Now()
 	matchingEntities := []*entpb.Entity{}
 	// Pre-fetch all parent metadata in a single query instead of per-result.
 	parentTitleMap := make(map[string]string) // iri -> title
@@ -1120,6 +1228,43 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			}
 		}
 	}
+	// Batch pre-fetch deletion status for all comments to avoid N+1 queries.
+	type commentBatchEntry struct {
+		AuthorID int64  `json:"author_id"`
+		Tsid     string `json:"tsid"`
+	}
+	commentDeletedMap := make(map[commentIdentifier]bool)
+	{
+		var commentBatch []commentBatchEntry
+		for _, match := range bodyMatches {
+			r := searchResults[match.Index]
+			if r.contentType == "comment" && (r.commentKey.authorID != 0 || r.commentKey.tsid != "") {
+				commentBatch = append(commentBatch, commentBatchEntry{
+					AuthorID: r.commentKey.authorID,
+					Tsid:     r.commentKey.tsid,
+				})
+			}
+		}
+		if len(commentBatch) > 0 {
+			batchJSON, err := json.Marshal(commentBatch)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal comment batch: %w", err)
+			}
+			if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+				return sqlitex.Exec(conn, qBatchDeletedComments(), func(stmt *sqlite.Stmt) error {
+					key := commentIdentifier{
+						authorID: stmt.ColumnInt64(0),
+						tsid:     stmt.ColumnText(1),
+					}
+					commentDeletedMap[key] = stmt.ColumnInt(2) == 1
+					return nil
+				}, string(batchJSON))
+			}); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	startParents := time.Now()
 	totalGetParentsTime := time.Duration(0)
 	totalDeletedTime := time.Duration(0)
@@ -1251,18 +1396,10 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			}
 			totalNonCommentsTime += time.Since(startParents)
 		} else if searchResults[match.Index].contentType == "comment" {
-			var isDeleted bool
 			timesCalled2++
-			err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-				return sqlitex.Exec(conn, qIsDeletedComment(), func(stmt *sqlite.Stmt) error {
-					isDeleted = stmt.ColumnInt(0) == 1
-					return nil
-				}, searchResults[match.Index].commentKey.authorID, searchResults[match.Index].commentKey.tsid)
-			})
-			if err != nil {
-				return nil, err
-			}
-			totalCommentsTime += time.Since(startParents)
+			startComment := time.Now()
+			isDeleted := commentDeletedMap[searchResults[match.Index].commentKey]
+			totalCommentsTime += time.Since(startComment)
 			if isDeleted {
 				// If the comment is deleted, we don't return it
 				continue
@@ -1322,6 +1459,17 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		}
 	}
 
+	srv.log.Debug("[SEARCH-DEBUG] SearchEntities END",
+		zap.String("query", cleanQuery),
+		zap.Duration("totalDur", time.Since(searchStart)),
+		zap.Duration("postProcessDur", time.Since(postProcessStart)),
+		zap.Duration("latestBlockCheckDur", totalLatestBlockTime),
+		zap.Int("latestBlockCalls", timesCalled),
+		zap.Int("latestBlockIter", iter),
+		zap.Int("commentDeleteChecks", timesCalled2),
+		zap.Duration("commentDeleteDur", totalCommentsTime),
+		zap.Int("finalEntities", len(matchingEntities)),
+	)
 	return &entpb.SearchEntitiesResponse{
 		Entities:      matchingEntities,
 		NextPageToken: nextPageToken,
