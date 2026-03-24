@@ -238,8 +238,11 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 					return
 				}
 				if _, ok := om.Get(p.Id); ok {
-					n.p2p.ConnManager().Protect(pid, ProtocolSupportKey)
-					return
+					if n.p2p.Host.Network().Connectedness(pid) == network.Connected {
+						n.p2p.ConnManager().Protect(pid, ProtocolSupportKey)
+						return
+					}
+					// Known peer but not connected — fall through to reconnect.
 				}
 
 				if len(p.Addrs) > 0 {
@@ -258,6 +261,7 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 						xerr = append(xerr, fmt.Errorf("Could not get peer info from shared addresses: %w", err))
 						mu.Unlock()
 						atomic.AddUint32(&nonSeedPeers, 1)
+
 						return
 					}
 					// If it's offline does not mean its not a seed peer
@@ -271,6 +275,7 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 						xerr = append(xerr, fmt.Errorf("Peer [%s] failed to pass seed-protocol-check: %w", p.Id, err))
 						mu.Unlock()
 						n.p2p.ConnManager().Unprotect(pid, ProtocolSupportKey)
+
 						return
 					}
 					mu.Lock()
