@@ -9,6 +9,7 @@ import (
 	"seed/backend/core"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet/syncing/rbsr"
+	"seed/backend/logging"
 	"slices"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	rpcpeer "google.golang.org/grpc/peer"
@@ -23,6 +25,7 @@ import (
 
 	"seed/backend/util/colx"
 	"seed/backend/util/dqb"
+	"seed/backend/util/longrunning"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/unsafeutil"
@@ -31,8 +34,15 @@ import (
 // Server is the RPC handler for the syncing service.
 type Server struct {
 	db      *sqlitex.Pool
-	index   *blob.Index
+	index   blobIndex
 	bitswap bitswap
+	log     *zap.Logger
+}
+
+type blobIndex interface {
+	PutMany(context.Context, []blocks.Block) error
+	GetAuthorizedSpacesForPeer(context.Context, peer.ID, []blob.IRI) ([]core.Principal, error)
+	ReindexInfo() blob.ReindexInfo
 }
 
 // NewServer creates a new RPC handler instance.
@@ -42,6 +52,7 @@ func NewServer(db *sqlitex.Pool, index *blob.Index, bswap bitswap) *Server {
 		db:      db,
 		index:   index,
 		bitswap: bswap,
+		log:     logging.New("seed/network", logging.GetLogLevel("seed/network").String()),
 	}
 }
 
@@ -122,6 +133,10 @@ func (s *Server) AnnounceBlobs(in *p2p.AnnounceBlobsRequest, stream grpc.ServerS
 		BlobsWanted:    int32(len(wants)),                     //nolint:gosec
 	}
 
+	if len(wants) > 0 && s.index.ReindexInfo().State == blob.ReindexStateInProgress {
+		return status.Error(codes.Unavailable, "server is reindexing blobs; retry later")
+	}
+
 	if err := stream.Send(prog); err != nil {
 		return err
 	}
@@ -177,7 +192,21 @@ func (s *Server) AnnounceBlobs(in *p2p.AnnounceBlobsRequest, stream grpc.ServerS
 		return nil
 	}
 
+	fields := []zap.Field{
+		zap.Int("announcedCount", len(allAnnounced)),
+		zap.Int("wantedCount", len(wants)),
+		zap.Int("downloadedCount", len(downloaded)),
+	}
+	if pid, err := getRemoteID(ctx); err == nil {
+		fields = append(fields, zap.String("peerID", pid.String()))
+	}
+	tracker := longrunning.Start(s.log, "AnnounceBlobsWrite", 30*time.Second, fields...)
+	defer func() {
+		tracker.Finish(nil)
+	}()
+
 	if err := s.index.PutMany(ctx, downloaded); err != nil {
+		tracker.Finish(err)
 		return fmt.Errorf("failed to put blobs: %w", err)
 	}
 

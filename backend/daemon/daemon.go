@@ -16,6 +16,7 @@ import (
 	activity "seed/backend/api/activity/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/config"
+	"seed/backend/daemon/reindexing"
 	taskmanager "seed/backend/daemon/taskmanager"
 	"seed/backend/devicelink"
 	daemon "seed/backend/genproto/daemon/v1alpha"
@@ -163,43 +164,22 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	// Tracking db reindexing progress asynchronously.
 	{
 		a.g.Go(func() (err error) {
-			// If we want reindexing profile we force the reindexing with profiling.
-			if dirname := cfg.Debug.DBReindexProfileDir; dirname != "" {
-				perr := pprofx.Do(ctx, "db.reindex", dirname, func(ctx context.Context) {
-					err = a.Index.Reindex(ctx)
-				})
-				return errors.Join(err, perr)
-			}
-
-			// Otherwise we only reindex if necessary.
-			return a.Index.MaybeReindex(ctx)
-		})
-
-		a.g.Go(func() error {
 			defer close(migratedc)
 			a.taskMgr.UpdateGlobalState(daemon.State_MIGRATING)
 
-			const taskID = "blob_reindex"
-			if _, err := a.taskMgr.AddTask(taskID, daemon.TaskName_REINDEXING, "Reindexing blobs", 0); err != nil {
-				a.log.Warn("Failed to create reindexing task", zap.Error(err))
+			// If we want reindexing profile we force the reindexing with profiling.
+			if dirname := cfg.Debug.DBReindexProfileDir; dirname != "" {
+				return reindexing.RunBlobReindexTask(ctx, a.Index, a.taskMgr, a.log, func(ctx context.Context) error {
+					var err error
+					perr := pprofx.Do(ctx, "db.reindex", dirname, func(ctx context.Context) {
+						err = a.Index.Reindex(ctx)
+					})
+					return errors.Join(err, perr)
+				})
 			}
 
-			for {
-				info := a.Index.ReindexInfo()
-				if info.State == blob.ReindexStateCompleted || info.State == blob.ReindexStateNotNeeded {
-					break
-				}
-
-				if _, err := a.taskMgr.UpdateProgress(taskID, info.BlobsTotal, info.BlobsIndexed); err != nil {
-					a.log.Warn("Failed to update reindexing progress", zap.Error(err))
-				}
-				time.Sleep(30 * time.Millisecond)
-			}
-
-			if _, err := a.taskMgr.DeleteTask(taskID); err != nil {
-				a.log.Warn("failed to delete reindexing task", zap.Error(err))
-			}
-			return nil
+			// Otherwise we only reindex if necessary.
+			return reindexing.RunBlobReindexTask(ctx, a.Index, a.taskMgr, a.log, a.Index.MaybeReindex)
 		})
 	}
 

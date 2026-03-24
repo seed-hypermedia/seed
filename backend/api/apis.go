@@ -57,7 +57,7 @@ func New(
 
 	return Server{
 		Activity:    activity,
-		Daemon:      daemon.NewServer(repo, node, idx, dlink, taskMgr),
+		Daemon:      daemon.NewServer(repo, node, idx, dlink, taskMgr, logging.New("seed/daemon-api", LogLevel)),
 		Networking:  networking.NewServer(node, db, logging.New("seed/networking", LogLevel)),
 		Entities:    entities.NewServer(cfg, db, sync, embedder, logging.New("seed/entities", LogLevel)),
 		DocumentsV3: documentsv3.NewServer(cfg, repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel), node),

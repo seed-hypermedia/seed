@@ -13,8 +13,11 @@ import (
 	taskmanager "seed/backend/daemon/taskmanager"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/storage"
+	"sync"
 	"testing"
+	"time"
 
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
@@ -42,6 +45,75 @@ func TestGetInfo(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, testProtocolID, resp.ProtocolId)
+}
+
+func TestForceReindexTracksTaskWhileRemainingActive(t *testing.T) {
+	srv := newTestServer(t, "alice")
+	srv.taskMgr.UpdateGlobalState(daemon.State_ACTIVE)
+
+	fake := &fakeBlobIndex{
+		reindexStarted: make(chan struct{}),
+		releaseReindex: make(chan struct{}),
+	}
+	fake.reindexFn = func(ctx context.Context) error {
+		fake.setReindexInfo(blob.ReindexInfo{State: blob.ReindexStateInProgress, BlobsTotal: 10, BlobsIndexed: 4})
+		close(fake.reindexStarted)
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-fake.releaseReindex:
+		}
+
+		fake.setReindexInfo(blob.ReindexInfo{State: blob.ReindexStateCompleted, BlobsTotal: 10, BlobsIndexed: 10})
+		return nil
+	}
+	srv.blocks = fake
+
+	errc := make(chan error, 1)
+	go func() {
+		_, err := srv.ForceReindex(t.Context(), &daemon.ForceReindexRequest{})
+		errc <- err
+	}()
+
+	<-fake.reindexStarted
+
+	require.Eventually(t, func() bool {
+		info, err := srv.GetInfo(t.Context(), &daemon.GetInfoRequest{})
+		if err != nil {
+			return false
+		}
+
+		return info.State == daemon.State_ACTIVE && len(info.Tasks) == 1 && info.Tasks[0].TaskName == daemon.TaskName_REINDEXING
+	}, time.Second, 10*time.Millisecond)
+
+	close(fake.releaseReindex)
+	require.NoError(t, <-errc)
+
+	require.Eventually(t, func() bool {
+		info, err := srv.GetInfo(t.Context(), &daemon.GetInfoRequest{})
+		if err != nil {
+			return false
+		}
+		return len(info.Tasks) == 0
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestStoreBlobsUnavailableDuringReindex(t *testing.T) {
+	srv := newTestServer(t, "alice")
+	fake := &fakeBlobIndex{}
+	fake.setReindexInfo(blob.ReindexInfo{State: blob.ReindexStateInProgress})
+	srv.blocks = fake
+
+	_, err := srv.StoreBlobs(t.Context(), &daemon.StoreBlobsRequest{
+		Blobs: []*daemon.Blob{{Data: []byte("hello")}},
+	})
+	require.Error(t, err)
+
+	stat, ok := status.FromError(err)
+	require.True(t, ok)
+	require.Equal(t, codes.Unavailable, stat.Code())
+	require.Equal(t, 0, fake.putManyCalls)
 }
 
 func TestRegister(t *testing.T) {
@@ -408,7 +480,44 @@ func newTestServer(t *testing.T, name string) *Server {
 	idx, err := blob.OpenIndex(t.Context(), store.DB(), zap.NewNop())
 	require.NoError(t, err)
 
-	return NewServer(store, &mockedP2PNode{}, idx, nil, tMgr)
+	return NewServer(store, &mockedP2PNode{}, idx, nil, tMgr, zap.NewNop())
+}
+
+type fakeBlobIndex struct {
+	mu             sync.Mutex
+	reindexInfo    blob.ReindexInfo
+	reindexFn      func(context.Context) error
+	putManyErr     error
+	putManyCalls   int
+	reindexStarted chan struct{}
+	releaseReindex chan struct{}
+}
+
+func (f *fakeBlobIndex) PutMany(context.Context, []blocks.Block) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.putManyCalls++
+	return f.putManyErr
+}
+
+func (f *fakeBlobIndex) Reindex(ctx context.Context) error {
+	if f.reindexFn != nil {
+		return f.reindexFn(ctx)
+	}
+
+	return nil
+}
+
+func (f *fakeBlobIndex) ReindexInfo() blob.ReindexInfo {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.reindexInfo
+}
+
+func (f *fakeBlobIndex) setReindexInfo(info blob.ReindexInfo) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.reindexInfo = info
 }
 
 func writeImportKeyFile(t *testing.T, payload importedKeyFile, filename string) string {

@@ -13,12 +13,14 @@ import (
 	"path/filepath"
 	"seed/backend/blob"
 	"seed/backend/core"
+	"seed/backend/daemon/reindexing"
 	taskmanager "seed/backend/daemon/taskmanager"
 	"seed/backend/devicelink"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/ipfs"
 	"seed/backend/storage"
 	"seed/backend/util/colx"
+	"seed/backend/util/longrunning"
 	"strings"
 	sync "sync"
 	"time"
@@ -29,6 +31,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multicodec"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/chacha20poly1305"
 	"google.golang.org/grpc"
@@ -48,6 +51,12 @@ type Node interface {
 // Blockstore is a subset of the IPFS blockstore.
 type Blockstore interface {
 	PutMany(context.Context, []blocks.Block) error
+}
+
+type blobIndex interface {
+	PutMany(context.Context, []blocks.Block) error
+	Reindex(context.Context) error
+	ReindexInfo() blob.ReindexInfo
 }
 
 const (
@@ -98,7 +107,8 @@ type exportedKeyFileArgon2 struct {
 type Server struct {
 	store     *storage.Store
 	startTime time.Time
-	blocks    *blob.Index
+	blocks    blobIndex
+	log       *zap.Logger
 
 	p2p   Node
 	dlink *devicelink.Service
@@ -110,7 +120,7 @@ type Server struct {
 }
 
 // NewServer creates a new Server.
-func NewServer(store *storage.Store, n Node, idx *blob.Index, dlink *devicelink.Service, taskMgr *taskmanager.TaskManager) *Server {
+func NewServer(store *storage.Store, n Node, idx *blob.Index, dlink *devicelink.Service, taskMgr *taskmanager.TaskManager, log *zap.Logger) *Server {
 	return &Server{
 		store:     store,
 		startTime: time.Now(),
@@ -119,6 +129,7 @@ func NewServer(store *storage.Store, n Node, idx *blob.Index, dlink *devicelink.
 		blocks:  idx,
 		dlink:   dlink,
 		taskMgr: taskMgr,
+		log:     log,
 	}
 }
 
@@ -572,7 +583,7 @@ func (srv *Server) ForceSync(context.Context, *daemon.ForceSyncRequest) (*emptyp
 
 // ForceReindex implements the corresponding gRPC method.
 func (srv *Server) ForceReindex(ctx context.Context, in *daemon.ForceReindexRequest) (*daemon.ForceReindexResponse, error) {
-	if err := srv.blocks.Reindex(ctx); err != nil {
+	if err := reindexing.RunBlobReindexTask(ctx, srv.blocks, srv.taskMgr, srv.log, srv.blocks.Reindex); err != nil {
 		return nil, err
 	}
 
@@ -581,6 +592,10 @@ func (srv *Server) ForceReindex(ctx context.Context, in *daemon.ForceReindexRequ
 
 // StoreBlobs implements the corresponding gRPC method.
 func (srv *Server) StoreBlobs(ctx context.Context, in *daemon.StoreBlobsRequest) (*daemon.StoreBlobsResponse, error) {
+	if srv.blocks.ReindexInfo().State == blob.ReindexStateInProgress {
+		return nil, status.Error(codes.Unavailable, "server is reindexing blobs; retry later")
+	}
+
 	blks := make([]blocks.Block, len(in.Blobs))
 	for i, b := range in.Blobs {
 		if b.Cid != "" {
@@ -607,7 +622,13 @@ func (srv *Server) StoreBlobs(ctx context.Context, in *daemon.StoreBlobsRequest)
 		}
 	}
 
+	tracker := longrunning.Start(srv.log, "StoreBlobsWrite", 30*time.Second, zap.Int("blobCount", len(blks)))
+	defer func() {
+		tracker.Finish(nil)
+	}()
+
 	if err := srv.blocks.PutMany(ctx, blks); err != nil {
+		tracker.Finish(err)
 		return nil, status.Errorf(codes.Internal, "failed to store blocks: %v", err)
 	}
 

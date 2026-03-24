@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"seed/backend/util/longrunning"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -526,7 +527,17 @@ func syncResources(
 		return nil
 	}
 
+	tracker := longrunning.Start(log, "ReconcileBlobsWrite", 30*time.Second,
+		zap.String("peerID", pid.String()),
+		zap.Int("wantedCount", len(allWants)),
+		zap.Int("downloadedCount", len(downloaded)),
+	)
+	defer func() {
+		tracker.Finish(nil)
+	}()
+
 	if err := idx.PutMany(ctx, downloaded); err != nil {
+		tracker.Finish(err)
 		return fmt.Errorf("failed to put reconciled blobs: %w", err)
 	}
 
