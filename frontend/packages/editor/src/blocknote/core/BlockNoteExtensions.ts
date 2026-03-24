@@ -5,7 +5,7 @@ import {BlockNoteEditor} from './BlockNoteEditor'
 
 import {Bold} from '@tiptap/extension-bold'
 import {Code} from '@tiptap/extension-code'
-import {Dropcursor} from '@tiptap/extension-dropcursor'
+
 import {Gapcursor} from '@tiptap/extension-gapcursor'
 import {HardBreak} from '@tiptap/extension-hard-break'
 import {History} from '@tiptap/extension-history'
@@ -19,10 +19,11 @@ import {createInlineEmbedNode} from '../../mentions-plugin'
 import {debugPlugin} from '../../prosemirror-debugger'
 import Link from '../../tiptap-extension-link'
 import {BlockManipulationExtension} from './extensions/BlockManipulation/BlockManipulationExtension'
-import {BlockNode, BlockChildren, Doc} from './extensions/Blocks'
+import {BlockChildren, BlockNode, Doc} from './extensions/Blocks'
 import {BlockNoteDOMAttributes} from './extensions/Blocks/api/blockTypes'
 import {CustomBlockSerializerExtension} from './extensions/Blocks/api/serialization'
 import blockStyles from './extensions/Blocks/nodes/Block.module.css'
+import {HMDropCursor} from './extensions/GridDropCursor/GridDropCursorExtension'
 import {KeyboardShortcutsExtension} from './extensions/KeyboardShortcuts/KeyboardShortcutsExtension'
 import {createMarkdownExtension} from './extensions/Markdown/MarkdownExtension'
 import {Placeholder} from './extensions/Placeholder/PlaceholderExtension'
@@ -113,7 +114,8 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     }),
     CustomBlockSerializerExtension,
 
-    Dropcursor.configure({width: 5, color: '#ddeeff'}),
+    HMDropCursor.configure({width: 5, color: '#ddeeff'}),
+    // Dropcursor.configure({width: 5, color: '#ddeeff'}),
     HardBreak,
     // This needs to be at the bottom of this list, because Key events (such as enter, when selecting a /command),
     // should be handled before Enter handlers in other components like splitListItem
