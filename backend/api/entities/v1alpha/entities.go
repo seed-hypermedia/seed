@@ -1595,7 +1595,7 @@ func (srv *Server) ListEntityMentions(ctx context.Context, in *entpb.ListEntityM
 			})
 
 			return nil
-		}, eid, cursor.BlobID, in.PageSize, srv.cfg.PublicOnly); err != nil {
+		}, eid, srv.cfg.PublicOnly, cursor.BlobID, in.PageSize); err != nil {
 			return err
 		}
 
