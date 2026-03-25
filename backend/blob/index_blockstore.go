@@ -3,6 +3,7 @@ package blob
 import (
 	"context"
 	"seed/backend/ipfs"
+	"slices"
 
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -39,34 +40,45 @@ func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
 }
 
 // PutMany adds multiple blocks to the blockstore.
+// Blocks are processed in batches to avoid holding the SQLite write lock
+// for too long, which would block other writers (e.g. document publish).
 func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
-	conn, release, err := idx.db.Conn(ctx)
-	if err != nil {
-		return err
-	}
-	defer release()
+	const batchSize = 100
 
-	return sqlitex.WithTx(conn, func() error {
-		trackUnreads := unreadsTrackingEnabled(ctx)
+	trackUnreads := unreadsTrackingEnabled(ctx)
 
-		for _, blk := range blks {
-			codec, hash := ipfs.DecodeCID(blk.Cid())
-			id, exists, err := idx.bs.putBlock(conn, 0, uint64(codec), hash, blk.RawData())
-			if err != nil {
-				return err
-			}
-
-			if exists || !isIndexable(multicodec.Code(codec)) {
-				continue
-			}
-
-			if err := indexBlob(trackUnreads, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log); err != nil {
-				return err
-			}
+	for batch := range slices.Chunk(blks, batchSize) {
+		conn, release, err := idx.db.Conn(ctx)
+		if err != nil {
+			return err
 		}
 
-		return nil
-	})
+		err = sqlitex.WithTx(conn, func() error {
+			for _, blk := range batch {
+				codec, hash := ipfs.DecodeCID(blk.Cid())
+				id, exists, err := idx.bs.putBlock(conn, 0, uint64(codec), hash, blk.RawData())
+				if err != nil {
+					return err
+				}
+
+				if exists || !isIndexable(multicodec.Code(codec)) {
+					continue
+				}
+
+				if err := indexBlob(trackUnreads, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		})
+		release()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // DeleteBlock removes a block from the blockstore.
