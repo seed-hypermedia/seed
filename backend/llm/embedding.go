@@ -432,14 +432,11 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 	e.mu.Unlock()
 
 	// Embed query with optional prefix
-	semanticStart := time.Now()
 	queryText := query
 	if e.queryPrefix != "" {
 		queryText = e.queryPrefix + query
 	}
-	embedStart := time.Now()
 	embedding, err := e.backend.RetrieveSingle(ctx, queryText)
-	embedDur := time.Since(embedStart)
 	if err != nil {
 		return nil, fmt.Errorf("failed to embed query: %w", err)
 	}
@@ -498,7 +495,6 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 		return nil
 	}
 
-	vecSearchStart := time.Now()
 	if needsIriFilter {
 		// Use pre-filtered query with fts_id IN (subquery).
 		// The subquery parameters are duplicated for both UNION branches.
@@ -518,15 +514,6 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 			return nil, fmt.Errorf("semantic search query failed: %w", err)
 		}
 	}
-	e.logger.Debug("SemanticSearchCompleted",
-		zap.String("query", query),
-		zap.Duration("totalDur", time.Since(semanticStart)),
-		zap.Duration("embedDur", embedDur),
-		zap.Duration("vecSearchDur", time.Since(vecSearchStart)),
-		zap.Int("results", len(ret)),
-		zap.Bool("iriFiltered", needsIriFilter),
-	)
-
 	return ret, nil
 }
 

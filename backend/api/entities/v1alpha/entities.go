@@ -996,11 +996,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	}); err != nil {
 		return nil, err
 	}
-	srv.log.Debug("SearchEnrichmentCompleted",
-		zap.String("query", cleanQuery),
-		zap.Duration("enrichDur", time.Since(enrichStart)),
-		zap.Int("rawResults", len(searchResults)),
-	)
 	seen := make(map[string]int)
 	var uniqueResults []fullDataSearchResult
 	var uniqueBodyMatches []fuzzy.Match
@@ -1111,7 +1106,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		}
 	}
 
-	postProcessStart := time.Now()
 	matchingEntities := []*entpb.Entity{}
 	// Pre-fetch all parent metadata in a single query instead of per-result.
 	parentTitleMap := make(map[string]string) // iri -> title
@@ -1139,10 +1133,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		}
 		return parentTitles
 	}
-	totalLatestBlockTime := time.Duration(0)
-	timesCalled, timesCalled2 := 0, 0
-	iter := 0
-	//prevIter := 0
 	genesisBlobIDs := make([]string, 0, len(searchResults))
 	for _, match := range bodyMatches {
 		genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(searchResults[match.Index].genesisBlobID, 10))
@@ -1226,18 +1216,10 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		}
 	}
 
-	startParents := time.Now()
-	totalGetParentsTime := time.Duration(0)
-	totalDeletedTime := time.Duration(0)
-	totalCommentsTime := time.Duration(0)
-	totalNonCommentsTime := time.Duration(0)
 	finalResults := []fullDataSearchResult{}
 	for _, match := range bodyMatches {
-		totalGetParentsTime += time.Since(startParents)
-		startParents = time.Now()
 		if searchResults[match.Index].isDeleted {
 			// Skip deleted resources
-			totalDeletedTime += time.Since(startParents)
 			continue
 		}
 		if searchResults[match.Index].contentType != "contact" {
@@ -1279,8 +1261,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		// Fields updated: version, blobID, blobCID, versionTime.
 		// The "&l" suffix is added later if the final version is in latestVersion.
 		if searchResults[match.Index].version != "" && searchResults[match.Index].contentType != "comment" {
-			startLatestBlockTime := time.Now()
-
 			// Change tracks version info during the upgrade heuristic iteration.
 			type Change struct {
 				blobID  int64
@@ -1297,12 +1277,9 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 
 			var errSameBlockChangeDetected = errors.New("same block change detected")
 			if !slices.Contains(strings.Split(searchResults[match.Index].latestVersion, "."), latestUnrelated.version) {
-				timesCalled++
-				//prevIter = iter
 				relatedFound := false
 				err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
-						iter++
 						ts := hlc.Timestamp(stmt.ColumnInt64(3) * 1000).Time()
 						blockID := stmt.ColumnText(2)
 						changeType := stmt.ColumnText(4)
@@ -1341,7 +1318,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 					searchResults[match.Index].versionTime = latestUnrelated.ts
 				}
 			}
-			totalLatestBlockTime += time.Since(startLatestBlockTime)
 			if slices.Contains(strings.Split(searchResults[match.Index].latestVersion, "."), searchResults[match.Index].version) {
 				searchResults[match.Index].version += "&l"
 			}
@@ -1355,12 +1331,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 					id += "[" + strconv.FormatInt(offsets[0], 10) + ":" + strconv.FormatInt(offsets[len(offsets)-1]+1, 10) + "]"
 				}
 			}
-			totalNonCommentsTime += time.Since(startParents)
 		} else if searchResults[match.Index].contentType == "comment" {
-			timesCalled2++
-			startComment := time.Now()
 			isDeleted := commentDeletedMap[searchResults[match.Index].commentKey]
-			totalCommentsTime += time.Since(startComment)
 			if isDeleted {
 				// If the comment is deleted, we don't return it
 				continue
@@ -1372,11 +1344,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	}
 	//after = time.Now()
 	//fmt.Printf("getParentsFcn took %.3f s\n", totalGetParentsTime.Seconds())
-	//fmt.Printf("totalDeletedTime took %.3f s\n", totalDeletedTime.Seconds())
-	//fmt.Printf("totalNonCommentsTime took %.3f s\n", totalNonCommentsTime.Seconds())
-	//fmt.Printf("totalCommentsTime took %.3f s and called %d times\n", totalCommentsTime.Seconds(), timesCalled2)
-
-	//fmt.Printf("qGetLatestBlockChange took %.3f s and was called %d times and iterated over %d records\n", totalLatestBlockTime.Seconds(), timesCalled, iter)
 	slices.SortFunc(finalResults, orderBySimilarity)
 	for _, match := range finalResults {
 		matchingEntities = append(matchingEntities, &entpb.Entity{
@@ -1420,17 +1387,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		}
 	}
 
-	srv.log.Debug("SearchEntitiesCompleted",
-		zap.String("query", cleanQuery),
-		zap.Duration("totalDur", time.Since(searchStart)),
-		zap.Duration("postProcessDur", time.Since(postProcessStart)),
-		zap.Duration("latestBlockCheckDur", totalLatestBlockTime),
-		zap.Int("latestBlockCalls", timesCalled),
-		zap.Int("latestBlockIter", iter),
-		zap.Int("commentDeleteChecks", timesCalled2),
-		zap.Duration("commentDeleteDur", totalCommentsTime),
-		zap.Int("finalEntities", len(matchingEntities)),
-	)
 	return &entpb.SearchEntitiesResponse{
 		Entities:      matchingEntities,
 		NextPageToken: nextPageToken,
