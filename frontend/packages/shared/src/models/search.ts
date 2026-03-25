@@ -54,8 +54,6 @@ export function useSearch(
       pageSize || null,
     ],
     queryFn: async () => {
-      const t0 = performance.now()
-      console.log(`[SEARCH-DEBUG] useSearch queryFn START | query="${query}" searchType=${searchType}`)
       const out = await client.request('Search', {
         query,
         perspectiveAccountUid: perspectiveAccountUid || undefined,
@@ -65,12 +63,6 @@ export function useSearch(
         searchType,
         pageSize: pageSize || undefined,
       })
-      const t1 = performance.now()
-      console.log(
-        `[SEARCH-DEBUG] useSearch queryFn client.request done | query="${query}" | ${(t1 - t0).toFixed(1)}ms | ${
-          out.entities.length
-        } entities from API`,
-      )
       const alreadySeenIds = new Set<string>()
       const entities: SearchResultItem[] = []
       const limit = query.length < 3 ? 30 : Number.MAX_SAFE_INTEGER
@@ -83,12 +75,6 @@ export function useSearch(
           entities.push(result)
         }
       }
-      const t2 = performance.now()
-      console.log(
-        `[SEARCH-DEBUG] useSearch queryFn END | query="${query}" | total=${(t2 - t0).toFixed(1)}ms | dedup=${(
-          t2 - t1
-        ).toFixed(1)}ms | ${entities.length} final entities`,
-      )
       return {out, entities}
     },
     enabled,

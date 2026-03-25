@@ -743,18 +743,10 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		Multihash string `json:"multihash"`
 		Codec     uint64 `json:"codec"`
 	}
-	searchStart := time.Now()
 	cleanQuery := sanitizeSearchQuery(in.Query)
 	if strings.ReplaceAll(cleanQuery, " ", "") == "" {
 		return nil, nil
 	}
-	srv.log.Debug("SearchEntitiesRequest",
-		zap.String("query", in.Query),
-		zap.String("cleanQuery", cleanQuery),
-		zap.Int32("searchType", int32(in.SearchType)),
-		zap.Bool("includeBody", in.IncludeBody),
-		zap.Float32("authorityWeight", in.AuthorityWeight),
-	)
 	var bodyMatches []fuzzy.Match
 	contentTypes := map[string]bool{}
 	if len(in.ContentTypeFilter) > 0 {
@@ -847,40 +839,26 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		}
 	}
 
-	searchPhaseStart := time.Now()
 	switch in.SearchType {
 	case entpb.SearchType_SEARCH_HYBRID:
 		// Hybrid search: run semantic + keyword concurrently, blend with RRF
 		var semanticResults, keywordResults llm.SearchResultMap
 		var semanticErr, keywordErr error
-		var semanticDur, keywordDur time.Duration
 		var wg sync.WaitGroup
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			t := time.Now()
 			semanticResults, semanticErr = srv.embedder.SemanticSearch(ctx, query, resultsLmit*3, contentTypes, iriGlob, semanticThreshold, srv.cfg.PublicOnly)
-			semanticDur = time.Since(t)
 		}()
 		go func() {
 			defer wg.Done()
-			t := time.Now()
 			keywordErr = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 				var err error
 				keywordResults, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit*3, contentTypes, iriGlob, srv.cfg.PublicOnly)
 				return err
 			})
-			keywordDur = time.Since(t)
 		}()
 		wg.Wait()
-		srv.log.Debug("SearchHybridCompleted",
-			zap.String("query", query),
-			zap.Duration("semanticDur", semanticDur),
-			zap.Duration("keywordDur", keywordDur),
-			zap.Int("semanticResults", len(semanticResults)),
-			zap.Int("keywordResults", len(keywordResults)),
-			zap.Error(semanticErr),
-		)
 		if keywordErr != nil {
 			return nil, fmt.Errorf("keyword search failed: %w", keywordErr)
 		}
@@ -916,19 +894,12 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			return nil, fmt.Errorf("keyword search failed: %w", err)
 		}
 	}
-	srv.log.Debug("SearchPhaseCompleted",
-		zap.String("query", query),
-		zap.Duration("totalSearchDur", time.Since(searchPhaseStart)),
-		zap.Int("winners", len(winners)),
-	)
-
 	// Short-circuit when there are no results to avoid running the expensive
 	// entity resolution query with an empty input set.
 	if len(winners) == 0 {
 		return &entpb.SearchEntitiesResponse{}, nil
 	}
 
-	enrichStart := time.Now()
 	winnerIDsJSON, err := json.Marshal(winners.Keys())
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal winner IDs: %w", err)

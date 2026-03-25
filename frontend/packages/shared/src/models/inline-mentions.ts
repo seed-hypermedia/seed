@@ -21,19 +21,11 @@ export function useInlineMentions(perspectiveAccountUid?: string | null | undefi
   }, [recents])
 
   async function onMentionsQuery(query: string) {
-    const t0 = performance.now()
-    console.log(`[SEARCH-DEBUG] onMentionsQuery START | query="${query}"`)
     const resp = await client.request('Search', {
       query,
       perspectiveAccountUid: perspectiveAccountUid || undefined,
       includeBody: false,
     })
-    const t1 = performance.now()
-    console.log(
-      `[SEARCH-DEBUG] onMentionsQuery client.request done | query="${query}" | ${(t1 - t0).toFixed(1)}ms | ${
-        resp.entities.length
-      } raw entities`,
-    )
     const alreadySeenIds = new Set<string>()
     const entities: SearchResultItem[] = []
     resp.entities.forEach((result) => {
@@ -49,10 +41,6 @@ export function useInlineMentions(perspectiveAccountUid?: string | null | undefi
       Contacts: [],
     }
     if (!entities.length) {
-      const t2 = performance.now()
-      console.log(
-        `[SEARCH-DEBUG] onMentionsQuery END (no results) | query="${query}" | total=${(t2 - t0).toFixed(1)}ms`,
-      )
       return {
         Sites: [],
         Documents: [],
@@ -70,12 +58,6 @@ export function useInlineMentions(perspectiveAccountUid?: string | null | undefi
       }
       return acc
     }, emptyRespose)
-    const t2 = performance.now()
-    console.log(
-      `[SEARCH-DEBUG] onMentionsQuery END | query="${query}" | total=${(t2 - t0).toFixed(1)}ms | Sites=${
-        response.Sites.length
-      } Docs=${response.Documents.length} Contacts=${response.Contacts.length}`,
-    )
     return response
   }
 

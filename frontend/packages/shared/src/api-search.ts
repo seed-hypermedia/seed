@@ -6,8 +6,6 @@ import {hmId, unpackHmId} from './utils'
 export const Search: HMRequestImplementation<HMSearchRequest> = {
   async getData(grpcClient: GRPCClient, input: HMSearchInput): Promise<HMSearchPayload> {
     const {query, accountUid, includeBody, contextSize, perspectiveAccountUid, searchType, pageSize} = input
-    const t0 = performance.now()
-    console.log(`[SEARCH-DEBUG] gRPC searchEntities START | query="${query}" searchType=${searchType}`)
     const result = await grpcClient.entities.searchEntities({
       query,
       includeBody,
@@ -17,12 +15,6 @@ export const Search: HMRequestImplementation<HMSearchRequest> = {
       searchType,
       pageSize,
     })
-    const t1 = performance.now()
-    console.log(
-      `[SEARCH-DEBUG] gRPC searchEntities END | query="${query}" | ${(t1 - t0).toFixed(1)}ms | ${
-        result.entities.length
-      } raw entities`,
-    )
     return {
       searchQuery: query,
       entities: result.entities

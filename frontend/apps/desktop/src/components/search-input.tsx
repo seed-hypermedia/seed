@@ -63,7 +63,6 @@ export const SearchInput = forwardRef<
   const setSearch = onExternalSearchChange || setInternalSearch
   const debouncedSearch = useDebounce(search, 200)
   const isSearchPending = search !== debouncedSearch
-  const searchTimestampRef = useRef<number>(0)
 
   const [focusedIndex, setFocusedIndex] = useState(0)
   const [actionPromise, setActionPromise] = useState<Promise<void> | null>(null)
@@ -73,13 +72,6 @@ export const SearchInput = forwardRef<
   const selectedAccountId = useSelectedAccountId()
   const triggerWindowEvent = useTriggerWindowEvent()
 
-  useEffect(() => {
-    searchTimestampRef.current = performance.now()
-    console.log(
-      `[SEARCH-DEBUG] SearchInput debouncedSearch changed | value="${debouncedSearch}" | isPending=${isSearchPending}`,
-    )
-  }, [debouncedSearch])
-
   const searchResults = useSearch(debouncedSearch, {
     includeBody: true,
     contextSize: 48 - debouncedSearch.length,
@@ -88,18 +80,6 @@ export const SearchInput = forwardRef<
     pageSize: 50,
   })
 
-  useEffect(() => {
-    if (searchResults.data && searchTimestampRef.current > 0) {
-      const elapsed = performance.now() - searchTimestampRef.current
-      console.log(
-        `[SEARCH-DEBUG] SearchInput results received | query="${debouncedSearch}" | ${elapsed.toFixed(
-          1,
-        )}ms since debouncedSearch changed | ${searchResults.data.entities.length} results | isFetching=${
-          searchResults.isFetching
-        }`,
-      )
-    }
-  }, [searchResults.data])
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   let queryItem: null | SearchResult = useMemo(() => {
     if (
