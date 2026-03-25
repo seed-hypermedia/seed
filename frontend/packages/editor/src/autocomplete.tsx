@@ -297,8 +297,6 @@ function AutocompletePopupInner(
     editor.options.onMentionsQuery(debouncedText).then((results: InlineMentionsResult) => {
       if (!isActive) return
 
-      console.log('~~ MENTIONS RESULTS', results)
-
       setSuggestions((prev) => ({
         ...prev,
         ...results,

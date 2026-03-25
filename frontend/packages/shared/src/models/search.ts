@@ -30,6 +30,7 @@ export function useSearch(
     contextSize = 48,
     perspectiveAccountUid,
     searchType,
+    pageSize,
   }: {
     enabled?: boolean
     accountUid?: string
@@ -37,6 +38,7 @@ export function useSearch(
     contextSize?: number
     perspectiveAccountUid?: string
     searchType?: SearchType
+    pageSize?: number
   } = {},
 ) {
   const client = useUniversalClient()
@@ -49,6 +51,7 @@ export function useSearch(
       includeBody,
       contextSize,
       searchType,
+      pageSize || null,
     ],
     queryFn: async () => {
       const out = await client.request('Search', {
@@ -58,6 +61,7 @@ export function useSearch(
         includeBody: includeBody || false,
         contextSize: contextSize || 48,
         searchType,
+        pageSize: pageSize || undefined,
       })
       const alreadySeenIds = new Set<string>()
       const entities: SearchResultItem[] = []

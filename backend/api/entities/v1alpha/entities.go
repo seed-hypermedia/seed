@@ -629,6 +629,33 @@ var qIsDeletedComment = dqb.Str(`
     LIMIT 1;
 `)
 
+// qBatchDeletedComments checks deletion status for a batch of comments in one query.
+// The parameter is a JSON array of objects: [{"author_id": N, "tsid": "..."}, ...]
+// Returns one row per comment: (author_id INTEGER, tsid TEXT, is_deleted INTEGER).
+var qBatchDeletedComments = dqb.Str(`
+    SELECT
+        c.author_id,
+        c.tsid,
+        CASE WHEN sb.extra_attrs->>'deleted' = '1' THEN 1 ELSE 0 END AS is_deleted
+    FROM (
+        SELECT
+            CAST(je.value->>'author_id' AS INTEGER) AS author_id,
+            je.value->>'tsid' AS tsid
+        FROM json_each(?) je
+    ) c
+    JOIN structural_blobs sb
+      ON sb.type = 'Comment'
+     AND sb.author = c.author_id
+     AND sb.extra_attrs->>'tsid' = c.tsid
+    WHERE sb.ts = (
+        SELECT MAX(sb2.ts)
+        FROM structural_blobs sb2
+        WHERE sb2.type = 'Comment'
+          AND sb2.author = c.author_id
+          AND sb2.extra_attrs->>'tsid' = c.tsid
+    );
+`)
+
 var qGetMetadata = dqb.Str(`
 	select dg.metadata, r.iri, pk.principal from document_generations dg
 	INNER JOIN resources r ON r.id = dg.resource
@@ -867,7 +894,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			return nil, fmt.Errorf("keyword search failed: %w", err)
 		}
 	}
-
 	// Short-circuit when there are no results to avoid running the expensive
 	// entity resolution query with an empty input set.
 	if len(winners) == 0 {
@@ -994,7 +1020,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	}
 	bodyMatches = uniqueBodyMatches
 	searchResults = uniqueResults
-
 	// Authority-based re-ranking.
 	if in.AuthorityWeight > 0 {
 		if in.AuthorityWeight > 1 {
@@ -1043,6 +1068,44 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		}
 	}
 
+	// Trim results to a reasonable limit before expensive post-processing.
+	// The version-upgrade heuristic and comment-deletion checks run per-result,
+	// so processing 238 results when the client only needs 50 wastes ~100ms.
+	// Co-sort searchResults and bodyMatches by score, then trim.
+	if in.PageSize > 0 {
+		indices := make([]int, len(searchResults))
+		for i := range indices {
+			indices[i] = i
+		}
+		slices.SortFunc(indices, func(a, b int) int {
+			if searchResults[a].score > searchResults[b].score {
+				return -1
+			}
+			if searchResults[a].score < searchResults[b].score {
+				return 1
+			}
+			return 0
+		})
+
+		sorted := make([]fullDataSearchResult, len(searchResults))
+		sortedMatches := make([]fuzzy.Match, len(bodyMatches))
+		for newIdx, oldIdx := range indices {
+			sorted[newIdx] = searchResults[oldIdx]
+			bm := bodyMatches[oldIdx]
+			bm.Index = newIdx
+			sortedMatches[newIdx] = bm
+		}
+		searchResults = sorted
+		bodyMatches = sortedMatches
+
+		// Trim to 2x page size for headroom against deleted/filtered results.
+		limit := int(in.PageSize) * 2
+		if limit < len(searchResults) {
+			searchResults = searchResults[:limit]
+			bodyMatches = bodyMatches[:limit]
+		}
+	}
+
 	matchingEntities := []*entpb.Entity{}
 	// Pre-fetch all parent metadata in a single query instead of per-result.
 	parentTitleMap := make(map[string]string) // iri -> title
@@ -1070,10 +1133,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		}
 		return parentTitles
 	}
-	totalLatestBlockTime := time.Duration(0)
-	timesCalled, timesCalled2 := 0, 0
-	iter := 0
-	//prevIter := 0
 	genesisBlobIDs := make([]string, 0, len(searchResults))
 	for _, match := range bodyMatches {
 		genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(searchResults[match.Index].genesisBlobID, 10))
@@ -1120,18 +1179,47 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			}
 		}
 	}
-	startParents := time.Now()
-	totalGetParentsTime := time.Duration(0)
-	totalDeletedTime := time.Duration(0)
-	totalCommentsTime := time.Duration(0)
-	totalNonCommentsTime := time.Duration(0)
+	// Batch pre-fetch deletion status for all comments to avoid N+1 queries.
+	type commentBatchEntry struct {
+		AuthorID int64  `json:"author_id"`
+		Tsid     string `json:"tsid"`
+	}
+	commentDeletedMap := make(map[commentIdentifier]bool)
+	{
+		var commentBatch []commentBatchEntry
+		for _, match := range bodyMatches {
+			r := searchResults[match.Index]
+			if r.contentType == "comment" && (r.commentKey.authorID != 0 || r.commentKey.tsid != "") {
+				commentBatch = append(commentBatch, commentBatchEntry{
+					AuthorID: r.commentKey.authorID,
+					Tsid:     r.commentKey.tsid,
+				})
+			}
+		}
+		if len(commentBatch) > 0 {
+			batchJSON, err := json.Marshal(commentBatch)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal comment batch: %w", err)
+			}
+			if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+				return sqlitex.Exec(conn, qBatchDeletedComments(), func(stmt *sqlite.Stmt) error {
+					key := commentIdentifier{
+						authorID: stmt.ColumnInt64(0),
+						tsid:     stmt.ColumnText(1),
+					}
+					commentDeletedMap[key] = stmt.ColumnInt(2) == 1
+					return nil
+				}, string(batchJSON))
+			}); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	finalResults := []fullDataSearchResult{}
 	for _, match := range bodyMatches {
-		totalGetParentsTime += time.Since(startParents)
-		startParents = time.Now()
 		if searchResults[match.Index].isDeleted {
 			// Skip deleted resources
-			totalDeletedTime += time.Since(startParents)
 			continue
 		}
 		if searchResults[match.Index].contentType != "contact" {
@@ -1173,8 +1261,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		// Fields updated: version, blobID, blobCID, versionTime.
 		// The "&l" suffix is added later if the final version is in latestVersion.
 		if searchResults[match.Index].version != "" && searchResults[match.Index].contentType != "comment" {
-			startLatestBlockTime := time.Now()
-
 			// Change tracks version info during the upgrade heuristic iteration.
 			type Change struct {
 				blobID  int64
@@ -1191,12 +1277,9 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 
 			var errSameBlockChangeDetected = errors.New("same block change detected")
 			if !slices.Contains(strings.Split(searchResults[match.Index].latestVersion, "."), latestUnrelated.version) {
-				timesCalled++
-				//prevIter = iter
 				relatedFound := false
 				err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
-						iter++
 						ts := hlc.Timestamp(stmt.ColumnInt64(3) * 1000).Time()
 						blockID := stmt.ColumnText(2)
 						changeType := stmt.ColumnText(4)
@@ -1235,7 +1318,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 					searchResults[match.Index].versionTime = latestUnrelated.ts
 				}
 			}
-			totalLatestBlockTime += time.Since(startLatestBlockTime)
 			if slices.Contains(strings.Split(searchResults[match.Index].latestVersion, "."), searchResults[match.Index].version) {
 				searchResults[match.Index].version += "&l"
 			}
@@ -1249,20 +1331,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 					id += "[" + strconv.FormatInt(offsets[0], 10) + ":" + strconv.FormatInt(offsets[len(offsets)-1]+1, 10) + "]"
 				}
 			}
-			totalNonCommentsTime += time.Since(startParents)
 		} else if searchResults[match.Index].contentType == "comment" {
-			var isDeleted bool
-			timesCalled2++
-			err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-				return sqlitex.Exec(conn, qIsDeletedComment(), func(stmt *sqlite.Stmt) error {
-					isDeleted = stmt.ColumnInt(0) == 1
-					return nil
-				}, searchResults[match.Index].commentKey.authorID, searchResults[match.Index].commentKey.tsid)
-			})
-			if err != nil {
-				return nil, err
-			}
-			totalCommentsTime += time.Since(startParents)
+			isDeleted := commentDeletedMap[searchResults[match.Index].commentKey]
 			if isDeleted {
 				// If the comment is deleted, we don't return it
 				continue
@@ -1274,11 +1344,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	}
 	//after = time.Now()
 	//fmt.Printf("getParentsFcn took %.3f s\n", totalGetParentsTime.Seconds())
-	//fmt.Printf("totalDeletedTime took %.3f s\n", totalDeletedTime.Seconds())
-	//fmt.Printf("totalNonCommentsTime took %.3f s\n", totalNonCommentsTime.Seconds())
-	//fmt.Printf("totalCommentsTime took %.3f s and called %d times\n", totalCommentsTime.Seconds(), timesCalled2)
-
-	//fmt.Printf("qGetLatestBlockChange took %.3f s and was called %d times and iterated over %d records\n", totalLatestBlockTime.Seconds(), timesCalled, iter)
 	slices.SortFunc(finalResults, orderBySimilarity)
 	for _, match := range finalResults {
 		matchingEntities = append(matchingEntities, &entpb.Entity{

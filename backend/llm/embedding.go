@@ -451,7 +451,6 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 		e.logger.Warn("query embedding is unreliable, skipping semantic search results", zap.String("query", query), zap.Float32("similarity_to_gibberish", sim))
 		return nil, ErrUnreliableEmbedding
 	}
-
 	var entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment interface{}
 	supportedType := false
 	if ok, val := contentTypes["title"]; ok && val {
@@ -515,7 +514,6 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 			return nil, fmt.Errorf("semantic search query failed: %w", err)
 		}
 	}
-
 	return ret, nil
 }
 
