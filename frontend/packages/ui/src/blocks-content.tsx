@@ -982,7 +982,7 @@ export function BlockNodeContent({
             </Tooltip>
           ) : null}
           <div {...highlighter({...resourceId, blockRef: blockNode.block?.id})}>
-            {hover || isHighlight ? (
+            {(hover || isHighlight) && blockCitationCount === 0 ? (
               <div className="bg-popover text-popover-foreground absolute top-0 right-0 z-10 -translate-y-[90%] rounded-md border shadow-md outline-hidden">
                 {hoverCardContent}
               </div>
