@@ -1196,7 +1196,7 @@ export const HMCommentRequestSchema = z.object({
 export type HMCommentRequest = z.infer<typeof HMCommentRequestSchema>
 
 export const HMSearchInputSchema = z.object({
-  query: z.string(),
+  query: z.coerce.string(),
   accountUid: z.string().optional(),
   includeBody: z.boolean().optional(),
   contextSize: z.number().optional(),
