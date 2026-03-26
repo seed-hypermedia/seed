@@ -18,8 +18,8 @@ import {getContactMetadata} from '@shm/shared/content'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import {hasProfileSubscription, useFollowProfile, useLeaveSite} from '@shm/shared/models/join-site'
-import {bookmarkUrlFromRoute, hmId, ViewTerm, viewTermToRouteKey} from '@shm/shared/utils/entity-id-url'
 import {createDocumentNavRoute} from '@shm/shared/routes'
+import {bookmarkUrlFromRoute, hmId, ViewTerm, viewTermToRouteKey} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
 import {UIAvatar} from '@shm/ui/avatar'
@@ -317,60 +317,66 @@ function SubscriptionsSection() {
     .map((id) => hmId(id))
   const comments = useComments(commentIds)
 
-  if (!sortedContacts.length) return null
-
   return (
     <SidebarSection title="Joined Sites">
-      {sortedContacts.map((contact) => {
-        const id = hmId(contact.subject)
-        // Get account from the backend's account list (has metadata)
-        const account = accounts.find((acc) => acc.id === contact.subject)
-        const accountMeta = accountsMetadata?.[contact.subject]
-        // Get metadata from fetched site resource (most reliable source)
-        const siteResource = siteResources.find((r) => r.data?.id?.uid === contact.subject)
-        const siteMeta = siteResource?.data?.type === 'document' ? siteResource.data.document?.metadata : undefined
+      {sortedContacts.length ? (
+        sortedContacts.map((contact) => {
+          const id = hmId(contact.subject)
+          // Get account from the backend's account list (has metadata)
+          const account = accounts.find((acc) => acc.id === contact.subject)
+          const accountMeta = accountsMetadata?.[contact.subject]
+          // Get metadata from fetched site resource (most reliable source)
+          const siteResource = siteResources.find((r) => r.data?.id?.uid === contact.subject)
+          const siteMeta = siteResource?.data?.type === 'document' ? siteResource.data.document?.metadata : undefined
 
-        // Build metadata: prefer contact name, then site resource, then account metadata
-        const name = contact.name || siteMeta?.name || accountMeta?.metadata?.name || account?.metadata?.name
-        const icon = siteMeta?.icon || accountMeta?.metadata?.icon || account?.metadata?.icon
-        const metadata: HMMetadata = {name, icon}
+          // Build metadata: prefer contact name, then site resource, then account metadata
+          const name = contact.name || siteMeta?.name || accountMeta?.metadata?.name || account?.metadata?.name
+          const icon = siteMeta?.icon || accountMeta?.metadata?.icon || account?.metadata?.icon
+          const metadata: HMMetadata = {name, icon}
 
-        // Skip if no name and still loading
-        if (!name && siteResource?.isLoading) return null
-        if (!name) return null
+          // Skip if no name and still loading
+          if (!name && siteResource?.isLoading) return null
+          if (!name) return null
 
-        // Get activity data
-        const docData = subscribedDocs.data?.get(id.id)
+          // Get activity data
+          const docData = subscribedDocs.data?.get(id.id)
 
-        let activitySummary: HMActivitySummary | undefined
-        let latestComment: HMComment | undefined
+          let activitySummary: HMActivitySummary | undefined
+          let latestComment: HMComment | undefined
 
-        if (account?.activitySummary) {
-          activitySummary = account.activitySummary as HMActivitySummary
-          latestComment = activitySummary?.latestCommentId
-            ? comments.data?.find((c) => c?.id === activitySummary?.latestCommentId)
-            : undefined
-        } else {
-          activitySummary = docData?.activitySummary
-          latestComment = docData?.latestComment ?? undefined
-        }
+          if (account?.activitySummary) {
+            activitySummary = account.activitySummary as HMActivitySummary
+            latestComment = activitySummary?.latestCommentId
+              ? comments.data?.find((c) => c?.id === activitySummary?.latestCommentId)
+              : undefined
+          } else {
+            activitySummary = docData?.activitySummary
+            latestComment = docData?.latestComment ?? undefined
+          }
 
-        const isUnread = activitySummary?.isUnread ?? false
-        return (
-          <SidebarMenuItem key={id.id}>
-            <JoinedSiteListItem
-              id={id}
-              contact={contact}
-              metadata={metadata}
-              active={route.key === 'document' && route.id.id === id.id}
-              isUnread={isUnread}
-              activitySummary={activitySummary}
-              latestComment={latestComment}
-              accountsMetadata={accountsMetadata}
-            />
-          </SidebarMenuItem>
-        )
-      })}
+          const isUnread = activitySummary?.isUnread ?? false
+          return (
+            <SidebarMenuItem key={id.id}>
+              <JoinedSiteListItem
+                id={id}
+                contact={contact}
+                metadata={metadata}
+                active={route.key === 'document' && route.id.id === id.id}
+                isUnread={isUnread}
+                activitySummary={activitySummary}
+                latestComment={latestComment}
+                accountsMetadata={accountsMetadata}
+              />
+            </SidebarMenuItem>
+          )
+        })
+      ) : (
+        <SidebarMenuItem>
+          <div className="text-muted-foreground flex items-center justify-center px-4 pb-3 text-center text-xs leading-relaxed select-none">
+            Click "Join" on a site to get started.
+          </div>
+        </SidebarMenuItem>
+      )}
     </SidebarSection>
   )
 }
