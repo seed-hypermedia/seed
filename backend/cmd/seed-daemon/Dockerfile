@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Clean any pre-existing build artifacts copied from host to ensure fresh build.
 WORKDIR /code/backend/util/llama-go
 RUN rm -rf build llama.cpp/*.o *.o *.a *.so && \
-    BUILD_TYPE=vulkan CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a
+    BUILD_TYPE=vulkan CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_AVX=ON -DGGML_AVX512=OFF" make libbinding.a
 
 # Build seed-daemon with llama.cpp support.
 WORKDIR /code
