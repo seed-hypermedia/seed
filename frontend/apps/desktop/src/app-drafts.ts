@@ -10,7 +10,7 @@ import {
   HMResourceVisibilitySchema,
 } from '@seed-hypermedia/client/hm-types'
 import {parseDraftFilename} from '@seed-hypermedia/client/blocks-to-markdown'
-import {parseMarkdown, markdownBlockNodesToHMBlockNodes} from '@seed-hypermedia/client/markdown-to-blocks'
+import {parseMarkdown} from '@seed-hypermedia/client/markdown-to-blocks'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {hmIdPathToEntityQueryPath, pathMatches} from '@shm/shared'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -414,8 +414,7 @@ async function readDraftContent(draftId: string, indexEntry: HMListedDraft): Pro
     try {
       const raw = await fs.readFile(file.path, 'utf-8')
       const {tree} = parseMarkdown(raw)
-      const hmNodes = markdownBlockNodesToHMBlockNodes(tree)
-      const editorBlocks = hmBlocksToEditorContent(hmNodes)
+      const editorBlocks = hmBlocksToEditorContent(tree)
 
       return {
         content: editorBlocks,
