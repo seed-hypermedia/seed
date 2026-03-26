@@ -635,7 +635,7 @@ export function parseFrontmatter(markdown: string): {
  * When no ID is present, random 8-char IDs are generated.
  */
 export function parseMarkdown(markdown: string): {
-  tree: BlockNode[]
+  tree: HMBlockNode[]
   metadata: HMMetadata
 } {
   const {content, metadata} = parseFrontmatter(markdown)
@@ -704,7 +704,7 @@ export function parseMarkdown(markdown: string): {
     }
   }
 
-  return {tree: rootNodes, metadata}
+  return {tree: markdownBlockNodesToHMBlockNodes(rootNodes), metadata}
 }
 
 /**
