@@ -47,7 +47,7 @@
     "@unified-latex/unified-latex-util-visit": "^1.8.0",
     "hast-util-from-dom": "4.2.0",
     "highlight.js": "11.9.0",
-    "katex": "0.16.9",
+    "katex": "0.16.42",
     "linkifyjs": "4.1.1",
     "lowlight": "3.1.0",
     "mermaid": "^11.4.0",
