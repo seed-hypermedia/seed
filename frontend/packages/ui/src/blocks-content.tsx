@@ -1032,7 +1032,7 @@ export function BlockNodeContent({
                         }
                       }}
                       variant="outline"
-                      className="bg-background select-none cursor-pointer"
+                      className="bg-background cursor-pointer select-none"
                     >
                       {blockCitationCount}
                     </Badge>
@@ -1332,7 +1332,7 @@ function InlineContentView({
   // null = don't set fontSize (headings inherit from parent element)
   // undefined = inherit from CSS --text-unit variable
   // number = explicit override (captions, recursive calls)
-  const fSize = fontSize === null ? null : fontSize ?? undefined
+  const fSize = fontSize === null ? null : (fontSize ?? undefined)
 
   const getLinkColor = (linkType: LinkType): string => {
     if (linkType == 'basic' || linkType == 'hypermedia') return 'text-link hover:text-link-hover'
