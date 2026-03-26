@@ -132,7 +132,7 @@ export function computeReplaceOps(
 
       // Check if position changed
       const prevNode = idx > 0 ? matchedTree[idx - 1] : undefined
-      const expectedLeft = prevNode ? (prevNode.block as Record<string, unknown>).id as string : ''
+      const expectedLeft = prevNode ? ((prevNode.block as Record<string, unknown>).id as string) : ''
       if (oldEntry.parent !== parentId || oldEntry.left !== expectedLeft) {
         // Position changed — will be handled by the MoveBlocks below
       }
