@@ -65,7 +65,7 @@ export type {BlockNode, SeedBlock, Annotation} from './markdown-to-blocks'
 export {blocksToMarkdown, emitFrontmatter, slugify, draftFilename, parseDraftFilename} from './blocks-to-markdown'
 export type {BlocksToMarkdownOptions} from './blocks-to-markdown'
 
-export {createBlocksMap, matchBlockIds, computeReplaceOps, hmBlockNodeToBlockNode} from './block-diff'
+export {createBlocksMap, matchBlockIds, computeReplaceOps} from './block-diff'
 export type {APIBlockNode, APIBlock} from './block-diff'
 
 export {

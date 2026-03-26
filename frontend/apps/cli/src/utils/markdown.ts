@@ -6,8 +6,6 @@
  * in the client SDK's `markdown-to-blocks.ts`.
  */
 
-export {parseMarkdown, flattenToOperations, parseInlineFormatting, parseFrontmatter} from '@seed-hypermedia/client'
-
-export type {BlockNode, SeedBlock, Annotation} from '@seed-hypermedia/client'
+export {parseMarkdown, parseInlineFormatting, parseFrontmatter} from '@seed-hypermedia/client'
 
 export type {HMMetadata} from '@seed-hypermedia/client/hm-types'
