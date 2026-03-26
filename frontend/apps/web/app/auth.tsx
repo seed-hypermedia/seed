@@ -64,6 +64,7 @@ export type LocalWebIdentity = CryptoKeyPair & {
   id: string
   delegatedAccountUid?: string
   vaultUrl?: string
+  notifyServerUrl?: string
 }
 let keyPair: LocalWebIdentity | null = null
 const keyPairHandlers = new Set<() => void>()
@@ -98,6 +99,7 @@ async function loadLocalWebIdentity(): Promise<LocalWebIdentity | null> {
     id: base58btc.encode(id),
     delegatedAccountUid: stored.delegatedAccountUid,
     vaultUrl: stored.vaultUrl,
+    notifyServerUrl: stored.notifyServerUrl,
   }
 }
 

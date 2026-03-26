@@ -115,6 +115,7 @@ export class Service implements api.ServerInterface {
   private db: Database
   private sessions: sess.Store
   private backendHttpBaseUrl: string
+  private notificationServerUrl: string
   private documentsClient: DocumentsClient
   private rp: config.RelyingParty
   private hmacSecret: Uint8Array
@@ -122,6 +123,7 @@ export class Service implements api.ServerInterface {
   constructor(
     db: Database,
     backendHttpBaseUrl: string,
+    notificationServerUrl: string,
     documentsClient: DocumentsClient,
     rp: config.RelyingParty,
     hmacSecret: Uint8Array,
@@ -130,6 +132,7 @@ export class Service implements api.ServerInterface {
     this.db = db
     this.sessions = new sess.Store(db)
     this.backendHttpBaseUrl = backendHttpBaseUrl
+    this.notificationServerUrl = notificationServerUrl
     this.documentsClient = documentsClient
     this.rp = rp
     this.hmacSecret = hmacSecret
@@ -198,6 +201,7 @@ export class Service implements api.ServerInterface {
   async getConfig(_ctx: api.ServerContext): Promise<api.GetConfigResponse> {
     return {
       backendHttpBaseUrl: this.backendHttpBaseUrl,
+      notificationServerUrl: this.notificationServerUrl,
     }
   }
 

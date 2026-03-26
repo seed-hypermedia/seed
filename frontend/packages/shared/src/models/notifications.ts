@@ -208,3 +208,45 @@ export async function mergeNotificationReadState(
     readEvents: input.readEvents,
   }) as Promise<NotificationReadState>
 }
+
+// -- Notification inbox -------------------------------------------------------
+
+import type {NotificationInboxResponse} from './notification-payload'
+
+/** Registers the account with the notification server inbox. */
+export async function registerNotificationInbox(notifyServiceHost: string, signer: NotificationSigner) {
+  return signedNotifPost(notifyServiceHost, '/hm/api/notification-inbox', signer, {
+    action: 'register-inbox',
+  }) as Promise<{accountId: string}>
+}
+
+/** Fetches paginated notifications from the notification server. */
+export async function getNotificationInbox(
+  notifyServiceHost: string,
+  signer: NotificationSigner,
+  opts?: {beforeMs?: number; limit?: number},
+) {
+  return signedNotifPost(notifyServiceHost, '/hm/api/notification-inbox', signer, {
+    action: 'get-notification-inbox',
+    ...(opts?.beforeMs != null ? {beforeMs: opts.beforeMs} : {}),
+    ...(opts?.limit != null ? {limit: opts.limit} : {}),
+  }) as Promise<NotificationInboxResponse>
+}
+
+/**
+ * React-query hook that fetches the notification inbox from the server.
+ * Registers the inbox on first load, then fetches notifications.
+ */
+export function useNotificationInbox(notifyServiceHost: string | undefined, signer: NotificationSigner | undefined) {
+  const accountId = accountIdFromSigner(signer)
+  return useQuery({
+    queryKey: [queryKeys.NOTIFICATION_INBOX, notifyServiceHost, accountId],
+    queryFn: async (): Promise<NotificationInboxResponse> => {
+      // Ensure the account is registered before fetching
+      await registerNotificationInbox(notifyServiceHost!, signer!)
+      return getNotificationInbox(notifyServiceHost!, signer!)
+    },
+    enabled: !!notifyServiceHost && !!signer && !!accountId,
+    refetchOnMount: 'always',
+  })
+}

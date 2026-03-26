@@ -89,13 +89,20 @@ describe('local-db integration', () => {
       const db = await resetDB(indexedDB)
       try {
         const keyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, ['sign', 'verify'])
-        await writeLocalKeys(keyPair)
+        await writeLocalKeys(keyPair, {
+          delegatedAccountUid: 'acc1',
+          vaultUrl: 'https://vault.example.com',
+          notifyServerUrl: 'https://notify.example.com',
+        })
         const stored = await getStoredLocalKeys()
         expect(stored).not.toBeNull()
         expect(stored!.keyPair.privateKey.type).toBe('private')
         expect(stored!.keyPair.publicKey.type).toBe('public')
         expect(stored!.keyPair.privateKey.algorithm).toEqual(keyPair.privateKey.algorithm)
         expect(stored!.keyPair.publicKey.algorithm).toEqual(keyPair.publicKey.algorithm)
+        expect(stored!.delegatedAccountUid).toBe('acc1')
+        expect(stored!.vaultUrl).toBe('https://vault.example.com')
+        expect(stored!.notifyServerUrl).toBe('https://notify.example.com')
       } finally {
         db.close()
       }

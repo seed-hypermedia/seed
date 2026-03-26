@@ -104,6 +104,7 @@ export default function AuthCallbackRoute() {
         await writeLocalKeys(sessionSigner.keyPair, {
           delegatedAccountUid: result.accountPrincipal,
           vaultUrl,
+          notifyServerUrl: result.notifyServerUrl,
         })
 
         // Cleanup delegation markers.

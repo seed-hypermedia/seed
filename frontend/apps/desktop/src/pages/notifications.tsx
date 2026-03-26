@@ -7,7 +7,7 @@ import {
   useSetNotificationConfig,
 } from '@/models/notification-config'
 import {useNotificationInbox} from '@/models/notification-inbox'
-import {isNotificationEventRead} from '@/models/notification-read-logic'
+import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import {
   useLocalNotificationReadState,
   useMarkAllNotificationsRead,
@@ -19,24 +19,19 @@ import {
 import {
   getMaxLoadedNotificationEventAtMs,
   markNotificationReadAndNavigate,
-  notificationTitle,
-} from '@/pages/notifications-helpers'
+} from '@shm/shared/models/notification-helpers'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
-import {getDocumentTitle} from '@shm/shared/content'
-import {useAccount, useResource} from '@shm/shared/models/entity'
-import type {NotificationPayload} from '@shm/shared/models/notification-payload'
-import {abbreviateUid, formattedDateShort, hmId} from '@shm/shared'
+import {NotificationListItem} from '@shm/ui/notification-list-item'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {Container, PanelContainer} from '@shm/ui/container'
-import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
-import {Bell, Check, Info, Settings} from 'lucide-react'
+import {Bell, Info, Settings} from 'lucide-react'
 import {useEffect, useMemo, useState} from 'react'
 
 export default function NotificationsPage() {
@@ -218,64 +213,6 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
         </Container>
       </MainWrapper>
     </PanelContainer>
-  )
-}
-
-function NotificationListItem({
-  item,
-  isRead,
-  onOpen,
-  onToggleRead,
-}: {
-  item: NotificationPayload
-  isRead: boolean
-  onOpen: () => Promise<void>
-  onToggleRead: () => void
-}) {
-  const authorId = item.author.uid ? hmId(item.author.uid) : null
-  const targetId = item.target.uid ? hmId(item.target.uid, {path: item.target.path ?? undefined}) : null
-  const author = useAccount(item.author.uid || undefined)
-  const target = useResource(targetId, {subscribed: true})
-
-  const authorName =
-    author.data?.metadata?.name || item.author.name || (item.author.uid ? abbreviateUid(item.author.uid) : undefined)
-  const authorIcon = author.data?.metadata?.icon || item.author.icon || undefined
-  const targetName = target.data?.type === 'document' ? getDocumentTitle(target.data.document) || undefined : undefined
-
-  return (
-    <button
-      className="group hover:bg-muted/40 flex w-full items-center gap-3 p-4 text-left"
-      onClick={() => void onOpen()}
-    >
-      <div className="pt-0.5">
-        {authorId ? (
-          <HMIcon size={24} id={authorId} name={authorName} icon={authorIcon} />
-        ) : (
-          <div className="bg-muted h-6 w-6 rounded-full" />
-        )}
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex items-center gap-2">
-          {!isRead ? <span className="bg-brand inline-block h-2 w-2 rounded-full" /> : null}
-          <p className="truncate text-sm">{notificationTitle(item, {authorName, targetName})}</p>
-        </div>
-        <p className="text-muted-foreground text-xs">{formattedDateShort(new Date(item.eventAtMs))}</p>
-      </div>
-      <Tooltip content={isRead ? 'Mark as unread' : 'Mark as read'}>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-          onClick={(e) => {
-            e.stopPropagation()
-            e.preventDefault()
-            onToggleRead()
-          }}
-        >
-          <Check size={16} className={isRead ? 'text-brand' : 'text-muted-foreground'} />
-        </Button>
-      </Tooltip>
-    </button>
   )
 }
 
