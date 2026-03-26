@@ -1007,6 +1007,7 @@ export function BlockNodeContent({
                             }
                           }}
                           variant="outline"
+                          className="bg-background select-none"
                         >
                           {blockCitationCount}
                         </Badge>
@@ -1031,7 +1032,7 @@ export function BlockNodeContent({
                         }
                       }}
                       variant="outline"
-                      className="cursor-pointer"
+                      className="bg-background select-none cursor-pointer"
                     >
                       {blockCitationCount}
                     </Badge>
