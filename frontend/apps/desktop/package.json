@@ -114,7 +114,7 @@
     "match-sorter": "6.3.1",
     "mime": "4.0.4",
     "multiformats": "^13.3.2",
-    "nanoid": "4.0.2",
+    "nanoid": "5.1.7",
     "nostr-tools": "1.16.0",
     "prom-client": "15.1.0",
     "prosemirror-state": "1.4.4",
