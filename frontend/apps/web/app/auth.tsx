@@ -1,7 +1,7 @@
 import {useNavigate} from '@remix-run/react'
 import {createSeedClient} from '@seed-hypermedia/client'
 import {HMDocument, HMPrepareDocumentChangeInput, HMSigner} from '@seed-hypermedia/client/hm-types'
-import {hmId, hostnameStripProtocol, queryKeys, useUniversalAppContext} from '@shm/shared'
+import {hmId, hostnameStripProtocol, postAccountCreateAction, queryKeys, useUniversalAppContext} from '@shm/shared'
 import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -202,8 +202,18 @@ export async function createAccount({
 
   await seedClient.publishDocument({account: uid, changes}, signer)
 
-  keyPairStore.set({...keyPair, id: uid})
-  return {...keyPair, id: uid}
+  const createdIdentity = {...keyPair, id: uid}
+  keyPairStore.set(createdIdentity)
+  await postAccountCreateAction(
+    {
+      accountUid: uid,
+    },
+    {
+      getSigner: () => signer,
+      publish: seedClient.publish,
+    },
+  )
+  return createdIdentity
 }
 
 /**
@@ -278,7 +288,10 @@ export function useCreateAccount(options?: {onClose?: () => void}) {
     createAccount: () => createAccountDialog.open({}),
     content: createAccountDialog.content,
     createDefaultAccount: async () => {
-      return await createAccount({name: createDefaultAccountName(), icon: null})
+      return await createAccount({
+        name: createDefaultAccountName(),
+        icon: null,
+      })
     },
     userKeyPair,
   }

@@ -1,4 +1,5 @@
 import type * as api from '@/api'
+import {code as cborCodec} from '@ipld/dag-cbor'
 import * as base64 from '@shm/shared/base64'
 import * as blobs from '@shm/shared/blobs'
 import * as encryption from '@shm/shared/encryption'
@@ -10,6 +11,7 @@ import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {createContext, useContext} from 'react'
 import {proxy, useSnapshot} from 'valtio'
+import * as postCreate from '../../../frontend/packages/shared/src/post-account-create-action'
 import {APIError} from './api-client'
 import type {Blockstore} from './blockstore'
 import * as localCrypto from './crypto'
@@ -1099,6 +1101,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
       try {
         const kp = blobs.generateNobleKeyPair()
+        const accountUid = blobs.principalToString(kp.principal)
         const ts = Date.now()
         const profileOptions: {name: string; avatar?: string; description?: string} = {name}
         if (description) {
@@ -1124,6 +1127,32 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         }
 
         await publishProfile(kp, profileOptions, ts)
+        await postCreate.postAccountCreateAction(
+          {
+            accountUid,
+          },
+          {
+            getSigner: (signerAccountUid) => {
+              if (signerAccountUid !== accountUid) {
+                throw new Error(`Unexpected signer account ${signerAccountUid}`)
+              }
+              return {
+                getPublicKey: async () => kp.principal,
+                sign: kp.sign.bind(kp),
+              }
+            },
+            publish: async (input) => {
+              const cids = await Promise.all(
+                input.blobs.map(async (blob) => {
+                  const cid = blob.cid ? CID.parse(blob.cid) : CID.createV1(cborCodec, await sha256.digest(blob.data))
+                  await blockstore.put(cid, blob.data)
+                  return cid.toString()
+                }),
+              )
+              return {cids}
+            },
+          },
+        )
       } catch (e) {
         if (!didSaveAccount && insertedAccount && state.vaultData) {
           // The seed never made it into the vault, so discard the in-memory account.

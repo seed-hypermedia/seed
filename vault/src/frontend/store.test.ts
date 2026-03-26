@@ -6,6 +6,7 @@ import * as simplewebauthn from '@simplewebauthn/browser'
 import {afterEach, beforeEach, describe, expect, mock, spyOn, test} from 'bun:test'
 import {code as rawCodec} from 'multiformats/codecs/raw'
 import {CID} from 'multiformats/cid'
+import * as postAccountCreateActionModule from '../../../frontend/packages/shared/src/post-account-create-action'
 import {APIError} from './api-client'
 import {createStore} from './store'
 import {createMockBlockstore, createMockClient, createSuccessMockClient} from './test-utils'
@@ -526,6 +527,10 @@ describe('Store', () => {
 
   describe('createAccount', () => {
     test('creates an account when description is omitted', async () => {
+      const postAccountCreateActionSpy = spyOn(
+        postAccountCreateActionModule,
+        'postAccountCreateAction',
+      ).mockResolvedValue(undefined)
       const saveVaultDataCalls: unknown[] = []
       const publishCalls: Array<{cid: unknown; data: Uint8Array}> = []
       const client = createMockClient({
@@ -559,9 +564,18 @@ describe('Store', () => {
       expect(state.error).toBe('')
       expect(saveVaultDataCalls.length).toBe(1)
       expect(publishCalls.length).toBe(1)
+      expect(postAccountCreateActionSpy).toHaveBeenCalledTimes(1)
+      expect(postAccountCreateActionSpy.mock.calls[0]?.[0]).toEqual({
+        accountUid: expect.any(String),
+      })
+      postAccountCreateActionSpy.mockRestore()
     })
 
     test('rolls back local state without publishing when vault save fails', async () => {
+      const postAccountCreateActionSpy = spyOn(
+        postAccountCreateActionModule,
+        'postAccountCreateAction',
+      ).mockResolvedValue(undefined)
       const client = createMockClient({
         saveVaultData: async () => ({success: true}),
       })
@@ -592,8 +606,10 @@ describe('Store', () => {
       expect(state.creatingAccount).toBe(true)
       expect(state.error).toContain('dag-cbor failed')
       expect(publishCalls.length).toBe(0)
+      expect(postAccountCreateActionSpy).not.toHaveBeenCalled()
       serializeSpy.mockRestore()
       consoleErrorSpy.mockRestore()
+      postAccountCreateActionSpy.mockRestore()
     })
 
     test('surfaces a backend-unavailable error when saving the new account fails over the network', async () => {

@@ -7,7 +7,7 @@ import {getImportKeyFilePathError, normalizeImportKeyFilePath} from '@/utils/onb
 import {extractWords, isWordsValid} from '@/utils/onboarding'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMPrepareDocumentChangeInput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {eventStream, useOpenUrl, useUniversalAppContext} from '@shm/shared'
+import {eventStream, postAccountCreateAction, useOpenUrl, useUniversalAppContext} from '@shm/shared'
 import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -1102,6 +1102,15 @@ function RecoveryStep({
       console.log('✅ Profile submission completed successfully')
       console.groupEnd()
       onAccountCreate(hmId(createdAccount.accountId))
+      await postAccountCreateAction(
+        {
+          accountUid: createdAccount.accountId,
+        },
+        {
+          getSigner: desktopUniversalClient.getSigner!,
+          publish: desktopUniversalClient.publish,
+        },
+      )
       onNext()
     } catch (error) {
       console.error('❌ Profile submission failed:', error)
