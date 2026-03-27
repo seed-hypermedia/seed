@@ -184,8 +184,8 @@ describe('SSR Header and Navigation', () => {
       })
       const html = await response.text()
 
-      // Subscribe button should be SSR rendered
-      expect(html).toContain('Subscribe')
+      // Join button should be SSR rendered
+      expect(html).toContain('Join')
     },
     TEST_TIMEOUT,
   )
@@ -267,8 +267,8 @@ describe('SSR Utility Pages Header', () => {
         'Expected header element to be present on device-link page',
       ).toBeGreaterThan(0)
 
-      // Subscribe button should be SSR rendered
-      expect(html).toContain('Subscribe')
+      // Join button should be SSR rendered
+      expect(html).toContain('Join')
     },
     TEST_TIMEOUT,
   )

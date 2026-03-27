@@ -33,7 +33,8 @@ ENV C_INCLUDE_PATH=/code/backend/util/llama-go
 RUN go install -ldflags="-X 'seed/backend/daemon.commit=$COMMIT_HASH' -X 'seed/backend/daemon.branch=$BRANCH' -X 'seed/backend/daemon.date=$DATE'" ./backend/cmd/seed-daemon/
 
 FROM debian:trixie-slim
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN groupadd -r render && \
+    apt-get update && apt-get install -y --no-install-recommends \
     rsync libvulkan1 ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /go/bin/seed-daemon /usr/local/bin/seed-daemon
