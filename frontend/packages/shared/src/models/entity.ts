@@ -24,9 +24,10 @@ import {useInfiniteQuery, useQueries, useQuery, useQueryClient, UseQueryOptions}
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {DocumentInfo, RedirectErrorDetails} from '../client'
 import {DISCOVERY_TIMEOUT_MS} from '../constants'
+import {resolveHypermediaUrl} from '../resolve-hm'
 import {useUniversalAppContext, useUniversalClient} from '../routing'
 import {useStream} from '../use-stream'
-import {entityQueryPathToHmIdPath, hmId, latestId, unpackHmId} from '../utils'
+import {createWebHMUrl, entityQueryPathToHmIdPath, hmId, latestId, unpackHmId} from '../utils'
 import {useContactListOfSubject} from './contacts'
 import {
   queryAccount,
@@ -745,32 +746,47 @@ export type HypermediaSearchResult = {
 }
 
 export async function search(input: string): Promise<HypermediaSearchResult> {
-  const cid = extractIpfsUrlCid(input)
+  const normalizedInput = input.trim()
+  const cid = extractIpfsUrlCid(normalizedInput)
   if (cid) {
     return {destination: `/ipfs/${cid}`}
   }
-  if (input.startsWith('hm://')) {
-    const unpackedId = unpackHmId(input)
-    if (unpackedId) {
-      return {
-        destination: `/hm/${unpackedId.uid}/${unpackedId.path?.join('/')}`,
-      }
+
+  const unpackedId = unpackHmId(normalizedInput)
+  if (unpackedId) {
+    return {
+      destination: createWebHMUrl(unpackedId.uid, {
+        path: unpackedId.path,
+        version: unpackedId.version,
+        latest: unpackedId.latest,
+        blockRef: unpackedId.blockRef,
+        blockRange: unpackedId.blockRange,
+        hostname: null,
+      }),
     }
   }
-  if (input.match(/\./)) {
+
+  if (normalizedInput.match(/\./)) {
     // it might be a url
-    const hasProtocol = input.match(/^https?:\/\//)
-    const searchUrl = hasProtocol ? input : `https://${input}`
-    const result = await fetch(searchUrl, {
-      method: 'OPTIONS',
-    })
-    const id = result.headers.get('x-hypermedia-id')
-    const unpackedId = id && unpackHmId(id)
-    const version = result.headers.get('x-hypermedia-version')
-    if (unpackedId) {
-      return {
-        destination: `/hm/${unpackedId.uid}/${unpackedId.path?.join('/')}?v=${version}`,
+    const hasProtocol = normalizedInput.match(/^https?:\/\//)
+    const searchUrl = hasProtocol ? normalizedInput : `https://${normalizedInput}`
+
+    try {
+      const resolved = await resolveHypermediaUrl(searchUrl)
+      if (resolved?.hmId) {
+        return {
+          destination: createWebHMUrl(resolved.hmId.uid, {
+            path: resolved.hmId.path,
+            version: resolved.hmId.version,
+            latest: resolved.hmId.latest,
+            blockRef: resolved.hmId.blockRef,
+            blockRange: resolved.hmId.blockRange,
+            hostname: null,
+          }),
+        }
       }
+    } catch {
+      // Fall through to the generic invalid-input error below.
     }
   }
   return {
