@@ -3,7 +3,7 @@ import {CommentsProvider, InlineEditCommentProps} from '@shm/shared/comments-ser
 import {Spinner} from '@shm/ui/spinner'
 import {FeedPage} from '@shm/ui/feed-page-common'
 import {lazy, Suspense} from 'react'
-import {WebAccountFooter, useWebMenuItems} from './web-utils'
+import {WebAccountFooter, WebHeaderActions, useWebMenuItems} from './web-utils'
 
 const LazyWebInlineEditor = lazy(() => import('./commenting').then((mod) => ({default: mod.WebInlineEditBox})))
 
@@ -21,7 +21,7 @@ export function WebFeedPage({docId}: {docId: UnpackedHypermediaId}) {
   return (
     <WebAccountFooter siteUid={docId.uid}>
       <CommentsProvider renderInlineEditor={renderWebInlineEditor}>
-        <FeedPage docId={docId} extraMenuItems={menuItems} />
+        <FeedPage docId={docId} extraMenuItems={menuItems} rightActions={<WebHeaderActions siteUid={docId.uid} />} />
       </CommentsProvider>
     </WebAccountFooter>
   )

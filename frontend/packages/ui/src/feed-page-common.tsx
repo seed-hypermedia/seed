@@ -19,9 +19,10 @@ export interface FeedPageProps {
   docId: UnpackedHypermediaId
   CommentEditor?: React.ComponentType<CommentEditorProps>
   extraMenuItems?: MenuItemType[]
+  rightActions?: React.ReactNode
 }
 
-export function FeedPage({docId, extraMenuItems}: FeedPageProps) {
+export function FeedPage({docId, extraMenuItems, rightActions}: FeedPageProps) {
   const siteHomeId = hmId(docId.uid)
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
   const homeDirectory = useDirectory(siteHomeId)
@@ -35,7 +36,13 @@ export function FeedPage({docId, extraMenuItems}: FeedPageProps) {
 
   if (siteHomeResource.isInitialLoading) {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} isMainFeedVisible>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+        isMainFeedVisible
+        rightActions={rightActions}
+      >
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
@@ -50,6 +57,7 @@ export function FeedPage({docId, extraMenuItems}: FeedPageProps) {
       headerData={headerData}
       document={siteHomeDocument ?? undefined}
       isMainFeedVisible
+      rightActions={rightActions}
     >
       <FeedBody siteHomeId={siteHomeId} extraMenuItems={extraMenuItems} targetDomain={targetDomain} />
     </PageWrapper>

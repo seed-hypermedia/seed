@@ -1,12 +1,15 @@
 import {HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useUniversalAppContext} from '@shm/shared'
+import {useJoinSite, useUniversalAppContext} from '@shm/shared'
 import {
   CommentsProvider,
   InlineEditCommentProps,
   isRouteEqualToCommentTarget,
 } from '@shm/shared/comments-service-provider'
+import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {useResource} from '@shm/shared/models/entity'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
+import {InlineSubscribeBox} from '@shm/ui/inline-subscribe-box'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
 import {Spinner} from '@shm/ui/spinner'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -16,7 +19,7 @@ import {preloadCommenting} from './client-lazy'
 import {setPendingIntent} from './local-db'
 import {PageFooter} from './page-footer'
 import {processPendingIntent} from './pending-intent'
-import {WebAccountFooter} from './web-utils'
+import {WebAccountFooter, WebHeaderActions} from './web-utils'
 
 /** Lazy-loaded inline comment editor — avoids pulling the full editor bundle eagerly. */
 const LazyWebInlineEditor = lazy(() => import('./commenting').then((mod) => ({default: mod.WebInlineEditBox})))
@@ -102,6 +105,22 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
   // Show banner when viewing content from a different site than the host
   const siteUid = docId.uid
   const showBanner = origin && originHomeId && siteUid !== originHomeId.uid
+
+  // Inline subscribe box for non-members
+  const {isJoined} = useJoinSite({siteUid})
+  const siteResource = useResource(docId.path?.length ? undefined : docId)
+  const siteMetadata = siteResource.data?.type === 'document' ? siteResource.data.document?.metadata : undefined
+  const showSubscribeBox = !userKeyPair || !isJoined
+  const inlineInsert = useMemo(() => {
+    if (!showSubscribeBox || !NOTIFY_SERVICE_HOST) return undefined
+    return (
+      <InlineSubscribeBox
+        accountId={siteUid}
+        notifyServiceHost={NOTIFY_SERVICE_HOST}
+        accountMeta={siteMetadata ?? undefined}
+      />
+    )
+  }, [showSubscribeBox, siteUid, siteMetadata])
 
   const onReplyClick = useCallback(
     (replyComment: HMComment) => {
@@ -196,6 +215,8 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
           onEditProfile={onEditProfile}
           profileHeaderButtons={profileHeaderButtons}
           onFollowClick={onFollowClick}
+          rightActions={<WebHeaderActions siteUid={docId.uid} />}
+          inlineInsert={inlineInsert}
         />
       </CommentsProvider>
       {editProfileDialog.content}

@@ -44,6 +44,36 @@ export function useWebMenuItems(): MenuItemType[] {
   )
 }
 
+/**
+ * Join button for the site header
+ */
+export function WebHeaderActions({siteUid}: {siteUid: string}) {
+  const keyPair = useLocalKeyPair()
+
+  const {content: createAccountContent, createAccount} = useCreateAccount({})
+
+  const {isJoined, joinSite} = useJoinSite({siteUid})
+
+  let joinButton = null
+  if (keyPair) {
+    if (!isJoined) {
+      joinButton = <JoinButton variant="header" onClick={() => joinSite()} />
+    }
+  } else {
+    joinButton = <JoinButton variant="header" onClick={() => createAccount()} />
+  }
+
+  return (
+    <>
+      {joinButton}
+      {createAccountContent}
+    </>
+  )
+}
+
+/**
+ * Wrapper for web pages that shows the floating account avatar in the bottom-left.
+ */
 export function WebAccountFooter({
   children,
   siteUid,
@@ -60,14 +90,6 @@ export function WebAccountFooter({
     retry: 3,
     retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
     refetchOnWindowFocus: false,
-  })
-
-  const {content: createAccountContent, createAccount} = useCreateAccount({
-    onClose: () => {
-      setTimeout(() => {
-        myAccount.refetch()
-      }, 500)
-    },
   })
 
   const account = useMemo(() => {
@@ -89,38 +111,19 @@ export function WebAccountFooter({
       : null,
   )
 
-  const {isJoined, joinSite} = useJoinSite({siteUid})
+  const accountButton = keyPair ? (
+    <a {...profileLinkProps} className="flex rounded-full shadow-lg">
+      <HMIcon
+        id={account?.id ?? hmId(accountId!, {latest: true})}
+        name={account?.metadata?.name}
+        icon={account?.metadata?.icon}
+        size={32}
+      />
+    </a>
+  ) : null
 
-  let joinButton = null
-  let accountButton = null
-  if (keyPair) {
-    accountButton = (
-      <a {...profileLinkProps} className="flex rounded-full shadow-lg">
-        <HMIcon
-          id={account?.id ?? hmId(accountId!, {latest: true})}
-          name={account?.metadata?.name}
-          icon={account?.metadata?.icon}
-          size={32}
-        />
-      </a>
-    )
-    if (!isJoined) {
-      joinButton = <JoinButton onClick={() => joinSite()} />
-    }
-  } else {
-    joinButton = <JoinButton onClick={() => createAccount()} />
-  }
   return (
-    <FloatingAccountFooter
-      floatingButton={
-        <>
-          {accountButton}
-          {joinButton}
-        </>
-      }
-      extraContent={createAccountContent}
-      liftForPageFooter={liftForPageFooter}
-    >
+    <FloatingAccountFooter floatingButton={accountButton} liftForPageFooter={liftForPageFooter}>
       {children}
     </FloatingAccountFooter>
   )

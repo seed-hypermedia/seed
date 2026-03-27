@@ -9,7 +9,14 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
-import {useAccountsMetadata, useDirectory, useIsLatest, useResource, useResources} from '@shm/shared/models/entity'
+import {
+  useAccountsMetadata,
+  useDirectory,
+  useIsLatest,
+  useResource,
+  useResources,
+  useSiteMembers,
+} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
@@ -37,6 +44,7 @@ import {Feed} from './feed'
 import {FeedFilters} from './feed-filters'
 import {HistoryIcon, Link} from './icons'
 import {useDocumentLayout} from './layout'
+import {MembersFacepile} from './members-facepile'
 import {MobilePanelSheet} from './mobile-panel-sheet'
 import {
   DocNavigationItem,
@@ -172,6 +180,8 @@ export interface ResourcePageProps {
   profileHeaderButtons?: ReactNode
   /** Override follow button click on profile pages (web: saves intent + opens signup for unauthenticated users) */
   onFollowClick?: () => void
+  /** Optional inline element injected after content blocks (subscribe box) */
+  inlineInsert?: ReactNode
 }
 
 /** Get panel title for display */
@@ -203,6 +213,7 @@ export function ResourcePage({
   onEditProfile,
   profileHeaderButtons,
   onFollowClick,
+  inlineInsert,
 }: ResourcePageProps) {
   const route = useNavRoute()
   const isSiteProfile = route.key === 'site-profile'
@@ -407,6 +418,7 @@ export function ResourcePage({
         floatingButtons={floatingButtons}
         pageFooter={pageFooter}
         inlineCards={inlineCards}
+        inlineInsert={inlineInsert}
       />
     </PageWrapper>
   )
@@ -537,6 +549,7 @@ function DocumentBody({
   pageFooter,
   inlineCards,
   openComment,
+  inlineInsert,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
@@ -553,6 +566,8 @@ function DocumentBody({
   inlineCards?: ReactNode
   /** Comment to open in discussions view (used when navigating to a comment entity) */
   openComment?: string
+  /** Optional inline element injected after content blocks */
+  inlineInsert?: ReactNode
 }) {
   const route = useNavRoute()
   const navigate = useNavigate()
@@ -620,6 +635,8 @@ function DocumentBody({
   }, []) // only on mount
 
   const isHomeDoc = !docId.path?.length
+  const siteId = useMemo(() => hmId(docId.uid), [docId.uid])
+  const siteMembers = useSiteMembers(siteId)
   const directory = useDirectory(docId)
   const interactionSummary = useInteractionSummary(docId)
 
@@ -871,6 +888,12 @@ function DocumentBody({
     >
       <DocumentCover cover={document.metadata?.cover} />
 
+      {isHomeDoc && !siteMembers.isInitialLoading && siteMembers.members.length > 0 && (
+        <div style={wrapperProps.style} className="mx-auto w-full px-4 pt-4">
+          <MembersFacepile members={siteMembers.members} siteId={siteId} />
+        </div>
+      )}
+
       {!isMobile ? (
         <div style={wrapperProps.style} className={cn('mx-auto flex w-full justify-between')}>
           {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
@@ -987,6 +1010,7 @@ function DocumentBody({
           directory={directory.data}
           siteUrl={siteUrl}
           inlineCards={inlineCards}
+          inlineInsert={inlineInsert}
         />
       </div>
       {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
@@ -1183,6 +1207,7 @@ function MainContent({
   directory,
   siteUrl,
   inlineCards,
+  inlineInsert,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1218,6 +1243,7 @@ function MainContent({
   directory?: import('@seed-hypermedia/client/hm-types').HMDocumentInfo[]
   siteUrl?: string
   inlineCards?: ReactNode
+  inlineInsert?: ReactNode
 }) {
   switch (activeView) {
     case 'directory':
@@ -1292,6 +1318,7 @@ function MainContent({
           onBlockSelect={onBlockSelect}
           directory={directory}
           inlineCards={inlineCards}
+          inlineInsert={inlineInsert}
         />
       )
   }
@@ -1312,6 +1339,7 @@ function ContentViewWithOutline({
   onBlockSelect,
   directory,
   inlineCards,
+  inlineInsert,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1331,6 +1359,7 @@ function ContentViewWithOutline({
   onBlockSelect?: (blockId: string, opts?: BlockRangeSelectOptions) => void
   directory?: import('@seed-hypermedia/client/hm-types').HMDocumentInfo[]
   inlineCards?: ReactNode
+  inlineInsert?: ReactNode
 }) {
   const outline = useNodesOutline(document, docId)
 
@@ -1365,6 +1394,7 @@ function ContentViewWithOutline({
           onBlockCitationClick={onBlockCitationClick}
           onBlockCommentClick={onBlockCommentClick}
           onBlockSelect={onBlockSelect}
+          inlineInsert={inlineInsert}
         >
           <BlocksContent blocks={document.content} />
         </BlocksContentProvider>

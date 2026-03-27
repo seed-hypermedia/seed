@@ -24,7 +24,6 @@ import {DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutli
 import {HeaderSearch, MobileSearch} from './search'
 import {Separator} from './separator'
 import {SiteLogo} from './site-logo'
-import {SubscribeDialog} from './subscribe-dialog'
 import {Tooltip} from './tooltip'
 import useMedia from './use-media'
 import {cn} from './utils'
@@ -50,7 +49,7 @@ export function SiteHeader({
   editNavPane,
   isMainFeedVisible = false,
   wrapperClassName,
-  notifyServiceHost,
+  notifyServiceHost: _notifyServiceHost,
   routeType,
   rightActions,
 }: {
@@ -77,7 +76,6 @@ export function SiteHeader({
 }) {
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
   const [isMobileSearchActive, setIsMobileSearchActive] = useState(false)
-  const [isSubscribeDialogOpen, setIsSubscribeDialogOpen] = useState(false)
 
   function setIsMobileMenuOpen(isOpen: boolean) {
     _setIsMobileMenuOpen(isOpen)
@@ -147,105 +145,89 @@ export function SiteHeader({
   const headerHomeId = homeDoc.id
   if (!headerHomeId) return null
   return (
-    <>
-      <header
-        ref={headerRef}
-        className={cn(
-          'border-border dark:bg-background z-20 flex w-full transform-gpu border-b bg-white p-4 transition-transform duration-200',
-          {
-            'flex-col': isCenterLayout,
-            'flex-row items-center': !isCenterLayout,
-          },
-          hideSiteBarClassName,
-          'sm:translate-y-0',
-          wrapperClassName,
-        )}
+    <header
+      ref={headerRef}
+      className={cn(
+        'border-border dark:bg-background z-20 flex w-full transform-gpu border-b bg-white p-4 transition-transform duration-200',
+        {
+          'flex-col': isCenterLayout,
+          'flex-row items-center': !isCenterLayout,
+        },
+        hideSiteBarClassName,
+        'sm:translate-y-0',
+        wrapperClassName,
+      )}
+    >
+      <div
+        className={cn('flex min-w-0 items-center self-stretch sm:shrink-0', {
+          'justify-center md:relative': isCenterLayout,
+          'flex-start': !isCenterLayout,
+        })}
       >
-        <div
-          className={cn('flex min-w-0 items-center self-stretch sm:shrink-0', {
-            'justify-center md:relative': isCenterLayout,
-            'flex-start': !isCenterLayout,
-          })}
-        >
-          <div className="flex flex-1 justify-center overflow-hidden">
-            <SiteLogo id={headerHomeId} metadata={draftMetadata || homeDoc.document?.metadata} />
+        <div className="flex flex-1 justify-center overflow-hidden">
+          <SiteLogo id={headerHomeId} metadata={draftMetadata || homeDoc.document?.metadata} />
+        </div>
+        {routeType != 'draft' && isCenterLayout ? (
+          <div className="flex items-center gap-2 md:absolute md:right-0">
+            {!IS_DESKTOP && headerSearch}
+            {rightActions}
           </div>
-          {routeType != 'draft' && isCenterLayout ? (
-            <div className="flex items-center gap-2 md:absolute md:right-0">
-              {!IS_DESKTOP && headerSearch}
-              {!IS_DESKTOP && notifyServiceHost && (
-                <Button variant="brand" size="sm" className="text-white" onClick={() => setIsSubscribeDialogOpen(true)}>
-                  Subscribe
-                </Button>
-              )}
-              {rightActions}
-            </div>
-          ) : null}
-        </div>
+        ) : null}
+      </div>
 
-        <div
-          className={cn('flex-1 overflow-hidden px-2', {
-            flex: !isCenterLayout,
-          })}
-        >
-          <SiteHeaderMenu
-            items={items}
-            docId={docId}
-            isCenterLayout={isCenterLayout}
-            editNavPane={editNavPane}
-            isMainFeedVisible={isMainFeedVisible}
-            siteHomeId={siteHomeId}
-          />
-        </div>
+      <div
+        className={cn('flex-1 overflow-hidden px-2', {
+          flex: !isCenterLayout,
+        })}
+      >
+        <SiteHeaderMenu
+          items={items}
+          docId={docId}
+          isCenterLayout={isCenterLayout}
+          editNavPane={editNavPane}
+          isMainFeedVisible={isMainFeedVisible}
+          siteHomeId={siteHomeId}
+        />
+      </div>
 
-        <div className="flex items-center gap-2">
-          {!isCenterLayout && headerSearch}
-          {routeType != 'draft' && !isCenterLayout && !IS_DESKTOP && (
-            <Button
-              variant="brand"
-              size="sm"
-              className="plausible-event-name=click-subscribe-button text-white"
-              onClick={() => setIsSubscribeDialogOpen(true)}
-            >
-              Subscribe
-            </Button>
-          )}
-          {!isCenterLayout && rightActions}
-        </div>
-        <MobileMenu
-          open={isMobileMenuOpen}
-          onClose={() => setIsMobileMenuOpen(false)}
-          renderContent={() => (
-            <div className="flex min-h-full flex-col">
-              {!IS_DESKTOP && (
-                <MobileSearch
-                  siteHomeId={siteHomeId}
-                  onSearchActiveChange={setIsMobileSearchActive}
-                  // @ts-expect-error
-                  onSelect={(item: SearchResult) => {
-                    setIsMobileMenuOpen(false)
-                    // Navigation not yet implemented for mobile search results
-                  }}
-                />
-              )}
+      <div className="flex items-center gap-2">
+        {!isCenterLayout && headerSearch}
+        {!isCenterLayout && rightActions}
+      </div>
+      <MobileMenu
+        open={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
+        renderContent={() => (
+          <div className="flex min-h-full flex-col">
+            {!IS_DESKTOP && (
+              <MobileSearch
+                siteHomeId={siteHomeId}
+                onSearchActiveChange={setIsMobileSearchActive}
+                // @ts-expect-error
+                onSelect={(item: SearchResult) => {
+                  setIsMobileMenuOpen(false)
+                  // Navigation not yet implemented for mobile search results
+                }}
+              />
+            )}
 
-              <div className="relative min-h-0 flex-1">
-                {isMobileSearchActive ? <div className="bg-background absolute inset-0 z-10" /> : null}
+            <div className="relative min-h-0 flex-1">
+              {isMobileSearchActive ? <div className="bg-background absolute inset-0 z-10" /> : null}
 
-                <div className="relative z-0">
-                  {/* Always show home navigation items */}
-                  {homeNavigationItems && homeNavigationItems.length > 0 && (
-                    <div className="mt-2.5 mb-4 flex flex-col gap-2 px-1">
-                      <NavItems
-                        items={homeNavigationItems}
-                        onClick={() => {
-                          setIsMobileMenuOpen(false)
-                        }}
-                      />
-                      <MobileFeedLink siteHomeId={siteHomeId} onClick={() => setIsMobileMenuOpen(false)} />
-                    </div>
-                  )}
-                  {/* 
+              <div className="relative z-0">
+                {/* Always show home navigation items */}
+                {homeNavigationItems && homeNavigationItems.length > 0 && (
+                  <div className="mt-2.5 mb-4 flex flex-col gap-2 px-1">
+                    <NavItems
+                      items={homeNavigationItems}
+                      onClick={() => {
+                        setIsMobileMenuOpen(false)
+                      }}
+                    />
+                    <MobileFeedLink siteHomeId={siteHomeId} onClick={() => setIsMobileMenuOpen(false)} />
+                  </div>
+                )}
+                {/* 
                   Show directory items when not on home
                   {directoryItems && directoryItems.length > 0 && (
                     <>
@@ -261,38 +243,29 @@ export function SiteHeader({
                     </>
                   )} */}
 
-                  {/* Show document outline when available */}
-                  {docId && document && (
-                    <>
-                      <Separator />
-                      <div className="mt-2.5 mb-4 px-1">
-                        <MobileMenuOutline
-                          onActivateBlock={(blockId) => {
-                            setIsMobileMenuOpen(false)
-                            onBlockFocus?.(blockId)
-                          }}
-                          document={document}
-                          docId={docId}
-                          embeds={embeds}
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
+                {/* Show document outline when available */}
+                {docId && document && (
+                  <>
+                    <Separator />
+                    <div className="mt-2.5 mb-4 px-1">
+                      <MobileMenuOutline
+                        onActivateBlock={(blockId) => {
+                          setIsMobileMenuOpen(false)
+                          onBlockFocus?.(blockId)
+                        }}
+                        document={document}
+                        docId={docId}
+                        embeds={embeds}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </div>
-          )}
-        />
-
-        <SubscribeDialog
-          open={isSubscribeDialogOpen}
-          onOpenChange={setIsSubscribeDialogOpen}
-          accountId={headerHomeId?.uid}
-          accountMeta={draftMetadata || homeDoc.document?.metadata}
-          notifyServiceHost={notifyServiceHost}
-        />
-      </header>
-    </>
+          </div>
+        )}
+      />
+    </header>
   )
 }
 

@@ -61,6 +61,7 @@ import 'katex/dist/katex.min.css'
 import {common} from 'lowlight'
 import {AlertCircle, ChevronDown, ChevronLeft, ChevronRight, File, Link, MessageSquare, Undo2, X} from 'lucide-react'
 import React, {
+  Fragment,
   PropsWithChildren,
   ReactNode,
   createContext,
@@ -141,6 +142,8 @@ export type BlocksContentContextValue = BlocksContentContextProps & {
   debug: boolean
   collapsedBlocks: Set<string>
   setCollapsedBlocks: (id: string, val: boolean) => void
+  /** Optional element to render after document content (subscribe box) */
+  inlineInsert?: React.ReactNode
 }
 
 export type BlockContentProps<BlockType extends HMBlock = HMBlock> = {
@@ -326,6 +329,7 @@ export function BlocksContentProvider({
   BlocksContentContextProps & {
     layoutUnit?: number
     textUnit?: number
+    inlineInsert?: React.ReactNode
   }
 >) {
   const {experiments, contacts, saveCidAsFile} = useUniversalAppContext()
@@ -587,7 +591,7 @@ function _BlocksContent({
   hideCollapseButtons?: boolean
   expanded?: boolean
 }) {
-  const {onBlockSelect, resourceId} = useBlocksContentContext()
+  const {onBlockSelect, resourceId, inlineInsert} = useBlocksContentContext()
 
   const createBlockClickHandler = (blockId: string) => () => {
     const windowSelection = window.getSelection()
@@ -605,29 +609,34 @@ function _BlocksContent({
 
   if (!blocks) return null
 
+  // Show inline insert (subscribe box) after all content, only at top level
+  const showInlineInsert = inlineInsert && !parentBlockId
+
   return (
     <BlockNodeList childrenType="Group" className="px-2 sm:px-2">
       {blocks?.length
         ? blocks?.map((bn, idx) => (
-            <BlockNodeContent
-              hideCollapseButtons={hideCollapseButtons}
-              parentBlockId={parentBlockId}
-              isFirstChild={idx === 0}
-              key={bn.block?.id}
-              blockNode={bn}
-              depth={1}
-              childrenType={getBlockAttribute(
-                // @ts-expect-error
-                bn.block?.attributes,
-                'childrenType',
-              )}
-              listLevel={1}
-              index={idx}
-              expanded={expanded}
-              handleBlockClick={bn.block?.id ? createBlockClickHandler(bn.block.id) : undefined}
-            />
+            <Fragment key={bn.block?.id}>
+              <BlockNodeContent
+                hideCollapseButtons={hideCollapseButtons}
+                parentBlockId={parentBlockId}
+                isFirstChild={idx === 0}
+                blockNode={bn}
+                depth={1}
+                childrenType={getBlockAttribute(
+                  // @ts-expect-error
+                  bn.block?.attributes,
+                  'childrenType',
+                )}
+                listLevel={1}
+                index={idx}
+                expanded={expanded}
+                handleBlockClick={bn.block?.id ? createBlockClickHandler(bn.block.id) : undefined}
+              />
+            </Fragment>
           ))
         : null}
+      {showInlineInsert ? inlineInsert : null}
     </BlockNodeList>
   )
 }
