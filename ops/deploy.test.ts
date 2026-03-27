@@ -1127,7 +1127,9 @@ describe('buildCrontab pruning safety', () => {
     const result = buildCrontab('', paths)
     const cleanupLine = result.split('\n').find((l) => l.includes('# seed-cleanup'))!
     expect(cleanupLine).toContain('--filter "until=1h"')
-    expect(cleanupLine).toContain('docker image prune -a -f')
+    expect(cleanupLine).toContain('docker image prune -f')
+    // Must NOT use -a flag — it would delete rollback-tagged images
+    expect(cleanupLine).not.toContain('prune -a')
   })
 })
 

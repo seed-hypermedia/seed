@@ -939,12 +939,22 @@ async function rollback(
   shell: ShellRunner,
 ): Promise<void> {
   log('Deployment failed — rolling back to previous images...')
-  for (const [name, imageId] of previousImages) {
-    log(`  Restoring ${name} to image ${imageId.slice(0, 16)}...`)
+  const tag = config.release_channel || 'latest'
+
+  // Re-tag rollback images back to the release channel tag so compose uses them.
+  for (const base of ['seedhypermedia/site', 'seedhypermedia/web']) {
+    const hasRollback = shell.runSafe(`docker image inspect ${base}:rollback >/dev/null 2>&1 && echo yes`)
+    if (hasRollback === 'yes') {
+      shell.runSafe(`docker tag ${base}:rollback ${base}:${tag}`)
+      log(`  Restored ${base}:${tag} from rollback image`)
+    }
+  }
+
+  for (const [name] of previousImages) {
     shell.runSafe(`docker stop ${name} 2>/dev/null`)
     shell.runSafe(`docker rm ${name} 2>/dev/null`)
   }
-  log('  Running docker compose up with cached images...')
+  log('  Running docker compose up with restored images...')
   const env = buildComposeEnv(config, paths)
   shell.runSafe(`${env} docker compose -f ${paths.composePath} up -d --quiet-pull 2>&1`)
   log('Rollback complete. Check container status with: docker ps')
@@ -1104,6 +1114,17 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
   }
 
   const previousImages = await getContainerImages(shell)
+
+  // Tag current images as :rollback before pulling so they survive prune and
+  // can be restored if the new images fail health checks.
+  for (const [name, imageId] of previousImages) {
+    const imageName = shell.runSafe(`docker inspect ${name} --format '{{.Config.Image}}' 2>/dev/null`)
+    if (imageName) {
+      const base = imageName.split(':')[0]
+      shell.runSafe(`docker tag ${imageId} ${base}:rollback 2>/dev/null`)
+    }
+  }
+
   const env = buildComposeEnv(config, paths)
 
   // On first compose-managed deploy, remove legacy containers that were
@@ -1166,9 +1187,16 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
   config.last_script_run = new Date().toISOString()
   await writeConfig(config, paths)
 
+  // New images are healthy — remove rollback tags so old images can be pruned.
+  for (const base of ['seedhypermedia/site', 'seedhypermedia/web']) {
+    shell.runSafe(`docker rmi ${base}:rollback 2>/dev/null`)
+  }
+
   // Prune old images immediately so disk doesn't fill up between cron runs.
+  // Uses dangling-only prune (no -a) to preserve any tagged rollback images
+  // that may exist from a failed deploy that was manually recovered.
   step('Cleaning up unused images...')
-  shell.runSafe('docker image prune -a -f --filter "until=1m" 2>/dev/null')
+  shell.runSafe('docker image prune -f --filter "until=1m" 2>/dev/null')
 
   spinner?.stop('Deployment complete!')
   log('Deployment complete.')
@@ -1212,7 +1240,7 @@ export function buildCrontab(existing: string, paths: DeployPaths, bunPath: stri
   const deployLine =
     `0 2 * * * ${bunPath} "${deployScript}" upgrade >> "${paths.deployLog}" 2>&1; ` +
     `${bunPath} "${deployScript}" deploy >> "${paths.deployLog}" 2>&1 # seed-deploy`
-  const cleanupLine = `0 0,4,8,12,16,20 * * * docker image prune -a -f --filter "until=1h" # seed-cleanup`
+  const cleanupLine = `0 0,4,8,12,16,20 * * * docker image prune -f --filter "until=1h" # seed-cleanup`
 
   const filtered = existing
     .split('\n')
