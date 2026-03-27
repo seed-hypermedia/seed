@@ -1,4 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+import {base58btc} from 'multiformats/bases/base58'
+import {decode as cborDecode} from '@ipld/dag-cbor'
 
 const storeData: Record<string, any> = {}
 
@@ -12,12 +14,17 @@ const appStoreMock = {
 const listKeysMock = vi.fn(async () => ({
   keys: [] as Array<{publicKey: string}>,
 }))
+const signDataMock = vi.fn(async () => ({
+  signature: new Uint8Array([1, 2, 3, 4]),
+}))
 const listRawEventsMock = vi.fn(async () => ({toJson: () => ({events: [] as any[]})}))
 const listResolvedEventsMock = vi.fn(async () => ({
   events: [] as any[],
   nextPageToken: '',
 }))
 const appInvalidateQueriesMock = vi.fn()
+const fetchMock = vi.fn()
+const serverAccountUid = base58btc.encode(new Uint8Array([1, 2, 3, 4, 5]))
 
 vi.mock('../app-store.mts', () => ({
   appStore: appStoreMock,
@@ -27,6 +34,7 @@ vi.mock('../app-grpc', () => ({
   grpcClient: {
     daemon: {
       listKeys: listKeysMock,
+      signData: signDataMock,
     },
     activityFeed: {
       listEvents: listRawEventsMock,
@@ -141,14 +149,20 @@ describe('app notification inbox', () => {
     vi.resetModules()
     vi.clearAllMocks()
     for (const key of Object.keys(storeData)) delete storeData[key]
+    process.env.SEED_DESKTOP_LOCAL_NOTIFICATION_FALLBACK = '1'
+    signDataMock.mockResolvedValue({signature: new Uint8Array([1, 2, 3, 4])})
     listKeysMock.mockResolvedValue({keys: []})
     listRawEventsMock.mockResolvedValue({toJson: () => ({events: []})})
     listResolvedEventsMock.mockResolvedValue({events: [], nextPageToken: ''})
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
     vi.useFakeTimers()
   })
 
   afterEach(() => {
+    delete process.env.SEED_DESKTOP_LOCAL_NOTIFICATION_FALLBACK
     vi.useRealTimers()
+    vi.unstubAllGlobals()
   })
 
   it('initializes cursor from latest event without backfilling historical items', async () => {
@@ -170,9 +184,108 @@ describe('app notification inbox', () => {
     expect(listResolvedEventsMock).not.toHaveBeenCalled()
   })
 
+  it('does not synthesize local notifications when local fallback is disabled', async () => {
+    delete process.env.SEED_DESKTOP_LOCAL_NOTIFICATION_FALLBACK
+
+    listKeysMock.mockResolvedValue({
+      keys: [{publicKey: 'account-a'}],
+    })
+    listRawEventsMock.mockResolvedValue({
+      toJson: () => ({events: [rawNewBlobEvent('latest-cid')]}),
+    })
+    listResolvedEventsMock.mockResolvedValue({
+      events: [
+        createReplyEvent({
+          eventId: 'reply-event',
+          accountUid: 'account-a',
+        }),
+      ],
+      nextPageToken: '',
+    })
+
+    const {caller, runPoll} = await loadInboxCaller()
+    await runPoll()
+
+    const inbox = await caller.getLocalInbox({accountUid: 'account-a'})
+    expect(inbox).toEqual([])
+    expect(listRawEventsMock).not.toHaveBeenCalled()
+    expect(listResolvedEventsMock).not.toHaveBeenCalled()
+  })
+
+  it('loads server notifications from json inbox responses when local fallback is disabled', async () => {
+    delete process.env.SEED_DESKTOP_LOCAL_NOTIFICATION_FALLBACK
+    storeData['NotifyServiceHost'] = 'https://notify.example'
+
+    listKeysMock.mockResolvedValue({
+      keys: [{publicKey: serverAccountUid}],
+    })
+
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({registered: true}), {
+          status: 200,
+          headers: {'Content-Type': 'application/json'},
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            accountId: serverAccountUid,
+            notifications: [
+              {
+                feedEventId: 'server-event',
+                eventAtMs: 2500,
+                reason: 'reply',
+                eventType: 'comment',
+                author: {uid: 'author-b', name: 'Other', icon: null},
+                target: {uid: 'site-b', path: ['post'], name: 'Post'},
+                commentId: 'comment-version',
+                sourceId: null,
+                citationType: null,
+              },
+            ],
+            hasMore: false,
+            oldestEventAtMs: 2500,
+          }),
+          {
+            status: 200,
+            headers: {'Content-Type': 'application/json'},
+          },
+        ),
+      )
+
+    const {caller, runPoll} = await loadInboxCaller()
+    await runPoll()
+
+    const status = await caller.getIngestStatus()
+    expect(status.lastError).toBeNull()
+    const requestedActions = fetchMock.mock.calls.map(([, init]) => {
+      const body = init?.body
+      return (cborDecode(new Uint8Array(body as ArrayBufferLike)) as {action?: string} | null)?.action
+    })
+    expect(requestedActions).toEqual(['register-inbox', 'get-notification-inbox'])
+
+    const inbox = await caller.getLocalInbox({accountUid: serverAccountUid})
+    expect(inbox).toEqual([
+      {
+        feedEventId: 'server-event',
+        eventAtMs: 2500,
+        reason: 'reply',
+        eventType: 'comment',
+        author: {uid: 'author-b', name: 'Other', icon: null},
+        target: {uid: 'site-b', path: ['post'], name: 'Post'},
+        commentId: 'comment-version',
+        sourceId: null,
+        citationType: null,
+      },
+    ])
+    expect(listRawEventsMock).not.toHaveBeenCalled()
+    expect(listResolvedEventsMock).not.toHaveBeenCalled()
+  })
+
   it('ingests and stores notifications for all local accounts in background', async () => {
     storeData['NotificationInbox-v003'] = {
-      version: 2,
+      version: 3,
       cursorEventId: 'blob-old-cursor',
       accounts: {},
       registeredAccounts: {},
@@ -232,7 +345,7 @@ describe('app notification inbox', () => {
 
   it('ingests discussion notifications for collaborator accounts', async () => {
     storeData['NotificationInbox-v003'] = {
-      version: 2,
+      version: 3,
       cursorEventId: 'blob-old-cursor',
       accounts: {},
       registeredAccounts: {},
@@ -279,7 +392,7 @@ describe('app notification inbox', () => {
 
   it('stores source document info in target field for citation notifications', async () => {
     storeData['NotificationInbox-v003'] = {
-      version: 2,
+      version: 3,
       cursorEventId: 'blob-old-cursor',
       accounts: {},
       registeredAccounts: {},
@@ -330,7 +443,7 @@ describe('app notification inbox', () => {
 
   it('preserves source path for citation of sub-document mention', async () => {
     storeData['NotificationInbox-v003'] = {
-      version: 2,
+      version: 3,
       cursorEventId: 'blob-old-cursor',
       accounts: {},
       registeredAccounts: {},
@@ -398,7 +511,7 @@ describe('app notification inbox', () => {
 
   it('keeps target as the commented document for comment events', async () => {
     storeData['NotificationInbox-v003'] = {
-      version: 2,
+      version: 3,
       cursorEventId: 'blob-old-cursor',
       accounts: {},
       registeredAccounts: {},
@@ -449,7 +562,7 @@ describe('app notification inbox', () => {
 
   it('does not duplicate discussion notifications when citation mirror event exists', async () => {
     storeData['NotificationInbox-v003'] = {
-      version: 2,
+      version: 3,
       cursorEventId: 'blob-old-cursor',
       accounts: {},
       registeredAccounts: {},

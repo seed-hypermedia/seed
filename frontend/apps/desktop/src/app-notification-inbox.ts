@@ -22,6 +22,7 @@ const NOTIFICATION_MAX_SCAN_PAGES = 40
 const NOTIFICATION_MAX_ITEMS_PER_ACCOUNT = 600
 const SERVER_FETCH_MAX_PAGES = 5
 const NOTIFY_SERVICE_HOST_KEY = 'NotifyServiceHost'
+const ENABLE_LOCAL_ACTIVITY_NOTIFICATIONS = process.env.SEED_DESKTOP_LOCAL_NOTIFICATION_FALLBACK === '1'
 
 type AccountNotificationInbox = {
   items: NotificationPayload[]
@@ -29,7 +30,7 @@ type AccountNotificationInbox = {
 }
 
 type NotificationInboxStore = {
-  version: 2
+  version: 3
   cursorEventId: string | null
   accounts: Record<string, AccountNotificationInbox>
   registeredAccounts: Record<string, number> // accountUid -> registeredAtMs
@@ -48,7 +49,7 @@ type NotificationIngestStatus = {
 
 function createEmptyStore(): NotificationInboxStore {
   return {
-    version: 2,
+    version: 3,
     cursorEventId: null,
     accounts: {},
     registeredAccounts: {},
@@ -60,7 +61,7 @@ function createEmptyStore(): NotificationInboxStore {
 
 function loadStore(): NotificationInboxStore {
   const raw = appStore.get(NOTIFICATION_INBOX_STORE_KEY) as NotificationInboxStore | undefined
-  if (raw?.version === 2 && raw.accounts && typeof raw.accounts === 'object' && 'cursorEventId' in raw) {
+  if (raw?.version === 3 && raw.accounts && typeof raw.accounts === 'object' && 'cursorEventId' in raw) {
     return raw
   }
   return createEmptyStore()
@@ -143,9 +144,10 @@ async function listLocalAccountUids(): Promise<string[]> {
 // --- Signed server requests ---
 
 async function signedNotificationInboxPost(accountUid: string, host: string, payload: Record<string, unknown>) {
+  const sanitizedPayload = Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
   const signerPublicKey = new Uint8Array(base58btc.decode(accountUid))
   const unsigned = {
-    ...payload,
+    ...sanitizedPayload,
     signer: signerPublicKey,
     time: getNowMs(),
   }
@@ -170,6 +172,11 @@ async function signedNotificationInboxPost(accountUid: string, host: string, pay
   if (!response.ok) {
     const text = await response.text().catch(() => '')
     throw new Error(`Notification inbox request failed: ${response.status} ${text}`)
+  }
+
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    return response.json()
   }
 
   const responseBuffer = await response.arrayBuffer()
@@ -504,51 +511,50 @@ export async function runNotificationIngestPoll() {
       }
     }
 
-    // Generate local notifications from activity feed
-    const latestEventId = await fetchLatestEventId()
     let localEventsByAccount = new Map<string, NotificationPayload[]>()
-
-    if (latestEventId) {
-      if (!store.cursorEventId) {
-        store = {
-          ...store,
-          cursorEventId: latestEventId,
-        }
-        writeStore()
-        log.info('Initialized notification inbox cursor', {
-          cursorEventId: latestEventId,
-          accountCount: accountUids.length,
-        })
-      } else if (latestEventId !== store.cursorEventId) {
-        const previousCursor = store.cursorEventId
-        const loaded = await loadEventsAfterCursor({
-          cursorEventId: previousCursor,
-          currentAccount,
-        })
-
-        // Classify local events for each account
-        for (const accountUid of accountUids) {
-          const payloads = classifyAndConvertLocalEvents(loaded.events, accountUid)
-          if (payloads.length > 0) {
-            localEventsByAccount.set(accountUid, payloads)
-          }
-        }
-
-        // Always advance cursor
-        if (loaded.newestEventId) {
+    if (ENABLE_LOCAL_ACTIVITY_NOTIFICATIONS) {
+      // Optional local fallback while server-backed inbox is being debugged.
+      const latestEventId = await fetchLatestEventId()
+      if (latestEventId) {
+        if (!store.cursorEventId) {
           store = {
             ...store,
-            cursorEventId: loaded.newestEventId,
+            cursorEventId: latestEventId,
           }
           writeStore()
-        }
-
-        if (!loaded.foundCursor) {
-          log.warn('Notification inbox cursor was not found in activity feed scan', {
-            previousCursor,
-            newestEventId: loaded.newestEventId,
-            processedEvents: loaded.events.length,
+          log.info('Initialized notification inbox cursor', {
+            cursorEventId: latestEventId,
+            accountCount: accountUids.length,
           })
+        } else if (latestEventId !== store.cursorEventId) {
+          const previousCursor = store.cursorEventId
+          const loaded = await loadEventsAfterCursor({
+            cursorEventId: previousCursor,
+            currentAccount,
+          })
+
+          for (const accountUid of accountUids) {
+            const payloads = classifyAndConvertLocalEvents(loaded.events, accountUid)
+            if (payloads.length > 0) {
+              localEventsByAccount.set(accountUid, payloads)
+            }
+          }
+
+          if (loaded.newestEventId) {
+            store = {
+              ...store,
+              cursorEventId: loaded.newestEventId,
+            }
+            writeStore()
+          }
+
+          if (!loaded.foundCursor) {
+            log.warn('Notification inbox cursor was not found in activity feed scan', {
+              previousCursor,
+              newestEventId: loaded.newestEventId,
+              processedEvents: loaded.events.length,
+            })
+          }
         }
       }
     }
@@ -600,6 +606,7 @@ export async function runNotificationIngestPoll() {
       serverAvailable: Boolean(host),
       changedAccounts: changedAccounts.length,
       serverFetched: serverNotifsByAccount.size,
+      localFallbackEnabled: ENABLE_LOCAL_ACTIVITY_NOTIFICATIONS,
       localGenerated: localEventsByAccount.size,
     })
   } catch (error: any) {

@@ -89,6 +89,7 @@ let stmtGetNotificationReadState: Database.Statement
 let stmtUpsertNotificationReadState: Database.Statement
 let stmtGetNotificationReadEvents: Database.Statement
 let stmtUpsertNotificationReadEvent: Database.Statement
+let stmtDeleteNotificationReadEventsForAccount: Database.Statement
 let stmtPruneNotificationReadEvents: Database.Statement
 let stmtInsertNotification: Database.Statement
 let stmtGetNotificationsPage: Database.Statement
@@ -447,6 +448,10 @@ export async function initDatabase(): Promise<void> {
         ELSE notification_read_events.eventAtMs
       END
   `)
+  stmtDeleteNotificationReadEventsForAccount = db.prepare(`
+    DELETE FROM notification_read_events
+    WHERE accountId = ?
+  `)
   stmtPruneNotificationReadEvents = db.prepare(`
     DELETE FROM notification_read_events
     WHERE accountId = ? AND eventAtMs <= ?
@@ -784,10 +789,19 @@ export function mergeNotificationReadState(
     }))
 
   const transaction = db.transaction(() => {
+    const current = stmtGetNotificationReadState.get(accountId) as DBNotificationReadStateRow | undefined
+    const currentStateUpdatedAtMs = current?.stateUpdatedAtMs ?? Number.NEGATIVE_INFINITY
+
     stmtUpsertNotificationReadState.run(accountId, snapshot.markAllReadAtMs, snapshot.stateUpdatedAtMs)
 
-    for (const evt of normalizedReadEvents) {
-      stmtUpsertNotificationReadEvent.run(accountId, evt.eventId, evt.eventAtMs)
+    if (snapshot.stateUpdatedAtMs > currentStateUpdatedAtMs) {
+      stmtDeleteNotificationReadEventsForAccount.run(accountId)
+    }
+
+    if (snapshot.stateUpdatedAtMs >= currentStateUpdatedAtMs) {
+      for (const evt of normalizedReadEvents) {
+        stmtUpsertNotificationReadEvent.run(accountId, evt.eventId, evt.eventAtMs)
+      }
     }
 
     const merged = stmtGetNotificationReadState.get(accountId) as DBNotificationReadStateRow | undefined

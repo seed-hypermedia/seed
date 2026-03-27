@@ -1,4 +1,5 @@
 import {base58btc} from 'multiformats/bases/base58'
+import {decode as cborDecode} from '@ipld/dag-cbor'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
@@ -158,8 +159,8 @@ describe('app notification read state', () => {
     expect(firstSync.dirty).toBe(false)
 
     const stateAfterFirstSync = await caller.getLocalState(accountUid)
-    expect(stateAfterFirstSync.markAllReadAtMs).toBe(1200)
-    // Only local-event survives; remote-event was skipped by LWW
+    expect(stateAfterFirstSync.markAllReadAtMs).toBe(1000)
+    // Only local-event survives; the stale remote watermark and remote-event were skipped by LWW.
     expect(stateAfterFirstSync.readEvents).toEqual([{eventId: 'local-event', eventAtMs: 1300}])
 
     // Second sync is idempotent
@@ -227,6 +228,46 @@ describe('app notification read state', () => {
     expect(state.readEvents).toEqual([{eventId: 'remote-event', eventAtMs: 1400}])
     expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.NOTIFICATION_READ_STATE, accountUid])
     expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.NOTIFICATION_SYNC_STATUS, accountUid])
+  })
+
+  it('drops stale local readEvents when the remote snapshot is newer', async () => {
+    const caller = await loadCaller()
+
+    vi.setSystemTime(new Date(100))
+    await caller.getLocalState(accountUid)
+
+    vi.setSystemTime(new Date(110))
+    await caller.markEventRead({
+      accountUid,
+      eventId: 'stale-local-event',
+      eventAtMs: 1400,
+    })
+
+    fetchMock
+      .mockImplementationOnce(() =>
+        jsonResponse({
+          accountId: accountUid,
+          markAllReadAtMs: 1000,
+          stateUpdatedAtMs: 300,
+          readEvents: [],
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        }),
+      )
+      .mockImplementationOnce(() =>
+        jsonResponse({
+          accountId: accountUid,
+          markAllReadAtMs: 1000,
+          stateUpdatedAtMs: 300,
+          readEvents: [],
+          updatedAt: '2026-01-01T00:00:01.000Z',
+        }),
+      )
+
+    await caller.syncNow({accountUid, notifyServiceHost: 'https://notify.example'})
+
+    const state = await caller.getLocalState(accountUid)
+    expect(state.markAllReadAtMs).toBe(1000)
+    expect(state.readEvents).toEqual([])
   })
 
   it('invalidates read-state only when read-state data changes', async () => {
@@ -488,6 +529,83 @@ describe('app notification read state', () => {
     expect(afterSync2.markAllReadAtMs).toBe(1999)
     // A must still be unread — sync must not re-add it
     expect(afterSync2.readEvents).toEqual([])
+  })
+
+  it('mark-unread posts a strictly newer lowered watermark even at the same millisecond', async () => {
+    const caller = await loadCaller()
+
+    vi.setSystemTime(new Date(100))
+    await caller.markAllRead({accountUid, markAllReadAtMs: 5000})
+
+    fetchMock
+      .mockImplementationOnce(() =>
+        jsonResponse({
+          accountId: accountUid,
+          markAllReadAtMs: 5000,
+          stateUpdatedAtMs: 100,
+          readEvents: [],
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        }),
+      )
+      .mockImplementationOnce(() =>
+        jsonResponse({
+          accountId: accountUid,
+          markAllReadAtMs: 5000,
+          stateUpdatedAtMs: 100,
+          readEvents: [],
+          updatedAt: '2026-01-01T00:00:01.000Z',
+        }),
+      )
+    await caller.syncNow({accountUid, notifyServiceHost: 'https://notify.example'})
+
+    // Keep the clock pinned so the unread mutation would tie without a monotonic bump.
+    vi.setSystemTime(new Date(100))
+    await caller.markEventUnread({
+      accountUid,
+      eventId: 'B',
+      eventAtMs: 2000,
+      otherLoadedEvents: [
+        {eventId: 'A', eventAtMs: 3000},
+        {eventId: 'B', eventAtMs: 2000},
+      ],
+    })
+
+    fetchMock.mockReset()
+    fetchMock
+      .mockImplementationOnce(() =>
+        jsonResponse({
+          accountId: accountUid,
+          markAllReadAtMs: 5000,
+          stateUpdatedAtMs: 100,
+          readEvents: [],
+          updatedAt: '2026-01-01T00:00:02.000Z',
+        }),
+      )
+      .mockImplementationOnce(() =>
+        jsonResponse({
+          accountId: accountUid,
+          markAllReadAtMs: 1999,
+          stateUpdatedAtMs: 102,
+          readEvents: [{eventId: 'A', eventAtMs: 3000}],
+          updatedAt: '2026-01-01T00:00:03.000Z',
+        }),
+      )
+    await caller.syncNow({accountUid, notifyServiceHost: 'https://notify.example'})
+
+    const mergeRequest = cborDecode(new Uint8Array(fetchMock.mock.calls[1]![1]!.body as ArrayBufferLike)) as {
+      action: string
+      markAllReadAtMs: number | null
+      stateUpdatedAtMs: number
+      readEvents: Array<{eventId: string; eventAtMs: number}>
+    }
+    expect(mergeRequest.action).toBe('merge-notification-read-state')
+    expect(mergeRequest.markAllReadAtMs).toBe(1999)
+    expect(mergeRequest.stateUpdatedAtMs).toBeGreaterThan(101)
+    expect(mergeRequest.readEvents).toEqual([{eventId: 'A', eventAtMs: 3000}])
+
+    const afterSync = await caller.getLocalState(accountUid)
+    expect(afterSync.markAllReadAtMs).toBe(1999)
+    expect(afterSync.readEvents).toEqual([{eventId: 'A', eventAtMs: 3000}])
   })
 
   it('mark-unread during in-flight sync: stale POST does not pollute next sync', async () => {

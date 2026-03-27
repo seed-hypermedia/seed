@@ -202,6 +202,10 @@ function maxNullable(a: number | null, b: number | null): number | null {
   return Math.max(a, b)
 }
 
+function getNextLocalStateUpdatedAtMs(current: AccountNotificationReadState) {
+  return Math.max(getNowMs(), current.stateUpdatedAtMs + 1)
+}
+
 function getOrCreateAccountState(accountUid: string): AccountNotificationReadState {
   let state = store.accounts[accountUid]
   if (state) return state
@@ -331,18 +335,26 @@ function mergeLocalAndRemoteState(
   local: AccountNotificationReadState,
   remote: NotificationReadStateResponse,
 ): {markAllReadAtMs: number | null; stateUpdatedAtMs: number; readEvents: NotificationReadEvent[]} {
-  // LWW: most recent stateUpdatedAtMs wins; tie falls back to max watermark
+  const remoteEvents = Array.isArray(remote?.readEvents) ? remote.readEvents : []
+
+  // A strictly newer remote snapshot is authoritative, including deletions.
+  if (remote.stateUpdatedAtMs > local.stateUpdatedAtMs) {
+    const prunedRemoteReadEvents = pruneReadEvents(readEventsListToMap(remoteEvents), remote.markAllReadAtMs)
+    return {
+      markAllReadAtMs: remote.markAllReadAtMs,
+      stateUpdatedAtMs: remote.stateUpdatedAtMs,
+      readEvents: readEventsMapToList(prunedRemoteReadEvents),
+    }
+  }
+
+  // LWW: most recent stateUpdatedAtMs wins; tie falls back to max watermark.
   let mergedMarkAllReadAtMs: number | null
   if (local.stateUpdatedAtMs > remote.stateUpdatedAtMs) {
     mergedMarkAllReadAtMs = local.markAllReadAtMs
-  } else if (remote.stateUpdatedAtMs > local.stateUpdatedAtMs) {
-    mergedMarkAllReadAtMs = remote.markAllReadAtMs
   } else {
     mergedMarkAllReadAtMs = maxNullable(local.markAllReadAtMs, remote.markAllReadAtMs)
   }
   const mergedWatermarkUpdatedAtMs = Math.max(local.stateUpdatedAtMs, remote.stateUpdatedAtMs)
-
-  const remoteEvents = Array.isArray(remote?.readEvents) ? remote.readEvents : []
 
   // Start with local readEvents as base (reflects user's latest intent)
   const mergedReadEventsMap = {...local.readEvents}
@@ -593,13 +605,14 @@ function markEventRead(input: {accountUid: string; eventId: string; eventAtMs: n
       return current
     }
     const nextEventAtMs = currentEventAtMs === undefined ? eventAtMs : Math.max(currentEventAtMs, eventAtMs)
+    const nextStateUpdatedAtMs = getNextLocalStateUpdatedAtMs(current)
     return {
       ...current,
       readEvents: {
         ...current.readEvents,
         [input.eventId]: nextEventAtMs,
       },
-      stateUpdatedAtMs: getNowMs(),
+      stateUpdatedAtMs: nextStateUpdatedAtMs,
       dirty: true,
       lastSyncError: null,
     }
@@ -628,13 +641,20 @@ function markEventUnread(input: {
   const previousState = snapshotAccountState(input.accountUid)
   const nextState = updateAccountState(input.accountUid, (current) => {
     const targetAtMs = Math.max(0, Math.floor(input.eventAtMs))
+    const nextStateUpdatedAtMs = getNextLocalStateUpdatedAtMs(current)
     // If event is individually read (not covered by watermark), just remove it
     if (current.markAllReadAtMs === null || targetAtMs > current.markAllReadAtMs) {
       if (!(input.eventId in current.readEvents)) {
         return current
       }
       const {[input.eventId]: _, ...restReadEvents} = current.readEvents
-      return {...current, readEvents: restReadEvents, stateUpdatedAtMs: getNowMs(), dirty: true, lastSyncError: null}
+      return {
+        ...current,
+        readEvents: restReadEvents,
+        stateUpdatedAtMs: nextStateUpdatedAtMs,
+        dirty: true,
+        lastSyncError: null,
+      }
     }
     // Event is covered by watermark — lower watermark and mark other events individually
     const newWatermark = targetAtMs - 1
@@ -652,7 +672,7 @@ function markEventUnread(input: {
       ...current,
       markAllReadAtMs: newWatermark,
       readEvents: newReadEvents,
-      stateUpdatedAtMs: getNowMs(),
+      stateUpdatedAtMs: nextStateUpdatedAtMs,
       dirty: true,
       lastSyncError: null,
     }
@@ -676,6 +696,7 @@ function markAllRead(input: {accountUid: string; markAllReadAtMs: number}): Acco
   const previousState = snapshotAccountState(input.accountUid)
   const nextState = updateAccountState(input.accountUid, (current) => {
     const nowMs = getNowMs()
+    const nextStateUpdatedAtMs = getNextLocalStateUpdatedAtMs(current)
     const nextMarkAllReadAtMs = Math.max(current.markAllReadAtMs ?? 0, Math.floor(input.markAllReadAtMs || 0), nowMs)
     const nextReadEvents = pruneReadEvents(current.readEvents, nextMarkAllReadAtMs)
     if (
@@ -689,7 +710,7 @@ function markAllRead(input: {accountUid: string; markAllReadAtMs: number}): Acco
     return {
       ...current,
       markAllReadAtMs: nextMarkAllReadAtMs,
-      stateUpdatedAtMs: nowMs,
+      stateUpdatedAtMs: nextStateUpdatedAtMs,
       readEvents: nextReadEvents,
       dirty: true,
       lastSyncError: null,

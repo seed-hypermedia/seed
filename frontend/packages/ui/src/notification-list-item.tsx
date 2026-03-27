@@ -15,7 +15,7 @@ import {Check} from 'lucide-react'
 export type NotificationListItemProps = {
   item: NotificationPayload
   isRead: boolean
-  onOpen: () => Promise<void>
+  onOpen: () => void | Promise<void>
   onToggleRead: () => void
 }
 
@@ -32,38 +32,36 @@ export function NotificationListItem({item, isRead, onOpen, onToggleRead}: Notif
   const targetName = target.data?.type === 'document' ? getDocumentTitle(target.data.document) || undefined : undefined
 
   return (
-    <button
-      className="group hover:bg-muted/40 flex w-full items-center gap-3 p-4 text-left"
-      onClick={() => void onOpen()}
-    >
-      <div className="pt-0.5">
-        {authorId ? (
-          <HMIcon size={24} id={authorId} name={authorName} icon={authorIcon} />
-        ) : (
-          <div className="bg-muted h-6 w-6 rounded-full" />
-        )}
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex items-center gap-2">
-          {!isRead ? <span className="bg-brand inline-block h-2 w-2 rounded-full" /> : null}
-          <p className="truncate text-sm">{notificationTitle(item, {authorName, targetName})}</p>
+    <div className="group hover:bg-muted/40 flex w-full items-center gap-3 p-4 text-left">
+      <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => void onOpen()}>
+        <div className="pt-0.5">
+          {authorId ? (
+            <HMIcon size={24} id={authorId} name={authorName} icon={authorIcon} />
+          ) : (
+            <div className="bg-muted h-6 w-6 rounded-full" />
+          )}
         </div>
-        <p className="text-muted-foreground text-xs">{formattedDateShort(new Date(item.eventAtMs))}</p>
-      </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex items-center gap-2">
+            {!isRead ? <span className="bg-brand inline-block h-2 w-2 rounded-full" /> : null}
+            <p className="truncate text-sm">{notificationTitle(item, {authorName, targetName})}</p>
+          </div>
+          <p className="text-muted-foreground text-xs">{formattedDateShort(new Date(item.eventAtMs))}</p>
+        </div>
+      </button>
       <Tooltip content={isRead ? 'Mark as unread' : 'Mark as read'}>
         <Button
+          type="button"
           variant="ghost"
           size="icon"
-          className="h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-          onClick={(e) => {
-            e.stopPropagation()
-            e.preventDefault()
+          className="h-7 w-7 shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+          onClick={() => {
             onToggleRead()
           }}
         >
           <Check size={16} className={isRead ? 'text-brand' : 'text-muted-foreground'} />
         </Button>
       </Tooltip>
-    </button>
+    </div>
   )
 }
