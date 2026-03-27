@@ -31,18 +31,27 @@ export type NotificationReadState = {
 export type NotificationSigner = {
   publicKey: Uint8Array
   sign: (data: Uint8Array) => Promise<Uint8Array>
+  /** When the signing key differs from the account (e.g. web delegation), set the account UID here. */
+  accountUid?: string
 }
 
 function normalizeHost(host: string) {
   return host.replace(/\/$/, '')
 }
 
+/** Returns the account UID: explicit accountUid if set, otherwise derived from the signing key. */
 function accountIdFromSigner(signer: NotificationSigner | undefined) {
-  return signer ? base58btc.encode(signer.publicKey) : undefined
+  if (!signer) return undefined
+  return signer.accountUid ?? base58btc.encode(signer.publicKey)
 }
 
 async function signedNotifPost(host: string, path: string, signer: NotificationSigner, payload: Record<string, any>) {
-  const unsigned = {...payload, signer: signer.publicKey, time: Date.now()}
+  const unsigned = {
+    ...payload,
+    signer: signer.publicKey,
+    time: Date.now(),
+    ...(signer.accountUid ? {accountUid: signer.accountUid} : {}),
+  }
   const encoded = cborEncode(unsigned)
   const sig = new Uint8Array(await signer.sign(encoded))
   const body = new Uint8Array(cborEncode({...unsigned, sig}))
@@ -182,6 +191,7 @@ export function useMergeNotificationReadState(
       return signedNotifPost(notifyServiceHost, '/hm/api/notification-read-state', signer, {
         action: 'merge-notification-read-state',
         markAllReadAtMs: input.markAllReadAtMs,
+        stateUpdatedAtMs: Date.now(),
         readEvents: input.readEvents,
       })
     },
@@ -205,6 +215,7 @@ export async function mergeNotificationReadState(
   return signedNotifPost(notifyServiceHost, '/hm/api/notification-read-state', signer, {
     action: 'merge-notification-read-state',
     markAllReadAtMs: input.markAllReadAtMs,
+    stateUpdatedAtMs: Date.now(),
     readEvents: input.readEvents,
   }) as Promise<NotificationReadState>
 }

@@ -20,10 +20,12 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {useMutation} from '@tanstack/react-query'
 import {useEffect, useState} from 'react'
 import {preparePublicKey} from './auth-utils'
-import {useLocalKeyPair, type LocalWebIdentity} from './auth'
+import {useLocalKeyPair} from './auth'
 
-/** Hardcoded notification server for local development. */
-const WEB_NOTIFY_SERVICE_HOST = 'http://localhost:3060'
+function useWebNotifyServiceHost() {
+  const keyPair = useLocalKeyPair()
+  return keyPair?.notifyServerUrl
+}
 
 /**
  * Builds a NotificationSigner from the web's local CryptoKeyPair.
@@ -54,6 +56,9 @@ function useWebNotificationSigner(): NotificationSigner | undefined {
             )
             return new Uint8Array(sig)
           },
+          // When the local signing key differs from the account (delegation),
+          // tell the server which account we're acting on behalf of.
+          accountUid: keyPair.delegatedAccountUid || undefined,
         })
       })
       .catch((err) => {
@@ -63,7 +68,7 @@ function useWebNotificationSigner(): NotificationSigner | undefined {
     return () => {
       cancelled = true
     }
-  }, [keyPair?.id])
+  }, [keyPair?.delegatedAccountUid, keyPair?.id])
 
   return signer
 }
@@ -78,22 +83,25 @@ export function useWebAccountUid(): string | undefined {
 
 /** Fetches the notification inbox from the server. */
 export function useWebNotificationInbox() {
+  const notifyServiceHost = useWebNotifyServiceHost()
   const signer = useWebNotificationSigner()
-  return useSharedNotificationInbox(WEB_NOTIFY_SERVICE_HOST, signer)
+  return useSharedNotificationInbox(notifyServiceHost, signer)
 }
 
 // -- Read state ---------------------------------------------------------------
 
 /** Fetches the notification read state from the server. */
 export function useWebNotificationReadState() {
+  const notifyServiceHost = useWebNotifyServiceHost()
   const signer = useWebNotificationSigner()
-  return useSharedNotificationReadState(WEB_NOTIFY_SERVICE_HOST, signer)
+  return useSharedNotificationReadState(notifyServiceHost, signer)
 }
 
 /** Marks a single notification event as read (merges into server state). */
 export function useWebMarkNotificationEventRead() {
+  const notifyServiceHost = useWebNotifyServiceHost()
   const signer = useWebNotificationSigner()
-  const merge = useMergeNotificationReadState(WEB_NOTIFY_SERVICE_HOST, signer)
+  const merge = useMergeNotificationReadState(notifyServiceHost, signer)
 
   return useMutation({
     mutationFn: async (input: {accountUid: string; eventId: string; eventAtMs: number}) => {
@@ -110,9 +118,10 @@ export function useWebMarkNotificationEventRead() {
 
 /** Marks a single notification event as unread by merging without that event. */
 export function useWebMarkNotificationEventUnread() {
+  const notifyServiceHost = useWebNotifyServiceHost()
   const signer = useWebNotificationSigner()
   const readState = useWebNotificationReadState()
-  const merge = useMergeNotificationReadState(WEB_NOTIFY_SERVICE_HOST, signer)
+  const merge = useMergeNotificationReadState(notifyServiceHost, signer)
 
   return useMutation({
     mutationFn: async (input: {
@@ -138,8 +147,9 @@ export function useWebMarkNotificationEventUnread() {
 
 /** Marks all loaded notifications as read using the watermark approach. */
 export function useWebMarkAllNotificationsRead() {
+  const notifyServiceHost = useWebNotifyServiceHost()
   const signer = useWebNotificationSigner()
-  const merge = useMergeNotificationReadState(WEB_NOTIFY_SERVICE_HOST, signer)
+  const merge = useMergeNotificationReadState(notifyServiceHost, signer)
 
   return useMutation({
     mutationFn: async (input: {accountUid: string; markAllReadAtMs: number}) => {
@@ -158,24 +168,28 @@ export function useWebMarkAllNotificationsRead() {
 
 /** Gets the notification email configuration. */
 export function useWebNotificationConfig() {
+  const notifyServiceHost = useWebNotifyServiceHost()
   const signer = useWebNotificationSigner()
-  return useSharedNotificationConfig(WEB_NOTIFY_SERVICE_HOST, signer)
+  return useSharedNotificationConfig(notifyServiceHost, signer)
 }
 
 /** Sets the notification email configuration. */
 export function useWebSetNotificationConfig() {
+  const notifyServiceHost = useWebNotifyServiceHost()
   const signer = useWebNotificationSigner()
-  return useSharedSetNotificationConfig(WEB_NOTIFY_SERVICE_HOST, signer)
+  return useSharedSetNotificationConfig(notifyServiceHost, signer)
 }
 
 /** Resends the notification config verification email. */
 export function useWebResendNotificationConfigVerification() {
+  const notifyServiceHost = useWebNotifyServiceHost()
   const signer = useWebNotificationSigner()
-  return useSharedResendVerification(WEB_NOTIFY_SERVICE_HOST, signer)
+  return useSharedResendVerification(notifyServiceHost, signer)
 }
 
 /** Removes the notification email configuration. */
 export function useWebRemoveNotificationConfig() {
+  const notifyServiceHost = useWebNotifyServiceHost()
   const signer = useWebNotificationSigner()
-  return useSharedRemoveNotificationConfig(WEB_NOTIFY_SERVICE_HOST, signer)
+  return useSharedRemoveNotificationConfig(notifyServiceHost, signer)
 }

@@ -129,19 +129,24 @@ export function getMaxLoadedNotificationEventAtMs(notifications: NotificationPay
 }
 
 /**
- * Marks a notification as read before navigating to its target route.
+ * Navigates to a notification target immediately and marks it read in the background.
  */
-export async function markNotificationReadAndNavigate(input: {
+export function markNotificationReadAndNavigate(input: {
   accountUid: string
   item: NotificationPayload
   markEventRead: (params: {accountUid: string; eventId: string; eventAtMs: number}) => Promise<void>
   navigate: (route: NavRoute) => void
 }) {
-  await input.markEventRead({
-    accountUid: input.accountUid,
-    eventId: input.item.feedEventId,
-    eventAtMs: input.item.eventAtMs,
-  })
   const route = notificationRouteForPayload(input.item)
   if (route) input.navigate(route)
+
+  void input
+    .markEventRead({
+      accountUid: input.accountUid,
+      eventId: input.item.feedEventId,
+      eventAtMs: input.item.eventAtMs,
+    })
+    .catch((error) => {
+      console.error('[markNotificationReadAndNavigate] Failed to mark notification as read', error)
+    })
 }
