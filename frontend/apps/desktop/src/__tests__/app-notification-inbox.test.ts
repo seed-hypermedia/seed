@@ -1,6 +1,6 @@
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {base58btc} from 'multiformats/bases/base58'
 import {decode as cborDecode} from '@ipld/dag-cbor'
+import {base58btc} from 'multiformats/bases/base58'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 const storeData: Record<string, any> = {}
 
@@ -11,20 +11,9 @@ const appStoreMock = {
   }),
 }
 
-const listKeysMock = vi.fn(async () => ({
-  keys: [] as Array<{publicKey: string}>,
-}))
 const signDataMock = vi.fn(async () => ({
   signature: new Uint8Array([1, 2, 3, 4]),
 }))
-const listRawEventsMock = vi.fn(async () => ({toJson: () => ({events: [] as any[]})}))
-const listResolvedEventsMock = vi.fn(async () => ({
-  events: [] as any[],
-  nextPageToken: '',
-}))
-const appInvalidateQueriesMock = vi.fn()
-const fetchMock = vi.fn()
-const serverAccountUid = base58btc.encode(new Uint8Array([1, 2, 3, 4, 5]))
 
 vi.mock('../app-store.mts', () => ({
   appStore: appStoreMock,
@@ -33,23 +22,13 @@ vi.mock('../app-store.mts', () => ({
 vi.mock('../app-grpc', () => ({
   grpcClient: {
     daemon: {
-      listKeys: listKeysMock,
       signData: signDataMock,
     },
-    activityFeed: {
-      listEvents: listRawEventsMock,
-    },
-  },
-}))
-
-vi.mock('@shm/shared/api-activity', () => ({
-  ListEvents: {
-    getData: listResolvedEventsMock,
   },
 }))
 
 vi.mock('../app-invalidation', () => ({
-  appInvalidateQueries: appInvalidateQueriesMock,
+  appInvalidateQueries: vi.fn(),
 }))
 
 vi.mock('../logger', () => ({
@@ -59,556 +38,111 @@ vi.mock('../logger', () => ({
   debug: vi.fn(),
 }))
 
-function rawNewBlobEvent(cid: string) {
-  return {
-    newBlob: {cid},
-    account: '',
-    eventTime: null,
-    observeTime: null,
-  } as any
+function jsonResponse(body: any, status = 200) {
+  return Promise.resolve(
+    new Response(JSON.stringify(body), {
+      status,
+      headers: {'Content-Type': 'application/json'},
+    }),
+  )
 }
 
-function createCitationMentionEvent(input: {eventId: string; accountUid: string}) {
+async function loadCallers() {
+  const readMod = await import('../app-notification-read-state')
+  const inboxMod = await import('../app-notification-inbox')
   return {
-    type: 'citation',
-    id: input.eventId,
-    feedEventId: input.eventId,
-    eventAtMs: 2000,
-    time: '2026-02-17T00:00:00.000Z',
-    author: {id: {uid: 'author-a', path: null}, metadata: {name: 'Author'}},
-    source: {id: {uid: 'site-a', path: ['doc']}, metadata: {name: 'Doc'}},
-    target: {
-      id: {uid: input.accountUid, path: null},
-      metadata: {name: 'Target'},
-    },
-    citationType: 'd',
-    comment: null,
-    replyCount: 0,
-  } as any
-}
-
-function createReplyEvent(input: {eventId: string; accountUid: string}) {
-  return {
-    type: 'comment',
-    id: input.eventId,
-    feedEventId: input.eventId,
-    eventAtMs: 2500,
-    time: '2026-02-17T00:00:01.000Z',
-    author: {id: {uid: 'author-b', path: null}, metadata: {name: 'Other'}},
-    replyParentAuthor: {
-      id: {uid: input.accountUid, path: null},
-      metadata: {name: 'Target'},
-    },
-    comment: {id: 'comment-version'},
-    target: {id: {uid: 'site-b', path: ['post']}, metadata: {name: 'Post'}},
-  } as any
-}
-
-function createCollaboratorDiscussionEvent(input: {eventId: string; collaboratorUid: string}) {
-  return {
-    type: 'comment',
-    id: input.eventId,
-    feedEventId: input.eventId,
-    eventAtMs: 2600,
-    time: '2026-02-17T00:00:01.500Z',
-    author: {id: {uid: 'author-c', path: null}, metadata: {name: 'Commenter'}},
-    replyParentAuthor: null,
-    comment: {id: 'collab-comment-version', threadRoot: undefined},
-    target: {id: {uid: 'site-owner', path: ['shared-doc']}, metadata: {name: 'Shared Doc'}},
-    targetAuthorUids: ['site-owner', input.collaboratorUid],
-  } as any
-}
-
-function createCitationDiscussionEvent(input: {eventId: string; collaboratorUid: string}) {
-  return {
-    type: 'citation',
-    id: input.eventId,
-    feedEventId: input.eventId,
-    eventAtMs: 2601,
-    time: '2026-02-17T00:00:01.600Z',
-    author: {id: {uid: 'author-c', path: null}, metadata: {name: 'Commenter'}},
-    source: {id: {uid: 'site-owner', path: ['shared-doc']}, metadata: {name: 'Shared Doc'}},
-    target: {id: {uid: 'site-owner', path: ['shared-doc']}, metadata: {name: 'Shared Doc'}},
-    citationType: 'c',
-    targetAuthorUids: ['site-owner', input.collaboratorUid],
-    comment: {id: 'collab-comment-version', threadRoot: undefined},
-    replyCount: 0,
-  } as any
-}
-
-async function loadInboxCaller() {
-  const mod = await import('../app-notification-inbox')
-  return {
-    caller: mod.notificationInboxApi.createCaller({}),
-    runPoll: mod.runNotificationIngestPoll,
+    read: readMod.notificationReadApi.createCaller({}),
+    inbox: inboxMod.notificationInboxApi.createCaller({}),
   }
 }
 
 describe('app notification inbox', () => {
+  const accountUid = base58btc.encode(new Uint8Array([1, 2, 3, 4, 5]))
+  const fetchMock = vi.fn()
+
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
     for (const key of Object.keys(storeData)) delete storeData[key]
-    process.env.SEED_DESKTOP_LOCAL_NOTIFICATION_FALLBACK = '1'
     signDataMock.mockResolvedValue({signature: new Uint8Array([1, 2, 3, 4])})
-    listKeysMock.mockResolvedValue({keys: []})
-    listRawEventsMock.mockResolvedValue({toJson: () => ({events: []})})
-    listResolvedEventsMock.mockResolvedValue({events: [], nextPageToken: ''})
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
-    vi.useFakeTimers()
   })
 
   afterEach(() => {
-    delete process.env.SEED_DESKTOP_LOCAL_NOTIFICATION_FALLBACK
-    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
 
-  it('initializes cursor from latest event without backfilling historical items', async () => {
-    listKeysMock.mockResolvedValue({
-      keys: [{publicKey: 'account-a'}],
-    })
-    listRawEventsMock.mockResolvedValue({
-      toJson: () => ({events: [rawNewBlobEvent('latest-cid')]}),
-    })
+  it('loads the inbox from the canonical notification state endpoint', async () => {
+    const {read, inbox} = await loadCallers()
 
-    const {caller, runPoll} = await loadInboxCaller()
-    await runPoll()
-
-    const status = await caller.getIngestStatus()
-    expect(status.cursorEventId).toBe('blob-latest-cid')
-
-    const inbox = await caller.getLocalInbox({accountUid: 'account-a'})
-    expect(inbox).toEqual([])
-    expect(listResolvedEventsMock).not.toHaveBeenCalled()
-  })
-
-  it('does not synthesize local notifications when local fallback is disabled', async () => {
-    delete process.env.SEED_DESKTOP_LOCAL_NOTIFICATION_FALLBACK
-
-    listKeysMock.mockResolvedValue({
-      keys: [{publicKey: 'account-a'}],
-    })
-    listRawEventsMock.mockResolvedValue({
-      toJson: () => ({events: [rawNewBlobEvent('latest-cid')]}),
-    })
-    listResolvedEventsMock.mockResolvedValue({
-      events: [
-        createReplyEvent({
-          eventId: 'reply-event',
-          accountUid: 'account-a',
-        }),
-      ],
-      nextPageToken: '',
-    })
-
-    const {caller, runPoll} = await loadInboxCaller()
-    await runPoll()
-
-    const inbox = await caller.getLocalInbox({accountUid: 'account-a'})
-    expect(inbox).toEqual([])
-    expect(listRawEventsMock).not.toHaveBeenCalled()
-    expect(listResolvedEventsMock).not.toHaveBeenCalled()
-  })
-
-  it('loads server notifications from json inbox responses when local fallback is disabled', async () => {
-    delete process.env.SEED_DESKTOP_LOCAL_NOTIFICATION_FALLBACK
-    storeData['NotifyServiceHost'] = 'https://notify.example'
-
-    listKeysMock.mockResolvedValue({
-      keys: [{publicKey: serverAccountUid}],
-    })
-
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({registered: true}), {
-          status: 200,
-          headers: {'Content-Type': 'application/json'},
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            accountId: serverAccountUid,
-            notifications: [
-              {
-                feedEventId: 'server-event',
-                eventAtMs: 2500,
-                reason: 'reply',
-                eventType: 'comment',
-                author: {uid: 'author-b', name: 'Other', icon: null},
-                target: {uid: 'site-b', path: ['post'], name: 'Post'},
-                commentId: 'comment-version',
-                sourceId: null,
-                citationType: null,
-              },
-            ],
-            hasMore: false,
-            oldestEventAtMs: 2500,
-          }),
-          {
-            status: 200,
-            headers: {'Content-Type': 'application/json'},
-          },
-        ),
-      )
-
-    const {caller, runPoll} = await loadInboxCaller()
-    await runPoll()
-
-    const status = await caller.getIngestStatus()
-    expect(status.lastError).toBeNull()
-    const requestedActions = fetchMock.mock.calls.map(([, init]) => {
-      const body = init?.body
-      return (cborDecode(new Uint8Array(body as ArrayBufferLike)) as {action?: string} | null)?.action
-    })
-    expect(requestedActions).toEqual(['register-inbox', 'get-notification-inbox'])
-
-    const inbox = await caller.getLocalInbox({accountUid: serverAccountUid})
-    expect(inbox).toEqual([
-      {
-        feedEventId: 'server-event',
-        eventAtMs: 2500,
-        reason: 'reply',
-        eventType: 'comment',
-        author: {uid: 'author-b', name: 'Other', icon: null},
-        target: {uid: 'site-b', path: ['post'], name: 'Post'},
-        commentId: 'comment-version',
-        sourceId: null,
-        citationType: null,
-      },
-    ])
-    expect(listRawEventsMock).not.toHaveBeenCalled()
-    expect(listResolvedEventsMock).not.toHaveBeenCalled()
-  })
-
-  it('ingests and stores notifications for all local accounts in background', async () => {
-    storeData['NotificationInbox-v003'] = {
-      version: 3,
-      cursorEventId: 'blob-old-cursor',
-      accounts: {},
-      registeredAccounts: {},
-      registeredHost: null,
-      lastPollAtMs: null,
-      lastError: null,
-    }
-
-    listKeysMock.mockResolvedValue({
-      keys: [{publicKey: 'account-a'}, {publicKey: 'account-b'}],
-    })
-    listRawEventsMock.mockResolvedValue({
-      toJson: () => ({events: [rawNewBlobEvent('latest-cid')]}),
-    })
-    listResolvedEventsMock.mockResolvedValue({
-      events: [
-        createCitationMentionEvent({
-          eventId: 'mention-event',
-          accountUid: 'account-b',
-        }),
-        createReplyEvent({
-          eventId: 'reply-event',
-          accountUid: 'account-a',
-        }),
-        {
-          type: 'comment',
-          feedEventId: 'blob-old-cursor',
-          eventAtMs: 1000,
-          time: '2026-02-17T00:00:02.000Z',
-          author: null,
-          comment: null,
-          replyParentAuthor: null,
-          target: null,
+    fetchMock.mockImplementationOnce(() =>
+      jsonResponse({
+        accountId: accountUid,
+        inbox: {
+          notifications: [
+            {
+              feedEventId: 'server-event',
+              eventAtMs: 2500,
+              reason: 'reply',
+              eventType: 'comment',
+              author: {uid: 'author-b', name: 'Other', icon: null},
+              target: {uid: 'site-b', path: ['post'], name: 'Post'},
+              commentId: 'comment-version',
+              sourceId: null,
+              citationType: null,
+            },
+          ],
+          hasMore: false,
+          oldestEventAtMs: 2500,
         },
-      ],
-      nextPageToken: '',
+        config: {
+          accountId: accountUid,
+          email: null,
+          verifiedTime: null,
+          verificationSendTime: null,
+          verificationExpired: false,
+        },
+        readState: {
+          accountId: accountUid,
+          markAllReadAtMs: null,
+          readEvents: [],
+          updatedAt: new Date(0).toISOString(),
+        },
+      }),
+    )
+
+    await read.syncNow({
+      accountUid,
+      notifyServiceHost: 'https://notify.example',
     })
 
-    const {caller, runPoll} = await loadInboxCaller()
-    await runPoll()
+    const payload = cborDecode(fetchMock.mock.calls[0][1].body as Uint8Array) as {action: string}
+    expect(payload.action).toBe('get-notification-state')
 
-    const inboxA = await caller.getLocalInbox({accountUid: 'account-a'})
-    const inboxB = await caller.getLocalInbox({accountUid: 'account-b'})
-
-    expect(inboxA[0]).toMatchObject({
-      reason: 'reply',
-      feedEventId: 'reply-event',
-    })
-    expect(inboxB[0]).toMatchObject({
-      reason: 'mention',
-      feedEventId: 'mention-event',
-    })
-
-    expect(appInvalidateQueriesMock).toHaveBeenCalledWith(['NOTIFICATION_INBOX', 'account-a'])
-    expect(appInvalidateQueriesMock).toHaveBeenCalledWith(['NOTIFICATION_INBOX', 'account-b'])
+    const syncedInbox = await inbox.getLocalInbox({accountUid})
+    expect(syncedInbox).toHaveLength(1)
+    expect(syncedInbox[0]?.feedEventId).toBe('server-event')
   })
 
-  it('ingests discussion notifications for collaborator accounts', async () => {
-    storeData['NotificationInbox-v003'] = {
-      version: 3,
-      cursorEventId: 'blob-old-cursor',
-      accounts: {},
-      registeredAccounts: {},
-      registeredHost: null,
-      lastPollAtMs: null,
-      lastError: null,
-    }
+  it('reports sync failures through the ingest status', async () => {
+    const {read, inbox} = await loadCallers()
 
-    listKeysMock.mockResolvedValue({
-      keys: [{publicKey: 'account-a'}],
-    })
-    listRawEventsMock.mockResolvedValue({
-      toJson: () => ({events: [rawNewBlobEvent('latest-cid')]}),
-    })
-    listResolvedEventsMock.mockResolvedValue({
-      events: [
-        createCollaboratorDiscussionEvent({
-          eventId: 'discussion-event',
-          collaboratorUid: 'account-a',
-        }),
-        {
-          type: 'comment',
-          feedEventId: 'blob-old-cursor',
-          eventAtMs: 1000,
-          time: '2026-02-17T00:00:02.000Z',
-          author: null,
-          comment: null,
-          replyParentAuthor: null,
-          target: null,
-        },
-      ],
-      nextPageToken: '',
+    await read.markEventRead({
+      accountUid,
+      eventId: 'event-1',
+      eventAtMs: 1200,
     })
 
-    const {caller, runPoll} = await loadInboxCaller()
-    await runPoll()
+    fetchMock.mockRejectedValueOnce(new Error('offline'))
 
-    const inbox = await caller.getLocalInbox({accountUid: 'account-a'})
-    expect(inbox[0]).toMatchObject({
-      reason: 'discussion',
-      feedEventId: 'discussion-event',
-    })
-  })
-
-  it('stores source document info in target field for citation notifications', async () => {
-    storeData['NotificationInbox-v003'] = {
-      version: 3,
-      cursorEventId: 'blob-old-cursor',
-      accounts: {},
-      registeredAccounts: {},
-      registeredHost: null,
-      lastPollAtMs: null,
-      lastError: null,
-    }
-
-    listKeysMock.mockResolvedValue({
-      keys: [{publicKey: 'account-a'}],
-    })
-    listRawEventsMock.mockResolvedValue({
-      toJson: () => ({events: [rawNewBlobEvent('latest-cid')]}),
-    })
-    listResolvedEventsMock.mockResolvedValue({
-      events: [
-        createCitationMentionEvent({
-          eventId: 'mention-event',
-          accountUid: 'account-a',
-        }),
-        {
-          type: 'comment',
-          feedEventId: 'blob-old-cursor',
-          eventAtMs: 1000,
-          time: '2026-02-17T00:00:02.000Z',
-          author: null,
-          comment: null,
-          replyParentAuthor: null,
-          target: null,
-        },
-      ],
-      nextPageToken: '',
+    await read.syncNow({
+      accountUid,
+      notifyServiceHost: 'https://notify.example',
     })
 
-    const {caller, runPoll} = await loadInboxCaller()
-    await runPoll()
-
-    const inbox = await caller.getLocalInbox({accountUid: 'account-a'})
-    expect(inbox).toHaveLength(1)
-    // target must contain the SOURCE (citing) document info, not the cited account
-    expect(inbox[0]).toMatchObject({
-      reason: 'mention',
-      eventType: 'citation',
-      target: {uid: 'site-a', path: ['doc'], name: 'Doc'},
-      sourceId: null,
-    })
-  })
-
-  it('preserves source path for citation of sub-document mention', async () => {
-    storeData['NotificationInbox-v003'] = {
-      version: 3,
-      cursorEventId: 'blob-old-cursor',
-      accounts: {},
-      registeredAccounts: {},
-      registeredHost: null,
-      lastPollAtMs: null,
-      lastError: null,
-    }
-
-    listKeysMock.mockResolvedValue({
-      keys: [{publicKey: 'account-a'}],
-    })
-    listRawEventsMock.mockResolvedValue({
-      toJson: () => ({events: [rawNewBlobEvent('latest-cid')]}),
-    })
-
-    // Citation where source is a nested sub-document
-    const citationWithDeepPath = {
-      type: 'citation',
-      id: 'deep-cite',
-      feedEventId: 'deep-cite',
-      eventAtMs: 2000,
-      time: '2026-02-17T00:00:00.000Z',
-      author: {id: {uid: 'author-a', path: null}, metadata: {name: 'Author'}},
-      source: {
-        id: {uid: 'other-site', path: ['projects', 'alpha', 'notes']},
-        metadata: {name: 'Alpha Notes'},
-      },
-      target: {
-        id: {uid: 'account-a', path: null},
-        metadata: {name: 'My Account'},
-      },
-      citationType: 'd',
-      comment: null,
-      replyCount: 0,
-    } as any
-
-    listResolvedEventsMock.mockResolvedValue({
-      events: [
-        citationWithDeepPath,
-        {
-          type: 'comment',
-          feedEventId: 'blob-old-cursor',
-          eventAtMs: 1000,
-          time: '2026-02-17T00:00:02.000Z',
-          author: null,
-          comment: null,
-          replyParentAuthor: null,
-          target: null,
-        },
-      ],
-      nextPageToken: '',
-    })
-
-    const {caller, runPoll} = await loadInboxCaller()
-    await runPoll()
-
-    const inbox = await caller.getLocalInbox({accountUid: 'account-a'})
-    expect(inbox).toHaveLength(1)
-    // Must navigate to the source's deep path, NOT the cited account's root
-    expect(inbox[0]).toMatchObject({
-      target: {uid: 'other-site', path: ['projects', 'alpha', 'notes'], name: 'Alpha Notes'},
-      sourceId: null,
-    })
-  })
-
-  it('keeps target as the commented document for comment events', async () => {
-    storeData['NotificationInbox-v003'] = {
-      version: 3,
-      cursorEventId: 'blob-old-cursor',
-      accounts: {},
-      registeredAccounts: {},
-      registeredHost: null,
-      lastPollAtMs: null,
-      lastError: null,
-    }
-
-    listKeysMock.mockResolvedValue({
-      keys: [{publicKey: 'account-a'}],
-    })
-    listRawEventsMock.mockResolvedValue({
-      toJson: () => ({events: [rawNewBlobEvent('latest-cid')]}),
-    })
-    listResolvedEventsMock.mockResolvedValue({
-      events: [
-        createReplyEvent({
-          eventId: 'reply-event',
-          accountUid: 'account-a',
-        }),
-        {
-          type: 'comment',
-          feedEventId: 'blob-old-cursor',
-          eventAtMs: 1000,
-          time: '2026-02-17T00:00:02.000Z',
-          author: null,
-          comment: null,
-          replyParentAuthor: null,
-          target: null,
-        },
-      ],
-      nextPageToken: '',
-    })
-
-    const {caller, runPoll} = await loadInboxCaller()
-    await runPoll()
-
-    const inbox = await caller.getLocalInbox({accountUid: 'account-a'})
-    expect(inbox).toHaveLength(1)
-    // Comment events should keep the actual document target (not swapped)
-    expect(inbox[0]).toMatchObject({
-      reason: 'reply',
-      eventType: 'comment',
-      target: {uid: 'site-b', path: ['post'], name: 'Post'},
-      commentId: 'comment-version',
-    })
-  })
-
-  it('does not duplicate discussion notifications when citation mirror event exists', async () => {
-    storeData['NotificationInbox-v003'] = {
-      version: 3,
-      cursorEventId: 'blob-old-cursor',
-      accounts: {},
-      registeredAccounts: {},
-      registeredHost: null,
-      lastPollAtMs: null,
-      lastError: null,
-    }
-
-    listKeysMock.mockResolvedValue({
-      keys: [{publicKey: 'account-a'}],
-    })
-    listRawEventsMock.mockResolvedValue({
-      toJson: () => ({events: [rawNewBlobEvent('latest-cid')]}),
-    })
-    listResolvedEventsMock.mockResolvedValue({
-      events: [
-        createCollaboratorDiscussionEvent({
-          eventId: 'discussion-event',
-          collaboratorUid: 'account-a',
-        }),
-        createCitationDiscussionEvent({
-          eventId: 'discussion-citation-event',
-          collaboratorUid: 'account-a',
-        }),
-        {
-          type: 'comment',
-          feedEventId: 'blob-old-cursor',
-          eventAtMs: 1000,
-          time: '2026-02-17T00:00:02.000Z',
-          author: null,
-          comment: null,
-          replyParentAuthor: null,
-          target: null,
-        },
-      ],
-      nextPageToken: '',
-    })
-
-    const {caller, runPoll} = await loadInboxCaller()
-    await runPoll()
-
-    const inbox = await caller.getLocalInbox({accountUid: 'account-a'})
-    expect(inbox).toHaveLength(1)
-    expect(inbox[0]).toMatchObject({
-      reason: 'discussion',
-      feedEventId: 'discussion-event',
-    })
+    const ingestStatus = await inbox.getIngestStatus()
+    expect(ingestStatus.accountCount).toBe(1)
+    expect(ingestStatus.lastError).toContain('offline')
   })
 })

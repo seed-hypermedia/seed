@@ -1,4 +1,4 @@
-import {getNotificationsPage, registerInboxAccount} from '@/db'
+import {getNotificationsPage} from '@/db'
 import {BadRequestError, cborApiAction} from '@/server-api'
 import {validateSignature} from '@/validate-signature'
 import {resolveAccountId} from '@/verify-delegation'
@@ -55,7 +55,6 @@ export const action = cborApiAction<NotificationInboxAction, any>(async (signedP
   const accountId = await resolveAccountId(signedPayload.signer, signedPayload.accountUid)
 
   if (restPayload.action === 'register-inbox') {
-    registerInboxAccount(accountId)
     return {registered: true}
   }
 

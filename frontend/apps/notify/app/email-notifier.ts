@@ -36,7 +36,6 @@ import {
   getAllNotificationConfigs,
   getBatchNotifierLastProcessedEventId,
   getBatchNotifierLastSendTime,
-  getInboxRegisteredAccounts,
   getNotifierLastProcessedEventId,
   setBatchNotifierLastProcessedEventId,
   setBatchNotifierLastSendTime,
@@ -700,7 +699,26 @@ async function processImmediateNotifications(events: PlainMessage<Event>[]) {
     emailIdentityMap,
   })
   await sendImmediateNotificationEmails(notificationsToSend)
-  await persistNotificationsForInboxRegisteredAccounts(events)
+  const inboxItems = Object.values(notificationsToSend).flatMap((notifications) =>
+    notifications.flatMap((notification) => {
+      const notifWithEvent = notification.notif as Notification & {
+        eventId?: string
+        eventAtMs?: number
+      }
+      if (!notifWithEvent.eventId || !notifWithEvent.eventAtMs) {
+        return []
+      }
+      return [
+        {
+          accountId: notification.accountId,
+          notif: notification.notif,
+          eventId: notifWithEvent.eventId,
+          eventAtMs: notifWithEvent.eventAtMs,
+        },
+      ]
+    }),
+  )
+  persistNotificationsForInboxAccounts(inboxItems)
 }
 
 async function processBatchNotifications(events: PlainMessage<Event>[]) {
@@ -717,65 +735,6 @@ async function processBatchNotifications(events: PlainMessage<Event>[]) {
   await sendBatchNotificationEmails(notificationsToSend)
   // Note: inbox persistence already handled in processImmediateNotifications.
   // Batch events were already persisted when they were first processed as immediate.
-}
-
-async function persistNotificationsForInboxRegisteredAccounts(events: PlainMessage<Event>[]) {
-  if (!events.length) return
-
-  const inboxAccountIds = getInboxRegisteredAccounts()
-  if (!inboxAccountIds.length) return
-
-  // Create subscriptions for inbox accounts with all notification types enabled
-  const inboxSubscriptions: NotificationSubscription[] = inboxAccountIds.map((accountId: string) => ({
-    id: accountId,
-    email: `__inbox__${accountId}`,
-    createdAt: new Date().toISOString(),
-    notifyAllMentions: true,
-    notifyAllReplies: true,
-    notifyAllDiscussions: true,
-    notifyOwnedDocChange: true,
-    notifySiteDiscussions: true,
-  }))
-
-  const collected: Array<{accountId: string; notif: Notification; eventId: string; eventAtMs: number}> = []
-
-  const mentionSourceBlobCids = new Set<string>()
-  for (const event of events) {
-    if (event.data.case !== 'newMention') continue
-    const sourceBlobCid = event.data.value?.sourceBlob?.cid
-    if (sourceBlobCid) mentionSourceBlobCids.add(sourceBlobCid)
-  }
-
-  for (const event of events) {
-    const currentEventId = getEventId(event)
-    const currentEventAtMs = getEventAtMs(event)
-    if (!currentEventId) continue
-
-    async function appendInboxNotification(subscription: NotificationSubscription, notif: Notification) {
-      collected.push({
-        accountId: subscription.id,
-        notif,
-        eventId: (notif as any).eventId || currentEventId,
-        eventAtMs: (notif as any).eventAtMs || currentEventAtMs,
-      })
-    }
-
-    try {
-      await evaluateEventForNotifications(event, inboxSubscriptions, appendInboxNotification, {mentionSourceBlobCids})
-    } catch (error: any) {
-      logNotifDebug('Error evaluating event for inbox persistence', {error: error.message})
-    }
-  }
-
-  if (collected.length > 0) {
-    const persisted = persistNotificationsForInboxAccounts(collected)
-    if (persisted > 0) {
-      logNotifDebug('persisted inbox notifications', {
-        count: persisted,
-        inboxAccounts: inboxAccountIds.length,
-      })
-    }
-  }
 }
 
 function getEventId(event: PlainMessage<Event>) {

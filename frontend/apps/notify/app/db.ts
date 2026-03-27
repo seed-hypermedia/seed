@@ -816,6 +816,35 @@ export function mergeNotificationReadState(
   return transaction()
 }
 
+export function replaceNotificationReadState(
+  accountId: string,
+  snapshot: {
+    markAllReadAtMs: number | null
+    readEvents: NotificationReadEvent[]
+  },
+): NotificationReadStateRow {
+  const normalizedReadEvents = snapshot.readEvents
+    .filter((evt) => evt?.eventId && Number.isFinite(evt.eventAtMs))
+    .map((evt) => ({
+      eventId: evt.eventId,
+      eventAtMs: Math.max(0, Math.floor(evt.eventAtMs)),
+    }))
+
+  const transaction = db.transaction(() => {
+    stmtUpsertNotificationReadState.run(accountId, snapshot.markAllReadAtMs, Date.now())
+    stmtDeleteNotificationReadEventsForAccount.run(accountId)
+    for (const evt of normalizedReadEvents) {
+      if (snapshot.markAllReadAtMs !== null && evt.eventAtMs <= snapshot.markAllReadAtMs) {
+        continue
+      }
+      stmtUpsertNotificationReadEvent.run(accountId, evt.eventId, evt.eventAtMs)
+    }
+    return getNotificationReadState(accountId)
+  })
+
+  return transaction()
+}
+
 // --- Notification Inbox ---
 
 import type {NotificationPayload} from '@shm/shared/models/notification-payload'

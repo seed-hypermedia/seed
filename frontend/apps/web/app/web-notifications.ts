@@ -2,30 +2,34 @@
  * Web-specific notification model.
  *
  * Creates a NotificationSigner from the web's local key pair and provides
- * hooks for fetching the inbox, reading/merging read state, and marking
- * notifications as read — all talking directly to the notification server.
+ * hooks for fetching canonical notification state and applying optimistic
+ * notification actions against the notify service.
  */
-import type {NotificationSigner, NotificationReadState} from '@shm/shared/models/notifications'
 import {
+  applyNotificationActions,
+  type NotificationSigner,
+} from '@shm/shared/models/notification-service'
+import {
+  createEmptyNotificationState,
+  reduceNotificationState,
+  type NotificationMutationAction,
+  type NotificationStateSnapshot,
+} from '@shm/shared/models/notification-state'
+import {
+  useNotificationConfig as useSharedNotificationConfig,
   useNotificationInbox as useSharedNotificationInbox,
   useNotificationReadState as useSharedNotificationReadState,
-  useMergeNotificationReadState,
-  useNotificationConfig as useSharedNotificationConfig,
-  useSetNotificationConfig as useSharedSetNotificationConfig,
-  useResendNotificationConfigVerification as useSharedResendVerification,
+  useNotificationState as useSharedNotificationState,
   useRemoveNotificationConfig as useSharedRemoveNotificationConfig,
+  useResendNotificationConfigVerification as useSharedResendVerification,
+  useSetNotificationConfig as useSharedSetNotificationConfig,
 } from '@shm/shared/models/notifications'
 import {invalidateQueries, useQueryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {
-  markAllNotificationsReadInState,
-  markNotificationEventReadInState,
-  markNotificationEventUnreadInState,
-} from '@shm/shared/models/notification-read-logic'
 import {useMutation} from '@tanstack/react-query'
 import {useEffect, useState} from 'react'
-import {preparePublicKey} from './auth-utils'
 import {useLocalKeyPair} from './auth'
+import {preparePublicKey} from './auth-utils'
 
 function useWebNotifyServiceHost() {
   const keyPair = useLocalKeyPair()
@@ -61,8 +65,6 @@ function useWebNotificationSigner(): NotificationSigner | undefined {
             )
             return new Uint8Array(sig)
           },
-          // When the local signing key differs from the account (delegation),
-          // tell the server which account we're acting on behalf of.
           accountUid: keyPair.delegatedAccountUid || undefined,
         })
       })
@@ -84,6 +86,47 @@ export function useWebAccountUid(): string | undefined {
   return keyPair?.delegatedAccountUid ?? keyPair?.id ?? undefined
 }
 
+function getNotificationStateQueryKey(notifyServiceHost: string | undefined, accountId: string | undefined) {
+  return [queryKeys.NOTIFICATION_STATE, notifyServiceHost, accountId]
+}
+
+function useApplyWebNotificationActions() {
+  const notifyServiceHost = useWebNotifyServiceHost()
+  const signer = useWebNotificationSigner()
+  const accountId = useWebAccountUid()
+  const queryClient = useQueryClient()
+  const state = useSharedNotificationState(notifyServiceHost, signer)
+  const notificationStateQueryKey = getNotificationStateQueryKey(notifyServiceHost, accountId)
+
+  return useMutation({
+    mutationFn: async (input: {accountUid: string; actions: NotificationMutationAction[]}) => {
+      if (!notifyServiceHost || !signer) {
+        throw new Error('Missing notifyServiceHost or signer')
+      }
+      return applyNotificationActions(notifyServiceHost, signer, {actions: input.actions})
+    },
+    onMutate: (input) => {
+      const previousState =
+        queryClient.getQueryData<NotificationStateSnapshot>(notificationStateQueryKey) ?? state.data
+      let optimisticState = previousState
+      for (const action of input.actions) {
+        const baseState = optimisticState ?? createEmptyNotificationState(input.accountUid)
+        optimisticState = reduceNotificationState(baseState, action)
+      }
+      queryClient.setQueryData(notificationStateQueryKey, optimisticState)
+      return {previousState}
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previousState) {
+        queryClient.setQueryData(notificationStateQueryKey, context.previousState)
+      }
+    },
+    onSettled: () => {
+      invalidateQueries(notificationStateQueryKey)
+    },
+  })
+}
+
 // -- Inbox --------------------------------------------------------------------
 
 /** Fetches the notification inbox from the server. */
@@ -102,74 +145,28 @@ export function useWebNotificationReadState() {
   return useSharedNotificationReadState(notifyServiceHost, signer)
 }
 
-function getNotificationReadStateQueryKey(notifyServiceHost: string | undefined, accountId: string | undefined) {
-  return [queryKeys.NOTIFICATION_READ_STATE, notifyServiceHost, accountId]
-}
-
-function toOptimisticReadState(
-  currentState: NotificationReadState | undefined,
-  accountId: string,
-  nextState: Pick<NotificationReadState, 'markAllReadAtMs' | 'readEvents'>,
-): NotificationReadState {
-  return {
-    accountId: currentState?.accountId ?? accountId,
-    markAllReadAtMs: nextState.markAllReadAtMs,
-    readEvents: nextState.readEvents,
-    updatedAt: currentState?.updatedAt ?? new Date().toISOString(),
-  }
-}
-
-/** Marks a single notification event as read (merges into server state). */
+/** Marks a single notification event as read. */
 export function useWebMarkNotificationEventRead() {
-  const notifyServiceHost = useWebNotifyServiceHost()
-  const accountId = useWebAccountUid()
-  const signer = useWebNotificationSigner()
-  const queryClient = useQueryClient()
-  const readState = useWebNotificationReadState()
-  const merge = useMergeNotificationReadState(notifyServiceHost, signer)
-  const readStateQueryKey = getNotificationReadStateQueryKey(notifyServiceHost, accountId)
-
+  const applyActions = useApplyWebNotificationActions()
   return useMutation({
     mutationFn: async (input: {accountUid: string; eventId: string; eventAtMs: number}) => {
-      const currentState = queryClient.getQueryData<NotificationReadState>(readStateQueryKey) ?? readState.data
-      const nextState = markNotificationEventReadInState({
-        readState: currentState,
-        eventId: input.eventId,
-        eventAtMs: input.eventAtMs,
+      return applyActions.mutateAsync({
+        accountUid: input.accountUid,
+        actions: [
+          {
+            type: 'mark-event-read',
+            eventId: input.eventId,
+            eventAtMs: input.eventAtMs,
+          },
+        ],
       })
-      return merge.mutateAsync(nextState)
-    },
-    onMutate: (input) => {
-      const previousState = queryClient.getQueryData<NotificationReadState>(readStateQueryKey) ?? readState.data
-      const nextState = markNotificationEventReadInState({
-        readState: previousState,
-        eventId: input.eventId,
-        eventAtMs: input.eventAtMs,
-      })
-      queryClient.setQueryData(readStateQueryKey, toOptimisticReadState(previousState, input.accountUid, nextState))
-      return {previousState}
-    },
-    onError: (_error, _input, context) => {
-      if (context?.previousState) {
-        queryClient.setQueryData(readStateQueryKey, context.previousState)
-      }
-    },
-    onSettled: () => {
-      invalidateQueries(readStateQueryKey)
     },
   })
 }
 
-/** Marks a single notification event as unread by merging without that event. */
+/** Marks a single notification event as unread. */
 export function useWebMarkNotificationEventUnread() {
-  const notifyServiceHost = useWebNotifyServiceHost()
-  const accountId = useWebAccountUid()
-  const signer = useWebNotificationSigner()
-  const queryClient = useQueryClient()
-  const readState = useWebNotificationReadState()
-  const merge = useMergeNotificationReadState(notifyServiceHost, signer)
-  const readStateQueryKey = getNotificationReadStateQueryKey(notifyServiceHost, accountId)
-
+  const applyActions = useApplyWebNotificationActions()
   return useMutation({
     mutationFn: async (input: {
       accountUid: string
@@ -177,72 +174,35 @@ export function useWebMarkNotificationEventUnread() {
       eventAtMs: number
       otherLoadedEvents: Array<{eventId: string; eventAtMs: number}>
     }) => {
-      const currentState = queryClient.getQueryData<NotificationReadState>(readStateQueryKey) ?? readState.data
-      const nextState = markNotificationEventUnreadInState({
-        readState: currentState,
-        eventId: input.eventId,
-        eventAtMs: input.eventAtMs,
-        otherLoadedEvents: input.otherLoadedEvents,
+      return applyActions.mutateAsync({
+        accountUid: input.accountUid,
+        actions: [
+          {
+            type: 'mark-event-unread',
+            eventId: input.eventId,
+            eventAtMs: input.eventAtMs,
+            otherLoadedEvents: input.otherLoadedEvents,
+          },
+        ],
       })
-      return merge.mutateAsync(nextState)
-    },
-    onMutate: (input) => {
-      const previousState = queryClient.getQueryData<NotificationReadState>(readStateQueryKey) ?? readState.data
-      const nextState = markNotificationEventUnreadInState({
-        readState: previousState,
-        eventId: input.eventId,
-        eventAtMs: input.eventAtMs,
-        otherLoadedEvents: input.otherLoadedEvents,
-      })
-      queryClient.setQueryData(readStateQueryKey, toOptimisticReadState(previousState, input.accountUid, nextState))
-      return {previousState}
-    },
-    onError: (_error, _input, context) => {
-      if (context?.previousState) {
-        queryClient.setQueryData(readStateQueryKey, context.previousState)
-      }
-    },
-    onSettled: () => {
-      invalidateQueries(readStateQueryKey)
     },
   })
 }
 
 /** Marks all loaded notifications as read using the watermark approach. */
 export function useWebMarkAllNotificationsRead() {
-  const notifyServiceHost = useWebNotifyServiceHost()
-  const accountId = useWebAccountUid()
-  const signer = useWebNotificationSigner()
-  const queryClient = useQueryClient()
-  const readState = useWebNotificationReadState()
-  const merge = useMergeNotificationReadState(notifyServiceHost, signer)
-  const readStateQueryKey = getNotificationReadStateQueryKey(notifyServiceHost, accountId)
-
+  const applyActions = useApplyWebNotificationActions()
   return useMutation({
     mutationFn: async (input: {accountUid: string; markAllReadAtMs: number}) => {
-      const currentState = queryClient.getQueryData<NotificationReadState>(readStateQueryKey) ?? readState.data
-      const nextState = markAllNotificationsReadInState({
-        readState: currentState,
-        markAllReadAtMs: input.markAllReadAtMs,
+      return applyActions.mutateAsync({
+        accountUid: input.accountUid,
+        actions: [
+          {
+            type: 'mark-all-read',
+            markAllReadAtMs: input.markAllReadAtMs,
+          },
+        ],
       })
-      return merge.mutateAsync(nextState)
-    },
-    onMutate: (input) => {
-      const previousState = queryClient.getQueryData<NotificationReadState>(readStateQueryKey) ?? readState.data
-      const nextState = markAllNotificationsReadInState({
-        readState: previousState,
-        markAllReadAtMs: input.markAllReadAtMs,
-      })
-      queryClient.setQueryData(readStateQueryKey, toOptimisticReadState(previousState, input.accountUid, nextState))
-      return {previousState}
-    },
-    onError: (_error, _input, context) => {
-      if (context?.previousState) {
-        queryClient.setQueryData(readStateQueryKey, context.previousState)
-      }
-    },
-    onSettled: () => {
-      invalidateQueries(readStateQueryKey)
     },
   })
 }

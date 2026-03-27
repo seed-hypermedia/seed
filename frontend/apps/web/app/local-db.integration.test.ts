@@ -108,6 +108,25 @@ describe('local-db integration', () => {
       }
     })
 
+    it('should read older local keys without a notify server URL', async () => {
+      const db = await resetDB(indexedDB)
+      try {
+        const keyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, ['sign', 'verify'])
+        await writeLocalKeys(keyPair, {
+          delegatedAccountUid: 'acc1',
+          vaultUrl: 'https://vault.example.com',
+        })
+
+        const stored = await getStoredLocalKeys()
+        expect(stored).not.toBeNull()
+        expect(stored!.delegatedAccountUid).toBe('acc1')
+        expect(stored!.vaultUrl).toBe('https://vault.example.com')
+        expect(stored!.notifyServerUrl).toBeUndefined()
+      } finally {
+        db.close()
+      }
+    })
+
     it('should delete local keys', async () => {
       const db = await resetDB(indexedDB)
       try {
