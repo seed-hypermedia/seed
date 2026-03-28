@@ -11,7 +11,8 @@ import {
   FIXTURE_REGISTRATION_SECRET,
 } from '../../../../../test-fixtures/minimal-fixtures'
 import {deriveKeyPairFromMnemonic} from '../utils/key-derivation'
-import {flattenToOperations, parseMarkdown} from '../utils/markdown'
+import {parseMarkdown} from '../utils/markdown'
+import {hmBlockNodesToOperations} from '../utils/blocks-json'
 import {createDocumentUpdate, registerAccount, type TestAccount} from './account-helpers'
 
 const fixtureKeyPair = deriveKeyPairFromMnemonic(FIXTURE_ACCOUNT_MNEMONIC, '')
@@ -41,7 +42,7 @@ export async function seedTestFixtures(serverUrl: string): Promise<void> {
       type: 'SetAttributes',
       attrs: [{key: ['name'], value: FIXTURE_HIERARCHY_TITLE}],
     },
-    ...flattenToOperations(tree),
+    ...hmBlockNodesToOperations(tree),
   ])
 }
 

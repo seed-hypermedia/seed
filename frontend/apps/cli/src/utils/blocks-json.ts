@@ -17,8 +17,8 @@ export function parseBlocksJson(json: string): HMBlockNode[] {
 /**
  * Convert HMBlockNode[] into document operations (ReplaceBlock + MoveBlocks).
  *
- * Same traversal pattern as flattenToOperations in markdown.ts but works
- * directly with HMBlockNode from @shm/shared.
+ * Traverses the HMBlockNode tree and emits ReplaceBlock + MoveBlocks
+ * operations for each block.
  */
 export function hmBlockNodesToOperations(nodes: HMBlockNode[], parentId: string = ''): DocumentOperation[] {
   const ops: DocumentOperation[] = []

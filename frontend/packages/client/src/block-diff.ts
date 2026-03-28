@@ -13,8 +13,7 @@
  */
 
 import type {DocumentOperation} from './change'
-import type {HMBlockNode} from './hm-types'
-import type {BlockNode, SeedBlock} from './markdown-to-blocks'
+import type {HMBlock, HMBlockNode} from './hm-types'
 
 // ── Types matching the API response shape ────────────────────────────────────
 
@@ -75,20 +74,21 @@ export function createBlocksMap(nodes: APIBlockNode[], parentId: string = ''): B
  *
  * Returns a new tree with IDs reassigned (does not mutate inputs).
  */
-export function matchBlockIds(oldNodes: APIBlockNode[], newNodes: BlockNode[]): BlockNode[] {
+export function matchBlockIds(oldNodes: APIBlockNode[], newNodes: HMBlockNode[]): HMBlockNode[] {
   return newNodes.map((newNode, idx) => {
     const oldNode = idx < oldNodes.length ? oldNodes[idx] : undefined
+    const b = newNode.block as Record<string, unknown>
 
-    let matchedId = newNode.block.id
-    if (oldNode && oldNode.block.type === newNode.block.type) {
+    let matchedId = b.id as string
+    if (oldNode && oldNode.block.type === (b.type as string)) {
       matchedId = oldNode.block.id
     }
 
-    const matchedChildren = matchBlockIds(oldNode?.children ?? [], newNode.children)
+    const matchedChildren = matchBlockIds(oldNode?.children ?? [], newNode.children || [])
 
     return {
-      block: {...newNode.block, id: matchedId},
-      children: matchedChildren,
+      block: {...newNode.block, id: matchedId} as HMBlock,
+      children: matchedChildren.length > 0 ? matchedChildren : undefined,
     }
   })
 }
@@ -105,7 +105,7 @@ export function matchBlockIds(oldNodes: APIBlockNode[], newNodes: BlockNode[]): 
  */
 export function computeReplaceOps(
   oldMap: BlocksMap,
-  matchedTree: BlockNode[],
+  matchedTree: HMBlockNode[],
   parentId: string = '',
 ): DocumentOperation[] {
   const ops: DocumentOperation[] = []
@@ -113,51 +113,39 @@ export function computeReplaceOps(
   const blockIdsAtLevel: string[] = []
 
   matchedTree.forEach((node, idx) => {
-    const blockId = node.block.id
+    const b = node.block as Record<string, unknown>
+    const blockId = b.id as string
     touchedIds.add(blockId)
     blockIdsAtLevel.push(blockId)
 
     const oldEntry = oldMap[blockId]
     const isNew = !oldEntry
 
-    // Build the block object for ReplaceBlock
-    const block: Record<string, unknown> = {
-      type: node.block.type,
-      id: blockId,
-      text: node.block.text,
-      annotations: node.block.annotations,
-    }
-    if (node.block.language !== undefined) {
-      block.language = node.block.language
-    }
-    if (node.block.childrenType !== undefined) {
-      block.childrenType = node.block.childrenType
-    }
-
     if (isNew) {
-      // New block: need both ReplaceBlock and MoveBlocks
-      ops.push({type: 'ReplaceBlock', block})
+      // New block: emit ReplaceBlock with the HMBlock directly
+      ops.push({type: 'ReplaceBlock', block: node.block})
     } else {
       // Existing block: only ReplaceBlock if content changed
       if (!isBlockContentEqual(oldEntry.block, node.block)) {
-        ops.push({type: 'ReplaceBlock', block})
+        ops.push({type: 'ReplaceBlock', block: node.block})
       }
 
       // Check if position changed
       const prevNode = idx > 0 ? matchedTree[idx - 1] : undefined
-      const expectedLeft = prevNode?.block.id ?? ''
+      const expectedLeft = prevNode ? ((prevNode.block as Record<string, unknown>).id as string) : ''
       if (oldEntry.parent !== parentId || oldEntry.left !== expectedLeft) {
         // Position changed — will be handled by the MoveBlocks below
       }
     }
 
     // Recurse into children
-    if (node.children.length > 0) {
-      const childOps = computeReplaceOps(oldMap, node.children, blockId)
+    const children = node.children || []
+    if (children.length > 0) {
+      const childOps = computeReplaceOps(oldMap, children, blockId)
       ops.push(...childOps)
 
       // Collect touched IDs from children
-      collectIds(node.children, touchedIds)
+      collectIds(children, touchedIds)
     }
   })
 
@@ -188,24 +176,28 @@ export function computeReplaceOps(
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function collectIds(nodes: BlockNode[], set: Set<string>) {
+function collectIds(nodes: HMBlockNode[], set: Set<string>) {
   for (const node of nodes) {
-    set.add(node.block.id)
-    collectIds(node.children, set)
+    set.add((node.block as Record<string, unknown>).id as string)
+    collectIds(node.children || [], set)
   }
 }
 
 /**
- * Compare old API block content with new parsed block content.
+ * Compare old API block content with new HMBlock content.
  * Returns true if they're semantically equal.
  */
-function isBlockContentEqual(old: APIBlock, newBlock: SeedBlock): boolean {
-  if (old.type !== newBlock.type) return false
-  if ((old.text || '') !== (newBlock.text || '')) return false
+function isBlockContentEqual(old: APIBlock, newBlock: HMBlock): boolean {
+  const nb = newBlock as Record<string, unknown>
+  if (old.type !== nb.type) return false
+  if ((old.text || '') !== ((nb.text as string) || '')) return false
+
+  // Compare link field (images, embeds, etc.)
+  if ((old.link || '') !== ((nb.link as string) || '')) return false
 
   // Compare annotations
   const oldAnn = old.annotations || []
-  const newAnn = newBlock.annotations || []
+  const newAnn = (nb.annotations as unknown[]) || []
   if (oldAnn.length !== newAnn.length) return false
   if (oldAnn.length > 0 && JSON.stringify(oldAnn) !== JSON.stringify(newAnn)) {
     return false
@@ -213,39 +205,11 @@ function isBlockContentEqual(old: APIBlock, newBlock: SeedBlock): boolean {
 
   // Compare relevant attributes
   const oldAttrs = old.attributes || {}
-  if ((oldAttrs.childrenType || '') !== (newBlock.childrenType || '')) {
+  const newAttrs = (nb.attributes as Record<string, unknown>) || {}
+  if ((oldAttrs.childrenType || '') !== (newAttrs.childrenType || '')) {
     return false
   }
-  if ((oldAttrs.language || '') !== (newBlock.language || '')) return false
+  if ((oldAttrs.language || '') !== (newAttrs.language || '')) return false
 
   return true
-}
-
-// ── HMBlockNode → BlockNode conversion ──────────────────────────────────────
-
-/**
- * Convert an HMBlockNode tree (from JSON input or API response) into
- * a BlockNode tree compatible with the diff pipeline.
- *
- * HMBlockNode nests childrenType/language inside `attributes`, while
- * SeedBlock/BlockNode has them at the top level.
- */
-export function hmBlockNodeToBlockNode(node: HMBlockNode): BlockNode {
-  const b = node.block as Record<string, unknown>
-  const attrs = (b.attributes || {}) as Record<string, unknown>
-
-  const block: SeedBlock = {
-    type: (b.type as string) || '',
-    id: (b.id as string) || '',
-    text: (b.text as string) || '',
-    annotations: (b.annotations as SeedBlock['annotations']) || [],
-    ...(attrs.childrenType ? {childrenType: attrs.childrenType as string} : {}),
-    ...(attrs.language ? {language: attrs.language as string} : {}),
-    ...(b.link ? {link: b.link as string} : {}),
-  }
-
-  return {
-    block,
-    children: (node.children || []).map(hmBlockNodeToBlockNode),
-  }
 }
