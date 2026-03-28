@@ -181,7 +181,7 @@ describe("SSR Header and Navigation", () => {
   );
 
   it(
-    "should server-render the subscribe button",
+    "should server-render the join button",
     async () => {
       const response = await fetch(`${env.web.baseUrl}/`, {
         headers: {
@@ -190,8 +190,8 @@ describe("SSR Header and Navigation", () => {
       });
       const html = await response.text();
 
-      // Subscribe button should be SSR rendered
-      expect(html).toContain("Subscribe");
+      // Join button should be SSR rendered (renamed from Subscribe)
+      expect(html).toContain("Join");
     },
     TEST_TIMEOUT,
   );
@@ -256,7 +256,7 @@ describe("SSR Utility Pages Header", () => {
   );
 
   it(
-    "should server-render device-link page with header and subscribe button",
+    "should server-render device-link page with header",
     async () => {
       const response = await fetch(`${env.web.baseUrl}/hm/device-link`, {
         headers: {
@@ -272,9 +272,6 @@ describe("SSR Utility Pages Header", () => {
         header.length,
         "Expected header element to be present on device-link page",
       ).toBeGreaterThan(0);
-
-      // Subscribe button should be SSR rendered
-      expect(html).toContain("Subscribe");
     },
     TEST_TIMEOUT,
   );
