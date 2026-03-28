@@ -283,9 +283,22 @@ function SubscriptionsSection() {
   const accountList = useContactList()
 
   // Filter contacts with site subscription, excluding own account
-  const siteSubscribed = contacts.data?.filter(
+  const siteSubscribedRaw = contacts.data?.filter(
     (contact) => contact.subscribe?.site && contact.subject !== selectedAccountId,
   )
+
+  // Deduplicate by subject — the same site may have been joined multiple times
+  // (e.g. via delegated keys or repeated join actions), each creating a separate
+  // contact record with a unique tsid. The backend returns contacts ordered by
+  // id DESC (most recent first), so the first occurrence per subject wins.
+  const siteSubscribed = siteSubscribedRaw
+    ? Object.values(
+        siteSubscribedRaw.reduce<Record<string, (typeof siteSubscribedRaw)[0]>>((acc, contact) => {
+          if (!acc[contact.subject]) acc[contact.subject] = contact
+          return acc
+        }, {}),
+      )
+    : undefined
 
   // Fetch site resources for all joined sites to ensure metadata is available
   const siteIds = siteSubscribed?.map((contact) => hmId(contact.subject)) || []
@@ -454,9 +467,21 @@ function FollowingSection() {
   const accountList = useContactList()
 
   // Filter contacts with profile subscription, excluding own account
-  const profileSubscribed = contacts.data?.filter(
+  const profileSubscribedRaw = contacts.data?.filter(
     (contact) => hasProfileSubscription(contact) && contact.subject !== selectedAccountId,
   )
+
+  // Deduplicate by subject — same account may appear multiple times with different tsids.
+  // The backend returns contacts ordered by id DESC (most recent first), so the
+  // first occurrence per subject wins.
+  const profileSubscribed = profileSubscribedRaw
+    ? Object.values(
+        profileSubscribedRaw.reduce<Record<string, (typeof profileSubscribedRaw)[0]>>((acc, contact) => {
+          if (!acc[contact.subject]) acc[contact.subject] = contact
+          return acc
+        }, {}),
+      )
+    : undefined
 
   // Fetch profile resources for all followed contacts to ensure metadata is available
   const profileIds = profileSubscribed?.map((contact) => hmId(contact.subject)) || []
