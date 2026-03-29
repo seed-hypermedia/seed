@@ -23,6 +23,7 @@
         "@shm/shared": "file:../frontend/packages/shared",
         "@simplewebauthn/browser": "^13.2.2",
         "@simplewebauthn/server": "^13.2.2",
+        "@tanstack/react-query": "^4.36.1",
         "bun-plugin-tailwind": "^0.1.2",
         "cborg": "^4.5.8",
         "class-variance-authority": "^0.7.1",
