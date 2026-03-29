@@ -179,6 +179,7 @@ export async function readInput(options: {file?: string; grobidUrl?: string; qui
       metadata: {},
       fileBlobs: resolved.blobs,
       tree: nodes.map(hmBlockNodeToBlockNode),
+      blocks: nodes,
     }
   }
 
