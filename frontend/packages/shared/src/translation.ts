@@ -1,7 +1,7 @@
-import {ReactNode, useCallback} from 'react'
+import {type ReactNode, useCallback} from 'react'
 import {useUniversalAppContext} from './routing'
 import {
-  AnyTimestamp,
+  type AnyTimestamp,
   formattedDateDayOnly as defaultFormattedDateDayOnly,
   formattedDateLong as defaultFormattedDateLong,
   formattedDateMedium as defaultFormattedDateMedium,

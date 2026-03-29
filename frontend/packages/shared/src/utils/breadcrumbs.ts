@@ -1,4 +1,4 @@
-import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from './entity-id-url'
 
 export function getParentPaths(path?: string[] | null): string[][] {

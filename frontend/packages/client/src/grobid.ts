@@ -36,14 +36,14 @@ export async function isGrobidAvailable(grobidUrl = DEFAULT_GROBID_URL, timeoutM
  * Send a PDF to GROBID's processFulltextDocument endpoint and return TEI XML.
  */
 export async function processFulltextDocument(
-  pdfBuffer: ArrayBuffer | Buffer,
+  pdfBuffer: ArrayBuffer | Uint8Array,
   options?: GrobidOptions,
 ): Promise<string> {
   const baseUrl = options?.grobidUrl || DEFAULT_GROBID_URL
   const url = `${baseUrl}/api/processFulltextDocument`
 
   const formData = new FormData()
-  formData.append('input', new Blob([pdfBuffer]), 'document.pdf')
+  formData.append('input', new Blob([pdfBuffer as BlobPart]), 'document.pdf')
 
   // Request coordinates for figure bounding boxes (useful for future figure extraction)
   const coords = options?.teiCoordinates || ['figure']

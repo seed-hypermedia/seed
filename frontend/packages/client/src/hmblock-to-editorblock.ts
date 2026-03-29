@@ -1,4 +1,4 @@
-import {
+import type {
   EditorBlock,
   EditorBlockProps,
   EditorBlockType,
@@ -8,7 +8,7 @@ import {
   HMInlineContent,
   MediaBlockProps,
 } from './editor-types'
-import {HMAnnotation, HMBlock, HMBlockChildrenType, HMBlockNode, HMBlockType} from './hm-types'
+import {type HMAnnotation, type HMBlock, type HMBlockChildrenType, type HMBlockNode, type HMBlockType} from './hm-types'
 import {isSurrogate} from './hm-types'
 import type {SpanAnnotation} from './unicode'
 

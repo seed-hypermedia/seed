@@ -1,4 +1,4 @@
-import {Query, QueryCache, QueryClient, QueryKey} from '@tanstack/react-query'
+import {Query, QueryCache, QueryClient, type QueryKey} from '@tanstack/react-query'
 
 // Re-export for consumers to avoid duplicate package instances
 export {QueryClientProvider, useQueryClient} from '@tanstack/react-query'

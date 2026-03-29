@@ -2,7 +2,7 @@ import {
   BlockRangeSchema,
   HMResourceVisibilitySchema,
   unpackedHmIdSchema,
-  UnpackedHypermediaId,
+  type UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {z} from 'zod'
 import type {SiteProfileTab, ViewRouteKey} from './utils/entity-id-url'

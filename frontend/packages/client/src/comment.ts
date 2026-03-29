@@ -490,8 +490,8 @@ export async function commentRecordIdFromBlob(blobData: Uint8Array): Promise<str
   const tsBytes = new Uint8Array(buf, 2, 6)
 
   // 4 bytes from SHA-256 of blob data
-  const hashBuffer = await crypto.subtle.digest('SHA-256', blobData)
-  const hashBytes = new Uint8Array(hashBuffer, 0, 4)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', blobData as BufferSource)
+  const hashBytes = new Uint8Array(hashBuffer).slice(0, 4)
 
   // Combine: 6 + 4 = 10 bytes, encode as base58btc
   const tsidBytes = new Uint8Array(10)

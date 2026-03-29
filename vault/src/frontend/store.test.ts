@@ -688,6 +688,13 @@ describe('Store', () => {
     })
 
     test('uploads an avatar block before publishing the new profile', async () => {
+      // postAccountCreateAction publishes an extra Contact blob for the SHM site.
+      // That's not relevant to this test (avatar → profile order), so mock it out.
+      const postAccountCreateActionSpy = spyOn(
+        postAccountCreateActionModule,
+        'postAccountCreateAction',
+      ).mockImplementation(async () => {})
+
       const published: Array<{cid: string; data: Uint8Array}> = []
       const {state, actions} = createStore(
         createMockClient({
@@ -722,6 +729,8 @@ describe('Store', () => {
       const decoded = blobs.decodeBlob<blobs.Profile>(profileBlob!.data, CID.parse(profileBlob!.cid))
       expect(decoded.decoded.avatar).toBe(`ipfs://${published[0]!.cid}`)
       expect(decoded.decoded.description).toBe('Description')
+
+      postAccountCreateActionSpy.mockRestore()
     })
   })
 

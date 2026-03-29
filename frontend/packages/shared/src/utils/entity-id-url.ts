@@ -5,9 +5,9 @@ import {
   unpackHmId as _unpackHmId,
 } from '@seed-hypermedia/client/hm-types'
 import {DEFAULT_GATEWAY_URL, HYPERMEDIA_SCHEME, OS_PROTOCOL_SCHEME} from '../constants'
-import {NavRoute} from '../routes'
+import type {NavRoute} from '../routes'
 import {entityQueryPathToHmIdPath} from './path-api'
-import {StateStream} from './stream'
+import type {StateStream} from './stream'
 
 /**
  * Activity filter slug <-> filterEventType mapping for URL encoding

@@ -1,6 +1,6 @@
 // this file exists so you know what may need to be invalidated from the cache when you make changes.
 
-import {QueryKey} from '@tanstack/react-query'
+import type {QueryKey} from '@tanstack/react-query'
 import {abbreviateCid} from '../utils'
 
 export const queryKeys = {
