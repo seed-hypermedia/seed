@@ -11,7 +11,7 @@ import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {createContext, useContext} from 'react'
 import {proxy, useSnapshot} from 'valtio'
-import * as postCreate from '@shm/shared/post-account-create-action'
+import * as joinedSite from '../../../frontend/packages/shared/src/publish-default-joined-site'
 import {APIError} from './api-client'
 import type {Blockstore} from './blockstore'
 import * as localCrypto from './crypto'
@@ -1127,7 +1127,11 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         }
 
         await publishProfile(kp, profileOptions, ts)
-        await postCreate.postAccountCreateAction(
+        // Vault runs in the browser but does not use the web app's query cache.
+        // Import the pure shared publisher directly so account creation keeps the
+        // auto-join behavior without pulling React Query and other broader shared
+        // side effects into the client bundle.
+        await joinedSite.publishDefaultJoinedSite(
           {
             accountUid,
           },

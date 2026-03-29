@@ -1,42 +1,33 @@
-import {createContact} from '@seed-hypermedia/client'
-import type {HMPublishBlobsInput, HMSigner} from '@seed-hypermedia/client/hm-types'
 import {invalidateQueries} from './models/query-client'
 import {queryKeys} from './models/query-keys'
+import {defaultJoinedSiteUid, publishDefaultJoinedSite} from './publish-default-joined-site'
 
-type PostAccountCreateActionInput = {
-  accountUid: string
-}
-
-type PostAccountCreateActionClient = {
-  getSigner: (accountUid: string) => Promise<HMSigner> | HMSigner
-  publish: (input: HMPublishBlobsInput) => Promise<unknown>
-}
-
-/** The site that new accounts automatically join right after creation. */
-export const defaultJoinedSiteUid = 'z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS'
+type PostAccountCreateActionInput = Parameters<typeof publishDefaultJoinedSite>[0]
+type PostAccountCreateActionClient = Parameters<typeof publishDefaultJoinedSite>[1]
+export {defaultJoinedSiteUid} from './publish-default-joined-site'
 
 /**
  * Runs client-side follow-up work after a brand new account has been created.
+ *
+ * The publish step lives in `publish-default-joined-site.ts` so Vault can reuse
+ * it without importing query/cache infrastructure into its browser bundle. This
+ * wrapper is intentionally web-facing: it layers React Query invalidation on top
+ * of the pure publish helper for callers that already depend on shared query
+ * state.
  */
 export async function postAccountCreateAction(
   input: PostAccountCreateActionInput,
   client: PostAccountCreateActionClient,
 ): Promise<void> {
-  try {
-    const signer = await client.getSigner(input.accountUid)
-    const contact = await createContact(
-      {
-        subjectUid: defaultJoinedSiteUid,
-        accountUid: input.accountUid,
-        subscribe: {site: true},
-      },
-      signer,
-    )
-    await client.publish(contact)
+  const didPublish = await publishDefaultJoinedSite(input, client)
 
-    invalidateQueries([queryKeys.CONTACTS_ACCOUNT, input.accountUid])
-    invalidateQueries([queryKeys.CONTACTS_SUBJECT, defaultJoinedSiteUid])
-  } catch (error) {
-    console.error('Failed to run postAccountCreateAction', error)
+  if (!didPublish) {
+    return
   }
+
+  // Web callers keep the previous behavior and refresh contact queries after
+  // the background publish step. The pure helper intentionally does not know
+  // about query state so it can stay safe for non-web consumers like Vault.
+  invalidateQueries([queryKeys.CONTACTS_ACCOUNT, input.accountUid])
+  invalidateQueries([queryKeys.CONTACTS_SUBJECT, defaultJoinedSiteUid])
 }

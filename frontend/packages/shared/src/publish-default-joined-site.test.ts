@@ -1,11 +1,9 @@
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {afterEach, describe, expect, test, vi} from 'vitest'
 import * as blobs from './blobs'
-import * as queryClient from './models/query-client'
-import {queryKeys} from './models/query-keys'
-import {defaultJoinedSiteUid, postAccountCreateAction} from './post-account-create-action'
+import {defaultJoinedSiteUid, publishDefaultJoinedSite} from './publish-default-joined-site'
 
-describe('postAccountCreateAction', () => {
+describe('publishDefaultJoinedSite', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -14,9 +12,8 @@ describe('postAccountCreateAction', () => {
     const keyPair = blobs.generateNobleKeyPair()
     const accountUid = blobs.principalToString(keyPair.principal)
     const publishedInputs: Array<{blobs: Array<{cid?: string; data: Uint8Array}>}> = []
-    const invalidateQueriesSpy = vi.spyOn(queryClient, 'invalidateQueries')
 
-    await postAccountCreateAction(
+    const didPublish = await publishDefaultJoinedSite(
       {
         accountUid,
       },
@@ -31,6 +28,7 @@ describe('postAccountCreateAction', () => {
         },
       },
     )
+    expect(didPublish).toBe(true)
 
     expect(publishedInputs).toHaveLength(1)
     const contactBlob = publishedInputs[0]?.blobs[0]?.data
@@ -46,19 +44,16 @@ describe('postAccountCreateAction', () => {
     expect(blobs.principalToString(decoded.subject)).toBe(defaultJoinedSiteUid)
     expect(blobs.principalToString(decoded.account!)).toBe(accountUid)
     expect(decoded.subscribe).toEqual({site: true})
-    expect(invalidateQueriesSpy).toHaveBeenCalledWith([queryKeys.CONTACTS_ACCOUNT, accountUid])
-    expect(invalidateQueriesSpy).toHaveBeenCalledWith([queryKeys.CONTACTS_SUBJECT, defaultJoinedSiteUid])
   })
 
-  test('does not invalidate contact queries when the publish step fails', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
+  test('does not throw when publishing fails', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     const keyPair = blobs.generateNobleKeyPair()
     const accountUid = blobs.principalToString(keyPair.principal)
-    const invalidateQueriesSpy = vi.spyOn(queryClient, 'invalidateQueries')
 
     await expect(
-      postAccountCreateAction(
+      publishDefaultJoinedSite(
         {
           accountUid,
         },
@@ -72,8 +67,8 @@ describe('postAccountCreateAction', () => {
           },
         },
       ),
-    ).resolves.toBeUndefined()
+    ).resolves.toBe(false)
 
-    expect(invalidateQueriesSpy).not.toHaveBeenCalled()
+    expect(consoleErrorSpy).toHaveBeenCalled()
   })
 })

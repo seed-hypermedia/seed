@@ -6,7 +6,7 @@ import * as simplewebauthn from '@simplewebauthn/browser'
 import {afterEach, beforeEach, describe, expect, mock, spyOn, test} from 'bun:test'
 import {code as rawCodec} from 'multiformats/codecs/raw'
 import {CID} from 'multiformats/cid'
-import * as postAccountCreateActionModule from '@shm/shared/post-account-create-action'
+import * as joinedSite from '../../../frontend/packages/shared/src/publish-default-joined-site'
 import {APIError} from './api-client'
 import {createStore} from './store'
 import {createMockBlockstore, createMockClient, createSuccessMockClient} from './test-utils'
@@ -527,10 +527,7 @@ describe('Store', () => {
 
   describe('createAccount', () => {
     test('creates an account when description is omitted', async () => {
-      const postAccountCreateActionSpy = spyOn(
-        postAccountCreateActionModule,
-        'postAccountCreateAction',
-      ).mockResolvedValue(undefined)
+      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
       const saveVaultDataCalls: unknown[] = []
       const publishCalls: Array<{cid: unknown; data: Uint8Array}> = []
       const client = createMockClient({
@@ -564,18 +561,15 @@ describe('Store', () => {
       expect(state.error).toBe('')
       expect(saveVaultDataCalls.length).toBe(1)
       expect(publishCalls.length).toBe(1)
-      expect(postAccountCreateActionSpy).toHaveBeenCalledTimes(1)
-      expect(postAccountCreateActionSpy.mock.calls[0]?.[0]).toEqual({
+      expect(publishDefaultJoinedSiteSpy).toHaveBeenCalledTimes(1)
+      expect(publishDefaultJoinedSiteSpy.mock.calls[0]?.[0]).toEqual({
         accountUid: expect.any(String),
       })
-      postAccountCreateActionSpy.mockRestore()
+      publishDefaultJoinedSiteSpy.mockRestore()
     })
 
     test('rolls back local state without publishing when vault save fails', async () => {
-      const postAccountCreateActionSpy = spyOn(
-        postAccountCreateActionModule,
-        'postAccountCreateAction',
-      ).mockResolvedValue(undefined)
+      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
       const client = createMockClient({
         saveVaultData: async () => ({success: true}),
       })
@@ -606,10 +600,10 @@ describe('Store', () => {
       expect(state.creatingAccount).toBe(true)
       expect(state.error).toContain('dag-cbor failed')
       expect(publishCalls.length).toBe(0)
-      expect(postAccountCreateActionSpy).not.toHaveBeenCalled()
+      expect(publishDefaultJoinedSiteSpy).not.toHaveBeenCalled()
       serializeSpy.mockRestore()
       consoleErrorSpy.mockRestore()
-      postAccountCreateActionSpy.mockRestore()
+      publishDefaultJoinedSiteSpy.mockRestore()
     })
 
     test('surfaces a backend-unavailable error when saving the new account fails over the network', async () => {
@@ -688,12 +682,11 @@ describe('Store', () => {
     })
 
     test('uploads an avatar block before publishing the new profile', async () => {
-      // postAccountCreateAction publishes an extra Contact blob for the SHM site.
+      // publishDefaultJoinedSite publishes an extra Contact blob for the SHM site.
       // That's not relevant to this test (avatar → profile order), so mock it out.
-      const postAccountCreateActionSpy = spyOn(
-        postAccountCreateActionModule,
-        'postAccountCreateAction',
-      ).mockImplementation(async () => {})
+      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockImplementation(
+        async () => true,
+      )
 
       const published: Array<{cid: string; data: Uint8Array}> = []
       const {state, actions} = createStore(
@@ -730,7 +723,7 @@ describe('Store', () => {
       expect(decoded.decoded.avatar).toBe(`ipfs://${published[0]!.cid}`)
       expect(decoded.decoded.description).toBe('Description')
 
-      postAccountCreateActionSpy.mockRestore()
+      publishDefaultJoinedSiteSpy.mockRestore()
     })
   })
 
