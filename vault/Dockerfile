@@ -6,6 +6,7 @@ WORKDIR /build
 FROM base AS build
 WORKDIR /build
 COPY frontend/packages/shared ./frontend/packages/shared/
+COPY frontend/packages/client ./frontend/packages/client/
 COPY vault/package.json vault/bunfig.toml vault/bun.lock ./vault/
 RUN cd vault && bun install --frozen-lockfile --production
 COPY vault ./vault/

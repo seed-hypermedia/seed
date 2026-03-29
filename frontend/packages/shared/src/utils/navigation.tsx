@@ -1,11 +1,11 @@
 import {Buffer} from 'buffer'
 import {createContext, useCallback, useContext} from 'react'
-import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {defaultRoute, NavRoute} from '../routes'
+import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {defaultRoute, type NavRoute} from '../routes'
 import {UniversalAppContext} from '../routing'
 import {useStream, useStreamSelector} from '../use-stream'
 import {hmId} from './entity-id-url'
-import {StateStream} from './stream'
+import type {StateStream} from './stream'
 
 if (typeof global !== 'undefined') {
   global.Buffer = global.Buffer || Buffer
