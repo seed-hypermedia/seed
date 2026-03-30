@@ -347,6 +347,49 @@ describe('vault auth service', () => {
     })
   })
 
+  test('webAuthnRegisterStart requires user verification', async () => {
+    const svc = createService()
+    const email = 'passkey-register@test.com'
+    const userId = createUser(email)
+    const sessionId = createSession(userId)
+
+    const response = await svc.webAuthnRegisterStart(createContext(sessionId))
+
+    expect(response.authenticatorSelection?.userVerification).toBe('required')
+  })
+
+  test('webAuthnLoginStart lets the browser choose the authenticator path for passkeys', async () => {
+    const svc = createService()
+    const email = 'passkey-login@test.com'
+    const userId = createUser(email)
+
+    db.run(`INSERT INTO credentials (id, user_id, type, metadata, create_time) VALUES (?, ?, ?, ?, ?)`, [
+      'passkey-credential',
+      userId,
+      'passkey',
+      JSON.stringify({
+        credentialId: 'passkey-id',
+        publicKey: 'public-key',
+        counter: 0,
+        transports: ['internal'],
+        backupEligible: true,
+        backupState: true,
+        prfEnabled: true,
+      }),
+      Date.now(),
+    ])
+
+    const response = await svc.webAuthnLoginStart({email}, createContext())
+
+    expect(response.userVerification).toBe('required')
+    expect(response.allowCredentials).toEqual([
+      {
+        id: 'passkey-id',
+        type: 'public-key',
+      },
+    ])
+  })
+
   test('password login still works after email change because the salt is independent from email', async () => {
     const svc = createService()
     const oldEmail = 'before-change@test.com'

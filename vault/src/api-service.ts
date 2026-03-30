@@ -860,7 +860,7 @@ export class Service implements api.ServerInterface {
       excludeCredentials,
       authenticatorSelection: {
         residentKey: 'preferred',
-        userVerification: 'preferred',
+        userVerification: 'required',
       },
       challenge: base64.encode(crypto.getRandomValues(new Uint8Array(32))),
     })
@@ -975,7 +975,7 @@ export class Service implements api.ServerInterface {
     if (!req.email) {
       const options = await webauthn.generateAuthenticationOptions({
         rpID: this.rp.id,
-        userVerification: 'preferred',
+        userVerification: 'required',
       })
 
       const hmac = challenge.computeHmac(this.hmacSecret, 'webauthn-login', options.challenge)
@@ -992,7 +992,7 @@ export class Service implements api.ServerInterface {
       const options = await webauthn.generateAuthenticationOptions({
         rpID: this.rp.id,
         allowCredentials: [],
-        userVerification: 'preferred',
+        userVerification: 'required',
       })
       return options as api.WebAuthnLoginStartResponse
     }
@@ -1008,20 +1008,15 @@ export class Service implements api.ServerInterface {
     const allowCredentials = passkeys.map((p) => {
       if (!p.metadata) throw new Error('Passkey metadata is missing')
       const metadata = JSON.parse(p.metadata) as PasskeyMetadata
-      const transports =
-        metadata.transports && metadata.transports.length > 0
-          ? (metadata.transports as AuthenticatorTransport[])
-          : (['internal', 'hybrid'] as AuthenticatorTransport[])
       return {
         id: metadata.credentialId,
-        transports,
       }
     })
 
     const options = await webauthn.generateAuthenticationOptions({
       rpID: this.rp.id,
       allowCredentials,
-      userVerification: 'preferred',
+      userVerification: 'required',
     })
 
     const hmac = challenge.computeHmac(this.hmacSecret, 'webauthn-login', options.challenge)
