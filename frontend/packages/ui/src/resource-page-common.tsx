@@ -593,6 +593,15 @@ function DocumentBody({
       ? {openComment}
       : undefined
 
+  // Respect the showActivity metadata toggle to hide the document tools bar.
+  const showActivity = IS_DESKTOP || document.metadata?.showActivity !== false
+
+  // When activity is hidden, fall back to content for activity-related views
+  const effectiveView: ActiveView =
+    !showActivity && (activeView === 'comments' || activeView === 'collaborators' || activeView === 'activity')
+      ? 'content'
+      : activeView
+
   // Extract blockRef from route for scroll-to-block and highlighting
   const routeBlockRef = 'id' in route && typeof route.id === 'object' ? route.id.blockRef : null
   const {scrollToBlock} = useBlockScroll(routeBlockRef)
@@ -673,8 +682,8 @@ function DocumentBody({
       directory: 'Directory',
       activity: 'Activity',
     }
-    if (activeView !== 'content' && panelLabels[activeView]) {
-      items.push({label: panelLabels[activeView]})
+    if (effectiveView !== 'content' && panelLabels[effectiveView]) {
+      items.push({label: panelLabels[effectiveView]})
     }
 
     // Append block text when a block is focused
@@ -693,7 +702,7 @@ function DocumentBody({
     }
 
     return items
-  }, [isHomeDoc, breadcrumbIds, breadcrumbResults, activeView, routeBlockRef, document.content, route])
+  }, [isHomeDoc, breadcrumbIds, breadcrumbResults, effectiveView, routeBlockRef, document.content, route])
 
   // Track when DocumentTools becomes sticky
   const [isToolsSticky, setIsToolsSticky] = useState(false)
@@ -723,7 +732,7 @@ function DocumentBody({
   const {showSidebars, showCollapsed, sidebarProps, mainContentProps, elementRef, wrapperProps, contentMaxWidth} =
     useDocumentLayout({
       contentWidth: document.metadata?.contentWidth,
-      showSidebars: !isHomeDoc && document.metadata?.showOutline !== false && activeView === 'content',
+      showSidebars: !isHomeDoc && document.metadata?.showOutline !== false && effectiveView === 'content',
     })
 
   // Fetch author metadata for document header
@@ -888,17 +897,16 @@ function DocumentBody({
     >
       <DocumentCover cover={document.metadata?.cover} />
 
-      {isHomeDoc && !siteMembers.isInitialLoading && siteMembers.members.length > 0 && (
-        <div style={wrapperProps.style} className="mx-auto w-full px-4 pt-4">
-          <MembersFacepile members={siteMembers.members} siteId={siteId} />
-        </div>
-      )}
-
       {!isMobile ? (
         <div style={wrapperProps.style} className={cn('mx-auto flex w-full justify-between')}>
           {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
-          {!isHomeDoc && (
-            <div {...mainContentProps} className={cn(mainContentProps.className, 'flex flex-col')}>
+          <div {...mainContentProps} className={cn(mainContentProps.className, 'flex flex-col')}>
+            {isHomeDoc && !siteMembers.isInitialLoading && siteMembers.members.length > 0 && (
+              <div className="pt-4">
+                <MembersFacepile members={siteMembers.members} siteId={siteId} />
+              </div>
+            )}
+            {!isHomeDoc && (
               <DocumentHeader
                 docId={docId}
                 docMetadata={document.metadata}
@@ -907,16 +915,18 @@ function DocumentBody({
                 breadcrumbs={breadcrumbs}
                 visibility={document.visibility}
               />
-            </div>
-          )}
+            )}
+          </div>
           {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
         </div>
       ) : (
-        !isHomeDoc && (
-          <div
-            className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
-            style={{maxWidth: contentMaxWidth}}
-          >
+        <div className={cn('mx-auto flex w-full flex-col px-4')} style={{maxWidth: contentMaxWidth}}>
+          {isHomeDoc && !siteMembers.isInitialLoading && siteMembers.members.length > 0 && (
+            <div className="pt-4">
+              <MembersFacepile members={siteMembers.members} siteId={siteId} />
+            </div>
+          )}
+          {!isHomeDoc && (
             <DocumentHeader
               docId={docId}
               docMetadata={document.metadata}
@@ -925,66 +935,68 @@ function DocumentBody({
               breadcrumbs={breadcrumbs}
               visibility={document.visibility}
             />
-          </div>
-        )
+          )}
+        </div>
       )}
 
       {/* Sentinel element - important for doc tools sticky checking */}
       <div ref={toolsSentinelRef} />
 
-      {/* DocumentTools - sticky with compact padding */}
-      <div
-        className={cn(
-          'dark:bg-background sticky top-0 z-10 bg-white px-5 py-1',
-          isToolsSticky ? 'shadow-md' : 'shadow-none',
-          'transition-shadow',
-        )}
-      >
-        <DocumentTools
-          id={docId}
-          activeTab={
-            activeView === 'activity' &&
-            activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
-              ? 'citations'
-              : activeView === 'activity' || activeView === 'directory' || activeView === 'site-profile'
-              ? undefined
-              : activeView
-          }
-          currentPanel={panelRoute}
-          existingDraft={existingDraft}
-          commentsCount={interactionSummary.data?.comments || 0}
-          citationsCount={interactionSummary.data?.citations || 0}
-          layoutProps={
-            isMobile
-              ? undefined
-              : {
-                  wrapperProps,
-                  sidebarProps,
-                  mainContentProps,
-                  showSidebars,
-                }
-          }
-          rightActions={
-            <div className="flex items-center gap-1">
-              {hasOptions && (
-                <div className="md:hidden">
-                  <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
-                </div>
-              )}
-              {activeView !== 'content' && activeView !== 'site-profile' && !isMobile && (
-                <OpenInPanelButton
-                  id={docId}
-                  panelRoute={
-                    route.key === activeView
-                      ? extractPanelRoute(route)
-                      : {key: activeView as Exclude<ActiveView, 'content' | 'site-profile'>, id: docId}
+      {/* DocumentTools - sticky with compact padding. Hidden when showActivity is false. */}
+      {showActivity && (
+        <div
+          className={cn(
+            'dark:bg-background sticky top-0 z-10 bg-white px-5 py-1',
+            isToolsSticky ? 'shadow-md' : 'shadow-none',
+            'transition-shadow',
+          )}
+        >
+          <DocumentTools
+            id={docId}
+            activeTab={
+              effectiveView === 'activity' &&
+              activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
+                ? 'citations'
+                : effectiveView === 'activity' || effectiveView === 'directory' || effectiveView === 'site-profile'
+                ? undefined
+                : effectiveView
+            }
+            currentPanel={panelRoute}
+            existingDraft={existingDraft}
+            commentsCount={interactionSummary.data?.comments || 0}
+            citationsCount={interactionSummary.data?.citations || 0}
+            layoutProps={
+              isMobile
+                ? undefined
+                : {
+                    wrapperProps,
+                    sidebarProps,
+                    mainContentProps,
+                    showSidebars,
                   }
-                />
-              )}
-            </div>
-          }
-        />
-      </div>
+            }
+            rightActions={
+              <div className="flex items-center gap-1">
+                {hasOptions && (
+                  <div className="md:hidden">
+                    <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
+                  </div>
+                )}
+                {effectiveView !== 'content' && effectiveView !== 'site-profile' && !isMobile && (
+                  <OpenInPanelButton
+                    id={docId}
+                    panelRoute={
+                      route.key === effectiveView
+                        ? extractPanelRoute(route)
+                        : {key: effectiveView as Exclude<ActiveView, 'content' | 'site-profile'>, id: docId}
+                    }
+                  />
+                )}
+              </div>
+            }
+          />
+        </div>
+      )}
 
       {/* Main content based on activeView */}
       <div className="px-4 pb-60">
@@ -992,7 +1004,7 @@ function DocumentBody({
           docId={docId}
           resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
           document={document}
-          activeView={activeView}
+          activeView={effectiveView}
           contentMaxWidth={contentMaxWidth}
           wrapperProps={wrapperProps}
           sidebarProps={sidebarProps}
