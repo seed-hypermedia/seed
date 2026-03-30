@@ -349,3 +349,4 @@ jobs:
           AWS_DEFAULT_REGION: eu-west-2
         run: |
           aws s3 cp deploy-script/deploy.js s3://seedappdev/dev/latest/deploy.js
+          aws s3 cp deploy-script/deploy.js s3://seedappdev/latest/deploy.js
