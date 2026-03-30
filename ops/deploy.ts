@@ -1060,9 +1060,14 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
   let finalCompose = composeContent
   const hasGpu = shell.runSafe('test -d /dev/dri && echo yes') === 'yes'
   if (hasGpu) {
+    // Use GIDs instead of group names — Docker resolves names from the
+    // container's /etc/group, which may not have these groups defined.
+    // GIDs are passed through directly without any name resolution.
     const groups: string[] = []
-    if (shell.runSafe('getent group video >/dev/null 2>&1 && echo yes') === 'yes') groups.push('video')
-    if (shell.runSafe('getent group render >/dev/null 2>&1 && echo yes') === 'yes') groups.push('render')
+    const videoGid = shell.runSafe("getent group video 2>/dev/null | cut -d: -f3")
+    if (videoGid) groups.push(videoGid)
+    const renderGid = shell.runSafe("getent group render 2>/dev/null | cut -d: -f3")
+    if (renderGid) groups.push(renderGid)
 
     // Insert devices and group_add before the "volumes:" line of seed-daemon.
     // We match the first "volumes:" that appears after "seed-daemon:" in the file.
