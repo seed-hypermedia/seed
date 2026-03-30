@@ -118,5 +118,7 @@ backend/util/llama-go/**/*.o
 # Use yarn.lock only, ignore bun lock file
 bun.lock
 
-# Deploy script build artifact (built by CI, not committed)
-ops/dist/
+# Deploy script build output — deploy.js is tracked as the prod/bootstrap bundle
+# (see ops/.gitignore). Other build artifacts are ignored.
+ops/dist/*
+!ops/dist/deploy.js

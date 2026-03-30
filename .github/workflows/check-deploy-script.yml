@@ -35,6 +35,14 @@ jobs:
         run: bun run build
         working-directory: ops
 
+      - name: Verify dist/deploy.js is up to date
+        working-directory: ops
+        run: |
+          if ! git diff --quiet dist/deploy.js 2>/dev/null; then
+            echo "::error::ops/dist/deploy.js is stale. Run 'bun run build' in ops/ and commit the result."
+            exit 1
+          fi
+
       - name: Upload deploy.js artifact
         uses: actions/upload-artifact@v4
         with:

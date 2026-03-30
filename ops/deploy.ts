@@ -53,20 +53,38 @@ export const LIGHTNING_URL_TESTNET = 'https://ln.testnet.seed.hyper.media'
 // Dev: uploaded to S3 alongside dev Docker images on each main push.
 export const GITHUB_RELEASES_API = 'https://api.github.com/repos/seed-hypermedia/seed/releases/latest'
 export const DEV_DEPLOY_SCRIPT_URL = 'https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/deploy.js'
-export const PROD_DEPLOY_SCRIPT_URL = 'https://seedappdev.s3.eu-west-2.amazonaws.com/latest/deploy.js'
 
 /**
  * Resolve the download URL for the latest deploy.js based on release channel.
- * - "latest" (prod): fetches from S3 prod path (uploaded on every main push).
- * - "dev": fetches from S3 dev path.
- * - Falls back to the GitHub Release asset if S3 is unreachable.
+ * - "latest" (prod): fetches from the latest GitHub Release asset.
+ * - "dev": fetches from S3 dev bucket.
+ * - Falls back to ops/dist/deploy.js via raw GitHub if release has no asset.
  */
 export async function getDeployScriptUrl(releaseChannel: string): Promise<string> {
   if (releaseChannel === 'dev') {
     return DEV_DEPLOY_SCRIPT_URL
   }
 
-  return PROD_DEPLOY_SCRIPT_URL
+  // For prod (and any other channel), resolve from GitHub Releases API.
+  try {
+    const resp = await fetch(GITHUB_RELEASES_API, {
+      headers: {Accept: 'application/vnd.github.v3+json'},
+    })
+    if (!resp.ok) {
+      throw new Error(`GitHub API returned ${resp.status}`)
+    }
+    const release = (await resp.json()) as {
+      assets: Array<{name: string; browser_download_url: string}>
+    }
+    const asset = release.assets.find((a) => a.name === 'deploy.js')
+    if (asset) {
+      return asset.browser_download_url
+    }
+    throw new Error('deploy.js asset not found in latest release')
+  } catch {
+    // Fallback: fetch the committed bundle from the repo.
+    return `${getOpsBaseUrl()}/dist/deploy.js`
+  }
 }
 
 // The bootstrap curl command. Used in user-facing hints when the seed-deploy
