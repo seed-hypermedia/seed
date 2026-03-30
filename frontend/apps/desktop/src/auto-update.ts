@@ -493,7 +493,7 @@ export class AutoUpdater {
                       })
                       .catch(() => {})
                     // Restore backup
-                    await execPromise(`cp -R "${backupPath}/${appName}.app" "/Applications/"`)
+                    await execPromise(`ditto "${backupPath}/${appName}.app" "/Applications/${appName}.app"`)
                     log.info('[AUTO-UPDATE] Backup restored successfully')
                   }
                 } catch (error) {
@@ -513,12 +513,17 @@ export class AutoUpdater {
               }
 
               try {
+                // Clean up any stale temp directories from a previous failed update
+                await fs.rm(tempPath, {recursive: true, force: true}).catch(() => {})
+
                 // Create temp directories
                 await fs.mkdir(tempPath, {recursive: true})
                 await fs.mkdir(backupPath, {recursive: true})
                 await fs.mkdir(unzipPath, {recursive: true})
 
                 // Backup existing app if it exists
+                // Use ditto instead of cp -R to correctly handle macOS framework
+                // symlinks and extended attributes inside .app bundles
                 if (
                   await fs
                     .access(`/Applications/${appName}.app`)
@@ -526,12 +531,12 @@ export class AutoUpdater {
                     .catch(() => false)
                 ) {
                   log.info('[AUTO-UPDATE] Backing up existing app...')
-                  await execPromise(`cp -R "/Applications/${appName}.app" "${backupPath}/"`)
+                  await execPromise(`ditto "/Applications/${appName}.app" "${backupPath}/${appName}.app"`)
                 }
 
-                // Unzip new version
+                // Unzip new version using ditto for proper macOS bundle handling
                 log.info('[AUTO-UPDATE] Unzipping update...')
-                await execPromise(`unzip -o "${filePath}" -d "${unzipPath}"`)
+                await execPromise(`ditto -xk "${filePath}" "${unzipPath}"`)
 
                 // Verify the unzipped app exists
                 const unzippedAppPath = path.join(unzipPath, `${appName}.app`)
@@ -553,9 +558,9 @@ export class AutoUpdater {
                   })
                   .catch(() => {})
 
-                // Install new version
+                // Install new version using ditto to preserve framework symlinks
                 log.info('[AUTO-UPDATE] Installing new version...')
-                await execPromise(`cp -R "${unzippedAppPath}" "/Applications/"`)
+                await execPromise(`ditto "${unzippedAppPath}" "/Applications/${appName}.app"`)
 
                 // Verify installation
                 if (
