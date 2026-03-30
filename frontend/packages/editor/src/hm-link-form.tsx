@@ -123,19 +123,21 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
 
       {(props.type === 'embed' || props.type === 'card' || props.type === 'inline-embed') && isSeedLink && (
         <div className="my-3 flex flex-col gap-3">
-          <SwitchField
-            label="Show Latest Version"
-            id="latest"
-            defaultChecked={isLatestVersion}
-            style={{
-              opacity: isLatestVersion ? 1 : 0.4,
-            }}
-            onCheckedChange={(checked) => {
-              const newUrl = packHmId({...unpacked, latest: checked})
-              setUrl(newUrl)
-              props.updateLink(newUrl, _text, false)
-            }}
-          />
+          {!unpacked.blockRef && (
+            <SwitchField
+              label="Show Latest Version"
+              id="latest"
+              defaultChecked={isLatestVersion}
+              style={{
+                opacity: isLatestVersion ? 1 : 0.4,
+              }}
+              onCheckedChange={(checked) => {
+                const newUrl = packHmId({...unpacked, latest: checked})
+                setUrl(newUrl)
+                props.updateLink(newUrl, _text, false)
+              }}
+            />
+          )}
           {props.type === 'embed' && unpacked.blockRef && (
             <SwitchField
               label="Include Children"
