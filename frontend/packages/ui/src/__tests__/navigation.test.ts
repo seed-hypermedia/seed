@@ -129,6 +129,7 @@ describe('getSiteNavDirectory', () => {
     expect(result).toHaveLength(2)
   })
 
+
   it('returns empty array when directory is undefined', () => {
     const result = getSiteNavDirectory({id: homeId, directory: undefined})
     expect(result).toHaveLength(0)
