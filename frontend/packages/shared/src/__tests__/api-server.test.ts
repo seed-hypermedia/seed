@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from 'vitest'
 import {encode as cborEncode, decode as cborDecode} from '@ipld/dag-cbor'
 import {deserialize} from 'superjson'
-import {handleApiAction} from '../api-server'
+import {handleApiAction, handleApiRequest} from '../api-server'
 
 describe('handleApiAction', () => {
   it('returns 200 for valid PublishBlobs payload', async () => {
@@ -129,5 +129,99 @@ describe('handleApiAction', () => {
 
     expect(result.status).toBe(400)
     expect(JSON.parse(result.body)).toEqual(expect.objectContaining({error: expect.any(String)}))
+  })
+})
+
+describe('handleApiRequest schema introspection', () => {
+  it('lists available query and action schemas', async () => {
+    const grpcClient = {} as any
+    const queryDaemon = vi.fn()
+
+    const result = await handleApiRequest(new URL('http://localhost/api/schema'), grpcClient, queryDaemon)
+
+    expect(result.status).toBe(200)
+    const body = JSON.parse(result.body)
+    expect(body.endpoint).toBe('/api/schema')
+    expect(body.routes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'Resource',
+          kind: 'query',
+          method: 'GET',
+          path: '/api/Resource',
+          schemaUrl: '/api/schema?key=Resource',
+        }),
+        expect.objectContaining({
+          key: 'PublishBlobs',
+          kind: 'action',
+          method: 'POST',
+          path: '/api/PublishBlobs',
+          schemaUrl: '/api/schema?key=PublishBlobs',
+        }),
+      ]),
+    )
+  })
+
+  it('returns a detailed schema for a single API key', async () => {
+    const grpcClient = {} as any
+    const queryDaemon = vi.fn()
+
+    const result = await handleApiRequest(
+      new URL('http://localhost/api/schema?key=PrepareDocumentChange'),
+      grpcClient,
+      queryDaemon,
+    )
+
+    expect(result.status).toBe(200)
+    const body = JSON.parse(result.body)
+    expect(body.key).toBe('PrepareDocumentChange')
+    expect(body.kind).toBe('action')
+    expect(body.method).toBe('POST')
+    expect(body.inputEncoding).toBe('application/cbor')
+    expect(body.outputSerialization).toBe('superjson')
+    expect(body.inputSchema.$ref).toBe('#/definitions/PrepareDocumentChangeInput')
+    expect(body.outputSchema.$ref).toBe('#/definitions/PrepareDocumentChangeOutput')
+    expect(body.outputSchema.definitions.PrepareDocumentChangeOutput.properties.unsignedChange['x-js-type']).toBe(
+      'Uint8Array',
+    )
+  })
+
+  it('overrides binary payload schemas for introspection', async () => {
+    const grpcClient = {} as any
+    const queryDaemon = vi.fn()
+
+    const result = await handleApiRequest(
+      new URL('http://localhost/api/schema?key=PublishBlobs'),
+      grpcClient,
+      queryDaemon,
+    )
+
+    expect(result.status).toBe(200)
+    const body = JSON.parse(result.body)
+    const dataSchema = body.inputSchema.definitions.PublishBlobsInput.properties.blobs.items.properties.data
+
+    expect(dataSchema['x-js-type']).toBe('Uint8Array')
+    expect(dataSchema.oneOf).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({type: 'string', contentEncoding: 'base64'}),
+        expect.objectContaining({type: 'array'}),
+      ]),
+    )
+  })
+
+  it('returns 404 for unknown introspection keys', async () => {
+    const grpcClient = {} as any
+    const queryDaemon = vi.fn()
+
+    const result = await handleApiRequest(
+      new URL('http://localhost/api/schema?key=DoesNotExist'),
+      grpcClient,
+      queryDaemon,
+    )
+
+    expect(result.status).toBe(404)
+    expect(JSON.parse(result.body)).toEqual({
+      error: 'Unknown API schema key: DoesNotExist',
+    })
   })
 })
