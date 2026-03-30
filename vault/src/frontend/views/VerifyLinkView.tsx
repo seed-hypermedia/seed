@@ -51,12 +51,8 @@ export function VerifyLinkView() {
             </div>
 
             <p className="text-muted-foreground mb-8 text-center">
-              Your email <strong>{email}</strong> has been verified.
+              Your email <strong>{email}</strong> has been verified. You can close this tab now.
             </p>
-
-            <Button variant="ghost" className="mt-6 w-full" onClick={handleBackToLogin}>
-              ← Back to login screen
-            </Button>
           </>
         )}
 

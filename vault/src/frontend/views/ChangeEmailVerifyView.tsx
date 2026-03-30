@@ -51,12 +51,8 @@ export function ChangeEmailVerifyView() {
             </div>
 
             <p className="text-muted-foreground mb-8 text-center">
-              Email change to <strong>{newEmail}</strong> has been confirmed.
+              Email change to <strong>{newEmail}</strong> has been confirmed. You can close this tab now.
             </p>
-
-            <Button variant="ghost" className="mt-6 w-full" onClick={handleBackToLogin}>
-              ← Back to login screen
-            </Button>
           </>
         )}
 
