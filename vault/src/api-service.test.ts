@@ -107,6 +107,45 @@ function getPasswordCredentialRow(userId: string) {
 }
 
 describe('vault auth service', () => {
+  test('getSession reports credentials by type', async () => {
+    const svc = createService()
+    const email = 'session-credentials@test.com'
+    const userId = createUser(email)
+    const sessionId = createSession(userId)
+    const password = await derivePasswordCredential('SessionPassword123!')
+
+    await svc.addPassword(
+      {
+        encryptedDEK: password.wrappedDEK,
+        authKey: password.authKey,
+        salt: password.salt,
+      },
+      createContext(sessionId),
+    )
+
+    await expect(svc.getSession(createContext(sessionId))).resolves.toEqual({
+      authenticated: true,
+      relyingPartyOrigin: rp.origin,
+      userId,
+      email,
+      credentials: {
+        password: true,
+      },
+    })
+  })
+
+  test('preLogin reports existing users without credentials so the client can restart verification', async () => {
+    const svc = createService()
+    const email = 'no-credentials@test.com'
+
+    createUser(email)
+
+    await expect(svc.preLogin({email}, createContext())).resolves.toEqual({
+      exists: true,
+      credentials: {},
+    })
+  })
+
   test('addPassword stores a verifier, not the submitted auth key, and preLogin returns the password salt', async () => {
     const svc = createService()
     const email = 'password-user@test.com'
@@ -138,7 +177,9 @@ describe('vault auth service', () => {
 
     await expect(svc.preLogin({email}, createContext())).resolves.toEqual({
       exists: true,
-      hasPassword: true,
+      credentials: {
+        password: true,
+      },
       salt: password.salt,
     })
   })
@@ -327,7 +368,9 @@ describe('vault auth service', () => {
 
     await expect(svc.preLogin({email: newEmail}, createContext())).resolves.toEqual({
       exists: true,
-      hasPassword: true,
+      credentials: {
+        password: true,
+      },
       salt: password.salt,
     })
 

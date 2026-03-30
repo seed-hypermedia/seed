@@ -168,9 +168,16 @@ export class Service implements api.ServerInterface {
       ? (JSON.parse(passwordCredential.metadata) as PasswordMetadata)
       : undefined
 
+    const passkeyCredential = this.db
+      .query<{id: string}, [string, string]>(`SELECT id FROM credentials WHERE user_id = ? AND type = ?`)
+      .get(user.id, 'passkey')
+
     return {
       exists: true,
-      hasPassword: passwordCredential !== null,
+      credentials: {
+        ...(passwordCredential ? {password: true} : {}),
+        ...(passkeyCredential ? {passkey: true} : {}),
+      },
       salt: passwordMetadata?.salt,
     }
   }
@@ -622,8 +629,10 @@ export class Service implements api.ServerInterface {
       relyingPartyOrigin: this.rp.origin,
       userId: user.id,
       email: user.email,
-      hasPassword: passwordCredential !== null,
-      hasPasskeys: passkeyCredential !== null,
+      credentials: {
+        ...(passwordCredential ? {password: true} : {}),
+        ...(passkeyCredential ? {passkey: true} : {}),
+      },
     }
   }
 

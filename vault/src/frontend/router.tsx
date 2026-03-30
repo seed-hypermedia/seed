@@ -58,13 +58,13 @@ function LockedView() {
       <CardContent>
         <ErrorMessage message={error} />
 
-        {passkeySupported && (
+        {passkeySupported && session?.credentials?.passkey && (
           <Button onClick={actions.handleQuickUnlock} loading={loading} className="w-full">
             Use passkey
           </Button>
         )}
 
-        {session?.hasPassword && (
+        {session?.credentials?.password && (
           <>
             <Divider>or</Divider>
             <Button variant="secondary" onClick={() => navigate('/login')} disabled={loading} className="w-full">

@@ -23,8 +23,10 @@ export interface SessionInfo {
   relyingPartyOrigin: string
   userId?: string
   email?: string
-  hasPassword?: boolean
-  hasPasskeys?: boolean
+  credentials?: {
+    password?: true
+    passkey?: true
+  }
 }
 
 /** Creates the initial state for the store. */
@@ -41,7 +43,8 @@ export function initialState(backendHttpBaseUrl = '') {
     decryptedDEK: null as Uint8Array | null,
     passkeySupported: false,
     platformAuthAvailable: false,
-    userHasPassword: true,
+    userHasPassword: false,
+    userHasPasskey: false,
     vaultData: null as vault.State | null,
     vaultVersion: 0,
     selectedAccountIndex: -1,
@@ -236,6 +239,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         if (data.authenticated && data.email) {
           state.session = data
           state.email = data.email
+
+          if (!data.credentials?.password && !data.credentials?.passkey) {
+            navigator.go('/auth/choose')
+          }
         }
       } catch (e) {
         console.error('Session check failed:', e)
@@ -252,11 +259,19 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
       try {
         const data = await client.preLogin({email: state.email})
+        const hasPassword = data.credentials?.password ?? false
+        const hasPasskey = data.credentials?.passkey ?? false
 
         if (data.exists) {
-          // User exists, proceed to login.
-          state.userHasPassword = data.hasPassword ?? false
+          state.userHasPassword = hasPassword
+          state.userHasPasskey = hasPasskey
           state.passwordSalt = data.salt ?? ''
+
+          if (!hasPassword && !hasPasskey) {
+            await actions.handleStartRegistration()
+            return
+          }
+
           navigator.go('/login')
         } else {
           await actions.handleStartRegistration()
@@ -905,7 +920,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         return
       }
 
-      const isNewUser = !session.hasPassword && !session.hasPasskeys
+      const isNewUser = !session.credentials?.password && !session.credentials?.passkey
 
       if (!isNewUser && !state.decryptedDEK) {
         state.error = 'Vault not unlocked'
@@ -1215,7 +1230,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           state.selectedAccountIndex = previousSelectedAccountIndex
         }
 
-        console.error('Failed to import account:', e)
+        // Error is surfaced to the user via state.error; no console.error
+        // to avoid noisy output in tests that intentionally trigger failures.
         state.error = state.error || getErrorMessage(e, 'Failed to import account')
         throw e
       } finally {

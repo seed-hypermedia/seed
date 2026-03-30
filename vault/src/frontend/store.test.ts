@@ -81,7 +81,12 @@ describe('Store', () => {
 
     test('navigates to login when user exists', async () => {
       const client = createMockClient({
-        preLogin: async () => ({exists: true, hasPassword: true}),
+        preLogin: async () => ({
+          exists: true,
+          credentials: {
+            password: true,
+          },
+        }),
       })
       const {state, actions, navigator} = createStore(client, createMockBlockstore())
       const navigate = mock()
@@ -93,6 +98,32 @@ describe('Store', () => {
 
       expect(navigate).toHaveBeenCalledWith('/login')
       expect(state.userHasPassword).toBe(true)
+    })
+
+    test('restarts verification when an existing user has no credentials yet', async () => {
+      const client = createMockClient({
+        preLogin: async () => ({
+          exists: true,
+          credentials: {},
+        }),
+        registerStart: async () => ({
+          message: 'ok',
+          challengeId: 'retry-challenge',
+        }),
+        registerPoll: async () => ({verified: false}),
+      })
+      const {state, actions, navigator} = createStore(client, createMockBlockstore())
+      const navigate = mock()
+      navigator.setNavigate(navigate)
+
+      state.email = 'existing@user.com'
+
+      await actions.handlePreLogin()
+
+      expect(navigate).toHaveBeenCalledWith('/verify/pending')
+      expect(state.challengeId).toBe('retry-challenge')
+      expect(state.userHasPassword).toBe(false)
+      expect(state.userHasPasskey).toBe(false)
     })
 
     test('sets error on fetch failure', async () => {
@@ -149,12 +180,13 @@ describe('Store', () => {
       window.location = originalLocation as any
     })
 
-    test('does not redirect if authenticated but keys missing', async () => {
+    test('redirects to credential setup if authenticated without credentials', async () => {
       const client = createMockClient({
         getSession: async () => ({
           authenticated: true,
           relyingPartyOrigin: 'https://vault.example.com',
           email: 'test@test.com',
+          credentials: {},
         }),
       })
       const {state, actions, navigator} = createStore(client, createMockBlockstore())
@@ -163,7 +195,7 @@ describe('Store', () => {
 
       await actions.checkSession()
 
-      expect(navigate).not.toHaveBeenCalled()
+      expect(navigate).toHaveBeenCalledWith('/auth/choose')
       expect(state.session?.authenticated).toBe(true)
       expect(state.sessionChecked).toBe(true)
     })
@@ -174,6 +206,9 @@ describe('Store', () => {
           authenticated: true,
           relyingPartyOrigin: 'https://vault.example.com',
           email: 'test@test.com',
+          credentials: {
+            password: true,
+          },
         }),
       })
       const {state, actions, navigator} = createStore(client, createMockBlockstore())

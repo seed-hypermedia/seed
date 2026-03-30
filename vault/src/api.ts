@@ -47,7 +47,10 @@ export type PreLoginRequest = {
 }
 export type PreLoginResponse = {
   exists: boolean
-  hasPassword?: boolean
+  credentials?: {
+    password?: true
+    passkey?: true
+  }
   salt?: string
 }
 
@@ -135,8 +138,10 @@ export type GetSessionResponse = {
   relyingPartyOrigin: string
   userId?: string
   email?: string
-  hasPassword?: boolean
-  hasPasskeys?: boolean
+  credentials?: {
+    password?: true
+    passkey?: true
+  }
 }
 
 // Get account.

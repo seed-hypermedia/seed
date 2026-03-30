@@ -11,7 +11,7 @@ import {useActions, useAppState} from '@/frontend/store'
  * Sign in view for existing users.
  */
 export function LoginView() {
-  const {email, password, loading, error, passkeySupported, userHasPassword} = useAppState()
+  const {email, password, loading, error, passkeySupported, userHasPassword, userHasPasskey} = useAppState()
   const actions = useActions()
   const navigate = useNavigate()
 
@@ -29,7 +29,7 @@ export function LoginView() {
       <CardContent>
         <ErrorMessage message={error} />
 
-        {passkeySupported && (
+        {passkeySupported && userHasPasskey && (
           <>
             <Button variant="secondary" onClick={actions.handlePasskeyLogin} loading={loading} className="w-full">
               🔑 Sign in with Passkey
@@ -47,7 +47,7 @@ export function LoginView() {
               value={password}
               onChange={actions.setPassword}
               autoComplete="current-password"
-              autoFocus={!passkeySupported}
+              autoFocus={!passkeySupported || !userHasPasskey}
             />
 
             <Button type="submit" loading={loading} className="w-full">

@@ -48,7 +48,7 @@ export function SettingsView() {
               <div>
                 <p className="text-sm font-medium">Passkeys</p>
                 <p className="text-muted-foreground text-xs">
-                  {session?.hasPasskeys ? 'One or more passkeys registered' : 'No passkeys registered'}
+                  {session?.credentials?.passkey ? 'One or more passkeys registered' : 'No passkeys registered'}
                 </p>
               </div>
             </div>
@@ -70,11 +70,11 @@ export function SettingsView() {
               <div>
                 <p className="text-sm font-medium">Master Password</p>
                 <p className="text-muted-foreground text-xs">
-                  {session?.hasPassword ? 'Password is set' : 'No password set'}
+                  {session?.credentials?.password ? 'Password is set' : 'No password set'}
                 </p>
               </div>
             </div>
-            {session?.hasPassword ? (
+            {session?.credentials?.password ? (
               <Button variant="secondary" size="sm" onClick={() => navigate('/password/change')} disabled={loading}>
                 Change
               </Button>
@@ -85,7 +85,7 @@ export function SettingsView() {
             )}
           </div>
 
-          {!passkeySupported && !session?.hasPassword && (
+          {!passkeySupported && !session?.credentials?.password && (
             <>
               <Separator />
               <Alert variant="info">
