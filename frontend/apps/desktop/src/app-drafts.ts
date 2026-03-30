@@ -229,8 +229,9 @@ async function rebuildFileMap() {
     if (ext !== '.md' && ext !== '.json') continue
     if (file === 'index.json') continue
 
-    // Prefer .md over .json when both exist for the same ID
-    if (draftFileMap.has(id) && ext === '.json') continue
+    // Prefer .json over .md when both exist — .json is the authoritative
+    // format after desktop edits (the .md may be the original CLI file).
+    if (draftFileMap.has(id) && ext === '.md') continue
     draftFileMap.set(id, file)
 
     // Discover .md files not in the index
