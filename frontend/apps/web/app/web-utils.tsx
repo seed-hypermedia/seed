@@ -57,10 +57,10 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   let joinButton = null
   if (keyPair) {
     if (!isJoined) {
-      joinButton = <JoinButton variant="header" onClick={() => joinSite()} />
+      joinButton = <JoinButton onClick={() => joinSite()} />
     }
   } else {
-    joinButton = <JoinButton variant="header" onClick={() => createAccount()} />
+    joinButton = <JoinButton onClick={() => createAccount()} />
   }
 
   return (
