@@ -1,6 +1,6 @@
 // import {loadWebLinkMeta} from './models/web-links'
 import {hmId, packHmId, unpackHmId} from '@shm/shared'
-import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
+import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {EditorView} from '@tiptap/pm/view'
 import {Plugin, PluginKey} from 'prosemirror-state'
 

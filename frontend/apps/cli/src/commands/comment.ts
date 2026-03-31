@@ -10,6 +10,7 @@ import {unpackHmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {getClient, getOutputFormat, isPretty} from '../index'
 import {formatOutput, printError, printSuccess} from '../output'
 import {resolveKey} from '../utils/keyring'
+import {resolveIdWithClient} from '../utils/resolve-id'
 import {createSignerFromKey} from '../utils/signer'
 
 export function registerCommentCommands(program: Command) {
@@ -39,20 +40,15 @@ export function registerCommentCommands(program: Command) {
 
   comment
     .command('list <targetId>')
-    .description('List comments on a document')
+    .description('List comments on a document or URL')
     .option('-q, --quiet', 'Output IDs and authors only')
     .action(async (targetId: string, _options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
-      const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
       const pretty = isPretty(globalOpts)
 
       try {
-        const unpacked = unpackHmId(targetId)
-        if (!unpacked) {
-          printError(`Invalid Hypermedia ID: ${targetId}`)
-          process.exit(1)
-        }
+        const {id: unpacked, client} = await resolveIdWithClient(targetId, globalOpts)
         const result = await client.request('ListComments', {targetId: unpacked})
 
         if (globalOpts.quiet) {
@@ -73,7 +69,7 @@ export function registerCommentCommands(program: Command) {
 
   comment
     .command('create <targetId>')
-    .description('Create a comment on a document')
+    .description('Create a comment on a document or URL')
     .option('--body <text>', 'Comment text')
     .option('--file <path>', 'Read comment text from file')
     .option('--reply <commentId>', 'Reply to an existing comment')
@@ -81,17 +77,11 @@ export function registerCommentCommands(program: Command) {
     .action(async (targetId: string, options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
       const dev = !!globalOpts.dev
-      const client = getClient(globalOpts)
 
       try {
+        const {id: unpacked, client} = await resolveIdWithClient(targetId, globalOpts)
         const key = resolveKey(options.key, dev)
         const text = readCommentText(options)
-
-        // Parse the target ID to extract an optional block reference.
-        const unpacked = unpackHmId(targetId)
-        if (!unpacked) {
-          throw new Error(`Invalid Hypermedia ID: ${targetId}`)
-        }
         const blockRef = unpacked.blockRef
         // Strip the blockRef for the API fetch (server doesn't need it).
         const resourceId = {...unpacked, blockRef: null} as UnpackedHypermediaId
@@ -270,20 +260,15 @@ export function registerCommentCommands(program: Command) {
 
   comment
     .command('discussions <targetId>')
-    .description('List threaded discussions on a document')
+    .description('List threaded discussions on a document or URL')
     .option('-c, --comment <id>', 'Filter to specific thread')
     .action(async (targetId: string, options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
-      const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
       const pretty = isPretty(globalOpts)
 
       try {
-        const unpacked = unpackHmId(targetId)
-        if (!unpacked) {
-          printError(`Invalid Hypermedia ID: ${targetId}`)
-          process.exit(1)
-        }
+        const {id: unpacked, client} = await resolveIdWithClient(targetId, globalOpts)
         const result = await client.request('ListDiscussions', {targetId: unpacked, commentId: options.comment})
         console.log(formatOutput(result, format, pretty))
       } catch (error) {

@@ -12,7 +12,7 @@ import {SearchResult} from '@seed-hypermedia/client/editor-types'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
-import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
+import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {createDocumentNavRoute, NavRoute} from '@shm/shared/routes'
 import {
   extractViewTermFromUrl,

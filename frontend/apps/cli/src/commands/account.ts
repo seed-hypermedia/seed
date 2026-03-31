@@ -3,9 +3,9 @@
  */
 
 import type {Command} from 'commander'
-import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {getClient, getOutputFormat, isPretty} from '../index'
 import {formatOutput, printError} from '../output'
+import {resolveIdWithClient} from '../utils/resolve-id'
 
 export function registerAccountCommands(program: Command) {
   const account = program.command('account').description('Manage accounts (get, list, contacts, capabilities)')
@@ -104,16 +104,11 @@ export function registerAccountCommands(program: Command) {
     .description('List access control capabilities')
     .action(async (id: string, _options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
-      const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
       const pretty = isPretty(globalOpts)
 
       try {
-        const unpacked = unpackHmId(id)
-        if (!unpacked) {
-          printError(`Invalid Hypermedia ID: ${id}`)
-          process.exit(1)
-        }
+        const {id: unpacked, client} = await resolveIdWithClient(id, globalOpts)
         const result = await client.request('ListCapabilities', {targetId: unpacked})
         console.log(formatOutput(result, format, pretty))
       } catch (error) {

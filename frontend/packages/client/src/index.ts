@@ -46,6 +46,8 @@ export {
   packHmId,
   parseCustomURL,
   parseFragment,
+  resolveHypermediaUrl,
+  resolveId,
   serializeBlockRange,
   unpackHmId,
 } from './hm-types'

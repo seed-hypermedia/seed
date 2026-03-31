@@ -5,7 +5,8 @@ const {resolveHypermediaUrlMock} = vi.hoisted(() => ({
   resolveHypermediaUrlMock: vi.fn(),
 }))
 
-vi.mock('../resolve-hm', () => ({
+vi.mock('@seed-hypermedia/client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@seed-hypermedia/client')>()),
   resolveHypermediaUrl: resolveHypermediaUrlMock,
 }))
 

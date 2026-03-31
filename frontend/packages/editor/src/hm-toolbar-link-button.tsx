@@ -1,7 +1,7 @@
 import {hmId, packHmId, unpackHmId} from '@shm/shared'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useSearch} from '@shm/shared/models/search'
-import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
+import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'

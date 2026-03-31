@@ -24,7 +24,7 @@ import {useInfiniteQuery, useQueries, useQuery, useQueryClient, UseQueryOptions}
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {DocumentInfo, RedirectErrorDetails} from '../client'
 import {DISCOVERY_TIMEOUT_MS} from '../constants'
-import {resolveHypermediaUrl} from '../resolve-hm'
+import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {useUniversalAppContext, useUniversalClient} from '../routing'
 import {useStream} from '../use-stream'
 import {createWebHMUrl, entityQueryPathToHmIdPath, hmId, latestId, unpackHmId} from '../utils'

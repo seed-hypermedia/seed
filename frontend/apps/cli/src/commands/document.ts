@@ -26,6 +26,7 @@ import {getClient, getServerUrl, getOutputFormat, isPretty} from '../index'
 import {formatOutput, renderMarkdown, printError, printSuccess, printInfo, printWarning} from '../output'
 import {documentToMarkdown} from '../markdown'
 import {resolveKey} from '../utils/keyring'
+import {resolveIdWithClient} from '../utils/resolve-id'
 import {createSignerFromKey} from '../utils/signer'
 import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations, type BlockNode} from '../utils/markdown'
@@ -205,14 +206,13 @@ export function registerDocumentCommands(program: Command) {
 
   doc
     .command('get <id>')
-    .description('Fetch a document, comment, or entity by Hypermedia ID')
+    .description('Fetch a document, comment, or entity by Hypermedia ID or URL')
     .option('-m, --metadata', 'Fetch metadata only')
     .option('-r, --resolve', 'Resolve embeds, mentions, and queries in markdown output')
     .option('-o, --output <file>', 'Write output to file instead of stdout')
     .option('-q, --quiet', 'Output minimal info')
     .action(async (id: string, options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
-      const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
       const pretty = isPretty(globalOpts)
       // --json or --yaml explicitly requested → structured output.
@@ -230,13 +230,10 @@ export function registerDocumentCommands(program: Command) {
       }
 
       try {
+        const {id: resolvedId, client} = await resolveIdWithClient(id, globalOpts)
+
         if (options.metadata) {
-          const unpacked = unpackHmId(id)
-          if (!unpacked) {
-            printError(`Invalid Hypermedia ID: ${id}`)
-            process.exit(1)
-          }
-          const result = await client.request('ResourceMetadata', unpacked)
+          const result = await client.request('ResourceMetadata', resolvedId)
           if (globalOpts.quiet || options.quiet) {
             emit(result.metadata?.name || result.id.id)
           } else {
@@ -245,12 +242,7 @@ export function registerDocumentCommands(program: Command) {
           return
         }
 
-        const resourceId = unpackHmId(id)
-        if (!resourceId) {
-          printError(`Invalid Hypermedia ID: ${id}`)
-          process.exit(1)
-        }
-        const result = await client.request('Resource', resourceId)
+        const result = await client.request('Resource', resolvedId)
 
         if (globalOpts.quiet || options.quiet) {
           if (result.type === 'document') {
@@ -486,9 +478,9 @@ export function registerDocumentCommands(program: Command) {
     .action(async (id: string, options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
       const dev = !!globalOpts.dev
-      const client = getClient(globalOpts)
 
       try {
+        const {id: resourceId, client} = await resolveIdWithClient(id, globalOpts)
         const key = resolveKey(options.key, dev)
 
         // For update, only use stdin if -f is explicitly given.
@@ -501,11 +493,6 @@ export function registerDocumentCommands(program: Command) {
         let metaBlobs: CollectedBlob[] = []
 
         // Fetch the document — needed for diffing and state resolution
-        const resourceId = unpackHmId(id)
-        if (!resourceId) {
-          printError(`Invalid Hypermedia ID: ${id}`)
-          process.exit(1)
-        }
         const resource = await client.request('Resource', resourceId)
         if (resource.type !== 'document') {
           printError(`Resource is ${resource.type}, not a document.`)
@@ -617,17 +604,11 @@ export function registerDocumentCommands(program: Command) {
     .action(async (id: string, _options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
       const dev = !!globalOpts.dev
-      const client = getClient(globalOpts)
 
       try {
+        const {id: unpacked, client} = await resolveIdWithClient(id, globalOpts)
         const key = resolveKey(_options.key, dev)
         const signer = createSignerFromKey(key)
-
-        const unpacked = unpackHmId(id)
-        if (!unpacked) {
-          printError(`Invalid Hypermedia ID: ${id}`)
-          process.exit(1)
-        }
 
         const resource = await client.request('Resource', unpacked)
         if (resource.type !== 'document') {
@@ -664,17 +645,12 @@ export function registerDocumentCommands(program: Command) {
     .action(async (sourceId: string, destinationId: string, _options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
       const dev = !!globalOpts.dev
-      const client = getClient(globalOpts)
 
       try {
+        const {id: sourceUnpacked, client} = await resolveIdWithClient(sourceId, globalOpts)
+        const {id: dest} = await resolveIdWithClient(destinationId, globalOpts)
         const key = resolveKey(_options.key, dev)
         const signer = createSignerFromKey(key)
-
-        const sourceUnpacked = unpackHmId(sourceId)
-        if (!sourceUnpacked) {
-          printError(`Invalid source Hypermedia ID: ${sourceId}`)
-          process.exit(1)
-        }
 
         const resource = await client.request('Resource', sourceUnpacked)
         if (resource.type !== 'document') {
@@ -683,12 +659,6 @@ export function registerDocumentCommands(program: Command) {
         }
         const doc = resource.document
         if (!doc.generationInfo) throw new Error('No generation info for source document')
-
-        const dest = unpackHmId(destinationId)
-        if (!dest) {
-          printError(`Invalid destination Hypermedia ID: ${destinationId}`)
-          process.exit(1)
-        }
 
         const refInput = await createVersionRef(
           {
@@ -721,22 +691,12 @@ export function registerDocumentCommands(program: Command) {
     .action(async (sourceId: string, destinationId: string, _options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
       const dev = !!globalOpts.dev
-      const client = getClient(globalOpts)
 
       try {
+        const {id: source, client} = await resolveIdWithClient(sourceId, globalOpts)
+        const {id: dest} = await resolveIdWithClient(destinationId, globalOpts)
         const key = resolveKey(_options.key, dev)
         const signer = createSignerFromKey(key)
-
-        const source = unpackHmId(sourceId)
-        const dest = unpackHmId(destinationId)
-        if (!source) {
-          printError(`Invalid source Hypermedia ID: ${sourceId}`)
-          process.exit(1)
-        }
-        if (!dest) {
-          printError(`Invalid destination Hypermedia ID: ${destinationId}`)
-          process.exit(1)
-        }
 
         const resource = await client.request('Resource', source)
         if (resource.type !== 'document') {
@@ -794,22 +754,12 @@ export function registerDocumentCommands(program: Command) {
     .action(async (id: string, _options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
       const dev = !!globalOpts.dev
-      const client = getClient(globalOpts)
 
       try {
+        const {id: source, client} = await resolveIdWithClient(id, globalOpts)
+        const {id: target} = await resolveIdWithClient(_options.to, globalOpts)
         const key = resolveKey(_options.key, dev)
         const signer = createSignerFromKey(key)
-
-        const source = unpackHmId(id)
-        const target = unpackHmId(_options.to)
-        if (!source) {
-          printError(`Invalid source Hypermedia ID: ${id}`)
-          process.exit(1)
-        }
-        if (!target) {
-          printError(`Invalid target Hypermedia ID: ${_options.to}`)
-          process.exit(1)
-        }
 
         const resource = await client.request('Resource', source)
         if (resource.type !== 'document') {
@@ -848,16 +798,11 @@ export function registerDocumentCommands(program: Command) {
     .option('-q, --quiet', 'Output CIDs and authors only')
     .action(async (targetId: string, _options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
-      const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
       const pretty = isPretty(globalOpts)
 
       try {
-        const unpacked = unpackHmId(targetId)
-        if (!unpacked) {
-          printError(`Invalid Hypermedia ID: ${targetId}`)
-          process.exit(1)
-        }
+        const {id: unpacked, client} = await resolveIdWithClient(targetId, globalOpts)
         const result = await client.request('ListChanges', {targetId: unpacked})
 
         if (globalOpts.quiet) {
@@ -883,16 +828,11 @@ export function registerDocumentCommands(program: Command) {
     .description('Get interaction statistics for a document')
     .action(async (id: string, _options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
-      const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
       const pretty = isPretty(globalOpts)
 
       try {
-        const unpacked = unpackHmId(id)
-        if (!unpacked) {
-          printError(`Invalid Hypermedia ID: ${id}`)
-          process.exit(1)
-        }
+        const {id: unpacked, client} = await resolveIdWithClient(id, globalOpts)
         const result = await client.request('InteractionSummary', {id: unpacked})
         console.log(formatOutput(result, format, pretty))
       } catch (error) {

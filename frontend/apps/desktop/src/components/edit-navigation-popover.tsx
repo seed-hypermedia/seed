@@ -3,7 +3,7 @@ import {draggable, dropTargetForElements, monitorForElements} from '@atlaskit/pr
 import {HMNavigationItem, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {packHmId, SearchResult, unpackHmId, useSearch} from '@shm/shared'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
-import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
+import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import '@shm/shared/styles/document.css'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'

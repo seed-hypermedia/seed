@@ -1,4 +1,4 @@
-import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
+import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {createDocumentNavRoute, type NavRoute} from '@shm/shared/routes'
 import {
   activitySlugToFilter,

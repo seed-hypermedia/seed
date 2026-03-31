@@ -7,7 +7,7 @@
 import type {Command} from 'commander'
 import {getClient, getOutputFormat, isPretty} from '../index'
 import {formatOutput, printError} from '../output'
-import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {resolveIdWithClient} from '../utils/resolve-id'
 import type {HMQuerySort} from '@seed-hypermedia/client/hm-types'
 
 export function registerQueryCommands(program: Command) {
@@ -106,16 +106,11 @@ export function registerQueryCommands(program: Command) {
     .option('-q, --quiet', 'Output source IDs only')
     .action(async (id: string, _options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
-      const client = getClient(globalOpts)
       const format = getOutputFormat(globalOpts)
       const pretty = isPretty(globalOpts)
 
       try {
-        const unpacked = unpackHmId(id)
-        if (!unpacked) {
-          printError(`Invalid Hypermedia ID: ${id}`)
-          process.exit(1)
-        }
+        const {id: unpacked, client} = await resolveIdWithClient(id, globalOpts)
         const result = await client.request('ListCitations', {targetId: unpacked})
 
         if (globalOpts.quiet) {

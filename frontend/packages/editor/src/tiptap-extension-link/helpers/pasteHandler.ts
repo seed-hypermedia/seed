@@ -1,7 +1,7 @@
 import {getDocumentTitle} from '@shm/shared/content'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {HMDocumentMetadataSchema, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
+import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {hmId, isHypermediaScheme, isPublicGatewayLink, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {StateStream} from '@shm/shared/utils/stream'
