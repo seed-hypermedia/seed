@@ -598,13 +598,7 @@ function DocumentBody({
       : undefined
 
   // Respect the showActivity metadata toggle to hide the document tools bar.
-  const showActivity = IS_DESKTOP || document.metadata?.showActivity !== false
-
-  // When activity is hidden, fall back to content for activity-related views
-  const effectiveView: ActiveView =
-    !showActivity && (activeView === 'comments' || activeView === 'collaborators' || activeView === 'activity')
-      ? 'content'
-      : activeView
+  const showActivity = document.metadata?.showActivity !== false
 
   // Extract blockRef from route for scroll-to-block and highlighting
   const routeBlockRef = 'id' in route && typeof route.id === 'object' ? route.id.blockRef : null
@@ -686,8 +680,8 @@ function DocumentBody({
       directory: 'Directory',
       activity: 'Activity',
     }
-    if (effectiveView !== 'content' && panelLabels[effectiveView]) {
-      items.push({label: panelLabels[effectiveView]})
+    if (activeView !== 'content' && panelLabels[activeView]) {
+      items.push({label: panelLabels[activeView]})
     }
 
     // Append block text when a block is focused
@@ -706,7 +700,7 @@ function DocumentBody({
     }
 
     return items
-  }, [isHomeDoc, breadcrumbIds, breadcrumbResults, effectiveView, routeBlockRef, document.content, route])
+  }, [isHomeDoc, breadcrumbIds, breadcrumbResults, activeView, routeBlockRef, document.content, route])
 
   // Track when DocumentTools becomes sticky
   const [isToolsSticky, setIsToolsSticky] = useState(false)
@@ -736,7 +730,7 @@ function DocumentBody({
   const {showSidebars, showCollapsed, sidebarProps, mainContentProps, elementRef, wrapperProps, contentMaxWidth} =
     useDocumentLayout({
       contentWidth: document.metadata?.contentWidth,
-      showSidebars: !isHomeDoc && document.metadata?.showOutline !== false && effectiveView === 'content',
+      showSidebars: !isHomeDoc && document.metadata?.showOutline !== false && activeView === 'content',
     })
 
   // Fetch author metadata for document header
@@ -958,12 +952,12 @@ function DocumentBody({
           <DocumentTools
             id={docId}
             activeTab={
-              effectiveView === 'activity' &&
+              activeView === 'activity' &&
               activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
                 ? 'citations'
-                : effectiveView === 'activity' || effectiveView === 'directory' || effectiveView === 'site-profile'
+                : activeView === 'activity' || activeView === 'directory' || activeView === 'site-profile'
                 ? undefined
-                : effectiveView
+                : activeView
             }
             currentPanel={panelRoute}
             existingDraft={existingDraft}
@@ -986,13 +980,13 @@ function DocumentBody({
                     <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
                   </div>
                 )}
-                {effectiveView !== 'content' && effectiveView !== 'site-profile' && !isMobile && (
+                {activeView !== 'content' && activeView !== 'site-profile' && !isMobile && (
                   <OpenInPanelButton
                     id={docId}
                     panelRoute={
-                      route.key === effectiveView
+                      route.key === activeView
                         ? extractPanelRoute(route)
-                        : {key: effectiveView as Exclude<ActiveView, 'content' | 'site-profile'>, id: docId}
+                        : {key: activeView as Exclude<ActiveView, 'content' | 'site-profile'>, id: docId}
                     }
                   />
                 )}
@@ -1008,7 +1002,7 @@ function DocumentBody({
           docId={docId}
           resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
           document={document}
-          activeView={effectiveView}
+          activeView={activeView}
           contentMaxWidth={contentMaxWidth}
           wrapperProps={wrapperProps}
           sidebarProps={sidebarProps}

@@ -380,7 +380,7 @@ function ActivityVisibility({
   return (
     <div className="flex flex-col gap-1">
       <SwitchField
-        label="Enable Web Activity Panel"
+        label="Enable Activity Tabs"
         id="activity"
         checked={metadata.showActivity !== false}
         onCheckedChange={(value) => {
