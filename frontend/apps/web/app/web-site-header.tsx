@@ -1,5 +1,6 @@
 import {HMDocument, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from '@shm/shared'
+import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
@@ -47,11 +48,13 @@ export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSit
         .filter((item) => !!item) || []
     : []
 
+  const canSeePrivate = useCanSeePrivateDocs(props.siteHomeId)
   const directoryResults = homeDirectoryQuery.data
   const directoryItems = props.siteHomeId
     ? getSiteNavDirectory({
         id: props.siteHomeId,
         directory: directoryResults ?? undefined,
+        includePrivate: canSeePrivate,
       })
     : []
 

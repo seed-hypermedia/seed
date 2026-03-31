@@ -96,3 +96,13 @@ export function useSelectedAccountCapability(
     })
   return myCapability || null
 }
+
+/**
+ * Returns true if the currently selected account has writer+ capability
+ * on the site's home document, meaning they can view private documents.
+ */
+export function useCanSeePrivateDocs(docId?: UnpackedHypermediaId): boolean {
+  const siteHomeId = docId ? hmId(docId.uid) : undefined
+  const capability = useSelectedAccountCapability(siteHomeId, 'writer')
+  return roleCanWrite(capability?.role)
+}

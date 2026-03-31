@@ -17,6 +17,7 @@ import {
   useResources,
   useSiteMembers,
 } from '@shm/shared/models/entity'
+import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
@@ -229,11 +230,12 @@ export function ResourcePage({
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
   const homeDirectory = useDirectory(siteHomeId)
   const isLatest = useIsLatest(docId, resource)
+  const canSeePrivate = useCanSeePrivateDocs(docId)
 
   const siteHomeDocument = siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
 
   // Compute header data
-  const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data)
+  const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data, canSeePrivate)
 
   // Comment handling: when resource is a comment, resolve and load its target document.
   // Hooks must be called unconditionally, so we always call useResource for the target
@@ -437,6 +439,7 @@ export function computeHeaderData(
   siteHomeId: UnpackedHypermediaId,
   siteHomeDocument: HMDocument | null,
   directory: ReturnType<typeof useDirectory>['data'],
+  includePrivate: boolean = false,
 ): HeaderData {
   // Compute navigation items from home document's navigation block
   const navigationBlockNode = siteHomeDocument?.detachedBlocks?.navigation
@@ -461,6 +464,7 @@ export function computeHeaderData(
   const directoryItems = getSiteNavDirectory({
     id: siteHomeId,
     directory: directory ?? undefined,
+    includePrivate,
   })
 
   const items = homeNavigationItems.length > 0 ? homeNavigationItems : directoryItems

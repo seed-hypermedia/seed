@@ -1,5 +1,6 @@
 import {HMBlockNode, HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {extractAllContentRefs, hasQueryBlockTargetingSelf} from '@shm/shared'
+import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {ChevronDown, ChevronRight} from 'lucide-react'
 import {useMemo, useState} from 'react'
 import {DocumentListItem} from './document-list-item'
@@ -15,6 +16,7 @@ export function UnreferencedDocuments({
   directory: HMDocumentInfo[] | undefined
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const canSeePrivate = useCanSeePrivateDocs(docId)
 
   const unreferencedDocs = useMemo(() => {
     if (!directory || directory.length === 0) return []
@@ -31,8 +33,10 @@ export function UnreferencedDocuments({
       }
     })
 
-    return directory.filter((child) => !referencedIds.has(child.id.id))
-  }, [content, directory, docId.uid, docId.path])
+    return directory
+      .filter((child) => canSeePrivate || child.visibility !== 'PRIVATE')
+      .filter((child) => !referencedIds.has(child.id.id))
+  }, [content, directory, docId.uid, docId.path, canSeePrivate])
 
   if (unreferencedDocs.length === 0) return null
 

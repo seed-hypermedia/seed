@@ -36,6 +36,7 @@ import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {extractRefs, getAnnotations} from '@shm/shared/content'
 import {prepareHMDocument} from '@shm/shared/document-utils'
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {prepareHMDocumentInfo, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -1489,6 +1490,7 @@ export function useSiteNavigationItems(
     mode: 'Children',
   })
   const drafts = useAccountDraftList(siteHomeEntity?.id?.uid)
+  const canSeePrivate = useCanSeePrivateDocs(siteHomeEntity?.id)
   if (!siteHomeEntity) return null
   const navNode = siteHomeEntity.document?.detachedBlocks?.navigation
   const navItems: DocNavigationItem[] = navNode
@@ -1511,6 +1513,7 @@ export function useSiteNavigationItems(
         id: siteHomeEntity.id,
         directory: homeDir.data,
         drafts: drafts.data,
+        includePrivate: canSeePrivate,
       })
   return navItems
 }

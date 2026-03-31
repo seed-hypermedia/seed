@@ -6,6 +6,7 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {getMetadataName, useRouteLink} from '@shm/shared'
+import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {useAccountsMetadata, useDirectoryWithDrafts} from '@shm/shared/models/entity'
 import {normalizeDate} from '@shm/shared/utils/date'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
@@ -145,11 +146,13 @@ export function useDirectoryData(docId: UnpackedHypermediaId) {
   const {directory, drafts, isInitialLoading} = useDirectoryWithDrafts(docId, {
     mode: 'Children',
   })
+  const canSeePrivate = useCanSeePrivateDocs(docId)
 
   const directoryItems = getSiteNavDirectory({
     id: docId,
     directory,
     drafts,
+    includePrivate: canSeePrivate,
   })
 
   return {directoryItems, isInitialLoading}
@@ -186,6 +189,7 @@ export function useDirectoryDataWithActivity(docId: UnpackedHypermediaId) {
   const {directory, drafts, isInitialLoading} = useDirectoryWithDrafts(docId, {
     mode: 'Children',
   })
+  const canSeePrivate = useCanSeePrivateDocs(docId)
 
   const items = useMemo(() => {
     const draftsArray = Array.isArray(drafts) ? drafts : []
@@ -198,12 +202,14 @@ export function useDirectoryDataWithActivity(docId: UnpackedHypermediaId) {
       }
     })
 
-    // Map published items with draft info
-    const publishedItems: DirectoryItemWithActivity[] = (directory ?? []).map((item) => ({
-      ...item,
-      draftId: editIds.get(item.id.id),
-      isPublished: true as const,
-    }))
+    // Map published items with draft info, filtering private docs if user lacks access
+    const publishedItems: DirectoryItemWithActivity[] = (directory ?? [])
+      .filter((item) => canSeePrivate || item.visibility !== 'PRIVATE')
+      .map((item) => ({
+        ...item,
+        draftId: editIds.get(item.id.id),
+        isPublished: true as const,
+      }))
 
     // Add unpublished drafts (new docs not yet published) that belong to this directory
     const unpublishedDraftItems: DirectoryItemWithActivity[] = draftsArray
@@ -223,7 +229,7 @@ export function useDirectoryDataWithActivity(docId: UnpackedHypermediaId) {
     allItems.sort((a, b) => getActivityTime(b) - getActivityTime(a))
 
     return allItems
-  }, [directory, drafts, docId.id])
+  }, [directory, drafts, docId.id, canSeePrivate])
 
   // Collect all author uids for fetching metadata
   const authorUids = useMemo(() => {

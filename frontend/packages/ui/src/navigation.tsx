@@ -81,10 +81,12 @@ export function getSiteNavDirectory({
   id,
   directory,
   drafts,
+  includePrivate = false,
 }: {
   id: UnpackedHypermediaId
   directory?: HMDocumentInfo[]
   drafts?: HMListedDraft[]
+  includePrivate?: boolean
 }): DocNavigationItem[] {
   const draftsArray = Array.isArray(drafts) ? drafts : []
   const editIds = new Set<string>(
@@ -110,7 +112,7 @@ export function getSiteNavDirectory({
     )
   const publishedItems: DocNavigationItem[] =
     directory
-      ?.filter((item) => item.visibility !== 'PRIVATE')
+      ?.filter((item) => includePrivate || item.visibility !== 'PRIVATE')
       .map((item) => {
         const id = item.id
         const sortTime = item.sortTime

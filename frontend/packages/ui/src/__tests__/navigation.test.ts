@@ -63,7 +63,7 @@ describe('getSiteNavDirectory', () => {
     expect(result.every((r) => r.isPublished)).toBe(true)
   })
 
-  it('excludes private documents from fallback navigation', () => {
+  it('excludes private documents by default', () => {
     const directory: HMDocumentInfo[] = [
       makeDocInfo('alice', ['docs'], 'Docs', 'PUBLIC'),
       makeDocInfo('alice', ['secret'], 'Secret Notes', 'PRIVATE'),
@@ -79,7 +79,35 @@ describe('getSiteNavDirectory', () => {
     expect(names).not.toContain('Secret Notes')
   })
 
-  it('returns empty array when all documents are private', () => {
+  it('excludes private documents when includePrivate is explicitly false', () => {
+    const directory: HMDocumentInfo[] = [
+      makeDocInfo('alice', ['docs'], 'Docs', 'PUBLIC'),
+      makeDocInfo('alice', ['secret'], 'Secret Notes', 'PRIVATE'),
+    ]
+
+    const result = getSiteNavDirectory({id: homeId, directory, includePrivate: false})
+
+    expect(result).toHaveLength(1)
+    expect(result[0]!.metadata.name).toBe('Docs')
+  })
+
+  it('includes private documents when includePrivate is true', () => {
+    const directory: HMDocumentInfo[] = [
+      makeDocInfo('alice', ['docs'], 'Docs', 'PUBLIC'),
+      makeDocInfo('alice', ['secret'], 'Secret Notes', 'PRIVATE'),
+      makeDocInfo('alice', ['about'], 'About', 'PUBLIC'),
+    ]
+
+    const result = getSiteNavDirectory({id: homeId, directory, includePrivate: true})
+
+    expect(result).toHaveLength(3)
+    const names = result.map((r) => r.metadata.name)
+    expect(names).toContain('Docs')
+    expect(names).toContain('About')
+    expect(names).toContain('Secret Notes')
+  })
+
+  it('returns empty array when all documents are private and includePrivate is false', () => {
     const directory: HMDocumentInfo[] = [
       makeDocInfo('alice', ['secret1'], 'Secret 1', 'PRIVATE'),
       makeDocInfo('alice', ['secret2'], 'Secret 2', 'PRIVATE'),
@@ -88,6 +116,17 @@ describe('getSiteNavDirectory', () => {
     const result = getSiteNavDirectory({id: homeId, directory})
 
     expect(result).toHaveLength(0)
+  })
+
+  it('returns all documents when all are private and includePrivate is true', () => {
+    const directory: HMDocumentInfo[] = [
+      makeDocInfo('alice', ['secret1'], 'Secret 1', 'PRIVATE'),
+      makeDocInfo('alice', ['secret2'], 'Secret 2', 'PRIVATE'),
+    ]
+
+    const result = getSiteNavDirectory({id: homeId, directory, includePrivate: true})
+
+    expect(result).toHaveLength(2)
   })
 
   it('returns empty array when directory is undefined', () => {
