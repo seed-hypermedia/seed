@@ -1172,7 +1172,7 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
     },
     {
       key: 'delete-changes',
-      label: 'Delete changes',
+      label: 'Discard Changes',
       icon: <Trash className="size-4" />,
       onClick: () => {
         if (draftId && draft.data) {
@@ -1221,16 +1221,18 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
       <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />
       <AlertDialog open={showExitDialog} onOpenChange={(open) => !open && setShowExitDialog(false)}>
         <AlertDialogContent>
-          <AlertDialogTitle>Delete draft?</AlertDialogTitle>
+          <AlertDialogTitle>{editId ? 'Discard Changes in this Document?' : 'Discard this Draft?'}</AlertDialogTitle>
           <p className="text-muted-foreground text-sm">
-            This will permanently delete this draft and all its changes. This action cannot be undone.
+            {editId
+              ? 'All changes made to the current version of this document will be permanently deleted. This action cannot be undone.'
+              : 'This draft document and all its content will be permanently deleted. This action cannot be undone.'}
           </p>
           <AlertDialogFooter>
-            <Button variant="outline" onClick={() => setShowExitDialog(false)}>
+            <Button variant="ghost" onClick={() => setShowExitDialog(false)}>
               Cancel
             </Button>
             <Button
-              variant="destructive"
+              variant="ghost"
               onClick={() => {
                 setShowExitDialog(false)
                 if (draftId) {
@@ -1242,7 +1244,7 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
                 }
               }}
             >
-              Yes, delete draft
+              {editId ? 'Yes, discard changes' : 'Yes, discard draft'}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
