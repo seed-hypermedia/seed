@@ -1,6 +1,6 @@
-import {BlockNoteEditor, BlockSchema, DefaultBlockSchema, LinkMenuProsemirrorPlugin, LinkMenuState} from '../../../core'
 import Tippy from '@tippyjs/react'
 import {FC, useEffect, useMemo, useRef, useState} from 'react'
+import {BlockNoteEditor, BlockSchema, DefaultBlockSchema, LinkMenuProsemirrorPlugin, LinkMenuState} from '../../../core'
 
 import {LinkMenuItem} from '../../../core/extensions/LinkMenu/LinkMenuItem'
 import {DefaultLinkMenu} from './DefaultLinkMenu'
@@ -15,6 +15,7 @@ export const LinkMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
   editor: BlockNoteEditor<BSchema>
   linkMenu?: FC<LinkMenuProps<BSchema>>
 }) => {
+  const [mobileKeyboardOpen, setMobileKeyboardOpen] = useState(false)
   const [show, setShow] = useState<boolean>(false)
   const [ref, setRef] = useState<string>('')
   const [items, setItems] = useState<LinkMenuItem<BSchema>[]>([])
@@ -26,6 +27,16 @@ export const LinkMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
     setTimeout(() => {
       scroller.current = document.getElementById('scroll-page-wrapper')
     }, 100)
+  }, [])
+
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const onResize = () => {
+      setMobileKeyboardOpen(vv.height < window.innerHeight * 0.75)
+    }
+    vv.addEventListener('resize', onResize)
+    return () => vv.removeEventListener('resize', onResize)
   }, [])
 
   useEffect(() => {
@@ -80,36 +91,7 @@ export const LinkMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
       interactive={true}
       visible={show}
       animation={'fade'}
-      placement="bottom-start"
-      // Enable built-in boundary detection
-      // @ts-expect-error
-      flipOnUpdate={true}
-      // Prevent overflow by adjusting position
-      popperOptions={{
-        modifiers: [
-          {
-            name: 'preventOverflow',
-            options: {
-              boundary: 'viewport',
-              padding: 8,
-            },
-          },
-          {
-            name: 'flip',
-            options: {
-              fallbackPlacements: ['top-start', 'bottom-end', 'top-end', 'right-start', 'left-start'],
-              boundary: 'viewport',
-              padding: 8,
-            },
-          },
-          {
-            name: 'offset',
-            options: {
-              offset: [0, 4],
-            },
-          },
-        ],
-      }}
+      placement={mobileKeyboardOpen ? 'top-start' : 'bottom-start'}
     />
   )
 }
