@@ -33,7 +33,7 @@ describe('shouldUseDaemonCreateDocumentChange', () => {
     ).toBe(true)
   })
 
-  it('keeps brand-new home documents on the seed client path', () => {
+  it('uses daemon createDocumentChange for brand-new home documents (needs genesis)', () => {
     expect(
       shouldUseDaemonCreateDocumentChange({
         signerAccountUid: 'alice',
@@ -41,7 +41,7 @@ describe('shouldUseDaemonCreateDocumentChange', () => {
         path: '',
         changes: [],
       }),
-    ).toBe(false)
+    ).toBe(true)
   })
 
   it('keeps documents without a known genesis on the seed client path', () => {
