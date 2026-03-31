@@ -1242,7 +1242,7 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
 export function buildCrontab(existing: string, paths: DeployPaths, bunPath: string = '/usr/local/bin/bun'): string {
   const deployScript = join(paths.seedDir, 'deploy.js')
   const deployLine =
-    `0 2 * * * ${bunPath} "${deployScript}" upgrade >> "${paths.deployLog}" 2>&1; ` +
+    `*/10 * * * * ${bunPath} "${deployScript}" upgrade >> "${paths.deployLog}" 2>&1; ` +
     `${bunPath} "${deployScript}" deploy >> "${paths.deployLog}" 2>&1 # seed-deploy`
   const cleanupLine = `0 0,4,8,12,16,20 * * * docker image prune -f --filter "until=1h" # seed-cleanup`
 
@@ -1414,7 +1414,7 @@ async function cmdDeploy(paths: DeployPaths, shell: ShellRunner, reconfigure = f
 
   await setupCron(paths, shell)
   p.log.success(
-    `Cron job installed. Your node will auto-update nightly at 02:00. Run '${cmd('cron remove')}' to disable.`,
+    `Cron job installed. Your node will auto-update every 10 minutes. Run '${cmd('cron remove')}' to disable.`,
   )
 
   await deploy(config, paths, shell)
@@ -1616,11 +1616,19 @@ async function cmdDoctor(paths: DeployPaths, shell: ShellRunner): Promise<void> 
     const dns = extractDns(config.domain)
 
     // HTTPS check
-    const httpCode = shell.runSafe(
-      `curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "${config.domain}" 2>/dev/null`,
+    const httpResult = shell.runSafe(
+      `curl -sS -o /dev/null -w '%{http_code} %{time_total}' --max-time 30 "${config.domain}" 2>/dev/null`,
     )
-    if (httpCode) {
-      console.log(`  \u2714 HTTPS          OK (${httpCode})`)
+    if (httpResult) {
+      const [code, timeStr] = httpResult.split(' ')
+      const latency = parseFloat(timeStr)
+      console.log(`  \u2714 HTTPS          OK (${code})`)
+      if (!isNaN(latency)) {
+        const latencyMs = Math.round(latency * 1000)
+        const symbol = latency > 2 ? '\u26A0' : '\u2714'
+        const suffix = latency > 2 ? ' — high latency, check server resources' : ''
+        console.log(`  ${symbol} Latency        ${latencyMs}ms${suffix}`)
+      }
     } else {
       console.log(`  \u26A0 HTTPS          unreachable`)
     }

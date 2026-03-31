@@ -929,7 +929,7 @@ describe('buildCrontab', () => {
   test('does not leave blank lines when replacing', () => {
     const existing = [
       '0 * * * * /usr/bin/job-a # job-a',
-      '0 2 * * * /usr/bin/bun /opt/seed/deploy.js >> /opt/seed/deploy.log 2>&1 # seed-deploy',
+      '*/10 * * * * /usr/bin/bun /opt/seed/deploy.js >> /opt/seed/deploy.log 2>&1 # seed-deploy',
       '0 0,4,8,12,16,20 * * * docker image prune -a -f # seed-cleanup',
     ].join('\n')
     const result = buildCrontab(existing, paths)
@@ -1056,7 +1056,7 @@ describe('extractSeedCronLines', () => {
   test('extracts seed-deploy and seed-cleanup lines', () => {
     const crontab = [
       '0 * * * * /usr/bin/other # my-job',
-      '0 2 * * * /usr/bin/bun /opt/seed/deploy.js >> /opt/seed/deploy.log 2>&1 # seed-deploy',
+      '*/10 * * * * /usr/bin/bun /opt/seed/deploy.js >> /opt/seed/deploy.log 2>&1 # seed-deploy',
       '0 0,4,8,12,16,20 * * * docker image prune -a -f # seed-cleanup',
     ].join('\n')
     const lines = extractSeedCronLines(crontab)
@@ -1075,7 +1075,7 @@ describe('removeSeedCronLines', () => {
   test('removes seed lines and preserves others', () => {
     const crontab = [
       '0 * * * * /usr/bin/other # my-job',
-      '0 2 * * * /usr/bin/bun /opt/seed/deploy.js # seed-deploy',
+      '*/10 * * * * /usr/bin/bun /opt/seed/deploy.js # seed-deploy',
       '30 * * * * /usr/bin/another # another-job',
       '0 0 * * * docker image prune -a -f # seed-cleanup',
     ].join('\n')
@@ -1088,7 +1088,7 @@ describe('removeSeedCronLines', () => {
 
   test('returns empty crontab when only seed lines present', () => {
     const crontab = [
-      '0 2 * * * /usr/bin/bun /opt/seed/deploy.js # seed-deploy',
+      '*/10 * * * * /usr/bin/bun /opt/seed/deploy.js # seed-deploy',
       '0 0 * * * docker image prune -a -f # seed-cleanup',
     ].join('\n')
     const result = removeSeedCronLines(crontab)
