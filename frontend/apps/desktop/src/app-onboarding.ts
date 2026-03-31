@@ -34,7 +34,6 @@ export function cleanupOnboardingFormData() {
   window.onboarding.setFormData({
     name: '',
     icon: undefined,
-    seedExperimentalLogo: undefined,
   })
 
   // Reset the step to welcome for next time
@@ -58,7 +57,6 @@ export interface ImageData {
 export interface OnboardingFormData {
   name: string
   icon?: ImageData
-  seedExperimentalLogo?: ImageData
 }
 
 export interface OnboardingState {

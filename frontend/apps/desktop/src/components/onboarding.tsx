@@ -6,7 +6,7 @@ import {fileUpload} from '@/utils/file-upload'
 import {getImportKeyFilePathError, normalizeImportKeyFilePath} from '@/utils/onboarding-import'
 import {extractWords, isWordsValid} from '@/utils/onboarding'
 import {useNavigate} from '@/utils/useNavigate'
-import {HMPrepareDocumentChangeInput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {eventStream, postAccountCreateAction, useOpenUrl, useUniversalAppContext} from '@shm/shared'
 import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -26,7 +26,6 @@ import {Prev as ArrowLeft, Copy, Reload} from '@shm/ui/icons'
 import {SizableText, Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {useAppContext} from '../app-context'
 import {
@@ -63,7 +62,6 @@ interface OnboardingProps {
 interface ProfileFormData {
   name: string
   icon?: ImageData
-  seedExperimentalLogo?: ImageData
 }
 
 export const [dispatchEditPopover, editPopoverEvents] = eventStream<boolean>()
@@ -113,9 +111,6 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
   const [account, setAccount] = useState<UnpackedHypermediaId | undefined>(undefined)
   const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
 
-  // Track if user is using existing account path
-  const [isExistingAccountPath, setIsExistingAccountPath] = useState(false)
-
   // Initialize local state based on whether we're in modal mode
   const [localState, setLocalState] = useState(() => {
     if (modal) {
@@ -127,7 +122,6 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
         formData: {
           name: '',
           icon: undefined,
-          seedExperimentalLogo: undefined,
         },
       }
     }
@@ -245,20 +239,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
         // Ensure the account is selected when completing onboarding
         setSelectedIdentity?.(account.uid)
 
-        // Navigate based on account type
-        if (isExistingAccountPath) {
-          // For existing/imported accounts, go to library — they may not have home docs.
-          navigate({key: 'library'})
-        } else {
-          // For new accounts, go to draft with welcome content
-          navigate({
-            key: 'draft',
-            id: nanoid(10),
-            editUid: account.uid,
-            editPath: [],
-            isWelcomeDraft: true,
-          })
-        }
+        navigate({key: 'library'})
       }
       onComplete()
     }
@@ -317,7 +298,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       setCurrentStep('welcome')
     } else if (currentStep === 'existing') {
       // Reset the existing account flag when going back
-      setIsExistingAccountPath(false)
+
       if (modal) {
         setLocalState((prev) => ({...prev, currentStep: 'profile'}))
       } else {
@@ -325,7 +306,6 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       }
       setCurrentStep('profile')
     } else if (currentStep === 'import') {
-      setIsExistingAccountPath(false)
       if (modal) {
         setLocalState((prev) => ({...prev, currentStep: 'profile'}))
       } else {
@@ -397,7 +377,6 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
             setSelectedIdentity?.(id.uid)
             handleSubscription(id)
             setInitialAccountIdCount(globalState.initialAccountIdCount + 1)
-            setIsExistingAccountPath(true)
           }}
         />
       )}
@@ -411,7 +390,6 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
             setSelectedIdentity?.(id.uid)
             handleSubscription(id)
             setInitialAccountIdCount(globalState.initialAccountIdCount + 1)
-            setIsExistingAccountPath(true)
           }}
         />
       )}
@@ -505,16 +483,15 @@ function ProfileStep({
     return {
       name: state.formData.name || '',
       icon: state.formData.icon,
-      seedExperimentalLogo: state.formData.seedExperimentalLogo,
     }
   })
 
-  const handleImageUpload = async (file: File, type: 'icon' | 'seedExperimentalLogo') => {
+  const handleImageUpload = async (file: File) => {
     try {
       const imageData = await fileToImageData(file)
       const newData = {
         ...formData,
-        [type]: imageData,
+        icon: imageData,
       }
       setFormData(newData)
       setOnboardingFormData(newData)
@@ -528,10 +505,10 @@ function ProfileStep({
     }
   }
 
-  const handleImageRemove = (type: 'icon' | 'seedExperimentalLogo') => {
+  const handleImageRemove = () => {
     const newData = {
       ...formData,
-      [type]: undefined,
+      icon: undefined,
     }
     setFormData(newData)
     setOnboardingFormData(newData)
@@ -548,7 +525,6 @@ function ProfileStep({
       setFormData({
         name: '',
         icon: undefined,
-        seedExperimentalLogo: undefined,
       })
     }
   }, [])
@@ -582,44 +558,23 @@ function ProfileStep({
             />
           </div>
 
-          <div className="flex w-full gap-4">
-            <div className="flex min-h-[100px] w-full max-w-[100px] min-w-[100px] flex-none flex-col gap-2">
-              <Text size="sm" className="text-muted-foreground">
-                Site Icon
-              </Text>
-              <ImageForm
-                height={100}
-                emptyLabel="SITE ICON"
-                suggestedSize="512px x 512px"
-                url={formData.icon?.base64}
-                uploadOnChange={false}
-                onImageUpload={(file) => {
-                  if (file instanceof File) {
-                    handleImageUpload(file, 'icon')
-                  }
-                }}
-                onRemove={() => handleImageRemove('icon')}
-              />
-            </div>
-
-            <div className="flex min-h-[72px] flex-1 flex-col gap-2">
-              <Text size="sm" className="text-muted-foreground">
-                Site Logo
-              </Text>
-              <ImageForm
-                height={100}
-                suggestedSize="1920px x 1080px"
-                emptyLabel="SITE LOGO"
-                url={formData.seedExperimentalLogo?.base64}
-                uploadOnChange={false}
-                onImageUpload={(file) => {
-                  if (file instanceof File) {
-                    handleImageUpload(file, 'seedExperimentalLogo')
-                  }
-                }}
-                onRemove={() => handleImageRemove('seedExperimentalLogo')}
-              />
-            </div>
+          <div className="flex min-h-[100px] w-full max-w-[100px] min-w-[100px] flex-none flex-col gap-2">
+            <Text size="sm" className="text-muted-foreground">
+              Site Icon
+            </Text>
+            <ImageForm
+              height={100}
+              emptyLabel="SITE ICON"
+              suggestedSize="512px x 512px"
+              url={formData.icon?.base64}
+              uploadOnChange={false}
+              onImageUpload={(file) => {
+                if (file instanceof File) {
+                  handleImageUpload(file)
+                }
+              }}
+              onRemove={() => handleImageRemove()}
+            />
           </div>
         </div>
         <div className="no-window-drag flex flex-col gap-4 self-center">
@@ -906,12 +861,10 @@ function RecoveryStep({
     return {
       name: state.formData.name || '',
       icon: state.formData.icon,
-      seedExperimentalLogo: state.formData.seedExperimentalLogo,
     }
   })
 
   let icon = ''
-  let seedExperimentalLogo = ''
 
   useEffect(() => {
     return () => {
@@ -957,32 +910,6 @@ function RecoveryStep({
           console.groupEnd()
         } else {
           console.log('ℹ️ No icon to process')
-        }
-
-        // Handle logo
-        if (formData.seedExperimentalLogo) {
-          console.group('📤 Processing Site Logo')
-          console.log('Image data:', {
-            type: formData.seedExperimentalLogo.type,
-            size: formData.seedExperimentalLogo.size,
-            name: formData.seedExperimentalLogo.name,
-          })
-
-          console.log('Converting base64 to File...')
-          const logoFile = base64ToFile(formData.seedExperimentalLogo)
-          console.log('File created:', {
-            type: logoFile.type,
-            size: logoFile.size,
-            name: logoFile.name,
-          })
-
-          console.log('Uploading to IPFS...')
-          const ipfsSeedExperimentalLogo = await fileUpload(logoFile)
-          seedExperimentalLogo = ipfsSeedExperimentalLogo
-          console.log('✅ Logo uploaded to IPFS:', seedExperimentalLogo)
-          console.groupEnd()
-        } else {
-          console.log('ℹ️ No logo to process')
         }
 
         console.groupEnd()
@@ -1052,45 +979,30 @@ function RecoveryStep({
         throw new Error('Failed to save mnemonics: ' + (error as Error).message)
       }
 
-      // doc metadata edit
+      // Create profile for the account
       try {
-        console.group('📝 Creating Document Changes')
-        console.log('Current uploaded URLs:', {icon, seedExperimentalLogo})
+        console.group('📝 Creating Profile')
+        console.log('Current uploaded icon:', icon)
 
-        const changes: HMPrepareDocumentChangeInput['changes'] = [
-          {op: {case: 'setMetadata', value: {key: 'name', value: formData.name}}},
-        ]
-
-        if (icon) {
-          changes.push({op: {case: 'setMetadata', value: {key: 'icon', value: `ipfs://${icon}`}}})
-        }
-
-        if (seedExperimentalLogo) {
-          console.log('Adding logo metadata:', `ipfs://${seedExperimentalLogo}`)
-          changes.push({
-            op: {case: 'setMetadata', value: {key: 'seedExperimentalLogo', value: `ipfs://${seedExperimentalLogo}`}},
-          })
-        }
-
-        console.log('Final changes to apply:', changes)
-        await desktopUniversalClient.publishDocument!({
-          signerAccountUid: createdAccount.publicKey,
+        await grpcClient.documents.updateProfile({
           account: createdAccount.accountId,
-          changes,
+          profile: {
+            name: formData.name,
+            icon: icon ? `ipfs://${icon}` : '',
+          },
+          signingKeyName: createdAccount.publicKey,
         })
 
-        console.log('✅ Document changes created')
+        console.log('✅ Profile created')
         console.log('Invalidating queries...')
         const id = hmId(createdAccount!.accountId)
-        invalidateQueries([queryKeys.ENTITY, id.id])
         invalidateQueries([queryKeys.ACCOUNT, id.uid])
-        invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
         invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
         console.log('✅ Queries invalidated')
         console.groupEnd()
       } catch (error) {
-        console.error('❌ Failed to create document changes:', error)
-        throw new Error('Failed to create document changes: ' + (error as Error).message)
+        console.error('❌ Failed to create profile:', error)
+        throw new Error('Failed to create profile: ' + (error as Error).message)
       }
 
       // Clean up onboarding form data
