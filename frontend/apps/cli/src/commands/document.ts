@@ -34,6 +34,28 @@ import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
 import {createBlocksMap, computeReplaceOps, hmBlockNodeToBlockNode, type APIBlockNode} from '../utils/block-diff'
 import {resolveFileLinks} from '../utils/file-links'
 import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
+import type {SeedClient} from '@seed-hypermedia/client'
+
+// ── Capability helpers ──────────────────────────────────────────────────────
+
+/**
+ * Look up a WRITER or AGENT capability for `signerAccount` on `targetAccount`.
+ * Returns the capability CID if found, undefined otherwise.
+ */
+async function resolveCapability(
+  client: SeedClient,
+  targetAccount: string,
+  signerAccount: string,
+): Promise<string | undefined> {
+  if (targetAccount === signerAccount) return undefined
+  const targetId = unpackHmId(`hm://${targetAccount}`)
+  if (!targetId) return undefined
+  const caps = await client.request('ListCapabilities', {targetId})
+  const match = caps.capabilities.find(
+    (c) => c.delegate === signerAccount && (c.role === 'WRITER' || c.role === 'AGENT'),
+  )
+  return match?.id
+}
 
 // ── Input helpers ────────────────────────────────────────────────────────────
 
@@ -317,6 +339,7 @@ export function registerDocumentCommands(program: Command) {
     .option('--dry-run', 'Preview extracted content without publishing')
     .option('--force', 'Overwrite existing document at the same path (creates new lineage)')
     .option('-k, --key <name>', 'Signing key name or account ID')
+    .option('-a, --account <uid>', 'Target space/account UID (publish under a different account using a capability)')
     .action(async (options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
       const dev = !!globalOpts.dev
@@ -355,7 +378,19 @@ export function registerDocumentCommands(program: Command) {
 
         const client = getClient(globalOpts)
         const key = resolveKey(options.key, dev)
-        const account = key.accountId
+        const account = options.account || key.accountId
+
+        // When publishing under a different account, resolve the capability
+        let capability: string | undefined
+        if (options.account && options.account !== key.accountId) {
+          capability = await resolveCapability(client, options.account, key.accountId)
+          if (!capability) {
+            throw new Error(
+              `No WRITER or AGENT capability found for key ${key.accountId} on account ${options.account}. ` +
+                `Use "account capabilities hm://${options.account}" to check available capabilities.`,
+            )
+          }
+        }
 
         // Resolve file:// links in metadata (cover, icon, logo)
         const {metadata: resolvedMeta, blobs: metaBlobs} = await resolveMetadataFileLinks(metadata)
@@ -410,6 +445,7 @@ export function registerDocumentCommands(program: Command) {
             genesis: genesisBlock.cid.toString(),
             version: changeBlock.cid.toString(),
             generation,
+            capability,
           },
           signer,
         )
@@ -561,6 +597,7 @@ export function registerDocumentCommands(program: Command) {
         const newDepth = state.headDepth + 1
 
         const signer = createSignerFromKey(key)
+        const capability = await resolveCapability(client, docAccount, key.accountId)
         const {unsignedBytes, ts} = createChangeOps({ops, genesisCid, deps: depCids, depth: newDepth})
         const changeBlock = await createChange(unsignedBytes, signer)
         const generation = Number(ts)
@@ -571,6 +608,7 @@ export function registerDocumentCommands(program: Command) {
             genesis: state.genesis,
             version: changeBlock.cid.toString(),
             generation,
+            capability,
           },
           signer,
         )
@@ -617,6 +655,7 @@ export function registerDocumentCommands(program: Command) {
         }
         const doc = resource.document
         const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 0
+        const capability = await resolveCapability(client, unpacked.uid, key.accountId)
 
         const refInput = await createTombstoneRef(
           {
@@ -624,6 +663,7 @@ export function registerDocumentCommands(program: Command) {
             path: hmIdPathToEntityQueryPath(unpacked.path),
             genesis: doc.genesis,
             generation,
+            capability,
           },
           signer,
         )
