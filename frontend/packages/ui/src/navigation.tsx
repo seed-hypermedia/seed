@@ -109,22 +109,24 @@ export function getSiteNavDirectory({
         }) satisfies DocNavigationItem,
     )
   const publishedItems: DocNavigationItem[] =
-    directory?.map((item) => {
-      const id = item.id
-      const sortTime = item.sortTime
-      return {
-        key: id.id,
-        id,
-        metadata: item.metadata,
-        sortTime,
-        draftId: editIds.has(id.id)
-          ? // @ts-expect-error
-            draftsArray.find((d) => d.editId?.id === id.id)?.id
-          : undefined,
-        isPublished: true,
-        visibility: item.visibility,
-      }
-    }) ?? []
+    directory
+      ?.filter((item) => item.visibility !== 'PRIVATE')
+      .map((item) => {
+        const id = item.id
+        const sortTime = item.sortTime
+        return {
+          key: id.id,
+          id,
+          metadata: item.metadata,
+          sortTime,
+          draftId: editIds.has(id.id)
+            ? // @ts-expect-error
+              draftsArray.find((d) => d.editId?.id === id.id)?.id
+            : undefined,
+          isPublished: true,
+          visibility: item.visibility,
+        }
+      }) ?? []
   unpublishedDraftItems.sort((a, b) => (b.sortTime?.getTime() || 0) - (a.sortTime?.getTime() || 0)).reverse()
   publishedItems.sort((a, b) => (b.sortTime?.getTime() || 0) - (a.sortTime?.getTime() || 0)).reverse()
   const directoryItems: DocNavigationItem[] = [...publishedItems, ...unpublishedDraftItems]

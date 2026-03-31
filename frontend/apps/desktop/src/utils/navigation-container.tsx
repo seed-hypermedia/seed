@@ -25,20 +25,8 @@ import {AppWindowEvent} from './window-events'
 
 const [updateNavState, navState] = writeableStateStream(window.initNavState)
 
-import {clearNavigationGuard, getNavigationGuard, ROUTE_CHANGING_ACTIONS, setNavigationGuard} from './navigation-guard'
-export {clearNavigationGuard, setNavigationGuard}
-
 const navigation = {
   dispatch(action: NavAction) {
-    const guard = getNavigationGuard()
-    if (guard && ROUTE_CHANGING_ACTIONS.has(action.type)) {
-      const shouldProceed = guard(action, () => {
-        clearNavigationGuard()
-        navigation.dispatch(action)
-      })
-      if (!shouldProceed) return
-    }
-
     const prevState = navState.get()
     const newState = navStateReducer(prevState, action)
     if (prevState !== newState) {
