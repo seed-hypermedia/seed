@@ -18,7 +18,6 @@ import {useSelectedAccount} from '@/selected-account'
 import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {handleDragMedia} from '@/utils/media-drag'
-import {clearNavigationGuard, setNavigationGuard} from '@/utils/navigation-container'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {
@@ -52,7 +51,7 @@ import {DirectoryPanel} from '@shm/ui/directory-panel'
 import {DocumentTools} from '@shm/ui/document-tools'
 import {Feed} from '@shm/ui/feed'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {Home, Undo} from '@shm/ui/icons'
+import {Home} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {DocNavigationItem} from '@shm/ui/navigation'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
@@ -66,7 +65,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {useMutation} from '@tanstack/react-query'
 import {useSelector} from '@xstate/react'
-import {Eye, Settings, XIcon} from 'lucide-react'
+import {Eye, Settings, Trash} from 'lucide-react'
 import {Selection} from 'prosemirror-state'
 import {MouseEvent, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
@@ -204,53 +203,6 @@ export default function DraftPage() {
     showSidebars: showOutline && !isEditingHomeDoc,
   })
 
-  // Navigation guard: prompt user when navigating away from a draft that exists
-  const draftId = route.id
-  const draft = useDraft(draftId)
-  const [pendingProceed, setPendingProceed] = useState<(() => void) | null>(null)
-  const deleteDraft = useDeleteDraft()
-
-  useEffect(() => {
-    setNavigationGuard((action, proceed) => {
-      // Don't block if draft doesn't exist yet
-      if (!draft.data) return true
-      // Allow same-draft navigation (panel changes, etc.)
-      if ('route' in action) {
-        const targetRoute = (action as {route: any}).route
-        if (targetRoute.key === 'draft' && targetRoute.id === draftId) {
-          return true
-        }
-      }
-      // Block and show dialog
-      setPendingProceed(() => proceed)
-      return false
-    })
-
-    return () => clearNavigationGuard()
-  }, [draftId, draft.data])
-
-  const handleLeaveDraftDiscard = () => {
-    if (pendingProceed && draftId) {
-      const proceed = pendingProceed
-      setPendingProceed(null)
-      deleteDraft.mutate(draftId, {
-        onSettled: () => proceed(),
-      })
-    }
-  }
-
-  const handleLeaveDraftSave = () => {
-    if (pendingProceed) {
-      const proceed = pendingProceed
-      setPendingProceed(null)
-      proceed()
-    }
-  }
-
-  const handleLeaveDraftCancel = () => {
-    setPendingProceed(null)
-  }
-
   const panelContent = panelKey ? (
     <ScrollArea className="flex-1">
       <DraftPanelContent
@@ -333,32 +285,6 @@ export default function DraftPage() {
           </div>
         </div>
       </CommentsProvider>
-      <AlertDialog
-        open={!!pendingProceed}
-        onOpenChange={(open) => {
-          if (!open) handleLeaveDraftCancel()
-        }}
-      >
-        <AlertDialogContent>
-          <button
-            onClick={handleLeaveDraftCancel}
-            className="absolute top-4 right-4 rounded-xs text-gray-500 transition-all hover:text-gray-700 focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 focus:outline-hidden dark:text-gray-400 dark:hover:text-gray-200"
-          >
-            <XIcon className="size-4" />
-            <span className="sr-only">Close</span>
-          </button>
-          <AlertDialogTitle>Exit editing</AlertDialogTitle>
-          <p className="text-muted-foreground text-sm">
-            You have unsaved changes. Would you like to save them before leaving?
-          </p>
-          <AlertDialogFooter>
-            <Button variant="outline" onClick={handleLeaveDraftDiscard}>
-              Leave without saving
-            </Button>
-            <Button onClick={handleLeaveDraftSave}>Save changes</Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </ErrorBoundary>
   )
 }
@@ -1245,14 +1171,13 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
       },
     },
     {
-      key: 'exit-editing',
-      label: 'Exit editing',
-      icon: <Undo className="size-4" />,
+      key: 'delete-changes',
+      label: 'Delete changes',
+      icon: <Trash className="size-4" />,
       onClick: () => {
         if (draftId && draft.data) {
           setShowExitDialog(true)
         } else {
-          clearNavigationGuard()
           dispatch({type: 'closeBack'})
         }
       },
@@ -1296,35 +1221,28 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
       <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />
       <AlertDialog open={showExitDialog} onOpenChange={(open) => !open && setShowExitDialog(false)}>
         <AlertDialogContent>
-          <AlertDialogTitle>Exit editing</AlertDialogTitle>
+          <AlertDialogTitle>Delete draft?</AlertDialogTitle>
           <p className="text-muted-foreground text-sm">
-            You have unsaved changes. Would you like to save them before leaving?
+            This will permanently delete this draft and all its changes. This action cannot be undone.
           </p>
           <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setShowExitDialog(false)}>
+              Cancel
+            </Button>
             <Button
-              variant="outline"
+              variant="destructive"
               onClick={() => {
                 setShowExitDialog(false)
                 if (draftId) {
                   deleteDraft.mutate(draftId, {
                     onSettled: () => {
-                      clearNavigationGuard()
                       dispatch({type: 'closeBack'})
                     },
                   })
                 }
               }}
             >
-              Leave without saving
-            </Button>
-            <Button
-              onClick={() => {
-                setShowExitDialog(false)
-                clearNavigationGuard()
-                dispatch({type: 'closeBack'})
-              }}
-            >
-              Save changes
+              Yes, delete draft
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

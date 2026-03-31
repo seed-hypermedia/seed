@@ -1732,6 +1732,9 @@ importers:
       xstate:
         specifier: 5.19.2
         version: 5.19.2
+      zod-to-json-schema:
+        specifier: 3.25.1
+        version: 3.25.1(zod@3.25.76)
     devDependencies:
       typescript:
         specifier: 5.8.3

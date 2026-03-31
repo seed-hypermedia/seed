@@ -1,5 +1,4 @@
 import {useDeleteDraft} from '@/models/documents'
-import {clearNavigationGuard} from '@/utils/navigation-container'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {AlertDialog, AlertDialogContent, AlertDialogFooter, AlertDialogTitle} from '@shm/ui/components/alert-dialog'
@@ -17,7 +16,7 @@ export default function DiscardDraftButton() {
 
   return (
     <>
-      <Tooltip content="Exit editing">
+      <Tooltip content="Delete changes">
         <Button
           size="sm"
           variant="ghost"
@@ -34,35 +33,28 @@ export default function DiscardDraftButton() {
       </Tooltip>
       <AlertDialog open={showExitDialog} onOpenChange={(open) => !open && setShowExitDialog(false)}>
         <AlertDialogContent>
-          <AlertDialogTitle>Exit editing</AlertDialogTitle>
+          <AlertDialogTitle>Delete draft?</AlertDialogTitle>
           <p className="text-muted-foreground text-sm">
-            You have unsaved changes. Would you like to save them before leaving?
+            This will permanently delete this draft and all its changes. This action cannot be undone.
           </p>
           <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setShowExitDialog(false)}>
+              Cancel
+            </Button>
             <Button
-              variant="outline"
+              variant="destructive"
               onClick={() => {
                 setShowExitDialog(false)
                 if (draftId) {
                   deleteDraft.mutate(draftId, {
                     onSettled: () => {
-                      clearNavigationGuard()
                       dispatch({type: 'closeBack'})
                     },
                   })
                 }
               }}
             >
-              Leave without saving
-            </Button>
-            <Button
-              onClick={() => {
-                setShowExitDialog(false)
-                clearNavigationGuard()
-                dispatch({type: 'closeBack'})
-              }}
-            >
-              Save changes
+              Yes, delete draft
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
