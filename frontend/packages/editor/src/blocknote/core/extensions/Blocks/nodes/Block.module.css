@@ -741,7 +741,8 @@ NESTED BLOCKS
 
 /* Mobile list markers */
 @media (max-width: 768px) {
-  :global(.comment-editor) .blockContent {
+  :global(.comment-editor) ul[data-list-type='Unordered'] .blockContent,
+  :global(.comment-editor) ol[data-list-type='Ordered'] .blockContent {
     display: flex !important;
     align-items: flex-start !important;
   }

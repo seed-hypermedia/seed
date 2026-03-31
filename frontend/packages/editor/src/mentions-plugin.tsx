@@ -98,6 +98,7 @@ function InlineEmbedNodeComponent(props: any) {
   // console.log('InlineEmbedNodeComponent props', props)
   return (
     <NodeViewWrapper
+      as="span"
       className={`inline-embed-token ${props.selected ? 'selected' : ''}`}
       data-inline-embed={props.node.attrs.link}
     >
