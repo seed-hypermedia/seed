@@ -285,9 +285,20 @@ export const BlockChildren = Node.create<{
               selection.$from.parent.type.spec.group === 'block' &&
               selection.$from.parent.content.content.length > 0
 
-            // Let default PM paste handling if pasting in a node with text content
+            // Let default PM paste handling if pasting inline content in a node with text.
+            // Block-level structures (blockNode/blockChildren) must go through normalization
+            // because PM's default fitting silently drops nested content when blockNode
+            // is not in the 'block' group.
             if (isSelectionInText) {
-              return slice
+              let hasBlockStructure = false
+              slice.content.forEach((node: any) => {
+                if (node.type.name === 'blockNode' || node.type.name === 'blockChildren') {
+                  hasBlockStructure = true
+                }
+              })
+              if (!hasBlockStructure) {
+                return slice
+              }
             }
 
             // Check if all top-level nodes are blockNode (internal copy/paste).
