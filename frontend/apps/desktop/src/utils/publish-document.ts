@@ -18,9 +18,12 @@ type PublishDesktopDocumentDeps = {
   getSigner: (accountUid: string) => HMSigner
 }
 
-/** Uses the daemon publish path for updates to existing published documents. */
+/** Uses the daemon publish path for updates to existing published documents and new root documents. */
 export function shouldUseDaemonCreateDocumentChange(input: PublishDocumentInput): boolean {
-  return !!input.baseVersion && !!input.genesis
+  // Use daemon for updates to existing documents (has baseVersion and genesis),
+  // and for new root documents (path is empty) which need genesis creation
+  // via ensureProfileGenesis — PrepareChange cannot handle this.
+  return (!!input.baseVersion && !!input.genesis) || !input.path
 }
 
 /** Normalizes document publish input into a daemon create-document-change request. */
