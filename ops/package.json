@@ -1,7 +1,7 @@
 {
   "scripts": {
     "dev": "bun run deploy.ts",
-    "build": "bun build deploy.ts --outfile dist/deploy.js --target bun --minify",
+    "build": "bun build deploy.ts --outfile dist/deploy.js --target bun",
     "typecheck": "tsc --noEmit",
     "test": "bun test"
   },
