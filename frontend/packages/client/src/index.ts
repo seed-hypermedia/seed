@@ -1,4 +1,4 @@
-export {createCapability} from './capability'
+export {createCapability, resolveCapability} from './capability'
 export type {CapabilityRole, CreateCapabilityInput} from './capability'
 export {
   createChange,

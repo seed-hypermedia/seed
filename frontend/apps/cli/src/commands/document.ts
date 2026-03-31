@@ -17,6 +17,7 @@ import {
   pdfToBlocks,
   fileToIpfsBlobs,
   slugify,
+  resolveCapability,
   type DocumentOperation,
   type CollectedBlob,
 } from '@seed-hypermedia/client'
@@ -34,28 +35,6 @@ import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
 import {createBlocksMap, computeReplaceOps, hmBlockNodeToBlockNode, type APIBlockNode} from '../utils/block-diff'
 import {resolveFileLinks} from '../utils/file-links'
 import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
-import type {SeedClient} from '@seed-hypermedia/client'
-
-// ── Capability helpers ──────────────────────────────────────────────────────
-
-/**
- * Look up a WRITER or AGENT capability for `signerAccount` on `targetAccount`.
- * Returns the capability CID if found, undefined otherwise.
- */
-async function resolveCapability(
-  client: SeedClient,
-  targetAccount: string,
-  signerAccount: string,
-): Promise<string | undefined> {
-  if (targetAccount === signerAccount) return undefined
-  const targetId = unpackHmId(`hm://${targetAccount}`)
-  if (!targetId) return undefined
-  const caps = await client.request('ListCapabilities', {targetId})
-  const match = caps.capabilities.find(
-    (c) => c.delegate === signerAccount && (c.role === 'WRITER' || c.role === 'AGENT'),
-  )
-  return match?.id
-}
 
 // ── Input helpers ────────────────────────────────────────────────────────────
 

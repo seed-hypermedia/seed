@@ -1,11 +1,13 @@
 /**
- * Capability SDK — create capabilities (delegate access to other accounts).
+ * Capability SDK — create and resolve capabilities (delegate access to other accounts).
  */
 
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import type {HMPublishBlobsInput, HMSigner} from './hm-types'
+import {unpackHmId} from './hm-types'
 import {base58btc} from 'multiformats/bases/base58'
 import {signObject, toPublishInput} from './signing'
+import type {SeedClient} from './client'
 
 /** Role values for capability blobs. */
 export type CapabilityRole = 'WRITER' | 'AGENT'
@@ -48,4 +50,23 @@ export async function createCapability(input: CreateCapabilityInput, signer: HMS
   unsigned.sig = await signObject(signer, unsigned)
 
   return toPublishInput(cborEncode(unsigned))
+}
+
+/**
+ * Find a WRITER or AGENT capability for `signerAccount` on `targetAccount`.
+ * Returns the capability CID if found, undefined if not needed (same account) or not found.
+ */
+export async function resolveCapability(
+  client: SeedClient,
+  targetAccount: string,
+  signerAccount: string,
+): Promise<string | undefined> {
+  if (targetAccount === signerAccount) return undefined
+  const targetId = unpackHmId(`hm://${targetAccount}`)
+  if (!targetId) return undefined
+  const caps = await client.request('ListCapabilities', {targetId})
+  const match = caps.capabilities.find(
+    (c) => c.delegate === signerAccount && (c.role === 'WRITER' || c.role === 'AGENT'),
+  )
+  return match?.id
 }
