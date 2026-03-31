@@ -5,29 +5,15 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-function __accessProp(key) {
-  return this[key];
-}
-var __toESMCache_node;
-var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
-  var canCache = mod != null && typeof mod === "object";
-  if (canCache) {
-    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
-    var cached = cache.get(mod);
-    if (cached)
-      return cached;
-  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
+        get: () => mod[key],
         enumerable: true
       });
-  if (canCache)
-    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
@@ -822,7 +808,7 @@ import { execSync, exec as execCb } from "child_process";
 import { createHash, randomBytes } from "crypto";
 import { homedir } from "os";
 import { join, basename, dirname } from "path";
-var VERSION = "0.1.0";
+var VERSION = "0.2.0";
 var DEFAULT_SEED_DIR = process.env.SEED_DIR || dirname(process.argv[1]);
 var DEFAULT_REPO_URL = "https://raw.githubusercontent.com/seed-hypermedia/seed/main";
 function getOpsBaseUrl() {
@@ -917,11 +903,14 @@ function checkDockerAccess(shell) {
 function environmentPresets(env) {
   switch (env) {
     case "dev":
-      return { testnet: true, release_channel: "dev" };
+      return { testnet: true };
     case "prod":
     default:
-      return { testnet: false, release_channel: "latest" };
+      return { testnet: false };
   }
+}
+function defaultReleaseChannel(env) {
+  return env === "dev" ? "dev" : "latest";
 }
 async function configExists(paths) {
   try {
@@ -1134,6 +1123,22 @@ async function runMigrationWizard(old, paths, shell) {
         }
       ]
     }),
+    release_channel: ({ results }) => de({
+      message: "Release channel",
+      initialValue: old.imageTag === "dev" ? "dev" : defaultReleaseChannel(results.environment),
+      options: [
+        {
+          value: "latest",
+          label: "Stable",
+          hint: "official releases, recommended for production"
+        },
+        {
+          value: "dev",
+          label: "Development",
+          hint: "bleeding-edge main branch builds, may be unstable"
+        }
+      ]
+    }),
     log_level: () => de({
       message: "Log level",
       initialValue: old.logLevel ?? "info",
@@ -1191,7 +1196,7 @@ async function runMigrationWizard(old, paths, shell) {
       LOG_LEVEL: answers.log_level
     },
     environment: env,
-    release_channel: presets.release_channel,
+    release_channel: answers.release_channel,
     testnet: presets.testnet,
     link_secret: secret,
     analytics: old.trafficStats,
@@ -1263,6 +1268,22 @@ async function runFreshWizard(paths, existing) {
         }
       ]
     }),
+    release_channel: ({ results }) => de({
+      message: "Release channel",
+      initialValue: existing?.release_channel ?? defaultReleaseChannel(results.environment),
+      options: [
+        {
+          value: "latest",
+          label: "Stable",
+          hint: "official releases, recommended for production"
+        },
+        {
+          value: "dev",
+          label: "Development",
+          hint: "bleeding-edge main branch builds, may be unstable"
+        }
+      ]
+    }),
     log_level: () => de({
       message: "Log level for Seed services",
       initialValue: existing?.compose_envs?.LOG_LEVEL ?? "info",
@@ -1313,7 +1334,7 @@ async function runFreshWizard(paths, existing) {
       LOG_LEVEL: answers.log_level
     },
     environment: env,
-    release_channel: presets.release_channel,
+    release_channel: answers.release_channel,
     testnet: presets.testnet,
     link_secret: secret,
     analytics: existing?.analytics ?? false,
@@ -1324,6 +1345,7 @@ async function runFreshWizard(paths, existing) {
     ["domain", config.domain],
     ["email", config.email],
     ["environment", config.environment],
+    ["release_channel", config.release_channel],
     ["log_level", config.compose_envs.LOG_LEVEL],
     ["gateway", String(config.gateway)]
   ];
@@ -1331,6 +1353,7 @@ async function runFreshWizard(paths, existing) {
     domain: existing.domain,
     email: existing.email,
     environment: existing.environment,
+    release_channel: existing.release_channel,
     log_level: existing.compose_envs?.LOG_LEVEL ?? "info",
     gateway: String(existing.gateway)
   } : undefined;
@@ -2413,6 +2436,7 @@ export {
   ensureSeedDir,
   detectOldInstall,
   deploy,
+  defaultReleaseChannel,
   configExists,
   cmd,
   checkGpuAcceleration,

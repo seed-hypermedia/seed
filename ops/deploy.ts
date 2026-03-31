@@ -24,7 +24,7 @@ import {createHash, randomBytes} from 'node:crypto'
 import {homedir} from 'node:os'
 import {join, basename, dirname} from 'node:path'
 
-export const VERSION = '0.1.0'
+export const VERSION = '0.2.0'
 export const DEFAULT_SEED_DIR = process.env.SEED_DIR || dirname(process.argv[1])
 export const DEFAULT_REPO_URL = 'https://raw.githubusercontent.com/seed-hypermedia/seed/main'
 
@@ -218,20 +218,23 @@ export interface SeedConfig {
 }
 
 /**
- * Derives testnet and release_channel from the environment label.
- * Keeps the wizard to a single "Environment" question instead of three.
+ * Derives testnet flag from the environment label.
  */
 export function environmentPresets(env: SeedConfig['environment']): {
   testnet: boolean
-  release_channel: string
 } {
   switch (env) {
     case 'dev':
-      return {testnet: true, release_channel: 'dev'}
+      return {testnet: true}
     case 'prod':
     default:
-      return {testnet: false, release_channel: 'latest'}
+      return {testnet: false}
   }
+}
+
+/** Default release channel for a given environment (used as wizard initialValue). */
+export function defaultReleaseChannel(env: SeedConfig['environment']): string {
+  return env === 'dev' ? 'dev' : 'latest'
 }
 
 export async function configExists(paths: DeployPaths): Promise<boolean> {
@@ -521,6 +524,26 @@ async function runMigrationWizard(old: OldInstallInfo, paths: DeployPaths, shell
             },
           ],
         }),
+      release_channel: ({results}) =>
+        p.select({
+          message: 'Release channel',
+          initialValue:
+            old.imageTag === 'dev'
+              ? 'dev'
+              : defaultReleaseChannel(results.environment as SeedConfig['environment']),
+          options: [
+            {
+              value: 'latest',
+              label: 'Stable',
+              hint: 'official releases, recommended for production',
+            },
+            {
+              value: 'dev',
+              label: 'Development',
+              hint: 'bleeding-edge main branch builds, may be unstable',
+            },
+          ],
+        }),
       log_level: () =>
         p.select({
           message: 'Log level',
@@ -585,7 +608,7 @@ async function runMigrationWizard(old: OldInstallInfo, paths: DeployPaths, shell
       LOG_LEVEL: answers.log_level as SeedConfig['compose_envs']['LOG_LEVEL'],
     },
     environment: env,
-    release_channel: presets.release_channel,
+    release_channel: answers.release_channel as string,
     testnet: presets.testnet,
     link_secret: secret,
     analytics: old.trafficStats,
@@ -676,6 +699,25 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig): Promis
             },
           ],
         }),
+      release_channel: ({results}) =>
+        p.select({
+          message: 'Release channel',
+          initialValue:
+            existing?.release_channel ??
+            defaultReleaseChannel(results.environment as SeedConfig['environment']),
+          options: [
+            {
+              value: 'latest',
+              label: 'Stable',
+              hint: 'official releases, recommended for production',
+            },
+            {
+              value: 'dev',
+              label: 'Development',
+              hint: 'bleeding-edge main branch builds, may be unstable',
+            },
+          ],
+        }),
       log_level: () =>
         p.select({
           message: 'Log level for Seed services',
@@ -733,7 +775,7 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig): Promis
       LOG_LEVEL: answers.log_level as SeedConfig['compose_envs']['LOG_LEVEL'],
     },
     environment: env,
-    release_channel: presets.release_channel,
+    release_channel: answers.release_channel as string,
     testnet: presets.testnet,
     link_secret: secret,
     // TODO: When re-enabling wizard analytics, publish a post/changelog
@@ -747,6 +789,7 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig): Promis
     ['domain', config.domain],
     ['email', config.email],
     ['environment', config.environment],
+    ['release_channel', config.release_channel],
     ['log_level', config.compose_envs.LOG_LEVEL],
     ['gateway', String(config.gateway)],
   ]
@@ -755,6 +798,7 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig): Promis
         domain: existing.domain,
         email: existing.email,
         environment: existing.environment,
+        release_channel: existing.release_channel,
         log_level: existing.compose_envs?.LOG_LEVEL ?? 'info',
         gateway: String(existing.gateway),
       }

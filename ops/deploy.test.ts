@@ -33,6 +33,7 @@ import {
   checkGpuAcceleration,
   ensureSeedDir,
   environmentPresets,
+  defaultReleaseChannel,
   buildCrontab,
   parseArgs,
   extractSeedCronLines,
@@ -234,16 +235,24 @@ describe('generateSecret', () => {
 // ---------------------------------------------------------------------------
 
 describe('environmentPresets', () => {
-  test('prod uses mainnet and stable releases', () => {
+  test('prod uses mainnet', () => {
     const p = environmentPresets('prod')
     expect(p.testnet).toBe(false)
-    expect(p.release_channel).toBe('latest')
   })
 
-  test('dev uses testnet with dev builds', () => {
+  test('dev uses testnet', () => {
     const p = environmentPresets('dev')
     expect(p.testnet).toBe(true)
-    expect(p.release_channel).toBe('dev')
+  })
+})
+
+describe('defaultReleaseChannel', () => {
+  test('prod defaults to stable', () => {
+    expect(defaultReleaseChannel('prod')).toBe('latest')
+  })
+
+  test('dev defaults to dev', () => {
+    expect(defaultReleaseChannel('dev')).toBe('dev')
   })
 })
 
