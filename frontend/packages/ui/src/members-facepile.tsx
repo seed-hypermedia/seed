@@ -22,7 +22,6 @@ export function MembersFacepile({members, siteId, description, className}: Membe
   const displayUids = useMemo(() => members.slice(0, MAX_AVATARS).map((m) => m.account.uid), [members])
 
   const accountsMeta = useAccountsMetadata(displayUids)
-  const remainingCount = totalCount - MAX_AVATARS
 
   const peopleLinkProps = useRouteLink({
     key: 'collaborators',
@@ -49,14 +48,9 @@ export function MembersFacepile({members, siteId, description, className}: Membe
           )
         })}
       </div>
-      <div className="flex items-center gap-1.5 text-sm">
-        {remainingCount > 0 && (
-          <span className="rounded-md bg-white px-2 py-0.5 font-bold dark:bg-neutral-700">+{remainingCount}</span>
-        )}{' '}
-        <span className="text-muted-foreground">
-          {description || `${totalCount} member${totalCount !== 1 ? 's' : ''} collaborating`}
-        </span>
-      </div>
+      <span className="text-muted-foreground text-sm">
+        {description || `${totalCount} member${totalCount !== 1 ? 's' : ''} collaborating`}
+      </span>
     </a>
   )
 }
