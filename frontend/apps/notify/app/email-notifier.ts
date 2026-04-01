@@ -75,6 +75,7 @@ const adminEmail = process.env.SEED_DEV_ADMIN_EMAIL || 'eric@seedhypermedia.com'
 const notificationEmailHost = (NOTIFY_SERVICE_HOST || SITE_BASE_URL).replace(/\/$/, '')
 const fallbackSiteBaseUrl = SITE_BASE_URL.replace(/\/$/, '')
 const notifDebugEnabled = process.env.NOTIFY_DEBUG === '1' || process.env.NODE_ENV !== 'production'
+const notifVerboseEnabled = process.env.VERBOSE === 'true'
 
 // Error batching for reportError
 const errorBatchDelayMs = 30_000 // 30 seconds
@@ -88,8 +89,10 @@ type NotificationEventMeta = {
 
 type NotificationSubscription = {
   id: string
-  email: string
-  createdAt: string
+  email: string | null
+  adminToken: string | null
+  shouldSendEmail: boolean
+  source: 'notification-config' | 'inbox-registration' | 'legacy-email-subscription'
   notifyAllMentions: boolean
   notifyAllReplies: boolean
   notifyAllDiscussions: boolean
@@ -106,6 +109,11 @@ type QueuedNotification = {
 
 type NotificationsByEmail = Record<string, QueuedNotification[]>
 
+type NotificationCollection = {
+  queuedNotifications: QueuedNotification[]
+  notificationsByEmail: NotificationsByEmail
+}
+
 type EmailIdentity = {
   adminToken: string
   isUnsubscribed: boolean
@@ -118,6 +126,47 @@ function logNotifDebug(message: string, details?: Record<string, unknown>) {
   } else {
     console.info(`[notify][email] ${message}`)
   }
+}
+
+function logNotifVerbose(message: string, details?: Record<string, unknown>) {
+  if (!notifVerboseEnabled) return
+  if (details) {
+    console.info(`[notify][verbose] ${message}`, details)
+  } else {
+    console.info(`[notify][verbose] ${message}`)
+  }
+}
+
+function logTriggeredNotification(
+  subscription: NotificationSubscription,
+  notif: Notification,
+  deliveryKind: NotificationDeliveryKind,
+) {
+  const notifWithEvent = notif as Notification & {
+    eventId?: string
+    eventAtMs?: number
+  }
+  const authorAccountId =
+    'authorAccountId' in notif
+      ? notif.authorAccountId
+      : 'comment' in notif && notif.comment
+      ? notif.comment.author
+      : null
+
+  logNotifVerbose('notification triggered', {
+    deliveryKind,
+    subscriptionAccountId: subscription.id,
+    subscriptionEmail: subscription.email,
+    subscriptionSource: subscription.source,
+    shouldSendEmail: subscription.shouldSendEmail,
+    reason: notif.reason,
+    eventId: notifWithEvent.eventId,
+    eventAtMs: notifWithEvent.eventAtMs,
+    targetAccountId: notif.targetId.uid,
+    targetPath: notif.targetId.path ?? null,
+    commentId: 'comment' in notif && notif.comment ? notif.comment.id : null,
+    authorAccountId,
+  })
 }
 
 function getActionUrlLogDetails(actionUrl: string) {
@@ -388,21 +437,58 @@ function buildEmailIdentityMap(allEmails: ReturnType<typeof getAllEmails>): Map<
 }
 
 function getImmediateSubscriptions(emailIdentityMap: Map<string, EmailIdentity>): NotificationSubscription[] {
-  return getAllNotificationConfigs()
-    .filter((config) => {
-      const identity = emailIdentityMap.get(config.email)
-      return Boolean(identity && !identity.isUnsubscribed && config.verifiedTime)
-    })
-    .map((config) => ({
+  const subscriptionsByAccount = new Map<string, NotificationSubscription>()
+  const notificationConfigs = getAllNotificationConfigs()
+  const inboxRegisteredAccounts = getInboxRegisteredAccounts()
+  let verifiedNotificationConfigCount = 0
+
+  for (const config of notificationConfigs) {
+    const identity = emailIdentityMap.get(config.email)
+    const shouldSendEmail = Boolean(identity && !identity.isUnsubscribed && config.verifiedTime)
+    if (config.verifiedTime) {
+      verifiedNotificationConfigCount += 1
+    }
+    subscriptionsByAccount.set(config.accountId, {
       id: config.accountId,
       email: config.email,
-      createdAt: config.createdAt,
+      adminToken: identity?.adminToken ?? null,
+      shouldSendEmail,
+      source: 'notification-config',
       notifyAllMentions: true,
       notifyAllReplies: true,
       notifyAllDiscussions: true,
       notifyOwnedDocChange: false,
       notifySiteDiscussions: false,
-    }))
+    })
+  }
+
+  let inboxOnlyCount = 0
+  for (const accountId of inboxRegisteredAccounts) {
+    if (subscriptionsByAccount.has(accountId)) continue
+    subscriptionsByAccount.set(accountId, {
+      id: accountId,
+      email: null,
+      adminToken: null,
+      shouldSendEmail: false,
+      source: 'inbox-registration',
+      notifyAllMentions: true,
+      notifyAllReplies: true,
+      notifyAllDiscussions: true,
+      notifyOwnedDocChange: false,
+      notifySiteDiscussions: false,
+    })
+    inboxOnlyCount += 1
+  }
+
+  const subscriptions = Array.from(subscriptionsByAccount.values())
+  logNotifVerbose('resolved immediate notification subscriptions', {
+    totalSubscriptions: subscriptions.length,
+    notificationConfigAccounts: notificationConfigs.length,
+    verifiedNotificationConfigs: verifiedNotificationConfigCount,
+    inboxRegisteredAccounts: inboxRegisteredAccounts.length,
+    inboxOnlyAccounts: inboxOnlyCount,
+  })
+  return subscriptions
 }
 
 function getBatchSubscriptions(
@@ -415,10 +501,16 @@ function getBatchSubscriptions(
     if (!identity || identity.isUnsubscribed) continue
     for (const subscription of email.subscriptions) {
       subscriptions.push({
-        ...subscription,
+        id: subscription.id,
+        email: subscription.email,
+        adminToken: identity.adminToken,
+        shouldSendEmail: true,
+        source: 'legacy-email-subscription',
         notifyAllMentions: false,
         notifyAllReplies: false,
         notifyAllDiscussions: false,
+        notifyOwnedDocChange: subscription.notifyOwnedDocChange,
+        notifySiteDiscussions: subscription.notifySiteDiscussions,
       })
     }
   }
@@ -429,15 +521,25 @@ async function collectNotificationsForEvents({
   events,
   subscriptions,
   deliveryKind,
-  emailIdentityMap,
 }: {
   events: PlainMessage<Event>[]
   subscriptions: NotificationSubscription[]
   deliveryKind: NotificationDeliveryKind
-  emailIdentityMap: Map<string, EmailIdentity>
-}): Promise<NotificationsByEmail> {
+}): Promise<NotificationCollection> {
   const notificationsToSend: NotificationsByEmail = {}
-  if (!events.length || !subscriptions.length) return notificationsToSend
+  const queuedNotifications: QueuedNotification[] = []
+  if (!events.length) {
+    return {
+      notificationsByEmail: notificationsToSend,
+      queuedNotifications,
+    }
+  }
+  if (!subscriptions.length) {
+    logNotifVerbose('no notification subscriptions available for event evaluation', {
+      deliveryKind,
+      eventCount: events.length,
+    })
+  }
 
   const mentionSourceBlobCids = new Set<string>()
   for (const event of events) {
@@ -453,16 +555,19 @@ async function collectNotificationsForEvents({
   })
 
   async function appendNotification(subscription: NotificationSubscription, notif: Notification) {
-    const identity = emailIdentityMap.get(subscription.email)
-    if (!identity || identity.isUnsubscribed) return
     if (getNotificationDeliveryKind(notif.reason) !== deliveryKind) return
-    notificationsToSend[subscription.email] = notificationsToSend[subscription.email] ?? []
-    notificationsToSend[subscription.email]!.push({
+    const queuedNotification: QueuedNotification = {
       accountId: subscription.id,
-      adminToken: identity.adminToken,
+      adminToken: subscription.adminToken ?? '',
       accountMeta: null,
       notif,
-    })
+    }
+    queuedNotifications.push(queuedNotification)
+    if (subscription.shouldSendEmail && subscription.email && subscription.adminToken) {
+      notificationsToSend[subscription.email] = notificationsToSend[subscription.email] ?? []
+      notificationsToSend[subscription.email]!.push(queuedNotification)
+    }
+    logTriggeredNotification(subscription, notif, deliveryKind)
   }
 
   for (const event of events) {
@@ -486,7 +591,10 @@ async function collectNotificationsForEvents({
     }
   }
 
-  return notificationsToSend
+  return {
+    notificationsByEmail: notificationsToSend,
+    queuedNotifications,
+  }
 }
 
 function withImmediateActionUrl(notification: QueuedNotification): QueuedNotification {
@@ -693,14 +801,40 @@ async function processImmediateNotifications(events: PlainMessage<Event>[]) {
   const allEmails = getAllEmails()
   const emailIdentityMap = buildEmailIdentityMap(allEmails)
   const subscriptions = getImmediateSubscriptions(emailIdentityMap)
-  const notificationsToSend = await collectNotificationsForEvents({
+  const notificationCollection = await collectNotificationsForEvents({
     events,
     subscriptions,
     deliveryKind: 'immediate',
-    emailIdentityMap,
   })
-  await sendImmediateNotificationEmails(notificationsToSend)
-  await persistNotificationsForInboxRegisteredAccounts(events)
+  await sendImmediateNotificationEmails(notificationCollection.notificationsByEmail)
+  const inboxItems = notificationCollection.queuedNotifications.flatMap((notification) => {
+    const notifWithEvent = notification.notif as Notification & {
+      eventId?: string
+      eventAtMs?: number
+    }
+    if (!notifWithEvent.eventId || !notifWithEvent.eventAtMs) {
+      return []
+    }
+    return [
+      {
+        accountId: notification.accountId,
+        notif: notification.notif,
+        eventId: notifWithEvent.eventId,
+        eventAtMs: notifWithEvent.eventAtMs,
+      },
+    ]
+  })
+  const persistedCount = persistNotificationsForInboxAccounts(inboxItems)
+  logNotifVerbose('notification inbox persistence complete', {
+    sourceEventCount: events.length,
+    queuedNotifications: notificationCollection.queuedNotifications.length,
+    emailNotifications: Object.values(notificationCollection.notificationsByEmail).reduce(
+      (count, notifications) => count + notifications.length,
+      0,
+    ),
+    inboxItems: inboxItems.length,
+    persistedCount,
+  })
 }
 
 async function processBatchNotifications(events: PlainMessage<Event>[]) {
@@ -708,74 +842,14 @@ async function processBatchNotifications(events: PlainMessage<Event>[]) {
   const allEmails = getAllEmails()
   const emailIdentityMap = buildEmailIdentityMap(allEmails)
   const subscriptions = getBatchSubscriptions(allEmails, emailIdentityMap)
-  const notificationsToSend = await collectNotificationsForEvents({
+  const notificationCollection = await collectNotificationsForEvents({
     events,
     subscriptions,
     deliveryKind: 'batch',
-    emailIdentityMap,
   })
-  await sendBatchNotificationEmails(notificationsToSend)
+  await sendBatchNotificationEmails(notificationCollection.notificationsByEmail)
   // Note: inbox persistence already handled in processImmediateNotifications.
   // Batch events were already persisted when they were first processed as immediate.
-}
-
-async function persistNotificationsForInboxRegisteredAccounts(events: PlainMessage<Event>[]) {
-  if (!events.length) return
-
-  const inboxAccountIds = getInboxRegisteredAccounts()
-  if (!inboxAccountIds.length) return
-
-  // Create subscriptions for inbox accounts with all notification types enabled
-  const inboxSubscriptions: NotificationSubscription[] = inboxAccountIds.map((accountId: string) => ({
-    id: accountId,
-    email: `__inbox__${accountId}`,
-    createdAt: new Date().toISOString(),
-    notifyAllMentions: true,
-    notifyAllReplies: true,
-    notifyAllDiscussions: true,
-    notifyOwnedDocChange: true,
-    notifySiteDiscussions: true,
-  }))
-
-  const collected: Array<{accountId: string; notif: Notification; eventId: string; eventAtMs: number}> = []
-
-  const mentionSourceBlobCids = new Set<string>()
-  for (const event of events) {
-    if (event.data.case !== 'newMention') continue
-    const sourceBlobCid = event.data.value?.sourceBlob?.cid
-    if (sourceBlobCid) mentionSourceBlobCids.add(sourceBlobCid)
-  }
-
-  for (const event of events) {
-    const currentEventId = getEventId(event)
-    const currentEventAtMs = getEventAtMs(event)
-    if (!currentEventId) continue
-
-    async function appendInboxNotification(subscription: NotificationSubscription, notif: Notification) {
-      collected.push({
-        accountId: subscription.id,
-        notif,
-        eventId: (notif as any).eventId || currentEventId,
-        eventAtMs: (notif as any).eventAtMs || currentEventAtMs,
-      })
-    }
-
-    try {
-      await evaluateEventForNotifications(event, inboxSubscriptions, appendInboxNotification, {mentionSourceBlobCids})
-    } catch (error: any) {
-      logNotifDebug('Error evaluating event for inbox persistence', {error: error.message})
-    }
-  }
-
-  if (collected.length > 0) {
-    const persisted = persistNotificationsForInboxAccounts(collected)
-    if (persisted > 0) {
-      logNotifDebug('persisted inbox notifications', {
-        count: persisted,
-        inboxAccounts: inboxAccountIds.length,
-      })
-    }
-  }
 }
 
 function getEventId(event: PlainMessage<Event>) {
@@ -878,6 +952,15 @@ async function evaluateEventForNotifications(
   })
 
   if (event.data.case === 'newMention') {
+    logNotifVerbose('new mention event received', {
+      eventId: eventMeta.eventId,
+      eventAtMs: eventMeta.eventAtMs,
+      account: event.account,
+      target: event.data.value?.target,
+      source: event.data.value?.source,
+      sourceType: event.data.value?.sourceType,
+      sourceBlobCid: event.data.value?.sourceBlob?.cid,
+    })
     logNotifDebug('processing newMention event', {
       eventId: eventMeta.eventId,
       target: event.data.value?.target,
@@ -897,6 +980,13 @@ async function evaluateEventForNotifications(
 
   if (event.data.case === 'newBlob') {
     const blob = event.data.value
+    logNotifVerbose('new blob event received', {
+      eventId: eventMeta.eventId,
+      eventAtMs: eventMeta.eventAtMs,
+      account: event.account,
+      blobType: blob.blobType,
+      cid: blob.cid,
+    })
     logNotifDebug('processing newBlob event', {
       eventId: eventMeta.eventId,
       blobType: blob.blobType,
@@ -921,6 +1011,18 @@ async function evaluateEventForNotifications(
       const rawComment = toPlainMessage(serverComment)
       const comment = HMCommentSchema.parse(rawComment)
       const includeMentionsFromBody = !options.mentionSourceBlobCids.has(blob.cid)
+      logNotifVerbose('comment blob loaded', {
+        eventId: eventMeta.eventId,
+        eventAtMs: eventMeta.eventAtMs,
+        cid: blob.cid,
+        commentId: comment.id,
+        commentAuthor: comment.author,
+        targetAccount: comment.targetAccount,
+        targetPath: comment.targetPath ?? null,
+        replyParent: comment.replyParent ?? null,
+        threadRoot: comment.threadRoot ?? null,
+        includeMentionsFromBody,
+      })
       await evaluateNewCommentForNotifications(comment, allSubscriptions, appendNotification, eventMeta, {
         includeMentionsFromBody,
       })
@@ -1232,6 +1334,19 @@ async function evaluateNewCommentForNotifications(
     }
   }
 
+  logNotifVerbose('evaluating comment notification candidates', {
+    eventId: eventMeta.eventId,
+    eventAtMs: eventMeta.eventAtMs,
+    commentId: comment.id,
+    commentAuthor: comment.author,
+    targetAccount: comment.targetAccount,
+    targetPath: comment.targetPath ?? null,
+    targetAuthorUids,
+    parentCommentAuthor,
+    mentionedAccountUids: Array.from(mentionedUsers),
+    candidateSubscriptions: allSubscriptions.length,
+  })
+
   for (const sub of allSubscriptions) {
     const commentReason = classifyCommentNotificationForAccount({
       subscriptionAccountUid: sub.id,
@@ -1241,6 +1356,19 @@ async function evaluateNewCommentForNotifications(
       isTopLevelComment: !comment.threadRoot,
       parentCommentAuthorUid: parentCommentAuthor,
       mentionedAccountUids: mentionedUsers,
+    })
+
+    logNotifVerbose('comment notification candidate evaluated', {
+      eventId: eventMeta.eventId,
+      commentId: comment.id,
+      subscriptionAccountId: sub.id,
+      subscriptionEmail: sub.email,
+      subscriptionSource: sub.source,
+      shouldSendEmail: sub.shouldSendEmail,
+      commentReason,
+      notifyAllMentions: sub.notifyAllMentions,
+      notifyAllReplies: sub.notifyAllReplies,
+      notifyAllDiscussions: sub.notifyAllDiscussions,
     })
 
     if (commentReason === 'mention' && sub.notifyAllMentions) {

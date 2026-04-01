@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {preparePublicKey} from './auth-utils'
+import {preparePublicKey, signWithKeyPair} from './auth-utils'
 import {validateSignature} from './validate-signature'
 
 describe('validateSignature', () => {
@@ -68,5 +68,20 @@ describe('validateSignature', () => {
     const isValid = await validateSignature(compressedKey, new Uint8Array(signature), testData)
 
     expect(isValid).toBe(false)
+  })
+
+  test('validates Ed25519 signatures for delegated web sessions', async () => {
+    const keyPair = (await crypto.subtle.generateKey('Ed25519' as unknown as AlgorithmIdentifier, true, [
+      'sign',
+      'verify',
+    ])) as CryptoKeyPair
+
+    const testData = new TextEncoder().encode('delegated-notification-request')
+    const signature = await signWithKeyPair(keyPair, testData)
+    const compressedKey = await preparePublicKey(keyPair.publicKey)
+
+    const isValid = await validateSignature(compressedKey, signature, testData)
+
+    expect(isValid).toBe(true)
   })
 })

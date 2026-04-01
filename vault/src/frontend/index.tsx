@@ -16,11 +16,12 @@ initTheme()
 
 async function bootstrap() {
   const client = new FetchClient()
-  const {backendHttpBaseUrl} = await client.getConfig()
+  const {backendHttpBaseUrl, notificationServerUrl} = await client.getConfig()
   const appStore = createStore(
     client,
     new IndexedDBBlockstore(new RemoteBlockstore(backendHttpBaseUrl)),
     backendHttpBaseUrl,
+    notificationServerUrl,
   )
   const router = createRouter()
 

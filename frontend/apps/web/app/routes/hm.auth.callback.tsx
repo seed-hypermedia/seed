@@ -1,3 +1,4 @@
+import {keyPairStore} from '@/auth'
 import * as authSession from '@/auth-session'
 import {
   AUTH_STATE_DELEGATION_RETURN_URL,
@@ -104,6 +105,14 @@ export default function AuthCallbackRoute() {
         await writeLocalKeys(sessionSigner.keyPair, {
           delegatedAccountUid: result.accountPrincipal,
           vaultUrl,
+          notifyServerUrl: result.notifyServerUrl,
+        })
+        keyPairStore.set({
+          ...sessionSigner.keyPair,
+          id: result.session.principal,
+          delegatedAccountUid: result.accountPrincipal,
+          vaultUrl,
+          notifyServerUrl: result.notifyServerUrl,
         })
 
         // Cleanup delegation markers.

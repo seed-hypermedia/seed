@@ -68,6 +68,7 @@ async function main() {
   const svc = new apisvc.Service(
     db,
     cfg.backend.httpBaseUrl,
+    cfg.notificationServerUrl,
     documentsClient,
     cfg.relyingParty,
     hmacSecret,
