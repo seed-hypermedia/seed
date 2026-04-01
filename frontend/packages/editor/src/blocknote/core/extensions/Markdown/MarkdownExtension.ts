@@ -167,6 +167,7 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
         new Plugin({
           props: {
             handlePaste: (view, event, slice) => {
+              if (!view.editable) return false
               const selectedNode = view.state.selection.$from.parent
 
               // Don't proceed if pasting into code block

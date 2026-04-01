@@ -43,9 +43,21 @@ import {SlashMenuProsemirrorPlugin} from './extensions/SlashMenu/SlashMenuPlugin
 import {UniqueID} from './extensions/UniqueID/UniqueID'
 import {mergeCSSClasses} from './shared/utils'
 
+/** Controls which UI context the editor is rendered in. Metadata only — does not affect plugin loading. */
+export type EditorRenderType = 'document' | 'embed' | 'comment'
+
 export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
   // Note: enableBlockNoteExtensions/disableHistoryExtension are internal options
   enableBlockNoteExtensions: boolean
+
+  /**
+   * The rendering context for this editor instance.
+   * Extensions can read this to adapt behavior per context.
+   * Does not affect plugin loading — use `editable` for that.
+   *
+   * @default 'document'
+   */
+  renderType: EditorRenderType
   /**
    *
    * (couldn't fix any type, see https://github.com/TypeCellOS/BlockNote/pull/191#discussion_r1210708771)
@@ -170,8 +182,8 @@ export type HandleFileAttachmentFunction = (file: File) => Promise<{
 }>
 
 const blockNoteTipTapOptions = {
-  enableInputRules: true,
-  enablePasteRules: true,
+  enableInputRules: true as boolean,
+  enablePasteRules: true as boolean,
   enableCoreExtensions: false,
 }
 
@@ -193,6 +205,8 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public readonly slashMenu: SlashMenuProsemirrorPlugin<BSchema, any>
   public readonly hyperlinkToolbar: HyperlinkToolbarProsemirrorPlugin<BSchema>
   public readonly linkMenu: LinkMenuProsemirrorPlugin<BSchema, any>
+
+  public readonly renderType: EditorRenderType
 
   public readonly commentEditor?: boolean
 
@@ -216,6 +230,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
       editable: options.editable || true,
       ...options,
     }
+    this.renderType = options.renderType || 'document'
     this.commentEditor = options.commentEditor
     this.getResourceUrl = options.getResourceUrl
     this.sideMenu = new SideMenuProsemirrorPlugin(this)
@@ -275,8 +290,11 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
             },
           ])
 
+    const isEditable = options.editable !== false
     const tiptapOptions: EditorOptions = {
       ...blockNoteTipTapOptions,
+      enableInputRules: isEditable,
+      enablePasteRules: isEditable,
       ...newOptions._tiptapOptions,
       onCreate: () => {
         newOptions.onEditorReady?.(this)
