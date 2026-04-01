@@ -30,6 +30,7 @@ import {
   getWorkspaceDirs,
   checkContainersHealthy,
   getContainerImages,
+  checkForNewImages,
   checkGpuAcceleration,
   ensureSeedDir,
   environmentPresets,
@@ -746,6 +747,79 @@ describe('getContainerImages', () => {
 })
 
 // ---------------------------------------------------------------------------
+// checkForNewImages (mock shell)
+// ---------------------------------------------------------------------------
+
+describe('checkForNewImages', () => {
+  const paths = makePaths('/opt/seed')
+  const config: SeedConfig = {
+    domain: 'https://example.com',
+    email: 'test@example.com',
+    compose_url: DEFAULT_COMPOSE_URL,
+    compose_sha: 'abc',
+    compose_env_sha: 'def',
+    compose_envs: {LOG_LEVEL: 'info'},
+    release_channel: 'dev',
+    link_secret: 'secret',
+    last_script_run: '',
+  }
+
+  test('returns false when no containers running', async () => {
+    const result = await checkForNewImages(config, paths, makeNoopShell())
+    expect(result).toBe(false)
+  })
+
+  test('returns false when pull fails', async () => {
+    const shell = makeMockShell({
+      'seed-proxy': 'sha256:aaa',
+      'seed-web': 'sha256:bbb',
+      'seed-daemon': 'sha256:ccc',
+    })
+    // exec (used by docker compose pull) will throw for unmatched commands
+    const result = await checkForNewImages(config, paths, shell)
+    expect(result).toBe(false)
+  })
+
+  test('returns false when images match', async () => {
+    const shell = makeMockShell({
+      // getContainerImages — docker inspect <container> --format '{{.Image}}'
+      "inspect seed-proxy --format '{{.Image}}'": 'sha256:aaa',
+      "inspect seed-web --format '{{.Image}}'": 'sha256:bbb',
+      "inspect seed-daemon --format '{{.Image}}'": 'sha256:ccc',
+      // docker compose pull
+      'docker compose': '',
+      // docker inspect <container> --format '{{.Config.Image}}'
+      "inspect seed-proxy --format '{{.Config.Image}}'": 'caddy:2',
+      "inspect seed-web --format '{{.Config.Image}}'": 'seedhypermedia/web:dev',
+      "inspect seed-daemon --format '{{.Config.Image}}'": 'seedhypermedia/site:dev',
+      // docker image inspect <image> --format '{{.Id}}'
+      "image inspect caddy:2 --format '{{.Id}}'": 'sha256:aaa',
+      "image inspect seedhypermedia/web:dev --format '{{.Id}}'": 'sha256:bbb',
+      "image inspect seedhypermedia/site:dev --format '{{.Id}}'": 'sha256:ccc',
+    })
+    const result = await checkForNewImages(config, paths, shell)
+    expect(result).toBe(false)
+  })
+
+  test('returns true when an image differs', async () => {
+    const shell = makeMockShell({
+      "inspect seed-proxy --format '{{.Image}}'": 'sha256:aaa',
+      "inspect seed-web --format '{{.Image}}'": 'sha256:bbb',
+      "inspect seed-daemon --format '{{.Image}}'": 'sha256:ccc',
+      'docker compose': '',
+      "inspect seed-proxy --format '{{.Config.Image}}'": 'caddy:2',
+      "inspect seed-web --format '{{.Config.Image}}'": 'seedhypermedia/web:dev',
+      "inspect seed-daemon --format '{{.Config.Image}}'": 'seedhypermedia/site:dev',
+      "image inspect caddy:2 --format '{{.Id}}'": 'sha256:aaa',
+      "image inspect seedhypermedia/web:dev --format '{{.Id}}'": 'sha256:NEW',
+      "image inspect seedhypermedia/site:dev --format '{{.Id}}'": 'sha256:ccc',
+    })
+    const result = await checkForNewImages(config, paths, shell)
+    expect(result).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // checkGpuAcceleration (mock shell)
 // ---------------------------------------------------------------------------
 
@@ -922,8 +996,8 @@ describe('buildCrontab', () => {
 
     const cleanupLines = result.split('\n').filter((l) => l.includes('# seed-cleanup'))
     expect(cleanupLines).toHaveLength(1)
-    // New version uses -a flag and multiple times
-    expect(cleanupLines[0]).toContain('0 0,4,8,12,16,20')
+    // New version runs every hour
+    expect(cleanupLines[0]).toContain('0 * * * *')
   })
 
   test('replaces both seed lines at once (idempotent)', () => {

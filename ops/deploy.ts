@@ -879,6 +879,36 @@ export async function getContainerImages(shell: ShellRunner): Promise<Map<string
 }
 
 /**
+ * Pull latest images and check if any differ from what's currently running.
+ * Returns true if new images were pulled that differ from running containers.
+ * Returns false if all images match or if the pull/check fails (safe to retry
+ * next cycle).
+ */
+export async function checkForNewImages(
+  config: SeedConfig,
+  paths: DeployPaths,
+  shell: ShellRunner,
+): Promise<boolean> {
+  const env = buildComposeEnv(config, paths)
+  const beforeImages = await getContainerImages(shell)
+  if (beforeImages.size === 0) return false
+
+  try {
+    await shell.exec(`${env} docker compose -f ${paths.composePath} pull --quiet`)
+  } catch {
+    return false
+  }
+
+  for (const [name, runningId] of beforeImages) {
+    const imageName = shell.runSafe(`docker inspect ${name} --format '{{.Config.Image}}' 2>/dev/null`)
+    if (!imageName) continue
+    const pulledId = shell.runSafe(`docker image inspect ${imageName} --format '{{.Id}}' 2>/dev/null`)
+    if (pulledId && runningId !== pulledId) return true
+  }
+  return false
+}
+
+/**
  * Extract environment variables from a running container as a key-value map.
  * Returns an empty object if the container doesn't exist or isn't running.
  */
@@ -1079,14 +1109,21 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
 
   const containersHealthy = await checkContainersHealthy(shell)
   if (config.compose_sha === composeSha && config.compose_env_sha === envSha && containersHealthy) {
-    spinner?.stop('No changes detected — all containers healthy. Skipping redeployment.')
-    log('No changes detected — compose SHA and env SHA match, containers are healthy. Skipping.')
-    if (isInteractive) {
-      console.log(`\n  To change your node's configuration, run '${cmd('deploy --reconfigure')}'.\n`)
+    // Compose and config unchanged, containers running. Check if remote
+    // images have been updated (e.g. CI pushed new :dev or :latest tags).
+    step('Checking for new images...')
+    const hasNewImages = await checkForNewImages(config, paths, shell)
+    if (!hasNewImages) {
+      spinner?.stop('No changes detected — all containers healthy. Skipping redeployment.')
+      log('No changes detected — compose SHA and env SHA match, images current, containers healthy. Skipping.')
+      if (isInteractive) {
+        console.log(`\n  To change your node's configuration, run '${cmd('deploy --reconfigure')}'.\n`)
+      }
+      config.last_script_run = new Date().toISOString()
+      await writeConfig(config, paths)
+      return
     }
-    config.last_script_run = new Date().toISOString()
-    await writeConfig(config, paths)
-    return
+    step('New images available — proceeding with deployment.')
   }
 
   if (config.compose_sha && config.compose_sha !== composeSha) {
@@ -1288,7 +1325,7 @@ export function buildCrontab(existing: string, paths: DeployPaths, bunPath: stri
   const deployLine =
     `*/10 * * * * ${bunPath} "${deployScript}" upgrade >> "${paths.deployLog}" 2>&1; ` +
     `${bunPath} "${deployScript}" deploy >> "${paths.deployLog}" 2>&1 # seed-deploy`
-  const cleanupLine = `0 0,4,8,12,16,20 * * * docker image prune -f --filter "until=1h" # seed-cleanup`
+  const cleanupLine = `0 * * * * docker image prune -f --filter "until=1h" # seed-cleanup`
 
   const filtered = existing
     .split('\n')

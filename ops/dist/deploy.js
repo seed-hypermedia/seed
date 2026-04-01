@@ -5,29 +5,15 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-function __accessProp(key) {
-  return this[key];
-}
-var __toESMCache_node;
-var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
-  var canCache = mod != null && typeof mod === "object";
-  if (canCache) {
-    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
-    var cached = cache.get(mod);
-    if (cached)
-      return cached;
-  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
+        get: () => mod[key],
         enumerable: true
       });
-  if (canCache)
-    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
@@ -1432,6 +1418,26 @@ async function getContainerImages(shell) {
   }
   return images;
 }
+async function checkForNewImages(config, paths, shell) {
+  const env = buildComposeEnv(config, paths);
+  const beforeImages = await getContainerImages(shell);
+  if (beforeImages.size === 0)
+    return false;
+  try {
+    await shell.exec(`${env} docker compose -f ${paths.composePath} pull --quiet`);
+  } catch {
+    return false;
+  }
+  for (const [name, runningId] of beforeImages) {
+    const imageName = shell.runSafe(`docker inspect ${name} --format '{{.Config.Image}}' 2>/dev/null`);
+    if (!imageName)
+      continue;
+    const pulledId = shell.runSafe(`docker image inspect ${imageName} --format '{{.Id}}' 2>/dev/null`);
+    if (pulledId && runningId !== pulledId)
+      return true;
+  }
+  return false;
+}
 function getContainerEnvs(shell, containerName) {
   const raw = shell.runSafe(`docker inspect ${containerName} --format '{{json .Config.Env}}' 2>/dev/null`);
   if (!raw)
@@ -1584,16 +1590,21 @@ async function deploy(config, paths, shell) {
   const envSha = sha256(envString);
   const containersHealthy = await checkContainersHealthy(shell);
   if (config.compose_sha === composeSha && config.compose_env_sha === envSha && containersHealthy) {
-    spinner?.stop("No changes detected \u2014 all containers healthy. Skipping redeployment.");
-    log("No changes detected \u2014 compose SHA and env SHA match, containers are healthy. Skipping.");
-    if (isInteractive) {
-      console.log(`
+    step("Checking for new images...");
+    const hasNewImages = await checkForNewImages(config, paths, shell);
+    if (!hasNewImages) {
+      spinner?.stop("No changes detected \u2014 all containers healthy. Skipping redeployment.");
+      log("No changes detected \u2014 compose SHA and env SHA match, images current, containers healthy. Skipping.");
+      if (isInteractive) {
+        console.log(`
   To change your node's configuration, run '${cmd("deploy --reconfigure")}'.
 `);
+      }
+      config.last_script_run = new Date().toISOString();
+      await writeConfig(config, paths);
+      return;
     }
-    config.last_script_run = new Date().toISOString();
-    await writeConfig(config, paths);
-    return;
+    step("New images available \u2014 proceeding with deployment.");
   }
   if (config.compose_sha && config.compose_sha !== composeSha) {
     step(`Compose file changed: ${config.compose_sha.slice(0, 8)} -> ${composeSha.slice(0, 8)}`);
@@ -1737,7 +1748,7 @@ async function deploy(config, paths, shell) {
 function buildCrontab(existing, paths, bunPath = "/usr/local/bin/bun") {
   const deployScript = join(paths.seedDir, "deploy.js");
   const deployLine = `*/10 * * * * ${bunPath} "${deployScript}" upgrade >> "${paths.deployLog}" 2>&1; ` + `${bunPath} "${deployScript}" deploy >> "${paths.deployLog}" 2>&1 # seed-deploy`;
-  const cleanupLine = `0 0,4,8,12,16,20 * * * docker image prune -f --filter "until=1h" # seed-cleanup`;
+  const cleanupLine = `0 * * * * docker image prune -f --filter "until=1h" # seed-cleanup`;
   const filtered = existing.split(`
 `).filter((line) => !line.includes("# seed-deploy") && !line.includes("# seed-cleanup")).join(`
 `).trim();
@@ -2454,6 +2465,7 @@ export {
   configExists,
   cmd,
   checkGpuAcceleration,
+  checkForNewImages,
   checkContainersHealthy,
   buildCrontab,
   buildComposeEnv,
