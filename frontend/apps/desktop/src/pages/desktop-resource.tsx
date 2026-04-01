@@ -18,7 +18,8 @@ import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
-import {hmId, hostnameStripProtocol} from '@shm/shared'
+import {hmId, hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
+import {useDocumentInspector} from '@shm/shared/models/document-machine-inspect'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {findSelfQueryBlock} from '@shm/shared/content'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
@@ -61,6 +62,10 @@ export default function DesktopResourcePage() {
   const capability = useSelectedAccountCapability(docId)
   const canEdit = roleCanWrite(capability?.role)
   const myAccountIds = useMyAccountIds()
+
+  // Developer tools: XState inspect callback + event store (when enabled)
+  const devTools = useUniversalAppContext().experiments?.developerTools
+  const {inspect, store: inspectStore} = useDocumentInspector(!!devTools)
 
   // Get site URL for CreateDocumentButton
   const siteHomeResource = useResource(hmId(docId.uid), {subscribed: true})
@@ -471,6 +476,8 @@ export default function DesktopResourcePage() {
               inlineCards={inlineCards}
               rightActions={<JoinButton siteUid={docId.uid} />}
               onEditProfile={onEditProfile}
+              inspect={inspect}
+              inspectStore={inspectStore}
             />
           </QueryBlockDraftsProvider>
         </DesktopDocumentActionsProvider>

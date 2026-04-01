@@ -192,7 +192,7 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
       <div
         ref={containerRef}
         onClick={() => {
-          if (selected && !opened) {
+          if (selected && !opened && editor.isEditable) {
             const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
             if (
               selectedNode?.block.node.attrs.id === block.id &&
@@ -210,7 +210,7 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
       >
         <p ref={mathRef} className="text-base select-none" />
       </div>
-      {opened && (
+      {opened && editor.isEditable && (
         <div className="flex flex-col">
           <Separator />
           <div className="relative flex min-h-7 items-center px-[16px] py-[10px]">

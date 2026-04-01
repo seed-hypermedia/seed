@@ -14,6 +14,7 @@ import {useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provide
 import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {
+  useAccount,
   useAccountsMetadata,
   useDirectory,
   useIsLatest,
@@ -26,7 +27,6 @@ import {
   documentMachine,
   DocumentMachineProvider,
   selectPublishedVersion,
-  useAccount,
   useDocumentSelector,
   useDocumentSync,
 } from '@shm/shared/models/use-document-machine'
@@ -41,7 +41,7 @@ import {
 } from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Folder, Search} from 'lucide-react'
-import {CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AccountPage} from './account-page'
 import {BlockRangeSelectOptions, BlocksContent, BlocksContentProvider} from './blocks-content'
 import {CollaboratorsPage} from './collaborators-page'
@@ -76,6 +76,10 @@ import {UnreferencedDocuments} from './unreferenced-documents'
 import {useBlockScroll} from './use-block-scroll'
 import {useMedia} from './use-media'
 import {cn} from './utils'
+
+const LazyDocumentMachineDebugDrawer = lazy(() =>
+  import('@shm/shared/models/document-machine-debug-drawer').then((m) => ({default: m.DocumentMachineDebugDrawer})),
+)
 
 /** Common menu items generated internally for all document views */
 export function useCommonMenuItems(docId: UnpackedHypermediaId): MenuItemType[] {
@@ -198,6 +202,10 @@ export interface ResourcePageProps {
   canEdit?: boolean
   /** Optional provided machine (with actors) for desktop editing support. */
   machine?: typeof documentMachine
+  /** Optional XState inspect callback for debugging. Gated by developerTools flag. */
+  inspect?: (inspectionEvent: any) => void
+  /** Inspect event store for the debug drawer to subscribe to. */
+  inspectStore?: import('@shm/shared/models/document-machine-inspect').InspectEventStore
 }
 
 /** Get panel title for display */
@@ -232,6 +240,8 @@ export function ResourcePage({
   inlineInsert,
   canEdit = false,
   machine,
+  inspect,
+  inspectStore,
 }: ResourcePageProps) {
   const route = useNavRoute()
   const isSiteProfile = route.key === 'site-profile'
@@ -385,7 +395,7 @@ export function ResourcePage({
     }
     const targetDocument = targetResource.data.document
     return (
-      <DocumentMachineProvider input={{documentId: targetDocId, canEdit: false}}>
+      <DocumentMachineProvider input={{documentId: targetDocId, canEdit: false}} inspect={inspect}>
         <PageWrapper
           siteHomeId={siteHomeId}
           docId={targetDocId}
@@ -428,6 +438,7 @@ export function ResourcePage({
         editPath: docId.path ?? undefined,
       }}
       machine={machine}
+      inspect={inspect}
     >
       <PageWrapper
         siteHomeId={siteHomeId}
@@ -452,6 +463,11 @@ export function ResourcePage({
           inlineInsert={inlineInsert}
         />
       </PageWrapper>
+      {inspect && (
+        <Suspense fallback={null}>
+          <LazyDocumentMachineDebugDrawer store={inspectStore} />
+        </Suspense>
+      )}
     </DocumentMachineProvider>
   )
 }
