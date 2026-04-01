@@ -1,5 +1,5 @@
-import {describe, expect, test} from 'bun:test'
-import {create, flags} from '@/config'
+import { create, flags } from '@/config'
+import { describe, expect, test } from 'bun:test'
 
 describe('vault config', () => {
   test('defaults backend http base url from relying party origin', () => {
@@ -69,7 +69,7 @@ describe('vault config', () => {
     expect(cfg.notificationServerUrl).toBe('https://notify.seed.hyper.media')
   })
 
-  test('uses DEFAULT_NOTIFY_SERVER for local development overrides', () => {
+  test('uses SEED_VAULT_DEFAULT_NOTIFY_SERVER for local development overrides', () => {
     const cfg = create(
       {
         'server-hostname': '0.0.0.0',
@@ -86,13 +86,13 @@ describe('vault config', () => {
         'smtp-password': '',
         'smtp-sender': '',
       },
-      {DEFAULT_NOTIFY_SERVER: 'http://localhost:3060'},
+      {SEED_VAULT_DEFAULT_NOTIFY_SERVER: 'http://localhost:3060'},
     )
 
     expect(cfg.notificationServerUrl).toBe('http://localhost:3060')
   })
 
-  test('uses DEFAULT_NOTIFY_SERVER when provided', () => {
+  test('uses SEED_VAULT_DEFAULT_NOTIFY_SERVER when provided', () => {
     const cfg = create(
       {
         'server-hostname': '0.0.0.0',
@@ -109,7 +109,7 @@ describe('vault config', () => {
         'smtp-password': '',
         'smtp-sender': '',
       },
-      {DEFAULT_NOTIFY_SERVER: 'https://notify.example.com'},
+      {SEED_VAULT_DEFAULT_NOTIFY_SERVER: 'https://notify.example.com'},
     )
 
     expect(cfg.notificationServerUrl).toBe('https://notify.example.com')

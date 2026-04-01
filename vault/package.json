@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "DEFAULT_NOTIFY_SERVER=http://localhost:3060 bun --hot src/main.ts",
+    "dev": "SEED_VAULT_DEFAULT_NOTIFY_SERVER=http://localhost:3060 bun --hot src/main.ts",
     "build": "NODE_ENV=production bun build.ts",
     "typecheck": "bun tsgo --noEmit",
     "format:write": "prettier --write .",
