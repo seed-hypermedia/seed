@@ -27,6 +27,8 @@
   tag, branch deletion, or push, unless explicitly asked.
 - Do not edit vendored code under `backend/util/llama-go/llama.cpp` unless explicitly asked.
 - Use pnpm workflows for the main repository, and Bun workflows for `vault/**`.
+- `ops/` uses a pinned Bun version (see `ops/package.json` `engines.bun`). Always build `ops/dist/deploy.js` with that
+  exact version (`bunx --bun bun@<version> build ...`) or CI will fail the staleness check.
 - Never run `pnpm install` from the sandbox. Don't try to work around it, run it from the normal command line, and ask
   permissions if you can't do it directly.
 - Run relevant tests, type checks, and linters for touched areas before finishing.
