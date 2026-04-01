@@ -19,6 +19,7 @@ type Store interface {
 // sliceStore implements Storage backed by a slice.
 type sliceStore struct {
 	items  []Item
+	seen   map[string]struct{}
 	sealed bool
 }
 
@@ -26,6 +27,7 @@ type sliceStore struct {
 func NewSliceStore() Store {
 	return &sliceStore{
 		items:  make([]Item, 0),
+		seen:   make(map[string]struct{}),
 		sealed: false,
 	}
 }
@@ -35,12 +37,13 @@ func (v *sliceStore) Insert(createdAt int64, id []byte) error {
 		return errors.New("already sealed")
 	}
 
-	item := NewItem(createdAt, id)
-	for _, it := range v.items {
-		if it.Compare(item) == 0 {
-			return nil
-		}
+	key := string(id)
+	if _, exists := v.seen[key]; exists {
+		return nil
 	}
+
+	item := NewItem(createdAt, id)
+	v.seen[key] = struct{}{}
 	v.items = append(v.items, item)
 	return nil
 }
@@ -54,6 +57,7 @@ func (v *sliceStore) Seal() error {
 		return errors.New("already sealed")
 	}
 	v.sealed = true
+	v.seen = nil // Free dedup map after sealing.
 
 	slices.SortFunc(v.items, func(a, b Item) int {
 		x := a.Compare(b)
