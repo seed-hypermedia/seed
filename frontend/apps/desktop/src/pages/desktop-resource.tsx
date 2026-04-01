@@ -463,6 +463,7 @@ export default function DesktopResourcePage() {
           <QueryBlockDraftsProvider {...queryBlockDraftsValue}>
             <ResourcePage
               docId={docId}
+              canEdit={canEdit}
               CommentEditor={CommentBox}
               extraMenuItems={menuItems}
               editActions={editActions}
