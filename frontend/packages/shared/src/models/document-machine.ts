@@ -32,6 +32,8 @@ export type DocumentMachineContext = {
   canEdit: boolean
   hasChangedWhileSaving: boolean
   draftCreated: boolean
+  /** True only when machine was initialized with an existingDraftId — drives auto-enter editing. Cleared after first use. */
+  shouldAutoEdit: boolean
   error: unknown
 }
 
@@ -141,6 +143,9 @@ export const documentMachine = setup({
         return null
       },
     }),
+    clearShouldAutoEdit: assign({
+      shouldAutoEdit: false,
+    }),
     clearDraftState: assign({
       draftId: null,
       draftCreated: false,
@@ -148,7 +153,7 @@ export const documentMachine = setup({
       pendingRemoteVersion: null,
     }),
     clearEditingState: assign({
-      draftId: null,
+      // Preserve draftId so re-entering editing reuses the same draft
       draftCreated: false,
       hasChangedWhileSaving: false,
       pendingRemoteVersion: null,
@@ -173,7 +178,7 @@ export const documentMachine = setup({
     canTransitionToEditing: ({context}) => context.canEdit,
     didChangeWhileSaving: ({context}) => context.hasChangedWhileSaving,
     hasDraftId: ({context}) => context.draftId !== null,
-    hasExistingDraft: ({context}) => context.draftId !== null,
+    hasExistingDraft: ({context}) => context.shouldAutoEdit,
     hasRemoteUpdate: ({context}) => context.pendingRemoteVersion !== null,
   },
   actors: {
@@ -207,6 +212,7 @@ export const documentMachine = setup({
     canEdit: input.canEdit,
     hasChangedWhileSaving: false,
     draftCreated: !!input.existingDraftId,
+    shouldAutoEdit: !!input.existingDraftId,
     error: null,
   }),
   initial: 'loading',
@@ -246,6 +252,7 @@ export const documentMachine = setup({
       always: {
         target: 'editing',
         guard: 'hasExistingDraft',
+        actions: ['clearShouldAutoEdit', 'setDepsFromPublished'],
       },
     },
 

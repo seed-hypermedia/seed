@@ -12,6 +12,13 @@ import {
 import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {
+  DocumentMachineProvider,
+  documentMachine,
+  selectPublishedVersion,
+  useDocumentSelector,
+  useDocumentSync,
+} from '@shm/shared/models/use-document-machine'
+import {
   useAccountsMetadata,
   useDirectory,
   useIsLatest,
@@ -184,6 +191,10 @@ export interface ResourcePageProps {
   onFollowClick?: () => void
   /** Optional inline element injected after content blocks (subscribe box) */
   inlineInsert?: ReactNode
+  /** Whether the current user can edit this document (drives the state machine guard). */
+  canEdit?: boolean
+  /** Optional provided machine (with actors) for desktop editing support. */
+  machine?: typeof documentMachine
 }
 
 /** Get panel title for display */
@@ -216,6 +227,8 @@ export function ResourcePage({
   profileHeaderButtons,
   onFollowClick,
   inlineInsert,
+  canEdit = false,
+  machine,
 }: ResourcePageProps) {
   const route = useNavRoute()
   const isSiteProfile = route.key === 'site-profile'
@@ -369,23 +382,25 @@ export function ResourcePage({
     }
     const targetDocument = targetResource.data.document
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={targetDocId}
-        headerData={headerData}
-        document={targetDocument}
-        rightActions={rightActions}
-      >
-        <DocumentBody
+      <DocumentMachineProvider input={{documentId: targetDocId, canEdit: false}}>
+        <PageWrapper
+          siteHomeId={siteHomeId}
           docId={targetDocId}
+          headerData={headerData}
           document={targetDocument}
-          activeView="comments"
-          openComment={comment.id}
-          CommentEditor={CommentEditor}
-          siteUrl={siteHomeDocument?.metadata?.siteUrl}
-          pageFooter={pageFooter}
-        />
-      </PageWrapper>
+          rightActions={rightActions}
+        >
+          <DocumentBody
+            docId={targetDocId}
+            document={targetDocument}
+            activeView="comments"
+            openComment={comment.id}
+            CommentEditor={CommentEditor}
+            siteUrl={siteHomeDocument?.metadata?.siteUrl}
+            pageFooter={pageFooter}
+          />
+        </PageWrapper>
+      </DocumentMachineProvider>
     )
   }
 
@@ -401,29 +416,40 @@ export function ResourcePage({
   const document = resource.data.document
 
   return (
-    <PageWrapper
-      siteHomeId={siteHomeId}
-      docId={docId}
-      headerData={headerData}
-      document={document}
-      rightActions={rightActions}
+    <DocumentMachineProvider
+      input={{
+        documentId: docId,
+        canEdit,
+        existingDraftId: existingDraft ? existingDraft.id : undefined,
+        editUid: docId.uid,
+        editPath: docId.path ?? undefined,
+      }}
+      machine={machine}
     >
-      <DocumentBody
+      <PageWrapper
+        siteHomeId={siteHomeId}
         docId={docId}
+        headerData={headerData}
         document={document}
-        activeView={getActiveView(route.key)}
-        isLatest={isLatest}
-        siteUrl={siteHomeDocument?.metadata?.siteUrl}
-        CommentEditor={CommentEditor}
-        extraMenuItems={extraMenuItems}
-        editActions={editActions}
-        existingDraft={existingDraft}
-        floatingButtons={floatingButtons}
-        pageFooter={pageFooter}
-        inlineCards={inlineCards}
-        inlineInsert={inlineInsert}
-      />
-    </PageWrapper>
+        rightActions={rightActions}
+      >
+        <DocumentBody
+          docId={docId}
+          document={document}
+          activeView={getActiveView(route.key)}
+          isLatest={isLatest}
+          siteUrl={siteHomeDocument?.metadata?.siteUrl}
+          CommentEditor={CommentEditor}
+          extraMenuItems={extraMenuItems}
+          editActions={editActions}
+          existingDraft={existingDraft}
+          floatingButtons={floatingButtons}
+          pageFooter={pageFooter}
+          inlineCards={inlineCards}
+          inlineInsert={inlineInsert}
+        />
+      </PageWrapper>
+    </DocumentMachineProvider>
   )
 }
 
@@ -574,6 +600,10 @@ function DocumentBody({
   /** Optional inline element injected after content blocks */
   inlineInsert?: ReactNode
 }) {
+  // Sync document into state machine
+  useDocumentSync(document)
+  const publishedVersion = useDocumentSelector(selectPublishedVersion)
+
   const route = useNavRoute()
   const navigate = useNavigate()
 
@@ -825,19 +855,20 @@ function DocumentBody({
       if (blockId && shouldCopy) {
         // Block links must include version (block tied to specific version)
         // and use siteUrl hostname when available
+        const versionForLink = publishedVersion ?? document.version
         const url = siteUrl
           ? createSiteUrl({
               path: docId.path,
               hostname: siteUrl,
               blockRef: blockId,
               blockRange,
-              version: document.version,
+              version: versionForLink,
             })
           : createWebHMUrl(docId.uid, {
               path: docId.path,
               blockRef: blockId,
               blockRange,
-              version: document.version,
+              version: versionForLink,
             })
         copyUrlToClipboardWithFeedback(url, 'Block')
       }
@@ -847,7 +878,7 @@ function DocumentBody({
         navigate(blockRoute)
       }
     },
-    [route, navigate, scrollToBlock, docId, document.version, siteUrl],
+    [route, navigate, scrollToBlock, docId, document.version, siteUrl, publishedVersion],
   )
 
   // Activity filter change handler (main page)
