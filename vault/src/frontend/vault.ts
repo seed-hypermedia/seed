@@ -47,6 +47,8 @@ export interface DelegatedSession {
 export interface State {
   /** Schema version for future migrations. */
   version: 2
+  /** Optional notification server override for delegated sessions and UI display. */
+  notificationServerUrl?: string
   /** List of Hypermedia accounts. */
   accounts: Account[]
 }

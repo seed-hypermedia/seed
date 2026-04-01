@@ -108,6 +108,15 @@ function getProfilePublishErrorMessage(error: unknown) {
   return getErrorMessage(error, 'Failed to update profile')
 }
 
+function normalizeNotificationServerUrl(notificationServerUrl: string) {
+  const trimmedNotificationServerUrl = notificationServerUrl.trim()
+  if (!trimmedNotificationServerUrl) {
+    return ''
+  }
+
+  return new URL(trimmedNotificationServerUrl).toString()
+}
+
 /** Creates actions bound to a specific state proxy and client. */
 function createActions(state: AppState, client: api.ClientInterface, navigator: Navigator, blockstore: Blockstore) {
   async function ensurePasswordSalt() {
@@ -129,6 +138,22 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     const encryptionKey = await localCrypto.deriveEncryptionKey(masterKey)
     const authKey = await localCrypto.deriveAuthKey(masterKey)
     return {encryptionKey, authKey}
+  }
+
+  function getEffectiveNotificationServerUrl() {
+    return state.vaultData?.notificationServerUrl?.trim() || state.notificationServerUrl
+  }
+
+  function setVaultNotificationServerUrl(notificationServerUrl: string | undefined) {
+    if (!state.vaultData) {
+      return
+    }
+
+    if (notificationServerUrl) {
+      state.vaultData.notificationServerUrl = notificationServerUrl
+    } else {
+      delete state.vaultData.notificationServerUrl
+    }
   }
 
   function getPasswordCredential(vaultData: api.GetVaultResponse): api.PasswordVaultCredential | null {
@@ -1102,6 +1127,49 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
+    async saveNotificationServerUrl(notificationServerUrl: string) {
+      if (!state.decryptedDEK || !state.vaultData) {
+        state.error = 'Vault must be unlocked first'
+        return false
+      }
+
+      let normalizedNotificationServerUrl = ''
+      let normalizedDefaultNotificationServerUrl = ''
+
+      try {
+        normalizedNotificationServerUrl = normalizeNotificationServerUrl(notificationServerUrl)
+        normalizedDefaultNotificationServerUrl = normalizeNotificationServerUrl(state.notificationServerUrl)
+      } catch {
+        state.error = `Invalid notification server URL: ${notificationServerUrl.trim()}`
+        return false
+      }
+
+      const nextStoredNotificationServerUrl =
+        normalizedNotificationServerUrl && normalizedNotificationServerUrl !== normalizedDefaultNotificationServerUrl
+          ? normalizedNotificationServerUrl
+          : undefined
+      const previousNotificationServerUrl = state.vaultData.notificationServerUrl
+
+      if ((previousNotificationServerUrl ?? '') === (nextStoredNotificationServerUrl ?? '')) {
+        state.error = ''
+        return true
+      }
+
+      state.loading = true
+      state.error = ''
+      setVaultNotificationServerUrl(nextStoredNotificationServerUrl)
+
+      try {
+        await actions.saveVaultData()
+        return true
+      } catch {
+        setVaultNotificationServerUrl(previousNotificationServerUrl)
+        return false
+      } finally {
+        state.loading = false
+      }
+    },
+
     async createAccount(name: string, description?: string, avatarFile?: File) {
       if (!state.vaultData || !state.decryptedDEK) {
         state.error = 'Vault must be unlocked first'
@@ -1579,7 +1647,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           state.delegationRequest.state,
           issuerKeyPair.principal,
           encoded,
-          state.notificationServerUrl,
+          getEffectiveNotificationServerUrl(),
         )
 
         state.delegationRequest = null

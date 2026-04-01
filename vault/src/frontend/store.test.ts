@@ -7,8 +7,10 @@ import * as simplewebauthn from '@simplewebauthn/browser'
 import {afterEach, beforeEach, describe, expect, mock, spyOn, test} from 'bun:test'
 import {code as rawCodec} from 'multiformats/codecs/raw'
 import {CID} from 'multiformats/cid'
+import type {SaveVaultDataRequest} from '@/api'
 import * as joinedSite from '@shm/shared/publish-default-joined-site'
 import {APIError} from './api-client'
+import * as localCrypto from './crypto'
 import {createStore} from './store'
 import {createMockBlockstore, createMockClient, createSuccessMockClient} from './test-utils'
 import * as vault from './vault'
@@ -269,6 +271,71 @@ describe('Store', () => {
       expect(state.vaultData).toEqual(vault.createEmpty())
       expect(state.creatingAccount).toBe(true)
       expect(state.vaultVersion).toBe(7)
+    })
+  })
+
+  describe('saveNotificationServerUrl', () => {
+    test('stores a custom notification server URL in encrypted vault data', async () => {
+      const saveVaultDataCalls: SaveVaultDataRequest[] = []
+      const client = createMockClient({
+        saveVaultData: async (req) => {
+          saveVaultDataCalls.push(req)
+          return {success: true}
+        },
+      })
+      const {state, actions} = createStore(client, createMockBlockstore(), '', 'https://notify.default.example.com')
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [],
+      }
+      state.vaultVersion = 4
+
+      await actions.saveNotificationServerUrl('https://notify.custom.example.com/path')
+
+      expect(state.vaultData.notificationServerUrl).toBe('https://notify.custom.example.com/path')
+      expect(state.vaultVersion).toBe(5)
+      expect(saveVaultDataCalls).toHaveLength(1)
+
+      const decryptedVaultData = await localCrypto.decrypt(
+        base64.decode(saveVaultDataCalls[0]!.encryptedData),
+        state.decryptedDEK,
+      )
+      const savedVaultData = await vault.deserialize(decryptedVaultData)
+      expect(savedVaultData.notificationServerUrl).toBe('https://notify.custom.example.com/path')
+    })
+
+    test('resets the notification server URL override when saving the server default', async () => {
+      const saveVaultDataCalls: SaveVaultDataRequest[] = []
+      const client = createMockClient({
+        saveVaultData: async (req) => {
+          saveVaultDataCalls.push(req)
+          return {success: true}
+        },
+      })
+      const {state, actions} = createStore(client, createMockBlockstore(), '', 'https://notify.default.example.com')
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        notificationServerUrl: 'https://notify.custom.example.com',
+        accounts: [],
+      }
+      state.vaultVersion = 9
+
+      await actions.saveNotificationServerUrl('https://notify.default.example.com')
+
+      expect(state.vaultData.notificationServerUrl).toBeUndefined()
+      expect(state.vaultVersion).toBe(10)
+      expect(saveVaultDataCalls).toHaveLength(1)
+
+      const decryptedVaultData = await localCrypto.decrypt(
+        base64.decode(saveVaultDataCalls[0]!.encryptedData),
+        state.decryptedDEK,
+      )
+      const savedVaultData = await vault.deserialize(decryptedVaultData)
+      expect(savedVaultData.notificationServerUrl).toBeUndefined()
     })
   })
 
@@ -1274,6 +1341,30 @@ describe('delegation flow', () => {
     expect(store.state.delegationRequest).toBeNull()
     expect(store.state.delegationConsented).toBe(false)
     expect(store.state.error).toBe('')
+  })
+
+  test('uses the vault notification server URL override during delegation completion', async () => {
+    const bs = createMockBlockstore()
+    const store = createStore(
+      createMockClient({
+        saveVaultData: async () => ({success: true}),
+      }),
+      bs,
+      '',
+      'https://notify.default.example.com',
+    )
+    const request = await makeSignedDelegationUrl()
+    await setupDelegationState(store, request.url, bs)
+    store.state.vaultData!.notificationServerUrl = 'https://notify.custom.example.com'
+
+    await store.actions.completeDelegation()
+
+    const redirectUrl = new URL(window.location.href)
+    const callbackData = cbor.decode<{notifyServerUrl: string}>(
+      await decompress(base64.decode(redirectUrl.searchParams.get('data')!)),
+    )
+
+    expect(callbackData.notifyServerUrl).toBe('https://notify.custom.example.com')
   })
 
   test('surfaces serialization errors and does not redirect during delegation completion', async () => {

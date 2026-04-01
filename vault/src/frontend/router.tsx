@@ -11,6 +11,7 @@ import {AddPasswordView} from './views/AddPasswordView'
 import {ChangeEmailPendingView} from './views/ChangeEmailPendingView'
 import {ChangeEmailVerifyView} from './views/ChangeEmailVerifyView'
 import {ChangeEmailView} from './views/ChangeEmailView'
+import {ChangeNotifyServerUrlView} from './views/ChangeNotifyServerUrlView'
 import {ChangePasswordView} from './views/ChangePasswordView'
 import {ChooseAuthView} from './views/ChooseAuthView'
 import {CreateProfileView} from './views/CreateProfileView'
@@ -126,7 +127,8 @@ function WideLayout() {
 /** Application shell shared across all vault routes. */
 export function RootLayout() {
   const actions = useActions()
-  const {notificationServerUrl} = useAppState()
+  const {notificationServerUrl, vaultData} = useAppState()
+  const effectiveNotificationServerUrl = vaultData?.notificationServerUrl?.trim() || notificationServerUrl
 
   useEffect(() => {
     actions.checkSession()
@@ -139,7 +141,7 @@ export function RootLayout() {
       <main className="flex flex-1 items-center justify-center p-4 md:p-8">
         <Outlet />
       </main>
-      <AppFooter notificationServerUrl={notificationServerUrl} />
+      <AppFooter notificationServerUrl={effectiveNotificationServerUrl} />
     </>
   )
 }
@@ -234,6 +236,10 @@ export function createRouter() {
                   {
                     path: '/email/change',
                     element: <ChangeEmailView />,
+                  },
+                  {
+                    path: '/notify-server/change',
+                    element: <ChangeNotifyServerUrlView />,
                   },
                   {
                     path: '/email/change-pending',

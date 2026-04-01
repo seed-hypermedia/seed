@@ -1,5 +1,5 @@
-import type * as cleye from 'cleye'
 import type * as email from '@/email'
+import type * as cleye from 'cleye'
 
 export type RelyingParty = {
   id: string
@@ -25,7 +25,7 @@ export type Config = {
 }
 
 function getDefaultNotificationServerUrl(env: NodeJS.ProcessEnv = process.env) {
-  return env.DEFAULT_NOTIFY_SERVER || 'https://notify.seed.hyper.media'
+  return env.SEED_VAULT_DEFAULT_NOTIFY_SERVER || 'https://notify.seed.hyper.media'
 }
 
 /** Creates flag definitions with default values parsed from the current env. */
