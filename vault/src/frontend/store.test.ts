@@ -1,5 +1,6 @@
 import * as base64 from '@shm/shared/base64'
 import * as blobs from '@shm/shared/blobs'
+import * as cbor from '@shm/shared/cbor'
 import {Account, Profile} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import * as keyfile from '@shm/shared/keyfile'
 import * as simplewebauthn from '@simplewebauthn/browser'
@@ -54,6 +55,32 @@ async function makeVaultState(accountCount: number) {
     vaultData: {version: 2 as const, accounts},
     principals,
   }
+}
+
+async function collectStream(readable: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = []
+  const reader = readable.getReader()
+  for (;;) {
+    const {done, value} = await reader.read()
+    if (done) break
+    chunks.push(value)
+  }
+  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
+  const merged = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    merged.set(chunk, offset)
+    offset += chunk.length
+  }
+  return merged
+}
+
+async function decompress(data: Uint8Array): Promise<Uint8Array> {
+  const ds = new DecompressionStream('gzip')
+  const writer = ds.writable.getWriter()
+  writer.write(data as Uint8Array<ArrayBuffer>)
+  writer.close()
+  return collectStream(ds.readable)
 }
 
 describe('Store', () => {
@@ -1227,7 +1254,7 @@ describe('delegation flow', () => {
       },
     })
     const bs = createMockBlockstore()
-    const store = createStore(client, bs)
+    const store = createStore(client, bs, '', 'https://notify.example.com')
     const request = await makeSignedDelegationUrl()
     await setupDelegationState(store, request.url, bs)
 
@@ -1237,6 +1264,11 @@ describe('delegation flow', () => {
     expect(window.location.href).toContain('https://example.com/callback')
     expect(window.location.href).toContain('data=')
     expect(window.location.href).toContain(`state=${request.state}`)
+    const redirectUrl = new URL(window.location.href)
+    const callbackData = cbor.decode<{notifyServerUrl: string}>(
+      await decompress(base64.decode(redirectUrl.searchParams.get('data')!)),
+    )
+    expect(callbackData.notifyServerUrl).toBe('https://notify.example.com')
     expect(store.state.vaultData!.accounts[0]!.delegations.length).toBe(1)
     expect(store.state.vaultData!.accounts[0]!.delegations[0]!.deviceType).toBeDefined()
     expect(store.state.delegationRequest).toBeNull()

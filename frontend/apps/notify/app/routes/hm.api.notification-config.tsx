@@ -13,10 +13,10 @@ import {
 } from '@/notification-email-verification'
 import {BadRequestError, cborApiAction} from '@/server-api'
 import {validateSignature} from '@/validate-signature'
+import {resolveAccountId} from '@/verify-delegation'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {createNotificationVerificationEmail} from '@shm/emails/notifier'
 import {NOTIFY_SERVICE_HOST, SITE_BASE_URL} from '@shm/shared/constants'
-import {base58btc} from 'multiformats/bases/base58'
 import {z} from 'zod'
 
 const notificationConfigAction = z.discriminatedUnion('action', [
@@ -25,12 +25,14 @@ const notificationConfigAction = z.discriminatedUnion('action', [
     signer: z.instanceof(Uint8Array),
     time: z.number(),
     sig: z.instanceof(Uint8Array),
+    accountUid: z.string().optional(),
   }),
   z.object({
     action: z.literal('set-notification-config'),
     signer: z.instanceof(Uint8Array),
     time: z.number(),
     sig: z.instanceof(Uint8Array),
+    accountUid: z.string().optional(),
     email: z.string(),
   }),
   z.object({
@@ -38,12 +40,14 @@ const notificationConfigAction = z.discriminatedUnion('action', [
     signer: z.instanceof(Uint8Array),
     time: z.number(),
     sig: z.instanceof(Uint8Array),
+    accountUid: z.string().optional(),
   }),
   z.object({
     action: z.literal('remove-notification-config'),
     signer: z.instanceof(Uint8Array),
     time: z.number(),
     sig: z.instanceof(Uint8Array),
+    accountUid: z.string().optional(),
   }),
 ])
 
@@ -96,12 +100,12 @@ export const action = cborApiAction<NotificationConfigAction, any>(async (signed
   if (!isValid) {
     throw new BadRequestError('Invalid signature')
   }
-  const accountId = base58btc.encode(signedPayload.signer)
   const now = Date.now()
   const timeDiff = Math.abs(now - restPayload.time)
   if (timeDiff > 20_000) {
     throw new BadRequestError('Request time invalid')
   }
+  const accountId = await resolveAccountId(signedPayload.signer, signedPayload.accountUid)
   if (restPayload.action === 'get-notification-config') {
     return getNotificationConfigResponse(accountId)
   }

@@ -6,6 +6,7 @@ import {
 } from '@/db'
 import {BadRequestError, cborApiAction} from '@/server-api'
 import {validateSignature} from '@/validate-signature'
+import {resolveAccountId} from '@/verify-delegation'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {base58btc} from 'multiformats/bases/base58'
 import {z} from 'zod'
@@ -16,12 +17,14 @@ const notificationReadStateAction = z.discriminatedUnion('action', [
     signer: z.instanceof(Uint8Array),
     time: z.number(),
     sig: z.instanceof(Uint8Array),
+    accountUid: z.string().optional(),
   }),
   z.object({
     action: z.literal('merge-notification-read-state'),
     signer: z.instanceof(Uint8Array),
     time: z.number(),
     sig: z.instanceof(Uint8Array),
+    accountUid: z.string().optional(),
     markAllReadAtMs: z.number().nullable(),
     stateUpdatedAtMs: z.number(),
     readEvents: z.array(
@@ -64,14 +67,14 @@ function toResponse(state: NotificationReadStateRow): NotificationReadStateRespo
 
 export const action = cborApiAction<NotificationReadStateAction, any>(async (signedPayload) => {
   const {sig, ...restPayload} = signedPayload
-  const accountId = base58btc.encode(signedPayload.signer)
+  const signerUid = base58btc.encode(signedPayload.signer)
   const now = Date.now()
   const requestAgeMs = now - restPayload.time
 
   const isValid = await validateSignature(signedPayload.signer, signedPayload.sig, cborEncode(restPayload))
   if (!isValid) {
     console.warn('[notification-read-state] invalid signature', {
-      accountId,
+      signerUid,
       action: restPayload.action,
       requestAgeMs,
     })
@@ -81,7 +84,7 @@ export const action = cborApiAction<NotificationReadStateAction, any>(async (sig
   const timeDiff = Math.abs(now - restPayload.time)
   if (timeDiff > 20_000) {
     console.warn('[notification-read-state] invalid request time', {
-      accountId,
+      signerUid,
       action: restPayload.action,
       requestAgeMs,
       requestTime: restPayload.time,
@@ -89,6 +92,8 @@ export const action = cborApiAction<NotificationReadStateAction, any>(async (sig
     })
     throw new BadRequestError('Request time invalid')
   }
+
+  const accountId = await resolveAccountId(signedPayload.signer, signedPayload.accountUid)
 
   // console.info('[notification-read-state] request accepted', {
   //   accountId,

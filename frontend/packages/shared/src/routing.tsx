@@ -189,6 +189,9 @@ export function routeToHref(
   if (typeof route !== 'string' && route.key == 'contact') {
     return `/hm/contact/${route.id.uid}`
   }
+  if (typeof route !== 'string' && route.key === 'notifications') {
+    return `/hm/notifications`
+  }
 
   // Handle view routes (activity, comments, directory, collaborators, feed)
   if (

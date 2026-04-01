@@ -153,6 +153,7 @@ export type GetAccountResponse = Account
 // Get frontend config.
 export type GetConfigResponse = {
   backendHttpBaseUrl: string
+  notificationServerUrl: string
 }
 
 // Change email start - initiates email change verification.
