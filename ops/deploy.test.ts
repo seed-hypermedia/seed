@@ -762,6 +762,10 @@ describe('checkForNewImages', () => {
     release_channel: 'dev',
     link_secret: 'secret',
     last_script_run: '',
+    environment: 'dev',
+    testnet: false,
+    analytics: false,
+    gateway: false,
   }
 
   test('returns false when no containers running', async () => {
