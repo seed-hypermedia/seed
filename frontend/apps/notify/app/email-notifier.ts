@@ -46,6 +46,7 @@ import {sendEmail} from './mailer'
 import {getDiscussionNotificationReason, getNotificationDeliveryKind} from './notification-routing'
 import type {NotificationDeliveryKind} from './notification-routing'
 import {persistNotificationsForInboxAccounts} from './notification-persistence'
+import {resolveNotificationAccount} from './notification-account-resolution'
 import {buildNotificationReadRedirectUrl} from './notification-read-redirect'
 import {grpcClient, requestAPI} from './notify-request'
 
@@ -1256,6 +1257,7 @@ async function evaluateNewCommentForNotifications(
     )
   }
   let commentAuthorMeta: HMMetadata | null = null
+  let commentAuthorUid = comment.author
   let targetMeta: HMMetadata | null = null
   let targetAuthorUids: string[] = []
   let targetDocumentSiteUrl: string | null = null
@@ -1265,8 +1267,9 @@ async function evaluateNewCommentForNotifications(
   })
 
   try {
-    const authorResult = await requestAPI('Account', comment.author)
-    commentAuthorMeta = authorResult.type === 'account' ? authorResult.metadata : null
+    const resolvedAuthor = await resolveNotificationAccount((uid) => requestAPI('Account', uid), comment.author)
+    commentAuthorUid = resolvedAuthor.uid
+    commentAuthorMeta = resolvedAuthor.metadata
   } catch (error: any) {
     reportError(`Error getting comment author ${comment.author}: ${error.message}`)
   }
@@ -1326,8 +1329,12 @@ async function evaluateNewCommentForNotifications(
   if (comment.replyParent) {
     try {
       const parentComment = await requestAPI('Comment', comment.replyParent)
-      if (parentComment) {
-        parentCommentAuthor = parentComment.author
+      if (parentComment?.author) {
+        const resolvedParentAuthor = await resolveNotificationAccount(
+          (uid) => requestAPI('Account', uid),
+          parentComment.author,
+        )
+        parentCommentAuthor = resolvedParentAuthor.uid
       }
     } catch (error: any) {
       reportError(`Error getting parent comment ${comment.replyParent}: ${error.message}`)
@@ -1350,7 +1357,7 @@ async function evaluateNewCommentForNotifications(
   for (const sub of allSubscriptions) {
     const commentReason = classifyCommentNotificationForAccount({
       subscriptionAccountUid: sub.id,
-      commentAuthorUid: comment.author,
+      commentAuthorUid: commentAuthorUid,
       targetAccountUid: comment.targetAccount,
       targetAuthorUids,
       isTopLevelComment: !comment.threadRoot,
