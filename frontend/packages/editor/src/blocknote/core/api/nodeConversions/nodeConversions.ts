@@ -149,6 +149,7 @@ export function blockToNode<BSchema extends BlockSchema>(block: PartialBlock<BSc
     if (block.type === 'code-block' && block.content.length) {
       // Only create a text node when there is actual content — ProseMirror
       // does not allow empty text nodes and will throw a RangeError otherwise.
+      // Code-blocks are expected to have at most one text content item.
       // @ts-ignore
       const text: string | undefined = block.content[0]?.text
       if (text) {
