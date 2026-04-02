@@ -2,6 +2,7 @@ import {
   clearNotificationEmailVerificationForAccount,
   getNotificationConfig,
   getNotificationEmailVerificationForAccount,
+  isInboxRegistered,
   removeNotificationConfig,
   setNotificationConfig,
   setNotificationEmailVerification,
@@ -74,6 +75,7 @@ function getNotificationConfigResponse(accountId: string) {
     verifiedTime: config?.verifiedTime ?? null,
     verificationSendTime,
     verificationExpired,
+    isRegistered: isInboxRegistered(accountId),
   }
 }
 

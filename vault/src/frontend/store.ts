@@ -15,6 +15,7 @@ import * as joinedSite from '@shm/shared/publish-default-joined-site'
 import {APIError} from './api-client'
 import type {Blockstore} from './blockstore'
 import * as localCrypto from './crypto'
+import * as notificationApi from './notification-api'
 import type {AccountProfileSummary, ProfileLoadState} from './profile'
 import * as vault from './vault'
 
@@ -106,6 +107,14 @@ function getProfilePublishErrorMessage(error: unknown) {
   }
 
   return getErrorMessage(error, 'Failed to update profile')
+}
+
+function getNotificationRegistrationErrorMessage(error: unknown) {
+  if (isNetworkError(error)) {
+    return "Your account was created, but the notification server couldn't be reached. You can connect notifications later."
+  }
+
+  return getErrorMessage(error, 'Your account was created, but notification registration failed.')
 }
 
 function normalizeNotificationServerUrl(notificationServerUrl: string) {
@@ -208,6 +217,29 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     const principal = blobs.principalToString(signer.principal)
     cacheProfile(principal, profile)
     return {encoded, principal}
+  }
+
+  async function registerAccountOnNotificationServer(
+    signer: blobs.NobleKeyPair,
+    options: {includeEmail: boolean},
+  ): Promise<void> {
+    const notifyServiceHost = getEffectiveNotificationServerUrl().trim()
+    if (!notifyServiceHost) {
+      return
+    }
+
+    const notificationEmail = options.includeEmail ? state.session?.email?.trim() || state.email.trim() : ''
+    await notificationApi.registerNotificationInbox(notifyServiceHost, signer)
+
+    if (notificationEmail) {
+      await notificationApi.setNotificationConfig(notifyServiceHost, signer, notificationEmail)
+    }
+  }
+
+  type CreateAccountOptions = {
+    notificationRegistration?: {
+      includeEmail: boolean
+    }
   }
 
   const actions = {
@@ -1170,10 +1202,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
-    async createAccount(name: string, description?: string, avatarFile?: File) {
+    async createAccount(name: string, description?: string, avatarFile?: File, options?: CreateAccountOptions) {
       if (!state.vaultData || !state.decryptedDEK) {
         state.error = 'Vault must be unlocked first'
-        return
+        return false
       }
 
       state.loading = true
@@ -1183,6 +1215,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       const previousCreatingAccount = state.creatingAccount
       let didSaveAccount = false
       let insertedAccount = false
+      let postSaveStage: 'profile' | 'notifications' = 'profile'
 
       try {
         const kp = blobs.generateNobleKeyPair()
@@ -1242,6 +1275,14 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
             },
           },
         )
+
+        const includeNotificationEmail = Boolean(options?.notificationRegistration?.includeEmail)
+        postSaveStage = 'notifications'
+        await registerAccountOnNotificationServer(kp, {
+          includeEmail: includeNotificationEmail,
+        })
+
+        return true
       } catch (e) {
         if (!didSaveAccount && insertedAccount && state.vaultData) {
           // The seed never made it into the vault, so discard the in-memory account.
@@ -1255,7 +1296,12 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         console.error('Failed to create account:', e)
         state.error =
           state.error ||
-          (didSaveAccount ? getProfilePublishErrorMessage(e) : getErrorMessage(e, 'Failed to create account'))
+          (didSaveAccount
+            ? postSaveStage === 'notifications'
+              ? getNotificationRegistrationErrorMessage(e)
+              : getProfilePublishErrorMessage(e)
+            : getErrorMessage(e, 'Failed to create account'))
+        return didSaveAccount
       } finally {
         state.loading = false
       }

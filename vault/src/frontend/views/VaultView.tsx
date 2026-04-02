@@ -13,14 +13,14 @@ import {
 } from '@/frontend/components/ui/dialog'
 import {Input} from '@/frontend/components/ui/input'
 import {Label} from '@/frontend/components/ui/label'
-import {
-  getProfileAvatarImageSrc,
-  getProfileDisplayName,
-  type AccountProfileSummary,
-  type ProfileLoadState,
-} from '@/frontend/profile'
 import {Separator} from '@/frontend/components/ui/separator'
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from '@/frontend/components/ui/tooltip'
+import {
+  type AccountProfileSummary,
+  getProfileAvatarImageSrc,
+  getProfileDisplayName,
+  type ProfileLoadState,
+} from '@/frontend/profile'
 import {useActions, useAppState} from '@/frontend/store'
 import type * as vault from '@/frontend/vault'
 import {
@@ -52,6 +52,7 @@ import {
 } from 'lucide-react'
 import {type FormEvent, useEffect, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
+import {AccountNotificationsSection} from '../components/AccountNotificationsSection'
 
 function getProfileStatusTextClass(profileLoadState?: ProfileLoadState) {
   if (profileLoadState === 'not_found') return 'text-yellow-700 dark:text-yellow-400'
@@ -391,10 +392,12 @@ function AccountDetails({
   profileLoadState?: ProfileLoadState
   onBack?: () => void
 }) {
-  const {loading, error, backendHttpBaseUrl} = useAppState()
+  const {loading, error, backendHttpBaseUrl, notificationServerUrl, session, email, vaultData} = useAppState()
   const actions = useActions()
   const kp = blobs.nobleKeyPairFromSeed(account.seed)
   const principal = blobs.principalToString(kp.principal)
+  const effectiveNotificationServerUrl = vaultData?.notificationServerUrl?.trim() || notificationServerUrl
+  const sessionEmail = session?.email?.trim() || email.trim()
   const [copied, setCopied] = useState(false)
   const [editingProfile, setEditingProfile] = useState(false)
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
@@ -561,6 +564,16 @@ function AccountDetails({
       </div>
 
       <AuthorizedSessionsList account={account} />
+
+      <Separator />
+
+      <AccountNotificationsSection
+        seed={account.seed}
+        accountCreateTime={account.createTime}
+        notificationServerUrl={effectiveNotificationServerUrl}
+        sessionEmail={sessionEmail}
+        disabled={loading}
+      />
 
       <Separator />
 

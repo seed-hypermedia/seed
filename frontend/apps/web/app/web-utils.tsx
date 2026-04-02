@@ -1,20 +1,20 @@
-import { hmId, useJoinSite, useRouteLink } from '@shm/shared'
-import { DEFAULT_GATEWAY_URL } from '@shm/shared/constants'
-import { useAccount } from '@shm/shared/models/entity'
-import { isNotificationEventRead } from '@shm/shared/models/notification-read-logic'
-import { displayHostname, routeToUrl } from '@shm/shared/utils/entity-id-url'
-import { useNavRoute } from '@shm/shared/utils/navigation'
-import { ButtonLink } from '@shm/ui/button'
-import { copyUrlToClipboardWithFeedback } from '@shm/ui/copy-to-clipboard'
-import { FloatingAccountFooter } from '@shm/ui/floating-account-footer'
-import { HMIcon } from '@shm/ui/hm-icon'
-import { Link } from '@shm/ui/icons'
-import { JoinButton } from '@shm/ui/join-button'
-import { MenuItemType } from '@shm/ui/options-dropdown'
-import { Bell } from 'lucide-react'
-import { ReactNode, useMemo } from 'react'
-import { useCreateAccount, useLocalKeyPair } from './auth'
-import { useWebNotificationInbox, useWebNotificationReadState } from './web-notifications'
+import {hmId, useJoinSite, useRouteLink} from '@shm/shared'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {useAccount} from '@shm/shared/models/entity'
+import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
+import {displayHostname, routeToUrl} from '@shm/shared/utils/entity-id-url'
+import {useNavRoute} from '@shm/shared/utils/navigation'
+import {ButtonLink} from '@shm/ui/button'
+import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
+import {FloatingAccountFooter} from '@shm/ui/floating-account-footer'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {Link} from '@shm/ui/icons'
+import {JoinButton} from '@shm/ui/join-button'
+import {MenuItemType} from '@shm/ui/options-dropdown'
+import {Bell} from 'lucide-react'
+import {ReactNode, useMemo} from 'react'
+import {useCreateAccount, useLocalKeyPair} from './auth'
+import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifications'
 
 export function useWebMenuItems(): MenuItemType[] {
   const route = useNavRoute()
@@ -116,16 +116,16 @@ export function WebAccountFooter({
   )
 
   const accountButton = keyPair ? (
-    <div className="flex items-center gap-2 bg-white dark:bg-black p-1 rounded-full">
-    <a {...profileLinkProps} className="flex rounded-full shadow-lg">
-      <HMIcon
-        id={account?.id ?? hmId(accountId!, {latest: true})}
-        name={account?.metadata?.name}
-        icon={account?.metadata?.icon}
-        size={32}
-      />
-    </a>
-    <NotifsButton />
+    <div className="flex items-center gap-2 rounded-full bg-white p-1 dark:bg-black">
+      <a {...profileLinkProps} className="flex rounded-full shadow-lg">
+        <HMIcon
+          id={account?.id ?? hmId(accountId!, {latest: true})}
+          name={account?.metadata?.name}
+          icon={account?.metadata?.icon}
+          size={32}
+        />
+      </a>
+      <NotifsButton />
     </div>
   ) : null
 
@@ -135,7 +135,6 @@ export function WebAccountFooter({
     </FloatingAccountFooter>
   )
 }
-
 
 function NotifsButton() {
   const linkProps = useRouteLink({key: 'notifications'})

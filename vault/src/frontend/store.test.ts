@@ -11,6 +11,7 @@ import type {SaveVaultDataRequest} from '@/api'
 import * as joinedSite from '@shm/shared/publish-default-joined-site'
 import {APIError} from './api-client'
 import * as localCrypto from './crypto'
+import * as notificationApi from './notification-api'
 import {createStore} from './store'
 import {createMockBlockstore, createMockClient, createSuccessMockClient} from './test-utils'
 import * as vault from './vault'
@@ -852,6 +853,173 @@ describe('Store', () => {
       expect(decoded.decoded.avatar).toBe(`ipfs://${published[0]!.cid}`)
       expect(decoded.decoded.description).toBe('Description')
 
+      publishDefaultJoinedSiteSpy.mockRestore()
+    })
+
+    test('registers the new account on the notification server by default without an email', async () => {
+      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const registerNotificationInboxSpy = spyOn(notificationApi, 'registerNotificationInbox').mockResolvedValue(true)
+      const setNotificationConfigSpy = spyOn(notificationApi, 'setNotificationConfig').mockResolvedValue({
+        accountId: 'account-default',
+        email: null,
+        verifiedTime: null,
+        verificationSendTime: null,
+        verificationExpired: false,
+        isRegistered: true,
+      })
+      const {state, actions} = createStore(
+        createMockClient({
+          saveVaultData: async () => ({success: true}),
+        }),
+        createMockBlockstore(),
+        '',
+        'https://notify.default.example.com',
+      )
+
+      state.session = {
+        authenticated: true,
+        relyingPartyOrigin: 'https://vault.example.com',
+        email: 'notify@example.com',
+      }
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [],
+      }
+
+      const didCreateAccount = await actions.createAccount('Test')
+
+      expect(didCreateAccount).toBe(true)
+      expect(registerNotificationInboxSpy).toHaveBeenCalledTimes(1)
+      expect(setNotificationConfigSpy).not.toHaveBeenCalled()
+
+      const [notifyServiceHost, signer] = registerNotificationInboxSpy.mock.calls[0]!
+      expect(notifyServiceHost).toBe('https://notify.default.example.com')
+
+      const createdAccount = state.vaultData!.accounts[0]
+      expect(createdAccount).toBeDefined()
+      expect(blobs.principalToString(signer.principal)).toBe(
+        blobs.principalToString(blobs.nobleKeyPairFromSeed(createdAccount!.seed).principal),
+      )
+
+      registerNotificationInboxSpy.mockRestore()
+      setNotificationConfigSpy.mockRestore()
+      publishDefaultJoinedSiteSpy.mockRestore()
+    })
+
+    test('registers the new account on the notification server with the user email when requested', async () => {
+      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const registerNotificationInboxSpy = spyOn(notificationApi, 'registerNotificationInbox').mockResolvedValue(true)
+      const setNotificationConfigSpy = spyOn(notificationApi, 'setNotificationConfig').mockResolvedValue({
+        accountId: 'account-1',
+        email: 'notify@example.com',
+        verifiedTime: null,
+        verificationSendTime: null,
+        verificationExpired: false,
+        isRegistered: true,
+      })
+      const {state, actions} = createStore(
+        createMockClient({
+          saveVaultData: async () => ({success: true}),
+        }),
+        createMockBlockstore(),
+        '',
+        'https://notify.default.example.com',
+      )
+
+      state.session = {
+        authenticated: true,
+        relyingPartyOrigin: 'https://vault.example.com',
+        email: 'notify@example.com',
+      }
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [],
+      }
+
+      const didCreateAccount = await actions.createAccount('Test', undefined, undefined, {
+        notificationRegistration: {
+          includeEmail: true,
+        },
+      })
+
+      expect(didCreateAccount).toBe(true)
+      expect(registerNotificationInboxSpy).toHaveBeenCalledTimes(1)
+      expect(setNotificationConfigSpy).toHaveBeenCalledTimes(1)
+
+      const [notifyServiceHost, signer] = registerNotificationInboxSpy.mock.calls[0]!
+      expect(notifyServiceHost).toBe('https://notify.default.example.com')
+      const createdAccount = state.vaultData!.accounts[0]
+      expect(createdAccount).toBeDefined()
+      expect(blobs.principalToString(signer.principal)).toBe(
+        blobs.principalToString(blobs.nobleKeyPairFromSeed(createdAccount!.seed).principal),
+      )
+      expect(setNotificationConfigSpy).toHaveBeenCalledWith(
+        'https://notify.default.example.com',
+        expect.objectContaining({
+          principal: blobs.nobleKeyPairFromSeed(createdAccount!.seed).principal,
+        }),
+        'notify@example.com',
+      )
+
+      registerNotificationInboxSpy.mockRestore()
+      setNotificationConfigSpy.mockRestore()
+      publishDefaultJoinedSiteSpy.mockRestore()
+    })
+
+    test('registers the new account on the notification server without an email when requested', async () => {
+      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const registerNotificationInboxSpy = spyOn(notificationApi, 'registerNotificationInbox').mockResolvedValue(true)
+      const setNotificationConfigSpy = spyOn(notificationApi, 'setNotificationConfig').mockResolvedValue({
+        accountId: 'account-2',
+        email: null,
+        verifiedTime: null,
+        verificationSendTime: null,
+        verificationExpired: false,
+        isRegistered: true,
+      })
+      const {state, actions} = createStore(
+        createMockClient({
+          saveVaultData: async () => ({success: true}),
+        }),
+        createMockBlockstore(),
+        '',
+        'https://notify.default.example.com',
+      )
+
+      state.session = {
+        authenticated: true,
+        relyingPartyOrigin: 'https://vault.example.com',
+        email: 'notify@example.com',
+      }
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [],
+      }
+
+      const didCreateAccount = await actions.createAccount('Test', undefined, undefined, {
+        notificationRegistration: {
+          includeEmail: false,
+        },
+      })
+
+      expect(didCreateAccount).toBe(true)
+      expect(registerNotificationInboxSpy).toHaveBeenCalledTimes(1)
+      expect(setNotificationConfigSpy).not.toHaveBeenCalled()
+
+      const [notifyServiceHost, signer] = registerNotificationInboxSpy.mock.calls[0]!
+      expect(notifyServiceHost).toBe('https://notify.default.example.com')
+
+      const createdAccount = state.vaultData!.accounts[0]
+      expect(createdAccount).toBeDefined()
+      expect(blobs.principalToString(signer.principal)).toBe(
+        blobs.principalToString(blobs.nobleKeyPairFromSeed(createdAccount!.seed).principal),
+      )
+
+      registerNotificationInboxSpy.mockRestore()
+      setNotificationConfigSpy.mockRestore()
       publishDefaultJoinedSiteSpy.mockRestore()
     })
   })

@@ -1,5 +1,5 @@
-import { create, flags } from '@/config'
-import { describe, expect, test } from 'bun:test'
+import {create, flags} from '@/config'
+import {describe, expect, test} from 'bun:test'
 
 describe('vault config', () => {
   test('defaults backend http base url from relying party origin', () => {
