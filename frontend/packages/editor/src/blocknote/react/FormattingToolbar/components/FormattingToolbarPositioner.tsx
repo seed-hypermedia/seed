@@ -18,7 +18,7 @@ export const FormattingToolbarPositioner = <BSchema extends BlockSchema = Defaul
   const referencePos = useRef<DOMRect>()
 
   useEffect(() => {
-    return props.editor.formattingToolbar.onUpdate((state) => {
+    return props.editor.formattingToolbar!.onUpdate((state) => {
       setShow(state.show)
 
       referencePos.current = state.referencePos

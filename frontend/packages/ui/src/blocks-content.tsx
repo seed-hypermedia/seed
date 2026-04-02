@@ -1612,7 +1612,15 @@ export function BlockEmbedContent({
   depth,
   parentBlockId,
   openOnClick = true,
-}: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean}) {
+  renderDocumentContent,
+}: BlockContentProps<HMBlockEmbed> & {
+  openOnClick?: boolean
+  renderDocumentContent?: (props: {
+    embedBlocks: HMBlockNode[]
+    document: HMDocument | null | undefined
+    id: UnpackedHypermediaId
+  }) => React.ReactNode
+}) {
   const resourceId = useContentResourceId()
   const [showReferenced, setShowReferenced] = useState(false)
   const id = unpackHmId(block.link)
@@ -1714,6 +1722,7 @@ export function BlockEmbedContent({
       parentBlockId={parentBlockId}
       renderOpenButton={() => null}
       openOnClick={openOnClick}
+      renderDocumentContent={renderDocumentContent}
     />
   )
 
@@ -1955,6 +1964,11 @@ function BlockEmbedContentDocument(props: {
   parentBlockId: string | null
   viewType?: HMEmbedView
   openOnClick?: boolean
+  renderDocumentContent?: (props: {
+    embedBlocks: HMBlockNode[]
+    document: HMDocument | null | undefined
+    id: UnpackedHypermediaId
+  }) => React.ReactNode
 }) {
   const {
     id,
@@ -2044,70 +2058,82 @@ function BlockEmbedContentDocument(props: {
   if (isLoading) {
     content = <Spinner />
   } else if (embedData.data.embedBlocks) {
-    content = (
-      <BlocksContentProvider onBlockSelect={embedOnBlockSelect} resourceId={id}>
-        <BlockNodeList childrenType="Group">
-          {!props.blockRef && document?.metadata?.name ? (
-            <BlockNodeContent
-              parentBlockId={props.parentBlockId}
-              isFirstChild
-              depth={props.depth}
-              embedId={blockId}
-              allowHighlight={false}
-              blockNode={{
-                block: {
-                  type: 'Heading',
-                  id: blockId,
-                  text: getDocumentTitle(document) || '',
-                  attributes: {
-                    childrenType: 'Group',
-                  },
-                  annotations: [],
-                },
-                children: embedData.data.embedBlocks as Array<HMBlockNode>,
-              }}
-              childrenType="Group"
-              index={0}
-              embedDepth={1}
-            />
-          ) : (
-            embedData.data.embedBlocks.map((bn, idx) => (
-              // @ts-expect-error
+    if (props.renderDocumentContent) {
+      content = (
+        <>
+          {props.renderDocumentContent({
+            embedBlocks: embedData.data.embedBlocks as HMBlockNode[],
+            document,
+            id,
+          })}
+        </>
+      )
+    } else {
+      content = (
+        <BlocksContentProvider onBlockSelect={embedOnBlockSelect} resourceId={id}>
+          <BlockNodeList childrenType="Group">
+            {!props.blockRef && document?.metadata?.name ? (
               <BlockNodeContent
-                key={bn.block?.id}
-                isFirstChild={!props.blockRef && document?.metadata?.name ? true : idx == 0}
-                depth={1}
+                parentBlockId={props.parentBlockId}
+                isFirstChild
+                depth={props.depth}
                 embedId={blockId}
                 allowHighlight={false}
-                blockNode={bn}
+                blockNode={{
+                  block: {
+                    type: 'Heading',
+                    id: blockId,
+                    text: getDocumentTitle(document) || '',
+                    attributes: {
+                      childrenType: 'Group',
+                    },
+                    annotations: [],
+                  },
+                  children: embedData.data.embedBlocks as Array<HMBlockNode>,
+                }}
                 childrenType="Group"
-                index={idx}
+                index={0}
                 embedDepth={1}
               />
-            ))
-          )}
-        </BlockNodeList>
+            ) : (
+              embedData.data.embedBlocks.map((bn, idx) => (
+                // @ts-expect-error
+                <BlockNodeContent
+                  key={bn.block?.id}
+                  isFirstChild={!props.blockRef && document?.metadata?.name ? true : idx == 0}
+                  depth={1}
+                  embedId={blockId}
+                  allowHighlight={false}
+                  blockNode={bn}
+                  childrenType="Group"
+                  index={idx}
+                  embedDepth={1}
+                />
+              ))
+            )}
+          </BlockNodeList>
 
-        {showReferenced ? (
-          <div className="flex justify-end">
-            <Tooltip content="The latest reference was not found. Click to try again.">
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  e.preventDefault()
-                  onShowReferenced(false)
-                }}
-              >
-                <Undo2 className="size-3" />
-                Back to Reference
-              </Button>
-            </Tooltip>
-          </div>
-        ) : null}
-      </BlocksContentProvider>
-    )
+          {showReferenced ? (
+            <div className="flex justify-end">
+              <Tooltip content="The latest reference was not found. Click to try again.">
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    onShowReferenced(false)
+                  }}
+                >
+                  <Undo2 className="size-3" />
+                  Back to Reference
+                </Button>
+              </Tooltip>
+            </div>
+          ) : null}
+        </BlocksContentProvider>
+      )
+    }
   } else if (props.blockRef) {
     return (
       <ErrorBlock message={`Block #${props.blockRef} was not found in this version`}>

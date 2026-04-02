@@ -46,7 +46,7 @@ import {SlashMenuProsemirrorPlugin} from './extensions/SlashMenu/SlashMenuPlugin
 import {UniqueID} from './extensions/UniqueID/UniqueID'
 import {mergeCSSClasses} from './shared/utils'
 
-/** Controls which UI context the editor is rendered in. Metadata only — does not affect plugin loading. */
+/** Controls which UI context the editor is rendered in. Affects plugin loading for 'embed' mode. */
 export type EditorRenderType = 'document' | 'embed' | 'comment'
 
 export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
@@ -56,7 +56,7 @@ export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
   /**
    * The rendering context for this editor instance.
    * Extensions can read this to adapt behavior per context.
-   * Does not affect plugin loading — use `editable` for that.
+   * When 'embed', UI plugins and heavy extensions are skipped.
    *
    * @default 'document'
    */
@@ -196,14 +196,21 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public readonly schema: BSchema
   public ready = false
 
-  public readonly sideMenu: SideMenuProsemirrorPlugin<BSchema>
-  public readonly formattingToolbar: FormattingToolbarProsemirrorPlugin<BSchema>
-  public readonly slashMenu: SlashMenuProsemirrorPlugin<BSchema, any>
-  public readonly mentionMenu: MentionMenuProsemirrorPlugin<BSchema>
-  public readonly hyperlinkToolbar: HyperlinkToolbarProsemirrorPlugin<BSchema>
-  public readonly linkMenu: LinkMenuProsemirrorPlugin<BSchema, any>
-  public readonly blockHoverActions: BlockHoverActionsProsemirrorPlugin<BSchema>
-  public readonly rangeSelection: RangeSelectionProsemirrorPlugin<BSchema>
+  // @ts-expect-error
+  public inlineEmbedOptions: InlineMentionsResult = {
+    Profiles: [],
+    Documents: [],
+    Recents: [],
+  }
+
+  public readonly sideMenu: SideMenuProsemirrorPlugin<BSchema> | null
+  public readonly formattingToolbar: FormattingToolbarProsemirrorPlugin<BSchema> | null
+  public readonly slashMenu: SlashMenuProsemirrorPlugin<BSchema, any> | null
+  public readonly mentionMenu: MentionMenuProsemirrorPlugin<BSchema> | null
+  public readonly hyperlinkToolbar: HyperlinkToolbarProsemirrorPlugin<BSchema> | null
+  public readonly linkMenu: LinkMenuProsemirrorPlugin<BSchema, any> | null
+  public readonly blockHoverActions: BlockHoverActionsProsemirrorPlugin<BSchema> | null
+  public readonly rangeSelection: RangeSelectionProsemirrorPlugin<BSchema> | null
 
   public readonly renderType: EditorRenderType
 
@@ -233,14 +240,15 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     this.commentEditor = options.commentEditor
     this.getResourceUrl = options.getResourceUrl
     this.domainResolver = (newOptions.linkExtensionOptions as any)?.domainResolver
-    this.sideMenu = new SideMenuProsemirrorPlugin(this)
-    this.formattingToolbar = new FormattingToolbarProsemirrorPlugin(this)
-    this.slashMenu = new SlashMenuProsemirrorPlugin(this, newOptions.getSlashMenuItems || (() => []))
-    this.mentionMenu = new MentionMenuProsemirrorPlugin(this)
-    this.hyperlinkToolbar = new HyperlinkToolbarProsemirrorPlugin(this)
-    this.linkMenu = new LinkMenuProsemirrorPlugin(this)
-    this.blockHoverActions = new BlockHoverActionsProsemirrorPlugin(this)
-    this.rangeSelection = new RangeSelectionProsemirrorPlugin(this)
+    const isEmbed = this.renderType === 'embed'
+    this.sideMenu = isEmbed ? null : new SideMenuProsemirrorPlugin(this)
+    this.formattingToolbar = isEmbed ? null : new FormattingToolbarProsemirrorPlugin(this)
+    this.slashMenu = isEmbed ? null : new SlashMenuProsemirrorPlugin(this, newOptions.getSlashMenuItems || (() => []))
+    this.mentionMenu = isEmbed ? null : new MentionMenuProsemirrorPlugin(this)
+    this.hyperlinkToolbar = isEmbed ? null : new HyperlinkToolbarProsemirrorPlugin(this)
+    this.linkMenu = isEmbed ? null : new LinkMenuProsemirrorPlugin(this)
+    this.blockHoverActions = isEmbed ? null : new BlockHoverActionsProsemirrorPlugin(this)
+    this.rangeSelection = isEmbed ? null : new RangeSelectionProsemirrorPlugin(this)
     this.importWebFile = newOptions.importWebFile
     this.handleFileAttachment = newOptions.handleFileAttachment
 
@@ -253,23 +261,25 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
       linkExtensionOptions: newOptions.linkExtensionOptions,
     })
 
-    const blockNoteUIExtension = Extension.create({
-      name: 'BlockNoteUIExtension',
+    if (!isEmbed) {
+      const blockNoteUIExtension = Extension.create({
+        name: 'BlockNoteUIExtension',
 
-      addProseMirrorPlugins: () => {
-        return [
-          this.sideMenu.plugin,
-          this.formattingToolbar.plugin,
-          this.slashMenu.plugin,
-          this.mentionMenu.plugin,
-          this.hyperlinkToolbar.plugin,
-          this.linkMenu.plugin,
-          this.blockHoverActions.plugin,
-          this.rangeSelection.plugin,
-        ]
-      },
-    })
-    extensions.push(blockNoteUIExtension)
+        addProseMirrorPlugins: () => {
+          return [
+            this.sideMenu!.plugin,
+            this.formattingToolbar!.plugin,
+            this.slashMenu!.plugin,
+            this.mentionMenu!.plugin,
+            this.hyperlinkToolbar!.plugin,
+            this.linkMenu!.plugin,
+            this.blockHoverActions!.plugin,
+            this.rangeSelection!.plugin,
+          ]
+        },
+      })
+      extensions.push(blockNoteUIExtension)
+    }
 
     this.schema = newOptions.blockSchema
 

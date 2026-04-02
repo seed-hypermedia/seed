@@ -25,7 +25,7 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
   const referencePos = useRef<DOMRect>()
   const [lh, setLh] = useState('')
   useEffect(() => {
-    return props.editor.sideMenu.onUpdate((sideMenuState) => {
+    return props.editor.sideMenu!.onUpdate((sideMenuState) => {
       setShow(sideMenuState.show)
       setBlock(sideMenuState.block)
       referencePos.current = sideMenuState.referencePos
@@ -41,7 +41,7 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
     }
 
     function handleHide() {
-      props.editor.sideMenu.unfreezeMenu()
+      props.editor.sideMenu!.unfreezeMenu()
       setShow(false)
     }
   }, [])
@@ -68,11 +68,11 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
       <SideMenu
         block={block}
         editor={props.editor}
-        blockDragStart={props.editor.sideMenu.blockDragStart}
-        blockDragEnd={props.editor.sideMenu.blockDragEnd}
-        addBlock={props.editor.sideMenu.addBlock}
-        freezeMenu={props.editor.sideMenu.freezeMenu}
-        unfreezeMenu={props.editor.sideMenu.unfreezeMenu}
+        blockDragStart={props.editor.sideMenu!.blockDragStart}
+        blockDragEnd={props.editor.sideMenu!.blockDragEnd}
+        addBlock={props.editor.sideMenu!.addBlock}
+        freezeMenu={props.editor.sideMenu!.freezeMenu}
+        unfreezeMenu={props.editor.sideMenu!.unfreezeMenu}
       />
     )
   }, [block, props.editor, props.sideMenu])
