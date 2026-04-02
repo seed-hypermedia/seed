@@ -1,4 +1,5 @@
 import {BlockRange, HMDocument, HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {DocumentContentProps} from '@shm/shared/document-content-props'
 import {
   createInspectNavRoute,
   DocumentPanelRoute,
@@ -40,7 +41,7 @@ import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Folder, Search} from 'lucide-react'
 import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AccountPage} from './account-page'
-import {BlockRangeSelectOptions, BlocksContent, BlocksContentProvider} from './blocks-content'
+import type {BlockRangeSelectOptions} from '@shm/shared/document-content-props'
 import {CollaboratorsPage} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
@@ -203,6 +204,8 @@ export interface ResourcePageProps {
   inspect?: (inspectionEvent: any) => void
   /** Inspect event store for the debug drawer to subscribe to. */
   inspectStore?: import('@shm/shared/models/document-machine-inspect').InspectEventStore
+  /** Component to render document content using the editor. Optional during SSR. */
+  DocumentContentComponent?: React.ComponentType<DocumentContentProps>
 }
 
 /** Get panel title for display */
@@ -239,6 +242,7 @@ export function ResourcePage({
   machine,
   inspect,
   inspectStore,
+  DocumentContentComponent,
 }: ResourcePageProps) {
   const route = useNavRoute()
   const isSiteProfile = route.key === 'site-profile'
@@ -408,6 +412,7 @@ export function ResourcePage({
             CommentEditor={CommentEditor}
             siteUrl={siteHomeDocument?.metadata?.siteUrl}
             pageFooter={pageFooter}
+            DocumentContentComponent={DocumentContentComponent}
           />
         </PageWrapper>
       </DocumentMachineProvider>
@@ -458,6 +463,7 @@ export function ResourcePage({
           pageFooter={pageFooter}
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
+          DocumentContentComponent={DocumentContentComponent}
         />
       </PageWrapper>
       {inspect && (
@@ -597,6 +603,7 @@ function DocumentBody({
   inlineCards,
   openComment,
   inlineInsert,
+  DocumentContentComponent,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
@@ -615,6 +622,8 @@ function DocumentBody({
   openComment?: string
   /** Optional inline element injected after content blocks */
   inlineInsert?: ReactNode
+  /** Component to render document content using the editor */
+  DocumentContentComponent?: React.ComponentType<DocumentContentProps>
 }) {
   // Sync document into state machine
   useDocumentSync(document)
@@ -1137,6 +1146,7 @@ function DocumentBody({
           siteUrl={siteUrl}
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
+          DocumentContentComponent={DocumentContentComponent}
         />
       </div>
       {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
@@ -1334,6 +1344,7 @@ function MainContent({
   siteUrl,
   inlineCards,
   inlineInsert,
+  DocumentContentComponent,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1370,6 +1381,7 @@ function MainContent({
   siteUrl?: string
   inlineCards?: ReactNode
   inlineInsert?: ReactNode
+  DocumentContentComponent?: React.ComponentType<DocumentContentProps>
 }) {
   switch (activeView) {
     case 'directory':
@@ -1445,6 +1457,7 @@ function MainContent({
           directory={directory}
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
+          DocumentContentComponent={DocumentContentComponent}
         />
       )
   }
@@ -1466,6 +1479,7 @@ function ContentViewWithOutline({
   directory,
   inlineCards,
   inlineInsert,
+  DocumentContentComponent,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1486,6 +1500,7 @@ function ContentViewWithOutline({
   directory?: import('@seed-hypermedia/client/hm-types').HMDocumentInfo[]
   inlineCards?: ReactNode
   inlineInsert?: ReactNode
+  DocumentContentComponent?: React.ComponentType<DocumentContentProps>
 }) {
   const outline = useNodesOutline(document, docId)
 
@@ -1514,16 +1529,18 @@ function ContentViewWithOutline({
       )}
 
       <div {...mainContentProps}>
-        <BlocksContentProvider
-          resourceId={resourceId}
-          blockCitations={blockCitations}
-          onBlockCitationClick={onBlockCitationClick}
-          onBlockCommentClick={onBlockCommentClick}
-          onBlockSelect={onBlockSelect}
-          inlineInsert={inlineInsert}
-        >
-          <BlocksContent blocks={document.content} />
-        </BlocksContentProvider>
+        {DocumentContentComponent ? (
+          <DocumentContentComponent
+            blocks={document.content}
+            resourceId={resourceId}
+            focusBlockId={docId.blockRef ?? undefined}
+            blockCitations={blockCitations}
+            onBlockCitationClick={onBlockCitationClick}
+            onBlockCommentClick={onBlockCommentClick}
+            onBlockSelect={onBlockSelect}
+          />
+        ) : null}
+        {inlineInsert}
         {inlineCards}
         <UnreferencedDocuments docId={docId} content={document.content} directory={directory} />
       </div>

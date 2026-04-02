@@ -5,7 +5,7 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {ReactNode} from 'react'
-import {DocumentCardGrid} from './blocks-content'
+import {DocumentCardGrid} from './blocks-content-utils'
 import {DocumentListItem} from './document-list-item'
 
 export interface QueryBlockContentProps {
