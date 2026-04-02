@@ -26,6 +26,7 @@ import {CustomBlockSerializerExtension} from './extensions/Blocks/api/serializat
 import blockStyles from './extensions/Blocks/nodes/Block.module.css'
 import {HMDropCursor} from './extensions/GridDropCursor/GridDropCursorExtension'
 import {ImageGalleryPlugin} from './extensions/ImageGallery/ImageGalleryPlugin'
+import {createSupernumbersPlugin} from './extensions/Supernumbers/SupernumbersPlugin'
 import {KeyboardShortcutsExtension} from './extensions/KeyboardShortcuts/KeyboardShortcutsExtension'
 import {createMarkdownExtension} from './extensions/Markdown/MarkdownExtension'
 import {Placeholder} from './extensions/Placeholder/PlaceholderExtension'
@@ -133,6 +134,10 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     Extension.create({
       name: 'ImageGalleryExtension',
       addProseMirrorPlugins: () => [ImageGalleryPlugin],
+    }),
+    Extension.create({
+      name: 'SupernumbersExtension',
+      addProseMirrorPlugins: () => [createSupernumbersPlugin()],
     }),
   ]
 

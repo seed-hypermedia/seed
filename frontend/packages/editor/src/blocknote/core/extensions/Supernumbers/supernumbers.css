@@ -1,0 +1,35 @@
+.bn-supernumber-badge {
+  position: absolute;
+  top: 0px;
+  right: -48px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: fit-content;
+  padding: 0 4px;
+  border-radius: 6px;
+  border: 1px solid hsl(var(--border));
+  background: transparent;
+  color: hsl(var(--foreground));
+  font-size: 12px;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s ease, box-shadow 0.15s ease;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+}
+
+.bn-supernumber-badge:hover {
+  background: var(--background);
+  color: var(--accent-foreground);
+}
+
+.bn-supernumber-badge:focus-visible {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--ring) / 0.5;
+  outline: none;
+}
