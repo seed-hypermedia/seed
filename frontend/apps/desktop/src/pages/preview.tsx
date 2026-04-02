@@ -1,5 +1,4 @@
 import {useDraft} from '@/models/accounts'
-import {useOpenUrl} from '@/open-url'
 import {client} from '@/trpc'
 import {HMBlockNode, HMDraft} from '@seed-hypermedia/client/hm-types'
 import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
@@ -7,7 +6,7 @@ import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {PreviewRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {useNavRoute} from '@shm/shared/utils/navigation'
-import {BlocksContent, BlocksContentProvider} from '@shm/ui/blocks-content'
+import {DocumentEditor} from '@shm/editor/document-editor'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocumentCover} from '@shm/ui/document-cover'
@@ -73,7 +72,6 @@ export default function PreviewPage() {
 }
 
 function PreviewContent({draft}: {draft: HMDraft}) {
-  const openUrl = useOpenUrl()
   const metadata = draft.metadata
   const hasCover = !!metadata.cover
 
@@ -113,7 +111,8 @@ function PreviewContent({draft}: {draft: HMDraft}) {
               </div>
 
               {/* Content */}
-              <BlocksContentProvider
+              <DocumentEditor
+                blocks={blockNodes}
                 resourceId={{
                   id: draft.id,
                   uid: draft.locationUid || draft.editUid || '',
@@ -124,9 +123,7 @@ function PreviewContent({draft}: {draft: HMDraft}) {
                   hostname: null,
                   scheme: null,
                 }}
-              >
-                <BlocksContent blocks={blockNodes} />
-              </BlocksContentProvider>
+              />
             </div>
 
             {/* Navigation sidebar placeholder for layout consistency */}
