@@ -147,9 +147,15 @@ export function blockToNode<BSchema extends BlockSchema>(block: PartialBlock<BSc
     let nodes: Node[] = []
     // Don't want hard breaks inserted as nodes in codeblock
     if (block.type === 'code-block' && block.content.length) {
+      // Only create a text node when there is actual content — ProseMirror
+      // does not allow empty text nodes and will throw a RangeError otherwise.
       // @ts-ignore
-      const textNode = schema.text(block.content[0].text || '')
-      nodes.push(textNode)
+      const text: string | undefined = block.content[0]?.text
+      if (text) {
+        // @ts-ignore
+        const textNode = schema.text(text)
+        nodes.push(textNode)
+      }
     } else nodes = inlineContentToNodes(block.content, schema)
     // @ts-ignore
     contentNode = schema.nodes[type].create(block.props, nodes)
