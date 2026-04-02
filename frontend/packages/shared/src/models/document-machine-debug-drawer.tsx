@@ -85,7 +85,7 @@ function StatePill({onClick, isOpen}: {onClick: () => void; isOpen: boolean}) {
   return (
     <button
       onClick={onClick}
-      className="fixed bottom-3 right-3 z-[9999] flex items-center gap-1.5 rounded-full border border-neutral-300 bg-neutral-900 px-3 py-1.5 font-mono text-xs text-neutral-100 shadow-lg transition-colors hover:bg-neutral-800 dark:border-neutral-600 dark:bg-neutral-800 dark:hover:bg-neutral-700"
+      className="fixed right-3 bottom-3 z-[9999] flex items-center gap-1.5 rounded-full border border-neutral-300 bg-neutral-900 px-3 py-1.5 font-mono text-xs text-neutral-100 shadow-lg transition-colors hover:bg-neutral-800 dark:border-neutral-600 dark:bg-neutral-800 dark:hover:bg-neutral-700"
       title="Open Document Machine Debug Panel (Cmd+Shift+D)"
       style={{display: isOpen ? 'none' : undefined}}
     >
@@ -95,10 +95,10 @@ function StatePill({onClick, isOpen}: {onClick: () => void; isOpen: boolean}) {
           backgroundColor: label.startsWith('error')
             ? '#ef4444'
             : label.startsWith('editing')
-              ? '#22c55e'
-              : label.startsWith('publishing')
-                ? '#eab308'
-                : '#3b82f6',
+            ? '#22c55e'
+            : label.startsWith('publishing')
+            ? '#eab308'
+            : '#3b82f6',
         }}
       />
       {label}
@@ -186,7 +186,7 @@ function DebugPanel({onClose, store}: {onClose: () => void; store?: InspectEvent
       <div className="flex flex-1 overflow-hidden">
         {/* Context panel */}
         <div className="flex-1 overflow-auto border-r border-neutral-200 p-3 dark:border-neutral-700">
-          <h3 className="mb-2 font-mono text-xs font-semibold uppercase tracking-wider text-neutral-500">Context</h3>
+          <h3 className="mb-2 font-mono text-xs font-semibold tracking-wider text-neutral-500 uppercase">Context</h3>
           <div className="space-y-1">
             {Object.entries(debugCtx).map(([key, value]) => (
               <div key={key} className="flex items-start gap-2 font-mono text-xs">
@@ -199,7 +199,7 @@ function DebugPanel({onClose, store}: {onClose: () => void; store?: InspectEvent
           </div>
 
           {/* Quick event sender */}
-          <h3 className="mb-2 mt-4 font-mono text-xs font-semibold uppercase tracking-wider text-neutral-500">
+          <h3 className="mt-4 mb-2 font-mono text-xs font-semibold tracking-wider text-neutral-500 uppercase">
             Send Event
           </h3>
           <div className="flex flex-wrap gap-1">
@@ -218,7 +218,7 @@ function DebugPanel({onClose, store}: {onClose: () => void; store?: InspectEvent
         {/* Event log panel */}
         <div className="flex w-80 flex-col overflow-hidden">
           <div className="flex items-center justify-between border-b border-neutral-200 px-3 py-2 dark:border-neutral-700">
-            <h3 className="font-mono text-xs font-semibold uppercase tracking-wider text-neutral-500">
+            <h3 className="font-mono text-xs font-semibold tracking-wider text-neutral-500 uppercase">
               Event Log ({events.length})
             </h3>
             <button
@@ -243,9 +243,7 @@ function DebugPanel({onClose, store}: {onClose: () => void; store?: InspectEvent
                   </div>
                   <div className="flex items-center gap-2">
                     {evt.stateValue != null && (
-                      <span className="font-mono text-[10px] text-neutral-500">
-                        {formatStateValue(evt.stateValue)}
-                      </span>
+                      <span className="font-mono text-[10px] text-neutral-500">{formatStateValue(evt.stateValue)}</span>
                     )}
                     <span className="font-mono text-[10px] text-neutral-400">
                       {new Date(evt.timestamp).toLocaleTimeString()}
@@ -270,10 +268,10 @@ function StateBadge({label}: {label: string}) {
         backgroundColor: label.startsWith('error')
           ? '#fecaca'
           : label.startsWith('editing')
-            ? '#bbf7d0'
-            : label.startsWith('publishing')
-              ? '#fef08a'
-              : '#bfdbfe',
+          ? '#bbf7d0'
+          : label.startsWith('publishing')
+          ? '#fef08a'
+          : '#bfdbfe',
         color: '#1e293b',
       }}
     >
