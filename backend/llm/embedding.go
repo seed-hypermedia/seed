@@ -451,7 +451,7 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 		e.logger.Warn("query embedding is unreliable, skipping semantic search results", zap.String("query", query), zap.Float32("similarity_to_gibberish", sim))
 		return nil, ErrUnreliableEmbedding
 	}
-	var entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment interface{}
+	var entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile interface{}
 	supportedType := false
 	if ok, val := contentTypes["title"]; ok && val {
 		entityTypeTitle = "title"
@@ -469,8 +469,12 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 		entityTypeComment = "comment"
 		supportedType = true
 	}
+	if ok, val := contentTypes["profile"]; ok && val {
+		entityTypeProfile = "profile"
+		supportedType = true
+	}
 	if !supportedType {
-		return nil, fmt.Errorf("invalid content type filter: at least one of title, contact, document, comment must be specified")
+		return nil, fmt.Errorf("invalid content type filter: at least one of title, contact, document, comment, profile must be specified")
 	}
 	conn, release, err := e.pool.Conn(ctx)
 	if err != nil {
@@ -500,8 +504,8 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 		// The subquery parameters are duplicated for both UNION branches.
 		if err := sqlitex.Exec(conn, qEmbeddingsSearchFiltered(), resultHandler,
 			queryEmbedding, maxDistance, limit,
-			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob, publicOnly,
-			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob, publicOnly,
+			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile, iriGlob, publicOnly,
+			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile, iriGlob, publicOnly,
 		); err != nil {
 			return nil, fmt.Errorf("semantic search query failed: %w", err)
 		}
@@ -509,7 +513,7 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 		// Use unfiltered query for generic IRI patterns.
 		if err := sqlitex.Exec(conn, qEmbeddingsSearchUnfiltered(), resultHandler,
 			queryEmbedding, maxDistance, limit,
-			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, publicOnly,
+			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile, publicOnly,
 		); err != nil {
 			return nil, fmt.Errorf("semantic search query failed: %w", err)
 		}
@@ -853,7 +857,7 @@ var qEmbeddingsPending = dqb.Str(`
 	WITH pending AS (
 		SELECT rowid
 		FROM fts
-		WHERE type IN ('title', 'document', 'comment')
+		WHERE type IN ('title', 'document', 'comment', 'profile')
 			AND length(raw_content) > 3
 		EXCEPT
 		SELECT fts_id FROM embeddings
@@ -866,7 +870,7 @@ var qEmbeddingsPending = dqb.Str(`
 
 var qEmbeddableTotalCount = dqb.Str(`
 	SELECT COUNT(*) FROM fts
-	WHERE type IN ('title', 'document', 'comment')
+	WHERE type IN ('title', 'document', 'comment', 'profile')
 		AND length(raw_content) > 3;
 `)
 
@@ -891,7 +895,7 @@ LEFT JOIN public_blobs pb ON pb.id = fi.blob_id
 WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
   AND v.distance < ?
   AND k = ?
-  AND fi.type IN (?, ?, ?, ?)
+  AND fi.type IN (?, ?, ?, ?, ?)
   AND (? = 0 OR pb.id IS NOT NULL)
 ORDER BY v.distance
 `)
@@ -915,7 +919,7 @@ WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
     JOIN structural_blobs sb ON sb.id = fi.blob_id
     JOIN resources r ON r.id = sb.resource
     LEFT JOIN public_blobs pb ON pb.id = fi.blob_id
-    WHERE fi.type IN (?, ?, ?, ?)
+    WHERE fi.type IN (?, ?, ?, ?, ?)
       AND r.iri GLOB ?
       AND (? = 0 OR pb.id IS NOT NULL)
     UNION
@@ -924,7 +928,7 @@ WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
     JOIN structural_blobs sb ON sb.id = bl.source
     JOIN resources r ON r.id = sb.resource
     LEFT JOIN public_blobs pb ON pb.id = fi.blob_id
-    WHERE fi.type IN (?, ?, ?, ?)
+    WHERE fi.type IN (?, ?, ?, ?, ?)
       AND r.iri GLOB ?
       AND (? = 0 OR pb.id IS NOT NULL)
   )

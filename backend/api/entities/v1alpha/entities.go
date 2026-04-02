@@ -252,14 +252,15 @@ SELECT
                'multihash', hex(b2.multihash)
              )
            )
-    FROM json_each(document_generations.heads) AS a
+    FROM json_each(COALESCE(document_generations.heads, '[]')) AS a
       JOIN blobs AS b2
         ON b2.id = a.value
   ) AS heads,
   structural_blobs.ts,
   structural_blobs.genesis_blob,
   f.rowid,
-  public_keys.id AS author_id
+  public_keys.id AS author_id,
+  structural_blobs.extra_attrs
 FROM fts_data AS f
   JOIN structural_blobs
     ON structural_blobs.id = f.blob_id
@@ -281,9 +282,11 @@ FROM fts_data AS f
 	  OR (f.blob_id       = structural_blobs.id
            AND structural_blobs.type = 'Contact'
            AND structural_blobs.author = ?)
+      OR (f.blob_id       = structural_blobs.id
+           AND structural_blobs.type = 'Profile')
      limit 1)
 
-  JOIN document_generations
+  LEFT JOIN document_generations
     ON document_generations.resource = resources.id
 
   LEFT JOIN document_generations dg_subject
@@ -292,7 +295,7 @@ FROM fts_data AS f
   LEFT JOIN public_keys pk_subject
     ON pk_subject.id = structural_blobs.extra_attrs->>'subject'
 
-WHERE document_generations.is_deleted = False
+WHERE (f.type = 'profile' OR document_generations.is_deleted = False)
 `)
 
 var qKeywordSearch = dqb.Str(`
@@ -309,13 +312,13 @@ LEFT JOIN blob_links bl ON bl.target = fts.blob_id AND bl.type = 'ref/head'
 LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
 LEFT JOIN resources r2 ON r2.id = sb_ref.resource
 WHERE fts.raw_content MATCH ?
-  AND fts.type IN (?, ?, ?, ?)
+  AND fts.type IN (?, ?, ?, ?, ?)
   AND blobs.size > 0
   AND COALESCE(r1.iri, r2.iri) IS NOT NULL
   AND COALESCE(r1.iri, r2.iri) GLOB ?
   AND (? = 0 OR pb.id IS NOT NULL)
 ORDER BY
-  (fts.type = 'contact' OR fts.type = 'title') DESC,
+  (fts.type = 'contact' OR fts.type = 'title' OR fts.type = 'profile') DESC,
   fts.rank ASC
 LIMIT ?
 `)
@@ -324,7 +327,7 @@ LIMIT ?
 // This is a standalone function (not Server method) used for hybrid search.
 func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[string]bool, iriGlob string, publicOnly bool) (llm.SearchResultMap, error) {
 	results := make(llm.SearchResultMap)
-	var entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment interface{}
+	var entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile interface{}
 	supportedType := false
 	if ok, val := contentTypes["title"]; ok && val {
 		entityTypeTitle = "title"
@@ -342,8 +345,12 @@ func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[
 		entityTypeComment = "comment"
 		supportedType = true
 	}
+	if ok, val := contentTypes["profile"]; ok && val {
+		entityTypeProfile = "profile"
+		supportedType = true
+	}
 	if !supportedType {
-		return nil, fmt.Errorf("invalid content type filter: at least one of title, contact, document, comment must be specified")
+		return nil, fmt.Errorf("invalid content type filter: at least one of title, contact, document, comment, profile must be specified")
 	}
 	if len(contentTypes) == 0 {
 		return nil, errors.New("at least one content type is required. Otherwise there is nothing to search :)")
@@ -356,7 +363,7 @@ func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[
 		results[stmt.ColumnInt64(0)] = score
 		score--
 		return nil
-	}, query, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob, publicOnly, limit); err != nil {
+	}, query, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile, iriGlob, publicOnly, limit); err != nil {
 		return nil, fmt.Errorf("keyword search failed: %w", err)
 	}
 
@@ -754,6 +761,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			switch ct {
 			case entpb.ContentTypeFilter_CONTENT_TYPE_TITLE:
 				contentTypes["title"] = true
+				contentTypes["profile"] = true
 			case entpb.ContentTypeFilter_CONTENT_TYPE_DOCUMENT:
 				contentTypes["document"] = true
 			case entpb.ContentTypeFilter_CONTENT_TYPE_COMMENT:
@@ -765,11 +773,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	} else {
 		// Legacy fallback.
 		contentTypes["title"] = true
+		contentTypes["profile"] = true
 		contentTypes["contact"] = true
 		if in.IncludeBody {
 			contentTypes["document"] = true
 			contentTypes["comment"] = true
-
 		}
 	}
 	var loggedAccountID int64 = 0
@@ -940,8 +948,10 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			if err := json.Unmarshal(stmt.ColumnBytes(11), &icon); err != nil {
 				icon.Icon.Value = ""
 			}
-			if err := json.Unmarshal(stmt.ColumnBytes(13), &heads); err != nil {
-				return err
+			if headsData := stmt.ColumnBytes(13); len(headsData) > 0 {
+				if err := json.Unmarshal(headsData, &heads); err != nil {
+					return err
+				}
 			}
 
 			cids := make([]cid.Cid, len(heads))
@@ -976,6 +986,17 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 				res.iri = "hm://" + subjectID + "/" + res.tsid
 				if err := json.Unmarshal(stmt.ColumnBytes(12), &icon); err != nil {
 					icon.Icon.Value = ""
+				}
+			case "profile":
+				res.iri = res.docID
+				// For profiles, the icon is in extra_attrs rather than document_generations metadata.
+				if extraAttrs := stmt.ColumnBytes(18); len(extraAttrs) > 0 {
+					var attrs struct {
+						Icon string `json:"icon"`
+					}
+					if err := json.Unmarshal(extraAttrs, &attrs); err == nil && attrs.Icon != "" {
+						icon.Icon.Value = attrs.Icon
+					}
 				}
 			default:
 				res.iri = res.docID

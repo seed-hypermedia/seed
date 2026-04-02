@@ -3726,6 +3726,84 @@ func TestSearchEntitiesFilters(t *testing.T) {
 	})
 }
 
+// TestSearchProfileOnlyAccount verifies that accounts with only a profile (no published documents)
+// are discoverable via SearchEntities. This is the fix for https://github.com/seed-hypermedia/seed/issues/426.
+func TestSearchProfileOnlyAccount(t *testing.T) {
+	t.Parallel()
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	ctx := context.Background()
+	aliceIdentity := coretest.NewTester("alice")
+	aliceAccount := aliceIdentity.Account.PublicKey.String()
+
+	// Register a second account (Bob) on the same daemon, but do NOT publish any documents for it.
+	bobIdentity := coretest.NewTester("bob")
+	require.NoError(t, alice.RPC.Daemon.RegisterAccount(ctx, "bob", bobIdentity.Account))
+
+	// Create only a profile for Bob — no home document or other documents.
+	_, err := alice.RPC.DocumentsV3.UpdateProfile(ctx, &documents.UpdateProfileRequest{
+		Account:        bobIdentity.Account.PublicKey.String(),
+		Profile:        &documents.Profile{Name: "Bobsworth"},
+		SigningKeyName: "bob",
+	})
+	require.NoError(t, err)
+
+	// Also create a document for Alice so she has a "title" entry (to confirm no regression).
+	_, err = alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice Site"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	t.Run("ProfileOnlyAccountAppearsInSearch", func(t *testing.T) {
+		// First verify the profile was created.
+		bobAccount, err := alice.RPC.DocumentsV3.GetAccount(ctx, &documents.GetAccountRequest{
+			Id: bobIdentity.Account.PublicKey.String(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, "Bobsworth", bobAccount.Profile.Name, "Bob's profile must exist")
+
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:            "Bobsworth",
+			LoggedAccountUid: aliceAccount,
+		})
+		require.NoError(t, err)
+		require.Greater(t, len(res.Entities), 0, "profile-only account must appear in search results")
+
+		found := false
+		for _, e := range res.Entities {
+			if e.Content == "Bobsworth" && e.Type == "profile" {
+				found = true
+				require.Contains(t, e.Id, bobIdentity.Account.PublicKey.String(), "entity ID must reference Bob's account")
+				break
+			}
+		}
+		require.True(t, found, "must find Bob's profile in search results")
+	})
+
+	t.Run("AccountWithSiteStillWorks", func(t *testing.T) {
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query: "Alice",
+		})
+		require.NoError(t, err)
+		require.Greater(t, len(res.Entities), 0, "account with site must still appear")
+
+		found := false
+		for _, e := range res.Entities {
+			if e.Content == "Alice Site" && e.Type == "title" {
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "must find Alice's title in search results")
+	})
+}
+
 // parseEntityVersion extracts version info from an entity ID.
 // Entity IDs have the format: "hm://account/path?v=<version>#blockId[offset:end]"
 // The version may end with "&l" if it represents the latest version.
