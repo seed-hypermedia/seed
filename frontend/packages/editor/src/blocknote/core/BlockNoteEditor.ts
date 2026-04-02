@@ -38,6 +38,7 @@ import {BlockHoverActionsProsemirrorPlugin} from './extensions/BlockHoverActions
 import {FormattingToolbarProsemirrorPlugin} from './extensions/FormattingToolbar/FormattingToolbarPlugin'
 import {HyperlinkToolbarProsemirrorPlugin} from './extensions/HyperlinkToolbar/HyperlinkToolbarPlugin'
 import {LinkMenuProsemirrorPlugin} from './extensions/LinkMenu/LinkMenuPlugin'
+import {RangeSelectionProsemirrorPlugin} from './extensions/RangeSelection/RangeSelectionPlugin'
 import {SideMenuProsemirrorPlugin} from './extensions/SideMenu/SideMenuPlugin'
 import {BaseSlashMenuItem} from './extensions/SlashMenu/BaseSlashMenuItem'
 import {SlashMenuProsemirrorPlugin} from './extensions/SlashMenu/SlashMenuPlugin'
@@ -207,6 +208,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public readonly hyperlinkToolbar: HyperlinkToolbarProsemirrorPlugin<BSchema>
   public readonly linkMenu: LinkMenuProsemirrorPlugin<BSchema, any>
   public readonly blockHoverActions: BlockHoverActionsProsemirrorPlugin<BSchema>
+  public readonly rangeSelection: RangeSelectionProsemirrorPlugin<BSchema>
 
   public readonly renderType: EditorRenderType
 
@@ -241,6 +243,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     this.hyperlinkToolbar = new HyperlinkToolbarProsemirrorPlugin(this)
     this.linkMenu = new LinkMenuProsemirrorPlugin(this)
     this.blockHoverActions = new BlockHoverActionsProsemirrorPlugin(this)
+    this.rangeSelection = new RangeSelectionProsemirrorPlugin(this)
     this.importWebFile = newOptions.importWebFile
     this.handleFileAttachment = newOptions.handleFileAttachment
 
@@ -265,6 +268,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
           this.hyperlinkToolbar.plugin,
           this.linkMenu.plugin,
           this.blockHoverActions.plugin,
+          this.rangeSelection.plugin,
         ]
       },
     })

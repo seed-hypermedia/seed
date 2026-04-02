@@ -42,6 +42,7 @@ export * from './SharedComponents/Toolbar/components/ToolbarDropdown'
 
 export * from './BlockHoverActions/BlockHoverActionsPositioner'
 export * from './ImageGallery/ImageGalleryOverlay'
+export * from './RangeSelection/RangeSelectionPositioner'
 
 export * from './hooks/useBlockNote'
 export * from './hooks/useEditorContentChange'
