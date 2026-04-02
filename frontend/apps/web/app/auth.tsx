@@ -614,7 +614,7 @@ async function optimizeImage(file: File): Promise<Blob> {
   return new Blob([responseBlob], {type: contentType})
 }
 
-function LogoutDialog({onClose}: {onClose: () => void}) {
+export function LogoutDialog({onClose}: {onClose: () => void}) {
   const keyPair = useLocalKeyPair()
   const account = useAccount(keyPair?.id)
   const navigate = useNavigate()
