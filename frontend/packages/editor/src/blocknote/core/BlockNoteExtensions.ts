@@ -1,4 +1,4 @@
-import {Extensions, extensions} from '@tiptap/core'
+import {Extension, Extensions, extensions} from '@tiptap/core'
 import {HMBlockSchema} from '../../schema'
 
 import {BlockNoteEditor} from './BlockNoteEditor'
@@ -18,6 +18,7 @@ import {LocalMediaPastePlugin} from '../../handle-local-media-paste-plugin'
 import {createInlineEmbedNode} from '../../mentions-plugin'
 import {debugPlugin} from '../../prosemirror-debugger'
 import Link from '../../tiptap-extension-link'
+import {createBlockHighlightPlugin} from './extensions/BlockHighlight/BlockHighlightPlugin'
 import {BlockManipulationExtension} from './extensions/BlockManipulation/BlockManipulationExtension'
 import {BlockChildren, BlockNode, Doc} from './extensions/Blocks'
 import {BlockNoteDOMAttributes} from './extensions/Blocks/api/blockTypes'
@@ -124,6 +125,10 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     }),
     debugPlugin,
     History,
+    Extension.create({
+      name: 'BlockHighlightExtension',
+      addProseMirrorPlugins: () => [createBlockHighlightPlugin()],
+    }),
   ]
 
   return ret
