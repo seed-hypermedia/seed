@@ -1,6 +1,7 @@
 export * from './citation-deduplication'
 export * from './client'
 export * from './comments'
+export * from './comments-service-provider'
 export * from './content'
 export * from './interaction-summary'
 // create-web-universal-client is not barrel-exported because it imports from

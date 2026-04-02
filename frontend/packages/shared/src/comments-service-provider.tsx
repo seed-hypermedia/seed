@@ -243,6 +243,7 @@ export function useCommentVersions(commentId: string | null | undefined) {
       return await client.request('ListCommentVersions', {id: commentId!})
     },
     enabled: !!commentId,
+    useErrorBoundary: false,
     staleTime: 60_000,
   })
 }

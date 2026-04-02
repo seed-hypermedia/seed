@@ -1,16 +1,29 @@
 import {HMBlockNode} from '@seed-hypermedia/client/hm-types'
-import {hmId, hmIdPathToEntityQueryPath, packHmId, useAuthoredComments, useCapabilities, useChanges, useChildrenList, useCitations, useComments, useResource} from '@shm/shared'
+import {
+  hmId,
+  hmIdPathToEntityQueryPath,
+  packHmId,
+  useAuthoredComments,
+  useCapabilities,
+  useChanges,
+  useChildrenList,
+  useCitations,
+  useComments,
+  useCommentVersions,
+  useResource,
+} from '@shm/shared'
 import {useMemo} from 'react'
 import {useNavigate, useParams, useSearchParams} from 'react-router-dom'
 import {useApiHost} from '../apiHostStore'
 import {CopyTextButton} from './CopyTextButton'
 import {ExternalOpenButton, OpenInAppButton} from './ExternalOpenButton'
-import Tabs, {TabType} from './Tabs'
+import Tabs, {getSafeCurrentTab, getTabSearchParams, getTabs, TabType} from './Tabs'
 import AuthoredCommentsTab from './tabs/AuthoredCommentsTab'
 import CapabilitiesTab from './tabs/CapabilitiesTab'
 import ChangesTab from './tabs/ChangesTab'
 import {ChildrenDocsTab} from './tabs/ChildrenDocsTab'
 import CitationsTab from './tabs/CitationsTab'
+import CommentVersionsTab from './tabs/CommentVersionsTab'
 import CommentsTab from './tabs/CommentsTab'
 import DocumentTab from './tabs/DocumentTab'
 import {Title} from './Title'
@@ -28,24 +41,51 @@ export default function HM() {
     path: hmPath,
     version: searchParams.get('v') ? searchParams.get('v') : undefined,
   })
-  const {data, isLoading} = useResource(id)
-  const {data: comments, isLoading: commentsLoading} = useComments(id)
-  const {data: authoredComments, isLoading: authoredCommentsLoading} =
-    useAuthoredComments(id)
-  const {data: citations, isLoading: citationsLoading} = useCitations(id)
-  const {data: changes, isLoading: changesLoading} = useChanges(id)
-  const {data: capabilities, isLoading: capabilitiesLoading} =
-    useCapabilities(id)
-  const {data: childrenDocs, isLoading: childrenLoading} = useChildrenList(id)
+  const {data} = useResource(id)
+  const resourceType = data?.type
+  const {data: comments} = useComments(id)
+  const {data: authoredComments} = useAuthoredComments(id)
+  const {data: citations} = useCitations(resourceType === 'document' ? id : null)
+  const {data: changes} = useChanges(resourceType === 'document' ? id : null)
+  const commentId = data?.type === 'comment' ? data.comment.id : null
+  const {data: commentVersions} = useCommentVersions(commentId)
+  const {data: capabilities} = useCapabilities(id)
+  const {data: childrenDocs} = useChildrenList(id)
 
   const url = packHmId(id)
 
+  const tabs = useMemo(
+    () =>
+      getTabs({
+        id,
+        resourceType,
+        changeCount: changes?.changes?.length,
+        versionCount: commentVersions?.versions?.length,
+        commentCount: comments?.comments?.length,
+        citationCount: citations?.citations?.length,
+        capabilityCount: capabilities?.length,
+        childrenCount: childrenDocs?.length,
+        authoredCommentCount: authoredComments?.comments?.length,
+      }),
+    [
+      authoredComments?.comments?.length,
+      capabilities?.length,
+      changes?.changes?.length,
+      childrenDocs?.length,
+      citations?.citations?.length,
+      commentVersions?.versions?.length,
+      comments?.comments?.length,
+      id,
+      resourceType,
+    ],
+  )
+
   // Get current tab from URL or default to "document"
-  const currentTab = (searchParams.get('tab') as TabType) || 'document'
+  const currentTab = getSafeCurrentTab(searchParams.get('tab'), tabs)
 
   // Function to change tabs
   const handleTabChange = (tab: TabType) => {
-    setSearchParams({tab})
+    setSearchParams(getTabSearchParams(searchParams, tab))
   }
 
   const preparedData = useMemo(() => {
@@ -54,15 +94,7 @@ export default function HM() {
     // Handle different resource types
     if (data.type === 'document') {
       const doc = data.document
-      const {
-        metadata,
-        account,
-        authors,
-        genesis,
-        version,
-        content,
-        ...rest
-      } = doc
+      const {metadata, account, authors, genesis, version, content, ...rest} = doc
       const cleaned: Record<string, any> = {...metadata, ...rest}
       if (account) {
         cleaned.account = `hm://${account}`
@@ -71,9 +103,7 @@ export default function HM() {
         cleaned.authors = authors.map((author: string) => `hm://${author}`)
       }
       if (version) {
-        cleaned.version = version
-          .split('.')
-          .map((changeCid: string) => `ipfs://${changeCid}`)
+        cleaned.version = version.split('.').map((changeCid: string) => `ipfs://${changeCid}`)
         cleaned.exactDocumentVersion = packHmId({
           ...id,
           version: version,
@@ -114,6 +144,8 @@ export default function HM() {
         return <DocumentTab data={preparedData} onNavigate={navigate} />
       case 'changes':
         return <ChangesTab changes={changes?.changes} docId={id} />
+      case 'versions':
+        return <CommentVersionsTab versions={commentVersions?.versions} />
       case 'comments':
         return <CommentsTab comments={comments?.comments} />
       case 'citations':
@@ -135,7 +167,7 @@ export default function HM() {
   }
 
   return (
-    <div className="container overflow-hidden p-4 mx-auto max-w-full">
+    <div className="container mx-auto max-w-full overflow-hidden p-4">
       <Title
         className="mb-4"
         buttons={
@@ -150,9 +182,11 @@ export default function HM() {
 
       <Tabs
         id={id}
+        resourceType={resourceType}
         currentTab={currentTab}
         onTabChange={handleTabChange}
         changeCount={changes?.changes?.length}
+        versionCount={commentVersions?.versions?.length}
         commentCount={comments?.comments?.length}
         citationCount={citations?.citations?.length}
         capabilityCount={capabilities?.length}

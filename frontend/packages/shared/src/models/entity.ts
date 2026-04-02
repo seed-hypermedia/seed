@@ -608,12 +608,18 @@ export function useAuthoredComments(id: UnpackedHypermediaId | null | undefined)
 
 export function useCitations(id: UnpackedHypermediaId | null | undefined) {
   const client = useUniversalClient()
-  return useQuery(queryCitations(client, id))
+  return useQuery({
+    ...queryCitations(client, id),
+    useErrorBoundary: false,
+  })
 }
 
 export function useChanges(id: UnpackedHypermediaId | null | undefined) {
   const client = useUniversalClient()
-  return useQuery(queryChanges(client, id))
+  return useQuery({
+    ...queryChanges(client, id),
+    useErrorBoundary: false,
+  })
 }
 
 export function useCapabilities(id: UnpackedHypermediaId | null | undefined) {
