@@ -4,7 +4,7 @@ import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {isHypermediaScheme, isPublicGatewayLink, normalizeHmId, packHmId} from '@shm/shared/utils/entity-id-url'
-import {BlockEmbedCard, BlockEmbedComments, BlockEmbedContent} from '@shm/ui/blocks-content'
+import {BlockEmbedCard, BlockEmbedComments, BlockEmbedContent} from '@shm/ui/embed-views'
 import {EmbedEditorView} from './embed-editor'
 import {Input} from '@shm/ui/components/input'
 import {ExternalLink} from '@shm/ui/icons'
@@ -141,6 +141,7 @@ const display = ({editor, block, assign, selected, setSelected}: DisplayComponen
     >
       {block.props.url && (
         <EditorEmbedContent
+          openOnClick={!editor.isEditable}
           parentBlockId={block.props.parentBlockId || null}
           block={{
             id: block.id,
@@ -159,17 +160,17 @@ const display = ({editor, block, assign, selected, setSelected}: DisplayComponen
   )
 }
 
-function EditorEmbedContent({block, parentBlockId}: {block: HMBlockEmbed; parentBlockId: string | null}) {
+function EditorEmbedContent({block, parentBlockId, openOnClick}: {block: HMBlockEmbed; parentBlockId: string | null; openOnClick: boolean}) {
   if (block.attributes.view === 'Card')
-    return <BlockEmbedCard block={block} parentBlockId={parentBlockId} openOnClick={false} />
+    return <BlockEmbedCard block={block} parentBlockId={parentBlockId} openOnClick={openOnClick} />
   if (block.attributes.view === 'Comments')
-    return <BlockEmbedComments block={block} parentBlockId={parentBlockId} openOnClick={false} />
+    return <BlockEmbedComments block={block} parentBlockId={parentBlockId} openOnClick={openOnClick} />
   // if (block.attributes.view === 'Content') // content is the default
   return (
     <BlockEmbedContent
       block={block}
       parentBlockId={parentBlockId}
-      openOnClick={false}
+      openOnClick={openOnClick}
       renderDocumentContent={({embedBlocks}) => <EmbedEditorView blocks={embedBlocks} />}
     />
   )
