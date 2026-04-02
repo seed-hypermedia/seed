@@ -24,6 +24,7 @@ import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {findSelfQueryBlock} from '@shm/shared/content'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
+import {DocumentEditor} from '@shm/editor/document-editor'
 import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
 import {HMBlockNode, HMComment} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
@@ -478,6 +479,7 @@ export default function DesktopResourcePage() {
               onEditProfile={onEditProfile}
               inspect={inspect}
               inspectStore={inspectStore}
+              DocumentContentComponent={DocumentEditor}
             />
           </QueryBlockDraftsProvider>
         </DesktopDocumentActionsProvider>

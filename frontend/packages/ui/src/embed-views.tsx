@@ -8,13 +8,7 @@ import {
   HMResolvedResource,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {
-  formattedDateMedium,
-  getCommentTargetId,
-  getDocumentTitle,
-  unpackHmId,
-  useUniversalClient,
-} from '@shm/shared'
+import {formattedDateMedium, getCommentTargetId, getDocumentTitle, unpackHmId, useUniversalClient} from '@shm/shared'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'

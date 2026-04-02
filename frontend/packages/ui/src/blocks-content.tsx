@@ -88,7 +88,13 @@ import {cn} from './utils'
 import {HMCitation} from '@seed-hypermedia/client/hm-types'
 import {useHighlighter} from './highlight-context'
 import {InlineError} from './inline-feedback'
-import {blockStyles, collectImageBlocks, getBlockNodeById, resolveGalleryNavigation, resolveSwipeDirection} from './blocks-content-utils'
+import {
+  blockStyles,
+  collectImageBlocks,
+  getBlockNodeById,
+  resolveGalleryNavigation,
+  resolveSwipeDirection,
+} from './blocks-content-utils'
 import {BlockEmbedCard, BlockEmbedComments, BlockEmbedContent, ErrorBlock} from './embed-views'
 
 import type {BlockRangeSelectOptions} from '@shm/shared/document-content-props'
@@ -1492,8 +1498,14 @@ function InlineContentView({
   )
 }
 
-export {BlockEmbedCard, BlockEmbedContent, BlockEmbedComments, BlockEmbedContentComment, ErrorBlock, DeletedEmbedBanner} from './embed-views'
-
+export {
+  BlockEmbedCard,
+  BlockEmbedContent,
+  BlockEmbedComments,
+  BlockEmbedContentComment,
+  ErrorBlock,
+  DeletedEmbedBanner,
+} from './embed-views'
 
 function BlockContentQuery({block}: {block: HMBlockQuery}) {
   const queryInclude = block.attributes.query.includes[0]
@@ -1669,7 +1681,12 @@ export function BlockContentUnknown(props: BlockContentProps<HMBlock>) {
   return <ErrorBlock message={message} debugData={props.block} />
 }
 
-export {getBlockNodeById, collectImageBlocks, resolveGalleryNavigation, resolveSwipeDirection} from './blocks-content-utils'
+export {
+  getBlockNodeById,
+  collectImageBlocks,
+  resolveGalleryNavigation,
+  resolveSwipeDirection,
+} from './blocks-content-utils'
 export type {ImageGalleryItem} from './blocks-content-utils'
 
 export function BlockContentFile({block}: BlockContentProps<HMBlockFile>) {

@@ -16,15 +16,18 @@ export function clickHandler(options: ClickHandlerOptions): Plugin {
           return false
         }
 
+        // In read-only mode, let the browser handle link clicks natively (navigate).
+        if (!view.editable) {
+          return false
+        }
+
         const attrs = getAttributes(view.state, options.type.name)
         const link = event.target as HTMLLinkElement
 
         const href = link?.href ?? attrs.href
 
         if (link && href) {
-          let newWindow = false // todo, check for meta key
-          // Disabled behavior where link clicks mean "open", this interrupts the editing experience
-          // options.openUrl(href, newWindow)
+          // In editable mode, swallow the click to avoid navigating away while editing.
           return true
         }
 

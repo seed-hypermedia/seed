@@ -44,8 +44,6 @@ type BlockHoverActionsEvents = {
 // ProseMirror PluginView
 // ---------------------------------------------------------------------------
 
-const DEBOUNCE_MS = 50
-
 /**
  * Internal ProseMirror PluginView that attaches mouse listeners to the editor
  * DOM and emits state updates via a callback whenever the hovered block changes.
@@ -58,8 +56,6 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     blockId: null,
     referenceRect: null,
   }
-
-  private debounceTimer: ReturnType<typeof setTimeout> | null = null
 
   /** When true the plugin will not emit hide events (the floating card is being hovered). */
   public frozen = false
@@ -110,15 +106,7 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   // -------------------------------------------------------------------------
 
   onMouseMove = (event: MouseEvent) => {
-    // Debounce to avoid excessive re-renders while the cursor is moving fast.
-    if (this.debounceTimer !== null) {
-      clearTimeout(this.debounceTimer)
-    }
-
-    this.debounceTimer = setTimeout(() => {
-      this.debounceTimer = null
-      this.handleMouseMove(event)
-    }, DEBOUNCE_MS)
+    this.handleMouseMove(event)
   }
 
   private handleMouseMove(event: MouseEvent) {
@@ -199,10 +187,6 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   }
 
   onMouseLeave = () => {
-    if (this.debounceTimer !== null) {
-      clearTimeout(this.debounceTimer)
-      this.debounceTimer = null
-    }
     if (!this.frozen) {
       this.hide()
     }
@@ -221,10 +205,6 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   }
 
   destroy() {
-    if (this.debounceTimer !== null) {
-      clearTimeout(this.debounceTimer)
-      this.debounceTimer = null
-    }
     this.pmView.dom.removeEventListener('mousemove', this.onMouseMove)
     this.pmView.dom.removeEventListener('mouseleave', this.onMouseLeave)
 

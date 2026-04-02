@@ -27,7 +27,6 @@ function toEditorBlockType(hmBlockType: HMBlockType): EditorBlockType {
   if (hmBlockType === 'Button') return 'button'
   if (hmBlockType === 'Embed') return 'embed'
   if (hmBlockType === 'WebEmbed') return 'web-embed'
-  if (hmBlockType === 'Nostr') return 'nostr'
   if (hmBlockType === 'Query') return 'query'
   return 'unknown'
 }
