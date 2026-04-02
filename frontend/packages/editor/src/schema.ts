@@ -7,6 +7,7 @@ import {HMHeadingBlockContent} from './heading-component-plugin'
 import {ImageBlock} from './image'
 import {MathBlock} from './math'
 import CodeBlockLowlight from './tiptap-extension-code-block'
+import {QueryBlock} from './query-block'
 import {UnknownBlock} from './unknown-block'
 import {VideoBlock} from './video'
 import {WebEmbed} from './web-embed'
@@ -40,8 +41,8 @@ export const hmBlockSchema: BlockSchema = {
   math: MathBlock('math'),
   ['web-embed']: WebEmbed,
   embed: EmbedBlock,
+  query: QueryBlock,
   unknown: UnknownBlock,
-  // nostr: NostrBlock,
 }
 
 export type HMBlockSchema = TypesMatch<typeof hmBlockSchema>

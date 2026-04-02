@@ -1,7 +1,7 @@
 .bn-supernumber-badge {
   position: absolute;
   top: 0px;
-  right: -48px;
+  right: -24px;
   z-index: 10;
   display: inline-flex;
   align-items: center;
@@ -13,12 +13,17 @@
   background: transparent;
   color: hsl(var(--foreground));
   font-size: 12px;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
   font-weight: 500;
   line-height: 1.5;
   white-space: nowrap;
   cursor: pointer;
-  transition: color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    color 0.15s ease,
+    box-shadow 0.15s ease;
   font-variant-numeric: tabular-nums;
   overflow: hidden;
 }

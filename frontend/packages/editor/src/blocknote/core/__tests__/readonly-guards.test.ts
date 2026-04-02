@@ -46,9 +46,7 @@ function createRenderableSchema(): Schema {
 
 /** Build a simple doc with one block. */
 function buildSimpleDoc(schema: Schema, blockId: string, text: string) {
-  const para = text
-    ? schema.nodes['paragraph']!.create(null, schema.text(text))
-    : schema.nodes['paragraph']!.create()
+  const para = text ? schema.nodes['paragraph']!.create(null, schema.text(text)) : schema.nodes['paragraph']!.create()
   const block = schema.nodes['blockNode']!.create({id: blockId}, [para])
   const children = schema.nodes['blockChildren']!.create(null, [block])
   return schema.nodes['doc']!.create(null, children)
@@ -73,11 +71,7 @@ describe('readOnly guards (Phase 1)', () => {
     schema = createRenderableSchema()
   })
 
-  function createView(opts: {
-    editable: boolean
-    plugins?: Plugin[]
-    blockText?: string
-  }): EditorView {
+  function createView(opts: {editable: boolean; plugins?: Plugin[]; blockText?: string}): EditorView {
     const doc = buildSimpleDoc(schema, 'b1', opts.blockText ?? 'hello')
     const state = EditorState.create({
       doc,

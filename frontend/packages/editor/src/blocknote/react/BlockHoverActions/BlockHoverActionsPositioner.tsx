@@ -91,9 +91,7 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
       }
 
       if (state.show && state.blockId) {
-        const el = editor.prosemirrorView.dom.querySelector(
-          `[data-id="${state.blockId}"]`,
-        ) as HTMLElement | null
+        const el = editor.prosemirrorView.dom.querySelector(`[data-id="${state.blockId}"]`) as HTMLElement | null
         if (el) {
           el.classList.add(HOVER_BG_CLASS)
           highlightedElRef.current = el
@@ -117,14 +115,16 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
   const blockId = hoverState.blockId
 
   // Position the card above the top-right corner of the block so it does not
-  // overlap block content. The 4px horizontal offset pushes it slightly right
-  // and the vertical offset lifts it above the block boundary.
+  // overlap block content. We use a wrapper with padding-bottom to create an
+  // invisible bridge between the card and the block, so the mouse can travel
+  // from the block to the card without triggering a mouseleave.
   const style: React.CSSProperties = {
     position: 'fixed',
-    top: rect.top - 4,
+    top: rect.top,
     left: rect.right + 4,
     transform: 'translate(-100%, -100%)',
     zIndex: 50,
+    paddingBottom: 8,
   }
 
   return (
@@ -171,4 +171,3 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
     </div>
   )
 }
-

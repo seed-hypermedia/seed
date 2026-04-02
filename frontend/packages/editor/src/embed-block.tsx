@@ -160,7 +160,15 @@ const display = ({editor, block, assign, selected, setSelected}: DisplayComponen
   )
 }
 
-function EditorEmbedContent({block, parentBlockId, openOnClick}: {block: HMBlockEmbed; parentBlockId: string | null; openOnClick: boolean}) {
+function EditorEmbedContent({
+  block,
+  parentBlockId,
+  openOnClick,
+}: {
+  block: HMBlockEmbed
+  parentBlockId: string | null
+  openOnClick: boolean
+}) {
   if (block.attributes.view === 'Card')
     return <BlockEmbedCard block={block} parentBlockId={parentBlockId} openOnClick={openOnClick} />
   if (block.attributes.view === 'Comments')
