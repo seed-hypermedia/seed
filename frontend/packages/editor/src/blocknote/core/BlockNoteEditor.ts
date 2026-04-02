@@ -34,6 +34,7 @@ import {insertBlocks} from './api/blockManipulation/commands/insertBlocks'
 import {newRemoveBlocks} from './api/blockManipulation/commands/removeBlocks'
 import {newReplaceBlocks} from './api/blockManipulation/commands/replaceBlocks'
 import {updateBlock} from './api/blockManipulation/commands/updateBlock'
+import {BlockHoverActionsProsemirrorPlugin} from './extensions/BlockHoverActions/BlockHoverActionsPlugin'
 import {FormattingToolbarProsemirrorPlugin} from './extensions/FormattingToolbar/FormattingToolbarPlugin'
 import {HyperlinkToolbarProsemirrorPlugin} from './extensions/HyperlinkToolbar/HyperlinkToolbarPlugin'
 import {LinkMenuProsemirrorPlugin} from './extensions/LinkMenu/LinkMenuPlugin'
@@ -205,6 +206,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public readonly slashMenu: SlashMenuProsemirrorPlugin<BSchema, any>
   public readonly hyperlinkToolbar: HyperlinkToolbarProsemirrorPlugin<BSchema>
   public readonly linkMenu: LinkMenuProsemirrorPlugin<BSchema, any>
+  public readonly blockHoverActions: BlockHoverActionsProsemirrorPlugin<BSchema>
 
   public readonly renderType: EditorRenderType
 
@@ -238,6 +240,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     this.slashMenu = new SlashMenuProsemirrorPlugin(this, newOptions.getSlashMenuItems || (() => []))
     this.hyperlinkToolbar = new HyperlinkToolbarProsemirrorPlugin(this)
     this.linkMenu = new LinkMenuProsemirrorPlugin(this)
+    this.blockHoverActions = new BlockHoverActionsProsemirrorPlugin(this)
     this.importWebFile = newOptions.importWebFile
     this.handleFileAttachment = newOptions.handleFileAttachment
 
@@ -261,6 +264,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
           this.slashMenu.plugin,
           this.hyperlinkToolbar.plugin,
           this.linkMenu.plugin,
+          this.blockHoverActions.plugin,
         ]
       },
     })
