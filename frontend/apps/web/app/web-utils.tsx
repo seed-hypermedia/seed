@@ -1,16 +1,27 @@
-import {hmId, useJoinSite, useRouteLink} from '@shm/shared'
+import {hmId, useJoinSite} from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
 import {displayHostname, routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@shm/ui/components/dropdown-menu'
 import {FloatingAccountFooter} from '@shm/ui/floating-account-footer'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Link} from '@shm/ui/icons'
 import {JoinButton} from '@shm/ui/join-button'
+import {MobilePanelSheet} from '@shm/ui/mobile-panel-sheet'
 import {MenuItemType} from '@shm/ui/options-dropdown'
-import {ReactNode, useMemo} from 'react'
-import {useCreateAccount, useLocalKeyPair} from './auth'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {useMedia} from '@shm/ui/use-media'
+import {LogOut, UserCog} from 'lucide-react'
+import {ReactNode, useMemo, useState} from 'react'
+import {useCreateAccount, useLocalKeyPair, LogoutDialog} from './auth'
 
 export function useWebMenuItems(): MenuItemType[] {
   const route = useNavRoute()
@@ -76,15 +87,15 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
  */
 export function WebAccountFooter({
   children,
-  siteUid,
   liftForPageFooter = false,
 }: {
   children?: ReactNode
-  siteUid: string
+  siteUid?: string
   liftForPageFooter?: boolean
 }) {
   const keyPair = useLocalKeyPair()
   const accountId = keyPair?.delegatedAccountUid ?? keyPair?.id
+  const logoutDialog = useAppDialog(LogoutDialog)
 
   const myAccount = useAccount(accountId || undefined, {
     retry: 3,
@@ -100,30 +111,106 @@ export function WebAccountFooter({
     }
   }, [myAccount.data])
 
-  const profileLinkProps = useRouteLink(
-    keyPair
-      ? {
-          key: 'site-profile',
-          id: hmId(siteUid, {latest: true}),
-          accountUid: accountId!,
-          tab: 'profile' as const,
-        }
-      : null,
+  const vaultUrl = keyPair?.vaultUrl
+  const media = useMedia()
+  const isMobile = media.xs
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  const avatarIcon = (
+    <HMIcon
+      id={account?.id ?? hmId(accountId!, {latest: true})}
+      name={account?.metadata?.name}
+      icon={account?.metadata?.icon}
+      size={32}
+    />
+  )
+
+  const menuItems = (
+    <>
+      <button
+        className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left disabled:opacity-50"
+        onClick={() => {
+          if (vaultUrl) {
+            window.open(vaultUrl, '_blank')
+          }
+          setMobileMenuOpen(false)
+        }}
+        disabled={!vaultUrl}
+      >
+        <UserCog className="size-5" />
+        <span className="text-sm">Manage account</span>
+      </button>
+      <div className="bg-border mx-4 h-px" />
+      <button
+        className="text-destructive hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+        onClick={() => {
+          setMobileMenuOpen(false)
+          logoutDialog.open({})
+        }}
+      >
+        <LogOut className="size-5" />
+        <span className="text-sm">Log out</span>
+      </button>
+    </>
   )
 
   const accountButton = keyPair ? (
-    <a {...profileLinkProps} className="flex rounded-full shadow-lg">
-      <HMIcon
-        id={account?.id ?? hmId(accountId!, {latest: true})}
-        name={account?.metadata?.name}
-        icon={account?.metadata?.icon}
-        size={32}
-      />
-    </a>
+    isMobile ? (
+      <>
+        <button className="flex cursor-pointer rounded-full shadow-lg" onClick={() => setMobileMenuOpen(true)}>
+          {avatarIcon}
+        </button>
+        <MobilePanelSheet isOpen={mobileMenuOpen} title="" onClose={() => setMobileMenuOpen(false)}>
+          <div className="flex items-center gap-3 px-4 py-4">
+            {avatarIcon}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{account?.metadata?.name || 'Account'}</p>
+            </div>
+          </div>
+          <div className="bg-border h-px" />
+          {menuItems}
+        </MobilePanelSheet>
+      </>
+    ) : (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="flex cursor-pointer rounded-full shadow-lg">{avatarIcon}</button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="top" align="start" className="min-w-[200px]">
+          <div className="flex items-center gap-3 px-2 py-2">
+            {avatarIcon}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{account?.metadata?.name || 'Account'}</p>
+            </div>
+          </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => {
+              if (vaultUrl) {
+                window.open(vaultUrl, '_blank')
+              }
+            }}
+            disabled={!vaultUrl}
+          >
+            <UserCog className="size-4" />
+            Manage account
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onClick={() => logoutDialog.open({})}>
+            <LogOut className="size-4" />
+            Log out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
   ) : null
 
   return (
-    <FloatingAccountFooter floatingButton={accountButton} liftForPageFooter={liftForPageFooter}>
+    <FloatingAccountFooter
+      floatingButton={accountButton}
+      extraContent={logoutDialog.content}
+      liftForPageFooter={liftForPageFooter}
+    >
       {children}
     </FloatingAccountFooter>
   )
