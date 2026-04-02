@@ -13,7 +13,7 @@ import {
  * without a TypeScript error.
  */
 type EditorWithRangeSelection<BSchema extends BlockSchema> = BlockNoteEditor<BSchema> & {
-  rangeSelection?: RangeSelectionProsemirrorPlugin<BSchema>
+  rangeSelection?: RangeSelectionProsemirrorPlugin<BSchema> | null
 }
 
 // ---------------------------------------------------------------------------

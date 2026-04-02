@@ -16,7 +16,7 @@ const HOVER_BG_CLASS = 'bn-block-hover-highlight'
  * absence at runtime without a TypeScript error.
  */
 type EditorWithHoverActions<BSchema extends BlockSchema> = BlockNoteEditor<BSchema> & {
-  blockHoverActions?: BlockHoverActionsProsemirrorPlugin<BSchema>
+  blockHoverActions?: BlockHoverActionsProsemirrorPlugin<BSchema> | null
 }
 
 // ---------------------------------------------------------------------------

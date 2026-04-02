@@ -174,8 +174,8 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
                 props.editor.updateBlock(props.id, {
                   props: {alignment: 'flex-start'},
                 })
-                props.editor.hyperlinkToolbar.stopHideTimer()
-                props.editor.hyperlinkToolbar.updatePosition()
+                props.editor.hyperlinkToolbar!.stopHideTimer()
+                props.editor.hyperlinkToolbar!.updatePosition()
               }}
               variant={props.toolbarProps.alignment === 'flex-start' ? 'default' : 'ghost'}
             >
@@ -187,8 +187,8 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
                 props.editor.updateBlock(props.id, {
                   props: {alignment: 'center'},
                 })
-                props.editor.hyperlinkToolbar.stopHideTimer()
-                props.editor.hyperlinkToolbar.updatePosition()
+                props.editor.hyperlinkToolbar!.stopHideTimer()
+                props.editor.hyperlinkToolbar!.updatePosition()
               }}
               variant={props.toolbarProps.alignment === 'center' ? 'default' : 'ghost'}
             >
@@ -200,8 +200,8 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
                 props.editor.updateBlock(props.id, {
                   props: {alignment: 'flex-end'},
                 })
-                props.editor.hyperlinkToolbar.stopHideTimer()
-                props.editor.hyperlinkToolbar.updatePosition()
+                props.editor.hyperlinkToolbar!.stopHideTimer()
+                props.editor.hyperlinkToolbar!.updatePosition()
               }}
               variant={props.toolbarProps.alignment === 'flex-end' ? 'default' : 'ghost'}
             >

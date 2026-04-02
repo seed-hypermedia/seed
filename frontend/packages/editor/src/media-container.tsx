@@ -156,11 +156,11 @@ export const MediaContainer = ({
         //   return
         // }
         e.stopPropagation()
-        editor.sideMenu.blockDragStart(e)
+        editor.sideMenu!.blockDragStart(e)
       }}
       onDragEnd={(e: any) => {
         e.stopPropagation()
-        editor.sideMenu.blockDragEnd()
+        editor.sideMenu!.blockDragEnd()
       }}
       onClick={
         onPress

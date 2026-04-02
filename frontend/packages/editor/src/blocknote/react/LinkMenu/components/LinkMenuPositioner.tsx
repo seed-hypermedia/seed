@@ -40,7 +40,7 @@ export const LinkMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
   }, [])
 
   useEffect(() => {
-    return props.editor.linkMenu.onUpdate((linkMenuState) => {
+    return props.editor.linkMenu!.onUpdate((linkMenuState) => {
       setShow(linkMenuState.show)
       // @ts-expect-error
       setRef(linkMenuState.ref)
@@ -50,7 +50,7 @@ export const LinkMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
 
       referencePos.current = linkMenuState.referencePos
     })
-  }, [props.editor, props.editor.linkMenu])
+  }, [props.editor, props.editor.linkMenu!])
 
   const getReferenceClientRect = useMemo(
     () => {
@@ -75,12 +75,12 @@ export const LinkMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
       return (
         <LinkMenu
           items={items}
-          itemCallback={(item) => props.editor.linkMenu.itemCallback(item, ref)}
+          itemCallback={(item) => props.editor.linkMenu!.itemCallback(item, ref)}
           keyboardHoveredItemIndex={keyboardHoveredItemIndex}
         />
       )
     },
-    [keyboardHoveredItemIndex, props.editor.linkMenu, props.linkMenu, ref, items], // eslint-disable-line
+    [keyboardHoveredItemIndex, props.editor.linkMenu!, props.linkMenu, ref, items], // eslint-disable-line
   )
 
   return (

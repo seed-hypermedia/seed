@@ -53,6 +53,11 @@ Tippy popups that are appended to document.body directly
     -moz-osx-font-smoothing: grayscale;
   }
 
+  /* Prevent font-size compounding in nested editors (e.g. embed previews) */
+  .defaultStyles .defaultStyles {
+    font-size: inherit;
+  }
+
   .draft-editor .defaultStyles {
     background-color: red;
     font-family: Georgia, 'Times New Roman', Times, serif !important;

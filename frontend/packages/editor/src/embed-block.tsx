@@ -5,6 +5,7 @@ import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {isHypermediaScheme, isPublicGatewayLink, normalizeHmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {BlockEmbedCard, BlockEmbedComments, BlockEmbedContent} from '@shm/ui/blocks-content'
+import {EmbedEditorView} from './embed-editor'
 import {Input} from '@shm/ui/components/input'
 import {ExternalLink} from '@shm/ui/icons'
 import {RecentSearchResultItem, SearchResultItem} from '@shm/ui/search'
@@ -164,7 +165,14 @@ function EditorEmbedContent({block, parentBlockId}: {block: HMBlockEmbed; parent
   if (block.attributes.view === 'Comments')
     return <BlockEmbedComments block={block} parentBlockId={parentBlockId} openOnClick={false} />
   // if (block.attributes.view === 'Content') // content is the default
-  return <BlockEmbedContent block={block} parentBlockId={parentBlockId} openOnClick={false} />
+  return (
+    <BlockEmbedContent
+      block={block}
+      parentBlockId={parentBlockId}
+      openOnClick={false}
+      renderDocumentContent={({embedBlocks}) => <EmbedEditorView blocks={embedBlocks} />}
+    />
+  )
 }
 
 const EmbedLauncherInput = ({

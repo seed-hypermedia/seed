@@ -54,6 +54,8 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     renderCursor?: (user: any) => HTMLElement
   }
 }) => {
+  const isEmbed = opts.editor.renderType === 'embed'
+
   const ret: Extensions = [
     createInlineEmbedNode(opts.editor),
     extensions.ClipboardTextSerializer,
@@ -62,32 +64,12 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     extensions.FocusEvents,
     extensions.Tabindex,
 
-    // DevTools,
-    Gapcursor,
-
-    // DropCursor,
-    Placeholder.configure({
-      emptyNodeClass: blockStyles.isEmpty,
-      hasAnchorClass: blockStyles.hasAnchor,
-      isFilterClass: blockStyles.isFilter,
-      includeChildren: true,
-      showOnlyCurrent: false,
-    }),
     UniqueID.configure({
       types: ['blockNode'],
     }),
-    // Comments,
 
     // basics:
     Text,
-
-    // copy paste:
-    // @ts-ignore
-    createMarkdownExtension(opts.editor),
-
-    // block manupulations:
-    BlockManipulationExtension,
-    KeyboardShortcutsExtension.configure({editor: opts.editor}),
 
     // marks:
     Bold,
@@ -96,14 +78,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     Strike,
     Underline,
     Link.configure(opts.linkExtensionOptions),
-    // TextColorMark,
-    // TextColorExtension,
-    // BackgroundColorMark,
-    // BackgroundColorExtension,
-    // TextAlignmentExtension,
-    LocalMediaPastePlugin.configure({
-      editor: opts.editor,
-    }),
+
     // nodes
     Doc,
     BlockChildren.configure({
@@ -117,30 +92,60 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     }),
     CustomBlockSerializerExtension,
 
-    HMDropCursor.configure({width: 5, color: '#ddeeff'}),
-    // Dropcursor.configure({width: 5, color: '#ddeeff'}),
     HardBreak,
-    // This needs to be at the bottom of this list, because Key events (such as enter, when selecting a /command),
-    // should be handled before Enter handlers in other components like splitListItem
-    TrailingNode,
     BlockNode.configure({
       domAttributes: opts.domAttributes,
     }),
-    debugPlugin,
-    History,
-    Extension.create({
-      name: 'BlockHighlightExtension',
-      addProseMirrorPlugins: () => [createBlockHighlightPlugin()],
-    }),
-    Extension.create({
-      name: 'ImageGalleryExtension',
-      addProseMirrorPlugins: () => [ImageGalleryPlugin],
-    }),
-    Extension.create({
-      name: 'SupernumbersExtension',
-      addProseMirrorPlugins: () => [createSupernumbersPlugin()],
-    }),
   ]
+
+  // Skip heavy/interactive extensions for embed (read-only) editors
+  if (!isEmbed) {
+    ret.push(
+      // DevTools,
+      Gapcursor,
+
+      // DropCursor,
+      Placeholder.configure({
+        emptyNodeClass: blockStyles.isEmpty,
+        hasAnchorClass: blockStyles.hasAnchor,
+        isFilterClass: blockStyles.isFilter,
+        includeChildren: true,
+        showOnlyCurrent: false,
+      }),
+
+      // copy paste:
+      // @ts-ignore
+      createMarkdownExtension(opts.editor),
+
+      // block manipulations:
+      BlockManipulationExtension,
+      KeyboardShortcutsExtension.configure({editor: opts.editor}),
+
+      LocalMediaPastePlugin.configure({
+        editor: opts.editor,
+      }),
+
+      HMDropCursor.configure({width: 5, color: '#ddeeff'}),
+
+      // This needs to be at the bottom of this list, because Key events (such as enter, when selecting a /command),
+      // should be handled before Enter handlers in other components like splitListItem
+      TrailingNode,
+      debugPlugin,
+      History,
+      Extension.create({
+        name: 'BlockHighlightExtension',
+        addProseMirrorPlugins: () => [createBlockHighlightPlugin()],
+      }),
+      Extension.create({
+        name: 'ImageGalleryExtension',
+        addProseMirrorPlugins: () => [ImageGalleryPlugin],
+      }),
+      Extension.create({
+        name: 'SupernumbersExtension',
+        addProseMirrorPlugins: () => [createSupernumbersPlugin()],
+      }),
+    )
+  }
 
   return ret
 }
