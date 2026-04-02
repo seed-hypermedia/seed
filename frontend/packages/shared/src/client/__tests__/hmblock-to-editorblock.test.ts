@@ -1,4 +1,3 @@
-import {describe, expect, test} from 'vitest'
 import {
   EditorBlock,
   EditorCodeBlock,
@@ -7,7 +6,6 @@ import {
   EditorHeadingBlock,
   EditorImageBlock,
   EditorMathBlock,
-  EditorNostrBlock,
   EditorQueryBlock,
   EditorVideoBlock,
   EditorWebEmbedBlock,
@@ -20,11 +18,11 @@ import {
   HMBlockHeading,
   HMBlockImage,
   HMBlockMath,
-  HMBlockNostr,
   HMBlockQuery,
   HMBlockWebEmbed,
 } from '@seed-hypermedia/client/hm-types'
 import {hmBlockToEditorBlock} from '@seed-hypermedia/client/hmblock-to-editorblock'
+import {describe, expect, test} from 'vitest'
 
 describe('HMBlock to EditorBlock', () => {
   describe('blockTypes', () => {
@@ -686,44 +684,6 @@ describe('HMBlock to EditorBlock', () => {
         children: [],
         props: {
           url: 'hm://foobarwebembed',
-          revision: 'revision123',
-        },
-        content: [
-          {
-            type: 'text',
-            text: '',
-            styles: {},
-          },
-        ],
-      }
-
-      const val = hmBlockToEditorBlock(hmBlock)
-
-      expect(val).toEqual(result)
-    })
-
-    test('nostr', () => {
-      const hmBlock: HMBlockNostr = {
-        id: 'foo',
-        type: 'Nostr',
-        text: ``,
-        link: 'nostr://foobarid',
-        annotations: [],
-        attributes: {
-          name: 'test nostr',
-          size: 123456,
-        },
-        revision: 'revision123',
-      }
-
-      const result: EditorNostrBlock = {
-        id: 'foo',
-        type: 'nostr',
-        children: [],
-        props: {
-          name: 'test nostr',
-          url: 'nostr://foobarid',
-          size: '123456',
           revision: 'revision123',
         },
         content: [
