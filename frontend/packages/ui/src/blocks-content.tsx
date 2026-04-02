@@ -1,11 +1,10 @@
+// TODO: migrate comments/feed to editor rendering, then delete this file
 import {
   BlockRange,
-  HMAccountsMetadata,
   HMBlock,
   HMBlockButton,
   HMBlockChildrenType,
   HMBlockCode,
-  HMBlockEmbed,
   HMBlockFile,
   HMBlockHeading,
   HMBlockImage,
@@ -15,13 +14,7 @@ import {
   HMBlockQuery,
   HMBlockVideo,
   HMBlockWebEmbed,
-  HMComment,
   HMContactRecord,
-  HMDocument,
-  HMDocumentInfo,
-  HMEmbedView,
-  HMResolvedResource,
-  HMResourceFetchResult,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {
@@ -29,10 +22,8 @@ import {
   clipContentBlocks,
   entityQueryPathToHmIdPath,
   formatBytes,
-  formattedDateMedium,
   getChildrenType,
   getContactMetadata,
-  getDocumentTitle,
   getMetadataName,
   hmBlockToEditorBlock,
   isHypermediaScheme,
@@ -45,8 +36,6 @@ import {
   useRangeSelection,
   useRouteLinkHref,
   useUniversalAppContext,
-  useUniversalClient,
-  useValidatedWebRouteLink,
 } from '@shm/shared'
 import {useAccount, useAccountsMetadata, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
@@ -54,12 +43,11 @@ import {useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
 import {useTxString} from '@shm/shared/translation'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {pluralS} from '@shm/shared/utils/language'
-import {useNavigate} from '@shm/shared/utils/navigation'
 import {generateInstagramEmbedHtml, loadInstagramScript, loadTwitterScript} from '@shm/shared/utils/web-embed-scripts'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {common} from 'lowlight'
-import {AlertCircle, ChevronDown, ChevronLeft, ChevronRight, File, Link, MessageSquare, Undo2, X} from 'lucide-react'
+import {ChevronDown, ChevronLeft, ChevronRight, File, Link, MessageSquare, X} from 'lucide-react'
 import React, {
   Fragment,
   PropsWithChildren,
@@ -79,22 +67,17 @@ import {ErrorBoundary} from 'react-error-boundary'
 import {contentLayoutUnit, contentTextUnit} from './blocks-content-constants'
 import './blocks-content.css'
 import {Button} from './button'
-import {CommentContent, Discussions} from './comments'
 import {Badge} from './components/badge'
 import {CheckboxField} from './components/checkbox'
 import {RadioGroup, RadioGroupItem} from './components/radio-group'
-import {EmbedWrapper} from './embed-wrapper'
-import {BlankQueryBlockMessage} from './entity-card'
 import {extractIpfsUrlCid, getDaemonFileUrl, isIpfsUrl, useFileProxyUrl, useImageUrl} from './get-file-url'
 import {SeedHeading, marginClasses} from './heading'
-import {HMIcon} from './hm-icon'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from './hover-card'
 import {BlockQuote} from './icons'
 import {InlineDraftCard} from './inline-draft-card'
 import {InlineDraftListItem} from './inline-draft-list-item'
 import {NewDocumentCard} from './new-document-card'
 import {NewDocumentListItem} from './new-document-list-item'
-import {DocumentCard} from './newspaper'
 import {QueryBlockContent} from './query-block-content'
 import {Spinner} from './spinner'
 import {SizableText, Text, TextProps} from './text'
@@ -102,17 +85,20 @@ import {Tooltip} from './tooltip'
 import useMedia from './use-media'
 import {cn} from './utils'
 
-import {HMCitation, HMResource} from '@seed-hypermedia/client/hm-types'
-import {getCommentTargetId} from '@shm/shared'
-import {toast} from 'sonner'
-import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
+import {HMCitation} from '@seed-hypermedia/client/hm-types'
+import {
+  blockStyles,
+  collectImageBlocks,
+  getBlockNodeById,
+  resolveGalleryNavigation,
+  resolveSwipeDirection,
+} from './blocks-content-utils'
+import {BlockEmbedCard, BlockEmbedComments, BlockEmbedContent, ErrorBlock} from './embed-views'
 import {useHighlighter} from './highlight-context'
-import {DocumentNameLink} from './inline-descriptor'
 import {InlineError} from './inline-feedback'
 
-export type BlockRangeSelectOptions = BlockRange & {
-  copyToClipboard?: boolean
-}
+import type {BlockRangeSelectOptions} from '@shm/shared/document-content-props'
+export type {BlockRangeSelectOptions} from '@shm/shared/document-content-props'
 
 export type BlocksContentContextProps = {
   resourceId: UnpackedHypermediaId
@@ -1077,7 +1063,7 @@ export function BlockNodeContent({
   )
 }
 
-export const blockStyles = 'w-full flex-1 self-center'
+export {blockStyles} from './blocks-content-utils'
 
 function BlockContent(props: BlockContentProps) {
   const dataProps = {
@@ -1520,654 +1506,14 @@ function InlineContentView({
   )
 }
 
-export function BlockEmbedCard({
-  block,
-  parentBlockId,
-  openOnClick = true,
-}: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean}) {
-  const id = unpackHmId(block.link) ?? undefined
-  const doc = useResource(id, {subscribed: true})
-  // Check tombstone on latest version for version-pinned embeds.
-  // Version-specific fetches skip the backend's tombstone check.
-  const latestCheckId = id?.version && !id?.latest ? hmId(id.uid, {path: id.path}) : undefined
-  const latestCheck = useResource(latestCheckId)
-  const document = doc.data?.type === 'document' ? doc.data.document : undefined
-  const authors = useResources(document?.authors.map((uid: string) => hmId(uid)) || [])
-  const isDeleted =
-    doc.isTombstone ||
-    doc.data?.type === 'tombstone' ||
-    latestCheck.data?.type === 'tombstone' ||
-    latestCheck.isTombstone
-  if (doc.isInitialLoading)
-    return (
-      <div className="flex items-center justify-center">
-        <Spinner />
-      </div>
-    )
-  // No content available at all — banner without toggle
-  if (doc.data?.type === 'tombstone') {
-    return <DeletedEmbedBanner />
-  }
-  if (doc.data?.type === 'not-found') {
-    if (doc.isDiscovering) {
-      return (
-        <div className="flex items-center justify-center gap-2 p-4">
-          <Spinner className="size-4" />
-          <SizableText className="text-muted-foreground">Looking for this content...</SizableText>
-        </div>
-      )
-    }
-    return <ErrorBlock message="Could not load embed" />
-  }
-  if (doc.data?.type === 'error') {
-    return <ErrorBlock message={doc.data.message} />
-  }
-  if (doc.isError || !doc.data) return <ErrorBlock message="Could not load embed" />
-
-  const accountsMetadata = Object.fromEntries(
-    authors
-      .map((d: any) => d.data)
-      .filter((d: any) => !!d)
-      .map((authorDoc: any) => [
-        authorDoc.id.uid,
-        {
-          id: authorDoc.id,
-          metadata: authorDoc.type === 'document' ? authorDoc.document?.metadata : undefined,
-        },
-      ])
-      .filter(([_, metadata]) => !!metadata),
-  )
-
-  if (!id) return <ErrorBlock message="Invalid Embed URL" />
-
-  const card = (
-    <EmbedWrapper
-      id={id}
-      parentBlockId={parentBlockId}
-      hideBorder
-      route={{key: 'document', id}}
-      openOnClick={openOnClick}
-    >
-      <DocumentCard
-        entity={{
-          id,
-          document: document,
-        }}
-        docId={id}
-        accountsMetadata={accountsMetadata}
-        navigate={false}
-      />
-    </EmbedWrapper>
-  )
-
-  if (isDeleted) {
-    return <DeletedEmbedBanner>{card}</DeletedEmbedBanner>
-  }
-
-  return card
-}
-
-export function BlockEmbedContent({
-  block,
-  depth,
-  parentBlockId,
-  openOnClick = true,
-  renderDocumentContent,
-}: BlockContentProps<HMBlockEmbed> & {
-  openOnClick?: boolean
-  renderDocumentContent?: (props: {
-    embedBlocks: HMBlockNode[]
-    document: HMDocument | null | undefined
-    id: UnpackedHypermediaId
-  }) => React.ReactNode
-}) {
-  const resourceId = useContentResourceId()
-  const [showReferenced, setShowReferenced] = useState(false)
-  const id = unpackHmId(block.link)
-
-  const isSelfEmbed =
-    id && resourceId && resourceId.uid === id.uid && resourceId.path?.join('/') === id.path?.join('/') && id.latest
-
-  const resource = useResource(id, {subscribed: true})
-  // Check tombstone on latest version for version-pinned embeds.
-  // Version-specific fetches skip the backend's tombstone check.
-  const latestCheckId = id?.version && !id?.latest ? hmId(id.uid, {path: id.path}) : null
-  const latestCheck = useResource(latestCheckId)
-  const document = resource.data?.type === 'document' ? resource.data.document : undefined
-  const comment = resource.data?.type === 'comment' ? resource.data.comment : undefined
-  const commentTargetResource = useResource(getCommentTargetId(comment))
-
-  const author = useResource(comment?.author ? hmId(comment?.author) : null)
-
-  const isDeleted =
-    resource.isTombstone ||
-    resource.data?.type === 'tombstone' ||
-    latestCheck.data?.type === 'tombstone' ||
-    latestCheck.isTombstone
-
-  if (isSelfEmbed) {
-    // this avoids a dangerous recursive embedding of the same document
-    return <ErrorBlock message="Cannot embed the latest version of a document within itself" />
-  }
-  if (!id) return <ErrorBlock message="Invalid embed link" />
-  // No content available at all — banner without toggle
-  if (resource.data?.type === 'tombstone') {
-    return <DeletedEmbedBanner />
-  }
-  if (resource.data?.type === 'not-found') {
-    if (resource.isDiscovering) {
-      return (
-        <div className="block-content border-border bg-muted/30 flex items-center gap-2 rounded-md border p-4">
-          <Spinner className="size-4" />
-          <SizableText className="text-muted-foreground">Looking for this content...</SizableText>
-        </div>
-      )
-    }
-    return (
-      <ErrorBlock message="Resource not found">
-        <Button
-          variant="destructive"
-          onClick={() => {
-            copyUrlToClipboardWithFeedback(block.link, 'Missing Resource')
-          }}
-        >
-          Copy Link
-        </Button>
-      </ErrorBlock>
-    )
-  }
-  if (resource.data?.type === 'error') {
-    return <ErrorBlock message={resource.data.message} />
-  }
-  if (resource.isError || (!resource.isLoading && !resource.data)) {
-    return <ErrorBlock message="Could not load embed" />
-  }
-  if (comment) {
-    // Detect stale version for version-pinned comment embeds
-    const latestComment = latestCheck.data?.type === 'comment' ? latestCheck.data.comment : undefined
-    const isStaleCommentVersion = !!(latestComment && comment.version !== latestComment.version)
-
-    const commentContent = (
-      <BlockEmbedContentComment
-        parentBlockId={parentBlockId}
-        depth={depth}
-        block={block}
-        id={id}
-        comment={comment}
-        isLoading={resource.isLoading}
-        targetResource={commentTargetResource.data ?? undefined}
-        author={author.data?.type === 'document' || author.data?.type === 'comment' ? author.data : undefined}
-        openOnClick={openOnClick}
-        isStaleVersion={isStaleCommentVersion}
-      />
-    )
-    if (isDeleted) {
-      return <DeletedEmbedBanner entityLabel="comment">{commentContent}</DeletedEmbedBanner>
-    }
-    return commentContent
-  }
-
-  const embedContent = (
-    <BlockEmbedContentDocument
-      id={id}
-      depth={depth}
-      viewType={block.attributes?.view}
-      blockId={block.id}
-      blockRef={id.blockRef}
-      blockRange={id.blockRange}
-      isLoading={resource.isLoading}
-      showReferenced={showReferenced}
-      onShowReferenced={setShowReferenced}
-      document={document}
-      parentBlockId={parentBlockId}
-      renderOpenButton={() => null}
-      openOnClick={openOnClick}
-      renderDocumentContent={renderDocumentContent}
-    />
-  )
-
-  if (isDeleted) {
-    return <DeletedEmbedBanner>{embedContent}</DeletedEmbedBanner>
-  }
-
-  return embedContent
-}
-
-export function BlockEmbedComments({
-  parentBlockId,
-  block,
-  openOnClick = true,
-}: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean}) {
-  const client = useUniversalClient()
-  const id = unpackHmId(block.link)
-
-  const resource = useResource(id, {
-    recursive: true,
-    subscribed: true,
-  })
-  // Check tombstone on latest version for version-pinned embeds.
-  const latestCheckId = id?.version && !id?.latest ? hmId(id.uid, {path: id.path}) : null
-  const latestCheck = useResource(latestCheckId)
-
-  if (!id) {
-    return <ErrorBlock message="Invalid embed link" />
-  }
-  // No content available at all — banner without toggle
-  if (resource.data?.type === 'tombstone') {
-    return <DeletedEmbedBanner />
-  }
-
-  const isDeleted = resource.isTombstone || latestCheck.data?.type === 'tombstone' || latestCheck.isTombstone
-  const CommentEditor = client.CommentEditor
-
-  const content = (
-    <EmbedWrapper id={id} parentBlockId={parentBlockId} hideBorder openOnClick={openOnClick}>
-      {CommentEditor ? (
-        <div
-          onClick={(e) => {
-            e.stopPropagation()
-          }}
-        >
-          <CommentEditor docId={id} />
-        </div>
-      ) : null}
-      <Discussions targetId={id} />
-    </EmbedWrapper>
-  )
-
-  if (isDeleted) {
-    return <DeletedEmbedBanner>{content}</DeletedEmbedBanner>
-  }
-
-  return content
-}
-
-export function ErrorBlock({
-  message,
-  debugData,
-  children,
-}: {
-  message: string
-  debugData?: any
-  children?: React.ReactNode
-}) {
-  let [open, toggleOpen] = useState(false)
-  return (
-    <Tooltip content={debugData ? (open ? 'Hide debug Data' : 'Show debug data') : ''}>
-      <div className="block-content block-unknown flex flex-1 flex-col">
-        <div
-          className="flex-start flex items-center gap-2 overflow-hidden rounded-md border border-red-300 bg-red-100 p-2"
-          onClick={(e) => {
-            e.stopPropagation()
-            toggleOpen((v) => !v)
-          }}
-        >
-          <SizableText color="destructive" className="font-sans text-sm">
-            {message ? message : 'Error'}
-          </SizableText>
-          <AlertCircle color="danger" className="size-3" />
-          {children}
-        </div>
-        {open ? (
-          <pre className="border-border rounded-md border bg-gray-100 p-2 dark:bg-gray-800">
-            <code className="font-mono text-xs wrap-break-word">{JSON.stringify(debugData, null, 4)}</code>
-          </pre>
-        ) : null}
-      </div>
-    </Tooltip>
-  )
-}
-
-/** Warning banner for embeds whose content has been deleted. Shows a toggle when content is available. */
-function DeletedEmbedBanner({children, entityLabel = 'document'}: {children?: ReactNode; entityLabel?: string}) {
-  const [showContent, setShowContent] = useState(false)
-  const hasContent = !!children
-  return (
-    <div className="block-content flex flex-col gap-1">
-      <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-100 p-2 dark:border-amber-600 dark:bg-amber-900/30">
-        <AlertCircle className="size-3 shrink-0 text-amber-600 dark:text-amber-400" />
-        <SizableText className="flex-1 text-sm text-amber-800 dark:text-amber-200">
-          This embedded {entityLabel} has been deleted
-        </SizableText>
-        {hasContent ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              setShowContent((v) => !v)
-            }}
-          >
-            {showContent ? 'Hide content' : 'Show content'}
-          </Button>
-        ) : null}
-      </div>
-      {showContent && hasContent ? children : null}
-    </div>
-  )
-}
-
-/** Info banner for version-pinned comment embeds whose content has changed since embedding. */
-export function BlockEmbedContentComment({
-  id,
-  parentBlockId,
-  depth,
-  comment,
-  author,
-  block,
-  targetResource,
-  openOnClick = true,
-  isStaleVersion = false,
-}: {
-  id: UnpackedHypermediaId
-  parentBlockId: string | null
-  depth: number | undefined
-  block: HMBlockEmbed
-  isLoading?: boolean
-  comment: HMComment
-  author: HMResolvedResource | null | undefined
-  targetResource: HMResource | undefined
-  openOnClick?: boolean
-  isStaleVersion?: boolean
-}) {
-  return (
-    <EmbedWrapper
-      viewType={block.attributes?.view}
-      depth={depth || 0}
-      id={id}
-      parentBlockId={parentBlockId || ''}
-      openOnClick={openOnClick}
-      route={{
-        key: 'document',
-        id: getCommentTargetId(comment)!,
-        panel: {
-          key: 'comments',
-          id,
-          openComment: comment.id,
-        },
-      }}
-    >
-      {author && (
-        <CommentEmbedHeader
-          comment={comment}
-          author={author}
-          targetResource={targetResource}
-          isStaleVersion={isStaleVersion}
-        />
-      )}
-      <CommentContent comment={comment} zoomBlockRef={id.blockRef} allowHighlight={false} openOnClick={openOnClick} />
-    </EmbedWrapper>
-  )
-}
-
-function CommentEmbedHeader({
-  comment,
-  author,
-  targetResource,
-  isStaleVersion = false,
-}: {
-  comment: HMComment
-  author: HMResolvedResource
-  targetResource: HMResource | undefined
-  isStaleVersion?: boolean
-}) {
-  const authorMetadata = author.type === 'document' ? author.document?.metadata : undefined
-  return (
-    <div className="flex flex-col">
-      <div className="flex flex-wrap justify-between p-3">
-        <div className="flex items-center gap-2">
-          {author.id && <HMIcon size={24} id={author.id} name={authorMetadata?.name} icon={authorMetadata?.icon} />}
-          <SizableText weight="bold">{authorMetadata?.name || '?'}</SizableText>
-          {targetResource && targetResource.type === 'document' ? (
-            <>
-              {' on '}
-              <DocumentNameLink metadata={targetResource.document?.metadata} id={targetResource.id} />
-            </>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-1.5">
-          {comment.createTime ? (
-            <SizableText size="sm" color="muted">
-              {formattedDateMedium(comment.createTime)}
-            </SizableText>
-          ) : null}
-          {JSON.stringify(comment.createTime) !== JSON.stringify(comment.updateTime) ? (
-            <SizableText size="xs" className="text-muted-foreground">
-              (edited)
-            </SizableText>
-          ) : null}
-        </div>
-      </div>
-      {isStaleVersion ? (
-        <div className="mx-3 mb-2 flex items-center gap-2 rounded-md border border-blue-300 bg-blue-50 px-2 py-1 dark:border-blue-600 dark:bg-blue-900/30">
-          <AlertCircle className="size-3 shrink-0 text-blue-600 dark:text-blue-400" />
-          <SizableText size="xs" className="text-blue-800 dark:text-blue-200">
-            This is an older version — the comment has been edited since it was embedded
-          </SizableText>
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function BlockEmbedContentDocument(props: {
-  depth: number | undefined
-  blockId: string
-  blockRef: string | null
-  blockRange: BlockRange | null
-  isLoading: boolean
-  id: UnpackedHypermediaId
-  document: HMDocument | null | undefined
-  showReferenced: boolean
-  onShowReferenced: (showReference: boolean) => void
-  renderOpenButton: () => React.ReactNode
-  parentBlockId: string | null
-  viewType?: HMEmbedView
-  openOnClick?: boolean
-  renderDocumentContent?: (props: {
-    embedBlocks: HMBlockNode[]
-    document: HMDocument | null | undefined
-    id: UnpackedHypermediaId
-  }) => React.ReactNode
-}) {
-  const {
-    id,
-    blockId,
-    isLoading,
-    document,
-    showReferenced,
-    onShowReferenced,
-    renderOpenButton,
-    parentBlockId,
-    viewType,
-    openOnClick,
-  } = props
-  const navigate = useNavigate()
-
-  const embedData = useMemo(() => {
-    const selectedBlock =
-      props.blockRef && document?.content ? getBlockNodeById(document.content, props.blockRef) : null
-
-    // @ts-expect-error
-    const currentAnnotations = selectedBlock?.block?.annotations || []
-    const embedBlocks = props.blockRef
-      ? selectedBlock
-        ? [
-            {
-              ...selectedBlock,
-              block: {
-                ...selectedBlock.block,
-                annotations:
-                  props.blockRange && 'start' in props.blockRange
-                    ? [
-                        ...currentAnnotations,
-                        {
-                          type: 'Range',
-                          starts: [props.blockRange.start],
-                          ends: [props.blockRange.end],
-                        },
-                      ]
-                    : currentAnnotations,
-              },
-              children:
-                props.blockRange && 'expanded' in props.blockRange && props.blockRange.expanded
-                  ? [...(selectedBlock.children || [])]
-                  : [],
-            },
-          ]
-        : null
-      : document?.content
-    let res = {
-      ...document,
-      data: {
-        document,
-        embedBlocks,
-        blockRange:
-          props.blockRange && 'start' in props.blockRange && selectedBlock
-            ? {
-                blockId: props.blockRef,
-                start: props.blockRange.start,
-                end: props.blockRange.end,
-              }
-            : null,
-      },
-    }
-    return res
-  }, [props.blockRef, props.blockRange, document])
-
-  const embedOnBlockSelect = useCallback(
-    (blockId: string, opts?: BlockRangeSelectOptions): boolean => {
-      if (!openOnClick) return false
-      if (opts?.copyToClipboard) {
-        toast.error('Error: not implemented')
-        return false
-      }
-      navigate({
-        key: 'document',
-        id: {
-          ...id,
-          blockRef: blockId || null,
-        },
-      })
-      return true
-    },
-    [navigate, id],
-  )
-
-  let content: null | JSX.Element = <ErrorBlock message="Unknown error" />
-  if (isLoading) {
-    content = <Spinner />
-  } else if (embedData.data.embedBlocks) {
-    if (props.renderDocumentContent) {
-      content = (
-        <>
-          {props.renderDocumentContent({
-            embedBlocks: embedData.data.embedBlocks as HMBlockNode[],
-            document,
-            id,
-          })}
-        </>
-      )
-    } else {
-      content = (
-        <BlocksContentProvider onBlockSelect={embedOnBlockSelect} resourceId={id}>
-          <BlockNodeList childrenType="Group">
-            {!props.blockRef && document?.metadata?.name ? (
-              <BlockNodeContent
-                parentBlockId={props.parentBlockId}
-                isFirstChild
-                depth={props.depth}
-                embedId={blockId}
-                allowHighlight={false}
-                blockNode={{
-                  block: {
-                    type: 'Heading',
-                    id: blockId,
-                    text: getDocumentTitle(document) || '',
-                    attributes: {
-                      childrenType: 'Group',
-                    },
-                    annotations: [],
-                  },
-                  children: embedData.data.embedBlocks as Array<HMBlockNode>,
-                }}
-                childrenType="Group"
-                index={0}
-                embedDepth={1}
-              />
-            ) : (
-              embedData.data.embedBlocks.map((bn, idx) => (
-                // @ts-expect-error
-                <BlockNodeContent
-                  key={bn.block?.id}
-                  isFirstChild={!props.blockRef && document?.metadata?.name ? true : idx == 0}
-                  depth={1}
-                  embedId={blockId}
-                  allowHighlight={false}
-                  blockNode={bn}
-                  childrenType="Group"
-                  index={idx}
-                  embedDepth={1}
-                />
-              ))
-            )}
-          </BlockNodeList>
-
-          {showReferenced ? (
-            <div className="flex justify-end">
-              <Tooltip content="The latest reference was not found. Click to try again.">
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    e.preventDefault()
-                    onShowReferenced(false)
-                  }}
-                >
-                  <Undo2 className="size-3" />
-                  Back to Reference
-                </Button>
-              </Tooltip>
-            </div>
-          ) : null}
-        </BlocksContentProvider>
-      )
-    }
-  } else if (props.blockRef) {
-    return (
-      <ErrorBlock message={`Block #${props.blockRef} was not found in this version`}>
-        <div className="flex gap-2 p-4">
-          {id.version ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                onShowReferenced(true)
-              }}
-            >
-              Show Referenced Version
-            </Button>
-          ) : null}
-          {renderOpenButton()}
-        </div>
-      </ErrorBlock>
-    )
-  }
-  return (
-    <EmbedWrapper
-      route={{key: 'document', id}}
-      viewType={viewType}
-      depth={props.depth || 1}
-      id={id}
-      parentBlockId={parentBlockId || ''}
-      isRange={!!props.blockRange && ('start' in props.blockRange || 'end' in props.blockRange)}
-      openOnClick={openOnClick}
-    >
-      {content}
-    </EmbedWrapper>
-  )
-}
+export {
+  BlockEmbedCard,
+  BlockEmbedComments,
+  BlockEmbedContent,
+  BlockEmbedContentComment,
+  DeletedEmbedBanner,
+  ErrorBlock,
+} from './embed-views'
 
 function BlockContentQuery({block}: {block: HMBlockQuery}) {
   const queryInclude = block.attributes.query.includes[0]
@@ -2343,70 +1689,13 @@ export function BlockContentUnknown(props: BlockContentProps<HMBlock>) {
   return <ErrorBlock message={message} debugData={props.block} />
 }
 
-export function getBlockNodeById(blocks: Array<HMBlockNode>, blockId: string): HMBlockNode | null {
-  if (!blockId) return null
-
-  let res: HMBlockNode | undefined
-  blocks.find((bn) => {
-    if (bn.block?.id == blockId) {
-      res = bn
-      return true
-    } else if (bn.children?.length) {
-      const foundChild = getBlockNodeById(bn.children, blockId)
-      if (foundChild) {
-        res = foundChild
-        return true
-      }
-    }
-    return false
-  })
-  return res || null
-}
-
-/** Item in the document-wide image gallery list. */
-export type ImageGalleryItem = {
-  blockId: string
-  link: string
-  name?: string
-}
-
-/** Recursively collects all Image blocks with a truthy link in DFS (document) order. */
-export function collectImageBlocks(blocks: HMBlockNode[]): ImageGalleryItem[] {
-  const result: ImageGalleryItem[] = []
-  for (const node of blocks) {
-    if (node.block?.type === 'Image' && node.block.link) {
-      result.push({
-        blockId: node.block.id,
-        link: node.block.link,
-        name: (node.block as HMBlockImage).attributes?.name,
-      })
-    }
-    if (node.children) {
-      result.push(...collectImageBlocks(node.children))
-    }
-  }
-  return result
-}
-
-/** Returns the next/prev index for gallery navigation, or null at boundaries. */
-export function resolveGalleryNavigation(
-  images: ImageGalleryItem[],
-  currentIndex: number,
-  direction: 'prev' | 'next',
-): number | null {
-  if (images.length === 0) return null
-  if (direction === 'prev') return currentIndex > 0 ? currentIndex - 1 : null
-  return currentIndex < images.length - 1 ? currentIndex + 1 : null
-}
-
-const SWIPE_THRESHOLD = 50 // px — must exceed, not equal
-
-/** Determines swipe direction from horizontal delta, or null if below threshold. */
-export function resolveSwipeDirection(deltaX: number): 'prev' | 'next' | null {
-  if (deltaX < -SWIPE_THRESHOLD) return 'next' // swipe left → next
-  if (deltaX > SWIPE_THRESHOLD) return 'prev' // swipe right → prev
-  return null
-}
+export {
+  collectImageBlocks,
+  getBlockNodeById,
+  resolveGalleryNavigation,
+  resolveSwipeDirection,
+} from './blocks-content-utils'
+export type {ImageGalleryItem} from './blocks-content-utils'
 
 export function BlockContentFile({block}: BlockContentProps<HMBlockFile>) {
   const {saveCidAsFile} = useUniversalAppContext()
@@ -2959,91 +2248,7 @@ function RadioGroupItemWithLabel(props: {value: string; label: string}) {
   )
 }
 
-export function getBlockNode(blockNodes: HMBlockNode[] | undefined, blockId: string): HMBlockNode | null {
-  if (!blockNodes) return null
-  for (const node of blockNodes) {
-    if (node.block.id === blockId) return node
-    if (node.children) {
-      const found = getBlockNode(node.children, blockId)
-      if (found) return found
-    }
-  }
-  return null
-}
-
-export function DocumentCardGrid({
-  firstItem,
-  items,
-  getEntity,
-  accountsMetadata,
-  itemContributors,
-  columnCount = 1,
-  isDiscovering,
-  prependItems,
-  bannerContent,
-}: {
-  firstItem: HMDocumentInfo | undefined
-  items: Array<HMDocumentInfo>
-  getEntity: (id: UnpackedHypermediaId) => HMResourceFetchResult | null
-  accountsMetadata?: HMAccountsMetadata
-  itemContributors?: Record<string, string[]>
-  columnCount?: number
-  isDiscovering?: boolean
-  prependItems?: ReactNode[]
-  bannerContent?: ReactNode
-}) {
-  const columnClasses = useMemo(() => {
-    return cn('basis-full', columnCount == 2 && 'sm:basis-1/2', columnCount == 3 && 'sm:basis-1/2 md:basis-1/3')
-  }, [columnCount])
-  const hasPrependItems = prependItems && prependItems.length > 0
-  const hasItems = items?.length > 0
-  return (
-    <div className="flex w-full flex-col">
-      {bannerContent ? (
-        <div className="flex">{bannerContent}</div>
-      ) : firstItem ? (
-        <div className="flex">
-          <DocumentCard
-            banner
-            entity={getEntity(firstItem.id)}
-            docId={firstItem.id}
-            accountsMetadata={accountsMetadata}
-            contributorUids={itemContributors?.[firstItem.id.id]}
-            showSummary
-          />
-        </div>
-      ) : null}
-      {hasPrependItems || hasItems ? (
-        <div className="-mx-3 mt-2 flex flex-wrap justify-center">
-          {prependItems?.map((item, i) => (
-            <div className={cn(columnClasses, 'flex p-3')} key={`prepend-${i}`}>
-              {item}
-            </div>
-          ))}
-          {items.map((item) => {
-            if (!item) return null
-            return (
-              <div className={cn(columnClasses, 'flex p-3')} key={item.id.id}>
-                <DocumentCard
-                  docId={item.id}
-                  entity={getEntity(item.id)}
-                  accountsMetadata={accountsMetadata}
-                  contributorUids={itemContributors?.[item.id.id]}
-                  showSummary
-                />
-              </div>
-            )
-          })}
-        </div>
-      ) : null}
-      {!hasItems && !hasPrependItems && isDiscovering ? (
-        <BlankQueryBlockMessage message="Searching for documents..." />
-      ) : !hasItems && !hasPrependItems ? (
-        <BlankQueryBlockMessage message="No Documents found in this Query Block." />
-      ) : null}
-    </div>
-  )
-}
+export {DocumentCardGrid, getBlockNode} from './blocks-content-utils'
 
 function BubbleButton({
   tooltip,
