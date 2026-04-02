@@ -413,6 +413,7 @@ function DocumentEditor({
   wrapperProps: React.HTMLAttributes<HTMLDivElement>
 }) {
   const route = useNavRoute()
+  const replace = useNavigate('replace')
   const openUrl = useOpenUrl()
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
   const importWebFile = useMutation({
@@ -647,7 +648,57 @@ function DocumentEditor({
                     e.stopPropagation()
                   }}
                 >
-                  {editor ? <HyperMediaEditorView editor={editor} openUrl={openUrl} /> : null}
+                  {editor ? (
+                    <HyperMediaEditorView
+                      editor={editor}
+                      openUrl={openUrl}
+                      hasPublishedVersion={!!editId}
+                      blockCitations={interactionSummary.data?.blocks ?? null}
+                      resolveImageUrl={getDaemonFileUrl}
+                      onCopyFragmentLink={
+                        editId
+                          ? (blockId, start, end) => {
+                              console.log('[draft] onCopyFragmentLink', {blockId, start, end, editId})
+                            }
+                          : undefined
+                      }
+                      onComment={
+                        editId
+                          ? (blockId, start, end) => {
+                              console.log('[draft] onComment', {blockId, start, end, editId})
+                            }
+                          : undefined
+                      }
+                      onCopyBlockLink={
+                        editId
+                          ? (blockId) => {
+                              console.log('[draft] onCopyBlockLink', blockId)
+                            }
+                          : undefined
+                      }
+                      onStartComment={
+                        editId
+                          ? (blockId) => {
+                              console.log('[draft] onStartComment', blockId)
+                            }
+                          : undefined
+                      }
+                      onSupernumberClick={
+                        editId
+                          ? (blockId) => {
+                              replace({
+                                ...route,
+                                panel: {
+                                  key: 'comments',
+                                  id: editId,
+                                  targetBlockId: blockId,
+                                },
+                              })
+                            }
+                          : undefined
+                      }
+                    />
+                  ) : null}
                 </Container>
               </div>
               {showSidebars ? <div {...sidebarProps} /> : null}
