@@ -133,16 +133,16 @@ export function WebAccountFooter({
   )
 
   const accountButton = keyPair ? (
-    <div className="flex items-center gap-2 bg-white dark:bg-black p-1 rounded-full">
-    <a {...profileLinkProps} className="flex rounded-full shadow-lg">
-      <HMIcon
-        id={account?.id ?? hmId(accountId!, {latest: true})}
-        name={account?.metadata?.name}
-        icon={account?.metadata?.icon}
-        size={32}
-      />
-    </a>
-    <NotifsButton />
+    <div className="flex items-center gap-2 rounded-full bg-white p-1 dark:bg-black">
+      <a {...profileLinkProps} className="flex rounded-full shadow-lg">
+        <HMIcon
+          id={account?.id ?? hmId(accountId!, {latest: true})}
+          name={account?.metadata?.name}
+          icon={account?.metadata?.icon}
+          size={32}
+        />
+      </a>
+      <NotifsButton />
     </div>
   ) : null
 
@@ -152,7 +152,6 @@ export function WebAccountFooter({
     </FloatingAccountFooter>
   )
 }
-
 
 function NotifsButton() {
   const linkProps = useRouteLink({key: 'notifications'})

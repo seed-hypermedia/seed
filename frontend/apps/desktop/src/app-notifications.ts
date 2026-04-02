@@ -124,9 +124,7 @@ function areReadEventsEqual(
 }
 
 function hasReadStateChanged(previous: NotificationReadState, next: NotificationReadState) {
-  return (
-    previous.markAllReadAtMs !== next.markAllReadAtMs || !areReadEventsEqual(previous.readEvents, next.readEvents)
-  )
+  return previous.markAllReadAtMs !== next.markAllReadAtMs || !areReadEventsEqual(previous.readEvents, next.readEvents)
 }
 
 function hasSyncStatusChanged(previous: NotificationSyncStatus, next: NotificationSyncStatus) {
@@ -188,7 +186,8 @@ function toReadMutationResult(
 function toIngestStatus(): NotificationIngestStatus {
   const accountStates = Object.values(store.accounts)
   const lastPollAtMs = accountStates.reduce<number | null>(
-    (latest, account) => (account.lastSyncAtMs && (!latest || account.lastSyncAtMs > latest) ? account.lastSyncAtMs : latest),
+    (latest, account) =>
+      account.lastSyncAtMs && (!latest || account.lastSyncAtMs > latest) ? account.lastSyncAtMs : latest,
     null,
   )
   const lastError = accountStates.find((account) => account.lastSyncError)?.lastSyncError ?? null
@@ -327,7 +326,9 @@ async function runSync(accountUid: string, notifyServiceHost?: string): Promise<
       })
       const appliedIds = new Set(pendingBeforeApply.map((action) => action.clientActionId))
       updateAccountState(accountUid, (current) => {
-        const remainingPendingActions = current.pendingActions.filter((action) => !appliedIds.has(action.clientActionId))
+        const remainingPendingActions = current.pendingActions.filter(
+          (action) => !appliedIds.has(action.clientActionId),
+        )
         return {
           ...current,
           snapshot: reduceNotificationStateActions(appliedState, remainingPendingActions),
