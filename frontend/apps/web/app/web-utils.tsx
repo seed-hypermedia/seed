@@ -5,7 +5,6 @@ import {isNotificationEventRead} from '@shm/shared/models/notification-read-logi
 import {displayHostname, routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {ButtonLink} from '@shm/ui/button'
-import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
+import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {FloatingAccountFooter} from '@shm/ui/floating-account-footer'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Link} from '@shm/ui/icons'
@@ -23,7 +23,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMedia} from '@shm/ui/use-media'
 import {Bell, LogOut, Search, UserCog} from 'lucide-react'
 import {ReactNode, useMemo, useState} from 'react'
-import {useCreateAccount, useLocalKeyPair, LogoutDialog} from './auth'
+import {LogoutDialog, useCreateAccount, useLocalKeyPair} from './auth'
 import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifications'
 
 export function useWebMenuItems(): MenuItemType[] {

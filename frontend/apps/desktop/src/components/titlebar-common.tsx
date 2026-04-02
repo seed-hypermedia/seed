@@ -1,6 +1,7 @@
 import {useAppContext} from '@/app-context'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {useDeleteDialog} from '@/components/delete-dialog'
+import {domainResolver} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'

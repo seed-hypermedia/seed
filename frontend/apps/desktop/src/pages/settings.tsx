@@ -73,7 +73,7 @@ import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
-import {Tabs, TabsContent, TabsList, TabsTrigger} from '@shm/ui/components/tabs'
+import {TabsContent, TabsTrigger} from '@shm/ui/components/tabs'
 import {Textarea} from '@shm/ui/components/textarea'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
@@ -91,8 +91,6 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {
-  AtSign,
-  Bot,
   Check,
   Code2,
   Cog,
