@@ -6,9 +6,10 @@
  * desktop app) and can be reviewed before publishing via `document create -f`
  * or `document update -f`.
  *
- * Both `.md` (CLI-created) and `.json` (desktop-created) drafts are supported
- * for reading. The CLI writes drafts as `.md` files; the desktop writes them
- * as `.json` files with an `index.json` metadata index.
+ * Both `.md` and `.json` drafts are supported for reading. The CLI writes
+ * drafts as `.json` files by default (matching the desktop format); use
+ * `--markdown` to write as `.md` instead. The desktop also writes `.json`
+ * files with an `index.json` metadata index.
  *
  * Default drafts directory by platform:
  *   Linux:   ~/.config/Seed/drafts/
@@ -29,7 +30,14 @@ import {getOutputFormat, isPretty} from '../index'
 import {formatOutput, renderMarkdown, printError, printSuccess, printInfo, printWarning} from '../output'
 import {documentToMarkdown} from '../markdown'
 import {parseMarkdown} from '../utils/markdown'
-import {blocksToMarkdown, slugify, draftFilename, parseDraftFilename} from '@seed-hypermedia/client'
+import {
+  blocksToMarkdown,
+  slugify,
+  draftFilename,
+  parseDraftFilename,
+  markdownBlockNodesToHMBlockNodes,
+  hmBlocksToEditorContent,
+} from '@seed-hypermedia/client'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import type {HMDocument, HMBlockNode, HMMetadata} from '@seed-hypermedia/client/hm-types'
 
@@ -203,6 +211,7 @@ export function registerDraftCommands(program: Command) {
     .option('--edit <hm-url>', 'HM URL of the document to edit (e.g. hm://z6Mk.../docs/intro)')
     .option('--location <hm-url>', 'HM URL of the parent to create a child under (e.g. hm://z6Mk.../docs)')
     .option('--visibility <value>', 'Document visibility: PUBLIC or PRIVATE (default: PUBLIC)')
+    .option('--markdown', 'Write draft as raw markdown instead of JSON')
     .action(async (options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
 
@@ -226,38 +235,60 @@ export function registerDraftCommands(program: Command) {
         // Merge metadata: defaults < frontmatter/PDF < CLI flags
         const metadata = mergeMetadata(input.metadata, options, {name: 'Untitled'})
 
-        // Generate the draft content
-        let draftContent: string
-        if (input.blocks) {
-          // Non-markdown input (JSON or PDF) — render to markdown
-          const doc = {
-            content: input.blocks,
-            metadata,
-            version: '',
-            authors: [],
-          } as unknown as HMDocument
-          draftContent = await documentToMarkdown(doc)
-        } else if (rawContent) {
-          // Markdown input — preserve the raw content as-is
-          draftContent = rawContent
-        } else {
-          throw new Error('Unexpected state: no parsed blocks and no raw content.')
-        }
-
-        // Generate draft ID and filename: <slug>_<nanoid>.md
+        // Generate draft ID
         const {nanoid} = await import('nanoid')
         const draftId = nanoid(10)
-        const slug = slugify(metadata.name || 'untitled')
-        const filename = draftFilename(slug, draftId)
         const draftsDir = getDraftsDir(globalOpts)
 
-        // Determine output path
-        const defaultPath = join(draftsDir, filename)
-        const outputPath = options.output || defaultPath
+        let outputPath: string
 
-        // Ensure directory exists and save
-        mkdirSync(dirname(outputPath), {recursive: true})
-        writeFileSync(outputPath, draftContent, 'utf-8')
+        if (options.markdown) {
+          // Legacy markdown mode — preserve raw markdown content
+          let draftContent: string
+          if (input.blocks) {
+            const doc = {
+              content: input.blocks,
+              metadata,
+              version: '',
+              authors: [],
+            } as unknown as HMDocument
+            draftContent = await documentToMarkdown(doc)
+          } else if (rawContent) {
+            draftContent = rawContent
+          } else {
+            throw new Error('Unexpected state: no parsed blocks and no raw content.')
+          }
+
+          const slug = slugify(metadata.name || 'untitled')
+          const filename = draftFilename(slug, draftId)
+          const defaultPath = join(draftsDir, filename)
+          outputPath = options.output || defaultPath
+
+          mkdirSync(dirname(outputPath), {recursive: true})
+          writeFileSync(outputPath, draftContent, 'utf-8')
+        } else {
+          // Default: JSON mode — matches desktop app format
+          let editorBlocks: unknown[]
+
+          if (input.blocks) {
+            // PDF or JSON input — HMBlockNode[] available directly
+            editorBlocks = hmBlocksToEditorContent(input.blocks)
+          } else if (input.tree) {
+            // Markdown input — convert through the full pipeline
+            const hmNodes = markdownBlockNodesToHMBlockNodes(input.tree)
+            editorBlocks = hmBlocksToEditorContent(hmNodes)
+          } else {
+            throw new Error('Unexpected state: no parsed blocks and no block tree.')
+          }
+
+          const filename = `${draftId}.json`
+          const defaultPath = join(draftsDir, filename)
+          outputPath = options.output || defaultPath
+
+          const draftJson = {content: editorBlocks, deps: []}
+          mkdirSync(dirname(outputPath), {recursive: true})
+          writeFileSync(outputPath, JSON.stringify(draftJson, null, 2), 'utf-8')
+        }
 
         // Write entry to index.json so the desktop app can discover it immediately
         if (!options.output) {
@@ -467,7 +498,9 @@ export function registerDraftCommands(program: Command) {
             return
           }
 
-          const files = readdirSync(draftsDir).filter((f) => f.endsWith('.md'))
+          const files = readdirSync(draftsDir).filter(
+            (f) => (f.endsWith('.md') || f.endsWith('.json')) && f !== 'index.json',
+          )
           if (files.length === 0) {
             printInfo('No drafts to remove.')
             return
