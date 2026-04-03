@@ -25,6 +25,7 @@ export function useInlineMentions(perspectiveAccountUid?: string | null | undefi
       query,
       perspectiveAccountUid: perspectiveAccountUid || undefined,
       includeBody: false,
+      pageSize: 20,
     })
     const alreadySeenIds = new Set<string>()
     const entities: SearchResultItem[] = []

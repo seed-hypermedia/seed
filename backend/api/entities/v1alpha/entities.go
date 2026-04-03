@@ -754,6 +754,9 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	if strings.ReplaceAll(cleanQuery, " ", "") == "" {
 		return nil, nil
 	}
+	if in.PageSize == 0 {
+		in.PageSize = 30
+	}
 	var bodyMatches []fuzzy.Match
 	contentTypes := map[string]bool{}
 	if len(in.ContentTypeFilter) > 0 {
