@@ -89,13 +89,39 @@ describe('local-db integration', () => {
       const db = await resetDB(indexedDB)
       try {
         const keyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, ['sign', 'verify'])
-        await writeLocalKeys(keyPair)
+        await writeLocalKeys(keyPair, {
+          delegatedAccountUid: 'acc1',
+          vaultUrl: 'https://vault.example.com',
+          notifyServerUrl: 'https://notify.example.com',
+        })
         const stored = await getStoredLocalKeys()
         expect(stored).not.toBeNull()
         expect(stored!.keyPair.privateKey.type).toBe('private')
         expect(stored!.keyPair.publicKey.type).toBe('public')
         expect(stored!.keyPair.privateKey.algorithm).toEqual(keyPair.privateKey.algorithm)
         expect(stored!.keyPair.publicKey.algorithm).toEqual(keyPair.publicKey.algorithm)
+        expect(stored!.delegatedAccountUid).toBe('acc1')
+        expect(stored!.vaultUrl).toBe('https://vault.example.com')
+        expect(stored!.notifyServerUrl).toBe('https://notify.example.com')
+      } finally {
+        db.close()
+      }
+    })
+
+    it('should read older local keys without a notify server URL', async () => {
+      const db = await resetDB(indexedDB)
+      try {
+        const keyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, ['sign', 'verify'])
+        await writeLocalKeys(keyPair, {
+          delegatedAccountUid: 'acc1',
+          vaultUrl: 'https://vault.example.com',
+        })
+
+        const stored = await getStoredLocalKeys()
+        expect(stored).not.toBeNull()
+        expect(stored!.delegatedAccountUid).toBe('acc1')
+        expect(stored!.vaultUrl).toBe('https://vault.example.com')
+        expect(stored!.notifyServerUrl).toBeUndefined()
       } finally {
         db.close()
       }
@@ -109,6 +135,35 @@ describe('local-db integration', () => {
         expect(await getStoredLocalKeys()).not.toBeNull()
         await deleteLocalKeys()
         expect(await getStoredLocalKeys()).toBeNull()
+      } finally {
+        db.close()
+      }
+    })
+
+    it('clears delegated metadata when replacing the local key pair', async () => {
+      const db = await resetDB(indexedDB)
+      try {
+        const delegatedKeyPair = (await crypto.subtle.generateKey('Ed25519' as unknown as AlgorithmIdentifier, false, [
+          'sign',
+          'verify',
+        ])) as CryptoKeyPair
+        await writeLocalKeys(delegatedKeyPair, {
+          delegatedAccountUid: 'acc1',
+          vaultUrl: 'https://vault.example.com',
+          notifyServerUrl: 'https://notify.example.com',
+        })
+
+        const localKeyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, [
+          'sign',
+          'verify',
+        ])
+        await writeLocalKeys(localKeyPair)
+
+        const stored = await getStoredLocalKeys()
+        expect(stored).not.toBeNull()
+        expect(stored!.delegatedAccountUid).toBeUndefined()
+        expect(stored!.vaultUrl).toBeUndefined()
+        expect(stored!.notifyServerUrl).toBeUndefined()
       } finally {
         db.close()
       }

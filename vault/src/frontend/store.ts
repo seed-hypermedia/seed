@@ -15,6 +15,7 @@ import * as joinedSite from '@shm/shared/publish-default-joined-site'
 import {APIError} from './api-client'
 import type {Blockstore} from './blockstore'
 import * as localCrypto from './crypto'
+import * as notificationApi from './notification-api'
 import type {AccountProfileSummary, ProfileLoadState} from './profile'
 import * as vault from './vault'
 
@@ -30,7 +31,7 @@ export interface SessionInfo {
 }
 
 /** Creates the initial state for the store. */
-export function initialState(backendHttpBaseUrl = '') {
+export function initialState(backendHttpBaseUrl = '', notificationServerUrl = '') {
   return {
     email: '',
     password: '',
@@ -60,6 +61,8 @@ export function initialState(backendHttpBaseUrl = '') {
     relyingPartyOrigin: '',
     /** Daemon base URL used for direct IPFS asset reads. */
     backendHttpBaseUrl,
+    /** Notification server URL surfaced in the application footer. */
+    notificationServerUrl,
     /** Cache of loaded profiles mapped by their principal */
     profiles: {} as Record<string, AccountProfileSummary>,
     /** Tracks degraded profile states so the UI can distinguish not found from temporary failures. */
@@ -106,6 +109,23 @@ function getProfilePublishErrorMessage(error: unknown) {
   return getErrorMessage(error, 'Failed to update profile')
 }
 
+function getNotificationRegistrationErrorMessage(error: unknown) {
+  if (isNetworkError(error)) {
+    return "Your account was created, but the notification server couldn't be reached. You can connect notifications later."
+  }
+
+  return getErrorMessage(error, 'Your account was created, but notification registration failed.')
+}
+
+function normalizeNotificationServerUrl(notificationServerUrl: string) {
+  const trimmedNotificationServerUrl = notificationServerUrl.trim()
+  if (!trimmedNotificationServerUrl) {
+    return ''
+  }
+
+  return new URL(trimmedNotificationServerUrl).toString()
+}
+
 /** Creates actions bound to a specific state proxy and client. */
 function createActions(state: AppState, client: api.ClientInterface, navigator: Navigator, blockstore: Blockstore) {
   async function ensurePasswordSalt() {
@@ -127,6 +147,22 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     const encryptionKey = await localCrypto.deriveEncryptionKey(masterKey)
     const authKey = await localCrypto.deriveAuthKey(masterKey)
     return {encryptionKey, authKey}
+  }
+
+  function getEffectiveNotificationServerUrl() {
+    return state.vaultData?.notificationServerUrl?.trim() || state.notificationServerUrl
+  }
+
+  function setVaultNotificationServerUrl(notificationServerUrl: string | undefined) {
+    if (!state.vaultData) {
+      return
+    }
+
+    if (notificationServerUrl) {
+      state.vaultData.notificationServerUrl = notificationServerUrl
+    } else {
+      delete state.vaultData.notificationServerUrl
+    }
   }
 
   function getPasswordCredential(vaultData: api.GetVaultResponse): api.PasswordVaultCredential | null {
@@ -183,9 +219,32 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     return {encoded, principal}
   }
 
+  async function registerAccountOnNotificationServer(
+    signer: blobs.NobleKeyPair,
+    options: {includeEmail: boolean},
+  ): Promise<void> {
+    const notifyServiceHost = getEffectiveNotificationServerUrl().trim()
+    if (!notifyServiceHost) {
+      return
+    }
+
+    const notificationEmail = options.includeEmail ? state.session?.email?.trim() || state.email.trim() : ''
+    await notificationApi.registerNotificationInbox(notifyServiceHost, signer)
+
+    if (notificationEmail) {
+      await notificationApi.setNotificationConfig(notifyServiceHost, signer, notificationEmail)
+    }
+  }
+
+  type CreateAccountOptions = {
+    notificationRegistration?: {
+      includeEmail: boolean
+    }
+  }
+
   const actions = {
     resetState() {
-      Object.assign(state, initialState(state.backendHttpBaseUrl))
+      Object.assign(state, initialState(state.backendHttpBaseUrl, state.notificationServerUrl))
     },
 
     setEmail(email: string) {
@@ -1100,10 +1159,53 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
-    async createAccount(name: string, description?: string, avatarFile?: File) {
+    async saveNotificationServerUrl(notificationServerUrl: string) {
+      if (!state.decryptedDEK || !state.vaultData) {
+        state.error = 'Vault must be unlocked first'
+        return false
+      }
+
+      let normalizedNotificationServerUrl = ''
+      let normalizedDefaultNotificationServerUrl = ''
+
+      try {
+        normalizedNotificationServerUrl = normalizeNotificationServerUrl(notificationServerUrl)
+        normalizedDefaultNotificationServerUrl = normalizeNotificationServerUrl(state.notificationServerUrl)
+      } catch {
+        state.error = `Invalid notification server URL: ${notificationServerUrl.trim()}`
+        return false
+      }
+
+      const nextStoredNotificationServerUrl =
+        normalizedNotificationServerUrl && normalizedNotificationServerUrl !== normalizedDefaultNotificationServerUrl
+          ? normalizedNotificationServerUrl
+          : undefined
+      const previousNotificationServerUrl = state.vaultData.notificationServerUrl
+
+      if ((previousNotificationServerUrl ?? '') === (nextStoredNotificationServerUrl ?? '')) {
+        state.error = ''
+        return true
+      }
+
+      state.loading = true
+      state.error = ''
+      setVaultNotificationServerUrl(nextStoredNotificationServerUrl)
+
+      try {
+        await actions.saveVaultData()
+        return true
+      } catch {
+        setVaultNotificationServerUrl(previousNotificationServerUrl)
+        return false
+      } finally {
+        state.loading = false
+      }
+    },
+
+    async createAccount(name: string, description?: string, avatarFile?: File, options?: CreateAccountOptions) {
       if (!state.vaultData || !state.decryptedDEK) {
         state.error = 'Vault must be unlocked first'
-        return
+        return false
       }
 
       state.loading = true
@@ -1113,6 +1215,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       const previousCreatingAccount = state.creatingAccount
       let didSaveAccount = false
       let insertedAccount = false
+      let postSaveStage: 'profile' | 'notifications' = 'profile'
 
       try {
         const kp = blobs.generateNobleKeyPair()
@@ -1172,6 +1275,14 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
             },
           },
         )
+
+        const includeNotificationEmail = Boolean(options?.notificationRegistration?.includeEmail)
+        postSaveStage = 'notifications'
+        await registerAccountOnNotificationServer(kp, {
+          includeEmail: includeNotificationEmail,
+        })
+
+        return true
       } catch (e) {
         if (!didSaveAccount && insertedAccount && state.vaultData) {
           // The seed never made it into the vault, so discard the in-memory account.
@@ -1185,7 +1296,12 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         console.error('Failed to create account:', e)
         state.error =
           state.error ||
-          (didSaveAccount ? getProfilePublishErrorMessage(e) : getErrorMessage(e, 'Failed to create account'))
+          (didSaveAccount
+            ? postSaveStage === 'notifications'
+              ? getNotificationRegistrationErrorMessage(e)
+              : getProfilePublishErrorMessage(e)
+            : getErrorMessage(e, 'Failed to create account'))
+        return didSaveAccount
       } finally {
         state.loading = false
       }
@@ -1577,6 +1693,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           state.delegationRequest.state,
           issuerKeyPair.principal,
           encoded,
+          getEffectiveNotificationServerUrl(),
         )
 
         state.delegationRequest = null
@@ -1631,9 +1748,16 @@ export type StoreActions = ReturnType<typeof createActions>
  *
  * @param client - The API client to use.
  * @param blockstore - The IPFS blockstore used for blob storage.
+ * @param backendHttpBaseUrl - Daemon base URL used for IPFS-backed assets.
+ * @param notificationServerUrl - Notification server URL shown in the footer.
  */
-export function createStore(client: api.ClientInterface, blockstore: Blockstore, backendHttpBaseUrl = '') {
-  const state = proxy<AppState>(initialState(backendHttpBaseUrl))
+export function createStore(
+  client: api.ClientInterface,
+  blockstore: Blockstore,
+  backendHttpBaseUrl = '',
+  notificationServerUrl = '',
+) {
+  const state = proxy<AppState>(initialState(backendHttpBaseUrl, notificationServerUrl))
 
   // Default navigator prevents crashes before router is connected
   let navigate = (path: string) => {

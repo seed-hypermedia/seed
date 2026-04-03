@@ -1,6 +1,7 @@
 import {describe, expect, test} from 'vitest'
 import * as base64 from './base64'
 import * as blobs from './blobs'
+import * as cbor from './cbor'
 import * as SDK from './hmauth'
 
 const hasWebCryptoEd25519 = await (async () => {
@@ -17,6 +18,32 @@ const cryptoTest = hasWebCryptoEd25519 ? test : test.skip
 function expectString(value: string | null) {
   expect(value).not.toBeNull()
   expect(typeof value).toBe('string')
+}
+
+async function collectStream(readable: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = []
+  const reader = readable.getReader()
+  for (;;) {
+    const {done, value} = await reader.read()
+    if (done) break
+    chunks.push(value)
+  }
+  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
+  const merged = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    merged.set(chunk, offset)
+    offset += chunk.length
+  }
+  return merged
+}
+
+async function decompress(data: Uint8Array): Promise<Uint8Array> {
+  const ds = new DecompressionStream('gzip')
+  const writer = ds.writable.getWriter()
+  writer.write(data as Uint8Array<ArrayBuffer>)
+  writer.close()
+  return collectStream(ds.readable)
 }
 
 async function createSignedDelegationUrl(
@@ -108,7 +135,7 @@ describe('delegation request protocol', () => {
 })
 
 describe('delegation callback protocol', () => {
-  test('echoes state in callback URL', async () => {
+  test('echoes state in callback URL and includes notify server URL', async () => {
     const issuer = await blobs.generateKeyPair()
     const delegate = await blobs.generateKeyPair()
     const capability = await blobs.createCapability(issuer, delegate.principal, 'AGENT', Date.now())
@@ -117,9 +144,13 @@ describe('delegation callback protocol', () => {
       'AAAAAAAAAAAAAAAAAAAAAA',
       issuer.principal,
       capability,
+      'https://notify.example.com',
     )
     const parsed = new URL(url)
     expect(parsed.searchParams.get(SDK.PARAM_STATE)).toBe('AAAAAAAAAAAAAAAAAAAAAA')
-    expectString(parsed.searchParams.get(SDK.PARAM_DATA))
+    const encodedData = parsed.searchParams.get(SDK.PARAM_DATA)
+    expectString(encodedData)
+    const decodedData = cbor.decode<SDK.CallbackData>(await decompress(base64.decode(encodedData!)))
+    expect(decodedData.notifyServerUrl).toBe('https://notify.example.com')
   })
 })

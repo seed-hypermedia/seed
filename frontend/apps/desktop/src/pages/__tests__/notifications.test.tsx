@@ -2,7 +2,7 @@ import {isNotificationEventRead} from '@/models/notification-read-logic'
 import type {NotificationPayload} from '@shm/shared/models/notification-payload'
 import {LoadedEventWithNotifMeta} from '@shm/shared/models/activity-service'
 import {classifyNotificationEvent} from '@shm/shared/models/notification-event-classifier'
-import {describe, expect, it} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import {
   getMaxLoadedNotificationEventAtMs,
   markNotificationReadAndNavigate,
@@ -255,10 +255,10 @@ describe('notifications page helpers', () => {
     })
   })
 
-  it('marks event read before navigating', async () => {
+  it('navigates before marking an event as read', async () => {
     const callOrder: string[] = []
     const item = createReplyPayload()
-    await markNotificationReadAndNavigate({
+    markNotificationReadAndNavigate({
       accountUid: 'target-account',
       item,
       markEventRead: async () => {
@@ -268,7 +268,35 @@ describe('notifications page helpers', () => {
         callOrder.push('navigate')
       },
     })
-    expect(callOrder).toEqual(['mark', 'navigate'])
+    expect(callOrder).toEqual(['navigate', 'mark'])
+  })
+
+  it('still navigates when marking an event as read fails', async () => {
+    const navigate = vi.fn()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const item = createReplyPayload()
+
+    markNotificationReadAndNavigate({
+      accountUid: 'target-account',
+      item,
+      markEventRead: async () => {
+        throw new Error('notify server failed')
+      },
+      navigate,
+    })
+
+    expect(navigate).toHaveBeenCalledWith({
+      key: 'comments',
+      id: expect.objectContaining({uid: 'site', path: ['post']}),
+      openComment: 'comment-version-cid',
+    })
+
+    await Promise.resolve()
+    expect(consoleError).toHaveBeenCalledWith(
+      '[markNotificationReadAndNavigate] Failed to mark notification as read',
+      expect.any(Error),
+    )
+    consoleError.mockRestore()
   })
 
   it('includes document name for mention notifications from comment events', () => {

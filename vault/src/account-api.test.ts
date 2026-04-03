@@ -28,6 +28,7 @@ function createService(getAccountImpl: (req: {id: string}) => Promise<Account>) 
   return new Service(
     db,
     'https://daemon.example.com',
+    'https://notify.example.com',
     {
       getAccount: async (req) => getAccountImpl({id: req.id || ''}),
     },
@@ -74,6 +75,7 @@ describe('vault account api service', () => {
 
     await expect(svc.getConfig({sessionId: null, challengeCookie: null})).resolves.toEqual({
       backendHttpBaseUrl: 'https://daemon.example.com',
+      notificationServerUrl: 'https://notify.example.com',
     })
   })
 })

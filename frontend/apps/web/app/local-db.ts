@@ -135,27 +135,30 @@ export interface StoredLocalKeys {
   keyPair: CryptoKeyPair
   delegatedAccountUid?: string
   vaultUrl?: string
+  notifyServerUrl?: string
 }
 
 export async function getStoredLocalKeys(): Promise<StoredLocalKeys | null> {
   const store = (await getDB()).transaction(KEYS_STORE_NAME).objectStore(KEYS_STORE_NAME)
-  const [privateKey, publicKey, delegatedAccountUid, vaultUrl] = await Promise.all([
+  const [privateKey, publicKey, delegatedAccountUid, vaultUrl, notifyServerUrl] = await Promise.all([
     storeGet<CryptoKey>(store, 'privateKey'),
     storeGet<CryptoKey>(store, 'publicKey'),
     storeGet<string | undefined>(store, 'delegatedAccountUid'),
     storeGet<string | undefined>(store, 'vaultUrl'),
+    storeGet<string | undefined>(store, 'notifyServerUrl'),
   ])
   if (!privateKey || !publicKey) return null
   return {
     keyPair: {privateKey, publicKey},
     delegatedAccountUid: delegatedAccountUid ?? undefined,
     vaultUrl: vaultUrl ?? undefined,
+    notifyServerUrl: notifyServerUrl ?? undefined,
   }
 }
 
 export async function writeLocalKeys(
   keyPair: CryptoKeyPair,
-  options?: {delegatedAccountUid?: string; vaultUrl?: string},
+  options?: {delegatedAccountUid?: string; vaultUrl?: string; notifyServerUrl?: string},
 ): Promise<void> {
   const store = (await getDB()).transaction(KEYS_STORE_NAME, 'readwrite').objectStore(KEYS_STORE_NAME)
   const writes: Promise<void>[] = [
@@ -167,6 +170,17 @@ export async function writeLocalKeys(
   }
   if (options?.vaultUrl !== undefined) {
     writes.push(storePut(store, options.vaultUrl, 'vaultUrl'))
+  }
+  if (options?.notifyServerUrl !== undefined) {
+    writes.push(storePut(store, options.notifyServerUrl, 'notifyServerUrl'))
+  } else {
+    writes.push(storeDelete(store, 'notifyServerUrl'))
+  }
+  if (options?.delegatedAccountUid === undefined) {
+    writes.push(storeDelete(store, 'delegatedAccountUid'))
+  }
+  if (options?.vaultUrl === undefined) {
+    writes.push(storeDelete(store, 'vaultUrl'))
   }
   await Promise.all(writes)
 }

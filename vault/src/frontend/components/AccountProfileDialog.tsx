@@ -18,6 +18,7 @@ import {useEffect, useState} from 'react'
 
 const MAX_AVATAR_BYTES = 1024 * 1024
 
+/** Dialog for creating or editing a vault account profile. */
 export function AccountProfileDialog({
   open,
   onOpenChange,
@@ -29,6 +30,7 @@ export function AccountProfileDialog({
   initialName = '',
   initialDescription = '',
   initialAvatar,
+  notificationEmailOption,
   onSubmit,
 }: {
   open: boolean
@@ -41,6 +43,12 @@ export function AccountProfileDialog({
   initialName?: string
   initialDescription?: string
   initialAvatar?: string
+  notificationEmailOption?: {
+    label: string
+    description: string
+    checked: boolean
+    onCheckedChange: (checked: boolean) => void
+  }
   onSubmit: (values: {
     name: string
     description?: string
@@ -182,6 +190,25 @@ export function AccountProfileDialog({
               />
               <p className="text-muted-foreground text-right text-xs">{description.length}/512</p>
             </div>
+
+            {notificationEmailOption ? (
+              <div className="rounded-lg border p-4">
+                <div className="flex items-start gap-3">
+                  <input
+                    id="account-profile-notification-email"
+                    type="checkbox"
+                    checked={notificationEmailOption.checked}
+                    onChange={(event) => notificationEmailOption.onCheckedChange(event.target.checked)}
+                    disabled={loading}
+                    className="mt-0.5 size-4 shrink-0 rounded"
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="account-profile-notification-email">{notificationEmailOption.label}</Label>
+                    <p className="text-muted-foreground text-sm">{notificationEmailOption.description}</p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <DialogFooter className="mt-6">
