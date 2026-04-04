@@ -1,5 +1,6 @@
-import {HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import {HMBlockNode, HMComment} from '@seed-hypermedia/client/hm-types'
 import {
+  getCommentTargetId,
   hmId,
   hmIdPathToEntityQueryPath,
   packHmId,
@@ -28,6 +29,32 @@ import CommentsTab from './tabs/CommentsTab'
 import DocumentTab from './tabs/DocumentTab'
 import {Title} from './Title'
 
+/** Returns all descendant replies for a comment in the same order they were loaded. */
+export function getReplyComments(comments: HMComment[] | undefined, commentId: string | null | undefined): HMComment[] {
+  if (!Array.isArray(comments) || !commentId) {
+    return []
+  }
+
+  const descendantIds = new Set<string>()
+  let foundNewReply = true
+
+  while (foundNewReply) {
+    foundNewReply = false
+
+    comments.forEach((comment) => {
+      if (!comment.replyParent || descendantIds.has(comment.id)) {
+        return
+      }
+      if (comment.replyParent === commentId || descendantIds.has(comment.replyParent)) {
+        descendantIds.add(comment.id)
+        foundNewReply = true
+      }
+    })
+  }
+
+  return comments.filter((comment) => descendantIds.has(comment.id))
+}
+
 export default function HM() {
   const {'*': path} = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -43,7 +70,19 @@ export default function HM() {
   })
   const {data} = useResource(id)
   const resourceType = data?.type
-  const {data: comments} = useComments(id)
+  const commentsTargetId = useMemo(() => {
+    if (data?.type !== 'comment') {
+      return id
+    }
+    return getCommentTargetId(data.comment)
+  }, [data, id])
+  const {data: commentsResponse} = useComments(commentsTargetId)
+  const comments = useMemo(() => {
+    if (data?.type !== 'comment') {
+      return commentsResponse?.comments
+    }
+    return getReplyComments(commentsResponse?.comments, data.comment.id)
+  }, [commentsResponse?.comments, data])
   const {data: authoredComments} = useAuthoredComments(id)
   const {data: citations} = useCitations(resourceType === 'document' || resourceType === 'comment' ? id : null)
   const {data: changes} = useChanges(resourceType === 'document' ? id : null)
@@ -61,7 +100,7 @@ export default function HM() {
         resourceType,
         changeCount: changes?.changes?.length,
         versionCount: commentVersions?.versions?.length,
-        commentCount: comments?.comments?.length,
+        commentCount: comments?.length,
         citationCount: citations?.citations?.length,
         capabilityCount: capabilities?.length,
         childrenCount: childrenDocs?.length,
@@ -74,7 +113,7 @@ export default function HM() {
       childrenDocs?.length,
       citations?.citations?.length,
       commentVersions?.versions?.length,
-      comments?.comments?.length,
+      comments?.length,
       id,
       resourceType,
     ],
@@ -147,7 +186,7 @@ export default function HM() {
       case 'versions':
         return <CommentVersionsTab versions={commentVersions?.versions} />
       case 'comments':
-        return <CommentsTab comments={comments?.comments} />
+        return <CommentsTab comments={comments} />
       case 'citations':
         return <CitationsTab citations={citations?.citations} />
       case 'capabilities':
@@ -187,7 +226,7 @@ export default function HM() {
         onTabChange={handleTabChange}
         changeCount={changes?.changes?.length}
         versionCount={commentVersions?.versions?.length}
-        commentCount={comments?.comments?.length}
+        commentCount={comments?.length}
         citationCount={citations?.citations?.length}
         capabilityCount={capabilities?.length}
         childrenCount={childrenDocs?.length}
