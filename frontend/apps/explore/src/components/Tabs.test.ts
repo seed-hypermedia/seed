@@ -3,14 +3,22 @@ import {describe, expect, it} from 'vitest'
 import {getSafeCurrentTab, getTabs} from './Tabs'
 
 describe('getTabs', () => {
-  it('shows comment versions instead of document changes for comment resources', () => {
+  it('shows comment versions and citations instead of document changes for comment resources', () => {
     const tabs = getTabs({
       id: hmId('zComment', {path: ['zCommentId']}),
       resourceType: 'comment',
       versionCount: 3,
+      citationCount: 2,
     })
 
-    expect(tabs.map((tab) => tab.id)).toEqual(['document', 'versions', 'comments', 'capabilities', 'children'])
+    expect(tabs.map((tab) => tab.id)).toEqual([
+      'document',
+      'versions',
+      'comments',
+      'citations',
+      'capabilities',
+      'children',
+    ])
   })
 
   it('keeps the changes tab for documents', () => {
@@ -34,6 +42,6 @@ describe('getSafeCurrentTab', () => {
     })
 
     expect(getSafeCurrentTab('changes', tabs)).toBe('document')
-    expect(getSafeCurrentTab('citations', tabs)).toBe('document')
+    expect(getSafeCurrentTab('citations', tabs)).toBe('citations')
   })
 })

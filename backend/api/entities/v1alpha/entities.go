@@ -1616,7 +1616,12 @@ func (srv *Server) ListEntityMentions(ctx context.Context, in *entpb.ListEntityM
 			return err
 		}
 
-		if eid == 0 {
+		commentExists, err := commentEntityExists(conn, in.Id)
+		if err != nil {
+			return err
+		}
+
+		if eid == 0 && !commentExists {
 			return status.Errorf(codes.NotFound, "entity '%s' is not found", in.Id)
 		}
 
@@ -1837,6 +1842,35 @@ var qListMentionsAsc = dqb.Q(func() string {
 var qListMentionsDesc = dqb.Q(func() string {
 	return fmt.Sprintf(qListMentionsTpl, "<", "<", "DESC")
 })
+
+func commentEntityExists(conn *sqlite.Conn, id string) (bool, error) {
+	rid, err := blob.DecodeRecordID(strings.TrimPrefix(id, "hm://"))
+	if err != nil {
+		return false, nil
+	}
+
+	var exists bool
+	err = sqlitex.Exec(conn, qCommentEntityExists(), func(stmt *sqlite.Stmt) error {
+		exists = stmt.ColumnInt(0) > 0
+		return nil
+	}, rid.Authority, rid.TSID.String())
+	if err != nil {
+		return false, err
+	}
+
+	return exists, nil
+}
+
+var qCommentEntityExists = dqb.Str(`
+	SELECT 1
+	FROM structural_blobs sb
+	JOIN public_keys pk ON pk.id = sb.author
+	WHERE sb.type = 'Comment'
+	AND pk.principal = :authority
+	AND sb.extra_attrs->>'tsid' = :tsid
+	AND sb.extra_attrs->>'deleted' IS NULL
+	LIMIT 1
+`)
 
 type mentionsCursor struct {
 	BlobID int64 `json:"b"`

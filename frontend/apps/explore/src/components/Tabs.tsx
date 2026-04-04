@@ -68,7 +68,7 @@ export function getTabs({
     id: 'comments',
     label: `${commentCount} ${pluralS(commentCount, 'Comment')}`,
   })
-  if (resourceType === 'document') {
+  if (resourceType === 'document' || resourceType === 'comment') {
     tabs.push({
       id: 'citations',
       label: `${citationCount} ${pluralS(citationCount, 'Citation')}`,

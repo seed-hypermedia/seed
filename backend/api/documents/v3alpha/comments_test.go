@@ -3,8 +3,12 @@ package documents
 import (
 	"context"
 	"fmt"
+	entities "seed/backend/api/entities/v1alpha"
+	"seed/backend/config"
 	"seed/backend/core/coretest"
 	pb "seed/backend/genproto/documents/v3alpha"
+	entpb "seed/backend/genproto/entities/v1alpha"
+	"seed/backend/logging"
 	"seed/backend/testutil"
 	"slices"
 	"testing"
@@ -1023,4 +1027,65 @@ func TestListCommentVersions(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, resp.Versions, 1, "pre-tombstone version still exists in the DB")
 	})
+}
+
+func TestCommentCitations(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	homeDoc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "",
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Alice's Home Page"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	target, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  homeDoc.Version,
+		Content: []*pb.BlockNode{
+			{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Target comment"}},
+		},
+	})
+	require.NoError(t, err)
+
+	entitySrv := entities.NewServer(config.Base{}, alice.db, nil, nil, logging.New("seed/entities/comments-test", "debug"))
+
+	mentions, err := entitySrv.ListEntityMentions(ctx, &entpb.ListEntityMentionsRequest{
+		Id: "hm://" + target.Id,
+	})
+	require.NoError(t, err)
+	require.Empty(t, mentions.Mentions, "comment resources must exist even when they have no citations")
+
+	stableMention, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  homeDoc.Version,
+		Content: []*pb.BlockNode{
+			{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Stable comment link", Link: "hm://" + target.Id + "?v=" + target.Version}},
+		},
+	})
+	require.NoError(t, err)
+
+	mentions, err = entitySrv.ListEntityMentions(ctx, &entpb.ListEntityMentionsRequest{
+		Id: "hm://" + target.Id,
+	})
+	require.NoError(t, err)
+	require.Len(t, mentions.Mentions, 1)
+
+	sources := []string{mentions.Mentions[0].Source}
+	require.ElementsMatch(t, []string{"hm://" + stableMention.Id}, sources)
+
+	for _, mention := range mentions.Mentions {
+		require.Equal(t, "Comment", mention.SourceType)
+		require.Equal(t, target.Version, mention.TargetVersion)
+	}
 }

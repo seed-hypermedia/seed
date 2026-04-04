@@ -45,7 +45,7 @@ export default function HM() {
   const resourceType = data?.type
   const {data: comments} = useComments(id)
   const {data: authoredComments} = useAuthoredComments(id)
-  const {data: citations} = useCitations(resourceType === 'document' ? id : null)
+  const {data: citations} = useCitations(resourceType === 'document' || resourceType === 'comment' ? id : null)
   const {data: changes} = useChanges(resourceType === 'document' ? id : null)
   const commentId = data?.type === 'comment' ? data.comment.id : null
   const {data: commentVersions} = useCommentVersions(commentId)

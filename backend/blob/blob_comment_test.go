@@ -9,6 +9,7 @@ import (
 	"seed/backend/util/cclock"
 	"seed/backend/util/colx"
 	"seed/backend/util/must"
+	"seed/backend/util/sqlite/sqlitex"
 	"strings"
 	"testing"
 
@@ -97,6 +98,78 @@ func TestCommentCausality(t *testing.T) {
 			if countStashedBlobs(t, db) != 0 {
 				t.Fatal("must have no stashed blobs")
 			}
+		})
+	}
+}
+
+func TestStableCommentLinksAreIndexed(t *testing.T) {
+	alice := coretest.NewTester("alice")
+	bob := coretest.NewTester("bob")
+	targetVersion := ipfs.MustNewCID(multicodec.Raw, multicodec.Identity, []byte("fake-version"))
+	clock := cclock.New()
+
+	target, err := NewComment(alice.Account, "", alice.Account.Principal(), "", []cid.Cid{targetVersion}, cid.Undef, cid.Undef, []CommentBlock{
+		{Block: Block{
+			Type: "paragraph",
+			Text: "Target comment",
+		}},
+	}, VisibilityPublic, clock.MustNow())
+	require.NoError(t, err)
+
+	source, err := NewComment(bob.Account, "", alice.Account.Principal(), "", []cid.Cid{targetVersion}, cid.Undef, cid.Undef, []CommentBlock{
+		{Block: Block{
+			Type: "paragraph",
+			Text: "Stable link",
+			Link: RecordID{Authority: target.Decoded.Signer, TSID: target.TSID()}.IRI().String() + "?v=" + target.CID.String(),
+		}},
+	}, VisibilityPublic, clock.MustNow())
+	require.NoError(t, err)
+
+	blobs := colx.SlicePermutations([]struct {
+		Name string
+		Blob blocks.Block
+	}{
+		{"target", target},
+		{"source", source},
+	})
+
+	targetIRI := RecordID{Authority: target.Decoded.Signer, TSID: target.TSID()}.IRI()
+
+	for _, test := range blobs {
+		order := make([]string, len(test))
+		for i, b := range test {
+			order[i] = b.Name
+		}
+
+		t.Run(strings.Join(order, "+"), func(t *testing.T) {
+			db := storage.MakeTestDB(t)
+			idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+			require.NoError(t, err)
+
+			toPut := make([]blocks.Block, 0, len(test))
+			for _, blob := range test {
+				toPut = append(toPut, blob.Blob)
+			}
+			require.NoError(t, idx.PutMany(t.Context(), toPut))
+			require.Equal(t, 0, countStashedBlobs(t, db), "must have no stashed blobs after reindexing dependencies")
+
+			resourceLinkCount, err := sqlitex.QueryOnePool[int](t.Context(), db, `
+				SELECT count()
+				FROM resource_links rl
+				JOIN resources r ON r.id = rl.target
+				WHERE r.iri = ?
+			`, targetIRI)
+			require.NoError(t, err)
+			require.Equal(t, 1, resourceLinkCount, "stable comment links must resolve to the comment resource")
+
+			targetVersion, err := sqlitex.QueryOnePool[string](t.Context(), db, `
+				SELECT COALESCE(rl.extra_attrs->>'v', '')
+				FROM resource_links rl
+				JOIN resources r ON r.id = rl.target
+				WHERE r.iri = ?
+			`, targetIRI)
+			require.NoError(t, err)
+			require.Equal(t, target.CID.String(), targetVersion)
 		})
 	}
 }

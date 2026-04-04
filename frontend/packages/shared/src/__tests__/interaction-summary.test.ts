@@ -25,8 +25,8 @@ describe('calculateInteractionSummary', () => {
 
   it('collects author UIDs from comment mentions', () => {
     const mentions = [
-      makeMention('hm://commenter-a/c/comment1', 'Comment', 'commenter-a'),
-      makeMention('hm://commenter-b/c/comment2', 'Comment', 'commenter-b'),
+      makeMention('hm://commenter-a/zComment1', 'Comment', 'commenter-a'),
+      makeMention('hm://commenter-b/zComment2', 'Comment', 'commenter-b'),
     ]
     const result = calculateInteractionSummary(mentions, emptyChanges, targetDocId)
     expect(result.authorUids).toContain('commenter-a')
@@ -43,8 +43,8 @@ describe('calculateInteractionSummary', () => {
 
   it('deduplicates author UIDs across multiple mentions', () => {
     const mentions = [
-      makeMention('hm://author-a/c/comment1', 'Comment', 'author-a'),
-      makeMention('hm://author-a/c/comment2', 'Comment', 'author-a'),
+      makeMention('hm://author-a/zComment1', 'Comment', 'author-a'),
+      makeMention('hm://author-a/zComment2', 'Comment', 'author-a'),
       makeMention('hm://author-a/doc3', 'Ref', 'author-a'),
     ]
     const result = calculateInteractionSummary(mentions, emptyChanges, targetDocId)
@@ -53,8 +53,8 @@ describe('calculateInteractionSummary', () => {
 
   it('filters out undefined/null authors', () => {
     const mentions = [
-      makeMention('hm://no-author/c/comment1', 'Comment', undefined),
-      makeMention('hm://has-author/c/comment2', 'Comment', 'has-author'),
+      makeMention('hm://no-author/zComment1', 'Comment', undefined),
+      makeMention('hm://has-author/zComment2', 'Comment', 'has-author'),
     ]
     const result = calculateInteractionSummary(mentions, emptyChanges, targetDocId)
     expect(result.authorUids).toEqual(['has-author'])
@@ -62,7 +62,7 @@ describe('calculateInteractionSummary', () => {
 
   it('includes both comment and document citation authors', () => {
     const mentions = [
-      makeMention('hm://commenter/c/comment1', 'Comment', 'commenter'),
+      makeMention('hm://commenter/zComment1', 'Comment', 'commenter'),
       makeMention('hm://citer/doc2', 'Ref', 'citer'),
     ]
     const result = calculateInteractionSummary(mentions, emptyChanges, targetDocId)

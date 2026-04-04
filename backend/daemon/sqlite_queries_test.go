@@ -39,7 +39,7 @@ func TestFTS(t *testing.T) {
 
 	// Execute the INSERT statement
 	err = db.WithTx(t.Context(), func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, `INSERT INTO fts(content, type, iri) VALUES('My first comment', 'comment', 'hm://c/asdf');`, nil)
+		return sqlitex.Exec(conn, `INSERT INTO fts(content, type, iri) VALUES('My first comment', 'comment', 'hm://zCommenter/zComment1');`, nil)
 	})
 	require.NoError(t, err)
 
@@ -57,5 +57,5 @@ func TestFTS(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "My first comment", content)
 	require.Equal(t, "comment", contentType)
-	require.Equal(t, "hm://c/asdf", contentIRI)
+	require.Equal(t, "hm://zCommenter/zComment1", contentIRI)
 }
