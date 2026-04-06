@@ -5,7 +5,15 @@ import {DAEMON_FILE_URL} from './constants'
 import type {NavRoute} from './routes'
 import type {LanguagePack} from './translation'
 import type {UniversalClient} from './universal-client'
-import {activityFilterToSlug, getRoutePanelParam, hmIdToURL, idToUrl, serializeBlockRange, unpackHmId} from './utils'
+import {
+  activityFilterToSlug,
+  getRoutePanelParam,
+  hmIdToURL,
+  hypermediaUrlToRoute,
+  idToUrl,
+  serializeBlockRange,
+  unpackHmId,
+} from './utils'
 import type {StateStream} from './utils/stream'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
@@ -158,8 +166,9 @@ export function useOpenUrl() {
 }
 
 export function useRouteLinkHref(href: string, opts?: UseRouteLinkOpts) {
+  const route = hypermediaUrlToRoute(href)
   const hmId = unpackHmId(href)
-  return useRouteLink(hmId ? {key: 'document', id: hmId} : href, opts)
+  return useRouteLink(route || (hmId ? {key: 'document', id: hmId} : href), opts)
 }
 
 type UseRouteLinkOpts = {

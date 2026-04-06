@@ -1,7 +1,7 @@
 import {SearchResult} from '@seed-hypermedia/client/editor-types'
-import {useResource} from '@shm/shared/models/entity'
+import {useAccount, useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
-import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {hmId, packHmId, packReferenceUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
@@ -295,12 +295,15 @@ const SearchInput = ({
   const portalRoot = window.document.body
 
   const unpackedId = unpackHmId(link)
-  const currentEntity = useResource(unpackedId)
+  const profileAccountUid = unpackedId?.path?.[0] === ':profile' ? unpackedId.path[1] || unpackedId.uid : null
+  const highlightId = profileAccountUid ? hmId(profileAccountUid) : unpackedId
+  const currentEntity = useResource(profileAccountUid ? null : unpackedId)
+  const account = useAccount(profileAccountUid)
   const document = currentEntity.data?.type === 'document' ? currentEntity.data.document : undefined
 
-  const [search, setSearch] = useState(() => {
-    return document?.metadata.name ?? link
-  })
+  const [searchDraft, setSearchDraft] = useState<{forLink: string; value: string} | null>(null)
+  const search =
+    searchDraft?.forLink === link ? searchDraft.value : document?.metadata.name ?? account.data?.metadata?.name ?? link
 
   // const recents = useRecents()
   const searchResults = useSearch(search, {
@@ -320,9 +323,14 @@ const SearchInput = ({
           onMouseEnter: () => {},
           onSelect: () => {
             const newText = type === 'link' ? text : title ? item.title : text
-            const packedUrl = type === 'inline-embed' ? packHmId({...item.id, latest: !item.id.blockRef}) : item.id.id
+            const packedUrl =
+              type === 'inline-embed'
+                ? packReferenceUrl({...item.id, latest: !item.id.blockRef})
+                : type === 'link' || type === 'button'
+                ? packReferenceUrl(item.id)
+                : item.id.id
             setLink(packedUrl)
-            setSearch(packedUrl)
+            setSearchDraft(null)
             updateLink(packedUrl, newText, true)
           },
           subtitle: 'Document',
@@ -399,14 +407,14 @@ const SearchInput = ({
         autoFocus={false}
         value={search}
         onChangeText={(val) => {
-          setSearch(val)
+          setSearchDraft({forLink: val, value: val})
           setLink(val)
           if (type === 'link' || type === 'button') {
             updateLink(val, text, false)
           }
         }}
         placeholder="Open Seed Document..."
-        {...highlight(unpackedId)}
+        {...highlight(highlightId)}
         onKeyDown={(e) => {
           if (e.nativeEvent.key === 'Escape') {
             setFocused(false)

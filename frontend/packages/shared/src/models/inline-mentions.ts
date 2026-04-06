@@ -36,14 +36,14 @@ export function useInlineMentions(perspectiveAccountUid?: string | null | undefi
       }
     })
     const emptyRespose: InlineMentionsResult = {
-      Sites: [],
+      Profiles: [],
       Documents: [],
       Recents: [],
       Contacts: [],
     }
     if (!entities.length) {
       return {
-        Sites: [],
+        Profiles: [],
         Documents: [],
         Contacts: [],
         Recents: recentsRef.current,
@@ -55,7 +55,7 @@ export function useInlineMentions(perspectiveAccountUid?: string | null | undefi
       } else if (entity.id?.path?.length) {
         acc.Documents.push(entity)
       } else {
-        acc.Sites.push(entity)
+        acc.Profiles.push(entity)
       }
       return acc
     }, emptyRespose)
@@ -68,7 +68,7 @@ export function useInlineMentions(perspectiveAccountUid?: string | null | undefi
 }
 
 export type InlineMentionsResult = {
-  Sites: Array<SearchResultItem>
+  Profiles: Array<SearchResultItem>
   Documents: Array<SearchResultItem>
   Recents: Array<SearchResultItem>
   Contacts: Array<SearchResultItem>

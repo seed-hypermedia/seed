@@ -1,4 +1,4 @@
-import {useOpenUrl, writeableStateStream} from '@shm/shared'
+import {packReferenceUrl, useOpenUrl, writeableStateStream} from '@shm/shared'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {HMBlockNode, HMMetadata} from '@seed-hypermedia/client/hm-types'
@@ -946,7 +946,7 @@ export function CommentEditor({
             onClose={() => setIsMentionsDialogOpen(false)}
             onSelect={(mention) => {
               const {state, schema} = editor._tiptapEditor
-              const node = schema.nodes['inline-embed'].create({link: mention.id.id}, schema.text(' '))
+              const node = schema.nodes['inline-embed'].create({link: packReferenceUrl(mention.id)}, schema.text(' '))
               editor._tiptapEditor.view.dispatch(state.tr.replaceSelectionWith(node).scrollIntoView())
               setIsMentionsDialogOpen(false)
               setTimeout(() => editor._tiptapEditor.commands.focus(), 100)

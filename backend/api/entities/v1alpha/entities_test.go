@@ -1,10 +1,46 @@
 package entities
 
 import (
+	"context"
+	documentsapi "seed/backend/api/documents/v3alpha"
+	"seed/backend/blob"
+	"seed/backend/config"
+	"seed/backend/core"
+	"seed/backend/core/coretest"
+	documents "seed/backend/genproto/documents/v3alpha"
+	entpb "seed/backend/genproto/entities/v1alpha"
+	"seed/backend/logging"
+	"seed/backend/storage"
+	"seed/backend/util/must"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
+
+type testServices struct {
+	documents *documentsapi.Server
+	entities  *Server
+	me        coretest.Tester
+}
+
+func newTestServices(t *testing.T, name string) testServices {
+	t.Helper()
+
+	u := coretest.NewTester(name)
+	db := storage.MakeTestMemoryDB(t)
+	ks := core.NewMemoryKeyStore()
+	require.NoError(t, ks.StoreKey(context.Background(), "main", u.Account))
+
+	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/index"+"/"+name, "debug")))
+
+	return testServices{
+		documents: documentsapi.NewServer(config.Base{}, ks, idx, db, logging.New("seed/documents"+"/"+name, "debug"), nil),
+		entities:  NewServer(config.Base{}, db, nil, nil, logging.New("seed/entities"+"/"+name, "debug")),
+		me:        u,
+	}
+}
 
 func TestIsValidIriFilter(t *testing.T) {
 	t.Parallel()
@@ -65,6 +101,41 @@ func TestSanitizeSearchQuery(t *testing.T) {
 			require.Equal(t, tt.want, got, "sanitizeSearchQuery(%q)", tt.input)
 		})
 	}
+}
+
+func TestSearchEntitiesFindsProfileOnlyAccount(t *testing.T) {
+	t.Parallel()
+
+	svc := newTestServices(t, "bob")
+	ctx := context.Background()
+	account := svc.me.Account.PublicKey.String()
+
+	_, err := svc.documents.UpdateProfile(ctx, &documents.UpdateProfileRequest{
+		Account:        account,
+		SigningKeyName: "main",
+		Profile: &documents.Profile{
+			Name: "web eric 84",
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = svc.documents.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: account,
+		Path:    "",
+	})
+	require.Error(t, err, "profile-only account must not require a home document")
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	require.Equal(t, codes.NotFound, st.Code())
+
+	res, err := svc.entities.SearchEntities(ctx, &entpb.SearchEntitiesRequest{
+		Query: "web eric 84",
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Entities, 1)
+	require.Equal(t, "hm://"+account, res.Entities[0].Id)
+	require.Equal(t, "profile", res.Entities[0].Type)
+	require.Equal(t, "web eric 84", res.Entities[0].Content)
 }
 
 func TestBuildRankMap(t *testing.T) {

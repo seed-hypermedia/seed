@@ -559,6 +559,18 @@ export function packHmId(hmId: UnpackedHypermediaId): string {
   return responseUrl
 }
 
+/**
+ * Serializes a reference target using the canonical account/profile URL.
+ * Root site documents are referenced through `/:profile` so references still
+ * resolve when the account has no home document.
+ */
+export function packReferenceUrl(hmId: UnpackedHypermediaId): string {
+  return packHmId({
+    ...hmId,
+    path: hmId.path?.length ? hmId.path : [':profile'],
+  })
+}
+
 export function hmDocId(uid: string, opts?: Parameters<typeof hmId>[1]) {
   return hmId(uid, opts)
 }

@@ -10,6 +10,15 @@ describe('hypermediaUrlToRoute', () => {
     })
   })
 
+  test('converts a profile URL into a site-profile route', () => {
+    expect(hypermediaUrlToRoute('hm://uid1/:profile')).toEqual({
+      key: 'site-profile',
+      id: unpackHmId('hm://uid1'),
+      accountUid: undefined,
+      tab: 'profile',
+    })
+  })
+
   test('converts a comments view URL into a comments route', () => {
     expect(hypermediaUrlToRoute('hm://uid1/:comments')).toEqual({
       key: 'comments',

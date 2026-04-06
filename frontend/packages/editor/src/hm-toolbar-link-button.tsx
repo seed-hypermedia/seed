@@ -1,4 +1,4 @@
-import {hmId, packHmId, unpackHmId} from '@shm/shared'
+import {hmId, packHmId, packReferenceUrl, unpackHmId} from '@shm/shared'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@seed-hypermedia/client'
@@ -147,7 +147,7 @@ function LinkSearchInput({
   const searchItems =
     searchResults?.data?.entities?.map((item, index) => ({
       id: item.id,
-      key: packHmId(item.id),
+      key: packReferenceUrl(item.id),
       title: item.title || item.id.uid,
       path: item.parentNames,
       icon: item.icon,
@@ -159,7 +159,7 @@ function LinkSearchInput({
     })) || []
 
   const handleDocumentSelect = (id: UnpackedHypermediaId) => {
-    const url = packHmId(id)
+    const url = packReferenceUrl(id)
     onLinkSelect(url)
   }
 
