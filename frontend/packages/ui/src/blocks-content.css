@@ -248,6 +248,15 @@ p.block-paragraph.is-comment *:not(.text-code) {
   margin-top: 0;
 }
 
+/* Remove heading top margins in grid layout */
+[data-list-type='Grid'] > [data-block-type='Heading'] {
+  margin-top: 0;
+}
+
+[data-list-type='Grid'] > .blocknode-content .blocknode-content-heading {
+  margin-top: 0 !important;
+}
+
 /* Consecutive headings: collapse top margin */
 [data-block-type='Heading'] + [data-block-type='Heading'] {
   margin-top: 0;
