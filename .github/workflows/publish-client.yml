@@ -5,7 +5,10 @@ on:
     branches: [main]
     paths:
       - 'frontend/packages/client/src/**'
+      - 'frontend/packages/client/package.json'
       - 'frontend/apps/cli/src/**'
+      - 'frontend/apps/cli/package.json'
+      - 'frontend/apps/cli/README.md'
   workflow_dispatch:
 
 permissions:
@@ -26,8 +29,11 @@ jobs:
           filters: |
             client:
               - 'frontend/packages/client/src/**'
+              - 'frontend/packages/client/package.json'
             cli:
               - 'frontend/apps/cli/src/**'
+              - 'frontend/apps/cli/package.json'
+              - 'frontend/apps/cli/README.md'
 
   publish-client:
     needs: detect-changes
@@ -155,6 +161,17 @@ jobs:
               npm version "$NEW_VERSION" --no-git-tag-version
               echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
             fi
+          fi
+
+      - name: Verify CLI version
+        working-directory: frontend/apps/cli
+        run: |
+          ACTUAL_VERSION=$(node dist/index.js --version)
+          EXPECTED_VERSION="${{ steps.version.outputs.version }}"
+
+          if [ "$ACTUAL_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "CLI version mismatch: expected $EXPECTED_VERSION but got $ACTUAL_VERSION"
+            exit 1
           fi
 
       - name: Publish
