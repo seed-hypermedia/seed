@@ -49,16 +49,17 @@ export function setGroupTypes(tiptap: Editor, blocks: Array<Partial<BNBlock<Bloc
           if (child.type.name === 'blockChildren') {
             setTimeout(() => {
               let tr = tiptap.state.tr
-              tr = block.props?.start
-                ? tr.setNodeMarkup(pos + childPos + 1, null, {
-                    listType: block.props?.childrenType,
-                    listLevel: block.props?.listLevel,
-                    start: parseInt(block.props?.start),
-                  })
-                : tr.setNodeMarkup(pos + childPos + 1, null, {
-                    listType: block.props?.childrenType,
-                    listLevel: block.props?.listLevel,
-                  })
+              const attrs: Record<string, any> = {
+                listType: block.props?.childrenType,
+                listLevel: block.props?.listLevel,
+              }
+              if (block.props?.start) {
+                attrs.start = parseInt(block.props.start)
+              }
+              if (block.props?.childrenType === 'Grid' && (block.props as any)?.columnCount) {
+                attrs.columnCount = (block.props as any).columnCount
+              }
+              tr = tr.setNodeMarkup(pos + childPos + 1, null, attrs)
               tiptap.view.dispatch(tr)
             })
             return false
@@ -89,11 +90,11 @@ export function getNodesInSelection(view: EditorView) {
 export function getBlockGroup(
   editor: BlockNoteEditor,
   blockId: BlockIdentifier,
-): undefined | {type: string; listLevel: string; start?: number} {
+): undefined | {type: string; listLevel: string; start?: number; columnCount?: string} {
   const tiptap = editor?._tiptapEditor
   if (tiptap) {
     const id = typeof blockId === 'string' ? blockId : blockId.id
-    let group: {type: string; listLevel: string; start?: number} | undefined
+    let group: {type: string; listLevel: string; start?: number; columnCount?: string} | undefined
     tiptap.state.doc.firstChild!.descendants((node: TipTapNode) => {
       if (typeof group !== 'undefined') {
         return false
@@ -109,6 +110,7 @@ export function getBlockGroup(
             type: child.attrs.listType,
             start: child.attrs.start,
             listLevel: child.attrs.listLevel,
+            columnCount: child.attrs.columnCount,
           } as const
           return false
         }
@@ -146,6 +148,9 @@ export function serverBlockNodesFromEditorBlocks(editor: BlockNoteEditor, editor
       if (childGroup.start)
         // @ts-expect-error
         serverBlock.attributes.start = childGroup.start.toString()
+      if (childGroup.columnCount)
+        // @ts-expect-error
+        serverBlock.attributes.columnCount = parseInt(childGroup.columnCount)
     }
     const blockNode = new BlockNode({
       block: Block.fromJson(serverBlock),

@@ -17,22 +17,23 @@ export function setGroupTypes(tiptap: Editor, blocks: Array<Partial<HMBlock>>) {
           if (child.type.name === 'blockChildren') {
             setTimeout(() => {
               let tr = tiptap.state.tr
+              const attrs: Record<string, any> = {
+                // @ts-expect-error
+                listType: block.props?.childrenType,
+                // @ts-expect-error
+                listLevel: block.props?.listLevel,
+              }
               // @ts-expect-error
-              tr = block.props?.start
-                ? tr.setNodeMarkup(pos + childPos + 1, null, {
-                    // @ts-expect-error
-                    listType: block.props?.childrenType,
-                    // @ts-expect-error
-                    listLevel: block.props?.listLevel,
-                    // @ts-expect-error
-                    start: parseInt(block.props?.start),
-                  })
-                : tr.setNodeMarkup(pos + childPos + 1, null, {
-                    // @ts-expect-error
-                    listType: block.props?.childrenType,
-                    // @ts-expect-error
-                    listLevel: block.props?.listLevel,
-                  })
+              if (block.props?.start) {
+                // @ts-expect-error
+                attrs.start = parseInt(block.props.start)
+              }
+              // @ts-expect-error
+              if (block.props?.childrenType === 'Grid' && block.props?.columnCount) {
+                // @ts-expect-error
+                attrs.columnCount = block.props.columnCount
+              }
+              tr = tr.setNodeMarkup(pos + childPos + 1, null, attrs)
               tiptap.view.dispatch(tr)
             })
             return false
