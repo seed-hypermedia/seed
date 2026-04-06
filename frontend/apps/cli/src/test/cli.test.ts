@@ -8,10 +8,12 @@
 import {describe, test, expect, beforeAll, afterAll} from 'bun:test'
 import {startDaemon, runCli, type TestContext} from './setup'
 import {generateTestAccount, registerAccount, type TestAccount} from './account-helpers'
+import {getCliVersion} from '../version'
 
 let ctx: TestContext
 let account1: TestAccount
 let account2: TestAccount
+const CLI_VERSION = getCliVersion()
 
 const TEST_TIMEOUT = 60000 // 60 seconds for each test
 
@@ -58,7 +60,7 @@ describe('Seed CLI Integration Tests', () => {
       async () => {
         const result = await runCli(['--version'], {server: ctx.daemonUrl})
         expect(result.exitCode).toBe(0)
-        expect(result.stdout).toMatch(/^\d+\.\d+\.\d+/)
+        expect(result.stdout).toBe(CLI_VERSION)
       },
       TEST_TIMEOUT,
     )

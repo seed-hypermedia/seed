@@ -12,8 +12,10 @@ import {join} from 'path'
 import {startFullIntegrationWithFixture, runCli, type FullTestContext} from './setup'
 import {FIXTURE_ACCOUNT_ID, FIXTURE_HIERARCHY_HM_ID} from './fixture-seed'
 import {generateTestAccount, registerAccount, type TestAccount} from './account-helpers'
+import {getCliVersion} from '../version'
 
 let ctx: FullTestContext
+const CLI_VERSION = getCliVersion()
 
 const TEST_TIMEOUT = 180000 // 3 minutes for daemon + web server startup
 
@@ -89,7 +91,7 @@ describe('CLI Full Integration Tests', () => {
       async () => {
         const result = await runCli(['--version'])
         expect(result.exitCode).toBe(0)
-        expect(result.stdout).toMatch(/^\d+\.\d+\.\d+/)
+        expect(result.stdout).toBe(CLI_VERSION)
       },
       TEST_TIMEOUT,
     )

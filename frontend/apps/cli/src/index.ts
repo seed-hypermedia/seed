@@ -19,13 +19,14 @@ import {registerSearchCommand} from './commands/search'
 import {registerQueryCommands} from './commands/query'
 import {registerKeyCommands} from './commands/key'
 import {registerDraftCommands} from './commands/draft'
+import {getCliVersion} from './version'
 
 const program = new Command()
 
 program
   .name('seed-cli')
   .description('CLI for Seed Hypermedia')
-  .version('0.1.1')
+  .version(getCliVersion())
   .option('-s, --server <url>', 'Server URL (default: https://hyper.media)')
   .option('--md', 'Markdown output (default)')
   .option('--json', 'JSON output')

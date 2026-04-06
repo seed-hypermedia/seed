@@ -1,11 +1,6 @@
 {
   "name": "@seed-hypermedia/cli",
-  "version": "0.0.1",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/seed-hypermedia/seed",
-    "directory": "frontend/apps/cli"
-  },
+  "version": "0.1.1",
   "description": "Command-line interface for Seed Hypermedia",
   "type": "module",
   "bin": {
@@ -24,7 +19,7 @@
     "build": "bun build src/index.ts --outdir dist --target node --external canvas && node -e \"const fs=require('fs'); const f='dist/index.js'; let c=fs.readFileSync(f,'utf8'); c=c.replace(/^#!.*\\n/,''); fs.writeFileSync(f, '#!/usr/bin/env node\\n' + c)\"",
     "typecheck": "tsc --noEmit",
     "test": "bun test src/test/cli-fixture.test.ts",
-    "test:unit": "FORCE_COLOR=1 bun test src/output.test.ts src/config.test.ts src/utils/blocks-json.test.ts src/utils/block-diff.test.ts src/utils/key-derivation.test.ts src/utils/depth.test.ts",
+    "test:unit": "FORCE_COLOR=1 bun test src/output.test.ts src/config.test.ts src/version.test.ts src/utils/blocks-json.test.ts src/utils/block-diff.test.ts src/utils/key-derivation.test.ts src/utils/depth.test.ts",
     "test:daemon": "bun test src/test/cli.test.ts",
     "test:live": "bun test src/test/cli-live.test.ts",
     "prepublishOnly": "npm run build"

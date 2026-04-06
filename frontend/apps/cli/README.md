@@ -3,7 +3,7 @@
 A command-line interface for interacting with the Seed Hypermedia network. Create, read, update, and delete documents;
 manage accounts, comments, contacts, and capabilities; sign content with Ed25519 keys — all from your terminal.
 
-**Package:** `@seed-hypermedia/cli` **Version:** 0.1.1 **License:** MIT **Requires:** Node.js >= 18.0.0
+**Package:** `@seed-hypermedia/cli` **License:** MIT **Requires:** Node.js >= 18.0.0
 
 ## Table of Contents
 

@@ -7,9 +7,11 @@
 
 import {describe, test, expect} from 'bun:test'
 import {runCli} from './setup'
+import {getCliVersion} from '../version'
 
 const DEV_SERVER = 'https://hyper.media'
 const TEST_TIMEOUT = 30000
+const CLI_VERSION = getCliVersion()
 
 // Known accounts on server for testing
 const KNOWN_ACCOUNT = 'z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou'
@@ -35,7 +37,7 @@ describe('CLI Read Operations (Live Dev Server)', () => {
       async () => {
         const result = await runCli(['--version'])
         expect(result.exitCode).toBe(0)
-        expect(result.stdout).toMatch(/^\d+\.\d+\.\d+/)
+        expect(result.stdout).toBe(CLI_VERSION)
       },
       TEST_TIMEOUT,
     )
