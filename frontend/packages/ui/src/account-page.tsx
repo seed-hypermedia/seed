@@ -103,10 +103,16 @@ function SiteLink({account}: {account?: HMMetadataPayload | null}) {
   const homeDocument = useResource(hmId(account?.id.uid), {subscribed: true})
   const homeDocData = homeDocument.data?.type === 'document' ? homeDocument.data.document : null
   const hasSite = !!account?.metadata?.siteUrl || !!homeDocData?.content?.length
-  const linkProps = useRouteLink({
-    key: 'document',
-    id: hmId(account?.id.uid),
-  })
+  const linkProps = useRouteLink(
+    {
+      key: 'document',
+      id: hmId(account?.id.uid),
+    },
+    {
+      origin: account?.metadata?.siteUrl || null,
+      originHomeId: hmId(account?.id.uid),
+    },
+  )
   if (!hasSite) return null
   return (
     <a className="text-blue-500" {...linkProps}>

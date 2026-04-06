@@ -1,7 +1,7 @@
+import type {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {createContext, useContext} from 'react'
 import z from 'zod'
 import {DAEMON_FILE_URL} from './constants'
-import type {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {NavRoute} from './routes'
 import type {LanguagePack} from './translation'
 import type {UniversalClient} from './universal-client'
@@ -165,6 +165,8 @@ export function useRouteLinkHref(href: string, opts?: UseRouteLinkOpts) {
 type UseRouteLinkOpts = {
   replace?: boolean
   onClick?: React.MouseEventHandler<HTMLElement>
+  origin?: string | null
+  originHomeId?: UnpackedHypermediaId
 }
 
 export function routeToHref(
@@ -243,7 +245,10 @@ export function routeToHref(
     href = options?.hmUrlHref
       ? hmIdToURL(docId)
       : idToUrl(
-          {...docId, hostname: null},
+          {
+            ...docId,
+            hostname: options?.origin || null,
+          },
           {
             originHomeId: options?.originHomeId,
             panel: panelParam,
@@ -266,7 +271,8 @@ export function useRouteLink(route: NavRoute | string | null, opts?: UseRouteLin
 
   const href = routeToHref(route, {
     hmUrlHref: context.hmUrlHref,
-    originHomeId: context.originHomeId,
+    originHomeId: opts?.originHomeId || context.originHomeId,
+    origin: opts?.origin,
   })
 
   const onClick = context.openRoute
