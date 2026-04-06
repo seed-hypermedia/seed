@@ -231,6 +231,7 @@ describe('AIProvidersSettings', () => {
   it('shows only the setup overview when no providers exist and opens the add dialog for the selected provider type', () => {
     const {container, root, queryClient} = renderSettings()
 
+    expect(container.firstElementChild?.className).toContain('h-full')
     expect(container.textContent).toContain('Set up the assistant with a model provider.')
     expect(container.textContent).not.toContain('Configured Providers')
     expect(findButton(container, 'Add Provider')).toBeUndefined()
@@ -242,7 +243,11 @@ describe('AIProvidersSettings', () => {
       anthropicButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
     })
 
-    expect(dialogOpenMock).toHaveBeenCalledWith('anthropic')
+    expect(dialogOpenMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'anthropic',
+      }),
+    )
 
     cleanupRendered(root, container, queryClient)
   })
@@ -262,18 +267,24 @@ describe('AIProvidersSettings', () => {
 
     const {container, root, queryClient} = renderSettings()
 
+    expect(container.firstElementChild?.className).toContain('h-full')
     expect(container.textContent).toContain('Configured Providers')
     expect(container.textContent).not.toContain('Select a provider to edit or start a new one.')
     expect(getProviderQueryMock).toHaveBeenCalledWith('provider-1')
 
     const addButton = findButton(container, 'Add Provider')
     expect(addButton).toBeDefined()
+    expect(addButton?.className).toContain('mt-3')
 
     act(() => {
       addButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
     })
 
-    expect(dialogOpenMock).toHaveBeenCalledWith('choose')
+    expect(dialogOpenMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'choose',
+      }),
+    )
     expect(container.textContent).toContain('Add Provider')
     expect(container.textContent).toContain('Choose a provider and complete the remaining details here.')
     expect(container.textContent).toContain('Gemini')
@@ -463,6 +474,11 @@ describe('AIProvidersSettings', () => {
   it('hides the provider type selector when the add dialog opens for a specific provider', async () => {
     const {container, root, queryClient} = renderSettings()
 
+    await act(async () => {
+      findButton(container, 'Add Provider')?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      await Promise.resolve()
+    })
+
     const openaiButton = findButton(container, 'OpenAI')
     expect(openaiButton).toBeDefined()
 
@@ -484,6 +500,11 @@ describe('AIProvidersSettings', () => {
 
   it('waits for an explicit OpenAI auth mode selection and lets the user revert to the chooser', async () => {
     const {container, root, queryClient} = renderSettings()
+
+    await act(async () => {
+      findButton(container, 'Add Provider')?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      await Promise.resolve()
+    })
 
     const openaiButton = findButton(container, 'OpenAI')
     expect(openaiButton).toBeDefined()
@@ -533,6 +554,11 @@ describe('AIProvidersSettings', () => {
 
     const {container, root, queryClient} = renderSettings()
 
+    await act(async () => {
+      findButton(container, 'Add Provider')?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      await Promise.resolve()
+    })
+
     const openaiButton = findButton(container, 'OpenAI')
     expect(openaiButton).toBeDefined()
 
@@ -573,22 +599,48 @@ describe('AIProvidersSettings', () => {
     cleanupRendered(root, container, queryClient)
   })
 
-  it('closes the add dialog when ChatGPT Pro sign-in adds the provider successfully', async () => {
+  it('closes the add dialog and selects the new provider when ChatGPT Pro sign-in completes', async () => {
+    mockProviders = [
+      {
+        id: 'provider-1',
+        label: 'Existing Provider',
+        type: 'anthropic',
+        model: 'claude-sonnet-4-20250514',
+        apiKey: 'existing-key',
+      },
+    ]
+    mockSelectedProvider = mockProviders[0]
     mockOpenaiLoginStatus = {
       status: 'success',
       providerId: 'provider-2',
       email: 'test@example.com',
     }
     startOpenaiLoginMutateMock.mockImplementation((_input, options) => {
+      mockProviders = [
+        ...mockProviders,
+        {
+          id: 'provider-2',
+          label: 'OpenAI - gpt-5',
+          type: 'openai',
+          model: 'gpt-5',
+          authMode: 'login',
+          openaiAuth: {email: 'test@example.com'},
+        },
+      ]
       options?.onSuccess?.({
         sessionId: 'session-success',
         authUrl: 'https://auth.openai.com/codex/device',
         userCode: 'ABCD-EFGH',
-        providerId: null,
+        providerId: 'provider-2',
       })
     })
 
     const {container, root, queryClient} = renderSettings()
+
+    await act(async () => {
+      findButton(container, 'Add Provider')?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      await Promise.resolve()
+    })
 
     const openaiButton = findButton(container, 'OpenAI')
     expect(openaiButton).toBeDefined()
@@ -598,7 +650,7 @@ describe('AIProvidersSettings', () => {
       await Promise.resolve()
     })
 
-    expect(container.textContent).toContain('Add OpenAI Provider')
+    expect(container.textContent).toContain('Add Provider')
 
     await act(async () => {
       findButton(container, 'ChatGPT Pro Sign In')?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
@@ -616,6 +668,9 @@ describe('AIProvidersSettings', () => {
 
     expect(openUrlMock).toHaveBeenCalledWith('https://auth.openai.com/codex/device')
     expect(container.textContent).not.toContain('Add OpenAI Provider')
+    await waitForProviderNameValue(container, 'OpenAI - gpt-5')
+    expect(findProviderNameInput(container)?.value).toBe('OpenAI - gpt-5')
+    expect(getProviderQueryMock).toHaveBeenCalledWith('provider-2')
 
     cleanupRendered(root, container, queryClient)
   })
