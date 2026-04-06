@@ -183,7 +183,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
 
   // @ts-expect-error
   public inlineEmbedOptions: InlineMentionsResult = {
-    Sites: [],
+    Profiles: [],
     Documents: [],
     Recents: [],
   }

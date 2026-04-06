@@ -243,9 +243,9 @@ SELECT
   pk_subject.principal AS contact_subject,
   blobs.codec,
   blobs.multihash,
-  document_generations.metadata,
+  COALESCE(document_generations.metadata, structural_blobs.extra_attrs, '{}'),
   dg_subject.metadata AS subject_metadata,
-  (
+  COALESCE((
     SELECT json_group_array(
              json_object(
                'codec',    b2.codec,
@@ -255,7 +255,7 @@ SELECT
     FROM json_each(COALESCE(document_generations.heads, '[]')) AS a
       JOIN blobs AS b2
         ON b2.id = a.value
-  ) AS heads,
+  ), '[]') AS heads,
   structural_blobs.ts,
   structural_blobs.genesis_blob,
   f.rowid,
@@ -333,6 +333,10 @@ func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[
 		entityTypeTitle = "title"
 		supportedType = true
 	}
+	if ok, val := contentTypes["profile"]; ok && val {
+		entityTypeProfile = "profile"
+		supportedType = true
+	}
 	if ok, val := contentTypes["contact"]; ok && val {
 		entityTypeContact = "contact"
 		supportedType = true
@@ -343,10 +347,6 @@ func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[
 	}
 	if ok, val := contentTypes["comment"]; ok && val {
 		entityTypeComment = "comment"
-		supportedType = true
-	}
-	if ok, val := contentTypes["profile"]; ok && val {
-		entityTypeProfile = "profile"
 		supportedType = true
 	}
 	if !supportedType {
@@ -745,7 +745,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	type icon struct {
 		Icon value `json:"icon"`
 	}
-
 	type head struct {
 		Multihash string `json:"multihash"`
 		Codec     uint64 `json:"codec"`
@@ -1284,7 +1283,9 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		//
 		// Fields updated: version, blobID, blobCID, versionTime.
 		// The "&l" suffix is added later if the final version is in latestVersion.
-		if searchResults[match.Index].version != "" && searchResults[match.Index].contentType != "comment" {
+		if searchResults[match.Index].version != "" &&
+			searchResults[match.Index].contentType != "comment" &&
+			searchResults[match.Index].contentType != "profile" {
 			// Change tracks version info during the upgrade heuristic iteration.
 			type Change struct {
 				blobID  int64
@@ -1428,11 +1429,11 @@ func orderByTitle(a, b fullDataSearchResult) int {
 		return 1
 	}
 
-	// 2) then titles
-	isTitleA := a.contentType == "title"
-	isTitleB := b.contentType == "title"
-	if isTitleA != isTitleB {
-		if isTitleA {
+	// 2) then titles and profiles
+	isTitleLikeA := a.contentType == "title" || a.contentType == "profile"
+	isTitleLikeB := b.contentType == "title" || b.contentType == "profile"
+	if isTitleLikeA != isTitleLikeB {
+		if isTitleLikeA {
 			return -1
 		}
 		return 1

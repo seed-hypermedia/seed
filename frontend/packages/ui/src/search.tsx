@@ -1,10 +1,10 @@
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   getDocumentTitle,
-  packHmId,
+  packReferenceUrl,
   SearchResult,
   unpackHmId,
-  useRouteLink,
+  useRouteLinkHref,
   useSearch,
   useUniversalAppContext,
 } from '@shm/shared'
@@ -49,7 +49,7 @@ export function MobileSearch({
         const title = item.title || item.id.uid
         return {
           id: item.id,
-          key: packHmId(item.id),
+          key: packReferenceUrl(item.id),
           title,
           path: item.parentNames,
           icon: item.icon,
@@ -156,7 +156,7 @@ export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | n
         const title = item.title || item.id.uid
         return {
           id: item.id,
-          key: packHmId(item.id),
+          key: packReferenceUrl(item.id),
           title,
           path: item.parentNames,
           icon: item.icon,
@@ -315,14 +315,7 @@ export function SearchResultItem({
     }
   }, [selected])
 
-  const navigateProps = useRouteLink(
-    unpackedId
-      ? {
-          key: 'document',
-          id: unpackedId,
-        }
-      : null,
-  )
+  const navigateProps = useRouteLinkHref(item.key)
 
   const selectProps = item.onSelect
     ? {

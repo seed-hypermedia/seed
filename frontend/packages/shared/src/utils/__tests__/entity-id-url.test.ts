@@ -8,6 +8,7 @@ import {
   hmId,
   idToUrl,
   packHmId,
+  packReferenceUrl,
   parseCustomURL,
   parseFragment,
   routeToHmUrl,
@@ -124,6 +125,16 @@ describe('packHmId', () => {
   })
   test('creates hm://123?v=foo#bar', () => {
     expect(packHmId(hmId('123', {version: 'foo', blockRef: 'bar'}))).toEqual('hm://123?v=foo#bar')
+  })
+})
+
+describe('packReferenceUrl', () => {
+  test('creates hm://abc/:profile for root references', () => {
+    expect(packReferenceUrl(hmId('abc'))).toEqual('hm://abc/:profile')
+  })
+
+  test('preserves document paths for non-root references', () => {
+    expect(packReferenceUrl(hmId('abc', {path: ['notes']}))).toEqual('hm://abc/notes')
   })
 })
 

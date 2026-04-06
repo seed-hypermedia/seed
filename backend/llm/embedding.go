@@ -412,7 +412,7 @@ func (srList SearchResultList) ToMap() SearchResultMap {
 }
 
 // SemanticSearch performs semantic search using sqlite-vec cosine similarity.
-// contentTypes filters by FTS content types (e.g., "title", "document", "comment").
+// contentTypes filters by FTS content types (e.g., "title", "profile", "document", "comment").
 // If empty, defaults to ["title", "document", "comment"].
 // iriGlob filters results by IRI pattern. If empty, defaults to "*" (all).
 // Threshold filters results by minimum similarity score (0.0 to 1.0). Default is 0.0 (no filtering).
@@ -457,6 +457,10 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 		entityTypeTitle = "title"
 		supportedType = true
 	}
+	if ok, val := contentTypes["profile"]; ok && val {
+		entityTypeProfile = "profile"
+		supportedType = true
+	}
 	if ok, val := contentTypes["contact"]; ok && val {
 		entityTypeContact = "contact"
 		supportedType = true
@@ -467,10 +471,6 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 	}
 	if ok, val := contentTypes["comment"]; ok && val {
 		entityTypeComment = "comment"
-		supportedType = true
-	}
-	if ok, val := contentTypes["profile"]; ok && val {
-		entityTypeProfile = "profile"
 		supportedType = true
 	}
 	if !supportedType {

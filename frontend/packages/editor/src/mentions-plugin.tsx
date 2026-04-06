@@ -1,4 +1,5 @@
 import {AutocompletePopup, createAutoCompletePlugin} from '@shm/editor/autocomplete'
+import {hmId} from '@shm/shared'
 import {useUniversalAppContext} from '@shm/shared'
 import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -110,11 +111,14 @@ function InlineEmbedNodeComponent(props: any) {
 export function MentionToken(props: {value: string; selected?: boolean}) {
   // console.log('MentionToken props', props)
   const unpackedRef = unpackHmId(props.value)
+  const profileAccountUid = unpackedRef?.path?.[0] === ':profile' ? unpackedRef.path[1] || unpackedRef.uid : null
 
-  if (unpackedRef && unpackedRef.path && unpackedRef.path.length > 0) {
+  if (profileAccountUid) {
+    return <ContactMention accountUid={profileAccountUid} highlightId={hmId(profileAccountUid)} {...props} />
+  } else if (unpackedRef && unpackedRef.path && unpackedRef.path.length > 0) {
     return <DocumentMention unpackedRef={unpackedRef} {...props} />
   } else if (unpackedRef) {
-    return <ContactMention unpackedRef={unpackedRef} {...props} />
+    return <ContactMention accountUid={unpackedRef.uid} highlightId={unpackedRef} {...props} />
   } else {
     console.log('=== MENTION ERROR', props)
     return <MentionText>ERROR</MentionText>
@@ -133,14 +137,22 @@ function DocumentMention({unpackedRef, selected}: {unpackedRef: UnpackedHypermed
   )
 }
 
-function ContactMention({unpackedRef, selected}: {unpackedRef: UnpackedHypermediaId; selected?: boolean}) {
+function ContactMention({
+  accountUid,
+  highlightId,
+  selected,
+}: {
+  accountUid: string
+  highlightId: UnpackedHypermediaId
+  selected?: boolean
+}) {
   const {contacts} = useUniversalAppContext()
   const highlight = useHighlighter()
-  const entity = useAccount(unpackedRef.uid)
+  const entity = useAccount(accountUid)
 
   return (
-    <MentionText selected={selected} {...highlight(unpackedRef)}>
-      {getContactMetadata(unpackedRef.uid, entity.data?.metadata, contacts).name}
+    <MentionText selected={selected} {...highlight(highlightId)}>
+      {getContactMetadata(accountUid, entity.data?.metadata, contacts).name}
     </MentionText>
   )
 }

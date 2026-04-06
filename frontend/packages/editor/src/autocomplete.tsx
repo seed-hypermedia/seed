@@ -1,5 +1,5 @@
 import {InlineMentionsResult} from '@shm/shared/models/inline-mentions'
-import {packHmId} from '@shm/shared/utils/entity-id-url'
+import {packHmId, packReferenceUrl} from '@shm/shared/utils/entity-id-url'
 import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {SearchResultItem} from '@shm/ui/search'
 import {SizableText} from '@shm/ui/text'
@@ -261,7 +261,7 @@ function AutocompletePopupInner(
   const [index, setIndex] = useState<[keyof InlineMentionsResult, number]>(['Recents', 0])
   const [suggestions, setSuggestions] = useState<InlineMentionsResult>({
     Recents: [],
-    Sites: [],
+    Profiles: [],
     Documents: [],
     Contacts: [],
   })
@@ -319,7 +319,7 @@ function AutocompletePopupInner(
     }
   }, [suggestions])
 
-  const groupsOrder = ['Contacts', 'Recents', 'Sites', 'Documents'] as const
+  const groupsOrder = ['Contacts', 'Recents', 'Profiles', 'Documents'] as const
   const groups = useMemo(() => {
     return groupsOrder.filter((g) => suggestions.hasOwnProperty(g) && suggestions[g].length)
   }, [suggestions])
@@ -374,7 +374,7 @@ function AutocompletePopupInner(
         let item = suggestions[group][idx]
 
         // @ts-ignore
-        onCreate(packHmId({...item.id, latest: !item.id.blockRef}), range)
+        onCreate(packReferenceUrl({...item.id, latest: !item.id.blockRef}), range)
         onClose()
       }
       return true
@@ -470,7 +470,7 @@ function AutocompletePopupInner(
                             onFocus: () => {},
                             onMouseEnter: () => {},
                             onSelect: () => {
-                              onCreate(packHmId({...item.id, latest: !item.id.blockRef}), range)
+                              onCreate(packReferenceUrl({...item.id, latest: !item.id.blockRef}), range)
                               onClose()
                             },
                             subtitle: 'Document',

@@ -43,12 +43,11 @@ import {
   useLowlight,
   useOpenUrl,
   useRangeSelection,
-  useRouteLink,
   useRouteLinkHref,
   useUniversalAppContext,
   useUniversalClient,
 } from '@shm/shared'
-import {useAccountsMetadata, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
+import {useAccount, useAccountsMetadata, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
 import {useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
 import {useTxString} from '@shm/shared/translation'
@@ -2894,12 +2893,13 @@ export function InlineEmbedButton({
   style?: React.CSSProperties
 }) {
   const highlighter = useHighlighter()
-  const buttonProps = useRouteLink({key: 'document', id: entityId})
+  const buttonProps = useRouteLinkHref(packHmId(entityId))
+  const highlightId = entityId.path?.[0] === ':profile' ? hmId(entityId.path[1] || entityId.uid) : entityId
   const hasRangeHighlight = style?.backgroundColor === 'var(--brand-10)'
   return (
     <a
       {...buttonProps}
-      {...highlighter(entityId)}
+      {...highlighter(highlightId)}
       className={cn(
         'text-link hover:text-link-hover font-bold',
         hasRangeHighlight && 'hm-embed-range bg-brand-10 hover:cursor-default',
@@ -3049,7 +3049,9 @@ function BubbleButton({
 }
 
 function InlineEmbed({entityId, style}: {entityId: UnpackedHypermediaId; style?: React.CSSProperties}) {
-  const doc = useResource(entityId, {subscribed: true})
+  const profileAccountUid = entityId.path?.[0] === ':profile' ? entityId.path[1] || entityId.uid : null
+  const doc = useResource(profileAccountUid ? null : entityId, {subscribed: true})
+  const account = useAccount(profileAccountUid)
   const ctx = useBlocksContentContext()
   const document = doc.data?.type === 'document' ? doc.data.document : undefined
 
@@ -3078,7 +3080,9 @@ function InlineEmbed({entityId, style}: {entityId: UnpackedHypermediaId; style?:
   }
 
   let name = getMetadataName(document?.metadata) || '...'
-  if (!entityId.path?.length) {
+  if (profileAccountUid) {
+    name = getContactMetadata(profileAccountUid, account.data?.metadata, ctx?.contacts).name
+  } else if (!entityId.path?.length) {
     const contactName = getContactMetadata(entityId.uid, document?.metadata, ctx?.contacts).name
     name = contactName
   }

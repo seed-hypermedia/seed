@@ -18,7 +18,7 @@ interface MobileMentionsDialogProps {
 export function MobileMentionsDialog({isOpen, onClose, onSelect, perspectiveAccountUid}: MobileMentionsDialogProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [results, setResults] = useState<InlineMentionsResult>({
-    Sites: [],
+    Profiles: [],
     Documents: [],
     Recents: [],
     Contacts: [],
@@ -29,7 +29,7 @@ export function MobileMentionsDialog({isOpen, onClose, onSelect, perspectiveAcco
   useEffect(() => {
     if (!isOpen) {
       setSearchQuery('')
-      setResults({Sites: [], Documents: [], Recents: [], Contacts: []})
+      setResults({Profiles: [], Documents: [], Recents: [], Contacts: []})
       return
     }
 
@@ -58,7 +58,7 @@ export function MobileMentionsDialog({isOpen, onClose, onSelect, perspectiveAcco
     onClose()
   }
 
-  const allResults = [...results.Contacts, ...results.Sites, ...results.Documents, ...results.Recents]
+  const allResults = [...results.Contacts, ...results.Profiles, ...results.Documents, ...results.Recents]
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -66,7 +66,7 @@ export function MobileMentionsDialog({isOpen, onClose, onSelect, perspectiveAcco
         <div className="flex h-full flex-col overflow-hidden">
           <DialogHeader className="border-b p-4">
             <div className="flex items-center justify-between">
-              <DialogTitle>Mention Contact, Site, or Document</DialogTitle>
+              <DialogTitle>Mention Contact, Profile, or Document</DialogTitle>
               <Button size="icon" variant="ghost" onClick={onClose} className="h-8 w-8">
                 <X className="h-4 w-4" />
               </Button>
@@ -77,7 +77,7 @@ export function MobileMentionsDialog({isOpen, onClose, onSelect, perspectiveAcco
             <div className="relative">
               <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
               <Input
-                placeholder="Search for people, sites, or documents..."
+                placeholder="Search for people, profiles, or documents..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -102,8 +102,8 @@ export function MobileMentionsDialog({isOpen, onClose, onSelect, perspectiveAcco
                 {results.Contacts.length > 0 && (
                   <MentionSection title="Contacts" items={results.Contacts} onSelect={handleSelectMention} />
                 )}
-                {results.Sites.length > 0 && (
-                  <MentionSection title="Sites" items={results.Sites} onSelect={handleSelectMention} />
+                {results.Profiles.length > 0 && (
+                  <MentionSection title="Profiles" items={results.Profiles} onSelect={handleSelectMention} />
                 )}
                 {results.Documents.length > 0 && (
                   <MentionSection title="Documents" items={results.Documents} onSelect={handleSelectMention} />

@@ -1,6 +1,6 @@
 import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {getDocumentTitle, unpackHmId} from '@shm/shared'
-import {useResource} from '@shm/shared/models/entity'
+import {getDocumentTitle, hmId, unpackHmId} from '@shm/shared'
+import {useAccount, useResource} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {useHighlighter} from '@shm/ui/highlight-context'
 import {SizableText} from '@shm/ui/text'
@@ -30,8 +30,10 @@ export function HypermediaLinkPreview(
 ) {
   const [isEditing, setIsEditing] = useState(props.forceEditing || false)
   const unpackedRef = useMemo(() => unpackHmId(props.url), [props.url])
+  const profileAccountUid = unpackedRef?.path?.[0] === ':profile' ? unpackedRef.path[1] || unpackedRef.uid : null
 
-  const entity = useResource(unpackedRef || undefined)
+  const entity = useResource(profileAccountUid ? null : unpackedRef || undefined)
+  const account = useAccount(profileAccountUid)
   // console.log('entity', entity)
   const document = entity.data?.type === 'document' ? entity.data.document : undefined
   useEffect(() => {
@@ -48,6 +50,9 @@ export function HypermediaLinkPreview(
     const schema = state.schema
 
     const getTitle = () => {
+      if (profileAccountUid) {
+        return account.data?.metadata?.name || props.text || props.url
+      }
       if (['inline-embed', 'embed'].includes(props.type)) {
         const title = getTitleFromEntity(unpackedRef, document)
         return title || props.text || props.url
@@ -126,14 +131,14 @@ export function HypermediaLinkPreview(
             data-testid="hm-link-preview-open-button"
             className="flex flex-1 cursor-pointer overflow-hidden rounded-lg px-2 py-1.5 hover:bg-black/5 hover:opacity-80 active:bg-black/5 active:opacity-80 dark:hover:bg-white/10 dark:active:bg-white/10"
             onClick={() => props.openUrl(props.url)}
-            {...highlight(unpackedRef)}
+            {...highlight(profileAccountUid ? hmId(profileAccountUid) : unpackedRef)}
           >
             <SizableText
               size="lg"
               className="text-link hover:text-link-hover flex-1 truncate"
               data-testid="hm-link-preview-url"
             >
-              {!!unpackedRef ? document?.metadata.name ?? props.url : props.url}
+              {!!unpackedRef ? account.data?.metadata?.name ?? document?.metadata.name ?? props.url : props.url}
             </SizableText>
           </div>
           <Button
