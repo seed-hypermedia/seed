@@ -147,7 +147,7 @@ function AuthorLink({name, id, siteUid}: {name: string; id: UnpackedHypermediaId
   )
 }
 
-function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
+export function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
   const [first, ...rest] = breadcrumbs
 
   return (

@@ -39,7 +39,7 @@ import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
-import {AuthorPayload, BreadcrumbEntry, DocumentHeader} from './document-header'
+import {AuthorPayload, Breadcrumbs, BreadcrumbEntry, DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
 import {FeedFilters} from './feed-filters'
@@ -904,6 +904,31 @@ function DocumentBody({
                 <MembersFacepile members={siteMembers.members} siteId={siteId} />
               </div>
             )}
+            {isHomeDoc && !showActivity && (
+              <div className="mt-4 px-6">
+                <Breadcrumbs
+                  breadcrumbs={[
+                    {id: hmId(docId.uid, {latest: true}), metadata: document.metadata || {}},
+                    ...(activeView !== 'content'
+                      ? [
+                          {
+                            label:
+                              (
+                                {
+                                  comments: 'Comments',
+                                  collaborators: 'People',
+                                  activity: 'Activity',
+                                  directory: 'Directory',
+                                  'site-profile': 'Profile',
+                                } as Record<string, string>
+                              )[activeView] || '',
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
+              </div>
+            )}
             {!isHomeDoc && (
               <DocumentHeader
                 docId={docId}
@@ -922,6 +947,31 @@ function DocumentBody({
           {isHomeDoc && !siteMembers.isInitialLoading && siteMembers.members.length > 0 && (
             <div className="pt-4">
               <MembersFacepile members={siteMembers.members} siteId={siteId} />
+            </div>
+          )}
+          {isHomeDoc && !showActivity && (
+            <div className="mt-4 px-6">
+              <Breadcrumbs
+                breadcrumbs={[
+                  {id: hmId(docId.uid, {latest: true}), metadata: document.metadata || {}},
+                  ...(activeView !== 'content'
+                    ? [
+                        {
+                          label:
+                            (
+                              {
+                                comments: 'Comments',
+                                collaborators: 'People',
+                                activity: 'Activity',
+                                directory: 'Directory',
+                                'site-profile': 'Profile',
+                              } as Record<string, string>
+                            )[activeView] || '',
+                        },
+                      ]
+                    : []),
+                ]}
+              />
             </div>
           )}
           {!isHomeDoc && (
