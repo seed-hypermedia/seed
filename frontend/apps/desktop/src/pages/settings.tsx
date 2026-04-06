@@ -136,24 +136,24 @@ export default function Settings() {
             <Tab value="developer" active={activeTab === 'developer'} icon={Code2} label="Developers" />
           </TabsList>
           <Separator />
-          <CustomTabsContent value="accounts">
+          <TabContent value="accounts">
             <AccountKeys />
-          </CustomTabsContent>
-          <CustomTabsContent value="general">
+          </TabContent>
+          <TabContent value="general">
             <GeneralSettings />
-          </CustomTabsContent>
-          <CustomTabsContent value="gateway">
+          </TabContent>
+          <TabContent value="gateway">
             <GatewaySettings />
-          </CustomTabsContent>
-          <CustomTabsContent value="ai-providers">
+          </TabContent>
+          <TabContent value="ai-providers">
             <AIProvidersSettings />
-          </CustomTabsContent>
-          <CustomTabsContent value="app-info">
+          </TabContent>
+          <TabContentScrolled value="app-info">
             <AppSettings />
-          </CustomTabsContent>
-          <CustomTabsContent value="developer">
+          </TabContentScrolled>
+          <TabContentScrolled value="developer">
             <DeveloperSettings />
-          </CustomTabsContent>
+          </TabContentScrolled>
         </Tabs>
       </div>
     </div>
@@ -1268,12 +1268,20 @@ function AppSettings() {
   )
 }
 
-const CustomTabsContent = (props: React.ComponentProps<typeof TabsContent>) => {
+const TabContentScrolled = (props: React.ComponentProps<typeof TabsContent>) => {
   return (
     <TabsContent className="flex flex-1 flex-col gap-3 overflow-hidden" {...props}>
       <ScrollArea>
         <div className="flex flex-1 flex-col gap-4 p-4 pb-5">{props.children}</div>
       </ScrollArea>
+    </TabsContent>
+  )
+}
+
+const TabContent = (props: React.ComponentProps<typeof TabsContent>) => {
+  return (
+    <TabsContent className="flex flex-1 flex-col gap-3 overflow-hidden" {...props}>
+      <div className="flex flex-1 flex-col gap-4 p-4 pb-5">{props.children}</div>
     </TabsContent>
   )
 }
@@ -1304,9 +1312,10 @@ function SettingsSection({
   title,
   children,
   afterTitle,
-}: React.PropsWithChildren<{title: string; afterTitle?: React.ReactNode}>) {
+  className,
+}: React.PropsWithChildren<{title: string; afterTitle?: React.ReactNode; className?: string}>) {
   return (
-    <div className={cn('dark:bg-background bg-muted flex flex-col gap-3 rounded p-3')}>
+    <div className={cn('dark:bg-background bg-muted flex flex-col gap-3 rounded p-3', className)}>
       <div className="flex items-center justify-start gap-3">
         <SizableText size="2xl">{title}</SizableText>
         {afterTitle}
@@ -1484,18 +1493,20 @@ function ProviderFormSection({
   )
 }
 
-type AddProviderDialogInput = ProviderFormData['type'] | 'choose'
+type AddProviderDialogInput = {
+  type: ProviderFormData['type'] | 'choose'
+  onProviderAdded?: (providerId: string) => void
+}
 
 function AddProviderDialog({input, onClose}: {input: AddProviderDialogInput; onClose: () => void}) {
-  const isSpecificProvider = input !== 'choose'
-  const initialType = input === 'choose' ? 'openai' : input
+  const isSpecificProvider = input.type !== 'choose'
+  const initialType = input.type === 'choose' ? 'openai' : input.type
+  const specificProviderLabel = isSpecificProvider ? PROVIDER_TYPE_META[initialType].label : null
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
-        <DialogTitle>
-          {isSpecificProvider ? `Add ${PROVIDER_TYPE_META[input].label} Provider` : 'Add Provider'}
-        </DialogTitle>
+        <DialogTitle>{isSpecificProvider ? `Add ${specificProviderLabel} Provider` : 'Add Provider'}</DialogTitle>
         <DialogDescription>
           {isSpecificProvider
             ? 'Complete the remaining provider details here.'
@@ -1505,7 +1516,12 @@ function AddProviderDialog({input, onClose}: {input: AddProviderDialogInput; onC
 
       <ProviderForm
         initialType={initialType}
-        onSave={onClose}
+        onSave={(providerId) => {
+          if (providerId) {
+            input.onProviderAdded?.(providerId)
+          }
+          onClose()
+        }}
         onCancel={onClose}
         showTypeSelector={!isSpecificProvider}
         requireExplicitOpenAIAuthModeSelection
@@ -1726,6 +1742,18 @@ function ProviderListRow({
   )
 }
 
+function AgentProviderSettingsArea({children}: {children: React.ReactNode}) {
+  return (
+    <>
+      <div className="flex items-center justify-start gap-3">
+        <SizableText size="2xl">{'Agent Assistant Providers'}</SizableText>
+        <BetaTag />
+      </div>
+      {children}
+    </>
+  )
+}
+
 /** Renders the assistant provider settings section. */
 export function AIProvidersSettings() {
   const providers = useAIProviders()
@@ -1753,8 +1781,15 @@ export function AIProvidersSettings() {
     setEditingId(selectedProviderId || providerItems[0]?.id || null)
   }, [editingId, providerItems, selectedProviderId])
 
-  function beginAdd(type: AddProviderDialogInput = 'choose') {
-    addProviderDialog.open(type)
+  function handleProviderAdded(providerId: string) {
+    setEditingId(providerId)
+  }
+
+  function beginAdd(type: ProviderFormData['type'] | 'choose' = 'choose') {
+    addProviderDialog.open({
+      type,
+      onProviderAdded: handleProviderAdded,
+    })
   }
 
   function beginEdit(providerId: string) {
@@ -1763,32 +1798,32 @@ export function AIProvidersSettings() {
 
   if (!providerItems.length) {
     return (
-      <SettingsSection title="Agent Assistant Providers" afterTitle={<BetaTag />}>
+      <AgentProviderSettingsArea>
         <ProviderSetupOverview
           providers={providerItems}
           selectedProviderLabel={selectedProvider.data?.label || null}
           onCreate={beginAdd}
         />
         {addProviderDialog.content}
-      </SettingsSection>
+      </AgentProviderSettingsArea>
     )
   }
 
   return (
-    <SettingsSection title="Agent Assistant Providers" afterTitle={<BetaTag />}>
+    <AgentProviderSettingsArea>
+      {' '}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">
               {providerItems.length} provider{providerItems.length === 1 ? '' : 's'}
             </Badge>
-            {selectedProvider.data ? <Badge variant="secondary">Default: {selectedProvider.data.label}</Badge> : null}
+            {selectedProvider.data ? <Badge variant="secondary">Active: {selectedProvider.data.label}</Badge> : null}
           </div>
         </div>
       </div>
-
-      <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
-        <div className="bg-background/70 flex flex-col rounded-lg border">
+      <div className="grid flex-1 items-stretch gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+        <div className="bg-background/70 flex h-full min-h-0 flex-col rounded-lg border">
           <div className="flex items-start justify-between gap-3 border-b px-4 py-3">
             <div className="flex flex-col gap-1">
               <SizableText size="sm" weight="bold">
@@ -1797,47 +1832,50 @@ export function AIProvidersSettings() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 p-3">
-            {providerItems.length ? (
-              providerItems.map((provider) => (
-                <ProviderListRow
-                  key={provider.id}
-                  provider={provider}
-                  isActive={editingId === provider.id}
-                  isDefault={selectedProviderId === provider.id}
-                  onSelect={() => beginEdit(provider.id)}
-                  onEdit={() => beginEdit(provider.id)}
-                  onDuplicate={() =>
-                    duplicateProvider.mutate(provider.id, {
-                      onSuccess: (duplicate) => {
-                        setEditingId(duplicate.id)
-                      },
-                    })
-                  }
-                  onDelete={() => {
-                    if (editingId === provider.id) {
-                      const fallbackProviderId =
-                        providerItems.find((item) => item.id !== provider.id && item.id === selectedProviderId)?.id ||
-                        providerItems.find((item) => item.id !== provider.id)?.id ||
-                        null
-                      setEditingId(fallbackProviderId)
+          <div className="flex min-h-0 flex-1 flex-col p-3">
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+              {providerItems.length ? (
+                providerItems.map((provider) => (
+                  <ProviderListRow
+                    key={provider.id}
+                    provider={provider}
+                    isActive={editingId === provider.id}
+                    isDefault={selectedProviderId === provider.id}
+                    onSelect={() => beginEdit(provider.id)}
+                    onEdit={() => beginEdit(provider.id)}
+                    onDuplicate={() =>
+                      duplicateProvider.mutate(provider.id, {
+                        onSuccess: (duplicate) => {
+                          setEditingId(duplicate.id)
+                        },
+                      })
                     }
-                    deleteProvider.mutate(provider.id)
-                  }}
-                  onSetDefault={() => setSelectedProvider.mutate(provider.id)}
-                />
-              ))
-            ) : (
-              <div className="flex flex-col gap-2 rounded-lg border border-dashed p-4">
-                <SizableText size="sm" weight="bold">
-                  No providers configured yet.
-                </SizableText>
-                <SizableText size="xs" className="text-muted-foreground">
-                  Start with OpenAI if you want ChatGPT Pro sign-in, or pick Gemini, Anthropic, or Ollama on the right.
-                </SizableText>
-              </div>
-            )}
-            <Button size="sm" onClick={() => beginAdd()} className="w-full">
+                    onDelete={() => {
+                      if (editingId === provider.id) {
+                        const fallbackProviderId =
+                          providerItems.find((item) => item.id !== provider.id && item.id === selectedProviderId)?.id ||
+                          providerItems.find((item) => item.id !== provider.id)?.id ||
+                          null
+                        setEditingId(fallbackProviderId)
+                      }
+                      deleteProvider.mutate(provider.id)
+                    }}
+                    onSetDefault={() => setSelectedProvider.mutate(provider.id)}
+                  />
+                ))
+              ) : (
+                <div className="flex flex-col gap-2 rounded-lg border border-dashed p-4">
+                  <SizableText size="sm" weight="bold">
+                    No providers configured yet.
+                  </SizableText>
+                  <SizableText size="xs" className="text-muted-foreground">
+                    Start with OpenAI if you want ChatGPT Pro sign-in, or pick Gemini, Anthropic, or Ollama on the
+                    right.
+                  </SizableText>
+                </div>
+              )}
+            </div>
+            <Button size="sm" onClick={() => beginAdd()} className="mt-3 w-full">
               <Plus className="mr-2 h-4 w-4" />
               Add Provider
             </Button>
@@ -1854,7 +1892,7 @@ export function AIProvidersSettings() {
         ) : null}
       </div>
       {addProviderDialog.content}
-    </SettingsSection>
+    </AgentProviderSettingsArea>
   )
 }
 
@@ -1874,7 +1912,7 @@ function ProviderForm({
   requireExplicitOpenAIAuthModeSelection = false,
 }: {
   initialType?: ProviderFormData['type']
-  onSave: () => void
+  onSave: (providerId?: string) => void
   onCancel: () => void
   showTypeSelector?: boolean
   requireExplicitOpenAIAuthModeSelection?: boolean
@@ -1920,12 +1958,16 @@ function ProviderForm({
           id: draftProviderId,
           ...input,
         },
-        {onSuccess: onSave},
+        {
+          onSuccess: () => onSave(draftProviderId),
+        },
       )
       return
     }
 
-    addProvider.mutate(input, {onSuccess: onSave})
+    addProvider.mutate(input, {
+      onSuccess: (provider) => onSave(provider?.id),
+    })
   }
 
   function handleCancel() {
@@ -2245,13 +2287,13 @@ function ProviderFormFields({
     if (!openaiLoginStatus.data) return
     if (openaiLoginStatus.data.status === 'success') {
       const connectedProviderId = openaiLoginStatus.data.providerId || providerId
-      const shouldCloseAddedProviderDialog = !!connectedProviderId && !providerId
+      const shouldCompleteAddProviderFlow = isAddProviderFlow && !!connectedProviderId
 
-      if (connectedProviderId && connectedProviderId !== providerId && !shouldCloseAddedProviderDialog) {
+      if (connectedProviderId && connectedProviderId !== providerId && !shouldCompleteAddProviderFlow) {
         onProviderIdChange?.(connectedProviderId)
       }
 
-      if (!shouldCloseAddedProviderDialog) {
+      if (!shouldCompleteAddProviderFlow) {
         setForm((current) => ({
           ...current,
           authMode: 'login',
@@ -2269,7 +2311,7 @@ function ProviderFormFields({
       setOpenaiLoginSessionId(null)
       setOpenaiLoginUserCode(null)
 
-      if (shouldCloseAddedProviderDialog && connectedProviderId) {
+      if (shouldCompleteAddProviderFlow && connectedProviderId) {
         onLoginProviderAdded?.(connectedProviderId)
         return
       }
@@ -2287,6 +2329,7 @@ function ProviderFormFields({
       setOpenaiLoginUserCode(null)
     }
   }, [
+    isAddProviderFlow,
     onLoginProviderAdded,
     onProviderIdChange,
     openaiLoginSessionId,
