@@ -56,7 +56,10 @@ describe("SSR Integration", () => {
     TEST_TIMEOUT,
   );
 
-  it(
+  // Skipped: DocumentEditor is now loaded client-side only (useClientDocumentEditor)
+  // to avoid window.matchMedia crashes during SSR. Document body content won't appear
+  // in server-rendered HTML. SSR for document content will be re-enabled in a future phase.
+  it.skip(
     "should server-render document content from test fixtures",
     async () => {
       // Use a bot user-agent to get fully-rendered SSR HTML (not streamed)
