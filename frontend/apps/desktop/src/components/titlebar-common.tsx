@@ -9,25 +9,25 @@ import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
+import {resolveOmnibarUrlToRoute} from '@/omnibar-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
-import {resolveOmnibarUrlToRoute} from '@/omnibar-url'
-import {hostnameStripProtocol} from '@shm/shared'
-import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
+import {hostnameStripProtocol} from '@shm/shared'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useResource} from '@shm/shared/models/entity'
 import {DocumentRoute, DraftRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {createWebHMUrl, displayHostname, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
-import {HMIcon} from '@shm/ui/hm-icon'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
+import {HMIcon} from '@shm/ui/hm-icon'
 import {Back, CloudOff, Download, Forward, Link, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
@@ -882,7 +882,6 @@ export function Omnibar() {
           <div className="mr-1 flex shrink-0 items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
             <BookmarkButton id={routeId} className="size-6 min-w-6" />
             <CopyReferenceButton docId={routeId} isBlockFocused={false} latest className="size-6 min-w-6" />
-            <DocOptionsButton onPublishSite={publishSite.open} />
           </div>
         ) : null}
         {publishSite.content}
