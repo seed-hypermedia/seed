@@ -13,11 +13,17 @@ export const loader: LoaderFunction = async ({request}) => {
   const peerInfo = await grpcClient.networking.getPeerInfo({
     deviceId: daemonInfo.peerId,
   })
+  const keys = await grpcClient.daemon.listKeys({})
   return data(
     {
       registeredAccountUid: config.registeredAccountUid,
       peerId: daemonInfo.peerId,
       protocolId: daemonInfo.protocolId,
+      experimentalKeys: keys.keys.map((k) => ({
+        name: k.name,
+        publicKey: k.publicKey,
+        accountId: k.accountId,
+      })),
       addrs: peerInfo.addrs,
       hostname: SITE_BASE_URL,
       isGateway: WEB_IS_GATEWAY,
