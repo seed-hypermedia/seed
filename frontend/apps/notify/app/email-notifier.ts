@@ -29,6 +29,7 @@ import {DAEMON_HTTP_URL, NOTIFY_SERVICE_HOST, SITE_BASE_URL} from '@shm/shared/c
 import {
   classifyCommentNotificationForAccount,
   extractMentionedAccountUidsFromComment,
+  getMentionedAccountUid,
 } from '@shm/shared/models/notification-event-classifier'
 import {CID} from 'multiformats'
 import {
@@ -1106,8 +1107,9 @@ async function evaluateMentionEventForNotifications(
   }
 
   const targetId = unpackHmId(mentionEvent.target)
-  if (!targetId || targetId.path?.length) {
-    logNotifDebug('skip mention: target is not account root', {
+  const targetAccountUid = getMentionedAccountUid(targetId)
+  if (!targetId || !targetAccountUid) {
+    logNotifDebug('skip mention: target is not an account mention', {
       eventId: eventMeta.eventId,
       target: mentionEvent.target,
       parsedTargetUid: targetId?.uid,
@@ -1197,7 +1199,7 @@ async function evaluateMentionEventForNotifications(
   }
 
   for (const sub of allSubscriptions) {
-    if (!sub.notifyAllMentions || sub.id !== targetId.uid) continue
+    if (!sub.notifyAllMentions || sub.id !== targetAccountUid) continue
     const subjectAccountResult = await requestAPI('Account', sub.id)
     const subjectAccountMeta = subjectAccountResult.type === 'account' ? subjectAccountResult.metadata : null
     await appendNotification(sub, {
@@ -1223,11 +1225,11 @@ async function evaluateMentionEventForNotifications(
     })
   }
 
-  const matchingSubscriptions = allSubscriptions.filter((sub) => sub.notifyAllMentions && sub.id === targetId.uid)
+  const matchingSubscriptions = allSubscriptions.filter((sub) => sub.notifyAllMentions && sub.id === targetAccountUid)
   if (!matchingSubscriptions.length) {
     logNotifDebug('skip mention: no matching subscriptions', {
       eventId: eventMeta.eventId,
-      targetAccountId: targetId.uid,
+      targetAccountId: targetAccountUid,
       totalSubscriptions: allSubscriptions.length,
     })
   }
@@ -1709,17 +1711,11 @@ function extractMentionsFromBlockNode(blockNode: HMBlockNode, mentionMap: Mentio
   const annotations = getAnnotations(block)
   if (annotations) {
     for (const annotation of annotations) {
-      if (annotation.type === 'Embed' && annotation.link.startsWith('hm://')) {
-        const hmUidAndPath = annotation.link.slice(5)
-        if (
-          hmUidAndPath &&
-          // ignore mentions to documents
-          !hmUidAndPath.includes('/')
-        ) {
-          mentionMap[block.id] = mentionMap[block.id] ?? new Set()
-          mentionMap[block.id]!.add(hmUidAndPath)
-        }
-      }
+      if (annotation.type !== 'Embed') continue
+      const mentionedAccountUid = getMentionedAccountUid(annotation.link)
+      if (!mentionedAccountUid) continue
+      mentionMap[block.id] = mentionMap[block.id] ?? new Set()
+      mentionMap[block.id]!.add(mentionedAccountUid)
     }
   }
   if (children) extractMentionsFromBlockNodes(children, mentionMap)
