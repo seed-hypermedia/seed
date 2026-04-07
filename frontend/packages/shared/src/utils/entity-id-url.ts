@@ -58,24 +58,47 @@ export type ViewRouteKey = 'activity' | 'comments' | 'collaborators' | 'director
 // Panel keys that can be encoded in URL query param
 export type PanelQueryKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'options'
 
+function extractInspectPrefixFromUrl(url: string): {url: string; isInspect: boolean} {
+  const hmInspectMatch = url.match(/^(hm:\/\/)inspect(?:\/(.*))?$/)
+  if (hmInspectMatch) {
+    return {url: `${hmInspectMatch[1]}${hmInspectMatch[2] || ''}`, isInspect: true}
+  }
+
+  const gatewayInspectMatch = url.match(/^((?:https?:\/\/[^/]+)?\/hm)\/inspect(?=\/|[?#]|$)(.*)$/)
+  if (gatewayInspectMatch) {
+    return {url: `${gatewayInspectMatch[1]}${gatewayInspectMatch[2] || ''}`, isInspect: true}
+  }
+
+  const siteInspectMatch = url.match(/^((?:https?:\/\/[^/]+)?)\/inspect(?=\/|[?#]|$)(.*)$/)
+  if (siteInspectMatch) {
+    return {url: `${siteInspectMatch[1]}${siteInspectMatch[2] || ''}` || '/', isInspect: true}
+  }
+
+  return {url, isInspect: false}
+}
+
 /**
  * Extract view term from URL path and return cleaned URL + view term
  * e.g., "https://example.com/path/:directory?v=123" -> {url: "https://example.com/path?v=123", viewTerm: ":directory"}
  */
 export function extractViewTermFromUrl(url: string): {
   url: string
+  isInspect: boolean
   viewTerm: ViewTerm | null
   activityFilter?: string
   commentId?: string
   accountUid?: string
 } {
+  const {url: inspectCleanUrl, isInspect} = extractInspectPrefixFromUrl(url)
+
   // Check for :comments/<comment-id> or :comment/<comment-id> pattern.
   // Comment IDs may be a single segment or a slash-delimited path.
   const commentsPattern = /\/\:comments?\/([^?#]+?)(?=[?#]|$)/
-  const commentsMatch = url.match(commentsPattern)
+  const commentsMatch = inspectCleanUrl.match(commentsPattern)
   if (commentsMatch) {
     return {
-      url: url.replace(commentsMatch[0], ''),
+      url: inspectCleanUrl.replace(commentsMatch[0], ''),
+      isInspect,
       viewTerm: ':comments',
       commentId: commentsMatch[1],
     }
@@ -83,10 +106,11 @@ export function extractViewTermFromUrl(url: string): {
 
   // Check for :activity/<slug> pattern
   const activitySlugPattern = /\/\:activity\/([a-z]+)(?=[?#]|$)/
-  const activitySlugMatch = url.match(activitySlugPattern)
+  const activitySlugMatch = inspectCleanUrl.match(activitySlugPattern)
   if (activitySlugMatch) {
     return {
-      url: url.replace(activitySlugMatch[0], ''),
+      url: inspectCleanUrl.replace(activitySlugMatch[0], ''),
+      isInspect,
       viewTerm: ':activity',
       activityFilter: activitySlugMatch[1],
     }
@@ -94,10 +118,11 @@ export function extractViewTermFromUrl(url: string): {
 
   // Check for profile-family patterns like /:profile or /:profile/accountUid
   const profileFamilyPattern = /\/\:(profile|membership|followers|following)(?:\/([^/?#]+))?(?=[?#]|$)/
-  const profileFamilyMatch = url.match(profileFamilyPattern)
+  const profileFamilyMatch = inspectCleanUrl.match(profileFamilyPattern)
   if (profileFamilyMatch) {
     return {
-      url: url.replace(profileFamilyMatch[0], ''),
+      url: inspectCleanUrl.replace(profileFamilyMatch[0], ''),
+      isInspect,
       viewTerm: `:${profileFamilyMatch[1]}` as SiteProfileViewTerm,
       accountUid: profileFamilyMatch[2],
     }
@@ -106,14 +131,15 @@ export function extractViewTermFromUrl(url: string): {
   for (const term of VIEW_TERMS) {
     // Match term at end of path (before query/fragment)
     const termPattern = new RegExp(`/${term.replace(':', '\\:')}(?=[?#]|$)`)
-    if (termPattern.test(url)) {
+    if (termPattern.test(inspectCleanUrl)) {
       return {
-        url: url.replace(termPattern, ''),
+        url: inspectCleanUrl.replace(termPattern, ''),
+        isInspect,
         viewTerm: term,
       }
     }
   }
-  return {url, viewTerm: null}
+  return {url: inspectCleanUrl, isInspect, viewTerm: null}
 }
 
 /**
@@ -272,6 +298,106 @@ export function createOSProtocolUrl({uid, path, version, latest, blockRef, block
 
   return res
 }
+
+function getInspectTargetPath(route: Extract<NavRoute, {key: 'inspect'}>): string {
+  if (!route.targetView) return ''
+
+  if (isSiteProfileTab(route.targetView)) {
+    const accountSuffix = route.targetAccountUid ? `/${route.targetAccountUid}` : ''
+    return `/:${route.targetView}${accountSuffix}`
+  }
+
+  if (route.targetView === 'activity') {
+    const filterSlug = activityFilterToSlug(route.targetActivityFilter)
+    return filterSlug ? `/:activity/${filterSlug}` : '/:activity'
+  }
+
+  if (route.targetView === 'comments') {
+    return route.targetOpenComment ? `/:comments/${route.targetOpenComment}` : '/:comments'
+  }
+
+  return `/:${route.targetView}`
+}
+
+function getInspectQueryString({
+  version,
+  latest,
+  inspectTab,
+}: {
+  version?: string | null
+  latest?: boolean | null
+  inspectTab?: string | null
+}) {
+  const query: Record<string, string | null> = {}
+  if (version) {
+    query.v = version
+  }
+  if (latest && version) {
+    query.l = null
+  }
+  if (inspectTab && inspectTab !== 'document') {
+    query.tab = inspectTab
+  }
+  return serializeQueryString(query)
+}
+
+function createWebInspectUrl(
+  route: Extract<NavRoute, {key: 'inspect'}>,
+  opts?: {
+    hostname?: string | null | undefined
+    originHomeId?: UnpackedHypermediaId | undefined
+  },
+) {
+  const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
+  const sameOriginSite = opts?.originHomeId?.uid === route.id.uid
+  let res = sameOriginSite ? `${urlHost}/inspect` : `${urlHost}/hm/inspect/${route.id.uid}`
+  if (route.id.path?.length) {
+    res += `/${route.id.path.join('/')}`
+  }
+  res += getInspectTargetPath(route)
+  res += getInspectQueryString({
+    latest: route.id.latest,
+    version: route.id.latest ? undefined : route.id.version,
+    inspectTab: route.inspectTab,
+  })
+  if (route.id.blockRef) {
+    res += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
+  }
+  return res
+}
+
+function createHmInspectUrl(route: Extract<NavRoute, {key: 'inspect'}>) {
+  let res = `${HYPERMEDIA_SCHEME}://inspect/${route.id.uid}`
+  if (route.id.path?.length) {
+    res += `/${route.id.path.join('/')}`
+  }
+  res += getInspectTargetPath(route)
+  res += getInspectQueryString({
+    latest: route.id.latest,
+    version: route.id.latest ? undefined : route.id.version,
+    inspectTab: route.inspectTab,
+  })
+  if (route.id.blockRef) {
+    res += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
+  }
+  return res
+}
+
+function createWebInspectIpfsUrl(
+  route: Extract<NavRoute, {key: 'inspect-ipfs'}>,
+  opts?: {
+    hostname?: string | null | undefined
+    originHomeId?: UnpackedHypermediaId | undefined
+  },
+) {
+  const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
+  const basePath = opts?.originHomeId ? `${urlHost}/inspect` : `${urlHost}/hm/inspect`
+  return `${basePath}/ipfs/${route.ipfsPath}`
+}
+
+function createHmInspectIpfsUrl(route: Extract<NavRoute, {key: 'inspect-ipfs'}>) {
+  return `${HYPERMEDIA_SCHEME}://inspect/ipfs/${route.ipfsPath}`
+}
 /**
  * Extract panel param from route for URL query param
  * Supports:
@@ -331,6 +457,13 @@ export function routeToUrl(
   },
 ) {
   const panelParam = getRoutePanelParam(route)
+
+  if (route.key === 'inspect') {
+    return createWebInspectUrl(route, opts)
+  }
+  if (route.key === 'inspect-ipfs') {
+    return createWebInspectIpfsUrl(route, opts)
+  }
 
   if (route.key === 'document') {
     const url = createWebHMUrl(route.id.uid, {
@@ -398,6 +531,13 @@ export function routeToUrl(
 export function routeToHmUrl(route: NavRoute): string | null {
   const panelParam = getRoutePanelParam(route)
 
+  if (route.key === 'inspect') {
+    return createHmInspectUrl(route)
+  }
+  if (route.key === 'inspect-ipfs') {
+    return createHmInspectIpfsUrl(route)
+  }
+
   if (route.key === 'document') {
     let url = packBaseId(route.id.uid, route.id.path)
     url += getHMQueryString({
@@ -454,6 +594,12 @@ export function routeToHmUrl(route: NavRoute): string | null {
 
 /** Build a bookmark URL from a NavRoute, keeping only baseId + view term. */
 export function bookmarkUrlFromRoute(route: NavRoute): string | null {
+  if (route.key === 'inspect') {
+    return createHmInspectUrl(route)
+  }
+  if (route.key === 'inspect-ipfs') {
+    return createHmInspectIpfsUrl(route)
+  }
   if (route.key === 'document') {
     return packBaseId(route.id.uid, route.id.path)
   }

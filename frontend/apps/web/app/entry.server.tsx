@@ -217,21 +217,38 @@ function extractCommentId(pathParts: string[]): string | null {
       return `${pathParts[pathParts.length - 2]}/${pathParts[pathParts.length - 1]}`
     }
   }
+  if (pathParts.length >= 2) {
+    const secondToLast = pathParts[pathParts.length - 2]!
+    if (COMMENT_VIEW_TERMS.includes(secondToLast)) {
+      return pathParts[pathParts.length - 1]!
+    }
+  }
   return null
 }
 
+function stripInspectPrefix(pathParts: string[]): string[] {
+  if (pathParts[0] === 'hm' && pathParts[1] === 'inspect') {
+    return ['hm', ...pathParts.slice(2)]
+  }
+  if (pathParts[0] === 'inspect') {
+    return pathParts.slice(1)
+  }
+  return pathParts
+}
+
 function getHmIdOfRequest({pathParts, url}: ParsedRequest, originAccountId: string | undefined) {
+  const effectivePathParts = stripInspectPrefix(pathParts)
   const version = url.searchParams.get('v')
   const latest = url.searchParams.get('l') === '' || !version
-  if (pathParts.length === 0) {
+  if (effectivePathParts.length === 0) {
     if (!originAccountId) return null
     return hmId(originAccountId, {path: [], version, latest})
   }
-  if (pathParts[0] === 'hm') {
-    return hmId(pathParts[1], {path: pathParts.slice(2), version, latest})
+  if (effectivePathParts[0] === 'hm') {
+    return hmId(effectivePathParts[1], {path: effectivePathParts.slice(2), version, latest})
   }
   if (!originAccountId) return null
-  return hmId(originAccountId, {path: pathParts, version, latest})
+  return hmId(originAccountId, {path: effectivePathParts, version, latest})
 }
 
 async function handleOptionsRequest(request: Request) {

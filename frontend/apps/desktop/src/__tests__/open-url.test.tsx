@@ -94,4 +94,36 @@ describe('useOpenUrl', () => {
 
     cleanupRendered(root, container)
   })
+
+  it('routes inspect urls through in-app navigation', () => {
+    const {container, root} = renderHarness()
+
+    act(() => {
+      mockState.latestOpenUrl?.('hm://inspect/uid1/:comments/comment123')
+    })
+
+    expect(mockState.pushNavigate).toHaveBeenCalledWith({
+      key: 'inspect',
+      id: unpackHmId('hm://uid1'),
+      targetView: 'comments',
+      targetOpenComment: 'comment123',
+    })
+
+    cleanupRendered(root, container)
+  })
+
+  it('routes inspect ipfs urls through in-app navigation', () => {
+    const {container, root} = renderHarness()
+
+    act(() => {
+      mockState.latestOpenUrl?.('hm://inspect/ipfs/bafy123/path/to/node')
+    })
+
+    expect(mockState.pushNavigate).toHaveBeenCalledWith({
+      key: 'inspect-ipfs',
+      ipfsPath: 'bafy123/path/to/node',
+    })
+
+    cleanupRendered(root, container)
+  })
 })

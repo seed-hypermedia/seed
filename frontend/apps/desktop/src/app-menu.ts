@@ -163,6 +163,15 @@ export function createAppMenu() {
             })
           },
         },
+        {
+          id: 'route_api_inspector',
+          label: 'API Inspector',
+          click: () => {
+            openRoute({
+              key: 'api-inspector',
+            })
+          },
+        },
         {type: 'separator'},
         {role: 'resetZoom'},
         {role: 'zoomIn'},

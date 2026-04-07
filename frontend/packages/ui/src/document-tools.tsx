@@ -1,7 +1,26 @@
 import {HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {activitySlugToFilter, DocumentPanelRoute, NavRoute} from '@shm/shared'
+import {
+  activityFilterToSlug,
+  activitySlugToFilter,
+  createInspectNavRoute,
+  DocumentPanelRoute,
+  InspectRoute,
+  NavRoute,
+} from '@shm/shared'
+import type {InspectTab} from '@shm/shared/routes'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {LucideIcon, MessageSquare, Newspaper, Quote, Users} from 'lucide-react'
+import {
+  FileText,
+  Folder,
+  History,
+  LucideIcon,
+  MessageSquare,
+  MessagesSquare,
+  Newspaper,
+  Quote,
+  Shield,
+  Users,
+} from 'lucide-react'
 import {useRef, useState} from 'react'
 import {PageTab} from './page-tabs'
 import {cn} from './utils'
@@ -15,6 +34,9 @@ export function DocumentTools({
   rightActions,
   existingDraft,
   currentPanel,
+  mode = 'document',
+  inspectRoute,
+  inspectTabs,
   layoutProps,
 }: {
   id: UnpackedHypermediaId
@@ -26,6 +48,15 @@ export function DocumentTools({
   existingDraft?: HMExistingDraft | false
   /** Current panel route — tabs preserve this when navigating */
   currentPanel?: DocumentPanelRoute | null
+  mode?: 'document' | 'inspect'
+  inspectRoute?: InspectRoute | null
+  inspectTabs?: {
+    tab: InspectTab
+    label: string
+    tooltip: string
+    icon: LucideIcon
+    count?: number
+  }[]
   /** When provided, renders tabs in the same three-segment layout as main content */
   layoutProps?: {
     wrapperProps: React.HTMLAttributes<HTMLDivElement>
@@ -61,7 +92,7 @@ export function DocumentTools({
     return () => {
       resizeObserver.disconnect()
     }
-  }, [activeTab])
+  }, [activeTab, inspectRoute?.inspectTab, mode])
 
   // Always carry over the current panel so it stays open across tab switches.
   // Cast needed because each route type has its own panel union (excluding itself)
@@ -76,6 +107,13 @@ export function DocumentTools({
     id,
     panel: panelFor(),
   }
+  const inspectActivityPanelParam =
+    inspectRoute?.targetView === 'activity'
+      ? (() => {
+          const slug = activityFilterToSlug(inspectRoute.targetActivityFilter)
+          return slug ? `activity/${slug}` : null
+        })()
+      : null
   const buttons: {
     label: string
     tooltip: string
@@ -84,55 +122,122 @@ export function DocumentTools({
     active: boolean
     route: NavRoute
     bg?: string
-  }[] = [
-    {
-      label: 'Content',
-      tooltip: existingDraft ? 'Resume Editing' : 'Open Content',
-      icon: Newspaper,
-      active: activeTab == 'draft' || activeTab == 'content',
-      route: existingDraft
-        ? activeTab === 'draft'
-          ? documentRoute
-          : {
-              key: 'draft',
-              id: existingDraft.id,
-              editPath: id.path || [],
-              editUid: id.uid,
+  }[] =
+    mode === 'inspect' && inspectRoute
+      ? (
+          inspectTabs || [
+            {
+              tab: 'document' as const,
+              label: 'Document',
+              tooltip: 'Inspect Document State',
+              icon: FileText,
+            },
+            {
+              tab: 'changes' as const,
+              label: 'Changes',
+              tooltip: 'Inspect Document Changes',
+              icon: History,
+            },
+            {
+              tab: 'comments' as const,
+              label: 'Comments',
+              tooltip: 'Inspect Comments',
+              icon: MessageSquare,
+            },
+            {
+              tab: 'citations' as const,
+              label: 'Citations',
+              tooltip: 'Inspect Citations',
+              icon: Quote,
+            },
+            {
+              tab: 'children' as const,
+              label: 'Children',
+              tooltip: 'Inspect Child Documents',
+              icon: Folder,
+            },
+            {
+              tab: 'authored-comments' as const,
+              label: 'Authored',
+              tooltip: 'Inspect Authored Comments',
+              icon: MessagesSquare,
+            },
+            {
+              tab: 'contacts' as const,
+              label: 'Contacts',
+              tooltip: 'Inspect Site Contacts',
+              icon: Users,
+            },
+            {
+              tab: 'capabilities' as const,
+              label: 'Capabilities',
+              tooltip: 'Inspect Capabilities',
+              icon: Shield,
+            },
+          ]
+        ).map((tab) => ({
+          label: tab.label,
+          tooltip: tab.tooltip,
+          icon: tab.icon,
+          count: tab.count,
+          active: (inspectRoute.inspectTab || 'document') === tab.tab,
+          route: createInspectNavRoute(
+            idWithoutBlock,
+            inspectRoute.targetView,
+            inspectActivityPanelParam,
+            inspectRoute.targetOpenComment,
+            inspectRoute.targetAccountUid,
+            tab.tab === 'document' ? null : tab.tab,
+          ),
+        }))
+      : [
+          {
+            label: 'Content',
+            tooltip: existingDraft ? 'Resume Editing' : 'Open Content',
+            icon: Newspaper,
+            active: activeTab == 'draft' || activeTab == 'content',
+            route: existingDraft
+              ? activeTab === 'draft'
+                ? documentRoute
+                : {
+                    key: 'draft',
+                    id: existingDraft.id,
+                    editPath: id.path || [],
+                    editUid: id.uid,
+                    panel: panelFor(),
+                  }
+              : documentRoute,
+          },
+          {
+            label: 'People',
+            tooltip: 'Open Document Collaborators',
+            icon: Users,
+            active: activeTab == 'collaborators',
+            count: collabsCount,
+            route: {key: 'collaborators', id: idWithoutBlock, panel: panelFor()},
+          },
+          {
+            label: 'Comments',
+            tooltip: 'Open Document Comments',
+            icon: MessageSquare,
+            active: activeTab == 'comments',
+            count: commentsCount,
+            route: {key: 'comments', id: idWithoutBlock, panel: panelFor()},
+          },
+          {
+            label: 'Citations',
+            tooltip: 'Open Document Citations',
+            icon: Quote,
+            active: activeTab == 'citations',
+            count: citationsCount,
+            route: {
+              key: 'activity',
+              id: idWithoutBlock,
+              filterEventType: activitySlugToFilter('citations'),
               panel: panelFor(),
-            }
-        : documentRoute,
-      // bg: existingDraft ? 'bg-yellow-200' : undefined,
-    },
-    {
-      label: 'People',
-      tooltip: 'Open Document Collaborators',
-      icon: Users,
-      active: activeTab == 'collaborators',
-      count: collabsCount,
-      route: {key: 'collaborators', id: idWithoutBlock, panel: panelFor()},
-    },
-    {
-      label: 'Comments',
-      tooltip: 'Open Document Comments',
-      icon: MessageSquare,
-      active: activeTab == 'comments',
-      count: commentsCount,
-      route: {key: 'comments', id: idWithoutBlock, panel: panelFor()},
-    },
-    {
-      label: 'Citations',
-      tooltip: 'Open Document Citations',
-      icon: Quote,
-      active: activeTab == 'citations',
-      count: citationsCount,
-      route: {
-        key: 'activity',
-        id: idWithoutBlock,
-        filterEventType: activitySlugToFilter('citations'),
-        panel: panelFor(),
-      },
-    },
-  ]
+            },
+          },
+        ]
   const tabButtons = (
     <>
       {/* Hidden measurement container with labels always visible */}

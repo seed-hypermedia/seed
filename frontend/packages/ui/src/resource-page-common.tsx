@@ -1,5 +1,6 @@
 import {BlockRange, HMDocument, HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
+  createInspectNavRoute,
   DocumentPanelRoute,
   findContentBlock,
   getBlockText,
@@ -9,6 +10,7 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {
   useAccountsMetadata,
   useDirectory,
@@ -17,7 +19,6 @@ import {
   useResources,
   useSiteMembers,
 } from '@shm/shared/models/entity'
-import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
@@ -29,7 +30,7 @@ import {
   parseFragment,
 } from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {Folder} from 'lucide-react'
+import {Folder, Search} from 'lucide-react'
 import {CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AccountPage} from './account-page'
 import {BlockRangeSelectOptions, BlocksContent, BlocksContentProvider} from './blocks-content'
@@ -39,7 +40,7 @@ import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
-import {AuthorPayload, Breadcrumbs, BreadcrumbEntry, DocumentHeader} from './document-header'
+import {AuthorPayload, BreadcrumbEntry, Breadcrumbs, DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
 import {FeedFilters} from './feed-filters'
@@ -861,10 +862,27 @@ function DocumentBody({
 
   // Options dropdown: common items + platform extras
   const commonMenuItems = useCommonMenuItems(docId)
+  const inspectMenuItem = useMemo<MenuItemType | null>(() => {
+    if (route.key === 'inspect') return null
+    const inspectDocId = {...docId, blockRef: null, blockRange: null}
+    return {
+      key: 'inspect',
+      label: 'Inspect Document',
+      icon: <Search className="size-4" />,
+      onClick: () => {
+        navigate(createInspectNavRoute(inspectDocId))
+      },
+    }
+  }, [docId, navigate, route.key])
   const allMenuItems = useMemo(() => {
     const extras = extraMenuItems || []
-    return [...extras, ...commonMenuItems]
-  }, [extraMenuItems, commonMenuItems])
+    const items = [...commonMenuItems]
+    if (inspectMenuItem) {
+      const copyLinkIndex = items.findIndex((item) => item.key === 'copy-link')
+      items.splice(copyLinkIndex >= 0 ? copyLinkIndex + 1 : 0, 0, inspectMenuItem)
+    }
+    return [...extras, ...items]
+  }, [extraMenuItems, commonMenuItems, inspectMenuItem])
 
   const hasOptions = allMenuItems.length > 0
   const hasActionButtons = hasOptions || editActions
@@ -994,7 +1012,8 @@ function DocumentBody({
       {showActivity && (
         <div
           className={cn(
-            'dark:bg-background sticky top-0 z-10 bg-white px-5 py-1',
+            'sticky top-0 z-10 px-5 py-1',
+            'dark:bg-background bg-white',
             isToolsSticky ? 'shadow-md' : 'shadow-none',
             'transition-shadow',
           )}

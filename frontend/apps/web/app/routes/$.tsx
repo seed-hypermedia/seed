@@ -15,33 +15,51 @@ import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config.server'
 import {unwrap, type Wrapped} from '@/wrapping'
 import {WebFeedPage} from '@/web-feed-page'
-import {WebResourcePage} from '@/web-resource-page'
+import {WebInspectorPage, WebResourcePage} from '@/web-resource-page'
 import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
 import {HeadersFunction} from '@remix-run/node'
 import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useCallback, useMemo} from 'react'
 import {
   commentIdToHmId,
   createDocumentNavRoute,
+  createInspectIpfsNavRoute,
+  createInspectNavRoute,
+  createInspectNavRouteFromRoute,
+  createRouteFromInspectNavRoute,
+  hypermediaUrlToRoute,
   hmId,
+  InspectTab,
   isSiteProfileTab,
   VIEW_TERMS,
   viewTermToRouteKey,
   ViewRouteKey,
 } from '@shm/shared'
+import {useNavigationState} from '@shm/shared/utils/navigation'
+import {InspectIpfsPage} from '@shm/ui/inspect-ipfs-page'
 import {useTx} from '@shm/shared/translation'
 import {SizableText} from '@shm/ui/text'
 
 // Extended payload with view term and panel param for page routing
 type ExtendedSitePayload = SiteDocumentPayload & {
+  isInspect?: boolean
   viewTerm?: ViewRouteKey | null
   panelParam?: string | null // Supports extended format like "comments/BLOCKID" or "comments/COMMENT_ID"
   openComment?: string | null
   accountUid?: string | null
+  inspectTab?: InspectTab | null
 }
 
-type DocumentPayload = ExtendedSitePayload | 'unregistered' | 'no-site'
+type InspectIpfsPayload = {
+  kind: 'inspect-ipfs'
+  ipfsPath: string
+  originHomeId: UnpackedHypermediaId
+  siteHost: string
+}
+
+type DocumentPayload = ExtendedSitePayload | InspectIpfsPayload | 'unregistered' | 'no-site'
 
 /**
  * Extract view term from path parts and return cleaned path + view term
@@ -64,6 +82,18 @@ function extractViewTermFromPath(pathParts: string[]): {
         path: pathParts.slice(0, -3),
         viewTerm: 'comments',
         commentId: `${pathParts[pathParts.length - 2]}/${pathParts[pathParts.length - 1]}`,
+      }
+    }
+  }
+
+  // Check for :comments/COMMENT_ID pattern (2 segments from end)
+  if (pathParts.length >= 2) {
+    const secondToLast = pathParts[pathParts.length - 2]
+    if (secondToLast === ':comments' || secondToLast === ':comment' || secondToLast === ':discussions') {
+      return {
+        path: pathParts.slice(0, -2),
+        viewTerm: 'comments',
+        commentId: pathParts[pathParts.length - 1],
       }
     }
   }
@@ -111,6 +141,32 @@ function extractViewTermFromPath(pathParts: string[]): {
   return {path: pathParts, viewTerm: null}
 }
 
+function extractInspectPrefixFromPath(
+  pathParts: string[],
+  isGatewayPath: boolean,
+): {pathParts: string[]; isInspect: boolean} {
+  if (isGatewayPath) {
+    if (pathParts[1] === 'inspect') {
+      return {pathParts: pathParts.slice(2), isInspect: true}
+    }
+    return {pathParts: pathParts.slice(1), isInspect: false}
+  }
+
+  if (pathParts[0] === 'inspect') {
+    return {pathParts: pathParts.slice(1), isInspect: true}
+  }
+
+  return {pathParts, isInspect: false}
+}
+
+function extractInspectIpfsPathFromPath(pathParts: string[], isGatewayPath: boolean): string | null {
+  if (isGatewayPath) {
+    return pathParts[1] === 'inspect' && pathParts[2] === 'ipfs' ? pathParts.slice(3).join('/') || null : null
+  }
+
+  return pathParts[0] === 'inspect' && pathParts[1] === 'ipfs' ? pathParts.slice(2).join('/') || null : null
+}
+
 const unregisteredMeta = defaultPageMeta('Welcome to Seed Hypermedia')
 
 // export const links = () => [...documentLinks()]
@@ -136,6 +192,9 @@ export const meta: MetaFunction<typeof loader> = (args) => {
   const payload = unwrap<DocumentPayload>(args.data)
   if (payload === 'unregistered') return unregisteredMeta()
   if (payload === 'no-site') return unregisteredMeta()
+  if ('kind' in payload && payload.kind === 'inspect-ipfs') {
+    return [{title: `ipfs://${payload.ipfsPath}`}]
+  }
   return documentPageMeta({
     // @ts-ignore
     data: args.data,
@@ -200,6 +259,7 @@ export const loader = async ({params, request}: {params: Params; request: Reques
   const version = url.searchParams.get('v')
   const latest = url.searchParams.get('l') === '' || !version
   const panelParam = url.searchParams.get('panel')
+  const inspectTab = url.searchParams.get('tab')
 
   const serviceConfig = await instrument(ctx, 'getConfig', () => getConfig(hostname))
   if (!serviceConfig) {
@@ -216,7 +276,23 @@ export const loader = async ({params, request}: {params: Params; request: Reques
     return wrapJSON('unregistered', {status: 404})
   }
 
+  const gatewayInspectIpfsPath = pathParts[0] === 'hm' ? extractInspectIpfsPathFromPath(pathParts, true) : null
+  const siteInspectIpfsPath = gatewayInspectIpfsPath ? null : extractInspectIpfsPathFromPath(pathParts, false)
+  const inspectIpfsPath = gatewayInspectIpfsPath || siteInspectIpfsPath
+  if (inspectIpfsPath) {
+    if (isDataRequest && ctx.enabled) {
+      printInstrumentationSummary(ctx)
+    }
+    return wrapJSON({
+      kind: 'inspect-ipfs',
+      ipfsPath: inspectIpfsPath,
+      originHomeId: hmId(registeredAccountUid),
+      siteHost: hostname,
+    } satisfies InspectIpfsPayload)
+  }
+
   let documentId
+  let isInspect = false
   let viewTerm: ViewRouteKey | null = null
   // Merge activity filter slug from path into panelParam for createDocumentNavRoute
   let effectivePanelParam = panelParam
@@ -225,8 +301,12 @@ export const loader = async ({params, request}: {params: Params; request: Reques
 
   // Determine document type based on URL pattern
   if (pathParts[0] === 'hm' && pathParts.length > 1) {
-    // Hypermedia document (/hm/uid/path...)
-    const extracted = extractViewTermFromPath(pathParts.slice(2))
+    // Hypermedia document (/hm/uid/path...) or inspector document (/hm/inspect/uid/path...)
+    const inspectResult = extractInspectPrefixFromPath(pathParts, true)
+    isInspect = inspectResult.isInspect
+    const targetPathParts = inspectResult.pathParts
+    const docUid = targetPathParts[0]
+    const extracted = extractViewTermFromPath(targetPathParts.slice(1))
     viewTerm = extracted.viewTerm
     if (extracted.activityFilter) {
       effectivePanelParam = `activity/${extracted.activityFilter}`
@@ -235,15 +315,17 @@ export const loader = async ({params, request}: {params: Params; request: Reques
       openComment = extracted.commentId
     }
     accountUid = extracted.accountUid || null
-    documentId = hmId(pathParts[1], {
+    documentId = hmId(docUid, {
       path: extracted.path,
       version,
       latest,
     })
   } else {
-    // Site document (regular path)
+    // Site document (regular path) or inspector document (/inspect/path...)
     const rawPath = params['*'] ? params['*'].split('/').filter(Boolean) : []
-    const extracted = extractViewTermFromPath(rawPath)
+    const inspectResult = extractInspectPrefixFromPath(rawPath, false)
+    isInspect = inspectResult.isInspect
+    const extracted = extractViewTermFromPath(inspectResult.pathParts)
     viewTerm = extracted.viewTerm
     if (extracted.activityFilter) {
       effectivePanelParam = `activity/${extracted.activityFilter}`
@@ -266,6 +348,8 @@ export const loader = async ({params, request}: {params: Params; request: Reques
       panelParam: effectivePanelParam,
       openComment,
       accountUid,
+      isInspect,
+      inspectTab: isInspect && inspectTab ? (inspectTab as ExtendedSitePayload['inspectTab']) : null,
       instrumentationCtx: ctx,
     }),
   )
@@ -287,36 +371,62 @@ export default function UnifiedDocumentPage() {
   if (data === 'no-site') {
     return <NoSitePage />
   }
+  if ('kind' in data && data.kind === 'inspect-ipfs') {
+    return (
+      <WebSiteProvider
+        originHomeId={data.originHomeId}
+        siteHost={data.siteHost}
+        initialRoute={createInspectIpfsNavRoute(data.ipfsPath)}
+      >
+        <InnerInspectIpfsPage ipfsPath={data.ipfsPath} />
+      </WebSiteProvider>
+    )
+  }
+  const siteData = data as ExtendedSitePayload
 
   // The not found error is handled by the DocumentPage component,
   // and here we handle the rest of the errors.
   // For profile views, skip error handling since we don't need the document to exist
   if (
-    data.daemonError &&
-    data.daemonError.code !== Code.NotFound &&
-    !['profile', 'membership', 'followers', 'following'].includes(data.viewTerm || '')
+    siteData.daemonError &&
+    siteData.daemonError.code !== Code.NotFound &&
+    !['profile', 'membership', 'followers', 'following'].includes(siteData.viewTerm || '')
   ) {
-    return <DaemonErrorPage message={data.daemonError.message} code={data.daemonError.code} />
+    return <DaemonErrorPage message={siteData.daemonError.message} code={siteData.daemonError.code} />
   }
 
   // Render unified ResourcePage or FeedPage with WebSiteProvider for navigation context
   const initialRoute = createDocumentNavRoute(
-    data.id,
-    data.viewTerm,
-    data.panelParam,
-    data.openComment,
-    data.accountUid,
+    siteData.id,
+    siteData.viewTerm,
+    siteData.panelParam,
+    siteData.openComment,
+    siteData.accountUid,
+  )
+  const initialInspectRoute = createInspectNavRoute(
+    siteData.id,
+    siteData.viewTerm,
+    siteData.panelParam,
+    siteData.openComment,
+    siteData.accountUid,
+    siteData.inspectTab,
   )
 
   return (
     <WebSiteProvider
-      origin={data.origin}
-      originHomeId={data.originHomeId}
-      siteHost={data.siteHost}
-      dehydratedState={data.dehydratedState}
-      initialRoute={initialRoute}
+      origin={siteData.origin}
+      originHomeId={siteData.originHomeId}
+      siteHost={siteData.siteHost}
+      dehydratedState={siteData.dehydratedState}
+      initialRoute={siteData.isInspect ? initialInspectRoute : initialRoute}
     >
-      {data.viewTerm === 'feed' ? <WebFeedPage docId={data.id} /> : <InnerResourcePage docId={data.id} />}
+      {siteData.viewTerm === 'feed' && !siteData.isInspect ? (
+        <WebFeedPage docId={siteData.id} />
+      ) : siteData.isInspect ? (
+        <InnerInspectorPage docId={siteData.id} />
+      ) : (
+        <InnerResourcePage docId={siteData.id} />
+      )}
     </WebSiteProvider>
   )
 }
@@ -324,6 +434,32 @@ export default function UnifiedDocumentPage() {
 /** Inner component that can use hooks after providers are mounted */
 function InnerResourcePage({docId}: {docId: UnpackedHypermediaId}) {
   return <WebResourcePage docId={docId} CommentEditor={WebCommenting} />
+}
+
+/** Inner component that renders the dedicated inspector after providers are mounted. */
+function InnerInspectorPage({docId}: {docId: UnpackedHypermediaId}) {
+  return <WebInspectorPage docId={docId} />
+}
+
+function InnerInspectIpfsPage({ipfsPath}: {ipfsPath: string}) {
+  const navState = useNavigationState()
+  const getRouteForUrl = useCallback((url: string) => {
+    if (url.startsWith('ipfs://')) {
+      return createInspectIpfsNavRoute(url.slice('ipfs://'.length))
+    }
+
+    const targetRoute = hypermediaUrlToRoute(url)
+    return targetRoute ? createInspectNavRouteFromRoute(targetRoute) : null
+  }, [])
+  const exitRoute = useMemo(() => {
+    const previousRoute = navState && navState.routeIndex > 0 ? navState.routes[navState.routeIndex - 1] : null
+    if (!previousRoute || previousRoute.key === 'inspect-ipfs') return null
+    return previousRoute.key === 'inspect'
+      ? createRouteFromInspectNavRoute(previousRoute, previousRoute.inspectTab)
+      : previousRoute
+  }, [navState])
+
+  return <InspectIpfsPage ipfsPath={ipfsPath} exitRoute={exitRoute} getRouteForUrl={getRouteForUrl} />
 }
 
 export function DaemonErrorPage(props: GRPCError) {

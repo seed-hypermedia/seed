@@ -6,7 +6,7 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {z} from 'zod'
 import type {SiteProfileTab, ViewRouteKey} from './utils/entity-id-url'
-import {activitySlugToFilter, isSiteProfileTab, SITE_PROFILE_TABS} from './utils/entity-id-url'
+import {activityFilterToSlug, activitySlugToFilter, isSiteProfileTab, SITE_PROFILE_TABS} from './utils/entity-id-url'
 
 export const PROFILE_TABS = [
   'profile', //default tab
@@ -41,6 +41,31 @@ export const siteProfileRouteSchema = z.object({
 })
 export type SiteProfileRoute = z.infer<typeof siteProfileRouteSchema>
 export type ProfileRoute = z.infer<typeof profileRouteSchema>
+
+const INSPECT_TARGET_VIEW_KEYS = [
+  'activity',
+  'comments',
+  'collaborators',
+  'directory',
+  'feed',
+  ...SITE_PROFILE_TABS,
+] as const
+const inspectTargetViewSchema = z.enum(INSPECT_TARGET_VIEW_KEYS).optional()
+/** Supported tabs for the inspector UI. */
+export const INSPECT_TABS = [
+  'document',
+  'changes',
+  'versions',
+  'comments',
+  'citations',
+  'children',
+  'authored-comments',
+  'contacts',
+  'capabilities',
+] as const
+/** Inspector tab key. */
+export type InspectTab = (typeof INSPECT_TABS)[number]
+const inspectTabSchema = z.enum(INSPECT_TABS).optional()
 
 // Shared panel schemas for use in page-level routes
 const activityPanelSchema = z.object({
@@ -79,6 +104,27 @@ export const directoryRouteSchema = z.object({
   panel: directoryPagePanelSchema.nullable().optional(),
 })
 export type DocumentDirectorySelection = z.infer<typeof directoryRouteSchema>
+
+/** Route schema for the document inspector view. */
+export const inspectRouteSchema = z.object({
+  key: z.literal('inspect'),
+  id: unpackedHmIdSchema,
+  targetView: inspectTargetViewSchema,
+  targetActivityFilter: z.array(z.string()).optional(),
+  targetOpenComment: z.string().optional(),
+  targetAccountUid: z.string().optional(),
+  inspectTab: inspectTabSchema,
+})
+/** Navigation route for the document inspector view. */
+export type InspectRoute = z.infer<typeof inspectRouteSchema>
+
+/** Route schema for raw IPFS inspection inside the inspector. */
+export const inspectIpfsRouteSchema = z.object({
+  key: z.literal('inspect-ipfs'),
+  ipfsPath: z.string(),
+})
+/** Navigation route for raw IPFS inspection inside the inspector. */
+export type InspectIpfsRoute = z.infer<typeof inspectIpfsRouteSchema>
 
 // Collaborators page panel options
 const collaboratorsPagePanelSchema = z.discriminatedUnion('key', [
@@ -209,6 +255,14 @@ export type NotificationsRoute = z.infer<typeof notificationsRouteSchema>
 export const deletedContentRouteSchema = z.object({
   key: z.literal('deleted-content'),
 })
+export type DeletedContentRoute = z.infer<typeof deletedContentRouteSchema>
+
+/** Route schema for the desktop API inspector. */
+export const apiInspectorRouteSchema = z.object({
+  key: z.literal('api-inspector'),
+})
+/** Navigation route for the desktop API inspector. */
+export type ApiInspectorRoute = z.infer<typeof apiInspectorRouteSchema>
 
 export const draftRebaseRouteSchema = z.object({
   key: z.literal('draft-rebase'),
@@ -216,7 +270,6 @@ export const draftRebaseRouteSchema = z.object({
   sourceVersion: z.string(),
   targetVersion: z.string(),
 })
-export type DeletedContentRoute = z.infer<typeof deletedContentRouteSchema>
 
 export const libraryRouteSchema = z.object({
   key: z.literal('library'),
@@ -241,7 +294,10 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   bookmarksSchema,
   draftsSchema,
   deletedContentRouteSchema,
+  apiInspectorRouteSchema,
   feedRouteSchema,
+  inspectRouteSchema,
+  inspectIpfsRouteSchema,
   directoryRouteSchema,
   collaboratorsRouteSchema,
   activityRouteSchema,
@@ -252,6 +308,8 @@ export type NavRoute = z.infer<typeof navRouteSchema>
 export function getRecentsRouteEntityUrl(route: NavRoute) {
   // this is used to uniquely identify an item for the recents list. So it references the entity without specifying version
   if (route.key === 'document') return route.id.id
+  if (route.key === 'inspect') return route.id.id
+  if (route.key === 'inspect-ipfs') return null
   // comments do not show up in the recents list, we do not know how to display them
   return null
 }
@@ -396,7 +454,7 @@ export function createDocumentNavRoute(
         const slug = panelParam.slice('activity/'.length)
         filterEventType = activitySlugToFilter(slug)
         // Activity filter consumed as filterEventType, no side panel
-        return {key: 'activity', id: docId, filterEventType}
+        return {key: 'activity', id: docId, filterEventType, panel: null}
       }
       // Non-activity panel preserved as side panel
       return {key: 'activity', id: docId, filterEventType, panel}
@@ -423,5 +481,152 @@ export function createDocumentNavRoute(
       // ?panel=comments/COMMENT_ID (no viewTerm) → document main + comments right panel
       return {key: 'document', id: docId, panel}
     }
+  }
+}
+
+/** Creates an inspector route for a document plus an optional nested document view. */
+export function createInspectNavRoute(
+  docId: UnpackedHypermediaId,
+  targetView?: ViewRouteKey | null,
+  panelParam?: string | null,
+  openComment?: string | null,
+  accountUid?: string | null,
+  inspectTab?: InspectTab | null,
+): InspectRoute {
+  const targetActivityFilter =
+    targetView === 'activity' && panelParam?.startsWith('activity/')
+      ? activitySlugToFilter(panelParam.slice('activity/'.length))
+      : undefined
+
+  const route: InspectRoute = {
+    key: 'inspect',
+    id: docId,
+  }
+  if (targetView) route.targetView = targetView
+  if (targetActivityFilter) route.targetActivityFilter = targetActivityFilter
+  if (targetView === 'comments' && openComment) route.targetOpenComment = openComment
+  if (isSiteProfileTab(targetView) && accountUid) route.targetAccountUid = accountUid
+  if (inspectTab && inspectTab !== 'document') route.inspectTab = inspectTab
+  return route
+}
+
+/** Creates an inspector route for a raw IPFS object. */
+export function createInspectIpfsNavRoute(ipfsPath: string): InspectIpfsRoute {
+  return {
+    key: 'inspect-ipfs',
+    ipfsPath,
+  }
+}
+
+/** Converts an inspector route back into the equivalent non-inspector app route. */
+export function createRouteFromInspectNavRoute(route: InspectRoute, inspectTab?: InspectTab | null): NavRoute {
+  switch (inspectTab) {
+    case 'changes':
+      return {
+        key: 'activity',
+        id: route.id,
+        filterEventType: activitySlugToFilter('versions'),
+        panel: null,
+      }
+    case 'versions':
+      return {
+        key: 'comments',
+        id: route.id,
+        openComment: route.targetOpenComment,
+        panel: null,
+      }
+    case 'comments':
+      return {
+        key: 'comments',
+        id: route.id,
+        openComment: route.targetOpenComment,
+        panel: null,
+      }
+    case 'citations':
+      return {
+        key: 'activity',
+        id: route.id,
+        filterEventType: activitySlugToFilter('citations'),
+        panel: null,
+      }
+    case 'children':
+      return {key: 'directory', id: route.id, panel: null}
+    case 'capabilities':
+      return {key: 'collaborators', id: route.id, panel: null}
+  }
+
+  switch (route.targetView) {
+    case 'feed':
+      return {key: 'feed', id: route.id, panel: null}
+    case 'directory':
+      return {key: 'directory', id: route.id, panel: null}
+    case 'collaborators':
+      return {key: 'collaborators', id: route.id, panel: null}
+    case 'comments':
+      return {
+        key: 'comments',
+        id: route.id,
+        openComment: route.targetOpenComment,
+        panel: null,
+      }
+    case 'activity':
+      return {
+        key: 'activity',
+        id: route.id,
+        filterEventType: route.targetActivityFilter,
+        panel: null,
+      }
+    case 'profile':
+    case 'membership':
+    case 'followers':
+    case 'following':
+      return {
+        key: 'site-profile',
+        id: route.id,
+        accountUid: route.targetAccountUid,
+        tab: route.targetView,
+      }
+    default:
+      return {key: 'document', id: route.id, panel: null}
+  }
+}
+
+/** Wraps a document-like route so it opens inside the inspector. */
+export function createInspectNavRouteFromRoute(route: NavRoute): InspectRoute | InspectIpfsRoute | null {
+  switch (route.key) {
+    case 'inspect':
+    case 'inspect-ipfs':
+      return route
+    case 'document':
+      if (route.panel?.key === 'comments') {
+        return createInspectNavRoute(route.id, 'comments', null, route.panel.openComment)
+      }
+      if (route.panel?.key === 'activity') {
+        const activitySlug = activityFilterToSlug(route.panel.filterEventType)
+        return createInspectNavRoute(route.id, 'activity', activitySlug ? `activity/${activitySlug}` : null)
+      }
+      if (route.panel?.key === 'directory') {
+        return createInspectNavRoute(route.id, 'directory')
+      }
+      if (route.panel?.key === 'collaborators') {
+        return createInspectNavRoute(route.id, 'collaborators')
+      }
+      return createInspectNavRoute(route.id)
+    case 'feed':
+      return createInspectNavRoute(route.id, 'feed')
+    case 'directory':
+      return createInspectNavRoute(route.id, 'directory')
+    case 'collaborators':
+      return createInspectNavRoute(route.id, 'collaborators')
+    case 'comments':
+      return createInspectNavRoute(route.id, 'comments', null, route.openComment)
+    case 'activity': {
+      const activitySlug = activityFilterToSlug(route.filterEventType)
+      return createInspectNavRoute(route.id, 'activity', activitySlug ? `activity/${activitySlug}` : null)
+    }
+    case 'site-profile':
+      return createInspectNavRoute(route.id, route.tab, null, null, route.accountUid)
+    default:
+      return null
   }
 }

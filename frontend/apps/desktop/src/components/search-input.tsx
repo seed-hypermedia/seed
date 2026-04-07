@@ -13,7 +13,7 @@ import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@seed-hypermedia/client'
-import {createDocumentNavRoute, NavRoute} from '@shm/shared/routes'
+import {createDocumentNavRoute, createInspectNavRoute, NavRoute} from '@shm/shared/routes'
 import {
   extractViewTermFromUrl,
   isHypermediaScheme,
@@ -25,6 +25,7 @@ import {
   viewTermToRouteKey,
 } from '@shm/shared/utils/entity-id-url'
 import {appRouteOfId, isHttpUrl, useNavRoute} from '@shm/shared/utils/navigation'
+import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {RecentSearchResultItem, SearchInput as SearchInputUI, SearchResultItem} from '@shm/ui/search'
 import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
@@ -102,7 +103,9 @@ export const SearchInput = forwardRef<
           // Extract view term before processing
           const {
             url: cleanSearch,
+            isInspect: searchIsInspect,
             viewTerm: searchViewTerm,
+            activityFilter: searchActivityFilter,
             commentId: searchCommentId,
             accountUid: searchAccountUid,
           } = extractViewTermFromUrl(search)
@@ -113,7 +116,14 @@ export const SearchInput = forwardRef<
           if ((unpacked?.scheme === HYPERMEDIA_SCHEME || unpacked?.hostname === gwHost) && appRoute && unpacked) {
             onClose?.()
             onSelect({
-              route: applyViewTermToRoute(appRoute, searchRouteKey, searchCommentId, searchAccountUid),
+              route: applyViewTermToRoute(
+                appRoute,
+                searchRouteKey,
+                searchCommentId,
+                searchAccountUid,
+                searchActivityFilter,
+                searchIsInspect,
+              ),
               id: unpacked,
             })
           } else if (search.startsWith('http://') || search.startsWith('https://') || search.includes('.')) {
@@ -371,18 +381,27 @@ function applyViewTermToRoute(
   routeKey: ReturnType<typeof viewTermToRouteKey>,
   commentId?: string,
   accountUid?: string,
+  activityFilter?: string,
+  isInspect?: boolean,
 ): NavRoute {
-  if (!routeKey) return route
-  if (route.key === 'document') {
-    if (routeKey === 'comments' && commentId) {
-      return {key: 'comments', id: route.id, openComment: commentId}
-    }
-    if (isSiteProfileTab(routeKey)) {
-      return {key: 'site-profile', id: route.id, accountUid: accountUid || undefined, tab: routeKey}
-    }
-    return {key: routeKey, id: route.id}
+  if (route.key !== 'document') return route
+  if (isInspect) {
+    return createInspectNavRoute(
+      route.id,
+      routeKey,
+      routeKey === 'activity' && activityFilter ? `activity/${activityFilter}` : null,
+      commentId,
+      accountUid,
+    )
   }
-  return route
+  if (!routeKey) return route
+  if (routeKey === 'comments' && commentId) {
+    return {key: 'comments', id: route.id, openComment: commentId}
+  }
+  if (isSiteProfileTab(routeKey)) {
+    return {key: 'site-profile', id: route.id, accountUid: accountUid || undefined, tab: routeKey}
+  }
+  return {key: routeKey, id: route.id}
 }
 
 function useURLHandler() {
@@ -399,9 +418,20 @@ function useURLHandler() {
 
   return async (search: string): Promise<NavRoute | null> => {
     const httpSearch = isHttpUrl(search) ? search : `https://${search}`
+    const directRoute = hypermediaUrlToRoute(search) || hypermediaUrlToRoute(httpSearch)
+    if (directRoute) {
+      return directRoute
+    }
 
     // Extract view term (e.g., /:activity) before making request
-    const {url: cleanUrl, viewTerm, commentId, accountUid} = extractViewTermFromUrl(httpSearch)
+    const {
+      url: cleanUrl,
+      isInspect,
+      viewTerm,
+      activityFilter,
+      commentId,
+      accountUid,
+    } = extractViewTermFromUrl(httpSearch)
     const routeKey = viewTermToRouteKey(viewTerm)
 
     connect.mutate(cleanUrl)
@@ -412,7 +442,7 @@ function useURLHandler() {
         const res = await resolveHypermediaUrl(webResult.hypermedia.url)
         const resId = res?.id ? unpackHmId(res.id) : null
         const navRoute = resId ? appRouteOfId(resId) : null
-        if (navRoute) return applyViewTermToRoute(navRoute, routeKey, commentId, accountUid)
+        if (navRoute) return applyViewTermToRoute(navRoute, routeKey, commentId, accountUid, activityFilter, isInspect)
         console.log('Failed to open this hypermedia content', webResult.hypermedia)
         toast.error('Failed to open this hypermedia content')
         return null
@@ -453,7 +483,7 @@ function useURLHandler() {
           route = appRouteOfId({...result.hmId, ...idFragment})
         }
       }
-      if (route) return applyViewTermToRoute(route, routeKey, commentId, accountUid)
+      if (route) return applyViewTermToRoute(route, routeKey, commentId, accountUid, activityFilter, isInspect)
       toast.error('Failed to open this hypermedia content')
       return null
     }
