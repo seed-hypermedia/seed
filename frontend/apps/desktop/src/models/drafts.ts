@@ -26,11 +26,14 @@ export function useExistingDraft(route: NavRoute) {
   const id = getRouteResourceId(route)
   const drafts = useAccountDraftList(id?.uid)
   if (!id) return false
-  const existingDraft = drafts.data?.find((d) => {
+  // While drafts are loading, return undefined so the machine waits.
+  // Once loaded, return the matching draft or false (no draft).
+  if (!drafts.data) return undefined
+  const existingDraft = drafts.data.find((d) => {
     if (!d.editUid) return false
     return id.uid === d.editUid && pathMatches(d.editPath || [], id.path)
   })
-  return existingDraft
+  return existingDraft || false
 }
 
 function getRouteResourceId(route: NavRoute): UnpackedHypermediaId | null {

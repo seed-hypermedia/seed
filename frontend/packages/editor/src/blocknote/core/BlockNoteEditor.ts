@@ -98,6 +98,11 @@ export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
    */
   editable: boolean
   /**
+   * When true, register input and paste rules even when `editable` is false.
+   * Enables toggling to editable later via `editor.isEditable = true` without recreating the editor.
+   */
+  willBeEditable: boolean
+  /**
    * The content that should be in the editor when it's created, represented as an array of partial block objects.
    */
   initialContent: PartialBlock<BSchema>[]
@@ -306,10 +311,11 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
           ])
 
     const isEditable = options.editable !== false
+    const registerRules = isEditable || !!options.willBeEditable
     const tiptapOptions: EditorOptions = {
       ...blockNoteTipTapOptions,
-      enableInputRules: isEditable,
-      enablePasteRules: isEditable,
+      enableInputRules: registerRules,
+      enablePasteRules: registerRules,
       ...newOptions._tiptapOptions,
       onCreate: () => {
         newOptions.onEditorReady?.(this)
