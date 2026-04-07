@@ -1,6 +1,5 @@
 import {useEffect} from 'react'
 import {createBrowserRouter, Navigate, Outlet, useNavigate} from 'react-router-dom'
-import {AppFooter} from './components/AppFooter'
 import {Divider} from './components/Divider'
 import {ErrorMessage} from './components/ErrorMessage'
 import {Header} from './components/Header'
@@ -127,8 +126,6 @@ function WideLayout() {
 /** Application shell shared across all vault routes. */
 export function RootLayout() {
   const actions = useActions()
-  const {notificationServerUrl, vaultData} = useAppState()
-  const effectiveNotificationServerUrl = vaultData?.notificationServerUrl?.trim() || notificationServerUrl
 
   useEffect(() => {
     actions.checkSession()
@@ -141,7 +138,6 @@ export function RootLayout() {
       <main className="flex flex-1 items-center justify-center p-4 md:p-8">
         <Outlet />
       </main>
-      <AppFooter notificationServerUrl={effectiveNotificationServerUrl} />
     </>
   )
 }
