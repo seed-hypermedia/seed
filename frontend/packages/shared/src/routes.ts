@@ -255,6 +255,14 @@ export type NotificationsRoute = z.infer<typeof notificationsRouteSchema>
 export const deletedContentRouteSchema = z.object({
   key: z.literal('deleted-content'),
 })
+export type DeletedContentRoute = z.infer<typeof deletedContentRouteSchema>
+
+/** Route schema for the desktop API inspector. */
+export const apiInspectorRouteSchema = z.object({
+  key: z.literal('api-inspector'),
+})
+/** Navigation route for the desktop API inspector. */
+export type ApiInspectorRoute = z.infer<typeof apiInspectorRouteSchema>
 
 export const draftRebaseRouteSchema = z.object({
   key: z.literal('draft-rebase'),
@@ -262,7 +270,6 @@ export const draftRebaseRouteSchema = z.object({
   sourceVersion: z.string(),
   targetVersion: z.string(),
 })
-export type DeletedContentRoute = z.infer<typeof deletedContentRouteSchema>
 
 export const libraryRouteSchema = z.object({
   key: z.literal('library'),
@@ -287,6 +294,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   bookmarksSchema,
   draftsSchema,
   deletedContentRouteSchema,
+  apiInspectorRouteSchema,
   feedRouteSchema,
   inspectRouteSchema,
   inspectIpfsRouteSchema,

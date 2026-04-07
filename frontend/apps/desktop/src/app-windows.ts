@@ -29,7 +29,7 @@ export function getFocusedWindow(): BrowserWindow | null | undefined {
 }
 
 // Routes that should prevent duplicate windows
-const SINGLE_INSTANCE_ROUTES = new Set(['library', 'contacts', 'settings', 'drafts'])
+const SINGLE_INSTANCE_ROUTES = new Set(['library', 'contacts', 'settings', 'drafts', 'api-inspector'])
 
 // Check if a route key should prevent duplicate windows
 function shouldPreventDuplicateWindow(routeKey: string): boolean {

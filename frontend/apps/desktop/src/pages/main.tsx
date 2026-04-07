@@ -49,6 +49,7 @@ var InspectIpfs = lazy(() => import('./inspect-ipfs'))
 var Draft = lazy(() => import('./draft'))
 var Library = lazy(() => import('./library'))
 var DeletedContent = lazy(() => import('./deleted-content'))
+var ApiInspector = lazy(() => import('./api-inspector'))
 var Drafts = lazy(() => import('./drafts'))
 var Profile = lazy(() => import('./profile'))
 var Preview = lazy(() => import('./preview'))
@@ -334,6 +335,11 @@ function getPageComponent(navRoute: NavRoute) {
     case 'deleted-content':
       return {
         PageComponent: DeletedContent,
+        Fallback: BaseLoading,
+      }
+    case 'api-inspector':
+      return {
+        PageComponent: ApiInspector,
         Fallback: BaseLoading,
       }
     case 'drafts':

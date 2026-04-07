@@ -5,6 +5,7 @@ import {
   createInspectIpfsNavRoute,
   createInspectNavRoute,
   createRouteFromInspectNavRoute,
+  navRouteSchema,
   type NavRoute,
 } from '../routes'
 import {routeToHref} from '../routing'
@@ -280,6 +281,12 @@ describe('createDocumentNavRoute', () => {
         panel: {key: 'collaborators', id: docWithPath},
       })
     })
+  })
+})
+
+describe('navRouteSchema', () => {
+  test('parses the api inspector route', () => {
+    expect(navRouteSchema.parse({key: 'api-inspector'})).toEqual({key: 'api-inspector'})
   })
 })
 

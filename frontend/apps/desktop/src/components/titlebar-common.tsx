@@ -531,6 +531,8 @@ function getRouteLabel(route: NavRoute): string | null {
       return 'Bookmarks'
     case 'settings':
       return 'Settings'
+    case 'api-inspector':
+      return 'API Inspector'
     case 'notifications':
       return 'Notifications'
     case 'draft':

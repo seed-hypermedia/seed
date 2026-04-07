@@ -16,7 +16,7 @@ export function InspectorShell({
   const maxWidthClass = contentMaxWidth ? '' : 'max-w-[calc(85ch+1em)]'
 
   return (
-    <div className="flex min-h-full flex-col bg-zinc-100">
+    <div className="flex h-full min-h-0 flex-col bg-zinc-100">
       <div className="sticky top-0 z-10 border-b border-zinc-200 bg-zinc-100/95 backdrop-blur">
         <div className={`mx-auto w-full ${maxWidthClass}`} style={maxWidthStyle}>
           <div className="flex flex-col gap-3 px-4 py-3 md:px-0">
@@ -27,9 +27,9 @@ export function InspectorShell({
           </div>
         </div>
       </div>
-      <div className="flex-1">
-        <div className={`mx-auto w-full ${maxWidthClass}`} style={maxWidthStyle}>
-          <div className="px-4 py-4 md:px-0">{children}</div>
+      <div className="min-h-0 flex-1">
+        <div className={`mx-auto h-full w-full ${maxWidthClass}`} style={maxWidthStyle}>
+          <div className="h-full px-4 py-4 md:px-0">{children}</div>
         </div>
       </div>
     </div>
