@@ -444,7 +444,7 @@ test.describe('Link Toolbar', () => {
       const blocks = await editorHelpers.getBlocks()
       expect(blocks[0].content[1].content[0].text).toBe('Link')
       expect(blocks[0].content[1].type).toBe('link')
-      expect(blocks[0].content[1].href).toContain('hm://seed.test/doc/test-hm-doc')
+      expect(blocks[0].content[1].href).toContain('hm://bafy-doc-uid/Root/Notes/Test HM Doc')
     })
   })
 
