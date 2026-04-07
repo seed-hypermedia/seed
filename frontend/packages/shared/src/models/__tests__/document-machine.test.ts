@@ -37,6 +37,9 @@ function createTestActor(inputOverrides: Partial<DocumentMachineInput> = {}) {
         version: 'bafynew',
       })),
     },
+    delays: {
+      saveIndicatorDismiss: 50, // Fast dismiss for tests
+    },
   })
 
   return createActor(machine, {
@@ -48,6 +51,12 @@ function createTestActor(inputOverrides: Partial<DocumentMachineInput> = {}) {
   })
 }
 
+/** Helper: send both events to transition loading → loaded (no draft). */
+function loadDocument(actor: ReturnType<typeof createTestActor>, doc = mockDocument) {
+  actor.send({type: 'document.loaded', document: doc})
+  actor.send({type: 'draft.resolved', draftId: null, content: null})
+}
+
 describe('DocumentLifecycle machine', () => {
   it('starts in loading state', () => {
     const actor = createTestActor()
@@ -56,13 +65,84 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
-  it('loading → document.loaded → loaded', () => {
+  it('loading → document.loaded alone → stays in loading (waits for draft.resolved)', () => {
     const actor = createTestActor()
     actor.start()
     actor.send({type: 'document.loaded', document: mockDocument})
+    expect(actor.getSnapshot().value).toBe('loading')
+    expect(actor.getSnapshot().context.documentReady).toBe(true)
+    expect(actor.getSnapshot().context.draftReady).toBe(false)
+    expect(actor.getSnapshot().context.document).toBe(mockDocument)
+    actor.stop()
+  })
+
+  it('loading → document.loaded + draft.resolved → loaded', () => {
+    const actor = createTestActor()
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'draft.resolved', draftId: null, content: null})
     expect(actor.getSnapshot().value).toBe('loaded')
     expect(actor.getSnapshot().context.publishedVersion).toBe('bafyabc.bafydef')
     expect(actor.getSnapshot().context.document).toBe(mockDocument)
+    actor.stop()
+  })
+
+  it('loading → draft.resolved first, then document.loaded → loaded', () => {
+    const actor = createTestActor()
+    actor.start()
+    actor.send({type: 'draft.resolved', draftId: null, content: null})
+    expect(actor.getSnapshot().value).toBe('loading')
+    expect(actor.getSnapshot().context.draftReady).toBe(true)
+    actor.send({type: 'document.loaded', document: mockDocument})
+    expect(actor.getSnapshot().value).toBe('loaded')
+    actor.stop()
+  })
+
+  it('loading → draft.resolved with draftId + document.loaded → loaded → auto-editing', () => {
+    const actor = createTestActor()
+    actor.start()
+    actor.send({type: 'draft.resolved', draftId: 'my-draft', content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft text', attributes: {}}, children: []}]})
+    actor.send({type: 'document.loaded', document: mockDocument})
+    // Should auto-transition to editing via shouldAutoEdit
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().context.draftId).toBe('my-draft')
+    expect(actor.getSnapshot().context.shouldAutoEdit).toBe(false) // cleared
+    expect(actor.getSnapshot().context.draftContent).toEqual([{block: {id: 'b1', type: 'Paragraph', text: 'draft text', attributes: {}}, children: []}])
+    actor.stop()
+  })
+
+  it('draftContent is cleared on publish', async () => {
+    const actor = createTestActor({existingDraftId: 'my-draft'})
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'publish.start'})
+    await new Promise((r) => setTimeout(r, 50))
+    expect(actor.getSnapshot().value).toBe('loaded')
+    expect(actor.getSnapshot().context.draftContent).toBeNull()
+    actor.stop()
+  })
+
+  it('draftContent is cleared on discard', () => {
+    const actor = createTestActor()
+    actor.start()
+    actor.send({type: 'draft.resolved', draftId: 'my-draft', content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft', attributes: {}}, children: []}]})
+    actor.send({type: 'document.loaded', document: mockDocument})
+    expect(actor.getSnapshot().context.draftContent).not.toBeNull()
+    actor.send({type: 'edit.discard'})
+    expect(actor.getSnapshot().context.draftContent).toBeNull()
+    actor.stop()
+  })
+
+  it('draftContent is preserved on edit.cancel', () => {
+    const actor = createTestActor()
+    actor.start()
+    actor.send({type: 'draft.resolved', draftId: 'my-draft', content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft', attributes: {}}, children: []}]})
+    actor.send({type: 'document.loaded', document: mockDocument})
+    expect(actor.getSnapshot().context.draftContent).not.toBeNull()
+    actor.send({type: 'edit.cancel'})
+    expect(actor.getSnapshot().value).toBe('loaded')
+    // draftContent preserved so re-entering editing still has it
+    expect(actor.getSnapshot().context.draftContent).not.toBeNull()
     actor.stop()
   })
 
@@ -75,12 +155,12 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
-  it('loading → document.error → document.loaded → loaded (retry succeeds)', () => {
+  it('loading → document.error → document.loaded + draft.resolved → loaded (retry succeeds)', () => {
     const actor = createTestActor()
     actor.start()
     actor.send({type: 'document.error', error: 'fail'})
     expect(actor.getSnapshot().value).toBe('loading')
-    actor.send({type: 'document.loaded', document: mockDocument})
+    loadDocument(actor)
     expect(actor.getSnapshot().value).toBe('loaded')
     expect(actor.getSnapshot().context.error).toBe('fail')
     actor.stop()
@@ -125,12 +205,12 @@ describe('DocumentLifecycle machine', () => {
     expect(actor.getSnapshot().value).toBe('loading')
     expect(actor.getSnapshot().context.error).toBeNull()
     // Can now succeed
-    actor.send({type: 'document.loaded', document: mockDocument})
+    loadDocument(actor)
     expect(actor.getSnapshot().value).toBe('loaded')
     actor.stop()
   })
 
-  it('loading → document.loaded before timeout → no error', async () => {
+  it('loading → both sources before timeout → no error', async () => {
     const machine = documentMachine.provide({
       actors: {
         writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-123'})),
@@ -145,6 +225,7 @@ describe('DocumentLifecycle machine', () => {
     })
     actor.start()
     actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'draft.resolved', draftId: null, content: null})
     await new Promise((r) => setTimeout(r, 300))
     expect(actor.getSnapshot().value).toBe('loaded')
     actor.stop()
@@ -153,9 +234,9 @@ describe('DocumentLifecycle machine', () => {
   it('loaded → edit.start (canEdit=true) → editing.idle', () => {
     const actor = createTestActor()
     actor.start()
-    actor.send({type: 'document.loaded', document: mockDocument})
+    loadDocument(actor)
     actor.send({type: 'edit.start'})
-    expect(actor.getSnapshot().value).toEqual({editing: 'idle'})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
     // deps should be set from publishedVersion
     expect(actor.getSnapshot().context.deps).toEqual(['bafyabc.bafydef'])
     actor.stop()
@@ -164,7 +245,7 @@ describe('DocumentLifecycle machine', () => {
   it('loaded → edit.start (canEdit=false) → stays loaded', () => {
     const actor = createTestActor({canEdit: false})
     actor.start()
-    actor.send({type: 'document.loaded', document: mockDocument})
+    loadDocument(actor)
     actor.send({type: 'edit.start'})
     expect(actor.getSnapshot().value).toBe('loaded')
     actor.stop()
@@ -173,23 +254,23 @@ describe('DocumentLifecycle machine', () => {
   it('editing.idle → change → editing.changed', () => {
     const actor = createTestActor()
     actor.start()
-    actor.send({type: 'document.loaded', document: mockDocument})
+    loadDocument(actor)
     actor.send({type: 'edit.start'})
     actor.send({type: 'change'})
-    expect(actor.getSnapshot().value).toEqual({editing: 'changed'})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'changed', saveIndicator: 'hidden'}})
     actor.stop()
   })
 
   it('editing.changed → autosave timeout → editing.creating (no draftId)', async () => {
     const actor = createTestActor()
     actor.start()
-    actor.send({type: 'document.loaded', document: mockDocument})
+    loadDocument(actor)
     actor.send({type: 'edit.start'})
     actor.send({type: 'change'})
 
     // Wait for autosave timeout (500ms) + buffer
     await new Promise((r) => setTimeout(r, 600))
-    expect(actor.getSnapshot().value).toEqual({editing: 'idle'})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
     // After creating completes, it goes to idle with draftId set
     expect(actor.getSnapshot().context.draftId).toBe('draft-123')
     expect(actor.getSnapshot().context.draftCreated).toBe(true)
@@ -205,14 +286,14 @@ describe('DocumentLifecycle machine', () => {
 
     await new Promise((r) => setTimeout(r, 600))
     // After saving completes, goes to idle
-    expect(actor.getSnapshot().value).toEqual({editing: 'idle'})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
     actor.stop()
   })
 
   it('editing → edit.cancel → loaded', () => {
     const actor = createTestActor()
     actor.start()
-    actor.send({type: 'document.loaded', document: mockDocument})
+    loadDocument(actor)
     actor.send({type: 'edit.start'})
     actor.send({type: 'edit.cancel'})
     expect(actor.getSnapshot().value).toBe('loaded')
@@ -247,7 +328,7 @@ describe('DocumentLifecycle machine', () => {
     const updatedDoc = {...mockDocument, version: 'bafynewer'}
     const actor = createTestActor()
     actor.start()
-    actor.send({type: 'document.loaded', document: mockDocument})
+    loadDocument(actor)
     actor.send({type: 'document.remoteUpdate', document: updatedDoc})
     expect(actor.getSnapshot().value).toBe('loaded')
     expect(actor.getSnapshot().context.publishedVersion).toBe('bafynewer')
@@ -258,10 +339,10 @@ describe('DocumentLifecycle machine', () => {
     const updatedDoc = {...mockDocument, version: 'bafynewer'}
     const actor = createTestActor()
     actor.start()
-    actor.send({type: 'document.loaded', document: mockDocument})
+    loadDocument(actor)
     actor.send({type: 'edit.start'})
     actor.send({type: 'document.remoteUpdate', document: updatedDoc})
-    expect(actor.getSnapshot().value).toEqual({editing: 'idle'})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
     expect(actor.getSnapshot().context.pendingRemoteVersion).toBe('bafynewer')
     // publishedVersion stays the same
     expect(actor.getSnapshot().context.publishedVersion).toBe('bafyabc.bafydef')
@@ -272,28 +353,215 @@ describe('DocumentLifecycle machine', () => {
     const actor = createTestActor({existingDraftId: 'existing-draft'})
     actor.start()
     actor.send({type: 'document.loaded', document: mockDocument})
-    expect(actor.getSnapshot().value).toEqual({editing: 'idle'})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
     actor.stop()
   })
 
   it('publish.start without draftId stays in editing.idle', () => {
     const actor = createTestActor()
     actor.start()
-    actor.send({type: 'document.loaded', document: mockDocument})
+    loadDocument(actor)
     actor.send({type: 'edit.start'})
     actor.send({type: 'publish.start'})
     // No draftId, guard blocks transition
-    expect(actor.getSnapshot().value).toEqual({editing: 'idle'})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
     actor.stop()
   })
 
   it('change with metadata updates context.metadata', () => {
     const actor = createTestActor()
     actor.start()
-    actor.send({type: 'document.loaded', document: mockDocument})
+    loadDocument(actor)
     actor.send({type: 'edit.start'})
     actor.send({type: 'change', metadata: {name: 'New Title'}})
     expect(actor.getSnapshot().context.metadata).toEqual({name: 'New Title'})
+    actor.stop()
+  })
+
+  // -- capability.changed tests --
+
+  it('capability.changed in loaded → updates canEdit', () => {
+    const actor = createTestActor({canEdit: true})
+    actor.start()
+    loadDocument(actor)
+    expect(actor.getSnapshot().context.canEdit).toBe(true)
+    actor.send({type: 'capability.changed', canEdit: false})
+    expect(actor.getSnapshot().context.canEdit).toBe(false)
+    expect(actor.getSnapshot().value).toBe('loaded')
+    actor.stop()
+  })
+
+  it('capability.changed in editing (lost) → exits to loaded', () => {
+    const actor = createTestActor({canEdit: true})
+    actor.start()
+    loadDocument(actor)
+    actor.send({type: 'edit.start'})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    actor.send({type: 'capability.changed', canEdit: false})
+    expect(actor.getSnapshot().value).toBe('loaded')
+    expect(actor.getSnapshot().context.canEdit).toBe(false)
+    actor.stop()
+  })
+
+  it('capability.changed in editing (still can edit) → stays in editing', () => {
+    const actor = createTestActor({canEdit: true})
+    actor.start()
+    loadDocument(actor)
+    actor.send({type: 'edit.start'})
+    actor.send({type: 'capability.changed', canEdit: true})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    actor.stop()
+  })
+
+  it('capability.changed in loading → updates canEdit', () => {
+    const actor = createTestActor({canEdit: false})
+    actor.start()
+    expect(actor.getSnapshot().value).toBe('loading')
+    actor.send({type: 'capability.changed', canEdit: true})
+    expect(actor.getSnapshot().context.canEdit).toBe(true)
+    actor.stop()
+  })
+
+  it('capability.changed to true + existing draft → auto-edit after loaded', () => {
+    // existingDraftId sets draftReady: true, so only document.loaded is needed
+    const actor = createTestActor({canEdit: false, existingDraftId: 'draft-1'})
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    // shouldAutoEdit is true (from existingDraftId), draftReady is true,
+    // documentReady is now true → transitions to loaded → always to editing
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    actor.stop()
+  })
+
+  it('edit.discard → loaded (clears draftId)', () => {
+    const actor = createTestActor({existingDraftId: 'draft-to-discard'})
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    // auto-transitions to editing because of existingDraftId
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    actor.send({type: 'edit.discard'})
+    expect(actor.getSnapshot().value).toBe('loaded')
+    expect(actor.getSnapshot().context.draftId).toBeNull()
+    expect(actor.getSnapshot().context.draftCreated).toBe(false)
+    actor.stop()
+  })
+
+  // -- draft.existing event tests (async draft discovery on reload) --
+
+  it('draft.existing in loading → stores draftId, then document.loaded auto-transitions to editing', () => {
+    const actor = createTestActor()
+    actor.start()
+    expect(actor.getSnapshot().value).toBe('loading')
+    // Draft discovered while still loading
+    actor.send({type: 'draft.existing', draftId: 'late-draft'})
+    expect(actor.getSnapshot().context.draftId).toBe('late-draft')
+    expect(actor.getSnapshot().context.shouldAutoEdit).toBe(true)
+    expect(actor.getSnapshot().value).toBe('loading') // still loading
+    // Document arrives
+    actor.send({type: 'document.loaded', document: mockDocument})
+    // Should auto-transition to editing via the always guard
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().context.shouldAutoEdit).toBe(false) // cleared
+    actor.stop()
+  })
+
+  it('draft.existing in loaded → transitions directly to editing', () => {
+    const actor = createTestActor()
+    actor.start()
+    loadDocument(actor)
+    expect(actor.getSnapshot().value).toBe('loaded')
+    // Draft discovered after document loaded
+    actor.send({type: 'draft.existing', draftId: 'late-draft'})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().context.draftId).toBe('late-draft')
+    expect(actor.getSnapshot().context.draftCreated).toBe(true)
+    actor.stop()
+  })
+
+  // -- saveIndicator parallel state tests --
+
+  it('saveIndicator: hidden → saving → saved → hidden lifecycle', async () => {
+    // Use a slow writeDraft so we can observe the 'saving' indicator state
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<{id: string}, any>(
+          async () => {
+            await new Promise((r) => setTimeout(r, 100))
+            return {id: 'draft-456'}
+          },
+        ),
+        publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+      },
+      delays: {
+        autosaveTimeout: 50,
+        saveIndicatorDismiss: 100,
+      },
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true},
+    })
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'draft.resolved', draftId: null, content: null})
+    actor.send({type: 'edit.start'})
+    actor.send({type: 'change'})
+
+    // Initially: changed, indicator hidden
+    expect(actor.getSnapshot().matches({editing: {saveIndicator: 'hidden'}})).toBe(true)
+
+    // After autosave triggers (50ms) → creating entry raises _save.started → indicator: saving
+    // Actor is still running (takes 100ms), so indicator stays in saving
+    await new Promise((r) => setTimeout(r, 70))
+    expect(actor.getSnapshot().matches({editing: {saveIndicator: 'saving'}})).toBe(true)
+
+    // After actor resolves (~100ms from start) → _save.completed → indicator: saved
+    await new Promise((r) => setTimeout(r, 100))
+    expect(actor.getSnapshot().matches({editing: {saveIndicator: 'saved'}})).toBe(true)
+
+    // After saveIndicatorDismiss (100ms) → indicator: hidden
+    await new Promise((r) => setTimeout(r, 150))
+    expect(actor.getSnapshot().matches({editing: {saveIndicator: 'hidden'}})).toBe(true)
+    actor.stop()
+  })
+
+  // -- account.changed tests --
+
+  it('account.changed updates context in any state', () => {
+    const actor = createTestActor()
+    actor.start()
+    expect(actor.getSnapshot().context.signingAccountId).toBeNull()
+    actor.send({type: 'account.changed', signingAccountId: 'acc-1', publishAccountUid: 'uid-1'})
+    expect(actor.getSnapshot().context.signingAccountId).toBe('acc-1')
+    expect(actor.getSnapshot().context.publishAccountUid).toBe('uid-1')
+    actor.stop()
+  })
+
+  it('account IDs flow through to writeDraft actor input', async () => {
+    let capturedInput: any = null
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<{id: string}, any>(async ({input}) => {
+          capturedInput = input
+          return {id: 'draft-789'}
+        }),
+        publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+      },
+      delays: {
+        autosaveTimeout: 10,
+        saveIndicatorDismiss: 10,
+      },
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true, signingAccountId: 'my-account'},
+    })
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'draft.resolved', draftId: null, content: null})
+    actor.send({type: 'edit.start'})
+    actor.send({type: 'change'})
+    await new Promise((r) => setTimeout(r, 100))
+    expect(capturedInput).not.toBeNull()
+    expect(capturedInput.signingAccountId).toBe('my-account')
     actor.stop()
   })
 })
