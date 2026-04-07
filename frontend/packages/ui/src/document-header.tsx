@@ -45,6 +45,7 @@ export function DocumentHeader({
   documentTools,
   visibility,
   showTitle = true,
+  children,
 }: {
   docId: UnpackedHypermediaId | null
   docMetadata: HMMetadata | null
@@ -55,6 +56,7 @@ export function DocumentHeader({
   documentTools?: React.ReactNode
   visibility?: HMResourceVisibility
   showTitle?: boolean
+  children?: React.ReactNode
 }) {
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata])
@@ -83,14 +85,20 @@ export function DocumentHeader({
         ) : null}
         {breadcrumbs && breadcrumbs.length > 0 ? <Breadcrumbs breadcrumbs={breadcrumbs} /> : null}
         {isPrivate && <PrivateBadge />}
-        {showTitle && (
-          <SizableText size="4xl" weight="bold" {...highlighter(docId)}>
-            {isHomeDoc ? 'Home' : docMetadata?.name}
-          </SizableText>
+        {children ? (
+          children
+        ) : (
+          <>
+            {showTitle && (
+              <SizableText size="4xl" weight="bold" {...highlighter(docId)}>
+                {isHomeDoc ? 'Home' : docMetadata?.name}
+              </SizableText>
+            )}
+            {docMetadata?.summary ? (
+              <span className="font-body text-muted-foreground text-xl">{docMetadata?.summary}</span>
+            ) : null}
+          </>
         )}
-        {docMetadata?.summary ? (
-          <span className="font-body text-muted-foreground text-xl">{docMetadata?.summary}</span>
-        ) : null}
         <div className="border-border flex flex-col gap-2 border-b pb-4">
           {siteUrl ? <SiteURLButton siteUrl={siteUrl} /> : null}
           <div className="flex flex-1 items-center justify-between gap-3">

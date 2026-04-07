@@ -1,5 +1,10 @@
-import {BlockRange, HMDocument, HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import type {DocumentContentProps} from '@shm/shared/document-content-props'
+import {
+  BlockRange,
+  HMBlockNode,
+  HMDocument,
+  HMExistingDraft,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {
   createInspectNavRoute,
   DocumentPanelRoute,
@@ -11,6 +16,7 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import type {BlockRangeSelectOptions, DocumentContentProps} from '@shm/shared/document-content-props'
 import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {
   useAccountsMetadata,
@@ -24,9 +30,15 @@ import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {
   documentMachine,
   DocumentMachineProvider,
+  selectContext,
+  selectIsEditing,
   selectPublishedVersion,
+  useAccountSync,
+  useCapabilitySync,
   useDocumentSelector,
+  useDocumentSend,
   useDocumentSync,
+  useDraftResolutionSync,
 } from '@shm/shared/models/use-document-machine'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
@@ -41,7 +53,6 @@ import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Folder, Search} from 'lucide-react'
 import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AccountPage} from './account-page'
-import type {BlockRangeSelectOptions} from '@shm/shared/document-content-props'
 import {CollaboratorsPage} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
@@ -180,6 +191,8 @@ export interface ResourcePageProps {
   editActions?: ReactNode
   /** Existing draft info for showing draft indicator in toolbar */
   existingDraft?: HMExistingDraft | false
+  /** Pre-fetched content blocks from the existing draft (when available, used as editor initial content) */
+  existingDraftContent?: HMBlockNode[]
   /** Platform-specific page footer (web only) */
   pageFooter?: ReactNode
 
@@ -206,6 +219,18 @@ export interface ResourcePageProps {
   inspectStore?: import('@shm/shared/models/document-machine-inspect').InspectEventStore
   /** Component to render document content using the editor. Optional during SSR. */
   DocumentContentComponent?: React.ComponentType<DocumentContentProps>
+  /** Called when the editor instance is created. Used by desktop to capture editor ref for draft saving. */
+  onEditorReady?: (editor: any) => void
+  /** Extra components to render inside the DocumentMachineProvider (e.g. draft content loader). */
+  machineExtras?: ReactNode
+  /** Render prop for floating overlay when editing. Receives existing menu items so they can be merged. */
+  editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
+  /** Signing account ID for draft saving (desktop only). Flows into machine context. */
+  signingAccountId?: string
+  /** Publish account UID for publishing (desktop only). Flows into machine context. */
+  publishAccountUid?: string
+  /** Render prop for the options panel (desktop only). Rendered when panel key is 'options'. */
+  optionsPanel?: ReactNode
 }
 
 /** Get panel title for display */
@@ -230,6 +255,7 @@ export function ResourcePage({
   extraMenuItems,
   editActions,
   existingDraft,
+  existingDraftContent,
   floatingButtons,
   pageFooter,
   inlineCards,
@@ -243,6 +269,12 @@ export function ResourcePage({
   inspect,
   inspectStore,
   DocumentContentComponent,
+  onEditorReady,
+  machineExtras,
+  editingFloatingActions,
+  signingAccountId,
+  publishAccountUid,
+  optionsPanel,
 }: ResourcePageProps) {
   const route = useNavRoute()
   const isSiteProfile = route.key === 'site-profile'
@@ -409,6 +441,7 @@ export function ResourcePage({
             document={targetDocument}
             activeView="comments"
             openComment={comment.id}
+            existingDraft={false}
             CommentEditor={CommentEditor}
             siteUrl={siteHomeDocument?.metadata?.siteUrl}
             pageFooter={pageFooter}
@@ -435,9 +468,10 @@ export function ResourcePage({
       input={{
         documentId: docId,
         canEdit,
-        existingDraftId: existingDraft ? existingDraft.id : undefined,
         editUid: docId.uid,
         editPath: docId.path ?? undefined,
+        signingAccountId,
+        publishAccountUid,
       }}
       machine={machine}
       inspect={inspect}
@@ -459,13 +493,21 @@ export function ResourcePage({
           extraMenuItems={extraMenuItems}
           editActions={editActions}
           existingDraft={existingDraft}
+          existingDraftContent={existingDraftContent}
           floatingButtons={floatingButtons}
           pageFooter={pageFooter}
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
           DocumentContentComponent={DocumentContentComponent}
+          onEditorReady={onEditorReady}
+          canEdit={canEdit}
+          editingFloatingActions={editingFloatingActions}
+          signingAccountId={signingAccountId}
+          publishAccountUid={publishAccountUid}
+          optionsPanel={optionsPanel}
         />
       </PageWrapper>
+      {machineExtras}
       {inspect && (
         <Suspense fallback={null}>
           <LazyDocumentMachineDebugDrawer store={inspectStore} />
@@ -598,12 +640,19 @@ function DocumentBody({
   extraMenuItems,
   editActions,
   existingDraft,
+  existingDraftContent,
   floatingButtons,
   pageFooter,
   inlineCards,
   openComment,
   inlineInsert,
   DocumentContentComponent,
+  onEditorReady,
+  canEdit = false,
+  editingFloatingActions,
+  signingAccountId,
+  publishAccountUid,
+  optionsPanel,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
@@ -615,6 +664,7 @@ function DocumentBody({
   extraMenuItems?: MenuItemType[]
   editActions?: ReactNode
   existingDraft?: HMExistingDraft | false
+  existingDraftContent?: HMBlockNode[]
   floatingButtons?: ReactNode
   pageFooter?: ReactNode
   inlineCards?: ReactNode
@@ -624,10 +674,48 @@ function DocumentBody({
   inlineInsert?: ReactNode
   /** Component to render document content using the editor */
   DocumentContentComponent?: React.ComponentType<DocumentContentProps>
+  /** Called when the editor instance is created */
+  onEditorReady?: (editor: any) => void
+  /** Whether the current user can edit this document */
+  canEdit?: boolean
+  /** Render prop for floating overlay when editing */
+  editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
+  /** Signing account ID for draft saving (desktop only) */
+  signingAccountId?: string
+  /** Publish account UID for publishing (desktop only) */
+  publishAccountUid?: string
+  /** Render prop for the options panel */
+  optionsPanel?: ReactNode
 }) {
   // Sync document into state machine
   useDocumentSync(document)
+  // Sync canEdit changes into the machine (for account switching)
+  useCapabilitySync(canEdit)
+  // Sync account IDs into the machine (for draft saving / publishing)
+  useAccountSync(signingAccountId, publishAccountUid)
+  // Sync draft resolution — machine stays in loading until this settles.
+  // undefined = still loading, {draftId: null} = no draft, {draftId: string} = draft + content ready
+  const draftResolution = useMemo(() => {
+    let result: {draftId: string | null; content: HMBlockNode[] | null} | undefined
+    if (existingDraft === undefined) {
+      result = undefined
+    } else if (!existingDraft) {
+      result = {draftId: null as string | null, content: null}
+    } else if (existingDraftContent) {
+      result = {draftId: existingDraft.id, content: existingDraftContent}
+    } else {
+      result = undefined // draft found but content not loaded yet
+    }
+    console.log('[DraftResolution]', {
+      existingDraft: existingDraft === undefined ? 'undefined' : existingDraft === false ? 'false' : existingDraft?.id,
+      hasContent: !!existingDraftContent,
+      resolution: result === undefined ? 'undefined (waiting)' : `draftId=${result.draftId}`,
+    })
+    return result
+  }, [existingDraft, existingDraftContent])
+  useDraftResolutionSync(draftResolution)
   const publishedVersion = useDocumentSelector(selectPublishedVersion)
+  const isEditing = useDocumentSelector(selectIsEditing)
 
   const route = useNavRoute()
   const navigate = useNavigate()
@@ -1003,16 +1091,26 @@ function DocumentBody({
                 />
               </div>
             )}
-            {!isHomeDoc && (
-              <DocumentHeader
-                docId={docId}
-                docMetadata={document.metadata}
-                authors={authorPayloads}
-                updateTime={document.updateTime}
-                breadcrumbs={breadcrumbs}
-                visibility={document.visibility}
-              />
-            )}
+            {!isHomeDoc &&
+              (isEditing ? (
+                <EditableDocumentHeader
+                  docId={docId}
+                  docMetadata={document.metadata}
+                  authors={authorPayloads}
+                  updateTime={document.updateTime}
+                  breadcrumbs={breadcrumbs}
+                  visibility={document.visibility}
+                />
+              ) : (
+                <DocumentHeader
+                  docId={docId}
+                  docMetadata={document.metadata}
+                  authors={authorPayloads}
+                  updateTime={document.updateTime}
+                  breadcrumbs={breadcrumbs}
+                  visibility={document.visibility}
+                />
+              ))}
           </div>
           {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
         </div>
@@ -1048,16 +1146,26 @@ function DocumentBody({
               />
             </div>
           )}
-          {!isHomeDoc && (
-            <DocumentHeader
-              docId={docId}
-              docMetadata={document.metadata}
-              authors={authorPayloads}
-              updateTime={document.updateTime}
-              breadcrumbs={breadcrumbs}
-              visibility={document.visibility}
-            />
-          )}
+          {!isHomeDoc &&
+            (isEditing ? (
+              <EditableDocumentHeader
+                docId={docId}
+                docMetadata={document.metadata}
+                authors={authorPayloads}
+                updateTime={document.updateTime}
+                breadcrumbs={breadcrumbs}
+                visibility={document.visibility}
+              />
+            ) : (
+              <DocumentHeader
+                docId={docId}
+                docMetadata={document.metadata}
+                authors={authorPayloads}
+                updateTime={document.updateTime}
+                breadcrumbs={breadcrumbs}
+                visibility={document.visibility}
+              />
+            ))}
         </div>
       )}
 
@@ -1085,7 +1193,7 @@ function DocumentBody({
                 : activeView
             }
             currentPanel={panelRoute}
-            existingDraft={existingDraft}
+            existingDraft={isEditing ? undefined : existingDraft}
             commentsCount={interactionSummary.data?.comments || 0}
             citationsCount={interactionSummary.data?.citations || 0}
             layoutProps={
@@ -1147,6 +1255,8 @@ function DocumentBody({
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
           DocumentContentComponent={DocumentContentComponent}
+          onEditorReady={onEditorReady}
+          existingDraftContent={existingDraftContent}
         />
       </div>
       {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
@@ -1225,6 +1335,7 @@ function DocumentBody({
         contentMaxWidth={contentMaxWidth}
         CommentEditor={CommentEditor}
         siteUrl={siteUrl}
+        optionsPanel={optionsPanel}
       />
     </ScrollArea>
   ) : null
@@ -1239,8 +1350,16 @@ function DocumentBody({
         onFilterChange={handleFilterChange}
       >
         <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
-        {/* Floating action buttons - visible when DocumentTools is NOT sticky */}
-        {actionButtons ? (
+        {/* Floating action buttons — when editing, show editing toolbar; otherwise show normal action buttons */}
+        {isEditing && editingFloatingActions ? (
+          <div
+            className={cn(
+              'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
+            )}
+          >
+            {editingFloatingActions({menuItems: allMenuItems})}
+          </div>
+        ) : actionButtons ? (
           <div
             className={cn(
               'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
@@ -1261,6 +1380,106 @@ function DocumentBody({
   )
 }
 
+/**
+ * Editable document header shown when in editing mode.
+ * Renders the same breadcrumbs/authors/date via DocumentHeader but replaces
+ * the static title and summary with editable textareas that send `change`
+ * events to the document machine.
+ */
+function EditableDocumentHeader({
+  docId,
+  docMetadata,
+  authors,
+  updateTime,
+  breadcrumbs,
+  visibility,
+}: {
+  docId: UnpackedHypermediaId
+  docMetadata: HMDocument['metadata']
+  authors: AuthorPayload[]
+  updateTime: HMDocument['updateTime']
+  breadcrumbs?: BreadcrumbEntry[]
+  visibility?: string
+}) {
+  const ctx = useDocumentSelector(selectContext)
+  const send = useDocumentSend()
+  const inputName = useRef<HTMLTextAreaElement | null>(null)
+  const inputSummary = useRef<HTMLTextAreaElement | null>(null)
+
+  // Use machine context metadata if it has been changed, otherwise fall back to document metadata
+  const name = ctx.metadata?.name ?? docMetadata?.name ?? ''
+  const summary = ctx.metadata?.summary ?? docMetadata?.summary ?? ''
+
+  useEffect(() => {
+    const target = inputName.current
+    if (!target) return
+    if (target.value !== name) {
+      target.value = name || ''
+      applyTitleResize(target)
+    }
+  }, [name])
+
+  useEffect(() => {
+    const target = inputSummary.current
+    if (!target) return
+    if (target.value !== summary) {
+      target.value = summary || ''
+      applyTitleResize(target)
+    }
+  }, [summary])
+
+  useEffect(() => {
+    function handleResize() {
+      if (inputName.current) applyTitleResize(inputName.current)
+      if (inputSummary.current) applyTitleResize(inputSummary.current)
+    }
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  return (
+    <DocumentHeader
+      docId={docId}
+      docMetadata={docMetadata}
+      authors={authors}
+      updateTime={updateTime}
+      breadcrumbs={breadcrumbs}
+      visibility={visibility as any}
+      showTitle={false}
+    >
+      <textarea
+        ref={inputName}
+        rows={1}
+        className="w-full resize-none border-none border-transparent bg-transparent text-4xl font-bold shadow-none ring-0 ring-transparent outline-none focus:ring-0"
+        defaultValue={name}
+        onChange={(e) => {
+          applyTitleResize(e.target)
+          send({type: 'change', metadata: {name: e.target.value}})
+        }}
+        placeholder="Document Title"
+      />
+      <textarea
+        ref={inputSummary}
+        rows={1}
+        className="text-muted-foreground w-full resize-none border-none border-transparent bg-transparent font-serif text-xl font-normal shadow-none ring-0 ring-transparent outline-none focus:ring-0"
+        defaultValue={summary}
+        onChange={(e) => {
+          applyTitleResize(e.target)
+          send({type: 'change', metadata: {summary: e.target.value}})
+        }}
+        placeholder="Document Summary"
+      />
+    </DocumentHeader>
+  )
+}
+
+/** Auto-resize a textarea to fit its content. */
+function applyTitleResize(el: HTMLTextAreaElement) {
+  el.style.height = 'auto'
+  el.style.height = el.scrollHeight + 'px'
+}
+
 // Renders panel content based on panel type
 function PanelContentRenderer({
   panelRoute,
@@ -1268,14 +1487,18 @@ function PanelContentRenderer({
   contentMaxWidth,
   CommentEditor,
   siteUrl,
+  optionsPanel,
 }: {
   panelRoute: DocumentPanelRoute
   docId: UnpackedHypermediaId
   contentMaxWidth: number
   CommentEditor?: React.ComponentType<CommentEditorProps>
   siteUrl?: string
+  optionsPanel?: ReactNode
 }) {
   switch (panelRoute.key) {
+    case 'options':
+      return optionsPanel ?? null
     case 'activity':
       return (
         <Feed size="sm" filterResource={docId.id} filterEventType={panelRoute.filterEventType} targetDomain={siteUrl} />
@@ -1316,6 +1539,7 @@ function PanelContentRenderer({
           <CollaboratorsPage docId={docId} />
         </div>
       )
+
     default:
       return null
   }
@@ -1345,6 +1569,8 @@ function MainContent({
   inlineCards,
   inlineInsert,
   DocumentContentComponent,
+  onEditorReady,
+  existingDraftContent,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1382,6 +1608,8 @@ function MainContent({
   inlineCards?: ReactNode
   inlineInsert?: ReactNode
   DocumentContentComponent?: React.ComponentType<DocumentContentProps>
+  onEditorReady?: (editor: any) => void
+  existingDraftContent?: HMBlockNode[]
 }) {
   switch (activeView) {
     case 'directory':
@@ -1458,6 +1686,8 @@ function MainContent({
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
           DocumentContentComponent={DocumentContentComponent}
+          onEditorReady={onEditorReady}
+          existingDraftContent={existingDraftContent}
         />
       )
   }
@@ -1480,6 +1710,8 @@ function ContentViewWithOutline({
   inlineCards,
   inlineInsert,
   DocumentContentComponent,
+  onEditorReady,
+  existingDraftContent,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1501,6 +1733,8 @@ function ContentViewWithOutline({
   inlineCards?: ReactNode
   inlineInsert?: ReactNode
   DocumentContentComponent?: React.ComponentType<DocumentContentProps>
+  onEditorReady?: (editor: any) => void
+  existingDraftContent?: HMBlockNode[]
 }) {
   const outline = useNodesOutline(document, docId)
 
@@ -1531,13 +1765,14 @@ function ContentViewWithOutline({
       <div {...mainContentProps}>
         {DocumentContentComponent ? (
           <DocumentContentComponent
-            blocks={document.content}
+            blocks={existingDraftContent ?? document.content}
             resourceId={resourceId}
             focusBlockId={docId.blockRef ?? undefined}
             blockCitations={blockCitations}
             onBlockCitationClick={onBlockCitationClick}
             onBlockCommentClick={onBlockCommentClick}
             onBlockSelect={onBlockSelect}
+            onEditorReady={onEditorReady}
           />
         ) : null}
         {inlineInsert}
