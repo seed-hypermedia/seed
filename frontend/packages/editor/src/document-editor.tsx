@@ -58,6 +58,7 @@ export function DocumentEditor({
   onBlockCommentClick,
   onBlockSelect,
   onEditorReady,
+  draftCursorPosition,
 }: DocumentContentProps) {
   const openUrl = useOpenUrl()
   const getImageUrl = useImageUrl()
@@ -175,8 +176,13 @@ export function DocumentEditor({
       const view = editor._tiptapEditor?.view
       if (!view) return
 
-      const pos = pendingClickPosRef.current
+      let pos = pendingClickPosRef.current
       pendingClickPosRef.current = null
+
+      // Fall back to saved draft cursor position when no click position is pending
+      if (pos === null && draftCursorPosition != null) {
+        pos = draftCursorPosition
+      }
 
       if (pos !== null) {
         // Clamp to valid doc range
@@ -184,6 +190,11 @@ export function DocumentEditor({
         try {
           const selection = TextSelection.create(view.state.doc, safePos)
           view.dispatch(view.state.tr.setSelection(selection))
+          // Scroll the cursor into view using the DOM — ProseMirror's scrollIntoView
+          // doesn't work with the custom ScrollArea container used in the layout.
+          const cursorDOM = view.domAtPos(safePos)
+          const node = cursorDOM.node instanceof HTMLElement ? cursorDOM.node : cursorDOM.node.parentElement
+          node?.scrollIntoView({block: 'center', behavior: 'instant'})
         } catch {
           // If the stored position is invalid for any reason, just focus without moving cursor
         }

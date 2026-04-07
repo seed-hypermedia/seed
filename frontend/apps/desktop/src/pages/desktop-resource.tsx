@@ -121,10 +121,12 @@ export default function DesktopResourcePage() {
       fromPromise<{id: string}, WriteDraftInput>(async ({input}) => {
         const editor = editorRef.current
         const content = editor ? editor.topLevelBlocks : []
+        const cursorPosition = editor?._tiptapEditor?.view?.state?.selection?.$anchor?.pos ?? undefined
         const draftId = input.draftId || nanoid(10)
         console.log('[writeDraft] saving:', {
           draftId,
           blocksCount: content.length,
+          cursorPosition,
           signingAccountId: input.signingAccountId,
           hasEditor: !!editor,
         })
@@ -133,6 +135,7 @@ export default function DesktopResourcePage() {
           metadata: input.metadata,
           signingAccount: input.signingAccountId || undefined,
           content,
+          cursorPosition,
           deps: input.deps,
           navigation: input.navigation,
           locationUid: input.locationUid || undefined,
@@ -564,6 +567,7 @@ export default function DesktopResourcePage() {
               editActions={editActions}
               existingDraft={existingDraft}
               existingDraftContent={existingDraftContent}
+              existingDraftCursorPosition={draftQuery.data?.cursorPosition}
               inlineCards={inlineCards}
               rightActions={<JoinButton siteUid={docId.uid} />}
               onEditProfile={onEditProfile}
