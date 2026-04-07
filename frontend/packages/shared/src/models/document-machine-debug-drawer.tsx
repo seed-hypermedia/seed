@@ -28,12 +28,17 @@ function selectDebugContext(snapshot: DocumentMachineSnapshot) {
   const ctx = snapshot.context
   return {
     canEdit: ctx.canEdit,
+    documentReady: ctx.documentReady,
+    draftReady: ctx.draftReady,
     draftId: ctx.draftId,
     draftCreated: ctx.draftCreated,
+    draftContent: ctx.draftContent ? `${ctx.draftContent.length} blocks` : 'null',
+    shouldAutoEdit: ctx.shouldAutoEdit,
     publishedVersion: ctx.publishedVersion,
     pendingRemoteVersion: ctx.pendingRemoteVersion,
     hasChangedWhileSaving: ctx.hasChangedWhileSaving,
     documentId: ctx.documentId ? `${ctx.documentId.uid}/${ctx.documentId.path?.join('/')}` : null,
+    document: ctx.document ? `v:${ctx.document.version?.slice(0, 12)}` : 'null',
   }
 }
 

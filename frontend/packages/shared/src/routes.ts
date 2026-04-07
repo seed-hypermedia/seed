@@ -230,7 +230,9 @@ export type DraftRoute = z.infer<typeof draftRouteSchema>
 
 export const previewRouteSchema = z.object({
   key: z.literal('preview'),
-  draftId: z.string(),
+  draftId: z.string().optional(),
+  /** When set, shows the published document (not a draft) with a "published preview" banner. */
+  docId: unpackedHmIdSchema.optional(),
 })
 export type PreviewRoute = z.infer<typeof previewRouteSchema>
 
