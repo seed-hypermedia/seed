@@ -97,4 +97,43 @@ describe('hypermediaUrlToRoute', () => {
       panel: {key: 'comments', id: unpackHmId('hm://uid1#blk1'), openComment: 'abc123'},
     })
   })
+
+  test('converts an inspect URL into an inspect route', () => {
+    expect(hypermediaUrlToRoute('hm://inspect/uid1')).toEqual({
+      key: 'inspect',
+      id: unpackHmId('hm://uid1'),
+    })
+  })
+
+  test('converts an inspect comments URL into an inspect route with nested comments target', () => {
+    expect(hypermediaUrlToRoute('hm://inspect/uid1/:comments/comment123')).toEqual({
+      key: 'inspect',
+      id: unpackHmId('hm://uid1'),
+      targetView: 'comments',
+      targetOpenComment: 'comment123',
+    })
+  })
+
+  test('converts an inspect tab URL into an inspect route', () => {
+    expect(hypermediaUrlToRoute('hm://inspect/uid1?tab=contacts')).toEqual({
+      key: 'inspect',
+      id: unpackHmId('hm://uid1'),
+      inspectTab: 'contacts',
+    })
+  })
+
+  test('converts extended inspector tabs from URL query params', () => {
+    expect(hypermediaUrlToRoute('hm://inspect/uid1?tab=authored-comments')).toEqual({
+      key: 'inspect',
+      id: unpackHmId('hm://uid1'),
+      inspectTab: 'authored-comments',
+    })
+  })
+
+  test('converts an inspect ipfs URL into an inspect ipfs route', () => {
+    expect(hypermediaUrlToRoute('hm://inspect/ipfs/bafy123/path/to/node')).toEqual({
+      key: 'inspect-ipfs',
+      ipfsPath: 'bafy123/path/to/node',
+    })
+  })
 })

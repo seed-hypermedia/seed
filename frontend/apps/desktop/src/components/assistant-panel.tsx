@@ -182,7 +182,7 @@ function ChatView({
     type DocCtx = {
       url?: string
       title?: string
-      view?: 'document' | 'comments' | 'directory' | 'activity' | 'collaborators' | 'feed' | 'draft'
+      view?: 'document' | 'comments' | 'directory' | 'activity' | 'collaborators' | 'feed' | 'inspect' | 'draft'
       activePanel?: 'comments' | 'activity' | 'directory' | 'collaborators' | 'options'
       openComment?: string
       focusedBlockId?: string
@@ -200,6 +200,7 @@ function ChatView({
       case 'directory':
       case 'activity':
       case 'collaborators':
+      case 'inspect':
       case 'feed': {
         const id = navRoute.id
         try {

@@ -59,6 +59,9 @@ describe('getWindowTitle', () => {
   it('drafts -> Drafts', () => {
     expect(getWindowTitle('drafts')).toBe('Drafts')
   })
+  it('api-inspector -> API Inspector', () => {
+    expect(getWindowTitle('api-inspector')).toBe('API Inspector')
+  })
   it('contact with name', () => {
     expect(getWindowTitle('contact', 'Alice')).toBe('Contact: Alice')
   })
@@ -82,6 +85,9 @@ describe('getWindowTitle', () => {
   })
   it('document without name', () => {
     expect(getWindowTitle('document')).toBe('Document')
+  })
+  it('inspect with name', () => {
+    expect(getWindowTitle('inspect', 'My Doc')).toBe('My Doc')
   })
   it('unknown key -> null', () => {
     expect(getWindowTitle('settings')).toBeNull()
@@ -117,6 +123,14 @@ describe('computeSimpleRouteBreadcrumbs', () => {
     expect(result!.items).toHaveLength(1)
     expect(result!.items[0].name).toBe('Library')
     expect(result!.icon).toBeNull()
+  })
+  it('api-inspector', () => {
+    const result = computeSimpleRouteBreadcrumbs('api-inspector')
+    expect(result).not.toBeNull()
+    expect(result!.items).toHaveLength(1)
+    expect(result!.items[0].name).toBe('API Inspector')
+    expect(result!.icon).toBeNull()
+    expect(result!.windowTitle).toBe('API Inspector')
   })
   it('unknown key -> null', () => {
     expect(computeSimpleRouteBreadcrumbs('document')).toBeNull()
@@ -340,6 +354,18 @@ describe('computeEntityBreadcrumbs', () => {
       panel: {key: 'activity'},
     })
     expect(items.at(-1)?.name).toBe('Activity')
+  })
+
+  it('appends inspector crumb', () => {
+    const id = makeId('abc123')
+    const items = computeEntityBreadcrumbs({
+      entityIds: [id],
+      entityContents: [makeEntityContent(id, {metadata: {name: 'Root'}})],
+      contacts: [],
+      panel: {key: 'inspect'},
+    })
+    expect(items.at(-1)?.name).toBe('Inspector')
+    expect(items.at(-1)?.crumbKey).toBe('inspect')
   })
 
   it('appends discussions panel crumb', () => {

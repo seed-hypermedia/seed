@@ -44,9 +44,12 @@ var Contacts = lazy(() => import('./contacts-page'))
 var Contact = lazy(() => import('./contact-page'))
 var Document = lazy(() => import('./desktop-resource'))
 var Feed = lazy(() => import('./desktop-feed'))
+var InspectResource = lazy(() => import('./inspect-resource'))
+var InspectIpfs = lazy(() => import('./inspect-ipfs'))
 var Draft = lazy(() => import('./draft'))
 var Library = lazy(() => import('./library'))
 var DeletedContent = lazy(() => import('./deleted-content'))
+var ApiInspector = lazy(() => import('./api-inspector'))
 var Drafts = lazy(() => import('./drafts'))
 var Profile = lazy(() => import('./profile'))
 var Preview = lazy(() => import('./preview'))
@@ -334,6 +337,11 @@ function getPageComponent(navRoute: NavRoute) {
         PageComponent: DeletedContent,
         Fallback: BaseLoading,
       }
+    case 'api-inspector':
+      return {
+        PageComponent: ApiInspector,
+        Fallback: BaseLoading,
+      }
     case 'drafts':
       return {
         PageComponent: Drafts,
@@ -347,6 +355,16 @@ function getPageComponent(navRoute: NavRoute) {
     case 'directory':
       return {
         PageComponent: Document,
+        Fallback: DocumentPlaceholder,
+      }
+    case 'inspect':
+      return {
+        PageComponent: InspectResource,
+        Fallback: DocumentPlaceholder,
+      }
+    case 'inspect-ipfs':
+      return {
+        PageComponent: InspectIpfs,
         Fallback: DocumentPlaceholder,
       }
     case 'collaborators':

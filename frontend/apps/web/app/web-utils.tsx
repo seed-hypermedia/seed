@@ -1,21 +1,27 @@
-import {hmId, useJoinSite, useRouteLink} from '@shm/shared'
+import {createInspectNavRouteFromRoute, hmId, useJoinSite, useRouteLink} from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
 import {displayHostname, routeToUrl} from '@shm/shared/utils/entity-id-url'
-import {useNavRoute} from '@shm/shared/utils/navigation'
+import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {FloatingAccountFooter} from '@shm/ui/floating-account-footer'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Link} from '@shm/ui/icons'
 import {JoinButton} from '@shm/ui/join-button'
 import {MenuItemType} from '@shm/ui/options-dropdown'
+import {Search} from 'lucide-react'
 import {ReactNode, useMemo} from 'react'
 import {useCreateAccount, useLocalKeyPair} from './auth'
 
 export function useWebMenuItems(): MenuItemType[] {
   const route = useNavRoute()
+  const navigate = useNavigate()
   const gwUrl = DEFAULT_GATEWAY_URL
   const gatewayLink = useMemo(() => routeToUrl(route, {hostname: gwUrl}), [route, gwUrl])
+  const inspectRoute = useMemo(() => {
+    const wrappedRoute = createInspectNavRouteFromRoute(route)
+    return wrappedRoute?.key === 'inspect' ? wrappedRoute : null
+  }, [route])
 
   return useMemo(
     () => [
@@ -29,6 +35,18 @@ export function useWebMenuItems(): MenuItemType[] {
           }
         },
       },
+      ...(inspectRoute
+        ? [
+            {
+              key: 'inspect',
+              label: 'Inspect Document',
+              icon: <Search className="size-4" />,
+              onClick: () => {
+                navigate(inspectRoute)
+              },
+            } satisfies MenuItemType,
+          ]
+        : []),
       {
         key: 'copy-gateway-link',
         label: `Copy ${displayHostname(gwUrl)} Link`,
@@ -40,7 +58,7 @@ export function useWebMenuItems(): MenuItemType[] {
         },
       },
     ],
-    [gwUrl, gatewayLink],
+    [gwUrl, gatewayLink, inspectRoute, navigate],
   )
 }
 

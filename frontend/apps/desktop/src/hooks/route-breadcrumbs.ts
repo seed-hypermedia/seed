@@ -83,6 +83,8 @@ export function getWindowTitle(routeKey: string, activeName?: string): string | 
       return 'Library'
     case 'drafts':
       return 'Drafts'
+    case 'api-inspector':
+      return 'API Inspector'
     case 'contact':
       return activeName ? `Contact: ${activeName}` : 'Contact'
     case 'profile':
@@ -95,6 +97,7 @@ export function getWindowTitle(routeKey: string, activeName?: string): string | 
     case 'collaborators':
     case 'activity':
     case 'comments':
+    case 'inspect':
       return activeName || 'Document'
     default:
       return null
@@ -130,6 +133,12 @@ export function computeSimpleRouteBreadcrumbs(routeKey: string): {
         items: [{name: 'Library', id: null, crumbKey: 'library'}],
         icon: null,
         windowTitle: 'Library',
+      }
+    case 'api-inspector':
+      return {
+        items: [{name: 'API Inspector', id: null, crumbKey: 'api-inspector'}],
+        icon: null,
+        windowTitle: 'API Inspector',
       }
     default:
       return null
@@ -258,6 +267,9 @@ export function computeEntityBreadcrumbs(params: {
   }
   if (panel?.key === 'activity') {
     crumbs.push({name: 'Activity', id: null, crumbKey: 'activity'})
+  }
+  if (panel?.key === 'inspect') {
+    crumbs.push({name: 'Inspector', id: null, crumbKey: 'inspect'})
   }
 
   return crumbs

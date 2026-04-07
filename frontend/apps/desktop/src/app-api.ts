@@ -219,6 +219,8 @@ async function getFirstAvailableAccount(): Promise<string | null> {
 
 function getRouteRefocusKey(route: NavRoute): string | null {
   if (route.key === 'document') return null
+  if (route.key === 'inspect') return null
+  if (route.key === 'inspect-ipfs') return null
   if (route.key === 'draft') return null
   return route.key
 }
