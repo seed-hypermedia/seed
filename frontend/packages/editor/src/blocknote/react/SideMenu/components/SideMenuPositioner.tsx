@@ -52,9 +52,14 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
         return undefined
       }
 
-      return () => referencePos.current!
+      const ref = referencePos.current
+      // Return a rect covering only the first line of the block so Tippy
+      // centers the side menu button at the top of the block, not its vertical center.
+      const lhValue = parseInt(lh, 10) || 24
+      const firstLineHeight = lhValue + 6 // include blockContent padding (3px top + 3px bottom)
+      return () => new DOMRect(ref.x, ref.y, ref.width, firstLineHeight)
     },
-    [referencePos.current], // eslint-disable-line
+    [referencePos.current, lh], // eslint-disable-line
   )
 
   const sideMenuElement = useMemo(() => {
@@ -77,19 +82,9 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
     )
   }, [block, props.editor, props.sideMenu])
 
-  let topOffset = useMemo(() => {
-    if (block && referencePos.current) {
-      let lhValue = parseInt(lh, 10)
-      // blockContent has padding: 3px 0 (symmetric).
-      // First line center = paddingTop + lineHeight/2 from top of blockContent.
-      // Tippy centers on the reference, so offset = firstLineCenter - height/2.
-      const paddingTop = 3
-
-      return -(referencePos.current.height / 2) + lhValue / 2 + paddingTop
-    } else {
-      return 0
-    }
-  }, [referencePos.current])
+  // topOffset is 0 because getReferenceClientRect already returns a rect
+  // covering only the first line of the block, so Tippy centers correctly.
+  let topOffset = 0
 
   // Add right offset if the node is inside a list or blockquote
   let rightOffset = useMemo(() => {
