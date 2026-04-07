@@ -8,6 +8,7 @@ import {
   useSearch,
   useUniversalAppContext,
 } from '@shm/shared'
+import {SearchType} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
 import {useResource} from '@shm/shared/models/entity'
 import {Fragment, PropsWithChildren, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
@@ -40,8 +41,10 @@ export function MobileSearch({
   const searchResults = useSearch(searchValue, {
     enabled: !!searchValue,
     accountUid: siteHomeId?.uid,
-    includeBody: false,
+    includeBody: true,
     contextSize: 48 - searchValue.length,
+    searchType: searchValue.length < 3 ? SearchType.SEARCH_KEYWORD : SearchType.SEARCH_HYBRID,
+    pageSize: 50,
   })
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
@@ -113,8 +116,10 @@ export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | n
   const searchResults = useSearch(searchValue, {
     enabled: !!searchValue,
     accountUid: siteHomeId?.uid,
-    includeBody: false,
+    includeBody: true,
     contextSize: 48 - searchValue.length,
+    searchType: searchValue.length < 3 ? SearchType.SEARCH_KEYWORD : SearchType.SEARCH_HYBRID,
+    pageSize: 50,
   })
   const [focusedIndex, setFocusedIndex] = useState(0)
   const universalAppContext = useUniversalAppContext()
