@@ -516,6 +516,7 @@ export const draftsApi = t.router({
         deps: z.array(z.string().min(1)).default([]),
         navigation: z.array(HMNavigationItemSchema).optional(),
         visibility: HMResourceVisibilitySchema,
+        cursorPosition: z.number().optional(),
       }),
     )
     .mutation(async ({input}) => {
@@ -551,6 +552,7 @@ export const draftsApi = t.router({
         signingAccount: input.signingAccount,
         deps: input.deps,
         navigation: input.navigation,
+        cursorPosition: input.cursorPosition,
       }
 
       HMDraftContentSchema.parse(draft)
@@ -560,6 +562,7 @@ export const draftsApi = t.router({
         draftFileMap.set(draftId, `${draftId}.json`)
         appInvalidateQueries([queryKeys.DRAFTS_LIST])
         appInvalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
+        appInvalidateQueries([queryKeys.DRAFT, draftId])
         return {id: draftId}
       } catch (err) {
         throw Error(`[DRAFT]: Error writing draft: ${JSON.stringify(err, null)}`)

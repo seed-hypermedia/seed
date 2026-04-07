@@ -44,6 +44,8 @@ export type DocumentMachineContext = {
   draftReady: boolean
   /** Draft content loaded on init. Only set during loading — not updated on autosave. */
   draftContent: HMBlockNode[] | null
+  /** Cursor position saved in the draft file; restored when re-entering editing after reload. */
+  draftCursorPosition: number | null
   error: unknown
 }
 
@@ -63,7 +65,7 @@ export type DocumentMachineEvent =
   | {type: 'capability.changed'; canEdit: boolean}
   | {type: 'account.changed'; signingAccountId?: string; publishAccountUid?: string}
   | {type: 'draft.existing'; draftId: string}
-  | {type: 'draft.resolved'; draftId: string | null; content: HMBlockNode[] | null}
+  | {type: 'draft.resolved'; draftId: string | null; content: HMBlockNode[] | null; cursorPosition: number | null}
   | {type: '_save.started'}
   | {type: '_save.completed'}
 
@@ -179,6 +181,7 @@ export const documentMachine = setup({
       hasChangedWhileSaving: false,
       pendingRemoteVersion: null,
       draftContent: null,
+      draftCursorPosition: null,
     }),
     clearEditingState: assign({
       // Preserve draftId so re-entering editing reuses the same draft
@@ -205,6 +208,10 @@ export const documentMachine = setup({
       },
       draftContent: ({event}) => {
         if (event.type === 'draft.resolved') return event.content ?? null
+        return null
+      },
+      draftCursorPosition: ({event}) => {
+        if (event.type === 'draft.resolved') return event.cursorPosition ?? null
         return null
       },
     }),
@@ -296,6 +303,7 @@ export const documentMachine = setup({
     documentReady: false,
     draftReady: !!input.existingDraftId,
     draftContent: null,
+    draftCursorPosition: null,
     error: null,
   }),
   initial: 'loading',

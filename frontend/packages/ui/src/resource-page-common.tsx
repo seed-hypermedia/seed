@@ -193,6 +193,8 @@ export interface ResourcePageProps {
   existingDraft?: HMExistingDraft | false
   /** Pre-fetched content blocks from the existing draft (when available, used as editor initial content) */
   existingDraftContent?: HMBlockNode[]
+  /** Cursor position saved in the draft file; used to restore cursor on reload. */
+  existingDraftCursorPosition?: number
   /** Platform-specific page footer (web only) */
   pageFooter?: ReactNode
 
@@ -256,6 +258,7 @@ export function ResourcePage({
   editActions,
   existingDraft,
   existingDraftContent,
+  existingDraftCursorPosition,
   floatingButtons,
   pageFooter,
   inlineCards,
@@ -494,6 +497,7 @@ export function ResourcePage({
           editActions={editActions}
           existingDraft={existingDraft}
           existingDraftContent={existingDraftContent}
+          existingDraftCursorPosition={existingDraftCursorPosition}
           floatingButtons={floatingButtons}
           pageFooter={pageFooter}
           inlineCards={inlineCards}
@@ -641,6 +645,7 @@ function DocumentBody({
   editActions,
   existingDraft,
   existingDraftContent,
+  existingDraftCursorPosition,
   floatingButtons,
   pageFooter,
   inlineCards,
@@ -665,6 +670,7 @@ function DocumentBody({
   editActions?: ReactNode
   existingDraft?: HMExistingDraft | false
   existingDraftContent?: HMBlockNode[]
+  existingDraftCursorPosition?: number
   floatingButtons?: ReactNode
   pageFooter?: ReactNode
   inlineCards?: ReactNode
@@ -696,13 +702,13 @@ function DocumentBody({
   // Sync draft resolution — machine stays in loading until this settles.
   // undefined = still loading, {draftId: null} = no draft, {draftId: string} = draft + content ready
   const draftResolution = useMemo(() => {
-    let result: {draftId: string | null; content: HMBlockNode[] | null} | undefined
+    let result: {draftId: string | null; content: HMBlockNode[] | null; cursorPosition: number | null} | undefined
     if (existingDraft === undefined) {
       result = undefined
     } else if (!existingDraft) {
-      result = {draftId: null as string | null, content: null}
+      result = {draftId: null as string | null, content: null, cursorPosition: null}
     } else if (existingDraftContent) {
-      result = {draftId: existingDraft.id, content: existingDraftContent}
+      result = {draftId: existingDraft.id, content: existingDraftContent, cursorPosition: existingDraftCursorPosition ?? null}
     } else {
       result = undefined // draft found but content not loaded yet
     }
@@ -712,7 +718,7 @@ function DocumentBody({
       resolution: result === undefined ? 'undefined (waiting)' : `draftId=${result.draftId}`,
     })
     return result
-  }, [existingDraft, existingDraftContent])
+  }, [existingDraft, existingDraftContent, existingDraftCursorPosition])
   useDraftResolutionSync(draftResolution)
   const publishedVersion = useDocumentSelector(selectPublishedVersion)
   const isEditing = useDocumentSelector(selectIsEditing)
@@ -1257,6 +1263,7 @@ function DocumentBody({
           DocumentContentComponent={DocumentContentComponent}
           onEditorReady={onEditorReady}
           existingDraftContent={existingDraftContent}
+          existingDraftCursorPosition={existingDraftCursorPosition}
         />
       </div>
       {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
@@ -1571,6 +1578,7 @@ function MainContent({
   DocumentContentComponent,
   onEditorReady,
   existingDraftContent,
+  existingDraftCursorPosition,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1610,6 +1618,7 @@ function MainContent({
   DocumentContentComponent?: React.ComponentType<DocumentContentProps>
   onEditorReady?: (editor: any) => void
   existingDraftContent?: HMBlockNode[]
+  existingDraftCursorPosition?: number
 }) {
   switch (activeView) {
     case 'directory':
@@ -1688,6 +1697,7 @@ function MainContent({
           DocumentContentComponent={DocumentContentComponent}
           onEditorReady={onEditorReady}
           existingDraftContent={existingDraftContent}
+          existingDraftCursorPosition={existingDraftCursorPosition}
         />
       )
   }
@@ -1712,6 +1722,7 @@ function ContentViewWithOutline({
   DocumentContentComponent,
   onEditorReady,
   existingDraftContent,
+  existingDraftCursorPosition,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1735,6 +1746,7 @@ function ContentViewWithOutline({
   DocumentContentComponent?: React.ComponentType<DocumentContentProps>
   onEditorReady?: (editor: any) => void
   existingDraftContent?: HMBlockNode[]
+  existingDraftCursorPosition?: number
 }) {
   const outline = useNodesOutline(document, docId)
 
@@ -1773,6 +1785,7 @@ function ContentViewWithOutline({
             onBlockCommentClick={onBlockCommentClick}
             onBlockSelect={onBlockSelect}
             onEditorReady={onEditorReady}
+            draftCursorPosition={existingDraftCursorPosition}
           />
         ) : null}
         {inlineInsert}

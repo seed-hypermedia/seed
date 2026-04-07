@@ -161,7 +161,7 @@ export function useAccountSync(signingAccountId: string | undefined, publishAcco
  * race condition where editing starts before draft content is available.
  */
 export function useDraftResolutionSync(
-  resolved: {draftId: string | null; content: HMBlockNode[] | null} | undefined,
+  resolved: {draftId: string | null; content: HMBlockNode[] | null; cursorPosition: number | null} | undefined,
 ) {
   const actorRef = useDocumentMachineRef()
   const sentRef = useRef(false)
@@ -170,7 +170,7 @@ export function useDraftResolutionSync(
     if (resolved !== undefined && !sentRef.current) {
       sentRef.current = true
       console.log('[DraftResolutionSync] sending draft.resolved, draftId:', resolved.draftId)
-      actorRef.send({type: 'draft.resolved', draftId: resolved.draftId, content: resolved.content})
+      actorRef.send({type: 'draft.resolved', draftId: resolved.draftId, content: resolved.content, cursorPosition: resolved.cursorPosition})
     }
   }, [actorRef, resolved])
 }
@@ -264,6 +264,11 @@ export function selectBlocks(snapshot: DocumentMachineSnapshot): HMBlockNode[] {
   const ctx = snapshot.context
   if (ctx.draftContent) return ctx.draftContent
   return ctx.document?.content ?? []
+}
+
+/** Cursor position saved in the draft file, or null if none. */
+export function selectDraftCursorPosition(snapshot: DocumentMachineSnapshot): number | null {
+  return snapshot.context.draftCursorPosition
 }
 
 /** Save status derived from editing sub-states. */

@@ -54,7 +54,7 @@ function createTestActor(inputOverrides: Partial<DocumentMachineInput> = {}) {
 /** Helper: send both events to transition loading → loaded (no draft). */
 function loadDocument(actor: ReturnType<typeof createTestActor>, doc = mockDocument) {
   actor.send({type: 'document.loaded', document: doc})
-  actor.send({type: 'draft.resolved', draftId: null, content: null})
+  actor.send({type: 'draft.resolved', draftId: null, content: null, cursorPosition: null})
 }
 
 describe('DocumentLifecycle machine', () => {
@@ -80,7 +80,7 @@ describe('DocumentLifecycle machine', () => {
     const actor = createTestActor()
     actor.start()
     actor.send({type: 'document.loaded', document: mockDocument})
-    actor.send({type: 'draft.resolved', draftId: null, content: null})
+    actor.send({type: 'draft.resolved', draftId: null, content: null, cursorPosition: null})
     expect(actor.getSnapshot().value).toBe('loaded')
     expect(actor.getSnapshot().context.publishedVersion).toBe('bafyabc.bafydef')
     expect(actor.getSnapshot().context.document).toBe(mockDocument)
@@ -90,7 +90,7 @@ describe('DocumentLifecycle machine', () => {
   it('loading → draft.resolved first, then document.loaded → loaded', () => {
     const actor = createTestActor()
     actor.start()
-    actor.send({type: 'draft.resolved', draftId: null, content: null})
+    actor.send({type: 'draft.resolved', draftId: null, content: null, cursorPosition: null})
     expect(actor.getSnapshot().value).toBe('loading')
     expect(actor.getSnapshot().context.draftReady).toBe(true)
     actor.send({type: 'document.loaded', document: mockDocument})
@@ -101,7 +101,7 @@ describe('DocumentLifecycle machine', () => {
   it('loading → draft.resolved with draftId + document.loaded → loaded → auto-editing', () => {
     const actor = createTestActor()
     actor.start()
-    actor.send({type: 'draft.resolved', draftId: 'my-draft', content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft text', attributes: {}}, children: []}]})
+    actor.send({type: 'draft.resolved', draftId: 'my-draft', content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft text', attributes: {}}, children: []}], cursorPosition: null})
     actor.send({type: 'document.loaded', document: mockDocument})
     // Should auto-transition to editing via shouldAutoEdit
     expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
@@ -125,7 +125,7 @@ describe('DocumentLifecycle machine', () => {
   it('draftContent is cleared on discard', () => {
     const actor = createTestActor()
     actor.start()
-    actor.send({type: 'draft.resolved', draftId: 'my-draft', content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft', attributes: {}}, children: []}]})
+    actor.send({type: 'draft.resolved', draftId: 'my-draft', content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft', attributes: {}}, children: []}], cursorPosition: null})
     actor.send({type: 'document.loaded', document: mockDocument})
     expect(actor.getSnapshot().context.draftContent).not.toBeNull()
     actor.send({type: 'edit.discard'})
@@ -133,10 +133,21 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
+  it('draftCursorPosition is stored on draft.resolved and cleared on discard', () => {
+    const actor = createTestActor()
+    actor.start()
+    actor.send({type: 'draft.resolved', draftId: 'my-draft', content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft', attributes: {}}, children: []}], cursorPosition: 42})
+    actor.send({type: 'document.loaded', document: mockDocument})
+    expect(actor.getSnapshot().context.draftCursorPosition).toBe(42)
+    actor.send({type: 'edit.discard'})
+    expect(actor.getSnapshot().context.draftCursorPosition).toBeNull()
+    actor.stop()
+  })
+
   it('draftContent is preserved on edit.cancel', () => {
     const actor = createTestActor()
     actor.start()
-    actor.send({type: 'draft.resolved', draftId: 'my-draft', content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft', attributes: {}}, children: []}]})
+    actor.send({type: 'draft.resolved', draftId: 'my-draft', content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft', attributes: {}}, children: []}], cursorPosition: null})
     actor.send({type: 'document.loaded', document: mockDocument})
     expect(actor.getSnapshot().context.draftContent).not.toBeNull()
     actor.send({type: 'edit.cancel'})
@@ -225,7 +236,7 @@ describe('DocumentLifecycle machine', () => {
     })
     actor.start()
     actor.send({type: 'document.loaded', document: mockDocument})
-    actor.send({type: 'draft.resolved', draftId: null, content: null})
+    actor.send({type: 'draft.resolved', draftId: null, content: null, cursorPosition: null})
     await new Promise((r) => setTimeout(r, 300))
     expect(actor.getSnapshot().value).toBe('loaded')
     actor.stop()
@@ -502,7 +513,7 @@ describe('DocumentLifecycle machine', () => {
     })
     actor.start()
     actor.send({type: 'document.loaded', document: mockDocument})
-    actor.send({type: 'draft.resolved', draftId: null, content: null})
+    actor.send({type: 'draft.resolved', draftId: null, content: null, cursorPosition: null})
     actor.send({type: 'edit.start'})
     actor.send({type: 'change'})
 
@@ -556,7 +567,7 @@ describe('DocumentLifecycle machine', () => {
     })
     actor.start()
     actor.send({type: 'document.loaded', document: mockDocument})
-    actor.send({type: 'draft.resolved', draftId: null, content: null})
+    actor.send({type: 'draft.resolved', draftId: null, content: null, cursorPosition: null})
     actor.send({type: 'edit.start'})
     actor.send({type: 'change'})
     await new Promise((r) => setTimeout(r, 100))

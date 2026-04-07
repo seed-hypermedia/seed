@@ -33,6 +33,7 @@ function selectDebugContext(snapshot: DocumentMachineSnapshot) {
     draftId: ctx.draftId,
     draftCreated: ctx.draftCreated,
     draftContent: ctx.draftContent ? `${ctx.draftContent.length} blocks` : 'null',
+    draftCursorPosition: ctx.draftCursorPosition,
     shouldAutoEdit: ctx.shouldAutoEdit,
     publishedVersion: ctx.publishedVersion,
     pendingRemoteVersion: ctx.pendingRemoteVersion,
