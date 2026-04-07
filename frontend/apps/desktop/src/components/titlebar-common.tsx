@@ -60,7 +60,15 @@ import {SearchInput, SearchInputHandle} from './search-input'
 import {TitleBarProps} from './titlebar'
 
 // Route keys that have an id and support DocOptionsButton
-const DOC_OPTIONS_ROUTE_KEYS = ['document', 'feed', 'activity', 'comments', 'directory', 'collaborators'] as const
+const DOC_OPTIONS_ROUTE_KEYS = [
+  'document',
+  'feed',
+  'activity',
+  'comments',
+  'directory',
+  'collaborators',
+  'inspect',
+] as const
 
 type DocOptionsRouteKey = (typeof DOC_OPTIONS_ROUTE_KEYS)[number]
 
@@ -600,12 +608,12 @@ function useCurrentRouteUrl(): {
       return {displayUrl: null, copyableUrl: null}
     }
 
-    if (routeId) {
+    if (routeId || route.key === 'inspect-ipfs') {
       const url = routeToUrl(route, {
         hostname: siteHostname || gwUrl,
         // Only apply originHomeId optimization when entity has a custom site URL,
         // not when falling back to hostname from the URL (e.g., gateway URL)
-        originHomeId: entitySiteUrl ? hmId(routeId.uid) : undefined,
+        originHomeId: entitySiteUrl && routeId ? hmId(routeId.uid) : undefined,
       })
       return {displayUrl: url, copyableUrl: url}
     }
@@ -621,6 +629,7 @@ function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
   if (
     route.key === 'document' ||
     route.key === 'feed' ||
+    route.key === 'inspect' ||
     route.key === 'activity' ||
     route.key === 'directory' ||
     route.key === 'collaborators' ||
@@ -652,6 +661,8 @@ function isUrlDisplayableRoute(route: NavRoute): boolean {
   return (
     route.key === 'document' ||
     route.key === 'feed' ||
+    route.key === 'inspect' ||
+    route.key === 'inspect-ipfs' ||
     route.key === 'activity' ||
     route.key === 'directory' ||
     route.key === 'collaborators' ||
@@ -869,7 +880,7 @@ export function Omnibar() {
           <div className="mr-1 flex shrink-0 items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
             <BookmarkButton id={routeId} className="size-6 min-w-6" />
             <CopyReferenceButton docId={routeId} isBlockFocused={false} latest className="size-6 min-w-6" />
-            {/* <DocOptionsButton onPublishSite={publishSite.open} /> */}
+            <DocOptionsButton onPublishSite={publishSite.open} />
           </div>
         ) : null}
         {publishSite.content}

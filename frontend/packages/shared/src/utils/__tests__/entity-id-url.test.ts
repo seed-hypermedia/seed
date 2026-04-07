@@ -688,6 +688,53 @@ describe('routeToUrl', () => {
     expect(url).not.toContain('?v=')
     expect(url).not.toContain('?l')
   })
+
+  test('inspect route produces gateway inspect URL', () => {
+    const url = routeToUrl(
+      {
+        key: 'inspect',
+        id: hmId('uid1', {path: ['docs']}),
+      },
+      {hostname: 'https://gw.com'},
+    )
+    expect(url).toBe('https://gw.com/hm/inspect/uid1/docs')
+  })
+
+  test('inspect route on origin site produces site inspect URL', () => {
+    const url = routeToUrl(
+      {
+        key: 'inspect',
+        id: hmId('uid1', {path: ['docs']}),
+        targetView: 'comments',
+        targetOpenComment: 'comment123',
+      },
+      {hostname: 'https://mysite.com', originHomeId: hmId('uid1')},
+    )
+    expect(url).toBe('https://mysite.com/inspect/docs/:comments/comment123')
+  })
+
+  test('inspect route preserves inspector tab query params', () => {
+    const url = routeToUrl(
+      {
+        key: 'inspect',
+        id: hmId('uid1', {path: ['docs']}),
+        inspectTab: 'capabilities',
+      },
+      {hostname: 'https://gw.com'},
+    )
+    expect(url).toBe('https://gw.com/hm/inspect/uid1/docs?tab=capabilities')
+  })
+
+  test('inspect ipfs route produces inspect ipfs url', () => {
+    const url = routeToUrl(
+      {
+        key: 'inspect-ipfs',
+        ipfsPath: 'bafy123/path/to/node',
+      },
+      {hostname: 'https://gw.com'},
+    )
+    expect(url).toBe('https://gw.com/hm/inspect/ipfs/bafy123/path/to/node')
+  })
 })
 
 describe('routeToHmUrl', () => {
@@ -717,6 +764,33 @@ describe('routeToHmUrl', () => {
     })
     expect(url).toBe('hm://uid1/:activity/citations')
   })
+
+  test('inspect route preserves the inspect wrapper in hm urls', () => {
+    const url = routeToHmUrl({
+      key: 'inspect',
+      id: hmId('uid1'),
+      targetView: 'comments',
+      targetOpenComment: 'comment123',
+    })
+    expect(url).toBe('hm://inspect/uid1/:comments/comment123')
+  })
+
+  test('inspect route preserves inspector tabs in hm urls', () => {
+    const url = routeToHmUrl({
+      key: 'inspect',
+      id: hmId('uid1'),
+      inspectTab: 'contacts',
+    })
+    expect(url).toBe('hm://inspect/uid1?tab=contacts')
+  })
+
+  test('inspect ipfs route produces hm inspect ipfs urls', () => {
+    const url = routeToHmUrl({
+      key: 'inspect-ipfs',
+      ipfsPath: 'bafy123/path/to/node',
+    })
+    expect(url).toBe('hm://inspect/ipfs/bafy123/path/to/node')
+  })
 })
 
 describe('idToUrl', () => {
@@ -735,13 +809,14 @@ describe('idToUrl', () => {
 describe('extractViewTermFromUrl', () => {
   test('extracts :comments view term', () => {
     const result = extractViewTermFromUrl('https://site.com/path/:comments')
-    expect(result).toEqual({url: 'https://site.com/path', viewTerm: ':comments'})
+    expect(result).toEqual({url: 'https://site.com/path', isInspect: false, viewTerm: ':comments'})
   })
 
   test('extracts :comments/UID/TSID pattern', () => {
     const result = extractViewTermFromUrl('https://site.com/path/:comments/z6Mk123/z6FC456')
     expect(result).toEqual({
       url: 'https://site.com/path',
+      isInspect: false,
       viewTerm: ':comments',
       commentId: 'z6Mk123/z6FC456',
     })
@@ -751,6 +826,7 @@ describe('extractViewTermFromUrl', () => {
     const result = extractViewTermFromUrl('https://site.com/path/:comments/comment123')
     expect(result).toEqual({
       url: 'https://site.com/path',
+      isInspect: false,
       viewTerm: ':comments',
       commentId: 'comment123',
     })
@@ -760,6 +836,7 @@ describe('extractViewTermFromUrl', () => {
     const result = extractViewTermFromUrl('https://site.com/path/:comments/z6Mk123/z6FC456?panel=comments/other')
     expect(result).toEqual({
       url: 'https://site.com/path?panel=comments/other',
+      isInspect: false,
       viewTerm: ':comments',
       commentId: 'z6Mk123/z6FC456',
     })
@@ -769,6 +846,7 @@ describe('extractViewTermFromUrl', () => {
     const result = extractViewTermFromUrl('https://site.com/path/:activity/versions')
     expect(result).toEqual({
       url: 'https://site.com/path',
+      isInspect: false,
       viewTerm: ':activity',
       activityFilter: 'versions',
     })
@@ -776,18 +854,19 @@ describe('extractViewTermFromUrl', () => {
 
   test('returns null for no view term', () => {
     const result = extractViewTermFromUrl('https://site.com/path')
-    expect(result).toEqual({url: 'https://site.com/path', viewTerm: null})
+    expect(result).toEqual({url: 'https://site.com/path', isInspect: false, viewTerm: null})
   })
 
   test('backward compat: :discussions maps to :discussions', () => {
     const result = extractViewTermFromUrl('https://site.com/path/:discussions')
-    expect(result).toEqual({url: 'https://site.com/path', viewTerm: ':discussions'})
+    expect(result).toEqual({url: 'https://site.com/path', isInspect: false, viewTerm: ':discussions'})
   })
 
   test('backward compat: :comment/UID/TSID maps to :comments with commentId', () => {
     const result = extractViewTermFromUrl('https://site.com/path/:comment/z6Mk123/z6FC456')
     expect(result).toEqual({
       url: 'https://site.com/path',
+      isInspect: false,
       viewTerm: ':comments',
       commentId: 'z6Mk123/z6FC456',
     })
@@ -795,13 +874,14 @@ describe('extractViewTermFromUrl', () => {
 
   test('backward compat: bare :comment maps to :comment', () => {
     const result = extractViewTermFromUrl('https://site.com/path/:comment')
-    expect(result).toEqual({url: 'https://site.com/path', viewTerm: ':comment'})
+    expect(result).toEqual({url: 'https://site.com/path', isInspect: false, viewTerm: ':comment'})
   })
 
   test('extracts profile-family view term without account uid', () => {
     const result = extractViewTermFromUrl('https://site.com/:profile')
     expect(result).toEqual({
       url: 'https://site.com',
+      isInspect: false,
       viewTerm: ':profile',
       accountUid: undefined,
     })
@@ -811,8 +891,38 @@ describe('extractViewTermFromUrl', () => {
     const result = extractViewTermFromUrl('https://site.com/:followers/personUid')
     expect(result).toEqual({
       url: 'https://site.com',
+      isInspect: false,
       viewTerm: ':followers',
       accountUid: 'personUid',
+    })
+  })
+
+  test('extracts inspect gateway prefix before the view term', () => {
+    const result = extractViewTermFromUrl('https://site.com/hm/inspect/siteUid/path/:comments/comment123')
+    expect(result).toEqual({
+      url: 'https://site.com/hm/siteUid/path',
+      isInspect: true,
+      viewTerm: ':comments',
+      commentId: 'comment123',
+    })
+  })
+
+  test('extracts inspect site prefix without a nested view', () => {
+    const result = extractViewTermFromUrl('https://site.com/inspect/path')
+    expect(result).toEqual({
+      url: 'https://site.com/path',
+      isInspect: true,
+      viewTerm: null,
+    })
+  })
+
+  test('extracts inspect hm prefix before the view term', () => {
+    const result = extractViewTermFromUrl('hm://inspect/siteUid/:activity/versions')
+    expect(result).toEqual({
+      url: 'hm://siteUid',
+      isInspect: true,
+      viewTerm: ':activity',
+      activityFilter: 'versions',
     })
   })
 })

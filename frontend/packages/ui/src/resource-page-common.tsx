@@ -1,14 +1,21 @@
-import {BlockRange, HMDocument, HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
+  BlockRange,
+  HMDocument,
+  HMExistingDraft,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
+import {
+  createInspectNavRoute,
   DocumentPanelRoute,
   findContentBlock,
   getBlockText,
   hmId,
   NavRoute,
   unpackHmId,
-  useUniversalAppContext,
+  useUniversalAppContext
 } from '@shm/shared'
-import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import { IS_DESKTOP, NOTIFY_SERVICE_HOST } from '@shm/shared/constants'
+import { useCanSeePrivateDocs } from '@shm/shared/models/capabilities'
 import {
   useAccountsMetadata,
   useDirectory,
@@ -17,10 +24,9 @@ import {
   useResources,
   useSiteMembers,
 } from '@shm/shared/models/entity'
-import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
-import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
-import {getRoutePanel} from '@shm/shared/routes'
-import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
+import { useInteractionSummary } from '@shm/shared/models/interaction-summary'
+import { getRoutePanel } from '@shm/shared/routes'
+import { getBreadcrumbDocumentIds } from '@shm/shared/utils/breadcrumbs'
 import {
   activityFilterToSlug,
   createSiteUrl,
@@ -28,6 +34,7 @@ import {
   getCommentTargetId,
   parseFragment,
 } from '@shm/shared/utils/entity-id-url'
+<<<<<<< HEAD
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Folder} from 'lucide-react'
 import {CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -47,6 +54,30 @@ import {HistoryIcon, Link} from './icons'
 import {useDocumentLayout} from './layout'
 import {MembersFacepile} from './members-facepile'
 import {MobilePanelSheet} from './mobile-panel-sheet'
+=======
+import { useNavigate, useNavRoute } from '@shm/shared/utils/navigation'
+import {
+  Folder,
+  Search,
+} from 'lucide-react'
+import { CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AccountPage } from './account-page'
+import { BlockRangeSelectOptions, BlocksContent, BlocksContentProvider } from './blocks-content'
+import { CollaboratorsPage } from './collaborators-page'
+import { ScrollArea } from './components/scroll-area'
+import { copyUrlToClipboardWithFeedback } from './copy-to-clipboard'
+import { DirectoryPageContent } from './directory-page'
+import { DiscussionsPageContent } from './discussions-page'
+import { DocumentCover } from './document-cover'
+import { AuthorPayload, BreadcrumbEntry, DocumentHeader } from './document-header'
+import { DocumentTools } from './document-tools'
+import { Feed } from './feed'
+import { FeedFilters } from './feed-filters'
+import { HistoryIcon, Link } from './icons'
+import { useDocumentLayout } from './layout'
+import { MembersFacepile } from './members-facepile'
+import { MobilePanelSheet } from './mobile-panel-sheet'
+>>>>>>> d3f954811 (Seed app inspector WIP)
 import {
   DocNavigationItem,
   DocNavigationWrapper,
@@ -54,17 +85,17 @@ import {
   getSiteNavDirectory,
   useNodesOutline,
 } from './navigation'
-import {OpenInPanelButton} from './open-in-panel'
-import {MenuItemType, OptionsDropdown} from './options-dropdown'
-import {PageLayout} from './page-layout'
-import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
-import {PanelLayout} from './panel-layout'
-import {GotoLatestBanner, SiteHeader} from './site-header'
-import {Spinner} from './spinner'
-import {UnreferencedDocuments} from './unreferenced-documents'
-import {useBlockScroll} from './use-block-scroll'
-import {useMedia} from './use-media'
-import {cn} from './utils'
+import { OpenInPanelButton } from './open-in-panel'
+import { MenuItemType, OptionsDropdown } from './options-dropdown'
+import { PageLayout } from './page-layout'
+import { PageDeleted, PageDiscovery, PageNotFound, PagePrivate } from './page-message-states'
+import { PanelLayout } from './panel-layout'
+import { GotoLatestBanner, SiteHeader } from './site-header'
+import { Spinner } from './spinner'
+import { UnreferencedDocuments } from './unreferenced-documents'
+import { useBlockScroll } from './use-block-scroll'
+import { useMedia } from './use-media'
+import { cn } from './utils'
 
 /** Common menu items generated internally for all document views */
 export function useCommonMenuItems(docId: UnpackedHypermediaId): MenuItemType[] {
@@ -126,7 +157,13 @@ function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
   return params as DocumentPanelRoute
 }
 
-export type ActiveView = 'content' | 'activity' | 'comments' | 'directory' | 'collaborators' | 'site-profile'
+export type ActiveView =
+  | 'content'
+  | 'activity'
+  | 'comments'
+  | 'directory'
+  | 'collaborators'
+  | 'site-profile'
 
 function getActiveView(routeKey: string): ActiveView {
   switch (routeKey) {
@@ -861,10 +898,27 @@ function DocumentBody({
 
   // Options dropdown: common items + platform extras
   const commonMenuItems = useCommonMenuItems(docId)
+  const inspectMenuItem = useMemo<MenuItemType | null>(() => {
+    if (route.key === 'inspect') return null
+    const inspectDocId = {...docId, blockRef: null, blockRange: null}
+    return {
+      key: 'inspect',
+      label: 'Inspect Document',
+      icon: <Search className="size-4" />,
+      onClick: () => {
+        navigate(createInspectNavRoute(inspectDocId))
+      },
+    }
+  }, [docId, navigate, route.key])
   const allMenuItems = useMemo(() => {
     const extras = extraMenuItems || []
-    return [...extras, ...commonMenuItems]
-  }, [extraMenuItems, commonMenuItems])
+    const items = [...commonMenuItems]
+    if (inspectMenuItem) {
+      const copyLinkIndex = items.findIndex((item) => item.key === 'copy-link')
+      items.splice(copyLinkIndex >= 0 ? copyLinkIndex + 1 : 0, 0, inspectMenuItem)
+    }
+    return [...extras, ...items]
+  }, [extraMenuItems, commonMenuItems, inspectMenuItem])
 
   const hasOptions = allMenuItems.length > 0
   const hasActionButtons = hasOptions || editActions
@@ -994,7 +1048,8 @@ function DocumentBody({
       {showActivity && (
         <div
           className={cn(
-            'dark:bg-background sticky top-0 z-10 bg-white px-5 py-1',
+            'sticky top-0 z-10 px-5 py-1',
+            'dark:bg-background bg-white',
             isToolsSticky ? 'shadow-md' : 'shadow-none',
             'transition-shadow',
           )}
@@ -1005,7 +1060,9 @@ function DocumentBody({
               activeView === 'activity' &&
               activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
                 ? 'citations'
-                : activeView === 'activity' || activeView === 'directory' || activeView === 'site-profile'
+                : activeView === 'activity' ||
+                  activeView === 'directory' ||
+                  activeView === 'site-profile'
                 ? undefined
                 : activeView
             }

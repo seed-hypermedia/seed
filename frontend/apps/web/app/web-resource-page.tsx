@@ -10,6 +10,7 @@ import {useResource} from '@shm/shared/models/entity'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {InlineSubscribeBox} from '@shm/ui/inline-subscribe-box'
+import {InspectorPage} from '@shm/ui/inspector-page'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
 import {Spinner} from '@shm/ui/spinner'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -222,6 +223,15 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
       {editProfileDialog.content}
       {followAccountContent}
       {vaultSuccessContent}
+    </WebAccountFooter>
+  )
+}
+
+/** Web-specific wrapper for the dedicated inspector page. */
+export function WebInspectorPage({docId}: {docId: UnpackedHypermediaId}) {
+  return (
+    <WebAccountFooter liftForPageFooter={true} siteUid={docId.uid}>
+      <InspectorPage docId={docId} pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />} />
     </WebAccountFooter>
   )
 }

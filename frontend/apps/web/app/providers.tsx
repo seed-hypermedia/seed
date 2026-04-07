@@ -296,10 +296,10 @@ export function WebSiteProvider(props: {
         }
 
         // Handle browser navigation
-        let href: undefined | string = undefined
-        href = routeToHref(route, {
-          originHomeId: props.originHomeId,
-        })
+        const href =
+          routeToHref(route, {
+            originHomeId: props.originHomeId,
+          }) || undefined
         if (href !== undefined) {
           if (
             // this is a HACK to redirect to the home page when the user is on the home page of seed.hyper.media because we have an external landing page.

@@ -844,7 +844,7 @@ export const chatApi = t.router({
             url: z.string().optional(),
             title: z.string().optional(),
             view: z
-              .enum(['document', 'comments', 'directory', 'activity', 'collaborators', 'feed', 'draft'])
+              .enum(['document', 'comments', 'directory', 'activity', 'collaborators', 'feed', 'inspect', 'draft'])
               .optional(),
             activePanel: z.enum(['comments', 'activity', 'directory', 'collaborators', 'options']).optional(),
             openComment: z.string().optional(),

@@ -60,12 +60,16 @@ export function getRouteKey(route: NavRoute): string {
   }
   if (
     route.key === 'document' ||
+    route.key === 'inspect' ||
+    route.key === 'inspect-ipfs' ||
     route.key === 'comments' ||
     route.key === 'activity' ||
     route.key === 'collaborators' ||
     route.key === 'directory'
   )
-    return `document:${route.id.uid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
+    return route.key === 'inspect-ipfs'
+      ? `inspect-ipfs:${route.ipfsPath}`
+      : `document:${route.id.uid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
   if (route.key === 'feed') return `feed:${route.id.uid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
   return route.key
 }
@@ -168,7 +172,7 @@ export function useNavRoute() {
 
 export function useRouteDocId(): UnpackedHypermediaId | null {
   const route = useNavRoute()
-  if (route.key === 'document') {
+  if (route.key === 'document' || route.key === 'inspect') {
     return route.id
   }
   if (route.key === 'draft') {

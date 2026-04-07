@@ -85,7 +85,7 @@ export function useSendChatMessage() {
       documentContext?: {
         url?: string
         title?: string
-        view?: 'document' | 'comments' | 'directory' | 'activity' | 'collaborators' | 'feed' | 'draft'
+        view?: 'document' | 'comments' | 'directory' | 'activity' | 'collaborators' | 'feed' | 'inspect' | 'draft'
         activePanel?: 'comments' | 'activity' | 'directory' | 'collaborators' | 'options'
         openComment?: string
         focusedBlockId?: string

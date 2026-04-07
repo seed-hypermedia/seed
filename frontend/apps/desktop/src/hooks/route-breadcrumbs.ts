@@ -95,6 +95,7 @@ export function getWindowTitle(routeKey: string, activeName?: string): string | 
     case 'collaborators':
     case 'activity':
     case 'comments':
+    case 'inspect':
       return activeName || 'Document'
     default:
       return null
@@ -258,6 +259,9 @@ export function computeEntityBreadcrumbs(params: {
   }
   if (panel?.key === 'activity') {
     crumbs.push({name: 'Activity', id: null, crumbKey: 'activity'})
+  }
+  if (panel?.key === 'inspect') {
+    crumbs.push({name: 'Inspector', id: null, crumbKey: 'inspect'})
   }
 
   return crumbs

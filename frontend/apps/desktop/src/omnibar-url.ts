@@ -1,5 +1,5 @@
 import {resolveHypermediaUrl} from '@seed-hypermedia/client'
-import {createDocumentNavRoute, type NavRoute} from '@shm/shared/routes'
+import {createDocumentNavRoute, createInspectNavRoute, type NavRoute} from '@shm/shared/routes'
 import {
   activitySlugToFilter,
   extractViewTermFromUrl,
@@ -17,7 +17,7 @@ export async function resolveOmnibarUrlToRoute(url: string): Promise<NavRoute | 
   const directRoute = hypermediaUrlToRoute(url)
   if (directRoute) return directRoute
 
-  const {url: cleanUrl, viewTerm, activityFilter, commentId, accountUid} = extractViewTermFromUrl(url)
+  const {url: cleanUrl, isInspect, viewTerm, activityFilter, commentId, accountUid} = extractViewTermFromUrl(url)
   const routeKey = viewTermToRouteKey(viewTerm)
 
   if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
@@ -31,7 +31,7 @@ export async function resolveOmnibarUrlToRoute(url: string): Promise<NavRoute | 
     const baseRoute = result.panel ? createDocumentNavRoute(result.hmId, null, result.panel) : appRouteOfId(result.hmId)
     if (!baseRoute) return null
 
-    return applyResolvedViewTerm(baseRoute, routeKey, activityFilter, commentId, accountUid)
+    return applyResolvedViewTerm(baseRoute, routeKey, activityFilter, commentId, accountUid, isInspect)
   } catch {
     return null
   }
@@ -52,9 +52,21 @@ function applyResolvedViewTerm(
   activityFilter?: string,
   commentId?: string,
   accountUid?: string,
+  isInspect?: boolean,
 ): NavRoute {
-  if (!routeKey) return route
   if (route.key !== 'document') return route
+
+  if (isInspect) {
+    return createInspectNavRoute(
+      route.id,
+      routeKey,
+      routeKey === 'activity' && activityFilter ? `activity/${activityFilter}` : null,
+      commentId,
+      accountUid,
+    )
+  }
+
+  if (!routeKey) return route
 
   if (routeKey === 'comments' && commentId) {
     return {key: 'comments', id: route.id, openComment: commentId}

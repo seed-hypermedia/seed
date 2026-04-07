@@ -44,6 +44,8 @@ var Contacts = lazy(() => import('./contacts-page'))
 var Contact = lazy(() => import('./contact-page'))
 var Document = lazy(() => import('./desktop-resource'))
 var Feed = lazy(() => import('./desktop-feed'))
+var InspectResource = lazy(() => import('./inspect-resource'))
+var InspectIpfs = lazy(() => import('./inspect-ipfs'))
 var Draft = lazy(() => import('./draft'))
 var Library = lazy(() => import('./library'))
 var DeletedContent = lazy(() => import('./deleted-content'))
@@ -347,6 +349,16 @@ function getPageComponent(navRoute: NavRoute) {
     case 'directory':
       return {
         PageComponent: Document,
+        Fallback: DocumentPlaceholder,
+      }
+    case 'inspect':
+      return {
+        PageComponent: InspectResource,
+        Fallback: DocumentPlaceholder,
+      }
+    case 'inspect-ipfs':
+      return {
+        PageComponent: InspectIpfs,
         Fallback: DocumentPlaceholder,
       }
     case 'collaborators':

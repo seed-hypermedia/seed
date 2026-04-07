@@ -95,6 +95,7 @@ export function useRouteBreadcrumbs(): RouteBreadcrumbsResult {
     if (
       route.key === 'document' ||
       route.key === 'feed' ||
+      route.key === 'inspect' ||
       route.key === 'directory' ||
       route.key === 'collaborators' ||
       route.key === 'activity' ||
@@ -105,10 +106,11 @@ export function useRouteBreadcrumbs(): RouteBreadcrumbsResult {
     return undefined
   }, [route, isDraft, draftParams?.entityId])
 
-  const panel = useMemo((): DocumentPanelRoute | null | undefined => {
+  const panel = useMemo((): DocumentPanelRoute | {key: 'inspect'} | null | undefined => {
     if (isDraft) return draftParams?.panel
     if (route.key === 'document' || route.key === 'feed') return null
     if (route.key === 'directory') return {key: 'directory' as const} as DocumentPanelRoute
+    if (route.key === 'inspect') return {key: 'inspect' as const}
     if (route.key === 'collaborators') return {key: 'collaborators' as const} as DocumentPanelRoute
     if (route.key === 'activity') return {key: 'activity' as const} as DocumentPanelRoute
     if (route.key === 'comments')
@@ -175,6 +177,19 @@ export function useRouteBreadcrumbs(): RouteBreadcrumbsResult {
 
   // --- Compute result ---
   return useMemo((): RouteBreadcrumbsResult => {
+    if (route.key === 'inspect-ipfs') {
+      return {
+        items: [{name: `ipfs://${route.ipfsPath}`, id: null, crumbKey: 'inspect-ipfs'}],
+        icon: null,
+        windowTitle: `IPFS: ${route.ipfsPath}`,
+        isDraft: false,
+        isAllError: false,
+        entityId: null,
+        isLatest: true,
+        hideControls: false,
+      }
+    }
+
     // Simple routes
     const simple = computeSimpleRouteBreadcrumbs(route.key)
     if (simple) {

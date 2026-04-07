@@ -1,5 +1,12 @@
 import {describe, expect, test} from 'vitest'
-import {commentsRouteSchema, createDocumentNavRoute, type NavRoute} from '../routes'
+import {
+  commentsRouteSchema,
+  createDocumentNavRoute,
+  createInspectIpfsNavRoute,
+  createInspectNavRoute,
+  createRouteFromInspectNavRoute,
+  type NavRoute,
+} from '../routes'
 import {routeToHref} from '../routing'
 import {extractViewTermFromUrl, hmId, routeToUrl, unpackHmId, viewTermToRouteKey} from '../utils/entity-id-url'
 import {appRouteOfId} from '../utils/navigation'
@@ -187,6 +194,7 @@ describe('createDocumentNavRoute', () => {
         key: 'activity',
         id: testDocId,
         filterEventType: ['Ref'],
+        panel: null,
       })
     })
 
@@ -196,6 +204,7 @@ describe('createDocumentNavRoute', () => {
         key: 'activity',
         id: testDocId,
         filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+        panel: null,
       })
     })
 
@@ -270,6 +279,53 @@ describe('createDocumentNavRoute', () => {
         id: docWithPath,
         panel: {key: 'collaborators', id: docWithPath},
       })
+    })
+  })
+})
+
+describe('createRouteFromInspectNavRoute', () => {
+  test('opens document changes via the activity route', () => {
+    expect(createRouteFromInspectNavRoute({key: 'inspect', id: testDocId}, 'changes')).toEqual({
+      key: 'activity',
+      id: testDocId,
+      filterEventType: ['Ref'],
+      panel: null,
+    })
+  })
+
+  test('opens document citations via the activity route', () => {
+    expect(createRouteFromInspectNavRoute({key: 'inspect', id: testDocId}, 'citations')).toEqual({
+      key: 'activity',
+      id: testDocId,
+      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+      panel: null,
+    })
+  })
+
+  test('opens inspector children via the directory route', () => {
+    expect(createRouteFromInspectNavRoute({key: 'inspect', id: testDocId}, 'children')).toEqual({
+      key: 'directory',
+      id: testDocId,
+      panel: null,
+    })
+  })
+
+  test('opens inspected comment versions via the comments route', () => {
+    expect(
+      createRouteFromInspectNavRoute(
+        {
+          key: 'inspect',
+          id: testDocId,
+          targetView: 'comments',
+          targetOpenComment: 'comment-123',
+        },
+        'versions',
+      ),
+    ).toEqual({
+      key: 'comments',
+      id: testDocId,
+      openComment: 'comment-123',
+      panel: null,
     })
   })
 })
@@ -389,6 +445,42 @@ describe('routeToHref', () => {
     test('view-term route without panel does not add query param', () => {
       const href = routeToHref({key: 'collaborators', id: hmId('uid1')}, {originHomeId: originHome})
       expect(href).toBe('/:collaborators')
+    })
+
+    test('inspect route generates inspect href', () => {
+      const href = routeToHref({key: 'inspect', id: hmId('uid1')}, {originHomeId: originHome})
+      expect(href).toBe('/inspect')
+    })
+
+    test('inspect route on origin site omits /hm/site prefix', () => {
+      const href = routeToHref(
+        {key: 'inspect', id: hmId('uid1', {path: ['docs', 'intro']})},
+        {originHomeId: originHome},
+      )
+      expect(href).toBe('/inspect/docs/intro')
+    })
+
+    test('inspect route can wrap a nested comments view', () => {
+      const href = routeToHref(
+        {key: 'inspect', id: hmId('uid1'), targetView: 'comments', targetOpenComment: 'z6Mk/z6FC'},
+        {originHomeId: originHome},
+      )
+      expect(href).toBe('/inspect/:comments/z6Mk/z6FC')
+    })
+
+    test('inspect route preserves inspector tabs in query params', () => {
+      const href = routeToHref({key: 'inspect', id: hmId('uid1'), inspectTab: 'contacts'}, {originHomeId: originHome})
+      expect(href).toBe('/inspect?tab=contacts')
+    })
+
+    test('inspect route supports explorer parity tabs in query params', () => {
+      const href = routeToHref({key: 'inspect', id: hmId('uid1'), inspectTab: 'versions'}, {originHomeId: originHome})
+      expect(href).toBe('/inspect?tab=versions')
+    })
+
+    test('inspect ipfs route generates inspect ipfs href', () => {
+      const href = routeToHref(createInspectIpfsNavRoute('bafy123/path/to/node'), {originHomeId: originHome})
+      expect(href).toBe('/inspect/ipfs/bafy123/path/to/node')
     })
   })
 
@@ -514,7 +606,48 @@ describe('site-profile URL round-trip', () => {
   test('non-profile gateway URL is not misidentified', () => {
     const cleanUrl = 'https://gw.com/hm/siteUid/some/path'
     const parsed = extractViewTermFromUrl(cleanUrl)
-    expect(parsed).toEqual({url: cleanUrl, viewTerm: null})
+    expect(parsed).toEqual({url: cleanUrl, isInspect: false, viewTerm: null})
+  })
+
+  test('inspect URL round-trips correctly', () => {
+    const originalUrl = 'https://gw.com/hm/inspect/siteUid'
+
+    const {url: cleanUrl, isInspect, viewTerm} = extractViewTermFromUrl(originalUrl)
+    expect(cleanUrl).toBe('https://gw.com/hm/siteUid')
+    expect(isInspect).toBe(true)
+    expect(viewTerm).toBeNull()
+
+    const route = createInspectNavRoute(hmId('siteUid'))
+    expect(route).toEqual({key: 'inspect', id: hmId('siteUid')})
+
+    const regeneratedUrl = routeToUrl(route, {hostname: 'https://gw.com'})
+    expect(regeneratedUrl).toBe(originalUrl)
+  })
+
+  test('inspect comments URL round-trips correctly', () => {
+    const originalUrl = 'https://gw.com/hm/inspect/siteUid/path/:comments/z6Mk/z6FC'
+
+    const {url: cleanUrl, isInspect, viewTerm, commentId} = extractViewTermFromUrl(originalUrl)
+    expect(cleanUrl).toBe('https://gw.com/hm/siteUid/path')
+    expect(isInspect).toBe(true)
+    expect(viewTerm).toBe(':comments')
+    expect(commentId).toBe('z6Mk/z6FC')
+
+    const route = createInspectNavRoute(
+      hmId('siteUid', {path: ['path']}),
+      viewTermToRouteKey(viewTerm),
+      null,
+      commentId,
+    )
+    expect(route).toEqual({
+      key: 'inspect',
+      id: hmId('siteUid', {path: ['path']}),
+      targetView: 'comments',
+      targetOpenComment: 'z6Mk/z6FC',
+    })
+
+    const regeneratedUrl = routeToUrl(route, {hostname: 'https://gw.com'})
+    expect(regeneratedUrl).toBe(originalUrl)
   })
 
   test('site with custom domain: other tabs use the same site-domain format', () => {

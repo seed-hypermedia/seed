@@ -11,6 +11,7 @@ import {
   hmIdToURL,
   hypermediaUrlToRoute,
   idToUrl,
+  routeToHmUrl,
   serializeBlockRange,
   unpackHmId,
 } from './utils'
@@ -199,6 +200,64 @@ export function routeToHref(
   }
   if (typeof route !== 'string' && route.key == 'contact') {
     return `/hm/contact/${route.id.uid}`
+  }
+
+  if (typeof route !== 'string' && route.key === 'inspect') {
+    if (options?.hmUrlHref) {
+      return routeToHmUrl(route)
+    }
+    const docId = route.id
+    let basePath = ''
+    if (options?.originHomeId?.uid === docId.uid) {
+      basePath = '/inspect'
+      if (docId.path?.length) {
+        basePath += `/${docId.path.join('/')}`
+      }
+    } else {
+      basePath = `/hm/inspect/${docId.uid}${docId.path?.length ? `/${docId.path.join('/')}` : ''}`
+    }
+
+    let suffix = ''
+    if (route.targetView === 'activity') {
+      const filterSlug = activityFilterToSlug(route.targetActivityFilter)
+      suffix = filterSlug ? `/:activity/${filterSlug}` : '/:activity'
+    } else if (route.targetView === 'comments') {
+      suffix = route.targetOpenComment ? `/:comments/${route.targetOpenComment}` : '/:comments'
+    } else if (
+      route.targetView === 'profile' ||
+      route.targetView === 'membership' ||
+      route.targetView === 'followers' ||
+      route.targetView === 'following'
+    ) {
+      suffix = `/:${route.targetView}${route.targetAccountUid ? `/${route.targetAccountUid}` : ''}`
+    } else if (route.targetView) {
+      suffix = `/:${route.targetView}`
+    }
+
+    let href = `${basePath}${suffix}`
+    const query: string[] = []
+    if (route.id.version) {
+      query.push(`v=${route.id.version}`)
+      if (route.id.latest) query.push('l')
+    }
+    if (route.inspectTab && route.inspectTab !== 'document') {
+      query.push(`tab=${route.inspectTab}`)
+    }
+    if (query.length) {
+      href += `?${query.join('&')}`
+    }
+    if (route.id.blockRef) {
+      href += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
+    }
+    return href
+  }
+
+  if (typeof route !== 'string' && route.key === 'inspect-ipfs') {
+    if (options?.hmUrlHref) {
+      return routeToHmUrl(route)
+    }
+    const basePath = options?.originHomeId ? '/inspect' : '/hm/inspect'
+    return `${basePath}/ipfs/${route.ipfsPath}`
   }
 
   // Handle view routes (activity, comments, directory, collaborators, feed)

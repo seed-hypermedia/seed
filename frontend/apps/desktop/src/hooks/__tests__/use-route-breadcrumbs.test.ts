@@ -83,6 +83,9 @@ describe('getWindowTitle', () => {
   it('document without name', () => {
     expect(getWindowTitle('document')).toBe('Document')
   })
+  it('inspect with name', () => {
+    expect(getWindowTitle('inspect', 'My Doc')).toBe('My Doc')
+  })
   it('unknown key -> null', () => {
     expect(getWindowTitle('settings')).toBeNull()
   })
@@ -340,6 +343,18 @@ describe('computeEntityBreadcrumbs', () => {
       panel: {key: 'activity'},
     })
     expect(items.at(-1)?.name).toBe('Activity')
+  })
+
+  it('appends inspector crumb', () => {
+    const id = makeId('abc123')
+    const items = computeEntityBreadcrumbs({
+      entityIds: [id],
+      entityContents: [makeEntityContent(id, {metadata: {name: 'Root'}})],
+      contacts: [],
+      panel: {key: 'inspect'},
+    })
+    expect(items.at(-1)?.name).toBe('Inspector')
+    expect(items.at(-1)?.crumbKey).toBe('inspect')
   })
 
   it('appends discussions panel crumb', () => {
