@@ -1,4 +1,10 @@
-import {HMBlockNode, HMDocument, HMDraft, HMNavigationItem, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {
+  HMBlockNode,
+  HMDocument,
+  HMDraft,
+  HMNavigationItem,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {assign, fromPromise, raise, setup, StateFrom} from 'xstate'
 
 // -- Types --
