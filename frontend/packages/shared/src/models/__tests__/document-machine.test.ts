@@ -101,13 +101,20 @@ describe('DocumentLifecycle machine', () => {
   it('loading → draft.resolved with draftId + document.loaded → loaded → auto-editing', () => {
     const actor = createTestActor()
     actor.start()
-    actor.send({type: 'draft.resolved', draftId: 'my-draft', content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft text', attributes: {}}, children: []}], cursorPosition: null})
+    actor.send({
+      type: 'draft.resolved',
+      draftId: 'my-draft',
+      content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft text', attributes: {}}, children: []}],
+      cursorPosition: null,
+    })
     actor.send({type: 'document.loaded', document: mockDocument})
     // Should auto-transition to editing via shouldAutoEdit
     expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
     expect(actor.getSnapshot().context.draftId).toBe('my-draft')
     expect(actor.getSnapshot().context.shouldAutoEdit).toBe(false) // cleared
-    expect(actor.getSnapshot().context.draftContent).toEqual([{block: {id: 'b1', type: 'Paragraph', text: 'draft text', attributes: {}}, children: []}])
+    expect(actor.getSnapshot().context.draftContent).toEqual([
+      {block: {id: 'b1', type: 'Paragraph', text: 'draft text', attributes: {}}, children: []},
+    ])
     actor.stop()
   })
 
@@ -125,7 +132,12 @@ describe('DocumentLifecycle machine', () => {
   it('draftContent is cleared on discard', () => {
     const actor = createTestActor()
     actor.start()
-    actor.send({type: 'draft.resolved', draftId: 'my-draft', content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft', attributes: {}}, children: []}], cursorPosition: null})
+    actor.send({
+      type: 'draft.resolved',
+      draftId: 'my-draft',
+      content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft', attributes: {}}, children: []}],
+      cursorPosition: null,
+    })
     actor.send({type: 'document.loaded', document: mockDocument})
     expect(actor.getSnapshot().context.draftContent).not.toBeNull()
     actor.send({type: 'edit.discard'})
@@ -136,7 +148,12 @@ describe('DocumentLifecycle machine', () => {
   it('draftCursorPosition is stored on draft.resolved and cleared on discard', () => {
     const actor = createTestActor()
     actor.start()
-    actor.send({type: 'draft.resolved', draftId: 'my-draft', content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft', attributes: {}}, children: []}], cursorPosition: 42})
+    actor.send({
+      type: 'draft.resolved',
+      draftId: 'my-draft',
+      content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft', attributes: {}}, children: []}],
+      cursorPosition: 42,
+    })
     actor.send({type: 'document.loaded', document: mockDocument})
     expect(actor.getSnapshot().context.draftCursorPosition).toBe(42)
     actor.send({type: 'edit.discard'})
@@ -147,7 +164,12 @@ describe('DocumentLifecycle machine', () => {
   it('draftContent is preserved on edit.cancel', () => {
     const actor = createTestActor()
     actor.start()
-    actor.send({type: 'draft.resolved', draftId: 'my-draft', content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft', attributes: {}}, children: []}], cursorPosition: null})
+    actor.send({
+      type: 'draft.resolved',
+      draftId: 'my-draft',
+      content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft', attributes: {}}, children: []}],
+      cursorPosition: null,
+    })
     actor.send({type: 'document.loaded', document: mockDocument})
     expect(actor.getSnapshot().context.draftContent).not.toBeNull()
     actor.send({type: 'edit.cancel'})
@@ -495,12 +517,10 @@ describe('DocumentLifecycle machine', () => {
     // Use a slow writeDraft so we can observe the 'saving' indicator state
     const machine = documentMachine.provide({
       actors: {
-        writeDraft: fromPromise<{id: string}, any>(
-          async () => {
-            await new Promise((r) => setTimeout(r, 100))
-            return {id: 'draft-456'}
-          },
-        ),
+        writeDraft: fromPromise<{id: string}, any>(async () => {
+          await new Promise((r) => setTimeout(r, 100))
+          return {id: 'draft-456'}
+        }),
         publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
       },
       delays: {

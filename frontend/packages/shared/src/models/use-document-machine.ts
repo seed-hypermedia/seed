@@ -64,7 +64,16 @@ export function DocumentMachineProvider({input, machine, inspect, children}: Doc
     const sub = actorRef.subscribe((snapshot) => {
       const value = snapshot.value
       const ctx = snapshot.context
-      console.log('[DocumentMachine] state:', JSON.stringify(value), '| draftId:', ctx.draftId, '| draftCreated:', ctx.draftCreated, '| shouldAutoEdit:', ctx.shouldAutoEdit)
+      console.log(
+        '[DocumentMachine] state:',
+        JSON.stringify(value),
+        '| draftId:',
+        ctx.draftId,
+        '| draftCreated:',
+        ctx.draftCreated,
+        '| shouldAutoEdit:',
+        ctx.shouldAutoEdit,
+      )
     })
     return () => sub.unsubscribe()
   }, [actorRef])
@@ -106,7 +115,13 @@ export function useDocumentSync(document: HMDocument | null | undefined) {
       prevVersionRef.current = document.version
     } else if (document.version !== prevVersionRef.current) {
       // Version changed — remote update
-      console.log('[DocumentSync] sending document.remoteUpdate, version:', document.version, '(prev:', prevVersionRef.current, ')')
+      console.log(
+        '[DocumentSync] sending document.remoteUpdate, version:',
+        document.version,
+        '(prev:',
+        prevVersionRef.current,
+        ')',
+      )
       actorRef.send({type: 'document.remoteUpdate', document})
       prevVersionRef.current = document.version
     }
@@ -170,7 +185,12 @@ export function useDraftResolutionSync(
     if (resolved !== undefined && !sentRef.current) {
       sentRef.current = true
       console.log('[DraftResolutionSync] sending draft.resolved, draftId:', resolved.draftId)
-      actorRef.send({type: 'draft.resolved', draftId: resolved.draftId, content: resolved.content, cursorPosition: resolved.cursorPosition})
+      actorRef.send({
+        type: 'draft.resolved',
+        draftId: resolved.draftId,
+        content: resolved.content,
+        cursorPosition: resolved.cursorPosition,
+      })
     }
   }, [actorRef, resolved])
 }

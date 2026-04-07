@@ -711,7 +711,11 @@ function DocumentBody({
     } else if (!existingDraft) {
       result = {draftId: null as string | null, content: null, cursorPosition: null}
     } else if (existingDraftContent) {
-      result = {draftId: existingDraft.id, content: existingDraftContent, cursorPosition: existingDraftCursorPosition ?? null}
+      result = {
+        draftId: existingDraft.id,
+        content: existingDraftContent,
+        cursorPosition: existingDraftCursorPosition ?? null,
+      }
     } else {
       result = undefined // draft found but content not loaded yet
     }

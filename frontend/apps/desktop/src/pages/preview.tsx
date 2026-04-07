@@ -88,16 +88,8 @@ function PublishedPreview({docId}: {docId: UnpackedHypermediaId}) {
 
   return (
     <div className="relative h-full max-h-full overflow-hidden rounded-lg border bg-white">
-      <PreviewBanner
-        onClose={handleClose}
-        message="You are viewing the current published version of this document"
-      />
-      <ResourcePage
-        docId={docId}
-        canEdit={false}
-        existingDraft={false}
-        DocumentContentComponent={DocumentEditor}
-      />
+      <PreviewBanner onClose={handleClose} message="You are viewing the current published version of this document" />
+      <ResourcePage docId={docId} canEdit={false} existingDraft={false} DocumentContentComponent={DocumentEditor} />
     </div>
   )
 }
@@ -154,10 +146,7 @@ function PreviewContent({draft}: {draft: HMDraft}) {
                 </div>
 
                 {/* Content */}
-                <DocumentEditor
-                  blocks={blockNodes}
-                  resourceId={resourceId}
-                />
+                <DocumentEditor blocks={blockNodes} resourceId={resourceId} />
               </div>
 
               {/* Navigation sidebar placeholder for layout consistency */}

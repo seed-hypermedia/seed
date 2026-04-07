@@ -264,11 +264,7 @@ export function DocumentEditor({
       // click is below the last rendered block, we still want to enter edit mode
       // and place the cursor at the end of the document.
       const editorRect = domRoot.getBoundingClientRect()
-      if (
-        e.clientX >= editorRect.left &&
-        e.clientX <= editorRect.right &&
-        e.clientY > editorRect.bottom
-      ) {
+      if (e.clientX >= editorRect.left && e.clientX <= editorRect.right && e.clientY > editorRect.bottom) {
         pendingClickPosRef.current = view.state.doc.content.size
         onEditStart()
         e.preventDefault()
