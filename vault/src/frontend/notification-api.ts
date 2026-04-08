@@ -1,4 +1,6 @@
+import type * as api from '@/api'
 import {encode as cborEncode} from '@ipld/dag-cbor'
+import * as base64 from '@shm/shared/base64'
 import type * as blobs from '@shm/shared/blobs'
 
 type NotificationRequestSigner = Pick<blobs.NobleKeyPair, 'principal' | 'sign'>
@@ -79,16 +81,30 @@ export async function registerNotificationInbox(
 
 /**
  * Sets or replaces the notification email for a registered account.
+ * When emailPrevalidation is provided, the notify server may skip email verification
+ * if it trusts the vault server that signed the prevalidation.
  */
 export async function setNotificationConfig(
   notifyServiceHost: string,
   signer: NotificationRequestSigner,
   email: string,
+  emailPrevalidation?: api.EmailPrevalidation | null,
 ): Promise<NotificationConfigResponse> {
-  return postSignedNotificationRequest(notifyServiceHost, '/hm/api/notification-config', signer, {
+  const payload: Record<string, unknown> = {
     action: 'set-notification-config',
     email,
-  })
+  }
+
+  if (emailPrevalidation) {
+    payload.emailPrevalidation = {
+      email: emailPrevalidation.email,
+      signer: new Uint8Array(base64.decode(emailPrevalidation.signer)),
+      host: emailPrevalidation.host,
+      sig: new Uint8Array(base64.decode(emailPrevalidation.sig)),
+    }
+  }
+
+  return postSignedNotificationRequest(notifyServiceHost, '/hm/api/notification-config', signer, payload)
 }
 
 /**

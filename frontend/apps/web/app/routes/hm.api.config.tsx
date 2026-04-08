@@ -14,16 +14,13 @@ export const loader: LoaderFunction = async ({request}) => {
     deviceId: daemonInfo.peerId,
   })
   const keys = await grpcClient.daemon.listKeys({})
+  const sortedKeys = [...(keys.keys || [])].sort((a, b) => a.accountId.localeCompare(b.accountId))
   return data(
     {
       registeredAccountUid: config.registeredAccountUid,
       peerId: daemonInfo.peerId,
       protocolId: daemonInfo.protocolId,
-      experimentalKeys: keys.keys.map((k) => ({
-        name: k.name,
-        publicKey: k.publicKey,
-        accountId: k.accountId,
-      })),
+      signerAccountUid: sortedKeys[0]?.accountId || null,
       addrs: peerInfo.addrs,
       hostname: SITE_BASE_URL,
       isGateway: WEB_IS_GATEWAY,

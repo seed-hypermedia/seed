@@ -30,8 +30,14 @@ function createService(getAccountImpl: (req: {id: string}) => Promise<Account>) 
     'https://daemon.example.com',
     'https://notify.example.com',
     {
-      getAccount: async (req) => getAccountImpl({id: req.id || ''}),
-    },
+      documents: {
+        getAccount: async (req: {id?: string}) => getAccountImpl({id: req.id || ''}),
+      },
+      daemon: {
+        listKeys: async () => ({keys: []}),
+        signData: async () => ({signature: new Uint8Array()}),
+      },
+    } as any,
     rp,
     hmacSecret,
     emailSender,

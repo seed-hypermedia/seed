@@ -63,6 +63,8 @@ export function initialState(backendHttpBaseUrl = '', notificationServerUrl = ''
     backendHttpBaseUrl,
     /** Notification server URL surfaced in the application footer. */
     notificationServerUrl,
+    /** Signed email prevalidation from the vault server, used to skip email verification on the notify server. */
+    emailPrevalidation: null as api.EmailPrevalidation | null,
     /** Cache of loaded profiles mapped by their principal */
     profiles: {} as Record<string, AccountProfileSummary>,
     /** Tracks degraded profile states so the UI can distinguish not found from temporary failures. */
@@ -232,7 +234,12 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     await notificationApi.registerNotificationInbox(notifyServiceHost, signer)
 
     if (notificationEmail) {
-      await notificationApi.setNotificationConfig(notifyServiceHost, signer, notificationEmail)
+      await notificationApi.setNotificationConfig(
+        notifyServiceHost,
+        signer,
+        notificationEmail,
+        state.emailPrevalidation,
+      )
     }
   }
 
@@ -1129,6 +1136,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           state.creatingAccount = true
         }
         state.vaultVersion = vaultResponse.version ?? 0
+
+        if (vaultResponse.emailPrevalidation) {
+          state.emailPrevalidation = vaultResponse.emailPrevalidation
+        }
       } catch (e) {
         console.error('Failed to load vault data:', e)
       }

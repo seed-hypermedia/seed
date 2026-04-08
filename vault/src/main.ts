@@ -2,7 +2,7 @@ import type * as api from '@/api'
 import * as apisvc from '@/api-service'
 import * as challenge from '@/challenge'
 import * as config from '@/config'
-import {createDocumentsClient} from '@/daemon-client'
+import {createClient} from '@/daemon-client'
 import * as email from '@/email'
 import index from '@/frontend/index.html'
 import schemaMismatch from '@/frontend/schema-mismatch.html'
@@ -64,12 +64,12 @@ async function main() {
   const db = result.db
   const hmacSecret = sqlite.getOrCreateHmacSecret(db)
   const emailSender = email.createSender(cfg.smtp)
-  const documentsClient = createDocumentsClient(cfg.backend.grpcBaseUrl)
+  const grpcClient = createClient(cfg.backend.grpcBaseUrl)
   const svc = new apisvc.Service(
     db,
     cfg.backend.httpBaseUrl,
     cfg.notificationServerUrl,
-    documentsClient,
+    grpcClient,
     cfg.relyingParty,
     hmacSecret,
     emailSender,
@@ -88,6 +88,15 @@ async function main() {
     error: handleError,
     routes: {
       ...createAPIRoutes(svc),
+      // In development, proxy /hm/api/config to the web app (shares the same daemon in prod).
+      '/hm/api/config': {
+        GET: () => {
+          if (isProd) return new Response('Not Found', {status: 404})
+          return fetch('http://localhost:3000/hm/api/config').then(
+            (res) => new Response(res.body, {status: res.status, headers: res.headers}),
+          )
+        },
+      },
       '/vault': index,
       '/vault/*': isProd
         ? (req: BunRequest) => {

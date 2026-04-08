@@ -117,10 +117,18 @@ export type PasskeyVaultCredential = {
 
 export type VaultCredential = PasswordVaultCredential | PasskeyVaultCredential
 
+export type EmailPrevalidation = {
+  email: string
+  signer: string
+  host: string
+  sig: string
+}
+
 export type GetVaultResponse = {
   encryptedData?: string
   version?: number
   credentials: VaultCredential[]
+  emailPrevalidation?: EmailPrevalidation
 }
 
 // Save vault data.

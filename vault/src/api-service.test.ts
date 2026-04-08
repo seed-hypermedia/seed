@@ -39,16 +39,24 @@ beforeEach(() => {
   db.run('PRAGMA foreign_keys = ON')
 })
 
+const mockGrpcClient = {
+  documents: {
+    getAccount: async () => {
+      throw new Error('not used in this test')
+    },
+  },
+  daemon: {
+    listKeys: async () => ({keys: []}),
+    signData: async () => ({signature: new Uint8Array()}),
+  },
+} as any
+
 function createService() {
   return new Service(
     db,
     'https://daemon.example.com',
     'https://notify.example.com',
-    {
-      getAccount: async () => {
-        throw new Error('not used in this test')
-      },
-    },
+    mockGrpcClient,
     rp,
     hmacSecret,
     emailSender,
