@@ -45,8 +45,14 @@ import {SlashMenuProsemirrorPlugin} from './extensions/SlashMenu/SlashMenuPlugin
 import {UniqueID} from './extensions/UniqueID/UniqueID'
 import {mergeCSSClasses} from './shared/utils'
 
-/** Controls which UI context the editor is rendered in. Affects plugin loading for 'embed' mode. */
-export type EditorRenderType = 'document' | 'embed' | 'comment'
+/**
+ * Controls which UI context the editor is rendered in.
+ * - 'document': Full editor with all extensions and UI plugins.
+ * - 'viewer': Read-only with BlockHighlight/ImageGallery/Supernumbers but no editing extensions.
+ * - 'embed': Minimal read-only for nested embeds — no UI plugins at all.
+ * - 'comment': Full editor tuned for comment input.
+ */
+export type EditorRenderType = 'document' | 'viewer' | 'embed' | 'comment'
 
 export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
   // Note: enableBlockNoteExtensions/disableHistoryExtension are internal options
@@ -243,13 +249,20 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     this.commentEditor = options.commentEditor
     this.getResourceUrl = options.getResourceUrl
     const isEmbed = this.renderType === 'embed'
-    this.sideMenu = isEmbed ? null : new SideMenuProsemirrorPlugin(this)
-    this.formattingToolbar = isEmbed ? null : new FormattingToolbarProsemirrorPlugin(this)
-    this.slashMenu = isEmbed ? null : new SlashMenuProsemirrorPlugin(this, newOptions.getSlashMenuItems || (() => []))
-    this.hyperlinkToolbar = isEmbed ? null : new HyperlinkToolbarProsemirrorPlugin(this)
-    this.linkMenu = isEmbed ? null : new LinkMenuProsemirrorPlugin(this)
+    const isViewer = this.renderType === 'viewer'
+    const isReadOnly = isEmbed || isViewer
+
+    // Editing plugins: only for document/comment modes
+    this.sideMenu = isReadOnly ? null : new SideMenuProsemirrorPlugin(this)
+    this.formattingToolbar = isReadOnly ? null : new FormattingToolbarProsemirrorPlugin(this)
+    this.slashMenu = isReadOnly ? null : new SlashMenuProsemirrorPlugin(this, newOptions.getSlashMenuItems || (() => []))
+    this.hyperlinkToolbar = isReadOnly ? null : new HyperlinkToolbarProsemirrorPlugin(this)
+    this.linkMenu = isReadOnly ? null : new LinkMenuProsemirrorPlugin(this)
+
+    // Read-only UI plugins: for document + viewer (not embed)
     this.blockHoverActions = isEmbed ? null : new BlockHoverActionsProsemirrorPlugin(this)
     this.rangeSelection = isEmbed ? null : new RangeSelectionProsemirrorPlugin(this)
+
     this.importWebFile = newOptions.importWebFile
     this.handleFileAttachment = newOptions.handleFileAttachment
 
@@ -264,20 +277,25 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     })
 
     if (!isEmbed) {
+      const plugins = [
+        this.blockHoverActions!.plugin,
+        this.rangeSelection!.plugin,
+      ]
+
+      // Editing UI plugins only for non-readonly modes
+      if (!isReadOnly) {
+        plugins.push(
+          this.sideMenu!.plugin,
+          this.formattingToolbar!.plugin,
+          this.slashMenu!.plugin,
+          this.hyperlinkToolbar!.plugin,
+          this.linkMenu!.plugin,
+        )
+      }
+
       const blockNoteUIExtension = Extension.create({
         name: 'BlockNoteUIExtension',
-
-        addProseMirrorPlugins: () => {
-          return [
-            this.sideMenu!.plugin,
-            this.formattingToolbar!.plugin,
-            this.slashMenu!.plugin,
-            this.hyperlinkToolbar!.plugin,
-            this.linkMenu!.plugin,
-            this.blockHoverActions!.plugin,
-            this.rangeSelection!.plugin,
-          ]
-        },
+        addProseMirrorPlugins: () => plugins,
       })
       extensions.push(blockNoteUIExtension)
     }

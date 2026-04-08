@@ -30,8 +30,10 @@ import {client} from './trpc'
 import {AppWindowEvent} from '@/utils/window-events'
 import {onQueryCacheError, onQueryInvalidation, registerQueryClient} from '@shm/shared/models/query-client'
 import {labelOfQueryKey} from '@shm/shared/models/query-keys'
+import {ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
 import {windowContainerStyles} from '@shm/ui/container'
 import {cn} from '@shm/ui/utils'
+import {ReadOnlyViewer} from '@shm/editor/readonly-viewer'
 
 const logger = {
   log: wrapLogger(console.log),
@@ -304,6 +306,7 @@ function MainApp({}: {}) {
   if (daemonState?.t == 'ready') {
     return (
       <QueryClientProvider client={queryClient}>
+        <ReadOnlyViewerProvider value={ReadOnlyViewer}>
         <AppContextProvider
           grpcClient={grpcClient}
           platform={appInfo.platform()}
@@ -389,6 +392,7 @@ function MainApp({}: {}) {
             </ErrorBoundary>
           </Suspense>
         </AppContextProvider>
+        </ReadOnlyViewerProvider>
       </QueryClientProvider>
     )
   } else if (daemonState?.t == 'error') {
