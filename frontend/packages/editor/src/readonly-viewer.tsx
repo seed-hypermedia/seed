@@ -2,9 +2,11 @@ import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editor
 import type {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useMemo} from 'react'
 import {useBlockNote} from './blocknote'
+import {BlockHoverActionsPositioner} from './blocknote/react/BlockHoverActions/BlockHoverActionsPositioner'
+import {RangeSelectionPositioner} from './blocknote/react/RangeSelection/RangeSelectionPositioner'
+import {ReadOnlyBlockNoteView} from './readonly-blocknote-view'
 import type {HMBlockSchema} from './schema'
 import {hmBlockSchema} from './schema'
-import {ReadOnlyBlockNoteView} from './readonly-blocknote-view'
 
 export interface ReadOnlyViewerProps {
   blocks: HMBlockNode[]
@@ -12,9 +14,24 @@ export interface ReadOnlyViewerProps {
   textUnit?: number
   layoutUnit?: number
   className?: string
+  commentStyle?: boolean
+  onCopyBlockLink?: (blockId: string) => void
+  onStartComment?: (blockId: string) => void
+  onCopyFragmentLink?: (blockId: string, rangeStart: number, rangeEnd: number) => void
+  onComment?: (blockId: string, rangeStart: number, rangeEnd: number) => void
 }
 
-export function ReadOnlyViewer({blocks, textUnit, layoutUnit, className}: ReadOnlyViewerProps) {
+export function ReadOnlyViewer({
+  blocks,
+  textUnit,
+  layoutUnit,
+  className,
+  commentStyle,
+  onCopyBlockLink,
+  onStartComment,
+  onCopyFragmentLink,
+  onComment,
+}: ReadOnlyViewerProps) {
   const initialContent = useMemo(() => {
     const editorBlocks = hmBlocksToEditorContent(blocks, {childrenType: 'Group'})
     return editorBlocks.length > 0 ? editorBlocks : [{type: 'paragraph' as const, id: 'empty'}]
@@ -31,6 +48,9 @@ export function ReadOnlyViewer({blocks, textUnit, layoutUnit, className}: ReadOn
     [initialContent],
   )
 
+  const hasHoverActions = !!(onCopyBlockLink || onStartComment)
+  const hasRangeSelection = !!(onCopyFragmentLink || onComment)
+
   return (
     <div
       style={
@@ -39,10 +59,25 @@ export function ReadOnlyViewer({blocks, textUnit, layoutUnit, className}: ReadOn
           '--layout-unit': `${layoutUnit ?? 24}px`,
         } as React.CSSProperties
       }
-      className={className}
+      className={commentStyle ? `${className ?? ''} comment-editor`.trim() : className}
     >
       <ReadOnlyBlockNoteView editor={editor}>
-        <></>
+        <>
+          {hasHoverActions && (
+            <BlockHoverActionsPositioner
+              editor={editor}
+              onCopyBlockLink={onCopyBlockLink}
+              onStartComment={onStartComment}
+            />
+          )}
+          {hasRangeSelection && (
+            <RangeSelectionPositioner
+              editor={editor}
+              onCopyFragmentLink={onCopyFragmentLink}
+              onComment={onComment}
+            />
+          )}
+        </>
       </ReadOnlyBlockNoteView>
     </div>
   )
