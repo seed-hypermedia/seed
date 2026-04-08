@@ -16,8 +16,9 @@ import {AlertCircle, Undo2} from 'lucide-react'
 import React, {ReactNode, useCallback, useMemo, useState} from 'react'
 import {toast} from 'sonner'
 import type {HMResource} from '@seed-hypermedia/client/hm-types'
+import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import type {BlockContentProps} from './blocks-content'
-import {BlockNodeContent, BlockNodeList, BlocksContentProvider, useContentResourceId} from './blocks-content'
+import {useContentResourceId} from './blocks-content'
 import {getBlockNodeById} from './blocks-content-utils'
 import {Button} from './button'
 import {CommentContent, Discussions} from './comments'
@@ -586,68 +587,18 @@ function BlockEmbedContentDocument(props: {
       )
     } else {
       content = (
-        <BlocksContentProvider onBlockSelect={embedOnBlockSelect} resourceId={id}>
-          <BlockNodeList childrenType="Group">
-            {!props.blockRef && document?.metadata?.name ? (
-              <BlockNodeContent
-                parentBlockId={props.parentBlockId}
-                isFirstChild
-                depth={props.depth}
-                embedId={blockId}
-                allowHighlight={false}
-                blockNode={{
-                  block: {
-                    type: 'Heading',
-                    id: blockId,
-                    text: getDocumentTitle(document) || '',
-                    attributes: {
-                      childrenType: 'Group',
-                    },
-                    annotations: [],
-                  },
-                  children: embedData.data.embedBlocks as Array<HMBlockNode>,
-                }}
-                childrenType="Group"
-                index={0}
-                embedDepth={1}
-              />
-            ) : (
-              embedData.data.embedBlocks.map((bn, idx) => (
-                // @ts-expect-error
-                <BlockNodeContent
-                  key={bn.block?.id}
-                  isFirstChild={!props.blockRef && document?.metadata?.name ? true : idx == 0}
-                  depth={1}
-                  embedId={blockId}
-                  allowHighlight={false}
-                  blockNode={bn}
-                  childrenType="Group"
-                  index={idx}
-                  embedDepth={1}
-                />
-              ))
-            )}
-          </BlockNodeList>
-
-          {showReferenced ? (
-            <div className="flex justify-end">
-              <Tooltip content="The latest reference was not found. Click to try again.">
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    e.preventDefault()
-                    onShowReferenced(false)
-                  }}
-                >
-                  <Undo2 className="size-3" />
-                  Back to Reference
-                </Button>
-              </Tooltip>
-            </div>
-          ) : null}
-        </BlocksContentProvider>
+        <EmbedContentFallback
+          embedBlocks={embedData.data.embedBlocks as HMBlockNode[]}
+          document={document}
+          id={id}
+          blockId={blockId}
+          blockRef={props.blockRef}
+          onCopyBlockLink={(bid) => {
+            embedOnBlockSelect(bid, {copyToClipboard: true, start: 0, end: 0})
+          }}
+          showReferenced={showReferenced}
+          onShowReferenced={onShowReferenced}
+        />
       )
     }
   } else if (props.blockRef) {
@@ -682,5 +633,72 @@ function BlockEmbedContentDocument(props: {
     >
       {content}
     </EmbedWrapper>
+  )
+}
+
+/** Fallback renderer for embedded document content using ReadOnlyViewer instead of BlocksContent. */
+function EmbedContentFallback({
+  embedBlocks,
+  document,
+  id,
+  blockId,
+  blockRef,
+  onCopyBlockLink,
+  showReferenced,
+  onShowReferenced,
+}: {
+  embedBlocks: HMBlockNode[]
+  document: HMDocument | null | undefined
+  id: UnpackedHypermediaId
+  blockId: string
+  blockRef: string | null
+  onCopyBlockLink?: (blockId: string) => void
+  showReferenced: boolean
+  onShowReferenced: (show: boolean) => void
+}) {
+  const Viewer = useReadOnlyViewer()
+
+  const blocks = useMemo(() => {
+    if (!blockRef && document?.metadata?.name) {
+      // Wrap content in a synthetic heading block (mirrors the old BlockNodeContent heading)
+      const headingBlock: HMBlockNode = {
+        block: {
+          type: 'Heading',
+          id: blockId,
+          text: getDocumentTitle(document) || '',
+          attributes: {childrenType: 'Group'},
+          annotations: [],
+        },
+        children: embedBlocks,
+      }
+      return [headingBlock]
+    }
+    return embedBlocks
+  }, [blockRef, document, blockId, embedBlocks])
+
+  if (!Viewer) return null
+
+  return (
+    <>
+      <Viewer blocks={blocks} resourceId={id} onCopyBlockLink={onCopyBlockLink} />
+      {showReferenced ? (
+        <div className="flex justify-end">
+          <Tooltip content="The latest reference was not found. Click to try again.">
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+                onShowReferenced(false)
+              }}
+            >
+              <Undo2 className="size-3" />
+              Back to Reference
+            </Button>
+          </Tooltip>
+        </div>
+      ) : null}
+    </>
   )
 }
