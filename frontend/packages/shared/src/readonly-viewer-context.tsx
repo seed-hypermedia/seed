@@ -7,6 +7,11 @@ export type ReadOnlyViewerComponent = React.ComponentType<{
   textUnit?: number
   layoutUnit?: number
   className?: string
+  commentStyle?: boolean
+  onCopyBlockLink?: (blockId: string) => void
+  onStartComment?: (blockId: string) => void
+  onCopyFragmentLink?: (blockId: string, rangeStart: number, rangeEnd: number) => void
+  onComment?: (blockId: string, rangeStart: number, rangeEnd: number) => void
 }>
 
 const ReadOnlyViewerContext = createContext<ReadOnlyViewerComponent | undefined>(undefined)

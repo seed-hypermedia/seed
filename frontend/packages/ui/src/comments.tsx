@@ -39,11 +39,10 @@ import {getRoutePanel} from '@shm/shared/routes'
 import {useTxString} from '@shm/shared/translation'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Pencil, Link, MessageSquare, Trash2, X} from 'lucide-react'
-import {memo, ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
+import {memo, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {toast} from 'sonner'
 import {SelectionContent} from './accessories'
-import type {BlockRangeSelectOptions} from '@shm/shared/document-content-props'
-import {BlocksContent, BlocksContentProvider} from './blocks-content'
+import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {getBlockNodeById} from './blocks-content-utils'
 import {Button} from './button'
 import {copyTextToClipboard, copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
@@ -782,9 +781,6 @@ export function CommentContent({
   size,
   zoomBlockRef,
   selection,
-  allowHighlight = true,
-  openOnClick = true,
-  onBlockSelect: onBlockSelectProp,
 }: {
   comment: HMComment
   size?: 'sm' | 'md'
@@ -798,8 +794,7 @@ export function CommentContent({
   openOnClick?: boolean
   onBlockSelect?: (blockId: string, blockRange: BlockRange | null) => void
 }) {
-  const navigate = useNavigate()
-  const replaceNavigate = useNavigate('replace')
+  const Viewer = useReadOnlyViewer()
   const currentRoute = useNavRoute()
   const targetHomeEntity = useResource(hmId(comment.targetAccount))
   const targetHomeDoc = targetHomeEntity.data?.type === 'document' ? targetHomeEntity.data.document : undefined
@@ -807,88 +802,38 @@ export function CommentContent({
   const siteUrl = targetHomeDoc?.metadata?.siteUrl as string | undefined
   const textUnit = size === 'sm' ? 12 : 14
   const layoutUnit = size === 'sm' ? 14 : 16
-  const onBlockSelect = (blockId: string, opts?: BlockRangeSelectOptions): boolean => {
-    let blockRange: BlockRange | null = null
-    if (opts) {
-      const {copyToClipboard, ...br} = opts
-      blockRange = br
-    }
-    if (opts?.copyToClipboard) {
-      if (targetDocId) {
-        const routeLatest =
-          currentRoute.key === 'document' || currentRoute.key === 'comments' || currentRoute.key === 'activity'
-            ? currentRoute.id.latest
-            : undefined
-        const fullUrl = createCommentUrl({
-          docId: targetDocId,
-          commentId: comment.id,
-          siteUrl,
-          latest: routeLatest,
-          blockRef: blockId,
-          blockRange,
-        })
-        copyUrlToClipboardWithFeedback(fullUrl, 'Comment Block')
-      }
-      return true
-    } else {
-      if (!openOnClick) return false
-      const targetId = getCommentTargetId(comment)
-      if (!targetId) {
-        toast.error('Failed to get target comment target ID')
-        return false
-      }
-      if (onBlockSelectProp) {
-        onBlockSelectProp(blockId, blockRange)
-      } else {
-        const commentEntityId = commentIdToHmId(comment.id)
-        // Detect comment main view: route is document with the comment entity ID
-        const isCommentMainView =
-          currentRoute.key === 'document' &&
-          currentRoute.id.uid === commentEntityId.uid &&
-          currentRoute.id.path?.join('/') === commentEntityId.path?.join('/')
-        if (isCommentMainView) {
-          // Stay in place, highlight block, update URL fragment
-          replaceNavigate({
-            key: 'document',
-            id: {
-              ...commentEntityId,
-              blockRef: blockId || null,
-              blockRange: blockRange || null,
-            },
-          })
-        } else {
-          const idWithBlock = {
-            ...targetId,
-            blockRef: blockId || null,
-            blockRange: blockRange || null,
-          }
-          const useFullPageNavigation = currentRoute.key === 'activity' || currentRoute.key === 'comments'
-          navigate(
-            useFullPageNavigation
-              ? {
-                  key: 'comments',
-                  id: idWithBlock,
-                  openComment: comment.id,
-                  blockId: blockId || undefined,
-                  blockRange,
-                }
-              : {
-                  key: 'document',
-                  id: targetId,
-                  panel: {
-                    key: 'comments',
-                    id: idWithBlock,
-                    openComment: comment.id,
-                    blockId: blockId || undefined,
-                    blockRange,
-                  },
-                },
-          )
-        }
-      }
-      return true
-    }
-  }
+
+  const copyBlockUrl = useCallback(
+    (blockId: string, blockRange?: BlockRange | null) => {
+      if (!targetDocId) return
+      const routeLatest =
+        currentRoute.key === 'document' || currentRoute.key === 'comments' || currentRoute.key === 'activity'
+          ? currentRoute.id.latest
+          : undefined
+      const fullUrl = createCommentUrl({
+        docId: targetDocId,
+        commentId: comment.id,
+        siteUrl,
+        latest: routeLatest,
+        blockRef: blockId,
+        blockRange: blockRange ?? null,
+      })
+      copyUrlToClipboardWithFeedback(fullUrl, 'Comment Block')
+    },
+    [targetDocId, currentRoute, comment.id, siteUrl],
+  )
+
+  const onCopyBlockLink = useCallback(
+    (blockId: string) => copyBlockUrl(blockId),
+    [copyBlockUrl],
+  )
+
+  const onCopyFragmentLink = useCallback(
+    (blockId: string, rangeStart: number, rangeEnd: number) =>
+      copyBlockUrl(blockId, {start: rangeStart, end: rangeEnd}),
+    [copyBlockUrl],
+  )
+
   const focusedId = {
     ...commentIdToHmId(comment.id),
     blockRef: selection?.blockId || null,
@@ -896,17 +841,19 @@ export function CommentContent({
   }
   const zoomedBlock = zoomBlockRef ? getBlockNodeById(comment.content, zoomBlockRef) : null
   const zoomedContent = zoomedBlock ? [zoomedBlock] : comment.content
+
+  if (!Viewer) return null
+
   return (
-    <BlocksContentProvider
+    <Viewer
+      blocks={zoomedContent}
       resourceId={focusedId}
       commentStyle
       textUnit={textUnit}
       layoutUnit={layoutUnit}
-      onBlockSelect={onBlockSelect}
-      openOnClick={openOnClick}
-    >
-      <BlocksContent hideCollapseButtons allowHighlight={allowHighlight} blocks={zoomedContent} />
-    </BlocksContentProvider>
+      onCopyBlockLink={onCopyBlockLink}
+      onCopyFragmentLink={onCopyFragmentLink}
+    />
   )
 }
 
@@ -926,6 +873,7 @@ function CommentDate({comment}: {comment: HMComment}) {
 }
 
 export function QuotedDocBlock({docId, blockId, doc}: {docId: UnpackedHypermediaId; blockId: string; doc: HMDocument}) {
+  const Viewer = useReadOnlyViewer()
   const blockContent = useMemo(() => {
     if (!doc.content) return null
     return getBlockNodeById(doc.content, blockId)
@@ -938,14 +886,8 @@ export function QuotedDocBlock({docId, blockId, doc}: {docId: UnpackedHypermedia
           <BlockQuote size={23} />
         </div>
         <div className="flex-1">
-          {blockContent && (
-            <BlocksContentProvider resourceId={{...docId, blockRef: blockId}}>
-              <BlocksContent
-                blocks={[blockContent]}
-                // parentBlockId={blockId}
-                hideCollapseButtons
-              />
-            </BlocksContentProvider>
+          {blockContent && Viewer && (
+            <Viewer blocks={[blockContent]} resourceId={{...docId, blockRef: blockId}} />
           )}
         </div>
       </div>
