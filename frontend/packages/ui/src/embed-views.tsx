@@ -1,5 +1,6 @@
 import {
   BlockRange,
+  HMBlock,
   HMBlockEmbed,
   HMBlockNode,
   HMComment,
@@ -17,8 +18,6 @@ import React, {ReactNode, useCallback, useMemo, useState} from 'react'
 import {toast} from 'sonner'
 import type {HMResource} from '@seed-hypermedia/client/hm-types'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
-import type {BlockContentProps} from './blocks-content'
-import {useContentResourceId} from './blocks-content'
 import {getBlockNodeById} from './blocks-content-utils'
 import {Button} from './button'
 import {CommentContent, Discussions} from './comments'
@@ -30,6 +29,14 @@ import {DocumentCard} from './newspaper'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
+
+/** Props shared by embed block renderers. */
+type BlockContentProps<BlockType extends HMBlock = HMBlock> = {
+  block: BlockType
+  parentBlockId: string | null
+  depth?: number
+  style?: React.CSSProperties
+}
 
 /** Displays an error message with optional debug data toggle. */
 export function ErrorBlock({
@@ -200,12 +207,11 @@ export function BlockEmbedContent({
     id: UnpackedHypermediaId
   }) => React.ReactNode
 }) {
-  const resourceId = useContentResourceId()
+  // TODO: re-implement self-embed detection — the old BlocksContentProvider context
+  // that tracked the parent document's resourceId has been removed. Infinite self-embeds
+  // are currently prevented by embed depth limits in the editor.
   const [showReferenced, setShowReferenced] = useState(false)
   const id = unpackHmId(block.link)
-
-  const isSelfEmbed =
-    id && resourceId && resourceId.uid === id.uid && resourceId.path?.join('/') === id.path?.join('/') && id.latest
 
   const resource = useResource(id, {subscribed: true})
   // Check tombstone on latest version for version-pinned embeds.
@@ -224,10 +230,6 @@ export function BlockEmbedContent({
     latestCheck.data?.type === 'tombstone' ||
     latestCheck.isTombstone
 
-  if (isSelfEmbed) {
-    // this avoids a dangerous recursive embedding of the same document
-    return <ErrorBlock message="Cannot embed the latest version of a document within itself" />
-  }
   if (!id) return <ErrorBlock message="Invalid embed link" />
   // No content available at all — banner without toggle
   if (resource.data?.type === 'tombstone') {
