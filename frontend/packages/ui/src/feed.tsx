@@ -14,7 +14,7 @@ import {CircleAlert, Link, Trash2} from 'lucide-react'
 import {memo, useEffect, useMemo, useRef} from 'react'
 import {toast} from 'sonner'
 import {SelectionContent} from './accessories'
-import {BlocksContent, BlocksContentProvider} from './blocks-content'
+import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {Button} from './button'
 import {CommentContent, useDeleteCommentDialog} from './comments'
 import {SizableText} from './components/text'
@@ -628,12 +628,13 @@ function findContentBlock(content: HMBlockNode[], blockRef: string): HMBlockNode
 // Component to render a source block for document citations
 function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
   const resource = useResource(sourceId)
+  const Viewer = useReadOnlyViewer()
 
   if (resource.isLoading) {
     return <div className="text-muted-foreground text-xs">Loading block...</div>
   }
 
-  if (resource.error || !resource.data) {
+  if (resource.error || !resource.data || !Viewer) {
     return null
   }
 
@@ -654,11 +655,7 @@ function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
     return null
   }
 
-  return (
-    <BlocksContentProvider textUnit={14} layoutUnit={16} resourceId={sourceId}>
-      <BlocksContent blocks={[blockNode]} />
-    </BlocksContentProvider>
-  )
+  return <Viewer blocks={[blockNode]} resourceId={sourceId} textUnit={14} layoutUnit={16} />
 }
 
 function RouteEventRow({children, route}: {children: React.ReactNode; route: NavRoute | null}) {

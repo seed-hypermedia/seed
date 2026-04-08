@@ -13,6 +13,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {DehydratedState, hydrate, QueryClient, QueryClientProvider, useQueryClient} from '@tanstack/react-query'
+import {ReadOnlyViewerComponent, ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
 import {createContext, useContext, useEffect, useMemo, useState} from 'react'
 import {keyPairStore} from './auth'
 import {webUniversalClient} from './universal-client'
@@ -91,11 +92,26 @@ export const useTheme = () => {
   return context
 }
 
+function useClientReadOnlyViewer(): ReadOnlyViewerComponent | undefined {
+  const [Component, setComponent] = useState<ReadOnlyViewerComponent | undefined>(undefined)
+  useEffect(() => {
+    import('@shm/editor/readonly-viewer').then((mod) => {
+      setComponent(() => mod.ReadOnlyViewer)
+    })
+  }, [])
+  return Component
+}
+
 export const Providers = (props: {children: any}) => {
   const [client] = useState(getQueryClient)
+  const ReadOnlyViewer = useClientReadOnlyViewer()
   return (
     <ThemeProvider>
-      <QueryClientProvider client={client}>{props.children}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <ReadOnlyViewerProvider value={ReadOnlyViewer}>
+          {props.children}
+        </ReadOnlyViewerProvider>
+      </QueryClientProvider>
     </ThemeProvider>
   )
 }

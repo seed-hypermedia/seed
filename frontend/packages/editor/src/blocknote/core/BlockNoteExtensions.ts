@@ -97,8 +97,28 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     }),
   ]
 
-  // Skip heavy/interactive extensions for embed (read-only) editors
+  const isViewer = opts.editor.renderType === 'viewer'
+
+  // Viewer + Document: read-only UI plugins (BlockHighlight, ImageGallery, Supernumbers)
   if (!isEmbed) {
+    ret.push(
+      Extension.create({
+        name: 'BlockHighlightExtension',
+        addProseMirrorPlugins: () => [createBlockHighlightPlugin()],
+      }),
+      Extension.create({
+        name: 'ImageGalleryExtension',
+        addProseMirrorPlugins: () => [ImageGalleryPlugin],
+      }),
+      Extension.create({
+        name: 'SupernumbersExtension',
+        addProseMirrorPlugins: () => [createSupernumbersPlugin()],
+      }),
+    )
+  }
+
+  // Document/Comment only: editing extensions (skip for viewer + embed)
+  if (!isEmbed && !isViewer) {
     ret.push(
       // DevTools,
       Gapcursor,
@@ -131,18 +151,6 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
       TrailingNode,
       debugPlugin,
       History,
-      Extension.create({
-        name: 'BlockHighlightExtension',
-        addProseMirrorPlugins: () => [createBlockHighlightPlugin()],
-      }),
-      Extension.create({
-        name: 'ImageGalleryExtension',
-        addProseMirrorPlugins: () => [ImageGalleryPlugin],
-      }),
-      Extension.create({
-        name: 'SupernumbersExtension',
-        addProseMirrorPlugins: () => [createSupernumbersPlugin()],
-      }),
     )
   }
 
