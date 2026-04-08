@@ -15,18 +15,11 @@ jobs:
       - name: Checkout repository
 
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # Setup Node.js
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
 
       - name: Install Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: "pnpm"
 
       # Configure AWS Credentials
       - name: Configure AWS Credentials
