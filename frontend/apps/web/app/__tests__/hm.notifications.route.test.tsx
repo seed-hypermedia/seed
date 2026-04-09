@@ -14,6 +14,10 @@ vi.mock('@/wrapping', () => ({
   unwrap: <T,>(value: T) => value,
 }))
 
+vi.mock('@/loaders', () => ({
+  loadSiteHeaderData: vi.fn(),
+}))
+
 vi.mock('@/providers', () => ({
   WebSiteProvider: ({children}: PropsWithChildren) => <>{children}</>,
   NavigationLoadingContent: ({children, className}: PropsWithChildren<{className?: string}>) => (
