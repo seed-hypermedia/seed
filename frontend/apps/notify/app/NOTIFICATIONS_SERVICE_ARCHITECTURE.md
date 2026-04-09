@@ -22,6 +22,9 @@ The notify service has four jobs:
    - email templates/rendering: [`../../emails/notifier.tsx`](../../emails/notifier.tsx)
 4. Expose signed APIs for clients
    - unified state route: [`./routes/hm.api.notifications.tsx`](./routes/hm.api.notifications.tsx)
+   - vault registration/config routes:
+     [`./routes/hm.api.notification-config.tsx`](./routes/hm.api.notification-config.tsx) and
+     [`./routes/hm.api.notification-inbox.tsx`](./routes/hm.api.notification-inbox.tsx)
 
 The startup path is:
 
@@ -91,9 +94,13 @@ The center of gravity is [`./db.ts`](./db.ts). The tables that matter are:
 
 There is also `inbox_registration`, but see the suspect-code section below.
 
-## Canonical Signed API
+## Supported Signed APIs
 
-The current first-party clients talk to one signed endpoint:
+The notify service currently exposes two supported signed API families plus one deprecated compatibility surface.
+
+### Unified notification state API
+
+This is the signed API used by first-party web and desktop clients.
 
 - server: [`./routes/hm.api.notifications.tsx`](./routes/hm.api.notifications.tsx)
 - client:
@@ -123,6 +130,27 @@ On the server, those actions are implemented by:
 
 - [`getNotificationStateSnapshot(...)`](./notification-state.ts)
 - [`applyNotificationActionsForAccount(...)`](./notification-state.ts)
+
+### Vault registration and config APIs
+
+The Vault frontend still uses dedicated signed endpoints for registration and email configuration:
+
+- config route: [`./routes/hm.api.notification-config.tsx`](./routes/hm.api.notification-config.tsx)
+- inbox route: [`./routes/hm.api.notification-inbox.tsx`](./routes/hm.api.notification-inbox.tsx)
+- client: [`../../../vault/src/frontend/notification-api.ts`](../../../vault/src/frontend/notification-api.ts)
+
+These routes remain supported because they provide behavior not modeled in the unified web/desktop client path:
+
+- explicit registration state via `isRegistered`
+- explicit `register-inbox`
+- trusted `emailPrevalidation` from vault hosts
+
+### Deprecated compatibility route
+
+- read-state route: [`./routes/hm.api.notification-read-state.tsx`](./routes/hm.api.notification-read-state.tsx)
+
+This route remains available as a compatibility surface, but current first-party web, desktop, and vault flows do not
+use it directly.
 
 ## Signature and Delegation Model
 
@@ -414,29 +442,22 @@ That UI split is real, not accidental.
 
 These are the parts that deserve extra skepticism.
 
-### The old signed routes look retained for compatibility, not current first-party use
+### The standalone read-state route looks compatibility-only
 
-Routes still present:
+[`./routes/hm.api.notification-read-state.tsx`](./routes/hm.api.notification-read-state.tsx) is still present, but
+current first-party web, desktop, and vault flows do not call it directly.
 
-- [`./routes/hm.api.notification-config.tsx`](./routes/hm.api.notification-config.tsx)
-- [`./routes/hm.api.notification-read-state.tsx`](./routes/hm.api.notification-read-state.tsx)
-- [`./routes/hm.api.notification-inbox.tsx`](./routes/hm.api.notification-inbox.tsx)
+### `inbox_registration` is active, but its semantics are easy to misread
 
-But current first-party clients use:
+The helpers in [`./db.ts`](./db.ts) are live:
 
-- [`./routes/hm.api.notifications.tsx`](./routes/hm.api.notifications.tsx)
+- `registerInboxAccount(...)` is called by [`getNotificationStateSnapshot(...)`](./notification-state.ts)
+- `getInboxRegisteredAccounts(...)` feeds the notifier's inbox-only subscriptions in
+  [`./email-notifier.ts`](./email-notifier.ts)
+- `isInboxRegistered(...)` is exposed by
+  [`./routes/hm.api.notification-config.tsx`](./routes/hm.api.notification-config.tsx)
 
-I would treat the older routes as compatibility or transitional surfaces until proven otherwise.
-
-### `register-inbox` and `inbox_registration` appear unwired
-
-The table and helpers exist in [`./db.ts`](./db.ts), but there are no live call sites for:
-
-- `registerInboxAccount(...)`
-- `getInboxRegisteredAccounts(...)`
-- `isInboxRegistered(...)`
-
-Also, the old inbox route's `register-inbox` branch currently returns `{registered: true}` without writing anything.
+That means `inbox_registration` is not dead state, even though only vault exposes explicit registration UI.
 
 ### `notifyOwnedDocChange` is exposed but not implemented
 
