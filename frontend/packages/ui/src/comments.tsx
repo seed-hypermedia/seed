@@ -825,10 +825,7 @@ export function CommentContent({
     [targetDocId, currentRoute, comment.id, siteUrl],
   )
 
-  const onCopyBlockLink = useCallback(
-    (blockId: string) => copyBlockUrl(blockId),
-    [copyBlockUrl],
-  )
+  const onCopyBlockLink = useCallback((blockId: string) => copyBlockUrl(blockId), [copyBlockUrl])
 
   const onCopyFragmentLink = useCallback(
     (blockId: string, rangeStart: number, rangeEnd: number) =>
@@ -888,9 +885,7 @@ export function QuotedDocBlock({docId, blockId, doc}: {docId: UnpackedHypermedia
           <BlockQuote size={23} />
         </div>
         <div className="flex-1">
-          {blockContent && Viewer && (
-            <Viewer blocks={[blockContent]} resourceId={{...docId, blockRef: blockId}} />
-          )}
+          {blockContent && Viewer && <Viewer blocks={[blockContent]} resourceId={{...docId, blockRef: blockId}} />}
         </div>
       </div>
     </div>

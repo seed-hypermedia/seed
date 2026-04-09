@@ -71,11 +71,7 @@ export function ReadOnlyViewer({
             />
           )}
           {hasRangeSelection && (
-            <RangeSelectionPositioner
-              editor={editor}
-              onCopyFragmentLink={onCopyFragmentLink}
-              onComment={onComment}
-            />
+            <RangeSelectionPositioner editor={editor} onCopyFragmentLink={onCopyFragmentLink} onComment={onComment} />
           )}
         </>
       </ReadOnlyBlockNoteView>

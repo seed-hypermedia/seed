@@ -258,7 +258,9 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     // Editing plugins: only for document/comment modes
     this.sideMenu = isReadOnly ? null : new SideMenuProsemirrorPlugin(this)
     this.formattingToolbar = isReadOnly ? null : new FormattingToolbarProsemirrorPlugin(this)
-    this.slashMenu = isReadOnly ? null : new SlashMenuProsemirrorPlugin(this, newOptions.getSlashMenuItems || (() => []))
+    this.slashMenu = isReadOnly
+      ? null
+      : new SlashMenuProsemirrorPlugin(this, newOptions.getSlashMenuItems || (() => []))
     this.mentionMenu = isReadOnly ? null : new MentionMenuProsemirrorPlugin(this)
     this.hyperlinkToolbar = isReadOnly ? null : new HyperlinkToolbarProsemirrorPlugin(this)
     this.linkMenu = isReadOnly ? null : new LinkMenuProsemirrorPlugin(this)
@@ -280,10 +282,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     })
 
     if (!isEmbed) {
-      const plugins = [
-        this.blockHoverActions!.plugin,
-        this.rangeSelection!.plugin,
-      ]
+      const plugins = [this.blockHoverActions!.plugin, this.rangeSelection!.plugin]
 
       // Editing UI plugins only for non-readonly modes
       if (!isReadOnly) {
