@@ -1,4 +1,5 @@
 import {setEmailUnsubscribed} from '@/db'
+import {getApiPreflightResponse, withCors} from '@/utils/cors'
 import {ActionFunction, LoaderFunction, json} from '@remix-run/node'
 
 /**
@@ -12,25 +13,31 @@ export const action: ActionFunction = async ({request}) => {
   const token = url.searchParams.get('token')
 
   if (!token) {
-    return json({error: 'Missing token'}, {status: 400})
+    return withCors(json({error: 'Missing token'}, {status: 400}))
   }
 
   setEmailUnsubscribed(token, true)
-  return json({ok: true}, {status: 200})
+  return withCors(json({ok: true}, {status: 200}))
 }
 
 export const loader: LoaderFunction = async ({request}) => {
+  const preflight = getApiPreflightResponse(request)
+  if (preflight) {
+    return preflight
+  }
   const url = new URL(request.url)
   const token = url.searchParams.get('token')
 
   if (!token) {
-    return json({error: 'Missing token'}, {status: 400})
+    return withCors(json({error: 'Missing token'}, {status: 400}))
   }
 
   // For browser clicks, unsubscribe and redirect to the settings page
   setEmailUnsubscribed(token, true)
-  return new Response(null, {
-    status: 302,
-    headers: {Location: `/hm/email-notifications?token=${encodeURIComponent(token)}`},
-  })
+  return withCors(
+    new Response(null, {
+      status: 302,
+      headers: {Location: `/hm/email-notifications?token=${encodeURIComponent(token)}`},
+    }),
+  )
 }

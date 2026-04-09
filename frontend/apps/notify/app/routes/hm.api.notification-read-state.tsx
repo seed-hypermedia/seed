@@ -5,6 +5,7 @@ import {
   NotificationReadStateRow,
 } from '@/db'
 import {BadRequestError, cborApiAction} from '@/server-api'
+import {apiActionOnlyLoader} from '@/utils/cors'
 import {validateSignature} from '@/validate-signature'
 import {resolveAccountId} from '@/verify-delegation'
 import {encode as cborEncode} from '@ipld/dag-cbor'
@@ -45,6 +46,9 @@ export type NotificationReadStateResponse = {
   readEvents: NotificationReadEvent[]
   updatedAt: string
 }
+
+/** Handles CORS preflight requests for the notification read-state API route. */
+export const loader = apiActionOnlyLoader
 
 function sanitizeReadEvents(readEvents: NotificationReadEvent[]) {
   return readEvents

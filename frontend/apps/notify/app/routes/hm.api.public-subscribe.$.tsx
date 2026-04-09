@@ -1,12 +1,16 @@
 import {setSubscription} from '@/db'
 import {sendNotificationWelcomeEmail} from '@/emails'
 import {requestAPI} from '@/notify-request'
-import {withCors} from '@/utils/cors'
+import {getApiPreflightResponse, withCors} from '@/utils/cors'
 import {ActionFunction, LoaderFunction} from '@remix-run/node'
 import {json} from '@remix-run/react'
 import {z} from 'zod'
 
 export const loader: LoaderFunction = async ({request, params}) => {
+  const preflight = getApiPreflightResponse(request)
+  if (preflight) {
+    return preflight
+  }
   return withCors(json({}))
 }
 

@@ -19,6 +19,23 @@ export function preflightCorsResponse() {
 }
 
 /**
+ * Returns a preflight response for API `OPTIONS` requests, or `null` for all other methods.
+ */
+export function getApiPreflightResponse(request: Request): Response | null {
+  if (request.method === 'OPTIONS') {
+    return preflightCorsResponse()
+  }
+  return null
+}
+
+/**
+ * Handles action-only API routes by serving preflight requests and rejecting non-`OPTIONS` loader traffic.
+ */
+export function apiActionOnlyLoader({request}: {request: Request}) {
+  return getApiPreflightResponse(request) ?? withCors(new Response(null, {status: 405}))
+}
+
+/**
  * Adds CORS headers to a Response object.
  */
 export const withCors = (response: Response) => {

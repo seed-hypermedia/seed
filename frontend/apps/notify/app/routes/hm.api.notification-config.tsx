@@ -14,6 +14,7 @@ import {
   isNotificationEmailVerificationExpired,
 } from '@/notification-email-verification'
 import {BadRequestError, cborApiAction} from '@/server-api'
+import {apiActionOnlyLoader} from '@/utils/cors'
 import {validateSignature} from '@/validate-signature'
 import {resolveAccountId} from '@/verify-delegation'
 import {encode as cborEncode} from '@ipld/dag-cbor'
@@ -66,6 +67,9 @@ export type NotificationConfigAction = z.infer<typeof notificationConfigAction>
 
 const notificationEmailHost = (NOTIFY_SERVICE_HOST || SITE_BASE_URL).replace(/\/$/, '')
 const verbose = process.env.VERBOSE === 'true'
+
+/** Handles CORS preflight requests for the notification config API route. */
+export const loader = apiActionOnlyLoader
 
 /** Parses the NOTIFY_TRUSTED_PREVALIDATORS env var into a set of trusted host origins. */
 function getTrustedPrevalidators(): Set<string> {

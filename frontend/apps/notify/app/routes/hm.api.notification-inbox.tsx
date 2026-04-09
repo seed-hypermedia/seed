@@ -1,5 +1,6 @@
 import {getNotificationsPage, registerInboxAccount} from '@/db'
 import {BadRequestError, cborApiAction} from '@/server-api'
+import {apiActionOnlyLoader} from '@/utils/cors'
 import {validateSignature} from '@/validate-signature'
 import {resolveAccountId} from '@/verify-delegation'
 import {encode as cborEncode} from '@ipld/dag-cbor'
@@ -26,6 +27,9 @@ const notificationInboxAction = z.discriminatedUnion('action', [
 ])
 
 export type NotificationInboxAction = z.infer<typeof notificationInboxAction>
+
+/** Handles CORS preflight requests for the notification inbox API route. */
+export const loader = apiActionOnlyLoader
 
 export const action = cborApiAction<NotificationInboxAction, any>(async (signedPayload) => {
   const {sig, ...restPayload} = signedPayload

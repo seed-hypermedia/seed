@@ -188,11 +188,13 @@ Current first-party web code uses:
 - [`../../../packages/shared/src/models/notification-service.ts`](../../../packages/shared/src/models/notification-service.ts)
 - `/hm/api/notifications`
 
-Not:
+The vault client still uses:
 
 - `/hm/api/notification-config`
-- `/hm/api/notification-read-state`
 - `/hm/api/notification-inbox`
+
+So those routes are not dead notify-service APIs. They are just not part of the current first-party web notifications
+page path.
 
 ### The notify host is stored with local identity
 

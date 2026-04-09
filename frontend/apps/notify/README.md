@@ -20,9 +20,9 @@ service-side map. The client-specific docs are:
 
 ## Current Mental Model
 
-There are two real notification products living in the same service:
+There are two notification products, exposed through three active API surfaces:
 
-1. Signed, account-owned notifications
+1. Unified signed notification state for web and desktop
 
    - canonical state lives in SQLite via [`./app/db.ts`](./app/db.ts)
    - state is read and mutated through [`./app/routes/hm.api.notifications.tsx`](./app/routes/hm.api.notifications.tsx)
@@ -30,7 +30,16 @@ There are two real notification products living in the same service:
      [`../../packages/shared/src/models/notification-service.ts`](../../packages/shared/src/models/notification-service.ts)
    - this drives inbox, read state, verification, and immediate mention/reply/discussion emails
 
-2. Legacy public email subscriptions
+2. Signed vault registration/config APIs
+
+   - registration + config routes are
+     [`./app/routes/hm.api.notification-inbox.tsx`](./app/routes/hm.api.notification-inbox.tsx) and
+     [`./app/routes/hm.api.notification-config.tsx`](./app/routes/hm.api.notification-config.tsx)
+   - the vault client uses these dedicated routes from
+     [`../../vault/src/frontend/notification-api.ts`](../../vault/src/frontend/notification-api.ts)
+   - this surface preserves explicit registration state and trusted `emailPrevalidation`
+
+3. Legacy public email subscriptions
    - created through [`./app/routes/hm.api.public-subscribe.$.tsx`](./app/routes/hm.api.public-subscribe.$.tsx)
    - stored in [`email_subscriptions`](./app/db.ts)
    - managed by token routes and UI in
@@ -107,7 +116,21 @@ The web client signs requests in-browser with the local session key:
 - local key storage: [`../web/app/local-db.ts`](../web/app/local-db.ts)
 - page UI: [`../web/app/notifications-page-content.tsx`](../web/app/notifications-page-content.tsx)
 
-### 7. Desktop client
+### 7. Vault client
+
+The vault frontend uses dedicated signed registration/config APIs:
+
+- vault transport: [`../../vault/src/frontend/notification-api.ts`](../../vault/src/frontend/notification-api.ts)
+- vault state: [`../../vault/src/frontend/store.ts`](../../vault/src/frontend/store.ts)
+- vault UI:
+  [`../../vault/src/frontend/components/AccountNotificationsSection.tsx`](../../vault/src/frontend/components/AccountNotificationsSection.tsx)
+
+That flow still depends on:
+
+- [`./app/routes/hm.api.notification-inbox.tsx`](./app/routes/hm.api.notification-inbox.tsx)
+- [`./app/routes/hm.api.notification-config.tsx`](./app/routes/hm.api.notification-config.tsx)
+
+### 8. Desktop client
 
 The desktop app keeps a local optimistic notification store and syncs it with the same signed service API:
 
@@ -116,7 +139,7 @@ The desktop app keeps a local optimistic notification store and syncs it with th
   [`../../../backend/api/daemon/v1alpha/daemon.go`](../../../backend/api/daemon/v1alpha/daemon.go)
 - page UI: [`../desktop/src/pages/notifications.tsx`](../desktop/src/pages/notifications.tsx)
 
-### 8. Email-management links
+### 9. Email-management links
 
 Email links are not just static landing pages. They can mutate state:
 
@@ -129,16 +152,13 @@ Email links are not just static landing pages. They can mutate state:
 
 These are worth treating carefully before relying on them as active design:
 
-- The old signed per-feature routes still exist in
-  [`./app/routes/hm.api.notification-config.tsx`](./app/routes/hm.api.notification-config.tsx),
-  [`./app/routes/hm.api.notification-read-state.tsx`](./app/routes/hm.api.notification-read-state.tsx), and
-  [`./app/routes/hm.api.notification-inbox.tsx`](./app/routes/hm.api.notification-inbox.tsx), but the first-party web
-  and desktop clients use the unified route in
-  [`./app/routes/hm.api.notifications.tsx`](./app/routes/hm.api.notifications.tsx).
+- The standalone read-state route
+  [`./app/routes/hm.api.notification-read-state.tsx`](./app/routes/hm.api.notification-read-state.tsx) still exists as a
+  compatibility surface, but current first-party web, desktop, and vault flows do not use it directly.
 - `notifyOwnedDocChange` is exposed in schema, UI, and legacy subscription state, but the actual notifier still has a
   TODO in [`./app/email-notifier.ts`](./app/email-notifier.ts), so document-update delivery is not wired end to end.
-- The `inbox_registration` table and helper functions exist in [`./app/db.ts`](./app/db.ts), but there are no live call
-  sites, and the old `register-inbox` action currently does not write anything.
+- The `inbox_registration` table and helper functions in [`./app/db.ts`](./app/db.ts) are active runtime state. They are
+  used by unified snapshot reads, vault registration, and inbox-only subscription resolution in the notifier.
 - [`email-notification-signing-notes.md`](../../../email-notification-signing-notes.md) is historical and no longer
   matches the current unified API shape.
 - [`../emails/notifier.tsx`](../emails/notifier.tsx) exports `createDesktopNotificationsEmail(...)`, but there are no
