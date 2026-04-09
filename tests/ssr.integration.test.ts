@@ -56,10 +56,7 @@ describe("SSR Integration", () => {
     TEST_TIMEOUT,
   );
 
-  // Skipped: DocumentEditor is now loaded client-side only (useClientDocumentEditor)
-  // to avoid window.matchMedia crashes during SSR. Document body content won't appear
-  // in server-rendered HTML. SSR for document content will be re-enabled in a future phase.
-  it.skip(
+  it(
     "should server-render document content from test fixtures",
     async () => {
       // Use a bot user-agent to get fully-rendered SSR HTML (not streamed)
@@ -71,16 +68,16 @@ describe("SSR Integration", () => {
       const html = await response.text();
       const $ = cheerio.load(html);
 
-      // Look for a span with exact text content "asdfg" from our test database
-      // This verifies that the document content is being server-rendered
-      const spans = $("span").filter(
-        (_, el) => $(el).text().trim() === "asdfg",
-      );
+      // Look for the text "asdfg" from our test database inside the SSR content.
+      // With the editor-matching DOM structure, paragraph text is inside
+      // <p class="blockContent"> elements, not <span> tags.
+      const ssrContainer = $(".ssr-content-placeholder");
+      const hasText = ssrContainer.text().includes("asdfg");
 
       expect(
-        spans.length,
-        'Expected to find a <span> with text "asdfg" in server-rendered HTML',
-      ).toBeGreaterThan(0);
+        hasText,
+        'Expected to find text "asdfg" in server-rendered .ssr-content-placeholder HTML',
+      ).toBe(true);
     },
     TEST_TIMEOUT,
   );

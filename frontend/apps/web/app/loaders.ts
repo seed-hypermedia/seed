@@ -1,3 +1,4 @@
+import {renderDocumentToHTML, type SSREmbedData} from '@shm/editor/ssr-render'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {redirect} from '@remix-run/react'
 import {accountMetadataFromAccount} from '@shm/shared/account-metadata'
@@ -22,6 +23,7 @@ import {
   queryBlockSortedItems,
 } from '@shm/shared'
 import {SITE_BASE_URL, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
+import {getDocumentImage, plainTextOfContent} from '@shm/shared/content'
 import {prepareHMDocument} from '@shm/shared/document-utils'
 import {HMComment, HMCommentSchema, HMDocumentInfo, HMResource} from '@seed-hypermedia/client/hm-types'
 import {
@@ -127,6 +129,9 @@ export type WebResourcePayload = {
 
   // Dehydrated React Query state for SSR hydration
   dehydratedState?: DehydratedState
+
+  // Pre-rendered document content HTML for SSR (avoids blank flash before editor loads)
+  ssrContentHTML?: string | null
 }
 
 export async function getDocument(
@@ -395,6 +400,35 @@ async function loadResourcePayload(
   // Extract data from cache for SSR response
   const homeDocument = getHomeDocumentFromCache(prefetchCtx, homeId)
 
+  // Build embed data map from prefetch cache for SSR card rendering
+  const refs = extractRefs(document.content)
+  const embeds: Record<string, SSREmbedData> = {}
+  const client = serverUniversalClient
+  for (const ref of refs) {
+    const resource = prefetchCtx.queryClient.getQueryData(queryResource(client, ref.refId).queryKey) as HMResource | null
+    if (resource?.type === 'document') {
+      const doc = resource.document
+      const imageCid = getDocumentImage(doc)
+      embeds[ref.link] = {
+        title: doc.metadata.name || undefined,
+        summary: doc.metadata.summary || plainTextOfContent(doc.content).slice(0, 200) || undefined,
+        imageUrl: imageCid ? `/hm/api/image/${imageCid}` : null,
+        path: ref.refId.path?.join('/') || undefined,
+      }
+    }
+  }
+
+  // Server-render document content to avoid blank flash before editor loads
+  const cacheKey = document.version ? `${docId.uid}/${docId.path?.join('/') || ''}@${document.version}` : undefined
+  const ssrContentHTML = document.content
+    ? renderDocumentToHTML(document.content, {cacheKey, embeds})
+    : null
+  if (ssrContentHTML) {
+    console.log(`[ssr-render] Generated ${ssrContentHTML.length} chars of SSR HTML for ${cacheKey || 'uncached'}`)
+  } else if (document.content?.length) {
+    console.warn(`[ssr-render] Failed to generate SSR HTML for ${cacheKey || 'unknown'} (${document.content.length} blocks)`)
+  }
+
   return {
     document,
     ...(comment != null ? {comment} : {}),
@@ -403,6 +437,7 @@ async function loadResourcePayload(
     id: commentId || finalId,
     siteHomeIcon: homeDocument?.metadata?.icon || null,
     dehydratedState: dehydratePrefetchContext(prefetchCtx),
+    ssrContentHTML,
     ...getOriginRequestData(parsedRequest),
   }
 }

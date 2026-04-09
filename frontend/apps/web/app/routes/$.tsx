@@ -425,15 +425,15 @@ export default function UnifiedDocumentPage() {
       ) : siteData.isInspect ? (
         <InnerInspectorPage docId={siteData.id} />
       ) : (
-        <InnerResourcePage docId={siteData.id} />
+        <InnerResourcePage docId={siteData.id} ssrContentHTML={siteData.ssrContentHTML} />
       )}
     </WebSiteProvider>
   )
 }
 
 /** Inner component that can use hooks after providers are mounted */
-function InnerResourcePage({docId}: {docId: UnpackedHypermediaId}) {
-  return <WebResourcePage docId={docId} CommentEditor={WebCommenting} />
+function InnerResourcePage({docId, ssrContentHTML}: {docId: UnpackedHypermediaId; ssrContentHTML?: string | null}) {
+  return <WebResourcePage docId={docId} CommentEditor={WebCommenting} ssrContentHTML={ssrContentHTML} />
 }
 
 /** Inner component that renders the dedicated inspector after providers are mounted. */

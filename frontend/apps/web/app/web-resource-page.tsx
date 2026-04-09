@@ -37,6 +37,7 @@ function renderWebInlineEditor(props: InlineEditCommentProps) {
 export interface WebResourcePageProps {
   docId: UnpackedHypermediaId
   CommentEditor?: React.ComponentType<CommentEditorProps>
+  ssrContentHTML?: string | null
 }
 
 /**
@@ -56,7 +57,7 @@ function useClientDocumentEditor(): React.ComponentType<DocumentContentProps> | 
   return Component
 }
 
-export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
+export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResourcePageProps) {
   const DocumentContentComponent = useClientDocumentEditor()
   const {origin, originHomeId} = useUniversalAppContext()
   const route = useNavRoute()
@@ -229,6 +230,7 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
           rightActions={<WebHeaderActions siteUid={docId.uid} />}
           inlineInsert={inlineInsert}
           DocumentContentComponent={DocumentContentComponent}
+          ssrContentHTML={ssrContentHTML}
         />
       </CommentsProvider>
       {editProfileDialog.content}

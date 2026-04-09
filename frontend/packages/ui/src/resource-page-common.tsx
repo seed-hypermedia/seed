@@ -198,6 +198,8 @@ export interface ResourcePageProps {
   existingDraftContent?: HMBlockNode[]
   /** Cursor position saved in the draft file; used to restore cursor on reload. */
   existingDraftCursorPosition?: number
+  /** Pre-rendered document content HTML for SSR (avoids blank flash before editor loads) */
+  ssrContentHTML?: string | null
   /** Platform-specific page footer (web only) */
   pageFooter?: ReactNode
 
@@ -281,6 +283,7 @@ export function ResourcePage({
   signingAccountId,
   publishAccountUid,
   optionsPanel,
+  ssrContentHTML,
 }: ResourcePageProps) {
   const route = useNavRoute()
   const isSiteProfile = route.key === 'site-profile'
@@ -452,6 +455,7 @@ export function ResourcePage({
             siteUrl={siteHomeDocument?.metadata?.siteUrl}
             pageFooter={pageFooter}
             DocumentContentComponent={DocumentContentComponent}
+            ssrContentHTML={ssrContentHTML}
           />
         </PageWrapper>
       </DocumentMachineProvider>
@@ -512,6 +516,7 @@ export function ResourcePage({
           signingAccountId={signingAccountId}
           publishAccountUid={publishAccountUid}
           optionsPanel={optionsPanel}
+          ssrContentHTML={ssrContentHTML}
         />
       </PageWrapper>
       {machineExtras}
@@ -661,6 +666,7 @@ function DocumentBody({
   signingAccountId,
   publishAccountUid,
   optionsPanel,
+  ssrContentHTML,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
@@ -695,6 +701,7 @@ function DocumentBody({
   publishAccountUid?: string
   /** Render prop for the options panel */
   optionsPanel?: ReactNode
+  ssrContentHTML?: string | null
 }) {
   // Sync document into state machine
   useDocumentSync(document)
@@ -1273,6 +1280,7 @@ function DocumentBody({
           onEditorReady={onEditorReady}
           existingDraftContent={existingDraftContent}
           existingDraftCursorPosition={existingDraftCursorPosition}
+          ssrContentHTML={ssrContentHTML}
         />
       </div>
       {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
@@ -1588,6 +1596,7 @@ function MainContent({
   onEditorReady,
   existingDraftContent,
   existingDraftCursorPosition,
+  ssrContentHTML,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1628,6 +1637,7 @@ function MainContent({
   onEditorReady?: (editor: any) => void
   existingDraftContent?: HMBlockNode[]
   existingDraftCursorPosition?: number
+  ssrContentHTML?: string | null
 }) {
   switch (activeView) {
     case 'directory':
@@ -1707,6 +1717,7 @@ function MainContent({
           onEditorReady={onEditorReady}
           existingDraftContent={existingDraftContent}
           existingDraftCursorPosition={existingDraftCursorPosition}
+          ssrContentHTML={ssrContentHTML}
         />
       )
   }
@@ -1732,6 +1743,7 @@ function ContentViewWithOutline({
   onEditorReady,
   existingDraftContent,
   existingDraftCursorPosition,
+  ssrContentHTML,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1756,6 +1768,7 @@ function ContentViewWithOutline({
   onEditorReady?: (editor: any) => void
   existingDraftContent?: HMBlockNode[]
   existingDraftCursorPosition?: number
+  ssrContentHTML?: string | null
 }) {
   const outline = useNodesOutline(document, docId)
 
@@ -1796,6 +1809,8 @@ function ContentViewWithOutline({
             onEditorReady={onEditorReady}
             draftCursorPosition={existingDraftCursorPosition}
           />
+        ) : ssrContentHTML ? (
+          <div dangerouslySetInnerHTML={{__html: ssrContentHTML}} />
         ) : null}
         {inlineInsert}
         {inlineCards}
