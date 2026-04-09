@@ -203,6 +203,35 @@ export function getActiveDiscoveriesStream() {
   return activeDiscoveriesStream
 }
 
+/** Clean up all renderer-side subscriptions. Call on window unload to prevent leaks. */
+export function cleanupAllEntitySubscriptions() {
+  // Clean up global lazy subscriptions
+  if (aggregatedStateSubscription) {
+    aggregatedStateSubscription.unsubscribe()
+    aggregatedStateSubscription = null
+  }
+  if (activeDiscoveriesSubscription) {
+    activeDiscoveriesSubscription.unsubscribe()
+    activeDiscoveriesSubscription = null
+  }
+
+  // Clean up all entity subscriptions
+  for (const key of Object.keys(entitySubscriptions)) {
+    entitySubscriptions[key]?.unsubscribe()
+    delete entitySubscriptions[key]
+  }
+  // Reset counts
+  for (const key of Object.keys(entitySubscriptionCounts)) {
+    delete entitySubscriptionCounts[key]
+  }
+
+  // Clean up all discovery streams
+  discoveryStreams.forEach((entry) => {
+    entry.unsubscribe?.()
+  })
+  discoveryStreams.clear()
+}
+
 export type EntitySubscription = {
   id?: UnpackedHypermediaId | null
   recursive?: boolean
@@ -259,8 +288,10 @@ export function removeSubscribedEntity(sub: EntitySubscription) {
 
   entitySubscriptionCounts[key] = entitySubscriptionCounts[key] - 1
   if (entitySubscriptionCounts[key] === 0) {
-    setTimeout(() => {
-      // timeout in case another subscription arrives quickly afterward
+    queueMicrotask(() => {
+      // microtask lets React 18 batch cleanup+setup in the same commit,
+      // so rapid unmount/remount won't trigger unnecessary unsubscribe+resubscribe.
+      // Unlike the previous 300ms setTimeout, this completes before window destruction.
       if (entitySubscriptionCounts[key] === 0) {
         entitySubscriptions[key]?.unsubscribe()
         delete entitySubscriptions[key]
@@ -269,9 +300,9 @@ export function removeSubscribedEntity(sub: EntitySubscription) {
         if (sub.id) {
           const discoveryStreamEntry = discoveryStreams.get(sub.id.id)
           discoveryStreamEntry?.unsubscribe?.()
-          discoveryStreams.delete(sub.id.id) // CRITICAL: delete to free memory
+          discoveryStreams.delete(sub.id.id)
         }
       }
-    }, 300)
+    })
   }
 }

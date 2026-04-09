@@ -1,5 +1,6 @@
 import {AppContextProvider} from '@/app-context-provider'
 import {AppIPC} from '@/app-ipc'
+import {cleanupAllEntitySubscriptions} from '@/models/entities'
 import {WindowUtils} from '@/models/window-utils'
 import {NavigationContainer} from '@/utils/navigation-container'
 import {useListenAppEvent} from '@/utils/window-events'
@@ -224,6 +225,15 @@ function MainApp({}: {}) {
   useEffect(() => {
     // @ts-expect-error
     window.windowIsReady()
+  }, [])
+
+  // Clean up all entity subscriptions when window unloads (prevents leaks)
+  useEffect(() => {
+    window.addEventListener('beforeunload', cleanupAllEntitySubscriptions)
+    return () => {
+      window.removeEventListener('beforeunload', cleanupAllEntitySubscriptions)
+      cleanupAllEntitySubscriptions()
+    }
   }, [])
 
   const daemonState = useGoDaemonState()
