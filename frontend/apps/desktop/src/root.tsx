@@ -307,91 +307,91 @@ function MainApp({}: {}) {
     return (
       <QueryClientProvider client={queryClient}>
         <ReadOnlyViewerProvider value={ReadOnlyViewer}>
-        <AppContextProvider
-          grpcClient={grpcClient}
-          platform={appInfo.platform()}
-          ipc={ipc}
-          externalOpen={async (url: string) => {
-            ipc.send?.('open-external-link', url)
-          }}
-          openDirectory={async (directory: string) => {
-            ipc.send?.('open-directory', directory)
-          }}
-          pickKeyImportFile={() => {
-            return window.keyImport?.pickFile() ?? Promise.resolve(null)
-          }}
-          pickKeyExportFile={(defaultFileName: string) => {
-            return window.keyExport?.pickFile(defaultFileName) ?? Promise.resolve(null)
-          }}
-          saveCidAsFile={async (cid: string, name: string) => {
-            ipc.send?.('save-file', {cid, name})
-          }}
-          openMarkdownFiles={(accountId: string) => {
-            // @ts-ignore
-            return window.docImport.openMarkdownFiles(accountId)
-          }}
-          openMarkdownDirectories={(accountId: string) => {
-            // @ts-ignore
-            return window.docImport.openMarkdownDirectories(accountId)
-          }}
-          openLatexFiles={(accountId: string) => {
-            // @ts-ignore
-            return window.docImport.openLatexFiles(accountId)
-          }}
-          openLatexDirectories={(accountId: string) => {
-            // @ts-ignore
-            return window.docImport.openLatexDirectories(accountId)
-          }}
-          readMediaFile={(filePath: string) => {
-            // @ts-ignore
-            return window.docImport.readMediaFile(filePath)
-          }}
-          exportDocument={async (
-            title: string,
-            markdownContent: string,
-            mediaFiles: {url: string; filename: string; placeholder: string}[],
-          ) => {
-            // @ts-ignore
-            return window.docExport.exportDocument(title, markdownContent, mediaFiles)
-          }}
-          exportDocuments={async (
-            documents: {
-              title: string
-              markdown: {
-                markdownContent: string
-                mediaFiles: {
-                  url: string
-                  filename: string
-                  placeholder: string
-                }[]
-              }
-            }[],
-          ) => {
-            // @ts-ignore
-            return window.docExport.exportDocuments(documents)
-          }}
-          windowUtils={windowUtils}
-          darkMode={isDarkMode}
-        >
-          <Suspense fallback={<SpinnerWithText message="" />}>
-            <ErrorBoundary
-              FallbackComponent={RootAppError}
-              onReset={() => {
-                window.location.reload()
-              }}
-            >
-              <NavigationContainer>
-                {mainContent}
-                {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
-              </NavigationContainer>
+          <AppContextProvider
+            grpcClient={grpcClient}
+            platform={appInfo.platform()}
+            ipc={ipc}
+            externalOpen={async (url: string) => {
+              ipc.send?.('open-external-link', url)
+            }}
+            openDirectory={async (directory: string) => {
+              ipc.send?.('open-directory', directory)
+            }}
+            pickKeyImportFile={() => {
+              return window.keyImport?.pickFile() ?? Promise.resolve(null)
+            }}
+            pickKeyExportFile={(defaultFileName: string) => {
+              return window.keyExport?.pickFile(defaultFileName) ?? Promise.resolve(null)
+            }}
+            saveCidAsFile={async (cid: string, name: string) => {
+              ipc.send?.('save-file', {cid, name})
+            }}
+            openMarkdownFiles={(accountId: string) => {
+              // @ts-ignore
+              return window.docImport.openMarkdownFiles(accountId)
+            }}
+            openMarkdownDirectories={(accountId: string) => {
+              // @ts-ignore
+              return window.docImport.openMarkdownDirectories(accountId)
+            }}
+            openLatexFiles={(accountId: string) => {
+              // @ts-ignore
+              return window.docImport.openLatexFiles(accountId)
+            }}
+            openLatexDirectories={(accountId: string) => {
+              // @ts-ignore
+              return window.docImport.openLatexDirectories(accountId)
+            }}
+            readMediaFile={(filePath: string) => {
+              // @ts-ignore
+              return window.docImport.readMediaFile(filePath)
+            }}
+            exportDocument={async (
+              title: string,
+              markdownContent: string,
+              mediaFiles: {url: string; filename: string; placeholder: string}[],
+            ) => {
+              // @ts-ignore
+              return window.docExport.exportDocument(title, markdownContent, mediaFiles)
+            }}
+            exportDocuments={async (
+              documents: {
+                title: string
+                markdown: {
+                  markdownContent: string
+                  mediaFiles: {
+                    url: string
+                    filename: string
+                    placeholder: string
+                  }[]
+                }
+              }[],
+            ) => {
+              // @ts-ignore
+              return window.docExport.exportDocuments(documents)
+            }}
+            windowUtils={windowUtils}
+            darkMode={isDarkMode}
+          >
+            <Suspense fallback={<SpinnerWithText message="" />}>
+              <ErrorBoundary
+                FallbackComponent={RootAppError}
+                onReset={() => {
+                  window.location.reload()
+                }}
+              >
+                <NavigationContainer>
+                  {mainContent}
+                  {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
+                </NavigationContainer>
 
-              <Toaster />
+                <Toaster />
 
-              {/* Dev tool: floating button to test loading window */}
-              {/* {!IS_PROD_DESKTOP && <LoadingWindowTestButton />} */}
-            </ErrorBoundary>
-          </Suspense>
-        </AppContextProvider>
+                {/* Dev tool: floating button to test loading window */}
+                {/* {!IS_PROD_DESKTOP && <LoadingWindowTestButton />} */}
+              </ErrorBoundary>
+            </Suspense>
+          </AppContextProvider>
         </ReadOnlyViewerProvider>
       </QueryClientProvider>
     )

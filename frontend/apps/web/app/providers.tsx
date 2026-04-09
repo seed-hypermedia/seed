@@ -4,6 +4,7 @@ import {createWebHMUrl, NavRoute, OptimizedImageSize, routeToHref, UniversalAppP
 import {DAEMON_FILE_URL, SEED_ASSET_HOST, SITE_BASE_URL} from '@shm/shared/constants'
 import {languagePacks} from '@shm/shared/language-packs'
 import {registerQueryClient} from '@shm/shared/models/query-client'
+import {ReadOnlyViewerComponent, ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
 import {defaultRoute} from '@shm/shared/routes'
 import {NavAction, NavContextProvider, NavState, navStateReducer} from '@shm/shared/utils/navigation'
 import type {StateStream} from '@shm/shared/utils/stream'
@@ -13,7 +14,6 @@ import {Spinner} from '@shm/ui/spinner'
 import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {DehydratedState, hydrate, QueryClient, QueryClientProvider, useQueryClient} from '@tanstack/react-query'
-import {ReadOnlyViewerComponent, ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
 import {createContext, useContext, useEffect, useMemo, useState} from 'react'
 import {keyPairStore} from './auth'
 import {webUniversalClient} from './universal-client'
@@ -108,9 +108,7 @@ export const Providers = (props: {children: any}) => {
   return (
     <ThemeProvider>
       <QueryClientProvider client={client}>
-        <ReadOnlyViewerProvider value={ReadOnlyViewer}>
-          {props.children}
-        </ReadOnlyViewerProvider>
+        <ReadOnlyViewerProvider value={ReadOnlyViewer}>{props.children}</ReadOnlyViewerProvider>
       </QueryClientProvider>
     </ThemeProvider>
   )
