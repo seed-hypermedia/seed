@@ -1,4 +1,5 @@
-import {createPromiseClient, PromiseClient} from '@connectrpc/connect'
+import {createPromiseClient} from '@connectrpc/connect'
+import type {PromiseClient} from '@connectrpc/connect'
 import {
   AccessControl,
   ActivityFeed,
@@ -13,6 +14,7 @@ import {
   Wallets,
 } from './client'
 
+/** Promise-based Connect clients grouped by Seed service. */
 export type GRPCClient = {
   activityFeed: PromiseClient<typeof ActivityFeed>
   daemon: PromiseClient<typeof Daemon>
@@ -27,6 +29,7 @@ export type GRPCClient = {
   resources: PromiseClient<typeof Resources>
 }
 
+/** Creates a grouped set of Promise clients for the provided Connect transport. */
 export function createGRPCClient(transport: any): GRPCClient {
   return {
     activityFeed: createPromiseClient(ActivityFeed, transport),
