@@ -41,8 +41,9 @@ import (
 )
 
 const (
-	defaultPageSize    = 100
-	maxPageAllocBuffer = 400 // Arbitrary limit to prevent allocating too much memory when client requested huge page size.
+	defaultPageSize                = 100
+	maxPageAllocBuffer             = 400 // Arbitrary limit to prevent allocating too much memory when client requested huge page size.
+	publicOnlyListVisibilityFilter = `COALESCE(json_extract(dg.metadata, '$."$db.visibility".v'), '') IS NOT 'Private'`
 )
 
 // Server implements Documents API v3.
@@ -421,7 +422,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		qb := baseListDocumentsQuery()
 
 		if srv.cfg.PublicOnly {
-			qb.Where("json_extract(dg.metadata, '$.\"$db.visibility\"') IS NOT 'Private'")
+			qb.Where(publicOnlyListVisibilityFilter)
 		}
 
 		qb.Where("(r.iri = ? OR r.iri GLOB ?)")
@@ -997,7 +998,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 		qb := baseListDocumentsQuery().OrderBy("last_activity_time DESC")
 
 		if srv.cfg.PublicOnly {
-			qb.Where("json_extract(dg.metadata, '$.\"$db.visibility\"') IS NOT 'Private'")
+			qb.Where(publicOnlyListVisibilityFilter)
 		}
 
 		qb.Where("r.iri GLOB 'hm://*'")
@@ -1081,7 +1082,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		qb := baseListDocumentsQuery().OrderBy("last_activity_time DESC")
 
 		if srv.cfg.PublicOnly {
-			qb.Where("json_extract(dg.metadata, '$.\"$db.visibility\"') IS NOT 'Private'")
+			qb.Where(publicOnlyListVisibilityFilter)
 		}
 
 		if in.Account == "" {

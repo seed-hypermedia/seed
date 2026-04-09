@@ -398,3 +398,60 @@ func TestPrivateDocSecurity_PaginationLeaksPrivateDocCount(t *testing.T) {
 		"ListDocuments must return all available public documents within the page size; "+
 			"private docs should not consume LIMIT slots (got %d, want 3)", len(resp.Documents))
 }
+
+func TestPrivateDocSecurity_PublicOnlyListingsExcludePrivateDocs(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+	account := alice.me.Account.PublicKey.String()
+
+	for _, tc := range []struct {
+		path       string
+		visibility documents.ResourceVisibility
+		title      string
+	}{
+		{path: "/public-a", visibility: documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC, title: "Public A"},
+		{path: "/private-a", visibility: documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE, title: "Private A"},
+		{path: "/public-b", visibility: documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC, title: "Public B"},
+		{path: "/private-b", visibility: documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE, title: "Private B"},
+	} {
+		_, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+			SigningKeyName: "main",
+			Account:        account,
+			Path:           tc.path,
+			Visibility:     tc.visibility,
+			Changes: []*documents.DocumentChange{
+				{Op: &documents.DocumentChange_SetMetadata_{
+					SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: tc.title},
+				}},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	collectPaths := func(docs []*documents.DocumentInfo) []string {
+		paths := make([]string, 0, len(docs))
+		for _, doc := range docs {
+			require.NotEqual(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE, doc.Visibility)
+			paths = append(paths, doc.Path)
+		}
+		return paths
+	}
+
+	listDocs, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{
+		Account:  account,
+		PageSize: 100,
+	})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"/public-a", "/public-b"}, collectPaths(listDocs.Documents))
+
+	directory, err := alice.ListDirectory(ctx, &documents.ListDirectoryRequest{
+		Account:       account,
+		DirectoryPath: "",
+		Recursive:     true,
+		PageSize:      100,
+	})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"/public-a", "/public-b"}, collectPaths(directory.Documents))
+}

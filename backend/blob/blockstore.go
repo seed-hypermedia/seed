@@ -197,6 +197,15 @@ func (b *blockStore) get(conn *sqlite.Conn, c cid.Cid, publicOnly bool) (blocks.
 	}
 
 	if res.ID == 0 {
+		if publicOnly {
+			privateRes, err := dbBlobsGet(conn, c.Hash(), false)
+			if err != nil {
+				return nil, err
+			}
+			if privateRes.ID != 0 && !privateRes.IsPublic {
+				return nil, PublicOnlyDeniedError{CID: c}
+			}
+		}
 		return nil, format.ErrNotFound{Cid: c}
 	}
 
