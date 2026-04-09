@@ -70,6 +70,7 @@ let currentBatchAbortController: AbortController | null = null
 const isProd = process.env.NODE_ENV === 'production'
 
 const emailBatchNotifIntervalHours = isProd ? 4 : 0.1 // 6 minute batching for dev
+const notificationBackfillMaxAgeMs = 60 * 60 * 1000
 
 const handleImmediateEmailNotificationsIntervalSeconds = 15
 
@@ -218,6 +219,7 @@ async function flushErrorBatch() {
   }
 }
 
+/** Starts the notify server's background loops for immediate and batched notification processing. */
 export async function initEmailNotifier() {
   console.log('Init Email Notifier')
 
@@ -921,6 +923,13 @@ function getEventAtMs(event: PlainMessage<Event>): number {
   return Date.now()
 }
 
+/**
+ * Returns whether an event falls outside the notification replay window.
+ */
+export function isNotificationEventTooOld(event: PlainMessage<Event>, nowMs: number = Date.now()): boolean {
+  return getEventAtMs(event) < nowMs - notificationBackfillMaxAgeMs
+}
+
 async function evaluateEventForNotifications(
   event: PlainMessage<Event>,
   allSubscriptions: NotificationSubscription[],
@@ -932,13 +941,12 @@ async function evaluateEventForNotifications(
   // the "consideration time" is the newest of the event time and the observe time
   const considerationTime =
     eventTime && observeTime ? Math.max(eventTime.getTime(), observeTime.getTime()) : eventTime || observeTime
-  // if the consideration time is older than the emailBatchNotifIntervalHours, we ignore it and print an error
-  if (considerationTime && considerationTime < new Date(Date.now() - emailBatchNotifIntervalHours * 60 * 60 * 1000)) {
+  if (considerationTime && isNotificationEventTooOld(event)) {
     const eventId = getEventId(event) || 'unknown-event'
     if (!reportedOldEventIds.has(eventId)) {
       if (reportedOldEventIds.size > 5_000) reportedOldEventIds.clear()
       reportedOldEventIds.add(eventId)
-      console.warn(`[notify][email] skip old event ${eventId} older than ${emailBatchNotifIntervalHours} hours`)
+      console.warn(`[notify][email] skip old event ${eventId} older than 1 hour`)
     }
     return
   }
