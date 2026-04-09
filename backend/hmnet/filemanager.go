@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"seed/backend/blob"
 	"seed/backend/ipfs"
 	"strconv"
 	"strings"
@@ -96,6 +97,10 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			w.WriteHeader(http.StatusRequestTimeout)
+		} else if blob.IsPublicOnlyDenied(err) {
+			w.WriteHeader(http.StatusNotFound)
+		} else if ipld.IsNotFound(err) {
+			w.WriteHeader(http.StatusNotFound)
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
@@ -215,6 +220,7 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 		fm.log.Warn("GetFile: failed to write response in full", zap.Error(err), zap.String("cid", cidStr))
 	}
 }
+
 // PutBlob stores a raw IPFS block uploaded by the client.
 // The CID in the URL must match the actual content; mismatches are rejected.
 func (fm *FileManager) PutBlob(w http.ResponseWriter, r *http.Request) {

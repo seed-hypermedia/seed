@@ -10,6 +10,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"seed/backend/api/apitest"
@@ -4543,6 +4544,17 @@ func TestPublicOnlyGetPrivateDocument(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, codes.PermissionDenied, st.Code(), "error should be PermissionDenied")
 
+	// Try to fetch the private document blob over the public /ipfs route.
+	// PublicOnly must not serve private blobs even when the server already has the CID.
+	{
+		port := alice.HTTPListener.Addr().(*net.TCPAddr).Port
+		resp, err := http.Get("http://127.0.0.1:" + strconv.Itoa(port) + "/ipfs/" + privateDoc.Version)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+		require.Equal(t, http.StatusNotFound, resp.StatusCode, "public /ipfs route must not serve private document blobs")
+	}
+
 	// Create a private comment on the private document.
 	comment, err := alice.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
 		SigningKeyName: "main",
@@ -4586,4 +4598,41 @@ func TestPublicOnlyGetPrivateDocument(t *testing.T) {
 			t.Errorf("search returned private comment: %s", e.Id)
 		}
 	}
+}
+
+func TestPublicOnlyGetRemotePublicBlob(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	bobCfg := makeTestConfig(t)
+	bobCfg.Base.PublicOnly = true
+	bob := makeTestApp(t, "bob", bobCfg, true)
+
+	aliceKey := must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main"))
+	publicDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceKey.String(),
+		Path:           "/public-doc",
+		SigningKeyName: "main",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Public Document"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, bob.Net.ForceConnect(ctx, alice.Net.AddrInfo()))
+
+	port := bob.HTTPListener.Addr().(*net.TCPAddr).Port
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get("http://127.0.0.1:" + strconv.Itoa(port) + "/ipfs/" + publicDoc.Version)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode, "public /ipfs route must still fetch public blobs")
+	require.NotEmpty(t, body)
 }
