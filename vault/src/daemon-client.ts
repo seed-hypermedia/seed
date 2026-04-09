@@ -1,11 +1,8 @@
-import {createPromiseClient, type PromiseClient} from '@connectrpc/connect'
 import {createGrpcWebTransport} from '@connectrpc/connect-web'
-import {Documents} from '@shm/shared/client/.generated/documents/v3alpha/documents_connect'
+import {createGRPCClient, type GRPCClient} from '@shm/shared/grpc-client'
 
-export function createDocumentsClient(baseUrl: string): PromiseClient<typeof Documents> {
-  const transport = createGrpcWebTransport({
-    baseUrl,
-  })
-
-  return createPromiseClient(Documents, transport)
+/** Creates a full gRPC-Web client for the Seed daemon. */
+export function createClient(baseUrl: string): GRPCClient {
+  const transport = createGrpcWebTransport({baseUrl})
+  return createGRPCClient(transport)
 }

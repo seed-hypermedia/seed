@@ -1,13 +1,17 @@
 import * as base64 from '@shm/shared/base64'
 import * as blobs from '@shm/shared/blobs'
+import * as cbor from '@shm/shared/cbor'
 import {Account, Profile} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import * as keyfile from '@shm/shared/keyfile'
 import * as simplewebauthn from '@simplewebauthn/browser'
 import {afterEach, beforeEach, describe, expect, mock, spyOn, test} from 'bun:test'
 import {code as rawCodec} from 'multiformats/codecs/raw'
 import {CID} from 'multiformats/cid'
+import type {SaveVaultDataRequest} from '@/api'
 import * as joinedSite from '@shm/shared/publish-default-joined-site'
 import {APIError} from './api-client'
+import * as localCrypto from './crypto'
+import * as notificationApi from './notification-api'
 import {createStore} from './store'
 import {createMockBlockstore, createMockClient, createSuccessMockClient} from './test-utils'
 import * as vault from './vault'
@@ -54,6 +58,32 @@ async function makeVaultState(accountCount: number) {
     vaultData: {version: 2 as const, accounts},
     principals,
   }
+}
+
+async function collectStream(readable: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = []
+  const reader = readable.getReader()
+  for (;;) {
+    const {done, value} = await reader.read()
+    if (done) break
+    chunks.push(value)
+  }
+  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
+  const merged = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    merged.set(chunk, offset)
+    offset += chunk.length
+  }
+  return merged
+}
+
+async function decompress(data: Uint8Array): Promise<Uint8Array> {
+  const ds = new DecompressionStream('gzip')
+  const writer = ds.writable.getWriter()
+  writer.write(data as Uint8Array<ArrayBuffer>)
+  writer.close()
+  return collectStream(ds.readable)
 }
 
 describe('Store', () => {
@@ -242,6 +272,71 @@ describe('Store', () => {
       expect(state.vaultData).toEqual(vault.createEmpty())
       expect(state.creatingAccount).toBe(true)
       expect(state.vaultVersion).toBe(7)
+    })
+  })
+
+  describe('saveNotificationServerUrl', () => {
+    test('stores a custom notification server URL in encrypted vault data', async () => {
+      const saveVaultDataCalls: SaveVaultDataRequest[] = []
+      const client = createMockClient({
+        saveVaultData: async (req) => {
+          saveVaultDataCalls.push(req)
+          return {success: true}
+        },
+      })
+      const {state, actions} = createStore(client, createMockBlockstore(), '', 'https://notify.default.example.com')
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [],
+      }
+      state.vaultVersion = 4
+
+      await actions.saveNotificationServerUrl('https://notify.custom.example.com/path')
+
+      expect(state.vaultData.notificationServerUrl).toBe('https://notify.custom.example.com/path')
+      expect(state.vaultVersion).toBe(5)
+      expect(saveVaultDataCalls).toHaveLength(1)
+
+      const decryptedVaultData = await localCrypto.decrypt(
+        base64.decode(saveVaultDataCalls[0]!.encryptedData),
+        state.decryptedDEK,
+      )
+      const savedVaultData = await vault.deserialize(decryptedVaultData)
+      expect(savedVaultData.notificationServerUrl).toBe('https://notify.custom.example.com/path')
+    })
+
+    test('resets the notification server URL override when saving the server default', async () => {
+      const saveVaultDataCalls: SaveVaultDataRequest[] = []
+      const client = createMockClient({
+        saveVaultData: async (req) => {
+          saveVaultDataCalls.push(req)
+          return {success: true}
+        },
+      })
+      const {state, actions} = createStore(client, createMockBlockstore(), '', 'https://notify.default.example.com')
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        notificationServerUrl: 'https://notify.custom.example.com',
+        accounts: [],
+      }
+      state.vaultVersion = 9
+
+      await actions.saveNotificationServerUrl('https://notify.default.example.com')
+
+      expect(state.vaultData.notificationServerUrl).toBeUndefined()
+      expect(state.vaultVersion).toBe(10)
+      expect(saveVaultDataCalls).toHaveLength(1)
+
+      const decryptedVaultData = await localCrypto.decrypt(
+        base64.decode(saveVaultDataCalls[0]!.encryptedData),
+        state.decryptedDEK,
+      )
+      const savedVaultData = await vault.deserialize(decryptedVaultData)
+      expect(savedVaultData.notificationServerUrl).toBeUndefined()
     })
   })
 
@@ -760,6 +855,173 @@ describe('Store', () => {
 
       publishDefaultJoinedSiteSpy.mockRestore()
     })
+
+    test('registers the new account on the notification server by default without an email', async () => {
+      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const registerNotificationInboxSpy = spyOn(notificationApi, 'registerNotificationInbox').mockResolvedValue(true)
+      const setNotificationConfigSpy = spyOn(notificationApi, 'setNotificationConfig').mockResolvedValue({
+        accountId: 'account-default',
+        email: null,
+        verifiedTime: null,
+        verificationSendTime: null,
+        verificationExpired: false,
+        isRegistered: true,
+      })
+      const {state, actions} = createStore(
+        createMockClient({
+          saveVaultData: async () => ({success: true}),
+        }),
+        createMockBlockstore(),
+        '',
+        'https://notify.default.example.com',
+      )
+
+      state.session = {
+        authenticated: true,
+        relyingPartyOrigin: 'https://vault.example.com',
+        email: 'notify@example.com',
+      }
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [],
+      }
+
+      const didCreateAccount = await actions.createAccount('Test')
+
+      expect(didCreateAccount).toBe(true)
+      expect(registerNotificationInboxSpy).toHaveBeenCalledTimes(1)
+      expect(setNotificationConfigSpy).not.toHaveBeenCalled()
+
+      const [notifyServiceHost, signer] = registerNotificationInboxSpy.mock.calls[0]!
+      expect(notifyServiceHost).toBe('https://notify.default.example.com')
+
+      const createdAccount = state.vaultData!.accounts[0]
+      expect(createdAccount).toBeDefined()
+      expect(blobs.principalToString(signer.principal)).toBe(
+        blobs.principalToString(blobs.nobleKeyPairFromSeed(createdAccount!.seed).principal),
+      )
+
+      registerNotificationInboxSpy.mockRestore()
+      setNotificationConfigSpy.mockRestore()
+      publishDefaultJoinedSiteSpy.mockRestore()
+    })
+
+    test('registers the new account on the notification server with the user email when requested', async () => {
+      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const registerNotificationInboxSpy = spyOn(notificationApi, 'registerNotificationInbox').mockResolvedValue(true)
+      const setNotificationConfigSpy = spyOn(notificationApi, 'setNotificationConfig').mockResolvedValue({
+        accountId: 'account-1',
+        email: 'notify@example.com',
+        verifiedTime: null,
+        verificationSendTime: null,
+        verificationExpired: false,
+        isRegistered: true,
+      })
+      const {state, actions} = createStore(
+        createMockClient({
+          saveVaultData: async () => ({success: true}),
+        }),
+        createMockBlockstore(),
+        '',
+        'https://notify.default.example.com',
+      )
+
+      state.session = {
+        authenticated: true,
+        relyingPartyOrigin: 'https://vault.example.com',
+        email: 'notify@example.com',
+      }
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [],
+      }
+
+      const didCreateAccount = await actions.createAccount('Test', undefined, undefined, {
+        notificationRegistration: {
+          includeEmail: true,
+        },
+      })
+
+      expect(didCreateAccount).toBe(true)
+      expect(registerNotificationInboxSpy).toHaveBeenCalledTimes(1)
+      expect(setNotificationConfigSpy).toHaveBeenCalledTimes(1)
+
+      const [notifyServiceHost, signer] = registerNotificationInboxSpy.mock.calls[0]!
+      expect(notifyServiceHost).toBe('https://notify.default.example.com')
+      const createdAccount = state.vaultData!.accounts[0]
+      expect(createdAccount).toBeDefined()
+      expect(blobs.principalToString(signer.principal)).toBe(
+        blobs.principalToString(blobs.nobleKeyPairFromSeed(createdAccount!.seed).principal),
+      )
+      expect(setNotificationConfigSpy).toHaveBeenCalledWith(
+        'https://notify.default.example.com',
+        expect.objectContaining({
+          principal: blobs.nobleKeyPairFromSeed(createdAccount!.seed).principal,
+        }),
+        'notify@example.com',
+      )
+
+      registerNotificationInboxSpy.mockRestore()
+      setNotificationConfigSpy.mockRestore()
+      publishDefaultJoinedSiteSpy.mockRestore()
+    })
+
+    test('registers the new account on the notification server without an email when requested', async () => {
+      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const registerNotificationInboxSpy = spyOn(notificationApi, 'registerNotificationInbox').mockResolvedValue(true)
+      const setNotificationConfigSpy = spyOn(notificationApi, 'setNotificationConfig').mockResolvedValue({
+        accountId: 'account-2',
+        email: null,
+        verifiedTime: null,
+        verificationSendTime: null,
+        verificationExpired: false,
+        isRegistered: true,
+      })
+      const {state, actions} = createStore(
+        createMockClient({
+          saveVaultData: async () => ({success: true}),
+        }),
+        createMockBlockstore(),
+        '',
+        'https://notify.default.example.com',
+      )
+
+      state.session = {
+        authenticated: true,
+        relyingPartyOrigin: 'https://vault.example.com',
+        email: 'notify@example.com',
+      }
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [],
+      }
+
+      const didCreateAccount = await actions.createAccount('Test', undefined, undefined, {
+        notificationRegistration: {
+          includeEmail: false,
+        },
+      })
+
+      expect(didCreateAccount).toBe(true)
+      expect(registerNotificationInboxSpy).toHaveBeenCalledTimes(1)
+      expect(setNotificationConfigSpy).not.toHaveBeenCalled()
+
+      const [notifyServiceHost, signer] = registerNotificationInboxSpy.mock.calls[0]!
+      expect(notifyServiceHost).toBe('https://notify.default.example.com')
+
+      const createdAccount = state.vaultData!.accounts[0]
+      expect(createdAccount).toBeDefined()
+      expect(blobs.principalToString(signer.principal)).toBe(
+        blobs.principalToString(blobs.nobleKeyPairFromSeed(createdAccount!.seed).principal),
+      )
+
+      registerNotificationInboxSpy.mockRestore()
+      setNotificationConfigSpy.mockRestore()
+      publishDefaultJoinedSiteSpy.mockRestore()
+    })
   })
 
   describe('importAccount', () => {
@@ -1227,7 +1489,7 @@ describe('delegation flow', () => {
       },
     })
     const bs = createMockBlockstore()
-    const store = createStore(client, bs)
+    const store = createStore(client, bs, '', 'https://notify.example.com')
     const request = await makeSignedDelegationUrl()
     await setupDelegationState(store, request.url, bs)
 
@@ -1237,11 +1499,40 @@ describe('delegation flow', () => {
     expect(window.location.href).toContain('https://example.com/callback')
     expect(window.location.href).toContain('data=')
     expect(window.location.href).toContain(`state=${request.state}`)
+    const redirectUrl = new URL(window.location.href)
+    const callbackData = cbor.decode<{notifyServerUrl: string}>(
+      await decompress(base64.decode(redirectUrl.searchParams.get('data')!)),
+    )
+    expect(callbackData.notifyServerUrl).toBe('https://notify.example.com')
     expect(store.state.vaultData!.accounts[0]!.delegations.length).toBe(1)
     expect(store.state.vaultData!.accounts[0]!.delegations[0]!.deviceType).toBeDefined()
     expect(store.state.delegationRequest).toBeNull()
     expect(store.state.delegationConsented).toBe(false)
     expect(store.state.error).toBe('')
+  })
+
+  test('uses the vault notification server URL override during delegation completion', async () => {
+    const bs = createMockBlockstore()
+    const store = createStore(
+      createMockClient({
+        saveVaultData: async () => ({success: true}),
+      }),
+      bs,
+      '',
+      'https://notify.default.example.com',
+    )
+    const request = await makeSignedDelegationUrl()
+    await setupDelegationState(store, request.url, bs)
+    store.state.vaultData!.notificationServerUrl = 'https://notify.custom.example.com'
+
+    await store.actions.completeDelegation()
+
+    const redirectUrl = new URL(window.location.href)
+    const callbackData = cbor.decode<{notifyServerUrl: string}>(
+      await decompress(base64.decode(redirectUrl.searchParams.get('data')!)),
+    )
+
+    expect(callbackData.notifyServerUrl).toBe('https://notify.custom.example.com')
   })
 
   test('surfaces serialization errors and does not redirect during delegation completion', async () => {

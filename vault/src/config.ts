@@ -1,5 +1,5 @@
-import type * as cleye from 'cleye'
 import type * as email from '@/email'
+import type * as cleye from 'cleye'
 
 export type RelyingParty = {
   id: string
@@ -18,9 +18,14 @@ export type Config = {
     httpBaseUrl: string
     grpcBaseUrl: string
   }
+  notificationServerUrl: string
   relyingParty: RelyingParty
   dbPath: string
   smtp: email.SmtpConfig | null
+}
+
+function getDefaultNotificationServerUrl(env: NodeJS.ProcessEnv = process.env) {
+  return env.SEED_VAULT_DEFAULT_NOTIFY_SERVER || 'https://notify.seed.hyper.media'
 }
 
 /** Creates flag definitions with default values parsed from the current env. */
@@ -100,7 +105,7 @@ type FlagsDef = ReturnType<typeof flags>
 
 type ParsedFlags = cleye.TypeFlag<FlagsDef>['flags']
 
-export function create(pflags: ParsedFlags): Config {
+export function create(pflags: ParsedFlags, env: NodeJS.ProcessEnv = process.env): Config {
   const http: Server = {
     hostname: pflags['server-hostname'],
     port: pflags['server-port'],
@@ -116,6 +121,7 @@ export function create(pflags: ParsedFlags): Config {
     httpBaseUrl: pflags['backend-http-base-url'],
     grpcBaseUrl: pflags['backend-grpc-base-url'] || pflags['backend-http-base-url'],
   }
+  const notificationServerUrl = getDefaultNotificationServerUrl(env)
 
   if (!relyingParty.id) {
     throw new Error('Relying party ID configuration is required')
@@ -145,6 +151,12 @@ export function create(pflags: ParsedFlags): Config {
     throw new Error(`Invalid backend gRPC base URL: ${backend.grpcBaseUrl}`)
   }
 
+  try {
+    new URL(notificationServerUrl)
+  } catch {
+    throw new Error(`Invalid notification server URL: ${notificationServerUrl}`)
+  }
+
   const dbPath = pflags['db-path']
 
   const smtp = pflags['smtp-host']
@@ -160,6 +172,7 @@ export function create(pflags: ParsedFlags): Config {
   return {
     http,
     backend,
+    notificationServerUrl,
     relyingParty,
     dbPath,
     smtp,

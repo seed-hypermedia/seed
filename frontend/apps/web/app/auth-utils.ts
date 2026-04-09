@@ -2,14 +2,32 @@
 // from any presentation and framework logic.
 import * as cbor from '@ipld/dag-cbor'
 
+/** Encoded public key bytes used by the web auth helpers. */
 export type PublicKey = Uint8Array
 
+/** Signed profile-alias blob used during browser device linking. */
 export type Profile = {
   type: 'Profile'
   alias: PublicKey
   signer: PublicKey
   sig: Uint8Array
   ts: bigint
+}
+
+/**
+ * Signs data with either a local P-256 identity key or a delegated Ed25519 session key.
+ */
+export async function signWithKeyPair(keyPair: CryptoKeyPair, data: Uint8Array): Promise<Uint8Array> {
+  const algorithm =
+    keyPair.privateKey.algorithm.name === 'Ed25519'
+      ? ('Ed25519' as unknown as AlgorithmIdentifier)
+      : {
+          ...keyPair.privateKey.algorithm,
+          hash: {name: 'SHA-256'},
+        }
+
+  const signature = await crypto.subtle.sign(algorithm, keyPair.privateKey, data)
+  return new Uint8Array(signature)
 }
 
 /**
@@ -31,21 +49,15 @@ export async function signProfileAlias(kp: CryptoKeyPair, alias: PublicKey, ts: 
   }
 
   const unsignedData = cbor.encode(unsigned)
-  const sig = await crypto.subtle.sign(
-    {
-      ...kp.privateKey.algorithm,
-      hash: {name: 'SHA-256'},
-    },
-    kp.privateKey,
-    unsignedData,
-  )
+  const sig = await signWithKeyPair(kp, unsignedData)
 
   return {
     ...unsigned,
-    sig: new Uint8Array(sig),
+    sig,
   }
 }
 
+/** Signed AGENT capability blob used during browser device linking. */
 export type AgentCapability = {
   type: 'Capability'
   role: 'AGENT'
@@ -79,21 +91,15 @@ export async function signAgentCapability(
   }
 
   const unsignedData = cbor.encode(unsigned)
-  const sig = await crypto.subtle.sign(
-    {
-      ...kp.privateKey.algorithm,
-      hash: {name: 'SHA-256'},
-    },
-    kp.privateKey,
-    unsignedData,
-  )
+  const sig = await signWithKeyPair(kp, unsignedData)
 
   return {
     ...unsigned,
-    sig: new Uint8Array(sig),
+    sig,
   }
 }
 
+/** Converts a browser CryptoKey public key into the canonical multicodec-prefixed form. */
 export async function preparePublicKey(publicKey: CryptoKey): Promise<Uint8Array> {
   if (publicKey.type !== 'public') {
     throw new Error('Can only stringify public keys')

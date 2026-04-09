@@ -1,9 +1,11 @@
 import type {Database} from 'bun:sqlite'
 import * as connect from '@connectrpc/connect'
+import {encode as cborEncode} from '@ipld/dag-cbor'
 import * as base64 from '@shm/shared/base64'
-import {Documents} from '@shm/shared/client/.generated/documents/v3alpha/documents_connect'
+import type {GRPCClient} from '@shm/shared/grpc-client'
 import * as webauthn from '@simplewebauthn/server'
 import {argon2id} from 'hash-wasm'
+import {base58btc} from 'multiformats/bases/base58'
 import * as challenge from '@/challenge'
 import type * as config from '@/config'
 import type * as email from '@/email'
@@ -12,7 +14,7 @@ import type * as api from './api'
 
 const isProd = process.env.NODE_ENV === 'production'
 
-type DocumentsClient = Pick<connect.PromiseClient<typeof Documents>, 'getAccount'>
+type MinimalGRPCClient = Pick<GRPCClient, 'daemon' | 'documents'>
 
 interface User {
   id: string
@@ -115,14 +117,16 @@ export class Service implements api.ServerInterface {
   private db: Database
   private sessions: sess.Store
   private backendHttpBaseUrl: string
-  private documentsClient: DocumentsClient
+  private notificationServerUrl: string
+  private grpcClient: MinimalGRPCClient
   private rp: config.RelyingParty
   private hmacSecret: Uint8Array
   private emailSender: email.EmailSender
   constructor(
     db: Database,
     backendHttpBaseUrl: string,
-    documentsClient: DocumentsClient,
+    notificationServerUrl: string,
+    grpcClient: MinimalGRPCClient,
     rp: config.RelyingParty,
     hmacSecret: Uint8Array,
     emailSender: email.EmailSender,
@@ -130,7 +134,8 @@ export class Service implements api.ServerInterface {
     this.db = db
     this.sessions = new sess.Store(db)
     this.backendHttpBaseUrl = backendHttpBaseUrl
-    this.documentsClient = documentsClient
+    this.notificationServerUrl = notificationServerUrl
+    this.grpcClient = grpcClient
     this.rp = rp
     this.hmacSecret = hmacSecret
     this.emailSender = emailSender
@@ -188,7 +193,7 @@ export class Service implements api.ServerInterface {
     }
 
     try {
-      return await this.documentsClient.getAccount({id: req.id})
+      return await this.grpcClient.documents.getAccount({id: req.id})
     } catch (error) {
       if (error instanceof connect.ConnectError) {
         if (error.code === connect.Code.NotFound) {
@@ -205,6 +210,7 @@ export class Service implements api.ServerInterface {
   async getConfig(_ctx: api.ServerContext): Promise<api.GetConfigResponse> {
     return {
       backendHttpBaseUrl: this.backendHttpBaseUrl,
+      notificationServerUrl: this.notificationServerUrl,
     }
   }
 
@@ -510,9 +516,9 @@ export class Service implements api.ServerInterface {
 
     const user = this.db
       .query<
-        Pick<User, 'encrypted_data' | 'version'>,
+        Pick<User, 'email' | 'encrypted_data' | 'version'>,
         [string]
-      >(`SELECT encrypted_data, version FROM users WHERE id = ?`)
+      >(`SELECT email, encrypted_data, version FROM users WHERE id = ?`)
       .get(session.user_id)
 
     if (!user) {
@@ -558,6 +564,36 @@ export class Service implements api.ServerInterface {
 
     if (user.encrypted_data) {
       response.encryptedData = base64.encode(new Uint8Array(user.encrypted_data))
+    }
+
+    // Sign an email prevalidation payload so the client can skip email
+    // verification on the notification server (if it trusts this vault).
+    try {
+      const keys = await this.grpcClient.daemon.listKeys({})
+      const sortedKeys = [...(keys.keys || [])].sort((a, b) => a.accountId.localeCompare(b.accountId))
+      const firstKey = sortedKeys[0]
+      if (firstKey && user.email) {
+        const signerBytes = new Uint8Array(base58btc.decode(firstKey.accountId))
+        const unsignedPayload = {
+          email: user.email,
+          signer: signerBytes,
+          host: this.rp.origin,
+        }
+        const encodedPayload = new Uint8Array(cborEncode(unsignedPayload))
+        const signed = await this.grpcClient.daemon.signData({
+          signingKeyName: firstKey.accountId,
+          data: encodedPayload,
+        })
+        response.emailPrevalidation = {
+          email: user.email,
+          signer: base64.encode(signerBytes),
+          host: this.rp.origin,
+          sig: base64.encode(new Uint8Array(signed.signature)),
+        }
+      }
+    } catch (e) {
+      // Non-fatal: vault data is still usable without email prevalidation.
+      console.error('[vault:getVault] failed to sign email prevalidation:', e)
     }
 
     return response

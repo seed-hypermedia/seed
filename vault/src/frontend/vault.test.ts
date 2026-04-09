@@ -25,6 +25,7 @@ describe('vault-data', () => {
   test('vault with one account round-trip', async () => {
     const v: vault.State = {
       version: 2,
+      notificationServerUrl: 'https://notify.example.com',
       accounts: [await makeAccount('Alice')],
     }
 
@@ -32,6 +33,7 @@ describe('vault-data', () => {
     const restored = await vault.deserialize(compressed)
 
     expect(restored.version).toBe(vault.VAULT_VERSION)
+    expect(restored.notificationServerUrl).toBe('https://notify.example.com')
     expect(restored.accounts).toHaveLength(1)
     expect(restored.accounts[0]!.createTime).toBe(v.accounts[0]!.createTime)
     expect(new Uint8Array(restored.accounts[0]!.seed)).toEqual(new Uint8Array(v.accounts[0]!.seed))

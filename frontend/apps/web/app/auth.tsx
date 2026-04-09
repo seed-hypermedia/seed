@@ -22,7 +22,7 @@ import {SubmitHandler} from 'react-hook-form'
 import {encodeBlock, rawCodec} from './api'
 import {createSecretTapUnlock} from './secret-tap-unlock'
 import * as authSession from './auth-session'
-import {preparePublicKey} from './auth-utils'
+import {preparePublicKey, signWithKeyPair} from './auth-utils'
 import {createDefaultAccountName} from './default-account-name'
 import {
   AUTH_STATE_DELEGATION_RETURN_URL,
@@ -44,12 +44,7 @@ function createSignerFromKeyPair(kp: CryptoKeyPair): HMSigner {
   return {
     getPublicKey: async () => preparePublicKey(kp.publicKey),
     sign: async (data: Uint8Array) => {
-      const sig = await crypto.subtle.sign(
-        {...kp.privateKey.algorithm, hash: {name: 'SHA-256'}},
-        kp.privateKey,
-        new Uint8Array(data),
-      )
-      return new Uint8Array(sig)
+      return signWithKeyPair(kp, new Uint8Array(data))
     },
   }
 }
@@ -64,6 +59,7 @@ export type LocalWebIdentity = CryptoKeyPair & {
   id: string
   delegatedAccountUid?: string
   vaultUrl?: string
+  notifyServerUrl?: string
 }
 let keyPair: LocalWebIdentity | null = null
 const keyPairHandlers = new Set<() => void>()
@@ -98,11 +94,18 @@ async function loadLocalWebIdentity(): Promise<LocalWebIdentity | null> {
     id: base58btc.encode(id),
     delegatedAccountUid: stored.delegatedAccountUid,
     vaultUrl: stored.vaultUrl,
+    notifyServerUrl: stored.notifyServerUrl,
   }
 }
 
 function syncKeyPair(newKeyPair: LocalWebIdentity | null) {
-  if ((!newKeyPair && keyPair) || newKeyPair?.id !== keyPair?.id) {
+  if (
+    (!newKeyPair && keyPair) ||
+    newKeyPair?.id !== keyPair?.id ||
+    newKeyPair?.delegatedAccountUid !== keyPair?.delegatedAccountUid ||
+    newKeyPair?.vaultUrl !== keyPair?.vaultUrl ||
+    newKeyPair?.notifyServerUrl !== keyPair?.notifyServerUrl
+  ) {
     keyPairStore.set(newKeyPair)
   }
 }

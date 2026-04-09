@@ -1,8 +1,10 @@
-import {createInspectNavRouteFromRoute, hmId, useJoinSite} from '@shm/shared'
+import {createInspectNavRouteFromRoute, hmId, useJoinSite, useRouteLink} from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
+import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import {displayHostname, routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
+import {ButtonLink} from '@shm/ui/button'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {
   DropdownMenu,
@@ -19,9 +21,10 @@ import {MobilePanelSheet} from '@shm/ui/mobile-panel-sheet'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMedia} from '@shm/ui/use-media'
-import {LogOut, Search, UserCog} from 'lucide-react'
+import {Bell, LogOut, Search, UserCog} from 'lucide-react'
 import {ReactNode, useMemo, useState} from 'react'
 import {useCreateAccount, useLocalKeyPair, LogoutDialog} from './auth'
+import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifications'
 
 export function useWebMenuItems(): MenuItemType[] {
   const route = useNavRoute()
@@ -173,10 +176,11 @@ export function WebAccountFooter({
 
   const accountButton = keyPair ? (
     isMobile ? (
-      <>
+      <div className="flex items-center gap-2 rounded-full bg-white p-1 dark:bg-black">
         <button className="flex cursor-pointer rounded-full shadow-lg" onClick={() => setMobileMenuOpen(true)}>
           {avatarIcon}
         </button>
+        <NotifsButton />
         <MobilePanelSheet isOpen={mobileMenuOpen} title="" onClose={() => setMobileMenuOpen(false)}>
           <div className="flex items-center gap-3 px-4 py-4">
             {avatarIcon}
@@ -187,38 +191,41 @@ export function WebAccountFooter({
           <div className="bg-border h-px" />
           {menuItems}
         </MobilePanelSheet>
-      </>
+      </div>
     ) : (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="flex cursor-pointer rounded-full shadow-lg">{avatarIcon}</button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent side="top" align="start" className="min-w-[200px]">
-          <div className="flex items-center gap-3 px-2 py-2">
-            {avatarIcon}
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{account?.metadata?.name || 'Account'}</p>
+      <div className="flex items-center gap-2 rounded-full bg-white p-1 dark:bg-black">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex cursor-pointer rounded-full shadow-lg">{avatarIcon}</button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="start" className="min-w-[200px]">
+            <div className="flex items-center gap-3 px-2 py-2">
+              {avatarIcon}
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{account?.metadata?.name || 'Account'}</p>
+              </div>
             </div>
-          </div>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => {
-              if (vaultUrl) {
-                window.open(vaultUrl, '_blank')
-              }
-            }}
-            disabled={!vaultUrl}
-          >
-            <UserCog className="size-4" />
-            Manage account
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onClick={() => logoutDialog.open({})}>
-            <LogOut className="size-4" />
-            Log out
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => {
+                if (vaultUrl) {
+                  window.open(vaultUrl, '_blank')
+                }
+              }}
+              disabled={!vaultUrl}
+            >
+              <UserCog className="size-4" />
+              Manage account
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={() => logoutDialog.open({})}>
+              <LogOut className="size-4" />
+              Log out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <NotifsButton />
+      </div>
     )
   ) : null
 
@@ -230,5 +237,40 @@ export function WebAccountFooter({
     >
       {children}
     </FloatingAccountFooter>
+  )
+}
+
+function NotifsButton() {
+  const linkProps = useRouteLink({key: 'notifications'})
+  const inbox = useWebNotificationInbox()
+  const readState = useWebNotificationReadState()
+
+  const unreadCount = useMemo(() => {
+    const notifications = inbox.data?.notifications ?? []
+    if (!notifications.length || !readState.data) return 0
+    return notifications.filter(
+      (item) =>
+        !isNotificationEventRead({
+          readState: readState.data,
+          eventId: item.feedEventId,
+          eventAtMs: item.eventAtMs,
+        }),
+    ).length
+  }, [inbox.data, readState.data])
+
+  return (
+    <ButtonLink
+      className="relative h-8 rounded-full border-1 border-transparent p-0"
+      variant="ghost"
+      size="icon"
+      {...linkProps}
+    >
+      <Bell className="size-4" />
+      {unreadCount > 0 ? (
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-lg bg-red-500 px-1 text-[12px] font-bold text-white">
+          {unreadCount > 99 ? '99+' : unreadCount}
+        </span>
+      ) : null}
+    </ButtonLink>
   )
 }

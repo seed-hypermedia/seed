@@ -1,5 +1,5 @@
-import {ArrowLeft, Key, Mail, Shield} from 'lucide-react'
-import {useNavigate} from 'react-router-dom'
+import * as icons from 'lucide-react'
+import * as ReactRouter from 'react-router-dom'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import {Alert, AlertDescription} from '@/frontend/components/ui/alert'
 import {Button} from '@/frontend/components/ui/button'
@@ -12,15 +12,16 @@ import {useActions, useAppState} from '@/frontend/store'
  * These settings apply to the entire vault, not individual Hypermedia accounts.
  */
 export function SettingsView() {
-  const {session, loading, error, passkeySupported} = useAppState()
+  const {session, loading, error, passkeySupported, notificationServerUrl, vaultData} = useAppState()
   const actions = useActions()
-  const navigate = useNavigate()
+  const navigate = ReactRouter.useNavigate()
+  const effectiveNotificationServerUrl = vaultData?.notificationServerUrl?.trim() || notificationServerUrl
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon-xs" onClick={() => navigate('/')}>
-          <ArrowLeft className="size-4" />
+          <icons.ArrowLeft className="size-4" />
         </Button>
         <div>
           <h1 className="text-2xl font-semibold">Vault Settings</h1>
@@ -30,7 +31,6 @@ export function SettingsView() {
 
       <ErrorMessage message={error} />
 
-      {/* Authentication Methods */}
       <Card>
         <CardHeader>
           <CardTitle>Authentication</CardTitle>
@@ -39,11 +39,10 @@ export function SettingsView() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Passkeys */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="bg-primary/10 flex size-9 items-center justify-center rounded-full">
-                <Key className="text-primary size-4" />
+                <icons.Key className="text-primary size-4" />
               </div>
               <div>
                 <p className="text-sm font-medium">Passkeys</p>
@@ -61,11 +60,10 @@ export function SettingsView() {
 
           <Separator />
 
-          {/* Password */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="bg-primary/10 flex size-9 items-center justify-center rounded-full">
-                <Shield className="text-primary size-4" />
+                <icons.Shield className="text-primary size-4" />
               </div>
               <div>
                 <p className="text-sm font-medium">Master Password</p>
@@ -96,7 +94,29 @@ export function SettingsView() {
         </CardContent>
       </Card>
 
-      {/* Account Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Notifications</CardTitle>
+          <CardDescription>Manage your vault notification settings.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="bg-primary/10 flex size-9 items-center justify-center rounded-full">
+                <icons.Bell className="text-primary size-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Notify Server URL</p>
+                <p className="text-muted-foreground font-mono text-xs break-all">{effectiveNotificationServerUrl}</p>
+              </div>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => navigate('/notify-server/change')} disabled={loading}>
+              Change
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Account</CardTitle>
@@ -106,7 +126,7 @@ export function SettingsView() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="bg-primary/10 flex size-9 items-center justify-center rounded-full">
-                <Mail className="text-primary size-4" />
+                <icons.Mail className="text-primary size-4" />
               </div>
               <div>
                 <p className="text-sm font-medium">Email Address</p>
