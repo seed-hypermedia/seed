@@ -54,6 +54,8 @@ export function initialState(backendHttpBaseUrl = '') {
     sessionChecked: false,
     /** Active delegation request parsed from URL params. Null when not in delegation flow. */
     delegationRequest: null as hmauth.DelegationRequest | null,
+    /** Whether the email was pre-filled from the delegation URL params. */
+    emailPreFilledFromUrl: false,
     /** Whether the user has given consent for the current delegation. */
     delegationConsented: false,
     /** Server-configured relying party origin used by WebAuthn verification. */
@@ -1505,6 +1507,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           state.delegationRequest = request
           if (request.email) {
             state.email = request.email
+            state.emailPreFilledFromUrl = true
           }
         }
       } catch (e) {
