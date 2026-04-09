@@ -10,7 +10,7 @@ import type {EmailNotifTokenLoaderResponse} from '@/routes/hm.api.email-notif-to
 import {useSearchParams} from '@remix-run/react'
 import {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {abbreviateUid, hmId} from '@shm/shared'
-import {useResource} from '@shm/shared/models/entity'
+import {useAccount, useResource} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {SwitchField} from '@shm/ui/form-fields'
 import {HMIcon} from '@shm/ui/hm-icon'
@@ -165,17 +165,16 @@ function MyNotificationsSection({
 }
 
 function MyNotificationConfigRow({accountId, token}: {accountId: string; token: string}) {
-  const {data: account} = useResource(hmId(accountId))
+  const {data: account} = useAccount(accountId)
   const {mutate: unsubscribeMyNotification, isLoading} = useUnsubscribeMyNotification(token)
 
-  const accountResource = account?.type === 'document' ? account : null
-  const iconId = accountResource?.id || hmId(accountId)
-  const displayName = accountResource?.document?.metadata?.name || abbreviateUid(accountId)
+  const displayId = account?.id || hmId(accountId)
+  const displayName = account?.metadata?.name || abbreviateUid(displayId.uid)
 
   return (
     <div className="flex items-center gap-3 border-t border-gray-300 pt-2">
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <HMIcon size={24} id={iconId} />
+        <HMIcon size={24} id={displayId} icon={account?.metadata?.icon} />
         <p className="truncate text-lg font-bold">{displayName}</p>
       </div>
       <Button

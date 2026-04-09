@@ -98,7 +98,7 @@ describe('Database', () => {
     it('should handle database version correctly', async () => {
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
       const version = db.pragma('user_version', {simple: true})
-      expect(version).toBe(9)
+      expect(version).toBe(10)
       db.close()
     })
   })
@@ -409,6 +409,50 @@ describe('Database', () => {
       const state = getNotificationReadState(accountId)
       expect(state.markAllReadAtMs).toBe(500)
       expect(state.stateUpdatedAtMs).toBe(200)
+    })
+
+    it('should replace read events when a newer snapshot omits a previously-read event', () => {
+      const accountId = 'account-read-replace'
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: 1000,
+        stateUpdatedAtMs: 100,
+        readEvents: [
+          {eventId: 'event-a', eventAtMs: 3000},
+          {eventId: 'event-b', eventAtMs: 2000},
+        ],
+      })
+
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: 1999,
+        stateUpdatedAtMs: 200,
+        readEvents: [{eventId: 'event-a', eventAtMs: 3000}],
+      })
+
+      const state = getNotificationReadState(accountId)
+      expect(state.markAllReadAtMs).toBe(1999)
+      expect(state.readEvents).toEqual([{eventId: 'event-a', eventAtMs: 3000}])
+    })
+
+    it('should ignore stale read events from an older snapshot', () => {
+      const accountId = 'account-read-stale'
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: 1999,
+        stateUpdatedAtMs: 200,
+        readEvents: [{eventId: 'event-a', eventAtMs: 3000}],
+      })
+
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: 5000,
+        stateUpdatedAtMs: 100,
+        readEvents: [
+          {eventId: 'event-a', eventAtMs: 3000},
+          {eventId: 'event-b', eventAtMs: 2500},
+        ],
+      })
+
+      const state = getNotificationReadState(accountId)
+      expect(state.markAllReadAtMs).toBe(1999)
+      expect(state.readEvents).toEqual([{eventId: 'event-a', eventAtMs: 3000}])
     })
 
     it('should union read events and keep max timestamp per event id', () => {

@@ -1,17 +1,29 @@
 import {getAnnotations} from '../content'
-import {HMBlockNode, HMComment} from '@seed-hypermedia/client/hm-types'
+import {HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from '../utils/entity-id-url'
 import {LoadedEventWithNotifMeta} from './activity-service'
+
+/**
+ * Resolves the account UID referenced by a mention target when it points to
+ * either an account root (`hm://uid`) or a profile URL (`hm://uid/:profile`).
+ */
+export function getMentionedAccountUid(target: string | UnpackedHypermediaId | null | undefined): string | null {
+  const mentioned = typeof target === 'string' ? unpackHmId(target) : target
+  if (!mentioned?.uid) return null
+  if (!mentioned.path?.length) return mentioned.uid
+  if (mentioned.path[0] === ':profile') {
+    return mentioned.path[1] || mentioned.uid
+  }
+  return null
+}
 
 function collectMentionedAccountUidsFromBlock(block: HMBlockNode, accountUids: Set<string>) {
   const annotations = getAnnotations(block.block)
   if (Array.isArray(annotations)) {
     for (const annotation of annotations) {
       if (annotation.type !== 'Embed') continue
-      const mentioned = unpackHmId(annotation.link)
-      if (mentioned?.uid && (!mentioned.path || mentioned.path.length === 0)) {
-        accountUids.add(mentioned.uid)
-      }
+      const mentionedAccountUid = getMentionedAccountUid(annotation.link)
+      if (mentionedAccountUid) accountUids.add(mentionedAccountUid)
     }
   }
   for (const child of block.children || []) {
@@ -65,7 +77,7 @@ export function classifyNotificationEvent(
       return null
     }
 
-    if (event.target?.id?.uid === accountUid) {
+    if (event.target?.id?.uid === accountUid || getMentionedAccountUid(event.target?.id) === accountUid) {
       return 'mention'
     }
   }

@@ -1,6 +1,6 @@
 import type {Notification} from '@shm/emails/notifier'
 import type {NotificationPayload} from '@shm/shared/models/notification-payload'
-import {getInboxRegisteredAccounts, insertNotificationsBatch} from './db'
+import {insertNotificationsBatch} from './db'
 
 export function notificationToPayload(notif: Notification, eventId: string, eventAtMs: number): NotificationPayload {
   const base = {
@@ -143,15 +143,9 @@ type CollectedInboxNotification = {
 
 export function persistNotificationsForInboxAccounts(collected: CollectedInboxNotification[]): number {
   if (!collected.length) return 0
-
-  const inboxAccountIds = getInboxRegisteredAccounts()
-  if (!inboxAccountIds.length) return 0
-
-  const inboxAccountSet = new Set(inboxAccountIds)
   const items: Array<{accountId: string; feedEventId: string; eventAtMs: number; data: NotificationPayload}> = []
 
   for (const entry of collected) {
-    if (!inboxAccountSet.has(entry.accountId)) continue
     if (!entry.eventId) continue
     const payload = notificationToPayload(entry.notif, entry.eventId, entry.eventAtMs)
     items.push({

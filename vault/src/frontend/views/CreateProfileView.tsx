@@ -15,7 +15,7 @@ const MAX_AVATAR_BYTES = 1024 * 1024
  * View for creating a profile after account security setup (Step 3 of 3).
  */
 export function CreateProfileView() {
-  const {loading, error, delegationRequest} = useAppState()
+  const {loading, error, delegationRequest, session, email} = useAppState()
   const actions = useActions()
   const navigate = useNavigate()
 
@@ -24,6 +24,9 @@ export function CreateProfileView() {
   const [avatarFile, setAvatarFile] = useState<File | undefined>()
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null)
   const [avatarError, setAvatarError] = useState('')
+  const [shareEmailWithNotificationServer, setShareEmailWithNotificationServer] = useState(true)
+  const sessionEmail = session?.email?.trim() || email.trim()
+  const notificationEmailLabel = sessionEmail ? `Notify me at ${sessionEmail}` : 'Notify me by email'
 
   useEffect(() => {
     if (!avatarFile) return
@@ -58,7 +61,15 @@ export function CreateProfileView() {
     }
     setNameError('')
 
-    await actions.createAccount(trimmedName, undefined, avatarFile)
+    const didCreateAccount = await actions.createAccount(trimmedName, undefined, avatarFile, {
+      notificationRegistration: {
+        includeEmail: shareEmailWithNotificationServer,
+      },
+    })
+
+    if (!didCreateAccount) {
+      return
+    }
 
     // Navigate to delegation consent if there's a pending request, otherwise to dashboard
     if (delegationRequest) {
@@ -116,6 +127,26 @@ export function CreateProfileView() {
               <span className="text-muted-foreground text-sm">Add a photo (optional)</span>
             </div>
             {avatarError && <p className="text-destructive text-sm">{avatarError}</p>}
+          </div>
+
+          <div className="rounded-lg border p-4">
+            <div className="flex items-start gap-3">
+              <input
+                id="profile-notification-email"
+                type="checkbox"
+                checked={shareEmailWithNotificationServer}
+                onChange={(event) => setShareEmailWithNotificationServer(event.target.checked)}
+                disabled={loading}
+                className="mt-0.5 size-4 shrink-0 rounded"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="profile-notification-email">{notificationEmailLabel}</Label>
+                <p className="text-muted-foreground text-sm">
+                  Leave this on to register notifications with that email. If you turn it off, your account will still
+                  be registered without an email address.
+                </p>
+              </div>
+            </div>
           </div>
 
           <Button type="submit" className="w-full" loading={loading}>

@@ -121,6 +121,7 @@ export const NOTIFY_SMTP_PORT = process.env.NOTIFY_SMTP_PORT
 export const NOTIFY_SMTP_USER = process.env.NOTIFY_SMTP_USER
 export const NOTIFY_SMTP_PASSWORD = process.env.NOTIFY_SMTP_PASSWORD
 export const NOTIFY_SENDER = process.env.NOTIFY_SENDER
+export const NOTIFY_TRUSTED_PREVALIDATORS = process.env.NOTIFY_TRUSTED_PREVALIDATORS
 
 export const WEB_IS_GATEWAY = process.env.SEED_IS_GATEWAY === 'true'
 

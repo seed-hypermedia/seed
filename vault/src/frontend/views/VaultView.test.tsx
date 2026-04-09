@@ -1,5 +1,5 @@
-import {fireEvent, render, screen, waitFor} from '@testing-library/react'
-import {describe, expect, mock, test} from 'bun:test'
+import {act, cleanup, render, screen, waitFor} from '@testing-library/react'
+import {afterEach, describe, expect, mock, test} from 'bun:test'
 import * as blobs from '@shm/shared/blobs'
 import {MemoryRouter} from 'react-router-dom'
 import {StoreContext, createStore} from '@/frontend/store'
@@ -7,28 +7,19 @@ import {createMockBlockstore, createSuccessMockClient} from '@/frontend/test-uti
 import {VaultView} from './VaultView'
 
 describe('VaultView', () => {
-  test('exports via modal and shows success message after download', async () => {
-    const createObjectURL = mock(() => 'blob:export')
-    const revokeObjectURL = mock(() => {})
-    const click = mock(() => {})
-    const append = mock(() => {})
-    const remove = mock(() => {})
-    const anchor = {
-      click,
-      remove,
-      style: {display: ''},
-      href: '',
-      download: '',
-    } as unknown as HTMLAnchorElement
-    const originalCreateElement = document.createElement.bind(document)
-    const originalAppend = document.body.append.bind(document.body)
-    const originalCreateObjectURL = URL.createObjectURL.bind(URL)
-    const originalRevokeObjectURL = URL.revokeObjectURL.bind(URL)
-    const createElement = mock((tagName: string) => (tagName === 'a' ? anchor : originalCreateElement(tagName)))
+  afterEach(() => {
+    cleanup()
+  })
+
+  function createVaultStore(notificationServerUrl = '', createTime = 123456789) {
     const seed = new Uint8Array(32).fill(9)
     const principal = blobs.principalToString(blobs.nobleKeyPairFromSeed(seed).principal)
-
-    const store = createStore(createSuccessMockClient(), createMockBlockstore(), 'https://daemon.example.com')
+    const store = createStore(
+      createSuccessMockClient(),
+      createMockBlockstore(),
+      'https://daemon.example.com',
+      notificationServerUrl,
+    )
     store.state.sessionChecked = true
     store.state.session = {
       authenticated: true,
@@ -41,13 +32,37 @@ describe('VaultView', () => {
       accounts: [
         {
           seed,
-          createTime: 123456789,
+          createTime,
           delegations: [],
         },
       ],
     }
     store.state.selectedAccountIndex = 0
     store.state.profiles[principal] = {name: 'Alice'}
+
+    return {store}
+  }
+
+  test('renders the notification section for the selected account', async () => {
+    const originalFetch = global.fetch
+    const fetchMock = mock(async () => {
+      return new Response(
+        JSON.stringify({
+          accountId: 'account-1',
+          email: null,
+          verifiedTime: null,
+          verificationSendTime: null,
+          verificationExpired: false,
+          isRegistered: false,
+        }),
+        {
+          status: 200,
+          headers: {'Content-Type': 'application/json'},
+        },
+      )
+    })
+    global.fetch = fetchMock as unknown as typeof fetch
+    const {store} = createVaultStore('https://notify.example.com')
 
     try {
       render(
@@ -58,36 +73,75 @@ describe('VaultView', () => {
         </MemoryRouter>,
       )
 
-      document.createElement = createElement as typeof document.createElement
-      document.body.append = append as typeof document.body.append
-      URL.createObjectURL = createObjectURL as typeof URL.createObjectURL
-      URL.revokeObjectURL = revokeObjectURL as typeof URL.revokeObjectURL
-
-      expect(screen.queryByText('Security Warning')).toBeNull()
-
-      fireEvent.click(screen.getByRole('button', {name: 'Export Key'}))
-
       await waitFor(() => {
-        expect(screen.getByText('Security Warning')).toBeDefined()
+        expect(screen.getByText('Notifications')).toBeDefined()
       })
-      expect(screen.getByLabelText('Password (optional)')).toBeDefined()
-
-      fireEvent.click(screen.getByRole('button', {name: 'Export Key'}))
-
-      await waitFor(() => {
-        expect(screen.getByText('Key Exported')).toBeDefined()
-      })
-      expect(createElement).toHaveBeenCalledWith('a')
-      expect(anchor.download).toBe(`${principal}.hmkey.json`)
-      expect(click).toHaveBeenCalled()
-      expect(remove).toHaveBeenCalled()
-      expect(revokeObjectURL).toHaveBeenCalledWith('blob:export')
-      expect(screen.getByText(new RegExp(`Downloaded \`${principal}\\.hmkey\\.json\`\\.`, 'i'))).toBeDefined()
+      expect(screen.getByRole('button', {name: 'Register Account'})).toBeDefined()
     } finally {
-      document.createElement = originalCreateElement
-      document.body.append = originalAppend
-      URL.createObjectURL = originalCreateObjectURL
-      URL.revokeObjectURL = originalRevokeObjectURL
+      global.fetch = originalFetch
+    }
+  })
+
+  test('shows a registration loading state for a recently created account until the server catches up', async () => {
+    const originalFetch = global.fetch
+    const originalSetInterval = window.setInterval
+    const originalClearInterval = window.clearInterval
+    let getConfigCount = 0
+    const fetchMock = mock(async () => {
+      getConfigCount += 1
+      return new Response(
+        JSON.stringify({
+          accountId: 'account-1',
+          email: null,
+          verifiedTime: null,
+          verificationSendTime: null,
+          verificationExpired: false,
+          isRegistered: getConfigCount >= 2,
+        }),
+        {
+          status: 200,
+          headers: {'Content-Type': 'application/json'},
+        },
+      )
+    })
+    const setIntervalMock = mock((callback: TimerHandler) => {
+      return window.setTimeout(() => {
+        ;(callback as () => void)()
+      }, 10) as unknown as number
+    })
+    const clearIntervalMock = mock((timerId?: number) => {
+      if (timerId != null) {
+        window.clearTimeout(timerId)
+      }
+    })
+    global.fetch = fetchMock as unknown as typeof fetch
+    window.setInterval = setIntervalMock as unknown as typeof window.setInterval
+    window.clearInterval = clearIntervalMock as unknown as typeof window.clearInterval
+    const {store} = createVaultStore('https://notify.example.com', Date.now())
+
+    try {
+      render(
+        <MemoryRouter>
+          <StoreContext.Provider value={store}>
+            <VaultView />
+          </StoreContext.Provider>
+        </MemoryRouter>,
+      )
+
+      expect(screen.getByText('Registering this account with notify.example.com.')).toBeDefined()
+
+      await act(async () => {
+        await new Promise((resolve) => window.setTimeout(resolve, 50))
+      })
+
+      await waitFor(() => {
+        expect(screen.getByText('This account is registered with notify.example.com.')).toBeDefined()
+        expect(screen.getByRole('button', {name: 'Set Notification Email'})).toBeDefined()
+      })
+    } finally {
+      global.fetch = originalFetch
+      window.setInterval = originalSetInterval
+      window.clearInterval = originalClearInterval
     }
   })
 })
