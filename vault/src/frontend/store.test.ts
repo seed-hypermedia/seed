@@ -887,24 +887,26 @@ describe('Store', () => {
         accounts: [],
       }
 
-      const didCreateAccount = await actions.createAccount('Test')
+      try {
+        const didCreateAccount = await actions.createAccount('Test')
 
-      expect(didCreateAccount).toBe(true)
-      expect(registerNotificationInboxSpy).toHaveBeenCalledTimes(1)
-      expect(setNotificationConfigSpy).not.toHaveBeenCalled()
+        expect(didCreateAccount).toBe(true)
+        expect(registerNotificationInboxSpy).toHaveBeenCalledTimes(1)
+        expect(setNotificationConfigSpy).not.toHaveBeenCalled()
 
-      const [notifyServiceHost, signer] = registerNotificationInboxSpy.mock.calls[0]!
-      expect(notifyServiceHost).toBe('https://notify.default.example.com')
+        const [notifyServiceHost, signer] = registerNotificationInboxSpy.mock.calls[0]!
+        expect(notifyServiceHost).toBe('https://notify.default.example.com')
 
-      const createdAccount = state.vaultData!.accounts[0]
-      expect(createdAccount).toBeDefined()
-      expect(blobs.principalToString(signer.principal)).toBe(
-        blobs.principalToString(blobs.nobleKeyPairFromSeed(createdAccount!.seed).principal),
-      )
-
-      registerNotificationInboxSpy.mockRestore()
-      setNotificationConfigSpy.mockRestore()
-      publishDefaultJoinedSiteSpy.mockRestore()
+        const createdAccount = state.vaultData!.accounts[0]
+        expect(createdAccount).toBeDefined()
+        expect(blobs.principalToString(signer.principal)).toBe(
+          blobs.principalToString(blobs.nobleKeyPairFromSeed(createdAccount!.seed).principal),
+        )
+      } finally {
+        registerNotificationInboxSpy.mockRestore()
+        setNotificationConfigSpy.mockRestore()
+        publishDefaultJoinedSiteSpy.mockRestore()
+      }
     })
 
     test('registers the new account on the notification server with the user email when requested', async () => {
@@ -938,34 +940,37 @@ describe('Store', () => {
         accounts: [],
       }
 
-      const didCreateAccount = await actions.createAccount('Test', undefined, undefined, {
-        notificationRegistration: {
-          includeEmail: true,
-        },
-      })
+      try {
+        const didCreateAccount = await actions.createAccount('Test', undefined, undefined, {
+          notificationRegistration: {
+            includeEmail: true,
+          },
+        })
 
-      expect(didCreateAccount).toBe(true)
-      expect(registerNotificationInboxSpy).toHaveBeenCalledTimes(1)
-      expect(setNotificationConfigSpy).toHaveBeenCalledTimes(1)
+        expect(didCreateAccount).toBe(true)
+        expect(registerNotificationInboxSpy).toHaveBeenCalledTimes(1)
+        expect(setNotificationConfigSpy).toHaveBeenCalledTimes(1)
 
-      const [notifyServiceHost, signer] = registerNotificationInboxSpy.mock.calls[0]!
-      expect(notifyServiceHost).toBe('https://notify.default.example.com')
-      const createdAccount = state.vaultData!.accounts[0]
-      expect(createdAccount).toBeDefined()
-      expect(blobs.principalToString(signer.principal)).toBe(
-        blobs.principalToString(blobs.nobleKeyPairFromSeed(createdAccount!.seed).principal),
-      )
-      expect(setNotificationConfigSpy).toHaveBeenCalledWith(
-        'https://notify.default.example.com',
-        expect.objectContaining({
-          principal: blobs.nobleKeyPairFromSeed(createdAccount!.seed).principal,
-        }),
-        'notify@example.com',
-      )
+        const [notifyServiceHost, signer] = registerNotificationInboxSpy.mock.calls[0]!
+        expect(notifyServiceHost).toBe('https://notify.default.example.com')
+        const createdAccount = state.vaultData!.accounts[0]
+        expect(createdAccount).toBeDefined()
+        expect(blobs.principalToString(signer.principal)).toBe(
+          blobs.principalToString(blobs.nobleKeyPairFromSeed(createdAccount!.seed).principal),
+        )
 
-      registerNotificationInboxSpy.mockRestore()
-      setNotificationConfigSpy.mockRestore()
-      publishDefaultJoinedSiteSpy.mockRestore()
+        const [configHost, configSigner, configEmail, configPrevalidation] = setNotificationConfigSpy.mock.calls[0]!
+        expect(configHost).toBe('https://notify.default.example.com')
+        expect(blobs.principalToString(configSigner.principal)).toBe(
+          blobs.principalToString(blobs.nobleKeyPairFromSeed(createdAccount!.seed).principal),
+        )
+        expect(configEmail).toBe('notify@example.com')
+        expect(configPrevalidation).toBeNull()
+      } finally {
+        registerNotificationInboxSpy.mockRestore()
+        setNotificationConfigSpy.mockRestore()
+        publishDefaultJoinedSiteSpy.mockRestore()
+      }
     })
 
     test('registers the new account on the notification server without an email when requested', async () => {
@@ -999,28 +1004,30 @@ describe('Store', () => {
         accounts: [],
       }
 
-      const didCreateAccount = await actions.createAccount('Test', undefined, undefined, {
-        notificationRegistration: {
-          includeEmail: false,
-        },
-      })
+      try {
+        const didCreateAccount = await actions.createAccount('Test', undefined, undefined, {
+          notificationRegistration: {
+            includeEmail: false,
+          },
+        })
 
-      expect(didCreateAccount).toBe(true)
-      expect(registerNotificationInboxSpy).toHaveBeenCalledTimes(1)
-      expect(setNotificationConfigSpy).not.toHaveBeenCalled()
+        expect(didCreateAccount).toBe(true)
+        expect(registerNotificationInboxSpy).toHaveBeenCalledTimes(1)
+        expect(setNotificationConfigSpy).not.toHaveBeenCalled()
 
-      const [notifyServiceHost, signer] = registerNotificationInboxSpy.mock.calls[0]!
-      expect(notifyServiceHost).toBe('https://notify.default.example.com')
+        const [notifyServiceHost, signer] = registerNotificationInboxSpy.mock.calls[0]!
+        expect(notifyServiceHost).toBe('https://notify.default.example.com')
 
-      const createdAccount = state.vaultData!.accounts[0]
-      expect(createdAccount).toBeDefined()
-      expect(blobs.principalToString(signer.principal)).toBe(
-        blobs.principalToString(blobs.nobleKeyPairFromSeed(createdAccount!.seed).principal),
-      )
-
-      registerNotificationInboxSpy.mockRestore()
-      setNotificationConfigSpy.mockRestore()
-      publishDefaultJoinedSiteSpy.mockRestore()
+        const createdAccount = state.vaultData!.accounts[0]
+        expect(createdAccount).toBeDefined()
+        expect(blobs.principalToString(signer.principal)).toBe(
+          blobs.principalToString(blobs.nobleKeyPairFromSeed(createdAccount!.seed).principal),
+        )
+      } finally {
+        registerNotificationInboxSpy.mockRestore()
+        setNotificationConfigSpy.mockRestore()
+        publishDefaultJoinedSiteSpy.mockRestore()
+      }
     })
   })
 
