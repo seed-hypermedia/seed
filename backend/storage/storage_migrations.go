@@ -63,6 +63,19 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Add domains table for caching domain configurations.
+	{Version: "2026-04-08.010000", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE TABLE IF NOT EXISTS domains (
+				domain TEXT PRIMARY KEY NOT NULL,
+				last_check INTEGER,
+				last_status TEXT NOT NULL DEFAULT 'unknown',
+				last_success INTEGER,
+				last_config JSON,
+				last_error TEXT
+			) WITHOUT ROWID;
+		`))
+	}},
 	// Reindexing to populate effective contact accounts for delegated signers.
 	{Version: "2026-03-13.010000", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return scheduleReindex(conn)

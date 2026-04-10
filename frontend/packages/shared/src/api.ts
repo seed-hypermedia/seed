@@ -14,6 +14,7 @@ import {
   ListCommentVersions,
   ListDiscussions,
 } from './api-comments'
+import {GetDomain, ListDomains} from './api-domains'
 import {GetCID} from './api-get-cid'
 import {InteractionSummary} from './api-interaction-summary'
 import {ListAccounts} from './api-list-accounts'
@@ -42,6 +43,8 @@ export const APIQueries = {
   ListEvents,
   ListAccounts,
   GetCID,
+  GetDomain,
+  ListDomains,
   ListCommentsByAuthor,
   ListCommentVersions,
   ListCitations,

@@ -69,7 +69,7 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
       }
     } else {
       setLoading(true)
-      resolveHypermediaUrl(url)
+      resolveHypermediaUrl(url, {domainResolver: editor.domainResolver})
         .then((res) => {
           if (res?.hmId) {
             assign({props: {url: packHmId(res.hmId)}} as MediaType)

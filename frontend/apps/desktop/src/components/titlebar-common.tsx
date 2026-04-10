@@ -9,6 +9,7 @@ import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
+import {domainResolver} from '@/grpc-client'
 import {resolveOmnibarUrlToRoute} from '@/omnibar-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
@@ -776,7 +777,7 @@ export function Omnibar() {
   // Handle URL navigation - returns true if navigation was synchronous
   const handleUrlNavigation = useCallback(
     async (url: string): Promise<boolean> => {
-      const route = await resolveOmnibarUrlToRoute(url)
+      const route = await resolveOmnibarUrlToRoute(url, {domainResolver})
       if (route) {
         navigate(route)
         return true

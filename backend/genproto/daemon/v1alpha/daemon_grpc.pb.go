@@ -35,6 +35,11 @@ const (
 	Daemon_CreateDeviceLinkSession_FullMethodName = "/com.seed.daemon.v1alpha.Daemon/CreateDeviceLinkSession"
 	Daemon_GetDeviceLinkSession_FullMethodName    = "/com.seed.daemon.v1alpha.Daemon/GetDeviceLinkSession"
 	Daemon_SignData_FullMethodName                = "/com.seed.daemon.v1alpha.Daemon/SignData"
+	Daemon_GetDomain_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/GetDomain"
+	Daemon_ListDomains_FullMethodName             = "/com.seed.daemon.v1alpha.Daemon/ListDomains"
+	Daemon_AddDomain_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/AddDomain"
+	Daemon_RemoveDomain_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/RemoveDomain"
+	Daemon_CheckDomain_FullMethodName             = "/com.seed.daemon.v1alpha.Daemon/CheckDomain"
 )
 
 // DaemonClient is the client API for Daemon service.
@@ -83,6 +88,16 @@ type DaemonClient interface {
 	GetDeviceLinkSession(ctx context.Context, in *GetDeviceLinkSessionRequest, opts ...grpc.CallOption) (*DeviceLinkSession, error)
 	// Sign arbitrary data with an existing signing key.
 	SignData(ctx context.Context, in *SignDataRequest, opts ...grpc.CallOption) (*SignDataResponse, error)
+	// Gets cached information about a domain.
+	GetDomain(ctx context.Context, in *GetDomainRequest, opts ...grpc.CallOption) (*DomainInfo, error)
+	// Lists all tracked domains.
+	ListDomains(ctx context.Context, in *ListDomainsRequest, opts ...grpc.CallOption) (*ListDomainsResponse, error)
+	// Adds a domain to be tracked.
+	AddDomain(ctx context.Context, in *AddDomainRequest, opts ...grpc.CallOption) (*DomainInfo, error)
+	// Removes a tracked domain.
+	RemoveDomain(ctx context.Context, in *RemoveDomainRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Forces a re-check of a domain's /hm/api/config endpoint.
+	CheckDomain(ctx context.Context, in *CheckDomainRequest, opts ...grpc.CallOption) (*DomainInfo, error)
 }
 
 type daemonClient struct {
@@ -243,6 +258,56 @@ func (c *daemonClient) SignData(ctx context.Context, in *SignDataRequest, opts .
 	return out, nil
 }
 
+func (c *daemonClient) GetDomain(ctx context.Context, in *GetDomainRequest, opts ...grpc.CallOption) (*DomainInfo, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DomainInfo)
+	err := c.cc.Invoke(ctx, Daemon_GetDomain_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonClient) ListDomains(ctx context.Context, in *ListDomainsRequest, opts ...grpc.CallOption) (*ListDomainsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDomainsResponse)
+	err := c.cc.Invoke(ctx, Daemon_ListDomains_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonClient) AddDomain(ctx context.Context, in *AddDomainRequest, opts ...grpc.CallOption) (*DomainInfo, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DomainInfo)
+	err := c.cc.Invoke(ctx, Daemon_AddDomain_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonClient) RemoveDomain(ctx context.Context, in *RemoveDomainRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Daemon_RemoveDomain_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonClient) CheckDomain(ctx context.Context, in *CheckDomainRequest, opts ...grpc.CallOption) (*DomainInfo, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DomainInfo)
+	err := c.cc.Invoke(ctx, Daemon_CheckDomain_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DaemonServer is the server API for Daemon service.
 // All implementations should embed UnimplementedDaemonServer
 // for forward compatibility.
@@ -289,6 +354,16 @@ type DaemonServer interface {
 	GetDeviceLinkSession(context.Context, *GetDeviceLinkSessionRequest) (*DeviceLinkSession, error)
 	// Sign arbitrary data with an existing signing key.
 	SignData(context.Context, *SignDataRequest) (*SignDataResponse, error)
+	// Gets cached information about a domain.
+	GetDomain(context.Context, *GetDomainRequest) (*DomainInfo, error)
+	// Lists all tracked domains.
+	ListDomains(context.Context, *ListDomainsRequest) (*ListDomainsResponse, error)
+	// Adds a domain to be tracked.
+	AddDomain(context.Context, *AddDomainRequest) (*DomainInfo, error)
+	// Removes a tracked domain.
+	RemoveDomain(context.Context, *RemoveDomainRequest) (*emptypb.Empty, error)
+	// Forces a re-check of a domain's /hm/api/config endpoint.
+	CheckDomain(context.Context, *CheckDomainRequest) (*DomainInfo, error)
 }
 
 // UnimplementedDaemonServer should be embedded to have
@@ -342,6 +417,21 @@ func (UnimplementedDaemonServer) GetDeviceLinkSession(context.Context, *GetDevic
 }
 func (UnimplementedDaemonServer) SignData(context.Context, *SignDataRequest) (*SignDataResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SignData not implemented")
+}
+func (UnimplementedDaemonServer) GetDomain(context.Context, *GetDomainRequest) (*DomainInfo, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDomain not implemented")
+}
+func (UnimplementedDaemonServer) ListDomains(context.Context, *ListDomainsRequest) (*ListDomainsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListDomains not implemented")
+}
+func (UnimplementedDaemonServer) AddDomain(context.Context, *AddDomainRequest) (*DomainInfo, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddDomain not implemented")
+}
+func (UnimplementedDaemonServer) RemoveDomain(context.Context, *RemoveDomainRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveDomain not implemented")
+}
+func (UnimplementedDaemonServer) CheckDomain(context.Context, *CheckDomainRequest) (*DomainInfo, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckDomain not implemented")
 }
 func (UnimplementedDaemonServer) testEmbeddedByValue() {}
 
@@ -633,6 +723,96 @@ func _Daemon_SignData_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Daemon_GetDomain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDomainRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServer).GetDomain(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Daemon_GetDomain_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServer).GetDomain(ctx, req.(*GetDomainRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Daemon_ListDomains_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDomainsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServer).ListDomains(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Daemon_ListDomains_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServer).ListDomains(ctx, req.(*ListDomainsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Daemon_AddDomain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddDomainRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServer).AddDomain(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Daemon_AddDomain_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServer).AddDomain(ctx, req.(*AddDomainRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Daemon_RemoveDomain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveDomainRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServer).RemoveDomain(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Daemon_RemoveDomain_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServer).RemoveDomain(ctx, req.(*RemoveDomainRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Daemon_CheckDomain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckDomainRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServer).CheckDomain(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Daemon_CheckDomain_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServer).CheckDomain(ctx, req.(*CheckDomainRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Daemon_ServiceDesc is the grpc.ServiceDesc for Daemon service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -699,6 +879,26 @@ var Daemon_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SignData",
 			Handler:    _Daemon_SignData_Handler,
+		},
+		{
+			MethodName: "GetDomain",
+			Handler:    _Daemon_GetDomain_Handler,
+		},
+		{
+			MethodName: "ListDomains",
+			Handler:    _Daemon_ListDomains_Handler,
+		},
+		{
+			MethodName: "AddDomain",
+			Handler:    _Daemon_AddDomain_Handler,
+		},
+		{
+			MethodName: "RemoveDomain",
+			Handler:    _Daemon_RemoveDomain_Handler,
+		},
+		{
+			MethodName: "CheckDomain",
+			Handler:    _Daemon_CheckDomain_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

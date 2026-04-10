@@ -20,6 +20,8 @@ export const queryKeys = {
   KEYS_GET: 'KEYS_GET',
   GENERATE_MNEMONIC: 'GENERATE_MNEMONIC',
   SAVED_MNEMONICS: 'SAVED_MNEMONICS',
+  DOMAIN: 'DOMAIN', // domain: string
+  DOMAINS_LIST: 'DOMAINS_LIST',
 
   // networking
   PEERS: 'PEERS', // , filterConnected: boolean

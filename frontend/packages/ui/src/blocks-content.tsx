@@ -3048,14 +3048,58 @@ function BubbleButton({
   }
 }
 
+/**
+ * Resolves the label shown for inline embeds that point at account home or profile routes.
+ */
+export function resolveInlineEmbedLabel({
+  entityId,
+  homeMetadata,
+  accountMetadata,
+  contacts,
+}: {
+  entityId: UnpackedHypermediaId
+  homeMetadata?: HMDocument['metadata'] | null
+  accountMetadata?: HMDocument['metadata'] | null
+  contacts?: HMContactRecord[] | null
+}): string {
+  const profileAccountUid = entityId.path?.[0] === ':profile' ? entityId.path[1] || entityId.uid : null
+  const accountUid = profileAccountUid || entityId.uid
+  const contactName = contacts?.find((contact) => contact.subject === accountUid)?.name?.trim()
+
+  if (contactName) {
+    return contactName
+  }
+
+  const homeName = homeMetadata?.name?.trim()
+  const accountName = accountMetadata?.name?.trim()
+  const fallbackMetadata = homeMetadata || accountMetadata
+
+  if (profileAccountUid) {
+    return accountName || homeName || getContactMetadata(accountUid, fallbackMetadata, contacts).name
+  }
+
+  if (!entityId.path?.length) {
+    return homeName || accountName || getContactMetadata(accountUid, fallbackMetadata, contacts).name
+  }
+
+  return getMetadataName(homeMetadata)
+}
+
 function InlineEmbed({entityId, style}: {entityId: UnpackedHypermediaId; style?: React.CSSProperties}) {
   const profileAccountUid = entityId.path?.[0] === ':profile' ? entityId.path[1] || entityId.uid : null
+  const isHomeAccountEmbed = !entityId.path?.length
+  const accountUid = profileAccountUid || (isHomeAccountEmbed ? entityId.uid : null)
   const doc = useResource(profileAccountUid ? null : entityId, {subscribed: true})
-  const account = useAccount(profileAccountUid)
+  const account = useAccount(accountUid)
   const ctx = useBlocksContentContext()
   const document = doc.data?.type === 'document' ? doc.data.document : undefined
+  const homeName = document?.metadata?.name?.trim()
+  const accountName = account.data?.metadata?.name?.trim()
+  const contactName = accountUid ? ctx?.contacts?.find((contact) => contact.subject === accountUid)?.name?.trim() : null
+  const isWaitingForFallbackName =
+    !!accountUid && !contactName && !homeName && !accountName && (account.isLoading || account.isFetching)
 
-  if (doc.isDiscovering) {
+  if (doc.isDiscovering || isWaitingForFallbackName) {
     return (
       <InlineEmbedButton entityId={entityId} style={style}>
         <Spinner size="small" />
@@ -3063,7 +3107,7 @@ function InlineEmbed({entityId, style}: {entityId: UnpackedHypermediaId; style?:
     )
   }
 
-  if (doc.data?.type === 'not-found') {
+  if (!accountUid && doc.data?.type === 'not-found') {
     return (
       <InlineEmbedButton entityId={entityId} style={style}>
         <InlineError message="Could not find this content" />
@@ -3071,7 +3115,23 @@ function InlineEmbed({entityId, style}: {entityId: UnpackedHypermediaId; style?:
     )
   }
 
-  if (doc.data?.type === 'error') {
+  if (!accountUid && doc.data?.type === 'error') {
+    return (
+      <InlineEmbedButton entityId={entityId} style={style}>
+        <InlineError message={doc.data.message} />
+      </InlineEmbedButton>
+    )
+  }
+
+  if (accountUid && doc.data?.type === 'not-found' && !contactName && !accountName) {
+    return (
+      <InlineEmbedButton entityId={entityId} style={style}>
+        <InlineError message="Could not find this content" />
+      </InlineEmbedButton>
+    )
+  }
+
+  if (accountUid && doc.data?.type === 'error' && !contactName && !accountName) {
     return (
       <InlineEmbedButton entityId={entityId} style={style}>
         <InlineError message={doc.data.message} />
@@ -3080,11 +3140,13 @@ function InlineEmbed({entityId, style}: {entityId: UnpackedHypermediaId; style?:
   }
 
   let name = getMetadataName(document?.metadata) || '...'
-  if (profileAccountUid) {
-    name = getContactMetadata(profileAccountUid, account.data?.metadata, ctx?.contacts).name
-  } else if (!entityId.path?.length) {
-    const contactName = getContactMetadata(entityId.uid, document?.metadata, ctx?.contacts).name
-    name = contactName
+  if (accountUid) {
+    name = resolveInlineEmbedLabel({
+      entityId,
+      homeMetadata: document?.metadata,
+      accountMetadata: account.data?.metadata,
+      contacts: ctx?.contacts,
+    })
   }
 
   return (

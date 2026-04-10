@@ -30,6 +30,7 @@ import {
   type ChatToolCall,
   type ChatToolResult,
 } from './models/chat-parts'
+import {domainResolver} from './app-grpc'
 import {resolveOmnibarUrlToHypermediaUrl} from './omnibar-url'
 
 const chatDir = path.join(userDataPath, 'chat-sessions')
@@ -739,7 +740,7 @@ const chatTools: Record<string, any> = {
       additionalProperties: false,
     }),
     execute: async ({url}: {url: string}) => {
-      const resolved = await resolveOmnibarUrlToHypermediaUrl(url)
+      const resolved = await resolveOmnibarUrlToHypermediaUrl(url, {domainResolver})
       if (!resolved) {
         return createToolErrorOutput(`Error: Could not resolve "${url}" to a Hypermedia URL.`, {inputUrl: url})
       }

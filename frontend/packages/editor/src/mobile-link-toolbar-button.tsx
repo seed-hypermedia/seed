@@ -1,7 +1,7 @@
 import {hmId, packHmId, packReferenceUrl, unpackHmId} from '@shm/shared'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useSearch} from '@shm/shared/models/search'
-import {resolveHypermediaUrl} from '@seed-hypermedia/client'
+import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
@@ -100,6 +100,7 @@ export const MobileLinkToolbarButton = <BSchema extends BlockSchema>(props: {edi
               <LinkSearchInput
                 initialUrl={url}
                 isOpen={isOpen}
+                domainResolver={props.editor.domainResolver}
                 onLinkSelect={(selectedUrl: string) => {
                   if (url) {
                     setLink(selectedUrl, undefined, url)
@@ -121,12 +122,14 @@ export const MobileLinkToolbarButton = <BSchema extends BlockSchema>(props: {edi
 function LinkSearchInput({
   initialUrl = '',
   isOpen,
+  domainResolver,
   onLinkSelect,
   onCancel,
   onDeleteLink,
 }: {
   initialUrl?: string
   isOpen: boolean
+  domainResolver?: DomainResolverFn
   onLinkSelect: (url: string) => void
   onCancel: () => void
   onDeleteLink?: () => void
@@ -173,7 +176,7 @@ function LinkSearchInput({
         if (isHttpUrl(url) || isHypermediaUrl(url)) {
           if (isHypermediaUrl(url)) {
             try {
-              const resolved = await resolveHypermediaUrl(url)
+              const resolved = await resolveHypermediaUrl(url, {domainResolver})
               if (resolved) {
                 const baseId = unpackHmId(resolved.id)
                 if (baseId) {

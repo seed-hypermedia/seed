@@ -350,3 +350,4 @@ func (r *Router) Index(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, `<p><a href="%s">%s</a></p>`, route, route)
 	}
 }
+

@@ -104,6 +104,7 @@ type Index struct {
 	// Peer access control fields.
 	peerAuth         *peerAuthStore
 	sitePeerResolver *sitePeerResolver
+	Domains          *DomainStore
 
 	// Allowlist for temporary blob access during push operations.
 	// Maps peer ID -> request ID -> set of CIDs.
@@ -134,12 +135,16 @@ func OpenIndexPendingReindex(db *sqlitex.Pool, log *zap.Logger) *Index {
 }
 
 func newIndex(db *sqlitex.Pool, log *zap.Logger) *Index {
+	resolver := newSitePeerResolver(500, 5*time.Minute)
+	domains := NewDomainStore(db, resolver, log)
+	resolver.domainStore = domains
 	idx := &Index{
 		bs:               newBlockstore(db),
 		db:               db,
 		log:              log,
 		peerAuth:         newPeerAuthStore(),
-		sitePeerResolver: newSitePeerResolver(500, 5*time.Minute),
+		sitePeerResolver: resolver,
+		Domains:          domains,
 		allowlistEntries: make(map[peer.ID]map[string]map[cid.Cid]struct{}),
 	}
 	return idx
@@ -1680,6 +1685,7 @@ var qLoadStashedBlobs = dqb.Str(`
 `)
 
 // GetSiteURL returns the siteURL metadata from the home document of a space.
+// When a valid siteURL is found, it is automatically tracked in the domain store.
 func (idx *Index) GetSiteURL(ctx context.Context, space core.Principal) (string, error) {
 	conn, release, err := idx.db.Conn(ctx)
 	if err != nil {
@@ -1688,7 +1694,17 @@ func (idx *Index) GetSiteURL(ctx context.Context, space core.Principal) (string,
 	defer release()
 
 	homeIRI := "hm://" + space.String()
-	return sqlitex.QueryOne[string](conn, qGetSiteURL(), homeIRI)
+	siteURL, err := sqlitex.QueryOne[string](conn, qGetSiteURL(), homeIRI)
+	if err != nil {
+		return "", err
+	}
+
+	// Auto-track discovered domains.
+	if siteURL != "" && idx.Domains != nil {
+		idx.Domains.TrackSiteURL(ctx, siteURL)
+	}
+
+	return siteURL, nil
 }
 
 var qGetSiteURL = dqb.Str(`

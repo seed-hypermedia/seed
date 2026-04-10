@@ -1,13 +1,13 @@
 // import {loadWebLinkMeta} from './models/web-links'
 import {hmId, packHmId, unpackHmId} from '@shm/shared'
-import {resolveHypermediaUrl} from '@seed-hypermedia/client'
+import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
 import {EditorView} from '@tiptap/pm/view'
 import {Plugin, PluginKey} from 'prosemirror-state'
 
 export const hypermediaPluginKey = new PluginKey('hypermedia-link')
 
 // TODO: use `createX` function instead of just exporting the plugin
-export function createHypermediaDocLinkPlugin({}: {}) {
+export function createHypermediaDocLinkPlugin({domainResolver}: {domainResolver?: DomainResolverFn}) {
   let plugin = new Plugin({
     key: hypermediaPluginKey,
     view(editorView) {
@@ -18,7 +18,7 @@ export function createHypermediaDocLinkPlugin({}: {}) {
             if (state) {
               // @ts-ignore
               for (const entry of state) {
-                checkHyperLink(view, entry)
+                checkHyperLink(view, entry, domainResolver)
               }
             }
           }
@@ -64,6 +64,7 @@ export function createHypermediaDocLinkPlugin({}: {}) {
 async function checkHyperLink(
   view: EditorView,
   entry: [key: string, value: string],
+  domainResolver?: DomainResolverFn,
 ): Promise<
   | {
       documentId: string
@@ -76,7 +77,7 @@ async function checkHyperLink(
   if (!entryUrl) return
   view.dispatch(view.state.tr.setMeta('hmPlugin:removeId', id))
   try {
-    let res = await resolveHypermediaUrl(entryUrl)
+    let res = await resolveHypermediaUrl(entryUrl, {domainResolver})
     const baseId = unpackHmId(res?.id)
     if (res && baseId) {
       const url = new URL(entryUrl)

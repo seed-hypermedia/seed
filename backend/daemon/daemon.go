@@ -229,6 +229,11 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	if err != nil {
 		return nil, err
 	}
+	// Start the domain store poller in the background.
+	a.g.Go(func() error {
+		return a.Index.Domains.Start(ctx)
+	})
+
 	a.setupLogging(ctx, cfg)
 	select {
 	case <-ctx.Done():

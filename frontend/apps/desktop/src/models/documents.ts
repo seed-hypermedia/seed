@@ -1,6 +1,6 @@
 import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {desktopUniversalClient} from '@/desktop-universal-client'
-import {grpcClient} from '@/grpc-client'
+import {grpcClient, domainResolver} from '@/grpc-client'
 import {useDraft} from '@/models/accounts'
 import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
@@ -583,9 +583,9 @@ export function useDraftEditor() {
       return
     },
     linkExtensionOptions: {
-      // openOnClick: false,
       // @ts-expect-error
       grpcClient,
+      domainResolver,
       gwUrl,
       openUrl,
       checkWebUrl: checkWebUrl.mutateAsync,
@@ -602,7 +602,7 @@ export function useDraftEditor() {
         Extension.create({
           name: 'hypermedia-link',
           addProseMirrorPlugins() {
-            return [createHypermediaDocLinkPlugin({}).plugin]
+            return [createHypermediaDocLinkPlugin({domainResolver}).plugin]
           },
         }),
       ],
