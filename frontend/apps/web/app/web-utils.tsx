@@ -180,7 +180,7 @@ export function WebAccountFooter({
         <button className="flex cursor-pointer rounded-full shadow-lg" onClick={() => setMobileMenuOpen(true)}>
           {avatarIcon}
         </button>
-        <NotifsButton />
+        {keyPair.notifyServerUrl ? <NotifsButton /> : null}
         <MobilePanelSheet isOpen={mobileMenuOpen} title="" onClose={() => setMobileMenuOpen(false)}>
           <div className="flex items-center gap-3 px-4 py-4">
             {avatarIcon}
@@ -224,7 +224,7 @@ export function WebAccountFooter({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <NotifsButton />
+        {keyPair.notifyServerUrl ? <NotifsButton /> : null}
       </div>
     )
   ) : null
