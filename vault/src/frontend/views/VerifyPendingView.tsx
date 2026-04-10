@@ -1,9 +1,9 @@
 import {useEffect, useState} from 'react'
-import {useNavigate} from 'react-router-dom'
 import {Alert, AlertDescription} from '@/frontend/components/ui/alert'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
 import {StepIndicator} from '@/frontend/components/StepIndicator'
+import * as navigation from '@/frontend/navigation'
 import {useActions, useAppState} from '@/frontend/store'
 
 function Countdown({seconds}: {seconds: number}) {
@@ -33,7 +33,7 @@ function Countdown({seconds}: {seconds: number}) {
 export function VerifyPendingView() {
   const {email, error} = useAppState()
   const actions = useActions()
-  const navigate = useNavigate()
+  const navigate = navigation.useHashNavigate()
 
   return (
     <Card>

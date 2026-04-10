@@ -21,6 +21,7 @@ import {
   getProfileDisplayName,
   type ProfileLoadState,
 } from '@/frontend/profile'
+import * as navigation from '@/frontend/navigation'
 import {useActions, useAppState} from '@/frontend/store'
 import type * as vault from '@/frontend/vault'
 import {
@@ -50,14 +51,62 @@ import {
   Upload,
   User,
 } from 'lucide-react'
-import {type FormEvent, useEffect, useState} from 'react'
-import {useNavigate} from 'react-router-dom'
+import {type FormEvent, useEffect, useRef, useState, useSyncExternalStore} from 'react'
 import {AccountNotificationsSection} from '../components/AccountNotificationsSection'
 
 function getProfileStatusTextClass(profileLoadState?: ProfileLoadState) {
   if (profileLoadState === 'not_found') return 'text-yellow-700 dark:text-yellow-400'
   if (profileLoadState === 'unavailable') return 'text-destructive'
   return ''
+}
+
+function parseVaultRoute(hash: string) {
+  const segments = hash.replace(/^#/, '').split('/').filter(Boolean)
+
+  if (segments[0] !== 'a' || !segments[1] || segments.length !== 2) {
+    return null
+  }
+
+  try {
+    return {
+      accountId: decodeURIComponent(segments[1]),
+    }
+  } catch {
+    return null
+  }
+}
+
+function formatAccountRoute(accountId: string) {
+  return `/a/${encodeURIComponent(accountId)}`
+}
+
+function replaceHash(hash: string) {
+  const nextHash = `#${hash}`
+  if (window.location.hash === nextHash) {
+    return
+  }
+
+  const nextUrl = new URL(window.location.href)
+  nextUrl.hash = hash
+  history.replaceState(null, '', nextUrl)
+
+  if (window.location.hash === nextHash) {
+    window.dispatchEvent(new HashChangeEvent('hashchange'))
+    return
+  }
+
+  window.location.hash = hash
+}
+
+function useLocationHash() {
+  return useSyncExternalStore(
+    (callback) => {
+      window.addEventListener('hashchange', callback)
+      return () => window.removeEventListener('hashchange', callback)
+    },
+    () => window.location.hash,
+    () => '',
+  )
 }
 
 /**
@@ -69,16 +118,28 @@ export function VaultView() {
   const {vaultData, selectedAccountIndex, creatingAccount, error, profiles, profileLoadStates, backendHttpBaseUrl} =
     useAppState()
   const actions = useActions()
-  const navigate = useNavigate()
+  const navigate = navigation.useHashNavigate()
   const [mobilePanel, setMobilePanel] = useState<'list' | 'detail'>('list')
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const locationHash = useLocationHash()
 
   const accounts = vaultData?.accounts ?? []
   const hasAccounts = accounts.length > 0
+  const accountIds = accounts.map((account) =>
+    blobs.principalToString(blobs.nobleKeyPairFromSeed(account.seed).principal),
+  )
   const selectedAccount = actions.getSelectedAccount()
   const selectedPrincipal = selectedAccount
     ? blobs.principalToString(blobs.nobleKeyPairFromSeed(selectedAccount.seed).principal)
     : null
+  const route = parseVaultRoute(locationHash)
+  const routeAccountIndex = route ? accountIds.findIndex((accountId) => accountId === route.accountId) : -1
+  const lastHandledHashRef = useRef<string | null>(null)
+  const lastHandledRouteAccountIndexRef = useRef<number | null>(null)
+  const routeNeedsSelection =
+    routeAccountIndex >= 0 &&
+    routeAccountIndex !== selectedAccountIndex &&
+    (lastHandledHashRef.current !== locationHash || lastHandledRouteAccountIndexRef.current !== routeAccountIndex)
 
   useEffect(() => {
     accounts.forEach((account) => {
@@ -87,6 +148,40 @@ export function VaultView() {
       actions.ensureProfileLoaded(principal)
     })
   }, [accounts, actions])
+
+  useEffect(() => {
+    if (lastHandledHashRef.current === locationHash && lastHandledRouteAccountIndexRef.current === routeAccountIndex) {
+      return
+    }
+
+    lastHandledHashRef.current = locationHash
+    lastHandledRouteAccountIndexRef.current = routeAccountIndex
+
+    if (routeAccountIndex < 0) {
+      return
+    }
+
+    if (routeAccountIndex !== selectedAccountIndex) {
+      actions.selectAccount(routeAccountIndex)
+    }
+    setMobilePanel('detail')
+  }, [actions, routeAccountIndex, selectedAccountIndex])
+
+  useEffect(() => {
+    if (!selectedPrincipal) {
+      return
+    }
+
+    if (routeNeedsSelection) {
+      return
+    }
+
+    if (route?.accountId === selectedPrincipal) {
+      return
+    }
+
+    replaceHash(formatAccountRoute(selectedPrincipal))
+  }, [route, routeNeedsSelection, selectedPrincipal])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

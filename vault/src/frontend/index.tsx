@@ -2,6 +2,7 @@ import {createRoot} from 'react-dom/client'
 import {RouterProvider} from 'react-router-dom'
 import {FetchClient} from './api-client'
 import {IndexedDBBlockstore, RemoteBlockstore} from './blockstore'
+import * as navigation from './navigation'
 import {createRouter} from './router'
 import {createStore, StoreContext} from './store'
 import {initTheme} from './use-theme'
@@ -26,7 +27,7 @@ async function bootstrap() {
   const router = createRouter()
 
   // Wire up the store's navigator to the router.
-  appStore.navigator.setNavigate((path) => router.navigate(path))
+  appStore.navigator.setNavigate((path) => router.navigate(navigation.withHash(path)))
 
   const app = (
     <StoreContext.Provider value={appStore}>

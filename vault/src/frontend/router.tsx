@@ -1,10 +1,11 @@
 import {useEffect} from 'react'
-import {createBrowserRouter, Navigate, Outlet, useNavigate} from 'react-router-dom'
+import {createBrowserRouter, Outlet} from 'react-router-dom'
 import {Divider} from './components/Divider'
 import {ErrorMessage} from './components/ErrorMessage'
 import {Header} from './components/Header'
 import {Button} from './components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from './components/ui/card'
+import * as navigation from './navigation'
 import {useActions, useAppState} from './store'
 import {AddPasswordView} from './views/AddPasswordView'
 import {ChangeEmailPendingView} from './views/ChangeEmailPendingView'
@@ -32,9 +33,9 @@ function RedirectIfUnlocked() {
 
   if (session?.authenticated && decryptedDEK) {
     if (delegationRequest) {
-      return <Navigate to="/delegate" replace />
+      return <navigation.HashNavigate to="/delegate" replace />
     }
-    return <Navigate to="/" replace />
+    return <navigation.HashNavigate to="/" replace />
   }
 
   return <Outlet />
@@ -48,7 +49,7 @@ function RedirectIfUnlocked() {
 function LockedView() {
   const {session, loading, error, passkeySupported} = useAppState()
   const actions = useActions()
-  const navigate = useNavigate()
+  const navigate = navigation.useHashNavigate()
 
   return (
     <Card className="mx-auto max-w-lg">
@@ -95,7 +96,7 @@ function EnsureUnlocked() {
   }
 
   if (!session?.authenticated) {
-    return <Navigate to="/" replace />
+    return <navigation.HashNavigate to="/" replace />
   }
 
   if (!decryptedDEK) {
@@ -159,7 +160,7 @@ function RootView() {
     }
 
     if (delegationRequest) {
-      return <Navigate to="/delegate" replace />
+      return <navigation.HashNavigate to="/delegate" replace />
     }
     return (
       <div className="w-full max-w-5xl">

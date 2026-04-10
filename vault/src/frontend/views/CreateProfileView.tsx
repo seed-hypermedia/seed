@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react'
-import {useNavigate} from 'react-router-dom'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
+import * as navigation from '@/frontend/navigation'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardHeader, CardTitle} from '@/frontend/components/ui/card'
 import {Input} from '@/frontend/components/ui/input'
@@ -17,7 +17,7 @@ const MAX_AVATAR_BYTES = 1024 * 1024
 export function CreateProfileView() {
   const {loading, error, delegationRequest, session, email} = useAppState()
   const actions = useActions()
-  const navigate = useNavigate()
+  const navigate = navigation.useHashNavigate()
 
   const [name, setName] = useState('')
   const [nameError, setNameError] = useState('')

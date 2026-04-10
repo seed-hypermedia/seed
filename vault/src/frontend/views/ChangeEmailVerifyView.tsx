@@ -1,6 +1,7 @@
 import {useCallback, useEffect} from 'react'
-import {useNavigate, useParams} from 'react-router-dom'
+import {useParams} from 'react-router-dom'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
+import * as navigation from '@/frontend/navigation'
 import {Spinner} from '@/frontend/components/Spinner'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardHeader, CardTitle} from '@/frontend/components/ui/card'
@@ -13,7 +14,7 @@ import {useActions, useAppState} from '@/frontend/store'
 export function ChangeEmailVerifyView() {
   const {newEmail, loading, error} = useAppState()
   const actions = useActions()
-  const navigate = useNavigate()
+  const navigate = navigation.useHashNavigate()
   const {challengeId, token} = useParams<{
     challengeId: string
     token: string

@@ -36,6 +36,7 @@ const Translations = {
   powered_by: (args: {seedLink: ReactNode}) => <>Publicado con {args.seedLink}</>,
   'Notification Settings': 'Configuración de notificaciones',
   Logout: 'Cerrar sesión',
+  'Account Settings': 'Configuración de la cuenta',
   'Edit Profile': 'Editar perfil',
   'Open App': 'Abrir en Seed',
   Save: 'Guardar',
