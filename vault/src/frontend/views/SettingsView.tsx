@@ -1,6 +1,6 @@
 import * as icons from 'lucide-react'
-import * as ReactRouter from 'react-router-dom'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
+import * as navigation from '@/frontend/navigation'
 import {Alert, AlertDescription} from '@/frontend/components/ui/alert'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
@@ -14,7 +14,7 @@ import {useActions, useAppState} from '@/frontend/store'
 export function SettingsView() {
   const {session, loading, error, passkeySupported, notificationServerUrl, vaultData} = useAppState()
   const actions = useActions()
-  const navigate = ReactRouter.useNavigate()
+  const navigate = navigation.useHashNavigate()
   const effectiveNotificationServerUrl = vaultData?.notificationServerUrl?.trim() || notificationServerUrl
 
   return (

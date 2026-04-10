@@ -1,6 +1,6 @@
 import type React from 'react'
-import {useNavigate} from 'react-router-dom'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
+import * as navigation from '@/frontend/navigation'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
 import {Input} from '@/frontend/components/ui/input'
@@ -14,7 +14,7 @@ import {useActions, useAppState} from '@/frontend/store'
 export function ChangeEmailView() {
   const {newEmail, loading, error, session} = useAppState()
   const actions = useActions()
-  const navigate = useNavigate()
+  const navigate = navigation.useHashNavigate()
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()

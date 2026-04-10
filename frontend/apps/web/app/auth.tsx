@@ -15,7 +15,7 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
-import {LogOut, Monitor, Smartphone} from 'lucide-react'
+import {LogOut, Monitor, Settings, Smartphone} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react'
 import {SubmitHandler} from 'react-hook-form'
@@ -24,6 +24,7 @@ import {createSecretTapUnlock} from './secret-tap-unlock'
 import * as authSession from './auth-session'
 import {preparePublicKey, signWithKeyPair} from './auth-utils'
 import {createDefaultAccountName} from './default-account-name'
+import {getVaultAccountSettingsUrl} from './vault-links'
 import {
   AUTH_STATE_DELEGATION_RETURN_URL,
   AUTH_STATE_DELEGATION_VAULT_URL,
@@ -749,13 +750,26 @@ export function LinkKeysDialog() {
   )
 }
 
+/** Renders the own-profile session actions shown in the account header. */
 export function LogoutButton() {
   const userKeyPair = useLocalKeyPair()
   const logoutDialog = useAppDialog(LogoutDialog)
   const tx = useTxString()
+  const vaultAccountSettingsUrl = getVaultAccountSettingsUrl({
+    vaultUrl: userKeyPair?.vaultUrl,
+    accountUid: userKeyPair?.delegatedAccountUid,
+  })
   if (!userKeyPair) return null
   return (
     <>
+      {vaultAccountSettingsUrl ? (
+        <Button variant="outline" asChild>
+          <a href={vaultAccountSettingsUrl} target="_blank" rel="noopener noreferrer">
+            <Settings className="size-4" />
+            {tx('Account Settings')}
+          </a>
+        </Button>
+      ) : null}
       <Button variant="outline" onClick={() => logoutDialog.open({})}>
         <LogOut className="size-4" />
         {tx('Logout')}

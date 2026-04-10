@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react'
-import {useNavigate} from 'react-router-dom'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
+import * as navigation from '@/frontend/navigation'
 import {Spinner} from '@/frontend/components/Spinner'
 import {Alert, AlertDescription} from '@/frontend/components/ui/alert'
 import {Button} from '@/frontend/components/ui/button'
@@ -33,7 +33,7 @@ function Countdown({seconds}: {seconds: number}) {
  */
 export function ChangeEmailPendingView() {
   const {newEmail, error} = useAppState()
-  const navigate = useNavigate()
+  const navigate = navigation.useHashNavigate()
 
   return (
     <Card>

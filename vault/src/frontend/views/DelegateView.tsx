@@ -1,5 +1,6 @@
 import {CreateAccountDialog} from '@/frontend/components/CreateAccountDialog'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
+import * as navigation from '@/frontend/navigation'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
 import {
@@ -13,7 +14,7 @@ import * as blobs from '@shm/shared/blobs'
 import * as hmauth from '@shm/shared/hmauth'
 import {Plus, User} from 'lucide-react'
 import {useEffect} from 'react'
-import {Navigate, useSearchParams} from 'react-router-dom'
+import {useSearchParams} from 'react-router-dom'
 
 function getProfileStatusTextClass(profileLoadState?: ProfileLoadState) {
   if (profileLoadState === 'not_found') return 'text-yellow-700 dark:text-yellow-400'
@@ -59,7 +60,7 @@ export function DelegateView() {
   }, [accounts.length, selectedAccountIndex, actions])
 
   if (!delegationRequest && !searchParams.has(hmauth.PARAM_CLIENT_ID)) {
-    return <Navigate to="/" replace />
+    return <navigation.HashNavigate to="/" replace />
   }
 
   // URL has params but store hasn't synced yet — wait for the effect.

@@ -66,7 +66,7 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
     return () => editProfileDialog.open({accountUid: profileAccountUid})
   }, [isOwnProfile, isDelegated, profileAccountUid, editProfileDialog])
 
-  // Profile header buttons (logout) - only for own profile
+  // Profile header buttons (vault account settings + logout) - only for own profile
   const profileHeaderButtons = useMemo(() => {
     if (!isOwnProfile) return undefined
     return <LogoutButton />

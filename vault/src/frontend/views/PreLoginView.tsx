@@ -1,8 +1,8 @@
 import {WebAuthnAbortService} from '@simplewebauthn/browser'
 import type React from 'react'
 import {useEffect} from 'react'
-import {Navigate} from 'react-router-dom'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
+import * as navigation from '@/frontend/navigation'
 import {SeedLogo} from '@/frontend/components/SeedLogo'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
@@ -39,7 +39,7 @@ export function PreLoginView() {
   }
 
   if (session?.authenticated) {
-    return <Navigate to="/" replace />
+    return <navigation.HashNavigate to="/" replace />
   }
 
   async function handleSubmit(e: React.FormEvent) {

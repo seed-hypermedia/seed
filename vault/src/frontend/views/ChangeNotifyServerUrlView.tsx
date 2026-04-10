@@ -1,6 +1,6 @@
 import * as React from 'react'
-import * as ReactRouter from 'react-router-dom'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
+import * as navigation from '@/frontend/navigation'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
 import {Input} from '@/frontend/components/ui/input'
@@ -13,7 +13,7 @@ import {useActions, useAppState} from '@/frontend/store'
 export function ChangeNotifyServerUrlView() {
   const {loading, error, notificationServerUrl, vaultData} = useAppState()
   const actions = useActions()
-  const navigate = ReactRouter.useNavigate()
+  const navigate = navigation.useHashNavigate()
   const savedNotificationServerUrl = vaultData?.notificationServerUrl?.trim() || ''
   const effectiveNotificationServerUrl = savedNotificationServerUrl || notificationServerUrl
   const [nextNotificationServerUrl, setNextNotificationServerUrl] = React.useState(savedNotificationServerUrl)
