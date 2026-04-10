@@ -1607,6 +1607,48 @@ export const HMListCommentVersionsRequestSchema = z.object({
 })
 export type HMListCommentVersionsRequest = z.infer<typeof HMListCommentVersionsRequestSchema>
 
+// GetDomain - resolve a domain to its cached account UID and status
+export const HMDomainInfoSchema = z.object({
+  domain: z.string(),
+  lastCheck: z.date().nullable(),
+  status: z.string(),
+  lastSuccess: z.date().nullable(),
+  registeredAccountUid: z.string().nullable(),
+  peerId: z.string().nullable(),
+  lastError: z.string().nullable(),
+})
+export type HMDomainInfo = z.infer<typeof HMDomainInfoSchema>
+
+export const HMGetDomainInputSchema = z.object({
+  domain: z.string(),
+  /** If true, forces a fresh HTTP check instead of returning cached data. */
+  forceCheck: z.boolean().optional(),
+})
+export type HMGetDomainInput = z.infer<typeof HMGetDomainInputSchema>
+
+export const HMGetDomainRequestSchema = z.object({
+  key: z.literal('GetDomain'),
+  input: HMGetDomainInputSchema,
+  output: HMDomainInfoSchema,
+})
+export type HMGetDomainRequest = z.infer<typeof HMGetDomainRequestSchema>
+
+// ListDomains - list all tracked domains
+export const HMListDomainsInputSchema = z.object({})
+export type HMListDomainsInput = z.infer<typeof HMListDomainsInputSchema>
+
+export const HMListDomainsOutputSchema = z.object({
+  domains: z.array(HMDomainInfoSchema),
+})
+export type HMListDomainsOutput = z.infer<typeof HMListDomainsOutputSchema>
+
+export const HMListDomainsRequestSchema = z.object({
+  key: z.literal('ListDomains'),
+  input: HMListDomainsInputSchema,
+  output: HMListDomainsOutputSchema,
+})
+export type HMListDomainsRequest = z.infer<typeof HMListDomainsRequestSchema>
+
 // GET request union — all read-only API endpoints
 export const HMGetRequestSchema = z.discriminatedUnion('key', [
   HMResourceRequestSchema,
@@ -1630,6 +1672,8 @@ export const HMGetRequestSchema = z.discriminatedUnion('key', [
   HMListCapabilitiesRequestSchema,
   HMInteractionSummaryRequestSchema,
   HMListCommentVersionsRequestSchema,
+  HMGetDomainRequestSchema,
+  HMListDomainsRequestSchema,
 ])
 export type HMGetRequest = z.infer<typeof HMGetRequestSchema>
 
@@ -1663,6 +1707,8 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMListCapabilitiesRequestSchema,
   HMInteractionSummaryRequestSchema,
   HMListCommentVersionsRequestSchema,
+  HMGetDomainRequestSchema,
+  HMListDomainsRequestSchema,
   HMPublishBlobsRequestSchema,
   HMPrepareDocumentChangeRequestSchema,
 ])
@@ -1878,115 +1924,3 @@ export function isSurrogate(s: string, i: number) {
   return 0xd800 <= code && code <= 0xdbff
 }
 
-// ─── URL resolution ─────────────────────────────────────────────────────────
-
-/** Resolve a web URL to its Hypermedia metadata via an OPTIONS request. */
-export async function resolveHypermediaUrl(url: string) {
-  // Parse query params and fragment from original URL
-  let latest = false
-  let blockRef: string | null = null
-  let blockRange: {start: number; end: number} | {expanded: boolean} | null = null
-  let panel: string | null = null
-  try {
-    const parsedUrl = new URL(url)
-    const hasVersion = parsedUrl.searchParams.has('v')
-    const hasLatest = parsedUrl.searchParams.has('l')
-    panel = parsedUrl.searchParams.get('panel')
-
-    // Extract blockRef and blockRange from fragment first
-    if (parsedUrl.hash) {
-      const fragment = parseFragment(parsedUrl.hash.slice(1))
-      if (fragment) {
-        blockRef = fragment.blockId
-        if ('start' in fragment && fragment.start !== undefined) {
-          blockRange = {start: fragment.start, end: fragment.end!}
-        } else if ('expanded' in fragment && fragment.expanded) {
-          blockRange = {expanded: fragment.expanded}
-        }
-      }
-    }
-
-    // When blockRef is present, version takes precedence over latest
-    // because the block only exists in a specific version
-    latest = blockRef ? false : hasLatest || !hasVersion
-  } catch {
-    // If URL parsing fails, continue with defaults
-  }
-
-  const response = await fetch(url, {
-    method: 'OPTIONS',
-  })
-  if (response.status === 200) {
-    const rawId = response.headers.get('x-hypermedia-id')
-    const id = rawId ? decodeURIComponent(rawId) : null
-    const version = response.headers.get('x-hypermedia-version')
-    const encodedTitle = response.headers.get('x-hypermedia-title')
-    const title = encodedTitle ? decodeURIComponent(encodedTitle) : null
-    const rawTarget = response.headers.get('x-hypermedia-target')
-    const target = rawTarget ? unpackHmId(decodeURIComponent(rawTarget)) : null
-    const rawAuthors = response.headers.get('x-hypermedia-authors')
-    const authors = rawAuthors
-      ? decodeURIComponent(rawAuthors)
-          .split(',')
-          .map((author) => unpackHmId(author))
-      : null
-    const type = response.headers.get('x-hypermedia-type')
-    if (id) {
-      const hmId = unpackHmId(id)
-      // Include version from server response or parsed HM ID.
-      // This ensures version-pinned links (e.g. comment embeds with ?v=CID)
-      // preserve the version when creating embed blocks.
-      const resolvedVersion = version ?? hmId?.version ?? null
-      // Preserve the site hostname from the input URL.
-      // If the URL is NOT a gateway URL (no /hm/ prefix), the host is the siteURL.
-      let siteHostname: string | null = null
-      try {
-        const inputUrl = new URL(url)
-        if (!inputUrl.pathname.startsWith('/hm/')) {
-          siteHostname = inputUrl.origin
-        }
-      } catch {
-        // ignore parse errors
-      }
-      return {
-        id,
-        hmId: hmId
-          ? {
-              ...hmId,
-              version: resolvedVersion,
-              latest,
-              blockRef,
-              blockRange,
-              hostname: siteHostname || hmId.hostname,
-            }
-          : null,
-        version,
-        title,
-        target,
-        authors,
-        type,
-        panel,
-      }
-    }
-    return null
-  }
-  return null
-}
-
-/**
- * Resolve a string that may be an hm:// ID, a gateway URL, or a site web URL
- * into an UnpackedHypermediaId. Tries synchronous parsing first, then falls
- * back to an OPTIONS request for web URLs.
- */
-export async function resolveId(input: string): Promise<UnpackedHypermediaId> {
-  const parsed = unpackHmId(input)
-  if (parsed) return parsed
-
-  if (input.startsWith('http://') || input.startsWith('https://')) {
-    const resolved = await resolveHypermediaUrl(input)
-    if (resolved?.hmId) return resolved.hmId
-    throw new Error(`URL does not appear to be a Seed Hypermedia resource: ${input}`)
-  }
-
-  throw new Error(`Invalid Hypermedia ID: ${input}`)
-}

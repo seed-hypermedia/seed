@@ -13,6 +13,7 @@ import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@seed-hypermedia/client'
+import {domainResolver} from '@/grpc-client'
 import {createDocumentNavRoute, createInspectNavRoute, NavRoute} from '@shm/shared/routes'
 import {
   extractViewTermFromUrl,
@@ -439,7 +440,7 @@ function useURLHandler() {
     if (experiments.data?.webImporting) {
       const webResult = await webQuery.mutateAsync({webUrl: cleanUrl})
       if (webResult.hypermedia) {
-        const res = await resolveHypermediaUrl(webResult.hypermedia.url)
+        const res = await resolveHypermediaUrl(webResult.hypermedia.url, {domainResolver})
         const resId = res?.id ? unpackHmId(res.id) : null
         const navRoute = resId ? appRouteOfId(resId) : null
         if (navRoute) return applyViewTermToRoute(navRoute, routeKey, commentId, accountUid, activityFilter, isInspect)
@@ -449,7 +450,7 @@ function useURLHandler() {
       }
       toast('Importing from the web')
     } else {
-      const result = await resolveHypermediaUrl(cleanUrl)
+      const result = await resolveHypermediaUrl(cleanUrl, {domainResolver})
       const parsedUrl = parseCustomURL(cleanUrl)
       const fragment = parseFragment(parsedUrl?.fragment || '')
       const idFragment = {

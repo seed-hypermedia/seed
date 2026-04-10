@@ -1,4 +1,4 @@
-import {resolveHypermediaUrl} from '@seed-hypermedia/client'
+import {resolveHypermediaUrl, type ResolveOptions} from '@seed-hypermedia/client'
 import {createDocumentNavRoute, createInspectNavRoute, type NavRoute} from '@shm/shared/routes'
 import {
   activitySlugToFilter,
@@ -13,7 +13,7 @@ import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 /**
  * Resolves a URL using the same routing rules as the desktop omnibar.
  */
-export async function resolveOmnibarUrlToRoute(url: string): Promise<NavRoute | null> {
+export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOptions): Promise<NavRoute | null> {
   const directRoute = hypermediaUrlToRoute(url)
   if (directRoute) return directRoute
 
@@ -25,7 +25,7 @@ export async function resolveOmnibarUrlToRoute(url: string): Promise<NavRoute | 
   }
 
   try {
-    const result = await resolveHypermediaUrl(cleanUrl)
+    const result = await resolveHypermediaUrl(cleanUrl, opts)
     if (!result?.hmId) return null
 
     const baseRoute = result.panel ? createDocumentNavRoute(result.hmId, null, result.panel) : appRouteOfId(result.hmId)
@@ -40,8 +40,8 @@ export async function resolveOmnibarUrlToRoute(url: string): Promise<NavRoute | 
 /**
  * Resolves a URL using omnibar routing rules and returns the hm:// URL form.
  */
-export async function resolveOmnibarUrlToHypermediaUrl(url: string): Promise<string | null> {
-  const route = await resolveOmnibarUrlToRoute(url)
+export async function resolveOmnibarUrlToHypermediaUrl(url: string, opts?: ResolveOptions): Promise<string | null> {
+  const route = await resolveOmnibarUrlToRoute(url, opts)
   if (!route) return null
   return routeToHmUrl(route)
 }

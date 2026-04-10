@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetInfoRequest, ImportKeyRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, SignDataRequest, SignDataResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
+import { AddDomainRequest, CheckDomainRequest, CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, DomainInfo, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetDomainRequest, GetInfoRequest, ImportKeyRequest, Info, ListDomainsRequest, ListDomainsResponse, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, RemoveDomainRequest, SignDataRequest, SignDataResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -189,5 +189,61 @@ export const Daemon = {
       O: SignDataResponse,
       kind: MethodKind.Unary,
     },
+    /**
+     * Gets cached information about a domain.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.GetDomain
+     */
+    getDomain: {
+      name: "GetDomain",
+      I: GetDomainRequest,
+      O: DomainInfo,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Lists all tracked domains.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.ListDomains
+     */
+    listDomains: {
+      name: "ListDomains",
+      I: ListDomainsRequest,
+      O: ListDomainsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Adds a domain to be tracked.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.AddDomain
+     */
+    addDomain: {
+      name: "AddDomain",
+      I: AddDomainRequest,
+      O: DomainInfo,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Removes a tracked domain.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.RemoveDomain
+     */
+    removeDomain: {
+      name: "RemoveDomain",
+      I: RemoveDomainRequest,
+      O: Empty,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Forces a re-check of a domain's /hm/api/config endpoint.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.CheckDomain
+     */
+    checkDomain: {
+      name: "CheckDomain",
+      I: CheckDomainRequest,
+      O: DomainInfo,
+      kind: MethodKind.Unary,
+    },
   }
 } as const;
+

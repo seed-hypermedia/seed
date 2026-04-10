@@ -46,12 +46,13 @@ export {
   packHmId,
   parseCustomURL,
   parseFragment,
-  resolveHypermediaUrl,
-  resolveId,
   serializeBlockRange,
   unpackHmId,
 } from './hm-types'
 export type {HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'
+
+export {resolveHypermediaUrl, resolveId} from './hm-resolver'
+export type {DomainResolverFn, DomainIdChangedCallback, ResolveOptions, ResolvedUrl} from './hm-resolver'
 
 export {fileToIpfsBlobs, filesToIpfsBlobs, resolveFileLinksInBlocks, hasFileLinks} from './file-to-ipfs'
 export type {CollectedBlob} from './file-to-ipfs'

@@ -298,6 +298,24 @@ CREATE TABLE wallets (
 
 CREATE INDEX wallets_by_account ON wallets (account);
 
+-- Stores cached domain configurations.
+-- The daemon periodically polls the /hm/api/config endpoint
+-- for each tracked domain, caching the results here for offline use,
+-- cross-site link resolution, and notification URL verification.
+CREATE TABLE domains (
+    domain TEXT PRIMARY KEY NOT NULL,
+    -- Unix timestamp of the last HTTP request to /hm/api/config.
+    last_check INTEGER,
+    -- Status of the last check: "success", "unreachable", "error", or "unknown".
+    last_status TEXT NOT NULL DEFAULT 'unknown',
+    -- Unix timestamp of the last successful config fetch.
+    last_success INTEGER,
+    -- Full JSON response from /hm/api/config on the last success.
+    last_config JSON,
+    -- Error details from the last failed check.
+    last_error TEXT
+) WITHOUT ROWID;
+
 -- Stores text content to to a full text search
 -- https://sqlite.org/fts5.html.
 

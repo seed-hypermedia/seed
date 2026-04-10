@@ -9,25 +9,33 @@ import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
+import {resolveOmnibarUrlToRoute} from '@/omnibar-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
-import {resolveOmnibarUrlToRoute} from '@/omnibar-url'
-import {hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
-import {useStream} from '@shm/shared/use-stream'
-import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
+import {hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccounts, useResource} from '@shm/shared/models/entity'
 import {DocumentRoute, DraftRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
+import {useStream} from '@shm/shared/use-stream'
 import {createWebHMUrl, displayHostname, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
-import {HMIcon} from '@shm/ui/hm-icon'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@shm/ui/components/dropdown-menu'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {HMIcon} from '@shm/ui/hm-icon'
 import {Back, CloudOff, Download, Forward, Link, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
@@ -57,20 +65,12 @@ import {
   UserCog,
 } from 'lucide-react'
 import {ReactNode, useCallback, useContext, useMemo, useRef, useState} from 'react'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@shm/ui/components/dropdown-menu'
-import {ScrollArea} from '@shm/ui/components/scroll-area'
-import {dispatchOnboardingDialog} from './onboarding'
 import {BookmarkButton} from './bookmarking'
 import {BranchDialog} from './branch-dialog'
 import {CopyReferenceButton} from './copy-reference-button'
 import {useImportDialog, useImporting} from './import-doc-button'
 import {MoveDialog} from './move-dialog'
+import {dispatchOnboardingDialog} from './onboarding'
 import {usePublishSite, useRemoveSiteDialog, useSeedHostDialog} from './publish-site'
 import {SearchInput, SearchInputHandle} from './search-input'
 import {TitleBarProps} from './titlebar'
@@ -868,7 +868,7 @@ export function Omnibar() {
   // Handle URL navigation - returns true if navigation was synchronous
   const handleUrlNavigation = useCallback(
     async (url: string): Promise<boolean> => {
-      const route = await resolveOmnibarUrlToRoute(url)
+      const route = await resolveOmnibarUrlToRoute(url, {domainResolver})
       if (route) {
         navigate(route)
         return true

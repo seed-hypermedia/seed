@@ -43,9 +43,10 @@ type sitePeerEntry struct {
 // sitePeerResolver resolves siteUrl to peer.ID with TTL-based caching.
 // The underlying LRU cache is thread-safe, so no external synchronization is needed.
 type sitePeerResolver struct {
-	cache  *lru.Cache[string, sitePeerEntry]
-	ttl    time.Duration
-	client *http.Client
+	cache        *lru.Cache[string, sitePeerEntry]
+	ttl          time.Duration
+	client       *http.Client
+	domainStore  *DomainStore // optional persistent fallback
 }
 
 // newSitePeerResolver creates a new cache for resolving site URLs to peer IDs.
@@ -66,8 +67,9 @@ func newSitePeerResolver(size int, ttl time.Duration) *sitePeerResolver {
 
 // getConfig resolves a siteURL to its full config, using the cache when possible.
 // It calls GET {siteURL}/hm/api/config and parses the response.
+// If the network fetch fails and a DomainStore is configured, it falls back to the persistent cache.
 func (c *sitePeerResolver) getConfig(ctx context.Context, siteURL string) (SiteConfigResponse, error) {
-	// Check cache first.
+	// Check in-memory cache first.
 	entry, ok := c.cache.Get(siteURL)
 	if ok && time.Now().Before(entry.expiresAt) {
 		return entry.config, nil
@@ -76,10 +78,16 @@ func (c *sitePeerResolver) getConfig(ctx context.Context, siteURL string) (SiteC
 	// Cache miss or expired, fetch from siteURL.
 	config, err := c.fetchConfig(ctx, siteURL)
 	if err != nil {
+		// Fall back to persistent domain store if available.
+		if c.domainStore != nil {
+			if cached, ok := c.domainStore.LookupCachedConfig(ctx, siteURL); ok {
+				return cached, nil
+			}
+		}
 		return SiteConfigResponse{}, err
 	}
 
-	// Store in cache.
+	// Store in in-memory cache.
 	c.cache.Add(siteURL, sitePeerEntry{
 		config:    config,
 		expiresAt: time.Now().Add(c.ttl),

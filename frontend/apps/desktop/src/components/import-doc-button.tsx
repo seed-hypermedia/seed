@@ -1,4 +1,5 @@
 import {useAppContext} from '@/app-context'
+import {domainResolver} from '@/grpc-client'
 import {hmBlockSchema} from '@/editor'
 import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
@@ -256,6 +257,7 @@ export function useImporting(parentId: UnpackedHypermediaId) {
         // @ts-expect-error
         queryClient,
         grpcClient,
+        domainResolver,
         gwUrl,
         openUrl,
         checkWebUrl: checkWebUrl.mutate,
@@ -268,7 +270,7 @@ export function useImporting(parentId: UnpackedHypermediaId) {
             addProseMirrorPlugins() {
               return [
                 createHypermediaDocLinkPlugin({
-                  queryClient,
+                  domainResolver,
                 }).plugin,
               ]
             },

@@ -1,7 +1,7 @@
 import {getDocumentTitle} from '@shm/shared/content'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {HMDocumentMetadataSchema, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {resolveHypermediaUrl} from '@seed-hypermedia/client'
+import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
 import {hmId, isHypermediaScheme, isPublicGatewayLink, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {StateStream} from '@shm/shared/utils/stream'
@@ -16,6 +16,7 @@ import {linkMenuPluginKey} from '../../blocknote/core/extensions/LinkMenu/LinkMe
 
 type PasteHandlerOptions = {
   grpcClient?: GRPCClient
+  domainResolver?: DomainResolverFn
   editor: Editor
   type: MarkType
   linkOnPaste?: boolean
@@ -325,51 +326,39 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
 
         // Check if the link is hm link or web URL
         if (selection.empty && link && !unpackedHmId) {
-          let tr = view.state.tr
-          if (!tr.selection.empty) tr.deleteSelection()
+          // Capture position before async work, since document state may change.
+          const insertPos = view.state.selection.$from.pos
 
-          const pos = view.state.selection.$from.pos
+          // Resolve the URL fully before inserting anything, to avoid flashing.
+          ;(async () => {
+            try {
+              const linkMetaResult = await resolveHypermediaUrl(link.href, {domainResolver: options.domainResolver})
 
-          view.dispatch(
-            tr.insertText(link.href, pos).addMark(
-              pos,
-              pos + link.href.length,
-              options.editor.schema.mark('link', {
-                href: link.href,
-              }),
-            ),
-          )
-
-          view.dispatch(
-            view.state.tr.scrollIntoView().setMeta(linkMenuPluginKey, {
-              activate: true,
-              link: link.href,
-              items: getLinkMenuItems({
-                isLoading: true,
-                gwUrl: options.gwUrl,
-              }),
-            }),
-          )
-
-          resolveHypermediaUrl(link.href)
-            .then(async (linkMetaResult) => {
               if (linkMetaResult?.hmId) {
                 const fullHmUrl = packHmId(linkMetaResult.hmId)
-                const currentPos = view.state.selection.$from.pos - link.href.length
-                const title = linkMetaResult.title
+
+                // If title is missing (e.g. domain store resolution), fetch it
+                let title = linkMetaResult.title
+                if (!title && options.grpcClient) {
+                  const fetched = await fetchEntityTitle(linkMetaResult.hmId, options.grpcClient, linkMetaResult.hmId.blockRef)
+                  title = fetched.title
+                }
+
                 const displayText = title || fullHmUrl
 
+                let tr = view.state.tr
+
                 view.dispatch(
-                  view.state.tr
-                    .deleteRange(currentPos, currentPos + link.href.length)
-                    .insertText(displayText, currentPos)
+                  tr
+                    .insertText(displayText, insertPos)
                     .addMark(
-                      currentPos,
-                      currentPos + displayText.length,
+                      insertPos,
+                      insertPos + displayText.length,
                       options.editor.schema.mark('link', {
                         href: fullHmUrl,
                       }),
-                    ),
+                    )
+                    .scrollIntoView(),
                 )
 
                 view.dispatch(
@@ -389,11 +378,11 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               } else {
                 handleWebUrl(view, link, options)
               }
-            })
-            .catch((err) => {
+            } catch (err) {
               console.log('Error checking for hypermedia site:', err)
               handleWebUrl(view, link, options)
-            })
+            }
+          })()
 
           return true
         }
@@ -511,20 +500,27 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
         )
         break
       case 'web': {
-        const metaPromise = resolveHypermediaUrl(link.href)
-          .then((linkMetaResult) => {
+        const metaPromise = resolveHypermediaUrl(link.href, {domainResolver: options.domainResolver})
+          .then(async (linkMetaResult) => {
             if (!linkMetaResult?.hmId) return false
             const fullHmUrl = packHmId(linkMetaResult.hmId)
             const currentPos = view.state.selection.$from.pos - link.href.length
 
-            if (linkMetaResult.title) {
+            // If title is missing (e.g. domain store resolution), fetch it
+            let title = linkMetaResult.title
+            if (!title && options.grpcClient) {
+              const fetched = await fetchEntityTitle(linkMetaResult.hmId, options.grpcClient, linkMetaResult.hmId.blockRef)
+              title = fetched.title
+            }
+
+            if (title) {
               view.dispatch(
                 view.state.tr
                   .deleteRange(currentPos, currentPos + link.href.length)
-                  .insertText(linkMetaResult.title, currentPos)
+                  .insertText(title, currentPos)
                   .addMark(
                     currentPos,
-                    currentPos + linkMetaResult.title.length,
+                    currentPos + title.length,
                     options.editor.schema.mark('link', {
                       href: fullHmUrl,
                     }),
@@ -539,7 +535,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                   hmId: linkMetaResult.hmId,
                   isLoading: false,
                   sourceUrl: fullHmUrl,
-                  title: linkMetaResult.title,
+                  title,
                   gwUrl: options.gwUrl,
                 }),
               }),

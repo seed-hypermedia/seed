@@ -1291,3 +1291,331 @@ export class NamedKey extends Message<NamedKey> {
     return proto3.util.equals(NamedKey, a, b);
   }
 }
+
+/**
+ * Request to get domain info.
+ *
+ * @generated from message com.seed.daemon.v1alpha.GetDomainRequest
+ */
+export class GetDomainRequest extends Message<GetDomainRequest> {
+  /**
+   * Required. The domain name (e.g. "hyper.media").
+   *
+   * @generated from field: string domain = 1;
+   */
+  domain = "";
+
+  constructor(data?: PartialMessage<GetDomainRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.GetDomainRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "domain", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetDomainRequest {
+    return new GetDomainRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetDomainRequest {
+    return new GetDomainRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetDomainRequest {
+    return new GetDomainRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetDomainRequest | PlainMessage<GetDomainRequest> | undefined, b: GetDomainRequest | PlainMessage<GetDomainRequest> | undefined): boolean {
+    return proto3.util.equals(GetDomainRequest, a, b);
+  }
+}
+
+/**
+ * Request to list tracked domains.
+ *
+ * @generated from message com.seed.daemon.v1alpha.ListDomainsRequest
+ */
+export class ListDomainsRequest extends Message<ListDomainsRequest> {
+  constructor(data?: PartialMessage<ListDomainsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.ListDomainsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDomainsRequest {
+    return new ListDomainsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDomainsRequest {
+    return new ListDomainsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDomainsRequest {
+    return new ListDomainsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListDomainsRequest | PlainMessage<ListDomainsRequest> | undefined, b: ListDomainsRequest | PlainMessage<ListDomainsRequest> | undefined): boolean {
+    return proto3.util.equals(ListDomainsRequest, a, b);
+  }
+}
+
+/**
+ * Response with the list of tracked domains.
+ *
+ * @generated from message com.seed.daemon.v1alpha.ListDomainsResponse
+ */
+export class ListDomainsResponse extends Message<ListDomainsResponse> {
+  /**
+   * List of tracked domains.
+   *
+   * @generated from field: repeated com.seed.daemon.v1alpha.DomainInfo domains = 1;
+   */
+  domains: DomainInfo[] = [];
+
+  constructor(data?: PartialMessage<ListDomainsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.ListDomainsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "domains", kind: "message", T: DomainInfo, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDomainsResponse {
+    return new ListDomainsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDomainsResponse {
+    return new ListDomainsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDomainsResponse {
+    return new ListDomainsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListDomainsResponse | PlainMessage<ListDomainsResponse> | undefined, b: ListDomainsResponse | PlainMessage<ListDomainsResponse> | undefined): boolean {
+    return proto3.util.equals(ListDomainsResponse, a, b);
+  }
+}
+
+/**
+ * Request to add a domain to track.
+ *
+ * @generated from message com.seed.daemon.v1alpha.AddDomainRequest
+ */
+export class AddDomainRequest extends Message<AddDomainRequest> {
+  /**
+   * Required. The domain name (e.g. "hyper.media").
+   *
+   * @generated from field: string domain = 1;
+   */
+  domain = "";
+
+  constructor(data?: PartialMessage<AddDomainRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.AddDomainRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "domain", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AddDomainRequest {
+    return new AddDomainRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AddDomainRequest {
+    return new AddDomainRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AddDomainRequest {
+    return new AddDomainRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: AddDomainRequest | PlainMessage<AddDomainRequest> | undefined, b: AddDomainRequest | PlainMessage<AddDomainRequest> | undefined): boolean {
+    return proto3.util.equals(AddDomainRequest, a, b);
+  }
+}
+
+/**
+ * Request to remove a tracked domain.
+ *
+ * @generated from message com.seed.daemon.v1alpha.RemoveDomainRequest
+ */
+export class RemoveDomainRequest extends Message<RemoveDomainRequest> {
+  /**
+   * Required. The domain name to remove.
+   *
+   * @generated from field: string domain = 1;
+   */
+  domain = "";
+
+  constructor(data?: PartialMessage<RemoveDomainRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.RemoveDomainRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "domain", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RemoveDomainRequest {
+    return new RemoveDomainRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RemoveDomainRequest {
+    return new RemoveDomainRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RemoveDomainRequest {
+    return new RemoveDomainRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RemoveDomainRequest | PlainMessage<RemoveDomainRequest> | undefined, b: RemoveDomainRequest | PlainMessage<RemoveDomainRequest> | undefined): boolean {
+    return proto3.util.equals(RemoveDomainRequest, a, b);
+  }
+}
+
+/**
+ * Request to force a re-check of a domain.
+ *
+ * @generated from message com.seed.daemon.v1alpha.CheckDomainRequest
+ */
+export class CheckDomainRequest extends Message<CheckDomainRequest> {
+  /**
+   * Required. The domain name to check.
+   *
+   * @generated from field: string domain = 1;
+   */
+  domain = "";
+
+  constructor(data?: PartialMessage<CheckDomainRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.CheckDomainRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "domain", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CheckDomainRequest {
+    return new CheckDomainRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CheckDomainRequest {
+    return new CheckDomainRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CheckDomainRequest {
+    return new CheckDomainRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CheckDomainRequest | PlainMessage<CheckDomainRequest> | undefined, b: CheckDomainRequest | PlainMessage<CheckDomainRequest> | undefined): boolean {
+    return proto3.util.equals(CheckDomainRequest, a, b);
+  }
+}
+
+/**
+ * Information about a tracked domain.
+ *
+ * @generated from message com.seed.daemon.v1alpha.DomainInfo
+ */
+export class DomainInfo extends Message<DomainInfo> {
+  /**
+   * The domain name.
+   *
+   * @generated from field: string domain = 1;
+   */
+  domain = "";
+
+  /**
+   * Timestamp of the last check.
+   *
+   * @generated from field: google.protobuf.Timestamp last_check = 2;
+   */
+  lastCheck?: Timestamp;
+
+  /**
+   * Status of the last check: "success", "unreachable", "error", or "unknown".
+   *
+   * @generated from field: string status = 3;
+   */
+  status = "";
+
+  /**
+   * Timestamp of the last successful check.
+   *
+   * @generated from field: google.protobuf.Timestamp last_success = 4;
+   */
+  lastSuccess?: Timestamp;
+
+  /**
+   * The registered account UID from the domain's config.
+   *
+   * @generated from field: string registered_account_uid = 5;
+   */
+  registeredAccountUid = "";
+
+  /**
+   * The peer ID of the domain's node.
+   *
+   * @generated from field: string peer_id = 6;
+   */
+  peerId = "";
+
+  /**
+   * Error details from the last failed check.
+   *
+   * @generated from field: string last_error = 7;
+   */
+  lastError = "";
+
+  constructor(data?: PartialMessage<DomainInfo>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.DomainInfo";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "domain", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "last_check", kind: "message", T: Timestamp },
+    { no: 3, name: "status", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "last_success", kind: "message", T: Timestamp },
+    { no: 5, name: "registered_account_uid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "last_error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DomainInfo {
+    return new DomainInfo().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DomainInfo {
+    return new DomainInfo().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DomainInfo {
+    return new DomainInfo().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DomainInfo | PlainMessage<DomainInfo> | undefined, b: DomainInfo | PlainMessage<DomainInfo> | undefined): boolean {
+    return proto3.util.equals(DomainInfo, a, b);
+  }
+}
+

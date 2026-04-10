@@ -108,6 +108,7 @@ type Server struct {
 	store     *storage.Store
 	startTime time.Time
 	blocks    blobIndex
+	domains   *blob.DomainStore
 	log       *zap.Logger
 
 	p2p   Node
@@ -127,6 +128,7 @@ func NewServer(store *storage.Store, n Node, idx *blob.Index, dlink *devicelink.
 		// wallet:        w, // TODO(hm24): Put the wallet back.
 		p2p:     n,
 		blocks:  idx,
+		domains: idx.Domains,
 		dlink:   dlink,
 		taskMgr: taskMgr,
 		log:     log,

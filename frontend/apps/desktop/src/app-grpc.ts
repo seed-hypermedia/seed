@@ -2,6 +2,8 @@ import type {Interceptor} from '@connectrpc/connect'
 import {createGrpcWebTransport} from '@connectrpc/connect-node'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {createGRPCClient} from '@shm/shared/grpc-client'
+import type {DomainResolverFn} from '@seed-hypermedia/client'
+import {createDomainResolver} from '@shm/shared/models/domain-resolver'
 import {isSensitiveRPCMethod} from '@shm/shared'
 import {connectionMonitor} from './network-debug'
 import * as log from './logger'
@@ -81,8 +83,14 @@ const prodInter: Interceptor = (next) => async (req) => {
   return result
 }
 
+export let domainResolver: DomainResolverFn | undefined
+
 export function markGRPCReady() {
   isGrpcReady = true
+
+  domainResolver = createDomainResolver(grpcClient, (domain, oldUid, newUid) => {
+    log.warn(`Domain ${domain} account changed: ${oldUid} → ${newUid}`)
+  })
 }
 
 const IS_DEV = process.env.NODE_ENV == 'development'

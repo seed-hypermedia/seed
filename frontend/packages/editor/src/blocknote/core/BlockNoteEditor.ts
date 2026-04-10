@@ -27,6 +27,7 @@ import {Selection} from './extensions/Blocks/api/selectionTypes'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from './extensions/Blocks/helpers/getBlockInfoFromPos'
 
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {DomainResolverFn} from '@seed-hypermedia/client'
 import {InlineMentionsResult} from '@shm/shared/models/inline-mentions'
 import {Transaction} from 'prosemirror-state'
 import {HMBlockSchema, hmBlockSchema} from '../../schema'
@@ -201,6 +202,8 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
 
   public readonly getResourceUrl?: (blockId?: string | null) => string | undefined
 
+  public readonly domainResolver?: DomainResolverFn
+
   constructor(private readonly options: Partial<BlockNoteEditorOptions<BSchema>> = {}) {
     // apply defaults
     const newOptions: Omit<typeof options, 'defaultStyles' | 'blockSchema'> & {
@@ -218,6 +221,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     }
     this.commentEditor = options.commentEditor
     this.getResourceUrl = options.getResourceUrl
+    this.domainResolver = (newOptions.linkExtensionOptions as any)?.domainResolver
     this.sideMenu = new SideMenuProsemirrorPlugin(this)
     this.formattingToolbar = new FormattingToolbarProsemirrorPlugin(this)
     this.slashMenu = new SlashMenuProsemirrorPlugin(this, newOptions.getSlashMenuItems || (() => []))

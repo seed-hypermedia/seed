@@ -63,6 +63,21 @@ service Daemon {
 
   // Sign arbitrary data with an existing signing key.
   rpc SignData(SignDataRequest) returns (SignDataResponse);
+
+  // Gets cached information about a domain.
+  rpc GetDomain(GetDomainRequest) returns (DomainInfo);
+
+  // Lists all tracked domains.
+  rpc ListDomains(ListDomainsRequest) returns (ListDomainsResponse);
+
+  // Adds a domain to be tracked.
+  rpc AddDomain(AddDomainRequest) returns (DomainInfo);
+
+  // Removes a tracked domain.
+  rpc RemoveDomain(RemoveDomainRequest) returns (google.protobuf.Empty);
+
+  // Forces a re-check of a domain's /hm/api/config endpoint.
+  rpc CheckDomain(CheckDomainRequest) returns (DomainInfo);
 }
 
 // Request to generate mnemonic words.
@@ -307,4 +322,61 @@ message NamedKey {
 
   // Account ID representation of this key.
   string account_id = 3;
+}
+
+// Request to get domain info.
+message GetDomainRequest {
+  // Required. The domain name (e.g. "hyper.media").
+  string domain = 1;
+}
+
+// Request to list tracked domains.
+message ListDomainsRequest {}
+
+// Response with the list of tracked domains.
+message ListDomainsResponse {
+  // List of tracked domains.
+  repeated DomainInfo domains = 1;
+}
+
+// Request to add a domain to track.
+message AddDomainRequest {
+  // Required. The domain name (e.g. "hyper.media").
+  string domain = 1;
+}
+
+// Request to remove a tracked domain.
+message RemoveDomainRequest {
+  // Required. The domain name to remove.
+  string domain = 1;
+}
+
+// Request to force a re-check of a domain.
+message CheckDomainRequest {
+  // Required. The domain name to check.
+  string domain = 1;
+}
+
+// Information about a tracked domain.
+message DomainInfo {
+  // The domain name.
+  string domain = 1;
+
+  // Timestamp of the last check.
+  google.protobuf.Timestamp last_check = 2;
+
+  // Status of the last check: "success", "unreachable", "error", or "unknown".
+  string status = 3;
+
+  // Timestamp of the last successful check.
+  google.protobuf.Timestamp last_success = 4;
+
+  // The registered account UID from the domain's config.
+  string registered_account_uid = 5;
+
+  // The peer ID of the domain's node.
+  string peer_id = 6;
+
+  // Error details from the last failed check.
+  string last_error = 7;
 }

@@ -1,7 +1,7 @@
 import {hmId, packHmId, packReferenceUrl, unpackHmId} from '@shm/shared'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useSearch} from '@shm/shared/models/search'
-import {resolveHypermediaUrl} from '@seed-hypermedia/client'
+import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
@@ -100,6 +100,7 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
       >
         <LinkSearchInput
           initialUrl={url}
+          domainResolver={props.editor.domainResolver}
           onLinkSelect={(selectedUrl: string) => {
             closePopover()
             props.editor.focus()
@@ -120,11 +121,13 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
 
 function LinkSearchInput({
   initialUrl = '',
+  domainResolver,
   onLinkSelect,
   onCancel,
   onDeleteLink,
 }: {
   initialUrl?: string
+  domainResolver?: DomainResolverFn
   onLinkSelect: (url: string) => void
   onCancel: () => void
   onDeleteLink?: () => void
@@ -174,7 +177,7 @@ function LinkSearchInput({
           // Handle hypermedia URL resolution
           if (isHypermediaUrl(url)) {
             try {
-              const resolved = await resolveHypermediaUrl(url)
+              const resolved = await resolveHypermediaUrl(url, {domainResolver})
               if (resolved) {
                 const baseId = unpackHmId(resolved.id)
                 if (baseId) {
