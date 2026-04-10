@@ -340,7 +340,11 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 // If title is missing (e.g. domain store resolution), fetch it
                 let title = linkMetaResult.title
                 if (!title && options.grpcClient) {
-                  const fetched = await fetchEntityTitle(linkMetaResult.hmId, options.grpcClient, linkMetaResult.hmId.blockRef)
+                  const fetched = await fetchEntityTitle(
+                    linkMetaResult.hmId,
+                    options.grpcClient,
+                    linkMetaResult.hmId.blockRef,
+                  )
                   title = fetched.title
                 }
 
@@ -509,7 +513,11 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
             // If title is missing (e.g. domain store resolution), fetch it
             let title = linkMetaResult.title
             if (!title && options.grpcClient) {
-              const fetched = await fetchEntityTitle(linkMetaResult.hmId, options.grpcClient, linkMetaResult.hmId.blockRef)
+              const fetched = await fetchEntityTitle(
+                linkMetaResult.hmId,
+                options.grpcClient,
+                linkMetaResult.hmId.blockRef,
+              )
               title = fetched.title
             }
 
