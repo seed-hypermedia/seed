@@ -213,7 +213,7 @@ function getRoleDisplayName(role: string | undefined): string {
 /** Publisher/Owner display component */
 function PublisherCollaborator({uid, siteUid}: {uid: string; siteUid: string}) {
   const publisherId = hmId(uid)
-  const resource = useResource(publisherId)
+  const account = useAccount(uid)
   const linkProps = useRouteLink({
     key: 'site-profile',
     id: hmId(siteUid),
@@ -221,8 +221,8 @@ function PublisherCollaborator({uid, siteUid}: {uid: string; siteUid: string}) {
     tab: 'profile',
   })
 
-  const metadata = resource.data?.type === 'document' ? resource.data.document?.metadata : undefined
-  const isLoading = resource.isLoading
+  const metadata = account.data?.metadata
+  const isLoading = account.isLoading
 
   return (
     <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
@@ -246,7 +246,7 @@ function PublisherCollaborator({uid, siteUid}: {uid: string; siteUid: string}) {
 
 function CollaboratorListItem({capability, docId}: {capability: HMCapability; docId: UnpackedHypermediaId}) {
   const collaboratorId = hmId(capability.accountUid)
-  const resource = useResource(collaboratorId)
+  const account = useAccount(capability.accountUid)
   const linkProps = useRouteLink({
     key: 'site-profile',
     id: hmId(docId.uid),
@@ -254,8 +254,8 @@ function CollaboratorListItem({capability, docId}: {capability: HMCapability; do
     tab: 'profile',
   })
 
-  const metadata = resource.data?.type === 'document' ? resource.data.document?.metadata : undefined
-  const isLoading = resource.isLoading
+  const metadata = account.data?.metadata
+  const isLoading = account.isLoading
   const isParentCapability = capability.grantId.id !== docId.id
 
   return (
