@@ -574,10 +574,10 @@ function FollowingListItem({
   const {unfollowProfile, isPending} = useFollowProfile({profileUid: contact.subject})
   return (
     <>
-      <SidebarMenuButton isActive={active} className="min-h-10 items-start pr-8" onClick={linkProps.onClick}>
-        <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} className="mt-0.5 shrink-0 self-center" />
+      <SidebarMenuButton isActive={active} className="min-h-10 items-center pr-8" onClick={linkProps.onClick}>
+        <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} className="shrink-0" />
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <span className="truncate text-left text-sm select-none">{metadata?.name || 'Untitled'}</span>
+          <span className="truncate text-left text-sm font-bold select-none">{metadata?.name || 'Untitled'}</span>
         </div>
       </SidebarMenuButton>
       <SidebarMenuAction>
