@@ -43,6 +43,7 @@ import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {PanelContent} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
+import {domainResolver} from '@/grpc-client'
 import {CollaboratorsPage} from '@shm/ui/collaborators-page'
 import {AlertDialog, AlertDialogContent, AlertDialogFooter, AlertDialogTitle} from '@shm/ui/components/alert-dialog'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
@@ -372,7 +373,7 @@ function DraftPanelContent({
     case 'collaborators':
       return docId ? (
         <PanelContent>
-          <CollaboratorsPage docId={docId} />
+          <CollaboratorsPage docId={docId} domainResolver={domainResolver} />
         </PanelContent>
       ) : null
     case 'directory':

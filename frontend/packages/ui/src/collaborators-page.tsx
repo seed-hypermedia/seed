@@ -1,6 +1,7 @@
 import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
 import {HMCapability, HMMetadata, HMSiteMember, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
 import {useRouteLink} from '@shm/shared'
 import {useAddCapabilities, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
 import {
@@ -15,8 +16,7 @@ import {useSearch} from '@shm/shared/models/search'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {hmId, hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Users} from 'lucide-react'
-import {forwardRef, useEffect, useId, useMemo, useRef, useState} from 'react'
-import {UIAvatar} from './avatar'
+import {forwardRef, useCallback, useEffect, useId, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import './combobox.css'
 import {HMIcon, LoadedHMIcon} from './hm-icon'
@@ -32,7 +32,7 @@ type SearchResult = {
   metadata?: HMMetadata
 }
 
-function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
+function AddCollaboratorForm({id, domainResolver}: {id: UnpackedHypermediaId; domainResolver?: DomainResolverFn}) {
   const myCapability = useSelectedAccountCapability(id, 'owner')
   const addCapabilities = useAddCapabilities(id)
   const [selectedCollaborators, setSelectedCollaborators] = useState<SearchResult[]>([])
@@ -42,6 +42,39 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
   const searchResults = useSearch(search, {
     perspectiveAccountUid: selectedAccountId ?? undefined,
   })
+
+  // Handle URL/ID resolution inline in onChange to avoid useEffect re-render issues.
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      // Try direct hm:// parsing synchronously
+      const hmUrl = unpackHmId(value)
+      if (hmUrl) {
+        const label = hmIdToURL(hmId(hmUrl.uid))
+        if (label) {
+          setSelectedCollaborators((v) => [...v, {id: hmUrl, label, unresolved: true}])
+          setSearch('')
+          return
+        }
+      }
+
+      setSearch(value)
+
+      // Try resolving full URLs asynchronously
+      const isUrl = value.startsWith('http://') || value.startsWith('https://')
+      if (isUrl) {
+        resolveHypermediaUrl(value, {domainResolver})
+          .then((resolved) => {
+            if (!resolved?.hmId) return
+            const resolvedId = hmId(resolved.hmId.uid)
+            const label = resolved.title || hmIdToURL(resolvedId) || resolved.hmId.uid
+            setSelectedCollaborators((v) => [...v, {id: resolvedId, label, unresolved: true}])
+            setSearch('')
+          })
+          .catch(() => {})
+      }
+    },
+    [domainResolver],
+  )
 
   const matches = useMemo(
     () =>
@@ -79,7 +112,7 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
           <TagInput
             label="Members"
             value={search}
-            onChange={setSearch}
+            onChange={handleSearchChange}
             values={selectedCollaborators}
             onValuesChange={(collabs) => {
               setSelectedCollaborators(collabs)
@@ -102,16 +135,22 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
             )}
             {search && matches.length == 0 ? (
               <TagInputItem
-                onClick={() => {
-                  console.log('Add new member', search)
-                  let hmUrl = unpackHmId(search)
-                  let result = hmUrl ? hmIdToURL(hmId(hmUrl.uid)) : null
-                  if (result && hmUrl) {
-                    setSelectedCollaborators((v) => [...v, {id: hmUrl, label: result, unresolved: true}])
-                    setSearch('')
-                  } else {
-                    toast.error('Invalid Collaborator Input')
+                onClick={async () => {
+                  // Try resolving bare domains (e.g. "gabo.es")
+                  if (search.includes('.')) {
+                    const url = search.startsWith('http') ? search : `https://${search}`
+                    try {
+                      const resolved = await resolveHypermediaUrl(url, {domainResolver})
+                      if (resolved?.hmId) {
+                        const resolvedId = hmId(resolved.hmId.uid)
+                        const label = resolved.title || hmIdToURL(resolvedId) || resolved.hmId.uid
+                        setSelectedCollaborators((v) => [...v, {id: resolvedId, label, unresolved: true}])
+                        setSearch('')
+                        return
+                      }
+                    } catch {}
                   }
+                  toast.error('Invalid Collaborator Input')
                 }}
               >
                 Add &quot;{search}&quot;
@@ -240,15 +279,15 @@ function CollaboratorListItem({capability, docId}: {capability: HMCapability; do
   )
 }
 
-export function CollaboratorsPage({docId}: {docId: UnpackedHypermediaId}) {
+export function CollaboratorsPage({docId, domainResolver}: {docId: UnpackedHypermediaId; domainResolver?: DomainResolverFn}) {
   if (docId.path?.length) {
-    return <DocumentCollaborators docId={docId} />
+    return <DocumentCollaborators docId={docId} domainResolver={domainResolver} />
   } else {
-    return <SiteMembers docId={docId} />
+    return <SiteMembers docId={docId} domainResolver={domainResolver} />
   }
 }
 
-function SiteMembers({docId}: {docId: UnpackedHypermediaId}) {
+function SiteMembers({docId, domainResolver}: {docId: UnpackedHypermediaId; domainResolver?: DomainResolverFn}) {
   const {grantedMembers, isInitialLoading, members} = useSiteMembers(docId)
   if (isInitialLoading) {
     return (
@@ -260,7 +299,7 @@ function SiteMembers({docId}: {docId: UnpackedHypermediaId}) {
   const hasNoMembers = grantedMembers.length === 0 && members.length === 0
   return (
     <div className="flex flex-col gap-4">
-      <AddCollaboratorForm id={docId} />
+      <AddCollaboratorForm id={docId} domainResolver={domainResolver} />
       <PublisherCollaborator uid={docId.uid} siteUid={docId.uid} />
       {grantedMembers.length > 0 && (
         <div className="flex flex-col gap-1">
@@ -317,7 +356,7 @@ function MemberListItem({member, siteUid}: {member: HMSiteMember; siteUid: strin
   )
 }
 
-function DocumentCollaborators({docId}: {docId: UnpackedHypermediaId}) {
+function DocumentCollaborators({docId, domainResolver}: {docId: UnpackedHypermediaId; domainResolver?: DomainResolverFn}) {
   const {parentCapabilities, grantedCapabilities, publisherUid, isInitialLoading} = useCollaborators(docId)
 
   if (isInitialLoading) {
@@ -332,7 +371,7 @@ function DocumentCollaborators({docId}: {docId: UnpackedHypermediaId}) {
 
   return (
     <div className="flex flex-col gap-4">
-      <AddCollaboratorForm id={docId} />
+      <AddCollaboratorForm id={docId} domainResolver={domainResolver} />
 
       {/* Publisher always shown first */}
       <PublisherCollaborator uid={publisherUid} siteUid={docId.uid} />
@@ -487,7 +526,7 @@ const TagInput = forwardRef<HTMLInputElement, TagInputProps>(function TagInput(p
                 ref={comboboxRef}
                 onKeyDown={onInputKeyDown}
                 render={
-                  <Ariakit.Combobox ref={ref} store={combobox} autoSelect className="combobox" {...comboboxProps} />
+                  <Ariakit.Combobox ref={ref} store={combobox} className="combobox" {...comboboxProps} />
                 }
               />
             }
@@ -514,12 +553,12 @@ const TagInput = forwardRef<HTMLInputElement, TagInputProps>(function TagInput(p
 })
 
 function UnresolvedItem({value}: {value: SearchResult}) {
-  const resource = useResource(value.id)
-  const metadata = resource.data?.type === 'document' ? resource.data.document?.metadata : undefined
-  let label = metadata?.name || abbreviateUid(value.id.uid)
+  const account = useAccount(value.id.uid)
+  const metadata = account.data?.metadata
+  const label = metadata?.name || abbreviateUid(value.id.uid)
   return (
     <>
-      <UIAvatar label={label} id={value.id.uid} />
+      <HMIcon id={value.id} name={metadata?.name} icon={metadata?.icon} size={20} />
       <SizableText>{label}</SizableText>
     </>
   )
