@@ -113,7 +113,7 @@ function SidebarMenuAction({
     <Comp
       data-slot="sidebar-menu-action"
       className={cn(
-        'text-sidebar-foreground/70 hover:text-sidebar-foreground absolute top-1/2 right-1 flex -translate-y-1/2 items-center justify-center rounded-md p-1',
+        'text-sidebar-foreground/70 hover:text-sidebar-foreground absolute top-1/2 right-1 flex -translate-y-1/2 items-center justify-center rounded-md p-1 opacity-0 group-hover/menu-item:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100',
         className,
       )}
       {...props}
