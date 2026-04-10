@@ -137,6 +137,20 @@ func TestPoolAfterClose(t *testing.T) {
 	}
 }
 
+func TestPoolWithTxAfterClose(t *testing.T) {
+	dbpool := newMemPool(t)
+
+	require.NoError(t, dbpool.Close())
+
+	var err error
+	require.NotPanics(t, func() {
+		err = dbpool.WithTx(context.Background(), func(conn *sqlite.Conn) error {
+			return nil
+		})
+	})
+	require.ErrorIs(t, err, sqlitex.ErrPoolClosed)
+}
+
 func TestSharedCacheLock(t *testing.T) {
 	dir, err := ioutil.TempDir("", "sqlite-test-")
 	if err != nil {

@@ -25,6 +25,9 @@ import (
 	"seed/backend/util/sqlite"
 )
 
+// ErrPoolClosed is returned when a connection is requested from a closed pool.
+var ErrPoolClosed = errors.New("sqlite pool is closed")
+
 // Pool is a pool of SQLite connections.
 //
 // It is safe for use by multiple goroutines concurrently.
@@ -144,14 +147,17 @@ func (p *Pool) ForEach(fn func(conn *sqlite.Conn) error) error {
 // // Use conn normally.
 // ```
 func (p *Pool) Conn(ctx context.Context) (*sqlite.Conn, context.CancelFunc, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	conn := p.Get(ctx)
 	if conn == nil {
 		err := ctx.Err()
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		if err != nil {
 			return nil, nil, err
 		}
-
-		panic("unable to get connection: probably using a closed pool " + err.Error())
+		return nil, nil, ErrPoolClosed
 	}
 
 	return conn, func() { p.Put(conn) }, nil
