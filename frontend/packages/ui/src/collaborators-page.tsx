@@ -279,7 +279,13 @@ function CollaboratorListItem({capability, docId}: {capability: HMCapability; do
   )
 }
 
-export function CollaboratorsPage({docId, domainResolver}: {docId: UnpackedHypermediaId; domainResolver?: DomainResolverFn}) {
+export function CollaboratorsPage({
+  docId,
+  domainResolver,
+}: {
+  docId: UnpackedHypermediaId
+  domainResolver?: DomainResolverFn
+}) {
   if (docId.path?.length) {
     return <DocumentCollaborators docId={docId} domainResolver={domainResolver} />
   } else {
@@ -356,7 +362,13 @@ function MemberListItem({member, siteUid}: {member: HMSiteMember; siteUid: strin
   )
 }
 
-function DocumentCollaborators({docId, domainResolver}: {docId: UnpackedHypermediaId; domainResolver?: DomainResolverFn}) {
+function DocumentCollaborators({
+  docId,
+  domainResolver,
+}: {
+  docId: UnpackedHypermediaId
+  domainResolver?: DomainResolverFn
+}) {
   const {parentCapabilities, grantedCapabilities, publisherUid, isInitialLoading} = useCollaborators(docId)
 
   if (isInitialLoading) {
@@ -525,9 +537,7 @@ const TagInput = forwardRef<HTMLInputElement, TagInputProps>(function TagInput(p
               <CompositeInput
                 ref={comboboxRef}
                 onKeyDown={onInputKeyDown}
-                render={
-                  <Ariakit.Combobox ref={ref} store={combobox} className="combobox" {...comboboxProps} />
-                }
+                render={<Ariakit.Combobox ref={ref} store={combobox} className="combobox" {...comboboxProps} />}
               />
             }
           />

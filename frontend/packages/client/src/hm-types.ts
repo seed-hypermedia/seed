@@ -1923,4 +1923,3 @@ export function isSurrogate(s: string, i: number) {
   const code = s.charCodeAt(i)
   return 0xd800 <= code && code <= 0xdbff
 }
-

@@ -22,10 +22,7 @@ function domainInfoFromProto(info: any): HMDomainInfo {
 }
 
 export const GetDomain: HMRequestImplementation<HMGetDomainRequest> = {
-  async getData(
-    grpcClient: GRPCClient,
-    input: HMGetDomainInput,
-  ): Promise<HMDomainInfo> {
+  async getData(grpcClient: GRPCClient, input: HMGetDomainInput): Promise<HMDomainInfo> {
     if (input.forceCheck) {
       const result = await grpcClient.daemon.checkDomain({
         domain: input.domain,
@@ -38,10 +35,7 @@ export const GetDomain: HMRequestImplementation<HMGetDomainRequest> = {
 }
 
 export const ListDomains: HMRequestImplementation<HMListDomainsRequest> = {
-  async getData(
-    grpcClient: GRPCClient,
-    _input: HMListDomainsInput,
-  ): Promise<HMListDomainsOutput> {
+  async getData(grpcClient: GRPCClient, _input: HMListDomainsInput): Promise<HMListDomainsOutput> {
     const result = await grpcClient.daemon.listDomains({})
     return {
       domains: result.domains.map(domainInfoFromProto),

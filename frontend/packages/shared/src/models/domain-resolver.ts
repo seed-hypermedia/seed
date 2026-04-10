@@ -1,7 +1,4 @@
-import type {
-  DomainIdChangedCallback,
-  DomainResolverFn,
-} from '@seed-hypermedia/client'
+import type {DomainIdChangedCallback, DomainResolverFn} from '@seed-hypermedia/client'
 import type {GRPCClient} from '../grpc-client'
 
 /**
@@ -31,10 +28,7 @@ const STALE_THRESHOLD_MS = 3 * 60 * 60 * 1000 // 3 hours
  * Create a DomainResolverFn backed by the daemon's domain store.
  * Pass the returned function as opts.domainResolver to resolveHypermediaUrl.
  */
-export function createDomainResolver(
-  grpcClient: GRPCClient,
-  onIdChanged?: DomainIdChangedCallback,
-): DomainResolverFn {
+export function createDomainResolver(grpcClient: GRPCClient, onIdChanged?: DomainIdChangedCallback): DomainResolverFn {
   return async (hostname: string) => {
     // Fast cached lookup
     let cachedUid: string | null = null
@@ -51,19 +45,14 @@ export function createDomainResolver(
 
     if (cachedUid) {
       // Check staleness — fire background refresh if last check was > 3 hours ago
-      const isStale =
-        !lastCheck || Date.now() - lastCheck.getTime() > STALE_THRESHOLD_MS
+      const isStale = !lastCheck || Date.now() - lastCheck.getTime() > STALE_THRESHOLD_MS
 
       if (isStale) {
         const previousUid = cachedUid
         grpcClient.daemon
           .checkDomain({domain: hostname})
           .then((result) => {
-            if (
-              result.registeredAccountUid &&
-              result.registeredAccountUid !== previousUid &&
-              onIdChanged
-            ) {
+            if (result.registeredAccountUid && result.registeredAccountUid !== previousUid && onIdChanged) {
               onIdChanged(hostname, previousUid, result.registeredAccountUid)
             }
           })

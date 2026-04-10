@@ -1,8 +1,4 @@
-import {
-  parseFragment,
-  unpackHmId,
-  type UnpackedHypermediaId,
-} from './hm-types'
+import {parseFragment, unpackHmId, type UnpackedHypermediaId} from './hm-types'
 
 /**
  * A domain resolver function that maps a hostname to an account UID
@@ -14,11 +10,7 @@ export type DomainResolverFn = (hostname: string) => Promise<string | null>
  * Callback fired when a background domain check detects that a domain
  * now points to a different account UID than what was cached.
  */
-export type DomainIdChangedCallback = (
-  domain: string,
-  oldUid: string,
-  newUid: string,
-) => void
+export type DomainIdChangedCallback = (domain: string, oldUid: string, newUid: string) => void
 
 export type ResolveOptions = {
   domainResolver?: DomainResolverFn
@@ -45,10 +37,7 @@ export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): 
   // Parse query params and fragment from original URL
   let latest = false
   let blockRef: string | null = null
-  let blockRange:
-    | {start: number; end: number}
-    | {expanded: boolean}
-    | null = null
+  let blockRange: {start: number; end: number} | {expanded: boolean} | null = null
   let panel: string | null = null
   let parsedHostname: string | null = null
   try {
@@ -127,9 +116,7 @@ export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): 
     const encodedTitle = response.headers.get('x-hypermedia-title')
     const title = encodedTitle ? decodeURIComponent(encodedTitle) : null
     const rawTarget = response.headers.get('x-hypermedia-target')
-    const target = rawTarget
-      ? unpackHmId(decodeURIComponent(rawTarget))
-      : null
+    const target = rawTarget ? unpackHmId(decodeURIComponent(rawTarget)) : null
     const rawAuthors = response.headers.get('x-hypermedia-authors')
     const authors = rawAuthors
       ? decodeURIComponent(rawAuthors)
@@ -181,19 +168,14 @@ export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): 
  * into an UnpackedHypermediaId. Tries synchronous parsing first, then falls
  * back to an OPTIONS request for web URLs.
  */
-export async function resolveId(
-  input: string,
-  opts?: ResolveOptions,
-): Promise<UnpackedHypermediaId> {
+export async function resolveId(input: string, opts?: ResolveOptions): Promise<UnpackedHypermediaId> {
   const parsed = unpackHmId(input)
   if (parsed) return parsed
 
   if (input.startsWith('http://') || input.startsWith('https://')) {
     const resolved = await resolveHypermediaUrl(input, opts)
     if (resolved?.hmId) return resolved.hmId
-    throw new Error(
-      `URL does not appear to be a Seed Hypermedia resource: ${input}`,
-    )
+    throw new Error(`URL does not appear to be a Seed Hypermedia resource: ${input}`)
   }
 
   throw new Error(`Invalid Hypermedia ID: ${input}`)
