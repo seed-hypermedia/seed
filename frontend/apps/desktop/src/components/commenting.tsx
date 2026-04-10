@@ -1,4 +1,6 @@
 import {useCommentDraft} from '@/models/comments'
+import {usePushResource} from '@/models/documents'
+import {usePushOnPublish} from '@/models/gateway-settings'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {handleDragMedia} from '@/utils/media-drag'
@@ -23,11 +25,14 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {applyOptimisticComment, buildOptimisticComment, navigateToComment} from '@shm/shared/optimistic-comment'
 import {useUniversalClient} from '@shm/shared/routing'
 import {useNavRoute} from '@shm/shared/utils/navigation'
+import {writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
+import {PublishedToast, PushResourceStatus} from '@shm/ui/push-toast'
+import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useMutation} from '@tanstack/react-query'
 import {Check, SendHorizonal, X} from 'lucide-react'
-import {memo, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import React, {memo, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 
 export function useCommentGroupAuthors(commentGroups: HMCommentGroup[]): HMListDiscussionsOutput['authors'] {
   const commentGroupAuthors = new Set<string>()
@@ -65,6 +70,8 @@ function _CommentBox(props: {
   const account = useSelectedAccount()
   const selectedAccountId = useSelectedAccountId()
   const targetEntity = useResource(docId)
+  const pushResource = usePushResource()
+  const pushOnPublish = usePushOnPublish()
   const {getSigner, publish} = useUniversalClient()
   const route = useNavRoute()
   const navigate = useNavigate('replace')
@@ -209,6 +216,16 @@ function _CommentBox(props: {
       invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY])
       invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
       invalidateQueries([queryKeys.ACTIVITY_FEED])
+
+      if (pushOnPublish.data !== 'never') {
+        const [setPushStatus, pushStatus] = writeableStateStream<PushResourceStatus | null>(null)
+        const pushPromise = pushResource(docId, undefined, setPushStatus)
+        toast.promise(pushPromise, {
+          loading: <PublishedToast pushStatus={pushStatus} status="loading" />,
+          success: <PublishedToast pushStatus={pushStatus} status="success" />,
+          error: (error) => <PublishedToast pushStatus={pushStatus} status="error" errorMessage={error.message} />,
+        })
+      }
     },
   })
 
