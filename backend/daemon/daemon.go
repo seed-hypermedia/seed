@@ -158,6 +158,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	otel.SetTracerProvider(tp)
 
 	a.Index = blob.OpenIndexPendingReindex(a.Storage.DB(), logging.New("seed/indexing", cfg.LogLevel))
+	a.clean.Add(a.Index.Domains)
 	a.taskMgr.UpdateGlobalState(daemon.State_STARTING)
 
 	migratedc := make(chan struct{})

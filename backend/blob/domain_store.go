@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"sync"
 	"time"
 
 	"seed/backend/util/sqlite"
@@ -30,16 +31,43 @@ type DomainStore struct {
 	db       *sqlitex.Pool
 	resolver *sitePeerResolver
 	log      *zap.Logger
+
+	backgroundCtx    context.Context
+	cancelBackground context.CancelFunc
+
+	backgroundMu     sync.Mutex
+	backgroundClosed bool
+	backgroundWG     sync.WaitGroup
 }
 
 // NewDomainStore creates a new domain store backed by the given database pool.
 // It reuses the sitePeerResolver for fetching configs from remote servers.
 func NewDomainStore(db *sqlitex.Pool, resolver *sitePeerResolver, log *zap.Logger) *DomainStore {
+	backgroundCtx, cancelBackground := context.WithCancel(context.Background())
+
 	return &DomainStore{
-		db:       db,
-		resolver: resolver,
-		log:      log,
+		db:               db,
+		resolver:         resolver,
+		log:              log,
+		backgroundCtx:    backgroundCtx,
+		cancelBackground: cancelBackground,
 	}
+}
+
+// Close stops background domain checks and waits for them to exit.
+func (ds *DomainStore) Close() error {
+	ds.backgroundMu.Lock()
+	if ds.backgroundClosed {
+		ds.backgroundMu.Unlock()
+		return nil
+	}
+	ds.backgroundClosed = true
+	cancelBackground := ds.cancelBackground
+	ds.backgroundMu.Unlock()
+
+	cancelBackground()
+	ds.backgroundWG.Wait()
+	return nil
 }
 
 // PutDomain adds or updates a domain to be tracked.
@@ -111,6 +139,10 @@ func (ds *DomainStore) CheckDomain(ctx context.Context, domain string) (DomainEn
 	entry.LastCheck = now
 
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return entry, err
+		}
+
 		// Determine if unreachable vs error.
 		var te transientError
 		if errors.As(err, &te) {
@@ -149,7 +181,7 @@ func (ds *DomainStore) CheckAllDomains(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		if _, err := ds.CheckDomain(ctx, e.Domain); err != nil {
+		if _, err := ds.CheckDomain(ctx, e.Domain); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 			ds.log.Debug("FailedToCheckDomain", zap.String("domain", e.Domain), zap.Error(err))
 		}
 	}
@@ -219,8 +251,19 @@ func (ds *DomainStore) TrackSiteURL(ctx context.Context, siteURL string) {
 	}
 
 	// Fire background check so the cache is populated immediately.
+	ds.backgroundMu.Lock()
+	if ds.backgroundClosed {
+		ds.backgroundMu.Unlock()
+		return
+	}
+	ds.backgroundWG.Add(1)
+	backgroundCtx := ds.backgroundCtx
+	ds.backgroundMu.Unlock()
+
 	go func() {
-		if _, err := ds.CheckDomain(context.Background(), domain); err != nil {
+		defer ds.backgroundWG.Done()
+
+		if _, err := ds.CheckDomain(backgroundCtx, domain); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 			ds.log.Debug("FailedInitialDomainCheck", zap.String("domain", domain), zap.Error(err))
 		}
 	}()
