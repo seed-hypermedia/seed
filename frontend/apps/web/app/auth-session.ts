@@ -193,13 +193,14 @@ export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Pr
   const compressed = base64.decode(dataParam)
   const decodedCbor = await decompress(compressed)
   const callbackData = cbor.decode<CallbackData>(decodedCbor)
-  if (!callbackData.notifyServerUrl || typeof callbackData.notifyServerUrl !== 'string') {
-    throw new Error('Missing notify server URL in callback data')
-  }
-  try {
-    new URL(callbackData.notifyServerUrl)
-  } catch {
-    throw new Error(`Invalid notify server URL in callback data: ${callbackData.notifyServerUrl}`)
+  let notifyServerUrl: string | undefined
+  if (callbackData.notifyServerUrl && typeof callbackData.notifyServerUrl === 'string') {
+    try {
+      new URL(callbackData.notifyServerUrl)
+      notifyServerUrl = callbackData.notifyServerUrl
+    } catch {
+      console.warn(`Invalid notify server URL in callback data: ${callbackData.notifyServerUrl}`)
+    }
   }
 
   // Re-encode the decoded blobs to verify CID integrity.
@@ -232,7 +233,7 @@ export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Pr
     accountPrincipal: blobs.principalToString(callbackData.account),
     capability,
     session,
-    notifyServerUrl: callbackData.notifyServerUrl,
+    notifyServerUrl,
   }
 }
 

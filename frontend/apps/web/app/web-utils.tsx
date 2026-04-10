@@ -142,7 +142,7 @@ export function WebAccountFooter({
           size={32}
         />
       </a>
-      <NotifsButton />
+      {keyPair.notifyServerUrl ? <NotifsButton /> : null}
     </div>
   ) : null
 

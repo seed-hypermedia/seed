@@ -57,8 +57,8 @@ export interface AuthResult {
   capability: blobs.Encoded<blobs.Capability>
   /** The stored session with the unextractable signing key. */
   session: StoredSession
-  /** Notification server URL configured by the vault. */
-  notifyServerUrl: string
+  /** Notification server URL configured by the vault (optional). */
+  notifyServerUrl?: string
 }
 
 /** URL parameter name for the client ID (origin of the requesting site). */
@@ -399,8 +399,8 @@ export interface CallbackData {
   capability: blobs.Capability
   /** Content-addressed CID of the capability blob. */
   capabilityCid: CID
-  /** Notification server URL configured by the vault. */
-  notifyServerUrl: string
+  /** Notification server URL configured by the vault (optional). */
+  notifyServerUrl?: string
 }
 
 /**
@@ -412,14 +412,14 @@ export async function buildCallbackUrl(
   state: string,
   accountPrincipal: blobs.Principal,
   capability: blobs.Encoded<blobs.Capability>,
-  notifyServerUrl: string,
+  notifyServerUrl?: string,
 ): Promise<string> {
   const url = new URL(redirectUri)
   const callbackData: CallbackData = {
     account: accountPrincipal,
     capability: capability.decoded,
     capabilityCid: capability.cid,
-    notifyServerUrl,
+    ...(notifyServerUrl ? {notifyServerUrl} : {}),
   }
   const encodedCbor = cbor.encode(callbackData)
   const compressed = await compress(new Uint8Array(encodedCbor))
