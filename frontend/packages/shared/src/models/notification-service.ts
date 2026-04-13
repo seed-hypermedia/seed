@@ -51,12 +51,13 @@ async function signedNotifPost(host: string, signer: NotificationSigner, payload
 export async function getNotificationState(
   notifyServiceHost: string,
   signer: NotificationSigner,
-  opts?: {beforeMs?: number; limit?: number},
+  opts?: {beforeMs?: number; limit?: number; siteUid?: string},
 ) {
   return signedNotifPost(notifyServiceHost, signer, {
     action: 'get-notification-state',
     ...(opts?.beforeMs != null ? {beforeMs: opts.beforeMs} : {}),
     limit: opts?.limit ?? DEFAULT_NOTIFICATION_INBOX_LIMIT,
+    ...(opts?.siteUid ? {siteUid: opts.siteUid} : {}),
   }) as Promise<NotificationStateSnapshot>
 }
 
@@ -64,12 +65,13 @@ export async function getNotificationState(
 export async function applyNotificationActions(
   notifyServiceHost: string,
   signer: NotificationSigner,
-  input: {actions: NotificationMutationAction[]; beforeMs?: number; limit?: number},
+  input: {actions: NotificationMutationAction[]; beforeMs?: number; limit?: number; siteUid?: string},
 ) {
   return signedNotifPost(notifyServiceHost, signer, {
     action: 'apply-notification-actions',
     actions: input.actions,
     ...(input.beforeMs != null ? {beforeMs: input.beforeMs} : {}),
     limit: input.limit ?? DEFAULT_NOTIFICATION_INBOX_LIMIT,
+    ...(input.siteUid ? {siteUid: input.siteUid} : {}),
   }) as Promise<NotificationStateSnapshot>
 }

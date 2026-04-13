@@ -55,6 +55,10 @@ export type NotificationMutationAction =
       markAllReadAtMs: number
     }
   | {
+      type: 'mark-site-read'
+      siteUid: string
+    }
+  | {
       type: 'set-config'
       email: string
       createdAtMs: number
@@ -153,6 +157,11 @@ export function reduceNotificationState(
         ...nextReadState,
       },
     }
+  }
+
+  if (action.type === 'mark-site-read') {
+    // Site-scoped mark-all is resolved on the notify service using the full inbox.
+    return state
   }
 
   if (action.type === 'set-config') {

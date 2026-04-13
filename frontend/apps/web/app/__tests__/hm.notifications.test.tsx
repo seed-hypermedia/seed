@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   useWebMarkNotificationEventReadMock: vi.fn(),
   useWebMarkNotificationEventUnreadMock: vi.fn(),
   useWebMarkAllNotificationsReadMock: vi.fn(),
+  useUniversalAppContextMock: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({
@@ -33,10 +34,7 @@ vi.mock('@shm/shared', async () => {
   return {
     ...actual,
     routeToHref: () => '/',
-    useUniversalAppContext: () => ({
-      origin: 'https://seed.example.com',
-      originHomeId: null,
-    }),
+    useUniversalAppContext: mocks.useUniversalAppContextMock,
   }
 })
 
@@ -46,6 +44,10 @@ describe('WebNotificationsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.useWebAccountUidMock.mockReturnValue('account-1')
+    mocks.useUniversalAppContextMock.mockReturnValue({
+      origin: 'https://seed.example.com',
+      originHomeId: {uid: 'site-1'},
+    })
     mocks.useWebNotificationReadStateMock.mockReturnValue({
       data: undefined,
       error: null,
@@ -102,5 +104,31 @@ describe('WebNotificationsPage', () => {
     expect(markup).toContain('Could not load notifications')
     expect(markup).toContain('Signer session-key is not authorized to act on behalf of account account-1')
     expect(markup).not.toContain('No notifications yet')
+  })
+
+  it('passes the current site uid into notification hooks', () => {
+    mocks.useLocalKeyPairMock.mockReturnValue({
+      id: 'session-key',
+      delegatedAccountUid: 'account-1',
+      notifyServerUrl: 'https://notify.example.com',
+    })
+    mocks.useWebNotificationInboxMock.mockReturnValue({
+      data: {
+        accountId: 'account-1',
+        notifications: [],
+        hasMore: false,
+        oldestEventAtMs: null,
+      },
+      isLoading: false,
+      error: null,
+    })
+
+    renderToStaticMarkup(<WebNotificationsPage />)
+
+    expect(mocks.useWebNotificationInboxMock).toHaveBeenCalledWith('site-1')
+    expect(mocks.useWebNotificationReadStateMock).toHaveBeenCalledWith('site-1')
+    expect(mocks.useWebMarkNotificationEventReadMock).toHaveBeenCalledWith('site-1')
+    expect(mocks.useWebMarkNotificationEventUnreadMock).toHaveBeenCalledWith('site-1')
+    expect(mocks.useWebMarkAllNotificationsReadMock).toHaveBeenCalledWith('site-1')
   })
 })
