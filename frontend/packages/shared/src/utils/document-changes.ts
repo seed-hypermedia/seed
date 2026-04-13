@@ -1,9 +1,9 @@
+import {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
+import {HMBlock, HMBlockNode, HMMetadata, HMQuery} from '@seed-hypermedia/client/hm-types'
 import _ from 'lodash'
 import {DocumentChange_SetAttribute} from '../client'
 import {Block, DocumentChange} from '../client/.generated/documents/v3alpha/documents_pb'
-import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
-import {EditorBlock} from '@seed-hypermedia/client/editor-types'
-import {HMBlock, HMBlockNode, HMMetadata, HMQuery} from '@seed-hypermedia/client/hm-types'
 
 export type AttributeValueType = 'boolValue' | 'nullValue' | 'intValue' | 'stringValue'
 
@@ -239,10 +239,10 @@ type GenericBlockFields = {
 
 export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
   if (!b1 || !b2) {
-    console.log('Blocks not equal: One or both blocks are null/undefined', {
-      b1,
-      b2,
-    })
+    // console.log('Blocks not equal: One or both blocks are null/undefined', {
+    //   b1,
+    //   b2,
+    // })
     return false
   }
   if (b1 === b2) return true
@@ -278,28 +278,28 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
 
   const result = Object.values(checks).every(Boolean)
 
-  if (!result) {
-    console.log('Blocks not equal. Differences found:', {
-      blockId: block1.id,
-      differences: Object.entries(checks)
-        .filter(([_, isEqual]) => !isEqual)
-        .map(([prop]) => ({
-          property: prop,
-          b1Value:
-            prop === 'annotations'
-              ? block1.annotations
-              : prop === 'attributes'
-              ? block1.attributes
-              : block1[prop as keyof GenericBlockFields],
-          b2Value:
-            prop === 'annotations'
-              ? block2.annotations
-              : prop === 'attributes'
-              ? block2.attributes
-              : block2[prop as keyof GenericBlockFields],
-        })),
-    })
-  }
+  // if (!result) {
+  //   console.log('Blocks not equal. Differences found:', {
+  //     blockId: block1.id,
+  //     differences: Object.entries(checks)
+  //       .filter(([_, isEqual]) => !isEqual)
+  //       .map(([prop]) => ({
+  //         property: prop,
+  //         b1Value:
+  //           prop === 'annotations'
+  //             ? block1.annotations
+  //             : prop === 'attributes'
+  //             ? block1.attributes
+  //             : block1[prop as keyof GenericBlockFields],
+  //         b2Value:
+  //           prop === 'annotations'
+  //             ? block2.annotations
+  //             : prop === 'attributes'
+  //             ? block2.attributes
+  //             : block2[prop as keyof GenericBlockFields],
+  //       })),
+  //   })
+  // }
 
   return result
 }

@@ -116,7 +116,6 @@ export async function createContact(input: CreateContactInput, signer: HMSigner)
   if (input.subscribe) {
     unsigned.subscribe = input.subscribe
   }
-  console.log('SIGNING BLOB', unsigned)
   unsigned.sig = await signObject(signer, unsigned)
 
   const encoded = cborEncode(unsigned)
