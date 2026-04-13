@@ -1691,10 +1691,10 @@ func (idx *Index) GetSiteURL(ctx context.Context, space core.Principal) (string,
 	if err != nil {
 		return "", err
 	}
-	defer release()
 
 	homeIRI := "hm://" + space.String()
 	siteURL, err := sqlitex.QueryOne[string](conn, qGetSiteURL(), homeIRI)
+	release() // Release before TrackSiteURL to avoid nested pool acquisition deadlock.
 	if err != nil {
 		return "", err
 	}

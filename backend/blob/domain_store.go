@@ -32,6 +32,12 @@ type DomainStore struct {
 	resolver *sitePeerResolver
 	log      *zap.Logger
 
+	// checkSem limits concurrent background domain checks to avoid pool starvation.
+	// Each check does BEGIN IMMEDIATE which blocks other writers via SQLite's busy timeout (10s),
+	// holding a pool connection the entire time. Without limiting concurrency, many concurrent
+	// checks can exhaust the pool and block all other database operations.
+	checkSem chan struct{}
+
 	backgroundCtx    context.Context
 	cancelBackground context.CancelFunc
 
@@ -49,6 +55,7 @@ func NewDomainStore(db *sqlitex.Pool, resolver *sitePeerResolver, log *zap.Logge
 		db:               db,
 		resolver:         resolver,
 		log:              log,
+		checkSem:         make(chan struct{}, 1),
 		backgroundCtx:    backgroundCtx,
 		cancelBackground: cancelBackground,
 	}
@@ -232,25 +239,15 @@ func (ds *DomainStore) LookupCachedConfig(ctx context.Context, siteURL string) (
 	return *entry.LastConfig, true
 }
 
-// TrackSiteURL extracts the domain from a site URL, adds it to the store,
-// and triggers a background check if the domain is new.
-func (ds *DomainStore) TrackSiteURL(ctx context.Context, siteURL string) {
+// TrackSiteURL extracts the domain from a site URL and schedules a background check.
+// It is fully non-blocking: all DB and network work happens in a background goroutine,
+// so the caller (e.g. GetSiteURL) is never delayed by domain store operations.
+func (ds *DomainStore) TrackSiteURL(_ context.Context, siteURL string) {
 	domain, err := extractDomain(siteURL)
 	if err != nil {
 		return
 	}
 
-	// Check if already tracked with data.
-	if existing, err := ds.GetDomain(ctx, domain); err == nil && existing.LastConfig != nil {
-		return // Already tracked and has cached config
-	}
-
-	if err := ds.PutDomain(ctx, domain); err != nil {
-		ds.log.Debug("FailedToTrackDomain", zap.String("domain", domain), zap.Error(err))
-		return
-	}
-
-	// Fire background check so the cache is populated immediately.
 	ds.backgroundMu.Lock()
 	if ds.backgroundClosed {
 		ds.backgroundMu.Unlock()
@@ -262,6 +259,24 @@ func (ds *DomainStore) TrackSiteURL(ctx context.Context, siteURL string) {
 
 	go func() {
 		defer ds.backgroundWG.Done()
+
+		// Limit concurrent background checks to avoid starving the connection pool.
+		select {
+		case ds.checkSem <- struct{}{}:
+			defer func() { <-ds.checkSem }()
+		case <-backgroundCtx.Done():
+			return
+		}
+
+		// Check if already tracked with data.
+		if existing, err := ds.GetDomain(backgroundCtx, domain); err == nil && existing.LastConfig != nil {
+			return
+		}
+
+		if err := ds.PutDomain(backgroundCtx, domain); err != nil {
+			ds.log.Debug("FailedToTrackDomain", zap.String("domain", domain), zap.Error(err))
+			return
+		}
 
 		if _, err := ds.CheckDomain(backgroundCtx, domain); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 			ds.log.Debug("FailedInitialDomainCheck", zap.String("domain", domain), zap.Error(err))
