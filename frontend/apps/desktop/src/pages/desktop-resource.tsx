@@ -9,7 +9,7 @@ import {EditingDocToolsRight} from '@/components/editing-toolbar'
 import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
 import {JoinButton} from '@/components/join-button'
 import {MoveDialog} from '@/components/move-dialog'
-import {OptionsPanel} from '@/components/options-panel'
+import {fileUpload} from '@/utils/file-upload'
 import {usePublishSite, useRemoveSiteDialog} from '@/components/publish-site'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
@@ -39,7 +39,7 @@ import {findSelfQueryBlock} from '@shm/shared/content'
 import {documentMachine, PublishInput, WriteDraftInput} from '@shm/shared/models/document-machine'
 import {useDocumentInspector} from '@shm/shared/models/document-machine-inspect'
 import {useResource} from '@shm/shared/models/entity'
-import {selectContext, useDocumentSelector, useDocumentSend} from '@shm/shared/models/use-document-machine'
+import {useDocumentSend} from '@shm/shared/models/use-document-machine'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
@@ -580,7 +580,7 @@ export default function DesktopResourcePage() {
               editingFloatingActions={editingFloatingActions}
               signingAccountId={selectedAccountId || undefined}
               publishAccountUid={selectedAccount?.id?.uid || undefined}
-              optionsPanel={<DocumentOptionsPanel docId={docId} />}
+              fileUpload={fileUpload}
             />
           </QueryBlockDraftsProvider>
         </DesktopDocumentActionsProvider>
@@ -615,34 +615,3 @@ function EditModeButton({existingDraft}: {existingDraft: unknown}) {
   )
 }
 
-/**
- * Options panel for editing mode. Reads metadata from the document machine
- * context and sends `change` events when metadata is updated.
- * Must be rendered inside DocumentMachineProvider.
- */
-function DocumentOptionsPanel({docId}: {docId: UnpackedHypermediaId}) {
-  const ctx = useDocumentSelector(selectContext)
-  const send = useDocumentSend()
-  const draftId = ctx.draftId
-  const isHomeDoc = !docId.path?.length
-
-  // Merge document metadata with any pending machine metadata changes
-  const metadata = {...(ctx.document?.metadata || {}), ...ctx.metadata}
-
-  if (!draftId) return null
-
-  return (
-    <OptionsPanel
-      draftId={draftId}
-      metadata={metadata as any}
-      isHomeDoc={isHomeDoc}
-      onMetadata={(newMetadata) => {
-        if (!newMetadata) return
-        send({type: 'change', metadata: newMetadata})
-      }}
-      onResetContent={() => {
-        send({type: 'reset.content'})
-      }}
-    />
-  )
-}

@@ -345,7 +345,6 @@ export function getRoutePanel(route: NavRoute): NavRoute | null {
     panel = route.panel as DocumentPanelRoute | null
     routeId = route.id
   }
-  if (panel?.key === 'options') return null
   if (!panel) return null
   // Ensure panel has id from parent route if not set
   if (routeId && 'id' in panel && !panel.id) {

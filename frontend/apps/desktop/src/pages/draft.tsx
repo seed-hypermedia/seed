@@ -3,7 +3,8 @@ import {DiscussionsPanel} from '@/components/discussions-panel'
 import {DocNavigationDraftLoader} from '@/components/doc-navigation'
 import {EditNavPopover} from '@/components/edit-navigation-popover'
 import {HyperMediaEditorView} from '@/components/editor'
-import {OptionsPanel} from '@/components/options-panel'
+import {fileUpload} from '@/utils/file-upload'
+import {OptionsPanel} from '@shm/ui/options-panel'
 import PublishDraftButton from '@/components/publish-draft-button'
 import {subscribeDraftFocus} from '@/draft-focusing'
 import {useSelectedAccountCapability} from '@/models/access-control'
@@ -339,12 +340,10 @@ function DraftPanelContent({
           draftId={route.id}
           metadata={state.context.metadata}
           isHomeDoc={isEditingHomeDoc}
+          fileUpload={fileUpload}
           onMetadata={(metadata) => {
             if (!metadata) return
             actor.send({type: 'change', metadata})
-          }}
-          onResetContent={() => {
-            actor.send({type: 'reset.content'})
           }}
         />
       ) : null

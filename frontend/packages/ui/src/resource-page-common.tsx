@@ -53,7 +53,7 @@ import {
   parseFragment,
 } from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {Folder, Search} from 'lucide-react'
+import {Folder, Search, Settings} from 'lucide-react'
 import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AccountPage} from './account-page'
 import {CollaboratorsPage} from './collaborators-page'
@@ -70,6 +70,7 @@ import {HistoryIcon, Link} from './icons'
 import {useDocumentLayout} from './layout'
 import {MembersFacepile} from './members-facepile'
 import {MobilePanelSheet} from './mobile-panel-sheet'
+import {OptionsPanel} from './options-panel'
 import {
   DocNavigationItem,
   DocNavigationWrapper,
@@ -236,8 +237,8 @@ export interface ResourcePageProps {
   signingAccountId?: string
   /** Publish account UID for publishing (desktop only). Flows into machine context. */
   publishAccountUid?: string
-  /** Render prop for the options panel (desktop only). Rendered when panel key is 'options'. */
-  optionsPanel?: ReactNode
+  /** Async function that uploads a File to the daemon and resolves to its CID. Platform-specific. */
+  fileUpload?: (file: File) => Promise<string>
 }
 
 /** Get panel title for display */
@@ -251,6 +252,8 @@ function getPanelTitle(panelKey: string | null): string {
       return 'Directory'
     case 'collaborators':
       return 'Collaborators'
+    case 'options':
+      return 'Document Options'
     default:
       return 'Panel'
   }
@@ -282,7 +285,7 @@ export function ResourcePage({
   editingFloatingActions,
   signingAccountId,
   publishAccountUid,
-  optionsPanel,
+  fileUpload,
   ssrContentHTML,
 }: ResourcePageProps) {
   const route = useNavRoute()
@@ -515,7 +518,7 @@ export function ResourcePage({
           editingFloatingActions={editingFloatingActions}
           signingAccountId={signingAccountId}
           publishAccountUid={publishAccountUid}
-          optionsPanel={optionsPanel}
+          fileUpload={fileUpload}
           ssrContentHTML={ssrContentHTML}
         />
       </PageWrapper>
@@ -665,7 +668,7 @@ function DocumentBody({
   editingFloatingActions,
   signingAccountId,
   publishAccountUid,
-  optionsPanel,
+  fileUpload,
   ssrContentHTML,
 }: {
   docId: UnpackedHypermediaId
@@ -699,8 +702,8 @@ function DocumentBody({
   signingAccountId?: string
   /** Publish account UID for publishing (desktop only) */
   publishAccountUid?: string
-  /** Render prop for the options panel */
-  optionsPanel?: ReactNode
+  /** Async function that uploads a File to the daemon and resolves to its CID */
+  fileUpload?: (file: File) => Promise<string>
   ssrContentHTML?: string | null
 }) {
   // Sync document into state machine
@@ -736,6 +739,8 @@ function DocumentBody({
   useDraftResolutionSync(draftResolution)
   const publishedVersion = useDocumentSelector(selectPublishedVersion)
   const isEditing = useDocumentSelector(selectIsEditing)
+  const ctx = useDocumentSelector(selectContext)
+  const documentSend = useDocumentSend()
 
   const route = useNavRoute()
   const navigate = useNavigate()
@@ -743,6 +748,15 @@ function DocumentBody({
   // Extract panel from route (only document/feed routes have panels)
   const panelRoute = getRoutePanel(route) as DocumentPanelRoute | null
   const panelKey = panelRoute?.key ?? null
+
+  console.log('[DocumentBody]', {
+    isEditing,
+    panelKey,
+    routeKey: route.key,
+    draftId: ctx.draftId,
+    canEdit,
+    docId: docId.id,
+  })
 
   // Extract discussions-specific params from route or from explicit props
   const discussionsParams =
@@ -1038,6 +1052,25 @@ function DocumentBody({
       },
     }
   }, [docId, navigate, route.key])
+  const documentOptionsMenuItem = useMemo<MenuItemType | null>(() => {
+    if (!IS_DESKTOP) return null
+    return {
+      key: 'options',
+      label: 'Document Options',
+      icon: <Settings className="size-4" />,
+      onClick: () => {
+        console.log('[DocumentOptions] clicked', {isEditing, panelKey, routeKey: route.key})
+        if (!isEditing) {
+          console.log('[DocumentOptions] not editing, sending edit.start')
+          documentSend({type: 'edit.start'})
+        }
+        const newPanel = panelKey === 'options' ? null : {key: 'options' as const}
+        console.log('[DocumentOptions] setting panel', newPanel)
+        replaceRoute({...route, panel: newPanel} as any)
+      },
+    }
+  }, [isEditing, panelKey, route, documentSend, replaceRoute])
+
   const allMenuItems = useMemo(() => {
     const extras = extraMenuItems || []
     const nonDestructiveExtras = extras.filter((item) => item.variant !== 'destructive')
@@ -1047,8 +1080,11 @@ function DocumentBody({
       const copyLinkIndex = items.findIndex((item) => item.key === 'copy-link')
       items.splice(copyLinkIndex >= 0 ? copyLinkIndex + 1 : 0, 0, inspectMenuItem)
     }
+    if (documentOptionsMenuItem) {
+      items.push(documentOptionsMenuItem)
+    }
     return [...nonDestructiveExtras, ...items, ...destructiveExtras]
-  }, [extraMenuItems, commonMenuItems, inspectMenuItem])
+  }, [extraMenuItems, commonMenuItems, inspectMenuItem, documentOptionsMenuItem])
 
   const hasOptions = allMenuItems.length > 0
   const hasActionButtons = hasOptions || editActions
@@ -1359,7 +1395,7 @@ function DocumentBody({
         contentMaxWidth={contentMaxWidth}
         CommentEditor={CommentEditor}
         siteUrl={siteUrl}
-        optionsPanel={optionsPanel}
+        fileUpload={fileUpload}
       />
     </ScrollArea>
   ) : null
@@ -1511,18 +1547,20 @@ function PanelContentRenderer({
   contentMaxWidth,
   CommentEditor,
   siteUrl,
-  optionsPanel,
+  fileUpload,
 }: {
   panelRoute: DocumentPanelRoute
   docId: UnpackedHypermediaId
   contentMaxWidth: number
   CommentEditor?: React.ComponentType<CommentEditorProps>
   siteUrl?: string
-  optionsPanel?: ReactNode
+  fileUpload?: (file: File) => Promise<string>
 }) {
+  console.log('[PanelContentRenderer]', {panelKey: panelRoute.key, docId: docId.id})
   switch (panelRoute.key) {
     case 'options':
-      return optionsPanel ?? null
+      console.log('[PanelContentRenderer] rendering DocumentOptionsPanel')
+      return <DocumentOptionsPanel docId={docId} fileUpload={fileUpload} />
     case 'activity':
       return (
         <Feed size="sm" filterResource={docId.id} filterEventType={panelRoute.filterEventType} targetDomain={siteUrl} />
@@ -1567,6 +1605,41 @@ function PanelContentRenderer({
     default:
       return null
   }
+}
+
+function DocumentOptionsPanel({
+  docId,
+  fileUpload,
+}: {
+  docId: UnpackedHypermediaId
+  fileUpload?: (file: File) => Promise<string>
+}) {
+  const ctx = useDocumentSelector(selectContext)
+  const send = useDocumentSend()
+  const draftId = ctx.draftId
+  const isHomeDoc = !docId.path?.length
+
+  const metadata = {...(ctx.document?.metadata || {}), ...ctx.metadata}
+
+  console.log('[DocumentOptionsPanel]', {draftId, isHomeDoc, hasMetadata: !!metadata, docId: docId.id})
+
+  if (!draftId) {
+    console.log('[DocumentOptionsPanel] no draftId, returning null')
+    return null
+  }
+
+  return (
+    <OptionsPanel
+      draftId={draftId}
+      metadata={metadata as any}
+      isHomeDoc={isHomeDoc}
+      fileUpload={fileUpload}
+      onMetadata={(newMetadata) => {
+        if (!newMetadata) return
+        send({type: 'change', metadata: newMetadata})
+      }}
+    />
+  )
 }
 
 function MainContent({
