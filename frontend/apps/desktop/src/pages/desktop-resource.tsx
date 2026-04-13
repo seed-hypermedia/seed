@@ -32,6 +32,8 @@ import {useNavigate} from '@/utils/useNavigate'
 import {HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {DocumentEditor} from '@shm/editor/document-editor'
+import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
+import {SearchInput} from '@/components/search-input'
 import {hmId, hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
 import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
@@ -551,28 +553,30 @@ export default function DesktopResourcePage() {
       >
         <DesktopDocumentActionsProvider>
           <QueryBlockDraftsProvider {...queryBlockDraftsValue}>
-            <ResourcePage
-              docId={docId}
-              canEdit={canEdit}
-              CommentEditor={CommentBox}
-              extraMenuItems={menuItems}
-              existingDraft={existingDraft}
-              existingDraftContent={existingDraftContent}
-              existingDraftCursorPosition={draftQuery.data?.cursorPosition}
-              inlineCards={inlineCards}
-              rightActions={<JoinButton siteUid={docId.uid} />}
-              onEditProfile={onEditProfile}
-              inspect={inspect}
-              inspectStore={inspectStore}
-              DocumentContentComponent={DocumentEditor}
-              machine={machine}
-              onEditorReady={handleEditorReady}
-              machineExtras={null}
-              editingFloatingActions={editingFloatingActions}
-              signingAccountId={selectedAccountId || undefined}
-              publishAccountUid={selectedAccount?.id?.uid || undefined}
-              fileUpload={fileUpload}
-            />
+            <QuerySearchInputProvider value={SearchInput}>
+              <ResourcePage
+                docId={docId}
+                canEdit={canEdit}
+                CommentEditor={CommentBox}
+                extraMenuItems={menuItems}
+                existingDraft={existingDraft}
+                existingDraftContent={existingDraftContent}
+                existingDraftCursorPosition={draftQuery.data?.cursorPosition}
+                inlineCards={inlineCards}
+                rightActions={<JoinButton siteUid={docId.uid} />}
+                onEditProfile={onEditProfile}
+                inspect={inspect}
+                inspectStore={inspectStore}
+                DocumentContentComponent={DocumentEditor}
+                machine={machine}
+                onEditorReady={handleEditorReady}
+                machineExtras={null}
+                editingFloatingActions={editingFloatingActions}
+                signingAccountId={selectedAccountId || undefined}
+                publishAccountUid={selectedAccount?.id?.uid || undefined}
+                fileUpload={fileUpload}
+              />
+            </QuerySearchInputProvider>
           </QueryBlockDraftsProvider>
         </DesktopDocumentActionsProvider>
       </CommentsProvider>
@@ -585,5 +589,4 @@ export default function DesktopResourcePage() {
     </div>
   )
 }
-
 
