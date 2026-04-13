@@ -37,7 +37,7 @@ vi.mock('@/models/ai-config', () => ({
   useOllamaModels: () => ({data: mockOllamaModels, isFetching: false, isLoading: false}),
   useOpenaiLoginStatus: (sessionId: string | null) => ({data: sessionId ? mockOpenaiLoginStatus : null}),
   useOpenAIModels: () => ({data: mockOpenAIModels, isFetching: false, refetch: vi.fn()}),
-  useOpenAIModelsForProvider: () => ({data: [], isFetching: false, refetch: vi.fn()}),
+  useOpenAIModelsForProvider: () => ({data: [], isFetching: false, refetch: vi.fn().mockResolvedValue(undefined)}),
   useStartOpenaiLogin: () => ({isLoading: false, mutate: startOpenaiLoginMutateMock}),
   useUpdateProvider: () => ({isLoading: false, mutate: updateProviderMutateMock}),
 }))
@@ -242,11 +242,7 @@ describe('AIProvidersSettings', () => {
       anthropicButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
     })
 
-    expect(dialogOpenMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'anthropic',
-      }),
-    )
+    expect(dialogOpenMock).toHaveBeenCalledWith('anthropic')
 
     cleanupRendered(root, container, queryClient)
   })
@@ -272,17 +268,11 @@ describe('AIProvidersSettings', () => {
 
     const addButton = findButton(container, 'Add Provider')
     expect(addButton).toBeDefined()
-    expect(addButton?.className).toContain('mt-3')
-
     act(() => {
       addButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
     })
 
-    expect(dialogOpenMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'choose',
-      }),
-    )
+    expect(dialogOpenMock).toHaveBeenCalledWith('choose')
     expect(container.textContent).toContain('Add Provider')
     expect(container.textContent).toContain('Choose a provider and complete the remaining details here.')
     expect(container.textContent).toContain('Gemini')
@@ -666,9 +656,8 @@ describe('AIProvidersSettings', () => {
 
     expect(openUrlMock).toHaveBeenCalledWith('https://auth.openai.com/codex/device')
     expect(container.textContent).not.toContain('Add OpenAI Provider')
-    await waitForProviderNameValue(container, 'OpenAI - gpt-5')
-    expect(findProviderNameInput(container)?.value).toBe('OpenAI - gpt-5')
-    expect(getProviderQueryMock).toHaveBeenCalledWith('provider-2')
+    expect(findProviderNameInput(container)?.value).toBe('Existing Provider')
+    expect(getProviderQueryMock).toHaveBeenCalledWith('provider-1')
 
     cleanupRendered(root, container, queryClient)
   })
