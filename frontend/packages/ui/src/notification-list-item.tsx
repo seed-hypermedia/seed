@@ -9,6 +9,7 @@ import {notificationTitle} from '@shm/shared/models/notification-helpers'
 import {Button} from './button'
 import {HMIcon} from './hm-icon'
 import {Tooltip} from './tooltip'
+import {cn} from './utils'
 import {Check} from 'lucide-react'
 
 /** Props for the notification list item. */
@@ -32,7 +33,12 @@ export function NotificationListItem({item, isRead, onOpen, onToggleRead}: Notif
   const targetName = target.data?.type === 'document' ? getDocumentTitle(target.data.document) || undefined : undefined
 
   return (
-    <div className="group hover:bg-muted/40 flex w-full items-center gap-3 p-4 text-left">
+    <div
+      className={cn(
+        'group flex w-full items-center gap-3 p-4 text-left transition-colors',
+        isRead ? 'hover:bg-muted/40' : 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/40',
+      )}
+    >
       <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => void onOpen()}>
         <div className="pt-0.5">
           {authorId ? (
@@ -43,8 +49,10 @@ export function NotificationListItem({item, isRead, onOpen, onToggleRead}: Notif
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex items-center gap-2">
-            {!isRead ? <span className="bg-brand inline-block h-2 w-2 rounded-full" /> : null}
-            <p className="truncate text-sm">{notificationTitle(item, {authorName, targetName})}</p>
+            {!isRead ? <span className="inline-block h-2 w-2 rounded-full bg-blue-600" /> : null}
+            <p className={cn('truncate text-sm', !isRead && 'font-bold')}>
+              {notificationTitle(item, {authorName, targetName})}
+            </p>
           </div>
           <p className="text-muted-foreground text-xs">{formattedDateShort(new Date(item.eventAtMs))}</p>
         </div>
