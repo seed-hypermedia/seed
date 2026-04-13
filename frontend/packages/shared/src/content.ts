@@ -8,7 +8,6 @@ import {
   HMContactRecord,
   HMDocument,
   HMDocumentInfo,
-  HMMetadata,
 } from '@seed-hypermedia/client/hm-types'
 import {entityQueryPathToHmIdPath, normalizeDate, unpackHmId} from './utils'
 
@@ -112,14 +111,6 @@ export function getAccountName(document: HMDocument | null | undefined) {
   if (document.metadata.name) return document.metadata.name
   if (document.account) return `${document.account.slice(0, -6)}`
   return '?'
-}
-
-export function sortNewsEntries(items: HMDocumentInfo[] | undefined, sort: HMMetadata['seedExperimentalHomeOrder']) {
-  if (!items) return []
-  if (sort === 'CreatedFirst') {
-    return [...items].sort(createTimeSort)
-  }
-  return [...items].sort(lastUpdateSort)
 }
 
 function lastUpdateSort(a: HMDocumentInfo, b: HMDocumentInfo) {

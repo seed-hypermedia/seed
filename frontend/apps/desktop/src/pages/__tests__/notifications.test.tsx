@@ -8,7 +8,7 @@ import {
   markNotificationReadAndNavigate,
   notificationRouteForPayload,
   notificationTitle,
-} from '../notifications-helpers'
+} from '@shm/shared/models/notification-helpers'
 
 function hmId(uid: string, path: string[] | null = null) {
   return {

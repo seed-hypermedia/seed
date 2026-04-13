@@ -4,12 +4,12 @@ import {
   updateContact as updateContactBlob,
 } from '@seed-hypermedia/client'
 import {ContactSubscribe} from '@seed-hypermedia/client/contact'
-import type {HMAccountsMetadata, HMContact, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {HMContact, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
 import {getContactMetadata} from '../content'
 import {useUniversalClient} from '../routing'
 import {hmId} from '../utils/entity-id-url'
-import {useAccount, useAccounts, useAccountsMetadata, useResources, useSelectedAccountId} from './entity'
+import {useAccount, useAccounts, useResources, useSelectedAccountId} from './entity'
 import {queryContactsOfAccount, queryContactsOfSubject} from './queries'
 import {invalidateQueries} from './query-client'
 import {queryKeys} from './query-keys'
@@ -140,20 +140,4 @@ export function useContacts(accountUids: string[]) {
         : undefined,
     }
   })
-}
-
-export function useContactsMetadata(ids: string[]): HMAccountsMetadata {
-  const accountsMetadata = useAccountsMetadata(ids)
-  const contacts = useSelectedAccountContacts()
-  return Object.fromEntries(
-    Object.entries(accountsMetadata.data).map(([uid, account]) => {
-      return [
-        uid,
-        {
-          id: account.id,
-          metadata: getContactMetadata(account.id.uid, account.metadata, contacts.data),
-        },
-      ]
-    }),
-  )
 }

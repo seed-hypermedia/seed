@@ -53,13 +53,7 @@ import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '@shm/shared/
 import {eventStream} from '@shm/shared/utils/stream'
 import {DocNavigationItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {PushResourceStatus} from '@shm/ui/push-toast'
-import {
-  UseInfiniteQueryOptions,
-  useMutation,
-  UseMutationOptions,
-  useQuery,
-  UseQueryOptions,
-} from '@tanstack/react-query'
+import {useMutation, UseMutationOptions, useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {Extension, findParentNode} from '@tiptap/core'
 import {NodeSelection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
@@ -88,15 +82,6 @@ export const [draftDispatch, draftEvents] = eventStream<{
   type: 'change'
   signingAccount: string
 }>()
-
-export function useDocumentList(
-  opts?: UseInfiniteQueryOptions<{
-    nextPageToken: string
-    documents: HMDocument
-  }> & {},
-) {
-  throw new Error('No API implemented for useDocumentList')
-}
 
 export function useDraftList() {
   return useQuery({

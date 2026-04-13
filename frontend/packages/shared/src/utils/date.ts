@@ -119,7 +119,7 @@ export function formattedDateDayOnly(
   })
 }
 
-export function relativeFormattedDate(value?: AnyTimestamp, options?: {onlyRelative?: boolean}) {
+function relativeFormattedDate(value?: AnyTimestamp, options?: {onlyRelative?: boolean}) {
   const onlyRelative = !!options?.onlyRelative
   var now = new Date()
   let date = normalizeDate(value)

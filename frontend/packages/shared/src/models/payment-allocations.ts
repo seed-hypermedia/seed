@@ -14,11 +14,11 @@ export type PaymentAllocationCustom = {
 }
 export type PaymentAllocation = PaymentAllocationEven | PaymentAllocationCustom
 
-export const SHM_FEE = 0.01
+const SHM_FEE = 0.01
 
 export const DEFAULT_PAYMENT_AMOUNTS: number[] = [1_000, 5_000, 10_000]
 
-export function evenToCustomAllocation(allocation: PaymentAllocationEven): PaymentAllocationCustom {
+function evenToCustomAllocation(allocation: PaymentAllocationEven): PaymentAllocationCustom {
   const prevSubtotal = allocation.amount / (1 + SHM_FEE)
   // console.log('prevFee', prevFee)
   // const prevSubtotal = allocation.amount - prevFee

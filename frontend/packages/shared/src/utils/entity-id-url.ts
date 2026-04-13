@@ -12,7 +12,7 @@ import type {StateStream} from './stream'
 /**
  * Activity filter slug <-> filterEventType mapping for URL encoding
  */
-export const ACTIVITY_FILTER_SLUGS: Record<string, string[]> = {
+const ACTIVITY_FILTER_SLUGS: Record<string, string[]> = {
   comments: ['Comment'],
   versions: ['Ref'],
   citations: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
@@ -35,8 +35,8 @@ export function activitySlugToFilter(slug: string): string[] | undefined {
 export const SITE_PROFILE_TABS = ['profile', 'membership', 'followers', 'following'] as const
 export type SiteProfileTab = (typeof SITE_PROFILE_TABS)[number]
 
-export const SITE_PROFILE_VIEW_TERMS = [':profile', ':membership', ':followers', ':following'] as const
-export type SiteProfileViewTerm = (typeof SITE_PROFILE_VIEW_TERMS)[number]
+const SITE_PROFILE_VIEW_TERMS = [':profile', ':membership', ':followers', ':following'] as const
+type SiteProfileViewTerm = (typeof SITE_PROFILE_VIEW_TERMS)[number]
 
 // View terms for URL paths (e.g., /:activity, /:directory)
 // ':discussions' and ':comment' kept for backward compat URL parsing
@@ -717,28 +717,10 @@ export function packReferenceUrl(hmId: UnpackedHypermediaId): string {
   })
 }
 
-export function hmDocId(uid: string, opts?: Parameters<typeof hmId>[1]) {
-  return hmId(uid, opts)
-}
-
 /** @deprecated Import from `@seed-hypermedia/client/hm-types` instead. */
 export const parseCustomURL = _parseCustomURL
 
 // this is used to convert an object that is a superset of HMId to an exact HMId. This is used in the case of embed props (but maybe we should reconsider this approach of spreading id directly into embed props)
-export function narrowHmId(id: UnpackedHypermediaId): UnpackedHypermediaId {
-  return {
-    id: id.id,
-    uid: id.uid,
-    path: id.path,
-    version: id.version,
-    blockRef: id.blockRef,
-    blockRange: id.blockRange,
-    hostname: id.hostname,
-    scheme: id.scheme,
-    latest: id.latest,
-  }
-}
-
 export function hmId(
   idPath: string | null | undefined,
   opts: {
@@ -823,53 +805,6 @@ function serializeQueryString(query: Record<string, string | null>) {
     .join('&')
   if (!queryString) return ''
   return `?${queryString}`
-}
-
-export function hmIdWithVersion(
-  id: string | null | undefined,
-  version: string | null | undefined,
-  blockRef?: string | null | undefined,
-  blockRange?: BlockRange | null,
-) {
-  if (!id) return null
-  const unpacked = unpackHmId(id)
-  if (!unpacked) return null
-  const effectiveVersion = version || unpacked.version
-  return packHmId(
-    hmId(unpacked.uid, {
-      path: unpacked.path,
-      version: effectiveVersion,
-      blockRef,
-      blockRange,
-      latest: !effectiveVersion ? unpacked.latest : null,
-    }),
-  )
-}
-
-export function extractBlockRefOfUrl(url: string | null | undefined): string | null {
-  const fragment = url?.match(/#(.*)$/)?.[1] || null
-
-  if (fragment) {
-    return parseFragment(fragment)?.blockId || null
-  } else {
-    return null
-  }
-}
-
-export function extractBlockRangeOfUrl(url: string | null | undefined): BlockRange | null {
-  const fragment = url?.match(/#(.*)$/)?.[1] || null
-
-  if (fragment) {
-    let res = parseFragment(fragment)
-    if (res) {
-      const {blockId, ...range} = res
-      return range
-    } else {
-      return null
-    }
-  } else {
-    return null
-  }
 }
 
 /** @deprecated Import from `@seed-hypermedia/client/hm-types` instead. */
