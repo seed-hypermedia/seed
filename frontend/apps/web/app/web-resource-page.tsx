@@ -231,12 +231,3 @@ export function WebInspectorPage({docId}: {docId: UnpackedHypermediaId}) {
     </WebSitePageShell>
   )
 }
-
-/** Web-specific wrapper for the dedicated inspector page. */
-export function WebInspectorPage({docId}: {docId: UnpackedHypermediaId}) {
-  return (
-    <WebAccountFooter liftForPageFooter={true} siteUid={docId.uid}>
-      <InspectorPage docId={docId} pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />} />
-    </WebAccountFooter>
-  )
-}

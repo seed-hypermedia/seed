@@ -974,7 +974,6 @@ export function Omnibar() {
           <div className="mr-1 flex shrink-0 items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
             <BookmarkButton id={routeId} className="size-6 min-w-6" />
             <CopyReferenceButton docId={routeId} isBlockFocused={false} latest className="size-6 min-w-6" />
-            <DocOptionsButton onPublishSite={publishSite.open} />
           </div>
         ) : null}
         {publishSite.content}
