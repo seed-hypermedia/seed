@@ -122,3 +122,4 @@ bun.lock
 # (see ops/.gitignore). Other build artifacts are ignored.
 ops/dist/*
 !ops/dist/deploy.js
+seed-pprof-*
