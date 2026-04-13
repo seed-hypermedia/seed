@@ -149,6 +149,12 @@ export function AccountsView({
     (lastHandledHashRef.current !== locationHash || lastHandledRouteAccountIndexRef.current !== routeAccountIndex)
 
   useEffect(() => {
+    if (hasAccounts && selectedAccountIndex < 0) {
+      actions.selectAccount(0)
+    }
+  }, [hasAccounts, selectedAccountIndex, actions])
+
+  useEffect(() => {
     accounts.forEach((account) => {
       const kp = blobs.nobleKeyPairFromSeed(account.seed)
       const principal = blobs.principalToString(kp.principal)
