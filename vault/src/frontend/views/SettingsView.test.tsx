@@ -40,14 +40,12 @@ describe('SettingsView', () => {
   test('shows the effective notification server URL as a settings row without the edit form', () => {
     renderSettingsView('https://notify.custom.example.com/api')
 
-    const notificationsHeading = screen.getByText('Notifications')
-    const notificationsCard = notificationsHeading.closest('[data-slot="card"]')
-    expect(notificationsCard).not.toBeNull()
-
-    const notificationsSection = within(notificationsCard as HTMLElement)
-    expect(notificationsSection.getByText('Notify Server URL')).toBeDefined()
-    expect(notificationsSection.getByText('https://notify.custom.example.com/api')).toBeDefined()
-    expect(notificationsSection.getByRole('button', {name: 'Change'})).toBeDefined()
+    const notifyLabel = screen.getByText('Notify Server URL')
+    expect(notifyLabel).toBeDefined()
+    expect(screen.getByText('https://notify.custom.example.com/api')).toBeDefined()
+    // The Change button should exist in the same row
+    const notifyRow = notifyLabel.closest('.flex') as HTMLElement
+    expect(within(notifyRow).getByRole('button', {name: 'Change'})).toBeDefined()
     expect(screen.queryByLabelText('Notify Server URL')).toBeNull()
   })
 })

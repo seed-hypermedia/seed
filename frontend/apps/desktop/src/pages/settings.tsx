@@ -92,6 +92,7 @@ import {cn} from '@shm/ui/utils'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {
   Check,
+  ChevronDown,
   Code2,
   Cog,
   Copy as CopyIcon,
@@ -169,7 +170,7 @@ function AdvancedSettings() {
         Advanced
       </SizableText>
       <SettingsCard label="AGENT ASSISTANT PROVIDERS">
-        <div className="p-4">
+        <div className="p-3">
           <AIProvidersSettings />
         </div>
       </SettingsCard>
@@ -332,7 +333,7 @@ function SettingsCard({label, children}: {label: string; children: React.ReactNo
 function SettingsRow({label, description, right}: {label: string; description?: string; right?: React.ReactNode}) {
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-3">
-      <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
         <SizableText size="sm" weight="medium">
           {label}
         </SizableText>
@@ -343,6 +344,45 @@ function SettingsRow({label, description, right}: {label: string; description?: 
         ) : null}
       </div>
       {right ? <div className="shrink-0">{right}</div> : null}
+    </div>
+  )
+}
+
+function GoBuildInfo({goBuildInfo}: {goBuildInfo: string}) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-center gap-3">
+        <SizableText size="sm" weight="medium">
+          Go build
+        </SizableText>
+        <Button size="sm" variant="outline" className="shrink-0" onClick={() => setExpanded(!expanded)}>
+          Show details <ChevronDown className={cn('ml-1 size-3 transition-transform', expanded && 'rotate-180')} />
+        </Button>
+      </div>
+      {expanded ? (
+        <SizableText size="xs" className="text-muted-foreground mt-2 break-all">
+          {goBuildInfo || 'Loading...'}
+        </SizableText>
+      ) : null}
+    </div>
+  )
+}
+
+function NetworkAddresses({addrs}: {addrs?: string}) {
+  const [expanded, setExpanded] = useState(false)
+  const firstAddr = addrs?.split('\n')[0]
+  return (
+    <div className="flex items-start gap-3 px-4 py-3">
+      <SizableText size="xs" className="text-muted-foreground min-w-0 flex-1 break-all">
+        {expanded ? addrs : firstAddr ? `${firstAddr}...` : 'Loading...'}
+      </SizableText>
+      {addrs ? (
+        <Button size="sm" variant="outline" className="shrink-0" onClick={() => setExpanded(!expanded)}>
+          {expanded ? 'Show less' : 'Show all'}{' '}
+          <ChevronDown className={cn('ml-1 size-3 transition-transform', expanded && 'rotate-180')} />
+        </Button>
+      ) : null}
     </div>
   )
 }
@@ -943,17 +983,19 @@ function GatewaySettings() {
         <SettingsRow
           label="Gateway URL"
           description="Primary hyper.media endpoint"
-          right={<Input className="w-[200px]" value={gwUrl} onChangeText={setGWUrl} />}
+          right={<Input className="w-[220px]" value={gwUrl} onChangeText={setGWUrl} />}
         />
         <Separator />
         <SettingsRow
           label="Notify service host"
           description="Push notification relay server"
           right={
-            <div className="flex items-center gap-2">
-              <Input className="w-[180px]" value={notifyHost} onChangeText={setNotifyHost} />
+            <div className="relative w-[220px]">
+              <Input className="w-full pr-14" value={notifyHost} onChangeText={setNotifyHost} />
               <Button
-                size="sm"
+                size="xs"
+                variant="outline"
+                className="absolute top-1/2 right-1 -translate-y-1/2"
                 onClick={() => {
                   setNotifyServiceHost.mutate(notifyHost)
                   setGatewayUrl.mutate(gwUrl)
@@ -1150,11 +1192,7 @@ function AppSettings() {
       </SettingsCard>
 
       <SettingsCard label="NETWORK ADDRESSES">
-        <div className="px-4 py-3">
-          <SizableText size="xs" className="text-muted-foreground break-all">
-            {addrs || 'Loading...'}
-          </SizableText>
-        </div>
+        <NetworkAddresses addrs={addrs} />
       </SettingsCard>
 
       <SettingsCard label="APPLICATION">
@@ -1270,25 +1308,25 @@ function AppSettings() {
         />
         <Separator />
         <div className="grid grid-cols-2 gap-x-4 px-4 py-3">
-          <div>
-            <SizableText size="xs" className="text-muted-foreground">
+          <div className="flex flex-col">
+            <SizableText size="sm" weight="medium">
               Seed host
             </SizableText>
-            <SizableText size="sm" className="text-brand-2 cursor-pointer" onClick={() => openUrl(SEED_HOST_URL)}>
+            <SizableText size="xs" className="text-brand-2 cursor-pointer" onClick={() => openUrl(SEED_HOST_URL)}>
               {SEED_HOST_URL}
             </SizableText>
           </div>
-          <div>
-            <SizableText size="xs" className="text-muted-foreground">
+          <div className="flex flex-col">
+            <SizableText size="sm" weight="medium">
               Lightning
             </SizableText>
-            <SizableText size="sm" className="text-brand-2 cursor-pointer" onClick={() => openUrl(LIGHTNING_API_URL)}>
+            <SizableText size="xs" className="text-brand-2 cursor-pointer" onClick={() => openUrl(LIGHTNING_API_URL)}>
               {LIGHTNING_API_URL}
             </SizableText>
           </div>
         </div>
         <Separator />
-        <SettingsRow label="Go build" description={goBuildInfo || 'Loading...'} />
+        <GoBuildInfo goBuildInfo={goBuildInfo} />
       </SettingsCard>
     </>
   )

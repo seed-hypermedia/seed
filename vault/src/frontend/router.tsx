@@ -19,7 +19,6 @@ import {DelegateView} from './views/DelegateView'
 import {LoginView} from './views/LoginView'
 import {PreLoginView} from './views/PreLoginView'
 import {SetPasswordView} from './views/SetPasswordView'
-import {SettingsView} from './views/SettingsView'
 import {VaultView} from './views/VaultView'
 import {VerifyLinkView} from './views/VerifyLinkView'
 import {VerifyPendingView} from './views/VerifyPendingView'
@@ -262,7 +261,7 @@ export function createRouter() {
                 children: [
                   {
                     path: '/settings',
-                    element: <SettingsView />,
+                    element: <VaultView initialTab="settings" />,
                   },
                 ],
               },

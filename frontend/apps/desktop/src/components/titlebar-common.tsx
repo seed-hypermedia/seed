@@ -391,9 +391,9 @@ function AccountProfileButton() {
       </DropdownMenuTrigger>
       <DropdownMenuContent side="bottom" align="end" className="w-[260px]">
         {/* Account header + switcher */}
-        <div className="px-1 py-1">
+        <div className="m-1 rounded-lg border border-black/10 p-1 dark:border-white/10">
           <button
-            className="hover:bg-accent flex w-full items-center gap-3 rounded-sm px-2 py-2"
+            className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2"
             onClick={() => setSwitcherOpen(!switcherOpen)}
           >
             <HMIcon
@@ -408,14 +408,14 @@ function AccountProfileButton() {
             {switcherOpen ? <ChevronUp className="size-4 shrink-0" /> : <ChevronDown className="size-4 shrink-0" />}
           </button>
           {switcherOpen && (
-            <div className="border-border mt-1 rounded-md border">
+            <>
               <ScrollArea className="max-h-[200px]">
                 {accountOptions?.map((option) =>
                   option ? (
                     <button
                       key={option.id.uid}
                       className={cn(
-                        'hover:bg-accent flex w-full items-center gap-3 rounded-sm px-2 py-2',
+                        'hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2',
                         selectedIdentityValue === option.id.uid ? 'bg-accent' : '',
                       )}
                       onClick={() => {
@@ -431,9 +431,8 @@ function AccountProfileButton() {
                   ) : null,
                 )}
               </ScrollArea>
-              <DropdownMenuSeparator />
               <button
-                className="hover:bg-accent flex w-full items-center gap-3 rounded-sm px-2 py-2"
+                className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2"
                 onClick={() => dispatchOnboardingDialog(true)}
               >
                 <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-full">
@@ -441,10 +440,10 @@ function AccountProfileButton() {
                 </div>
                 <p className="text-sm">Create account</p>
               </button>
-            </div>
+            </>
           )}
         </div>
-        <DropdownMenuSeparator />
+        <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
         <DropdownMenuItem disabled>
           <UserCog className="size-4" />
           Manage account
@@ -457,7 +456,7 @@ function AccountProfileButton() {
           <Settings className="size-4" />
           App settings
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
+        <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
         <DropdownMenuItem variant="destructive" disabled>
           <LogOut className="size-4" />
           Log out

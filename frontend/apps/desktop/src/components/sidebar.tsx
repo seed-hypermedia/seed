@@ -68,7 +68,6 @@ import {nanoid} from 'nanoid'
 import React, {memo} from 'react'
 import {CreateDocumentButton} from './create-doc-button'
 import {GenericSidebarContainer} from './sidebar-base'
-import {SidebarFooter as AppSidebarFooter} from './sidebar-footer'
 
 export const AppSidebar = memo(MainAppSidebar)
 
@@ -117,7 +116,6 @@ export function MainAppSidebar() {
               />
             </SidebarMenuItem>
           </SidebarMenu>
-          <AppSidebarFooter isSidebarVisible={isVisible} />
         </SidebarFooterLayout>
       )}
     >

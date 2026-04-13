@@ -1,4 +1,5 @@
 import {AccountNotificationsSection} from '@/frontend/components/AccountNotificationsSection'
+import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import {getProfileAvatarImageSrc, getProfileDisplayName} from '@/frontend/profile'
 import {Separator} from '@/frontend/components/ui/separator'
 import {useAppState} from '@/frontend/store'
@@ -9,7 +10,7 @@ import * as blobs from '@shm/shared/blobs'
  * Allows users to set/remove notification email per account.
  */
 export function NotificationsView() {
-  const {vaultData, session, profiles, profileLoadStates, notificationServerUrl, loading, backendHttpBaseUrl} =
+  const {vaultData, session, profiles, profileLoadStates, notificationServerUrl, loading, error, backendHttpBaseUrl} =
     useAppState()
   const accounts = vaultData?.accounts ?? []
   const sessionEmail = session?.email?.trim() || ''
@@ -25,6 +26,8 @@ export function NotificationsView() {
           <p className="text-muted-foreground text-sm">Manage notification emails for your accounts</p>
         )}
       </div>
+
+      <ErrorMessage message={error} />
 
       {accounts.length === 0 ? (
         <p className="text-muted-foreground text-sm">No accounts yet. Create an account to configure notifications.</p>
