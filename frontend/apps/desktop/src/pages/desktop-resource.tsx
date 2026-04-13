@@ -39,7 +39,6 @@ import {findSelfQueryBlock} from '@shm/shared/content'
 import {documentMachine, PublishInput, WriteDraftInput} from '@shm/shared/models/document-machine'
 import {useDocumentInspector} from '@shm/shared/models/document-machine-inspect'
 import {useResource} from '@shm/shared/models/entity'
-import {useDocumentSend} from '@shm/shared/models/use-document-machine'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
@@ -51,7 +50,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {Copy, ForwardIcon, GitFork, Pencil} from 'lucide-react'
+import {Copy, ForwardIcon, GitFork} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {fromPromise} from 'xstate'
@@ -455,13 +454,6 @@ export default function DesktopResourcePage() {
       />
     ) : null
 
-  const editActions = canEdit ? (
-    <>
-      <EditModeButton existingDraft={existingDraft} />
-      {newButton}
-    </>
-  ) : null
-
   const editingFloatingActions = canEdit
     ? ({menuItems}: {menuItems: any[]}) => (
         <EditingDocToolsRight docId={docId} existingMenuItems={menuItems} newButton={newButton} />
@@ -564,7 +556,6 @@ export default function DesktopResourcePage() {
               canEdit={canEdit}
               CommentEditor={CommentBox}
               extraMenuItems={menuItems}
-              editActions={editActions}
               existingDraft={existingDraft}
               existingDraftContent={existingDraftContent}
               existingDraftCursorPosition={draftQuery.data?.cursorPosition}
@@ -595,23 +586,4 @@ export default function DesktopResourcePage() {
   )
 }
 
-/**
- * Edit button that sends `edit.start` to the document machine.
- * Must be rendered inside DocumentMachineProvider.
- */
-function EditModeButton({existingDraft}: {existingDraft: unknown}) {
-  const send = useDocumentSend()
-  return (
-    <Tooltip content={existingDraft ? 'Resume Editing' : 'Edit'}>
-      <Button
-        size="icon"
-        variant="outline"
-        className={cn(existingDraft ? 'bg-yellow-200 hover:bg-yellow-300' : '')}
-        onClick={() => send({type: 'edit.start'})}
-      >
-        <Pencil className="size-3.5" />
-      </Button>
-    </Tooltip>
-  )
-}
 

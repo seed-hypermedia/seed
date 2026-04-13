@@ -191,8 +191,6 @@ export interface ResourcePageProps {
   CommentEditor?: React.ComponentType<CommentEditorProps>
   /** Additional platform-specific menu items for the options dropdown */
   extraMenuItems?: MenuItemType[]
-  /** Edit/create action buttons - platform-specific (desktop only) */
-  editActions?: ReactNode
   /** Existing draft info for showing draft indicator in toolbar */
   existingDraft?: HMExistingDraft | false
   /** Pre-fetched content blocks from the existing draft (when available, used as editor initial content) */
@@ -263,7 +261,6 @@ export function ResourcePage({
   docId,
   CommentEditor,
   extraMenuItems,
-  editActions,
   existingDraft,
   existingDraftContent,
   existingDraftCursorPosition,
@@ -504,7 +501,6 @@ export function ResourcePage({
           siteUrl={siteHomeDocument?.metadata?.siteUrl}
           CommentEditor={CommentEditor}
           extraMenuItems={extraMenuItems}
-          editActions={editActions}
           existingDraft={existingDraft}
           existingDraftContent={existingDraftContent}
           existingDraftCursorPosition={existingDraftCursorPosition}
@@ -653,7 +649,6 @@ function DocumentBody({
   siteUrl,
   CommentEditor,
   extraMenuItems,
-  editActions,
   existingDraft,
   existingDraftContent,
   existingDraftCursorPosition,
@@ -679,7 +674,6 @@ function DocumentBody({
   siteUrl?: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
   extraMenuItems?: MenuItemType[]
-  editActions?: ReactNode
   existingDraft?: HMExistingDraft | false
   existingDraftContent?: HMBlockNode[]
   existingDraftCursorPosition?: number
@@ -1087,19 +1081,15 @@ function DocumentBody({
   }, [extraMenuItems, commonMenuItems, inspectMenuItem, documentOptionsMenuItem])
 
   const hasOptions = allMenuItems.length > 0
-  const hasActionButtons = hasOptions || editActions
-  const actionButtons = hasActionButtons ? (
+  const actionButtons = hasOptions ? (
     <>
       {/* Only show in the floating overlay on md+ screens — on mobile the same
           button is rendered inside DocumentTools rightActions (md:hidden), so
           hiding it here prevents both from showing simultaneously around the
           md breakpoint (issue #321). */}
-      {hasOptions && (
-        <div className="hidden md:block">
-          <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
-        </div>
-      )}
-      {editActions}
+      <div className="hidden md:block">
+        <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
+      </div>
     </>
   ) : null
 
