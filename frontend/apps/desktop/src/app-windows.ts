@@ -24,6 +24,21 @@ export function getAllWindows() {
 
 let focusedWindowKey: string | null = null
 
+const focusChangeHandlers = new Set<(focused: boolean) => void>()
+
+/** Returns true if any app window currently has focus. */
+export function isAnyWindowFocused(): boolean {
+  return focusedWindowKey !== null
+}
+
+/** Subscribe to app focus changes. Callback receives true when any window gains focus, false when all lose focus. */
+export function onAppFocusChange(handler: (focused: boolean) => void): () => void {
+  focusChangeHandlers.add(handler)
+  return () => {
+    focusChangeHandlers.delete(handler)
+  }
+}
+
 export function getFocusedWindow(): BrowserWindow | null | undefined {
   return BrowserWindow.getFocusedWindow()
 }
@@ -79,11 +94,21 @@ export function closeAppWindow(windowId: string) {
 }
 
 function windowFocused(windowId: string) {
+  const wasFocused = focusedWindowKey !== null
   focusedWindowKey = windowId
+  if (!wasFocused) {
+    focusChangeHandlers.forEach((h) => h(true))
+  }
 }
 function windowBlurred(windowId: string) {
   if (focusedWindowKey === windowId) {
     focusedWindowKey = null
+    // Defer the "all blurred" check slightly so focus transfer between windows doesn't trigger false blur
+    setTimeout(() => {
+      if (focusedWindowKey === null) {
+        focusChangeHandlers.forEach((h) => h(false))
+      }
+    }, 100)
   }
 }
 

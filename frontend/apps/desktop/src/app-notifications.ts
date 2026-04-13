@@ -18,6 +18,7 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {base58btc} from 'multiformats/bases/base58'
 import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
+import {isAnyWindowFocused} from './app-windows'
 // @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
 import * as log from './logger'
@@ -202,7 +203,7 @@ function toIngestStatus(): NotificationIngestStatus {
 
 let store = loadStore()
 let hasStartedSyncLoop = false
-let syncIntervalHandle: ReturnType<typeof setInterval> | null = null
+let syncIntervalHandle: ReturnType<typeof setTimeout> | null = null
 const syncDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const syncInFlight = new Map<string, Promise<NotificationReadMutationResult>>()
 let nextClientActionId = 0
@@ -361,12 +362,22 @@ function syncAllAccountsInBackground() {
   }
 }
 
+function scheduleNextNotificationSync() {
+  const intervalMs = SYNC_INTERVAL_MS * (isAnyWindowFocused() ? 1 : 10)
+  syncIntervalHandle = setTimeout(() => {
+    syncAllAccountsInBackground()
+    if (hasStartedSyncLoop) {
+      scheduleNextNotificationSync()
+    }
+  }, intervalMs)
+}
+
 /** Starts the shared desktop notification background sync loop. */
 export function startNotificationBackgroundSync() {
   if (hasStartedSyncLoop) return
   hasStartedSyncLoop = true
   if (!syncIntervalHandle) {
-    syncIntervalHandle = setInterval(syncAllAccountsInBackground, SYNC_INTERVAL_MS)
+    scheduleNextNotificationSync()
   }
   syncAllAccountsInBackground()
 }

@@ -28,12 +28,23 @@ import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {observable} from '@trpc/server/observable'
 import z from 'zod'
 import {appInvalidateQueries} from './app-invalidation'
+import {isAnyWindowFocused, onAppFocusChange} from './app-windows'
 import {t} from './app-trpc'
 
-// Polling intervals
+// Polling intervals (base values, multiplied by getPollingMultiplier())
 const DISCOVERY_POLL_INTERVAL_MS = 20_000
-const ACTIVITY_POLL_INTERVAL_MS = 3_000
+const ACTIVITY_POLL_INTERVAL_MS = 15_000 // was 3_000
 const DELETED_POLL_INTERVAL_MS = 60_000 // Slower polling for deleted/redirected resources
+
+/** Returns 1 when app is focused, 10 when backgrounded. */
+function getPollingMultiplier(): number {
+  return isAnyWindowFocused() ? 1 : 10
+}
+
+/** Apply adaptive multiplier to a base interval. */
+function getAdaptiveInterval(baseMs: number): number {
+  return baseMs * getPollingMultiplier()
+}
 
 // Debounce window for batching invalidations
 const INVALIDATION_DEBOUNCE_MS = 100
@@ -61,7 +72,7 @@ type SyncState = {
   isPolling: boolean
   pendingInvalidations: Set<string>
   debounceTimer: ReturnType<typeof setTimeout> | null
-  activityPollTimer: ReturnType<typeof setInterval> | null
+  activityPollTimer: ReturnType<typeof setTimeout> | null
 
   // Resource subscriptions
   subscriptions: Map<string, SubscriptionState>
@@ -352,21 +363,50 @@ async function pollActivity() {
   }
 }
 
+function scheduleNextActivityPoll() {
+  state.activityPollTimer = setTimeout(() => {
+    pollActivity().finally(() => {
+      if (state.activityPollTimer) {
+        scheduleNextActivityPoll()
+      }
+    })
+  }, getAdaptiveInterval(ACTIVITY_POLL_INTERVAL_MS))
+}
+
 function ensureActivityPolling() {
   if (state.activityPollTimer) return
-  state.activityPollTimer = setInterval(pollActivity, ACTIVITY_POLL_INTERVAL_MS)
-  pollActivity()
+  ensureFocusListener()
+  pollActivity().finally(() => {
+    if (state.activityPollTimer !== null || state.subscriptions.size > 0) {
+      scheduleNextActivityPoll()
+    }
+  })
+  // Set a placeholder so we don't double-start (will be replaced by scheduleNextActivityPoll)
+  state.activityPollTimer = setTimeout(() => {}, 0)
 }
 
 function stopActivityPolling() {
   if (state.activityPollTimer) {
-    clearInterval(state.activityPollTimer)
+    clearTimeout(state.activityPollTimer)
     state.activityPollTimer = null
   }
   if (state.debounceTimer) {
     clearTimeout(state.debounceTimer)
     state.debounceTimer = null
   }
+}
+
+// When app focus changes, restart polling timer with new interval
+let _focusCleanup: (() => void) | null = null
+function ensureFocusListener() {
+  if (_focusCleanup) return
+  _focusCleanup = onAppFocusChange(() => {
+    // Restart activity polling timer with updated multiplier
+    if (state.activityPollTimer) {
+      clearTimeout(state.activityPollTimer)
+      scheduleNextActivityPoll()
+    }
+  })
 }
 
 // ============ Discovery ============
@@ -642,7 +682,7 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
 
     if (nowCovered) {
       // Defer to the recursive subscription
-      discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
+      discoveryTimer = setTimeout(discoveryLoop, getAdaptiveInterval(DISCOVERY_POLL_INTERVAL_MS))
       return
     }
 
@@ -653,19 +693,19 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
         // For settled resources (tombstone/redirect/not-found), use slower polling
         // (the stream state is already set by runDiscovery)
         if (result?.isTombstone || result?.isRedirect || result?.isNotFound) {
-          discoveryTimer = setTimeout(discoveryLoop, DELETED_POLL_INTERVAL_MS)
+          discoveryTimer = setTimeout(discoveryLoop, getAdaptiveInterval(DELETED_POLL_INTERVAL_MS))
           return
         }
 
         // Normal resource - clear discovering state
         discoveryStream.write(null)
         updateAggregatedDiscoveryState()
-        discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
+        discoveryTimer = setTimeout(discoveryLoop, getAdaptiveInterval(DISCOVERY_POLL_INTERVAL_MS))
       })
       .catch(() => {
         if (cancelled) return
         // Keep discovering state and retry on errors
-        discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
+        discoveryTimer = setTimeout(discoveryLoop, getAdaptiveInterval(DISCOVERY_POLL_INTERVAL_MS))
       })
   }
 
