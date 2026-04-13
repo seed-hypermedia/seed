@@ -25,13 +25,13 @@ const (
 	// DefaultEmbeddingIndexPassSize is the default number of FTS rows to keep in memory per pass.
 	// After each pass, the embedder sleeps for a short time to avoid starving the CPU.
 	// Adjust the sleep duration via WithSleepPerPass.
-	DefaultEmbeddingIndexPassSize = 10
+	DefaultEmbeddingIndexPassSize = 5
 
 	// DefaultEmbeddingSleepBetweenPasses is the default sleep duration after each indexing pass.
-	DefaultEmbeddingSleepBetweenPasses = time.Millisecond * 500 // to not starve the CPU.
+	DefaultEmbeddingSleepBetweenPasses = 2 * time.Second
 
 	// DefaultEmbeddingRunInterval is the default wait time after a run finishes before starting the next one.
-	DefaultEmbeddingRunInterval = 1 * time.Minute
+	DefaultEmbeddingRunInterval = 5 * time.Minute
 
 	// DefaultEmbeddingModel is the default model name for embeddings.
 	DefaultEmbeddingModel = "embeddinggemma"
