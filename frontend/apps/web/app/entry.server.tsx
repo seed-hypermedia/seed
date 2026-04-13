@@ -33,6 +33,7 @@ import {createResourceMetadata, metadataToHeaders} from './hypermedia-metadata'
 import {getComment, resolveResource} from './loaders'
 import {logDebug} from './logger'
 import {ParsedRequest, parseRequest} from './request'
+import {getOrCreateServerSignerAccountUid} from './server-signing'
 import {applyConfigSubscriptions, getConfig, getHostnames} from './site-config.server'
 
 configDotenv() // we need this so dotenv config stays in the imports.
@@ -65,6 +66,15 @@ const CACHE_WARM_INTERVAL = process.env.CACHE_WARM_INTERVAL ? parseInt(process.e
 
 async function initializeServer() {
   recursiveRm(CACHE_PATH)
+  if (WEB_SIGNING_ENABLED) {
+    await getOrCreateServerSignerAccountUid()
+      .then((signerAccountUid) => {
+        console.log('Web signing key ready', signerAccountUid)
+      })
+      .catch((e) => {
+        console.error('Failed to initialize web signing key', e)
+      })
+  }
   if (ENABLE_HTML_CACHE) {
     await mkdir(CACHE_PATH, {recursive: true})
     await applyConfigSubscriptions()
