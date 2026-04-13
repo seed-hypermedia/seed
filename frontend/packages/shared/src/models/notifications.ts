@@ -35,12 +35,16 @@ function invalidateNotificationStateQueries(notifyServiceHost: string | undefine
 }
 
 /** Fetches the full canonical notification state for an account. */
-export function useNotificationState(notifyServiceHost: string | undefined, signer: NotificationSigner | undefined) {
+export function useNotificationState(
+  notifyServiceHost: string | undefined,
+  signer: NotificationSigner | undefined,
+  opts?: {siteUid?: string},
+) {
   const accountId = accountIdFromSigner(signer)
   return useQuery({
-    queryKey: getNotificationStateQueryKey(notifyServiceHost, accountId),
+    queryKey: [...getNotificationStateQueryKey(notifyServiceHost, accountId), opts?.siteUid ?? null],
     queryFn: async (): Promise<NotificationStateSnapshot> => {
-      return getNotificationState(notifyServiceHost!, signer!)
+      return getNotificationState(notifyServiceHost!, signer!, {siteUid: opts?.siteUid})
     },
     enabled: !!notifyServiceHost && !!signer && !!accountId,
     refetchOnMount: 'always',
@@ -54,12 +58,16 @@ export function useNotificationState(notifyServiceHost: string | undefined, sign
   })
 }
 
-export function useNotificationConfig(notifyServiceHost: string | undefined, signer: NotificationSigner | undefined) {
+export function useNotificationConfig(
+  notifyServiceHost: string | undefined,
+  signer: NotificationSigner | undefined,
+  opts?: {siteUid?: string},
+) {
   const accountId = accountIdFromSigner(signer)
   return useQuery({
-    queryKey: getNotificationStateQueryKey(notifyServiceHost, accountId),
+    queryKey: [...getNotificationStateQueryKey(notifyServiceHost, accountId), opts?.siteUid ?? null],
     queryFn: async (): Promise<NotificationStateSnapshot> => {
-      return getNotificationState(notifyServiceHost!, signer!)
+      return getNotificationState(notifyServiceHost!, signer!, {siteUid: opts?.siteUid})
     },
     select: (state: NotificationStateSnapshot) => state.config,
     enabled: !!notifyServiceHost && !!signer && !!accountId,
@@ -149,12 +157,13 @@ export function useRemoveNotificationConfig(
 export function useNotificationReadState(
   notifyServiceHost: string | undefined,
   signer: NotificationSigner | undefined,
+  opts?: {siteUid?: string},
 ) {
   const accountId = accountIdFromSigner(signer)
   return useQuery({
-    queryKey: getNotificationStateQueryKey(notifyServiceHost, accountId),
+    queryKey: [...getNotificationStateQueryKey(notifyServiceHost, accountId), opts?.siteUid ?? null],
     queryFn: async (): Promise<NotificationStateSnapshot> => {
-      return getNotificationState(notifyServiceHost!, signer!)
+      return getNotificationState(notifyServiceHost!, signer!, {siteUid: opts?.siteUid})
     },
     select: (state) => state.readState,
     enabled: !!notifyServiceHost && !!signer && !!accountId,
@@ -165,7 +174,7 @@ export function useNotificationReadState(
 export async function getNotificationInbox(
   notifyServiceHost: string,
   signer: NotificationSigner,
-  opts?: {beforeMs?: number; limit?: number},
+  opts?: {beforeMs?: number; limit?: number; siteUid?: string},
 ) {
   const state = await getNotificationState(notifyServiceHost, signer, opts)
   return {
@@ -177,12 +186,16 @@ export async function getNotificationInbox(
 }
 
 /** React-query hook that fetches the notification inbox from the server. */
-export function useNotificationInbox(notifyServiceHost: string | undefined, signer: NotificationSigner | undefined) {
+export function useNotificationInbox(
+  notifyServiceHost: string | undefined,
+  signer: NotificationSigner | undefined,
+  opts?: {siteUid?: string},
+) {
   const accountId = accountIdFromSigner(signer)
   return useQuery({
-    queryKey: getNotificationStateQueryKey(notifyServiceHost, accountId),
+    queryKey: [...getNotificationStateQueryKey(notifyServiceHost, accountId), opts?.siteUid ?? null],
     queryFn: async (): Promise<NotificationStateSnapshot> => {
-      return getNotificationState(notifyServiceHost!, signer!)
+      return getNotificationState(notifyServiceHost!, signer!, {siteUid: opts?.siteUid})
     },
     select: (state) =>
       ({

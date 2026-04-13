@@ -18,7 +18,30 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 
 // Test UID
 const TEST_UID = 'z6MkkBQP6c9TQ5JsYJNyemvg1dU3s3AwprWRm8DZHL9VabQY'
+const TEST_ORIGIN_UID = 'z6Mktm7dZfYf8u2JY2X4mM2Q9TgF2Yy9p4W1wQdG1mZx9B2R'
 const TEST_VERSION = 'test-version-123'
+
+const mockUniversalAppContext = {
+  origin: 'http://localhost:3000',
+  originHomeId: {
+    uid: TEST_UID,
+    id: `hm://${TEST_UID}`,
+    path: [],
+    version: null,
+  },
+  getOptimizedImageUrl: (cid: string) => `http://localhost:58001/hm/api/image/${cid}`,
+  ipfsFileUrl: 'http://localhost:58001/ipfs',
+  openUrl: () => {},
+  openRoute: () => {},
+  onCopyReference: () => {},
+  languagePack: undefined,
+  universalClient: {
+    request: async () => null,
+    publish: async () => ({cids: []}),
+  },
+}
+
+let mockNavRoute: {key: 'document' | 'feed'; id: ReturnType<typeof hmId>}
 
 // Helper to wrap component in required providers
 function withProviders(queryClient: QueryClient, component: React.ReactElement) {
@@ -48,25 +71,7 @@ vi.mock('@shm/shared', async (importOriginal) => {
   const actual = (await importOriginal()) as any
   return {
     ...actual,
-    useUniversalAppContext: () => ({
-      origin: 'http://localhost:3000',
-      originHomeId: {
-        uid: TEST_UID,
-        id: `hm://${TEST_UID}`,
-        path: [],
-        version: null,
-      },
-      getOptimizedImageUrl: (cid: string) => `http://localhost:58001/hm/api/image/${cid}`,
-      ipfsFileUrl: 'http://localhost:58001/ipfs',
-      openUrl: () => {},
-      openRoute: () => {},
-      onCopyReference: () => {},
-      languagePack: undefined,
-      universalClient: {
-        request: async () => null,
-        publish: async () => ({cids: []}),
-      },
-    }),
+    useUniversalAppContext: () => mockUniversalAppContext,
   }
 })
 
@@ -124,7 +129,7 @@ vi.mock('@shm/shared/utils/navigation', async (importOriginal) => {
   }
   return {
     ...actual,
-    useNavRoute: () => ({key: 'document', id: hmId(TEST_UID)}),
+    useNavRoute: () => mockNavRoute,
     useNavigate: () => () => {},
     useNavigation: () => mockNav,
     useNavigationState: () => ({routes: [{key: 'document'}], routeIndex: 0}),
@@ -209,12 +214,30 @@ function createHydratedQueryClient(docId: ReturnType<typeof hmId>, document: HMD
   const homeQueryKey = [queryKeys.ENTITY, homeId.id, homeId.version || undefined, homeId.latest || false]
   queryClient.setQueryData(homeQueryKey, createDocumentResource(document, homeId))
 
+  // Feed pages read the site home document without the `latest` flag.
+  const bareHomeId = hmId(docId.uid)
+  const bareHomeQueryKey = [
+    queryKeys.ENTITY,
+    bareHomeId.id,
+    bareHomeId.version || undefined,
+    bareHomeId.latest || false,
+  ]
+  queryClient.setQueryData(bareHomeQueryKey, createDocumentResource(document, bareHomeId))
+
   return queryClient
 }
 
 describe('SSR Document Rendering with React Query Hydration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUniversalAppContext.origin = 'http://localhost:3000'
+    mockUniversalAppContext.originHomeId = {
+      uid: TEST_UID,
+      id: `hm://${TEST_UID}`,
+      path: [],
+      version: null,
+    }
+    mockNavRoute = {key: 'document', id: hmId(TEST_UID)}
   })
 
   it('should render document content when QueryClient cache is hydrated', async () => {
@@ -276,5 +299,26 @@ describe('SSR Document Rendering with React Query Hydration', () => {
     // Verify document content passes through
     expect(html).toContain(testContent)
     expect(html).not.toContain('animate-spin')
+  })
+
+  it('should render the host banner on WebFeedPage when viewing a remote site feed', async () => {
+    const {WebFeedPage} = await import('@/web-feed-page')
+
+    const testDocument = createTestDocument('Feed page hydration test content')
+    const docId = hmId(TEST_UID, {version: TEST_VERSION})
+    const queryClient = createHydratedQueryClient(docId, testDocument)
+
+    mockUniversalAppContext.originHomeId = {
+      uid: TEST_ORIGIN_UID,
+      id: `hm://${TEST_ORIGIN_UID}`,
+      path: [],
+      version: null,
+    }
+    mockNavRoute = {key: 'feed', id: hmId(TEST_UID)}
+
+    const html = renderToString(withProviders(queryClient, createElement(WebFeedPage, {docId})))
+
+    expect(html).toContain('Hosted on')
+    expect(html).toContain('localhost:3000')
   })
 })

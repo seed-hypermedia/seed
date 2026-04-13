@@ -22,6 +22,7 @@ import {
   useRouteLink,
 } from '@shm/shared'
 
+import {HMListDiscussionsOutput} from '@seed-hypermedia/client/hm-types'
 import {
   useBlockDiscussionsService,
   useCommentReplyCount,
@@ -33,23 +34,22 @@ import {
   useHackyAuthorsSubscriptions,
   useUpdateComment,
 } from '@shm/shared/comments-service-provider'
-import {HMListDiscussionsOutput} from '@seed-hypermedia/client/hm-types'
 import {useIsCurrentUser, useResource} from '@shm/shared/models/entity'
 import {getRoutePanel} from '@shm/shared/routes'
 import {useTxString} from '@shm/shared/translation'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {Pencil, Link, MessageSquare, Trash2, X} from 'lucide-react'
+import {Link, MessageSquare, Pencil, Trash2, X} from 'lucide-react'
 import {memo, ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {toast} from 'sonner'
 import {SelectionContent} from './accessories'
 import {BlockRangeSelectOptions, BlocksContent, BlocksContentProvider, getBlockNodeById} from './blocks-content'
 import {Button} from './button'
+import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {copyTextToClipboard, copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
 import {AuthorNameLink, getContextualProfileRoute, InlineDescriptor, Timestamp} from './inline-descriptor'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
-import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
@@ -688,7 +688,8 @@ export const Comment = memo(function Comment({
               {!isEditing && (
                 <Tooltip content={tx('Copy Comment Link')}>
                   <Button
-                    size="icon"
+                    // size="icon"
+                    size="xs"
                     variant="ghost"
                     className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
                     onClick={() => {
@@ -718,6 +719,7 @@ export const Comment = memo(function Comment({
               {!isEditing && options.length > 0 ? (
                 <OptionsDropdown
                   side="bottom"
+                  size="xs"
                   align="end"
                   className="hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
                   menuItems={options}

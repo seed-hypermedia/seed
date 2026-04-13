@@ -1,5 +1,6 @@
 import {
   clearNotificationEmailVerificationForAccount,
+  getAllNotifications,
   getNotificationConfig,
   getNotificationEmailVerificationForAccount,
   registerInboxAccount,
@@ -18,13 +19,25 @@ import {
 import {createNotificationVerificationEmail} from '@shm/emails/notifier'
 import {NOTIFY_SERVICE_HOST, SITE_BASE_URL} from '@shm/shared/constants'
 import {
-  reduceNotificationStateActions,
+  reduceNotificationState,
   type NotificationConfigState,
   type NotificationMutationAction,
   type NotificationStateSnapshot,
 } from '@shm/shared/models/notification-state'
+import {
+  isNotificationEventRead,
+  markNotificationEventReadInState,
+  type NotificationReadLikeState,
+} from '@shm/shared/models/notification-read-logic'
+import type {NotificationPayload} from '@shm/shared/models/notification-payload'
 
 const notificationEmailHost = (NOTIFY_SERVICE_HOST || SITE_BASE_URL).replace(/\/$/, '')
+
+type NotificationStatePageOptions = {
+  beforeMs?: number
+  limit?: number
+  siteUid?: string
+}
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase()
@@ -111,10 +124,89 @@ async function persistNotificationConfigState(
   }
 }
 
+function isReadStateMutation(action: NotificationMutationAction) {
+  return (
+    action.type === 'mark-event-read' ||
+    action.type === 'mark-event-unread' ||
+    action.type === 'mark-all-read' ||
+    action.type === 'mark-site-read'
+  )
+}
+
+function markSiteNotificationsRead(
+  readState: NotificationStateSnapshot['readState'],
+  notifications: NotificationPayload[],
+): NotificationStateSnapshot['readState'] {
+  let nextReadState = readState
+
+  for (const notification of notifications) {
+    if (
+      isNotificationEventRead({
+        readState: nextReadState,
+        eventId: notification.feedEventId,
+        eventAtMs: notification.eventAtMs,
+      })
+    ) {
+      continue
+    }
+
+    nextReadState = {
+      ...nextReadState,
+      ...markNotificationEventReadInState({
+        readState: nextReadState,
+        eventId: notification.feedEventId,
+        eventAtMs: notification.eventAtMs,
+      }),
+    }
+  }
+
+  return nextReadState
+}
+
+function compactNotificationReadState(
+  readState: NotificationStateSnapshot['readState'],
+  notifications: NotificationPayload[],
+): NotificationReadLikeState {
+  let nextMarkAllReadAtMs = readState.markAllReadAtMs
+  const notificationBuckets = new Map<number, NotificationPayload[]>()
+
+  for (const notification of notifications) {
+    const bucket = notificationBuckets.get(notification.eventAtMs)
+    if (bucket) {
+      bucket.push(notification)
+    } else {
+      notificationBuckets.set(notification.eventAtMs, [notification])
+    }
+  }
+
+  const sortedEventTimes = [...notificationBuckets.keys()].sort((left, right) => left - right)
+  for (const eventAtMs of sortedEventTimes) {
+    if (nextMarkAllReadAtMs !== null && eventAtMs <= nextMarkAllReadAtMs) continue
+    const bucket = notificationBuckets.get(eventAtMs) ?? []
+    const bucketHasUnread = bucket.some(
+      (notification) =>
+        !isNotificationEventRead({
+          readState,
+          eventId: notification.feedEventId,
+          eventAtMs: notification.eventAtMs,
+        }),
+    )
+    if (bucketHasUnread) break
+    nextMarkAllReadAtMs = eventAtMs
+  }
+
+  return {
+    markAllReadAtMs: nextMarkAllReadAtMs,
+    readEvents: readState.readEvents.filter(
+      (readEvent) => nextMarkAllReadAtMs === null || readEvent.eventAtMs > nextMarkAllReadAtMs,
+    ),
+  }
+}
+
 /** Returns the canonical notification state snapshot for an account. */
 export function getNotificationStateSnapshot(
   accountId: string,
-  opts: {beforeMs?: number; limit?: number} = {},
+  opts: NotificationStatePageOptions = {},
 ): NotificationStateSnapshot {
   registerInboxAccount(accountId)
   const inbox = getNotificationsPage(accountId, opts)
@@ -130,19 +222,47 @@ export function getNotificationStateSnapshot(
 export async function applyNotificationActionsForAccount(
   accountId: string,
   actions: NotificationMutationAction[],
-  opts: {beforeMs?: number; limit?: number} = {},
+  opts: NotificationStatePageOptions = {},
 ): Promise<NotificationStateSnapshot> {
   if (!actions.length) {
     return getNotificationStateSnapshot(accountId, opts)
   }
 
   const currentState = getNotificationStateSnapshot(accountId, opts)
-  const nextState = reduceNotificationStateActions(currentState, actions)
+  let nextState = currentState
+  let hasReadStateChanges = false
 
-  replaceNotificationReadState(accountId, {
-    markAllReadAtMs: nextState.readState.markAllReadAtMs,
-    readEvents: nextState.readState.readEvents,
-  })
+  for (const action of actions) {
+    if (action.type === 'mark-site-read') {
+      nextState = {
+        ...nextState,
+        readState: markSiteNotificationsRead(
+          nextState.readState,
+          getAllNotifications(accountId, {siteUid: action.siteUid}),
+        ),
+      }
+      hasReadStateChanges = true
+      continue
+    }
+
+    nextState = reduceNotificationState(nextState, action)
+    hasReadStateChanges = hasReadStateChanges || isReadStateMutation(action)
+  }
+
+  if (hasReadStateChanges) {
+    nextState = {
+      ...nextState,
+      readState: {
+        ...nextState.readState,
+        ...compactNotificationReadState(nextState.readState, getAllNotifications(accountId)),
+      },
+    }
+    replaceNotificationReadState(accountId, {
+      markAllReadAtMs: nextState.readState.markAllReadAtMs,
+      readEvents: nextState.readState.readEvents,
+    })
+  }
+
   await persistNotificationConfigState(accountId, currentState.config, nextState.config)
 
   return getNotificationStateSnapshot(accountId, opts)

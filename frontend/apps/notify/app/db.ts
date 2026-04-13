@@ -94,6 +94,7 @@ let stmtPruneNotificationReadEvents: Database.Statement
 let stmtInsertNotification: Database.Statement
 let stmtGetNotificationsPage: Database.Statement
 let stmtGetNotificationsFirstPage: Database.Statement
+let stmtGetAllNotificationsForAccount: Database.Statement
 let stmtRegisterInboxAccount: Database.Statement
 let stmtGetInboxRegisteredAccounts: Database.Statement
 let stmtIsInboxRegistered: Database.Statement
@@ -461,16 +462,21 @@ export async function initDatabase(): Promise<void> {
     VALUES (?, ?, ?, ?)
   `)
   stmtGetNotificationsPage = db.prepare(`
-    SELECT data FROM notification_inbox
+    SELECT data, eventAtMs FROM notification_inbox
     WHERE accountId = ? AND eventAtMs < ?
     ORDER BY eventAtMs DESC
     LIMIT ?
   `)
   stmtGetNotificationsFirstPage = db.prepare(`
-    SELECT data FROM notification_inbox
+    SELECT data, eventAtMs FROM notification_inbox
     WHERE accountId = ?
     ORDER BY eventAtMs DESC
     LIMIT ?
+  `)
+  stmtGetAllNotificationsForAccount = db.prepare(`
+    SELECT data FROM notification_inbox
+    WHERE accountId = ?
+    ORDER BY eventAtMs DESC
   `)
   stmtRegisterInboxAccount = db.prepare(`
     INSERT INTO inbox_registration (accountId)
@@ -849,6 +855,24 @@ export function replaceNotificationReadState(
 
 import type {NotificationPayload} from '@shm/shared/models/notification-payload'
 
+function notificationMatchesSite(notification: NotificationPayload, siteUid?: string) {
+  if (!siteUid) return true
+  return notification.target.uid === siteUid
+}
+
+function selectNotificationRows(
+  accountId: string,
+  opts: {beforeMs?: number; limit: number},
+): Array<{data: string; eventAtMs: number}> {
+  if (opts.beforeMs != null) {
+    return stmtGetNotificationsPage.all(accountId, opts.beforeMs, opts.limit) as Array<{
+      data: string
+      eventAtMs: number
+    }>
+  }
+  return stmtGetNotificationsFirstPage.all(accountId, opts.limit) as Array<{data: string; eventAtMs: number}>
+}
+
 export function insertNotification(
   accountId: string,
   feedEventId: string,
@@ -869,26 +893,62 @@ export function insertNotificationsBatch(
   transaction()
 }
 
+/** Returns every persisted notification for an account, optionally filtered to one site UID. */
+export function getAllNotifications(accountId: string, opts: {siteUid?: string} = {}): NotificationPayload[] {
+  const rows = stmtGetAllNotificationsForAccount.all(accountId) as Array<{data: string}>
+  return rows
+    .map((row) => JSON.parse(row.data) as NotificationPayload)
+    .filter((notification) => notificationMatchesSite(notification, opts.siteUid))
+}
+
+/** Returns a single page of persisted notifications for an account. */
 export function getNotificationsPage(
   accountId: string,
-  opts: {beforeMs?: number; limit?: number} = {},
+  opts: {beforeMs?: number; limit?: number; siteUid?: string} = {},
 ): {notifications: NotificationPayload[]; hasMore: boolean; oldestEventAtMs: number | null} {
   const limit = Math.min(opts.limit ?? 50, 500)
   const fetchLimit = limit + 1
 
-  let rows: Array<{data: string}>
-  if (opts.beforeMs != null) {
-    rows = stmtGetNotificationsPage.all(accountId, opts.beforeMs, fetchLimit) as Array<{data: string}>
-  } else {
-    rows = stmtGetNotificationsFirstPage.all(accountId, fetchLimit) as Array<{data: string}>
+  if (!opts.siteUid) {
+    const rows = selectNotificationRows(accountId, {
+      beforeMs: opts.beforeMs,
+      limit: fetchLimit,
+    })
+    const hasMore = rows.length > limit
+    const pageRows = hasMore ? rows.slice(0, limit) : rows
+    const notifications = pageRows.map((row) => JSON.parse(row.data) as NotificationPayload)
+    const oldestEventAtMs = notifications.length > 0 ? notifications[notifications.length - 1]!.eventAtMs : null
+    return {notifications, hasMore, oldestEventAtMs}
   }
 
-  const hasMore = rows.length > limit
-  const pageRows = hasMore ? rows.slice(0, limit) : rows
-  const notifications = pageRows.map((row) => JSON.parse(row.data) as NotificationPayload)
-  const oldestEventAtMs = notifications.length > 0 ? notifications[notifications.length - 1]!.eventAtMs : null
+  const notifications: NotificationPayload[] = []
+  let cursor = opts.beforeMs
+  const batchSize = Math.max(fetchLimit, 100)
 
-  return {notifications, hasMore, oldestEventAtMs}
+  while (notifications.length < fetchLimit) {
+    const rows = selectNotificationRows(accountId, {
+      beforeMs: cursor,
+      limit: batchSize,
+    })
+    if (!rows.length) break
+
+    for (const row of rows) {
+      const notification = JSON.parse(row.data) as NotificationPayload
+      if (!notificationMatchesSite(notification, opts.siteUid)) continue
+      notifications.push(notification)
+      if (notifications.length >= fetchLimit) break
+    }
+
+    if (rows.length < batchSize) break
+    cursor = rows[rows.length - 1]!.eventAtMs
+  }
+
+  const hasMore = notifications.length > limit
+  const pageNotifications = hasMore ? notifications.slice(0, limit) : notifications
+  const oldestEventAtMs =
+    pageNotifications.length > 0 ? pageNotifications[pageNotifications.length - 1]!.eventAtMs : null
+
+  return {notifications: pageNotifications, hasMore, oldestEventAtMs}
 }
 
 export function registerInboxAccount(accountId: string): void {

@@ -29,6 +29,10 @@ const notificationMutationActionSchema = z.discriminatedUnion('type', [
     markAllReadAtMs: z.number(),
   }),
   z.object({
+    type: z.literal('mark-site-read'),
+    siteUid: z.string(),
+  }),
+  z.object({
     type: z.literal('set-config'),
     email: z.string(),
     createdAtMs: z.number(),
@@ -51,6 +55,7 @@ const notificationAction = z.discriminatedUnion('action', [
     accountUid: z.string().optional(),
     beforeMs: z.number().optional(),
     limit: z.number().int().min(1).max(500).optional(),
+    siteUid: z.string().optional(),
   }),
   z.object({
     action: z.literal('apply-notification-actions'),
@@ -60,6 +65,7 @@ const notificationAction = z.discriminatedUnion('action', [
     accountUid: z.string().optional(),
     beforeMs: z.number().optional(),
     limit: z.number().int().min(1).max(500).optional(),
+    siteUid: z.string().optional(),
     actions: z.array(notificationMutationActionSchema),
   }),
 ])
@@ -98,6 +104,7 @@ export const action = cborApiAction<NotificationAction, any>(async (signedPayloa
   const page = {
     beforeMs: restPayload.beforeMs,
     limit: restPayload.limit,
+    siteUid: restPayload.siteUid,
   }
 
   if (restPayload.action === 'get-notification-state') {

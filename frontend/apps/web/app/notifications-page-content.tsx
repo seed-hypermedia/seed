@@ -8,10 +8,7 @@ import {
   useWebMarkAllNotificationsRead,
 } from '@/web-notifications'
 import {routeToHref, useUniversalAppContext} from '@shm/shared'
-import {
-  getMaxLoadedNotificationEventAtMs,
-  markNotificationReadAndNavigate,
-} from '@shm/shared/models/notification-helpers'
+import {markNotificationReadAndNavigate} from '@shm/shared/models/notification-helpers'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import type {NavRoute} from '@shm/shared/routes'
 import {Button} from '@shm/ui/button'
@@ -58,11 +55,12 @@ export function WebNotificationsPage() {
 
 function WebNotificationsForAccount({accountUid}: {accountUid: string}) {
   const {origin, originHomeId} = useUniversalAppContext()
-  const inbox = useWebNotificationInbox()
-  const readState = useWebNotificationReadState()
-  const markEventRead = useWebMarkNotificationEventRead()
-  const markEventUnread = useWebMarkNotificationEventUnread()
-  const markAllRead = useWebMarkAllNotificationsRead()
+  const siteUid = originHomeId?.uid
+  const inbox = useWebNotificationInbox(siteUid)
+  const readState = useWebNotificationReadState(siteUid)
+  const markEventRead = useWebMarkNotificationEventRead(siteUid)
+  const markEventUnread = useWebMarkNotificationEventUnread(siteUid)
+  const markAllRead = useWebMarkAllNotificationsRead(siteUid)
 
   const notifications = inbox.data?.notifications ?? []
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
@@ -81,10 +79,6 @@ function WebNotificationsForAccount({accountUid}: {accountUid: string}) {
         }),
     )
   }, [notifications, filter, readState.data])
-
-  const maxLoadedEventAtMs = useMemo(() => {
-    return getMaxLoadedNotificationEventAtMs(notifications)
-  }, [notifications])
 
   const remixNavigate = useRemixNavigate()
   const navigate = useCallback(
@@ -109,7 +103,6 @@ function WebNotificationsForAccount({accountUid}: {accountUid: string}) {
           onClick={() =>
             markAllRead.mutate({
               accountUid,
-              markAllReadAtMs: maxLoadedEventAtMs,
             })
           }
         >
