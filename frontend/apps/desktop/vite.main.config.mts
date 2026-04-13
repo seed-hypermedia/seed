@@ -13,6 +13,7 @@ export default defineConfig(({command, mode}) => {
     define: {
       __SENTRY_DSN__: JSON.stringify(process.env.VITE_DESKTOP_SENTRY_DSN || ''),
       __FORCE_LOADING_WINDOW__: JSON.stringify(process.env.VITE_FORCE_LOADING_WINDOW),
+      __SEED_P2P_TESTNET_NAME__: JSON.stringify(process.env.SEED_P2P_TESTNET_NAME || ''),
 
       // Electron Forge environment variables for main process
       MAIN_WINDOW_VITE_DEV_SERVER_URL: JSON.stringify(process.env.MAIN_WINDOW_VITE_DEV_SERVER_URL),
