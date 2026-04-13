@@ -112,6 +112,7 @@ vi.mock('@/auth', () => ({
   AccountFooterActions: () => null,
   EditProfileDialog: () => null,
   LogoutButton: () => null,
+  LogoutDialog: () => null,
 }))
 
 // Mock navigation hooks used by WebResourcePage

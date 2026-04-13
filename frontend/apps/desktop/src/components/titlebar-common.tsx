@@ -1,6 +1,7 @@
 import {useAppContext} from '@/app-context'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {useDeleteDialog} from '@/components/delete-dialog'
+import {domainResolver} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
@@ -9,7 +10,6 @@ import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
-import {domainResolver} from '@/grpc-client'
 import {resolveOmnibarUrlToRoute} from '@/omnibar-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
@@ -19,15 +19,23 @@ import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import {hostnameStripProtocol} from '@shm/shared'
+import {hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {useResource} from '@shm/shared/models/entity'
+import {useAccounts, useResource} from '@shm/shared/models/entity'
 import {DocumentRoute, DraftRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {createWebHMUrl, displayHostname, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@shm/ui/components/dropdown-menu'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Back, CloudOff, Download, Forward, Link, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
@@ -42,13 +50,20 @@ import {
   ArrowLeftFromLine,
   ArrowRightFromLine,
   Bell,
+  ChevronDown,
+  ChevronUp,
   FilePlus,
   ForwardIcon,
   GitFork,
   Import,
   Lock,
+  LogOut,
+  Monitor,
   PanelLeft,
+  Plus,
   Search,
+  Settings,
+  UserCog,
 } from 'lucide-react'
 import {ReactNode, useCallback, useContext, useMemo, useRef, useState} from 'react'
 import {BookmarkButton} from './bookmarking'
@@ -56,6 +71,7 @@ import {BranchDialog} from './branch-dialog'
 import {CopyReferenceButton} from './copy-reference-button'
 import {useImportDialog, useImporting} from './import-doc-button'
 import {MoveDialog} from './move-dialog'
+import {dispatchOnboardingDialog} from './onboarding'
 import {usePublishSite, useRemoveSiteDialog, useSeedHostDialog} from './publish-site'
 import {SearchInput, SearchInputHandle} from './search-input'
 import {TitleBarProps} from './titlebar'
@@ -343,35 +359,110 @@ function NotificationButton() {
 
 function AccountProfileButton() {
   const navigate = useNavigate()
-  const route = useNavRoute()
   const accountUid = useSelectedAccountId()
   const selectedAccount = useSelectedAccount()
+  const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
+  const selectedIdentityValue = useStream(selectedIdentity)
+  const myAccountIds = useMyAccountIds()
+  const accountQueries = useAccounts(myAccountIds.data || [])
+  const [switcherOpen, setSwitcherOpen] = useState(false)
+
+  const accountOptions = myAccountIds.data
+    ?.map((uid, index) => {
+      const accountData = accountQueries[index]?.data
+      if (!accountData) return null
+      return accountData
+    })
+    .filter((d) => !!d)
 
   if (!accountUid) return null
 
-  const isActive = route.key === 'profile' && route.id?.uid === accountUid
-
   return (
-    <Tooltip content="My Profile" asChild>
-      <Button
-        className={cn(
-          'window-no-drag relative h-8 w-8 overflow-hidden rounded-full border-1 p-0',
-          isActive
-            ? 'cursor-default border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
-            : 'border-transparent',
-        )}
-        aria-current={isActive ? 'page' : undefined}
-        aria-disabled={isActive || undefined}
-        onClick={isActive ? undefined : () => navigate({key: 'profile', id: hmId(accountUid)})}
-      >
-        <HMIcon
-          id={hmId(accountUid)}
-          name={selectedAccount?.metadata?.name}
-          icon={selectedAccount?.metadata?.icon}
-          size={32}
-        />
-      </Button>
-    </Tooltip>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button className="window-no-drag relative h-8 w-8 overflow-hidden rounded-full border-1 border-transparent p-0">
+          <HMIcon
+            id={hmId(accountUid)}
+            name={selectedAccount?.metadata?.name}
+            icon={selectedAccount?.metadata?.icon}
+            size={32}
+          />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="bottom" align="end" className="w-[260px]">
+        {/* Account header + switcher */}
+        <div className="m-1 rounded-lg border border-black/10 p-1 dark:border-white/10">
+          <button
+            className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2"
+            onClick={() => setSwitcherOpen(!switcherOpen)}
+          >
+            <HMIcon
+              id={hmId(accountUid)}
+              name={selectedAccount?.metadata?.name}
+              icon={selectedAccount?.metadata?.icon}
+              size={32}
+            />
+            <div className="min-w-0 flex-1 text-left">
+              <p className="truncate text-sm font-medium">{selectedAccount?.metadata?.name || 'Account'}</p>
+            </div>
+            {switcherOpen ? <ChevronUp className="size-4 shrink-0" /> : <ChevronDown className="size-4 shrink-0" />}
+          </button>
+          {switcherOpen && (
+            <>
+              <ScrollArea className="max-h-[200px]">
+                {accountOptions?.map((option) =>
+                  option ? (
+                    <button
+                      key={option.id.uid}
+                      className={cn(
+                        'hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2',
+                        selectedIdentityValue === option.id.uid ? 'bg-accent' : '',
+                      )}
+                      onClick={() => {
+                        setSelectedIdentity?.(option.id.uid || null)
+                        setSwitcherOpen(false)
+                      }}
+                    >
+                      <HMIcon id={option.id} name={option.metadata?.name} icon={option.metadata?.icon} size={32} />
+                      <p className="min-w-0 truncate text-sm">
+                        {option.metadata?.name || `?${option.id.uid?.slice(-8)}`}
+                      </p>
+                    </button>
+                  ) : null,
+                )}
+              </ScrollArea>
+              <button
+                className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2"
+                onClick={() => dispatchOnboardingDialog(true)}
+              >
+                <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-full">
+                  <Plus className="size-4" />
+                </div>
+                <p className="text-sm">Create account</p>
+              </button>
+            </>
+          )}
+        </div>
+        <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+        <DropdownMenuItem disabled>
+          <UserCog className="size-4" />
+          Manage account
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled>
+          <Monitor className="size-4" />
+          Site settings
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate({key: 'settings'})}>
+          <Settings className="size-4" />
+          App settings
+        </DropdownMenuItem>
+        <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+        <DropdownMenuItem variant="destructive" disabled>
+          <LogOut className="size-4" />
+          Log out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

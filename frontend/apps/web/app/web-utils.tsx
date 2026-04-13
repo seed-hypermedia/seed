@@ -5,16 +5,26 @@ import {isNotificationEventRead} from '@shm/shared/models/notification-read-logi
 import {displayHostname, routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {ButtonLink} from '@shm/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@shm/ui/components/dropdown-menu'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {FloatingAccountFooter} from '@shm/ui/floating-account-footer'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {Link} from '@shm/ui/icons'
 import {JoinButton} from '@shm/ui/join-button'
+import {MobilePanelSheet} from '@shm/ui/mobile-panel-sheet'
 import {MenuItemType} from '@shm/ui/options-dropdown'
-import {Bell, Search} from 'lucide-react'
-import {ReactNode, useMemo} from 'react'
-import {useCreateAccount, useLocalKeyPair} from './auth'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {useMedia} from '@shm/ui/use-media'
+import {Bell, LogOut, Search, UserCog} from 'lucide-react'
+import {ReactNode, useMemo, useState} from 'react'
+import {LogoutDialog, useCreateAccount, useLocalKeyPair} from './auth'
 import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifications'
 
 export function useWebMenuItems(): MenuItemType[] {
@@ -98,15 +108,15 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
  */
 export function WebAccountFooter({
   children,
-  siteUid,
   liftForPageFooter = false,
 }: {
   children?: ReactNode
-  siteUid: string
+  siteUid?: string
   liftForPageFooter?: boolean
 }) {
   const keyPair = useLocalKeyPair()
   const accountId = keyPair?.delegatedAccountUid ?? keyPair?.id
+  const logoutDialog = useAppDialog(LogoutDialog)
 
   const myAccount = useAccount(accountId || undefined, {
     retry: 3,
@@ -122,33 +132,110 @@ export function WebAccountFooter({
     }
   }, [myAccount.data])
 
-  const profileLinkProps = useRouteLink(
-    keyPair
-      ? {
-          key: 'site-profile',
-          id: hmId(siteUid, {latest: true}),
-          accountUid: accountId!,
-          tab: 'profile' as const,
-        }
-      : null,
+  const vaultUrl = keyPair?.vaultUrl
+  const media = useMedia()
+  const isMobile = media.xs
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  const avatarIcon = (
+    <HMIcon
+      id={account?.id ?? hmId(accountId!, {latest: true})}
+      name={account?.metadata?.name}
+      icon={account?.metadata?.icon}
+      size={32}
+    />
+  )
+
+  const menuItems = (
+    <>
+      <button
+        className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left disabled:opacity-50"
+        onClick={() => {
+          if (vaultUrl) {
+            window.open(vaultUrl, '_blank')
+          }
+          setMobileMenuOpen(false)
+        }}
+        disabled={!vaultUrl}
+      >
+        <UserCog className="size-5" />
+        <span className="text-sm">Manage account</span>
+      </button>
+      <div className="bg-border mx-4 h-px" />
+      <button
+        className="text-destructive hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+        onClick={() => {
+          setMobileMenuOpen(false)
+          logoutDialog.open({})
+        }}
+      >
+        <LogOut className="size-5" />
+        <span className="text-sm">Log out</span>
+      </button>
+    </>
   )
 
   const accountButton = keyPair ? (
-    <div className="flex items-center gap-2 rounded-full bg-white p-1 dark:bg-black">
-      <a {...profileLinkProps} className="flex rounded-full shadow-lg">
-        <HMIcon
-          id={account?.id ?? hmId(accountId!, {latest: true})}
-          name={account?.metadata?.name}
-          icon={account?.metadata?.icon}
-          size={32}
-        />
-      </a>
-      {keyPair.notifyServerUrl ? <NotifsButton /> : null}
-    </div>
+    isMobile ? (
+      <div className="flex items-center gap-2 rounded-full bg-white p-1 dark:bg-black">
+        <button className="flex cursor-pointer rounded-full shadow-lg" onClick={() => setMobileMenuOpen(true)}>
+          {avatarIcon}
+        </button>
+        {keyPair.notifyServerUrl ? <NotifsButton /> : null}
+        <MobilePanelSheet isOpen={mobileMenuOpen} title="" onClose={() => setMobileMenuOpen(false)}>
+          <div className="flex items-center gap-3 px-4 py-4">
+            {avatarIcon}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{account?.metadata?.name || 'Account'}</p>
+            </div>
+          </div>
+          <div className="bg-border h-px" />
+          {menuItems}
+        </MobilePanelSheet>
+      </div>
+    ) : (
+      <div className="flex items-center gap-2 rounded-full bg-white p-1 dark:bg-black">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex cursor-pointer rounded-full shadow-lg">{avatarIcon}</button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="start" className="min-w-[200px]">
+            <div className="flex items-center gap-3 px-2 py-2">
+              {avatarIcon}
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{account?.metadata?.name || 'Account'}</p>
+              </div>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => {
+                if (vaultUrl) {
+                  window.open(vaultUrl, '_blank')
+                }
+              }}
+              disabled={!vaultUrl}
+            >
+              <UserCog className="size-4" />
+              Manage account
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={() => logoutDialog.open({})}>
+              <LogOut className="size-4" />
+              Log out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {keyPair.notifyServerUrl ? <NotifsButton /> : null}
+      </div>
+    )
   ) : null
 
   return (
-    <FloatingAccountFooter floatingButton={accountButton} liftForPageFooter={liftForPageFooter}>
+    <FloatingAccountFooter
+      floatingButton={accountButton}
+      extraContent={logoutDialog.content}
+      liftForPageFooter={liftForPageFooter}
+    >
       {children}
     </FloatingAccountFooter>
   )

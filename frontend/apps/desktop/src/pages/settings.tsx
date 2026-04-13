@@ -73,7 +73,7 @@ import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
-import {Tabs, TabsContent, TabsList, TabsTrigger} from '@shm/ui/components/tabs'
+import {TabsContent, TabsTrigger} from '@shm/ui/components/tabs'
 import {Textarea} from '@shm/ui/components/textarea'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
@@ -91,9 +91,8 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {
-  AtSign,
-  Bot,
   Check,
+  ChevronDown,
   Code2,
   Cog,
   Copy as CopyIcon,
@@ -115,49 +114,98 @@ const ANTHROPIC_MODELS_FALLBACK = ['claude-opus-4-20250514', 'claude-sonnet-4-20
 const GEMINI_MODELS_FALLBACK = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite']
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState('accounts')
+  const [activeTab, setActiveTab] = useState('general')
   return (
     <div className={cn(windowContainerStyles, 'h-full max-h-full min-h-0 w-full overflow-hidden pt-0')}>
       <div className={panelContainerStyles}>
-        <Tabs
-          onValueChange={(v) => setActiveTab(v)}
-          defaultValue="accounts"
-          className="flex flex-1 flex-col overflow-hidden"
-        >
-          <TabsList
-            aria-label="Manage your account"
-            className="flex h-auto w-full flex-none shrink-0 items-center justify-center rounded-none bg-transparent p-0"
-          >
-            <Tab value="accounts" active={activeTab === 'accounts'} icon={AtSign} label="Accounts" />
-            <Tab value="general" active={activeTab === 'general'} icon={Cog} label="General" />
-            <Tab value="gateway" active={activeTab === 'gateway'} icon={RadioTower} label="Gateway" />
-            <Tab value="ai-providers" active={activeTab === 'ai-providers'} icon={Bot} label="Assistant" />
-            <Tab value="app-info" active={activeTab === 'app-info'} icon={Info} label="App Info" />
-            <Tab value="developer" active={activeTab === 'developer'} icon={Code2} label="Developers" />
-          </TabsList>
-          <Separator />
-          <TabContent value="accounts">
-            <AccountKeys />
-          </TabContent>
-          <TabContent value="general">
-            <GeneralSettings />
-          </TabContent>
-          <TabContent value="gateway">
-            <GatewaySettings />
-          </TabContent>
-          <TabContent value="ai-providers">
-            <AIProvidersSettings />
-          </TabContent>
-          <TabContentScrolled value="app-info">
-            <AppSettings />
-          </TabContentScrolled>
-          <TabContentScrolled value="developer">
-            <DeveloperSettings />
-          </TabContentScrolled>
-        </Tabs>
+        <div className="flex flex-1 overflow-hidden">
+          <div className="border-border flex flex-1 overflow-hidden rounded-lg border">
+            {/* Sidebar */}
+            <div className="border-border flex w-[220px] shrink-0 flex-col gap-1 border-r p-2">
+              <SidebarTab
+                active={activeTab === 'general'}
+                icon={Cog}
+                label="General settings"
+                onClick={() => setActiveTab('general')}
+              />
+              <SidebarTab
+                active={activeTab === 'sync'}
+                icon={RadioTower}
+                label="Sync options"
+                onClick={() => setActiveTab('sync')}
+              />
+              <SidebarTab
+                active={activeTab === 'app-info'}
+                icon={Info}
+                label="App info"
+                onClick={() => setActiveTab('app-info')}
+              />
+              <SidebarTab
+                active={activeTab === 'advanced'}
+                icon={Code2}
+                label="Advanced"
+                onClick={() => setActiveTab('advanced')}
+              />
+            </div>
+            {/* Content */}
+            <ScrollArea className="flex-1">
+              <div className="flex flex-col gap-6 p-6">
+                {activeTab === 'general' && <GeneralSettings />}
+                {activeTab === 'sync' && <GatewaySettings />}
+                {activeTab === 'app-info' && <AppSettings />}
+                {activeTab === 'advanced' && <AdvancedSettings />}
+              </div>
+            </ScrollArea>
+          </div>
+        </div>
       </div>
     </div>
   )
+}
+
+function AdvancedSettings() {
+  return (
+    <>
+      <SizableText size="2xl" weight="bold">
+        Advanced
+      </SizableText>
+      <SettingsCard label="AGENT ASSISTANT PROVIDERS">
+        <div className="p-3">
+          <AIProvidersSettings />
+        </div>
+      </SettingsCard>
+      <DeveloperSettings />
+    </>
+  )
+}
+
+function SidebarTab({
+  active,
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  active: boolean
+  icon: any
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      className={cn(
+        'flex items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors',
+        active ? 'bg-brand/10 text-brand-2 font-medium' : 'text-muted-foreground hover:bg-muted',
+      )}
+      onClick={onClick}
+    >
+      <Icon className="size-4" />
+      {label}
+    </button>
+  )
+}
+
+function SettingsDivider() {
+  return <div className="bg-border h-px" />
 }
 
 export function DeleteDraftLogs() {
@@ -233,30 +281,142 @@ export function DeleteAllRecents() {
 function GeneralSettings() {
   const [theme, setTheme, isInitialLoading] = useSystemThemeWriter()
   return (
-    <div className="flex flex-col gap-4">
-      <SizableText size="2xl">General Settings</SizableText>
-      {!isInitialLoading && (
-        <div className="flex gap-4">
-          <Label size="sm">Theme</Label>
-          <Select value={theme || 'system'} onValueChange={setTheme}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select a theme" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="system">System Default</SelectItem>
-              <SelectItem value="light">Light</SelectItem>
-              <SelectItem value="dark">Dark</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-      <SettingsSection title="Recent Items">
-        <SizableText>Clear all recent documents from your search history. This action cannot be undone.</SizableText>
-        <div className="flex justify-end">
-          <DeleteAllRecents />
-        </div>
-      </SettingsSection>
+    <>
+      <SizableText size="2xl" weight="bold">
+        General settings
+      </SizableText>
+      <SettingsCard label="APPEARANCE">
+        <SettingsRow
+          label="Theme"
+          right={
+            !isInitialLoading ? (
+              <RadioGroup value={theme || 'light'} onValueChange={setTheme} className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="light" id="theme-light" />
+                  <Label htmlFor="theme-light" className="text-sm">
+                    Light
+                  </Label>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="dark" id="theme-dark" />
+                  <Label htmlFor="theme-dark" className="text-sm">
+                    Dark
+                  </Label>
+                </div>
+              </RadioGroup>
+            ) : null
+          }
+        />
+      </SettingsCard>
+      <SettingsCard label="HISTORY">
+        <SettingsRow
+          label="Clear all your recent document search history."
+          description="This action cannot be undone."
+          right={<ClearHistoryButton />}
+        />
+      </SettingsCard>
+    </>
+  )
+}
+
+function SettingsCard({label, children}: {label: string; children: React.ReactNode}) {
+  return (
+    <div>
+      <SizableText size="xs" weight="bold" className="text-muted-foreground mb-2 tracking-wider">
+        {label}
+      </SizableText>
+      <div className="bg-muted dark:bg-background rounded-lg border">{children}</div>
     </div>
+  )
+}
+
+function SettingsRow({label, description, right}: {label: string; description?: string; right?: React.ReactNode}) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-4 py-3">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <SizableText size="sm" weight="medium">
+          {label}
+        </SizableText>
+        {description ? (
+          <SizableText size="xs" className="text-muted-foreground">
+            {description}
+          </SizableText>
+        ) : null}
+      </div>
+      {right ? <div className="shrink-0">{right}</div> : null}
+    </div>
+  )
+}
+
+function GoBuildInfo({goBuildInfo}: {goBuildInfo: string}) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-center gap-3">
+        <SizableText size="sm" weight="medium">
+          Go build
+        </SizableText>
+        <Button size="sm" variant="outline" className="shrink-0" onClick={() => setExpanded(!expanded)}>
+          Show details <ChevronDown className={cn('ml-1 size-3 transition-transform', expanded && 'rotate-180')} />
+        </Button>
+      </div>
+      {expanded ? (
+        <SizableText size="xs" className="text-muted-foreground mt-2 break-all">
+          {goBuildInfo || 'Loading...'}
+        </SizableText>
+      ) : null}
+    </div>
+  )
+}
+
+function NetworkAddresses({addrs}: {addrs?: string}) {
+  const [expanded, setExpanded] = useState(false)
+  const firstAddr = addrs?.split('\n')[0]
+  return (
+    <div className="flex items-start gap-3 px-4 py-3">
+      <SizableText size="xs" className="text-muted-foreground min-w-0 flex-1 break-all">
+        {expanded ? addrs : firstAddr ? `${firstAddr}...` : 'Loading...'}
+      </SizableText>
+      {addrs ? (
+        <Button size="sm" variant="outline" className="shrink-0" onClick={() => setExpanded(!expanded)}>
+          {expanded ? 'Show less' : 'Show all'}{' '}
+          <ChevronDown className={cn('ml-1 size-3 transition-transform', expanded && 'rotate-180')} />
+        </Button>
+      ) : null}
+    </div>
+  )
+}
+
+function ClearHistoryButton() {
+  const [isConfirming, setIsConfirming] = useState(false)
+  const clearAllRecents = useMutation({
+    mutationFn: () => client.recents.clearAllRecents.mutate(),
+  })
+  if (isConfirming) {
+    return (
+      <Button
+        variant="destructive"
+        size="sm"
+        onClick={() => {
+          clearAllRecents.mutateAsync().then(() => {
+            toast.success('Search history cleared')
+            setIsConfirming(false)
+          })
+        }}
+      >
+        Confirm?
+      </Button>
+    )
+  }
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="text-destructive border-destructive hover:bg-destructive/10"
+      onClick={() => setIsConfirming(true)}
+    >
+      Clear history
+    </Button>
   )
 }
 
@@ -297,32 +457,47 @@ export function DeveloperSettings() {
 
   return (
     <>
-      <SettingsSection title="Embedding / AI Features">
-        <SizableText>
-          Enable AI-powered document embeddings for semantic search and related content features. This will restart the
-          background service.
-        </SizableText>
-        <div className="flex justify-between">
-          {embeddingEnabled ? <EnabledTag /> : <div />}
-          <Button
-            size="sm"
-            variant={embeddingEnabled ? 'destructive' : 'default'}
-            onClick={handleEmbeddingToggle}
-            disabled={restartDaemon.isLoading}
-          >
-            {restartDaemon.isLoading ? (
-              <>
-                <Spinner size="small" className="mr-2" />
-                Restarting...
-              </>
-            ) : embeddingEnabled ? (
-              'Disable Embedding'
-            ) : (
-              'Enable Embedding'
-            )}
-          </Button>
-        </div>
-      </SettingsSection>
+      <SettingsCard label="DEVELOPERS">
+        <SettingsRow
+          label="Embedding / AI Features"
+          description="Enable AI-powered document embeddings for semantic search and related content features. This will restart the background service."
+          right={
+            <Button size="sm" variant="outline" onClick={handleEmbeddingToggle} disabled={restartDaemon.isLoading}>
+              {restartDaemon.isLoading ? 'Restarting...' : embeddingEnabled ? 'Disable Embedding' : 'Enable Embedding'}
+            </Button>
+          }
+        />
+        <Separator />
+        <SettingsRow
+          label="Developer Tools"
+          description="Adds features across the app for helping diagnose issues. Mostly useful for Seed Developers."
+          right={
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => writeExperiments.mutate({developerTools: !enabledDevTools})}
+            >
+              {enabledDevTools ? 'Disable Debug Tools' : 'Enable Debug Tools'}
+            </Button>
+          }
+        />
+        <Separator />
+        <SettingsRow
+          label="Publication Content Dev Tools"
+          description="Debug options for the formatting of all publication content"
+          right={
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => writeExperiments.mutate({pubContentDevMenu: !enabledPubContentDevMenu})}
+            >
+              {enabledPubContentDevMenu ? 'Disable Publication Panel' : 'Enable Publication Panel'}
+            </Button>
+          }
+        />
+        <Separator />
+        <SettingsRow label="Draft Logs" description="Open draft Log Folder" right={<DeleteDraftLogs />} />
+      </SettingsCard>
       <AlertDialog open={showEmbeddingConfirm} onOpenChange={setShowEmbeddingConfirm}>
         <AlertDialogPortal>
           <AlertDialogContent className="max-w-[500px] gap-4">
@@ -347,55 +522,6 @@ export function DeveloperSettings() {
           </AlertDialogContent>
         </AlertDialogPortal>
       </AlertDialog>
-      <SettingsSection title="Developer Tools">
-        <SizableText>
-          Adds features across the app for helping diagnose issues. Mostly useful for Seed Developers.
-        </SizableText>
-        <div className="flex justify-between">
-          {enabledDevTools ? <EnabledTag /> : <div />}
-          <Button
-            size="sm"
-            variant={enabledDevTools ? 'destructive' : 'default'}
-            onClick={() => {
-              writeExperiments.mutate({developerTools: !enabledDevTools})
-            }}
-          >
-            {enabledDevTools ? 'Disable Debug Tools' : `Enable Debug Tools`}
-          </Button>
-        </div>
-      </SettingsSection>
-      <SettingsSection title="Publication Content Dev Tools">
-        <SizableText>Debug options for the formatting of all publication content</SizableText>
-        <div className="flex justify-between">
-          {enabledPubContentDevMenu ? <EnabledTag /> : <div />}
-          <Button
-            size="sm"
-            variant={enabledPubContentDevMenu ? 'destructive' : 'default'}
-            onClick={() => {
-              writeExperiments.mutate({
-                pubContentDevMenu: !enabledPubContentDevMenu,
-              })
-            }}
-          >
-            {enabledPubContentDevMenu ? 'Disable Publication Debug Panel' : `Enable Publication Debug Panel`}
-          </Button>
-        </div>
-      </SettingsSection>
-      <SettingsSection title="Draft Logs">
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            onClick={() => {
-              openDraftLogs.mutate()
-            }}
-          >
-            <ExternalLink className="mr-2 h-4 w-4" />
-            Open Draft Log Folder
-          </Button>
-          <DeleteDraftLogs />
-        </div>
-      </SettingsSection>
-      {/* <TestURLCheck /> */}
     </>
   )
 }
@@ -827,7 +953,7 @@ type ExperimentType = {
 }
 const EXPERIMENTS: ExperimentType[] = []
 
-function GatewaySettings({}: {}) {
+function GatewaySettings() {
   const gatewayUrl = useGatewayUrl()
   const notifyServiceHost = useNotifyServiceHost()
 
@@ -849,214 +975,121 @@ function GatewaySettings({}: {}) {
   }, [notifyServiceHost])
 
   return (
-    <div className="flex flex-col gap-3">
-      <TableList>
-        <InfoListHeader title="Gateway URL" />
-        <TableList.Item>
-          <div className="flex w-full gap-3">
-            <Input className="flex-1" value={gwUrl} onChangeText={setGWUrl} />
-            <Button
-              size="sm"
-              onClick={() => {
-                setGatewayUrl.mutate(gwUrl)
-                toast.success('Public Gateway URL changed!')
-              }}
-            >
-              Save
-            </Button>
-          </div>
-        </TableList.Item>
-      </TableList>
-
-      <TableList>
-        <InfoListHeader title="Notify Service Host" />
-        <TableList.Item>
-          <div className="flex w-full gap-3">
-            <Input className="flex-1" value={notifyHost} onChangeText={setNotifyHost} />
-            <Button
-              size="sm"
-              onClick={() => {
-                setNotifyServiceHost.mutate(notifyHost)
-                toast.success('Notify Service Host changed!')
-              }}
-            >
-              Save
-            </Button>
-          </div>
-        </TableList.Item>
-      </TableList>
-
-      <PushOnPublishSetting />
-      <PushOnCopySetting />
-    </div>
+    <>
+      <SizableText size="2xl" weight="bold">
+        Sync options
+      </SizableText>
+      <SettingsCard label="CONNECTION">
+        <SettingsRow
+          label="Gateway URL"
+          description="Primary hyper.media endpoint"
+          right={<Input className="w-[220px]" value={gwUrl} onChangeText={setGWUrl} />}
+        />
+        <Separator />
+        <SettingsRow
+          label="Notify service host"
+          description="Push notification relay server"
+          right={
+            <div className="relative w-[220px]">
+              <Input className="w-full pr-14" value={notifyHost} onChangeText={setNotifyHost} />
+              <Button
+                size="xs"
+                variant="outline"
+                className="absolute top-1/2 right-1 -translate-y-1/2"
+                onClick={() => {
+                  setNotifyServiceHost.mutate(notifyHost)
+                  setGatewayUrl.mutate(gwUrl)
+                  toast.success('Connection settings saved!')
+                }}
+              >
+                Save
+              </Button>
+            </div>
+          }
+        />
+      </SettingsCard>
+      <SettingsCard label="AUTO-PUSH TRIGGERS">
+        <PushOnPublishSetting />
+        <Separator />
+        <PushOnCopySetting />
+      </SettingsCard>
+    </>
   )
 }
 
-function PushOnCopySetting({}: {}) {
+function PushSettingRow({
+  label,
+  description,
+  hookResult,
+  setMutation,
+}: {
+  label: string
+  description: string
+  hookResult: {data?: string; isLoading: boolean; isError: boolean; refetch: () => void}
+  setMutation: {mutate: (value: 'always' | 'never' | 'ask', options?: any) => void}
+}) {
+  const id = useId()
+  const currentValue = hookResult.data || 'always'
+
+  if (hookResult.isLoading)
+    return <SettingsRow label={label} description={description} right={<Spinner size="small" />} />
+
+  return (
+    <SettingsRow
+      label={label}
+      description={description}
+      right={
+        <RadioGroup
+          value={currentValue}
+          onValueChange={(value) => {
+            const validValue: 'always' | 'never' = value === 'never' ? 'never' : 'always'
+            setMutation.mutate(validValue, {
+              onError: () => toast.error('Failed to update setting.'),
+            })
+          }}
+          className="flex items-center gap-4"
+        >
+          <div className="flex items-center gap-1.5">
+            <RadioGroupItem value="always" id={`${id}-always`} />
+            <Label htmlFor={`${id}-always`} className="text-sm">
+              Always
+            </Label>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <RadioGroupItem value="never" id={`${id}-never`} />
+            <Label htmlFor={`${id}-never`} className="text-sm">
+              Never
+            </Label>
+          </div>
+        </RadioGroup>
+      }
+    />
+  )
+}
+
+function PushOnCopySetting() {
   const pushOnCopy = usePushOnCopy()
-  const id = useId()
   const setPushOnCopy = useSetPushOnCopy()
-
-  // Handle loading and error states
-  const isLoading = pushOnCopy.isLoading
-  const hasError = pushOnCopy.isError
-  const currentValue = pushOnCopy.data || 'always' // Default to 'always' if data is undefined
-
-  // Return a loading state instead of null
-  if (isLoading) {
-    return (
-      <TableList>
-        <InfoListHeader title="Push on Copy" />
-        <TableList.Item>
-          <Spinner size="small" />
-        </TableList.Item>
-      </TableList>
-    )
-  }
-
-  // Show error state
-  if (hasError) {
-    return (
-      <TableList>
-        <InfoListHeader title="Push on Copy" />
-        <TableList.Item>
-          <div className="flex flex-col">
-            <p className="text-destructive">Error loading settings.</p>
-            <Button variant="destructive" size="sm" onClick={() => pushOnCopy.refetch()}>
-              Retry
-            </Button>
-          </div>
-        </TableList.Item>
-      </TableList>
-    )
-  }
-
   return (
-    <TableList>
-      <InfoListHeader title="Push on Copy" />
-      <TableList.Item>
-        <RadioGroup
-          value={currentValue}
-          onValueChange={(value) => {
-            try {
-              // Type guard to ensure we only pass valid values
-              const validValue = value === 'always' || value === 'never' || value === 'ask' ? value : 'always'
-
-              setPushOnCopy.mutate(validValue, {
-                onSuccess: () => {
-                  toast.success('Push on copy changed!')
-                },
-                onError: (error) => {
-                  console.error('Failed to update push on copy setting:', error)
-                  toast.error('Failed to update setting. Please try again.')
-                },
-              })
-            } catch (error) {
-              console.error('Error updating push on copy setting:', error)
-              toast.error('An error occurred while updating the setting.')
-            }
-          }}
-        >
-          {[
-            {value: 'always', label: 'Always'},
-            {value: 'never', label: 'Never'},
-            // {value: 'ask', label: 'Ask'},
-          ].map((option) => {
-            return (
-              <div className="flex items-center gap-2" key={option.value}>
-                <RadioGroupItem value={option.value} id={`${id}-${option.value}`} />
-
-                <Label htmlFor={`${id}-${option.value}`}>{option.label}</Label>
-              </div>
-            )
-          })}
-        </RadioGroup>
-      </TableList.Item>
-    </TableList>
+    <PushSettingRow
+      label="On copy"
+      description="Push to network when you copy a link"
+      hookResult={pushOnCopy}
+      setMutation={setPushOnCopy}
+    />
   )
 }
 
-function PushOnPublishSetting({}: {}) {
+function PushOnPublishSetting() {
   const pushOnPublish = usePushOnPublish()
-  const id = useId()
   const setPushOnPublish = useSetPushOnPublish()
-
-  // Handle loading and error states
-  const isLoading = pushOnPublish.isLoading
-  const hasError = pushOnPublish.isError
-  const currentValue = pushOnPublish.data || 'always' // Default to 'always' if data is undefined
-
-  // Return a loading state instead of null
-  if (isLoading) {
-    return (
-      <TableList>
-        <InfoListHeader title="Push on Publish" />
-        <TableList.Item>
-          <Spinner size="small" />
-        </TableList.Item>
-      </TableList>
-    )
-  }
-
-  // Show error state
-  if (hasError) {
-    return (
-      <TableList>
-        <InfoListHeader title="Push on Publish" />
-        <TableList.Item>
-          <div className="flex flex-col">
-            <p className="text-destructive">Error loading settings.</p>
-            <Button variant="destructive" size="sm" onClick={() => pushOnPublish.refetch()}>
-              Retry
-            </Button>
-          </div>
-        </TableList.Item>
-      </TableList>
-    )
-  }
-
   return (
-    <TableList>
-      <InfoListHeader title="Push on Publish" />
-      <TableList.Item>
-        <RadioGroup
-          value={currentValue}
-          onValueChange={(value) => {
-            try {
-              // Type guard to ensure we only pass valid values
-              const validValue = value === 'always' || value === 'never' || value === 'ask' ? value : 'always'
-
-              setPushOnPublish.mutate(validValue, {
-                onSuccess: () => {
-                  toast.success('Push on publish changed!')
-                },
-                onError: (error) => {
-                  console.error('Failed to update push on publish setting:', error)
-                  toast.error('Failed to update setting. Please try again.')
-                },
-              })
-            } catch (error) {
-              console.error('Error updating push on publish setting:', error)
-              toast.error('An error occurred while updating the setting.')
-            }
-          }}
-        >
-          {[
-            {value: 'always', label: 'Always'},
-            {value: 'never', label: 'Never'},
-            // {value: 'ask', label: 'Ask'},
-          ].map((option) => {
-            return (
-              <div className="flex items-center gap-2" key={option.value}>
-                <RadioGroupItem value={option.value} id={`${id}-${option.value}`} />
-
-                <Label htmlFor={`${id}-${option.value}`}>{option.label}</Label>
-              </div>
-            )
-          })}
-        </RadioGroup>
-      </TableList.Item>
-    </TableList>
+    <PushSettingRow
+      label="On publish"
+      description="Push to network when you publish content"
+      hookResult={pushOnPublish}
+      setMutation={setPushOnPublish}
+    />
   )
 }
 
@@ -1131,157 +1164,180 @@ function AppSettings() {
   const addrs = peer.data?.addrs?.join('\n')
 
   return (
-    <div className="flex flex-col gap-3">
-      <TableList>
-        <InfoListHeader title="Auto Update" />
-        <TableList.Item className="items-center">
-          <SizableText size="sm" className="w-[140px] min-w-[140px] flex-none">
-            Check for updates?
-          </SizableText>
-          <div className="flex flex-1">
-            <div className="flex flex-1">
-              <Checkbox
-                id="auto-update"
-                checked={autoUpdate.data == 'true'}
-                onCheckedChange={(newVal) => {
-                  setAutoUpdate(newVal ? 'true' : 'false')
-                }}
-              />
-            </div>
-            <Tooltip content="Check for app updates automatically on Launch">
-              <Button size="sm" variant="ghost" className="bg-transparent">
-                <Info className="h-4 w-4" />
-              </Button>
-            </Tooltip>
-          </div>
-        </TableList.Item>
-      </TableList>
-      <TableList>
-        <InfoListHeader
-          title="Peer Info"
+    <>
+      <SizableText size="2xl" weight="bold">
+        App info
+      </SizableText>
+      <SettingsCard label="IDENTITY">
+        <SettingsRow
+          label="Peer ID"
+          description={deviceInfo?.peerId || ''}
           right={
             addrs ? (
-              <Tooltip content="Copy routing info so others can connect to you">
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(addrs)
-                    toast.success('Copied Routing Address successfully')
-                  }}
-                >
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copy Addresses
-                </Button>
-              </Tooltip>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  navigator.clipboard.writeText(addrs)
+                  toast.success('Copied addresses')
+                }}
+              >
+                Copy addresses
+              </Button>
             ) : null
           }
         />
-        <InfoListItem label="Peer ID" value={deviceInfo?.peerId} />
-        <InfoListItem label="Protocol ID" value={deviceInfo?.protocolId} />
-        <InfoListItem label="Addresses" value={addrs?.split('\n')} />
-      </TableList>
-
-      <TableList>
-        <InfoListHeader title="User Data" />
-        <InfoListItem
-          label="Data Directory"
-          value={appInfo?.dataDir}
-          onCopy={() => {
-            if (appInfo?.dataDir) {
-              copyTextToClipboard(appInfo?.dataDir)
-              toast.success('Copied path successfully')
-            }
-          }}
-          onOpen={() => {
-            if (appInfo?.dataDir) {
-              ipc.send('open_path', appInfo?.dataDir)
-              // openUrl(`file://${appInfo?.dataDir}`)
-            }
-          }}
-        />
         <Separator />
-        <InfoListItem
-          label="Log Directory"
-          value={appInfo?.loggingDir}
-          onCopy={() => {
-            if (appInfo?.loggingDir) {
-              copyTextToClipboard(appInfo?.loggingDir)
-              toast.success('Copied path successfully')
-            }
-          }}
-          onOpen={() => {
-            if (appInfo?.loggingDir) {
-              ipc.send('open_path', appInfo?.loggingDir)
-              // openUrl(`file://${appInfo?.loggingDir}`)
-            }
-          }}
-        />
-      </TableList>
-      <TableList>
-        <InfoListHeader
-          title="Bundle Information"
+        <SettingsRow label="Protocol" description={deviceInfo?.protocolId || ''} />
+      </SettingsCard>
+
+      <SettingsCard label="NETWORK ADDRESSES">
+        <NetworkAddresses addrs={addrs} />
+      </SettingsCard>
+
+      <SettingsCard label="APPLICATION">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 px-4 py-3">
+          <SizableText size="sm">
+            Version: <span className="font-bold">{VERSION}</span>
+          </SizableText>
+          <SizableText size="sm">
+            Node: <span className="font-bold">{versions.node}</span>
+          </SizableText>
+          <SizableText size="sm">
+            Electron: <span className="font-bold">{versions.electron}</span>
+          </SizableText>
+          <SizableText size="sm">
+            Chrome: <span className="font-bold">{versions.chrome}</span>
+          </SizableText>
+        </div>
+        <Separator />
+        <SettingsRow
+          label="Data directory:"
+          description={appInfo?.dataDir || ''}
           right={
-            <Tooltip content="Copy App Info for Developers">
+            <div className="flex gap-1">
               <Button
-                size="sm"
+                size="icon"
+                variant="ghost"
                 onClick={() => {
-                  copyTextToClipboard(`
-                    App Version: ${VERSION}
-                    Electron Version: ${versions.electron}
-                    Chrome Version: ${versions.chrome}
-                    Node Version: ${versions.node}
-                    Commit Hash: ${COMMIT_HASH.slice(0, 8)}
-                    Go Build: ${goBuildInfo}
-                    `)
-                  toast.success('Copied Build Info successfully')
+                  if (appInfo?.dataDir) {
+                    copyTextToClipboard(appInfo.dataDir)
+                    toast.success('Copied')
+                  }
                 }}
               >
-                <Copy className="mr-2 h-4 w-4" />
-                Copy Debug Info
+                <Copy className="size-4" />
               </Button>
-            </Tooltip>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => {
+                  if (appInfo?.dataDir) ipc.send('open_path', appInfo.dataDir)
+                }}
+              >
+                <ExternalLink className="size-4" />
+              </Button>
+            </div>
           }
         />
-        <InfoListItem label="App Version" value={VERSION} />
         <Separator />
-        <InfoListItem label="Electron Version" value={versions.electron} />
-        <Separator />
-        <InfoListItem label="Chrome Version" value={versions.chrome} />
-        <Separator />
-        <InfoListItem label="Node Version" value={versions.node} />
-        <Separator />
-        <InfoListItem
-          label="Commit Hash"
-          value={COMMIT_HASH}
-          onOpen={() => {
-            openUrl(`https://github.com/seed-hypermedia/seed/commit/${COMMIT_HASH}`)
-          }}
+        <SettingsRow
+          label="Log directory:"
+          description={appInfo?.loggingDir || ''}
+          right={
+            <div className="flex gap-1">
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => {
+                  if (appInfo?.loggingDir) {
+                    copyTextToClipboard(appInfo.loggingDir)
+                    toast.success('Copied')
+                  }
+                }}
+              >
+                <Copy className="size-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => {
+                  if (appInfo?.loggingDir) ipc.send('open_path', appInfo.loggingDir)
+                }}
+              >
+                <ExternalLink className="size-4" />
+              </Button>
+            </div>
+          }
+        />
+      </SettingsCard>
+
+      <SettingsCard label="APP UPDATES">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <Checkbox
+            id="auto-update"
+            checked={autoUpdate.data == 'true'}
+            onCheckedChange={(newVal) => setAutoUpdate(newVal ? 'true' : 'false')}
+          />
+          <Label htmlFor="auto-update" className="text-sm">
+            Check for updates automatically
+          </Label>
+        </div>
+      </SettingsCard>
+
+      <SettingsCard label="DEBUG">
+        <SettingsRow
+          label="Commit"
+          description={COMMIT_HASH}
+          right={
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                copyTextToClipboard(
+                  `App Version: ${VERSION}\nElectron: ${versions.electron}\nChrome: ${versions.chrome}\nNode: ${
+                    versions.node
+                  }\nCommit: ${COMMIT_HASH.slice(0, 8)}\nGo Build: ${goBuildInfo}`,
+                )
+                toast.success('Copied debug info')
+              }}
+            >
+              Copy debug info
+            </Button>
+          }
         />
         <Separator />
-        <InfoListItem label="Go Build Info" value={goBuildInfo?.split('\n')} />
+        <div className="grid grid-cols-2 gap-x-4 px-4 py-3">
+          <div className="flex flex-col">
+            <SizableText size="sm" weight="medium">
+              Seed host
+            </SizableText>
+            <SizableText size="xs" className="text-brand-2 cursor-pointer" onClick={() => openUrl(SEED_HOST_URL)}>
+              {SEED_HOST_URL}
+            </SizableText>
+          </div>
+          <div className="flex flex-col">
+            <SizableText size="sm" weight="medium">
+              Lightning
+            </SizableText>
+            <SizableText size="xs" className="text-brand-2 cursor-pointer" onClick={() => openUrl(LIGHTNING_API_URL)}>
+              {LIGHTNING_API_URL}
+            </SizableText>
+          </div>
+        </div>
         <Separator />
-        <InfoListItem label="Seed Host URL" value={SEED_HOST_URL} />
-        <Separator />
-        <InfoListItem label="Lightning URL" value={LIGHTNING_API_URL} />
-      </TableList>
-    </div>
+        <GoBuildInfo goBuildInfo={goBuildInfo} />
+      </SettingsCard>
+    </>
   )
 }
 
-const TabContentScrolled = (props: React.ComponentProps<typeof TabsContent>) => {
+const CustomTabsContent = (props: React.ComponentProps<typeof TabsContent>) => {
   return (
     <TabsContent className="flex flex-1 flex-col gap-3 overflow-hidden" {...props}>
       <ScrollArea>
         <div className="flex flex-1 flex-col gap-4 p-4 pb-5">{props.children}</div>
       </ScrollArea>
-    </TabsContent>
-  )
-}
-
-const TabContent = (props: React.ComponentProps<typeof TabsContent>) => {
-  return (
-    <TabsContent className="flex flex-1 flex-col gap-3 overflow-hidden" {...props}>
-      <div className="flex flex-1 flex-col gap-4 p-4 pb-5">{props.children}</div>
     </TabsContent>
   )
 }
@@ -1312,10 +1368,9 @@ function SettingsSection({
   title,
   children,
   afterTitle,
-  className,
-}: React.PropsWithChildren<{title: string; afterTitle?: React.ReactNode; className?: string}>) {
+}: React.PropsWithChildren<{title: string; afterTitle?: React.ReactNode}>) {
   return (
-    <div className={cn('dark:bg-background bg-muted flex flex-col gap-3 rounded p-3', className)}>
+    <div className={cn('dark:bg-background bg-muted flex flex-col gap-3 rounded p-3')}>
       <div className="flex items-center justify-start gap-3">
         <SizableText size="2xl">{title}</SizableText>
         {afterTitle}
@@ -1493,20 +1548,18 @@ function ProviderFormSection({
   )
 }
 
-type AddProviderDialogInput = {
-  type: ProviderFormData['type'] | 'choose'
-  onProviderAdded?: (providerId: string) => void
-}
+type AddProviderDialogInput = ProviderFormData['type'] | 'choose'
 
 function AddProviderDialog({input, onClose}: {input: AddProviderDialogInput; onClose: () => void}) {
-  const isSpecificProvider = input.type !== 'choose'
-  const initialType = input.type === 'choose' ? 'openai' : input.type
-  const specificProviderLabel = isSpecificProvider ? PROVIDER_TYPE_META[initialType].label : null
+  const isSpecificProvider = input !== 'choose'
+  const initialType = input === 'choose' ? 'openai' : input
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
-        <DialogTitle>{isSpecificProvider ? `Add ${specificProviderLabel} Provider` : 'Add Provider'}</DialogTitle>
+        <DialogTitle>
+          {isSpecificProvider ? `Add ${PROVIDER_TYPE_META[input].label} Provider` : 'Add Provider'}
+        </DialogTitle>
         <DialogDescription>
           {isSpecificProvider
             ? 'Complete the remaining provider details here.'
@@ -1516,12 +1569,7 @@ function AddProviderDialog({input, onClose}: {input: AddProviderDialogInput; onC
 
       <ProviderForm
         initialType={initialType}
-        onSave={(providerId) => {
-          if (providerId) {
-            input.onProviderAdded?.(providerId)
-          }
-          onClose()
-        }}
+        onSave={onClose}
         onCancel={onClose}
         showTypeSelector={!isSpecificProvider}
         requireExplicitOpenAIAuthModeSelection
@@ -1742,18 +1790,6 @@ function ProviderListRow({
   )
 }
 
-function AgentProviderSettingsArea({children}: {children: React.ReactNode}) {
-  return (
-    <>
-      <div className="flex items-center justify-start gap-3">
-        <SizableText size="2xl">{'Agent Assistant Providers'}</SizableText>
-        <BetaTag />
-      </div>
-      {children}
-    </>
-  )
-}
-
 /** Renders the assistant provider settings section. */
 export function AIProvidersSettings() {
   const providers = useAIProviders()
@@ -1781,15 +1817,8 @@ export function AIProvidersSettings() {
     setEditingId(selectedProviderId || providerItems[0]?.id || null)
   }, [editingId, providerItems, selectedProviderId])
 
-  function handleProviderAdded(providerId: string) {
-    setEditingId(providerId)
-  }
-
-  function beginAdd(type: ProviderFormData['type'] | 'choose' = 'choose') {
-    addProviderDialog.open({
-      type,
-      onProviderAdded: handleProviderAdded,
-    })
+  function beginAdd(type: AddProviderDialogInput = 'choose') {
+    addProviderDialog.open(type)
   }
 
   function beginEdit(providerId: string) {
@@ -1798,32 +1827,32 @@ export function AIProvidersSettings() {
 
   if (!providerItems.length) {
     return (
-      <AgentProviderSettingsArea>
+      <SettingsSection title="Agent Assistant Providers" afterTitle={<BetaTag />}>
         <ProviderSetupOverview
           providers={providerItems}
           selectedProviderLabel={selectedProvider.data?.label || null}
           onCreate={beginAdd}
         />
         {addProviderDialog.content}
-      </AgentProviderSettingsArea>
+      </SettingsSection>
     )
   }
 
   return (
-    <AgentProviderSettingsArea>
-      {' '}
+    <SettingsSection title="Agent Assistant Providers" afterTitle={<BetaTag />}>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">
               {providerItems.length} provider{providerItems.length === 1 ? '' : 's'}
             </Badge>
-            {selectedProvider.data ? <Badge variant="secondary">Active: {selectedProvider.data.label}</Badge> : null}
+            {selectedProvider.data ? <Badge variant="secondary">Default: {selectedProvider.data.label}</Badge> : null}
           </div>
         </div>
       </div>
-      <div className="grid flex-1 items-stretch gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
-        <div className="bg-background/70 flex h-full min-h-0 flex-col rounded-lg border">
+
+      <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+        <div className="bg-background/70 flex flex-col rounded-lg border">
           <div className="flex items-start justify-between gap-3 border-b px-4 py-3">
             <div className="flex flex-col gap-1">
               <SizableText size="sm" weight="bold">
@@ -1832,50 +1861,47 @@ export function AIProvidersSettings() {
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col p-3">
-            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
-              {providerItems.length ? (
-                providerItems.map((provider) => (
-                  <ProviderListRow
-                    key={provider.id}
-                    provider={provider}
-                    isActive={editingId === provider.id}
-                    isDefault={selectedProviderId === provider.id}
-                    onSelect={() => beginEdit(provider.id)}
-                    onEdit={() => beginEdit(provider.id)}
-                    onDuplicate={() =>
-                      duplicateProvider.mutate(provider.id, {
-                        onSuccess: (duplicate) => {
-                          setEditingId(duplicate.id)
-                        },
-                      })
+          <div className="flex flex-col gap-2 p-3">
+            {providerItems.length ? (
+              providerItems.map((provider) => (
+                <ProviderListRow
+                  key={provider.id}
+                  provider={provider}
+                  isActive={editingId === provider.id}
+                  isDefault={selectedProviderId === provider.id}
+                  onSelect={() => beginEdit(provider.id)}
+                  onEdit={() => beginEdit(provider.id)}
+                  onDuplicate={() =>
+                    duplicateProvider.mutate(provider.id, {
+                      onSuccess: (duplicate) => {
+                        setEditingId(duplicate.id)
+                      },
+                    })
+                  }
+                  onDelete={() => {
+                    if (editingId === provider.id) {
+                      const fallbackProviderId =
+                        providerItems.find((item) => item.id !== provider.id && item.id === selectedProviderId)?.id ||
+                        providerItems.find((item) => item.id !== provider.id)?.id ||
+                        null
+                      setEditingId(fallbackProviderId)
                     }
-                    onDelete={() => {
-                      if (editingId === provider.id) {
-                        const fallbackProviderId =
-                          providerItems.find((item) => item.id !== provider.id && item.id === selectedProviderId)?.id ||
-                          providerItems.find((item) => item.id !== provider.id)?.id ||
-                          null
-                        setEditingId(fallbackProviderId)
-                      }
-                      deleteProvider.mutate(provider.id)
-                    }}
-                    onSetDefault={() => setSelectedProvider.mutate(provider.id)}
-                  />
-                ))
-              ) : (
-                <div className="flex flex-col gap-2 rounded-lg border border-dashed p-4">
-                  <SizableText size="sm" weight="bold">
-                    No providers configured yet.
-                  </SizableText>
-                  <SizableText size="xs" className="text-muted-foreground">
-                    Start with OpenAI if you want ChatGPT Pro sign-in, or pick Gemini, Anthropic, or Ollama on the
-                    right.
-                  </SizableText>
-                </div>
-              )}
-            </div>
-            <Button size="sm" onClick={() => beginAdd()} className="mt-3 w-full">
+                    deleteProvider.mutate(provider.id)
+                  }}
+                  onSetDefault={() => setSelectedProvider.mutate(provider.id)}
+                />
+              ))
+            ) : (
+              <div className="flex flex-col gap-2 rounded-lg border border-dashed p-4">
+                <SizableText size="sm" weight="bold">
+                  No providers configured yet.
+                </SizableText>
+                <SizableText size="xs" className="text-muted-foreground">
+                  Start with OpenAI if you want ChatGPT Pro sign-in, or pick Gemini, Anthropic, or Ollama on the right.
+                </SizableText>
+              </div>
+            )}
+            <Button size="sm" onClick={() => beginAdd()} className="w-full">
               <Plus className="mr-2 h-4 w-4" />
               Add Provider
             </Button>
@@ -1892,7 +1918,7 @@ export function AIProvidersSettings() {
         ) : null}
       </div>
       {addProviderDialog.content}
-    </AgentProviderSettingsArea>
+    </SettingsSection>
   )
 }
 
@@ -1912,7 +1938,7 @@ function ProviderForm({
   requireExplicitOpenAIAuthModeSelection = false,
 }: {
   initialType?: ProviderFormData['type']
-  onSave: (providerId?: string) => void
+  onSave: () => void
   onCancel: () => void
   showTypeSelector?: boolean
   requireExplicitOpenAIAuthModeSelection?: boolean
@@ -1958,16 +1984,12 @@ function ProviderForm({
           id: draftProviderId,
           ...input,
         },
-        {
-          onSuccess: () => onSave(draftProviderId),
-        },
+        {onSuccess: onSave},
       )
       return
     }
 
-    addProvider.mutate(input, {
-      onSuccess: (provider) => onSave(provider?.id),
-    })
+    addProvider.mutate(input, {onSuccess: onSave})
   }
 
   function handleCancel() {
@@ -2287,13 +2309,13 @@ function ProviderFormFields({
     if (!openaiLoginStatus.data) return
     if (openaiLoginStatus.data.status === 'success') {
       const connectedProviderId = openaiLoginStatus.data.providerId || providerId
-      const shouldCompleteAddProviderFlow = isAddProviderFlow && !!connectedProviderId
+      const shouldCloseAddedProviderDialog = !!connectedProviderId && !providerId
 
-      if (connectedProviderId && connectedProviderId !== providerId && !shouldCompleteAddProviderFlow) {
+      if (connectedProviderId && connectedProviderId !== providerId && !shouldCloseAddedProviderDialog) {
         onProviderIdChange?.(connectedProviderId)
       }
 
-      if (!shouldCompleteAddProviderFlow) {
+      if (!shouldCloseAddedProviderDialog) {
         setForm((current) => ({
           ...current,
           authMode: 'login',
@@ -2311,7 +2333,7 @@ function ProviderFormFields({
       setOpenaiLoginSessionId(null)
       setOpenaiLoginUserCode(null)
 
-      if (shouldCompleteAddProviderFlow && connectedProviderId) {
+      if (shouldCloseAddedProviderDialog && connectedProviderId) {
         onLoginProviderAdded?.(connectedProviderId)
         return
       }
@@ -2329,7 +2351,6 @@ function ProviderFormFields({
       setOpenaiLoginUserCode(null)
     }
   }, [
-    isAddProviderFlow,
     onLoginProviderAdded,
     onProviderIdChange,
     openaiLoginSessionId,
