@@ -147,7 +147,12 @@ function AuthorLink({name, id, siteUid}: {name: string; id: UnpackedHypermediaId
   )
 }
 
+/**
+ * Renders document breadcrumbs when there is at least one navigable item beyond the home/root crumb.
+ */
 export function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
+  if (breadcrumbs.length <= 1) return null
+
   const [first, ...rest] = breadcrumbs
 
   return (
