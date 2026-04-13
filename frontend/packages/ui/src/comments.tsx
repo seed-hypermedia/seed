@@ -22,6 +22,7 @@ import {
   useRouteLink,
 } from '@shm/shared'
 
+import {HMListDiscussionsOutput} from '@seed-hypermedia/client/hm-types'
 import {
   useBlockDiscussionsService,
   useCommentReplyCount,
@@ -33,23 +34,22 @@ import {
   useHackyAuthorsSubscriptions,
   useUpdateComment,
 } from '@shm/shared/comments-service-provider'
-import {HMListDiscussionsOutput} from '@seed-hypermedia/client/hm-types'
 import {useIsCurrentUser, useResource} from '@shm/shared/models/entity'
 import {getRoutePanel} from '@shm/shared/routes'
 import {useTxString} from '@shm/shared/translation'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {Pencil, Link, MessageSquare, Trash2, X} from 'lucide-react'
+import {Link, MessageSquare, Pencil, Trash2, X} from 'lucide-react'
 import {memo, ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {toast} from 'sonner'
 import {SelectionContent} from './accessories'
 import {BlockRangeSelectOptions, BlocksContent, BlocksContentProvider, getBlockNodeById} from './blocks-content'
 import {Button} from './button'
+import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {copyTextToClipboard, copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
 import {AuthorNameLink, getContextualProfileRoute, InlineDescriptor, Timestamp} from './inline-descriptor'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
-import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
@@ -227,16 +227,16 @@ export function CommentDiscussions({
         </div>
       )}
 
-      <div className="relative max-h-1/2 py-4">
+      <div className="relative py-4 max-h-1/2">
         <div
-          className="bg-border absolute w-px"
+          className="absolute w-px bg-border"
           style={{
             height: isEntirelyHighlighted ? 40 : 56,
             top: isEntirelyHighlighted ? -16 : -32,
             left: 26,
           }}
         />
-        <div className="px-2 pr-4 pl-3">{commentEditor}</div>
+        <div className="px-2 pl-3 pr-4">{commentEditor}</div>
       </div>
 
       {commentGroupReplies.data?.length > 0
@@ -428,7 +428,7 @@ export function BlockDiscussions({
     <SelectionContent>
       {quotedContent}
       <div className="px-2 pr-4">{commentEditor}</div>
-      <div className="mt-2 pt-2">{panelContent}</div>
+      <div className="pt-2 mt-2">{panelContent}</div>
     </SelectionContent>
   )
 }
@@ -646,12 +646,12 @@ export const Comment = memo(function Comment({
                 <HMIcon id={authorHmId} name={authorMetadata?.name} icon={authorMetadata?.icon} size={20} />
               </div>
             )}
-            {!isLast || (highlight && selection?.blockId) ? <div className="bg-border h-full w-px" /> : null}
+            {!isLast || (highlight && selection?.blockId) ? <div className="w-px h-full bg-border" /> : null}
           </div>
         )}
 
-        <div className="flex w-full flex-1 flex-col gap-1">
-          <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
+        <div className="flex flex-col flex-1 w-full gap-1">
+          <div className="flex items-center justify-between gap-2 pr-2 overflow-hidden group">
             {heading ? (
               <div className="inline">{heading}</div>
             ) : (
@@ -672,7 +672,7 @@ export const Comment = memo(function Comment({
                     <span>on</span>{' '}
                     <button
                       {...externalTargetLink}
-                      className="hover:bg-accent text-foreground h-5 truncate rounded px-1 text-sm font-bold transition-colors"
+                      className="h-5 px-1 text-sm font-bold truncate transition-colors rounded hover:bg-accent text-foreground"
                     >
                       {externalTarget.metadata?.name}
                     </button>
@@ -688,9 +688,10 @@ export const Comment = memo(function Comment({
               {!isEditing && (
                 <Tooltip content={tx('Copy Comment Link')}>
                   <Button
-                    size="icon"
+                    // size="icon"
+                    size="xs"
                     variant="ghost"
-                    className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                    className="transition-opacity duration-200 ease-in-out text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100"
                     onClick={() => {
                       if (docId) {
                         const routeLatest =
@@ -718,8 +719,9 @@ export const Comment = memo(function Comment({
               {!isEditing && options.length > 0 ? (
                 <OptionsDropdown
                   side="bottom"
+                  size="xs"
                   align="end"
-                  className="hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                  className="transition-opacity duration-200 ease-in-out hover-hover:opacity-0 hover-hover:group-hover:opacity-100"
                   menuItems={options}
                 />
               ) : null}
@@ -930,8 +932,8 @@ export function QuotedDocBlock({docId, blockId, doc}: {docId: UnpackedHypermedia
   }, [doc.content, blockId])
 
   return (
-    <div className="bg-brand-50 dark:bg-brand-950 rounded-lg">
-      <div className="relative flex gap-1 rounded-lg p-2 transition-all duration-200 ease-in-out">
+    <div className="rounded-lg bg-brand-50 dark:bg-brand-950">
+      <div className="relative flex gap-1 p-2 transition-all duration-200 ease-in-out rounded-lg">
         <div className="flex-shrink-0 py-1.5">
           <BlockQuote size={23} />
         </div>
@@ -990,7 +992,7 @@ function EditedIndicator({
       <PopoverTrigger asChild>
         <button className="text-muted-foreground ml-1 cursor-pointer text-[11px] hover:underline">(edited)</button>
       </PopoverTrigger>
-      <PopoverContent side="bottom" align="start" className="w-72 p-0">
+      <PopoverContent side="bottom" align="start" className="p-0 w-72">
         {open ? (
           <CommentVersionList
             commentId={commentId}
@@ -1031,12 +1033,12 @@ function CommentVersionList({commentId, onSelect}: {commentId: string; onSelect:
 
   return (
     <div className="flex flex-col">
-      <div className="border-border border-b px-3 py-2">
+      <div className="px-3 py-2 border-b border-border">
         <SizableText size="sm" className="font-semibold">
           Edited {editCount} {editCount === 1 ? 'time' : 'times'}
         </SizableText>
       </div>
-      <div className="max-h-80 overflow-y-auto">
+      <div className="overflow-y-auto max-h-80">
         {data.versions.map((version, index) => {
           const versionNumber = data.versions.length - index
           const isCurrent = index === 0
@@ -1044,7 +1046,7 @@ function CommentVersionList({commentId, onSelect}: {commentId: string; onSelect:
             return (
               <div
                 key={version.version || index}
-                className="border-border flex w-full items-center justify-between border-b px-3 py-2 last:border-b-0"
+                className="flex items-center justify-between w-full px-3 py-2 border-b border-border last:border-b-0"
               >
                 <div className="flex items-center gap-2">
                   <SizableText size="xs">Version {versionNumber}</SizableText>
@@ -1061,7 +1063,7 @@ function CommentVersionList({commentId, onSelect}: {commentId: string; onSelect:
           return (
             <button
               key={version.version || index}
-              className="hover:bg-accent border-border flex w-full items-center justify-between border-b px-3 py-2 text-left last:border-b-0"
+              className="flex items-center justify-between w-full px-3 py-2 text-left border-b hover:bg-accent border-border last:border-b-0"
               onClick={() => onSelect(version)}
             >
               <SizableText size="xs">Version {versionNumber}</SizableText>
@@ -1079,7 +1081,7 @@ function CommentVersionList({commentId, onSelect}: {commentId: string; onSelect:
 /** Red inline banner showing the content of a deleted comment (pre-deletion version from history). */
 function DeletedCommentPreview({comment}: {comment: HMComment}) {
   return (
-    <div className="rounded-md border border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-950">
+    <div className="border border-red-300 rounded-md bg-red-50 dark:border-red-700 dark:bg-red-950">
       <div className="flex items-center px-3 py-1.5">
         <SizableText size="xs" className="text-red-800 dark:text-red-200">
           This comment was deleted
@@ -1096,7 +1098,7 @@ function DeletedCommentPreview({comment}: {comment: HMComment}) {
 /** Yellow inline banner showing a previous version of the comment in place of the current content. */
 function VersionPreview({version, onDismiss}: {version: HMComment; onDismiss: () => void}) {
   return (
-    <div className="rounded-md border border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950">
+    <div className="border border-yellow-300 rounded-md bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950">
       <div className="flex items-center justify-between px-3 py-1.5">
         <SizableText size="xs" className="text-yellow-800 dark:text-yellow-200">
           Viewing previous version {version.updateTime ? `\u00b7 ${formattedDateShort(version.updateTime)}` : ''}
@@ -1104,7 +1106,7 @@ function VersionPreview({version, onDismiss}: {version: HMComment; onDismiss: ()
         <Button
           variant="ghost"
           size="icon"
-          className="size-6 text-yellow-800 hover:bg-yellow-200 dark:text-yellow-200 dark:hover:bg-yellow-900"
+          className="text-yellow-800 size-6 hover:bg-yellow-200 dark:text-yellow-200 dark:hover:bg-yellow-900"
           onClick={onDismiss}
         >
           <X className="size-3.5" />
@@ -1152,7 +1154,7 @@ function NoComments({}: {}) {
   const tx = useTxString()
   return (
     <div className="flex flex-col items-center gap-4 py-4">
-      <MessageSquare className="size-25 text-gray-200" size={48} />
+      <MessageSquare className="text-gray-200 size-25" size={48} />
       <SizableText size="md">{tx('No comments here, yet!')}</SizableText>
     </div>
   )

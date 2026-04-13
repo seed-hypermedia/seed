@@ -27,6 +27,7 @@ export function OptionsDropdown({
   side,
   align,
   className,
+  size = 'icon',
 }: {
   menuItems: (MenuItemType | null)[]
   hiddenUntilItemHover?: boolean
@@ -34,6 +35,7 @@ export function OptionsDropdown({
   button?: JSX.Element
   side?: DropdownMenuContentProps['side']
   align?: DropdownMenuContentProps['align']
+  size?: ButtonProps['size']
   className?: string
 }) {
   const popoverState = usePopoverState()
@@ -48,7 +50,7 @@ export function OptionsDropdown({
       )}
     >
       <DropdownMenu open={popoverState.open} onOpenChange={popoverState.onOpenChange}>
-        <DropdownMenuTrigger className={cn(buttonVariants({variant: 'outline', size: 'icon'}), 'no-window-drag')}>
+        <DropdownMenuTrigger className={cn(buttonVariants({variant: 'outline', size}), 'no-window-drag')}>
           <MoreHorizontal className="size-3.5" />
         </DropdownMenuTrigger>
         <DropdownMenuContent className="p-1" side={side} align={align}>
@@ -71,7 +73,7 @@ export function OptionsDropdown({
                           <div className="flex flex-col gap-1">
                             <SizableText>{item.label}</SizableText>
 
-                            <SizableText size="sm" className="text-muted-foreground text-xs">
+                            <SizableText size="sm" className="text-xs text-muted-foreground">
                               {item.subLabel}
                             </SizableText>
                           </div>
