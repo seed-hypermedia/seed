@@ -8,7 +8,6 @@ import {
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useResource} from '@shm/shared/models/entity'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
-import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {InlineSubscribeBox} from '@shm/ui/inline-subscribe-box'
 import {InspectorPage} from '@shm/ui/inspector-page'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
@@ -20,7 +19,7 @@ import {preloadCommenting} from './client-lazy'
 import {setPendingIntent} from './local-db'
 import {PageFooter} from './page-footer'
 import {processPendingIntent} from './pending-intent'
-import {WebAccountFooter, WebHeaderActions} from './web-utils'
+import {WebHeaderActions, WebSitePageShell} from './web-utils'
 
 /** Lazy-loaded inline comment editor — avoids pulling the full editor bundle eagerly. */
 const LazyWebInlineEditor = lazy(() => import('./commenting').then((mod) => ({default: mod.WebInlineEditBox})))
@@ -103,9 +102,7 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
     return () => document.removeEventListener('mouseover', handler)
   }, [])
 
-  // Show banner when viewing content from a different site than the host
   const siteUid = docId.uid
-  const showBanner = origin && originHomeId && siteUid !== originHomeId.uid
 
   // Inline subscribe box for non-members
   const {isJoined} = useJoinSite({siteUid})
@@ -202,8 +199,7 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
   )
 
   return (
-    <WebAccountFooter liftForPageFooter={true} siteUid={docId.uid}>
-      {showBanner && <HypermediaHostBanner origin={origin} />}
+    <WebSitePageShell liftForPageFooter={true} siteUid={docId.uid}>
       <CommentsProvider
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
@@ -223,15 +219,15 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
       {editProfileDialog.content}
       {followAccountContent}
       {vaultSuccessContent}
-    </WebAccountFooter>
+    </WebSitePageShell>
   )
 }
 
 /** Web-specific wrapper for the dedicated inspector page. */
 export function WebInspectorPage({docId}: {docId: UnpackedHypermediaId}) {
   return (
-    <WebAccountFooter liftForPageFooter={true} siteUid={docId.uid}>
+    <WebSitePageShell liftForPageFooter={true} siteUid={docId.uid}>
       <InspectorPage docId={docId} pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />} />
-    </WebAccountFooter>
+    </WebSitePageShell>
   )
 }

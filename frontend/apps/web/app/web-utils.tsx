@@ -1,4 +1,4 @@
-import {createInspectNavRouteFromRoute, hmId, useJoinSite, useRouteLink} from '@shm/shared'
+import {createInspectNavRouteFromRoute, hmId, useJoinSite, useRouteLink, useUniversalAppContext} from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
@@ -8,6 +8,7 @@ import {ButtonLink} from '@shm/ui/button'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {FloatingAccountFooter} from '@shm/ui/floating-account-footer'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {Link} from '@shm/ui/icons'
 import {JoinButton} from '@shm/ui/join-button'
 import {MenuItemType} from '@shm/ui/options-dropdown'
@@ -150,6 +151,29 @@ export function WebAccountFooter({
     <FloatingAccountFooter floatingButton={accountButton} liftForPageFooter={liftForPageFooter}>
       {children}
     </FloatingAccountFooter>
+  )
+}
+
+/**
+ * Shared shell for site-scoped web pages that need consistent top-level chrome.
+ */
+export function WebSitePageShell({
+  children,
+  siteUid,
+  liftForPageFooter = false,
+}: {
+  children?: ReactNode
+  siteUid: string
+  liftForPageFooter?: boolean
+}) {
+  const {origin, originHomeId} = useUniversalAppContext()
+  const shouldShowHostBanner = origin && originHomeId && siteUid !== originHomeId.uid
+
+  return (
+    <WebAccountFooter siteUid={siteUid} liftForPageFooter={liftForPageFooter}>
+      {shouldShowHostBanner ? <HypermediaHostBanner origin={origin} /> : null}
+      {children}
+    </WebAccountFooter>
   )
 }
 
