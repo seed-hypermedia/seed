@@ -126,10 +126,14 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			initialEidsUpdated = append(initialEidsUpdated, oldIri)
 		}
 	}
-	if len(req.FilterAuthors) > 0 {
+	filterAuthors, err := srv.expandFilterAuthors(ctx, req.FilterAuthors)
+	if err != nil {
+		return nil, err
+	}
+	if len(filterAuthors) > 0 {
 		filtersStr = storage.PublicKeysPrincipal.String() + " in ("
 		authorsJSON = "["
-		for i, user := range req.FilterAuthors {
+		for i, user := range filterAuthors {
 			if i > 0 {
 				filtersStr += ", "
 			}
@@ -568,6 +572,48 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	}, err
 }
 
+func (srv *Server) expandFilterAuthors(ctx context.Context, authors []string) ([]string, error) {
+	if len(authors) == 0 {
+		return nil, nil
+	}
+
+	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) ([]string, error) {
+		expanded := make([]string, 0, len(authors))
+		queue := append([]string(nil), authors...)
+		seen := make(map[string]struct{}, len(authors))
+
+		for len(queue) > 0 {
+			author := queue[0]
+			queue = queue[1:]
+
+			if _, ok := seen[author]; ok {
+				continue
+			}
+
+			principal, err := core.DecodePrincipal(author)
+			if err != nil {
+				return nil, fmt.Errorf("invalid user filter [%s]: %w", author, err)
+			}
+
+			seen[author] = struct{}{}
+			expanded = append(expanded, author)
+
+			if err := sqlitex.ExecTransient(conn, qListCurrentAliasAuthors(), func(stmt *sqlite.Stmt) error {
+				aliasAuthor := core.Principal(stmt.ColumnBytes(0)).String()
+				if _, ok := seen[aliasAuthor]; !ok {
+					queue = append(queue, aliasAuthor)
+				}
+				return nil
+			}, principal); err != nil {
+				return nil, err
+			}
+		}
+
+		slices.Sort(expanded)
+		return expanded, nil
+	})
+}
+
 var qGetLatestVersions = dqb.Str(`
 SELECT
 resources.iri,
@@ -627,6 +673,36 @@ SELECT
   WHERE sb.type = 'Ref'
   AND sb.extra_attrs->>'redirect' != ''
   AND sb.genesis_blob IN (SELECT sb2.genesis_blob FROM structural_blobs sb2 JOIN resources r2 ON r2.id = sb2.resource WHERE r2.iri GLOB :filter_resource);
+`)
+
+var qListCurrentAliasAuthors = dqb.Str(`
+WITH target AS (
+	SELECT id
+	FROM public_keys
+	WHERE principal = ?
+),
+candidate_authors AS (
+	SELECT DISTINCT sb.author
+	FROM structural_blobs sb
+	JOIN target ON target.id = sb.extra_attrs->>'alias'
+	WHERE sb.type = 'Profile'
+),
+latest_profiles AS (
+	SELECT
+		sb.author,
+		CAST(sb.extra_attrs->>'alias' AS INTEGER) AS alias_id,
+		ROW_NUMBER() OVER (PARTITION BY sb.author ORDER BY sb.ts DESC, sb.id DESC) AS rn
+	FROM structural_blobs sb
+	JOIN resources r ON r.id = sb.resource
+	JOIN candidate_authors ca ON ca.author = sb.author
+	WHERE sb.type = 'Profile'
+	AND r.owner = sb.author
+)
+SELECT pk.principal
+FROM latest_profiles lp
+JOIN public_keys pk ON pk.id = lp.author
+WHERE lp.rn = 1
+AND lp.alias_id = (SELECT id FROM target);
 `)
 
 var listMentionsCore string = `

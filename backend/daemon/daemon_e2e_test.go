@@ -2886,6 +2886,137 @@ func TestActivityFeed(t *testing.T) {
 	}
 }
 
+func TestActivityFeedFilterAuthorsIncludesAliasAccounts(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	aliceKey := must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main"))
+
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+	bobKey := must.Do2(bob.Storage.KeyStore().GetKey(ctx, "main"))
+	require.NoError(t, alice.Storage.KeyStore().StoreKey(ctx, "bob", bobKey))
+
+	aliceRoot, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceKey.String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice Profile"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.RPC.DocumentsV3.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+		SigningKeyName: "main",
+		Delegate:       bobKey.String(),
+		Account:        aliceKey.String(),
+		Role:           documents.Role_AGENT,
+		Label:          "Bob aliasing Alice",
+	})
+	require.NoError(t, err)
+
+	_, err = alice.RPC.DocumentsV3.CreateAlias(ctx, &documents.CreateAliasRequest{
+		SigningKeyName: "bob",
+		AliasAccount:   aliceKey.String(),
+	})
+	require.NoError(t, err)
+
+	_, err = alice.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+		SigningKeyName: "bob",
+		TargetAccount:  aliceRoot.Account,
+		TargetPath:     aliceRoot.Path,
+		TargetVersion:  aliceRoot.Version,
+		Content: []*documents.BlockNode{
+			{Block: &documents.Block{Id: "c1", Type: "paragraph", Text: "Hello from Bob alias"}},
+		},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	aliceOnly, err := alice.RPC.Activity.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize:        50,
+		FilterAuthors:   []string{aliceKey.String()},
+		FilterEventType: []string{"Comment"},
+	})
+	require.NoError(t, err)
+	require.True(t, slices.ContainsFunc(aliceOnly.Events, func(e *activity.Event) bool {
+		nb := e.GetNewBlob()
+		return nb != nil && nb.GetBlobType() == "Comment" && nb.GetAuthor() == bobKey.String()
+	}), "alice profile activity must include comments authored by alias accounts")
+}
+
+func TestActivityFeedFilterAuthorsUsesLatestAliasState(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	aliceKey := must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main"))
+
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+	bobKey := must.Do2(bob.Storage.KeyStore().GetKey(ctx, "main"))
+	require.NoError(t, alice.Storage.KeyStore().StoreKey(ctx, "bob", bobKey))
+
+	aliceRoot, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceKey.String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice Profile"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.RPC.DocumentsV3.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+		SigningKeyName: "main",
+		Delegate:       bobKey.String(),
+		Account:        aliceKey.String(),
+		Role:           documents.Role_AGENT,
+		Label:          "Bob aliasing Alice",
+	})
+	require.NoError(t, err)
+
+	_, err = alice.RPC.DocumentsV3.CreateAlias(ctx, &documents.CreateAliasRequest{
+		SigningKeyName: "bob",
+		AliasAccount:   aliceKey.String(),
+	})
+	require.NoError(t, err)
+
+	_, err = alice.RPC.DocumentsV3.UpdateProfile(ctx, &documents.UpdateProfileRequest{
+		Account:        bobKey.String(),
+		SigningKeyName: "bob",
+		Profile: &documents.Profile{
+			Name: "Bob",
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+		SigningKeyName: "bob",
+		TargetAccount:  aliceRoot.Account,
+		TargetPath:     aliceRoot.Path,
+		TargetVersion:  aliceRoot.Version,
+		Content: []*documents.BlockNode{
+			{Block: &documents.Block{Id: "c1", Type: "paragraph", Text: "Hello from Bob after alias removal"}},
+		},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	aliceOnly, err := alice.RPC.Activity.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize:        50,
+		FilterAuthors:   []string{aliceKey.String()},
+		FilterEventType: []string{"Comment"},
+	})
+	require.NoError(t, err)
+	require.False(t, slices.ContainsFunc(aliceOnly.Events, func(e *activity.Event) bool {
+		nb := e.GetNewBlob()
+		return nb != nil && nb.GetBlobType() == "Comment" && nb.GetAuthor() == bobKey.String()
+	}), "alice profile activity must ignore comments from accounts whose latest profile no longer aliases alice")
+}
+
 func TestPrivateDocumentAccessControl(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
