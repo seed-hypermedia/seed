@@ -403,7 +403,7 @@ func (dm *Document) Ref(kp *core.KeyPair, visibility blob.Visibility) (ref blob.
 		dm.Generation = maybe.New(head.Ts.UnixMilli())
 	}
 
-	return blob.NewRef(kp, dm.Generation.Value(), genesis, space, path, []cid.Cid{headCID}, head.Ts, visibility)
+	return blob.NewRef(kp, dm.Generation.Value(), genesis, space, path, []cid.Cid{headCID}, head.Ts, visibility, "")
 }
 
 func (dm *Document) cleanupPatch() (out blob.ChangeBody, err error) {

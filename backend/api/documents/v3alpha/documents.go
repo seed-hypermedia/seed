@@ -1442,7 +1442,7 @@ func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest
 			}
 		}
 
-		refBlob, err = blob.NewRef(kp, in.Generation, genesis, ns, in.Path, heads, ts, blob.VisibilityPublic)
+		refBlob, err = blob.NewRef(kp, in.Generation, genesis, ns, in.Path, heads, ts, blob.VisibilityPublic, in.Message)
 		if err != nil {
 			return nil, err
 		}
@@ -1461,7 +1461,7 @@ func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest
 			return nil, status.Errorf(codes.InvalidArgument, "failed to parse genesis: %v", err)
 		}
 
-		refBlob, err = blob.NewRef(kp, in.Generation, genesis, ns, in.Path, nil, ts, blob.VisibilityPublic)
+		refBlob, err = blob.NewRef(kp, in.Generation, genesis, ns, in.Path, nil, ts, blob.VisibilityPublic, in.Message)
 		if err != nil {
 			return nil, err
 		}
@@ -1506,7 +1506,7 @@ func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest
 			Republish: rt.Redirect.Republish,
 		}
 
-		refBlob, err = blob.NewRefRedirect(kp, in.Generation, genesis, ns, in.Path, target, ts)
+		refBlob, err = blob.NewRefRedirect(kp, in.Generation, genesis, ns, in.Path, target, ts, in.Message)
 		if err != nil {
 			return nil, err
 		}
@@ -1667,6 +1667,7 @@ func refToProto(c cid.Cid, ref *blob.Ref) (*documents.Ref, error) {
 			Genesis:    ref.GenesisBlob.String(),
 			Generation: ref.Generation,
 		},
+		Message: ref.Message,
 	}
 
 	switch {
@@ -1725,7 +1726,7 @@ func (srv *Server) ensureProfileGenesis(ctx context.Context, kp *core.KeyPair) e
 		return err
 	}
 
-	ebr, err := blob.NewRef(kp, 0, ebc.CID, space, path, []cid.Cid{ebc.CID}, blob.ZeroUnixTime(), blob.VisibilityPublic)
+	ebr, err := blob.NewRef(kp, 0, ebc.CID, space, path, []cid.Cid{ebc.CID}, blob.ZeroUnixTime(), blob.VisibilityPublic, "")
 	if err != nil {
 		return err
 	}

@@ -124,7 +124,7 @@ func TestRefVisibilityPropagationSingleRef(t *testing.T) {
 	}, clock.MustNow())
 	require.NoError(t, err)
 
-	ref, err := NewRef(alice.Account, 0, c1.CID, alice.Account.Principal(), "/test-doc", []cid.Cid{c4.CID, c3.CID}, clock.MustNow(), VisibilityPrivate)
+	ref, err := NewRef(alice.Account, 0, c1.CID, alice.Account.Principal(), "/test-doc", []cid.Cid{c4.CID, c3.CID}, clock.MustNow(), VisibilityPrivate, "")
 	require.NoError(t, err)
 
 	input := []namedBlock{

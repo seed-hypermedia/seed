@@ -2253,6 +2253,13 @@ export class CreateRefRequest extends Message<CreateRefRequest> {
    */
   visibility = ResourceVisibility.UNSPECIFIED;
 
+  /**
+   * Optional. A human-readable message describing this publish, similar to a git commit message.
+   *
+   * @generated from field: string message = 9;
+   */
+  message = "";
+
   constructor(data?: PartialMessage<CreateRefRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2269,6 +2276,7 @@ export class CreateRefRequest extends Message<CreateRefRequest> {
     { no: 6, name: "timestamp", kind: "message", T: Timestamp },
     { no: 7, name: "generation", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 8, name: "visibility", kind: "enum", T: proto3.getEnumType(ResourceVisibility) },
+    { no: 9, name: "message", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateRefRequest {
@@ -3545,6 +3553,13 @@ export class Ref extends Message<Ref> {
    */
   generationInfo?: GenerationInfo;
 
+  /**
+   * Optional. A human-readable message attached to this Ref by the publisher.
+   *
+   * @generated from field: string message = 9;
+   */
+  message = "";
+
   constructor(data?: PartialMessage<Ref>) {
     super();
     proto3.util.initPartial(data, this);
@@ -3561,6 +3576,7 @@ export class Ref extends Message<Ref> {
     { no: 6, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "timestamp", kind: "message", T: Timestamp },
     { no: 8, name: "generation_info", kind: "message", T: GenerationInfo },
+    { no: 9, name: "message", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Ref {
