@@ -153,7 +153,7 @@ export function WebAccountFooter({
         className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
         onClick={() => {
           if (accountId) {
-            navigate({key: 'profile', id: hmId(accountId, {latest: true})})
+            navigate({key: 'site-profile', id: hmId(accountId, {latest: true}), tab: 'profile'})
           }
           setMobileMenuOpen(false)
         }}
@@ -224,7 +224,7 @@ export function WebAccountFooter({
             <DropdownMenuItem
               onClick={() => {
                 if (accountId) {
-                  navigate({key: 'profile', id: hmId(accountId, {latest: true})})
+                  navigate({key: 'site-profile', id: hmId(accountId, {latest: true}), tab: 'profile'})
                 }
               }}
             >
