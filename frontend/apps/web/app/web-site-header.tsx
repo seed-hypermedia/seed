@@ -7,6 +7,20 @@ import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {DocNavigationItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {AutoHideSiteHeaderClassName, SiteHeader} from '@shm/ui/site-header'
 
+/** Picks navigation items, returning [] while the home resource is still loading to prevent flash. */
+export function resolveNavigationItems({
+  isHomeResourceLoading,
+  homeNavigationItems,
+  directoryItems,
+}: {
+  isHomeResourceLoading: boolean
+  homeNavigationItems: DocNavigationItem[]
+  directoryItems: DocNavigationItem[]
+}): DocNavigationItem[] {
+  if (isHomeResourceLoading) return []
+  return homeNavigationItems.length > 0 ? homeNavigationItems : directoryItems
+}
+
 export type WebSiteHeaderProps = {
   noScroll?: boolean
   homeMetadata: HMMetadata | null
@@ -58,8 +72,11 @@ export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSit
       })
     : []
 
-  // For header menu: use home nav items if available, otherwise directory items
-  const items: DocNavigationItem[] = homeNavigationItems.length > 0 ? homeNavigationItems : directoryItems
+  const items = resolveNavigationItems({
+    isHomeResourceLoading: homeResourceQuery.isLoading,
+    homeNavigationItems,
+    directoryItems,
+  })
 
   return (
     <>
