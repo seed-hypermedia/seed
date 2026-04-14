@@ -198,29 +198,6 @@ export function DocOptionsButton({
       },
     })
   }
-  if (doc && canEditDoc && id?.path?.length) {
-    menuItems.push({
-      key: 'delete',
-      label: 'Delete Document',
-      icon: <Trash className="size-4" />,
-      onClick: () => {
-        deleteEntity.open({
-          id: id,
-          onSuccess: () => {
-            dispatch({
-              type: 'backplace',
-              route: {
-                key: 'document',
-                id: hmId(id.uid, {
-                  path: id.path?.slice(0, -1),
-                }),
-              } as any,
-            })
-          },
-        })
-      },
-    })
-  }
   if (!!id && !id?.path?.length && canEditDoc) {
     if (doc?.metadata?.siteUrl) {
       const siteHost = hostnameStripProtocol(doc?.metadata?.siteUrl)
@@ -303,6 +280,30 @@ export function DocOptionsButton({
       onClick: () => {
         moveDialog.open({
           id,
+        })
+      },
+    })
+  }
+
+  if (doc && canEditDoc && id?.path?.length) {
+    menuItems.push({
+      key: 'delete',
+      label: 'Delete Document',
+      icon: <Trash className="size-4" />,
+      onClick: () => {
+        deleteEntity.open({
+          id: id,
+          onSuccess: () => {
+            dispatch({
+              type: 'backplace',
+              route: {
+                key: 'document',
+                id: hmId(id.uid, {
+                  path: id.path?.slice(0, -1),
+                }),
+              } as any,
+            })
+          },
         })
       },
     })

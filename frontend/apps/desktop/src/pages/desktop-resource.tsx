@@ -261,31 +261,6 @@ export default function DesktopResourcePage() {
     })
   }
 
-  if (canEdit && docId.path?.length) {
-    menuItems.push({
-      key: 'delete',
-      label: 'Delete Document',
-      icon: <Trash className="size-4" />,
-      variant: 'destructive',
-      onClick: () => {
-        deleteEntity.open({
-          id: docId,
-          onSuccess: () => {
-            dispatch({
-              type: 'backplace',
-              route: {
-                key: 'document',
-                id: hmId(docId.uid, {
-                  path: docId.path?.slice(0, -1),
-                }),
-              } as any,
-            })
-          },
-        })
-      },
-    })
-  }
-
   // Publish / Unpublish site options (only for home documents)
   if (!docId.path?.length && canEdit) {
     if (siteUrl) {
@@ -320,6 +295,31 @@ export default function DesktopResourcePage() {
         },
       })
     }
+  }
+
+  if (canEdit && docId.path?.length) {
+    menuItems.push({
+      key: 'delete',
+      label: 'Delete Document',
+      icon: <Trash className="size-4" />,
+      variant: 'destructive',
+      onClick: () => {
+        deleteEntity.open({
+          id: docId,
+          onSuccess: () => {
+            dispatch({
+              type: 'backplace',
+              route: {
+                key: 'document',
+                id: hmId(docId.uid, {
+                  path: docId.path?.slice(0, -1),
+                }),
+              } as any,
+            })
+          },
+        })
+      },
+    })
   }
 
   const editActions = canEdit ? (

@@ -876,12 +876,14 @@ function DocumentBody({
   }, [docId, navigate, route.key])
   const allMenuItems = useMemo(() => {
     const extras = extraMenuItems || []
+    const nonDestructiveExtras = extras.filter((item) => item.variant !== 'destructive')
+    const destructiveExtras = extras.filter((item) => item.variant === 'destructive')
     const items = [...commonMenuItems]
     if (inspectMenuItem) {
       const copyLinkIndex = items.findIndex((item) => item.key === 'copy-link')
       items.splice(copyLinkIndex >= 0 ? copyLinkIndex + 1 : 0, 0, inspectMenuItem)
     }
-    return [...extras, ...items]
+    return [...nonDestructiveExtras, ...items, ...destructiveExtras]
   }, [extraMenuItems, commonMenuItems, inspectMenuItem])
 
   const hasOptions = allMenuItems.length > 0
