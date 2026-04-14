@@ -749,4 +749,3 @@ function markdownBlockNodesToHMBlockNodes(nodes: BlockNode[]): HMBlockNode[] {
     } as HMBlockNode
   })
 }
-
