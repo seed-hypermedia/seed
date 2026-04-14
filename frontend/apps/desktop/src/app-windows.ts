@@ -6,6 +6,7 @@ import type {NavState} from '@shm/shared/utils/navigation'
 import {BrowserWindow, WebContentsView, app, globalShortcut, nativeTheme, screen, shell} from 'electron'
 import path from 'node:path'
 import {z} from 'zod'
+import {markAppWindowBlurred, markAppWindowFocused} from './app-focus'
 import {updateRecentRoute} from './app-recents'
 import {getAppTheme, shouldUseDarkColors} from './app-settings'
 import {appStore} from './app-store.mjs'
@@ -20,23 +21,6 @@ const allWindows = new Map<string, BrowserWindow>()
 
 export function getAllWindows() {
   return allWindows
-}
-
-let focusedWindowKey: string | null = null
-
-const focusChangeHandlers = new Set<(focused: boolean) => void>()
-
-/** Returns true if any app window currently has focus. */
-export function isAnyWindowFocused(): boolean {
-  return focusedWindowKey !== null
-}
-
-/** Subscribe to app focus changes. Callback receives true when any window gains focus, false when all lose focus. */
-export function onAppFocusChange(handler: (focused: boolean) => void): () => void {
-  focusChangeHandlers.add(handler)
-  return () => {
-    focusChangeHandlers.delete(handler)
-  }
 }
 
 export function getFocusedWindow(): BrowserWindow | null | undefined {
@@ -94,22 +78,10 @@ export function closeAppWindow(windowId: string) {
 }
 
 function windowFocused(windowId: string) {
-  const wasFocused = focusedWindowKey !== null
-  focusedWindowKey = windowId
-  if (!wasFocused) {
-    focusChangeHandlers.forEach((h) => h(true))
-  }
+  markAppWindowFocused(windowId)
 }
 function windowBlurred(windowId: string) {
-  if (focusedWindowKey === windowId) {
-    focusedWindowKey = null
-    // Defer the "all blurred" check slightly so focus transfer between windows doesn't trigger false blur
-    setTimeout(() => {
-      if (focusedWindowKey === null) {
-        focusChangeHandlers.forEach((h) => h(false))
-      }
-    }, 100)
-  }
+  markAppWindowBlurred(windowId)
 }
 
 export function ensureFocusedWindowVisible() {

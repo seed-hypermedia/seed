@@ -27,8 +27,8 @@ import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {observable} from '@trpc/server/observable'
 import z from 'zod'
+import {isAnyWindowFocused, onAppFocusChange} from './app-focus'
 import {appInvalidateQueries} from './app-invalidation'
-import {isAnyWindowFocused, onAppFocusChange} from './app-windows'
 import {t} from './app-trpc'
 
 // Polling intervals (base values, multiplied by getPollingMultiplier())
