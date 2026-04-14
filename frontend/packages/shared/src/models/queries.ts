@@ -6,6 +6,7 @@
  */
 
 import type {
+  HMDomainInfo,
   HMCapability,
   HMContactRecord,
   HMDocumentInfo,
@@ -93,6 +94,25 @@ export function queryAccount(client: UniversalClient, uid: string | null | undef
       return result
     },
     enabled: !!uid,
+  }
+}
+
+/**
+ * Query options for fetching tracked domain information.
+ * Returns null when the domain is unknown or the lookup fails.
+ */
+export function queryDomain(client: UniversalClient, domain: string | null | undefined, forceCheck = false) {
+  return {
+    queryKey: [queryKeys.DOMAIN, domain, forceCheck] as const,
+    queryFn: async (): Promise<HMDomainInfo | null> => {
+      if (!domain) return null
+      try {
+        return await client.request('GetDomain', forceCheck ? {domain, forceCheck: true} : {domain})
+      } catch {
+        return null
+      }
+    },
+    enabled: !!domain,
   }
 }
 

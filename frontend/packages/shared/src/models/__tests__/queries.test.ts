@@ -1,6 +1,6 @@
 import {describe, expect, test, vi} from 'vitest'
 import {hmId} from '../../utils/entity-id-url'
-import {queryResource} from '../queries'
+import {queryDomain, queryResource} from '../queries'
 
 function createMockClient(handler: (key: string, input: any) => any) {
   return {
@@ -137,5 +137,43 @@ describe('queryResource', () => {
     const query = queryResource(client, docA)
     const result = await query.queryFn!()
     expect(result).toMatchObject({type: 'error', message: 'Network failure'})
+  })
+})
+
+describe('queryDomain', () => {
+  test('requests the cached domain info by default', async () => {
+    const domainInfo = {
+      domain: 'alice.example',
+      lastCheck: null,
+      status: 'success',
+      lastSuccess: null,
+      registeredAccountUid: 'alice',
+      peerId: null,
+      lastError: null,
+    }
+    const client = createMockClient(() => domainInfo)
+    const query = queryDomain(client, 'alice.example')
+    const result = await query.queryFn!()
+
+    expect(result).toEqual(domainInfo)
+    expect(client.request).toHaveBeenCalledWith('GetDomain', {domain: 'alice.example'})
+  })
+
+  test('passes forceCheck through to the client when requested', async () => {
+    const client = createMockClient(() => null)
+    const query = queryDomain(client, 'alice.example', true)
+    await query.queryFn!()
+
+    expect(client.request).toHaveBeenCalledWith('GetDomain', {domain: 'alice.example', forceCheck: true})
+  })
+
+  test('returns null when the domain lookup fails', async () => {
+    const client = createMockClient(() => {
+      throw new Error('not found')
+    })
+    const query = queryDomain(client, 'alice.example')
+    const result = await query.queryFn!()
+
+    expect(result).toBeNull()
   })
 })

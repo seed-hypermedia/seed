@@ -1,6 +1,7 @@
 import {PlainMessage, Struct, Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {
+  HMDomainInfo,
   HMAccountsMetadata,
   HMCapability,
   HMDocumentInfo,
@@ -35,6 +36,7 @@ import {
   queryChanges,
   queryCitations,
   queryComments,
+  queryDomain,
   queryDirectory,
   queryResource,
 } from './queries'
@@ -223,6 +225,23 @@ export function useAccount(id: string | null | undefined, options?: UseQueryOpti
   return useQuery({
     ...queryAccount(client, id),
     ...options,
+  })
+}
+
+/**
+ * Returns tracked domain information via the universal client API.
+ * Use `forceCheck` to refresh the domain cache before comparing ownership.
+ */
+export function useDomain(
+  domain: string | null | undefined,
+  options?: UseQueryOptions<HMDomainInfo | null> & {forceCheck?: boolean},
+) {
+  const client = useUniversalClient()
+  const forceCheck = options?.forceCheck ?? false
+  const {forceCheck: _forceCheck, ...queryOptions} = options ?? {}
+  return useQuery({
+    ...queryDomain(client, domain, forceCheck),
+    ...queryOptions,
   })
 }
 
