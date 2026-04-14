@@ -37,6 +37,7 @@ type DomainStore struct {
 	// holding a pool connection the entire time. Without limiting concurrency, many concurrent
 	// checks can exhaust the pool and block all other database operations.
 	checkSem chan struct{}
+	inFlight sync.Map
 
 	backgroundCtx    context.Context
 	cancelBackground context.CancelFunc
@@ -248,9 +249,14 @@ func (ds *DomainStore) TrackSiteURL(_ context.Context, siteURL string) {
 		return
 	}
 
+	if _, loaded := ds.inFlight.LoadOrStore(domain, struct{}{}); loaded {
+		return
+	}
+
 	ds.backgroundMu.Lock()
 	if ds.backgroundClosed {
 		ds.backgroundMu.Unlock()
+		ds.inFlight.Delete(domain)
 		return
 	}
 	ds.backgroundWG.Add(1)
@@ -259,6 +265,7 @@ func (ds *DomainStore) TrackSiteURL(_ context.Context, siteURL string) {
 
 	go func() {
 		defer ds.backgroundWG.Done()
+		defer ds.inFlight.Delete(domain)
 
 		// Limit concurrent background checks to avoid starving the connection pool.
 		select {
