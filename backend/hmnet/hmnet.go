@@ -9,6 +9,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"regexp"
+	"runtime"
 	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/core"
@@ -133,11 +134,17 @@ func New(cfg config.P2P, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Poo
 	}
 	clean.Add(closeHost)
 
+	bsOpts := []bitswap.Option{
+		bitswap.WithPeerBlockRequestFilter(index.CanPeerAccessCID),
+	}
+	if runtime.NumCPU() < 2 {
+		bsOpts = append(bsOpts, bitswap.EngineBlockstoreWorkerCount(64))
+	}
 	bitswap, err := ipfs.NewBitswap(
 		host,
 		host.Routing,
 		index,
-		bitswap.WithPeerBlockRequestFilter(index.CanPeerAccessCID),
+		bsOpts...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start bitswap: %w", err)
