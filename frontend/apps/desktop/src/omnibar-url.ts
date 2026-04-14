@@ -10,6 +10,38 @@ import {
 import {appRouteOfId} from '@shm/shared/utils/navigation'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 
+function getUrlHostname(url?: string | null): string | null {
+  if (!url) return null
+  try {
+    return new URL(url).hostname || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Returns the current site's custom domain only when it is actively resolving
+ * to the same account as the page shown in the desktop omnibar.
+ */
+export function selectValidatedOmnibarSiteUrl(params: {
+  candidateSiteUrl?: string | null
+  gatewayUrl: string
+  accountUid?: string | null
+  registeredAccountUid?: string | null
+  isDomainLoading?: boolean
+}): string | null {
+  const candidateHostname = getUrlHostname(params.candidateSiteUrl)
+  const gatewayHostname = getUrlHostname(params.gatewayUrl)
+
+  if (!params.candidateSiteUrl || !candidateHostname) return null
+  if (gatewayHostname && candidateHostname === gatewayHostname) return null
+  if (params.isDomainLoading) return null
+  if (!params.accountUid || !params.registeredAccountUid) return null
+  if (params.registeredAccountUid !== params.accountUid) return null
+
+  return params.candidateSiteUrl
+}
+
 /**
  * Resolves a URL using the same routing rules as the desktop omnibar.
  */

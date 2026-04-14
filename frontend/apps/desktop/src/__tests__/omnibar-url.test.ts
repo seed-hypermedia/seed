@@ -10,7 +10,7 @@ vi.mock('@seed-hypermedia/client', async (importOriginal) => ({
   resolveHypermediaUrl: resolveHypermediaUrlMock,
 }))
 
-import {resolveOmnibarUrlToHypermediaUrl, resolveOmnibarUrlToRoute} from '../omnibar-url'
+import {resolveOmnibarUrlToHypermediaUrl, resolveOmnibarUrlToRoute, selectValidatedOmnibarSiteUrl} from '../omnibar-url'
 
 describe('omnibar url resolution', () => {
   beforeEach(() => {
@@ -88,5 +88,52 @@ describe('omnibar url resolution', () => {
     resolveHypermediaUrlMock.mockResolvedValue(null)
 
     await expect(resolveOmnibarUrlToHypermediaUrl('https://example.com/missing')).resolves.toBeNull()
+  })
+})
+
+describe('selectValidatedOmnibarSiteUrl', () => {
+  it('returns the custom domain when it currently resolves to the same account', () => {
+    expect(
+      selectValidatedOmnibarSiteUrl({
+        candidateSiteUrl: 'https://alice.example',
+        gatewayUrl: 'https://gateway.example',
+        accountUid: 'alice',
+        registeredAccountUid: 'alice',
+      }),
+    ).toBe('https://alice.example')
+  })
+
+  it('returns null while the domain lookup is still loading', () => {
+    expect(
+      selectValidatedOmnibarSiteUrl({
+        candidateSiteUrl: 'https://alice.example',
+        gatewayUrl: 'https://gateway.example',
+        accountUid: 'alice',
+        registeredAccountUid: 'alice',
+        isDomainLoading: true,
+      }),
+    ).toBeNull()
+  })
+
+  it('returns null when the domain resolves to a different account', () => {
+    expect(
+      selectValidatedOmnibarSiteUrl({
+        candidateSiteUrl: 'https://alice.example',
+        gatewayUrl: 'https://gateway.example',
+        accountUid: 'alice',
+        registeredAccountUid: 'bob',
+      }),
+    ).toBeNull()
+  })
+
+  it('returns null for the gateway host even when the account matches', () => {
+    expect(
+      selectValidatedOmnibarSiteUrl({
+        candidateSiteUrl: 'https://gateway.example',
+        gatewayUrl: 'https://gateway.example',
+        accountUid: 'alice',
+        registeredAccountUid: 'alice',
+      }),
+    ).toBeNull()
   })
 })

@@ -10,7 +10,7 @@ import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
-import {resolveOmnibarUrlToRoute} from '@/omnibar-url'
+import {resolveOmnibarUrlToRoute, selectValidatedOmnibarSiteUrl} from '@/omnibar-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
@@ -21,7 +21,7 @@ import {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-type
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {useAccounts, useResource} from '@shm/shared/models/entity'
+import {useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
 import {DocumentRoute, DraftRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {createWebHMUrl, displayHostname, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -88,6 +88,17 @@ const DOC_OPTIONS_ROUTE_KEYS = [
 ] as const
 
 type DocOptionsRouteKey = (typeof DOC_OPTIONS_ROUTE_KEYS)[number]
+
+const OMNIBAR_DOMAIN_STALE_TIME_MS = 3 * 60 * 60 * 1000
+
+function getUrlHostname(url?: string | null): string | null {
+  if (!url) return null
+  try {
+    return new URL(url).hostname || null
+  } catch {
+    return null
+  }
+}
 
 function isDocOptionsRoute(route: NavRoute): route is NavRoute & {key: DocOptionsRouteKey; id: UnpackedHypermediaId} {
   return DOC_OPTIONS_ROUTE_KEYS.includes(route.key as DocOptionsRouteKey) && 'id' in route
@@ -638,7 +649,7 @@ function getRouteLabel(route: NavRoute): string | null {
 
 /**
  * Hook to construct displayable URL from current route
- * Priority: siteUrl > gatewayUrl (never hm://)
+ * Priority: validated custom siteUrl > gatewayUrl (never hm://)
  * Returns displayUrl (always shown) and copyableUrl (null for new doc drafts)
  */
 function useCurrentRouteUrl(): {
@@ -663,15 +674,33 @@ function useCurrentRouteUrl(): {
   const lookupUid = routeId?.uid || draftUid
   const accountEntity = useResource(lookupUid ? hmId(lookupUid) : null)
   const entitySiteUrl = accountEntity.data?.type === 'document' ? accountEntity.data.document?.metadata?.siteUrl : null
-  // Entity metadata is authoritative; fall back to hostname preserved from input URL
-  const siteHostname = entitySiteUrl || routeId?.hostname || null
+  // Entity metadata is authoritative; otherwise consider the hostname from the current route.
+  const candidateSiteUrl = entitySiteUrl || routeId?.hostname || null
+  const candidateSiteHostname = getUrlHostname(candidateSiteUrl)
+  const gatewayHostname = getUrlHostname(gwUrl)
+  const shouldValidateSiteUrl =
+    !!candidateSiteHostname && !!lookupUid && candidateSiteHostname !== gatewayHostname && candidateSiteUrl !== gwUrl
+  const domainInfo = useDomain(shouldValidateSiteUrl ? candidateSiteHostname : null, {
+    enabled: shouldValidateSiteUrl,
+    forceCheck: true,
+    retry: false,
+    staleTime: OMNIBAR_DOMAIN_STALE_TIME_MS,
+    refetchOnWindowFocus: false,
+  })
+  const validatedSiteUrl = selectValidatedOmnibarSiteUrl({
+    candidateSiteUrl,
+    gatewayUrl: gwUrl,
+    accountUid: lookupUid,
+    registeredAccountUid: domainInfo.data?.registeredAccountUid,
+    isDomainLoading: domainInfo.isLoading,
+  })
 
   const draftTitle = draftData?.metadata?.name
 
   return useMemo(() => {
     // Handle draft/preview routes (routeToUrl doesn't support them)
     if (route.key === 'draft' || route.key === 'preview') {
-      const hostname = siteHostname || gwUrl
+      const hostname = validatedSiteUrl || gwUrl
       // Resolve edit/location from route or draft data
       const editUid = (route.key === 'draft' ? route.editUid : undefined) || draftData?.editUid
       const editPath = (route.key === 'draft' ? route.editPath : undefined) || draftData?.editPath
@@ -683,7 +712,7 @@ function useCurrentRouteUrl(): {
         const url = createWebHMUrl(editUid, {
           path: editPath,
           hostname,
-          originHomeId: siteHostname ? hmId(editUid) : undefined,
+          originHomeId: validatedSiteUrl ? hmId(editUid) : undefined,
         })
         return {displayUrl: url, copyableUrl: url}
       }
@@ -695,7 +724,7 @@ function useCurrentRouteUrl(): {
         const url = createWebHMUrl(locationUid, {
           path: newPath,
           hostname,
-          originHomeId: siteHostname ? hmId(locationUid) : undefined,
+          originHomeId: validatedSiteUrl ? hmId(locationUid) : undefined,
         })
         return {displayUrl: url, copyableUrl: null}
       }
@@ -704,16 +733,16 @@ function useCurrentRouteUrl(): {
 
     if (routeId || route.key === 'inspect-ipfs') {
       const url = routeToUrl(route, {
-        hostname: siteHostname || gwUrl,
-        // Only apply originHomeId optimization when entity has a custom site URL,
-        // not when falling back to hostname from the URL (e.g., gateway URL)
-        originHomeId: entitySiteUrl && routeId ? hmId(routeId.uid) : undefined,
+        hostname: validatedSiteUrl || gwUrl,
+        // Only apply originHomeId optimization when the custom domain is still
+        // resolving to the current route's account.
+        originHomeId: validatedSiteUrl && routeId ? hmId(routeId.uid) : undefined,
       })
       return {displayUrl: url, copyableUrl: url}
     }
 
     return {displayUrl: null, copyableUrl: null}
-  }, [routeId, route, siteHostname, gwUrl, draftTitle, draftData, entitySiteUrl])
+  }, [routeId, route, validatedSiteUrl, gwUrl, draftTitle, draftData])
 }
 
 /**
