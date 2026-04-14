@@ -200,6 +200,9 @@ message CreateDocumentChangeRequest {
   // Can only be specified here when creating the document for the first time,
   // i.e. when `base_version` is empty.
   ResourceVisibility visibility = 8;
+
+  // Optional. A human-readable message describing this publish, similar to a git commit message.
+  string message = 9;
 }
 
 // Request to prepare an unsigned document change for client-side signing.

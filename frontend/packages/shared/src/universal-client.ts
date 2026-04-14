@@ -19,6 +19,8 @@ export type PublishDocumentInput = {
   generation?: number | bigint
   capability?: string
   visibility?: number
+  /** Optional human-readable publish message, similar to a git commit message. */
+  message?: string
 }
 
 export type {RecentsResult}

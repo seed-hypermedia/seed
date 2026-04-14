@@ -98,6 +98,8 @@ export type PublishDocumentInput = {
   generation?: number | bigint
   capability?: string
   visibility?: number
+  /** Optional human-readable publish message, similar to a git commit message. */
+  message?: string
 }
 
 export type SeedClientOptions = {
@@ -261,6 +263,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
           version: contentChange.cid.toString(),
           generation: input.generation != null ? Number(input.generation) : 1,
           capability: input.capability,
+          message: input.message,
         },
         signer,
       )
@@ -293,6 +296,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
         generation: input.generation,
         capability: input.capability,
         visibility: input.visibility,
+        message: input.message,
       },
       signer,
     )

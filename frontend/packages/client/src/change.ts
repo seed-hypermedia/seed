@@ -196,6 +196,8 @@ export type SignDocumentChangeInput = {
   capability?: string
   /** Proto ResourceVisibility enum value (0=unspecified, 1=public, 2=private) */
   visibility?: number
+  /** Optional human-readable publish message, similar to a git commit message. */
+  message?: string
 }
 
 /**
@@ -223,6 +225,7 @@ export async function signDocumentChange(
       generation: effectiveGeneration,
       capability: input.capability,
       visibility: visibilityToCbor(input.visibility),
+      message: input.message,
     },
     signer,
   )

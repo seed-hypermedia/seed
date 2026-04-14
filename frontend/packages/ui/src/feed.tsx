@@ -321,64 +321,67 @@ function EventHeaderContent({
   if (event.type == 'doc-update') {
     const docUpdateHeadCount = getVersionHeads(event.document.version).length
     return (
-      <div className="flex w-full items-start justify-between gap-2">
-        <InlineDescriptor>
-          <AuthorNameLink author={event.author} />{' '}
-          {!isSingleResource ? (
-            <>
-              <span>
-                {/* TODO: check if this is the correct way of getting the first ref update of a document */}
-                {event.document.version == event.document.genesis ? 'created' : 'updated'}
-              </span>{' '}
-              <DocumentNameLink metadata={event.document.metadata} id={event.docId} />{' '}
-            </>
-          ) : (
-            <>
-              <span>
-                {/* TODO: check if this is the correct way of getting the first ref update of a document */}
-                {event.document.version == event.document.genesis ? 'created the document' : 'updated the document'}
-              </span>{' '}
-            </>
-          )}
-          <Timestamp time={event.time} route={route} />
-          {docUpdateHeadCount > 1 ? (
-            <Tooltip content={`Merged ${docUpdateHeadCount} concurrent versions`}>
-              <span className="text-muted-foreground ml-1 inline-flex items-center gap-0.5 align-middle">
-                <Merge size={12} strokeWidth={2} />
-                <span className="text-xs">{docUpdateHeadCount}</span>
-              </span>
-            </Tooltip>
-          ) : null}
-        </InlineDescriptor>
-        <Tooltip content={tx('Copy Link to Version')}>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              if (!event.docId?.uid) return
-              const routeLatest =
-                currentRoute.key === 'document' || currentRoute.key === 'comments' || currentRoute.key === 'activity'
-                  ? currentRoute.id.latest
-                  : undefined
-              const versionedId = hmId(event.docId.uid, {
-                path: event.docId.path,
-                version: event.document.version,
-                latest: routeLatest ?? false,
-                hostname: targetDomain ?? null,
-              })
-              copyHmLink({
-                id: versionedId,
-                gatewayUrl: appOrigin ?? undefined,
-              })
-              onPushReference?.(versionedId)
-            }}
-          >
-            <Link className="size-3" />
-          </Button>
-        </Tooltip>
+      <div className="flex w-full flex-col gap-0.5">
+        <div className="flex w-full items-start justify-between gap-2">
+          <InlineDescriptor>
+            <AuthorNameLink author={event.author} />{' '}
+            {!isSingleResource ? (
+              <>
+                <span>
+                  {/* TODO: check if this is the correct way of getting the first ref update of a document */}
+                  {event.document.version == event.document.genesis ? 'created' : 'updated'}
+                </span>{' '}
+                <DocumentNameLink metadata={event.document.metadata} id={event.docId} />{' '}
+              </>
+            ) : (
+              <>
+                <span>
+                  {/* TODO: check if this is the correct way of getting the first ref update of a document */}
+                  {event.document.version == event.document.genesis ? 'created the document' : 'updated the document'}
+                </span>{' '}
+              </>
+            )}
+            <Timestamp time={event.time} route={route} />
+            {docUpdateHeadCount > 1 ? (
+              <Tooltip content={`Merged ${docUpdateHeadCount} concurrent versions`}>
+                <span className="text-muted-foreground ml-1 inline-flex items-center gap-0.5 align-middle">
+                  <Merge size={12} strokeWidth={2} />
+                  <span className="text-xs">{docUpdateHeadCount}</span>
+                </span>
+              </Tooltip>
+            ) : null}
+          </InlineDescriptor>
+          <Tooltip content={tx('Copy Link to Version')}>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (!event.docId?.uid) return
+                const routeLatest =
+                  currentRoute.key === 'document' || currentRoute.key === 'comments' || currentRoute.key === 'activity'
+                    ? currentRoute.id.latest
+                    : undefined
+                const versionedId = hmId(event.docId.uid, {
+                  path: event.docId.path,
+                  version: event.document.version,
+                  latest: routeLatest ?? false,
+                  hostname: targetDomain ?? null,
+                })
+                copyHmLink({
+                  id: versionedId,
+                  gatewayUrl: appOrigin ?? undefined,
+                })
+                onPushReference?.(versionedId)
+              }}
+            >
+              <Link className="size-3" />
+            </Button>
+          </Tooltip>
+        </div>
+        {event.message && <p className="text-muted-foreground ml-6 text-xs italic">{event.message}</p>}
       </div>
     )
   }

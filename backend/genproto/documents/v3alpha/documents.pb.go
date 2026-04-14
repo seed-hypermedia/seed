@@ -440,7 +440,9 @@ type CreateDocumentChangeRequest struct {
 	// Optional. Visibility of the document.
 	// Can only be specified here when creating the document for the first time,
 	// i.e. when `base_version` is empty.
-	Visibility    ResourceVisibility `protobuf:"varint,8,opt,name=visibility,proto3,enum=com.seed.documents.v3alpha.ResourceVisibility" json:"visibility,omitempty"`
+	Visibility ResourceVisibility `protobuf:"varint,8,opt,name=visibility,proto3,enum=com.seed.documents.v3alpha.ResourceVisibility" json:"visibility,omitempty"`
+	// Optional. A human-readable message describing this publish, similar to a git commit message.
+	Message       string `protobuf:"bytes,9,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -529,6 +531,13 @@ func (x *CreateDocumentChangeRequest) GetVisibility() ResourceVisibility {
 		return x.Visibility
 	}
 	return ResourceVisibility_RESOURCE_VISIBILITY_UNSPECIFIED
+}
+
+func (x *CreateDocumentChangeRequest) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
 }
 
 // Request to prepare an unsigned document change for client-side signing.
@@ -4473,7 +4482,7 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\x1bBatchGetDocumentInfoRequest\x12N\n" +
 	"\brequests\x18\x01 \x03(\v22.com.seed.documents.v3alpha.GetDocumentInfoRequestR\brequests\"f\n" +
 	"\x1cBatchGetDocumentInfoResponse\x12F\n" +
-	"\tdocuments\x18\x01 \x03(\v2(.com.seed.documents.v3alpha.DocumentInfoR\tdocuments\"\x88\x03\n" +
+	"\tdocuments\x18\x01 \x03(\v2(.com.seed.documents.v3alpha.DocumentInfoR\tdocuments\"\xa2\x03\n" +
 	"\x1bCreateDocumentChangeRequest\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12!\n" +
@@ -4486,7 +4495,8 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\ttimestamp\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12N\n" +
 	"\n" +
 	"visibility\x18\b \x01(\x0e2..com.seed.documents.v3alpha.ResourceVisibilityR\n" +
-	"visibility\"\x9d\x02\n" +
+	"visibility\x12\x18\n" +
+	"\amessage\x18\t \x01(\tR\amessage\"\x9d\x02\n" +
 	"\x14PrepareChangeRequest\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12!\n" +
