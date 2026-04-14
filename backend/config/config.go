@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"runtime"
 	"seed/backend/ipfs"
 	"seed/backend/util/must"
 	"strings"
@@ -310,13 +311,14 @@ type Syncing struct {
 }
 
 func (c Syncing) Default() Syncing {
+	numCPU := runtime.NumCPU()
 	return Syncing{
 		WarmupDuration:  time.Second * 20,
 		Interval:        time.Minute,
 		TimeoutPerPeer:  time.Minute * 5,
 		RefreshInterval: time.Second * 50,
-		MinWorkers:      8,
-		MaxWorkers:      16,
+		MinWorkers:      max(min(numCPU, 8), 2),
+		MaxWorkers:      max(min(numCPU*2, 16), 4),
 	}
 }
 
