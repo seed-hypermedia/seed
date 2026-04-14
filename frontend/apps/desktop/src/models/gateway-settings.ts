@@ -43,11 +43,13 @@ export function useSetGatewayUrl() {
   return setGatewayUrl
 }
 
+/** Returns the configured notify-service host, or `undefined` while still loading. */
 export function useNotifyServiceHost() {
   const notifyServiceHost = useQuery({
     queryKey: [queryKeys.NOTIFY_SERVICE_HOST],
     queryFn: () => client.gatewaySettings.getNotifyServiceHost.query(),
   })
+  if (!notifyServiceHost.isFetched) return undefined
   return notifyServiceHost.data || NOTIFY_SERVICE_HOST
 }
 
