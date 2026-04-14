@@ -117,6 +117,7 @@ export type LoadedRefEvent = {
   time: HMTimestamp
   docId: UnpackedHypermediaId
   document: HMDocument
+  message?: string
 }
 
 export type LoadedCitationEvent = {
@@ -466,7 +467,7 @@ export async function loadContactEvent(
 }
 
 export async function loadRefEvent(
-  _grpcClient: GRPCClient,
+  grpcClient: GRPCClient,
   event: HMActivityEvent,
   currentAccount: string | undefined,
   cache: RequestCache,
@@ -486,15 +487,14 @@ export async function loadRefEvent(
 
     const docId = unpackHmId(event.newBlob.resource)
 
-    const grpcDocument = await cache.getDocument({
-      account: docId?.uid,
-      path: docId?.path?.length ? `/${docId?.path?.join('/')}` : '',
-      version: docId?.version || undefined,
-    })
-
-    // const change = await grpcClient.entities.getEntityTimeline({
-    //   id: grpcDocument.,
-    // })
+    const [grpcDocument, grpcRef] = await Promise.all([
+      cache.getDocument({
+        account: docId?.uid,
+        path: docId?.path?.length ? `/${docId?.path?.join('/')}` : '',
+        version: docId?.version || undefined,
+      }),
+      grpcClient.documents.getRef({id: event.newBlob.cid}).catch(() => null),
+    ])
 
     return docId
       ? {
@@ -504,6 +504,7 @@ export async function loadRefEvent(
           docId,
           author,
           document: prepareHMDocument(grpcDocument),
+          message: grpcRef?.message || undefined,
         }
       : null
   } catch (error) {

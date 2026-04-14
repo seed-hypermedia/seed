@@ -80,6 +80,9 @@ export default function PublishDraftButton() {
   // Inline error shown below the path input when publish fails during first publish
   const [publishError, setPublishError] = useState<string | null>(null)
 
+  // Optional publish message (like a git commit message)
+  const [publishMessage, setPublishMessage] = useState('')
+
   // Parent auto-link state for first publish
   type ParentPublishInfo = {
     parentId: UnpackedHypermediaId
@@ -233,6 +236,7 @@ export default function PublishDraftButton() {
         draft: draft.data,
         destinationId,
         accountId,
+        message: publishMessage || undefined,
       })
 
       const resultPath = entityQueryPathToHmIdPath(res.path)
@@ -473,6 +477,23 @@ export default function PublishDraftButton() {
                   {publishError && <p className="text-destructive text-xs">{publishError}</p>}
                 </div>
               )}
+            </div>
+
+            <Separator />
+
+            {/* Publish message (optional) */}
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="publish-message" className="text-sm font-medium">
+                Publish message <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <textarea
+                id="publish-message"
+                value={publishMessage}
+                onChange={(e) => setPublishMessage(e.target.value)}
+                placeholder='What changed? e.g. "Fixed typos in intro"'
+                className="border-input bg-muted/40 placeholder:text-muted-foreground focus-visible:ring-ring min-h-[72px] w-full resize-none rounded-md border px-3 py-2 text-sm focus-visible:ring-1 focus-visible:outline-none"
+                rows={3}
+              />
             </div>
 
             <Separator />

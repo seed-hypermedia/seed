@@ -227,6 +227,7 @@ type PublishDraftInput = {
   draft: HMDraft
   destinationId: UnpackedHypermediaId
   accountId: string
+  message?: string
 }
 export function usePublishResource(
   editId: UnpackedHypermediaId | undefined | null,
@@ -239,7 +240,7 @@ export function usePublishResource(
     mutationFn: (signingKeyName: string) => client.recentSigners.writeRecentSigner.mutate(signingKeyName),
   })
   return useMutation<HMDocument, any, PublishDraftInput>({
-    mutationFn: async ({draft, destinationId, accountId}: PublishDraftInput): Promise<HMDocument> => {
+    mutationFn: async ({draft, destinationId, accountId, message}: PublishDraftInput): Promise<HMDocument> => {
       const blocksMap = editId ? createBlocksMap(editDocument?.content || [], '') : {}
       let newContent = removeTrailingBlocks(draft.content || [])
 
@@ -307,6 +308,7 @@ export function usePublishResource(
               visibility,
               genesis: editDocument?.genesis,
               generation: editDocument?.generationInfo?.generation,
+              message,
             })
 
             const updatedDoc = await grpcClient.documents.getDocument({

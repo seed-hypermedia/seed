@@ -247,7 +247,7 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 		return nil, status.Errorf(codes.InvalidArgument, "unknown visibility value: %v", in.Visibility)
 	}
 
-	ref, err := doc.Ref(kp, visibility)
+	ref, err := doc.Ref(kp, visibility, in.Message)
 	if err != nil {
 		return nil, err
 	}
