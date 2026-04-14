@@ -379,7 +379,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 		}
 	}
 
-	g.Wait()
+	_ = g.Wait()
 
 	return res
 }
