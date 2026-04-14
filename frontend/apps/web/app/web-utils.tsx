@@ -22,7 +22,7 @@ import {MobilePanelSheet} from '@shm/ui/mobile-panel-sheet'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMedia} from '@shm/ui/use-media'
-import {Bell, LogOut, Search, UserCog} from 'lucide-react'
+import {Bell, LogOut, Search, User, UserCog} from 'lucide-react'
 import {ReactNode, useMemo, useState} from 'react'
 import {LogoutDialog, useCreateAccount, useLocalKeyPair} from './auth'
 import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifications'
@@ -132,6 +132,7 @@ export function WebAccountFooter({
     }
   }, [myAccount.data])
 
+  const navigate = useNavigate()
   const vaultUrl = keyPair?.vaultUrl
   const media = useMedia()
   const isMobile = media.xs
@@ -148,6 +149,19 @@ export function WebAccountFooter({
 
   const menuItems = (
     <>
+      <button
+        className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+        onClick={() => {
+          if (accountId) {
+            navigate({key: 'profile', id: hmId(accountId, {latest: true})})
+          }
+          setMobileMenuOpen(false)
+        }}
+      >
+        <User className="size-5" />
+        <span className="text-sm">My Profile</span>
+      </button>
+      <div className="bg-border mx-4 h-px" />
       <button
         className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left disabled:opacity-50"
         onClick={() => {
@@ -207,6 +221,16 @@ export function WebAccountFooter({
               </div>
             </div>
             <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => {
+                if (accountId) {
+                  navigate({key: 'profile', id: hmId(accountId, {latest: true})})
+                }
+              }}
+            >
+              <User className="size-4" />
+              My Profile
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
                 if (vaultUrl) {

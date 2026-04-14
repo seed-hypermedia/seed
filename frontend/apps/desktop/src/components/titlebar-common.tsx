@@ -62,6 +62,7 @@ import {
   Plus,
   Search,
   Settings,
+  User,
   UserCog,
 } from 'lucide-react'
 import {ReactNode, useCallback, useContext, useMemo, useRef, useState} from 'react'
@@ -420,7 +421,20 @@ function AccountProfileButton() {
           </button>
           {switcherOpen && (
             <>
-              <div className="max-h-[200px] overflow-y-auto [&::-webkit-scrollbar]:hidden">
+              <div
+                className="max-h-[200px] overflow-y-auto"
+                style={{
+                  background: [
+                    'linear-gradient(var(--popover) 33%, transparent) center top',
+                    'linear-gradient(transparent, var(--popover) 66%) center bottom',
+                    'radial-gradient(farthest-side at 50% 0, oklch(0 0 0 / 0.12), transparent) center top',
+                    'radial-gradient(farthest-side at 50% 100%, oklch(0 0 0 / 0.12), transparent) center bottom',
+                  ].join(', '),
+                  backgroundRepeat: 'no-repeat',
+                  backgroundSize: '100% 40px, 100% 40px, 100% 6px, 100% 6px',
+                  backgroundAttachment: 'local, local, scroll, scroll',
+                }}
+              >
                 {accountOptions?.map((option) =>
                   option ? (
                     <button
@@ -455,6 +469,14 @@ function AccountProfileButton() {
           )}
         </div>
         <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+        <DropdownMenuItem
+          onClick={() => {
+            navigate({key: 'profile', id: hmId(accountUid)})
+          }}
+        >
+          <User className="size-4" />
+          My Profile
+        </DropdownMenuItem>
         <DropdownMenuItem disabled>
           <UserCog className="size-4" />
           Manage account
