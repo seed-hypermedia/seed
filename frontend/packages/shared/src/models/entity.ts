@@ -14,12 +14,12 @@ import {
   HMListEventsOutput,
   HMMetadata,
   HMMetadataPayload,
-  HMResolvedResource,
   HMResource,
   HMSiteMember,
   HMTimestamp,
   HMTimestampSchema,
   UnpackedHypermediaId,
+  HMResolvedResource,
 } from '@seed-hypermedia/client/hm-types'
 import {useInfiniteQuery, useQueries, useQuery, useQueryClient, UseQueryOptions} from '@tanstack/react-query'
 import {useEffect, useMemo, useRef, useState} from 'react'
@@ -48,13 +48,13 @@ export function documentMetadataParseAdjustments(metadata: any) {
   }
 }
 
-export function prepareHMDocumentMetadata(metadata: Struct | undefined): HMMetadata {
+function prepareHMDocumentMetadata(metadata: Struct | undefined): HMMetadata {
   const docMeta = metadata?.toJson({emitDefaultValues: true, enumAsInteger: false}) || {}
   documentMetadataParseAdjustments(docMeta)
   return HMDocumentMetadataSchema.parse(docMeta)
 }
 
-export function prepareHMDate(date: PlainMessage<Timestamp> | undefined): HMTimestamp | undefined {
+function prepareHMDate(date: PlainMessage<Timestamp> | undefined): HMTimestamp | undefined {
   if (!date) return undefined
   const d = toPlainMessage(date)
   return HMTimestampSchema.parse(d)
@@ -94,10 +94,6 @@ export function prepareHMDocumentInfo(doc: DocumentInfo): HMDocumentInfo {
     path,
     redirectInfo,
   } as const)
-}
-
-export function documentParseAdjustments(document: any) {
-  documentMetadataParseAdjustments(document?.metadata)
 }
 
 export function useDiscoveryState(entityId: string | undefined) {
@@ -416,35 +412,6 @@ export function useAccountsMetadata(uids: string[]): HMAccountsMetadataResult {
   return {data, isLoading}
 }
 
-export function useResolvedResources(
-  ids: (UnpackedHypermediaId | null | undefined)[],
-  options?: UseQueryOptions<HMResolvedResource | null>,
-) {
-  const client = useUniversalClient()
-  return useQueries({
-    queries: ids.map((id) => {
-      const version = id?.version || undefined
-      return {
-        enabled: options?.enabled ?? !!id,
-        queryKey: [queryKeys.RESOLVED_ENTITY, id?.id, version],
-        queryFn: async (): Promise<HMResolvedResource | null> => {
-          if (!id) return null
-
-          async function loadResolvedResource(id: UnpackedHypermediaId): Promise<HMResolvedResource | null> {
-            let resource = await client.request('Resource', id)
-            if (resource?.type === 'redirect') {
-              return await loadResolvedResource(resource.redirectTarget)
-            }
-            return resource as HMResolvedResource
-          }
-
-          return await loadResolvedResource(id)
-        },
-      }
-    }),
-  })
-}
-
 export class HMError extends Error {}
 
 export class HMRedirectError extends HMError {
@@ -550,7 +517,7 @@ export function useDirectory(
   return useQuery(queryDirectory(client, id, mode))
 }
 
-export function useAccountDrafts(accountUid: string | undefined) {
+function useAccountDrafts(accountUid: string | undefined) {
   const client = useUniversalClient()
   return useQuery({
     queryKey: [queryKeys.ACCOUNT_DRAFTS, accountUid],

@@ -24,7 +24,7 @@ export type InteractionSummaryPayload = {
 /**
  * Processes entity mentions into HMCitation format
  */
-export function processMentionsToCitations(
+function processMentionsToCitations(
   mentions: ListEntityMentionsResponse['mentions'],
   targetDocId: UnpackedHypermediaId,
 ): HMCitation[] {
@@ -61,7 +61,7 @@ export function processMentionsToCitations(
 
 /**
  * Calculates block-level citation counts from deduplicated citations
- * This is the core logic used by both calculateInteractionSummary and calculateBlockCitations
+ * Core logic used by calculateInteractionSummary
  */
 function calculateBlocksFromCitations(dedupedCitations: HMCitation[]): {
   blocks: Record<string, {citations: number; comments: number}>
@@ -136,42 +136,4 @@ export function calculateInteractionSummary(
     authorUids,
     blocks,
   }
-}
-
-/**
- * Separates citations into document and comment citations
- */
-export function sortCitationsByType(citations: HMCitation[]): {
-  docCitations: HMCitation[]
-  commentCitations: HMCitation[]
-} {
-  const dedupedCitations = deduplicateCitations(citations)
-  const docCitations: HMCitation[] = []
-  const commentCitations: HMCitation[] = []
-
-  dedupedCitations.forEach((citation) => {
-    if (citation.source.type === 'd') {
-      docCitations.push(citation)
-    } else if (citation.source.type === 'c') {
-      commentCitations.push(citation)
-    }
-  })
-
-  return {docCitations, commentCitations}
-}
-
-/**
- * Calculates block-level citation counts from an array of citations
- * Used by the desktop app for displaying block-level citation indicators
- */
-export function calculateBlockCitations(
-  citations: HMCitation[],
-): Record<string, {citations: number; comments: number}> {
-  // Deduplicate citations first
-  const dedupedCitations = deduplicateCitations(citations)
-
-  // Use the shared core logic
-  const {blocks} = calculateBlocksFromCitations(dedupedCitations)
-
-  return blocks
 }

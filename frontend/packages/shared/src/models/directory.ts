@@ -5,7 +5,7 @@ import {GRPCClient} from '../grpc-client'
 import {entityQueryPathToHmIdPath, hmId} from '../utils'
 import {prepareHMDocumentInfo} from './entity'
 
-export function createDirectoryResolver(client: GRPCClient) {
+function createDirectoryResolver(client: GRPCClient) {
   async function getDirectory(id: UnpackedHypermediaId, mode: 'Children' | 'AllDescendants' = 'AllDescendants') {
     const listResult = await client.documents.listDocuments({
       account: id.uid,

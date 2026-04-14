@@ -8,7 +8,6 @@ export * from './interaction-summary'
 // @seed-hypermedia/client, which causes Vite pre-bundle cache conflicts when
 // desktop and web dev servers run simultaneously. Import it directly instead:
 // import {createWebUniversalClient} from '@shm/shared/create-web-universal-client'
-export * from './document-to-text'
 export * from './editor-types'
 export * from './grpc-client'
 export * from './models/activity-service'

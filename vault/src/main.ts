@@ -147,7 +147,7 @@ if (import.meta.main) {
   main()
 }
 
-export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, string> {
+function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, string> {
   return {
     '/vault/api/pre-login': {
       POST: async (req) => {

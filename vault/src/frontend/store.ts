@@ -31,7 +31,7 @@ export interface SessionInfo {
 }
 
 /** Creates the initial state for the store. */
-export function initialState(backendHttpBaseUrl = '', notificationServerUrl = '') {
+function initialState(backendHttpBaseUrl = '', notificationServerUrl = '') {
   return {
     email: '',
     password: '',
@@ -1807,7 +1807,7 @@ export const StoreContext = createContext<Store | null>(null)
  * Hook to access the store from the context.
  * Must be used within a StoreContext.Provider.
  */
-export function useStore(): Store {
+function useStore(): Store {
   const store = useContext(StoreContext)
   if (!store) {
     throw new Error('useStore must be used within a StoreContext.Provider')

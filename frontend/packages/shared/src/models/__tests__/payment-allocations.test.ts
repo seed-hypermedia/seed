@@ -1,12 +1,8 @@
 import {describe, expect, test} from 'vitest'
-import {
-  applyIsEvenAllocation,
-  applyRecipientAmount,
-  applyTotalAmount,
-  evenToCustomAllocation,
-  getAllocations,
-  SHM_FEE,
-} from '../payment-allocations'
+import {applyIsEvenAllocation, applyRecipientAmount, applyTotalAmount, getAllocations} from '../payment-allocations'
+
+/** Mirror of the internal SHM_FEE constant for test assertions. */
+const SHM_FEE = 0.01
 
 function getFee(amount: number) {
   return Math.ceil(amount * SHM_FEE)
@@ -209,9 +205,9 @@ describe('applyTotalAmount', () => {
   })
 })
 
-describe('evenToCustomAllocation', () => {
-  test('convert even to custom', () => {
-    const result = evenToCustomAllocation({
+describe('even to custom conversion via applyIsEvenAllocation', () => {
+  test('convert even to custom preserves subtotal split', () => {
+    const result = applyIsEvenAllocation(false)({
       mode: 'even',
       recipients: ['a', 'b'],
       amount: 202, // includes fee

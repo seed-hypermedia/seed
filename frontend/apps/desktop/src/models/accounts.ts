@@ -11,10 +11,6 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
 
-export function useAccount_deprecated() {
-  throw new Error('useAccount_deprecated is fully broken')
-}
-
 export function useAccountList({queryOptions}: {queryOptions?: Partial<ListAccountsRequest>} = {}) {
   const q = useQuery({
     queryKey: [queryKeys.LIST_ACCOUNTS],
@@ -44,10 +40,6 @@ export function useAccountList({queryOptions}: {queryOptions?: Partial<ListAccou
   return q
 }
 
-export function useAllAccounts() {
-  throw new Error('useAllAccounts is fully broken')
-}
-
 /*
  * @deprecated use useMyAccountIds for multi-account support
  */
@@ -60,10 +52,6 @@ export function useMyAccount_deprecated() {
   const accountId = accountKeys.data[0]
   if (!accountId) return null
   return accountId
-}
-
-export function useSetProfile_deprecated() {
-  throw new Error('useSetProfile_deprecated not supported anymore')
 }
 
 export function useDraft(id: string | undefined) {
