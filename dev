@@ -134,17 +134,24 @@ def main():
 
         testnet_var = "SEED_P2P_TESTNET_NAME"
         if testnet_var not in os.environ:
-            os.environ[testnet_var] = "dev"
+            os.environ[testnet_var] = ""
 
-        os.environ["VITE_LIGHTNING_API_URL"] = "https://ln.seed.hyper.media"
-        # os.environ["VITE_SEED_HOST_URL"] = "https://host.seed.hyper.media"
+        testnet_name = os.environ.get(testnet_var, "")
+        if testnet_name:
+            os.environ["VITE_LIGHTNING_API_URL"] = "https://ln.testnet.seed.hyper.media"
+            host_url = "https://host-dev.seed.hyper.media"
+            gateway_url = "https://dev.hyper.media"
+        else:
+            os.environ["VITE_LIGHTNING_API_URL"] = "https://ln.seed.hyper.media"
+            host_url = "https://host.seed.hyper.media"
+            gateway_url = "https://hyper.media"
 
         # Enable React Profiler if --profiler flag is passed
         if "--profiler" in args:
             os.environ["REACT_PROFILER"] = "1"
             args = [a for a in args if a != "--profiler"]
 
-        env_prefix = "VITE_DESKTOP_APPDATA=Seed-local SHOW_OB_RESET_BTN=0 VITE_SEED_HOST_URL=https://host.seed.hyper.media"
+        env_prefix = f"VITE_DESKTOP_APPDATA=Seed-local SHOW_OB_RESET_BTN=0 VITE_SEED_HOST_URL={host_url} VITE_GATEWAY_URL={gateway_url}"
         if os.environ.get("REACT_PROFILER"):
             env_prefix = f"REACT_PROFILER=1 {env_prefix}"
         run(f"{env_prefix} pnpm desktop:make")

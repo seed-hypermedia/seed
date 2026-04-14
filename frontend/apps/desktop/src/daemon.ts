@@ -1,12 +1,5 @@
 import {State} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
-import {
-  DAEMON_GRPC_PORT,
-  DAEMON_HTTP_PORT,
-  IS_PROD_DESKTOP,
-  IS_PROD_DEV,
-  P2P_PORT,
-  VERSION,
-} from '@shm/shared/constants'
+import {DAEMON_GRPC_PORT, DAEMON_HTTP_PORT, P2P_PORT, VERSION} from '@shm/shared/constants'
 import {ChildProcess, spawn} from 'child_process'
 import {app} from 'electron'
 import * as readline from 'node:readline'
@@ -18,7 +11,9 @@ import * as log from './logger'
 
 let goDaemonExecutablePath = getDaemonBinaryPath()
 
-const lndhubFlags = IS_PROD_DESKTOP && !IS_PROD_DEV ? '-lndhub.mainnet=true' : '-lndhub.mainnet=false'
+declare const __SEED_P2P_TESTNET_NAME__: string
+
+const lndhubFlags = !__SEED_P2P_TESTNET_NAME__ ? '-lndhub.mainnet=true' : '-lndhub.mainnet=false'
 
 // Base daemon arguments (without embedding flags)
 const baseDaemonArguments = [
@@ -38,6 +33,8 @@ const baseDaemonArguments = [
   '-syncing.no-sync-back=true',
 
   lndhubFlags,
+
+  ...(__SEED_P2P_TESTNET_NAME__ ? ['-p2p.testnet-name', __SEED_P2P_TESTNET_NAME__] : []),
 
   // Daemon data is always at {userDataPath}/daemon.
   // In fixture mode, userDataPath is set via SEED_FIXTURE_DATA_DIR.
