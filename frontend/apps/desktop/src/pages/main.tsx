@@ -258,16 +258,6 @@ function PanelContent({children}: {children: ReactNode}) {
   const ref = useRef<ImperativePanelGroupHandle>(null)
 
   useListenAppEvent('toggle_sidebar', () => {
-    // Skip if editor is focused - toggle_bold handler will handle it
-    const activeElement = document.activeElement
-    const isEditorFocused =
-      activeElement && (activeElement.classList.contains('ProseMirror') || activeElement.closest('.ProseMirror'))
-
-    console.log('[toggle_sidebar] activeElement:', activeElement?.tagName, activeElement?.className)
-    console.log('[toggle_sidebar] isEditorFocused:', isEditorFocused)
-
-    if (isEditorFocused) return
-
     ctx.onToggleMenuLock()
   })
 

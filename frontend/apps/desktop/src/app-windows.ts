@@ -708,9 +708,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
       }
     })
 
-    globalShortcut.register('CommandOrControl+B', () => {
-      // Dispatch both events - handlers check editor focus
-      dispatchFocusedWindowAppEvent({type: 'toggle_bold'})
+    globalShortcut.register('CommandOrControl+\\', () => {
       dispatchFocusedWindowAppEvent({type: 'toggle_sidebar'})
     })
 
@@ -734,7 +732,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   browserWindow.on('blur', () => {
     windowBlurred(windowId)
     globalShortcut.unregister('CommandOrControl+F')
-    globalShortcut.unregister('CommandOrControl+B')
+    globalShortcut.unregister('CommandOrControl+\\')
 
     // Unregister numbered shortcuts
     for (let i = 1; i <= 5; i++) {

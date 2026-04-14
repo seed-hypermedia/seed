@@ -155,11 +155,8 @@ export function createAppMenu() {
         {
           id: 'toggle_sidebar',
           label: 'Toggle Sidebar',
-          accelerator: 'CmdOrCtrl+B',
+          accelerator: 'CmdOrCtrl+\\',
           click: () => {
-            // Dispatch both events - handlers check editor focus
-            console.log('[app-menu] Cmd+B pressed, dispatching toggle_bold and toggle_sidebar')
-            dispatchFocusedWindowAppEvent({type: 'toggle_bold'})
             dispatchFocusedWindowAppEvent({type: 'toggle_sidebar'})
           },
         },

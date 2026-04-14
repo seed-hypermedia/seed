@@ -20,7 +20,7 @@ import {MentionMenuPositioner} from '@shm/editor/mention-menu-positioner'
 import type {HyperMediaEditor} from '@shm/editor/types'
 import {useSelectedAccountId} from '@/selected-account'
 import {useUniversalAppContext} from '@shm/shared'
-import {useEffect, useMemo, useState} from 'react'
+import {useMemo, useState} from 'react'
 import {AddBlockAtEndButton} from './add-block-at-end-button'
 
 export function HyperMediaEditorView({
@@ -50,22 +50,6 @@ export function HyperMediaEditorView({
   resolveImageUrl?: (url: string) => string
 }) {
   const selectedAccountId = useSelectedAccountId()
-
-  // Handle Cmd+B for bold when this editor is focused
-  // Using useEffect directly to avoid issues with useListenAppEvent callback deps
-  useEffect(() => {
-    const unsubscribe = window.appWindowEvents?.subscribe((event) => {
-      console.log('AppWindowEvent received in HyperMediaEditorView:', event)
-      if (event.type === 'toggle_bold') {
-        console.log('[toggle_bold] event received in editor')
-        if (editor.isFocused()) {
-          console.log('[toggle_bold] editor is focused, toggling bold')
-          editor._tiptapEditor.commands.toggleBold()
-        }
-      }
-    })
-    return unsubscribe
-  }, [editor])
 
   // Debug toggle state — forces re-render when toggled so toolbar suppression updates
   const [editableOverride, setEditableOverride] = useState<boolean | null>(null)
