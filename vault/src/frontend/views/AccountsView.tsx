@@ -328,7 +328,11 @@ function AccountPicker({
             <p className="text-muted-foreground truncate text-xs">{selectedPrincipal.slice(0, 20)}...</p>
           ) : null}
         </div>
-        {open ? <ChevronUp className="text-muted-foreground size-4" /> : <ChevronDown className="text-muted-foreground size-4" />}
+        {open ? (
+          <ChevronUp className="text-muted-foreground size-4" />
+        ) : (
+          <ChevronDown className="text-muted-foreground size-4" />
+        )}
       </button>
       {open && accounts.length > 1 ? (
         <div className="border-border bg-card absolute top-full right-0 left-0 z-10 mt-1 overflow-hidden rounded-lg border shadow-lg">

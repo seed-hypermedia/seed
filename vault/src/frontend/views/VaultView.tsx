@@ -16,7 +16,7 @@ export function VaultView({initialTab = 'accounts'}: {initialTab?: SidebarTab}) 
   return (
     <div className="bg-card flex min-h-[480px] overflow-hidden rounded-xl border max-md:flex-col">
       {/* Sidebar */}
-      <div className="flex w-[220px] shrink-0 flex-col border-r max-md:w-full max-md:border-b max-md:border-r-0">
+      <div className="flex w-[220px] shrink-0 flex-col border-r max-md:w-full max-md:border-r-0 max-md:border-b">
         <div className="flex flex-1 flex-col gap-1 p-2">
           <SidebarButton
             active={activeTab === 'accounts'}

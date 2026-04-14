@@ -12,12 +12,7 @@ describe('NotificationsView', () => {
   })
 
   function createVaultStore(names: string[] = ['Alice'], notificationServerUrl = '', createTime = 123456789) {
-    const store = createStore(
-      createSuccessMockClient(),
-      createMockBlockstore(),
-      '',
-      notificationServerUrl,
-    )
+    const store = createStore(createSuccessMockClient(), createMockBlockstore(), '', notificationServerUrl)
 
     store.state.session = {
       authenticated: true,
@@ -72,7 +67,7 @@ describe('NotificationsView', () => {
       )
 
       await waitFor(() => {
-        expect(screen.getByText('Notifications')).toBeDefined()
+        expect(screen.getByRole('heading', {name: 'Notifications', level: 1})).toBeDefined()
       })
       expect(screen.getByRole('button', {name: 'Register Account'})).toBeDefined()
     } finally {

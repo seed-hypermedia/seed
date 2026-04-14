@@ -43,9 +43,8 @@ describe('SettingsView', () => {
     const notifyLabel = screen.getByText('Notify Server URL')
     expect(notifyLabel).toBeDefined()
     expect(screen.getByText('https://notify.custom.example.com/api')).toBeDefined()
-    // The Change button should exist in the same row
-    const notifyRow = notifyLabel.closest('.flex') as HTMLElement
-    expect(within(notifyRow).getByRole('button', {name: 'Change'})).toBeDefined()
+    const notificationsSection = screen.getByText('NOTIFICATIONS').parentElement as HTMLElement
+    expect(within(notificationsSection).getByRole('button', {name: 'Change'})).toBeDefined()
     expect(screen.queryByLabelText('Notify Server URL')).toBeNull()
   })
 })

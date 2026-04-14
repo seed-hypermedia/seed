@@ -39,9 +39,7 @@ export function NotificationsView() {
             const profile = profiles[principal]
             const profileLoadState = profileLoadStates[principal]
             const name = getProfileDisplayName(profile, profileLoadState)
-            const avatarSrc = profile?.avatar
-              ? getProfileAvatarImageSrc(backendHttpBaseUrl, profile.avatar)
-              : undefined
+            const avatarSrc = profile?.avatar ? getProfileAvatarImageSrc(backendHttpBaseUrl, profile.avatar) : undefined
 
             return (
               <div key={principal}>
