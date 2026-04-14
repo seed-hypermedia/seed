@@ -36,7 +36,7 @@ func TestRandID(t *testing.T) {
 	stmt.SetText("$val", "value")
 
 	for i := 0; i < 10; i++ {
-		const min, max = 1000, 10000
+		const min, max = 1000, 1_000_000_000
 
 		id, err := sqlitex.InsertRandID(stmt, "$key", min, max)
 		if err != nil {
