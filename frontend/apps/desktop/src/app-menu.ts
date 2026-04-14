@@ -155,7 +155,7 @@ export function createAppMenu() {
         {
           id: 'toggle_sidebar',
           label: 'Toggle Sidebar',
-          accelerator: 'CmdOrCtrl+\\',
+          accelerator: 'CmdOrCtrl+B',
           click: () => {
             dispatchFocusedWindowAppEvent({type: 'toggle_sidebar'})
           },

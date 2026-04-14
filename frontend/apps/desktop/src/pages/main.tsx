@@ -258,6 +258,19 @@ function PanelContent({children}: {children: ReactNode}) {
   const ref = useRef<ImperativePanelGroupHandle>(null)
 
   useListenAppEvent('toggle_sidebar', () => {
+    const activeEl = document.activeElement
+    const pmEl = activeEl?.closest?.('.ProseMirror') as HTMLElement | null
+    const tiptapEditor = pmEl && (pmEl as any).editor
+    console.log('[Cmd+B]', {
+      activeEl: activeEl?.tagName,
+      hasPM: !!pmEl,
+      isFocused: tiptapEditor?.isFocused,
+      isEditable: tiptapEditor?.isEditable,
+    })
+    if (tiptapEditor?.isFocused && tiptapEditor?.isEditable) {
+      tiptapEditor.commands.toggleBold()
+      return
+    }
     ctx.onToggleMenuLock()
   })
 
