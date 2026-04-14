@@ -8,7 +8,20 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {CommentEditor} from '@shm/editor/comment-editor'
-import {idToUrl, queryKeys, unpackHmId, useUniversalAppContext, useUniversalClient} from '@shm/shared'
+import {
+  getValidatedWebSeedLinkState,
+  hypermediaUrlToRoute,
+  hmId,
+  idToUrl,
+  queryAccount,
+  queryDomain,
+  queryKeys,
+  routeToHref,
+  routeToUrl,
+  unpackHmId,
+  useUniversalAppContext,
+  useUniversalClient,
+} from '@shm/shared'
 import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider'
 import {useCommentsService} from '@shm/shared/comments-service-provider'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
@@ -558,22 +571,55 @@ async function importWebFile(
 
 export function useOpenUrlWeb() {
   const {originHomeId} = useUniversalAppContext()
+  const client = useUniversalClient()
+  const queryClient = useQueryClient()
 
-  return (url?: string, newWindow?: boolean) => {
+  return async (url?: string, newWindow?: boolean) => {
     if (!url) return
 
     const unpacked = unpackHmId(url)
-    const newUrl = unpacked ? idToUrl(unpacked, {originHomeId}) : url
+    let newUrl = unpacked ? idToUrl(unpacked, {originHomeId}) : url
 
     if (!newUrl) {
       console.error('URL is empty', newUrl)
       return
     }
 
+    if (unpacked?.uid) {
+      const parsedRoute = hypermediaUrlToRoute(url) || {key: 'document' as const, id: unpacked}
+      const fallbackHref = routeToHref(parsedRoute, {originHomeId})
+      const account =
+        unpacked.hostname || !unpacked.uid ? null : await queryClient.fetchQuery(queryAccount(client, unpacked.uid))
+      const candidateOrigin =
+        unpacked.hostname && unpacked.scheme
+          ? `${unpacked.scheme}://${unpacked.hostname}`
+          : account?.metadata?.siteUrl || null
+      const candidateHostname = candidateOrigin ? new URL(candidateOrigin).hostname : null
+      const candidateUrl =
+        candidateOrigin && parsedRoute
+          ? routeToUrl(parsedRoute, {
+              hostname: candidateOrigin,
+              originHomeId: hmId(unpacked.uid),
+            })
+          : newUrl
+      const domainInfo = candidateHostname
+        ? await queryClient.fetchQuery(queryDomain(client, candidateHostname, true))
+        : null
+      const linkState = getValidatedWebSeedLinkState({
+        href: candidateUrl,
+        fallbackHref,
+        hostname: candidateHostname,
+        expectedAccountUid: unpacked.uid,
+        registeredAccountUid: domainInfo?.registeredAccountUid,
+        isSeedLink: true,
+      })
+      newUrl = linkState.href || newUrl
+    }
+
     if (newWindow) {
       window.open(newUrl, '_blank')
     } else {
-      window.location.href = newUrl
+      window.location.assign(newUrl)
     }
   }
 }

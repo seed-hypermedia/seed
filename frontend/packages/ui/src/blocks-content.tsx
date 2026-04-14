@@ -46,6 +46,7 @@ import {
   useRouteLinkHref,
   useUniversalAppContext,
   useUniversalClient,
+  useValidatedWebRouteLink,
 } from '@shm/shared'
 import {useAccount, useAccountsMetadata, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
@@ -1450,7 +1451,7 @@ function InlineContentView({
 
         if (content.type === 'link') {
           const isHmScheme = isHypermediaScheme(content.href)
-          const linkProps = useRouteLinkHref(content.href)
+          const linkProps = useValidatedWebRouteLink(content.href)
           const id = unpackHmId(content.href)
           return (
             <a
@@ -1461,7 +1462,7 @@ function InlineContentView({
                 // link colors
                 'link text-link hover:text-link-hover',
               )}
-              target={isHmScheme ? undefined : '_blank'}
+              target={linkProps.isSeedLink || isHmScheme ? undefined : '_blank'}
               {...highlighter(id)}
             >
               <InlineContentView
@@ -2438,7 +2439,7 @@ export function BlockContentFile({block}: BlockContentProps<HMBlockFile>) {
 export function BlockContentButton({block, parentBlockId, ...props}: BlockContentProps<HMBlockButton>) {
   const {hover, ...hoverProps} = useHover()
   const buttonLink = block.type === 'Button' ? block.link : null
-  const linkProps = useRouteLinkHref(buttonLink || '')
+  const linkProps = useValidatedWebRouteLink(buttonLink || '')
   if (!block.attributes) {
     console.error('Button Block without attributes?!', block)
   }

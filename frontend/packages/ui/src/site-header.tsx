@@ -5,7 +5,7 @@ import {
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {getMetadataName, NavRoute, SearchResult, useRouteLink} from '@shm/shared'
+import {getMetadataName, NavRoute, SearchResult, useRouteLink, useValidatedWebRouteLink} from '@shm/shared'
 import {useTxString, useTxUtils} from '@shm/shared/translation'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
@@ -339,7 +339,7 @@ function OverflowMenuItem({
     visibility?: HMResourceVisibility
   }
 }) {
-  const linkProps = useRouteLink(
+  const linkProps = useValidatedWebRouteLink(
     item.draftId
       ? {key: 'draft', id: item.draftId}
       : item.id
@@ -372,7 +372,7 @@ function HeaderLinkItem({
   visibility?: HMResourceVisibility
 }) {
   const highlighter = useHighlighter()
-  const linkProps = useRouteLink(
+  const linkProps = useValidatedWebRouteLink(
     draftId
       ? {
           key: 'draft',
