@@ -188,12 +188,16 @@ export const documentMachine = setup({
       pendingRemoteVersion: null,
       draftContent: null,
       draftCursorPosition: null,
+      metadata: {},
+      navigation: undefined,
     }),
     clearEditingState: assign({
       // Preserve draftId so re-entering editing reuses the same draft
       draftCreated: false,
       hasChangedWhileSaving: false,
       pendingRemoteVersion: null,
+      metadata: {},
+      navigation: undefined,
     }),
     markDocumentReady: assign({
       documentReady: true,

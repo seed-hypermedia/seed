@@ -1140,7 +1140,7 @@ function DocumentBody({
               </div>
             )}
             {!isHomeDoc &&
-              (isEditing ? (
+              (canEdit ? (
                 <EditableDocumentHeader
                   docId={docId}
                   docMetadata={document.metadata}
@@ -1195,7 +1195,7 @@ function DocumentBody({
             </div>
           )}
           {!isHomeDoc &&
-            (isEditing ? (
+            (canEdit ? (
               <EditableDocumentHeader
                 docId={docId}
                 docMetadata={document.metadata}
@@ -1452,6 +1452,7 @@ function EditableDocumentHeader({
   visibility?: string
 }) {
   const ctx = useDocumentSelector(selectContext)
+  const isEditing = useDocumentSelector(selectIsEditing)
   const send = useDocumentSend()
   const inputName = useRef<HTMLTextAreaElement | null>(null)
   const inputSummary = useRef<HTMLTextAreaElement | null>(null)
@@ -1503,6 +1504,9 @@ function EditableDocumentHeader({
         rows={1}
         className="w-full resize-none border-none border-transparent bg-transparent text-4xl font-bold shadow-none ring-0 ring-transparent outline-none focus:ring-0"
         defaultValue={name}
+        onFocus={() => {
+          if (!isEditing) send({type: 'edit.start'})
+        }}
         onChange={(e) => {
           applyTitleResize(e.target)
           send({type: 'change', metadata: {name: e.target.value}})
@@ -1514,6 +1518,9 @@ function EditableDocumentHeader({
         rows={1}
         className="text-muted-foreground w-full resize-none border-none border-transparent bg-transparent font-serif text-xl font-normal shadow-none ring-0 ring-transparent outline-none focus:ring-0"
         defaultValue={summary}
+        onFocus={() => {
+          if (!isEditing) send({type: 'edit.start'})
+        }}
         onChange={(e) => {
           applyTitleResize(e.target)
           send({type: 'change', metadata: {summary: e.target.value}})
