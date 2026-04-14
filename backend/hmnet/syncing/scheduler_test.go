@@ -335,12 +335,10 @@ func TestScheduler_TaskNotLostWhenWorkersBusy(t *testing.T) {
 	}, 2*time.Second, 10*time.Millisecond, "all tasks must be processed")
 }
 
-// withHotTimingKnobs overrides the scheduler's hotTTL and hotInterval to
-// exercise heartbeat and rate-limit behavior on compressed timescales. Must
-// be called after newScheduler but before s.run.
-func withHotTimingKnobs(s *scheduler, ttl, interval time.Duration) {
+// withHotTTL overrides the scheduler's hotTTL to exercise heartbeat expiry
+// on compressed timescales. Must be called after newScheduler but before s.run.
+func withHotTTL(s *scheduler, ttl time.Duration) {
 	s.hotTTL = ttl
-	s.hotInterval = interval
 }
 
 // waitForState blocks until the given task reaches the expected state or the
@@ -401,7 +399,7 @@ func TestScheduler_HotPreemptsSubscription(t *testing.T) {
 }
 
 // TestScheduler_MultiWindowParallelism verifies that multiple hot tasks
-// whose count fits within MaxWorkers all run concurrently, with no demotion.
+// whose count fits within MaxWorkers all run concurrently, with no preemption.
 func TestScheduler_MultiWindowParallelism(t *testing.T) {
 	blockCh := make(chan struct{})
 
@@ -433,14 +431,14 @@ func TestScheduler_MultiWindowParallelism(t *testing.T) {
 		s.scheduleTask(k, time.Now(), schedOpts{isHot: true})
 	}
 
-	// All three must reach InProgress simultaneously (i.e. no one got demoted).
+	// All three must reach InProgress simultaneously (i.e. no one got preempted).
 	require.Eventually(t, func() bool {
 		inFlightMu.Lock()
 		defer inFlightMu.Unlock()
 		return inFlight[keys[0].IRI] && inFlight[keys[1].IRI] && inFlight[keys[2].IRI]
 	}, 2*time.Second, 10*time.Millisecond, "all three hot tasks must run in parallel")
 
-	// None of them should have been cancelled (no demotion when there's capacity).
+	// None of them should have been cancelled (no preemption when there's capacity).
 	s.mu.Lock()
 	for _, k := range keys {
 		task := s.tasks[k]
@@ -452,10 +450,10 @@ func TestScheduler_MultiWindowParallelism(t *testing.T) {
 	close(blockCh)
 }
 
-// TestScheduler_DemoteOldestHotWhenSaturated verifies that when every worker
+// TestScheduler_PreemptOldestHotWhenSaturated verifies that when every worker
 // is occupied by a hot task, scheduling a newer hot task cancels the
 // least-recently-touched in-flight hot task and lets it resume later.
-func TestScheduler_DemoteOldestHotWhenSaturated(t *testing.T) {
+func TestScheduler_PreemptOldestHotWhenSaturated(t *testing.T) {
 	blockCh := make(chan struct{})
 
 	var seenMu sync.Mutex
@@ -484,26 +482,26 @@ func TestScheduler_DemoteOldestHotWhenSaturated(t *testing.T) {
 	s.scheduleTask(keyA, time.Now(), schedOpts{isHot: true})
 	waitForState(t, s, keyA, TaskStateInProgress, "A must start running")
 
-	// Give B a strictly later hotDeadline so the demotion logic will pick A as the victim.
+	// Give B a strictly later hotDeadline so the preemption logic will pick A as the victim.
 	time.Sleep(5 * time.Millisecond)
 	s.scheduleTask(keyB, time.Now(), schedOpts{isHot: true})
 
 	// A's context should be cancelled; when A's mock returns, lastErr is
-	// context.Canceled before the demotion-detection branch re-enqueues it.
+	// context.Canceled before the preemption-detection branch re-enqueues it.
 	// Observationally: A must re-reach Idle (re-enqueued) and B must start.
 	require.Eventually(t, func() bool {
 		seenMu.Lock()
 		defer seenMu.Unlock()
 		return firstRunSeen[keyB.IRI]
-	}, 2*time.Second, 10*time.Millisecond, "B must run after A is demoted")
+	}, 2*time.Second, 10*time.Millisecond, "B must run after A is preempted")
 
-	// A should still be tracked (demoted, not deleted) and be back in the queue
+	// A should still be tracked (preempted, not deleted) and be back in the queue
 	// at the hot tier waiting for a worker.
 	s.mu.Lock()
 	taskA, ok := s.tasks[keyA]
-	require.True(t, ok, "A must not be deleted; it should be demoted and re-queued")
+	require.True(t, ok, "A must not be deleted; it should be preempted and re-queued")
 	// A is either queued waiting, or already running again (if B finished fast).
-	require.NotEqual(t, TaskStateCompleted, taskA.state, "A should not be in completed state after demotion")
+	require.NotEqual(t, TaskStateCompleted, taskA.state, "A should not be in completed state after preemption")
 	s.mu.Unlock()
 
 	close(blockCh)
@@ -516,7 +514,7 @@ func TestScheduler_HeartbeatCleanupCancelsRunningHot(t *testing.T) {
 	disc := &mockDiscoverer{calls: make(map[blob.IRI]int), blockCh: blockCh}
 
 	s := newScheduler(disc, testConfig(10*time.Second, 2))
-	withHotTimingKnobs(s, 150*time.Millisecond, 50*time.Millisecond)
+	withHotTTL(s, 150*time.Millisecond)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() { _ = s.run(ctx) }()
@@ -527,7 +525,7 @@ func TestScheduler_HeartbeatCleanupCancelsRunningHot(t *testing.T) {
 
 	// Don't touch it again. The heartbeat (150ms) expires. On the next
 	// dispatch tick, the scheduler should cancel the running context and,
-	// because the task is ephemeral and its cooldown expires, delete it.
+	// because the task is ephemeral, delete it.
 	require.Eventually(t, func() bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()

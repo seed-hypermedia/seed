@@ -16,13 +16,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Task timing defaults. Installed into every new scheduler and may be
-// overridden per-instance before run() is called (tests exercise heartbeat
-// expiry and rate-limit behavior on human-friendly timescales).
-const (
-	defaultHotTTL      = 40 * time.Second
-	defaultHotInterval = 20 * time.Second
-)
+const defaultHotTTL = 40 * time.Second
 
 // Queue priority tiers. Lower value = higher priority.
 const (
@@ -56,7 +50,7 @@ type taskHandle struct {
 
 	// Scheduling fields.
 	queueIndex   maybe.Value[int]
-	queueTier    uint8 // tierHot or tierCold. Snapshot of the task's tier at last enqueue; may go stale.
+	queueTier    uint8 // tierHot or tierCold. Assigned at enqueue; re-evaluated lazily at dispatch.
 	nextRunTime  time.Time
 	subscription bool
 	hotDeadline  time.Time
@@ -117,11 +111,9 @@ type scheduler struct {
 	// preemption decisions.
 	inProgress int
 
-	// Task timing knobs. Installed from defaults in newScheduler. Tests may
-	// assign smaller values before calling run() to exercise heartbeat and
-	// rate-limit behavior on compressed timescales.
-	hotTTL      time.Duration
-	hotInterval time.Duration
+	// Heartbeat TTL for hot tasks. Installed from defaultHotTTL in newScheduler.
+	// Tests may assign a smaller value before calling run().
+	hotTTL time.Duration
 }
 
 // newScheduler creates a new scheduler.
@@ -135,8 +127,7 @@ func newScheduler(disc discoverer, cfg config.Syncing) *scheduler {
 		cfg:         cfg,
 		timer:       time.NewTimer(0),
 		tasks:       make(map[DiscoveryKey]*taskHandle),
-		hotTTL:      defaultHotTTL,
-		hotInterval: defaultHotInterval,
+		hotTTL: defaultHotTTL,
 		// Two-tier priority: hot tasks always before cold. Within hot tier,
 		// LIFO by hotDeadline desc (most recently touched wins); within cold
 		// tier, FIFO by nextRunTime asc (earliest due wins). nextRunTime is
@@ -224,10 +215,9 @@ func (s *scheduler) executeTask(task *taskHandle) {
 
 	now := time.Now()
 
-	// Demotion detection: a hot task whose context was cancelled while its
+	// Preemption detection: a hot task whose context was cancelled while its
 	// heartbeat is still fresh was preempted to make room for a newer hot
-	// task. Reset its state and re-enqueue at the top of whichever tier it
-	// belongs in so it can resume as soon as a worker frees up.
+	// task. Re-enqueue it so it resumes as soon as a worker frees up.
 	if errors.Is(err, context.Canceled) && !task.subscription && task.IsHot(now) {
 		task.state = TaskStateIdle
 		task.progress = nil
@@ -353,8 +343,7 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 		now := time.Now()
 
 		// Lazy migration: if the head task's tier flag is stale (e.g. a hot
-		// task whose deadline expired while queued, or a rate-limited hot
-		// task whose cooldown just ended), fix its position before dispatching.
+		// task whose heartbeat expired while queued), fix its position.
 		wantTier := tierCold
 		if task.IsHot(now) && !task.nextRunTime.After(now) {
 			wantTier = tierHot
@@ -401,14 +390,14 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 		}
 
 		// Worker pool is full. For hot tasks, try to make room by preempting
-		// a running subscription or demoting the oldest in-flight hot task.
-		// The new task goes back into the queue; when the preempted worker
-		// unwinds, its tail calls resetTimer so we get re-entered and retry.
+		// a running subscription or the oldest in-flight hot task. The new
+		// task goes back into the queue; when the preempted worker unwinds,
+		// its tail calls resetTimer so we get re-entered and retry.
 		preempted := false
 		if task.queueTier == tierHot {
 			if s.preemptSubscriptionLocked() {
 				preempted = true
-			} else if s.demoteOldestHotLocked(task, now) {
+			} else if s.preemptOldestHotLocked(task, now) {
 				preempted = true
 			}
 		}
@@ -449,15 +438,8 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 	return s.boundedWake(wake, now)
 }
 
-// enqueueLocked inserts or reorders the task in the queue based on its current
-// hot state and rate-limit. Caller must hold s.mu. Must not be called while
-// task.state == TaskStateInProgress.
-//
-// A task belongs in the hot tier iff its heartbeat is still fresh AND its
-// nextRunTime rate-limit has elapsed. Rate-limited hot tasks (just finished
-// a run, cooling down for hotInterval) sit in the cold tier sorted by their
-// cooldown expiry; lazy migration in dispatchReadyTasks promotes them back
-// when their cooldown ends.
+// enqueueLocked inserts or reorders the task in the queue. Caller must hold
+// s.mu. Must not be called while task.state == TaskStateInProgress.
 func (s *scheduler) enqueueLocked(task *taskHandle, now time.Time) {
 	if task.IsHot(now) && !task.nextRunTime.After(now) {
 		task.queueTier = tierHot
@@ -491,12 +473,12 @@ func (s *scheduler) preemptSubscriptionLocked() bool {
 	return false
 }
 
-// demoteOldestHotLocked cancels the in-flight ephemeral hot task with the
+// preemptOldestHotLocked cancels the in-flight ephemeral hot task with the
 // oldest hotDeadline so a newer hot task (`incoming`) can take its worker
-// slot. The demoted task will re-enter the hot tier via executeTask's
-// cancellation branch. Returns true if a task was demoted. Caller must
+// slot. The preempted task re-enters the hot tier via executeTask's
+// cancellation branch. Returns true if a task was preempted. Caller must
 // hold s.mu.
-func (s *scheduler) demoteOldestHotLocked(incoming *taskHandle, now time.Time) bool {
+func (s *scheduler) preemptOldestHotLocked(incoming *taskHandle, now time.Time) bool {
 	var victim *taskHandle
 	for _, t := range s.tasks {
 		if t.state != TaskStateInProgress {
@@ -516,7 +498,7 @@ func (s *scheduler) demoteOldestHotLocked(incoming *taskHandle, now time.Time) b
 			continue
 		}
 		// Victim must have a strictly older heartbeat than the incoming task;
-		// otherwise demoting just delays the user's most recent request.
+		// otherwise preempting just delays the user's most recent request.
 		if !t.hotDeadline.Before(incoming.hotDeadline) {
 			continue
 		}
@@ -580,27 +562,21 @@ func (s *scheduler) boundedWake(candidate time.Duration, now time.Time) time.Dur
 }
 
 // scheduleNext calculates the next run time and enqueues/fixes the task.
-// If the task should not be rescheduled (not hot, not subscription), it is deleted.
+// Subscriptions are rescheduled on their configured interval. Ephemeral tasks
+// (hot or not) run once and are dropped; the frontend re-touch recreates them.
 // Caller must hold s.mu.
 func (s *scheduler) scheduleNext(task *taskHandle, now time.Time, forceImmediate bool) {
-	isHot := task.IsHot(now)
-
 	switch {
 	case forceImmediate || task.runCount == 0:
 		task.nextRunTime = now
-	case isHot:
-		task.nextRunTime = now.Add(s.hotInterval)
-	case !isHot && task.subscription:
+	case task.subscription:
 		task.nextRunTime = now.Add(s.cfg.Interval)
-	case !isHot && !task.subscription:
-		// Not hot, nor a subscription: drop the task.
+	default:
 		if task.queueIndex.IsSet() {
 			s.queue.Remove(task.queueIndex.Value())
 		}
 		delete(s.tasks, task.key)
 		return
-	default:
-		panic("BUG: unreachable")
 	}
 
 	s.enqueueLocked(task, now)
