@@ -405,7 +405,9 @@ async function loadResourcePayload(
   const embeds: Record<string, SSREmbedData> = {}
   const client = serverUniversalClient
   for (const ref of refs) {
-    const resource = prefetchCtx.queryClient.getQueryData(queryResource(client, ref.refId).queryKey) as HMResource | null
+    const resource = prefetchCtx.queryClient.getQueryData(
+      queryResource(client, ref.refId).queryKey,
+    ) as HMResource | null
     if (resource?.type === 'document') {
       const doc = resource.document
       const imageCid = getDocumentImage(doc)
@@ -420,13 +422,13 @@ async function loadResourcePayload(
 
   // Server-render document content to avoid blank flash before editor loads
   const cacheKey = document.version ? `${docId.uid}/${docId.path?.join('/') || ''}@${document.version}` : undefined
-  const ssrContentHTML = document.content
-    ? renderDocumentToHTML(document.content, {cacheKey, embeds})
-    : null
+  const ssrContentHTML = document.content ? renderDocumentToHTML(document.content, {cacheKey, embeds}) : null
   if (ssrContentHTML) {
     console.log(`[ssr-render] Generated ${ssrContentHTML.length} chars of SSR HTML for ${cacheKey || 'uncached'}`)
   } else if (document.content?.length) {
-    console.warn(`[ssr-render] Failed to generate SSR HTML for ${cacheKey || 'unknown'} (${document.content.length} blocks)`)
+    console.warn(
+      `[ssr-render] Failed to generate SSR HTML for ${cacheKey || 'unknown'} (${document.content.length} blocks)`,
+    )
   }
 
   return {

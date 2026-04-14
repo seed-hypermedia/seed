@@ -32,12 +32,7 @@ export function OptionsPanel({
           <>
             <NameInput metadata={metadata} onMetadata={onMetadata} />
             <DocumentIconForm draftId={draftId} metadata={metadata} onMetadata={onMetadata} fileUpload={fileUpload} />
-            <HeaderLogo
-              draftId={draftId}
-              metadata={metadata}
-              onMetadata={onMetadata}
-              fileUpload={fileUpload}
-            />
+            <HeaderLogo draftId={draftId} metadata={metadata} onMetadata={onMetadata} fileUpload={fileUpload} />
             <HeaderLayout metadata={metadata} onMetadata={onMetadata} />
 
             <SizableText className="mt-4 flex-1 px-1 select-none" size="md" weight="semibold">
