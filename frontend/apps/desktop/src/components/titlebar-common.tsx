@@ -35,7 +35,6 @@ import {
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
-import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Back, CloudOff, Download, Forward, Link, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
@@ -421,7 +420,7 @@ function AccountProfileButton() {
           </button>
           {switcherOpen && (
             <>
-              <ScrollArea className="max-h-[200px]">
+              <div className="max-h-[200px] overflow-y-auto [&::-webkit-scrollbar]:hidden">
                 {accountOptions?.map((option) =>
                   option ? (
                     <button
@@ -442,7 +441,7 @@ function AccountProfileButton() {
                     </button>
                   ) : null,
                 )}
-              </ScrollArea>
+              </div>
               <button
                 className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2"
                 onClick={() => dispatchOnboardingDialog(true)}
