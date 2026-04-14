@@ -165,6 +165,23 @@ export function useAccountSync(signingAccountId: string | undefined, publishAcco
 }
 
 /**
+ * Sync isLatest prop changes into the machine as `version.changed` events.
+ * Call this inside DocumentBody when the isLatest value may change
+ * (e.g. when React Query detects a newer published version).
+ */
+export function useVersionLatestSync(isLatest: boolean) {
+  const actorRef = useDocumentMachineRef()
+  const prevRef = useRef(isLatest)
+
+  useEffect(() => {
+    if (isLatest !== prevRef.current) {
+      prevRef.current = isLatest
+      actorRef.send({type: 'version.changed', isLatest})
+    }
+  }, [actorRef, isLatest])
+}
+
+/**
  * Sync draft resolution into the machine during loading.
  * Sends `draft.resolved` once the draft query has fully settled:
  * - `undefined` = still loading (document or draft content not yet available)
@@ -237,6 +254,11 @@ export function selectIsPublishing(snapshot: DocumentMachineSnapshot): boolean {
 /** Whether the machine is in the `error` state. */
 export function selectIsError(snapshot: DocumentMachineSnapshot): boolean {
   return snapshot.matches('error')
+}
+
+/** Whether the machine is in the `confirmingOldVersionEdit` state (waiting for user confirmation). */
+export function selectIsConfirmingOldVersionEdit(snapshot: DocumentMachineSnapshot): boolean {
+  return snapshot.matches('confirmingOldVersionEdit')
 }
 
 /** Whether the current user can edit this document. */

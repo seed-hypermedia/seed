@@ -567,6 +567,110 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
+  // -- old version edit guard tests --
+
+  it('edit.start on latest version → straight to editing (no confirmation)', () => {
+    const actor = createTestActor({isLatest: true})
+    actor.start()
+    loadDocument(actor)
+    expect(actor.getSnapshot().context.isLatestVersion).toBe(true)
+    actor.send({type: 'edit.start'})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    actor.stop()
+  })
+
+  it('edit.start on old version → confirmingOldVersionEdit', () => {
+    const actor = createTestActor({isLatest: false})
+    actor.start()
+    loadDocument(actor)
+    expect(actor.getSnapshot().context.isLatestVersion).toBe(false)
+    actor.send({type: 'edit.start'})
+    expect(actor.getSnapshot().value).toBe('confirmingOldVersionEdit')
+    actor.stop()
+  })
+
+  it('confirmingOldVersionEdit → edit.confirm → editing with deps set', () => {
+    const actor = createTestActor({isLatest: false})
+    actor.start()
+    loadDocument(actor)
+    actor.send({type: 'edit.start'})
+    expect(actor.getSnapshot().value).toBe('confirmingOldVersionEdit')
+    actor.send({type: 'edit.confirm'})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().context.deps).toEqual(['bafyabc.bafydef'])
+    actor.stop()
+  })
+
+  it('confirmingOldVersionEdit → edit.cancel → back to loaded', () => {
+    const actor = createTestActor({isLatest: false})
+    actor.start()
+    loadDocument(actor)
+    actor.send({type: 'edit.start'})
+    expect(actor.getSnapshot().value).toBe('confirmingOldVersionEdit')
+    actor.send({type: 'edit.cancel'})
+    expect(actor.getSnapshot().value).toBe('loaded')
+    actor.stop()
+  })
+
+  it('edit.start on old version with canEdit=false → stays loaded', () => {
+    const actor = createTestActor({canEdit: false, isLatest: false})
+    actor.start()
+    loadDocument(actor)
+    actor.send({type: 'edit.start'})
+    expect(actor.getSnapshot().value).toBe('loaded')
+    actor.stop()
+  })
+
+  it('version.changed updates isLatestVersion in loaded state', () => {
+    const actor = createTestActor({isLatest: true})
+    actor.start()
+    loadDocument(actor)
+    expect(actor.getSnapshot().context.isLatestVersion).toBe(true)
+    actor.send({type: 'version.changed', isLatest: false})
+    expect(actor.getSnapshot().context.isLatestVersion).toBe(false)
+    actor.stop()
+  })
+
+  it('version.changed updates isLatestVersion in editing state', () => {
+    const actor = createTestActor({isLatest: true})
+    actor.start()
+    loadDocument(actor)
+    actor.send({type: 'edit.start'})
+    actor.send({type: 'version.changed', isLatest: false})
+    expect(actor.getSnapshot().context.isLatestVersion).toBe(false)
+    actor.stop()
+  })
+
+  it('auto-edit with draft on old version → stays loaded (no auto-edit)', () => {
+    const actor = createTestActor({isLatest: false})
+    actor.start()
+    actor.send({
+      type: 'draft.resolved',
+      draftId: 'my-draft',
+      content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft text', attributes: {}}, children: []}],
+      cursorPosition: null,
+    })
+    actor.send({type: 'document.loaded', document: mockDocument})
+    // Should NOT auto-transition to editing because isLatestVersion is false
+    expect(actor.getSnapshot().value).toBe('loaded')
+    expect(actor.getSnapshot().context.shouldAutoEdit).toBe(true) // still set, but guard blocks it
+    actor.stop()
+  })
+
+  it('auto-edit with draft on latest version → enters editing normally', () => {
+    const actor = createTestActor({isLatest: true})
+    actor.start()
+    actor.send({
+      type: 'draft.resolved',
+      draftId: 'my-draft',
+      content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft text', attributes: {}}, children: []}],
+      cursorPosition: null,
+    })
+    actor.send({type: 'document.loaded', document: mockDocument})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    actor.stop()
+  })
+
   it('account IDs flow through to writeDraft actor input', async () => {
     let capturedInput: any = null
     const machine = documentMachine.provide({

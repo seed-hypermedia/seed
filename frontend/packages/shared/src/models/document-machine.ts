@@ -13,6 +13,7 @@ import {assign, fromPromise, raise, setup, StateFrom} from 'xstate'
 export type DocumentMachineInput = {
   documentId: UnpackedHypermediaId
   canEdit: boolean
+  isLatest?: boolean
   existingDraftId?: string
   editUid?: string
   editPath?: string[]
@@ -32,6 +33,7 @@ export type DocumentMachineContext = {
   deps: string[]
   publishedVersion: string | null
   pendingRemoteVersion: string | null
+  isLatestVersion: boolean
   navigation: HMNavigationItem[] | undefined
   locationUid: string
   locationPath: string[]
@@ -70,6 +72,8 @@ export type DocumentMachineEvent =
   | {type: 'edit.discard'}
   | {type: 'capability.changed'; canEdit: boolean}
   | {type: 'account.changed'; signingAccountId?: string; publishAccountUid?: string}
+  | {type: 'edit.confirm'}
+  | {type: 'version.changed'; isLatest: boolean}
   | {type: 'draft.existing'; draftId: string}
   | {type: 'draft.resolved'; draftId: string | null; content: HMBlockNode[] | null; cursorPosition: number | null}
   | {type: '_save.started'}
@@ -181,6 +185,9 @@ export const documentMachine = setup({
         return false
       },
     }),
+    setIsLatestVersion: assign({
+      isLatestVersion: ({event}) => (event.type === 'version.changed' ? event.isLatest : true),
+    }),
     clearDraftState: assign({
       draftId: null,
       draftCreated: false,
@@ -268,6 +275,7 @@ export const documentMachine = setup({
   },
   guards: {
     canTransitionToEditing: ({context}) => context.canEdit,
+    canEditOldVersion: ({context}) => context.canEdit && !context.isLatestVersion,
     didChangeWhileSaving: ({context}) => context.hasChangedWhileSaving,
     hasDraftId: ({context}) => context.draftId !== null,
     hasExistingDraft: ({context}) => context.shouldAutoEdit,
@@ -299,6 +307,7 @@ export const documentMachine = setup({
     deps: input.deps ?? [],
     publishedVersion: null,
     pendingRemoteVersion: null,
+    isLatestVersion: input.isLatest ?? true,
     navigation: undefined,
     locationUid: input.locationUid ?? '',
     locationPath: input.locationPath ?? [],
@@ -341,6 +350,9 @@ export const documentMachine = setup({
         'draft.existing': {
           actions: ['setExistingDraft'],
         },
+        'version.changed': {
+          actions: ['setIsLatestVersion'],
+        },
       },
       always: {
         target: 'loaded',
@@ -355,11 +367,17 @@ export const documentMachine = setup({
 
     loaded: {
       on: {
-        'edit.start': {
-          target: 'editing',
-          guard: 'canTransitionToEditing',
-          actions: ['setDepsFromPublished'],
-        },
+        'edit.start': [
+          {
+            target: 'confirmingOldVersionEdit',
+            guard: 'canEditOldVersion',
+          },
+          {
+            target: 'editing',
+            guard: 'canTransitionToEditing',
+            actions: ['setDepsFromPublished'],
+          },
+        ],
         'document.remoteUpdate': {
           target: 'loaded',
           actions: ['setDocumentData'],
@@ -371,6 +389,9 @@ export const documentMachine = setup({
         'account.changed': {
           actions: ['setAccountIds'],
         },
+        'version.changed': {
+          actions: ['setIsLatestVersion'],
+        },
         'draft.existing': {
           target: 'editing',
           actions: ['setExistingDraft', 'clearShouldAutoEdit', 'setDepsFromPublished'],
@@ -378,8 +399,29 @@ export const documentMachine = setup({
       },
       always: {
         target: 'editing',
-        guard: 'hasExistingDraft',
+        guard: ({context}) => context.shouldAutoEdit && context.isLatestVersion,
         actions: ['clearShouldAutoEdit', 'setDepsFromPublished'],
+      },
+    },
+
+    confirmingOldVersionEdit: {
+      on: {
+        'edit.confirm': {
+          target: 'editing',
+          actions: ['setDepsFromPublished'],
+        },
+        'edit.cancel': {
+          target: 'loaded',
+        },
+        'capability.changed': {
+          actions: ['setCanEdit'],
+        },
+        'account.changed': {
+          actions: ['setAccountIds'],
+        },
+        'version.changed': {
+          actions: ['setIsLatestVersion'],
+        },
       },
     },
 
@@ -409,6 +451,9 @@ export const documentMachine = setup({
         },
         'document.remoteUpdate': {
           actions: ['setPendingRemoteVersion'],
+        },
+        'version.changed': {
+          actions: ['setIsLatestVersion'],
         },
       },
       states: {
@@ -652,6 +697,9 @@ export const documentMachine = setup({
         },
         'account.changed': {
           actions: ['setAccountIds'],
+        },
+        'version.changed': {
+          actions: ['setIsLatestVersion'],
         },
       },
     },

@@ -34,6 +34,7 @@ import {
   documentMachine,
   DocumentMachineProvider,
   selectContext,
+  selectIsConfirmingOldVersionEdit,
   selectIsEditing,
   selectPublishedVersion,
   useAccountSync,
@@ -42,6 +43,7 @@ import {
   useDocumentSend,
   useDocumentSync,
   useDraftResolutionSync,
+  useVersionLatestSync,
 } from '@shm/shared/models/use-document-machine'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
@@ -57,6 +59,16 @@ import {Folder, Search, Settings} from 'lucide-react'
 import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AccountPage} from './account-page'
 import {CollaboratorsPage} from './collaborators-page'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './components/alert-dialog'
 import {ScrollArea} from './components/scroll-area'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {DirectoryPageContent} from './directory-page'
@@ -478,6 +490,7 @@ export function ResourcePage({
       input={{
         documentId: docId,
         canEdit,
+        isLatest,
         editUid: docId.uid,
         editPath: docId.path ?? undefined,
         signingAccountId,
@@ -704,6 +717,8 @@ function DocumentBody({
   useDocumentSync(document)
   // Sync canEdit changes into the machine (for account switching)
   useCapabilitySync(canEdit)
+  // Sync isLatest changes into the machine (for old-version edit guard)
+  useVersionLatestSync(isLatest)
   // Sync account IDs into the machine (for draft saving / publishing)
   useAccountSync(signingAccountId, publishAccountUid)
   // Sync draft resolution — machine stays in loading until this settles.
@@ -1330,10 +1345,14 @@ function DocumentBody({
     }
   }
 
+  // Dialog for confirming edits on older document versions
+  const oldVersionEditDialog = <OldVersionEditDialog />
+
   // Mobile: use document scroll with bottom bar and panel sheet
   if (isMobile) {
     return (
       <>
+        {oldVersionEditDialog}
         <div className="relative flex flex-1 flex-col pb-20" ref={elementRef}>
           <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
           {mainPageContent}
@@ -1392,6 +1411,7 @@ function DocumentBody({
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden" ref={elementRef}>
+      {oldVersionEditDialog}
       <PanelLayout
         panelKey={panelKey}
         panelContent={panelContent}
@@ -1528,6 +1548,33 @@ function EditableDocumentHeader({
         placeholder="Document Summary"
       />
     </DocumentHeader>
+  )
+}
+
+function OldVersionEditDialog() {
+  const isConfirming = useDocumentSelector(selectIsConfirmingOldVersionEdit)
+  const send = useDocumentSend()
+  return (
+    <AlertDialog
+      open={isConfirming}
+      onOpenChange={(open) => {
+        if (!open) send({type: 'edit.cancel'})
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Edit older version?</AlertDialogTitle>
+          <AlertDialogDescription>
+            You are viewing an older version of this document. Editing it will create a new branch in the document
+            history, separate from the latest version.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => send({type: 'edit.cancel'})}>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={() => send({type: 'edit.confirm'})}>Edit Anyway</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 
