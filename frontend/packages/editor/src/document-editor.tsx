@@ -12,6 +12,7 @@ import {
 } from '@shm/shared/models/use-document-machine'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {useCallback, useEffect, useMemo, useRef} from 'react'
+import {FragmentActionsContext, type FragmentActions} from './fragment-actions-context'
 import {TextSelection} from 'prosemirror-state'
 import {
   BlockNoteView,
@@ -282,51 +283,64 @@ export function DocumentEditor({
 
   const editable = isEditing
 
-  return (
-    <BlockNoteView editor={editor}>
-      {/* Editing-only positioners — gated behind isEditing */}
-      {editable && (
-        <>
-          <FormattingToolbarPositioner editor={editor} formattingToolbar={HMFormattingToolbar} />
-          <SideMenuPositioner editor={editor} />
-          <SlashMenuPositioner editor={editor} />
-          <LinkMenuPositioner editor={editor} />
-          <HyperlinkToolbarPositioner
-            // @ts-expect-error
-            hyperlinkToolbar={HypermediaLinkPreview}
-            editor={editor}
-            // @ts-expect-error
-            openUrl={openUrl}
-          />
-        </>
-      )}
+  const fragmentActionsValue = useMemo<FragmentActions | null>(() => {
+    if (!onBlockSelect && !onBlockCommentClick) return null
+    return {
+      onCopyFragmentLink: (blockId, rangeStart, rangeEnd) =>
+        onBlockSelect?.(blockId, {start: rangeStart, end: rangeEnd, copyToClipboard: true}),
+      onComment: (blockId, rangeStart, rangeEnd) =>
+        onBlockCommentClick?.(blockId, {start: rangeStart, end: rangeEnd}, true),
+    }
+  }, [onBlockSelect, onBlockCommentClick])
 
-      {/* Read-only extensions */}
-      <ImageGalleryOverlay editor={editor} resolveImageUrl={getImageUrl} />
-      <BlockHoverActionsPositioner
-        editor={editor}
-        onCopyBlockLink={onBlockCitationClick ? (blockId) => onBlockCitationClick(blockId) : undefined}
-        onStartComment={onBlockCommentClick ? (blockId) => onBlockCommentClick(blockId, undefined, true) : undefined}
-      />
-      <RangeSelectionPositioner
-        editor={editor}
-        onCopyFragmentLink={
-          onBlockSelect
-            ? (blockId, rangeStart, rangeEnd) =>
-                onBlockSelect(blockId, {start: rangeStart, end: rangeEnd, copyToClipboard: true})
-            : undefined
-        }
-        onComment={
-          onBlockCommentClick
-            ? (blockId, rangeStart, rangeEnd) => onBlockCommentClick(blockId, {start: rangeStart, end: rangeEnd}, true)
-            : undefined
-        }
-      />
-      <SupernumbersController
-        editor={editor}
-        data={blockCitations ?? null}
-        onSupernumberClick={onBlockCitationClick ? (blockId) => onBlockCitationClick(blockId) : undefined}
-      />
-    </BlockNoteView>
+  return (
+    <FragmentActionsContext.Provider value={fragmentActionsValue}>
+      <BlockNoteView editor={editor}>
+        {/* Editing-only positioners — gated behind isEditing */}
+        {editable && (
+          <>
+            <FormattingToolbarPositioner editor={editor} formattingToolbar={HMFormattingToolbar} />
+            <SideMenuPositioner editor={editor} />
+            <SlashMenuPositioner editor={editor} />
+            <LinkMenuPositioner editor={editor} />
+            <HyperlinkToolbarPositioner
+              // @ts-expect-error
+              hyperlinkToolbar={HypermediaLinkPreview}
+              editor={editor}
+              // @ts-expect-error
+              openUrl={openUrl}
+            />
+          </>
+        )}
+
+        {/* Read-only extensions */}
+        <ImageGalleryOverlay editor={editor} resolveImageUrl={getImageUrl} />
+        <BlockHoverActionsPositioner
+          editor={editor}
+          onCopyBlockLink={onBlockCitationClick ? (blockId) => onBlockCitationClick(blockId) : undefined}
+          onStartComment={onBlockCommentClick ? (blockId) => onBlockCommentClick(blockId, undefined, true) : undefined}
+        />
+        <RangeSelectionPositioner
+          editor={editor}
+          onCopyFragmentLink={
+            onBlockSelect
+              ? (blockId, rangeStart, rangeEnd) =>
+                  onBlockSelect(blockId, {start: rangeStart, end: rangeEnd, copyToClipboard: true})
+              : undefined
+          }
+          onComment={
+            onBlockCommentClick
+              ? (blockId, rangeStart, rangeEnd) =>
+                  onBlockCommentClick(blockId, {start: rangeStart, end: rangeEnd}, true)
+              : undefined
+          }
+        />
+        <SupernumbersController
+          editor={editor}
+          data={blockCitations ?? null}
+          onSupernumberClick={onBlockCitationClick ? (blockId) => onBlockCitationClick(blockId) : undefined}
+        />
+      </BlockNoteView>
+    </FragmentActionsContext.Provider>
   )
 }
