@@ -136,7 +136,7 @@ function AuthorLink({id, siteUid}: {id: UnpackedHypermediaId; siteUid?: string})
   return (
     <a
       {...linkProps}
-      className={`no-underline underline-offset-4 hover:underline${resolvedName ? '' : ' text-muted-foreground'}`}
+      className={`no-underline underline-offset-4 hover:underline${resolvedName ? '' : 'text-muted-foreground'}`}
     >
       {resolvedName || abbreviateUid(id.uid)}
       {account.isLoading ? (
