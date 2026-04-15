@@ -147,12 +147,15 @@ export function useResource(
   // Show discovering when: subscribed, not-found, AND either discovery in progress OR query is fetching
   // BUT: never show discovering UI for tombstoned or settled not-found resources
   // The isFetching check covers the gap between discovery completion and data arrival
+  // discoveryInProgress === undefined means we haven't received discovery state yet (the
+  // subscription round-trip hasn't completed). Since we're subscribed and discovery will start,
+  // treat this gap as discovering rather than flashing "not found" prematurely.
   const isDiscovering =
     !!subscribed &&
     !isTombstone &&
     !isNotFound && // Don't show loading when discovery determined not-found
     result.data?.type === 'not-found' &&
-    (!!discoveryInProgress || result.isFetching)
+    (!!discoveryInProgress || result.isFetching || discoveryInProgress === undefined)
 
   // Redirect handling — queryResource follows redirects, so data.type is never
   // 'redirect'. Instead, detect redirects by comparing the returned id with the

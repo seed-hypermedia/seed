@@ -549,6 +549,7 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
     updateAggregatedDiscoveryState()
     // Invalidate so UI shows the found resource
     appInvalidateQueries([queryKeys.ENTITY, id.id])
+    appInvalidateQueries([queryKeys.ACCOUNT, id.uid])
     appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
 
     // For recursive subscriptions, also invalidate directory queries

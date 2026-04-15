@@ -6,6 +6,8 @@ import {useAccount, useResource} from '@shm/shared/models/entity'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {AccountPage} from '@shm/ui/account-page'
 import {PanelContainer} from '@shm/ui/container'
+import {PageDiscovery, PageNotFound} from '@shm/ui/page-message-states'
+import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useEffect, useMemo} from 'react'
 
@@ -14,6 +16,7 @@ export default function ProfilePage() {
   const profileRoute = route.key === 'profile' ? route : null
   const profileId = profileRoute!.id
   const profile = useAccount(profileId.uid)
+  const resource = useResource(profileId, {subscribed: true, recursive: true})
   const navigate = useNavigate('replace')
   const redirectDestination = profile.data?.id.uid && profile.data.id.uid !== profileId.uid ? profile.data.id : null
   useEffect(() => {
@@ -23,7 +26,6 @@ export default function ProfilePage() {
       navigate({key: 'profile', id: redirectDestination})
     }
   }, [redirectDestination])
-  useResource(profileId, {subscribed: true, recursive: true})
 
   const myAccountIds = useMyAccountIds()
   const editProfileDialog = useEditProfileDialog()
@@ -36,16 +38,58 @@ export default function ProfilePage() {
 
   if (!profileRoute) throw new Error('Profile route not found')
 
+  if (resource.isInitialLoading) {
+    return (
+      <PanelContainer>
+        <MainWrapper scrollable className="w-full">
+          <div className="flex flex-1 items-center justify-center">
+            <Spinner />
+          </div>
+        </MainWrapper>
+      </PanelContainer>
+    )
+  }
+
+  if (resource.isDiscovering) {
+    return (
+      <PanelContainer>
+        <MainWrapper scrollable className="w-full">
+          <PageDiscovery entityType="profile" />
+        </MainWrapper>
+      </PanelContainer>
+    )
+  }
+
+  if (profile.isLoading) {
+    return (
+      <PanelContainer>
+        <MainWrapper scrollable className="w-full">
+          <div className="flex flex-1 items-center justify-center">
+            <Spinner />
+          </div>
+        </MainWrapper>
+      </PanelContainer>
+    )
+  }
+
+  if (!profile.data) {
+    return (
+      <PanelContainer>
+        <MainWrapper scrollable className="w-full">
+          <PageNotFound entityType="profile" />
+        </MainWrapper>
+      </PanelContainer>
+    )
+  }
+
   return (
     <PanelContainer>
       <MainWrapper scrollable className="w-full">
-        {profile.data && (
-          <AccountPage
-            accountUid={profile.data.id.uid}
-            tab={profileRoute.tab || 'profile'}
-            onEditProfile={onEditProfile}
-          />
-        )}
+        <AccountPage
+          accountUid={profile.data.id.uid}
+          tab={profileRoute.tab || 'profile'}
+          onEditProfile={onEditProfile}
+        />
       </MainWrapper>
       {editProfileDialog.content}
     </PanelContainer>

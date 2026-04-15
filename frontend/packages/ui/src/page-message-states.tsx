@@ -74,23 +74,33 @@ export function PageRedirected({
 }
 
 /**
- * Shown when discovering/loading a document from the network.
+ * Shown when discovering/loading a document or profile from the network.
  */
-export function PageDiscovery() {
-  return (
-    <PageMessageBox
-      title="Looking for this document..."
-      spinner
-      message="This document is not on your node yet. Now finding a peer who can provide it."
-    />
-  )
+export function PageDiscovery({entityType = 'document'}: {entityType?: 'document' | 'profile'}) {
+  const labels = {
+    document: {
+      title: 'Looking for this document...',
+      message: 'This document is not on your node yet. Now finding a peer who can provide it.',
+    },
+    profile: {
+      title: 'Looking for this profile...',
+      message: 'This profile is not on your node yet. Now finding a peer who can provide it.',
+    },
+  }
+  const {title, message} = labels[entityType]
+  return <PageMessageBox title={title} spinner message={message} />
 }
 
 /**
- * Shown when a document is not found.
+ * Shown when a document or profile is not found.
  */
-export function PageNotFound() {
-  return <PageMessageBox title="Document Not Found" message="This document could not be found on the network." />
+export function PageNotFound({entityType = 'document'}: {entityType?: 'document' | 'profile'}) {
+  const labels = {
+    document: {title: 'Document Not Found', message: 'This document could not be found on the network.'},
+    profile: {title: 'Profile Not Found', message: 'This profile could not be found on the network.'},
+  }
+  const {title, message} = labels[entityType]
+  return <PageMessageBox title={title} message={message} />
 }
 
 /**

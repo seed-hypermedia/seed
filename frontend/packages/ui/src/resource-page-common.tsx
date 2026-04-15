@@ -6,12 +6,14 @@ import {
   getBlockText,
   hmId,
   NavRoute,
+  ProfileTab,
   unpackHmId,
   useUniversalAppContext,
 } from '@shm/shared'
 import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {
+  useAccount,
   useAccountsMetadata,
   useDirectory,
   useIsLatest,
@@ -19,6 +21,7 @@ import {
   useResources,
   useSiteMembers,
 } from '@shm/shared/models/entity'
+import {useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
@@ -248,7 +251,7 @@ export function ResourcePage({
     recursive: true,
   })
 
-  // Site profile view: render profile content regardless of document status
+  // Site profile view: subscribe to and discover the profile account, then render profile content
   if (isSiteProfile) {
     const accountUid = route.key === 'site-profile' ? route.accountUid || docId.uid : docId.uid
     const tab = route.key === 'site-profile' ? route.tab : 'profile'
@@ -260,15 +263,15 @@ export function ResourcePage({
         document={siteHomeDocument || undefined}
         rightActions={rightActions}
       >
-        <AccountPage
+        <SiteProfileContent
           siteUid={docId.uid}
           accountUid={accountUid}
           tab={tab}
           onEditProfile={onEditProfile}
           headerButtons={profileHeaderButtons}
           onFollowClick={onFollowClick}
+          pageFooter={pageFooter}
         />
-        {pageFooter}
       </PageWrapper>
     )
   }
@@ -734,8 +737,9 @@ function DocumentBody({
       showSidebars: !isHomeDoc && document.metadata?.showOutline !== false && activeView === 'content',
     })
 
-  // Fetch author metadata for document header
+  // Fetch author metadata for document header and subscribe for discovery
   const accountsMetadata = useAccountsMetadata(document.authors || [])
+  useHackyAuthorsSubscriptions(document.authors || [])
   const authorPayloads: AuthorPayload[] = useMemo(() => {
     return (document.authors || []).map((uid) => {
       const data = accountsMetadata.data[uid]
@@ -1485,5 +1489,86 @@ function ContentViewWithOutline({
 
       {showSidebars && <div {...sidebarProps} />}
     </div>
+  )
+}
+
+/**
+ * Handles discovery subscription and loading states for a profile viewed within a site context.
+ * Subscribes to the profile account so it gets discovered from the network, then shows
+ * appropriate loading/discovery indicators before rendering the AccountPage.
+ */
+function SiteProfileContent({
+  siteUid,
+  accountUid,
+  tab,
+  onEditProfile,
+  headerButtons,
+  onFollowClick,
+  pageFooter,
+}: {
+  siteUid: string
+  accountUid: string
+  tab: ProfileTab
+  onEditProfile?: () => void
+  headerButtons?: ReactNode
+  onFollowClick?: () => void
+  pageFooter?: ReactNode
+}) {
+  const profileId = hmId(accountUid)
+  const profileResource = useResource(profileId, {subscribed: true, recursive: true})
+  const account = useAccount(accountUid)
+
+  if (profileResource.isInitialLoading) {
+    return (
+      <>
+        <div className="flex flex-1 items-center justify-center">
+          <Spinner />
+        </div>
+        {pageFooter}
+      </>
+    )
+  }
+
+  if (profileResource.isDiscovering) {
+    return (
+      <>
+        <PageDiscovery entityType="profile" />
+        {pageFooter}
+      </>
+    )
+  }
+
+  if (account.isLoading) {
+    return (
+      <>
+        <div className="flex flex-1 items-center justify-center">
+          <Spinner />
+        </div>
+        {pageFooter}
+      </>
+    )
+  }
+
+  if (!account.data) {
+    return (
+      <>
+        <PageNotFound entityType="profile" />
+        {pageFooter}
+      </>
+    )
+  }
+
+  return (
+    <>
+      <AccountPage
+        siteUid={siteUid}
+        accountUid={accountUid}
+        tab={tab}
+        onEditProfile={onEditProfile}
+        headerButtons={headerButtons}
+        onFollowClick={onFollowClick}
+      />
+      {pageFooter}
+    </>
   )
 }

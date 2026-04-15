@@ -101,12 +101,14 @@ export function DocumentHeader({
                     {authors.flatMap((a, index) => {
                       return [
                         a.isDiscovering ? (
-                          <span className="text-muted-foreground">
-                            {abbreviateUid(a.id.uid)}
-                            <span className="ml-1">
-                              <Spinner size="small" />
-                            </span>
-                          </span>
+                          <AuthorLink
+                            name={abbreviateUid(a.id.uid)}
+                            id={a.id}
+                            key={a.id.id}
+                            siteUid={docId?.uid}
+                            muted
+                            suffix={<Spinner size="small" />}
+                          />
                         ) : (
                           <AuthorLink name={getMetadataName(a.metadata)} id={a.id} key={a.id.id} siteUid={docId?.uid} />
                         ),
@@ -137,12 +139,30 @@ export function DocumentHeader({
   )
 }
 
-function AuthorLink({name, id, siteUid}: {name: string; id: UnpackedHypermediaId; siteUid?: string}) {
+function AuthorLink({
+  name,
+  id,
+  siteUid,
+  muted,
+  suffix,
+}: {
+  name: string
+  id: UnpackedHypermediaId
+  siteUid?: string
+  /** Render with muted text color (used for loading/discovering state). */
+  muted?: boolean
+  /** Optional inline element after the name (e.g. a spinner). */
+  suffix?: React.ReactNode
+}) {
   const currentRoute = useNavRoute()
   const linkProps = useRouteLink(getContextualProfileRoute(currentRoute, id, siteUid))
   return (
-    <a {...linkProps} className="no-underline underline-offset-4 hover:underline" style={{}}>
+    <a
+      {...linkProps}
+      className={`no-underline underline-offset-4 hover:underline${muted ? ' text-muted-foreground' : ''}`}
+    >
       {name}
+      {suffix ? <span className="ml-1">{suffix}</span> : null}
     </a>
   )
 }
