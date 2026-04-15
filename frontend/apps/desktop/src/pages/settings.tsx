@@ -974,6 +974,9 @@ function GatewaySettings() {
     }
   }, [notifyServiceHost])
 
+  const gwChanged = gwUrl !== (gatewayUrl.data || '')
+  const notifyChanged = notifyHost !== (notifyServiceHost || '')
+
   return (
     <>
       <SizableText size="2xl" weight="bold">
@@ -983,7 +986,24 @@ function GatewaySettings() {
         <SettingsRow
           label="Gateway URL"
           description="Primary hyper.media endpoint"
-          right={<Input className="w-[220px]" value={gwUrl} onChangeText={setGWUrl} />}
+          right={
+            <div className="relative w-[220px]">
+              <Input className={cn('w-full', gwChanged && 'pr-14')} value={gwUrl} onChangeText={setGWUrl} />
+              {gwChanged ? (
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="absolute top-1/2 right-1 -translate-y-1/2"
+                  onClick={() => {
+                    setGatewayUrl.mutate(gwUrl)
+                    toast.success('Gateway URL saved!')
+                  }}
+                >
+                  Save
+                </Button>
+              ) : null}
+            </div>
+          }
         />
         <Separator />
         <SettingsRow
@@ -991,19 +1011,24 @@ function GatewaySettings() {
           description="Push notification relay server"
           right={
             <div className="relative w-[220px]">
-              <Input className="w-full pr-14" value={notifyHost} onChangeText={setNotifyHost} />
-              <Button
-                size="xs"
-                variant="outline"
-                className="absolute top-1/2 right-1 -translate-y-1/2"
-                onClick={() => {
-                  setNotifyServiceHost.mutate(notifyHost)
-                  setGatewayUrl.mutate(gwUrl)
-                  toast.success('Connection settings saved!')
-                }}
-              >
-                Save
-              </Button>
+              <Input
+                className={cn('w-full', notifyChanged && 'pr-14')}
+                value={notifyHost}
+                onChangeText={setNotifyHost}
+              />
+              {notifyChanged ? (
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="absolute top-1/2 right-1 -translate-y-1/2"
+                  onClick={() => {
+                    setNotifyServiceHost.mutate(notifyHost)
+                    toast.success('Notify service host saved!')
+                  }}
+                >
+                  Save
+                </Button>
+              ) : null}
             </div>
           }
         />
