@@ -106,12 +106,7 @@ export function createMentionSuggestionPlugin(opts: {
             if (charBefore !== ' ') return false
           }
 
-          view.dispatch(
-            state.tr
-              .insertText('@')
-              .scrollIntoView()
-              .setMeta(mentionSuggestionPluginKey, {activate: true}),
-          )
+          view.dispatch(state.tr.insertText('@').scrollIntoView().setMeta(mentionSuggestionPluginKey, {activate: true}))
           return true
         }
 

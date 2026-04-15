@@ -3,7 +3,11 @@ import {Plugin} from 'prosemirror-state'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {BlockSchema} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {EventEmitter} from './blocknote/core/shared/EventEmitter'
-import {createMentionSuggestionPlugin, MentionPluginState, mentionSuggestionPluginKey} from './mention-suggestion-plugin'
+import {
+  createMentionSuggestionPlugin,
+  MentionPluginState,
+  mentionSuggestionPluginKey,
+} from './mention-suggestion-plugin'
 
 export type MentionMenuState = {
   show: boolean

@@ -7,6 +7,7 @@ import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useHighlighter} from '@shm/ui/highlight-context'
 import {SizableText} from '@shm/ui/text'
 import {Node} from '@tiptap/core'
+import {Plugin} from '@tiptap/pm/state'
 import {NodeViewWrapper, ReactNodeViewRenderer} from '@tiptap/react'
 import './inline-embed.css'
 
@@ -43,6 +44,28 @@ export function createInlineEmbedNode() {
           default: '',
         },
       }
+    },
+    addProseMirrorPlugins() {
+      return [
+        new Plugin({
+          props: {
+            handleKeyDown(view, event) {
+              if (view.state.selection.from === view.state.selection.to) {
+                const resolved = view.state.doc.resolve(view.state.selection.from)
+                if (
+                  resolved.nodeBefore == null &&
+                  resolved.nodeAfter?.type.name === 'inline-embed' &&
+                  event.code === `Key${event.key.toUpperCase()}`
+                ) {
+                  view.dispatch(view.state.tr.insertText(event.key))
+                  return true
+                }
+              }
+              return false
+            },
+          },
+        }),
+      ]
     },
   })
 
