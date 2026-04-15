@@ -28,13 +28,13 @@ import {getBlockInfoFromPos, getBlockInfoFromSelection} from './extensions/Block
 
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {DomainResolverFn} from '@seed-hypermedia/client'
-import {InlineMentionsResult} from '@shm/shared/models/inline-mentions'
 import {Transaction} from 'prosemirror-state'
 import {HMBlockSchema, hmBlockSchema} from '../../schema'
 import {insertBlocks} from './api/blockManipulation/commands/insertBlocks'
 import {newRemoveBlocks} from './api/blockManipulation/commands/removeBlocks'
 import {newReplaceBlocks} from './api/blockManipulation/commands/replaceBlocks'
 import {updateBlock} from './api/blockManipulation/commands/updateBlock'
+import {MentionMenuProsemirrorPlugin} from '../../mention-menu-plugin'
 import {FormattingToolbarProsemirrorPlugin} from './extensions/FormattingToolbar/FormattingToolbarPlugin'
 import {HyperlinkToolbarProsemirrorPlugin} from './extensions/HyperlinkToolbar/HyperlinkToolbarPlugin'
 import {LinkMenuProsemirrorPlugin} from './extensions/LinkMenu/LinkMenuPlugin'
@@ -130,7 +130,6 @@ export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
   // isEditable
   isEditable: boolean
   linkExtensionOptions?: LinkExtensionOptions
-  onMentionsQuery?: any
   importWebFile?: ImportWebFileFunction
   handleFileAttachment?: HandleFileAttachmentFunction
   commentEditor?: boolean
@@ -182,16 +181,10 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public readonly schema: BSchema
   public ready = false
 
-  // @ts-expect-error
-  public inlineEmbedOptions: InlineMentionsResult = {
-    Profiles: [],
-    Documents: [],
-    Recents: [],
-  }
-
   public readonly sideMenu: SideMenuProsemirrorPlugin<BSchema>
   public readonly formattingToolbar: FormattingToolbarProsemirrorPlugin<BSchema>
   public readonly slashMenu: SlashMenuProsemirrorPlugin<BSchema, any>
+  public readonly mentionMenu: MentionMenuProsemirrorPlugin<BSchema>
   public readonly hyperlinkToolbar: HyperlinkToolbarProsemirrorPlugin<BSchema>
   public readonly linkMenu: LinkMenuProsemirrorPlugin<BSchema, any>
 
@@ -210,8 +203,6 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
       defaultStyles: boolean
       blockSchema: BSchema
       linkExtensionOptions?: LinkExtensionOptions
-      inlineEmbedOptions?: InlineMentionsResult
-      onMentionsQuery?: (query: string) => void
     } = {
       defaultStyles: true,
       // BSchema generic constraints make proper typing complex - using `as any` for hmBlockSchema fallback
@@ -225,6 +216,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     this.sideMenu = new SideMenuProsemirrorPlugin(this)
     this.formattingToolbar = new FormattingToolbarProsemirrorPlugin(this)
     this.slashMenu = new SlashMenuProsemirrorPlugin(this, newOptions.getSlashMenuItems || (() => []))
+    this.mentionMenu = new MentionMenuProsemirrorPlugin(this)
     this.hyperlinkToolbar = new HyperlinkToolbarProsemirrorPlugin(this)
     this.linkMenu = new LinkMenuProsemirrorPlugin(this)
     this.importWebFile = newOptions.importWebFile
@@ -237,7 +229,6 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
       collaboration: newOptions.collaboration,
       editable: newOptions.editable,
       linkExtensionOptions: newOptions.linkExtensionOptions,
-      inlineEmbedOptions: newOptions.inlineEmbedOptions,
     })
 
     const blockNoteUIExtension = Extension.create({
@@ -248,6 +239,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
           this.sideMenu.plugin,
           this.formattingToolbar.plugin,
           this.slashMenu.plugin,
+          this.mentionMenu.plugin,
           this.hyperlinkToolbar.plugin,
           this.linkMenu.plugin,
         ]
@@ -367,14 +359,6 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
 
   public focus() {
     this._tiptapEditor.view.focus()
-  }
-
-  public setInlineEmbedOptions(newOpts: InlineMentionsResult) {
-    this.inlineEmbedOptions = newOpts
-  }
-
-  public get mentionOptions() {
-    return this.inlineEmbedOptions
   }
 
   /**

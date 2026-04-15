@@ -3,7 +3,6 @@ import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {HMBlockNode, HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {useAccount} from '@shm/shared/models/entity'
-import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {queryClient} from '@shm/shared/models/query-client'
 import {useTx} from '@shm/shared/translation'
 import {UIAvatar} from '@shm/ui/avatar'
@@ -61,8 +60,6 @@ export function useCommentEditor(
     }
   }>,
 ) {
-  const {onMentionsQuery} = useInlineMentions(perspectiveAccountUid)
-
   // Use refs so extensions created once by useBlockNote can access the latest callbacks.
   // useBlockNote only creates the editor on the first render, but these callbacks may
   // change (e.g., isMobile starts false due to SSR-safe useMedia initialization, then
@@ -94,7 +91,6 @@ export function useCommentEditor(
     // },
     blockSchema: hmBlockSchema,
     getSlashMenuItems: () => getSlashMenuItems(),
-    onMentionsQuery,
     importWebFile,
     handleFileAttachment,
     _tiptapOptions: {
@@ -873,7 +869,7 @@ export function CommentEditor({
             onDrop={onDrop}
           >
             {isEditorFocused ? (
-              <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+              <HyperMediaEditorView editor={editor} openUrl={openUrl} perspectiveAccountUid={perspectiveAccountUid} />
             ) : (
               <Button
                 onClick={() => {

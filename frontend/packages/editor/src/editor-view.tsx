@@ -9,14 +9,17 @@ import {
 } from './blocknote'
 import {HMFormattingToolbar} from './hm-formatting-toolbar'
 import {HypermediaLinkPreview} from './hm-link-preview'
+import {MentionMenuPositioner} from './mention-menu-positioner'
 import type {HyperMediaEditor} from './types'
 
 export function HyperMediaEditorView({
   editor,
   openUrl,
+  perspectiveAccountUid,
 }: {
   editor: HyperMediaEditor
   openUrl: (url: string, newWindow?: boolean) => void
+  perspectiveAccountUid?: string | null
 }) {
   return (
     <BlockNoteView editor={editor}>
@@ -30,6 +33,7 @@ export function HyperMediaEditorView({
         openUrl={openUrl}
       />
       <SlashMenuPositioner editor={editor} />
+      <MentionMenuPositioner editor={editor} perspectiveAccountUid={perspectiveAccountUid} />
       {/* {comment ? null : <SideMenuPositioner editor={editor} placement="left" />} */}
       <LinkMenuPositioner editor={editor} />
     </BlockNoteView>

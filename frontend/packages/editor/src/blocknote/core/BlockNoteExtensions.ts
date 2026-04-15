@@ -40,7 +40,6 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
   blockSchema: BSchema
   // These types are complex due to tiptap extension options - using any for compatibility
   linkExtensionOptions?: any
-  inlineEmbedOptions?: any
   collaboration?: {
     fragment: Y.XmlFragment
     user: {
@@ -52,7 +51,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
   }
 }) => {
   const ret: Extensions = [
-    createInlineEmbedNode(opts.editor),
+    createInlineEmbedNode(),
     extensions.ClipboardTextSerializer,
     extensions.Commands,
     extensions.Editable,
