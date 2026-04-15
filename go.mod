@@ -245,7 +245,7 @@ require (
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/mock v0.5.2 // indirect
-	golang.org/x/crypto v0.43.0 // indirect
+	golang.org/x/crypto v0.43.0
 	golang.org/x/mod v0.30.0 // indirect
 	golang.org/x/net v0.46.0
 	golang.org/x/sys v0.37.0 // indirect
