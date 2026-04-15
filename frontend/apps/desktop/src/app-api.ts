@@ -263,7 +263,12 @@ export const router = t.router({
           }
           throw new Error(message)
         }
-        const config = await res.json()
+        let config
+        try {
+          config = await res.json()
+        } catch {
+          throw new Error(`Site returned invalid response`)
+        }
         return HMHostConfigSchema.parse(config)
       }),
     requestDiscover: t.procedure

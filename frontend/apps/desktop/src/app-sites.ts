@@ -22,7 +22,12 @@ export const sitesApi = t.router({
       }
       throw new Error(message)
     }
-    const result = await resp.json()
+    let result
+    try {
+      result = await resp.json()
+    } catch {
+      throw new Error('Site returned invalid response')
+    }
     return result
   }),
   getConfig: t.procedure.input(z.string()).mutation(async ({input}) => {
@@ -37,7 +42,12 @@ export const sitesApi = t.router({
       }
       throw new Error(message)
     }
-    const result = await resp.json()
+    let result
+    try {
+      result = await resp.json()
+    } catch {
+      throw new Error('Site returned invalid response')
+    }
     return result
   }),
 })
