@@ -92,36 +92,37 @@ describe('omnibar url resolution', () => {
 })
 
 describe('selectValidatedOmnibarSiteUrl', () => {
-  it('returns the custom domain when it currently resolves to the same account', () => {
+  it('returns the custom domain when the check succeeds and account matches', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://alice.example',
         gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: 'alice',
+        domainStatus: 'success',
       }),
     ).toBe('https://alice.example')
   })
 
-  it('returns null while the domain lookup is still loading', () => {
+  it('optimistically returns the candidate URL while the domain lookup is still loading', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://alice.example',
         gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
-        registeredAccountUid: 'alice',
         isDomainLoading: true,
       }),
-    ).toBeNull()
+    ).toBe('https://alice.example')
   })
 
-  it('returns null when the domain resolves to a different account', () => {
+  it('returns null when the domain check succeeds but resolves to a different account', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://alice.example',
         gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: 'bob',
+        domainStatus: 'success',
       }),
     ).toBeNull()
   })
@@ -133,6 +134,55 @@ describe('selectValidatedOmnibarSiteUrl', () => {
         gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: 'alice',
+        domainStatus: 'success',
+      }),
+    ).toBeNull()
+  })
+
+  it('keeps the candidate domain when the domain check status is error', () => {
+    expect(
+      selectValidatedOmnibarSiteUrl({
+        candidateSiteUrl: 'https://alice.example',
+        gatewayUrl: 'https://gateway.example',
+        accountUid: 'alice',
+        registeredAccountUid: undefined,
+        domainStatus: 'error',
+      }),
+    ).toBe('https://alice.example')
+  })
+
+  it('keeps the candidate domain when the domain check status is unreachable', () => {
+    expect(
+      selectValidatedOmnibarSiteUrl({
+        candidateSiteUrl: 'https://alice.example',
+        gatewayUrl: 'https://gateway.example',
+        accountUid: 'alice',
+        registeredAccountUid: undefined,
+        domainStatus: 'unreachable',
+      }),
+    ).toBe('https://alice.example')
+  })
+
+  it('keeps the candidate domain when domain query returned null (no data)', () => {
+    expect(
+      selectValidatedOmnibarSiteUrl({
+        candidateSiteUrl: 'https://alice.example',
+        gatewayUrl: 'https://gateway.example',
+        accountUid: 'alice',
+        registeredAccountUid: undefined,
+        domainStatus: undefined,
+      }),
+    ).toBe('https://alice.example')
+  })
+
+  it('returns null when domain check succeeds but no account is registered', () => {
+    expect(
+      selectValidatedOmnibarSiteUrl({
+        candidateSiteUrl: 'https://alice.example',
+        gatewayUrl: 'https://gateway.example',
+        accountUid: 'alice',
+        registeredAccountUid: undefined,
+        domainStatus: 'success',
       }),
     ).toBeNull()
   })

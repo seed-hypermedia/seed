@@ -714,6 +714,7 @@ function useCurrentRouteUrl(): {
     gatewayUrl: gwUrl,
     accountUid: lookupUid,
     registeredAccountUid: domainInfo.data?.registeredAccountUid,
+    domainStatus: domainInfo.data?.status,
     isDomainLoading: domainInfo.isLoading,
   })
 

@@ -28,6 +28,7 @@ export function selectValidatedOmnibarSiteUrl(params: {
   gatewayUrl: string
   accountUid?: string | null
   registeredAccountUid?: string | null
+  domainStatus?: string | null
   isDomainLoading?: boolean
 }): string | null {
   const candidateHostname = getUrlHostname(params.candidateSiteUrl)
@@ -35,7 +36,16 @@ export function selectValidatedOmnibarSiteUrl(params: {
 
   if (!params.candidateSiteUrl || !candidateHostname) return null
   if (gatewayHostname && candidateHostname === gatewayHostname) return null
-  if (params.isDomainLoading) return null
+
+  // Domain check still in flight — optimistically show what the user typed.
+  if (params.isDomainLoading) return params.candidateSiteUrl
+
+  // Domain check did not succeed (error, unreachable, unknown, or query
+  // returned null). Keep showing the candidate — we only rewrite to gateway
+  // when the check *successfully* resolves to the wrong account.
+  if (params.domainStatus !== 'success') return params.candidateSiteUrl
+
+  // Domain check succeeded. Verify the account matches.
   if (!params.accountUid || !params.registeredAccountUid) return null
   if (params.registeredAccountUid !== params.accountUid) return null
 
