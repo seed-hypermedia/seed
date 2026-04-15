@@ -1,4 +1,3 @@
-import {AutocompletePopup, createAutoCompletePlugin} from '@shm/editor/autocomplete'
 import {hmId} from '@shm/shared'
 import {useUniversalAppContext} from '@shm/shared'
 import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
@@ -8,58 +7,17 @@ import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useHighlighter} from '@shm/ui/highlight-context'
 import {SizableText} from '@shm/ui/text'
 import {Node} from '@tiptap/core'
+import {Plugin} from '@tiptap/pm/state'
 import {NodeViewWrapper, ReactNodeViewRenderer} from '@tiptap/react'
-import ReactDOM from 'react-dom/client'
 import './inline-embed.css'
-/**
- * we need
- * - a inline atom node to render the inline references
- * - a plugin that captures the keys pressed and opens the suggestions menu when we need it
- * - an autocomplete plugin that filters the list when we type after the trigger
- * - serialize/deserialize mentions to the backend
- *
- */
 
-var inlineEmbedPopupElement: HTMLElement | null = null
-var popupRoot: ReactDOM.Root | null = null
-
-function getOrCreatePopupElement() {
-  if (typeof document === 'undefined') return null
-
-  if (!inlineEmbedPopupElement) {
-    inlineEmbedPopupElement = document.createElement('div')
-    inlineEmbedPopupElement.style.position = 'absolute'
-    // inlineEmbedPopupElement.style.pointerEvents = 'none'
-    inlineEmbedPopupElement.style.zIndex = '9999'
-    document.body.append(inlineEmbedPopupElement)
-    popupRoot = ReactDOM.createRoot(inlineEmbedPopupElement)
-  }
-
-  return popupRoot
-}
-
-export function createInlineEmbedNode(bnEditor: any) {
-  let {nodes, plugins} = createAutoCompletePlugin({
-    nodeName: 'inline-embed',
-    triggerCharacter: '@',
-    renderPopup: (state, actions) => {
-      const root = getOrCreatePopupElement()
-      if (root) {
-        // Defer to avoid "nested component updates from render" warning.
-        // This callback is invoked from ProseMirror's view.update(), which
-        // can fire during a parent React render cycle.
-        queueMicrotask(() => {
-          root.render(<AutocompletePopup editor={bnEditor} state={state} actions={actions} />)
-        })
-      }
-    },
-  })
-
+/** Creates the TipTap Node for rendering inline-embed mentions in the document. */
+export function createInlineEmbedNode() {
   const InlineEmbedNode = Node.create({
-    atom: nodes['inline-embed'].atom,
+    atom: true,
     name: 'inline-embed',
     group: 'inline',
-    inline: nodes['inline-embed'].inline,
+    inline: true,
     addNodeView() {
       return ReactNodeViewRenderer(InlineEmbedNodeComponent)
     },
@@ -88,7 +46,26 @@ export function createInlineEmbedNode(bnEditor: any) {
       }
     },
     addProseMirrorPlugins() {
-      return plugins
+      return [
+        new Plugin({
+          props: {
+            handleKeyDown(view, event) {
+              if (view.state.selection.from === view.state.selection.to) {
+                const resolved = view.state.doc.resolve(view.state.selection.from)
+                if (
+                  resolved.nodeBefore == null &&
+                  resolved.nodeAfter?.type.name === 'inline-embed' &&
+                  event.code === `Key${event.key.toUpperCase()}`
+                ) {
+                  view.dispatch(view.state.tr.insertText(event.key))
+                  return true
+                }
+              }
+              return false
+            },
+          },
+        }),
+      ]
     },
   })
 
@@ -96,7 +73,6 @@ export function createInlineEmbedNode(bnEditor: any) {
 }
 
 function InlineEmbedNodeComponent(props: any) {
-  // console.log('InlineEmbedNodeComponent props', props)
   return (
     <NodeViewWrapper
       as="span"
@@ -109,7 +85,6 @@ function InlineEmbedNodeComponent(props: any) {
 }
 
 export function MentionToken(props: {value: string; selected?: boolean}) {
-  // console.log('MentionToken props', props)
   const unpackedRef = unpackHmId(props.value)
   const profileAccountUid = unpackedRef?.path?.[0] === ':profile' ? unpackedRef.path[1] || unpackedRef.uid : null
 

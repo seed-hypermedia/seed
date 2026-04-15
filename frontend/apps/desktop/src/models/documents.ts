@@ -38,7 +38,6 @@ import {prepareHMDocument} from '@shm/shared/document-utils'
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {prepareHMDocumentInfo, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
-import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {
@@ -528,8 +527,6 @@ export function useDraftEditor() {
   const saveDraft = useMutation({
     mutationFn: (input: Parameters<typeof client.drafts.write.mutate>[0]) => client.drafts.write.mutate(input),
   })
-  const selectedAccountId = useSelectedAccountId()
-  const {onMentionsQuery} = useInlineMentions(selectedAccountId)
   const importWebFile = useMutation({
     mutationFn: (input: Parameters<typeof client.webImporting.importWebFile.mutate>[0]) =>
       client.webImporting.importWebFile.mutate(input),
@@ -578,7 +575,6 @@ export function useDraftEditor() {
     getResourceUrl: (blockId?: string | null) => {
       return getResourceUrl.current(blockId)
     },
-    onMentionsQuery,
     importWebFile: importWebFile.mutateAsync,
     blockSchema: hmBlockSchema,
     getSlashMenuItems: () => getSlashMenuItems({docId: editId ?? locationId}),
