@@ -3,7 +3,7 @@ package daemon
 import (
 	"context"
 	"seed/backend/config"
-	"seed/backend/core"
+	"seed/backend/storage/keystore"
 	"seed/backend/core/coretest"
 	"seed/backend/storage"
 	"seed/backend/testutil"
@@ -17,7 +17,7 @@ func makeTestApp(t *testing.T, name string, cfg config.Config, register bool) *A
 
 	u := coretest.NewTester(name)
 
-	repo, err := storage.Open(cfg.Base.DataDir, u.Device.Libp2pKey(), core.NewMemoryKeyStore(), "debug")
+	repo, err := storage.Open(cfg.Base.DataDir, u.Device.Libp2pKey(), keystore.NewMemory(), "debug")
 	require.NoError(t, err)
 
 	app, err := Load(ctx, cfg, repo)

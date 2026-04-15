@@ -6,6 +6,7 @@ import (
 	"seed/backend/config"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
+	"seed/backend/storage/keystore"
 	payments "seed/backend/genproto/payments/v1alpha"
 	"seed/backend/hmnet"
 	"seed/backend/lndhub/lndhubsql"
@@ -70,7 +71,7 @@ func makeTestService(t *testing.T, name string) *Server {
 	u := coretest.NewTester(name)
 	db := storage.MakeTestMemoryDB(t)
 	device := u.Device
-	ks := core.NewMemoryKeyStore()
+	ks := keystore.NewMemory()
 	require.NoError(t, ks.StoreKey(ctx, device.PublicKey.String(), device))
 	node, closenode := makeTestPeer(t, device, ks, db)
 	t.Cleanup(closenode)

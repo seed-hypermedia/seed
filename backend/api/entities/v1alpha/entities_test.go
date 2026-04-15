@@ -5,7 +5,7 @@ import (
 	documentsapi "seed/backend/api/documents/v3alpha"
 	"seed/backend/blob"
 	"seed/backend/config"
-	"seed/backend/core"
+	"seed/backend/storage/keystore"
 	"seed/backend/core/coretest"
 	documents "seed/backend/genproto/documents/v3alpha"
 	entpb "seed/backend/genproto/entities/v1alpha"
@@ -30,7 +30,7 @@ func newTestServices(t *testing.T, name string) testServices {
 
 	u := coretest.NewTester(name)
 	db := storage.MakeTestMemoryDB(t)
-	ks := core.NewMemoryKeyStore()
+	ks := keystore.NewMemory()
 	require.NoError(t, ks.StoreKey(context.Background(), "main", u.Account))
 
 	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/index"+"/"+name, "debug")))

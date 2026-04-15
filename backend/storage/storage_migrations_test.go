@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"seed/backend/config"
-	"seed/backend/core"
+	"seed/backend/storage/keystore"
 	"seed/backend/core/coretest"
 	"seed/backend/testutil"
 	"seed/backend/util/must"
@@ -56,7 +56,7 @@ func generateGoldenSnapshot() {
 		panic(err)
 	}
 
-	dir, err := Open(cfg.Base.DataDir, alice.Device.Libp2pKey(), core.NewMemoryKeyStore(), cfg.LogLevel)
+	dir, err := Open(cfg.Base.DataDir, alice.Device.Libp2pKey(), keystore.NewMemory(), cfg.LogLevel)
 	if err != nil {
 		panic(err)
 	}
@@ -75,12 +75,12 @@ func runMigrationsTest(t *testing.T) {
 
 	alice := coretest.NewTester("alice")
 
-	migratedStore, err := Open(migrateDir, alice.Device.Libp2pKey(), core.NewMemoryKeyStore(), "debug")
+	migratedStore, err := Open(migrateDir, alice.Device.Libp2pKey(), keystore.NewMemory(), "debug")
 	require.NoError(t, err)
 	require.NoError(t, migratedStore.Migrate())
 	defer migratedStore.Close()
 
-	freshStore, err := Open(t.TempDir(), alice.Device.Libp2pKey(), core.NewMemoryKeyStore(), "debug")
+	freshStore, err := Open(t.TempDir(), alice.Device.Libp2pKey(), keystore.NewMemory(), "debug")
 	require.NoError(t, err)
 	require.NoError(t, freshStore.Migrate())
 	defer freshStore.Close()

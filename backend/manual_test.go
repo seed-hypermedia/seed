@@ -3,7 +3,7 @@ package backend
 import (
 	"context"
 	"seed/backend/blob"
-	"seed/backend/core"
+	"seed/backend/storage/keystore"
 	"seed/backend/storage"
 	"seed/backend/testutil"
 	"seed/backend/util/must"
@@ -19,7 +19,7 @@ func TestDBMigrateManual(t *testing.T) {
 	// Before running the test duplicate your entire production data directory to /tmp/seed-db-migrate-test.
 	testutil.Manual(t)
 
-	dir, err := storage.Open("/tmp/seed-db-migrate-test", nil, core.NewMemoryKeyStore(), "debug")
+	dir, err := storage.Open("/tmp/seed-db-migrate-test", nil, keystore.NewMemory(), "debug")
 	require.NoError(t, err)
 	defer dir.Close()
 

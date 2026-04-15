@@ -10,6 +10,7 @@ import (
 	"seed/backend/config"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
+	"seed/backend/storage/keystore"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/ipfs"
 	"seed/backend/logging"
@@ -1321,7 +1322,7 @@ func newTestDocsAPI(t *testing.T, name string) testServer {
 func newTestDocsAPIWithConfig(t *testing.T, name string, cfg config.Base) testServer {
 	u := coretest.NewTester(name)
 	db := storage.MakeTestMemoryDB(t)
-	ks := core.NewMemoryKeyStore()
+	ks := keystore.NewMemory()
 	require.NoError(t, ks.StoreKey(context.Background(), "main", u.Account))
 
 	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/index"+"/"+name, "debug")))

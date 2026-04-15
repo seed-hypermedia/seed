@@ -1,30 +1,32 @@
-package core
+package keystore
 
 import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"seed/backend/testutil"
 	"testing"
+
+	"seed/backend/core"
+	"seed/backend/testutil"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestOSKeyStore(t *testing.T) {
+func TestOS(t *testing.T) {
 	testutil.Manual(t)
-	kp, err := GenerateKeyPair(Ed25519, rand.Reader)
+	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
 	require.NoError(t, err)
 
-	kp2, err := GenerateKeyPair(Ed25519, rand.Reader)
+	kp2, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
 	require.NoError(t, err)
 
-	ks := NewOSKeyStore("test-manual")
+	ks := NewOS("test-manual")
 	ctx := context.Background()
 	t.Cleanup(func() {
-		_ = ks.DeleteAllKeys(ctx) // best effort cleanup after tests finished.
+		_ = ks.DeleteAllKeys(ctx)
 	})
 
-	_ = ks.DeleteAllKeys(ctx) // best effort cleanup in case previous runs left anything behind.
+	_ = ks.DeleteAllKeys(ctx)
 
 	emptyKey, err := ks.GetKey(ctx, "keyName")
 	require.Error(t, err)
@@ -59,58 +61,38 @@ func TestOSKeyStore(t *testing.T) {
 	require.Equal(t, kp2.PublicKey.Principal(), keys[0].PublicKey)
 }
 
-func removeKeys(ctx context.Context, ks KeyStore) error {
-	collection, err := ks.ListKeys(ctx)
-	if err != nil {
-		return err
-	}
-	for _, name := range collection {
-		err = ks.DeleteKey(ctx, name.Name)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func TestFileKeyStore(t *testing.T) {
+func TestFile(t *testing.T) {
 	dir := t.TempDir()
-	ks, err := NewFileKeyStore(dir)
+	ks, err := NewFile(dir)
 	require.NoError(t, err)
 
-	kp, err := GenerateKeyPair(Ed25519, rand.Reader)
+	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
 	require.NoError(t, err)
 
-	kp2, err := GenerateKeyPair(Ed25519, rand.Reader)
+	kp2, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
 	require.NoError(t, err)
 
 	ctx := context.Background()
 
-	// Initially empty
 	keys, err := ks.ListKeys(ctx)
 	require.NoError(t, err)
 	require.Len(t, keys, 0)
 
-	// Get non-existent key
 	_, err = ks.GetKey(ctx, "keyName")
 	require.Error(t, err)
 
-	// Store and retrieve
 	require.NoError(t, ks.StoreKey(ctx, "keyName", kp))
 	key, err := ks.GetKey(ctx, "keyName")
 	require.NoError(t, err)
 	require.Equal(t, kp.Principal(), key.Principal())
 
-	// Can't store duplicate
 	require.Error(t, ks.StoreKey(ctx, "keyName", kp2))
 
-	// Store another
 	require.NoError(t, ks.StoreKey(ctx, "anotherKey", kp2))
 	keys, err = ks.ListKeys(ctx)
 	require.NoError(t, err)
 	require.Len(t, keys, 2)
 
-	// Rename
 	require.NoError(t, ks.ChangeKeyName(ctx, "keyName", "renamedKey"))
 	_, err = ks.GetKey(ctx, "keyName")
 	require.Error(t, err)
@@ -118,13 +100,11 @@ func TestFileKeyStore(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, kp.Principal(), key.Principal())
 
-	// Delete
 	require.NoError(t, ks.DeleteKey(ctx, "renamedKey"))
 	keys, err = ks.ListKeys(ctx)
 	require.NoError(t, err)
 	require.Len(t, keys, 1)
 
-	// Delete all
 	require.NoError(t, ks.DeleteAllKeys(ctx))
 	keys, err = ks.ListKeys(ctx)
 	require.NoError(t, err)
@@ -160,7 +140,6 @@ func TestDecodeKeyringSecret(t *testing.T) {
 	})
 
 	t.Run("PrefixOnly", func(t *testing.T) {
-		// Empty base64 after prefix decodes to empty string.
 		got, err := decodeKeyringSecret(goKeyringBase64Prefix)
 		require.NoError(t, err)
 		require.Equal(t, "", got)

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 	"seed/backend/config"
-	"seed/backend/core"
+	"seed/backend/storage/keystore"
 	"seed/backend/core/coretest"
 	"seed/backend/storage"
 
@@ -36,7 +36,7 @@ func run() error {
 		return err
 	}
 
-	dir, err := storage.Open(cfg.Base.DataDir, alice.Device.Libp2pKey(), core.NewMemoryKeyStore(), cfg.LogLevel)
+	dir, err := storage.Open(cfg.Base.DataDir, alice.Device.Libp2pKey(), keystore.NewMemory(), cfg.LogLevel)
 	if err != nil {
 		return err
 	}

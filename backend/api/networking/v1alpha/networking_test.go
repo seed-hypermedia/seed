@@ -5,7 +5,7 @@ import (
 	"errors"
 	"seed/backend/blob"
 	"seed/backend/config"
-	"seed/backend/core"
+	"seed/backend/storage/keystore"
 	"seed/backend/core/coretest"
 	networking "seed/backend/genproto/networking/v1alpha"
 	"seed/backend/hmnet"
@@ -43,7 +43,7 @@ func makeTestServer(t *testing.T, u coretest.Tester) *Server {
 	cfg.BootstrapPeers = nil
 	cfg.NoMetrics = true
 
-	ks := core.NewMemoryKeyStore()
+	ks := keystore.NewMemory()
 	must.Do(ks.StoreKey(context.Background(), "main", u.Account))
 
 	n, err := hmnet.New(cfg, u.Device, ks, db, idx, zap.NewNop())

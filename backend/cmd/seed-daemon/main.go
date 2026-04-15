@@ -19,6 +19,7 @@ import (
 	"seed/backend/config"
 	"seed/backend/core"
 	"seed/backend/daemon"
+	"seed/backend/storage/keystore"
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/util/grpcprom"
@@ -89,7 +90,7 @@ func main() {
 		var ks core.KeyStore
 		if cfg.Base.KeystoreDir != "" {
 			var err error
-			ks, err = core.NewFileKeyStore(cfg.Base.KeystoreDir)
+			ks, err = keystore.NewFile(cfg.Base.KeystoreDir)
 			if err != nil {
 				return fmt.Errorf("failed to create file keystore: %w", err)
 			}
@@ -99,7 +100,7 @@ func main() {
 			if keyStoreEnvironment == "" {
 				keyStoreEnvironment = "main"
 			}
-			ks = core.NewOSKeyStore(keyStoreEnvironment)
+			ks = keystore.NewOS(keyStoreEnvironment)
 		}
 
 		dir, err := storage.Open(cfg.Base.DataDir, nil, ks, cfg.LogLevel)
