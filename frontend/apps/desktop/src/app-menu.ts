@@ -1,7 +1,7 @@
 // this menu is visible on macOS only
 // the keyboard shortcuts apply to every platform
 
-import {ipcMain, Menu, MenuItem} from 'electron'
+import {BrowserWindow, ipcMain, Menu, MenuItem} from 'electron'
 import {nanoid} from 'nanoid'
 import {dispatchFocusedWindowAppEvent, openRoute, trpc} from './app-api'
 import {getFocusedWindow} from './app-windows'
@@ -108,7 +108,7 @@ export function createAppMenu() {
         {
           label: 'Select All',
           click: (_menuItem, browserWindow) => {
-            browserWindow?.webContents.selectAll()
+            if (browserWindow instanceof BrowserWindow) browserWindow.webContents.selectAll()
           },
         },
       ],

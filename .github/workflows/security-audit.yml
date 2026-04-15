@@ -41,4 +41,6 @@ jobs:
       - name: Run security audit
         # Fail on high or critical vulnerabilities.
         # Use --audit-level=moderate to be stricter if desired.
-        run: pnpm audit --audit-level=high
+        # --ignore-registry-errors: npm is retiring legacy audit endpoints
+        # (pnpm/pnpm#11265) — don't fail the build when the registry is down.
+        run: pnpm audit --audit-level=high --ignore-registry-errors
