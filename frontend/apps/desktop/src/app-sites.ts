@@ -13,8 +13,14 @@ export const sitesApi = t.router({
       body: JSON.stringify(input.payload),
     })
     if (resp.status !== 200) {
-      const error = await resp.json()
-      throw error
+      let message = `Site returned status ${resp.status}`
+      try {
+        const error = await resp.json()
+        if (error.message) message = error.message
+      } catch {
+        // Response wasn't JSON
+      }
+      throw new Error(message)
     }
     const result = await resp.json()
     return result
@@ -22,8 +28,14 @@ export const sitesApi = t.router({
   getConfig: t.procedure.input(z.string()).mutation(async ({input}) => {
     const resp = await fetch(`${input}/hm/api/config`, {})
     if (resp.status !== 200) {
-      const error = await resp.json()
-      throw error
+      let message = `Site returned status ${resp.status}`
+      try {
+        const error = await resp.json()
+        if (error.message) message = error.message
+      } catch {
+        // Response wasn't JSON
+      }
+      throw new Error(message)
     }
     const result = await resp.json()
     return result

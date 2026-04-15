@@ -40,13 +40,8 @@ export const action: ActionFunction = async ({request}) => {
     console.log('Registration Done.')
     return json({message: 'Success'})
   } catch (e) {
-    // @ts-expect-error
-    if (e.toJSON) {
-      return json(e, {status: 500})
-    } else {
-      // @ts-expect-error
-      return json({message: e.message}, {status: 500})
-    }
+    const message = e instanceof Error ? e.message : String(e)
+    return json({message}, {status: 500})
   }
 }
 

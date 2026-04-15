@@ -254,8 +254,14 @@ export const router = t.router({
           signal: AbortSignal.timeout(timeout),
         })
         if (res.status !== 200) {
-          const error = await res.json()
-          throw new Error(error.message)
+          let message = `Site returned status ${res.status}`
+          try {
+            const error = await res.json()
+            if (error.message) message = error.message
+          } catch {
+            // Response wasn't JSON (e.g. plain text error from server)
+          }
+          throw new Error(message)
         }
         const config = await res.json()
         return HMHostConfigSchema.parse(config)
