@@ -92,7 +92,28 @@ export function createAppMenu() {
       ],
     }),
   )
-  appMenu.append(new MenuItem({role: 'editMenu'}))
+  appMenu.append(
+    new MenuItem({
+      label: 'Edit',
+      submenu: [
+        {role: 'undo'},
+        {role: 'redo'},
+        {type: 'separator'},
+        {role: 'cut'},
+        {role: 'copy'},
+        {role: 'paste'},
+        {role: 'pasteAndMatchStyle'},
+        {role: 'delete'},
+        {type: 'separator'},
+        {
+          label: 'Select All',
+          click: (_menuItem, browserWindow) => {
+            browserWindow?.webContents.selectAll()
+          },
+        },
+      ],
+    }),
+  )
 
   appMenu.append(
     new MenuItem({

@@ -122,7 +122,9 @@
       "minimatch@^9": "9.0.7",
       "minimatch@^10": "10.2.4",
       "cross-spawn": "7.0.6",
-      "basic-ftp": "5.2.0",
+      "basic-ftp": "5.2.2",
+      "lodash": "4.18.1",
+      "lodash-es": "4.18.1",
       "linkifyjs": "4.3.2",
       "valibot": "1.2.0",
       "hono": "4.12.9",
@@ -131,7 +133,6 @@
       "@babel/runtime": "7.29.2",
       "electron": "35.7.5",
       "prosemirror-dev-tools>nanoid": "3.3.11",
-
       "@hono/node-server": "1.19.11",
       "@modelcontextprotocol/sdk": "1.27.1",
       "@remix-run/router": "1.23.2",

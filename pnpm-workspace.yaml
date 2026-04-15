@@ -33,6 +33,17 @@ auditConfig:
     # html-minifier@<=4.0.0 — ReDoS — no patch published.
     # Reaches us via: mjml > mjml-cli > html-minifier (emails app devDep).
     - CVE-2022-37620
+    # @xmldom/xmldom@<0.8.12 — XML injection via CDATA serialization.
+    # Upgrading to 0.9.x breaks plist parsing in @electron/packager (stricter
+    # mimeType validation). Ignoring until plist or electron-forge updates.
+    - CVE-2026-34601
+    # electron@<39.8.5 — multiple use-after-free and command injection vulns.
+    # Upgrading from electron 35 to 39+ is a major version jump requiring
+    # dedicated testing. Ignoring until the electron upgrade is planned.
+    - CVE-2026-34774
+    - CVE-2026-34771
+    - CVE-2026-34770
+    - CVE-2026-34769
 
 # blockExoticSubdeps: true
 # Prevents transitive dependencies from being resolved from exotic sources

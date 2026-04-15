@@ -110,9 +110,11 @@ export function useCommentEditor(
           priority: 1000,
           addKeyboardShortcuts() {
             return {
+              'Mod-a': ({editor}) => {
+                editor.commands.selectAll()
+                return true
+              },
               'Mod-Enter': () => {
-                // Prevent the default Enter behavior
-                // and trigger the submit callback
                 if (onSubmitRef.current) {
                   onSubmitRef.current()
                   return true
@@ -690,24 +692,6 @@ export function CommentEditor({
       submitCallbackRef.current?.()
     }
   }, [submitTrigger])
-
-  useEffect(() => {
-    function handleSelectAll(event: KeyboardEvent) {
-      if (event.key == 'a' && (event.metaKey || event.ctrlKey)) {
-        if (editor && editor._tiptapEditor.isFocused) {
-          event.preventDefault()
-          editor._tiptapEditor.commands.focus()
-          editor._tiptapEditor.commands.selectAll()
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleSelectAll)
-
-    return () => {
-      window.removeEventListener('keydown', handleSelectAll)
-    }
-  }, [])
 
   function onDrop(event: React.DragEvent<HTMLDivElement>) {
     if (!isDragging) return

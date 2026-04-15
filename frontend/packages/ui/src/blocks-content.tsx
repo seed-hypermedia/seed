@@ -500,7 +500,8 @@ export function BlocksContent({
 
   useEffect(() => {
     function handleSelectAll(event: KeyboardEvent) {
-      if (event.key == 'a' && event.metaKey) {
+      if (event.key == 'a' && (event.metaKey || event.ctrlKey)) {
+        if (document.activeElement?.closest('[contenteditable="true"]')) return
         event.preventDefault()
         if (wrapper.current) {
           window.getSelection()?.selectAllChildren(wrapper.current)

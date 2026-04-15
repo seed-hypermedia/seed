@@ -590,6 +590,18 @@ export function useDraftEditor() {
             return [createHypermediaDocLinkPlugin({domainResolver}).plugin]
           },
         }),
+        Extension.create({
+          name: 'draft-select-all',
+          priority: 1000,
+          addKeyboardShortcuts() {
+            return {
+              'Mod-a': ({editor}) => {
+                editor.commands.selectAll()
+                return true
+              },
+            }
+          },
+        }),
       ],
     },
   })
@@ -740,24 +752,6 @@ export function useDraftEditor() {
       })
     }
   }, [data, locationEntity.status, editEntity.status])
-
-  useEffect(() => {
-    function handleSelectAll(event: KeyboardEvent) {
-      if (event.key == 'a' && event.metaKey) {
-        if (editor) {
-          event.preventDefault()
-          editor._tiptapEditor.commands.focus()
-          editor._tiptapEditor.commands.selectAll()
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleSelectAll)
-
-    return () => {
-      window.removeEventListener('keydown', handleSelectAll)
-    }
-  }, [])
 
   // this updates the draft with the correct signing account
   useEffect(() => {
