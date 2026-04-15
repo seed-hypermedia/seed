@@ -103,12 +103,15 @@ export function Feed({
   // Flatten all pages into a single array of events
   const allEvents = data?.pages.flatMap((page) => page.events) || []
 
-  // Extract unique author IDs from events and subscribe to them for discovery
+  // Extract unique author IDs from events (including reply parent authors) and subscribe for discovery
   const authorIds = useMemo(() => {
     const ids = new Set<string>()
     allEvents.forEach((event) => {
       if (event.author?.id?.uid) {
         ids.add(event.author.id.uid)
+      }
+      if (event.type === 'comment' && event.replyParentAuthor?.id?.uid) {
+        ids.add(event.replyParentAuthor.id.uid)
       }
     })
     return Array.from(ids)

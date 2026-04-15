@@ -5,7 +5,8 @@ import {
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {abbreviateUid, getMetadataName, useRouteLink} from '@shm/shared'
+import {abbreviateUid, useRouteLink} from '@shm/shared'
+import {useAccount} from '@shm/shared/models/entity'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useMemo} from 'react'
 import {Container} from './container'
@@ -19,9 +20,7 @@ import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
 
-export type AuthorPayload = HMMetadataPayload & {
-  isDiscovering?: boolean
-}
+export type AuthorPayload = HMMetadataPayload
 
 export type BreadcrumbEntry =
   | {
@@ -100,18 +99,7 @@ export function DocumentHeader({
                   <p className="text-sm font-bold">
                     {authors.flatMap((a, index) => {
                       return [
-                        a.isDiscovering ? (
-                          <AuthorLink
-                            name={abbreviateUid(a.id.uid)}
-                            id={a.id}
-                            key={a.id.id}
-                            siteUid={docId?.uid}
-                            muted
-                            suffix={<Spinner size="small" />}
-                          />
-                        ) : (
-                          <AuthorLink name={getMetadataName(a.metadata)} id={a.id} key={a.id.id} siteUid={docId?.uid} />
-                        ),
+                        <AuthorLink id={a.id} key={a.id.id} siteUid={docId?.uid} />,
                         index !== authors.length - 1 ? (
                           index === authors.length - 2 ? (
                             <SizableText key={`${a.id.id}-and`} size="xs" weight="bold">
@@ -139,30 +127,23 @@ export function DocumentHeader({
   )
 }
 
-function AuthorLink({
-  name,
-  id,
-  siteUid,
-  muted,
-  suffix,
-}: {
-  name: string
-  id: UnpackedHypermediaId
-  siteUid?: string
-  /** Render with muted text color (used for loading/discovering state). */
-  muted?: boolean
-  /** Optional inline element after the name (e.g. a spinner). */
-  suffix?: React.ReactNode
-}) {
+/** Renders a clickable author name with a spinner while the account is loading. */
+function AuthorLink({id, siteUid}: {id: UnpackedHypermediaId; siteUid?: string}) {
   const currentRoute = useNavRoute()
+  const account = useAccount(id.uid)
+  const resolvedName = account.data?.metadata?.name
   const linkProps = useRouteLink(getContextualProfileRoute(currentRoute, id, siteUid))
   return (
     <a
       {...linkProps}
-      className={`no-underline underline-offset-4 hover:underline${muted ? ' text-muted-foreground' : ''}`}
+      className={`no-underline underline-offset-4 hover:underline${resolvedName ? '' : ' text-muted-foreground'}`}
     >
-      {name}
-      {suffix ? <span className="ml-1">{suffix}</span> : null}
+      {resolvedName || abbreviateUid(id.uid)}
+      {account.isLoading ? (
+        <span className="ml-1">
+          <Spinner size="small" />
+        </span>
+      ) : null}
     </a>
   )
 }

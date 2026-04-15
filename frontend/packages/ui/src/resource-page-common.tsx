@@ -747,7 +747,6 @@ function DocumentBody({
       return {
         id: hmId(uid),
         metadata: null,
-        isDiscovering: true,
       }
     })
   }, [document.authors, accountsMetadata.data])

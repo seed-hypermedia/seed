@@ -1,6 +1,8 @@
 import {HMContactItem, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {abbreviateUid, AnyTimestamp, formattedDateShort, hmId, NavRoute, normalizeDate, useRouteLink} from '@shm/shared'
+import {useAccount} from '@shm/shared/models/entity'
 import {useNavRoute} from '@shm/shared/utils/navigation'
+import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
 
 function formatUTC(date: Date) {
@@ -76,13 +78,28 @@ export function getContextualProfileRoute(
   }
 }
 
+/** Inline link to an author's profile, with a spinner while the account is still loading. */
 export function AuthorNameLink({author, siteUid}: {author: HMContactItem | null; siteUid?: string}) {
   const currentRoute = useNavRoute()
-  const authorName = author?.metadata?.name || abbreviateUid(author?.id?.uid)
+  // Use the account query to get fresh cache data and distinguish loading from settled.
+  // When useHackyAuthorsSubscriptions discovers the account, this query gets invalidated
+  // and re-renders with the resolved name.
+  const account = useAccount(author?.id?.uid)
+  const resolvedName = account.data?.metadata?.name || author?.metadata?.name
+  const isLoading = account.isLoading
+  const authorName = resolvedName || abbreviateUid(author?.id?.uid)
   const linkProps = useRouteLink(getContextualProfileRoute(currentRoute, author?.id || null, siteUid))
   return (
-    <a className="text-foreground text-sm font-bold" {...linkProps}>
+    <a
+      className={`text-sm font-bold${resolvedName ? ' text-foreground' : ' text-muted-foreground'}`}
+      {...linkProps}
+    >
       {authorName}
+      {isLoading ? (
+        <span className="ml-1">
+          <Spinner size="small" />
+        </span>
+      ) : null}
     </a>
   )
 }
