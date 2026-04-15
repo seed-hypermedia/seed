@@ -290,8 +290,10 @@ export function WebSitePageShell({
 
 function NotifsButton() {
   const linkProps = useRouteLink({key: 'notifications'})
-  const inbox = useWebNotificationInbox()
-  const readState = useWebNotificationReadState()
+  const {originHomeId} = useUniversalAppContext()
+  const siteUid = originHomeId?.uid
+  const inbox = useWebNotificationInbox(siteUid)
+  const readState = useWebNotificationReadState(siteUid)
 
   const unreadCount = useMemo(() => {
     const notifications = inbox.data?.notifications ?? []
