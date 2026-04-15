@@ -25,6 +25,9 @@ const (
 	Daemon_ImportKey_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ImportKey"
 	Daemon_ExportKey_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ExportKey"
 	Daemon_GetInfo_FullMethodName                 = "/com.seed.daemon.v1alpha.Daemon/GetInfo"
+	Daemon_GetVaultStatus_FullMethodName          = "/com.seed.daemon.v1alpha.Daemon/GetVaultStatus"
+	Daemon_StartVaultConnection_FullMethodName    = "/com.seed.daemon.v1alpha.Daemon/StartVaultConnection"
+	Daemon_DisconnectVault_FullMethodName         = "/com.seed.daemon.v1alpha.Daemon/DisconnectVault"
 	Daemon_ForceSync_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ForceSync"
 	Daemon_ForceReindex_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/ForceReindex"
 	Daemon_ListKeys_FullMethodName                = "/com.seed.daemon.v1alpha.Daemon/ListKeys"
@@ -61,6 +64,12 @@ type DaemonClient interface {
 	ExportKey(ctx context.Context, in *ExportKeyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Get generic information about the running node.
 	GetInfo(ctx context.Context, in *GetInfoRequest, opts ...grpc.CallOption) (*Info, error)
+	// Gets the current local-vault backend and sync status.
+	GetVaultStatus(ctx context.Context, in *GetVaultStatusRequest, opts ...grpc.CallOption) (*GetVaultStatusResponse, error)
+	// Starts a browser-mediated remote vault connection flow.
+	StartVaultConnection(ctx context.Context, in *StartVaultConnectionRequest, opts ...grpc.CallOption) (*StartVaultConnectionResponse, error)
+	// Disconnects the daemon from remote vault sync and falls back to local-only mode.
+	DisconnectVault(ctx context.Context, in *DisconnectVaultRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Force-trigger periodic background sync of Seed objects.
 	ForceSync(ctx context.Context, in *ForceSyncRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Forces the daemon to reindex the entire database.
@@ -152,6 +161,36 @@ func (c *daemonClient) GetInfo(ctx context.Context, in *GetInfoRequest, opts ...
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Info)
 	err := c.cc.Invoke(ctx, Daemon_GetInfo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonClient) GetVaultStatus(ctx context.Context, in *GetVaultStatusRequest, opts ...grpc.CallOption) (*GetVaultStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetVaultStatusResponse)
+	err := c.cc.Invoke(ctx, Daemon_GetVaultStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonClient) StartVaultConnection(ctx context.Context, in *StartVaultConnectionRequest, opts ...grpc.CallOption) (*StartVaultConnectionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StartVaultConnectionResponse)
+	err := c.cc.Invoke(ctx, Daemon_StartVaultConnection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonClient) DisconnectVault(ctx context.Context, in *DisconnectVaultRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Daemon_DisconnectVault_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -327,6 +366,12 @@ type DaemonServer interface {
 	ExportKey(context.Context, *ExportKeyRequest) (*emptypb.Empty, error)
 	// Get generic information about the running node.
 	GetInfo(context.Context, *GetInfoRequest) (*Info, error)
+	// Gets the current local-vault backend and sync status.
+	GetVaultStatus(context.Context, *GetVaultStatusRequest) (*GetVaultStatusResponse, error)
+	// Starts a browser-mediated remote vault connection flow.
+	StartVaultConnection(context.Context, *StartVaultConnectionRequest) (*StartVaultConnectionResponse, error)
+	// Disconnects the daemon from remote vault sync and falls back to local-only mode.
+	DisconnectVault(context.Context, *DisconnectVaultRequest) (*emptypb.Empty, error)
 	// Force-trigger periodic background sync of Seed objects.
 	ForceSync(context.Context, *ForceSyncRequest) (*emptypb.Empty, error)
 	// Forces the daemon to reindex the entire database.
@@ -387,6 +432,15 @@ func (UnimplementedDaemonServer) ExportKey(context.Context, *ExportKeyRequest) (
 }
 func (UnimplementedDaemonServer) GetInfo(context.Context, *GetInfoRequest) (*Info, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetInfo not implemented")
+}
+func (UnimplementedDaemonServer) GetVaultStatus(context.Context, *GetVaultStatusRequest) (*GetVaultStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetVaultStatus not implemented")
+}
+func (UnimplementedDaemonServer) StartVaultConnection(context.Context, *StartVaultConnectionRequest) (*StartVaultConnectionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StartVaultConnection not implemented")
+}
+func (UnimplementedDaemonServer) DisconnectVault(context.Context, *DisconnectVaultRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DisconnectVault not implemented")
 }
 func (UnimplementedDaemonServer) ForceSync(context.Context, *ForceSyncRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ForceSync not implemented")
@@ -539,6 +593,60 @@ func _Daemon_GetInfo_Handler(srv interface{}, ctx context.Context, dec func(inte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DaemonServer).GetInfo(ctx, req.(*GetInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Daemon_GetVaultStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetVaultStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServer).GetVaultStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Daemon_GetVaultStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServer).GetVaultStatus(ctx, req.(*GetVaultStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Daemon_StartVaultConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartVaultConnectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServer).StartVaultConnection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Daemon_StartVaultConnection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServer).StartVaultConnection(ctx, req.(*StartVaultConnectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Daemon_DisconnectVault_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DisconnectVaultRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServer).DisconnectVault(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Daemon_DisconnectVault_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServer).DisconnectVault(ctx, req.(*DisconnectVaultRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -839,6 +947,18 @@ var Daemon_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetInfo",
 			Handler:    _Daemon_GetInfo_Handler,
+		},
+		{
+			MethodName: "GetVaultStatus",
+			Handler:    _Daemon_GetVaultStatus_Handler,
+		},
+		{
+			MethodName: "StartVaultConnection",
+			Handler:    _Daemon_StartVaultConnection_Handler,
+		},
+		{
+			MethodName: "DisconnectVault",
+			Handler:    _Daemon_DisconnectVault_Handler,
 		},
 		{
 			MethodName: "ForceSync",

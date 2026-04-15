@@ -577,6 +577,21 @@ func (srv *Server) GetInfo(context.Context, *daemon.GetInfoRequest) (*daemon.Inf
 	return resp, nil
 }
 
+// GetVaultStatus implements the corresponding gRPC method.
+func (srv *Server) GetVaultStatus(context.Context, *daemon.GetVaultStatusRequest) (*daemon.GetVaultStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "GetVaultStatus is not implemented")
+}
+
+// StartVaultConnection implements the corresponding gRPC method.
+func (srv *Server) StartVaultConnection(context.Context, *daemon.StartVaultConnectionRequest) (*daemon.StartVaultConnectionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "StartVaultConnection is not implemented")
+}
+
+// DisconnectVault implements the corresponding gRPC method.
+func (srv *Server) DisconnectVault(context.Context, *daemon.DisconnectVaultRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "DisconnectVault is not implemented")
+}
+
 // ForceSync implements the corresponding gRPC method.
 // Deprecated: This method is no longer supported.
 func (srv *Server) ForceSync(context.Context, *daemon.ForceSyncRequest) (*emptypb.Empty, error) {

@@ -42,6 +42,74 @@ proto3.util.setEnumType(State, "com.seed.daemon.v1alpha.State", [
 ]);
 
 /**
+ * VaultBackendMode describes the daemon vault backend mode.
+ *
+ * @generated from enum com.seed.daemon.v1alpha.VaultBackendMode
+ */
+export enum VaultBackendMode {
+  /**
+   * Unknown backend mode.
+   *
+   * @generated from enum value: VAULT_BACKEND_MODE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Local encrypted vault file only.
+   *
+   * @generated from enum value: VAULT_BACKEND_MODE_LOCAL = 1;
+   */
+  LOCAL = 1,
+
+  /**
+   * Local encrypted vault file with remote sync enabled.
+   *
+   * @generated from enum value: VAULT_BACKEND_MODE_REMOTE = 2;
+   */
+  REMOTE = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(VaultBackendMode)
+proto3.util.setEnumType(VaultBackendMode, "com.seed.daemon.v1alpha.VaultBackendMode", [
+  { no: 0, name: "VAULT_BACKEND_MODE_UNSPECIFIED" },
+  { no: 1, name: "VAULT_BACKEND_MODE_LOCAL" },
+  { no: 2, name: "VAULT_BACKEND_MODE_REMOTE" },
+]);
+
+/**
+ * VaultConnectionStatus describes remote connection status for daemon vault sync.
+ *
+ * @generated from enum com.seed.daemon.v1alpha.VaultConnectionStatus
+ */
+export enum VaultConnectionStatus {
+  /**
+   * Unknown connection status.
+   *
+   * @generated from enum value: VAULT_CONNECTION_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Remote vault sync is not connected.
+   *
+   * @generated from enum value: VAULT_CONNECTION_STATUS_DISCONNECTED = 1;
+   */
+  DISCONNECTED = 1,
+
+  /**
+   * Remote vault sync is connected.
+   *
+   * @generated from enum value: VAULT_CONNECTION_STATUS_CONNECTED = 2;
+   */
+  CONNECTED = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(VaultConnectionStatus)
+proto3.util.setEnumType(VaultConnectionStatus, "com.seed.daemon.v1alpha.VaultConnectionStatus", [
+  { no: 0, name: "VAULT_CONNECTION_STATUS_UNSPECIFIED" },
+  { no: 1, name: "VAULT_CONNECTION_STATUS_DISCONNECTED" },
+  { no: 2, name: "VAULT_CONNECTION_STATUS_CONNECTED" },
+]);
+
+/**
  * Different types of tasks that the daemon can perform.
  *
  * @generated from enum com.seed.daemon.v1alpha.TaskName
@@ -362,6 +430,178 @@ export class GetInfoRequest extends Message<GetInfoRequest> {
 
   static equals(a: GetInfoRequest | PlainMessage<GetInfoRequest> | undefined, b: GetInfoRequest | PlainMessage<GetInfoRequest> | undefined): boolean {
     return proto3.util.equals(GetInfoRequest, a, b);
+  }
+}
+
+/**
+ * Request to get vault backend and sync status.
+ *
+ * @generated from message com.seed.daemon.v1alpha.GetVaultStatusRequest
+ */
+export class GetVaultStatusRequest extends Message<GetVaultStatusRequest> {
+  constructor(data?: PartialMessage<GetVaultStatusRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.GetVaultStatusRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetVaultStatusRequest {
+    return new GetVaultStatusRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetVaultStatusRequest {
+    return new GetVaultStatusRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetVaultStatusRequest {
+    return new GetVaultStatusRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetVaultStatusRequest | PlainMessage<GetVaultStatusRequest> | undefined, b: GetVaultStatusRequest | PlainMessage<GetVaultStatusRequest> | undefined): boolean {
+    return proto3.util.equals(GetVaultStatusRequest, a, b);
+  }
+}
+
+/**
+ * Request to start remote vault connection handoff.
+ *
+ * @generated from message com.seed.daemon.v1alpha.StartVaultConnectionRequest
+ */
+export class StartVaultConnectionRequest extends Message<StartVaultConnectionRequest> {
+  /**
+   * Required. Remote vault base URL.
+   *
+   * @generated from field: string vault_url = 1;
+   */
+  vaultUrl = "";
+
+  /**
+   * Optional. Force replacing active or already-connected state.
+   *
+   * @generated from field: bool force = 2;
+   */
+  force = false;
+
+  constructor(data?: PartialMessage<StartVaultConnectionRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.StartVaultConnectionRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "vault_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "force", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): StartVaultConnectionRequest {
+    return new StartVaultConnectionRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): StartVaultConnectionRequest {
+    return new StartVaultConnectionRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): StartVaultConnectionRequest {
+    return new StartVaultConnectionRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: StartVaultConnectionRequest | PlainMessage<StartVaultConnectionRequest> | undefined, b: StartVaultConnectionRequest | PlainMessage<StartVaultConnectionRequest> | undefined): boolean {
+    return proto3.util.equals(StartVaultConnectionRequest, a, b);
+  }
+}
+
+/**
+ * Response with daemon-issued handoff token metadata.
+ *
+ * @generated from message com.seed.daemon.v1alpha.StartVaultConnectionResponse
+ */
+export class StartVaultConnectionResponse extends Message<StartVaultConnectionResponse> {
+  /**
+   * Normalized remote vault base URL.
+   *
+   * @generated from field: string vault_url = 1;
+   */
+  vaultUrl = "";
+
+  /**
+   * Ephemeral handoff token for browser-mediated daemon exchange.
+   *
+   * @generated from field: string handoff_token = 2;
+   */
+  handoffToken = "";
+
+  /**
+   * Handoff token expiration time.
+   *
+   * @generated from field: google.protobuf.Timestamp expire_time = 3;
+   */
+  expireTime?: Timestamp;
+
+  constructor(data?: PartialMessage<StartVaultConnectionResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.StartVaultConnectionResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "vault_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "handoff_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "expire_time", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): StartVaultConnectionResponse {
+    return new StartVaultConnectionResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): StartVaultConnectionResponse {
+    return new StartVaultConnectionResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): StartVaultConnectionResponse {
+    return new StartVaultConnectionResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: StartVaultConnectionResponse | PlainMessage<StartVaultConnectionResponse> | undefined, b: StartVaultConnectionResponse | PlainMessage<StartVaultConnectionResponse> | undefined): boolean {
+    return proto3.util.equals(StartVaultConnectionResponse, a, b);
+  }
+}
+
+/**
+ * Request to disconnect remote vault mode.
+ *
+ * @generated from message com.seed.daemon.v1alpha.DisconnectVaultRequest
+ */
+export class DisconnectVaultRequest extends Message<DisconnectVaultRequest> {
+  constructor(data?: PartialMessage<DisconnectVaultRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.DisconnectVaultRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DisconnectVaultRequest {
+    return new DisconnectVaultRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DisconnectVaultRequest {
+    return new DisconnectVaultRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DisconnectVaultRequest {
+    return new DisconnectVaultRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DisconnectVaultRequest | PlainMessage<DisconnectVaultRequest> | undefined, b: DisconnectVaultRequest | PlainMessage<DisconnectVaultRequest> | undefined): boolean {
+    return proto3.util.equals(DisconnectVaultRequest, a, b);
   }
 }
 
@@ -1166,6 +1406,136 @@ export class Info extends Message<Info> {
 
   static equals(a: Info | PlainMessage<Info> | undefined, b: Info | PlainMessage<Info> | undefined): boolean {
     return proto3.util.equals(Info, a, b);
+  }
+}
+
+/**
+ * VaultSyncStatus describes daemon sync metadata for vault state.
+ *
+ * @generated from message com.seed.daemon.v1alpha.VaultSyncStatus
+ */
+export class VaultSyncStatus extends Message<VaultSyncStatus> {
+  /**
+   * Last local vault version known by the daemon.
+   *
+   * @generated from field: uint64 local_version = 1;
+   */
+  localVersion = protoInt64.zero;
+
+  /**
+   * Last remote vault version observed by the daemon.
+   *
+   * @generated from field: uint64 remote_version = 2;
+   */
+  remoteVersion = protoInt64.zero;
+
+  /**
+   * Last successful or attempted sync time.
+   *
+   * @generated from field: google.protobuf.Timestamp last_sync_time = 3;
+   */
+  lastSyncTime?: Timestamp;
+
+  /**
+   * Last sync error message, when sync failed.
+   *
+   * @generated from field: string last_sync_error = 4;
+   */
+  lastSyncError = "";
+
+  constructor(data?: PartialMessage<VaultSyncStatus>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.VaultSyncStatus";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "local_version", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
+    { no: 2, name: "remote_version", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
+    { no: 3, name: "last_sync_time", kind: "message", T: Timestamp },
+    { no: 4, name: "last_sync_error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): VaultSyncStatus {
+    return new VaultSyncStatus().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): VaultSyncStatus {
+    return new VaultSyncStatus().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): VaultSyncStatus {
+    return new VaultSyncStatus().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: VaultSyncStatus | PlainMessage<VaultSyncStatus> | undefined, b: VaultSyncStatus | PlainMessage<VaultSyncStatus> | undefined): boolean {
+    return proto3.util.equals(VaultSyncStatus, a, b);
+  }
+}
+
+/**
+ * Response with daemon vault backend mode, remote status, and sync metadata.
+ *
+ * @generated from message com.seed.daemon.v1alpha.GetVaultStatusResponse
+ */
+export class GetVaultStatusResponse extends Message<GetVaultStatusResponse> {
+  /**
+   * Current daemon vault backend mode.
+   *
+   * @generated from field: com.seed.daemon.v1alpha.VaultBackendMode backend_mode = 1;
+   */
+  backendMode = VaultBackendMode.UNSPECIFIED;
+
+  /**
+   * Current remote connection status.
+   *
+   * @generated from field: com.seed.daemon.v1alpha.VaultConnectionStatus connection_status = 2;
+   */
+  connectionStatus = VaultConnectionStatus.UNSPECIFIED;
+
+  /**
+   * Remote vault URL when in remote mode.
+   *
+   * @generated from field: string remote_vault_url = 3;
+   */
+  remoteVaultUrl = "";
+
+  /**
+   * Sync status metadata.
+   *
+   * @generated from field: com.seed.daemon.v1alpha.VaultSyncStatus sync_status = 4;
+   */
+  syncStatus?: VaultSyncStatus;
+
+  constructor(data?: PartialMessage<GetVaultStatusResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.GetVaultStatusResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "backend_mode", kind: "enum", T: proto3.getEnumType(VaultBackendMode) },
+    { no: 2, name: "connection_status", kind: "enum", T: proto3.getEnumType(VaultConnectionStatus) },
+    { no: 3, name: "remote_vault_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "sync_status", kind: "message", T: VaultSyncStatus },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetVaultStatusResponse {
+    return new GetVaultStatusResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetVaultStatusResponse {
+    return new GetVaultStatusResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetVaultStatusResponse {
+    return new GetVaultStatusResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetVaultStatusResponse | PlainMessage<GetVaultStatusResponse> | undefined, b: GetVaultStatusResponse | PlainMessage<GetVaultStatusResponse> | undefined): boolean {
+    return proto3.util.equals(GetVaultStatusResponse, a, b);
   }
 }
 

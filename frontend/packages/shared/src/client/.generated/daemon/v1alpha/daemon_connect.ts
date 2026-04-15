@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AddDomainRequest, CheckDomainRequest, CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, DomainInfo, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetDomainRequest, GetInfoRequest, ImportKeyRequest, Info, ListDomainsRequest, ListDomainsResponse, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, RemoveDomainRequest, SignDataRequest, SignDataResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
+import { AddDomainRequest, CheckDomainRequest, CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, DisconnectVaultRequest, DomainInfo, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetDomainRequest, GetInfoRequest, GetVaultStatusRequest, GetVaultStatusResponse, ImportKeyRequest, Info, ListDomainsRequest, ListDomainsResponse, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, RemoveDomainRequest, SignDataRequest, SignDataResponse, StartVaultConnectionRequest, StartVaultConnectionResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -70,6 +70,39 @@ export const Daemon = {
       name: "GetInfo",
       I: GetInfoRequest,
       O: Info,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Gets the current local-vault backend and sync status.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.GetVaultStatus
+     */
+    getVaultStatus: {
+      name: "GetVaultStatus",
+      I: GetVaultStatusRequest,
+      O: GetVaultStatusResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Starts a browser-mediated remote vault connection flow.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.StartVaultConnection
+     */
+    startVaultConnection: {
+      name: "StartVaultConnection",
+      I: StartVaultConnectionRequest,
+      O: StartVaultConnectionResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Disconnects the daemon from remote vault sync and falls back to local-only mode.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.DisconnectVault
+     */
+    disconnectVault: {
+      name: "DisconnectVault",
+      I: DisconnectVaultRequest,
+      O: Empty,
       kind: MethodKind.Unary,
     },
     /**

@@ -27,6 +27,15 @@ service Daemon {
   // Get generic information about the running node.
   rpc GetInfo(GetInfoRequest) returns (Info);
 
+  // Gets the current local-vault backend and sync status.
+  rpc GetVaultStatus(GetVaultStatusRequest) returns (GetVaultStatusResponse);
+
+  // Starts a browser-mediated remote vault connection flow.
+  rpc StartVaultConnection(StartVaultConnectionRequest) returns (StartVaultConnectionResponse);
+
+  // Disconnects the daemon from remote vault sync and falls back to local-only mode.
+  rpc DisconnectVault(DisconnectVaultRequest) returns (google.protobuf.Empty);
+
   // Force-trigger periodic background sync of Seed objects.
   rpc ForceSync(ForceSyncRequest) returns (google.protobuf.Empty);
 
@@ -131,6 +140,33 @@ message ExportKeyRequest {
 
 // Request to get basic information about the running daemon.
 message GetInfoRequest {}
+
+// Request to get vault backend and sync status.
+message GetVaultStatusRequest {}
+
+// Request to start remote vault connection handoff.
+message StartVaultConnectionRequest {
+  // Required. Remote vault base URL.
+  string vault_url = 1;
+
+  // Optional. Force replacing active or already-connected state.
+  bool force = 2;
+}
+
+// Response with daemon-issued handoff token metadata.
+message StartVaultConnectionResponse {
+  // Normalized remote vault base URL.
+  string vault_url = 1;
+
+  // Ephemeral handoff token for browser-mediated daemon exchange.
+  string handoff_token = 2;
+
+  // Handoff token expiration time.
+  google.protobuf.Timestamp expire_time = 3;
+}
+
+// Request to disconnect remote vault mode.
+message DisconnectVaultRequest {}
 
 // Request to force the syncing process.
 message ForceSyncRequest {}
@@ -279,6 +315,60 @@ enum State {
 
   // Daemon is active and ready to use.
   ACTIVE = 3;
+}
+
+// VaultBackendMode describes the daemon vault backend mode.
+enum VaultBackendMode {
+  // Unknown backend mode.
+  VAULT_BACKEND_MODE_UNSPECIFIED = 0;
+
+  // Local encrypted vault file only.
+  VAULT_BACKEND_MODE_LOCAL = 1;
+
+  // Local encrypted vault file with remote sync enabled.
+  VAULT_BACKEND_MODE_REMOTE = 2;
+}
+
+// VaultConnectionStatus describes remote connection status for daemon vault sync.
+enum VaultConnectionStatus {
+  // Unknown connection status.
+  VAULT_CONNECTION_STATUS_UNSPECIFIED = 0;
+
+  // Remote vault sync is not connected.
+  VAULT_CONNECTION_STATUS_DISCONNECTED = 1;
+
+  // Remote vault sync is connected.
+  VAULT_CONNECTION_STATUS_CONNECTED = 2;
+}
+
+// VaultSyncStatus describes daemon sync metadata for vault state.
+message VaultSyncStatus {
+  // Last local vault version known by the daemon.
+  uint64 local_version = 1;
+
+  // Last remote vault version observed by the daemon.
+  uint64 remote_version = 2;
+
+  // Last successful or attempted sync time.
+  google.protobuf.Timestamp last_sync_time = 3;
+
+  // Last sync error message, when sync failed.
+  string last_sync_error = 4;
+}
+
+// Response with daemon vault backend mode, remote status, and sync metadata.
+message GetVaultStatusResponse {
+  // Current daemon vault backend mode.
+  VaultBackendMode backend_mode = 1;
+
+  // Current remote connection status.
+  VaultConnectionStatus connection_status = 2;
+
+  // Remote vault URL when in remote mode.
+  string remote_vault_url = 3;
+
+  // Sync status metadata.
+  VaultSyncStatus sync_status = 4;
 }
 
 // Different types of tasks that the daemon can perform.

@@ -77,6 +77,112 @@ func (State) EnumDescriptor() ([]byte, []int) {
 	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{0}
 }
 
+// VaultBackendMode describes the daemon vault backend mode.
+type VaultBackendMode int32
+
+const (
+	// Unknown backend mode.
+	VaultBackendMode_VAULT_BACKEND_MODE_UNSPECIFIED VaultBackendMode = 0
+	// Local encrypted vault file only.
+	VaultBackendMode_VAULT_BACKEND_MODE_LOCAL VaultBackendMode = 1
+	// Local encrypted vault file with remote sync enabled.
+	VaultBackendMode_VAULT_BACKEND_MODE_REMOTE VaultBackendMode = 2
+)
+
+// Enum value maps for VaultBackendMode.
+var (
+	VaultBackendMode_name = map[int32]string{
+		0: "VAULT_BACKEND_MODE_UNSPECIFIED",
+		1: "VAULT_BACKEND_MODE_LOCAL",
+		2: "VAULT_BACKEND_MODE_REMOTE",
+	}
+	VaultBackendMode_value = map[string]int32{
+		"VAULT_BACKEND_MODE_UNSPECIFIED": 0,
+		"VAULT_BACKEND_MODE_LOCAL":       1,
+		"VAULT_BACKEND_MODE_REMOTE":      2,
+	}
+)
+
+func (x VaultBackendMode) Enum() *VaultBackendMode {
+	p := new(VaultBackendMode)
+	*p = x
+	return p
+}
+
+func (x VaultBackendMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (VaultBackendMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_daemon_v1alpha_daemon_proto_enumTypes[1].Descriptor()
+}
+
+func (VaultBackendMode) Type() protoreflect.EnumType {
+	return &file_daemon_v1alpha_daemon_proto_enumTypes[1]
+}
+
+func (x VaultBackendMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use VaultBackendMode.Descriptor instead.
+func (VaultBackendMode) EnumDescriptor() ([]byte, []int) {
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{1}
+}
+
+// VaultConnectionStatus describes remote connection status for daemon vault sync.
+type VaultConnectionStatus int32
+
+const (
+	// Unknown connection status.
+	VaultConnectionStatus_VAULT_CONNECTION_STATUS_UNSPECIFIED VaultConnectionStatus = 0
+	// Remote vault sync is not connected.
+	VaultConnectionStatus_VAULT_CONNECTION_STATUS_DISCONNECTED VaultConnectionStatus = 1
+	// Remote vault sync is connected.
+	VaultConnectionStatus_VAULT_CONNECTION_STATUS_CONNECTED VaultConnectionStatus = 2
+)
+
+// Enum value maps for VaultConnectionStatus.
+var (
+	VaultConnectionStatus_name = map[int32]string{
+		0: "VAULT_CONNECTION_STATUS_UNSPECIFIED",
+		1: "VAULT_CONNECTION_STATUS_DISCONNECTED",
+		2: "VAULT_CONNECTION_STATUS_CONNECTED",
+	}
+	VaultConnectionStatus_value = map[string]int32{
+		"VAULT_CONNECTION_STATUS_UNSPECIFIED":  0,
+		"VAULT_CONNECTION_STATUS_DISCONNECTED": 1,
+		"VAULT_CONNECTION_STATUS_CONNECTED":    2,
+	}
+)
+
+func (x VaultConnectionStatus) Enum() *VaultConnectionStatus {
+	p := new(VaultConnectionStatus)
+	*p = x
+	return p
+}
+
+func (x VaultConnectionStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (VaultConnectionStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_daemon_v1alpha_daemon_proto_enumTypes[2].Descriptor()
+}
+
+func (VaultConnectionStatus) Type() protoreflect.EnumType {
+	return &file_daemon_v1alpha_daemon_proto_enumTypes[2]
+}
+
+func (x VaultConnectionStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use VaultConnectionStatus.Descriptor instead.
+func (VaultConnectionStatus) EnumDescriptor() ([]byte, []int) {
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{2}
+}
+
 // Different types of tasks that the daemon can perform.
 type TaskName int32
 
@@ -118,11 +224,11 @@ func (x TaskName) String() string {
 }
 
 func (TaskName) Descriptor() protoreflect.EnumDescriptor {
-	return file_daemon_v1alpha_daemon_proto_enumTypes[1].Descriptor()
+	return file_daemon_v1alpha_daemon_proto_enumTypes[3].Descriptor()
 }
 
 func (TaskName) Type() protoreflect.EnumType {
-	return &file_daemon_v1alpha_daemon_proto_enumTypes[1]
+	return &file_daemon_v1alpha_daemon_proto_enumTypes[3]
 }
 
 func (x TaskName) Number() protoreflect.EnumNumber {
@@ -131,7 +237,7 @@ func (x TaskName) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use TaskName.Descriptor instead.
 func (TaskName) EnumDescriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{1}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{3}
 }
 
 // Request to generate mnemonic words.
@@ -450,6 +556,199 @@ func (*GetInfoRequest) Descriptor() ([]byte, []int) {
 	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{5}
 }
 
+// Request to get vault backend and sync status.
+type GetVaultStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetVaultStatusRequest) Reset() {
+	*x = GetVaultStatusRequest{}
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetVaultStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetVaultStatusRequest) ProtoMessage() {}
+
+func (x *GetVaultStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetVaultStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetVaultStatusRequest) Descriptor() ([]byte, []int) {
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{6}
+}
+
+// Request to start remote vault connection handoff.
+type StartVaultConnectionRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Required. Remote vault base URL.
+	VaultUrl string `protobuf:"bytes,1,opt,name=vault_url,json=vaultUrl,proto3" json:"vault_url,omitempty"`
+	// Optional. Force replacing active or already-connected state.
+	Force         bool `protobuf:"varint,2,opt,name=force,proto3" json:"force,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartVaultConnectionRequest) Reset() {
+	*x = StartVaultConnectionRequest{}
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartVaultConnectionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartVaultConnectionRequest) ProtoMessage() {}
+
+func (x *StartVaultConnectionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartVaultConnectionRequest.ProtoReflect.Descriptor instead.
+func (*StartVaultConnectionRequest) Descriptor() ([]byte, []int) {
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *StartVaultConnectionRequest) GetVaultUrl() string {
+	if x != nil {
+		return x.VaultUrl
+	}
+	return ""
+}
+
+func (x *StartVaultConnectionRequest) GetForce() bool {
+	if x != nil {
+		return x.Force
+	}
+	return false
+}
+
+// Response with daemon-issued handoff token metadata.
+type StartVaultConnectionResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Normalized remote vault base URL.
+	VaultUrl string `protobuf:"bytes,1,opt,name=vault_url,json=vaultUrl,proto3" json:"vault_url,omitempty"`
+	// Ephemeral handoff token for browser-mediated daemon exchange.
+	HandoffToken string `protobuf:"bytes,2,opt,name=handoff_token,json=handoffToken,proto3" json:"handoff_token,omitempty"`
+	// Handoff token expiration time.
+	ExpireTime    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartVaultConnectionResponse) Reset() {
+	*x = StartVaultConnectionResponse{}
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartVaultConnectionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartVaultConnectionResponse) ProtoMessage() {}
+
+func (x *StartVaultConnectionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartVaultConnectionResponse.ProtoReflect.Descriptor instead.
+func (*StartVaultConnectionResponse) Descriptor() ([]byte, []int) {
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *StartVaultConnectionResponse) GetVaultUrl() string {
+	if x != nil {
+		return x.VaultUrl
+	}
+	return ""
+}
+
+func (x *StartVaultConnectionResponse) GetHandoffToken() string {
+	if x != nil {
+		return x.HandoffToken
+	}
+	return ""
+}
+
+func (x *StartVaultConnectionResponse) GetExpireTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpireTime
+	}
+	return nil
+}
+
+// Request to disconnect remote vault mode.
+type DisconnectVaultRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DisconnectVaultRequest) Reset() {
+	*x = DisconnectVaultRequest{}
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DisconnectVaultRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DisconnectVaultRequest) ProtoMessage() {}
+
+func (x *DisconnectVaultRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DisconnectVaultRequest.ProtoReflect.Descriptor instead.
+func (*DisconnectVaultRequest) Descriptor() ([]byte, []int) {
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{9}
+}
+
 // Request to force the syncing process.
 type ForceSyncRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -459,7 +758,7 @@ type ForceSyncRequest struct {
 
 func (x *ForceSyncRequest) Reset() {
 	*x = ForceSyncRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[6]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -471,7 +770,7 @@ func (x *ForceSyncRequest) String() string {
 func (*ForceSyncRequest) ProtoMessage() {}
 
 func (x *ForceSyncRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[6]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -484,7 +783,7 @@ func (x *ForceSyncRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForceSyncRequest.ProtoReflect.Descriptor instead.
 func (*ForceSyncRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{6}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{10}
 }
 
 // Request to force reindexing of the entire database.
@@ -496,7 +795,7 @@ type ForceReindexRequest struct {
 
 func (x *ForceReindexRequest) Reset() {
 	*x = ForceReindexRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[7]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -508,7 +807,7 @@ func (x *ForceReindexRequest) String() string {
 func (*ForceReindexRequest) ProtoMessage() {}
 
 func (x *ForceReindexRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[7]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -521,7 +820,7 @@ func (x *ForceReindexRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForceReindexRequest.ProtoReflect.Descriptor instead.
 func (*ForceReindexRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{7}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{11}
 }
 
 // Response after forcing reindexing.
@@ -533,7 +832,7 @@ type ForceReindexResponse struct {
 
 func (x *ForceReindexResponse) Reset() {
 	*x = ForceReindexResponse{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[8]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -545,7 +844,7 @@ func (x *ForceReindexResponse) String() string {
 func (*ForceReindexResponse) ProtoMessage() {}
 
 func (x *ForceReindexResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[8]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -558,7 +857,7 @@ func (x *ForceReindexResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForceReindexResponse.ProtoReflect.Descriptor instead.
 func (*ForceReindexResponse) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{8}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{12}
 }
 
 // Request to delete all keys.
@@ -570,7 +869,7 @@ type DeleteAllKeysRequest struct {
 
 func (x *DeleteAllKeysRequest) Reset() {
 	*x = DeleteAllKeysRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[9]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -582,7 +881,7 @@ func (x *DeleteAllKeysRequest) String() string {
 func (*DeleteAllKeysRequest) ProtoMessage() {}
 
 func (x *DeleteAllKeysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[9]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -595,7 +894,7 @@ func (x *DeleteAllKeysRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAllKeysRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAllKeysRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{9}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{13}
 }
 
 // Request to list signing keys.
@@ -607,7 +906,7 @@ type ListKeysRequest struct {
 
 func (x *ListKeysRequest) Reset() {
 	*x = ListKeysRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[10]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -619,7 +918,7 @@ func (x *ListKeysRequest) String() string {
 func (*ListKeysRequest) ProtoMessage() {}
 
 func (x *ListKeysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[10]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -632,7 +931,7 @@ func (x *ListKeysRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListKeysRequest.ProtoReflect.Descriptor instead.
 func (*ListKeysRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{10}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{14}
 }
 
 // Response with the list of registered signing keys.
@@ -646,7 +945,7 @@ type ListKeysResponse struct {
 
 func (x *ListKeysResponse) Reset() {
 	*x = ListKeysResponse{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[11]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -658,7 +957,7 @@ func (x *ListKeysResponse) String() string {
 func (*ListKeysResponse) ProtoMessage() {}
 
 func (x *ListKeysResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[11]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -671,7 +970,7 @@ func (x *ListKeysResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListKeysResponse.ProtoReflect.Descriptor instead.
 func (*ListKeysResponse) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{11}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ListKeysResponse) GetKeys() []*NamedKey {
@@ -694,7 +993,7 @@ type UpdateKeyRequest struct {
 
 func (x *UpdateKeyRequest) Reset() {
 	*x = UpdateKeyRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[12]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -706,7 +1005,7 @@ func (x *UpdateKeyRequest) String() string {
 func (*UpdateKeyRequest) ProtoMessage() {}
 
 func (x *UpdateKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[12]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -719,7 +1018,7 @@ func (x *UpdateKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateKeyRequest.ProtoReflect.Descriptor instead.
 func (*UpdateKeyRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{12}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *UpdateKeyRequest) GetCurrentName() string {
@@ -747,7 +1046,7 @@ type DeleteKeyRequest struct {
 
 func (x *DeleteKeyRequest) Reset() {
 	*x = DeleteKeyRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[13]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -759,7 +1058,7 @@ func (x *DeleteKeyRequest) String() string {
 func (*DeleteKeyRequest) ProtoMessage() {}
 
 func (x *DeleteKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[13]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -772,7 +1071,7 @@ func (x *DeleteKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteKeyRequest.ProtoReflect.Descriptor instead.
 func (*DeleteKeyRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{13}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *DeleteKeyRequest) GetName() string {
@@ -794,7 +1093,7 @@ type StoreBlobsRequest struct {
 
 func (x *StoreBlobsRequest) Reset() {
 	*x = StoreBlobsRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[14]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -806,7 +1105,7 @@ func (x *StoreBlobsRequest) String() string {
 func (*StoreBlobsRequest) ProtoMessage() {}
 
 func (x *StoreBlobsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[14]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -819,7 +1118,7 @@ func (x *StoreBlobsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StoreBlobsRequest.ProtoReflect.Descriptor instead.
 func (*StoreBlobsRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{14}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *StoreBlobsRequest) GetBlobs() []*Blob {
@@ -841,7 +1140,7 @@ type StoreBlobsResponse struct {
 
 func (x *StoreBlobsResponse) Reset() {
 	*x = StoreBlobsResponse{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[15]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -853,7 +1152,7 @@ func (x *StoreBlobsResponse) String() string {
 func (*StoreBlobsResponse) ProtoMessage() {}
 
 func (x *StoreBlobsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[15]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -866,7 +1165,7 @@ func (x *StoreBlobsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StoreBlobsResponse.ProtoReflect.Descriptor instead.
 func (*StoreBlobsResponse) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{15}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *StoreBlobsResponse) GetCids() []string {
@@ -890,7 +1189,7 @@ type CreateDeviceLinkSessionRequest struct {
 
 func (x *CreateDeviceLinkSessionRequest) Reset() {
 	*x = CreateDeviceLinkSessionRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[16]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -902,7 +1201,7 @@ func (x *CreateDeviceLinkSessionRequest) String() string {
 func (*CreateDeviceLinkSessionRequest) ProtoMessage() {}
 
 func (x *CreateDeviceLinkSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[16]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -915,7 +1214,7 @@ func (x *CreateDeviceLinkSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateDeviceLinkSessionRequest.ProtoReflect.Descriptor instead.
 func (*CreateDeviceLinkSessionRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{16}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *CreateDeviceLinkSessionRequest) GetSigningKeyName() string {
@@ -941,7 +1240,7 @@ type GetDeviceLinkSessionRequest struct {
 
 func (x *GetDeviceLinkSessionRequest) Reset() {
 	*x = GetDeviceLinkSessionRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[17]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -953,7 +1252,7 @@ func (x *GetDeviceLinkSessionRequest) String() string {
 func (*GetDeviceLinkSessionRequest) ProtoMessage() {}
 
 func (x *GetDeviceLinkSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[17]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -966,7 +1265,7 @@ func (x *GetDeviceLinkSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDeviceLinkSessionRequest.ProtoReflect.Descriptor instead.
 func (*GetDeviceLinkSessionRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{17}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{21}
 }
 
 // Request to sign data.
@@ -982,7 +1281,7 @@ type SignDataRequest struct {
 
 func (x *SignDataRequest) Reset() {
 	*x = SignDataRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[18]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -994,7 +1293,7 @@ func (x *SignDataRequest) String() string {
 func (*SignDataRequest) ProtoMessage() {}
 
 func (x *SignDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[18]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1007,7 +1306,7 @@ func (x *SignDataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignDataRequest.ProtoReflect.Descriptor instead.
 func (*SignDataRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{18}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *SignDataRequest) GetSigningKeyName() string {
@@ -1035,7 +1334,7 @@ type SignDataResponse struct {
 
 func (x *SignDataResponse) Reset() {
 	*x = SignDataResponse{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[19]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1047,7 +1346,7 @@ func (x *SignDataResponse) String() string {
 func (*SignDataResponse) ProtoMessage() {}
 
 func (x *SignDataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[19]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1060,7 +1359,7 @@ func (x *SignDataResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignDataResponse.ProtoReflect.Descriptor instead.
 func (*SignDataResponse) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{19}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *SignDataResponse) GetSignature() []byte {
@@ -1092,7 +1391,7 @@ type DeviceLinkSession struct {
 
 func (x *DeviceLinkSession) Reset() {
 	*x = DeviceLinkSession{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[20]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1104,7 +1403,7 @@ func (x *DeviceLinkSession) String() string {
 func (*DeviceLinkSession) ProtoMessage() {}
 
 func (x *DeviceLinkSession) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[20]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1117,7 +1416,7 @@ func (x *DeviceLinkSession) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceLinkSession.ProtoReflect.Descriptor instead.
 func (*DeviceLinkSession) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{20}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *DeviceLinkSession) GetAddrInfo() *AddrInfo {
@@ -1173,7 +1472,7 @@ type AddrInfo struct {
 
 func (x *AddrInfo) Reset() {
 	*x = AddrInfo{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[21]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1185,7 +1484,7 @@ func (x *AddrInfo) String() string {
 func (*AddrInfo) ProtoMessage() {}
 
 func (x *AddrInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[21]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1198,7 +1497,7 @@ func (x *AddrInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddrInfo.ProtoReflect.Descriptor instead.
 func (*AddrInfo) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{21}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *AddrInfo) GetPeerId() string {
@@ -1230,7 +1529,7 @@ type Blob struct {
 
 func (x *Blob) Reset() {
 	*x = Blob{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[22]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1242,7 +1541,7 @@ func (x *Blob) String() string {
 func (*Blob) ProtoMessage() {}
 
 func (x *Blob) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[22]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1255,7 +1554,7 @@ func (x *Blob) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Blob.ProtoReflect.Descriptor instead.
 func (*Blob) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{22}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *Blob) GetCid() string {
@@ -1291,7 +1590,7 @@ type Info struct {
 
 func (x *Info) Reset() {
 	*x = Info{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[23]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1303,7 +1602,7 @@ func (x *Info) String() string {
 func (*Info) ProtoMessage() {}
 
 func (x *Info) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[23]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1316,7 +1615,7 @@ func (x *Info) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Info.ProtoReflect.Descriptor instead.
 func (*Info) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{23}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *Info) GetState() State {
@@ -1354,6 +1653,152 @@ func (x *Info) GetTasks() []*Task {
 	return nil
 }
 
+// VaultSyncStatus describes daemon sync metadata for vault state.
+type VaultSyncStatus struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Last local vault version known by the daemon.
+	LocalVersion uint64 `protobuf:"varint,1,opt,name=local_version,json=localVersion,proto3" json:"local_version,omitempty"`
+	// Last remote vault version observed by the daemon.
+	RemoteVersion uint64 `protobuf:"varint,2,opt,name=remote_version,json=remoteVersion,proto3" json:"remote_version,omitempty"`
+	// Last successful or attempted sync time.
+	LastSyncTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	// Last sync error message, when sync failed.
+	LastSyncError string `protobuf:"bytes,4,opt,name=last_sync_error,json=lastSyncError,proto3" json:"last_sync_error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VaultSyncStatus) Reset() {
+	*x = VaultSyncStatus{}
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VaultSyncStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VaultSyncStatus) ProtoMessage() {}
+
+func (x *VaultSyncStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VaultSyncStatus.ProtoReflect.Descriptor instead.
+func (*VaultSyncStatus) Descriptor() ([]byte, []int) {
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *VaultSyncStatus) GetLocalVersion() uint64 {
+	if x != nil {
+		return x.LocalVersion
+	}
+	return 0
+}
+
+func (x *VaultSyncStatus) GetRemoteVersion() uint64 {
+	if x != nil {
+		return x.RemoteVersion
+	}
+	return 0
+}
+
+func (x *VaultSyncStatus) GetLastSyncTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastSyncTime
+	}
+	return nil
+}
+
+func (x *VaultSyncStatus) GetLastSyncError() string {
+	if x != nil {
+		return x.LastSyncError
+	}
+	return ""
+}
+
+// Response with daemon vault backend mode, remote status, and sync metadata.
+type GetVaultStatusResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Current daemon vault backend mode.
+	BackendMode VaultBackendMode `protobuf:"varint,1,opt,name=backend_mode,json=backendMode,proto3,enum=com.seed.daemon.v1alpha.VaultBackendMode" json:"backend_mode,omitempty"`
+	// Current remote connection status.
+	ConnectionStatus VaultConnectionStatus `protobuf:"varint,2,opt,name=connection_status,json=connectionStatus,proto3,enum=com.seed.daemon.v1alpha.VaultConnectionStatus" json:"connection_status,omitempty"`
+	// Remote vault URL when in remote mode.
+	RemoteVaultUrl string `protobuf:"bytes,3,opt,name=remote_vault_url,json=remoteVaultUrl,proto3" json:"remote_vault_url,omitempty"`
+	// Sync status metadata.
+	SyncStatus    *VaultSyncStatus `protobuf:"bytes,4,opt,name=sync_status,json=syncStatus,proto3" json:"sync_status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetVaultStatusResponse) Reset() {
+	*x = GetVaultStatusResponse{}
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetVaultStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetVaultStatusResponse) ProtoMessage() {}
+
+func (x *GetVaultStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetVaultStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetVaultStatusResponse) Descriptor() ([]byte, []int) {
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *GetVaultStatusResponse) GetBackendMode() VaultBackendMode {
+	if x != nil {
+		return x.BackendMode
+	}
+	return VaultBackendMode_VAULT_BACKEND_MODE_UNSPECIFIED
+}
+
+func (x *GetVaultStatusResponse) GetConnectionStatus() VaultConnectionStatus {
+	if x != nil {
+		return x.ConnectionStatus
+	}
+	return VaultConnectionStatus_VAULT_CONNECTION_STATUS_UNSPECIFIED
+}
+
+func (x *GetVaultStatusResponse) GetRemoteVaultUrl() string {
+	if x != nil {
+		return x.RemoteVaultUrl
+	}
+	return ""
+}
+
+func (x *GetVaultStatusResponse) GetSyncStatus() *VaultSyncStatus {
+	if x != nil {
+		return x.SyncStatus
+	}
+	return nil
+}
+
 // Description of a task that the daemon is performing.
 type Task struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1371,7 +1816,7 @@ type Task struct {
 
 func (x *Task) Reset() {
 	*x = Task{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[24]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1383,7 +1828,7 @@ func (x *Task) String() string {
 func (*Task) ProtoMessage() {}
 
 func (x *Task) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[24]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1396,7 +1841,7 @@ func (x *Task) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Task.ProtoReflect.Descriptor instead.
 func (*Task) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{24}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *Task) GetTaskName() TaskName {
@@ -1443,7 +1888,7 @@ type NamedKey struct {
 
 func (x *NamedKey) Reset() {
 	*x = NamedKey{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[25]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1455,7 +1900,7 @@ func (x *NamedKey) String() string {
 func (*NamedKey) ProtoMessage() {}
 
 func (x *NamedKey) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[25]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1468,7 +1913,7 @@ func (x *NamedKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NamedKey.ProtoReflect.Descriptor instead.
 func (*NamedKey) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{25}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *NamedKey) GetPublicKey() string {
@@ -1503,7 +1948,7 @@ type GetDomainRequest struct {
 
 func (x *GetDomainRequest) Reset() {
 	*x = GetDomainRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[26]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1515,7 +1960,7 @@ func (x *GetDomainRequest) String() string {
 func (*GetDomainRequest) ProtoMessage() {}
 
 func (x *GetDomainRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[26]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1528,7 +1973,7 @@ func (x *GetDomainRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDomainRequest.ProtoReflect.Descriptor instead.
 func (*GetDomainRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{26}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *GetDomainRequest) GetDomain() string {
@@ -1547,7 +1992,7 @@ type ListDomainsRequest struct {
 
 func (x *ListDomainsRequest) Reset() {
 	*x = ListDomainsRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[27]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1559,7 +2004,7 @@ func (x *ListDomainsRequest) String() string {
 func (*ListDomainsRequest) ProtoMessage() {}
 
 func (x *ListDomainsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[27]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1572,7 +2017,7 @@ func (x *ListDomainsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDomainsRequest.ProtoReflect.Descriptor instead.
 func (*ListDomainsRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{27}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{33}
 }
 
 // Response with the list of tracked domains.
@@ -1586,7 +2031,7 @@ type ListDomainsResponse struct {
 
 func (x *ListDomainsResponse) Reset() {
 	*x = ListDomainsResponse{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[28]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1598,7 +2043,7 @@ func (x *ListDomainsResponse) String() string {
 func (*ListDomainsResponse) ProtoMessage() {}
 
 func (x *ListDomainsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[28]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1611,7 +2056,7 @@ func (x *ListDomainsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDomainsResponse.ProtoReflect.Descriptor instead.
 func (*ListDomainsResponse) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{28}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ListDomainsResponse) GetDomains() []*DomainInfo {
@@ -1632,7 +2077,7 @@ type AddDomainRequest struct {
 
 func (x *AddDomainRequest) Reset() {
 	*x = AddDomainRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[29]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1644,7 +2089,7 @@ func (x *AddDomainRequest) String() string {
 func (*AddDomainRequest) ProtoMessage() {}
 
 func (x *AddDomainRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[29]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1657,7 +2102,7 @@ func (x *AddDomainRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddDomainRequest.ProtoReflect.Descriptor instead.
 func (*AddDomainRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{29}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *AddDomainRequest) GetDomain() string {
@@ -1678,7 +2123,7 @@ type RemoveDomainRequest struct {
 
 func (x *RemoveDomainRequest) Reset() {
 	*x = RemoveDomainRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[30]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1690,7 +2135,7 @@ func (x *RemoveDomainRequest) String() string {
 func (*RemoveDomainRequest) ProtoMessage() {}
 
 func (x *RemoveDomainRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[30]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1703,7 +2148,7 @@ func (x *RemoveDomainRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveDomainRequest.ProtoReflect.Descriptor instead.
 func (*RemoveDomainRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{30}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *RemoveDomainRequest) GetDomain() string {
@@ -1724,7 +2169,7 @@ type CheckDomainRequest struct {
 
 func (x *CheckDomainRequest) Reset() {
 	*x = CheckDomainRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[31]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1736,7 +2181,7 @@ func (x *CheckDomainRequest) String() string {
 func (*CheckDomainRequest) ProtoMessage() {}
 
 func (x *CheckDomainRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[31]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1749,7 +2194,7 @@ func (x *CheckDomainRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckDomainRequest.ProtoReflect.Descriptor instead.
 func (*CheckDomainRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{31}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *CheckDomainRequest) GetDomain() string {
@@ -1782,7 +2227,7 @@ type DomainInfo struct {
 
 func (x *DomainInfo) Reset() {
 	*x = DomainInfo{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[32]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1794,7 +2239,7 @@ func (x *DomainInfo) String() string {
 func (*DomainInfo) ProtoMessage() {}
 
 func (x *DomainInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[32]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1807,7 +2252,7 @@ func (x *DomainInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DomainInfo.ProtoReflect.Descriptor instead.
 func (*DomainInfo) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{32}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *DomainInfo) GetDomain() string {
@@ -1882,7 +2327,17 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1b\n" +
 	"\tfile_path\x18\x02 \x01(\tR\bfilePath\x12\x1a\n" +
 	"\bpassword\x18\x03 \x01(\tR\bpassword\"\x10\n" +
-	"\x0eGetInfoRequest\"\x12\n" +
+	"\x0eGetInfoRequest\"\x17\n" +
+	"\x15GetVaultStatusRequest\"P\n" +
+	"\x1bStartVaultConnectionRequest\x12\x1b\n" +
+	"\tvault_url\x18\x01 \x01(\tR\bvaultUrl\x12\x14\n" +
+	"\x05force\x18\x02 \x01(\bR\x05force\"\x9d\x01\n" +
+	"\x1cStartVaultConnectionResponse\x12\x1b\n" +
+	"\tvault_url\x18\x01 \x01(\tR\bvaultUrl\x12#\n" +
+	"\rhandoff_token\x18\x02 \x01(\tR\fhandoffToken\x12;\n" +
+	"\vexpire_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"expireTime\"\x18\n" +
+	"\x16DisconnectVaultRequest\"\x12\n" +
 	"\x10ForceSyncRequest\"\x15\n" +
 	"\x13ForceReindexRequest\"\x16\n" +
 	"\x14ForceReindexResponse\"\x16\n" +
@@ -1931,7 +2386,18 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"start_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x12\x1f\n" +
 	"\vprotocol_id\x18\x04 \x01(\tR\n" +
 	"protocolId\x123\n" +
-	"\x05tasks\x18\x05 \x03(\v2\x1d.com.seed.daemon.v1alpha.TaskR\x05tasks\"\x9c\x01\n" +
+	"\x05tasks\x18\x05 \x03(\v2\x1d.com.seed.daemon.v1alpha.TaskR\x05tasks\"\xc7\x01\n" +
+	"\x0fVaultSyncStatus\x12#\n" +
+	"\rlocal_version\x18\x01 \x01(\x04R\flocalVersion\x12%\n" +
+	"\x0eremote_version\x18\x02 \x01(\x04R\rremoteVersion\x12@\n" +
+	"\x0elast_sync_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\x12&\n" +
+	"\x0flast_sync_error\x18\x04 \x01(\tR\rlastSyncError\"\xb8\x02\n" +
+	"\x16GetVaultStatusResponse\x12L\n" +
+	"\fbackend_mode\x18\x01 \x01(\x0e2).com.seed.daemon.v1alpha.VaultBackendModeR\vbackendMode\x12[\n" +
+	"\x11connection_status\x18\x02 \x01(\x0e2..com.seed.daemon.v1alpha.VaultConnectionStatusR\x10connectionStatus\x12(\n" +
+	"\x10remote_vault_url\x18\x03 \x01(\tR\x0eremoteVaultUrl\x12I\n" +
+	"\vsync_status\x18\x04 \x01(\v2(.com.seed.daemon.v1alpha.VaultSyncStatusR\n" +
+	"syncStatus\"\x9c\x01\n" +
 	"\x04Task\x12>\n" +
 	"\ttask_name\x18\x01 \x01(\x0e2!.com.seed.daemon.v1alpha.TaskNameR\btaskName\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x14\n" +
@@ -1969,19 +2435,30 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"\bSTARTING\x10\x00\x12\r\n" +
 	"\tMIGRATING\x10\x01\x12\n" +
 	"\n" +
-	"\x06ACTIVE\x10\x03*W\n" +
+	"\x06ACTIVE\x10\x03*s\n" +
+	"\x10VaultBackendMode\x12\"\n" +
+	"\x1eVAULT_BACKEND_MODE_UNSPECIFIED\x10\x00\x12\x1c\n" +
+	"\x18VAULT_BACKEND_MODE_LOCAL\x10\x01\x12\x1d\n" +
+	"\x19VAULT_BACKEND_MODE_REMOTE\x10\x02*\x91\x01\n" +
+	"\x15VaultConnectionStatus\x12'\n" +
+	"#VAULT_CONNECTION_STATUS_UNSPECIFIED\x10\x00\x12(\n" +
+	"$VAULT_CONNECTION_STATUS_DISCONNECTED\x10\x01\x12%\n" +
+	"!VAULT_CONNECTION_STATUS_CONNECTED\x10\x02*W\n" +
 	"\bTaskName\x12\x19\n" +
 	"\x15TASK_NAME_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
 	"REINDEXING\x10\x01\x12\r\n" +
 	"\tEMBEDDING\x10\x02\x12\x11\n" +
-	"\rLOADING_MODEL\x10\x032\x8d\x0f\n" +
+	"\rLOADING_MODEL\x10\x032\xe2\x11\n" +
 	"\x06Daemon\x12h\n" +
 	"\vGenMnemonic\x12+.com.seed.daemon.v1alpha.GenMnemonicRequest\x1a,.com.seed.daemon.v1alpha.GenMnemonicResponse\x12]\n" +
 	"\vRegisterKey\x12+.com.seed.daemon.v1alpha.RegisterKeyRequest\x1a!.com.seed.daemon.v1alpha.NamedKey\x12Y\n" +
 	"\tImportKey\x12).com.seed.daemon.v1alpha.ImportKeyRequest\x1a!.com.seed.daemon.v1alpha.NamedKey\x12N\n" +
 	"\tExportKey\x12).com.seed.daemon.v1alpha.ExportKeyRequest\x1a\x16.google.protobuf.Empty\x12Q\n" +
-	"\aGetInfo\x12'.com.seed.daemon.v1alpha.GetInfoRequest\x1a\x1d.com.seed.daemon.v1alpha.Info\x12N\n" +
+	"\aGetInfo\x12'.com.seed.daemon.v1alpha.GetInfoRequest\x1a\x1d.com.seed.daemon.v1alpha.Info\x12q\n" +
+	"\x0eGetVaultStatus\x12..com.seed.daemon.v1alpha.GetVaultStatusRequest\x1a/.com.seed.daemon.v1alpha.GetVaultStatusResponse\x12\x83\x01\n" +
+	"\x14StartVaultConnection\x124.com.seed.daemon.v1alpha.StartVaultConnectionRequest\x1a5.com.seed.daemon.v1alpha.StartVaultConnectionResponse\x12Z\n" +
+	"\x0fDisconnectVault\x12/.com.seed.daemon.v1alpha.DisconnectVaultRequest\x1a\x16.google.protobuf.Empty\x12N\n" +
 	"\tForceSync\x12).com.seed.daemon.v1alpha.ForceSyncRequest\x1a\x16.google.protobuf.Empty\x12k\n" +
 	"\fForceReindex\x12,.com.seed.daemon.v1alpha.ForceReindexRequest\x1a-.com.seed.daemon.v1alpha.ForceReindexResponse\x12_\n" +
 	"\bListKeys\x12(.com.seed.daemon.v1alpha.ListKeysRequest\x1a).com.seed.daemon.v1alpha.ListKeysResponse\x12Y\n" +
@@ -2011,105 +2488,124 @@ func file_daemon_v1alpha_daemon_proto_rawDescGZIP() []byte {
 	return file_daemon_v1alpha_daemon_proto_rawDescData
 }
 
-var file_daemon_v1alpha_daemon_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_daemon_v1alpha_daemon_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
+var file_daemon_v1alpha_daemon_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_daemon_v1alpha_daemon_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
 var file_daemon_v1alpha_daemon_proto_goTypes = []any{
 	(State)(0),                             // 0: com.seed.daemon.v1alpha.State
-	(TaskName)(0),                          // 1: com.seed.daemon.v1alpha.TaskName
-	(*GenMnemonicRequest)(nil),             // 2: com.seed.daemon.v1alpha.GenMnemonicRequest
-	(*GenMnemonicResponse)(nil),            // 3: com.seed.daemon.v1alpha.GenMnemonicResponse
-	(*RegisterKeyRequest)(nil),             // 4: com.seed.daemon.v1alpha.RegisterKeyRequest
-	(*ImportKeyRequest)(nil),               // 5: com.seed.daemon.v1alpha.ImportKeyRequest
-	(*ExportKeyRequest)(nil),               // 6: com.seed.daemon.v1alpha.ExportKeyRequest
-	(*GetInfoRequest)(nil),                 // 7: com.seed.daemon.v1alpha.GetInfoRequest
-	(*ForceSyncRequest)(nil),               // 8: com.seed.daemon.v1alpha.ForceSyncRequest
-	(*ForceReindexRequest)(nil),            // 9: com.seed.daemon.v1alpha.ForceReindexRequest
-	(*ForceReindexResponse)(nil),           // 10: com.seed.daemon.v1alpha.ForceReindexResponse
-	(*DeleteAllKeysRequest)(nil),           // 11: com.seed.daemon.v1alpha.DeleteAllKeysRequest
-	(*ListKeysRequest)(nil),                // 12: com.seed.daemon.v1alpha.ListKeysRequest
-	(*ListKeysResponse)(nil),               // 13: com.seed.daemon.v1alpha.ListKeysResponse
-	(*UpdateKeyRequest)(nil),               // 14: com.seed.daemon.v1alpha.UpdateKeyRequest
-	(*DeleteKeyRequest)(nil),               // 15: com.seed.daemon.v1alpha.DeleteKeyRequest
-	(*StoreBlobsRequest)(nil),              // 16: com.seed.daemon.v1alpha.StoreBlobsRequest
-	(*StoreBlobsResponse)(nil),             // 17: com.seed.daemon.v1alpha.StoreBlobsResponse
-	(*CreateDeviceLinkSessionRequest)(nil), // 18: com.seed.daemon.v1alpha.CreateDeviceLinkSessionRequest
-	(*GetDeviceLinkSessionRequest)(nil),    // 19: com.seed.daemon.v1alpha.GetDeviceLinkSessionRequest
-	(*SignDataRequest)(nil),                // 20: com.seed.daemon.v1alpha.SignDataRequest
-	(*SignDataResponse)(nil),               // 21: com.seed.daemon.v1alpha.SignDataResponse
-	(*DeviceLinkSession)(nil),              // 22: com.seed.daemon.v1alpha.DeviceLinkSession
-	(*AddrInfo)(nil),                       // 23: com.seed.daemon.v1alpha.AddrInfo
-	(*Blob)(nil),                           // 24: com.seed.daemon.v1alpha.Blob
-	(*Info)(nil),                           // 25: com.seed.daemon.v1alpha.Info
-	(*Task)(nil),                           // 26: com.seed.daemon.v1alpha.Task
-	(*NamedKey)(nil),                       // 27: com.seed.daemon.v1alpha.NamedKey
-	(*GetDomainRequest)(nil),               // 28: com.seed.daemon.v1alpha.GetDomainRequest
-	(*ListDomainsRequest)(nil),             // 29: com.seed.daemon.v1alpha.ListDomainsRequest
-	(*ListDomainsResponse)(nil),            // 30: com.seed.daemon.v1alpha.ListDomainsResponse
-	(*AddDomainRequest)(nil),               // 31: com.seed.daemon.v1alpha.AddDomainRequest
-	(*RemoveDomainRequest)(nil),            // 32: com.seed.daemon.v1alpha.RemoveDomainRequest
-	(*CheckDomainRequest)(nil),             // 33: com.seed.daemon.v1alpha.CheckDomainRequest
-	(*DomainInfo)(nil),                     // 34: com.seed.daemon.v1alpha.DomainInfo
-	(*timestamppb.Timestamp)(nil),          // 35: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                  // 36: google.protobuf.Empty
+	(VaultBackendMode)(0),                  // 1: com.seed.daemon.v1alpha.VaultBackendMode
+	(VaultConnectionStatus)(0),             // 2: com.seed.daemon.v1alpha.VaultConnectionStatus
+	(TaskName)(0),                          // 3: com.seed.daemon.v1alpha.TaskName
+	(*GenMnemonicRequest)(nil),             // 4: com.seed.daemon.v1alpha.GenMnemonicRequest
+	(*GenMnemonicResponse)(nil),            // 5: com.seed.daemon.v1alpha.GenMnemonicResponse
+	(*RegisterKeyRequest)(nil),             // 6: com.seed.daemon.v1alpha.RegisterKeyRequest
+	(*ImportKeyRequest)(nil),               // 7: com.seed.daemon.v1alpha.ImportKeyRequest
+	(*ExportKeyRequest)(nil),               // 8: com.seed.daemon.v1alpha.ExportKeyRequest
+	(*GetInfoRequest)(nil),                 // 9: com.seed.daemon.v1alpha.GetInfoRequest
+	(*GetVaultStatusRequest)(nil),          // 10: com.seed.daemon.v1alpha.GetVaultStatusRequest
+	(*StartVaultConnectionRequest)(nil),    // 11: com.seed.daemon.v1alpha.StartVaultConnectionRequest
+	(*StartVaultConnectionResponse)(nil),   // 12: com.seed.daemon.v1alpha.StartVaultConnectionResponse
+	(*DisconnectVaultRequest)(nil),         // 13: com.seed.daemon.v1alpha.DisconnectVaultRequest
+	(*ForceSyncRequest)(nil),               // 14: com.seed.daemon.v1alpha.ForceSyncRequest
+	(*ForceReindexRequest)(nil),            // 15: com.seed.daemon.v1alpha.ForceReindexRequest
+	(*ForceReindexResponse)(nil),           // 16: com.seed.daemon.v1alpha.ForceReindexResponse
+	(*DeleteAllKeysRequest)(nil),           // 17: com.seed.daemon.v1alpha.DeleteAllKeysRequest
+	(*ListKeysRequest)(nil),                // 18: com.seed.daemon.v1alpha.ListKeysRequest
+	(*ListKeysResponse)(nil),               // 19: com.seed.daemon.v1alpha.ListKeysResponse
+	(*UpdateKeyRequest)(nil),               // 20: com.seed.daemon.v1alpha.UpdateKeyRequest
+	(*DeleteKeyRequest)(nil),               // 21: com.seed.daemon.v1alpha.DeleteKeyRequest
+	(*StoreBlobsRequest)(nil),              // 22: com.seed.daemon.v1alpha.StoreBlobsRequest
+	(*StoreBlobsResponse)(nil),             // 23: com.seed.daemon.v1alpha.StoreBlobsResponse
+	(*CreateDeviceLinkSessionRequest)(nil), // 24: com.seed.daemon.v1alpha.CreateDeviceLinkSessionRequest
+	(*GetDeviceLinkSessionRequest)(nil),    // 25: com.seed.daemon.v1alpha.GetDeviceLinkSessionRequest
+	(*SignDataRequest)(nil),                // 26: com.seed.daemon.v1alpha.SignDataRequest
+	(*SignDataResponse)(nil),               // 27: com.seed.daemon.v1alpha.SignDataResponse
+	(*DeviceLinkSession)(nil),              // 28: com.seed.daemon.v1alpha.DeviceLinkSession
+	(*AddrInfo)(nil),                       // 29: com.seed.daemon.v1alpha.AddrInfo
+	(*Blob)(nil),                           // 30: com.seed.daemon.v1alpha.Blob
+	(*Info)(nil),                           // 31: com.seed.daemon.v1alpha.Info
+	(*VaultSyncStatus)(nil),                // 32: com.seed.daemon.v1alpha.VaultSyncStatus
+	(*GetVaultStatusResponse)(nil),         // 33: com.seed.daemon.v1alpha.GetVaultStatusResponse
+	(*Task)(nil),                           // 34: com.seed.daemon.v1alpha.Task
+	(*NamedKey)(nil),                       // 35: com.seed.daemon.v1alpha.NamedKey
+	(*GetDomainRequest)(nil),               // 36: com.seed.daemon.v1alpha.GetDomainRequest
+	(*ListDomainsRequest)(nil),             // 37: com.seed.daemon.v1alpha.ListDomainsRequest
+	(*ListDomainsResponse)(nil),            // 38: com.seed.daemon.v1alpha.ListDomainsResponse
+	(*AddDomainRequest)(nil),               // 39: com.seed.daemon.v1alpha.AddDomainRequest
+	(*RemoveDomainRequest)(nil),            // 40: com.seed.daemon.v1alpha.RemoveDomainRequest
+	(*CheckDomainRequest)(nil),             // 41: com.seed.daemon.v1alpha.CheckDomainRequest
+	(*DomainInfo)(nil),                     // 42: com.seed.daemon.v1alpha.DomainInfo
+	(*timestamppb.Timestamp)(nil),          // 43: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                  // 44: google.protobuf.Empty
 }
 var file_daemon_v1alpha_daemon_proto_depIdxs = []int32{
-	27, // 0: com.seed.daemon.v1alpha.ListKeysResponse.keys:type_name -> com.seed.daemon.v1alpha.NamedKey
-	24, // 1: com.seed.daemon.v1alpha.StoreBlobsRequest.blobs:type_name -> com.seed.daemon.v1alpha.Blob
-	23, // 2: com.seed.daemon.v1alpha.DeviceLinkSession.addr_info:type_name -> com.seed.daemon.v1alpha.AddrInfo
-	35, // 3: com.seed.daemon.v1alpha.DeviceLinkSession.expire_time:type_name -> google.protobuf.Timestamp
-	35, // 4: com.seed.daemon.v1alpha.DeviceLinkSession.redeem_time:type_name -> google.protobuf.Timestamp
-	0,  // 5: com.seed.daemon.v1alpha.Info.state:type_name -> com.seed.daemon.v1alpha.State
-	35, // 6: com.seed.daemon.v1alpha.Info.start_time:type_name -> google.protobuf.Timestamp
-	26, // 7: com.seed.daemon.v1alpha.Info.tasks:type_name -> com.seed.daemon.v1alpha.Task
-	1,  // 8: com.seed.daemon.v1alpha.Task.task_name:type_name -> com.seed.daemon.v1alpha.TaskName
-	34, // 9: com.seed.daemon.v1alpha.ListDomainsResponse.domains:type_name -> com.seed.daemon.v1alpha.DomainInfo
-	35, // 10: com.seed.daemon.v1alpha.DomainInfo.last_check:type_name -> google.protobuf.Timestamp
-	35, // 11: com.seed.daemon.v1alpha.DomainInfo.last_success:type_name -> google.protobuf.Timestamp
-	2,  // 12: com.seed.daemon.v1alpha.Daemon.GenMnemonic:input_type -> com.seed.daemon.v1alpha.GenMnemonicRequest
-	4,  // 13: com.seed.daemon.v1alpha.Daemon.RegisterKey:input_type -> com.seed.daemon.v1alpha.RegisterKeyRequest
-	5,  // 14: com.seed.daemon.v1alpha.Daemon.ImportKey:input_type -> com.seed.daemon.v1alpha.ImportKeyRequest
-	6,  // 15: com.seed.daemon.v1alpha.Daemon.ExportKey:input_type -> com.seed.daemon.v1alpha.ExportKeyRequest
-	7,  // 16: com.seed.daemon.v1alpha.Daemon.GetInfo:input_type -> com.seed.daemon.v1alpha.GetInfoRequest
-	8,  // 17: com.seed.daemon.v1alpha.Daemon.ForceSync:input_type -> com.seed.daemon.v1alpha.ForceSyncRequest
-	9,  // 18: com.seed.daemon.v1alpha.Daemon.ForceReindex:input_type -> com.seed.daemon.v1alpha.ForceReindexRequest
-	12, // 19: com.seed.daemon.v1alpha.Daemon.ListKeys:input_type -> com.seed.daemon.v1alpha.ListKeysRequest
-	14, // 20: com.seed.daemon.v1alpha.Daemon.UpdateKey:input_type -> com.seed.daemon.v1alpha.UpdateKeyRequest
-	15, // 21: com.seed.daemon.v1alpha.Daemon.DeleteKey:input_type -> com.seed.daemon.v1alpha.DeleteKeyRequest
-	11, // 22: com.seed.daemon.v1alpha.Daemon.DeleteAllKeys:input_type -> com.seed.daemon.v1alpha.DeleteAllKeysRequest
-	16, // 23: com.seed.daemon.v1alpha.Daemon.StoreBlobs:input_type -> com.seed.daemon.v1alpha.StoreBlobsRequest
-	18, // 24: com.seed.daemon.v1alpha.Daemon.CreateDeviceLinkSession:input_type -> com.seed.daemon.v1alpha.CreateDeviceLinkSessionRequest
-	19, // 25: com.seed.daemon.v1alpha.Daemon.GetDeviceLinkSession:input_type -> com.seed.daemon.v1alpha.GetDeviceLinkSessionRequest
-	20, // 26: com.seed.daemon.v1alpha.Daemon.SignData:input_type -> com.seed.daemon.v1alpha.SignDataRequest
-	28, // 27: com.seed.daemon.v1alpha.Daemon.GetDomain:input_type -> com.seed.daemon.v1alpha.GetDomainRequest
-	29, // 28: com.seed.daemon.v1alpha.Daemon.ListDomains:input_type -> com.seed.daemon.v1alpha.ListDomainsRequest
-	31, // 29: com.seed.daemon.v1alpha.Daemon.AddDomain:input_type -> com.seed.daemon.v1alpha.AddDomainRequest
-	32, // 30: com.seed.daemon.v1alpha.Daemon.RemoveDomain:input_type -> com.seed.daemon.v1alpha.RemoveDomainRequest
-	33, // 31: com.seed.daemon.v1alpha.Daemon.CheckDomain:input_type -> com.seed.daemon.v1alpha.CheckDomainRequest
-	3,  // 32: com.seed.daemon.v1alpha.Daemon.GenMnemonic:output_type -> com.seed.daemon.v1alpha.GenMnemonicResponse
-	27, // 33: com.seed.daemon.v1alpha.Daemon.RegisterKey:output_type -> com.seed.daemon.v1alpha.NamedKey
-	27, // 34: com.seed.daemon.v1alpha.Daemon.ImportKey:output_type -> com.seed.daemon.v1alpha.NamedKey
-	36, // 35: com.seed.daemon.v1alpha.Daemon.ExportKey:output_type -> google.protobuf.Empty
-	25, // 36: com.seed.daemon.v1alpha.Daemon.GetInfo:output_type -> com.seed.daemon.v1alpha.Info
-	36, // 37: com.seed.daemon.v1alpha.Daemon.ForceSync:output_type -> google.protobuf.Empty
-	10, // 38: com.seed.daemon.v1alpha.Daemon.ForceReindex:output_type -> com.seed.daemon.v1alpha.ForceReindexResponse
-	13, // 39: com.seed.daemon.v1alpha.Daemon.ListKeys:output_type -> com.seed.daemon.v1alpha.ListKeysResponse
-	27, // 40: com.seed.daemon.v1alpha.Daemon.UpdateKey:output_type -> com.seed.daemon.v1alpha.NamedKey
-	36, // 41: com.seed.daemon.v1alpha.Daemon.DeleteKey:output_type -> google.protobuf.Empty
-	36, // 42: com.seed.daemon.v1alpha.Daemon.DeleteAllKeys:output_type -> google.protobuf.Empty
-	17, // 43: com.seed.daemon.v1alpha.Daemon.StoreBlobs:output_type -> com.seed.daemon.v1alpha.StoreBlobsResponse
-	22, // 44: com.seed.daemon.v1alpha.Daemon.CreateDeviceLinkSession:output_type -> com.seed.daemon.v1alpha.DeviceLinkSession
-	22, // 45: com.seed.daemon.v1alpha.Daemon.GetDeviceLinkSession:output_type -> com.seed.daemon.v1alpha.DeviceLinkSession
-	21, // 46: com.seed.daemon.v1alpha.Daemon.SignData:output_type -> com.seed.daemon.v1alpha.SignDataResponse
-	34, // 47: com.seed.daemon.v1alpha.Daemon.GetDomain:output_type -> com.seed.daemon.v1alpha.DomainInfo
-	30, // 48: com.seed.daemon.v1alpha.Daemon.ListDomains:output_type -> com.seed.daemon.v1alpha.ListDomainsResponse
-	34, // 49: com.seed.daemon.v1alpha.Daemon.AddDomain:output_type -> com.seed.daemon.v1alpha.DomainInfo
-	36, // 50: com.seed.daemon.v1alpha.Daemon.RemoveDomain:output_type -> google.protobuf.Empty
-	34, // 51: com.seed.daemon.v1alpha.Daemon.CheckDomain:output_type -> com.seed.daemon.v1alpha.DomainInfo
-	32, // [32:52] is the sub-list for method output_type
-	12, // [12:32] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	43, // 0: com.seed.daemon.v1alpha.StartVaultConnectionResponse.expire_time:type_name -> google.protobuf.Timestamp
+	35, // 1: com.seed.daemon.v1alpha.ListKeysResponse.keys:type_name -> com.seed.daemon.v1alpha.NamedKey
+	30, // 2: com.seed.daemon.v1alpha.StoreBlobsRequest.blobs:type_name -> com.seed.daemon.v1alpha.Blob
+	29, // 3: com.seed.daemon.v1alpha.DeviceLinkSession.addr_info:type_name -> com.seed.daemon.v1alpha.AddrInfo
+	43, // 4: com.seed.daemon.v1alpha.DeviceLinkSession.expire_time:type_name -> google.protobuf.Timestamp
+	43, // 5: com.seed.daemon.v1alpha.DeviceLinkSession.redeem_time:type_name -> google.protobuf.Timestamp
+	0,  // 6: com.seed.daemon.v1alpha.Info.state:type_name -> com.seed.daemon.v1alpha.State
+	43, // 7: com.seed.daemon.v1alpha.Info.start_time:type_name -> google.protobuf.Timestamp
+	34, // 8: com.seed.daemon.v1alpha.Info.tasks:type_name -> com.seed.daemon.v1alpha.Task
+	43, // 9: com.seed.daemon.v1alpha.VaultSyncStatus.last_sync_time:type_name -> google.protobuf.Timestamp
+	1,  // 10: com.seed.daemon.v1alpha.GetVaultStatusResponse.backend_mode:type_name -> com.seed.daemon.v1alpha.VaultBackendMode
+	2,  // 11: com.seed.daemon.v1alpha.GetVaultStatusResponse.connection_status:type_name -> com.seed.daemon.v1alpha.VaultConnectionStatus
+	32, // 12: com.seed.daemon.v1alpha.GetVaultStatusResponse.sync_status:type_name -> com.seed.daemon.v1alpha.VaultSyncStatus
+	3,  // 13: com.seed.daemon.v1alpha.Task.task_name:type_name -> com.seed.daemon.v1alpha.TaskName
+	42, // 14: com.seed.daemon.v1alpha.ListDomainsResponse.domains:type_name -> com.seed.daemon.v1alpha.DomainInfo
+	43, // 15: com.seed.daemon.v1alpha.DomainInfo.last_check:type_name -> google.protobuf.Timestamp
+	43, // 16: com.seed.daemon.v1alpha.DomainInfo.last_success:type_name -> google.protobuf.Timestamp
+	4,  // 17: com.seed.daemon.v1alpha.Daemon.GenMnemonic:input_type -> com.seed.daemon.v1alpha.GenMnemonicRequest
+	6,  // 18: com.seed.daemon.v1alpha.Daemon.RegisterKey:input_type -> com.seed.daemon.v1alpha.RegisterKeyRequest
+	7,  // 19: com.seed.daemon.v1alpha.Daemon.ImportKey:input_type -> com.seed.daemon.v1alpha.ImportKeyRequest
+	8,  // 20: com.seed.daemon.v1alpha.Daemon.ExportKey:input_type -> com.seed.daemon.v1alpha.ExportKeyRequest
+	9,  // 21: com.seed.daemon.v1alpha.Daemon.GetInfo:input_type -> com.seed.daemon.v1alpha.GetInfoRequest
+	10, // 22: com.seed.daemon.v1alpha.Daemon.GetVaultStatus:input_type -> com.seed.daemon.v1alpha.GetVaultStatusRequest
+	11, // 23: com.seed.daemon.v1alpha.Daemon.StartVaultConnection:input_type -> com.seed.daemon.v1alpha.StartVaultConnectionRequest
+	13, // 24: com.seed.daemon.v1alpha.Daemon.DisconnectVault:input_type -> com.seed.daemon.v1alpha.DisconnectVaultRequest
+	14, // 25: com.seed.daemon.v1alpha.Daemon.ForceSync:input_type -> com.seed.daemon.v1alpha.ForceSyncRequest
+	15, // 26: com.seed.daemon.v1alpha.Daemon.ForceReindex:input_type -> com.seed.daemon.v1alpha.ForceReindexRequest
+	18, // 27: com.seed.daemon.v1alpha.Daemon.ListKeys:input_type -> com.seed.daemon.v1alpha.ListKeysRequest
+	20, // 28: com.seed.daemon.v1alpha.Daemon.UpdateKey:input_type -> com.seed.daemon.v1alpha.UpdateKeyRequest
+	21, // 29: com.seed.daemon.v1alpha.Daemon.DeleteKey:input_type -> com.seed.daemon.v1alpha.DeleteKeyRequest
+	17, // 30: com.seed.daemon.v1alpha.Daemon.DeleteAllKeys:input_type -> com.seed.daemon.v1alpha.DeleteAllKeysRequest
+	22, // 31: com.seed.daemon.v1alpha.Daemon.StoreBlobs:input_type -> com.seed.daemon.v1alpha.StoreBlobsRequest
+	24, // 32: com.seed.daemon.v1alpha.Daemon.CreateDeviceLinkSession:input_type -> com.seed.daemon.v1alpha.CreateDeviceLinkSessionRequest
+	25, // 33: com.seed.daemon.v1alpha.Daemon.GetDeviceLinkSession:input_type -> com.seed.daemon.v1alpha.GetDeviceLinkSessionRequest
+	26, // 34: com.seed.daemon.v1alpha.Daemon.SignData:input_type -> com.seed.daemon.v1alpha.SignDataRequest
+	36, // 35: com.seed.daemon.v1alpha.Daemon.GetDomain:input_type -> com.seed.daemon.v1alpha.GetDomainRequest
+	37, // 36: com.seed.daemon.v1alpha.Daemon.ListDomains:input_type -> com.seed.daemon.v1alpha.ListDomainsRequest
+	39, // 37: com.seed.daemon.v1alpha.Daemon.AddDomain:input_type -> com.seed.daemon.v1alpha.AddDomainRequest
+	40, // 38: com.seed.daemon.v1alpha.Daemon.RemoveDomain:input_type -> com.seed.daemon.v1alpha.RemoveDomainRequest
+	41, // 39: com.seed.daemon.v1alpha.Daemon.CheckDomain:input_type -> com.seed.daemon.v1alpha.CheckDomainRequest
+	5,  // 40: com.seed.daemon.v1alpha.Daemon.GenMnemonic:output_type -> com.seed.daemon.v1alpha.GenMnemonicResponse
+	35, // 41: com.seed.daemon.v1alpha.Daemon.RegisterKey:output_type -> com.seed.daemon.v1alpha.NamedKey
+	35, // 42: com.seed.daemon.v1alpha.Daemon.ImportKey:output_type -> com.seed.daemon.v1alpha.NamedKey
+	44, // 43: com.seed.daemon.v1alpha.Daemon.ExportKey:output_type -> google.protobuf.Empty
+	31, // 44: com.seed.daemon.v1alpha.Daemon.GetInfo:output_type -> com.seed.daemon.v1alpha.Info
+	33, // 45: com.seed.daemon.v1alpha.Daemon.GetVaultStatus:output_type -> com.seed.daemon.v1alpha.GetVaultStatusResponse
+	12, // 46: com.seed.daemon.v1alpha.Daemon.StartVaultConnection:output_type -> com.seed.daemon.v1alpha.StartVaultConnectionResponse
+	44, // 47: com.seed.daemon.v1alpha.Daemon.DisconnectVault:output_type -> google.protobuf.Empty
+	44, // 48: com.seed.daemon.v1alpha.Daemon.ForceSync:output_type -> google.protobuf.Empty
+	16, // 49: com.seed.daemon.v1alpha.Daemon.ForceReindex:output_type -> com.seed.daemon.v1alpha.ForceReindexResponse
+	19, // 50: com.seed.daemon.v1alpha.Daemon.ListKeys:output_type -> com.seed.daemon.v1alpha.ListKeysResponse
+	35, // 51: com.seed.daemon.v1alpha.Daemon.UpdateKey:output_type -> com.seed.daemon.v1alpha.NamedKey
+	44, // 52: com.seed.daemon.v1alpha.Daemon.DeleteKey:output_type -> google.protobuf.Empty
+	44, // 53: com.seed.daemon.v1alpha.Daemon.DeleteAllKeys:output_type -> google.protobuf.Empty
+	23, // 54: com.seed.daemon.v1alpha.Daemon.StoreBlobs:output_type -> com.seed.daemon.v1alpha.StoreBlobsResponse
+	28, // 55: com.seed.daemon.v1alpha.Daemon.CreateDeviceLinkSession:output_type -> com.seed.daemon.v1alpha.DeviceLinkSession
+	28, // 56: com.seed.daemon.v1alpha.Daemon.GetDeviceLinkSession:output_type -> com.seed.daemon.v1alpha.DeviceLinkSession
+	27, // 57: com.seed.daemon.v1alpha.Daemon.SignData:output_type -> com.seed.daemon.v1alpha.SignDataResponse
+	42, // 58: com.seed.daemon.v1alpha.Daemon.GetDomain:output_type -> com.seed.daemon.v1alpha.DomainInfo
+	38, // 59: com.seed.daemon.v1alpha.Daemon.ListDomains:output_type -> com.seed.daemon.v1alpha.ListDomainsResponse
+	42, // 60: com.seed.daemon.v1alpha.Daemon.AddDomain:output_type -> com.seed.daemon.v1alpha.DomainInfo
+	44, // 61: com.seed.daemon.v1alpha.Daemon.RemoveDomain:output_type -> google.protobuf.Empty
+	42, // 62: com.seed.daemon.v1alpha.Daemon.CheckDomain:output_type -> com.seed.daemon.v1alpha.DomainInfo
+	40, // [40:63] is the sub-list for method output_type
+	17, // [17:40] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_daemon_v1alpha_daemon_proto_init() }
@@ -2122,8 +2618,8 @@ func file_daemon_v1alpha_daemon_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_daemon_v1alpha_daemon_proto_rawDesc), len(file_daemon_v1alpha_daemon_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   33,
+			NumEnums:      4,
+			NumMessages:   39,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
