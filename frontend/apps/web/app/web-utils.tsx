@@ -25,6 +25,7 @@ import {useMedia} from '@shm/ui/use-media'
 import {Bell, LogOut, Search, User, UserCog} from 'lucide-react'
 import {ReactNode, useMemo, useState} from 'react'
 import {LogoutDialog, useCreateAccount, useLocalKeyPair} from './auth'
+import {getVaultAccountSettingsUrl} from './vault-links'
 import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifications'
 
 export function useWebMenuItems(): MenuItemType[] {
@@ -133,7 +134,10 @@ export function WebAccountFooter({
   }, [myAccount.data])
 
   const navigate = useNavigate()
-  const vaultUrl = keyPair?.vaultUrl
+  const vaultAccountSettingsUrl = getVaultAccountSettingsUrl({
+    vaultUrl: keyPair?.vaultUrl,
+    accountUid: keyPair?.delegatedAccountUid,
+  })
   const media = useMedia()
   const isMobile = media.xs
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -165,12 +169,12 @@ export function WebAccountFooter({
       <button
         className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left disabled:opacity-50"
         onClick={() => {
-          if (vaultUrl) {
-            window.open(vaultUrl, '_blank')
+          if (vaultAccountSettingsUrl) {
+            window.open(vaultAccountSettingsUrl, '_blank')
           }
           setMobileMenuOpen(false)
         }}
-        disabled={!vaultUrl}
+        disabled={!vaultAccountSettingsUrl}
       >
         <UserCog className="size-5" />
         <span className="text-sm">Manage account</span>
@@ -233,11 +237,11 @@ export function WebAccountFooter({
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
-                if (vaultUrl) {
-                  window.open(vaultUrl, '_blank')
+                if (vaultAccountSettingsUrl) {
+                  window.open(vaultAccountSettingsUrl, '_blank')
                 }
               }}
-              disabled={!vaultUrl}
+              disabled={!vaultAccountSettingsUrl}
             >
               <UserCog className="size-4" />
               Manage account
