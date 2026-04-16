@@ -25,7 +25,7 @@ export function HypermediaLinkToolbar(
   }
 
   useEffect(() => {
-    props.editor.hyperlinkToolbar.on('update', (state) => {
+    props.editor.hyperlinkToolbar!.on('update', (state) => {
       if (!state.show) props.onClose(false)
       setText(state.text || '')
       setUrl(state.url || '')

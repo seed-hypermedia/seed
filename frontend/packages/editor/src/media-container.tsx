@@ -166,7 +166,7 @@ export const MediaContainer = ({
 
   const mediaProps = {
     ...styleProps,
-    ...(isEmbed ? {} : dragProps),
+    ...(isEmbed || !editor.isEditable ? {} : dragProps),
     onMouseEnter: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       if (onHoverIn) onHoverIn()
     },
@@ -182,7 +182,7 @@ export const MediaContainer = ({
       //   'relative flex w-full flex-col gap-2 self-center',
       //   mediaType === 'file' ? 'items-stretch' : 'items-center',
       // )}
-      draggable="true"
+      draggable={editor.isEditable ? 'true' : 'false'}
       onDragStart={(e: any) => {
         // Uncomment to allow drag only if block is selected
         // if (!selected) {
@@ -190,11 +190,11 @@ export const MediaContainer = ({
         //   return
         // }
         e.stopPropagation()
-        editor.sideMenu.blockDragStart(e)
+        editor.sideMenu!.blockDragStart(e)
       }}
       onDragEnd={(e: any) => {
         e.stopPropagation()
-        editor.sideMenu.blockDragEnd()
+        editor.sideMenu!.blockDragEnd()
       }}
       onClick={
         onPress

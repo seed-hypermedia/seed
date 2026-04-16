@@ -4,6 +4,7 @@ import {createWebHMUrl, NavRoute, OptimizedImageSize, routeToHref, UniversalAppP
 import {DAEMON_FILE_URL, SEED_ASSET_HOST, SITE_BASE_URL} from '@shm/shared/constants'
 import {languagePacks} from '@shm/shared/language-packs'
 import {registerQueryClient} from '@shm/shared/models/query-client'
+import {ReadOnlyViewerComponent, ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
 import {defaultRoute} from '@shm/shared/routes'
 import {NavAction, NavContextProvider, NavState, navStateReducer} from '@shm/shared/utils/navigation'
 import type {StateStream} from '@shm/shared/utils/stream'
@@ -91,11 +92,24 @@ export const useTheme = () => {
   return context
 }
 
+function useClientReadOnlyViewer(): ReadOnlyViewerComponent | undefined {
+  const [Component, setComponent] = useState<ReadOnlyViewerComponent | undefined>(undefined)
+  useEffect(() => {
+    import('@shm/editor/readonly-viewer').then((mod) => {
+      setComponent(() => mod.ReadOnlyViewer)
+    })
+  }, [])
+  return Component
+}
+
 export const Providers = (props: {children: any}) => {
   const [client] = useState(getQueryClient)
+  const ReadOnlyViewer = useClientReadOnlyViewer()
   return (
     <ThemeProvider>
-      <QueryClientProvider client={client}>{props.children}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <ReadOnlyViewerProvider value={ReadOnlyViewer}>{props.children}</ReadOnlyViewerProvider>
+      </QueryClientProvider>
     </ThemeProvider>
   )
 }

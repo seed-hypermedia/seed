@@ -13,7 +13,8 @@ import {InspectorPage} from '@shm/ui/inspector-page'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
 import {Spinner} from '@shm/ui/spinner'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {lazy, Suspense, useCallback, useEffect, useMemo, useRef} from 'react'
+import {lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import type {DocumentContentProps} from '@shm/shared/document-content-props'
 import {EditProfileDialog, LogoutButton, useCreateAccount, useLocalKeyPair, useVaultSuccessDialog} from './auth'
 import {preloadCommenting} from './client-lazy'
 import {setPendingIntent} from './local-db'
@@ -36,6 +37,7 @@ function renderWebInlineEditor(props: InlineEditCommentProps) {
 export interface WebResourcePageProps {
   docId: UnpackedHypermediaId
   CommentEditor?: React.ComponentType<CommentEditorProps>
+  ssrContentHTML?: string | null
 }
 
 /**
@@ -43,7 +45,20 @@ export interface WebResourcePageProps {
  * - HypermediaHostBanner (shown when viewing content from a different site)
  * - Account button with login/create account flow
  */
-export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
+// Client-only wrapper: DocumentEditor uses BlockNoteView which requires
+// window.matchMedia (DOM API unavailable during SSR).
+function useClientDocumentEditor(): React.ComponentType<DocumentContentProps> | undefined {
+  const [Component, setComponent] = useState<React.ComponentType<DocumentContentProps> | undefined>(undefined)
+  useEffect(() => {
+    import('@shm/editor/document-editor').then((mod) => {
+      setComponent(() => mod.DocumentEditor)
+    })
+  }, [])
+  return Component
+}
+
+export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResourcePageProps) {
+  const DocumentContentComponent = useClientDocumentEditor()
   const {origin, originHomeId} = useUniversalAppContext()
   const route = useNavRoute()
   const navigate = useNavigate()
@@ -214,6 +229,8 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
           onFollowClick={onFollowClick}
           rightActions={<WebHeaderActions siteUid={docId.uid} />}
           inlineInsert={inlineInsert}
+          DocumentContentComponent={DocumentContentComponent}
+          ssrContentHTML={ssrContentHTML}
         />
       </CommentsProvider>
       {editProfileDialog.content}

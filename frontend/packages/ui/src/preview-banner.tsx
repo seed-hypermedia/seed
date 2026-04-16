@@ -1,14 +1,18 @@
 import {Eye, X} from 'lucide-react'
 import {Button} from './button'
 
-export function PreviewBanner({onClose}: {onClose?: () => void}) {
+export function PreviewBanner({
+  onClose,
+  message = 'Preview Mode - This is how your document will look when published',
+}: {
+  onClose?: () => void
+  message?: string
+}) {
   return (
     <div className="flex items-center justify-between gap-2 border-b border-amber-300 bg-amber-100 px-4 py-2 dark:border-amber-700 dark:bg-amber-900/50">
       <div className="flex items-center gap-2">
         <Eye className="size-4 text-amber-700 dark:text-amber-300" />
-        <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
-          Preview Mode - This is how your document will look when published
-        </span>
+        <span className="text-sm font-medium text-amber-800 dark:text-amber-200">{message}</span>
       </div>
       {onClose ? (
         <Button

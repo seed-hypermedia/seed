@@ -10,7 +10,7 @@ import {UnknownBlock} from '@shm/editor/unknown-block'
 import {VideoBlock} from '@shm/editor/video'
 import {WebEmbed} from '@shm/editor/web-embed'
 import {common, createLowlight} from 'lowlight'
-import {QueryBlock} from './query-block'
+import {QueryBlock} from '@shm/editor/query-block'
 
 export const hmBlockSchema: BlockSchema = {
   paragraph: defaultBlockSchema.paragraph,

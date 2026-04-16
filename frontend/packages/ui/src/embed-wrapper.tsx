@@ -3,7 +3,7 @@ import {NavRoute} from '@shm/shared'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {HTMLAttributes, PropsWithChildren, useMemo} from 'react'
-import {blockStyles} from './blocks-content'
+import {blockStyles} from './blocks-content-utils'
 import {useHighlighter} from './highlight-context'
 import {cn} from './utils'
 

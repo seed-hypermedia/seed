@@ -709,8 +709,6 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     })
 
     globalShortcut.register('CommandOrControl+B', () => {
-      // Dispatch both events - handlers check editor focus
-      dispatchFocusedWindowAppEvent({type: 'toggle_bold'})
       dispatchFocusedWindowAppEvent({type: 'toggle_sidebar'})
     })
 

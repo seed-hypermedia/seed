@@ -35,18 +35,38 @@ import {newRemoveBlocks} from './api/blockManipulation/commands/removeBlocks'
 import {newReplaceBlocks} from './api/blockManipulation/commands/replaceBlocks'
 import {updateBlock} from './api/blockManipulation/commands/updateBlock'
 import {MentionMenuProsemirrorPlugin} from '../../mention-menu-plugin'
+import {BlockHoverActionsProsemirrorPlugin} from './extensions/BlockHoverActions/BlockHoverActionsPlugin'
 import {FormattingToolbarProsemirrorPlugin} from './extensions/FormattingToolbar/FormattingToolbarPlugin'
 import {HyperlinkToolbarProsemirrorPlugin} from './extensions/HyperlinkToolbar/HyperlinkToolbarPlugin'
 import {LinkMenuProsemirrorPlugin} from './extensions/LinkMenu/LinkMenuPlugin'
+import {RangeSelectionProsemirrorPlugin} from './extensions/RangeSelection/RangeSelectionPlugin'
 import {SideMenuProsemirrorPlugin} from './extensions/SideMenu/SideMenuPlugin'
 import {BaseSlashMenuItem} from './extensions/SlashMenu/BaseSlashMenuItem'
 import {SlashMenuProsemirrorPlugin} from './extensions/SlashMenu/SlashMenuPlugin'
 import {UniqueID} from './extensions/UniqueID/UniqueID'
 import {mergeCSSClasses} from './shared/utils'
 
+/**
+ * Controls which UI context the editor is rendered in.
+ * - 'document': Full editor with all extensions and UI plugins.
+ * - 'viewer': Read-only with BlockHighlight/ImageGallery/Supernumbers but no editing extensions.
+ * - 'embed': Minimal read-only for nested embeds — no UI plugins at all.
+ * - 'comment': Full editor tuned for comment input.
+ */
+export type EditorRenderType = 'document' | 'viewer' | 'embed' | 'comment'
+
 export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
   // Note: enableBlockNoteExtensions/disableHistoryExtension are internal options
   enableBlockNoteExtensions: boolean
+
+  /**
+   * The rendering context for this editor instance.
+   * Extensions can read this to adapt behavior per context.
+   * When 'embed', UI plugins and heavy extensions are skipped.
+   *
+   * @default 'document'
+   */
+  renderType: EditorRenderType
   /**
    *
    * (couldn't fix any type, see https://github.com/TypeCellOS/BlockNote/pull/191#discussion_r1210708771)
@@ -83,6 +103,11 @@ export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
    * Locks the editor from being editable by the user if set to `false`.
    */
   editable: boolean
+  /**
+   * When true, register input and paste rules even when `editable` is false.
+   * Enables toggling to editable later via `editor.isEditable = true` without recreating the editor.
+   */
+  willBeEditable: boolean
   /**
    * The content that should be in the editor when it's created, represented as an array of partial block objects.
    */
@@ -171,8 +196,8 @@ export type HandleFileAttachmentFunction = (file: File) => Promise<{
 }>
 
 const blockNoteTipTapOptions = {
-  enableInputRules: true,
-  enablePasteRules: true,
+  enableInputRules: true as boolean,
+  enablePasteRules: true as boolean,
   enableCoreExtensions: false,
 }
 
@@ -182,12 +207,23 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public readonly schema: BSchema
   public ready = false
 
-  public readonly sideMenu: SideMenuProsemirrorPlugin<BSchema>
-  public readonly formattingToolbar: FormattingToolbarProsemirrorPlugin<BSchema>
-  public readonly slashMenu: SlashMenuProsemirrorPlugin<BSchema, any>
-  public readonly mentionMenu: MentionMenuProsemirrorPlugin<BSchema>
-  public readonly hyperlinkToolbar: HyperlinkToolbarProsemirrorPlugin<BSchema>
-  public readonly linkMenu: LinkMenuProsemirrorPlugin<BSchema, any>
+  // @ts-expect-error
+  public inlineEmbedOptions: InlineMentionsResult = {
+    Profiles: [],
+    Documents: [],
+    Recents: [],
+  }
+
+  public readonly sideMenu: SideMenuProsemirrorPlugin<BSchema> | null
+  public readonly formattingToolbar: FormattingToolbarProsemirrorPlugin<BSchema> | null
+  public readonly slashMenu: SlashMenuProsemirrorPlugin<BSchema, any> | null
+  public readonly mentionMenu: MentionMenuProsemirrorPlugin<BSchema> | null
+  public readonly hyperlinkToolbar: HyperlinkToolbarProsemirrorPlugin<BSchema> | null
+  public readonly linkMenu: LinkMenuProsemirrorPlugin<BSchema, any> | null
+  public readonly blockHoverActions: BlockHoverActionsProsemirrorPlugin<BSchema> | null
+  public readonly rangeSelection: RangeSelectionProsemirrorPlugin<BSchema> | null
+
+  public readonly renderType: EditorRenderType
 
   public readonly commentEditor?: boolean
 
@@ -211,15 +247,28 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
       editable: options.editable || true,
       ...options,
     }
+    this.renderType = options.renderType || 'document'
     this.commentEditor = options.commentEditor
     this.getResourceUrl = options.getResourceUrl
     this.domainResolver = (newOptions.linkExtensionOptions as any)?.domainResolver
-    this.sideMenu = new SideMenuProsemirrorPlugin(this)
-    this.formattingToolbar = new FormattingToolbarProsemirrorPlugin(this)
-    this.slashMenu = new SlashMenuProsemirrorPlugin(this, newOptions.getSlashMenuItems || (() => []))
-    this.mentionMenu = new MentionMenuProsemirrorPlugin(this)
-    this.hyperlinkToolbar = new HyperlinkToolbarProsemirrorPlugin(this)
-    this.linkMenu = new LinkMenuProsemirrorPlugin(this)
+    const isEmbed = this.renderType === 'embed'
+    const isViewer = this.renderType === 'viewer'
+    const isReadOnly = isEmbed || isViewer
+
+    // Editing plugins: only for document/comment modes
+    this.sideMenu = isReadOnly ? null : new SideMenuProsemirrorPlugin(this)
+    this.formattingToolbar = isReadOnly ? null : new FormattingToolbarProsemirrorPlugin(this)
+    this.slashMenu = isReadOnly
+      ? null
+      : new SlashMenuProsemirrorPlugin(this, newOptions.getSlashMenuItems || (() => []))
+    this.mentionMenu = isReadOnly ? null : new MentionMenuProsemirrorPlugin(this)
+    this.hyperlinkToolbar = isReadOnly ? null : new HyperlinkToolbarProsemirrorPlugin(this)
+    this.linkMenu = isReadOnly ? null : new LinkMenuProsemirrorPlugin(this)
+
+    // Read-only UI plugins: for document + viewer (not embed)
+    this.blockHoverActions = isEmbed ? null : new BlockHoverActionsProsemirrorPlugin(this)
+    this.rangeSelection = isEmbed ? null : new RangeSelectionProsemirrorPlugin(this)
+
     this.importWebFile = newOptions.importWebFile
     this.handleFileAttachment = newOptions.handleFileAttachment
 
@@ -232,21 +281,27 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
       linkExtensionOptions: newOptions.linkExtensionOptions,
     })
 
-    const blockNoteUIExtension = Extension.create({
-      name: 'BlockNoteUIExtension',
+    if (!isEmbed) {
+      const plugins = [this.blockHoverActions!.plugin, this.rangeSelection!.plugin]
 
-      addProseMirrorPlugins: () => {
-        return [
-          this.sideMenu.plugin,
-          this.formattingToolbar.plugin,
-          this.slashMenu.plugin,
-          this.mentionMenu.plugin,
-          this.hyperlinkToolbar.plugin,
-          this.linkMenu.plugin,
-        ]
-      },
-    })
-    extensions.push(blockNoteUIExtension)
+      // Editing UI plugins only for non-readonly modes
+      if (!isReadOnly) {
+        plugins.push(
+          this.sideMenu!.plugin,
+          this.formattingToolbar!.plugin,
+          this.slashMenu!.plugin,
+          this.mentionMenu!.plugin,
+          this.hyperlinkToolbar!.plugin,
+          this.linkMenu!.plugin,
+        )
+      }
+
+      const blockNoteUIExtension = Extension.create({
+        name: 'BlockNoteUIExtension',
+        addProseMirrorPlugins: () => plugins,
+      })
+      extensions.push(blockNoteUIExtension)
+    }
 
     this.schema = newOptions.blockSchema
 
@@ -272,8 +327,12 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
             },
           ])
 
+    const isEditable = options.editable !== false
+    const registerRules = isEditable || !!options.willBeEditable
     const tiptapOptions: EditorOptions = {
       ...blockNoteTipTapOptions,
+      enableInputRules: registerRules,
+      enablePasteRules: registerRules,
       ...newOptions._tiptapOptions,
       onCreate: () => {
         newOptions.onEditorReady?.(this)

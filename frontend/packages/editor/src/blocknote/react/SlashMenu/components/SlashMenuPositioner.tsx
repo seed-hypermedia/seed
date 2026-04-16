@@ -34,7 +34,7 @@ export const SlashMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSc
   }, [])
 
   useEffect(() => {
-    return props.editor.slashMenu.onUpdate((slashMenuState) => {
+    return props.editor.slashMenu!.onUpdate((slashMenuState) => {
       setShow(slashMenuState.show)
       setFilteredItems(slashMenuState.filteredItems)
       setKeyboardHoveredItemIndex(slashMenuState.keyboardHoveredItemIndex)
@@ -78,11 +78,11 @@ export const SlashMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSc
     return (
       <SlashMenu
         filteredItems={filteredItems}
-        itemCallback={(item) => props.editor.slashMenu.itemCallback(item)}
+        itemCallback={(item) => props.editor.slashMenu!.itemCallback(item)}
         keyboardHoveredItemIndex={keyboardHoveredItemIndex}
       />
     )
-  }, [filteredItems, keyboardHoveredItemIndex, props.editor.slashMenu, props.slashMenu])
+  }, [filteredItems, keyboardHoveredItemIndex, props.editor.slashMenu!, props.slashMenu])
 
   return (
     <Tippy

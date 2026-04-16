@@ -1,19 +1,21 @@
 import {useDraft} from '@/models/accounts'
-import {useOpenUrl} from '@/open-url'
 import {client} from '@/trpc'
-import {HMBlockNode, HMDraft} from '@seed-hypermedia/client/hm-types'
+import {HMBlockNode, HMDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {PreviewRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
+import {useResource} from '@shm/shared/models/entity'
+import {DocumentMachineProvider} from '@shm/shared/models/use-document-machine'
 import {useNavRoute} from '@shm/shared/utils/navigation'
-import {BlocksContent, BlocksContentProvider} from '@shm/ui/blocks-content'
+import {DocumentEditor} from '@shm/editor/document-editor'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocumentCover} from '@shm/ui/document-cover'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {PreviewBanner} from '@shm/ui/preview-banner'
+import {ResourcePage} from '@shm/ui/resource-page-common'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
@@ -51,6 +53,12 @@ export default function PreviewPage() {
   const route = useNavRoute() as PreviewRoute
   if (route.key !== 'preview') throw new Error('PreviewPage requires preview route')
 
+  // Published document preview mode — render full page layout
+  if (route.docId) {
+    return <PublishedPreview docId={route.docId} />
+  }
+
+  // Draft preview mode (original behavior)
   const {data: draft, isLoading} = useDraft(route.draftId)
 
   if (isLoading) {
@@ -72,8 +80,21 @@ export default function PreviewPage() {
   return <PreviewContent draft={draft} />
 }
 
+function PublishedPreview({docId}: {docId: UnpackedHypermediaId}) {
+  const handleClose = useCallback(() => {
+    const windowId = (window as any).windowId as string
+    client.closeAppWindow.mutate(windowId)
+  }, [])
+
+  return (
+    <div className="relative h-full max-h-full overflow-hidden rounded-lg border bg-white">
+      <PreviewBanner onClose={handleClose} message="You are viewing the current published version of this document" />
+      <ResourcePage docId={docId} canEdit={false} existingDraft={false} DocumentContentComponent={DocumentEditor} />
+    </div>
+  )
+}
+
 function PreviewContent({draft}: {draft: HMDraft}) {
-  const openUrl = useOpenUrl()
   const metadata = draft.metadata
   const hasCover = !!metadata.cover
 
@@ -97,43 +118,43 @@ function PreviewContent({draft}: {draft: HMDraft}) {
     client.closeAppWindow.mutate(windowId)
   }, [])
 
+  const resourceId = {
+    id: draft.id,
+    uid: draft.locationUid || draft.editUid || '',
+    path: draft.locationPath || draft.editPath || null,
+    version: null,
+    blockRef: null,
+    blockRange: null,
+    hostname: null,
+    scheme: null,
+  }
+
   return (
-    <div className={cn(panelContainerStyles)}>
-      <PreviewBanner onClose={handleClose} />
-      <ScrollArea className="h-full">
-        {hasCover && coverUrl ? <DocumentCover cover={coverUrl} /> : null}
-        <Container>
-          <div {...wrapperProps}>
-            <div className="min-w-0 flex-1">
-              {/* Title */}
-              <div className={cn('mb-6', hasCover ? 'mt-4' : 'mt-12')}>
-                <SizableText size="4xl" weight="bold" asChild>
-                  <h1>{metadata.name || 'Untitled'}</h1>
-                </SizableText>
+    <DocumentMachineProvider input={{documentId: resourceId, canEdit: false}}>
+      <div className={cn(panelContainerStyles)}>
+        <PreviewBanner onClose={handleClose} />
+        <ScrollArea className="h-full">
+          {hasCover && coverUrl ? <DocumentCover cover={coverUrl} /> : null}
+          <Container>
+            <div {...wrapperProps}>
+              <div className="min-w-0 flex-1">
+                {/* Title */}
+                <div className={cn('mb-6', hasCover ? 'mt-4' : 'mt-12')}>
+                  <SizableText size="4xl" weight="bold" asChild>
+                    <h1>{metadata.name || 'Untitled'}</h1>
+                  </SizableText>
+                </div>
+
+                {/* Content */}
+                <DocumentEditor blocks={blockNodes} resourceId={resourceId} />
               </div>
 
-              {/* Content */}
-              <BlocksContentProvider
-                resourceId={{
-                  id: draft.id,
-                  uid: draft.locationUid || draft.editUid || '',
-                  path: draft.locationPath || draft.editPath || null,
-                  version: null,
-                  blockRef: null,
-                  blockRange: null,
-                  hostname: null,
-                  scheme: null,
-                }}
-              >
-                <BlocksContent blocks={blockNodes} />
-              </BlocksContentProvider>
+              {/* Navigation sidebar placeholder for layout consistency */}
+              {showSidebars ? <div {...sidebarProps} /> : null}
             </div>
-
-            {/* Navigation sidebar placeholder for layout consistency */}
-            {showSidebars ? <div {...sidebarProps} /> : null}
-          </div>
-        </Container>
-      </ScrollArea>
-    </div>
+          </Container>
+        </ScrollArea>
+      </div>
+    </DocumentMachineProvider>
   )
 }

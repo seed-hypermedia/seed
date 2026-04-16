@@ -1,4 +1,10 @@
-import {BlockRange, HMDocument, HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {
+  BlockRange,
+  HMBlockNode,
+  HMDocument,
+  HMExistingDraft,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {
   createInspectNavRoute,
   DocumentPanelRoute,
@@ -10,7 +16,9 @@ import {
   unpackHmId,
   useUniversalAppContext,
 } from '@shm/shared'
+import {useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
 import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import type {BlockRangeSelectOptions, DocumentContentProps} from '@shm/shared/document-content-props'
 import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {
   useAccount,
@@ -21,8 +29,22 @@ import {
   useResources,
   useSiteMembers,
 } from '@shm/shared/models/entity'
-import {useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
+import {
+  documentMachine,
+  DocumentMachineProvider,
+  selectContext,
+  selectIsConfirmingOldVersionEdit,
+  selectIsEditing,
+  selectPublishedVersion,
+  useAccountSync,
+  useCapabilitySync,
+  useDocumentSelector,
+  useDocumentSend,
+  useDocumentSync,
+  useDraftResolutionSync,
+  useVersionLatestSync,
+} from '@shm/shared/models/use-document-machine'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
 import {
@@ -33,11 +55,20 @@ import {
   parseFragment,
 } from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {Folder, Search} from 'lucide-react'
-import {CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {Folder, Search, Settings} from 'lucide-react'
+import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AccountPage} from './account-page'
-import {BlockRangeSelectOptions, BlocksContent, BlocksContentProvider} from './blocks-content'
 import {CollaboratorsPage} from './collaborators-page'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './components/alert-dialog'
 import {ScrollArea} from './components/scroll-area'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {DirectoryPageContent} from './directory-page'
@@ -51,6 +82,7 @@ import {HistoryIcon, Link} from './icons'
 import {useDocumentLayout} from './layout'
 import {MembersFacepile} from './members-facepile'
 import {MobilePanelSheet} from './mobile-panel-sheet'
+import {OptionsPanel} from './options-panel'
 import {
   DocNavigationItem,
   DocNavigationWrapper,
@@ -69,6 +101,10 @@ import {UnreferencedDocuments} from './unreferenced-documents'
 import {useBlockScroll} from './use-block-scroll'
 import {useMedia} from './use-media'
 import {cn} from './utils'
+
+const LazyDocumentMachineDebugDrawer = lazy(() =>
+  import('@shm/shared/models/document-machine-debug-drawer').then((m) => ({default: m.DocumentMachineDebugDrawer})),
+)
 
 /** Common menu items generated internally for all document views */
 export function useCommonMenuItems(docId: UnpackedHypermediaId): MenuItemType[] {
@@ -167,10 +203,14 @@ export interface ResourcePageProps {
   CommentEditor?: React.ComponentType<CommentEditorProps>
   /** Additional platform-specific menu items for the options dropdown */
   extraMenuItems?: MenuItemType[]
-  /** Edit/create action buttons - platform-specific (desktop only) */
-  editActions?: ReactNode
   /** Existing draft info for showing draft indicator in toolbar */
   existingDraft?: HMExistingDraft | false
+  /** Pre-fetched content blocks from the existing draft (when available, used as editor initial content) */
+  existingDraftContent?: HMBlockNode[]
+  /** Cursor position saved in the draft file; used to restore cursor on reload. */
+  existingDraftCursorPosition?: number
+  /** Pre-rendered document content HTML for SSR (avoids blank flash before editor loads) */
+  ssrContentHTML?: string | null
   /** Platform-specific page footer (web only) */
   pageFooter?: ReactNode
 
@@ -187,6 +227,28 @@ export interface ResourcePageProps {
   onFollowClick?: () => void
   /** Optional inline element injected after content blocks (subscribe box) */
   inlineInsert?: ReactNode
+  /** Whether the current user can edit this document (drives the state machine guard). */
+  canEdit?: boolean
+  /** Optional provided machine (with actors) for desktop editing support. */
+  machine?: typeof documentMachine
+  /** Optional XState inspect callback for debugging. Gated by developerTools flag. */
+  inspect?: (inspectionEvent: any) => void
+  /** Inspect event store for the debug drawer to subscribe to. */
+  inspectStore?: import('@shm/shared/models/document-machine-inspect').InspectEventStore
+  /** Component to render document content using the editor. Optional during SSR. */
+  DocumentContentComponent?: React.ComponentType<DocumentContentProps>
+  /** Called when the editor instance is created. Used by desktop to capture editor ref for draft saving. */
+  onEditorReady?: (editor: any) => void
+  /** Extra components to render inside the DocumentMachineProvider (e.g. draft content loader). */
+  machineExtras?: ReactNode
+  /** Render prop for floating overlay when editing. Receives existing menu items so they can be merged. */
+  editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
+  /** Signing account ID for draft saving (desktop only). Flows into machine context. */
+  signingAccountId?: string
+  /** Publish account UID for publishing (desktop only). Flows into machine context. */
+  publishAccountUid?: string
+  /** Async function that uploads a File to the daemon and resolves to its CID. Platform-specific. */
+  fileUpload?: (file: File) => Promise<string>
 }
 
 /** Get panel title for display */
@@ -200,6 +262,8 @@ function getPanelTitle(panelKey: string | null): string {
       return 'Directory'
     case 'collaborators':
       return 'Collaborators'
+    case 'options':
+      return 'Document Options'
     default:
       return 'Panel'
   }
@@ -209,8 +273,9 @@ export function ResourcePage({
   docId,
   CommentEditor,
   extraMenuItems,
-  editActions,
   existingDraft,
+  existingDraftContent,
+  existingDraftCursorPosition,
   floatingButtons,
   pageFooter,
   inlineCards,
@@ -219,6 +284,18 @@ export function ResourcePage({
   profileHeaderButtons,
   onFollowClick,
   inlineInsert,
+  canEdit = false,
+  machine,
+  inspect,
+  inspectStore,
+  DocumentContentComponent,
+  onEditorReady,
+  machineExtras,
+  editingFloatingActions,
+  signingAccountId,
+  publishAccountUid,
+  fileUpload,
+  ssrContentHTML,
 }: ResourcePageProps) {
   const route = useNavRoute()
   const isSiteProfile = route.key === 'site-profile'
@@ -372,23 +449,28 @@ export function ResourcePage({
     }
     const targetDocument = targetResource.data.document
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={targetDocId}
-        headerData={headerData}
-        document={targetDocument}
-        rightActions={rightActions}
-      >
-        <DocumentBody
+      <DocumentMachineProvider input={{documentId: targetDocId, canEdit: false}} inspect={inspect}>
+        <PageWrapper
+          siteHomeId={siteHomeId}
           docId={targetDocId}
+          headerData={headerData}
           document={targetDocument}
-          activeView="comments"
-          openComment={comment.id}
-          CommentEditor={CommentEditor}
-          siteUrl={siteHomeDocument?.metadata?.siteUrl}
-          pageFooter={pageFooter}
-        />
-      </PageWrapper>
+          rightActions={rightActions}
+        >
+          <DocumentBody
+            docId={targetDocId}
+            document={targetDocument}
+            activeView="comments"
+            openComment={comment.id}
+            existingDraft={false}
+            CommentEditor={CommentEditor}
+            siteUrl={siteHomeDocument?.metadata?.siteUrl}
+            pageFooter={pageFooter}
+            DocumentContentComponent={DocumentContentComponent}
+            ssrContentHTML={ssrContentHTML}
+          />
+        </PageWrapper>
+      </DocumentMachineProvider>
     )
   }
 
@@ -404,29 +486,58 @@ export function ResourcePage({
   const document = resource.data.document
 
   return (
-    <PageWrapper
-      siteHomeId={siteHomeId}
-      docId={docId}
-      headerData={headerData}
-      document={document}
-      rightActions={rightActions}
+    <DocumentMachineProvider
+      input={{
+        documentId: docId,
+        canEdit,
+        isLatest,
+        editUid: docId.uid,
+        editPath: docId.path ?? undefined,
+        signingAccountId,
+        publishAccountUid,
+      }}
+      machine={machine}
+      inspect={inspect}
     >
-      <DocumentBody
+      <PageWrapper
+        siteHomeId={siteHomeId}
         docId={docId}
+        headerData={headerData}
         document={document}
-        activeView={getActiveView(route.key)}
-        isLatest={isLatest}
-        siteUrl={siteHomeDocument?.metadata?.siteUrl}
-        CommentEditor={CommentEditor}
-        extraMenuItems={extraMenuItems}
-        editActions={editActions}
-        existingDraft={existingDraft}
-        floatingButtons={floatingButtons}
-        pageFooter={pageFooter}
-        inlineCards={inlineCards}
-        inlineInsert={inlineInsert}
-      />
-    </PageWrapper>
+        rightActions={rightActions}
+      >
+        <DocumentBody
+          docId={docId}
+          document={document}
+          activeView={getActiveView(route.key)}
+          isLatest={isLatest}
+          siteUrl={siteHomeDocument?.metadata?.siteUrl}
+          CommentEditor={CommentEditor}
+          extraMenuItems={extraMenuItems}
+          existingDraft={existingDraft}
+          existingDraftContent={existingDraftContent}
+          existingDraftCursorPosition={existingDraftCursorPosition}
+          floatingButtons={floatingButtons}
+          pageFooter={pageFooter}
+          inlineCards={inlineCards}
+          inlineInsert={inlineInsert}
+          DocumentContentComponent={DocumentContentComponent}
+          onEditorReady={onEditorReady}
+          canEdit={canEdit}
+          editingFloatingActions={editingFloatingActions}
+          signingAccountId={signingAccountId}
+          publishAccountUid={publishAccountUid}
+          fileUpload={fileUpload}
+          ssrContentHTML={ssrContentHTML}
+        />
+      </PageWrapper>
+      {machineExtras}
+      {inspect && (
+        <Suspense fallback={null}>
+          <LazyDocumentMachineDebugDrawer store={inspectStore} />
+        </Suspense>
+      )}
+    </DocumentMachineProvider>
   )
 }
 
@@ -551,13 +662,22 @@ function DocumentBody({
   siteUrl,
   CommentEditor,
   extraMenuItems,
-  editActions,
   existingDraft,
+  existingDraftContent,
+  existingDraftCursorPosition,
   floatingButtons,
   pageFooter,
   inlineCards,
   openComment,
   inlineInsert,
+  DocumentContentComponent,
+  onEditorReady,
+  canEdit = false,
+  editingFloatingActions,
+  signingAccountId,
+  publishAccountUid,
+  fileUpload,
+  ssrContentHTML,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
@@ -567,8 +687,9 @@ function DocumentBody({
   siteUrl?: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
   extraMenuItems?: MenuItemType[]
-  editActions?: ReactNode
   existingDraft?: HMExistingDraft | false
+  existingDraftContent?: HMBlockNode[]
+  existingDraftCursorPosition?: number
   floatingButtons?: ReactNode
   pageFooter?: ReactNode
   inlineCards?: ReactNode
@@ -576,13 +697,75 @@ function DocumentBody({
   openComment?: string
   /** Optional inline element injected after content blocks */
   inlineInsert?: ReactNode
+  /** Component to render document content using the editor */
+  DocumentContentComponent?: React.ComponentType<DocumentContentProps>
+  /** Called when the editor instance is created */
+  onEditorReady?: (editor: any) => void
+  /** Whether the current user can edit this document */
+  canEdit?: boolean
+  /** Render prop for floating overlay when editing */
+  editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
+  /** Signing account ID for draft saving (desktop only) */
+  signingAccountId?: string
+  /** Publish account UID for publishing (desktop only) */
+  publishAccountUid?: string
+  /** Async function that uploads a File to the daemon and resolves to its CID */
+  fileUpload?: (file: File) => Promise<string>
+  ssrContentHTML?: string | null
 }) {
+  // Sync document into state machine
+  useDocumentSync(document)
+  // Sync canEdit changes into the machine (for account switching)
+  useCapabilitySync(canEdit)
+  // Sync isLatest changes into the machine (for old-version edit guard)
+  useVersionLatestSync(isLatest)
+  // Sync account IDs into the machine (for draft saving / publishing)
+  useAccountSync(signingAccountId, publishAccountUid)
+  // Sync draft resolution — machine stays in loading until this settles.
+  // undefined = still loading, {draftId: null} = no draft, {draftId: string} = draft + content ready
+  const draftResolution = useMemo(() => {
+    let result: {draftId: string | null; content: HMBlockNode[] | null; cursorPosition: number | null} | undefined
+    if (existingDraft === undefined) {
+      result = undefined
+    } else if (!existingDraft) {
+      result = {draftId: null as string | null, content: null, cursorPosition: null}
+    } else if (existingDraftContent) {
+      result = {
+        draftId: existingDraft.id,
+        content: existingDraftContent,
+        cursorPosition: existingDraftCursorPosition ?? null,
+      }
+    } else {
+      result = undefined // draft found but content not loaded yet
+    }
+    console.log('[DraftResolution]', {
+      existingDraft: existingDraft === undefined ? 'undefined' : existingDraft === false ? 'false' : existingDraft?.id,
+      hasContent: !!existingDraftContent,
+      resolution: result === undefined ? 'undefined (waiting)' : `draftId=${result.draftId}`,
+    })
+    return result
+  }, [existingDraft, existingDraftContent, existingDraftCursorPosition])
+  useDraftResolutionSync(draftResolution)
+  const publishedVersion = useDocumentSelector(selectPublishedVersion)
+  const isEditing = useDocumentSelector(selectIsEditing)
+  const ctx = useDocumentSelector(selectContext)
+  const documentSend = useDocumentSend()
+
   const route = useNavRoute()
   const navigate = useNavigate()
 
   // Extract panel from route (only document/feed routes have panels)
   const panelRoute = getRoutePanel(route) as DocumentPanelRoute | null
   const panelKey = panelRoute?.key ?? null
+
+  console.log('[DocumentBody]', {
+    isEditing,
+    panelKey,
+    routeKey: route.key,
+    draftId: ctx.draftId,
+    canEdit,
+    docId: docId.id,
+  })
 
   // Extract discussions-specific params from route or from explicit props
   const discussionsParams =
@@ -828,19 +1011,20 @@ function DocumentBody({
       if (blockId && shouldCopy) {
         // Block links must include version (block tied to specific version)
         // and use siteUrl hostname when available
+        const versionForLink = publishedVersion ?? document.version
         const url = siteUrl
           ? createSiteUrl({
               path: docId.path,
               hostname: siteUrl,
               blockRef: blockId,
               blockRange,
-              version: document.version,
+              version: versionForLink,
             })
           : createWebHMUrl(docId.uid, {
               path: docId.path,
               blockRef: blockId,
               blockRange,
-              version: document.version,
+              version: versionForLink,
             })
         copyUrlToClipboardWithFeedback(url, 'Block')
       }
@@ -850,7 +1034,7 @@ function DocumentBody({
         navigate(blockRoute)
       }
     },
-    [route, navigate, scrollToBlock, docId, document.version, siteUrl],
+    [route, navigate, scrollToBlock, docId, document.version, siteUrl, publishedVersion],
   )
 
   // Activity filter change handler (main page)
@@ -877,6 +1061,25 @@ function DocumentBody({
       },
     }
   }, [docId, navigate, route.key])
+  const documentOptionsMenuItem = useMemo<MenuItemType | null>(() => {
+    if (!IS_DESKTOP) return null
+    return {
+      key: 'options',
+      label: 'Document Options',
+      icon: <Settings className="size-4" />,
+      onClick: () => {
+        console.log('[DocumentOptions] clicked', {isEditing, panelKey, routeKey: route.key})
+        if (!isEditing) {
+          console.log('[DocumentOptions] not editing, sending edit.start')
+          documentSend({type: 'edit.start'})
+        }
+        const newPanel = panelKey === 'options' ? null : {key: 'options' as const}
+        console.log('[DocumentOptions] setting panel', newPanel)
+        replaceRoute({...route, panel: newPanel} as any)
+      },
+    }
+  }, [isEditing, panelKey, route, documentSend, replaceRoute])
+
   const allMenuItems = useMemo(() => {
     const extras = extraMenuItems || []
     const nonDestructiveExtras = extras.filter((item) => item.variant !== 'destructive')
@@ -886,23 +1089,22 @@ function DocumentBody({
       const copyLinkIndex = items.findIndex((item) => item.key === 'copy-link')
       items.splice(copyLinkIndex >= 0 ? copyLinkIndex + 1 : 0, 0, inspectMenuItem)
     }
+    if (documentOptionsMenuItem) {
+      items.push(documentOptionsMenuItem)
+    }
     return [...nonDestructiveExtras, ...items, ...destructiveExtras]
-  }, [extraMenuItems, commonMenuItems, inspectMenuItem])
+  }, [extraMenuItems, commonMenuItems, inspectMenuItem, documentOptionsMenuItem])
 
   const hasOptions = allMenuItems.length > 0
-  const hasActionButtons = hasOptions || editActions
-  const actionButtons = hasActionButtons ? (
+  const actionButtons = hasOptions ? (
     <>
       {/* Only show in the floating overlay on md+ screens — on mobile the same
           button is rendered inside DocumentTools rightActions (md:hidden), so
           hiding it here prevents both from showing simultaneously around the
           md breakpoint (issue #321). */}
-      {hasOptions && (
-        <div className="hidden md:block">
-          <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
-        </div>
-      )}
-      {editActions}
+      <div className="hidden md:block">
+        <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
+      </div>
     </>
   ) : null
 
@@ -919,7 +1121,7 @@ function DocumentBody({
       <DocumentCover cover={document.metadata?.cover} />
 
       {!isMobile ? (
-        <div style={wrapperProps.style} className={cn('mx-auto flex w-full justify-between')}>
+        <div {...wrapperProps} className={cn(wrapperProps.className)}>
           {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
           <div {...mainContentProps} className={cn(mainContentProps.className, 'flex flex-col')}>
             {isHomeDoc && !siteMembers.isInitialLoading && siteMembers.members.length > 0 && (
@@ -952,16 +1154,26 @@ function DocumentBody({
                 />
               </div>
             )}
-            {!isHomeDoc && (
-              <DocumentHeader
-                docId={docId}
-                docMetadata={document.metadata}
-                authors={authorPayloads}
-                updateTime={document.updateTime}
-                breadcrumbs={breadcrumbs}
-                visibility={document.visibility}
-              />
-            )}
+            {!isHomeDoc &&
+              (canEdit ? (
+                <EditableDocumentHeader
+                  docId={docId}
+                  docMetadata={document.metadata}
+                  authors={authorPayloads}
+                  updateTime={document.updateTime}
+                  breadcrumbs={breadcrumbs}
+                  visibility={document.visibility}
+                />
+              ) : (
+                <DocumentHeader
+                  docId={docId}
+                  docMetadata={document.metadata}
+                  authors={authorPayloads}
+                  updateTime={document.updateTime}
+                  breadcrumbs={breadcrumbs}
+                  visibility={document.visibility}
+                />
+              ))}
           </div>
           {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
         </div>
@@ -997,16 +1209,26 @@ function DocumentBody({
               />
             </div>
           )}
-          {!isHomeDoc && (
-            <DocumentHeader
-              docId={docId}
-              docMetadata={document.metadata}
-              authors={authorPayloads}
-              updateTime={document.updateTime}
-              breadcrumbs={breadcrumbs}
-              visibility={document.visibility}
-            />
-          )}
+          {!isHomeDoc &&
+            (canEdit ? (
+              <EditableDocumentHeader
+                docId={docId}
+                docMetadata={document.metadata}
+                authors={authorPayloads}
+                updateTime={document.updateTime}
+                breadcrumbs={breadcrumbs}
+                visibility={document.visibility}
+              />
+            ) : (
+              <DocumentHeader
+                docId={docId}
+                docMetadata={document.metadata}
+                authors={authorPayloads}
+                updateTime={document.updateTime}
+                breadcrumbs={breadcrumbs}
+                visibility={document.visibility}
+              />
+            ))}
         </div>
       )}
 
@@ -1034,7 +1256,7 @@ function DocumentBody({
                 : activeView
             }
             currentPanel={panelRoute}
-            existingDraft={existingDraft}
+            existingDraft={isEditing ? undefined : existingDraft}
             commentsCount={interactionSummary.data?.comments || 0}
             citationsCount={interactionSummary.data?.citations || 0}
             layoutProps={
@@ -1071,7 +1293,7 @@ function DocumentBody({
       )}
 
       {/* Main content based on activeView */}
-      <div className="px-4 pb-60">
+      <div className={cn('pb-60', isMobile && 'px-4')}>
         <MainContent
           docId={docId}
           resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
@@ -1095,6 +1317,11 @@ function DocumentBody({
           siteUrl={siteUrl}
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
+          DocumentContentComponent={DocumentContentComponent}
+          onEditorReady={onEditorReady}
+          existingDraftContent={existingDraftContent}
+          existingDraftCursorPosition={existingDraftCursorPosition}
+          ssrContentHTML={ssrContentHTML}
         />
       </div>
       {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
@@ -1118,10 +1345,14 @@ function DocumentBody({
     }
   }
 
+  // Dialog for confirming edits on older document versions
+  const oldVersionEditDialog = <OldVersionEditDialog />
+
   // Mobile: use document scroll with bottom bar and panel sheet
   if (isMobile) {
     return (
       <>
+        {oldVersionEditDialog}
         <div className="relative flex flex-1 flex-col pb-20" ref={elementRef}>
           <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
           {mainPageContent}
@@ -1173,12 +1404,14 @@ function DocumentBody({
         contentMaxWidth={contentMaxWidth}
         CommentEditor={CommentEditor}
         siteUrl={siteUrl}
+        fileUpload={fileUpload}
       />
     </ScrollArea>
   ) : null
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden" ref={elementRef}>
+      {oldVersionEditDialog}
       <PanelLayout
         panelKey={panelKey}
         panelContent={panelContent}
@@ -1187,8 +1420,16 @@ function DocumentBody({
         onFilterChange={handleFilterChange}
       >
         <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
-        {/* Floating action buttons - visible when DocumentTools is NOT sticky */}
-        {actionButtons ? (
+        {/* Floating action buttons — when editing, show editing toolbar; otherwise show normal action buttons */}
+        {isEditing && editingFloatingActions ? (
+          <div
+            className={cn(
+              'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
+            )}
+          >
+            {editingFloatingActions({menuItems: allMenuItems})}
+          </div>
+        ) : actionButtons ? (
           <div
             className={cn(
               'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
@@ -1209,6 +1450,140 @@ function DocumentBody({
   )
 }
 
+/**
+ * Editable document header shown when in editing mode.
+ * Renders the same breadcrumbs/authors/date via DocumentHeader but replaces
+ * the static title and summary with editable textareas that send `change`
+ * events to the document machine.
+ */
+function EditableDocumentHeader({
+  docId,
+  docMetadata,
+  authors,
+  updateTime,
+  breadcrumbs,
+  visibility,
+}: {
+  docId: UnpackedHypermediaId
+  docMetadata: HMDocument['metadata']
+  authors: AuthorPayload[]
+  updateTime: HMDocument['updateTime']
+  breadcrumbs?: BreadcrumbEntry[]
+  visibility?: string
+}) {
+  const ctx = useDocumentSelector(selectContext)
+  const isEditing = useDocumentSelector(selectIsEditing)
+  const send = useDocumentSend()
+  const inputName = useRef<HTMLTextAreaElement | null>(null)
+  const inputSummary = useRef<HTMLTextAreaElement | null>(null)
+
+  // Use machine context metadata if it has been changed, otherwise fall back to document metadata
+  const name = ctx.metadata?.name ?? docMetadata?.name ?? ''
+  const summary = ctx.metadata?.summary ?? docMetadata?.summary ?? ''
+
+  useEffect(() => {
+    const target = inputName.current
+    if (!target) return
+    if (target.value !== name) {
+      target.value = name || ''
+      applyTitleResize(target)
+    }
+  }, [name])
+
+  useEffect(() => {
+    const target = inputSummary.current
+    if (!target) return
+    if (target.value !== summary) {
+      target.value = summary || ''
+      applyTitleResize(target)
+    }
+  }, [summary])
+
+  useEffect(() => {
+    function handleResize() {
+      if (inputName.current) applyTitleResize(inputName.current)
+      if (inputSummary.current) applyTitleResize(inputSummary.current)
+    }
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  return (
+    <DocumentHeader
+      docId={docId}
+      docMetadata={docMetadata}
+      authors={authors}
+      updateTime={updateTime}
+      breadcrumbs={breadcrumbs}
+      visibility={visibility as any}
+      showTitle={false}
+    >
+      <textarea
+        ref={inputName}
+        rows={1}
+        className="w-full resize-none border-none border-transparent bg-transparent text-4xl font-bold shadow-none ring-0 ring-transparent outline-none focus:ring-0"
+        defaultValue={name}
+        onFocus={() => {
+          if (!isEditing) send({type: 'edit.start'})
+        }}
+        onChange={(e) => {
+          applyTitleResize(e.target)
+          send({type: 'change', metadata: {name: e.target.value}})
+        }}
+        placeholder="Document Title"
+      />
+      <textarea
+        ref={inputSummary}
+        rows={1}
+        className="text-muted-foreground w-full resize-none border-none border-transparent bg-transparent font-serif text-xl font-normal shadow-none ring-0 ring-transparent outline-none focus:ring-0"
+        defaultValue={summary}
+        onFocus={() => {
+          if (!isEditing) send({type: 'edit.start'})
+        }}
+        onChange={(e) => {
+          applyTitleResize(e.target)
+          send({type: 'change', metadata: {summary: e.target.value}})
+        }}
+        placeholder="Document Summary"
+      />
+    </DocumentHeader>
+  )
+}
+
+function OldVersionEditDialog() {
+  const isConfirming = useDocumentSelector(selectIsConfirmingOldVersionEdit)
+  const send = useDocumentSend()
+  return (
+    <AlertDialog
+      open={isConfirming}
+      onOpenChange={(open) => {
+        if (!open) send({type: 'edit.cancel'})
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Edit older version?</AlertDialogTitle>
+          <AlertDialogDescription>
+            You are viewing an older version of this document. Editing it will create a new branch in the document
+            history, separate from the latest version.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => send({type: 'edit.cancel'})}>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={() => send({type: 'edit.confirm'})}>Edit Anyway</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+/** Auto-resize a textarea to fit its content. */
+function applyTitleResize(el: HTMLTextAreaElement) {
+  el.style.height = 'auto'
+  el.style.height = el.scrollHeight + 'px'
+}
+
 // Renders panel content based on panel type
 function PanelContentRenderer({
   panelRoute,
@@ -1216,14 +1591,20 @@ function PanelContentRenderer({
   contentMaxWidth,
   CommentEditor,
   siteUrl,
+  fileUpload,
 }: {
   panelRoute: DocumentPanelRoute
   docId: UnpackedHypermediaId
   contentMaxWidth: number
   CommentEditor?: React.ComponentType<CommentEditorProps>
   siteUrl?: string
+  fileUpload?: (file: File) => Promise<string>
 }) {
+  console.log('[PanelContentRenderer]', {panelKey: panelRoute.key, docId: docId.id})
   switch (panelRoute.key) {
+    case 'options':
+      console.log('[PanelContentRenderer] rendering DocumentOptionsPanel')
+      return <DocumentOptionsPanel docId={docId} fileUpload={fileUpload} />
     case 'activity':
       return (
         <Feed size="sm" filterResource={docId.id} filterEventType={panelRoute.filterEventType} targetDomain={siteUrl} />
@@ -1264,9 +1645,45 @@ function PanelContentRenderer({
           <CollaboratorsPage docId={docId} />
         </div>
       )
+
     default:
       return null
   }
+}
+
+function DocumentOptionsPanel({
+  docId,
+  fileUpload,
+}: {
+  docId: UnpackedHypermediaId
+  fileUpload?: (file: File) => Promise<string>
+}) {
+  const ctx = useDocumentSelector(selectContext)
+  const send = useDocumentSend()
+  const draftId = ctx.draftId
+  const isHomeDoc = !docId.path?.length
+
+  const metadata = {...(ctx.document?.metadata || {}), ...ctx.metadata}
+
+  console.log('[DocumentOptionsPanel]', {draftId, isHomeDoc, hasMetadata: !!metadata, docId: docId.id})
+
+  if (!draftId) {
+    console.log('[DocumentOptionsPanel] no draftId, returning null')
+    return null
+  }
+
+  return (
+    <OptionsPanel
+      draftId={draftId}
+      metadata={metadata as any}
+      isHomeDoc={isHomeDoc}
+      fileUpload={fileUpload}
+      onMetadata={(newMetadata) => {
+        if (!newMetadata) return
+        send({type: 'change', metadata: newMetadata})
+      }}
+    />
+  )
 }
 
 function MainContent({
@@ -1292,6 +1709,11 @@ function MainContent({
   siteUrl,
   inlineCards,
   inlineInsert,
+  DocumentContentComponent,
+  onEditorReady,
+  existingDraftContent,
+  existingDraftCursorPosition,
+  ssrContentHTML,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1328,6 +1750,11 @@ function MainContent({
   siteUrl?: string
   inlineCards?: ReactNode
   inlineInsert?: ReactNode
+  DocumentContentComponent?: React.ComponentType<DocumentContentProps>
+  onEditorReady?: (editor: any) => void
+  existingDraftContent?: HMBlockNode[]
+  existingDraftCursorPosition?: number
+  ssrContentHTML?: string | null
 }) {
   switch (activeView) {
     case 'directory':
@@ -1403,6 +1830,11 @@ function MainContent({
           directory={directory}
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
+          DocumentContentComponent={DocumentContentComponent}
+          onEditorReady={onEditorReady}
+          existingDraftContent={existingDraftContent}
+          existingDraftCursorPosition={existingDraftCursorPosition}
+          ssrContentHTML={ssrContentHTML}
         />
       )
   }
@@ -1424,6 +1856,11 @@ function ContentViewWithOutline({
   directory,
   inlineCards,
   inlineInsert,
+  DocumentContentComponent,
+  onEditorReady,
+  existingDraftContent,
+  existingDraftCursorPosition,
+  ssrContentHTML,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1444,6 +1881,11 @@ function ContentViewWithOutline({
   directory?: import('@seed-hypermedia/client/hm-types').HMDocumentInfo[]
   inlineCards?: ReactNode
   inlineInsert?: ReactNode
+  DocumentContentComponent?: React.ComponentType<DocumentContentProps>
+  onEditorReady?: (editor: any) => void
+  existingDraftContent?: HMBlockNode[]
+  existingDraftCursorPosition?: number
+  ssrContentHTML?: string | null
 }) {
   const outline = useNodesOutline(document, docId)
 
@@ -1472,16 +1914,22 @@ function ContentViewWithOutline({
       )}
 
       <div {...mainContentProps}>
-        <BlocksContentProvider
-          resourceId={resourceId}
-          blockCitations={blockCitations}
-          onBlockCitationClick={onBlockCitationClick}
-          onBlockCommentClick={onBlockCommentClick}
-          onBlockSelect={onBlockSelect}
-          inlineInsert={inlineInsert}
-        >
-          <BlocksContent blocks={document.content} />
-        </BlocksContentProvider>
+        {DocumentContentComponent ? (
+          <DocumentContentComponent
+            blocks={existingDraftContent ?? document.content}
+            resourceId={resourceId}
+            focusBlockId={docId.blockRef ?? undefined}
+            blockCitations={blockCitations}
+            onBlockCitationClick={onBlockCitationClick}
+            onBlockCommentClick={onBlockCommentClick}
+            onBlockSelect={onBlockSelect}
+            onEditorReady={onEditorReady}
+            draftCursorPosition={existingDraftCursorPosition}
+          />
+        ) : ssrContentHTML ? (
+          <div dangerouslySetInnerHTML={{__html: ssrContentHTML}} />
+        ) : null}
+        {inlineInsert}
         {inlineCards}
         <UnreferencedDocuments docId={docId} content={document.content} directory={directory} />
       </div>

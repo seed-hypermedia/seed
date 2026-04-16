@@ -89,12 +89,12 @@ export function HypermediaLinkPreview(
     <div
       data-testid="hm-link-preview"
       onMouseEnter={() => {
-        props.editor.hyperlinkToolbar.stopHideTimer()
+        props.editor.hyperlinkToolbar!.stopHideTimer()
         props.setHovered?.(true)
       }}
       onMouseLeave={() => {
         props.setHovered?.(false)
-        props.editor.hyperlinkToolbar.startHideTimer()
+        props.editor.hyperlinkToolbar!.startHideTimer()
       }}
       className="link-preview-toolbar bg-muted flex max-h-[60vh] w-[320px] overflow-auto rounded-md p-2 shadow-lg"
     >

@@ -1,11 +1,10 @@
-import {blocksContentContext} from '@shm/ui/blocks-content'
 import {Textarea} from '@shm/ui/components/textarea'
 import {Separator} from '@shm/ui/separator'
 import {cn} from '@shm/ui/utils'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {NodeSelection} from 'prosemirror-state'
-import {useCallback, useContext, useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import {findNextBlock, findPreviousBlock} from './block-utils'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {selectableNodeTypes} from './blocknote/core/extensions/BlockManipulation/BlockManipulationExtension'
@@ -43,9 +42,7 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   const containerRef = useRef<HTMLDivElement>(null)
   const [isContentSmallerThanContainer, setIsContentSmallerThanContainer] = useState(true)
 
-  // Use context directly to avoid error when not in a provider
-  const blocksContentCtx = useContext(blocksContentContext)
-  const commentStyle = blocksContentCtx?.commentStyle ?? false
+  const commentStyle = editor.renderType === 'comment'
 
   useEffect(() => {
     const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
@@ -192,7 +189,7 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
       <div
         ref={containerRef}
         onClick={() => {
-          if (selected && !opened) {
+          if (selected && !opened && editor.isEditable) {
             const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
             if (
               selectedNode?.block.node.attrs.id === block.id &&
@@ -210,7 +207,7 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
       >
         <p ref={mathRef} className="text-base select-none" />
       </div>
-      {opened && (
+      {opened && editor.isEditable && (
         <div className="flex flex-col">
           <Separator />
           <div className="relative flex min-h-7 items-center px-[16px] py-[10px]">

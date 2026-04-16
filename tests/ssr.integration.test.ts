@@ -68,16 +68,16 @@ describe("SSR Integration", () => {
       const html = await response.text();
       const $ = cheerio.load(html);
 
-      // Look for a span with exact text content "asdfg" from our test database
-      // This verifies that the document content is being server-rendered
-      const spans = $("span").filter(
-        (_, el) => $(el).text().trim() === "asdfg",
-      );
+      // Look for the text "asdfg" from our test database inside the SSR content.
+      // With the editor-matching DOM structure, paragraph text is inside
+      // <p class="blockContent"> elements, not <span> tags.
+      const ssrContainer = $(".ssr-content-placeholder");
+      const hasText = ssrContainer.text().includes("asdfg");
 
       expect(
-        spans.length,
-        'Expected to find a <span> with text "asdfg" in server-rendered HTML',
-      ).toBeGreaterThan(0);
+        hasText,
+        'Expected to find text "asdfg" in server-rendered .ssr-content-placeholder HTML',
+      ).toBe(true);
     },
     TEST_TIMEOUT,
   );

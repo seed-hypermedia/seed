@@ -50,14 +50,14 @@ export default function IndexPage() {
       dehydratedState={data.dehydratedState}
       initialRoute={createDocumentNavRoute(data.id, data.viewTerm, data.panelParam, data.openComment)}
     >
-      <InnerResourcePage docId={data.id} />
+      <InnerResourcePage docId={data.id} ssrContentHTML={data.ssrContentHTML} />
     </WebSiteProvider>
   )
 }
 
 /** Inner component that can use hooks after providers are mounted */
-function InnerResourcePage({docId}: {docId: UnpackedHypermediaId}) {
-  return <WebResourcePage docId={docId} CommentEditor={WebCommenting} />
+function InnerResourcePage({docId, ssrContentHTML}: {docId: UnpackedHypermediaId; ssrContentHTML?: string | null}) {
+  return <WebResourcePage docId={docId} CommentEditor={WebCommenting} ssrContentHTML={ssrContentHTML} />
 }
 
 export const meta = metaFn

@@ -741,7 +741,7 @@ function useCurrentRouteUrl(): {
       }
       if (locationUid) {
         // New doc - use pathemified title or fallback to draft ID, NOT copyable
-        const draftRouteId = route.key === 'draft' ? route.id : route.draftId
+        const draftRouteId = route.key === 'draft' ? route.id : route.draftId || ''
         const pathSegment = draftTitle?.trim() ? pathNameify(draftTitle) : draftRouteId
         const newPath = [...(locationPath || []), pathSegment]
         const url = createWebHMUrl(locationUid, {

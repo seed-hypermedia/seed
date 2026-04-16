@@ -1,4 +1,4 @@
-import {Extensions, extensions} from '@tiptap/core'
+import {Extension, Extensions, extensions} from '@tiptap/core'
 import {HMBlockSchema} from '../../schema'
 
 import {BlockNoteEditor} from './BlockNoteEditor'
@@ -18,12 +18,15 @@ import {LocalMediaPastePlugin} from '../../handle-local-media-paste-plugin'
 import {createInlineEmbedNode} from '../../mentions-plugin'
 import {debugPlugin} from '../../prosemirror-debugger'
 import Link from '../../tiptap-extension-link'
+import {createBlockHighlightPlugin} from './extensions/BlockHighlight/BlockHighlightPlugin'
 import {BlockManipulationExtension} from './extensions/BlockManipulation/BlockManipulationExtension'
 import {BlockChildren, BlockNode, Doc} from './extensions/Blocks'
 import {BlockNoteDOMAttributes} from './extensions/Blocks/api/blockTypes'
 import {CustomBlockSerializerExtension} from './extensions/Blocks/api/serialization'
 import blockStyles from './extensions/Blocks/nodes/Block.module.css'
 import {HMDropCursor} from './extensions/GridDropCursor/GridDropCursorExtension'
+import {ImageGalleryPlugin} from './extensions/ImageGallery/ImageGalleryPlugin'
+import {createSupernumbersPlugin} from './extensions/Supernumbers/SupernumbersPlugin'
 import {KeyboardShortcutsExtension} from './extensions/KeyboardShortcuts/KeyboardShortcutsExtension'
 import {createMarkdownExtension} from './extensions/Markdown/MarkdownExtension'
 import {Placeholder} from './extensions/Placeholder/PlaceholderExtension'
@@ -50,6 +53,8 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     renderCursor?: (user: any) => HTMLElement
   }
 }) => {
+  const isEmbed = opts.editor.renderType === 'embed'
+
   const ret: Extensions = [
     createInlineEmbedNode(),
     extensions.ClipboardTextSerializer,
@@ -58,32 +63,12 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     extensions.FocusEvents,
     extensions.Tabindex,
 
-    // DevTools,
-    Gapcursor,
-
-    // DropCursor,
-    Placeholder.configure({
-      emptyNodeClass: blockStyles.isEmpty,
-      hasAnchorClass: blockStyles.hasAnchor,
-      isFilterClass: blockStyles.isFilter,
-      includeChildren: true,
-      showOnlyCurrent: false,
-    }),
     UniqueID.configure({
       types: ['blockNode'],
     }),
-    // Comments,
 
     // basics:
     Text,
-
-    // copy paste:
-    // @ts-ignore
-    createMarkdownExtension(opts.editor),
-
-    // block manupulations:
-    BlockManipulationExtension,
-    KeyboardShortcutsExtension.configure({editor: opts.editor}),
 
     // marks:
     Bold,
@@ -92,14 +77,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     Strike,
     Underline,
     Link.configure(opts.linkExtensionOptions),
-    // TextColorMark,
-    // TextColorExtension,
-    // BackgroundColorMark,
-    // BackgroundColorExtension,
-    // TextAlignmentExtension,
-    LocalMediaPastePlugin.configure({
-      editor: opts.editor,
-    }),
+
     // nodes
     Doc,
     BlockChildren.configure({
@@ -113,18 +91,68 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     }),
     CustomBlockSerializerExtension,
 
-    HMDropCursor.configure({width: 5, color: '#ddeeff'}),
-    // Dropcursor.configure({width: 5, color: '#ddeeff'}),
     HardBreak,
-    // This needs to be at the bottom of this list, because Key events (such as enter, when selecting a /command),
-    // should be handled before Enter handlers in other components like splitListItem
-    TrailingNode,
     BlockNode.configure({
       domAttributes: opts.domAttributes,
     }),
-    debugPlugin,
-    History,
   ]
+
+  const isViewer = opts.editor.renderType === 'viewer'
+
+  // Viewer + Document: read-only UI plugins (BlockHighlight, ImageGallery, Supernumbers)
+  if (!isEmbed) {
+    ret.push(
+      Extension.create({
+        name: 'BlockHighlightExtension',
+        addProseMirrorPlugins: () => [createBlockHighlightPlugin()],
+      }),
+      Extension.create({
+        name: 'ImageGalleryExtension',
+        addProseMirrorPlugins: () => [ImageGalleryPlugin],
+      }),
+      Extension.create({
+        name: 'SupernumbersExtension',
+        addProseMirrorPlugins: () => [createSupernumbersPlugin()],
+      }),
+    )
+  }
+
+  // Document/Comment only: editing extensions (skip for viewer + embed)
+  if (!isEmbed && !isViewer) {
+    ret.push(
+      // DevTools,
+      Gapcursor,
+
+      // DropCursor,
+      Placeholder.configure({
+        emptyNodeClass: blockStyles.isEmpty,
+        hasAnchorClass: blockStyles.hasAnchor,
+        isFilterClass: blockStyles.isFilter,
+        includeChildren: true,
+        showOnlyCurrent: false,
+      }),
+
+      // copy paste:
+      // @ts-ignore
+      createMarkdownExtension(opts.editor),
+
+      // block manipulations:
+      BlockManipulationExtension,
+      KeyboardShortcutsExtension.configure({editor: opts.editor}),
+
+      LocalMediaPastePlugin.configure({
+        editor: opts.editor,
+      }),
+
+      HMDropCursor.configure({width: 5, color: '#ddeeff'}),
+
+      // This needs to be at the bottom of this list, because Key events (such as enter, when selecting a /command),
+      // should be handled before Enter handlers in other components like splitListItem
+      TrailingNode,
+      debugPlugin,
+      History,
+    )
+  }
 
   return ret
 }

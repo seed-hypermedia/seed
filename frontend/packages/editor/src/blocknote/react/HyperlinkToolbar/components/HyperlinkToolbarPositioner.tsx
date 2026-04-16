@@ -36,7 +36,7 @@ export const HyperlinkToolbarPositioner = <BSchema extends BlockSchema = Default
   const referencePos = useRef<DOMRect>()
 
   useEffect(() => {
-    return props.editor.hyperlinkToolbar.on('update', (hyperlinkToolbarState) => {
+    return props.editor.hyperlinkToolbar!.on('update', (hyperlinkToolbarState) => {
       setShow(hyperlinkToolbarState.show)
       setUrl(hyperlinkToolbarState.url)
       setText(hyperlinkToolbarState.text)
@@ -70,11 +70,11 @@ export const HyperlinkToolbarPositioner = <BSchema extends BlockSchema = Default
       <HyperlinkToolbar
         url={url ?? ''}
         text={text ?? ''}
-        updateHyperlink={props.editor.hyperlinkToolbar.updateHyperlink}
-        deleteHyperlink={props.editor.hyperlinkToolbar.deleteHyperlink}
-        startHideTimer={props.editor.hyperlinkToolbar.startHideTimer}
-        stopHideTimer={props.editor.hyperlinkToolbar.stopHideTimer}
-        resetHyperlink={props.editor.hyperlinkToolbar.resetHyperlink}
+        updateHyperlink={props.editor.hyperlinkToolbar!.updateHyperlink}
+        deleteHyperlink={props.editor.hyperlinkToolbar!.deleteHyperlink}
+        startHideTimer={props.editor.hyperlinkToolbar!.startHideTimer}
+        stopHideTimer={props.editor.hyperlinkToolbar!.stopHideTimer}
+        resetHyperlink={props.editor.hyperlinkToolbar!.resetHyperlink}
         onChangeLink={(key: 'url' | 'text', value: string) => {
           if (key == 'text') {
             setText(value)
@@ -89,7 +89,7 @@ export const HyperlinkToolbarPositioner = <BSchema extends BlockSchema = Default
         // @ts-expect-error
         type={type}
         id={id}
-        setHovered={(hovering: boolean) => props.editor.hyperlinkToolbar.setToolbarHovered(hovering)}
+        setHovered={(hovering: boolean) => props.editor.hyperlinkToolbar!.setToolbarHovered(hovering)}
         toolbarProps={toolbarProps}
       />
     )

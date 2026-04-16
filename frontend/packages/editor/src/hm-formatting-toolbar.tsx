@@ -15,8 +15,10 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@sh
 import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
+import {Link, MessageSquare} from 'lucide-react'
 import {useState} from 'react'
 import {BlockNoteEditor, BlockSpec, getBlockInfoFromSelection, PropSchema, updateGroupCommand} from './blocknote/core'
+import {getNearestBlockPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {getGroupInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
 import {
   BlockTypeDropdownItem,
@@ -24,6 +26,7 @@ import {
   useEditorContentChange,
   useEditorSelectionChange,
 } from './blocknote/react'
+import {useFragmentActions} from './fragment-actions-context'
 import {HMLinkToolbarButton} from './hm-toolbar-link-button'
 import {MobileLinkToolbarButton} from './mobile-link-toolbar-button'
 import {MobileTextMarkerDialog} from './mobile-text-marker-dialog'
@@ -55,6 +58,96 @@ function fillGridChildren(tiptap: any, columnCount: number) {
       return true
     })
   })
+}
+
+/**
+ * Computes blockId, rangeStart, rangeEnd from the current editor selection.
+ * Returns null if the selection spans multiple blocks or is empty.
+ */
+function getSelectionFragment(editor: BlockNoteEditor<any>): {
+  blockId: string
+  rangeStart: number
+  rangeEnd: number
+} | null {
+  const view = editor._tiptapEditor.view
+  const {state} = view
+  const {selection} = state
+
+  if (selection.empty) return null
+
+  const {$from, $to} = selection
+  const from = $from.pos
+  const to = $to.pos
+
+  let blockNode: import('prosemirror-model').Node
+  let blockBeforePos: number
+
+  try {
+    const posInfo = getNearestBlockPos(state.doc, from)
+    blockNode = posInfo.node
+    blockBeforePos = posInfo.posBeforeNode
+  } catch {
+    return null
+  }
+
+  // Only single-block selections.
+  try {
+    const endInfo = getNearestBlockPos(state.doc, to)
+    if (endInfo.posBeforeNode !== blockBeforePos) return null
+  } catch {
+    return null
+  }
+
+  const blockId: string = blockNode.attrs?.id ?? ''
+  if (!blockId) return null
+
+  // Find blockContent start position.
+  let blockContentBeforePos = blockBeforePos
+  blockNode.forEach((child, offset) => {
+    if (child.type.spec.group === 'block') {
+      blockContentBeforePos = blockBeforePos + offset + 1
+    }
+  })
+
+  const rangeStart = posToBlockTextOffset(state, from, blockContentBeforePos)
+  const rangeEnd = posToBlockTextOffset(state, to, blockContentBeforePos)
+
+  return {blockId, rangeStart, rangeEnd}
+}
+
+/** Converts a ProseMirror position to a codepoint offset within the block's text. */
+function posToBlockTextOffset(
+  state: import('prosemirror-state').EditorState,
+  docPos: number,
+  blockContentBeforePos: number,
+): number {
+  const blockContentNode = state.doc.resolve(blockContentBeforePos + 1).parent
+  const offsetWithinContent = docPos - (blockContentBeforePos + 1)
+
+  let codepoints = 0
+  let remaining = offsetWithinContent
+
+  blockContentNode.forEach((node, nodeOffset) => {
+    if (remaining <= 0) return
+    if (node.isText && node.text) {
+      const nodeEnd = nodeOffset + node.nodeSize
+      if (nodeOffset < remaining && remaining <= nodeEnd) {
+        const slice = node.text.slice(0, remaining - nodeOffset)
+        codepoints += Array.from(slice).length
+        remaining = 0
+      } else if (nodeOffset < remaining) {
+        codepoints += Array.from(node.text).length
+        remaining -= node.nodeSize
+      }
+    } else {
+      if (nodeOffset < remaining) {
+        codepoints += 1
+        remaining -= node.nodeSize
+      }
+    }
+  })
+
+  return codepoints
 }
 
 const toggleStyles = [
@@ -135,6 +228,7 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
     blockTypeDropdownItems?: BlockTypeDropdownItem[]
   },
 ) {
+  const fragmentActions = useFragmentActions()
   const [currentGroupType, setCurrentGroupType] = useState<string>('Group')
   const [currentColumnCount, setCurrentColumnCount] = useState<string>('3')
   const [currentBlockType, setCurrentBlockType] = useState<string>('paragraph')
@@ -306,6 +400,41 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
               }}
               options={textTypeOptions}
             />
+          )}
+
+          {/* Fragment actions — only when a published version exists */}
+          {fragmentActions && (
+            <>
+              <Separator vertical className="bg-foreground mx-1 h-6 opacity-50" />
+              <Tooltip content="Copy Link">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="hover:bg-black/10 dark:hover:bg-white/10"
+                  onClick={() => {
+                    const frag = getSelectionFragment(props.editor)
+                    if (frag) fragmentActions.onCopyFragmentLink(frag.blockId, frag.rangeStart, frag.rangeEnd)
+                  }}
+                >
+                  <Link className="size-4" />
+                </Button>
+              </Tooltip>
+              <Tooltip content="Comment">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="hover:bg-black/10 dark:hover:bg-white/10"
+                  onClick={() => {
+                    const frag = getSelectionFragment(props.editor)
+                    if (frag) fragmentActions.onComment(frag.blockId, frag.rangeStart, frag.rangeEnd)
+                  }}
+                >
+                  <MessageSquare className="size-4" />
+                </Button>
+              </Tooltip>
+            </>
           )}
         </div>
       </div>

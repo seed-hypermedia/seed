@@ -40,6 +40,11 @@ export * from './SharedComponents/Toolbar/components/Toolbar'
 export * from './SharedComponents/Toolbar/components/ToolbarButton'
 export * from './SharedComponents/Toolbar/components/ToolbarDropdown'
 
+export * from './BlockHoverActions/BlockHoverActionsPositioner'
+export * from './ImageGallery/ImageGalleryOverlay'
+export * from './RangeSelection/RangeSelectionPositioner'
+export * from './Supernumbers/SupernumbersController'
+
 export * from './hooks/useBlockNote'
 export * from './hooks/useEditorContentChange'
 export * from './hooks/useEditorForceUpdate'

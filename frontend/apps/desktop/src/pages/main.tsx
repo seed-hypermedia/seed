@@ -258,16 +258,19 @@ function PanelContent({children}: {children: ReactNode}) {
   const ref = useRef<ImperativePanelGroupHandle>(null)
 
   useListenAppEvent('toggle_sidebar', () => {
-    // Skip if editor is focused - toggle_bold handler will handle it
-    const activeElement = document.activeElement
-    const isEditorFocused =
-      activeElement && (activeElement.classList.contains('ProseMirror') || activeElement.closest('.ProseMirror'))
-
-    console.log('[toggle_sidebar] activeElement:', activeElement?.tagName, activeElement?.className)
-    console.log('[toggle_sidebar] isEditorFocused:', isEditorFocused)
-
-    if (isEditorFocused) return
-
+    const activeEl = document.activeElement
+    const pmEl = activeEl?.closest?.('.ProseMirror') as HTMLElement | null
+    const tiptapEditor = pmEl && (pmEl as any).editor
+    console.log('[Cmd+B]', {
+      activeEl: activeEl?.tagName,
+      hasPM: !!pmEl,
+      isFocused: tiptapEditor?.isFocused,
+      isEditable: tiptapEditor?.isEditable,
+    })
+    if (tiptapEditor?.isFocused && tiptapEditor?.isEditable) {
+      tiptapEditor.commands.toggleBold()
+      return
+    }
     ctx.onToggleMenuLock()
   })
 

@@ -1,0 +1,17 @@
+.bn-block-highlight-focus {
+  background-color: var(--highlight);
+  border-radius: 4px;
+  transition: background-color 0.3s ease;
+}
+
+.bn-block-highlight-citation {
+  background-color: rgba(255, 213, 79, 0.15);
+  border-left: 2px solid rgba(255, 213, 79, 0.6);
+  border-radius: 2px;
+}
+
+.bn-block-hover-highlight {
+  background-color: hsl(var(--accent) / 0.5);
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}

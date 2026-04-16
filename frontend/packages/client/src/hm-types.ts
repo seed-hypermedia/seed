@@ -1067,6 +1067,7 @@ export const HMDraftContentSchema = z.object({
   content: z.array(z.any()), // EditorBlock validation is handled elsewhere
   deps: z.array(z.string().min(1)).default([]),
   navigation: z.array(HMNavigationItemSchema).optional(),
+  cursorPosition: z.number().optional(),
 })
 
 export type HMDraftContent = z.infer<typeof HMDraftContentSchema>

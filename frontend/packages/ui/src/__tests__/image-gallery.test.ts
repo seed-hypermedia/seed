@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
-import {collectImageBlocks, resolveGalleryNavigation, resolveSwipeDirection} from '../blocks-content'
-import type {ImageGalleryItem} from '../blocks-content'
+import {collectImageBlocks, resolveGalleryNavigation, resolveSwipeDirection} from '../blocks-content-utils'
+import type {ImageGalleryItem} from '../blocks-content-utils'
 
 // -- Factories --
 

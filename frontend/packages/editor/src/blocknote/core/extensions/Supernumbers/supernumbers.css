@@ -1,0 +1,10 @@
+/* Positioning styles for the supernumber badge widget inside ProseMirror blocks.
+   Visual appearance is handled by Tailwind utility classes set on the element. */
+.bn-supernumber-badge {
+  position: absolute;
+  top: 0px;
+  right: -24px;
+  z-index: 10;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}

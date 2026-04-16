@@ -231,6 +231,7 @@ describe('AIProvidersSettings', () => {
   it('shows only the setup overview when no providers exist and opens the add dialog for the selected provider type', () => {
     const {container, root, queryClient} = renderSettings()
 
+    expect(container.textContent).toContain('Agent Assistant Providers')
     expect(container.textContent).toContain('Set up the assistant with a model provider.')
     expect(container.textContent).not.toContain('Configured Providers')
     expect(findButton(container, 'Add Provider')).toBeUndefined()
@@ -262,6 +263,7 @@ describe('AIProvidersSettings', () => {
 
     const {container, root, queryClient} = renderSettings()
 
+    expect(container.textContent).toContain('Agent Assistant Providers')
     expect(container.textContent).toContain('Configured Providers')
     expect(container.textContent).not.toContain('Select a provider to edit or start a new one.')
     expect(getProviderQueryMock).toHaveBeenCalledWith('provider-1')

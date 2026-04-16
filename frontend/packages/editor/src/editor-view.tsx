@@ -21,21 +21,24 @@ export function HyperMediaEditorView({
   openUrl: (url: string, newWindow?: boolean) => void
   perspectiveAccountUid?: string | null
 }) {
+  const editable = editor.isEditable
   return (
     <BlockNoteView editor={editor}>
-      <FormattingToolbarPositioner editor={editor} formattingToolbar={HMFormattingToolbar} />
+      {editable && (
+        <>
+          <FormattingToolbarPositioner editor={editor} formattingToolbar={HMFormattingToolbar} />
+          <SlashMenuPositioner editor={editor} />
+          <LinkMenuPositioner editor={editor} />
+        </>
+      )}
       <HyperlinkToolbarPositioner
-        // hyperlinkToolbar={HypermediaLinkToolbar}
         // @ts-expect-error
         hyperlinkToolbar={HypermediaLinkPreview}
         editor={editor}
         // @ts-expect-error
         openUrl={openUrl}
       />
-      <SlashMenuPositioner editor={editor} />
       <MentionMenuPositioner editor={editor} perspectiveAccountUid={perspectiveAccountUid} />
-      {/* {comment ? null : <SideMenuPositioner editor={editor} placement="left" />} */}
-      <LinkMenuPositioner editor={editor} />
     </BlockNoteView>
   )
 }

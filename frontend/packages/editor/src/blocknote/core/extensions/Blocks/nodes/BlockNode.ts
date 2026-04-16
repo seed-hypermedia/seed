@@ -366,6 +366,11 @@ export const BlockNode = Node.create<{
         }
       }
 
+      // Set native `id` attribute alongside `data-id` so getElementById() works for scroll-to-block
+      if (node.attrs.id) {
+        dom.id = node.attrs.id
+      }
+
       // Apply node decoration attributes (e.g. selection-in-section class)
       const applyDecorations = (decos: readonly Decoration[]) => {
         for (const deco of decos) {
@@ -418,6 +423,11 @@ export const BlockNode = Node.create<{
             if (typeof value === 'string') {
               dom.setAttribute(BlockAttributes[key as keyof typeof BlockAttributes] || key, value)
             }
+          }
+
+          // Keep native `id` in sync with `data-id`
+          if (updatedNode.attrs.id) {
+            dom.id = updatedNode.attrs.id
           }
 
           // Update decorations
