@@ -26,10 +26,7 @@ export type SSRRenderOpts = {
  * Produces DOM structure identical to the BlockNote editor output so the same
  * CSS rules apply, avoiding any flash of unstyled content before hydration.
  */
-export function renderDocumentToHTML(
-  blocks: HMBlockNode[],
-  opts?: SSRRenderOpts,
-): string | null {
+export function renderDocumentToHTML(blocks: HMBlockNode[], opts?: SSRRenderOpts): string | null {
   if (!blocks || blocks.length === 0) return null
 
   const key = opts?.cacheKey
@@ -74,11 +71,11 @@ function renderBlockChildren(
   const columnCountAttr = columnCount ? ` data-column-count="${columnCount}"` : ''
   const isListContainer = listType === 'Ordered' || listType === 'Unordered'
 
-  const childrenHtml = blocks
-    .map((node) => renderBlockNode(node, isListContainer, listLevel, embeds))
-    .join('')
+  const childrenHtml = blocks.map((node) => renderBlockNode(node, isListContainer, listLevel, embeds)).join('')
 
-  return `<${tag} class="blockChildren" data-node-type="blockChildren" data-list-type="${esc(listType)}" data-list-level="${listLevel}"${columnCountAttr}${gridStyle}>${childrenHtml}</${tag}>`
+  return `<${tag} class="blockChildren" data-node-type="blockChildren" data-list-type="${esc(
+    listType,
+  )}" data-list-level="${listLevel}"${columnCountAttr}${gridStyle}>${childrenHtml}</${tag}>`
 }
 
 /**
@@ -102,12 +99,9 @@ function renderBlockNode(
   if (node.children?.length) {
     const attrs = (block as any).attributes || {}
     const childrenType: string = normalizeChildrenType(attrs.childrenType)
-    const colCount = childrenType === 'Grid' ? (attrs.columnCount || null) : null
+    const colCount = childrenType === 'Grid' ? attrs.columnCount || null : null
 
-    const nextLevel =
-      childrenType === 'Ordered' || childrenType === 'Unordered'
-        ? listLevel + 1
-        : listLevel
+    const nextLevel = childrenType === 'Ordered' || childrenType === 'Unordered' ? listLevel + 1 : listLevel
 
     childrenHtml = renderBlockChildren(node.children, childrenType, nextLevel, colCount, embeds)
   }
@@ -152,9 +146,7 @@ function renderBlockContent(block: any, embeds: Record<string, SSREmbedData>): s
       const imgHtml = link
         ? `<img src="/hm/api/image/${esc(link)}" alt="${esc(text)}" loading="lazy"${widthAttr} />`
         : ''
-      const captionHtml = text
-        ? `<span class="inlineContent">${renderAnnotatedText(text, annotations)}</span>`
-        : ''
+      const captionHtml = text ? `<span class="inlineContent">${renderAnnotatedText(text, annotations)}</span>` : ''
       return `<div class="blockContent" data-content-type="image">${imgHtml}${captionHtml}</div>`
     }
 
@@ -181,13 +173,17 @@ function renderBlockContent(block: any, embeds: Record<string, SSREmbedData>): s
     case 'Button': {
       const label = text || 'Button'
       const alignment = block.attributes?.alignment || 'flex-start'
-      return `<div class="blockContent" data-content-type="button" style="justify-content: ${esc(alignment)}"><span>${esc(label)}</span></div>`
+      return `<div class="blockContent" data-content-type="button" style="justify-content: ${esc(
+        alignment,
+      )}"><span>${esc(label)}</span></div>`
     }
 
     case 'Query': {
       const style = block.attributes?.style || 'Card'
       const colCount = block.attributes?.columnCount || 3
-      return `<div class="blockContent" data-content-type="query" data-style="${esc(style)}" data-column-count="${colCount}"><div class="ssr-query-block"></div></div>`
+      return `<div class="blockContent" data-content-type="query" data-style="${esc(
+        style,
+      )}" data-column-count="${colCount}"><div class="ssr-query-block"></div></div>`
     }
 
     default: {
@@ -337,13 +333,7 @@ function linkToHref(hmLink: string): string {
 }
 
 function normalizeChildrenType(ct: any): string {
-  if (
-    ct === 'Group' ||
-    ct === 'Ordered' ||
-    ct === 'Unordered' ||
-    ct === 'Blockquote' ||
-    ct === 'Grid'
-  ) {
+  if (ct === 'Group' || ct === 'Ordered' || ct === 'Unordered' || ct === 'Blockquote' || ct === 'Grid') {
     return ct
   }
   return 'Group'
@@ -358,9 +348,5 @@ function listTag(listType: string): string {
 
 /** HTML-escape a string for safe embedding in attributes and content. */
 function esc(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }

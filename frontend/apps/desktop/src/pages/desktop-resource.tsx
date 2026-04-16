@@ -589,4 +589,3 @@ export default function DesktopResourcePage() {
     </div>
   )
 }
-

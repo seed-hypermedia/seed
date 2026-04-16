@@ -467,9 +467,7 @@ function QuerySettings({
         )}
       </div>
 
-      {popoverState.open && (
-        <div className="fixed inset-0 z-10" onClick={() => popoverState.onOpenChange(false)} />
-      )}
+      {popoverState.open && <div className="fixed inset-0 z-10" onClick={() => popoverState.onOpenChange(false)} />}
     </>
   )
 }
