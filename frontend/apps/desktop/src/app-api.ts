@@ -21,6 +21,7 @@ import {diagnosisApi} from './app-diagnosis'
 import {draftsApi} from './app-drafts'
 import {experimentsApi} from './app-experiments'
 import {bookmarksApi} from './app-bookmarks'
+import {uiPreferencesApi} from './app-ui-preferences'
 import {notificationConfigApi} from './app-notification-config'
 import {notificationReadApi, startNotificationReadBackgroundSync} from './app-notification-read-state'
 import {notificationInboxApi, startNotificationInboxBackgroundIngestor} from './app-notification-inbox'
@@ -306,6 +307,7 @@ export const router = t.router({
       }),
   }),
   bookmarks: bookmarksApi,
+  uiPreferences: uiPreferencesApi,
   notificationConfig: notificationConfigApi,
   notificationRead: notificationReadApi,
   notificationInbox: notificationInboxApi,

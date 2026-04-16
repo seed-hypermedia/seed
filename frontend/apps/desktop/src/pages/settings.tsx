@@ -32,6 +32,12 @@ import {
 } from '@/models/gateway-settings'
 import {usePeerInfo} from '@/models/networking'
 import {useSystemThemeWriter} from '@/models/settings'
+import {
+  type SidebarSectionId,
+  useSidebarSectionPrefs,
+  useSetSidebarVisible,
+  useResetSidebar,
+} from '@/models/ui-preferences'
 import {useOpenUrl} from '@/open-url'
 import {
   DEFAULT_OPENAI_LOGIN_MODEL,
@@ -315,7 +321,57 @@ function GeneralSettings() {
           right={<ClearHistoryButton />}
         />
       </SettingsCard>
+      <SidebarSettings />
     </>
+  )
+}
+
+function SidebarSettings() {
+  const setVisible = useSetSidebarVisible()
+  const resetSidebar = useResetSidebar()
+
+  const sections: {id: SidebarSectionId; label: string}[] = [
+    {id: 'joined-sites', label: 'Joined Sites'},
+    {id: 'following', label: 'Following'},
+    {id: 'bookmarks', label: 'Bookmarks'},
+    {id: 'library', label: 'Library'},
+    {id: 'drafts', label: 'Drafts'},
+  ]
+
+  return (
+    <SettingsCard label="SIDEBAR">
+      {sections.map((section) => (
+        <SidebarVisibilityRow
+          key={section.id}
+          sectionId={section.id}
+          label={section.label}
+          onToggle={(visible) => setVisible.mutate({sectionId: section.id, visible})}
+        />
+      ))}
+      <div className="px-4 py-3">
+        <Button variant="outline" size="sm" onClick={() => resetSidebar.mutate()} disabled={resetSidebar.isPending}>
+          Reset sidebar to defaults
+        </Button>
+      </div>
+    </SettingsCard>
+  )
+}
+
+function SidebarVisibilityRow({
+  sectionId,
+  label,
+  onToggle,
+}: {
+  sectionId: SidebarSectionId
+  label: string
+  onToggle: (visible: boolean) => void
+}) {
+  const prefs = useSidebarSectionPrefs(sectionId)
+  return (
+    <SettingsRow
+      label={label}
+      right={<Checkbox checked={prefs.visible} onCheckedChange={(checked) => onToggle(checked === true)} />}
+    />
   )
 }
 
