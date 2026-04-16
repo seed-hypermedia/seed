@@ -119,13 +119,29 @@ func savepoint(conn *sqlite.Conn, name string) (releaseFn func(*error), err erro
 		oldDoneCh := conn.SetInterrupt(nil)
 		defer conn.SetInterrupt(oldDoneCh)
 
-		err := Exec(conn, fmt.Sprintf("ROLLBACK TO %q;", name), nil)
-		if err != nil {
-			panic(orig + err.Error())
+		if err := Exec(conn, fmt.Sprintf("ROLLBACK TO %q;", name), nil); err != nil {
+			wrapped := fmt.Errorf("%ssqlitex.savepoint: rollback failed: %w", orig, err)
+			if *errp == nil {
+				*errp = wrapped
+			} else {
+				*errp = fmt.Errorf("%w (also: rollback failed: %v)", *errp, err)
+			}
+			if recoverP != nil {
+				panic(recoverP)
+			}
+			return
 		}
-		err = Exec(conn, fmt.Sprintf("RELEASE %q;", name), nil)
-		if err != nil {
-			panic(orig + err.Error())
+		if err := Exec(conn, fmt.Sprintf("RELEASE %q;", name), nil); err != nil {
+			wrapped := fmt.Errorf("%ssqlitex.savepoint: release failed: %w", orig, err)
+			if *errp == nil {
+				*errp = wrapped
+			} else {
+				*errp = fmt.Errorf("%w (also: release failed: %v)", *errp, err)
+			}
+			if recoverP != nil {
+				panic(recoverP)
+			}
+			return
 		}
 
 		if recoverP != nil {
