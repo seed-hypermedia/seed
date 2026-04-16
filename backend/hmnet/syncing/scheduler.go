@@ -16,7 +16,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const defaultHotTTL = 40 * time.Second
+const (
+	defaultHotTTL      = 40 * time.Second
+	defaultHotCooldown = 20 * time.Second
+)
 
 // Queue priority tiers. Lower value = higher priority.
 const (
@@ -562,8 +565,11 @@ func (s *scheduler) boundedWake(candidate time.Duration, now time.Time) time.Dur
 }
 
 // scheduleNext calculates the next run time and enqueues/fixes the task.
-// Subscriptions are rescheduled on their configured interval. Ephemeral tasks
-// (hot or not) run once and are dropped; the frontend re-touch recreates them.
+// Subscriptions reschedule on the configured interval. Ephemeral hot tasks
+// whose heartbeat is still fresh stay in the map with a short cooldown so
+// polling callers can read the last result; cleanupExpiredHotTasksLocked
+// drops them once the heartbeat expires. Ephemeral tasks whose heartbeat
+// has already expired are dropped immediately.
 // Caller must hold s.mu.
 func (s *scheduler) scheduleNext(task *taskHandle, now time.Time, forceImmediate bool) {
 	switch {
@@ -571,6 +577,8 @@ func (s *scheduler) scheduleNext(task *taskHandle, now time.Time, forceImmediate
 		task.nextRunTime = now
 	case task.subscription:
 		task.nextRunTime = now.Add(s.cfg.Interval)
+	case task.IsHot(now):
+		task.nextRunTime = now.Add(defaultHotCooldown)
 	default:
 		if task.queueIndex.IsSet() {
 			s.queue.Remove(task.queueIndex.Value())
