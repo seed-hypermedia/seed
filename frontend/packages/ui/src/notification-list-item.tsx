@@ -35,11 +35,11 @@ export function NotificationListItem({item, isRead, onOpen, onToggleRead}: Notif
   return (
     <div
       className={cn(
-        'group flex w-full items-center gap-3 p-4 text-left transition-colors',
+        'group flex w-full items-start gap-3 p-4 text-left transition-colors',
         isRead ? 'hover:bg-muted/40' : 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/40',
       )}
     >
-      <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => void onOpen()}>
+      <button type="button" className="flex min-w-0 flex-1 items-start gap-3 text-left" onClick={() => void onOpen()}>
         <div className="pt-0.5">
           {authorId ? (
             <HMIcon size={24} id={authorId} name={authorName} icon={authorIcon} />
@@ -48,11 +48,9 @@ export function NotificationListItem({item, isRead, onOpen, onToggleRead}: Notif
           )}
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div className="flex items-center gap-2">
-            {!isRead ? <span className="inline-block h-2 w-2 rounded-full bg-blue-600" /> : null}
-            <p className={cn('truncate text-sm', !isRead && 'font-bold')}>
-              {notificationTitle(item, {authorName, targetName})}
-            </p>
+          <div className="flex items-start gap-2">
+            {!isRead ? <span className="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full bg-blue-600" /> : null}
+            <p className={cn('text-sm', !isRead && 'font-bold')}>{notificationTitle(item, {authorName, targetName})}</p>
           </div>
           <p className="text-muted-foreground text-xs">{formattedDateShort(new Date(item.eventAtMs))}</p>
         </div>
