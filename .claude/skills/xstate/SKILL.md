@@ -135,7 +135,7 @@ If an actor is shared, long-lived, or performance-sensitive:
 - read slices with `useSelector(...)`
 - use actor context/provider helpers when the actor is shared across a subtree
 
-See `references/adapters.md` for concise adapter guidance.
+See `references/adapters.md` for concise adapter guidance, and `references/react.md` for React hook selection, `input` wiring, nested-state matching, and custom hook patterns.
 
 ## Review and repair guidance
 

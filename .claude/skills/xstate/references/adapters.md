@@ -14,6 +14,7 @@ The concepts are the same across adapters:
 - Use `useMachine(machine)` when the component owns a local actor.
 - Prefer `createActorContext(...)`, `useActorRef(...)`, and `useSelector(...)` when the actor is shared or when you want finer-grained subscriptions.
 - Prefer UI checks like `snapshot.matches(...)`, `snapshot.hasTag(...)`, and `snapshot.can(...)`.
+- See `react.md` for a deeper hook-selection table, `input` wiring, nested-state matching, and the custom hook pattern.
 
 ## Vue
 
