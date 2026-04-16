@@ -46,6 +46,7 @@
     "@ai-sdk/openai": "^3.0.41",
     "@ariakit/react": "0.3.5",
     "@atlaskit/pragmatic-drag-and-drop": "^1.7.2",
+    "@atlaskit/pragmatic-drag-and-drop-hitbox": "^1.1.0",
     "@bufbuild/protobuf": "1.10.0",
     "@connectrpc/connect-web": "1.4.0",
     "@electron-forge/maker-dmg": "7.9.0",
