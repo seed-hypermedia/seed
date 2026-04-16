@@ -314,7 +314,7 @@ func (c Syncing) Default() Syncing {
 		Interval:        time.Minute,
 		TimeoutPerPeer:  time.Minute * 5,
 		RefreshInterval: time.Second * 50,
-		MaxWorkers:      4,
+		MaxWorkers:      6,
 	}
 }
 
