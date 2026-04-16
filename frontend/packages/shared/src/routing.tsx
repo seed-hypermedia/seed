@@ -194,9 +194,8 @@ export function routeToHref(
     return `${siteBase}/:${route.tab}${accountSuffix}`
   }
   if (typeof route !== 'string' && route.key == 'profile') {
-    const siteBase = options?.originHomeId?.uid === route.id.uid ? '' : `/hm/${route.id.uid}`
     const tab = route.tab || 'profile'
-    return `${siteBase}/:${tab}`
+    return `/:${tab}/${route.id.uid}`
   }
   if (typeof route !== 'string' && route.key == 'contact') {
     return `/hm/contact/${route.id.uid}`

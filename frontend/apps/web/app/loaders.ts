@@ -563,10 +563,34 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
       } catch (e) {}
     }
 
+    // When viewing a profile, prefetch the account data so the client
+    // doesn't enter the "discovering" state (web has no discovery service).
+    const accountUid = (extraData as any)?.accountUid as string | undefined
+    let mergedDehydratedState = resourceContent.dehydratedState
+    if (accountUid) {
+      const profilePrefetchCtx = createPrefetchContext()
+      const client = serverUniversalClient
+      const profileId = hmId(accountUid)
+      await Promise.all([
+        profilePrefetchCtx.queryClient.prefetchQuery(queryAccount(client, accountUid)),
+        profilePrefetchCtx.queryClient.prefetchQuery(queryResource(client, profileId)),
+      ])
+      const profileDehydrated = dehydratePrefetchContext(profilePrefetchCtx)
+      if (mergedDehydratedState) {
+        mergedDehydratedState = {
+          mutations: [...mergedDehydratedState.mutations, ...profileDehydrated.mutations],
+          queries: [...mergedDehydratedState.queries, ...profileDehydrated.queries],
+        }
+      } else {
+        mergedDehydratedState = profileDehydrated
+      }
+    }
+
     const loadedSiteDocument = {
       ...(extraData || {}),
       ...resourceContent,
       ...(comment ? {comment} : {}),
+      dehydratedState: mergedDehydratedState,
       homeMetadata,
       origin,
       originHomeId,

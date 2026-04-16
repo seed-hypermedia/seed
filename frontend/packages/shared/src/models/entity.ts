@@ -150,12 +150,15 @@ export function useResource(
   // discoveryInProgress === undefined means we haven't received discovery state yet (the
   // subscription round-trip hasn't completed). Since we're subscribed and discovery will start,
   // treat this gap as discovering rather than flashing "not found" prematurely.
+  // However, on web there is no discovery service, so discoveryInProgress is permanently
+  // undefined — don't treat that as "discovering" or profiles will never resolve.
+  const hasDiscoveryService = !!client.discovery
   const isDiscovering =
     !!subscribed &&
     !isTombstone &&
     !isNotFound && // Don't show loading when discovery determined not-found
     result.data?.type === 'not-found' &&
-    (!!discoveryInProgress || result.isFetching || discoveryInProgress === undefined)
+    (!!discoveryInProgress || result.isFetching || (hasDiscoveryService && discoveryInProgress === undefined))
 
   // Redirect handling — queryResource follows redirects, so data.type is never
   // 'redirect'. Instead, detect redirects by comparing the returned id with the
