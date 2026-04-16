@@ -54,27 +54,61 @@ export const MediaContainer = ({
       return
     }
 
-    const formData = new FormData()
-    formData.append('file', file)
+    const {name, size} = file
 
-    try {
-      const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
-        method: 'POST',
-        body: formData,
-      })
-      const data = await response.text()
-
-      assign({
-        props: {
-          url: data ? `ipfs://${data}` : '',
-          name: file.name,
-          size: file.size.toString(),
-          displaySrc: '',
+    if (editor.handleFileAttachment) {
+      try {
+        const result = await editor.handleFileAttachment(file)
+        const props: Record<string, any> = {
+          name,
+          size: size.toString(),
           width: undefined,
-        },
-      } as MediaType)
-    } catch (error) {
-      console.error(`Editor: ${mediaType} upload error (MediaComponent): ${mediaType}: ${file.name} error: ${error}`)
+        }
+        if (result.url) {
+          props.url = result.url
+          props.displaySrc = ''
+        } else if (result.mediaRef) {
+          props.mediaRef = typeof result.mediaRef === 'string' ? result.mediaRef : JSON.stringify(result.mediaRef)
+          props.url = ''
+          if (block.type !== 'file') {
+            props.displaySrc = result.displaySrc
+          }
+        } else {
+          props.fileBinary = result.fileBinary
+          props.url = ''
+          if (block.type !== 'file') {
+            props.displaySrc = result.displaySrc
+          }
+        }
+        assign({props} as MediaType)
+      } catch (error) {
+        console.error(`Editor: ${mediaType} replace error: ${error}`)
+        toast.error(`Failed to replace ${mediaType}`)
+      }
+    } else {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      try {
+        const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
+          method: 'POST',
+          body: formData,
+        })
+        const data = await response.text()
+
+        assign({
+          props: {
+            url: data ? `ipfs://${data}` : '',
+            name,
+            size: size.toString(),
+            displaySrc: '',
+            width: undefined,
+          },
+        } as MediaType)
+      } catch (error) {
+        console.error(`Editor: ${mediaType} replace error (daemon): ${file.name}: ${error}`)
+        toast.error(`Failed to replace ${mediaType}`)
+      }
     }
   }
 

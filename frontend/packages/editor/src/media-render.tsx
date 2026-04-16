@@ -344,7 +344,9 @@ function MediaForm({
         name,
         size: size.toString(),
       }
-      if (result.mediaRef) {
+      if (result.url) {
+        props.url = result.url
+      } else if (result.mediaRef) {
         props.mediaRef = typeof result.mediaRef === 'string' ? result.mediaRef : JSON.stringify(result.mediaRef)
         if (block.type !== 'file') {
           props.displaySrc = result.displaySrc

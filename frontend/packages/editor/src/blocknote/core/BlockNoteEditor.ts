@@ -159,6 +159,7 @@ export type ImportWebFileFunction = (url: string) => Promise<ImportWebFileResult
 
 export type HandleFileAttachmentFunction = (file: File) => Promise<{
   displaySrc: string
+  url?: string
   fileBinary?: Uint8Array
   mediaRef?: {
     draftId: string

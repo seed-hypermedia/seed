@@ -32,7 +32,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useMutation} from '@tanstack/react-query'
 import {Check, SendHorizonal, X} from 'lucide-react'
-import React, {memo, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {memo, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 
 export function useCommentGroupAuthors(commentGroups: HMCommentGroup[]): HMListDiscussionsOutput['authors'] {
   const commentGroupAuthors = new Set<string>()
@@ -346,8 +346,9 @@ function _CommentBox(props: {
       throw new Error('Failed to handle file')
     }
     return {
-      displaySrc: props.url,
-      // Desktop uploads files immediately and returns URL, no binary needed
+      // Return ipfs url for desktop
+      url: props.url,
+      displaySrc: '',
     }
   }, [])
 
@@ -416,7 +417,8 @@ function InlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentP
   const handleFileAttachment = useCallback(async (file: File) => {
     const props = await handleDragMedia(file)
     if (!props) throw new Error('Failed to handle file')
-    return {displaySrc: props.url}
+    // Return ipfs url for desktop
+    return {url: props.url, displaySrc: ''}
   }, [])
 
   const handleSubmit = useCallback(
