@@ -5,6 +5,7 @@ import Tippy from '@tippyjs/react'
 import {FC, useEffect, useMemo, useRef, useState} from 'react'
 import {DefaultSideMenu} from './DefaultSideMenu'
 import {DragHandleMenuProps} from './DragHandleMenu/DragHandleMenu'
+import {DropIndicator} from './DropIndicator'
 
 export type SideMenuProps<BSchema extends BlockSchema = DefaultBlockSchema> = Pick<
   SideMenuProsemirrorPlugin<BSchema>,
@@ -108,17 +109,20 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
   }, [referencePos.current])
 
   return (
-    <Tippy
-      appendTo={props.editor.domElement.parentElement ?? document.body}
-      content={sideMenuElement}
-      getReferenceClientRect={getReferenceClientRect}
-      interactive={true}
-      visible={show}
-      animation={'fade'}
-      offset={[topOffset, rightOffset]}
-      placement={props.placement || 'left'}
-      popperOptions={popperOptions}
-    />
+    <>
+      <Tippy
+        appendTo={props.editor.domElement.parentElement ?? document.body}
+        content={sideMenuElement}
+        getReferenceClientRect={getReferenceClientRect}
+        interactive={true}
+        visible={show}
+        animation={'fade'}
+        offset={[topOffset, rightOffset]}
+        placement={props.placement || 'left'}
+        popperOptions={popperOptions}
+      />
+      {props.editor.dragStateManager && <DropIndicator stateManager={props.editor.dragStateManager} />}
+    </>
   )
 }
 const popperOptions = {
