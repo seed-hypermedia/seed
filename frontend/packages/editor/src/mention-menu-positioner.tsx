@@ -77,12 +77,13 @@ export function MentionMenuPositioner<BSchema extends BlockSchema>({
   }, [show, editor, refreshReferencePos])
 
   useEffect(() => {
+    if (!editor.mentionMenu) return
     return editor.mentionMenu.onUpdate((state: MentionMenuState) => {
       setShow(state.show)
       setQuery(state.query)
       referencePos.current = state.referencePos
       if (state.show) {
-        decorationIdRef.current = editor.mentionMenu.decorationId
+        decorationIdRef.current = editor.mentionMenu!.decorationId
       }
       if (!state.show) {
         setSuggestions({Recents: [], Profiles: [], Documents: [], Contacts: []})
@@ -94,6 +95,7 @@ export function MentionMenuPositioner<BSchema extends BlockSchema>({
   }, [editor])
 
   useEffect(() => {
+    if (!editor.mentionMenu) return
     return editor.mentionMenu.onKeyboard(({key}) => {
       if (key === 'ArrowUp') {
         setIndex((prev) => {
@@ -131,7 +133,7 @@ export function MentionMenuPositioner<BSchema extends BlockSchema>({
     if (groups.indexOf(group) >= 0 && idx < suggestions[group].length) {
       const item = suggestions[group][idx]
       if (item) {
-        editor.mentionMenu.insertMention(packReferenceUrl({...item.id, latest: !item.id.blockRef}))
+        editor.mentionMenu?.insertMention(packReferenceUrl({...item.id, latest: !item.id.blockRef}))
       }
     }
   }
@@ -144,7 +146,7 @@ export function MentionMenuPositioner<BSchema extends BlockSchema>({
       setSuggestions((prev) => ({...prev, ...results}))
       setHasFetched(true)
       if (isOptionsEmpty(results) && debouncedQuery.length > 5) {
-        editor.mentionMenu.closeNoResults()
+        editor.mentionMenu?.closeNoResults()
       }
     })
     return () => {
@@ -189,7 +191,7 @@ export function MentionMenuPositioner<BSchema extends BlockSchema>({
   )
 
   function selectItem(item: SearchResultData) {
-    editor.mentionMenu.insertMention(packReferenceUrl({...item.id, latest: !item.id.blockRef}))
+    editor.mentionMenu?.insertMention(packReferenceUrl({...item.id, latest: !item.id.blockRef}))
   }
 
   const hasResults = groups.length > 0
