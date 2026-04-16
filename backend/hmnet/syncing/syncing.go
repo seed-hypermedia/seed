@@ -309,9 +309,12 @@ type SyncResult struct {
 }
 
 // maxPeerConcurrency bounds the number of peers a single discovery task syncs
-// with simultaneously. With MaxWorkers=4 tasks and 50 peers each, the system-wide
-// concurrent peer syncs are bounded at 200.
-const maxPeerConcurrency = 50
+// with simultaneously. The per-task peer pool is a rolling sliding window:
+// gateways fill the first slots, then the remaining slots stream non-gateway
+// peers in, with a new peer dispatched the moment any in-flight peer returns
+// (see errgroup.SetLimit usage in syncWithManyPeers). With MaxWorkers=6 tasks
+// and 20 peers each, the system-wide concurrent peer syncs are bounded at 120.
+const maxPeerConcurrency = 20
 
 // gatewayPIDs is the set of well-known gateway peer IDs. Gateways are
 // well-connected infrastructure peers that are most likely to have content,
