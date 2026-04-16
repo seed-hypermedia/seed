@@ -1,0 +1,76 @@
+{
+  "skill_name": "xstate-v5",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "migrate this to xstate v5\n\n```ts\nimport { createMachine, assign } from 'xstate';\nimport { useInterpret, useActor } from '@xstate/react';\n\nconst machine = createMachine({\n  schema: {\n    context: {} as { count: number },\n    events: {} as { type: 'inc' } | { type: 'reset' }\n  },\n  context: { count: 0 },\n  on: {\n    inc: {\n      cond: (context) => context.count < 10,\n      actions: assign({ count: (context) => context.count + 1 })\n    },\n    reset: {\n      actions: assign({ count: 0 })\n    }\n  }\n});\n\nexport function Counter() {\n  const service = useInterpret(machine, {\n    actions: {\n      logReset: () => console.log('reset')\n    }\n  });\n  const [state, send] = useActor(service);\n\n  return <button onClick={() => send({ type: 'inc' })}>{state.context.count}</button>;\n}\n```",
+      "expected_output": "A minimal local v5 migration that fixes deprecated APIs without turning the example into a broader redesign.",
+      "files": [],
+      "expectations": [
+        "The migrated code replaces `schema` with `types`.",
+        "The migrated code replaces `cond` with `guard`.",
+        "The answer replaces deprecated React hook usage with a valid v5-safe pattern, such as `useMachine(...)` for a locally owned actor or `useActorRef()` plus `useSelector(...)` for an existing/shared actor.",
+        "The answer does not introduce a broad redesign such as splitting the component into new providers or contexts when a local migration is sufficient.",
+        "The answer briefly explains the migration choices.",
+        "The extracted TypeScript compiles under the eval typecheck harness."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "what's the xstate/react pattern for a shared auth actor? navbar, settings page, and billing page all need it and i don't want every component creating its own machine or rerendering all the time. show me code. login and session refresh are async.",
+      "expected_output": "A shared-actor React pattern with modern v5 async actor wiring and complete code that typechecks.",
+      "files": [],
+      "expectations": [
+        "The answer recommends a shared actor pattern such as `createActorContext(...)` or a shared actor ref plus provider/context.",
+        "The answer does not recommend calling `useMachine(...)` separately in each consuming component as the primary pattern.",
+        "The answer uses or mentions `useSelector(...)` for finer-grained subscriptions or rerender control.",
+        "The answer uses valid v5 async actor wiring such as `actors`/`fromPromise` and `invoke.input`, rather than legacy `services` or `invoke.data` patterns.",
+        "If the answer splits the example across files, its imports, exports, and component references are wired coherently.",
+        "The extracted TypeScript compiles under the eval typecheck harness.",
+        "The answer briefly explains why the chosen pattern fits shared/global actor usage."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "fix this xstate machine\n\n```ts\nimport { createMachine, assign, fromPromise } from 'xstate';\n\nconst uploadMachine = createMachine({\n  context: {\n    uploadId: null as string | null,\n    progress: 0,\n    latestChunk: null as { loaded: number; total: number } | null,\n    error: null as string | null\n  },\n  initial: 'idle',\n  states: {\n    idle: {\n      on: {\n        'upload.started': {\n          target: 'uploading',\n          actions: assign({\n            uploadId: ({ event }) => event.uploadId\n          })\n        }\n      }\n    },\n    uploading: {\n      invoke: {\n        src: fromPromise(async ({ input }) => {\n          return startUploadAndListen(input.uploadId);\n        }),\n        input: ({ context }) => ({ uploadId: context.uploadId }),\n        onDone: [\n          {\n            guard: ({ event }) => event.output.type === 'progress',\n            target: 'uploading',\n            actions: assign({\n              latestChunk: ({ event }) => event.output.chunk,\n              progress: ({ event }) => Math.round((event.output.chunk.loaded / event.output.chunk.total) * 100)\n            })\n          },\n          {\n            target: 'done'\n          }\n        ],\n        onError: {\n          target: 'failed',\n          actions: assign({\n            error: ({ event }) => String(event.error)\n          })\n        }\n      }\n    },\n    done: {},\n    failed: {}\n  }\n});\n```",
+      "expected_output": "A local repair that replaces the awkward promise-based stream handling with a better evented actor shape and avoids unnecessary context relay.",
+      "files": [],
+      "expectations": [
+        "The answer replaces the awkward `fromPromise(...)` progress-stream pattern with a callback/subscription actor such as `fromCallback(...)`, or explicitly explains why a callback actor fits better here.",
+        "The answer models repeated progress updates as events sent back over time rather than trying to branch on multiple pseudo-results in `onDone`.",
+        "The answer avoids storing transient relay data like `latestChunk` in context when a simpler event-driven shape is sufficient.",
+        "The answer keeps the parent machine reasonably coarse instead of adding extra parent states that mainly model the upload protocol internals.",
+        "The extracted TypeScript compiles under the eval typecheck harness.",
+        "The answer briefly explains what was wrong."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "show me the xstate v5 way to handle this: when a player drops a tile, if the move is valid i need to swap the tiles, clear the current selection, and notify the surrounding app with a `move.completed` event. if the move is invalid i want to keep the selection. typescript please.",
+      "expected_output": "A v5 solution that uses typed action composition for the valid-move branch and emits an outward-facing event without forcing everything into context or one giant custom action.",
+      "files": [],
+      "expectations": [
+        "The answer uses a typed action composition pattern such as setup-scoped helpers from `const machineSetup = setup(...)`, `enqueueActions(...)`, or another equally valid v5-safe batching pattern for the valid-move branch.",
+        "The answer emits or clearly models an outward-facing `move.completed` notification instead of only mutating context and expecting consumers to infer the move indirectly.",
+        "The answer does not misuse `assign(...)` imperatively inside a custom action function.",
+        "The answer keeps the move-validation flow local instead of exploding the machine into several extra parent states for this one branch.",
+        "The extracted TypeScript compiles under the eval typecheck harness.",
+        "The answer briefly explains why the chosen action/emission pattern fits."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "how do i persist and restore an xstate v5 machine across reloads in react? show me the real pattern, not pseudo-code.",
+      "expected_output": "A concrete persistence and hydration pattern using persisted snapshots rather than ad hoc reconstruction.",
+      "files": [],
+      "expectations": [
+        "The answer uses `actor.getPersistedSnapshot()` or an equivalent persisted snapshot API for saving machine state.",
+        "The answer restores the actor from a persisted snapshot using `snapshot`, not by manually reconstructing state from guessed `value` and partial `context`.",
+        "The answer shows a React-compatible usage pattern, such as actor/provider setup or hook options that hydrate from a snapshot.",
+        "The answer does not present context-only persistence as the default when full machine persistence is the safer pattern.",
+        "The extracted TypeScript compiles under the eval typecheck harness.",
+        "The answer briefly explains why snapshot-based persistence is preferred."
+      ]
+    }
+  ]
+}
