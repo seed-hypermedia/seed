@@ -36,14 +36,14 @@ func TestRandID(t *testing.T) {
 	stmt.SetText("$val", "value")
 
 	for i := 0; i < 10; i++ {
-		const min, max = 1000, 1_000_000_000
+		const minID, maxID = 1000, 1_000_000_000
 
-		id, err := sqlitex.InsertRandID(stmt, "$key", min, max)
+		id, err := sqlitex.InsertRandID(stmt, "$key", minID, maxID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if id < min || id >= max {
-			t.Errorf("id %d out of range [%d, %d)", id, min, max)
+		if id < minID || id >= maxID {
+			t.Errorf("id %d out of range [%d, %d)", id, minID, maxID)
 		}
 
 		countStmt := conn.Prep("SELECT count(*) FROM t WHERE key = $key;")
