@@ -174,6 +174,15 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     if (editorBlock.props.name) {
       blockVideo.attributes.name = editorBlock.props.name
     }
+    if (editorBlock.props.autoplay === 'true') {
+      blockVideo.attributes.autoplay = true
+    }
+    if (editorBlock.props.loop === 'true') {
+      blockVideo.attributes.loop = true
+    }
+    if (editorBlock.props.muted === 'true') {
+      blockVideo.attributes.muted = true
+    }
   }
 
   const blockFile = block.type === 'File' ? block : undefined

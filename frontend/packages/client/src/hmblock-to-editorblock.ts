@@ -140,6 +140,8 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
             if (typeof value == 'number') {
               ;(out.props as any)[key] = String(value)
             }
+          } else if (typeof value == 'boolean') {
+            ;(out.props as any)[key] = String(value)
           } else {
             ;(out.props as any)[key] = value
           }

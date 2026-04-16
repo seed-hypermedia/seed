@@ -79,9 +79,15 @@ export interface EditorImageBlock extends EditorBaseBlock {
   content: Array<HMInlineContent>
 }
 
+export interface VideoBlockProps extends MediaBlockProps {
+  autoplay?: string
+  loop?: string
+  muted?: string
+}
+
 export interface EditorVideoBlock extends EditorBaseBlock {
   type: 'video'
-  props: MediaBlockProps
+  props: VideoBlockProps
   content: Array<HMInlineContent>
 }
 

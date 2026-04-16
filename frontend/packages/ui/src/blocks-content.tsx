@@ -1261,6 +1261,10 @@ function BlockContentVideo({block, parentBlockId, ...props}: BlockContentProps<H
   if (block.type !== 'Video') return null
   const isIpfs = isIpfsUrl(link)
 
+  const autoplay = block.attributes?.autoplay === true
+  const loop = block.attributes?.loop === true
+  const muted = block.attributes?.muted === true
+
   return (
     <div
       {...props}
@@ -1287,8 +1291,11 @@ function BlockContentVideo({block, parentBlockId, ...props}: BlockContentProps<H
               className={cn('absolute top-0 left-0 h-full w-full')}
               contentEditable={false}
               playsInline
-              controls
+              controls={!autoplay}
               preload="auto"
+              autoPlay={autoplay}
+              loop={loop}
+              muted={muted}
             >
               <source src={fileUrl(link)} type={getSourceType(getBlockAttribute(block.attributes, 'name'))} />
             </video>

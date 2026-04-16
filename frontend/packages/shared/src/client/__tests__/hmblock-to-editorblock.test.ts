@@ -1,4 +1,3 @@
-import {describe, expect, test} from 'vitest'
 import {
   EditorBlock,
   EditorCodeBlock,
@@ -25,6 +24,7 @@ import {
   HMBlockWebEmbed,
 } from '@seed-hypermedia/client/hm-types'
 import {hmBlockToEditorBlock} from '@seed-hypermedia/client/hmblock-to-editorblock'
+import {describe, expect, test} from 'vitest'
 
 describe('HMBlock to EditorBlock', () => {
   describe('blockTypes', () => {
@@ -580,6 +580,86 @@ describe('HMBlock to EditorBlock', () => {
           width: '240',
           name: 'test demo video',
           // size: 123456,
+          revision: 'revision123',
+        },
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+      }
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('video with autoplay, loop, and muted attributes', () => {
+      const hmBlock: HMBlock = {
+        id: 'foo',
+        type: 'Video',
+        text: ``,
+        link: 'ipfs://foobarcid_VIDEO',
+        annotations: [],
+        attributes: {
+          width: 240,
+          name: 'test demo video',
+          autoplay: true,
+          loop: true,
+          muted: true,
+        },
+        revision: 'revision123',
+      }
+
+      const result: EditorVideoBlock = {
+        id: 'foo',
+        type: 'video',
+        children: [],
+        props: {
+          url: 'ipfs://foobarcid_VIDEO',
+          width: '240',
+          name: 'test demo video',
+          autoplay: 'true',
+          loop: 'true',
+          muted: 'true',
+          revision: 'revision123',
+        },
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+      }
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('video without video options has no extra props', () => {
+      const hmBlock: HMBlock = {
+        id: 'foo',
+        type: 'Video',
+        text: ``,
+        link: 'ipfs://foobarcid_VIDEO',
+        annotations: [],
+        attributes: {
+          width: 240,
+          name: 'test demo video',
+        },
+        revision: 'revision123',
+      }
+
+      const result: EditorVideoBlock = {
+        id: 'foo',
+        type: 'video',
+        children: [],
+        props: {
+          url: 'ipfs://foobarcid_VIDEO',
+          width: '240',
+          name: 'test demo video',
           revision: 'revision123',
         },
         content: [

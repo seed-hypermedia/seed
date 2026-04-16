@@ -1,6 +1,8 @@
+import {Switch} from '@shm/ui/components/switch'
 import {isIpfsUrl, useFileProxyUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
 import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {useEffect, useRef, useState} from 'react'
 import {RiVideoAddLine} from 'react-icons/ri'
@@ -57,6 +59,18 @@ export const VideoBlock = createReactBlockSpec({
       default: '',
     },
     defaultOpen: {
+      values: ['false', 'true'],
+      default: 'false',
+    },
+    autoplay: {
+      values: ['false', 'true'],
+      default: 'false',
+    },
+    loop: {
+      values: ['false', 'true'],
+      default: 'false',
+    },
+    muted: {
       values: ['false', 'true'],
       default: 'false',
     },
@@ -139,8 +153,124 @@ function validateFile(file: File) {
   return true
 }
 
+function SegmentedToggle({
+  options,
+  value,
+  onChange,
+  disabled,
+}: {
+  options: {label: string; value: string}[]
+  value: string
+  onChange: (value: string) => void
+  disabled?: boolean
+}) {
+  return (
+    <div
+      className={cn(
+        'bg-muted inline-flex items-center rounded-lg border border-black/10 p-0.5 dark:border-white/10',
+        disabled && 'opacity-50',
+      )}
+    >
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          disabled={disabled}
+          className={cn(
+            'cursor-default rounded-md px-3 py-1 text-xs font-medium transition-colors select-none',
+            value === option.value ? 'bg-brand text-white shadow-sm' : 'text-muted-foreground hover:text-foreground',
+            disabled && 'pointer-events-none',
+          )}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function VideoOptions({
+  autoplay,
+  setAutoplay,
+  loop,
+  setLoop,
+  muted,
+  setMuted,
+}: {
+  autoplay: boolean
+  setAutoplay: (v: boolean) => void
+  loop: boolean
+  setLoop: (v: boolean) => void
+  muted: boolean
+  setMuted: (v: boolean) => void
+}) {
+  return (
+    <div className="flex w-full cursor-default flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-sm select-none">
+      <div className="flex items-center gap-2">
+        <span className="text-muted-foreground cursor-default text-xs font-medium select-none">Autoplay</span>
+        <Switch checked={autoplay} onCheckedChange={setAutoplay} />
+      </div>
+      <div className="bg-border h-4 w-px shrink-0" />
+      <div className="flex items-center gap-2">
+        <span className="text-muted-foreground cursor-default text-xs font-medium select-none">Loop</span>
+        <SegmentedToggle
+          options={[
+            {label: 'Once', value: 'once'},
+            {label: 'Loop', value: 'loop'},
+          ]}
+          value={loop ? 'loop' : 'once'}
+          onChange={(v) => setLoop(v === 'loop')}
+        />
+      </div>
+      <div className="bg-border h-4 w-px shrink-0" />
+      {autoplay ? (
+        <Tooltip content="Autoplay videos must be muted" side="top">
+          <div className="flex items-center gap-2 opacity-50">
+            <span className="text-muted-foreground cursor-default text-xs font-medium select-none">Sound</span>
+            <SegmentedToggle
+              options={[
+                {label: 'Off', value: 'off'},
+                {label: 'On', value: 'on'},
+              ]}
+              value="off"
+              onChange={() => {}}
+              disabled
+            />
+          </div>
+        </Tooltip>
+      ) : (
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground cursor-default text-xs font-medium select-none">Sound</span>
+          <SegmentedToggle
+            options={[
+              {label: 'Off', value: 'off'},
+              {label: 'On', value: 'on'},
+            ]}
+            value={muted ? 'off' : 'on'}
+            onChange={(v) => setMuted(v === 'off')}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 const display = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
   const getFileUrl = useFileProxyUrl()
+  const autoplay = block.props.autoplay === 'true'
+  const loop = block.props.loop === 'true'
+  const muted = block.props.muted === 'true'
+
+  const setAutoplay = (v: boolean) => {
+    if (v) {
+      assign({props: {autoplay: 'true', muted: 'true'}})
+    } else {
+      assign({props: {autoplay: 'false'}})
+    }
+  }
+  const setLoop = (v: boolean) => assign({props: {loop: v ? 'true' : 'false'}})
+  const setMuted = (v: boolean) => assign({props: {muted: v ? 'true' : 'false'}})
 
   // Determine video source
   const videoSrc = (() => {
@@ -310,6 +440,7 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
         )}
         {block.props.displaySrc || isIpfsUrl(block.props.url || '') ? (
           <video
+            key={videoSrc}
             contentEditable={false}
             playsInline
             controls
@@ -339,6 +470,16 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
           />
         ) : null}
       </div>
+      {editor.isEditable && (block.props.displaySrc || isIpfsUrl(block.props.url || '')) && (
+        <VideoOptions
+          autoplay={autoplay}
+          setAutoplay={setAutoplay}
+          loop={loop}
+          setLoop={setLoop}
+          muted={muted}
+          setMuted={setMuted}
+        />
+      )}
     </MediaContainer>
   )
 }

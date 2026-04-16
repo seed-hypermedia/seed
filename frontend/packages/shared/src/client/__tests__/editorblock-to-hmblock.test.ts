@@ -601,6 +601,85 @@ describe('EditorBlock to HMBlock', () => {
       expect(val).toEqual(result)
     })
 
+    test('video with autoplay, loop, and muted attributes', () => {
+      const editorBlock: EditorVideoBlock = {
+        id: 'foo',
+        type: 'video',
+        children: [],
+        props: {
+          url: 'ipfs://foobarcid_VIDEO',
+          width: '240',
+          name: 'test demo video',
+          autoplay: 'true',
+          loop: 'true',
+          muted: 'true',
+        },
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+      }
+
+      const result: HMBlock = {
+        id: 'foo',
+        type: 'Video',
+        text: ``,
+        link: 'ipfs://foobarcid_VIDEO',
+        annotations: [],
+        attributes: {
+          width: 240,
+          name: 'test demo video',
+          autoplay: true,
+          loop: true,
+          muted: true,
+        },
+      }
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('video with default values does not write optional attributes', () => {
+      const editorBlock: EditorVideoBlock = {
+        id: 'foo',
+        type: 'video',
+        children: [],
+        props: {
+          url: 'ipfs://foobarcid_VIDEO',
+          width: '240',
+          name: 'test demo video',
+          autoplay: 'false',
+          loop: 'false',
+          muted: 'false',
+        },
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+      }
+
+      const result: HMBlock = {
+        id: 'foo',
+        type: 'Video',
+        text: ``,
+        link: 'ipfs://foobarcid_VIDEO',
+        annotations: [],
+        attributes: {
+          width: 240,
+          name: 'test demo video',
+        },
+      }
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual(result)
+    })
+
     test('file', () => {
       const editorBlock: EditorFileBlock = {
         id: 'foo',

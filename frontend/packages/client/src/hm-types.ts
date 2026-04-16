@@ -236,6 +236,9 @@ export const HMBlockVideoSchema = z
         ...parentBlockAttributes,
         width: z.number().optional(),
         name: z.string().optional(),
+        autoplay: z.boolean().optional(),
+        loop: z.boolean().optional(),
+        muted: z.boolean().optional(),
       })
       .optional()
       .default({}),
