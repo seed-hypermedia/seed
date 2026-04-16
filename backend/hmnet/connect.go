@@ -13,6 +13,7 @@ import (
 	"seed/backend/util/dqb"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"seed/backend/util/sqlite"
@@ -201,13 +202,12 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 	}
 
 	if len(res.Peers) > 0 {
-		// Store-first: persist peer metadata immediately without connecting or
-		// verifying the protocol. Verification happens lazily when the sync
-		// scheduler actually needs to sync with a peer — the connection and
-		// protocol check are free at that point since we're connecting anyway.
-		// This eliminates the goroutine/dial/handshake storm that previously
-		// caused RAM spikes, 1400+ goroutines, and system-wide slowdowns.
+		// Store-first: persist peer metadata immediately without blocking on
+		// per-peer dials or protocol checks. A background goroutine below
+		// dials the freshly-stored peers so discovery.go's Connectedness
+		// filter sees them without forcing the caller to wait.
 		var vals []any
+		var toDial []peer.AddrInfo
 		sqlStr := "INSERT INTO peers (pid, addresses, explicitly_connected, updated_at) VALUES "
 
 		for _, p := range res.Peers {
@@ -228,6 +228,9 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 			sort.Strings(p.Addrs)
 			sqlStr += "(?, ?, ?, ?),"
 			vals = append(vals, p.Id, strings.Join(p.Addrs, ","), false, p.UpdatedAt.Seconds)
+			if info, err := netutil.AddrInfoFromStrings(p.Addrs...); err == nil {
+				toDial = append(toDial, info)
+			}
 		}
 
 		if len(vals) != 0 {
@@ -238,9 +241,52 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 				return err
 			}
 		}
+
+		if len(toDial) > 0 {
+			go n.dialStoredPeers(toDial)
+		}
 	}
 
 	return nil
+}
+
+// dialStoredPeers opens libp2p connections to freshly-stored peers in the
+// background. Discovery filters known peers by Connectedness, so peers we've
+// only persisted to the DB are invisible until something dials them. This runs
+// detached from the caller's context with bounded concurrency; failures are
+// logged at debug level only.
+func (n *Node) dialStoredPeers(infos []peer.AddrInfo) {
+	const maxConcurrentDials = 20
+	const perPeerDialTimeout = 10 * time.Second
+
+	ctx, cancel := context.WithTimeout(context.Background(), PeerSharingTimeout)
+	defer cancel()
+
+	sem := make(chan struct{}, maxConcurrentDials)
+	var wg sync.WaitGroup
+	for _, info := range infos {
+		if info.ID == "" || len(info.Addrs) == 0 {
+			continue
+		}
+		select {
+		case <-ctx.Done():
+			wg.Wait()
+			return
+		case sem <- struct{}{}:
+		}
+		wg.Add(1)
+		go func(info peer.AddrInfo) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			dialCtx, dialCancel := context.WithTimeout(ctx, perPeerDialTimeout)
+			defer dialCancel()
+			n.p2p.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
+			if err := n.p2p.Host.Connect(dialCtx, info); err != nil {
+				n.log.Debug("BackgroundPeerDialFailed", zap.String("PID", info.ID.String()), zap.Error(err))
+			}
+		}(info)
+	}
+	wg.Wait()
 }
 func (n *Node) onLibp2pConnection(_ context.Context, event event.EvtPeerConnectednessChanged) {
 	// Clear authentication for disconnected peers.
