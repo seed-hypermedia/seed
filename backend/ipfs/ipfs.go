@@ -34,7 +34,7 @@ import (
 
 // Using to ensure direct dependency.
 var _ = quic.AEADLimitReached
-var _ = webtransport.WebTransportBufferedStreamRejectedErrorCode
+var _ webtransport.StreamErrorCode
 
 const defaultReprovideInterval = 12 * time.Hour
 
