@@ -13,6 +13,7 @@ import {
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {useCallback, useEffect, useMemo, useRef} from 'react'
 import {FragmentActionsContext, type FragmentActions} from './fragment-actions-context'
+import {Extension} from '@tiptap/core'
 import {TextSelection} from 'prosemirror-state'
 import {
   BlockNoteView,
@@ -133,6 +134,22 @@ export function DocumentEditor({
         actorRef.send({type: 'change'})
       },
       initialContent,
+      _tiptapOptions: {
+        extensions: [
+          Extension.create({
+            name: 'document-select-all',
+            priority: 1000,
+            addKeyboardShortcuts() {
+              return {
+                'Mod-a': ({editor}) => {
+                  editor.commands.selectAll()
+                  return true
+                },
+              }
+            },
+          }),
+        ],
+      },
     },
     [initialContent],
   )
