@@ -76,7 +76,13 @@ export type DocumentMachineEvent =
   | {type: 'edit.confirm'}
   | {type: 'version.changed'; isLatest: boolean}
   | {type: 'draft.existing'; draftId: string}
-  | {type: 'draft.resolved'; draftId: string | null; content: HMBlockNode[] | null; cursorPosition: number | null; metadata?: HMMetadata | null}
+  | {
+      type: 'draft.resolved'
+      draftId: string | null
+      content: HMBlockNode[] | null
+      cursorPosition: number | null
+      metadata?: HMMetadata | null
+    }
   | {type: '_save.started'}
   | {type: '_save.completed'}
 

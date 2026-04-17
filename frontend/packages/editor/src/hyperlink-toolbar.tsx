@@ -41,9 +41,7 @@ export function HypermediaLinkToolbar(
   }, [])
 
   return (
-    <div
-      className="bg-muted absolute bottom-0 z-50 flex flex-col gap-2 overflow-hidden rounded-md px-3 py-4 shadow-md"
-    >
+    <div className="bg-muted absolute bottom-0 z-50 flex flex-col gap-2 overflow-hidden rounded-md px-3 py-4 shadow-md">
       <SizableText weight="bold">{`${props.type.charAt(0).toUpperCase() + props.type.slice(1)} settings`}</SizableText>
       <HypermediaLinkForm
         url={props.url}

@@ -193,7 +193,14 @@ export function useVersionLatestSync(isLatest: boolean) {
  * race condition where editing starts before draft content is available.
  */
 export function useDraftResolutionSync(
-  resolved: {draftId: string | null; content: HMBlockNode[] | null; cursorPosition: number | null; metadata?: HMMetadata | null} | undefined,
+  resolved:
+    | {
+        draftId: string | null
+        content: HMBlockNode[] | null
+        cursorPosition: number | null
+        metadata?: HMMetadata | null
+      }
+    | undefined,
 ) {
   const actorRef = useDocumentMachineRef()
   const sentRef = useRef(false)
@@ -201,7 +208,12 @@ export function useDraftResolutionSync(
   useEffect(() => {
     if (resolved !== undefined && !sentRef.current) {
       sentRef.current = true
-      console.log('[DraftResolutionSync] sending draft.resolved, draftId:', resolved.draftId, 'metadata:', resolved.metadata)
+      console.log(
+        '[DraftResolutionSync] sending draft.resolved, draftId:',
+        resolved.draftId,
+        'metadata:',
+        resolved.metadata,
+      )
       actorRef.send({
         type: 'draft.resolved',
         draftId: resolved.draftId,

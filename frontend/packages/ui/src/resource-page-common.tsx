@@ -724,7 +724,14 @@ function DocumentBody({
   // Sync draft resolution — machine stays in loading until this settles.
   // undefined = still loading, {draftId: null} = no draft, {draftId: string} = draft + content ready
   const draftResolution = useMemo(() => {
-    let result: {draftId: string | null; content: HMBlockNode[] | null; cursorPosition: number | null; metadata?: import('@seed-hypermedia/client/hm-types').HMMetadata | null} | undefined
+    let result:
+      | {
+          draftId: string | null
+          content: HMBlockNode[] | null
+          cursorPosition: number | null
+          metadata?: import('@seed-hypermedia/client/hm-types').HMMetadata | null
+        }
+      | undefined
     if (existingDraft === undefined) {
       result = undefined
     } else if (!existingDraft) {
