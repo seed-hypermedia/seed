@@ -1,4 +1,4 @@
-import {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
+import {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {useActorRef, useSelector} from '@xstate/react'
 import {createContext, createElement, ReactNode, useContext, useEffect, useRef} from 'react'
 import {ActorRefFrom, SnapshotFrom} from 'xstate'
@@ -193,7 +193,7 @@ export function useVersionLatestSync(isLatest: boolean) {
  * race condition where editing starts before draft content is available.
  */
 export function useDraftResolutionSync(
-  resolved: {draftId: string | null; content: HMBlockNode[] | null; cursorPosition: number | null} | undefined,
+  resolved: {draftId: string | null; content: HMBlockNode[] | null; cursorPosition: number | null; metadata?: HMMetadata | null} | undefined,
 ) {
   const actorRef = useDocumentMachineRef()
   const sentRef = useRef(false)
@@ -201,12 +201,13 @@ export function useDraftResolutionSync(
   useEffect(() => {
     if (resolved !== undefined && !sentRef.current) {
       sentRef.current = true
-      console.log('[DraftResolutionSync] sending draft.resolved, draftId:', resolved.draftId)
+      console.log('[DraftResolutionSync] sending draft.resolved, draftId:', resolved.draftId, 'metadata:', resolved.metadata)
       actorRef.send({
         type: 'draft.resolved',
         draftId: resolved.draftId,
         content: resolved.content,
         cursorPosition: resolved.cursorPosition,
+        metadata: resolved.metadata ?? null,
       })
     }
   }, [actorRef, resolved])

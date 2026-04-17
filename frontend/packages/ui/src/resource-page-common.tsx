@@ -724,7 +724,7 @@ function DocumentBody({
   // Sync draft resolution — machine stays in loading until this settles.
   // undefined = still loading, {draftId: null} = no draft, {draftId: string} = draft + content ready
   const draftResolution = useMemo(() => {
-    let result: {draftId: string | null; content: HMBlockNode[] | null; cursorPosition: number | null} | undefined
+    let result: {draftId: string | null; content: HMBlockNode[] | null; cursorPosition: number | null; metadata?: import('@seed-hypermedia/client/hm-types').HMMetadata | null} | undefined
     if (existingDraft === undefined) {
       result = undefined
     } else if (!existingDraft) {
@@ -734,6 +734,7 @@ function DocumentBody({
         draftId: existingDraft.id,
         content: existingDraftContent,
         cursorPosition: existingDraftCursorPosition ?? null,
+        metadata: existingDraft.metadata ?? null,
       }
     } else {
       result = undefined // draft found but content not loaded yet
@@ -741,6 +742,7 @@ function DocumentBody({
     console.log('[DraftResolution]', {
       existingDraft: existingDraft === undefined ? 'undefined' : existingDraft === false ? 'false' : existingDraft?.id,
       hasContent: !!existingDraftContent,
+      hasMetadata: !!(existingDraft && 'metadata' in existingDraft && existingDraft.metadata),
       resolution: result === undefined ? 'undefined (waiting)' : `draftId=${result.draftId}`,
     })
     return result

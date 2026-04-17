@@ -2,6 +2,7 @@ import {
   HMBlockNode,
   HMDocument,
   HMDraft,
+  HMMetadata,
   HMNavigationItem,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
@@ -75,7 +76,7 @@ export type DocumentMachineEvent =
   | {type: 'edit.confirm'}
   | {type: 'version.changed'; isLatest: boolean}
   | {type: 'draft.existing'; draftId: string}
-  | {type: 'draft.resolved'; draftId: string | null; content: HMBlockNode[] | null; cursorPosition: number | null}
+  | {type: 'draft.resolved'; draftId: string | null; content: HMBlockNode[] | null; cursorPosition: number | null; metadata?: HMMetadata | null}
   | {type: '_save.started'}
   | {type: '_save.completed'}
 
@@ -199,12 +200,11 @@ export const documentMachine = setup({
       navigation: undefined,
     }),
     clearEditingState: assign({
-      // Preserve draftId so re-entering editing reuses the same draft
+      // Preserve draftId and metadata so re-entering editing reuses the same draft
+      // and title/summary changes remain visible outside editing mode.
       draftCreated: false,
       hasChangedWhileSaving: false,
       pendingRemoteVersion: null,
-      metadata: {},
-      navigation: undefined,
     }),
     markDocumentReady: assign({
       documentReady: true,
@@ -230,6 +230,10 @@ export const documentMachine = setup({
       draftCursorPosition: ({event}) => {
         if (event.type === 'draft.resolved') return event.cursorPosition ?? null
         return null
+      },
+      metadata: ({event, context}) => {
+        if (event.type === 'draft.resolved' && event.metadata) return event.metadata
+        return context.metadata
       },
     }),
     setExistingDraft: assign({

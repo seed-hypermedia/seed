@@ -876,6 +876,7 @@ export type HMAccountContactsRequest = z.infer<typeof HMAccountContactsRequestSc
 
 export type HMExistingDraft = {
   id: string
+  metadata?: HMMetadata
 }
 
 // Comment draft schemas
