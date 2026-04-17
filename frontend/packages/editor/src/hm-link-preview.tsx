@@ -20,7 +20,6 @@ export function HypermediaLinkPreview(
     forceEditing?: boolean
     formComponents: () => React.JSX.Element
     type: 'link' | 'inline-embed' | 'embed' | 'card' | 'button'
-    setHovered?: (hovered: boolean) => void
     toolbarProps?: {
       alignment?: 'flex-start' | 'center' | 'flex-end'
       view?: string
@@ -88,14 +87,6 @@ export function HypermediaLinkPreview(
   return (
     <div
       data-testid="hm-link-preview"
-      onMouseEnter={() => {
-        props.editor.hyperlinkToolbar!.stopHideTimer()
-        props.setHovered?.(true)
-      }}
-      onMouseLeave={() => {
-        props.setHovered?.(false)
-        props.editor.hyperlinkToolbar!.startHideTimer()
-      }}
       className="link-preview-toolbar bg-muted flex max-h-[60vh] w-[320px] overflow-auto rounded-md p-2 shadow-lg"
     >
       {isEditing ? (

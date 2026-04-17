@@ -14,7 +14,7 @@ import {DefaultHyperlinkToolbar} from './DefaultHyperlinkToolbar'
 
 export type HyperlinkToolbarProps = Pick<
   HyperlinkToolbarProsemirrorPlugin<any>,
-  'deleteHyperlink' | 'startHideTimer' | 'stopHideTimer' | 'updateHyperlink' | 'resetHyperlink'
+  'deleteHyperlink' | 'updateHyperlink' | 'resetHyperlink'
 > &
   Omit<HyperlinkToolbarState, keyof BaseUiElementState> & {
     editor: BlockNoteEditor<HMBlockSchema>
@@ -72,8 +72,6 @@ export const HyperlinkToolbarPositioner = <BSchema extends BlockSchema = Default
         text={text ?? ''}
         updateHyperlink={props.editor.hyperlinkToolbar!.updateHyperlink}
         deleteHyperlink={props.editor.hyperlinkToolbar!.deleteHyperlink}
-        startHideTimer={props.editor.hyperlinkToolbar!.startHideTimer}
-        stopHideTimer={props.editor.hyperlinkToolbar!.stopHideTimer}
         resetHyperlink={props.editor.hyperlinkToolbar!.resetHyperlink}
         onChangeLink={(key: 'url' | 'text', value: string) => {
           if (key == 'text') {
@@ -89,7 +87,6 @@ export const HyperlinkToolbarPositioner = <BSchema extends BlockSchema = Default
         // @ts-expect-error
         type={type}
         id={id}
-        setHovered={(hovering: boolean) => props.editor.hyperlinkToolbar!.setToolbarHovered(hovering)}
         toolbarProps={toolbarProps}
       />
     )

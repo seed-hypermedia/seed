@@ -38,7 +38,7 @@ export const DefaultHyperlinkToolbar = (
   }
 
   return (
-    <Toolbar onMouseEnter={props.stopHideTimer} onMouseLeave={props.startHideTimer}>
+    <Toolbar>
       <ToolbarButton mainTooltip="Edit" isSelected={false} onClick={() => setIsEditing(true)}>
         Edit Link
       </ToolbarButton>
