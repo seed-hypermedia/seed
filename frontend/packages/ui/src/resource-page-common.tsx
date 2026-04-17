@@ -1913,7 +1913,7 @@ function ContentViewWithOutline({
         </div>
       )}
 
-      <div {...mainContentProps}>
+      <div {...mainContentProps} className={cn(mainContentProps.className, 'px-4')}>
         {DocumentContentComponent ? (
           <DocumentContentComponent
             blocks={existingDraftContent ?? document.content}
