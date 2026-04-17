@@ -285,26 +285,6 @@ function SubscriptionsSection() {
     (contact) => contact.subscribe?.site && contact.subject !== selectedAccountId,
   )
 
-  // DEBUG: log raw contacts to reveal duplicate-contact cause (remove before merge)
-  if (siteSubscribedRaw && siteSubscribedRaw.length > 0) {
-    const bySubject = siteSubscribedRaw.reduce<Record<string, typeof siteSubscribedRaw>>((acc, c) => {
-      ;(acc[c.subject] ??= []).push(c)
-      return acc
-    }, {})
-    Object.entries(bySubject)
-      .filter(([, v]) => v.length > 1)
-      .forEach(([subj, dupes]) => {
-        console.warn(`[sidebar] ${dupes.length}x contacts for subject ${subj}:`)
-        dupes.forEach((c, i) =>
-          console.warn(`  [${i + 1}] id=${c.id}  signer=${c.signer}  account=${c.account}  name=${c.name}`),
-        )
-        const signers = new Set(dupes.map((c) => c.signer))
-        if (signers.size === 1)
-          console.warn(`  → All same signer — repeated createContact (race / postAccountCreateAction)`)
-        else console.warn(`  → ${signers.size} different signers — delegated keys creating separate blobs`)
-      })
-  }
-
   // Deduplicate by subject — the same site may have been joined multiple times
   // (e.g. via delegated keys or repeated join actions), each creating a separate
   // contact record with a unique tsid. The backend returns contacts ordered by
