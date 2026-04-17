@@ -57,18 +57,11 @@ export type {DomainResolverFn, DomainIdChangedCallback, ResolveOptions, Resolved
 export {fileToIpfsBlobs, filesToIpfsBlobs, resolveFileLinksInBlocks, hasFileLinks} from './file-to-ipfs'
 export type {CollectedBlob} from './file-to-ipfs'
 
-export {
-  parseMarkdown,
-  flattenToOperations,
-  parseInlineFormatting,
-  parseFrontmatter,
-  markdownBlockNodesToHMBlockNodes,
-} from './markdown-to-blocks'
-export type {BlockNode, SeedBlock, Annotation} from './markdown-to-blocks'
+export {parseMarkdown, parseInlineFormatting, parseFrontmatter} from './markdown-to-blocks'
 export {blocksToMarkdown, emitFrontmatter, slugify, draftFilename, parseDraftFilename} from './blocks-to-markdown'
 export type {BlocksToMarkdownOptions} from './blocks-to-markdown'
 
-export {createBlocksMap, matchBlockIds, computeReplaceOps, hmBlockNodeToBlockNode} from './block-diff'
+export {createBlocksMap, matchBlockIds, computeReplaceOps} from './block-diff'
 export type {APIBlockNode, APIBlock} from './block-diff'
 
 export {

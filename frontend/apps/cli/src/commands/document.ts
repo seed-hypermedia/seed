@@ -30,9 +30,9 @@ import {resolveKey} from '../utils/keyring'
 import {resolveIdWithClient} from '../utils/resolve-id'
 import {createSignerFromKey} from '../utils/signer'
 import {resolveDocumentState} from '../utils/depth'
-import {parseMarkdown, flattenToOperations, type BlockNode} from '../utils/markdown'
+import {parseMarkdown} from '../utils/markdown'
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
-import {createBlocksMap, computeReplaceOps, hmBlockNodeToBlockNode, type APIBlockNode} from '../utils/block-diff'
+import {createBlocksMap, computeReplaceOps, type APIBlockNode} from '../utils/block-diff'
 import {resolveFileLinks} from '../utils/file-links'
 import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
 
@@ -96,7 +96,7 @@ export type ParsedInput = {
   ops: DocumentOperation[]
   metadata: HMMetadata
   fileBlobs: CollectedBlob[]
-  tree?: BlockNode[] // parsed block tree for smart diffing in update
+  tree?: HMBlockNode[] // parsed block tree for smart diffing in update
   blocks?: HMBlockNode[] // for dry-run rendering
   source?: string // extraction method label
 }
@@ -180,22 +180,16 @@ export async function readInput(options: {file?: string; grobidUrl?: string; qui
       ops: hmBlockNodesToOperations(nodes),
       metadata: {},
       fileBlobs: resolved.blobs,
-      tree: nodes.map(hmBlockNodeToBlockNode),
+      tree: nodes,
     }
   }
 
   // ── Markdown path ──
-  const {tree, metadata} = parseMarkdown(content!)
-  const ops = flattenToOperations(tree)
+  const {tree: hmNodes, metadata} = parseMarkdown(content!)
+  const resolved = await resolveFileLinks(hmNodes)
+  const ops = hmBlockNodesToOperations(resolved.nodes)
 
-  // Resolve file:// links in the tree (images with local paths)
-  // We need to convert BlockNode tree back through operations,
-  // but file:// links are in the operations already via the link field.
-  // For now, file:// resolution only applies to JSON blocks input.
-  // Markdown images get file:// prepended at tokenizer level and will
-  // be resolved when we add block-level file link resolution.
-
-  return {ops, metadata, fileBlobs: [], tree}
+  return {ops, metadata, fileBlobs: resolved.blobs, tree: resolved.nodes}
 }
 
 export function registerDocumentCommands(program: Command) {

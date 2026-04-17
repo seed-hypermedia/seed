@@ -16,18 +16,17 @@
 
 import {parse as parseYaml} from 'yaml'
 import type {HMBlockNode, HMMetadata} from './hm-types'
-import type {DocumentOperation} from './change'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type Annotation = {
+type Annotation = {
   type: string
   starts: number[]
   ends: number[]
   link?: string
 }
 
-export type SeedBlock = {
+type SeedBlock = {
   type: string
   id: string
   text: string
@@ -37,7 +36,7 @@ export type SeedBlock = {
   link?: string
 }
 
-export type BlockNode = {
+type BlockNode = {
   block: SeedBlock
   children: BlockNode[]
 }
@@ -635,7 +634,7 @@ export function parseFrontmatter(markdown: string): {
  * When no ID is present, random 8-char IDs are generated.
  */
 export function parseMarkdown(markdown: string): {
-  tree: BlockNode[]
+  tree: HMBlockNode[]
   metadata: HMMetadata
 } {
   const {content, metadata} = parseFrontmatter(markdown)
@@ -704,7 +703,7 @@ export function parseMarkdown(markdown: string): {
     }
   }
 
-  return {tree: rootNodes, metadata}
+  return {tree: markdownBlockNodesToHMBlockNodes(rootNodes), metadata}
 }
 
 /**
@@ -715,7 +714,7 @@ export function parseMarkdown(markdown: string): {
  * The resulting tree can be fed into `hmBlocksToEditorContent()` to get
  * BlockNote editor blocks.
  */
-export function markdownBlockNodesToHMBlockNodes(nodes: BlockNode[]): HMBlockNode[] {
+function markdownBlockNodesToHMBlockNodes(nodes: BlockNode[]): HMBlockNode[] {
   return nodes.map((node) => {
     const {block} = node
     const attributes: Record<string, unknown> = {}
@@ -749,59 +748,4 @@ export function markdownBlockNodesToHMBlockNodes(nodes: BlockNode[]): HMBlockNod
       children: node.children.length > 0 ? markdownBlockNodesToHMBlockNodes(node.children) : undefined,
     } as HMBlockNode
   })
-}
-
-// ─── Operations builder ──────────────────────────────────────────────────────
-
-/**
- * Flattens a block tree into Seed document operations.
- *
- * For each block:
- * 1. ReplaceBlock — defines the block content
- * 2. MoveBlocks — positions the block under its parent
- *
- * Operations are ordered so that ReplaceBlock comes before MoveBlocks
- * for each level, and children are processed recursively.
- */
-export function flattenToOperations(tree: BlockNode[], parentId: string = ''): DocumentOperation[] {
-  const ops: DocumentOperation[] = []
-  const blockIds: string[] = []
-
-  for (const node of tree) {
-    // Build the block object for ReplaceBlock.
-    // Attributes are inlined at the top level of the block (not nested).
-    const block: Record<string, unknown> = {
-      type: node.block.type,
-      id: node.block.id,
-      text: node.block.text,
-      annotations: node.block.annotations,
-    }
-
-    if (node.block.language !== undefined) {
-      block['language'] = node.block.language
-    }
-
-    if (node.block.childrenType !== undefined) {
-      block['childrenType'] = node.block.childrenType
-    }
-
-    if (node.block.link !== undefined) {
-      block['link'] = node.block.link
-    }
-
-    ops.push({type: 'ReplaceBlock', block})
-    blockIds.push(node.block.id)
-
-    // Recurse into children
-    if (node.children.length > 0) {
-      ops.push(...flattenToOperations(node.children, node.block.id))
-    }
-  }
-
-  // Position all blocks at this level under the parent
-  if (blockIds.length > 0) {
-    ops.push({type: 'MoveBlocks', blocks: blockIds, parent: parentId})
-  }
-
-  return ops
 }
