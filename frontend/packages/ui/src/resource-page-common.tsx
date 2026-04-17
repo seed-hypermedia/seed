@@ -43,6 +43,7 @@ import {
   useDocumentSend,
   useDocumentSync,
   useDraftResolutionSync,
+  useScrollSync,
   useVersionLatestSync,
 } from '@shm/shared/models/use-document-machine'
 import {getRoutePanel} from '@shm/shared/routes'
@@ -721,6 +722,8 @@ function DocumentBody({
   useVersionLatestSync(isLatest)
   // Sync account IDs into the machine (for draft saving / publishing)
   useAccountSync(signingAccountId, publishAccountUid)
+  // Forward scroll events from the scroll container to the machine
+  useScrollSync()
   // Sync draft resolution — machine stays in loading until this settles.
   // undefined = still loading, {draftId: null} = no draft, {draftId: string} = draft + content ready
   const draftResolution = useMemo(() => {
@@ -1448,6 +1451,7 @@ function DocumentBody({
           </div>
         ) : null}
         <ScrollArea
+          id="scroll-page-wrapper"
           className="h-full"
           viewportClassName="[&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
           fillViewportContent

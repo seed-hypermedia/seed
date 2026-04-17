@@ -1,5 +1,6 @@
+import {useHideOnDocumentScroll} from '@shm/shared/models/use-document-machine'
 import {Link, MessageSquare} from 'lucide-react'
-import React, {useEffect, useRef, useState} from 'react'
+import React, {useCallback, useEffect, useRef, useState} from 'react'
 import {BlockNoteEditor} from '../../core/BlockNoteEditor'
 import {BlockSchema} from '../../core/extensions/Blocks/api/blockTypes'
 import {
@@ -93,6 +94,13 @@ export function RangeSelectionPositioner<BSchema extends BlockSchema = BlockSche
       setSelectionState(state)
     })
   }, [editor])
+
+  // Hide the bubble on document scroll.
+  useHideOnDocumentScroll(
+    useCallback(() => {
+      setSelectionState({show: false, blockId: null, rangeStart: null, rangeEnd: null, referenceRect: null})
+    }, []),
+  )
 
   if (
     !selectionState.show ||

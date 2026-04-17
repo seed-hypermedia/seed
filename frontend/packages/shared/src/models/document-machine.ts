@@ -6,7 +6,7 @@ import {
   HMNavigationItem,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {assign, fromPromise, raise, setup, StateFrom} from 'xstate'
+import {assign, emit, fromPromise, raise, setup, StateFrom} from 'xstate'
 
 // -- Types --
 
@@ -85,6 +85,7 @@ export type DocumentMachineEvent =
     }
   | {type: '_save.started'}
   | {type: '_save.completed'}
+  | {type: 'scroll'}
 
 /** Input for the writeDraft actor. */
 export type WriteDraftInput = {
@@ -118,6 +119,7 @@ export const documentMachine = setup({
     input: {} as DocumentMachineInput,
     context: {} as DocumentMachineContext,
     events: {} as DocumentMachineEvent,
+    emitted: {} as {type: 'scrolling'},
   },
   actions: {
     setDocumentData: assign({
@@ -309,6 +311,11 @@ export const documentMachine = setup({
 }).createMachine({
   /** @xstate-layout N4IgpgJg5mDOIC5QBED2BjArgWzAOwBcAZASwDMx0BPdAGzADpbUBDCEvKAYggx3wJNWESAG0ADAF1EoAA6pYJAiVR4ZIAB6IAHOIDsDACyGAnCYCse7SYCM2mw4A0IKogBM58QwBsAZmt63tp6Nt4WFgC+Ec5oWLiEpBTUdIzMbBzcvHECDGAATnmoeRLSSCDyisqq6loIpiYMFuL22m7ihuIehs6uCG6+5gzawd5u-d7ifg5RMXzxxOSUNPRC6ZxcGrAELASMLGS7eQAUaeycACokuKiYBACUXLH8CYvJK6cZJeoVSipqZbVzDZBn5tL5jOITNpRsCeohzGEfOZhiY3CZDHpkcYZiAnvNEksUqsRBAuJAlAwtiw8gQvmUflV-qBajZfFCGOIbP1fA4uX5vOY4Qg9B4GG4HOJzFCJYYxji8QICW9UsJIDw5jk8mBsKhdgBVWQQHZgOlyBS-aoAxAmPQNKGmXydSFBcFChzaJHWNnacyGcyWQLyjUvJLLFVsNWm8rmxk1RCs9mc7m8tz8wUuRC+PxGaxhTwmbyGByGIPZEOElbk5TrKsMdAsPDoMC0KMMv5xhCszkMLlF8H2foWboZhD2HvBNzQqysnmF0vPBaholVjJcdAACwbMAYeBYADcSFAdn9WzH21bO3pwT5UZy9HpDKNbUKBjYOeY2j6gh-J9p5-jXjDXJ2GrbgNy3RhdwPI9GVEGxSjNSpz2ZeMr0MG82hse9HzcZ8RxTBhbUCItDAGP0oX-RVAOXEDVyyBcGC1HV9UNY1TyQy0UL6B8DFIvlmnFXQ3DdaEGA-CZjARcxfF8NxSMo8tlWA35OAYEgIHoNdN04E0pG+M9OM0dxWi8TpRk5STPEmIVMUGWxtCLe8HPsLCFMXCtGBXVT1M0rVYDAQR0FUXZCHYi0mSMvoTI5VNMMs8RrJHH03w8EJbKCAdzDcpUgK8qA1I0sAuFkTAACNaBIWB10pbYaTC2MLw-N0eV8G92mMMwEtlGxsuoytaNU8CdNJIaYHq5DIp5XCGF8B80UhLCpVTIVvyGIFrBsSErALHrolxYN3KUvK620mBST8gK62CgRxsM2opta3R7VTUj7JWgYhhMfR-A-DETFk3ql36lT8tGtVNm2XYGH2Q4jhYW4FH3MBLmuW4HgVRTcoG0HTrEPT6QMiL7twhoxgFcRZtTPRORs4IjARbwsL9YFbRMQGPOU0CTog0kIeNaGDnyOGEdgJGUbAG57keA6cpokHueGuCEOjDiieMtoYvMmx4sS3pqY9CwHx9UiMoLdmjuxustWPdZeDwRgOD3VAAGtGAAdzyJQwGQPIYdutW+lfIwC1MJ9ZWGXw3WBdDvELRnsNsaSSz2jHDqx+X0Gt0D1XttS8Cd12GA9r2fb9+D9NVjt+iBYPCwLXDw7BN0KZBfxbUlATCz0c3065zOwBt7h8kKPIGFkWgdjIIpsCLz3dlLg5-aroPQ9Dhvf0jkd0Vax1OllRmWqCHu5b7rPVzBpeLzabxeLCVMbAsLM+yFMw3xCWwQ+CdpwWP4HT4H7OF1ArXVCvjRC4Uq6TFvqiRmj9CysiFLmGauhSJf0dPvX+nlLaiwPLbVQDt84u3dnPb2vtF5gJVhAi8Ax0SETktJEYaI8J60mI0SUuFZrWHRLtWYZY04nwyJSfcdF8F5wLsQkuZDaTlwJpXahjpBgP0COKKYQQX5XjFJw2BN8hxZRTjLPqWD5Y4NXMPIoY8J4ECnnkGexd55SMvlxcEGsBiTFTJKHknQhSmHQmMbWhYAxjFRJgzmgiTHrAvhQtsd1MwClaglL6WYrybShN4IUWIhi2jkgMIEkpQghOOuE7gQCrqEBulEwmHYszSQ5JCCmN9PGpO8dYMSHRDA+kCNTTw94QklXKpVdcgiOAAAVChQD8rAHOBDxFjzKhVKqqdHGTWaIRAstopTEVZHoRB3Yiwuk5AKOw4pelzIGUMvAozUDjLgJMsxo9x6T2nrM-pCyDpLNqDaVqsUzDBHaeKCwiDURiTCK+bqzQH4nJeYMwa9AGwZANFwd51oNHfKhEbf56ZejSTcKsiYaJ0GShvlEPaeBUAiHgGUVOst6AVyoVxAAtP4sS99QiDmkveIU9K7JmB5QKG+j5qZuBCR8TgtKGpcSBdCQs-gKaoP+m6IsYkZKJMhOJMwejeELmpeGEkYqJosjJjNGSD8ZyTD9MOXoAwDaYk6FCGSyIgQav2nw7VoTRWyLpZFUIok753gfE+EwQpUyPTjknHJvp5L6JdYYt1+UfJgD1TE7iDgjBFm1jOEIyI0lb0LHQx0LQsKEr-FGrVMbjpgwgImgOPJZRrU5Ale8skPyYsQFYbwPYvqFmGC0AsbMS0ASBkY-+g8q2QMfEMLCN8b5SlGNJKOdhCJ+jJiKKUsli2aoHRzQpwj3XgPFZNPwOKBgPkdbNZom89bIiGLHa+WzoQA37VRQdzz5nQqgKOi89L2TiQcKMNk7KQgrWzH4La1cEmBkfZjIkfTX3nMudc2AFK936sQFyrwP7WX-tmiEC1rbbC1K7t67ptpIWwZhQPPA8LZAfq4s2nsmJbAU02oEawNlPATvsP9aEzQP4FIKEUGjkURQpQ6X4fwX0sLbJHMYdtbJJwZTcTabwxKIhAA */
   id: 'DocumentLifecycle',
+  on: {
+    scroll: {
+      actions: emit({type: 'scrolling'}),
+    },
+  },
   context: ({input}) => ({
     documentId: input.documentId,
     draftId: input.existingDraftId ?? null,

@@ -1,8 +1,8 @@
 import {Block, BlockNoteEditor, BlockSchema, DefaultBlockSchema, SideMenuProsemirrorPlugin} from '../../../core'
 import {getGroupInfoFromPos} from '../../../core/extensions/Blocks/helpers/getGroupInfoFromPos'
-import {scrollEvents} from '../../../../editor-on-scroll-stream'
+import {useHideOnDocumentScroll} from '@shm/shared/models/use-document-machine'
 import Tippy from '@tippyjs/react'
-import {FC, useEffect, useMemo, useRef, useState} from 'react'
+import {FC, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {DefaultSideMenu} from './DefaultSideMenu'
 import {DragHandleMenuProps} from './DragHandleMenu/DragHandleMenu'
 import {DropIndicator} from './DropIndicator'
@@ -34,18 +34,19 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
     })
   }, [props.editor])
 
+  const handleHide = useCallback(() => {
+    props.editor.sideMenu!.unfreezeMenu()
+    setShow(false)
+  }, [props.editor])
+
+  useHideOnDocumentScroll(handleHide)
+
   useEffect(() => {
-    scrollEvents.subscribe(handleHide)
     window.addEventListener('resize', handleHide)
     return () => {
       window.removeEventListener('resize', handleHide)
     }
-
-    function handleHide() {
-      props.editor.sideMenu!.unfreezeMenu()
-      setShow(false)
-    }
-  }, [])
+  }, [handleHide])
 
   const getReferenceClientRect = useMemo(
     () => {

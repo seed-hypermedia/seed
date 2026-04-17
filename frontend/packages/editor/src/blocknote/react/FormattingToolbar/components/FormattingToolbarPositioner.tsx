@@ -1,3 +1,4 @@
+import {useHideOnDocumentScroll} from '@shm/shared/models/use-document-machine'
 import Tippy from '@tippyjs/react'
 import {FC, useEffect, useMemo, useRef, useState} from 'react'
 import {sticky} from 'tippy.js'
@@ -24,6 +25,8 @@ export const FormattingToolbarPositioner = <BSchema extends BlockSchema = Defaul
       referencePos.current = state.referencePos
     })
   }, [props.editor])
+
+  useHideOnDocumentScroll(() => setShow(false))
 
   const getReferenceClientRect = useMemo(() => {
     if (!referencePos) {

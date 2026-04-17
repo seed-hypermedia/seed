@@ -1,5 +1,6 @@
+import {useHideOnDocumentScroll} from '@shm/shared/models/use-document-machine'
 import {Link, MessageSquare} from 'lucide-react'
-import React, {useEffect, useRef, useState} from 'react'
+import React, {useCallback, useEffect, useRef, useState} from 'react'
 import {BlockNoteEditor} from '../../core/BlockNoteEditor'
 import {
   BlockHoverActionsCallbacks,
@@ -106,6 +107,15 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
       highlightedElRef.current?.classList.remove(HOVER_BG_CLASS)
     }
   }, [])
+
+  // Hide the card and remove highlight class on document scroll.
+  useHideOnDocumentScroll(
+    useCallback(() => {
+      setHoverState({show: false, blockId: null, referenceRect: null})
+      highlightedElRef.current?.classList.remove(HOVER_BG_CLASS)
+      highlightedElRef.current = null
+    }, []),
+  )
 
   if (!hoverState.show || !hoverState.referenceRect || !hoverState.blockId) {
     return null

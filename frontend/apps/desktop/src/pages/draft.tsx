@@ -30,7 +30,6 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {BlockNoteEditor} from '@shm/editor/blocknote'
-import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import '@shm/editor/editor.css'
 import {chromiumSupportedImageMimeTypes, chromiumSupportedVideoMimeTypes, generateBlockId} from '@shm/editor/utils'
 import {CommentsProvider} from '@shm/shared/comments-service-provider'
@@ -563,7 +562,7 @@ function DocumentEditor({
         >
           <DraftActionButtons route={route} />
         </div>
-        <ScrollArea className="h-full" onScroll={() => dispatchScroll(true)}>
+        <ScrollArea id="scroll-page-wrapper" className="h-full">
           <DraftCover
             draftActor={actor}
             // @ts-expect-error

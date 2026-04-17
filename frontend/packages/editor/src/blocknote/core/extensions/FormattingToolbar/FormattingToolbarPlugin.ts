@@ -58,8 +58,6 @@ export class FormattingToolbarView<BSchema extends BlockSchema> {
 
     pmView.dom.addEventListener('focus', this.focusHandler)
     pmView.dom.addEventListener('blur', this.blurHandler)
-
-    document.addEventListener('scroll', this.scrollHandler)
   }
 
   viewMousedownHandler = () => {
@@ -107,13 +105,6 @@ export class FormattingToolbarView<BSchema extends BlockSchema> {
 
     if (this.formattingToolbarState?.show) {
       this.formattingToolbarState.show = false
-      this.updateFormattingToolbar()
-    }
-  }
-
-  scrollHandler = () => {
-    if (this.formattingToolbarState?.show) {
-      this.formattingToolbarState.referencePos = this.getSelectionBoundingBox()
       this.updateFormattingToolbar()
     }
   }
@@ -173,8 +164,6 @@ export class FormattingToolbarView<BSchema extends BlockSchema> {
 
     this.pmView.dom.removeEventListener('focus', this.focusHandler)
     this.pmView.dom.removeEventListener('blur', this.blurHandler)
-
-    document.removeEventListener('scroll', this.scrollHandler)
   }
 
   getSelectionBoundingBox() {

@@ -94,6 +94,74 @@ export function useDocumentMachineRef(): DocumentMachineActorRef {
 }
 
 /**
+ * Read the document machine actor ref from context, or null if outside a provider.
+ * Unlike `useDocumentMachineRef`, this will NOT throw when used outside a `DocumentMachineProvider`.
+ */
+export function useDocumentMachineRefOptional(): DocumentMachineActorRef | null {
+  return useContext(DocumentMachineContext_)
+}
+
+/**
+ * Attach a native scroll listener to the document's scroll container viewport
+ * and forward `{type: 'scroll'}` events to the document machine (throttled).
+ *
+ * Finds the scroll viewport by querying `#scroll-page-wrapper [data-slot="scroll-area-viewport"]`.
+ * No-ops if the machine context or viewport element is unavailable.
+ */
+export function useScrollSync() {
+  const actorRef = useDocumentMachineRefOptional()
+
+  useEffect(() => {
+    if (!actorRef) return
+
+    const wrapper = document.getElementById('scroll-page-wrapper')
+    const viewport = wrapper
+      ? wrapper.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]') ?? wrapper
+      : null
+
+    if (!viewport) return
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const handleScroll = () => {
+      if (timeoutId) return
+      timeoutId = setTimeout(() => {
+        timeoutId = null
+        actorRef.send({type: 'scroll'})
+      }, 100)
+    }
+
+    viewport.addEventListener('scroll', handleScroll, {passive: true})
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll)
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  }, [actorRef])
+}
+
+/**
+ * Subscribe to the document machine's emitted `scrolling` event and call the
+ * provided callback when it fires.
+ *
+ * No-ops when used outside a `DocumentMachineProvider` (e.g. draft pages).
+ */
+export function useHideOnDocumentScroll(onScroll: () => void) {
+  const actorRef = useDocumentMachineRefOptional()
+  const callbackRef = useRef(onScroll)
+  callbackRef.current = onScroll
+
+  useEffect(() => {
+    if (!actorRef) return
+    const sub = actorRef.on('scrolling', () => {
+      callbackRef.current()
+    })
+    return () => {
+      sub.unsubscribe()
+    }
+  }, [actorRef])
+}
+
+/**
  * Sync a resolved document into the machine.
  * Sends `document.loaded` on first non-null document, then `document.remoteUpdate`
  * whenever the version changes.

@@ -46,7 +46,6 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     }
 
     document.addEventListener('click', this.clickHandler, true)
-    document.addEventListener('scroll', this.scrollHandler)
   }
 
   clickHandler = (event: MouseEvent) => {
@@ -70,28 +69,6 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
           ...this.hyperlinkToolbarState,
           show: false,
         }
-        this.updateHyperlinkToolbar()
-      }
-    }
-  }
-
-  scrollHandler = () => {
-    if (this.selectedNode) {
-      let markOrNode = this.selectedNode
-      let range = this.selectedNodeRange
-      const nodeId = this.hyperlinkToolbarState?.id
-      const nodeAndRange = getNodeAndRange(
-        markOrNode,
-        range,
-        nodeId,
-        this.pmView,
-        this,
-        this.hyperlinkToolbarState?.url,
-      )
-      if (nodeAndRange.markOrNode) markOrNode = nodeAndRange.markOrNode
-      if (nodeAndRange.range) range = nodeAndRange.range
-      if (this.hyperlinkToolbarState?.show && range) {
-        this.hyperlinkToolbarState.referencePos = posToDOMRect(this.pmView, range.from, range.to)
         this.updateHyperlinkToolbar()
       }
     }
@@ -359,7 +336,6 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
   }
 
   destroy() {
-    document.removeEventListener('scroll', this.scrollHandler)
     document.removeEventListener('click', this.clickHandler, true)
   }
 }

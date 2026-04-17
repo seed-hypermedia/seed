@@ -1,3 +1,4 @@
+import {useHideOnDocumentScroll} from '@shm/shared/models/use-document-machine'
 import Tippy from '@tippyjs/react'
 import {FC, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
@@ -47,6 +48,8 @@ export const HyperlinkToolbarPositioner = <BSchema extends BlockSchema = Default
       referencePos.current = hyperlinkToolbarState.referencePos
     })
   }, [props.editor])
+
+  useHideOnDocumentScroll(() => setShow(false))
 
   const getReferenceClientRect = useCallback(() => {
     return referencePos.current ?? new DOMRect()

@@ -1,4 +1,3 @@
-import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {HTMLAttributes} from 'react'
 
@@ -14,12 +13,7 @@ export function MainWrapper({
       this! */}
       <div className="h-full flex-1">
         {scrollable ? (
-          <ScrollArea
-            id="scroll-page-wrapper"
-            onScroll={() => {
-              dispatchScroll('scroll')
-            }}
-          >
+          <ScrollArea id="scroll-page-wrapper">
             {children}
           </ScrollArea>
         ) : (
@@ -35,12 +29,7 @@ export function MainWrapperStandalone({children, className, ...props}: HTMLAttri
     <div className={`flex flex-1 ${className || ''}`} {...props}>
       {/* TODO: we cannot remove this ID here because the SlashMenu is referencing
       this! */}
-      <ScrollArea
-        id="scroll-page-wrapper"
-        onScroll={() => {
-          dispatchScroll('scroll')
-        }}
-      >
+      <ScrollArea id="scroll-page-wrapper">
         {children}
       </ScrollArea>
     </div>
