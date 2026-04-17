@@ -19,6 +19,7 @@ import {
   BlockNoteView,
   BlockHoverActionsPositioner,
   FormattingToolbarPositioner,
+  FullBlockSelectionObserver,
   HyperlinkToolbarPositioner,
   ImageGalleryOverlay,
   LinkMenuPositioner,
@@ -60,6 +61,7 @@ export function DocumentEditor({
   onBlockCommentClick,
   onBlockSelect,
   onEditorReady,
+  onBlocksFullSelected,
   draftCursorPosition,
 }: DocumentContentProps) {
   const openUrl = useOpenUrl()
@@ -369,6 +371,7 @@ export function DocumentEditor({
           data={blockCitations ?? null}
           onSupernumberClick={onBlockCitationClick ? (blockId) => onBlockCitationClick(blockId) : undefined}
         />
+        <FullBlockSelectionObserver editor={editor} onBlocksFullSelected={onBlocksFullSelected} />
       </BlockNoteView>
     </FragmentActionsContext.Provider>
   )

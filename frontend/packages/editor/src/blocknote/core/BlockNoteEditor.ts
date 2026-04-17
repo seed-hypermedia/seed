@@ -39,6 +39,7 @@ import {BlockHoverActionsProsemirrorPlugin} from './extensions/BlockHoverActions
 import {FormattingToolbarProsemirrorPlugin} from './extensions/FormattingToolbar/FormattingToolbarPlugin'
 import {HyperlinkToolbarProsemirrorPlugin} from './extensions/HyperlinkToolbar/HyperlinkToolbarPlugin'
 import {LinkMenuProsemirrorPlugin} from './extensions/LinkMenu/LinkMenuPlugin'
+import {FullBlockSelectionProsemirrorPlugin} from './extensions/FullBlockSelection/FullBlockSelectionPlugin'
 import {RangeSelectionProsemirrorPlugin} from './extensions/RangeSelection/RangeSelectionPlugin'
 import {DragStateManager} from './extensions/SideMenu/drag-state'
 import {createEditorDragId} from './extensions/SideMenu/pragmatic-dnd-bridge'
@@ -226,6 +227,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public readonly linkMenu: LinkMenuProsemirrorPlugin<BSchema, any> | null
   public readonly blockHoverActions: BlockHoverActionsProsemirrorPlugin<BSchema> | null
   public readonly rangeSelection: RangeSelectionProsemirrorPlugin<BSchema> | null
+  public readonly fullBlockSelection: FullBlockSelectionProsemirrorPlugin<BSchema> | null
 
   public readonly renderType: EditorRenderType
 
@@ -272,6 +274,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     // Read-only UI plugins: for document + viewer (not embed)
     this.blockHoverActions = isEmbed ? null : new BlockHoverActionsProsemirrorPlugin(this)
     this.rangeSelection = isEmbed ? null : new RangeSelectionProsemirrorPlugin(this)
+    this.fullBlockSelection = isEmbed ? null : new FullBlockSelectionProsemirrorPlugin(this)
 
     // DnD state: only for editable modes (where sideMenu exists)
     this.dragStateManager = this.sideMenu ? new DragStateManager() : null
@@ -290,7 +293,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     })
 
     if (!isEmbed) {
-      const plugins = [this.blockHoverActions!.plugin, this.rangeSelection!.plugin]
+      const plugins = [this.blockHoverActions!.plugin, this.rangeSelection!.plugin, this.fullBlockSelection!.plugin]
 
       // Editing UI plugins only for non-readonly modes
       if (!isReadOnly) {

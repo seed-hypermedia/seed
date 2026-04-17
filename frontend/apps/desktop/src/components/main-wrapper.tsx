@@ -12,13 +12,7 @@ export function MainWrapper({
       {/* TODO: we cannot remove this ID here because the SlashMenu is referencing
       this! */}
       <div className="h-full flex-1">
-        {scrollable ? (
-          <ScrollArea id="scroll-page-wrapper">
-            {children}
-          </ScrollArea>
-        ) : (
-          children
-        )}
+        {scrollable ? <ScrollArea id="scroll-page-wrapper">{children}</ScrollArea> : children}
       </div>
     </div>
   )
@@ -29,9 +23,7 @@ export function MainWrapperStandalone({children, className, ...props}: HTMLAttri
     <div className={`flex flex-1 ${className || ''}`} {...props}>
       {/* TODO: we cannot remove this ID here because the SlashMenu is referencing
       this! */}
-      <ScrollArea id="scroll-page-wrapper">
-        {children}
-      </ScrollArea>
+      <ScrollArea id="scroll-page-wrapper">{children}</ScrollArea>
     </div>
   )
 }

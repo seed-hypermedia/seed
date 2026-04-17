@@ -1,0 +1,5 @@
+.bn-full-block-selected {
+  background-color: hsl(213 94% 55% / 0.08);
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}

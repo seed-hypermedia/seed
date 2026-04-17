@@ -2,6 +2,7 @@ import {
   BlockHoverActionsPositioner,
   BlockNoteView,
   FormattingToolbarPositioner,
+  FullBlockSelectionObserver,
   HyperlinkToolbarPositioner,
   ImageGalleryOverlay,
   LinkMenuPositioner,
@@ -34,6 +35,7 @@ export function HyperMediaEditorView({
   onCopyFragmentLink,
   onComment,
   onSupernumberClick,
+  onBlocksFullSelected,
   resolveImageUrl,
 }: {
   editor: HyperMediaEditor
@@ -47,6 +49,8 @@ export function HyperMediaEditorView({
   onCopyFragmentLink?: (blockId: string, rangeStart: number, rangeEnd: number) => void
   onComment?: (blockId: string, rangeStart: number, rangeEnd: number) => void
   onSupernumberClick?: (blockId: string) => void
+  /** Called when the set of fully-selected blocks changes. */
+  onBlocksFullSelected?: (blockIds: string[]) => void
   resolveImageUrl?: (url: string) => string
 }) {
   const selectedAccountId = useSelectedAccountId()
@@ -90,6 +94,7 @@ export function HyperMediaEditorView({
             <RangeSelectionPositioner editor={editor} onCopyFragmentLink={onCopyFragmentLink} onComment={onComment} />
           </>
         )}
+        <FullBlockSelectionObserver editor={editor} onBlocksFullSelected={onBlocksFullSelected} />
       </BlockNoteView>
       <ImageGalleryOverlay editor={editor} resolveImageUrl={resolveImageUrl} />
       {hasPublishedVersion && (
