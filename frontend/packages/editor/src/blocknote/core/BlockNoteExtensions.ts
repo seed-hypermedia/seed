@@ -24,7 +24,6 @@ import {BlockChildren, BlockNode, Doc} from './extensions/Blocks'
 import {BlockNoteDOMAttributes} from './extensions/Blocks/api/blockTypes'
 import {CustomBlockSerializerExtension} from './extensions/Blocks/api/serialization'
 import blockStyles from './extensions/Blocks/nodes/Block.module.css'
-import {HMDropCursor} from './extensions/GridDropCursor/GridDropCursorExtension'
 import {ImageGalleryPlugin} from './extensions/ImageGallery/ImageGalleryPlugin'
 import {createSupernumbersPlugin} from './extensions/Supernumbers/SupernumbersPlugin'
 import {KeyboardShortcutsExtension} from './extensions/KeyboardShortcuts/KeyboardShortcutsExtension'
@@ -94,6 +93,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     HardBreak,
     BlockNode.configure({
       domAttributes: opts.domAttributes,
+      editor: opts.editor,
     }),
   ]
 
@@ -144,7 +144,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
         editor: opts.editor,
       }),
 
-      HMDropCursor.configure({width: 5, color: '#ddeeff'}),
+      // Drop cursor replaced by Pragmatic DnD DropIndicator
 
       // This needs to be at the bottom of this list, because Key events (such as enter, when selecting a /command),
       // should be handled before Enter handlers in other components like splitListItem

@@ -40,6 +40,8 @@ import {FormattingToolbarProsemirrorPlugin} from './extensions/FormattingToolbar
 import {HyperlinkToolbarProsemirrorPlugin} from './extensions/HyperlinkToolbar/HyperlinkToolbarPlugin'
 import {LinkMenuProsemirrorPlugin} from './extensions/LinkMenu/LinkMenuPlugin'
 import {RangeSelectionProsemirrorPlugin} from './extensions/RangeSelection/RangeSelectionPlugin'
+import {DragStateManager} from './extensions/SideMenu/drag-state'
+import {createEditorDragId} from './extensions/SideMenu/pragmatic-dnd-bridge'
 import {SideMenuProsemirrorPlugin} from './extensions/SideMenu/SideMenuPlugin'
 import {BaseSlashMenuItem} from './extensions/SlashMenu/BaseSlashMenuItem'
 import {SlashMenuProsemirrorPlugin} from './extensions/SlashMenu/SlashMenuPlugin'
@@ -214,6 +216,8 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     Recents: [],
   }
 
+  public readonly dragStateManager: DragStateManager | null
+  public readonly editorDragId: string | null
   public readonly sideMenu: SideMenuProsemirrorPlugin<BSchema> | null
   public readonly formattingToolbar: FormattingToolbarProsemirrorPlugin<BSchema> | null
   public readonly slashMenu: SlashMenuProsemirrorPlugin<BSchema, any> | null
@@ -269,6 +273,10 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     this.blockHoverActions = isEmbed ? null : new BlockHoverActionsProsemirrorPlugin(this)
     this.rangeSelection = isEmbed ? null : new RangeSelectionProsemirrorPlugin(this)
 
+    // DnD state: only for editable modes (where sideMenu exists)
+    this.dragStateManager = this.sideMenu ? new DragStateManager() : null
+    this.editorDragId = this.sideMenu ? createEditorDragId() : null
+
     this.importWebFile = newOptions.importWebFile
     this.handleFileAttachment = newOptions.handleFileAttachment
 
@@ -288,6 +296,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
       if (!isReadOnly) {
         plugins.push(
           this.sideMenu!.plugin,
+          this.sideMenu!.blockDragGuardPlugin,
           this.formattingToolbar!.plugin,
           this.slashMenu!.plugin,
           this.mentionMenu!.plugin,

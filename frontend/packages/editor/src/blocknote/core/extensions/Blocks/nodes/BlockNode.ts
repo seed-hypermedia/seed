@@ -8,6 +8,7 @@ import {updateGroupCommand} from '../../../api/blockManipulation/commands/update
 import {mergeCSSClasses} from '../../../shared/utils'
 import {BlockNoteDOMAttributes} from '../api/blockTypes'
 import {getBlockInfoFromPos} from '../helpers/getBlockInfoFromPos'
+import {setupBlockDropTarget} from '../../SideMenu/pragmatic-dnd-bridge'
 import styles from './Block.module.css'
 import BlockAttributes from './BlockAttributes'
 
@@ -173,6 +174,7 @@ declare module '@tiptap/core' {
  */
 export const BlockNode = Node.create<{
   domAttributes?: BlockNoteDOMAttributes
+  editor?: any // BlockNoteEditor — passed for Pragmatic DnD drop target setup
 }>({
   name: 'blockNode',
   group: 'blockNodeChild',
@@ -401,6 +403,20 @@ export const BlockNode = Node.create<{
 
       let currentDecorations: readonly Decoration[] = decorations
 
+      // Setup Pragmatic DnD drop target
+      let dropTargetCleanup: (() => void) | undefined
+      const bnEditor = this.options.editor
+      if (bnEditor?.dragStateManager && bnEditor?.editorDragId) {
+        let currentBlockId = node.attrs.id
+        dropTargetCleanup = setupBlockDropTarget(
+          dom,
+          () => currentBlockId,
+          bnEditor,
+          bnEditor.dragStateManager,
+          bnEditor.editorDragId,
+        )
+      }
+
       return {
         dom,
         contentDOM: dom,
@@ -436,6 +452,9 @@ export const BlockNode = Node.create<{
           currentDecorations = updatedDecorations
 
           return true
+        },
+        destroy() {
+          dropTargetCleanup?.()
         },
       }
     }
