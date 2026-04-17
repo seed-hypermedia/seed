@@ -1531,6 +1531,12 @@ function EditableDocumentHeader({
           applyTitleResize(e.target)
           send({type: 'change', metadata: {name: e.target.value}})
         }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && isEditing) {
+            e.currentTarget.blur()
+            send({type: 'edit.cancel'})
+          }
+        }}
         placeholder="Document Title"
       />
       <textarea
@@ -1544,6 +1550,12 @@ function EditableDocumentHeader({
         onChange={(e) => {
           applyTitleResize(e.target)
           send({type: 'change', metadata: {summary: e.target.value}})
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && isEditing) {
+            e.currentTarget.blur()
+            send({type: 'edit.cancel'})
+          }
         }}
         placeholder="Document Summary"
       />

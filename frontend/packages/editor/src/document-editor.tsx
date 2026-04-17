@@ -148,6 +148,18 @@ export function DocumentEditor({
               }
             },
           }),
+          Extension.create({
+            name: 'document-escape-editing',
+            priority: 0,
+            addKeyboardShortcuts() {
+              return {
+                Escape: () => {
+                  actorRef.send({type: 'edit.cancel'})
+                  return true
+                },
+              }
+            },
+          }),
         ],
       },
     },
