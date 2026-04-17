@@ -132,19 +132,11 @@ def main():
         run("pnpm install")
         run("plz build //backend:seed-daemon //:pnpm")
 
-        testnet_var = "SEED_P2P_TESTNET_NAME"
-        if testnet_var not in os.environ:
-            os.environ[testnet_var] = ""
-
-        testnet_name = os.environ.get(testnet_var, "")
-        if testnet_name:
-            os.environ["VITE_LIGHTNING_API_URL"] = "https://ln.testnet.seed.hyper.media"
-            host_url = "https://host-dev.seed.hyper.media"
-            gateway_url = "https://dev.hyper.media"
-        else:
-            os.environ["VITE_LIGHTNING_API_URL"] = "https://ln.seed.hyper.media"
-            host_url = "https://host.seed.hyper.media"
-            gateway_url = "https://hyper.media"
+        # build-desktop always targets mainnet, regardless of the ambient SEED_P2P_TESTNET_NAME.
+        os.environ["SEED_P2P_TESTNET_NAME"] = ""
+        os.environ["VITE_LIGHTNING_API_URL"] = "https://ln.seed.hyper.media"
+        host_url = "https://host.seed.hyper.media"
+        gateway_url = "https://hyper.media"
 
         # Enable React Profiler if --profiler flag is passed
         if "--profiler" in args:
