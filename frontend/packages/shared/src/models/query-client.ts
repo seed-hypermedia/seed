@@ -55,3 +55,13 @@ export function invalidateQueries(queryKey: QueryKey) {
   // Fire subscriptions for platform-specific behavior (IPC broadcast on desktop)
   queryInvalidationSubscriptions.forEach((handler) => handler(queryKey))
 }
+
+/**
+ * Immediately set cached data for all queries matching a key prefix.
+ * Use after mutations to prevent stale-while-revalidate flashes.
+ */
+export function setQueriesDataByKey(queryKey: QueryKey, data: unknown) {
+  if (registeredClient) {
+    registeredClient.setQueriesData({queryKey}, data)
+  }
+}

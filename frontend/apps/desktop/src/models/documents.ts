@@ -38,7 +38,7 @@ import {prepareHMDocument} from '@shm/shared/document-utils'
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {prepareHMDocumentInfo, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
-import {invalidateQueries} from '@shm/shared/models/query-client'
+import {invalidateQueries, setQueriesDataByKey} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {
   compareBlocksWithMap,
@@ -345,6 +345,13 @@ export function usePublishResource(
       })
       opts?.onSuccess?.(result, variables, context)
       if (resultDocId) {
+        // Immediately update cached data so components see the new document
+        // before the background refetch triggered by invalidation completes.
+        setQueriesDataByKey([queryKeys.ENTITY, resultDocId.id], {
+          type: 'document' as const,
+          document: result,
+          id: {...resultDocId, version: result.version},
+        })
         invalidateQueries([queryKeys.ENTITY, resultDocId.id])
         invalidateQueries([queryKeys.ACCOUNT, resultDocId.uid])
         invalidateQueries([queryKeys.RESOLVED_ENTITY, resultDocId.id])
