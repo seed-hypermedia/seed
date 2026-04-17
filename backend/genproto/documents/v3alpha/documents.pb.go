@@ -440,7 +440,9 @@ type CreateDocumentChangeRequest struct {
 	// Optional. Visibility of the document.
 	// Can only be specified here when creating the document for the first time,
 	// i.e. when `base_version` is empty.
-	Visibility    ResourceVisibility `protobuf:"varint,8,opt,name=visibility,proto3,enum=com.seed.documents.v3alpha.ResourceVisibility" json:"visibility,omitempty"`
+	Visibility ResourceVisibility `protobuf:"varint,8,opt,name=visibility,proto3,enum=com.seed.documents.v3alpha.ResourceVisibility" json:"visibility,omitempty"`
+	// Optional. A human-readable message describing this publish, similar to a git commit message.
+	Message       string `protobuf:"bytes,9,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -529,6 +531,13 @@ func (x *CreateDocumentChangeRequest) GetVisibility() ResourceVisibility {
 		return x.Visibility
 	}
 	return ResourceVisibility_RESOURCE_VISIBILITY_UNSPECIFIED
+}
+
+func (x *CreateDocumentChangeRequest) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
 }
 
 // Request to prepare an unsigned document change for client-side signing.
@@ -2546,7 +2555,9 @@ type CreateRefRequest struct {
 	// or will create a fresh generation number if there are no existing Refs for this path.
 	Generation int64 `protobuf:"varint,7,opt,name=generation,proto3" json:"generation,omitempty"`
 	// Output only. Visibility of the document.
-	Visibility    ResourceVisibility `protobuf:"varint,8,opt,name=visibility,proto3,enum=com.seed.documents.v3alpha.ResourceVisibility" json:"visibility,omitempty"`
+	Visibility ResourceVisibility `protobuf:"varint,8,opt,name=visibility,proto3,enum=com.seed.documents.v3alpha.ResourceVisibility" json:"visibility,omitempty"`
+	// Optional. A human-readable message describing this publish, similar to a git commit message.
+	Message       string `protobuf:"bytes,9,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2635,6 +2646,13 @@ func (x *CreateRefRequest) GetVisibility() ResourceVisibility {
 		return x.Visibility
 	}
 	return ResourceVisibility_RESOURCE_VISIBILITY_UNSPECIFIED
+}
+
+func (x *CreateRefRequest) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
 }
 
 // Request to get a Ref by ID.
@@ -3815,8 +3833,10 @@ type Ref struct {
 	Timestamp *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	// Information about the generation of the Ref.
 	GenerationInfo *GenerationInfo `protobuf:"bytes,8,opt,name=generation_info,json=generationInfo,proto3" json:"generation_info,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Optional. A human-readable message attached to this Ref by the publisher.
+	Message       string `protobuf:"bytes,9,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Ref) Reset() {
@@ -3903,6 +3923,13 @@ func (x *Ref) GetGenerationInfo() *GenerationInfo {
 		return x.GenerationInfo
 	}
 	return nil
+}
+
+func (x *Ref) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
 }
 
 // Description of where the Ref points to.
@@ -4455,7 +4482,7 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\x1bBatchGetDocumentInfoRequest\x12N\n" +
 	"\brequests\x18\x01 \x03(\v22.com.seed.documents.v3alpha.GetDocumentInfoRequestR\brequests\"f\n" +
 	"\x1cBatchGetDocumentInfoResponse\x12F\n" +
-	"\tdocuments\x18\x01 \x03(\v2(.com.seed.documents.v3alpha.DocumentInfoR\tdocuments\"\x88\x03\n" +
+	"\tdocuments\x18\x01 \x03(\v2(.com.seed.documents.v3alpha.DocumentInfoR\tdocuments\"\xa2\x03\n" +
 	"\x1bCreateDocumentChangeRequest\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12!\n" +
@@ -4468,7 +4495,8 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\ttimestamp\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12N\n" +
 	"\n" +
 	"visibility\x18\b \x01(\x0e2..com.seed.documents.v3alpha.ResourceVisibilityR\n" +
-	"visibility\"\x9d\x02\n" +
+	"visibility\x12\x18\n" +
+	"\amessage\x18\t \x01(\tR\amessage\"\x9d\x02\n" +
 	"\x14PrepareChangeRequest\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12!\n" +
@@ -4610,7 +4638,7 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x17\n" +
 	"\ais_read\x18\x03 \x01(\bR\x06isRead\x12!\n" +
-	"\fis_recursive\x18\x04 \x01(\bR\visRecursive\"\xf3\x02\n" +
+	"\fis_recursive\x18\x04 \x01(\bR\visRecursive\"\x8d\x03\n" +
 	"\x10CreateRefRequest\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12=\n" +
@@ -4625,7 +4653,8 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"generation\x12N\n" +
 	"\n" +
 	"visibility\x18\b \x01(\x0e2..com.seed.documents.v3alpha.ResourceVisibilityR\n" +
-	"visibility\"\x1f\n" +
+	"visibility\x12\x18\n" +
+	"\amessage\x18\t \x01(\tR\amessage\"\x1f\n" +
 	"\rGetRefRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"{\n" +
 	"\x0fListRefsRequest\x12\x18\n" +
@@ -4746,7 +4775,7 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\n" +
 	"null_value\x18\x06 \x01(\v2\x16.google.protobuf.EmptyH\x00R\tnullValueB\a\n" +
 	"\x05valueB\x04\n" +
-	"\x02op\"\xc9\x02\n" +
+	"\x02op\"\xe3\x02\n" +
 	"\x03Ref\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aaccount\x18\x02 \x01(\tR\aaccount\x12\x12\n" +
@@ -4757,7 +4786,8 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"capability\x18\x06 \x01(\tR\n" +
 	"capability\x128\n" +
 	"\ttimestamp\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12S\n" +
-	"\x0fgeneration_info\x18\b \x01(\v2*.com.seed.documents.v3alpha.GenerationInfoR\x0egenerationInfo\"\xa3\x03\n" +
+	"\x0fgeneration_info\x18\b \x01(\v2*.com.seed.documents.v3alpha.GenerationInfoR\x0egenerationInfo\x12\x18\n" +
+	"\amessage\x18\t \x01(\tR\amessage\"\xa3\x03\n" +
 	"\tRefTarget\x12I\n" +
 	"\aversion\x18\x01 \x01(\v2-.com.seed.documents.v3alpha.RefTarget.VersionH\x00R\aversion\x12L\n" +
 	"\bredirect\x18\x02 \x01(\v2..com.seed.documents.v3alpha.RefTarget.RedirectH\x00R\bredirect\x12O\n" +

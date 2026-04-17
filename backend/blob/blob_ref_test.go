@@ -44,7 +44,7 @@ func TestRefCausality(t *testing.T) {
 	time.Sleep(time.Millisecond)
 
 	// Create a Ref pointing to c2.
-	ref, err := NewRef(alice.Account, 0, c1.CID, alice.Account.Principal(), "/test-doc", []cid.Cid{c2.CID}, clock.MustNow(), VisibilityPublic)
+	ref, err := NewRef(alice.Account, 0, c1.CID, alice.Account.Principal(), "/test-doc", []cid.Cid{c2.CID}, clock.MustNow(), VisibilityPublic, "")
 	require.NoError(t, err)
 
 	blobs := colx.SlicePermutations([]struct {

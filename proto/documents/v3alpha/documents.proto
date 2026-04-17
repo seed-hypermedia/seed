@@ -200,6 +200,9 @@ message CreateDocumentChangeRequest {
   // Can only be specified here when creating the document for the first time,
   // i.e. when `base_version` is empty.
   ResourceVisibility visibility = 8;
+
+  // Optional. A human-readable message describing this publish, similar to a git commit message.
+  string message = 9;
 }
 
 // Request to prepare an unsigned document change for client-side signing.
@@ -651,6 +654,9 @@ message CreateRefRequest {
 
   // Output only. Visibility of the document.
   ResourceVisibility visibility = 8;
+
+  // Optional. A human-readable message describing this publish, similar to a git commit message.
+  string message = 9;
 }
 
 // Request to get a Ref by ID.
@@ -1004,6 +1010,9 @@ message Ref {
 
   // Information about the generation of the Ref.
   GenerationInfo generation_info = 8;
+
+  // Optional. A human-readable message attached to this Ref by the publisher.
+  string message = 9;
 }
 
 // Description of where the Ref points to.
