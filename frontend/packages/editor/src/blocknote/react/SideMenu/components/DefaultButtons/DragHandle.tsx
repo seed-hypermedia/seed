@@ -14,7 +14,7 @@ export const DragHandle = <BSchema extends BlockSchema>(props: SideMenuProps<BSc
   useEffect(() => {
     const el = dragRef.current
     if (!el) return
-    if (!props.editor.dragStateManager) return
+    if (!props.editor.dragStateManager || !props.editor.editorDragId) return
 
     return setupBlockDraggable(
       el,

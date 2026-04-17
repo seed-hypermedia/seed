@@ -40,6 +40,8 @@ export default defineConfig(({isSsrBuild}) => {
         '@yudiel/react-qr-scanner',
         // Match all @radix-ui packages
         /^@radix-ui\//,
+        // Match all @atlaskit packages (pragmatic-drag-and-drop uses directory-based subpaths)
+        /^@atlaskit\//,
         // Other packages that may have ESM/SSR issues
         'sonner',
         'class-variance-authority',
