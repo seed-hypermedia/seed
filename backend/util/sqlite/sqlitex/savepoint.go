@@ -124,7 +124,7 @@ func savepoint(conn *sqlite.Conn, name string) (releaseFn func(*error), err erro
 			if *errp == nil {
 				*errp = wrapped
 			} else {
-				*errp = fmt.Errorf("%w (also: rollback failed: %v)", *errp, err)
+				*errp = fmt.Errorf("%w (also: rollback failed: %w)", *errp, err)
 			}
 			if recoverP != nil {
 				panic(recoverP)
@@ -136,7 +136,7 @@ func savepoint(conn *sqlite.Conn, name string) (releaseFn func(*error), err erro
 			if *errp == nil {
 				*errp = wrapped
 			} else {
-				*errp = fmt.Errorf("%w (also: release failed: %v)", *errp, err)
+				*errp = fmt.Errorf("%w (also: release failed: %w)", *errp, err)
 			}
 			if recoverP != nil {
 				panic(recoverP)
