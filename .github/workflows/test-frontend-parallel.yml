@@ -17,12 +17,13 @@ on:
       - "renovate/**"
 
 jobs:
-  # Job 1a: Lint / format / typecheck. Split from tests so CI fails fast on
-  # cheap-to-check mistakes and the expensive vitest matrix can run in parallel.
-  lint-and-typecheck:
-    name: Lint & Typecheck
+  # Job 1a: Prettier + ts-directive scan. No type checker — cheapest possible
+  # lint signal, fails fast on formatting regressions while the expensive
+  # typecheck / vitest jobs are still running.
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -44,6 +45,28 @@ jobs:
 
       - name: Validate Code Formatting
         run: pnpm format:check
+
+  # Job 1b: TypeScript check. Heaviest of the static-analysis jobs — runs in
+  # parallel with lint and the vitest matrix.
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Run typecheck
         run: pnpm typecheck
@@ -125,7 +148,7 @@ jobs:
         with:
           go-version: "1.25.4"
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile --prefer-offline
       - name: Install build dependencies
         run: sudo apt-get install -y cmake
       - name: Cache GGUF model
@@ -182,7 +205,7 @@ jobs:
           cache: "pnpm"
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Install Playwright browsers
         run: |
@@ -217,13 +240,18 @@ jobs:
   all-tests-passed:
     name: All Tests Passed
     runs-on: ubuntu-latest
-    needs: [lint-and-typecheck, unit-tests, integration-tests, e2e-tests]
+    needs: [lint, typecheck, unit-tests, integration-tests, e2e-tests]
     if: always()
     steps:
       - name: Check test results
         run: |
-          if [ "${{ needs.lint-and-typecheck.result }}" != "success" ]; then
-            echo "Lint/typecheck failed!"
+          if [ "${{ needs.lint.result }}" != "success" ]; then
+            echo "Lint (format:check / ts-directives) failed!"
+            exit 1
+          fi
+
+          if [ "${{ needs.typecheck.result }}" != "success" ]; then
+            echo "Typecheck failed!"
             exit 1
           fi
 

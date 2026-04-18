@@ -152,3 +152,67 @@ Conventions:
   would be strictly slower because every matrix leg pays the install tax.
 - **Result**: discarded — current parallel approach is already optimal.
 
+### Iteration 5 — Split `lint-and-typecheck` into two independent jobs
+
+- **Hypothesis**: `format:check` (16 s) and `typecheck` (33 s) are both
+  CPU-bound but have no data dependency. Running them in sequence on one
+  runner makes the critical path `install + 16 + 33 = 64 s`. Running them on
+  two separate runners drops the critical path to
+  `max(install+16, install+33) = 48 s`.
+- **Alternative considered**: `concurrently` in the same shell. Tested locally
+  — combined wall-clock = 41 s (vs 49 s serial). Only saved ~8 s because both
+  phases saturate cores and contend. Split-jobs is strictly better and keeps
+  CI logs clean.
+- **Implementation**: Renamed the single `lint-and-typecheck` job to `lint`
+  (format:check + ts-directive scan) and added a separate `typecheck` job.
+  Both pay the 15 s install tax but run on independent runners. Updated
+  `all-tests-passed` to gate on both.
+- **Measurement**: Expected CI wall-clock drops from 64 s to ~48 s, a 16 s
+  saving per PR.
+- **Result**: kept. Cost is one additional runner for ~30 s.
+
+### Iteration 6 — `--frozen-lockfile --prefer-offline` everywhere; drop install from security-audit
+
+- **Hypothesis**: Several workflows still ran bare `pnpm install`, which
+  (a) can mutate `pnpm-lock.yaml` on CI and (b) re-resolves from the registry
+  even when the pnpm store cache is populated. Standardising on
+  `--frozen-lockfile --prefer-offline` makes CI cache-friendly and fails fast
+  on accidental lockfile drift.
+- **Additional finding**: `.github/workflows/security-audit.yml` ran
+  `pnpm install` before `pnpm audit`. Measured locally — `pnpm audit` on an
+  empty directory with only `pnpm-lock.yaml` + `package.json` takes
+  **~2 s**, produces identical results. The install step is pure waste here
+  (15 s on warm cache, up to 127 s cold).
+- **Implementation**:
+  - Swapped `pnpm install` → `pnpm install --frozen-lockfile --prefer-offline`
+    in all remaining workflows: `track-ts-directives.yml`,
+    `landing-deployment.yml`, `dev-docker-images.yml`,
+    `build-performance-dashboard.yml`, `desktop-performance.yml`,
+    `publish-client.yml`, `release-docker-images.yml`.
+  - `desktop-performance.yml / frontend-tests` was also missing
+    `actions/setup-node@v4 cache: pnpm` — added it.
+  - Removed `Install pnpm / setup-node cache / pnpm install` from
+    `security-audit.yml`; left only `setup-node` for the `pnpm audit` binary
+    install.
+- **Measurement**: Security-audit saves ~15–127 s per run. The other
+  workflows gain cache hits on subsequent runs once the pnpm store is warm.
+- **Result**: kept.
+
+### Iteration 7 — Research: can `lint-go` skip the GGUF model download?
+
+- **Hypothesis**: `lint-go.yml` downloads the ~100 MB GGUF model before
+  running `golangci-lint`. Linting doesn't run tests, so it shouldn't need
+  the weights.
+- **Finding**: `backend/llm/backends/llamacpp/llamacpp.go:25` contains
+  `//go:embed models/*.gguf`. `go:embed` is a compile-time directive and
+  `golangci-lint` type-checks Go source, so *some* file matching
+  `models/*.gguf` must exist. However the file does not need to be the real
+  multi-hundred-megabyte weights; any non-empty file satisfies the directive.
+- **Decision**: deferred. The fix is to drop a stub `.gguf` file into
+  `backend/llm/backends/llamacpp/models/` from CI *only for lint*, instead of
+  pulling 100 MB. Risk: if golangci-lint grows a future analyser that reads
+  the embedded bytes, the stub breaks it. Worth a focused PR with owner
+  review; not rolled up here.
+- **Result**: noted for follow-up, not applied.
+
+
