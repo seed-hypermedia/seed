@@ -51,7 +51,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
   clickHandler = (event: MouseEvent) => {
     const target = event.target as Node | null
     if (!target) return
-    if ((target as HTMLElement).closest?.('.hyperlink-preview-toolbar')) {
+    if (isEventInsideToolbar(target)) {
       return
     }
 
@@ -306,6 +306,40 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
   }
 
   update() {
+    // While the user is actively editing inside the toolbar form (e.g. typing
+    // a new URL or link text), the ProseMirror cursor can end up at the
+    // boundary of the link mark after a text-replace transaction, and
+    // $from.marks() stops returning the link mark. That would close the
+    // toolbar and unmount the inputs mid-keystroke. When the toolbar itself
+    // holds focus, keep the toolbar visible and re-resolve mark/range/url
+    // from the stored block id so the form stays in sync without closing.
+    if (this.hyperlinkToolbarState?.show && isToolbarFormFocused()) {
+      const {markOrNode, range} = getNodeAndRange(
+        undefined,
+        undefined,
+        this.hyperlinkToolbarState.id,
+        this.pmView,
+        this,
+        this.hyperlinkToolbarState.url,
+      )
+      if (markOrNode && range) {
+        this.selectedNode = markOrNode
+        this.selectedNodeRange = range
+        const currentState = this.hyperlinkToolbarState
+        const href = markOrNode instanceof Mark ? markOrNode.attrs.href : markOrNode.attrs.link ?? markOrNode.attrs.url
+        const text =
+          markOrNode instanceof Mark ? this.pmView.state.doc.textBetween(range.from, range.to) : currentState.text
+        this.hyperlinkToolbarState = {
+          ...currentState,
+          url: typeof href === 'string' ? href : currentState.url,
+          text,
+          referencePos: posToDOMRect(this.pmView, range.from, range.to),
+        }
+        this.updateHyperlinkToolbar()
+      }
+      return
+    }
+
     const selectionState = this.updateFromSelection()
     if (selectionState) {
       this.hyperlinkToolbarState = selectionState
@@ -386,6 +420,23 @@ export class HyperlinkToolbarProsemirrorPlugin<BSchema extends BlockSchema> exte
   public resetHyperlink = () => {
     this.view!.resetHyperlink()
   }
+}
+
+// CSS class used on the root of every hypermedia link toolbar popover
+// (see HypermediaLinkPreview in `hm-link-preview.tsx`). Keep these two class
+// names in sync: the plugin uses them to detect "a click/focus is inside the
+// toolbar — don't close it".
+const TOOLBAR_ROOT_CLASS = 'link-preview-toolbar'
+
+function isEventInsideToolbar(target: Node): boolean {
+  return !!(target as HTMLElement).closest?.(`.${TOOLBAR_ROOT_CLASS}`)
+}
+
+function isToolbarFormFocused(): boolean {
+  if (typeof document === 'undefined') return false
+  const active = document.activeElement
+  if (!active) return false
+  return !!active.closest?.(`.${TOOLBAR_ROOT_CLASS}`)
 }
 
 function getNodeAndRange(
