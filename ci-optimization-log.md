@@ -215,4 +215,54 @@ Conventions:
   review; not rolled up here.
 - **Result**: noted for follow-up, not applied.
 
+### Iteration 8 — Fix broken macOS Go cache and modernise `ci-setup` action
+
+- **Hypothesis (bug hunt)**: The reusable composite action `ci-setup/action.yml`
+  has three `actions/cache` steps — Ubuntu / macOS / Windows. The macOS one
+  was gated on `startsWith(inputs.matrix.os, 'macos')` which is not a valid
+  expression for a composite-action input. The correct accessor is
+  `inputs.matrix-os`. Because the condition always evaluated to null → false,
+  **macOS runners (which dominate the desktop release matrix) never used the
+  Go build cache at all**.
+- **Implementation**:
+  - Fix the expression to `inputs.matrix-os`.
+  - Bump `actions/cache@v3` → `@v4` (v3 is EOL and measurably slower on large
+    caches in recent GitHub benchmarks).
+  - Bump `actions/setup-node@v4` Node version from **20 → 22** to match the
+    rest of the frontend workflows and release Dockerfile.
+  - Add `--prefer-offline` to `pnpm install --frozen-lockfile` for store-cache
+    hits.
+- **Result**: kept. Direct effect is a big speedup on macOS desktop builds
+  because the Go cache now actually restores; indirect effect on every
+  runner that uses the action (better cache backend, correct Node).
+
+### Iteration 9 — `--ignore-scripts` on CI installs (discarded after test)
+
+- **Hypothesis**: `pnpm install --ignore-scripts` skips postinstall for
+  `better-sqlite3`, `canvas`, `electron`, `sharp`, `fs-xattr`, etc. The
+  `lint`, `typecheck`, `unit-tests web`, and `unit-tests shared` matrix legs
+  don't import any of those native modules at test time, so installing them
+  is wasted CI time.
+- **Experiment**:
+  - `pnpm install --frozen-lockfile --prefer-offline` (cold sandbox, warm
+    store) = **53 s**.
+  - `pnpm install --frozen-lockfile --prefer-offline --ignore-scripts` = **51 s**
+    on the same sandbox — no meaningful delta.
+  - `pnpm typecheck` and `pnpm format:check` both work with the
+    `--ignore-scripts` install (33 s / 17 s respectively — unchanged).
+  - `pnpm --filter @shm/shared test` works.
+  - `pnpm --filter @shm/web test` works (pre-existing flake unrelated).
+  - `pnpm --filter @shm/desktop test:unit` **FAILS** with
+    "Electron failed to install correctly" — desktop vitest requires the
+    electron binary which arrives via postinstall.
+- **Analysis**: Sandbox measurement understates the real CI saving because
+  `canvas` fails to build here (no gyp toolchain) and `better-sqlite3` is
+  quick on this machine. In real CI the saving from skipping those builds is
+  probably 20–40 s per job. But without a measured number I can't justify the
+  configuration complexity (a matrix-leg-specific install flag, risk of
+  someone importing `better-sqlite3` from `@shm/web` tests in future).
+- **Result**: discarded. Revisit once we have CI wall-clock data post-rollout
+  to re-measure.
+
+
 
