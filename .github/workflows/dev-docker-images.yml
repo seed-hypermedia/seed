@@ -61,7 +61,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake g++ libvulkan-dev glslc
 
+      - name: Compute llama-go submodule sha
+        id: llama-sha
+        run: echo "sha=$(git -C backend/util/llama-go rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Cache llama.cpp build (Vulkan)
+        id: llama-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            backend/util/llama-go/libbinding.a
+            backend/util/llama-go/libllama.a
+            backend/util/llama-go/libggml*.a
+            backend/util/llama-go/libcommon.a
+            backend/util/llama-go/build
+          key: llama-vulkan-linux-${{ steps.llama-sha.outputs.sha }}
       - name: Build llama.cpp (with Vulkan GPU support)
+        if: steps.llama-cache.outputs.cache-hit != 'true'
         run: |
           cd backend/util/llama-go
           BUILD_TYPE=vulkan CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a

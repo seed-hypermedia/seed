@@ -28,20 +28,15 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Cache GGUF model
-        uses: actions/cache@v4
-        with:
-          path: backend/llm/backends/llamacpp/models/*.gguf
-          key: gguf-model-granite-v2
-          enableCrossOsArchive: true
-
-      - name: Download GGUF model
+      # backend/llm/backends/llamacpp/llamacpp.go has `//go:embed models/*.gguf`.
+      # That directive requires *some* file matching the glob to exist at
+      # type-check time. golangci-lint never executes the embedded data, so a
+      # one-byte stub satisfies the compiler without downloading ~100 MB of
+      # model weights.
+      - name: Create GGUF stub for go:embed
         run: |
-          if [ ! -f backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf ]; then
-            mkdir -p backend/llm/backends/llamacpp/models
-            curl -fSL -o backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf \
-              "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
-          fi
+          mkdir -p backend/llm/backends/llamacpp/models
+          printf 'lint-stub\n' > backend/llm/backends/llamacpp/models/lint-stub.gguf
 
       - uses: golangci/golangci-lint-action@v8
         with:
