@@ -56,15 +56,53 @@ runs:
         Add-Content $env:GITHUB_ENV "VULKAN_SDK=C:\VulkanSDK\$vulkanVersion"
         Add-Content $env:GITHUB_PATH "C:\VulkanSDK\$vulkanVersion\Bin"
 
-    - name: 'Build llama.cpp (Linux)'
-      if: inputs.matrix-os == 'ubuntu-latest'
+    # llama.cpp static libraries depend only on the submodule commit + the
+    # build-type flags the per-OS step below passes in. Keying on the
+    # submodule SHA + OS + build-type gives us a deterministic cache bucket
+    # per (OS, GPU backend) combination.
+    - name: Compute llama-go submodule sha
+      id: llama-sha
+      shell: bash
+      run: echo "sha=$(git -C backend/util/llama-go rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache llama.cpp build (Linux / macOS)
+      id: llama-cache-unix
+      if: inputs.matrix-os != 'windows-2025'
+      uses: actions/cache@v4
+      with:
+        path: |
+          backend/util/llama-go/libbinding.a
+          backend/util/llama-go/libllama.a
+          backend/util/llama-go/libggml*.a
+          backend/util/llama-go/libcommon.a
+          backend/util/llama-go/build
+        key: llama-${{ inputs.matrix-os }}-${{ steps.llama-sha.outputs.sha }}
+
+    - name: Cache llama.cpp build (Windows)
+      id: llama-cache-windows
+      if: inputs.matrix-os == 'windows-2025'
+      uses: actions/cache@v4
+      with:
+        path: |
+          backend/util/llama-go/libllama.a
+          backend/util/llama-go/libggml.a
+          backend/util/llama-go/libggml-base.a
+          backend/util/llama-go/libggml-cpu.a
+          backend/util/llama-go/libggml-vulkan.a
+          backend/util/llama-go/libcommon.a
+          backend/util/llama-go/libvulkan-1.a
+          backend/util/llama-go/build
+        key: llama-windows-2025-${{ steps.llama-sha.outputs.sha }}
+
+    - name: "Build llama.cpp (Linux)"
+      if: inputs.matrix-os == 'ubuntu-latest' && steps.llama-cache-unix.outputs.cache-hit != 'true'
       run: |
         cd backend/util/llama-go
         BUILD_TYPE=vulkan CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a
       shell: bash
 
-    - name: 'Build llama.cpp (macOS)'
-      if: startsWith(inputs.matrix-os, 'macos')
+    - name: "Build llama.cpp (macOS)"
+      if: startsWith(inputs.matrix-os, 'macos') && steps.llama-cache-unix.outputs.cache-hit != 'true'
       run: |
         cd backend/util/llama-go
         BUILD_TYPE=metal CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_OPENMP=OFF -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DGGML_METAL_MACOSX_VERSION_MIN=13.0" make libbinding.a
@@ -72,8 +110,8 @@ runs:
       env:
         MACOSX_DEPLOYMENT_TARGET: '13.0'
 
-    - name: 'Build llama.cpp (Windows)'
-      if: inputs.matrix-os == 'windows-2025'
+    - name: "Build llama.cpp (Windows)"
+      if: inputs.matrix-os == 'windows-2025' && steps.llama-cache-windows.outputs.cache-hit != 'true'
       shell: bash
       run: |
         set -euo pipefail

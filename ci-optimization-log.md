@@ -360,6 +360,77 @@ Conventions:
   reinstatement plan.
 - **Result**: kept. Direct runner-minute saving per PR and cleaner logs.
 
+### Iteration 14 — Cache `llama.cpp` build across every workflow that needs it
+
+- **Hypothesis**: `llama.cpp` is a Git submodule (`backend/util/llama-go`)
+  whose `.a` artefacts are fully determined by the submodule commit + the
+  CMake flag string. Every CI run of `ci-setup`, `test-go`,
+  `test-frontend-parallel / integration-tests`, `dev-docker-images /
+  backend-tests`, and `release-docker-images / backend-tests` rebuilt
+  these from scratch. CPU-only builds take ~1–3 min; Vulkan/Metal/Windows
+  builds take longer.
+- **Implementation**: Added a `Compute llama-go submodule sha` + `Cache
+  llama.cpp build` step to each of those jobs. Cache key is
+  `llama-<variant>-<os>-<submodule-sha>` — variant is `cpu` / `vulkan` /
+  `metal` / `windows`, so cross-variant traffic doesn't collide. Build
+  step is gated on `cache-hit != 'true'`.
+  - `ci-setup/action.yml`: separate caches for unix (metal/vulkan) and
+    windows, because the output file lists differ.
+  - `test-go.yml`, `test-frontend-parallel.yml`: CPU-only Linux cache.
+  - `dev-docker-images.yml`, `release-docker-images.yml`: Vulkan Linux
+    cache.
+- **Result**: kept. Expected saving 1–5 min per affected job, depending on
+  variant and runner. The desktop release matrix (4 OS legs) benefits most
+  because each was rebuilding llama.cpp from scratch.
+
+### Iteration 15 — Reuse `test-frontend-parallel.yml` in `desktop-performance.yml`
+
+- **Hypothesis**: `desktop-performance.yml / frontend-tests` ran
+  `pnpm format:check && pnpm test` serially — the old pre-optimisation
+  shape that `test-frontend-parallel.yml` already solves.
+- **Implementation**: Replaced the inline job with a `uses:` call to
+  `./.github/workflows/test-frontend-parallel.yml` with
+  `run-integration-tests: false`. The job now inherits every optimisation
+  from iterations 1–13 (pnpm cache, job split, tsbuildinfo cache, etc.).
+- **Also fixed**: `aws-actions/configure-aws-credentials@v1 → v4` in the
+  same file.
+- **Result**: kept.
+
+### Iteration 16 — Parallelise `dev-vault-image.yml / vault-tests`
+
+- **Hypothesis**: The vault-tests job ran `bun test` then `bun run check`
+  serially. They have no data dependency, so a 2-leg matrix halves
+  wall-clock.
+- **Implementation**: `strategy.matrix.task: [test, check]`. `bun` doesn't
+  have a built-in install cache on GitHub Actions; added a manual
+  `actions/cache@v4` step for `~/.bun/install/cache` keyed on `vault/bun.lock`.
+- **Result**: kept. Wall-clock ~halved for the vault-tests job.
+
+### Iteration 17 — Stub `models/*.gguf` in `lint-go.yml` (skip the download)
+
+- **Hypothesis**: `backend/llm/backends/llamacpp/llamacpp.go` has
+  `//go:embed models/*.gguf`, which requires *some* file matching the
+  glob to exist at type-check time. `golangci-lint` never executes the
+  embedded bytes — a one-byte stub satisfies the compiler with no
+  download.
+- **Implementation**: Removed the GGUF cache step and the ~100 MB curl
+  download. Replaced with `printf 'lint-stub\n' > models/lint-stub.gguf`.
+- **Risk**: Future linter additions that actually read embedded bytes
+  would break here. If that happens, revert and pay the 1-–2 s cache
+  restore.
+- **Result**: kept. Saves up to ~50 s on the (rare) cache-cold runs.
+
+### Iteration 18 — Drop needless `pnpm install` from `track-ts-directives.yml`
+
+- **Hypothesis (bug hunt)**: `scripts/count-ts-directives.mjs` and
+  `scripts/generate-ts-dashboard.mjs` import nothing beyond Node built-ins
+  (`fs`, `child_process`). Yet the cron workflow ran `pnpm install --frozen-lockfile`
+  before running them — a 15–60 s step with zero purpose.
+- **Implementation**: Removed `pnpm/action-setup`, `actions/setup-node cache: pnpm`,
+  and the install step. Kept a plain `actions/setup-node@v4` just to
+  ensure Node 22 is on PATH.
+- **Result**: kept. Saves ~15–60 s on every scheduled run.
+
 ### Cumulative impact on the PR critical path (`test-frontend-parallel.yml`)
 
 Baseline, before any of this:

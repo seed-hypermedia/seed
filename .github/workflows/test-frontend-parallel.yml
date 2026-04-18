@@ -182,7 +182,25 @@ jobs:
             curl -fSL -o backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf \
               "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
           fi
+      - name: Compute llama-go submodule sha
+        id: llama-sha
+        run: echo "sha=$(git -C backend/util/llama-go rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      # Cache the llama.cpp static-library outputs. Key on the submodule SHA
+      # plus the build-flag string so CPU-only / Vulkan / Metal builds don't
+      # collide. Rebuild only on cache miss.
+      - name: Cache llama.cpp build
+        id: llama-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            backend/util/llama-go/libbinding.a
+            backend/util/llama-go/libllama.a
+            backend/util/llama-go/libggml*.a
+            backend/util/llama-go/libcommon.a
+            backend/util/llama-go/build
+          key: llama-cpu-linux-${{ steps.llama-sha.outputs.sha }}
       - name: Build llama.cpp (CPU-only)
+        if: steps.llama-cache.outputs.cache-hit != 'true'
         run: |
           cd backend/util/llama-go
           CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF" make libbinding.a

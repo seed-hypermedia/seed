@@ -54,7 +54,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake g++
 
+      - name: Compute llama-go submodule sha
+        id: llama-sha
+        run: echo "sha=$(git -C backend/util/llama-go rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Cache llama.cpp build (CPU-only)
+        id: llama-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            backend/util/llama-go/libbinding.a
+            backend/util/llama-go/libllama.a
+            backend/util/llama-go/libggml*.a
+            backend/util/llama-go/libcommon.a
+            backend/util/llama-go/build
+          key: llama-cpu-linux-${{ steps.llama-sha.outputs.sha }}
       - name: Build llama.cpp (CPU-only for tests)
+        if: steps.llama-cache.outputs.cache-hit != 'true'
         run: |
           cd backend/util/llama-go
           # Tests run without GPU hardware, so we build CPU-only
