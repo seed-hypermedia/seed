@@ -327,7 +327,8 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         this.selectedNodeRange = range
         const currentState = this.hyperlinkToolbarState
         const href = markOrNode instanceof Mark ? markOrNode.attrs.href : markOrNode.attrs.link ?? markOrNode.attrs.url
-        const text = markOrNode instanceof Mark ? this.pmView.state.doc.textBetween(range.from, range.to) : currentState.text
+        const text =
+          markOrNode instanceof Mark ? this.pmView.state.doc.textBetween(range.from, range.to) : currentState.text
         this.hyperlinkToolbarState = {
           ...currentState,
           url: typeof href === 'string' ? href : currentState.url,
