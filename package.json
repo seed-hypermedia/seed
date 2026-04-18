@@ -5,7 +5,7 @@
     "test": "pnpm web:test && pnpm shared:test && pnpm desktop:test:unit",
     "shared:test": "pnpm --filter @shm/shared test",
     "format:check": "pnpm -r --parallel run format:check",
-    "typecheck": "echo 'Building shared packages types...' && pnpm --filter @shm/shared build:types && echo 'Types built Successfully' && echo 'Checking types across all workspaces...' && pnpm -r --parallel run typecheck && echo 'Types checked Successfully'",
+    "typecheck": "pnpm -r --parallel run typecheck",
     "security:check": "pnpm audit",
     "security:check:dev": "pnpm audit --dev",
     "format:write": "pnpm -r --parallel run format:write",
