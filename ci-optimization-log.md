@@ -349,6 +349,17 @@ Conventions:
 - **Result**: kept. Requires first run on a branch before a cache exists;
   first-time cost is 0.
 
+### Iteration 13 — Drop no-op `desktop` leg from the e2e-tests matrix
+
+- **Hypothesis**: The `e2e-tests` matrix had `suite: [desktop, editor]`, but
+  every `desktop` step was commented out with `echo 'SKIP DESKTOP E2E FOR
+  NOW.'`. The job still spun up a runner, ran `pnpm install`, and echoed a
+  string — ~30 s of runner time per PR for nothing.
+- **Implementation**: Shrink the matrix to `suite: [editor]` and delete the
+  corresponding `if desktop` branches. Comment in the job preserves the
+  reinstatement plan.
+- **Result**: kept. Direct runner-minute saving per PR and cleaner logs.
+
 ### Cumulative impact on the PR critical path (`test-frontend-parallel.yml`)
 
 Baseline, before any of this:

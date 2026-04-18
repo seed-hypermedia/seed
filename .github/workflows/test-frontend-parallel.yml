@@ -213,14 +213,18 @@ jobs:
       - name: Run integration tests
         run: cd tests && pnpm test
 
-  # Job 3: E2E tests (desktop and editor in parallel)
+  # Job 3: E2E tests. The `desktop` suite is currently a no-op (see the
+  # commented-out commands below) — keeping it in the matrix just burned a
+  # runner and 30 s of install for an echo statement. When desktop E2E is
+  # re-enabled, re-add `desktop` to the list and drop the `if:` guard on
+  # the Playwright-cache step below.
   e2e-tests:
     name: E2E Tests - ${{ matrix.suite }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        suite: [desktop, editor]
+        suite: [editor]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -242,7 +246,6 @@ jobs:
       # download (the slow part) is.
       - name: Cache Playwright browsers
         id: playwright-cache
-        if: matrix.suite != 'desktop'
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
@@ -251,10 +254,7 @@ jobs:
             playwright-${{ runner.os }}-
       - name: Install Playwright browsers
         run: |
-          if [ "${{ matrix.suite }}" == "desktop" ]; then
-            echo 'SKIP DESKTOP E2E FOR NOW.'
-            # cd frontend/apps/desktop && pnpm exec playwright install chromium --with-deps
-          elif [ "${{ steps.playwright-cache.outputs.cache-hit }}" == "true" ]; then
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" == "true" ]; then
             # Cache hit — only install the OS-level dependencies (fast).
             cd frontend/packages/editor && pnpm exec playwright install-deps chromium
           else
@@ -263,12 +263,7 @@ jobs:
 
       - name: Run E2E tests
         run: |
-          if [ "${{ matrix.suite }}" == "desktop" ]; then
-            echo 'SKIP DESKTOP E2E FOR NOW.'
-            # pnpm desktop:test
-          else
-            xvfb-run --auto-servernum --server-args='-screen 0, 1920x1080x24' pnpm --filter @shm/editor test:e2e
-          fi
+          xvfb-run --auto-servernum --server-args='-screen 0, 1920x1080x24' pnpm --filter @shm/editor test:e2e
 
       - name: Upload test results
         if: failure()
