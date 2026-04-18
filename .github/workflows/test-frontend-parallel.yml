@@ -68,6 +68,24 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
+      # Cache TypeScript `.tsbuildinfo` files so `tsc --noEmit --incremental`
+      # reuses the previous run's type-check graph. Keyed on the commit SHA
+      # so every run uploads a fresh cache; `restore-keys` pulls the most
+      # recent available cache for this branch/OS as a warm starting point.
+      # Placed AFTER `pnpm install` to avoid pnpm touching the files inside
+      # `node_modules/.tmp/` where several packages store their buildinfo.
+      - name: Restore tsbuildinfo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            frontend/apps/*/tsconfig*.tsbuildinfo
+            frontend/packages/*/tsconfig*.tsbuildinfo
+            frontend/apps/*/node_modules/.tmp/*.tsbuildinfo
+            frontend/packages/*/node_modules/.tmp/*.tsbuildinfo
+          key: tsbuildinfo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            tsbuildinfo-${{ runner.os }}-
+
       - name: Run typecheck
         run: pnpm typecheck
 

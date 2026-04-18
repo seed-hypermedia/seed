@@ -323,6 +323,32 @@ Conventions:
 | 9 | `pnpm install --ignore-scripts` for non-desktop legs | Locally indistinguishable from full install (sandbox can't build canvas); desktop leg breaks because electron postinstall is required |
 | 11 | Add prettier `--cache` to `format:check` | Cache lives in `node_modules/.cache/prettier`, not cheap to persist across CI runs reliably |
 
+### Iteration 12 — Cache TypeScript `.tsbuildinfo` across runs
+
+- **Hypothesis**: The `typecheck` job runs `pnpm -r --parallel run typecheck`
+  which compiles every workspace via `tsc --noEmit`. Most of the heavier
+  packages (`@shm/shared`, `@shm/ui`, `@shm/editor`, `@shm/desktop`,
+  `@shm/client`) already have `incremental: true` in their tsconfigs, with
+  `tsBuildInfoFile` pointing to either `<pkg>/tsconfig.tsbuildinfo` or
+  `<pkg>/node_modules/.tmp/tsconfig.app.tsbuildinfo`. But CI throws those
+  files away every run, so the incremental benefit is lost.
+- **Measurement**: Locally (warm disk, no source changes):
+  - first `pnpm typecheck` (no `.tsbuildinfo`): **41 s**.
+  - second `pnpm typecheck` (`.tsbuildinfo` present): **33 s** — 8 s delta.
+- **Implementation**: `actions/cache@v4` step in the `typecheck` job,
+  restoring all `*.tsbuildinfo` paths (both the in-tree and
+  `node_modules/.tmp/` locations). Key on `${{ github.sha }}` so every run
+  writes a fresh cache; `restore-keys: tsbuildinfo-${{ runner.os }}-`
+  falls back to the most recent available cache on this branch.
+- **Notes**:
+  - Cache step placed AFTER `pnpm install` so pnpm doesn't touch the
+    restored files.
+  - Worth ~8 s on unchanged PRs; less on PRs that actually touch TS code
+    (tsc still has to recheck the touched modules, but unchanged transitive
+    deps are reused).
+- **Result**: kept. Requires first run on a branch before a cache exists;
+  first-time cost is 0.
+
 ### Cumulative impact on the PR critical path (`test-frontend-parallel.yml`)
 
 Baseline, before any of this:
