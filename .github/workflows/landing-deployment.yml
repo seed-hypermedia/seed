@@ -41,7 +41,7 @@ jobs:
           cache: "pnpm"
 
       - name: Install Frontend Dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Build
         run: pnpm landing:build

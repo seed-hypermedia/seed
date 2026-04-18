@@ -54,7 +54,7 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Build
         run: pnpm --filter @seed-hypermedia/client build
@@ -121,7 +121,7 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Build
         run: pnpm --filter @seed-hypermedia/cli build
