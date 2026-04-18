@@ -178,7 +178,19 @@ jobs:
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
       - name: Build web app
         run: pnpm web:prod
+      # Cache Chromium (~300 MB) across runs. The cache key is tied to
+      # pnpm-lock.yaml because Playwright's browser version bumps land there
+      # alongside the `playwright` devDependency.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: cd tests && pnpm test:install-browsers
       - name: Run integration tests
         run: cd tests && pnpm test
@@ -207,11 +219,26 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
+      # Cache Chromium binaries. `--with-deps` also installs system libs via
+      # apt-get; those aren't cacheable and run every time, but the browser
+      # download (the slow part) is.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        if: matrix.suite != 'desktop'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
       - name: Install Playwright browsers
         run: |
           if [ "${{ matrix.suite }}" == "desktop" ]; then
             echo 'SKIP DESKTOP E2E FOR NOW.'
             # cd frontend/apps/desktop && pnpm exec playwright install chromium --with-deps
+          elif [ "${{ steps.playwright-cache.outputs.cache-hit }}" == "true" ]; then
+            # Cache hit — only install the OS-level dependencies (fast).
+            cd frontend/packages/editor && pnpm exec playwright install-deps chromium
           else
             cd frontend/packages/editor && pnpm exec playwright install chromium --with-deps
           fi

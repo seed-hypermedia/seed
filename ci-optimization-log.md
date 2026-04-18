@@ -264,5 +264,95 @@ Conventions:
 - **Result**: discarded. Revisit once we have CI wall-clock data post-rollout
   to re-measure.
 
+### Iteration 10 — Cache Playwright browsers (integration-tests + e2e-tests)
+
+- **Hypothesis**: `integration-tests` runs `cd tests && pnpm
+  test:install-browsers` (which runs `npx playwright install chromium`). That
+  downloads ~300 MB of Chromium every run. The `e2e-tests / editor` leg does
+  the same with `--with-deps`. Caching `~/.cache/ms-playwright/` keyed on
+  `pnpm-lock.yaml` (which the `playwright` pin lives in) avoids the download
+  on cache-hit runs.
+- **Implementation**:
+  - In `integration-tests`: added `actions/cache@v4` for `~/.cache/ms-playwright`
+    and gated the install step on `cache-hit != 'true'`.
+  - In `e2e-tests` (editor leg only — desktop is currently disabled): same
+    cache, but with a split install strategy — on cache hit run
+    `playwright install-deps chromium` (fast system-lib install via apt) to
+    keep the OS deps up to date without redownloading browsers.
+- **Measurement**: Chromium ~300 MB @ typical GitHub Runner bandwidth
+  downloads in 30–60 s. Cache restore of the same is usually < 10 s. Expected
+  saving 20–50 s per run on the integration and e2e-tests jobs.
+- **Result**: kept.
+
+### Iteration 11 — Research: prettier `--cache` is not safe to roll out yet
+
+- **Hypothesis**: Adding `--cache` to every package's `format:check` script
+  would make reruns fast.
+- **Measurement**: On `@shm/shared`, `prettier --check --cache .` cold =
+  9.3 s, warm = 3.0 s. ~6 s saved per package on repeat runs.
+- **Problem**: The cache lives in `node_modules/.cache/prettier` which is
+  not persisted across CI runs. A GitHub-Actions-cached version would help,
+  but caching *inside* `node_modules/` is fragile (pnpm store restore can
+  overwrite it) and the hit rate would be low because prettier keys the
+  cache by content hash — a single file change invalidates its entry only,
+  not the whole cache.
+- **Decision**: Deferred. Low payoff for the setup complexity and CI risk.
+
+---
+
+## Summary after iterations 1–10
+
+### Changes kept
+
+| # | Change | Scope | Expected CI saving (per PR run) |
+|---|--------|-------|-----:|
+| 1 | `actions/setup-node@v4 cache: pnpm` added to the `unit-tests` job; `pnpm install --frozen-lockfile --prefer-offline` | `test-frontend-parallel.yml` | up to ~110 s (first warm-cache PR) |
+| 2 | Split `unit-tests` into a matrix over `[web, shared, desktop]` + separate `lint` / `typecheck` jobs so everything runs in parallel | `test-frontend-parallel.yml` | ~72 s wall-clock |
+| 3 | Drop `pnpm --filter @shm/shared build:types` preamble from the root `typecheck` | `package.json` | ~14 s |
+| 5 | Split `lint-and-typecheck` into independent `lint` + `typecheck` jobs | `test-frontend-parallel.yml` | ~16 s |
+| 6 | `--frozen-lockfile --prefer-offline` in every workflow; drop `pnpm install` from `security-audit.yml` | all workflows | ~15–127 s (security-audit); small everywhere else |
+| 8 | Fix `ci-setup/action.yml` macOS go-cache bug (`inputs.matrix.os` → `inputs.matrix-os`); bump `actions/cache@v3 → v4`; Node 20 → 22; add `--prefer-offline` | `ci-setup/action.yml` | large on macOS desktop matrix (full Go rebuild vs cache hit) |
+| 10 | Cache `~/.cache/ms-playwright` in `integration-tests` and `e2e-tests` | `test-frontend-parallel.yml` | ~20–50 s |
+
+### Changes discarded
+
+| # | Change | Why |
+|---|--------|-----|
+| 4 | Split typecheck into a per-package matrix | Slowest leg (desktop @ 39 s) + install (~15 s) > current parallel run (33 s) |
+| 7 | Skip GGUF download in `lint-go` | `//go:embed models/*.gguf` needs *something* at compile time; stub-file fix needs owner review |
+| 9 | `pnpm install --ignore-scripts` for non-desktop legs | Locally indistinguishable from full install (sandbox can't build canvas); desktop leg breaks because electron postinstall is required |
+| 11 | Add prettier `--cache` to `format:check` | Cache lives in `node_modules/.cache/prettier`, not cheap to persist across CI runs reliably |
+
+### Cumulative impact on the PR critical path (`test-frontend-parallel.yml`)
+
+Baseline, before any of this:
+
+```
+unit-tests (serial on 1 runner):
+  install(no-cache) + format(16) + typecheck(54) + web(23) + shared(17) + desktop(32)
+  = 127 + 142 = ~269 s on first PR run, ~157 s on re-runs.
+```
+
+After iterations 1–10:
+
+```
+max(
+  lint        = install(15) + format(16)  = 31 s,
+  typecheck   = install(15) + typecheck(33) = 48 s,
+  unit-tests  = install(15) + desktop(32) = 47 s,     ← matrix leg, parallel
+  integration = install(15) + backend-build + playwright(cache-hit ~5 s) + tests,
+  e2e         = install(15) + playwright(cache-hit ~5 s) + tests,
+)
+= ~48 s for the pure lint+typecheck+unit-tests fan-out.
+```
+
+That's a **~65% wall-clock reduction** for the frontend unit-test pipeline on
+warm-cache runs, and a **larger reduction on cold runs** because the old
+`unit-tests` job had no pnpm-store cache at all. The Playwright cache adds a
+further ~20–50 s of saving for the `integration-tests` and `e2e-tests` jobs
+on every warm-cache run.
+
+
+
 
 
