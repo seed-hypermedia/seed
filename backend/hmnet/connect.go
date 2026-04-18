@@ -8,15 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/rand"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet/netutil"
 	"seed/backend/util/dqb"
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
-
 	"time"
 
 	"seed/backend/util/sqlite"
@@ -40,11 +37,6 @@ const (
 	PeerSharingTimeout = time.Second * 30
 	// CheckProtocolTimeout is the maximum time spent trying to check for protocols.
 	CheckProtocolTimeout = time.Second * 12
-	// PeerBatchTimeout is the maximum time spent pert batch of checking.
-	PeerBatchTimeout = time.Second * 10
-	// StorePeersBatchSize is the number of shared peers to check at once for protocols.
-	StorePeersBatchSize    = 20
-	maxNonSeedPeersAllowed = 15
 )
 
 var (
@@ -162,7 +154,10 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	return nil
 }
 
-var rng = rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec
+// maxSharedPeers caps how many peers we request from a remote node's peer
+// table. Requesting the full table (previously math.MaxInt32) caused massive
+// protobuf allocations, multiaddr parsing, and downstream goroutine storms.
+const maxSharedPeers = 200
 
 func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 	n.log.Debug("storeRemotePeers Called", zap.String("PID", id.String()))
@@ -201,125 +196,97 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 	}
 	hash := sha256.Sum256(orderedPeersBytes)
 
-	res, err := c.ListPeers(ctxStore, &p2p.ListPeersRequest{PageSize: math.MaxInt32, ListHash: hex.EncodeToString(hash[:])})
+	res, err := c.ListPeers(ctxStore, &p2p.ListPeersRequest{PageSize: maxSharedPeers, ListHash: hex.EncodeToString(hash[:])})
 	if err != nil {
 		return fmt.Errorf("Could not get list of peers from %s: %w", id.String(), err)
 	}
 
 	if len(res.Peers) > 0 {
+		// Store-first: persist peer metadata immediately without blocking on
+		// per-peer dials or protocol checks. A background goroutine below
+		// dials the freshly-stored peers so discovery.go's Connectedness
+		// filter sees them without forcing the caller to wait.
 		var vals []any
+		var toDial []peer.AddrInfo
 		sqlStr := "INSERT INTO peers (pid, addresses, explicitly_connected, updated_at) VALUES "
-		var nonSeedPeers uint32
-		var xerr []error
-		var mu sync.Mutex
 
-		var wg sync.WaitGroup
-
-		rng.Shuffle(len(res.Peers), func(i, j int) { res.Peers[i], res.Peers[j] = res.Peers[j], res.Peers[i] })
-		var waitThreshold = int(math.Min(float64(len(res.Peers)), StorePeersBatchSize))
-		ctxBatch, cancelBatch := context.WithTimeout(ctxStore, PeerBatchTimeout)
-		defer cancelBatch()
-		for i, p := range res.Peers {
-			wg.Add(1)
-			go func() {
-				// In order not to get spammed with thousands of peers and make us waste computing
-				// resources, we abort early
-				defer wg.Done()
-				if nonSeedPeers >= maxNonSeedPeersAllowed {
-					return
-				}
-				pid, err := peer.Decode(p.Id)
-				if err != nil {
-					mu.Lock()
-					xerr = append(xerr, fmt.Errorf("Could not decode shared peer %s", p))
-					mu.Unlock()
-					atomic.AddUint32(&nonSeedPeers, 1)
-					n.p2p.ConnManager().Unprotect(pid, ProtocolSupportKey)
-					return
-				}
-				if _, ok := om.Get(p.Id); ok {
-					if n.p2p.Host.Network().Connectedness(pid) == network.Connected {
-						n.p2p.ConnManager().Protect(pid, ProtocolSupportKey)
-						return
-					}
-					// Known peer but not connected — fall through to reconnect.
-				}
-
-				if len(p.Addrs) > 0 {
-					// Skipping our own node.
-					if p.Id == n.client.me.String() {
-						return
-					}
-
-					// Skipping bootstrap nodes where the code is the only source of truth.
-					if n.cfg.IsBootstrap(pid) {
-						return
-					}
-					info, err := netutil.AddrInfoFromStrings(p.Addrs...)
-					if err != nil {
-						mu.Lock()
-						xerr = append(xerr, fmt.Errorf("Could not get peer info from shared addresses: %w", err))
-						mu.Unlock()
-						atomic.AddUint32(&nonSeedPeers, 1)
-
-						return
-					}
-					// If it's offline does not mean its not a seed peer
-					if err := n.p2p.Host.Connect(ctxBatch, info); err != nil {
-						return
-					}
-					n.p2p.ConnManager().Protect(pid, ProtocolSupportKey)
-					if err := n.CheckHyperMediaProtocolVersion(ctxBatch, pid, n.protocol.Version); err != nil {
-						atomic.AddUint32(&nonSeedPeers, 1)
-						mu.Lock()
-						xerr = append(xerr, fmt.Errorf("Peer [%s] failed to pass seed-protocol-check: %w", p.Id, err))
-						mu.Unlock()
-						n.p2p.ConnManager().Unprotect(pid, ProtocolSupportKey)
-
-						return
-					}
-					mu.Lock()
-					sqlStr += "(?, ?, ?, ?),"
-					sort.Strings(p.Addrs)
-					vals = append(vals, p.Id, strings.Join(p.Addrs, ","), false, p.UpdatedAt.Seconds)
-					mu.Unlock()
-				} else {
-					atomic.AddUint32(&nonSeedPeers, 1)
-					mu.Lock()
-					xerr = append(xerr, fmt.Errorf("Invalid peer [%s] with no addresses", p))
-					mu.Unlock()
-					return
-				}
-			}()
-			if i >= waitThreshold {
-				wg.Wait()
-				waitThreshold = i + int(math.Min(float64(StorePeersBatchSize), float64(len(res.Peers)-i)-1))
-				ctxBatch, cancelBatch = context.WithTimeout(ctxStore, PeerBatchTimeout)
-				defer cancelBatch()
+		for _, p := range res.Peers {
+			if p.Id == n.client.me.String() {
+				continue
+			}
+			pid, err := peer.Decode(p.Id)
+			if err != nil {
+				continue
+			}
+			if n.cfg.IsBootstrap(pid) {
+				continue
+			}
+			if len(p.Addrs) == 0 {
+				continue
 			}
 
-			if nonSeedPeers >= maxNonSeedPeersAllowed {
-				break
+			sort.Strings(p.Addrs)
+			sqlStr += "(?, ?, ?, ?),"
+			vals = append(vals, p.Id, strings.Join(p.Addrs, ","), false, p.UpdatedAt.Seconds)
+			if info, err := netutil.AddrInfoFromStrings(p.Addrs...); err == nil {
+				toDial = append(toDial, info)
 			}
 		}
-		wg.Wait()
-		if nonSeedPeers > 0 {
-			n.log.Debug("Some of the remote shared peers are not running up to date seed protocol", zap.Uint32("Number of non-seed (outdated) peers", nonSeedPeers), zap.Int("Number of actual Seed-peers at the moment we stopped", len(vals)/4) /*since we insert four params at a time*/, zap.Errors("errors", xerr))
-		}
+
 		if len(vals) != 0 {
-			sqlStr = sqlStr[0:len(sqlStr)-1] + " ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=excluded.updated_at WHERE addresses!=excluded.addresses AND excluded.addresses !='' AND excluded.updated_at > updated_at"
+			sqlStr = sqlStr[:len(sqlStr)-1] + " ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=excluded.updated_at WHERE addresses!=excluded.addresses AND excluded.addresses !='' AND excluded.updated_at > updated_at"
 			if err := n.db.WithTx(ctxStore, func(conn *sqlite.Conn) error {
 				return sqlitex.ExecTransient(conn, sqlStr, nil, vals...)
 			}); err != nil && !errors.Is(err, sqlitex.ErrBeginImmediateTx) {
 				return err
 			}
 		}
-		if nonSeedPeers > 0 {
-			return fmt.Errorf("We encounter at least %d non-seed (outdated) peers on the sharing table", nonSeedPeers)
+
+		if len(toDial) > 0 {
+			go n.dialStoredPeers(toDial)
 		}
 	}
 
 	return nil
+}
+
+// dialStoredPeers opens libp2p connections to freshly-stored peers in the
+// background. Discovery filters known peers by Connectedness, so peers we've
+// only persisted to the DB are invisible until something dials them. This runs
+// detached from the caller's context with bounded concurrency; failures are
+// logged at debug level only.
+func (n *Node) dialStoredPeers(infos []peer.AddrInfo) {
+	const maxConcurrentDials = 20
+	const perPeerDialTimeout = 10 * time.Second
+
+	ctx, cancel := context.WithTimeout(context.Background(), PeerSharingTimeout)
+	defer cancel()
+
+	sem := make(chan struct{}, maxConcurrentDials)
+	var wg sync.WaitGroup
+	for _, info := range infos {
+		if info.ID == "" || len(info.Addrs) == 0 {
+			continue
+		}
+		select {
+		case <-ctx.Done():
+			wg.Wait()
+			return
+		case sem <- struct{}{}:
+		}
+		wg.Add(1)
+		go func(info peer.AddrInfo) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			dialCtx, dialCancel := context.WithTimeout(ctx, perPeerDialTimeout)
+			defer dialCancel()
+			n.p2p.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
+			if err := n.p2p.Host.Connect(dialCtx, info); err != nil {
+				n.log.Debug("BackgroundPeerDialFailed", zap.String("PID", info.ID.String()), zap.Error(err))
+			}
+		}(info)
+	}
+	wg.Wait()
 }
 func (n *Node) onLibp2pConnection(_ context.Context, event event.EvtPeerConnectednessChanged) {
 	// Clear authentication for disconnected peers.

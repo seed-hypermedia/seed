@@ -21,6 +21,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multicodec"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
@@ -88,6 +89,11 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 
 	subsMap := make(subscriptionMap)
 	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
+	// knownPeers holds DB-persisted peers that aren't currently in the Connected
+	// state. We use them as a fallback before the DHT when no peer is connected,
+	// since syncWithPeer will dial on demand.
+	const maxKnownPeerFallback = 20
+	var knownPeers []peer.ID
 	if err = s.db.WithSave(ctxLocalPeers, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qListPeersWithPid(), func(stmt *sqlite.Stmt) error {
 			addresStr := stmt.ColumnText(0)
@@ -100,12 +106,18 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 			}
 			if s.host.Network().Connectedness(info.ID) == network.Connected {
 				allPeers = append(allPeers, info.ID)
+			} else if len(knownPeers) < maxKnownPeerFallback {
+				s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
+				knownPeers = append(knownPeers, info.ID)
 			}
 
 			return nil
 		})
 	}); err != nil {
 		return "", err
+	}
+	if len(allPeers) == 0 && len(knownPeers) > 0 {
+		allPeers = knownPeers
 	}
 
 	// Create RBSR store once for reuse across all peers.
