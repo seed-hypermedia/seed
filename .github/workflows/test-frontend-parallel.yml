@@ -4,17 +4,17 @@ on:
   workflow_call:
     inputs:
       run-integration-tests:
-        description: "Whether to run integration tests (web-related)"
+        description: 'Whether to run integration tests (web-related)'
         required: false
         type: boolean
         default: true
 
   pull_request:
     paths:
-      - ".github/workflows/test-frontend-parallel.yml"
-      - "frontend/**"
+      - '.github/workflows/test-frontend-parallel.yml'
+      - 'frontend/**'
     branches-ignore:
-      - "renovate/**"
+      - 'renovate/**'
 
 jobs:
   # Job 1: All unit tests together (fast)
@@ -80,11 +80,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: "pnpm"
+          cache: 'pnpm'
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25.4"
+          go-version: '1.26.2'
       - name: Install dependencies
         run: pnpm install
       - name: Install build dependencies
@@ -111,7 +111,7 @@ jobs:
           mkdir -p plz-out/bin/backend
           go build -tags cpu -o plz-out/bin/backend/seed-daemon-x86_64-unknown-linux-gnu ./backend/cmd/seed-daemon
         env:
-          CGO_ENABLED: "1"
+          CGO_ENABLED: '1'
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
       - name: Build web app
@@ -140,7 +140,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: "pnpm"
+          cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install

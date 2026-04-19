@@ -84,10 +84,10 @@ func TestAggFunc(t *testing.T) {
 	for _, val := range cVals {
 		stmt.SetInt64("$c", int64(val))
 		if _, err = stmt.Step(); err != nil {
-			t.Errorf("INSERT %q: %v", val, err)
+			t.Errorf("INSERT %v: %v", val, err)
 		}
 		if err = stmt.Reset(); err != nil {
-			t.Errorf("INSERT reset %q: %v", val, err)
+			t.Errorf("INSERT reset %v: %v", val, err)
 		}
 	}
 	stmt.Finalize()

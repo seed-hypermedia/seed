@@ -54,7 +54,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.4'
+          go-version: '1.26.2'
 
       - name: Install build dependencies
         run: |

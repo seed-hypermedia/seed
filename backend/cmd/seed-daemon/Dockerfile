@@ -4,7 +4,7 @@
 # Alpine's musl libc is incompatible with GCC 14's libstdc++ which uses
 # glibc-specific symbols (__libc_single_threaded, __isoc23_* functions).
 # Bookworm's Vulkan SDK (1.3.239) is too old for llama.cpp's ggml-vulkan.
-FROM golang:1.25-trixie AS builder
+FROM golang:1.26.2-trixie AS builder
 WORKDIR /code
 ARG COMMIT_HASH
 ARG BRANCH

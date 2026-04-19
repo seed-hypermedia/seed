@@ -5,7 +5,7 @@ description: |
 
 inputs:
   matrix-os:
-    description: "The Current OS"
+    description: 'The Current OS'
     required: true
   # matrix-target:
   #   description: "The Current Target"
@@ -15,15 +15,15 @@ inputs:
   #   required: true
 
 runs:
-  using: "composite"
+  using: 'composite'
 
   steps:
-    - name: "Setup Go"
+    - name: 'Setup Go'
       uses: actions/setup-go@v5
       with:
-        go-version: "1.25.4"
+        go-version: '1.26.2'
 
-    - name: "Install native packages"
+    - name: 'Install native packages'
       if: inputs.matrix-os == 'ubuntu-latest'
       run: |
         sudo apt-get update
@@ -40,13 +40,13 @@ runs:
         # sudo snap install multipass
       shell: bash
 
-    - name: "Install Vulkan dev packages (Linux)"
+    - name: 'Install Vulkan dev packages (Linux)'
       if: inputs.matrix-os == 'ubuntu-latest'
       run: |
         sudo apt-get install -y libvulkan-dev glslc
       shell: bash
 
-    - name: "Install Vulkan SDK (Windows)"
+    - name: 'Install Vulkan SDK (Windows)'
       if: inputs.matrix-os == 'windows-2025'
       shell: powershell
       run: |
@@ -56,23 +56,23 @@ runs:
         Add-Content $env:GITHUB_ENV "VULKAN_SDK=C:\VulkanSDK\$vulkanVersion"
         Add-Content $env:GITHUB_PATH "C:\VulkanSDK\$vulkanVersion\Bin"
 
-    - name: "Build llama.cpp (Linux)"
+    - name: 'Build llama.cpp (Linux)'
       if: inputs.matrix-os == 'ubuntu-latest'
       run: |
         cd backend/util/llama-go
         BUILD_TYPE=vulkan CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a
       shell: bash
 
-    - name: "Build llama.cpp (macOS)"
+    - name: 'Build llama.cpp (macOS)'
       if: startsWith(inputs.matrix-os, 'macos')
       run: |
         cd backend/util/llama-go
         BUILD_TYPE=metal CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_OPENMP=OFF -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DGGML_METAL_MACOSX_VERSION_MIN=13.0" make libbinding.a
       shell: bash
       env:
-        MACOSX_DEPLOYMENT_TARGET: "13.0"
+        MACOSX_DEPLOYMENT_TARGET: '13.0'
 
-    - name: "Build llama.cpp (Windows)"
+    - name: 'Build llama.cpp (Windows)'
       if: inputs.matrix-os == 'windows-2025'
       shell: bash
       run: |
@@ -110,7 +110,7 @@ runs:
 
     # Additional packages for Flatpak building
 
-    - name: "Setup Flatpak"
+    - name: 'Setup Flatpak'
       if: inputs.matrix-os == 'ubuntu-latest'
       run: |
         # Setup Flatpak with flathub repository
@@ -164,7 +164,7 @@ runs:
       uses: actions/setup-node@v4
       with:
         node-version: 20
-        cache: "pnpm"
+        cache: 'pnpm'
 
     - name: Install Frontend Dependencies
       run: pnpm install --frozen-lockfile

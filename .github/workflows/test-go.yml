@@ -5,17 +5,17 @@ on:
     branches:
       - main
     paths:
-      - ".github/workflows/test-go.yml"
-      - "go.mod"
-      - "backend/**"
+      - '.github/workflows/test-go.yml'
+      - 'go.mod'
+      - 'backend/**'
 
   pull_request:
     paths:
-      - ".github/workflows/test-go.yml"
-      - "go.mod"
-      - "backend/**"
+      - '.github/workflows/test-go.yml'
+      - 'go.mod'
+      - 'backend/**'
     branches-ignore:
-      - "renovate/**"
+      - 'renovate/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -47,7 +47,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25.4"
+          go-version: '1.26.2'
 
       - name: Install build dependencies
         run: |
