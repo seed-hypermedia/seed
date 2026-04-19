@@ -99,7 +99,7 @@ jobs:
           path: frontend/apps/performance/performance-results
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Build performance dashboard
         run: |

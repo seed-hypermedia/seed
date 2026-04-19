@@ -26,17 +26,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'pnpm'
 
-      - name: Install dependencies
-        run: pnpm install
+      # The two scripts below (`count-ts-directives.mjs`,
+      # `generate-ts-dashboard.mjs`) import only Node built-ins, so there's
+      # nothing to install.
 
       - name: Create reports directory
         run: mkdir -p reports/ts-directives

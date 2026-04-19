@@ -104,6 +104,24 @@ async function flushEffects() {
   })
 }
 
+// Some tests chain multiple async queries (e.g. metadata → domain verification).
+// A fixed number of `flushEffects` calls is flaky: if the second query hasn't
+// resolved yet, the assertion reads a stale href. Poll instead.
+async function waitFor(assert: () => void, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs
+  let lastError: unknown
+  while (Date.now() < deadline) {
+    await flushEffects()
+    try {
+      assert()
+      return
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError
+}
+
 describe('validated web links', () => {
   beforeEach(() => {
     ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -152,11 +170,10 @@ describe('validated web links', () => {
     const route = 'hm://alice/posts/:comments/comment123#blk1+'
     const {container, root} = renderHarness(<ValidatedLinkHarness route={route} />)
 
-    await flushEffects()
-    await flushEffects()
-
-    const link = container.querySelector('a')
-    expect(link?.getAttribute('href')).toBe('https://alice.example/posts/:comments/comment123#blk1+')
+    await waitFor(() => {
+      const link = container.querySelector('a')
+      expect(link?.getAttribute('href')).toBe('https://alice.example/posts/:comments/comment123#blk1+')
+    })
 
     cleanupRendered(root, container)
   })
