@@ -66,6 +66,8 @@ export async function spawnDaemon(
     "-log-level=debug",
     "-data-dir",
     config.dataDir,
+    "-keystore-dir",
+    path.join(config.dataDir, "keys"),
     "-syncing.smart=true",
     "-syncing.no-sync-back=true",
     "-lndhub.mainnet=false",
