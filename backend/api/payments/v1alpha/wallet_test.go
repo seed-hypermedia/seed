@@ -6,7 +6,7 @@ import (
 	"seed/backend/config"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
-	"seed/backend/storage/keystore"
+	"seed/backend/core/keystore"
 	payments "seed/backend/genproto/payments/v1alpha"
 	"seed/backend/hmnet"
 	"seed/backend/lndhub/lndhubsql"
@@ -92,7 +92,7 @@ func makeTestService(t *testing.T, name string) *Server {
 }
 
 func makeTestPeer(t *testing.T, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Pool) (*hmnet.Node, context.CancelFunc) {
-	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/hyper", "debug"),))
+	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/hyper", "debug")))
 
 	n, err := hmnet.New(config.P2P{
 		NoRelay:        true,

@@ -14,26 +14,26 @@ export function createMockClient(overrides: Partial<api.ClientInterface> = {}): 
 
   return {
     preLogin: notImplemented('preLogin'),
-    registerStart: notImplemented('registerStart'),
-    registerPoll: notImplemented('registerPoll'),
-    registerVerifyLink: notImplemented('registerVerifyLink'),
-    addPassword: notImplemented('addPassword'),
-    changePassword: notImplemented('changePassword'),
     login: notImplemented('login'),
-    getVault: notImplemented('getVault'),
-    saveVaultData: notImplemented('saveVaultData'),
     logout: notImplemented('logout'),
     getSession: notImplemented('getSession'),
     getAccount: notImplemented('getAccount'),
     getConfig: notImplemented('getConfig'),
+    registerStart: notImplemented('registerStart'),
+    registerPoll: notImplemented('registerPoll'),
+    registerVerifyLink: notImplemented('registerVerifyLink'),
+    getVault: notImplemented('getVault'),
+    saveVault: notImplemented('saveVault'),
+    addPassword: notImplemented('addPassword'),
+    changePassword: notImplemented('changePassword'),
+    addSecretCredential: notImplemented('addSecretCredential'),
+    addPasskeyStart: notImplemented('addPasskeyStart'),
+    addPasskeyFinish: notImplemented('addPasskeyFinish'),
+    loginPasskeyStart: notImplemented('loginPasskeyStart'),
+    loginPasskeyFinish: notImplemented('loginPasskeyFinish'),
     changeEmailStart: notImplemented('changeEmailStart'),
     changeEmailPoll: notImplemented('changeEmailPoll'),
     changeEmailVerifyLink: notImplemented('changeEmailVerifyLink'),
-    webAuthnRegisterStart: notImplemented('webAuthnRegisterStart'),
-    webAuthnRegisterComplete: notImplemented('webAuthnRegisterComplete'),
-    webAuthnLoginStart: notImplemented('webAuthnLoginStart'),
-    webAuthnLoginComplete: notImplemented('webAuthnLoginComplete'),
-    webAuthnVaultStore: notImplemented('webAuthnVaultStore'),
     ...overrides,
   }
 }
@@ -45,6 +45,17 @@ export function createMockClient(overrides: Partial<api.ClientInterface> = {}): 
 export function createSuccessMockClient(overrides: Partial<api.ClientInterface> = {}): api.ClientInterface {
   return {
     preLogin: async () => ({exists: false}),
+    login: async () => ({success: true, userId: 'user-1'}),
+    logout: async () => ({success: true}),
+    getSession: async () => ({
+      authenticated: false,
+      relyingPartyOrigin: 'https://example.com',
+    }),
+    getAccount: async () => new Account(),
+    getConfig: async () => ({
+      backendHttpBaseUrl: 'https://daemon.example.com',
+      notificationServerUrl: 'https://notify.example.com',
+    }),
     registerStart: async () => ({
       message: 'ok',
       challengeId: 'test-challenge',
@@ -54,20 +65,31 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
       verified: true,
       email: 'test@example.com',
     }),
+    getVault: async () => ({encryptedData: '', version: 0, credentials: []}),
+    saveVault: async () => ({success: true}),
     addPassword: async () => ({success: true}),
     changePassword: async () => ({success: true}),
-    login: async () => ({success: true, userId: 'user-1'}),
-    getVault: async () => ({encryptedData: '', version: 0, credentials: []}),
-    saveVaultData: async () => ({success: true}),
-    logout: async () => ({success: true}),
-    getSession: async () => ({
-      authenticated: false,
-      relyingPartyOrigin: 'https://vault.example.com',
+    addSecretCredential: async () => ({success: true, credentialId: 'secret-credential'}),
+    addPasskeyStart: async () => ({
+      challenge: 'challenge',
+      rp: {name: 'test', id: 'test'},
+      user: {id: 'id', name: 'name', displayName: 'name'},
+      pubKeyCredParams: [],
     }),
-    getAccount: async () => new Account(),
-    getConfig: async () => ({
-      backendHttpBaseUrl: 'https://daemon.example.com',
-      notificationServerUrl: 'https://notify.example.com',
+    addPasskeyFinish: async () => ({
+      success: true,
+      credentialId: 'cred-1',
+      backupEligible: true,
+      backupState: true,
+      prfEnabled: true,
+    }),
+    loginPasskeyStart: async () => ({
+      challenge: 'challenge',
+      allowCredentials: [],
+    }),
+    loginPasskeyFinish: async () => ({
+      success: true,
+      userId: 'user-1',
     }),
     changeEmailStart: async () => ({
       message: 'ok',
@@ -78,28 +100,6 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
       verified: true,
       newEmail: 'new@example.com',
     }),
-    webAuthnRegisterStart: async () => ({
-      challenge: 'challenge',
-      rp: {name: 'test', id: 'test'},
-      user: {id: 'id', name: 'name', displayName: 'name'},
-      pubKeyCredParams: [],
-    }),
-    webAuthnRegisterComplete: async () => ({
-      success: true,
-      credentialId: 'cred-1',
-      backupEligible: true,
-      backupState: true,
-      prfEnabled: true,
-    }),
-    webAuthnLoginStart: async () => ({
-      challenge: 'challenge',
-      allowCredentials: [],
-    }),
-    webAuthnLoginComplete: async () => ({
-      success: true,
-      userId: 'user-1',
-    }),
-    webAuthnVaultStore: async () => ({success: true}),
     ...overrides,
   }
 }

@@ -4,8 +4,8 @@ import {describe, expect, test} from 'bun:test'
 describe('vault config', () => {
   test('defaults backend http base url from relying party origin', () => {
     const defs = flags({
-      SEED_VAULT_RP_ID: 'vault.example.com',
-      SEED_VAULT_RP_ORIGIN: 'https://vault.example.com',
+      SEED_VAULT_RP_ID: 'example.com',
+      SEED_VAULT_RP_ORIGIN: 'https://example.com',
     })
 
     const cfg = create({
@@ -24,17 +24,17 @@ describe('vault config', () => {
       'smtp-sender': defs['smtp-sender'].default,
     })
 
-    expect(cfg.backend.httpBaseUrl).toBe('https://vault.example.com')
-    expect(cfg.backend.grpcBaseUrl).toBe('https://vault.example.com')
+    expect(cfg.backend.httpBaseUrl).toBe('https://example.com')
+    expect(cfg.backend.grpcBaseUrl).toBe('https://example.com')
   })
 
   test('defaults backend grpc base url from backend http base url', () => {
     const cfg = create({
       'server-hostname': '0.0.0.0',
       'server-port': 3000,
-      'rp-id': 'vault.example.com',
+      'rp-id': 'example.com',
       'rp-name': 'Vault',
-      'rp-origin': 'https://vault.example.com',
+      'rp-origin': 'https://example.com',
       'db-path': ':memory:',
       'backend-http-base-url': 'https://ipfs.example.com',
       'backend-grpc-base-url': '',
@@ -119,9 +119,9 @@ describe('vault config', () => {
     const cfg = create({
       'server-hostname': '0.0.0.0',
       'server-port': 3000,
-      'rp-id': 'vault.example.com',
+      'rp-id': 'example.com',
       'rp-name': 'Vault',
-      'rp-origin': 'https://vault.example.com',
+      'rp-origin': 'https://example.com',
       'db-path': ':memory:',
       'backend-http-base-url': 'https://ipfs.example.com',
       'backend-grpc-base-url': 'https://daemon.internal.example.com',
@@ -141,9 +141,9 @@ describe('vault config', () => {
       create({
         'server-hostname': '0.0.0.0',
         'server-port': 3000,
-        'rp-id': 'vault.example.com',
+        'rp-id': 'example.com',
         'rp-name': 'Vault',
-        'rp-origin': 'https://vault.example.com',
+        'rp-origin': 'https://example.com',
         'db-path': ':memory:',
         'backend-http-base-url': 'https://ipfs.example.com',
         'backend-grpc-base-url': 'not-a-url',

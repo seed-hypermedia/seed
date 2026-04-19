@@ -4,7 +4,7 @@ import {useDeleteDialog} from '@/components/delete-dialog'
 import {domainResolver} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
-import {useMyAccountIds} from '@/models/daemon'
+import {useForceVaultSync, useMyAccountIds, useVaultStatus} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
@@ -19,11 +19,13 @@ import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
+import {VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
 import {DocumentRoute, DraftRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
+import {formattedDate} from '@shm/shared/utils/date'
 import {createWebHMUrl, displayHostname, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
@@ -65,7 +67,7 @@ import {
   User,
   UserCog,
 } from 'lucide-react'
-import {ReactNode, useCallback, useContext, useMemo, useRef, useState} from 'react'
+import {ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {BookmarkButton} from './bookmarking'
 import {BranchDialog} from './branch-dialog'
 import {CopyReferenceButton} from './copy-reference-button'
@@ -369,7 +371,7 @@ function NotificationButton() {
   )
 }
 
-function AccountProfileButton() {
+export function AccountProfileButton() {
   const navigate = useNavigate()
   const accountUid = useSelectedAccountId()
   const selectedAccount = useSelectedAccount()
@@ -377,7 +379,12 @@ function AccountProfileButton() {
   const selectedIdentityValue = useStream(selectedIdentity)
   const myAccountIds = useMyAccountIds()
   const accountQueries = useAccounts(myAccountIds.data || [])
+  const vaultStatus = useVaultStatus()
+  const {isPending: isForceVaultSyncPending, mutate: forceVaultSync} = useForceVaultSync()
+  const remoteVaultConnected = vaultStatus.data?.connectionStatus === VaultConnectionStatus.CONNECTED
+  const [menuOpen, setMenuOpen] = useState(false)
   const [switcherOpen, setSwitcherOpen] = useState(false)
+  const requestedSyncForMenuOpen = useRef(false)
 
   const accountOptions = myAccountIds.data
     ?.map((uid, index) => {
@@ -387,10 +394,41 @@ function AccountProfileButton() {
     })
     .filter((d) => !!d)
 
+  useEffect(() => {
+    if (!menuOpen) {
+      requestedSyncForMenuOpen.current = false
+      return
+    }
+    if (!remoteVaultConnected || isForceVaultSyncPending || requestedSyncForMenuOpen.current) return
+
+    requestedSyncForMenuOpen.current = true
+
+    forceVaultSync(undefined, {
+      onError: () => {
+        // Best-effort refresh when the account switcher opens.
+      },
+    })
+  }, [forceVaultSync, isForceVaultSyncPending, menuOpen, remoteVaultConnected])
+
+  const vaultSyncLabel = isForceVaultSyncPending
+    ? 'Checking remote vault...'
+    : vaultStatus.data?.syncStatus?.lastSyncError
+    ? 'Remote vault sync needs attention'
+    : remoteVaultConnected
+    ? vaultStatus.data?.syncStatus?.lastSyncTime
+      ? `Remote vault synced ${formattedDate(vaultStatus.data.syncStatus.lastSyncTime, {onlyRelative: true})}`
+      : 'Remote vault connected'
+    : 'Vault stored locally'
+
   if (!accountUid) return null
 
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      onOpenChange={(open) => {
+        setMenuOpen(open)
+        if (!open) setSwitcherOpen(false)
+      }}
+    >
       <DropdownMenuTrigger asChild>
         <Button className="window-no-drag relative h-8 w-8 overflow-hidden rounded-full border-1 border-transparent p-0">
           <HMIcon
@@ -419,6 +457,18 @@ function AccountProfileButton() {
             </div>
             {switcherOpen ? <ChevronUp className="size-4 shrink-0" /> : <ChevronDown className="size-4 shrink-0" />}
           </button>
+          <div className="px-2 pb-1 text-left">
+            <p
+              className={cn(
+                'truncate text-xs',
+                vaultStatus.data?.syncStatus?.lastSyncError
+                  ? 'text-red-600 dark:text-red-400'
+                  : 'text-muted-foreground',
+              )}
+            >
+              {vaultSyncLabel}
+            </p>
+          </div>
           {switcherOpen && (
             <>
               <div

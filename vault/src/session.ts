@@ -25,6 +25,8 @@ export class Store {
    * Create a new session for a user.
    */
   createSession(userId: string): Session {
+    this.cleanupExpiredSessions()
+
     const now = Date.now()
     const session: Session = {
       id: randomId(),
@@ -41,6 +43,13 @@ export class Store {
     ])
 
     return session
+  }
+
+  /**
+   * Delete all expired sessions.
+   */
+  cleanupExpiredSessions(): void {
+    this.database.run(`DELETE FROM sessions WHERE expire_time <= ?`, [Date.now()])
   }
 
   /**

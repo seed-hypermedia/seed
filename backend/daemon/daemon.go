@@ -28,6 +28,7 @@ import (
 	"seed/backend/llm/backends/ollama"
 	"seed/backend/logging"
 	"seed/backend/storage"
+	"seed/backend/storage/vault"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/pprofx"
 
@@ -226,7 +227,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	}
 
 	a.HTTPServer, a.HTTPListener, err = initHTTP(cfg.Base, cfg.HTTP.Port, a.GRPCServer, &a.clean, a.g, a.Index,
-		fm, a.Net, opts.extraHTTPHandlers...)
+		fm, a.Net, a.RPC.Daemon, opts.extraHTTPHandlers...)
 	if err != nil {
 		return nil, err
 	}
@@ -384,6 +385,10 @@ func initGRPC(
 	srv = grpc.NewServer(opts.serverOptions...)
 	apis = api.New(cfg, repo, idx, node, sync, activity, LogLevel, isMainnet, dlink, taskMgr, embedder)
 	apis.Register(srv)
+
+	if remoteVault, ok := repo.KeyStore().(*vault.Vault); ok {
+		remoteVault.ResumeRemoteConnection()
+	}
 
 	for _, extra := range opts.extraServices {
 		extra(srv)

@@ -5,6 +5,7 @@ const SENSITIVE_RPC_METHODS = new Set([
   'Daemon.ImportKey',
   'Daemon.RegisterKey',
   'Daemon.GenMnemonic',
+  'Daemon.StartVaultConnection',
 ])
 
 /**

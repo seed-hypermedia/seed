@@ -14,9 +14,28 @@ const ONBOARDING_INITIAL_STATE: OnboardingState = {
   initialAccountIdCount: 0,
 }
 
-let obState = (appStore.get(ONBOARDING_STORAGE_KEY) as OnboardingState) || ONBOARDING_INITIAL_STATE
+type PersistedOnboardingState = Pick<
+  OnboardingState,
+  'hasCompletedOnboarding' | 'hasSkippedOnboarding' | 'initialAccountIdCount'
+>
 
-const getInitialState = (): OnboardingState => ONBOARDING_INITIAL_STATE
+function getPersistedOnboardingState(): PersistedOnboardingState {
+  const storedState = (appStore.get(ONBOARDING_STORAGE_KEY) as Partial<OnboardingState> | undefined) || {}
+  return {
+    hasCompletedOnboarding: storedState.hasCompletedOnboarding ?? ONBOARDING_INITIAL_STATE.hasCompletedOnboarding,
+    hasSkippedOnboarding: storedState.hasSkippedOnboarding ?? ONBOARDING_INITIAL_STATE.hasSkippedOnboarding,
+    initialAccountIdCount: storedState.initialAccountIdCount ?? ONBOARDING_INITIAL_STATE.initialAccountIdCount,
+  }
+}
+
+let obState: OnboardingState = {
+  ...ONBOARDING_INITIAL_STATE,
+  ...getPersistedOnboardingState(),
+}
+
+const getInitialState = (): OnboardingState => ({
+  ...ONBOARDING_INITIAL_STATE,
+})
 
 export function getOnboardingState() {
   return obState
@@ -28,7 +47,12 @@ export function setOnboardingState(state: Partial<OnboardingState>) {
     ...state,
     formData: {...obState.formData, ...state.formData},
   }
-  appStore.set(ONBOARDING_STORAGE_KEY, obState)
+  const persistedState: PersistedOnboardingState = {
+    hasCompletedOnboarding: obState.hasCompletedOnboarding,
+    hasSkippedOnboarding: obState.hasSkippedOnboarding,
+    initialAccountIdCount: obState.initialAccountIdCount,
+  }
+  appStore.set(ONBOARDING_STORAGE_KEY, persistedState)
 }
 
 export function setInitialAccountIdCount(count: number) {

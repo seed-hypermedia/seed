@@ -558,7 +558,10 @@ func (*GetInfoRequest) Descriptor() ([]byte, []int) {
 
 // Request to get vault backend and sync status.
 type GetVaultStatusRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Optional. When true, forces an immediate sync with the remote vault.
+	// Returns an error if the remote vault is not configured or offline.
+	ForceSync     bool `protobuf:"varint,1,opt,name=force_sync,json=forceSync,proto3" json:"force_sync,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -591,6 +594,13 @@ func (x *GetVaultStatusRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use GetVaultStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetVaultStatusRequest) Descriptor() ([]byte, []int) {
 	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GetVaultStatusRequest) GetForceSync() bool {
+	if x != nil {
+		return x.ForceSync
+	}
+	return false
 }
 
 // Request to start remote vault connection handoff.
@@ -1657,9 +1667,9 @@ func (x *Info) GetTasks() []*Task {
 type VaultSyncStatus struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Last local vault version known by the daemon.
-	LocalVersion uint64 `protobuf:"varint,1,opt,name=local_version,json=localVersion,proto3" json:"local_version,omitempty"`
+	LocalVersion int64 `protobuf:"varint,1,opt,name=local_version,json=localVersion,proto3" json:"local_version,omitempty"`
 	// Last remote vault version observed by the daemon.
-	RemoteVersion uint64 `protobuf:"varint,2,opt,name=remote_version,json=remoteVersion,proto3" json:"remote_version,omitempty"`
+	RemoteVersion int64 `protobuf:"varint,2,opt,name=remote_version,json=remoteVersion,proto3" json:"remote_version,omitempty"`
 	// Last successful or attempted sync time.
 	LastSyncTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
 	// Last sync error message, when sync failed.
@@ -1698,14 +1708,14 @@ func (*VaultSyncStatus) Descriptor() ([]byte, []int) {
 	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{28}
 }
 
-func (x *VaultSyncStatus) GetLocalVersion() uint64 {
+func (x *VaultSyncStatus) GetLocalVersion() int64 {
 	if x != nil {
 		return x.LocalVersion
 	}
 	return 0
 }
 
-func (x *VaultSyncStatus) GetRemoteVersion() uint64 {
+func (x *VaultSyncStatus) GetRemoteVersion() int64 {
 	if x != nil {
 		return x.RemoteVersion
 	}
@@ -2327,8 +2337,10 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1b\n" +
 	"\tfile_path\x18\x02 \x01(\tR\bfilePath\x12\x1a\n" +
 	"\bpassword\x18\x03 \x01(\tR\bpassword\"\x10\n" +
-	"\x0eGetInfoRequest\"\x17\n" +
-	"\x15GetVaultStatusRequest\"P\n" +
+	"\x0eGetInfoRequest\"6\n" +
+	"\x15GetVaultStatusRequest\x12\x1d\n" +
+	"\n" +
+	"force_sync\x18\x01 \x01(\bR\tforceSync\"P\n" +
 	"\x1bStartVaultConnectionRequest\x12\x1b\n" +
 	"\tvault_url\x18\x01 \x01(\tR\bvaultUrl\x12\x14\n" +
 	"\x05force\x18\x02 \x01(\bR\x05force\"\x9d\x01\n" +
@@ -2388,8 +2400,8 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"protocolId\x123\n" +
 	"\x05tasks\x18\x05 \x03(\v2\x1d.com.seed.daemon.v1alpha.TaskR\x05tasks\"\xc7\x01\n" +
 	"\x0fVaultSyncStatus\x12#\n" +
-	"\rlocal_version\x18\x01 \x01(\x04R\flocalVersion\x12%\n" +
-	"\x0eremote_version\x18\x02 \x01(\x04R\rremoteVersion\x12@\n" +
+	"\rlocal_version\x18\x01 \x01(\x03R\flocalVersion\x12%\n" +
+	"\x0eremote_version\x18\x02 \x01(\x03R\rremoteVersion\x12@\n" +
 	"\x0elast_sync_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\x12&\n" +
 	"\x0flast_sync_error\x18\x04 \x01(\tR\rlastSyncError\"\xb8\x02\n" +
 	"\x16GetVaultStatusResponse\x12L\n" +

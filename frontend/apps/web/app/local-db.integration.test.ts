@@ -197,7 +197,7 @@ describe('local-db integration', () => {
     it('should return undefined when no session exists', async () => {
       const db = await resetDB(indexedDB)
       try {
-        const session = await getAuthSession('https://vault.example.com')
+        const session = await getAuthSession('https://example.com/vault')
         expect(session).toBeUndefined()
       } finally {
         db.close()
@@ -212,16 +212,16 @@ describe('local-db integration', () => {
           keyPair,
           publicKeyRaw: new Uint8Array([1, 2, 3]),
           principal: 'test-principal',
-          vaultUrl: 'https://vault.example.com',
+          vaultUrl: 'https://example.com/vault',
           createTime: Date.now(),
           authState: 'some-state',
           authStartTime: Date.now(),
         }
-        await putAuthSession('https://vault.example.com', record)
-        const stored = await getAuthSession('https://vault.example.com')
+        await putAuthSession('https://example.com/vault', record)
+        const stored = await getAuthSession('https://example.com/vault')
         expect(stored).toBeDefined()
         expect(stored!.principal).toBe('test-principal')
-        expect(stored!.vaultUrl).toBe('https://vault.example.com')
+        expect(stored!.vaultUrl).toBe('https://example.com/vault')
         expect(stored!.authState).toBe('some-state')
       } finally {
         db.close()
@@ -236,15 +236,15 @@ describe('local-db integration', () => {
           keyPair,
           publicKeyRaw: new Uint8Array([1, 2, 3]),
           principal: 'test-principal',
-          vaultUrl: 'https://vault.example.com',
+          vaultUrl: 'https://example.com/vault',
           createTime: Date.now(),
           authState: null,
           authStartTime: null,
         }
-        await putAuthSession('https://vault.example.com', record)
-        expect(await getAuthSession('https://vault.example.com')).toBeDefined()
-        await deleteAuthSession('https://vault.example.com')
-        expect(await getAuthSession('https://vault.example.com')).toBeUndefined()
+        await putAuthSession('https://example.com/vault', record)
+        expect(await getAuthSession('https://example.com/vault')).toBeDefined()
+        await deleteAuthSession('https://example.com/vault')
+        expect(await getAuthSession('https://example.com/vault')).toBeUndefined()
       } finally {
         db.close()
       }
@@ -258,7 +258,7 @@ describe('local-db integration', () => {
           keyPair,
           publicKeyRaw: new Uint8Array([1]),
           principal: 'principal-1',
-          vaultUrl: 'https://vault1.example.com',
+          vaultUrl: 'https://example.com/vault-1',
           createTime: Date.now(),
           authState: null,
           authStartTime: null,
@@ -267,22 +267,22 @@ describe('local-db integration', () => {
           keyPair,
           publicKeyRaw: new Uint8Array([2]),
           principal: 'principal-2',
-          vaultUrl: 'https://vault2.example.com',
+          vaultUrl: 'https://example.com/vault-2',
           createTime: Date.now(),
           authState: null,
           authStartTime: null,
         }
-        await putAuthSession('https://vault1.example.com', record1)
-        await putAuthSession('https://vault2.example.com', record2)
+        await putAuthSession('https://example.com/vault-1', record1)
+        await putAuthSession('https://example.com/vault-2', record2)
 
-        const stored1 = await getAuthSession('https://vault1.example.com')
-        const stored2 = await getAuthSession('https://vault2.example.com')
+        const stored1 = await getAuthSession('https://example.com/vault-1')
+        const stored2 = await getAuthSession('https://example.com/vault-2')
         expect(stored1!.principal).toBe('principal-1')
         expect(stored2!.principal).toBe('principal-2')
 
-        await deleteAuthSession('https://vault1.example.com')
-        expect(await getAuthSession('https://vault1.example.com')).toBeUndefined()
-        expect(await getAuthSession('https://vault2.example.com')).toBeDefined()
+        await deleteAuthSession('https://example.com/vault-1')
+        expect(await getAuthSession('https://example.com/vault-1')).toBeUndefined()
+        expect(await getAuthSession('https://example.com/vault-2')).toBeDefined()
       } finally {
         db.close()
       }
@@ -303,9 +303,9 @@ describe('local-db integration', () => {
     it('should set and get auth state', async () => {
       const db = await resetDB(indexedDB)
       try {
-        await setAuthState(AUTH_STATE_ACTIVE_VAULT_URL, 'https://vault.example.com')
+        await setAuthState(AUTH_STATE_ACTIVE_VAULT_URL, 'https://example.com/vault')
         const value = await getAuthState(AUTH_STATE_ACTIVE_VAULT_URL)
-        expect(value).toBe('https://vault.example.com')
+        expect(value).toBe('https://example.com/vault')
       } finally {
         db.close()
       }
@@ -314,7 +314,7 @@ describe('local-db integration', () => {
     it('should delete auth state', async () => {
       const db = await resetDB(indexedDB)
       try {
-        await setAuthState(AUTH_STATE_ACTIVE_VAULT_URL, 'https://vault.example.com')
+        await setAuthState(AUTH_STATE_ACTIVE_VAULT_URL, 'https://example.com/vault')
         await deleteAuthState(AUTH_STATE_ACTIVE_VAULT_URL)
         expect(await getAuthState(AUTH_STATE_ACTIVE_VAULT_URL)).toBeNull()
       } finally {
@@ -325,9 +325,9 @@ describe('local-db integration', () => {
     it('should clear all auth state', async () => {
       const db = await resetDB(indexedDB)
       try {
-        await setAuthState(AUTH_STATE_ACTIVE_VAULT_URL, 'https://vault.example.com')
+        await setAuthState(AUTH_STATE_ACTIVE_VAULT_URL, 'https://example.com/vault')
         await setAuthState(AUTH_STATE_DELEGATION_RETURN_URL, '/some/path')
-        await setAuthState(AUTH_STATE_DELEGATION_VAULT_URL, 'https://vault.example.com/delegate')
+        await setAuthState(AUTH_STATE_DELEGATION_VAULT_URL, 'https://example.com/vault/delegate')
         await clearAllAuthState()
         expect(await getAuthState(AUTH_STATE_ACTIVE_VAULT_URL)).toBeNull()
         expect(await getAuthState(AUTH_STATE_DELEGATION_RETURN_URL)).toBeNull()

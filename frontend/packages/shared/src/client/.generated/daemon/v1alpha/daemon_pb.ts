@@ -439,6 +439,14 @@ export class GetInfoRequest extends Message<GetInfoRequest> {
  * @generated from message com.seed.daemon.v1alpha.GetVaultStatusRequest
  */
 export class GetVaultStatusRequest extends Message<GetVaultStatusRequest> {
+  /**
+   * Optional. When true, forces an immediate sync with the remote vault.
+   * Returns an error if the remote vault is not configured or offline.
+   *
+   * @generated from field: bool force_sync = 1;
+   */
+  forceSync = false;
+
   constructor(data?: PartialMessage<GetVaultStatusRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -447,6 +455,7 @@ export class GetVaultStatusRequest extends Message<GetVaultStatusRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.daemon.v1alpha.GetVaultStatusRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "force_sync", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetVaultStatusRequest {
@@ -1418,14 +1427,14 @@ export class VaultSyncStatus extends Message<VaultSyncStatus> {
   /**
    * Last local vault version known by the daemon.
    *
-   * @generated from field: uint64 local_version = 1;
+   * @generated from field: int64 local_version = 1;
    */
   localVersion = protoInt64.zero;
 
   /**
    * Last remote vault version observed by the daemon.
    *
-   * @generated from field: uint64 remote_version = 2;
+   * @generated from field: int64 remote_version = 2;
    */
   remoteVersion = protoInt64.zero;
 
@@ -1451,8 +1460,8 @@ export class VaultSyncStatus extends Message<VaultSyncStatus> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.daemon.v1alpha.VaultSyncStatus";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "local_version", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
-    { no: 2, name: "remote_version", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
+    { no: 1, name: "local_version", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 2, name: "remote_version", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 3, name: "last_sync_time", kind: "message", T: Timestamp },
     { no: 4, name: "last_sync_error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);

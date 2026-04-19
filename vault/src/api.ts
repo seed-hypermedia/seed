@@ -7,38 +7,68 @@ import type {
 import type {Account} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 
 /**
- * Pure service method definition without transport-specific concerns.
- * This serves as the source of truth for both client and server types.
+ * Vault service definition. Shared source of truth for both client and server types.
+ *
+ * # End-to-end encryption invariant
+ *
+ * The server never sees any key that can decrypt vault data. Per-user state
+ * stored server-side is limited to:
+ *   1. The encrypted vault blob (`encryptedData`).
+ *   2. A per-credential wrapped data-encryption key (`wrappedDEK`), encrypted
+ *      with a key that only the client holds.
+ *   3. Per-credential authentication material — an argon2id hash for passwords,
+ *      a SHA-256 hash for secret credentials, attestation data for passkeys.
+ *
+ * The `authKey` sent by the client is the authentication half of a
+ * key-separation derivation. It is sufficient to prove identity but cannot
+ * unwrap the DEK on its own. The decryption half never leaves the client.
+ *
+ * # Authentication rules
+ *
+ * - Unauthenticated: `preLogin`, `register*`, `login`, `loginPasskey*`,
+ *   `getConfig`, `getAccount`.
+ * - Session cookie required: `getSession`, `logout`, `changeEmail*`,
+ *   `addPasskey*`, `addPassword`,
+ *   `changePassword`, `addSecretCredential`.
+ * - Session cookie OR bearer (`credentialId:authKey`, secret credential only):
+ *   `getVault`, `saveVault`. Bearer wins when both are present. The bearer's
+ *   `credentialId` is the credentials-table primary key, so lookup is a single
+ *   indexed hit that yields `userId` — no scan and no need to include
+ *   `userId` in the URL.
  */
 export interface ServiceDefinition {
-  // Auth.
+  // Session and identity.
   preLogin(req: PreLoginRequest): Promise<PreLoginResponse>
-  registerStart(req: RegisterStartRequest): Promise<RegisterStartResponse>
-  registerPoll(req: RegisterPollRequest): Promise<RegisterPollResponse>
-  registerVerifyLink(req: RegisterVerifyLinkRequest): Promise<RegisterVerifyLinkResponse>
-  addPassword(req: AddPasswordRequest): Promise<AddPasswordResponse>
-  changePassword(req: ChangePasswordRequest): Promise<ChangePasswordResponse>
   login(req: LoginRequest): Promise<LoginResponse>
   logout(): Promise<LogoutResponse>
   getSession(): Promise<GetSessionResponse>
   getAccount(req: GetAccountRequest): Promise<GetAccountResponse>
   getConfig(): Promise<GetConfigResponse>
 
-  // Vault updates.
-  getVault(): Promise<GetVaultResponse>
-  saveVaultData(req: SaveVaultDataRequest): Promise<SaveVaultDataResponse>
+  // Email-based registration (magic link).
+  registerStart(req: RegisterStartRequest): Promise<RegisterStartResponse>
+  registerPoll(req: RegisterPollRequest): Promise<RegisterPollResponse>
+  registerVerifyLink(req: RegisterVerifyLinkRequest): Promise<RegisterVerifyLinkResponse>
+
+  // Vault data.
+  getVault(req: GetVaultRequest): Promise<GetVaultResponse>
+  saveVault(req: SaveVaultRequest): Promise<SaveVaultResponse>
+
+  // Credential management. All operations are scoped to the authenticated user.
+  addPassword(req: AddPasswordRequest): Promise<AddPasswordResponse>
+  changePassword(req: ChangePasswordRequest): Promise<ChangePasswordResponse>
+  addSecretCredential(req: AddSecretCredentialRequest): Promise<AddSecretCredentialResponse>
+  addPasskeyStart(): Promise<AddPasskeyStartResponse>
+  addPasskeyFinish(req: AddPasskeyFinishRequest): Promise<AddPasskeyFinishResponse>
+
+  // Passkey authentication.
+  loginPasskeyStart(req: LoginPasskeyStartRequest): Promise<LoginPasskeyStartResponse>
+  loginPasskeyFinish(req: LoginPasskeyFinishRequest): Promise<LoginPasskeyFinishResponse>
 
   // Email change.
   changeEmailStart(req: ChangeEmailStartRequest): Promise<ChangeEmailStartResponse>
   changeEmailPoll(req: ChangeEmailPollRequest): Promise<ChangeEmailPollResponse>
   changeEmailVerifyLink(req: ChangeEmailVerifyLinkRequest): Promise<ChangeEmailVerifyLinkResponse>
-
-  // WebAuthn.
-  webAuthnRegisterStart(): Promise<WebAuthnRegisterStartResponse>
-  webAuthnRegisterComplete(req: WebAuthnRegisterCompleteRequest): Promise<WebAuthnRegisterCompleteResponse>
-  webAuthnLoginStart(req: WebAuthnLoginStartRequest): Promise<WebAuthnLoginStartResponse>
-  webAuthnLoginComplete(req: WebAuthnLoginCompleteRequest): Promise<WebAuthnLoginCompleteResponse>
-  webAuthnVaultStore(req: WebAuthnVaultStoreRequest): Promise<WebAuthnVaultStoreResponse>
 }
 
 // Pre-login.
@@ -63,7 +93,7 @@ export type RegisterStartResponse = {
   challengeId: string
 }
 
-// Register poll - called by the original device to check if magic link was clicked.
+// Register poll — called by the original device to check whether the magic link was clicked.
 export type RegisterPollRequest = {
   challengeId: string
 }
@@ -72,7 +102,7 @@ export type RegisterPollResponse = {
   userId?: string
 }
 
-// Register verify link - called when user clicks the magic link.
+// Register verify link — called when the user clicks the magic link.
 export type RegisterVerifyLinkRequest = {
   challengeId: string
   token: string
@@ -82,17 +112,37 @@ export type RegisterVerifyLinkResponse = {
   email: string
 }
 
-// Add password.
+// Add password credential. Fails if the user already has a password.
 export type AddPasswordRequest = {
-  encryptedDEK: string
   authKey: string
   salt: string
+  wrappedDEK: string
 }
 export type AddPasswordResponse = {
   success: boolean
 }
 
-// Login.
+// Change password credential. Fails if the user does not already have a password.
+export type ChangePasswordRequest = {
+  authKey: string
+  salt: string
+  wrappedDEK: string
+}
+export type ChangePasswordResponse = {
+  success: boolean
+}
+
+// Add secret credential.
+export type AddSecretCredentialRequest = {
+  authKey: string
+  wrappedDEK: string
+}
+export type AddSecretCredentialResponse = {
+  success: boolean
+  credentialId: string
+}
+
+// Login (password).
 export type LoginRequest = {
   email: string
   authKey: string
@@ -102,20 +152,43 @@ export type LoginResponse = {
   userId: string
 }
 
-// Get vault.
+/**
+ * A password credential. `wrappedDEK` is encrypted with a key derived via
+ * argon2id + HKDF from the user's password. The server never sees the
+ * password; it stores only an argon2id hash of the derived `authKey`.
+ */
 export type PasswordVaultCredential = {
   kind: 'password'
   salt: string
   wrappedDEK: string
 }
 
+/**
+ * A passkey credential. `wrappedDEK` is encrypted with a key derived from the
+ * passkey's PRF extension output. The server never sees PRF output.
+ */
 export type PasskeyVaultCredential = {
   kind: 'passkey'
   credentialId: string
   wrappedDEK: string
 }
 
-export type VaultCredential = PasswordVaultCredential | PasskeyVaultCredential
+/**
+ * A secret credential. The credential secret is a random 32-byte value
+ * generated client-side. Unlike password credentials, there is no argon2id
+ * step because the secret already has full entropy; argon2id would waste CPU
+ * without adding security. The client derives two HKDF branches from the
+ * secret — an `authKey` sent to the server (SHA-256 hashed at rest), and an
+ * `encryptionKey` used locally to wrap the DEK. The server never sees the
+ * secret itself.
+ */
+export type SecretVaultCredential = {
+  kind: 'secret'
+  credentialId: string
+  wrappedDEK: string
+}
+
+export type VaultCredential = PasswordVaultCredential | PasskeyVaultCredential | SecretVaultCredential
 
 export type EmailPrevalidation = {
   email: string
@@ -124,19 +197,30 @@ export type EmailPrevalidation = {
   sig: string
 }
 
-export type GetVaultResponse = {
+// Get vault.
+export type GetVaultRequest = {
+  knownVersion?: number
+}
+
+export type GetVaultUnchangedResponse = {
+  unchanged: true
+}
+
+export type GetVaultDataResponse = {
   encryptedData?: string
-  version?: number
+  version: number
   credentials: VaultCredential[]
   emailPrevalidation?: EmailPrevalidation
 }
 
-// Save vault data.
-export type SaveVaultDataRequest = {
+export type GetVaultResponse = GetVaultUnchangedResponse | GetVaultDataResponse
+
+// Save vault.
+export type SaveVaultRequest = {
   encryptedData: string
   version: number
 }
-export type SaveVaultDataResponse = {
+export type SaveVaultResponse = {
   success: boolean
 }
 
@@ -164,7 +248,7 @@ export type GetConfigResponse = {
   notificationServerUrl: string
 }
 
-// Change email start - initiates email change verification.
+// Change email start — initiates email change verification.
 export type ChangeEmailStartRequest = {
   newEmail: string
 }
@@ -173,7 +257,7 @@ export type ChangeEmailStartResponse = {
   challengeId: string
 }
 
-// Change email poll - check if verification link was clicked.
+// Change email poll — check if verification link was clicked.
 export type ChangeEmailPollRequest = {
   challengeId: string
 }
@@ -182,7 +266,7 @@ export type ChangeEmailPollResponse = {
   newEmail?: string
 }
 
-// Change email verify link - called when user clicks magic link.
+// Change email verify link — called when the user clicks the magic link.
 export type ChangeEmailVerifyLinkRequest = {
   challengeId: string
   token: string
@@ -197,14 +281,22 @@ export type LogoutResponse = {
   success: boolean
 }
 
-// WebAuthn register start response.
-export type WebAuthnRegisterStartResponse = PublicKeyCredentialCreationOptionsJSON
+// Add passkey — step 1 (WebAuthn creation challenge).
+export type AddPasskeyStartResponse = PublicKeyCredentialCreationOptionsJSON
 
-// WebAuthn register complete.
-export type WebAuthnRegisterCompleteRequest = {
+/**
+ * Add passkey — step 2 (finalize registration).
+ *
+ * The client must derive PRF output before calling this endpoint, either from
+ * the WebAuthn `create()` ceremony itself or from an immediate browser-only
+ * `get()` retry against the newly created credential. The server only persists
+ * passkeys that already include a wrapped DEK.
+ */
+export type AddPasskeyFinishRequest = {
   response: RegistrationResponseJSON
+  wrappedDEK: string
 }
-export type WebAuthnRegisterCompleteResponse = {
+export type AddPasskeyFinishResponse = {
   success: boolean
   credentialId: string
   backupEligible: boolean
@@ -212,51 +304,34 @@ export type WebAuthnRegisterCompleteResponse = {
   prfEnabled: boolean
 }
 
-// WebAuthn login start.
-export type WebAuthnLoginStartRequest = {
+// Login with passkey — step 1.
+export type LoginPasskeyStartRequest = {
   email?: string
 }
-export type WebAuthnLoginStartResponse = PublicKeyCredentialRequestOptionsJSON & {
+export type LoginPasskeyStartResponse = PublicKeyCredentialRequestOptionsJSON & {
   userId?: string
 }
 
-// WebAuthn login complete.
-export type WebAuthnLoginCompleteRequest = {
+// Login with passkey — step 2.
+export type LoginPasskeyFinishRequest = {
   response: AuthenticationResponseJSON
 }
-export type WebAuthnLoginCompleteResponse = {
+export type LoginPasskeyFinishResponse = {
   success: boolean
   userId: string
 }
 
-// WebAuthn vault store.
-export type WebAuthnVaultStoreRequest = {
-  credentialId: string
-  encryptedDEK: string
-}
-export type WebAuthnVaultStoreResponse = {
-  success: boolean
-}
-
-// Change password.
-export type ChangePasswordRequest = {
-  encryptedDEK: string
-  authKey: string
-  salt: string
-}
-export type ChangePasswordResponse = {
-  success: boolean
-}
-
 /**
- * Server-side request context containing session info from cookies.
+ * Server-side request context containing browser session and vault auth data.
  * Mutable: handlers can set `sessionCookie` to control cookie behavior.
- * - `sessionCookie: undefined` - don't touch the session (default).
- * - `sessionCookie: string` - set the session cookie.
- * - `sessionCookie: null` - clear the session cookie.
+ * - `sessionCookie: undefined` — don't touch the session (default).
+ * - `sessionCookie: string` — set the session cookie.
+ * - `sessionCookie: null` — clear the session cookie.
  */
 export interface ServerContext {
   readonly sessionId: string | null
+  // Optional secret-credential bearer value extracted from Authorization.
+  readonly bearerAuth?: string | null
   sessionCookie?: string | null
 
   // The raw value of the challenge cookie from the incoming request.

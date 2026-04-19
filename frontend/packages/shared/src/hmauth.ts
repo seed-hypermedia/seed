@@ -16,7 +16,7 @@ import * as cbor from './cbor'
 
 /** Configuration for the Hypermedia auth client. */
 export interface HypermediaAuthConfig {
-  /** The URL of the Vault application. e.g. "https://vault.example.com" */
+  /** The URL of the Vault application. e.g. "https://example.com/vault" */
   vaultUrl: string
   /** The client ID (origin of this site). Usually `window.location.origin`. */
   clientId?: string

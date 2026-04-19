@@ -3,7 +3,7 @@ package backend
 import (
 	"context"
 	"seed/backend/blob"
-	"seed/backend/storage/keystore"
+	"seed/backend/core/keystore"
 	"seed/backend/storage"
 	"seed/backend/testutil"
 	"seed/backend/util/must"

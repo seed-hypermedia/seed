@@ -7,7 +7,7 @@ import {ChangeNotifyServerUrlView} from './ChangeNotifyServerUrlView'
 
 function renderChangeNotifyServerUrlView(savedNotificationServerUrl?: string) {
   const client = createMockClient({
-    saveVaultData: async () => ({success: true}),
+    saveVault: async () => ({success: true}),
   })
   const store = createStore(client, createMockBlockstore(), '', 'https://notify.default.example.com')
 

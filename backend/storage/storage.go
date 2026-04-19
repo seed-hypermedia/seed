@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"seed/backend/core"
 	"seed/backend/logging"
+	"seed/backend/storage/vault"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -133,6 +134,16 @@ func (s *Store) DB() *sqlitex.Pool { return s.db }
 
 // KeyStore returns the underlying key store.
 func (s *Store) KeyStore() core.KeyStore { return s.kms }
+
+// Vault returns the underlying vault by type-asserting the KeyStore implementation.
+func (s *Store) Vault() (*vault.Vault, error) {
+	v, ok := s.kms.(*vault.Vault)
+	if !ok {
+		return nil, fmt.Errorf("the underlying key store type %T is not a vault.Vault", s.kms)
+	}
+
+	return v, nil
+}
 
 // Migrate runs all migrations if needed.
 // Must be called before using any other method of the storage.

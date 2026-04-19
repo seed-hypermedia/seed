@@ -37,6 +37,7 @@ import {AppSidebar} from '../components/sidebar'
 import {TitleBar} from '../components/titlebar'
 import {BaseLoading, NotFoundPage} from './base'
 import {DocumentPlaceholder} from './document-placeholder'
+import {RemoteVaultReminder} from '@/components/remote-vault-reminder'
 import './polyfills'
 
 var Settings = lazy(() => import('./settings'))
@@ -166,6 +167,7 @@ export default function Main({className}: {className?: string}) {
           <div className="flex h-full flex-col">
             <SidebarContextProvider>
               {titlebar}
+              <RemoteVaultReminder />
 
               <PanelContent>
                 {sidebar}
@@ -187,6 +189,7 @@ export default function Main({className}: {className?: string}) {
                 onNewAssistantChat={hasAssistantProviders ? handleNewAssistantChat : undefined}
                 onToggleAssistant={hasAssistantProviders ? handleToggleAssistant : undefined}
               />
+
               <AutoUpdater />
               <ConfirmConnectionDialog />
               <DeviceLinkHandler />

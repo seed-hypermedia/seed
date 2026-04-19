@@ -45,7 +45,7 @@ export const MAX_IMAGE_SIZE = 5 * 1024 * 1024
 // Allowed image types
 export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
-export type OnboardingStep = 'welcome' | 'profile' | 'recovery' | 'ready' | 'existing' | 'import'
+export type OnboardingStep = 'welcome' | 'profile' | 'vault' | 'recovery' | 'ready' | 'existing' | 'import'
 
 export interface ImageData {
   base64: string

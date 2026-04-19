@@ -16,7 +16,7 @@ beforeAll(() => {
 const rp = {
   id: 'localhost',
   name: 'Vault',
-  origin: 'https://vault.example.com',
+  origin: 'https://example.com',
 }
 
 const hmacSecret = new Uint8Array(32)

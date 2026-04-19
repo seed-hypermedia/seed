@@ -63,6 +63,10 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Marker migration for the vault production data-dir version bump.
+	{Version: "2026-04-19.010000", Run: func(_ *Store, _ *sqlite.Conn) error {
+		return nil
+	}},
 	// Add domains table for caching domain configurations.
 	{Version: "2026-04-08.010000", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return sqlitex.ExecScript(conn, sqlfmt(`

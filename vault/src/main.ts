@@ -149,11 +149,56 @@ if (import.meta.main) {
 
 function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, string> {
   return {
+    '/vault/api/config': {
+      GET: async (req) => {
+        const ctx = getRequestContext(req)
+        const result = await svc.getConfig(ctx)
+        return handleResponse(result, ctx)
+      },
+    },
+    '/vault/api/session': {
+      GET: async (req) => {
+        const ctx = getRequestContext(req)
+        const result = await svc.getSession(ctx)
+        return handleResponse(result, ctx)
+      },
+    },
+    '/vault/api/logout': {
+      POST: async (req) => {
+        const ctx = getRequestContext(req)
+        const result = await svc.logout(ctx)
+        return handleResponse(result, ctx)
+      },
+    },
     '/vault/api/pre-login': {
       POST: async (req) => {
         const body = await req.json()
         const ctx = getRequestContext(req)
         const result = await svc.preLogin(body, ctx)
+        return handleResponse(result, ctx)
+      },
+    },
+    '/vault/api/login': {
+      POST: async (req) => {
+        const body = await req.json()
+        const ctx = getRequestContext(req)
+        const result = await svc.login(body, ctx)
+        return handleResponse(result, ctx)
+      },
+    },
+    '/vault/api/login/passkey/start': {
+      POST: async (req) => {
+        const body = await req.json()
+        const ctx = getRequestContext(req)
+        const result = await svc.loginPasskeyStart(body, ctx)
+        return handleResponse(result, ctx)
+      },
+    },
+    '/vault/api/login/passkey/finish': {
+      POST: async (req) => {
+        const body = await req.json()
+        const ctx = getRequestContext(req)
+        const result = await svc.loginPasskeyFinish(body, ctx)
         return handleResponse(result, ctx)
       },
     },
@@ -181,7 +226,26 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
         return handleResponse(result, ctx)
       },
     },
-    '/vault/api/add-password': {
+    '/vault/api/vault': {
+      GET: async (req) => {
+        const knownVersion = parseKnownVersion(new URL(req.url).searchParams.get('knownVersion'))
+        const ctx = getRequestContext(req)
+        const result = await svc.getVault({...(knownVersion !== undefined ? {knownVersion} : {})}, ctx)
+        return handleResponse(result, ctx, 200, {
+          'Cache-Control': 'no-store, private, max-age=0',
+          Pragma: 'no-cache',
+          Expires: '0',
+          Vary: 'Authorization, Cookie',
+        })
+      },
+      POST: async (req) => {
+        const body = await req.json()
+        const ctx = getRequestContext(req)
+        const result = await svc.saveVault(body, ctx)
+        return handleResponse(result, ctx)
+      },
+    },
+    '/vault/api/credentials/password': {
       POST: async (req) => {
         const body = await req.json()
         const ctx = getRequestContext(req)
@@ -189,7 +253,7 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
         return handleResponse(result, ctx)
       },
     },
-    '/vault/api/change-password': {
+    '/vault/api/credentials/password/change': {
       POST: async (req) => {
         const body = await req.json()
         const ctx = getRequestContext(req)
@@ -197,45 +261,50 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
         return handleResponse(result, ctx)
       },
     },
-    '/vault/api/login': {
+    '/vault/api/credentials/secret': {
       POST: async (req) => {
         const body = await req.json()
         const ctx = getRequestContext(req)
-        const result = await svc.login(body, ctx)
+        const result = await svc.addSecretCredential(body, ctx)
         return handleResponse(result, ctx)
       },
     },
-    '/vault/api/vault': {
-      GET: async (req) => {
+    '/vault/api/credentials/passkey/start': {
+      POST: async (req) => {
         const ctx = getRequestContext(req)
-        const result = await svc.getVault(ctx)
+        const result = await svc.addPasskeyStart(ctx)
         return handleResponse(result, ctx)
       },
+    },
+    '/vault/api/credentials/passkey/finish': {
       POST: async (req) => {
         const body = await req.json()
         const ctx = getRequestContext(req)
-        const result = await svc.saveVaultData(body, ctx)
+        const result = await svc.addPasskeyFinish(body, ctx)
         return handleResponse(result, ctx)
       },
     },
-    '/vault/api/logout': {
+    '/vault/api/email-change/start': {
       POST: async (req) => {
+        const body = await req.json()
         const ctx = getRequestContext(req)
-        const result = await svc.logout(ctx)
+        const result = await svc.changeEmailStart(body, ctx)
         return handleResponse(result, ctx)
       },
     },
-    '/vault/api/session': {
-      GET: async (req) => {
+    '/vault/api/email-change/poll': {
+      POST: async (req) => {
+        const body = await req.json()
         const ctx = getRequestContext(req)
-        const result = await svc.getSession(ctx)
+        const result = await svc.changeEmailPoll(body, ctx)
         return handleResponse(result, ctx)
       },
     },
-    '/vault/api/config': {
-      GET: async (req) => {
+    '/vault/api/email-change/verify-link': {
+      POST: async (req) => {
+        const body = await req.json()
         const ctx = getRequestContext(req)
-        const result = await svc.getConfig(ctx)
+        const result = await svc.changeEmailVerifyLink(body, ctx)
         return handleResponse(result, ctx)
       },
     },
@@ -250,74 +319,17 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
         return handleResponse(result.toJson({enumAsInteger: false, emitDefaultValues: true}), ctx)
       },
     },
-    '/vault/api/change-email/start': {
-      POST: async (req) => {
-        const body = await req.json()
-        const ctx = getRequestContext(req)
-        const result = await svc.changeEmailStart(body, ctx)
-        return handleResponse(result, ctx)
-      },
-    },
-    '/vault/api/change-email/poll': {
-      POST: async (req) => {
-        const body = await req.json()
-        const ctx = getRequestContext(req)
-        const result = await svc.changeEmailPoll(body, ctx)
-        return handleResponse(result, ctx)
-      },
-    },
-    '/vault/api/change-email/verify-link': {
-      POST: async (req) => {
-        const body = await req.json()
-        const ctx = getRequestContext(req)
-        const result = await svc.changeEmailVerifyLink(body, ctx)
-        return handleResponse(result, ctx)
-      },
-    },
-    '/vault/api/webauthn/register/start': {
-      POST: async (req) => {
-        const ctx = getRequestContext(req)
-        const result = await svc.webAuthnRegisterStart(ctx)
-        return handleResponse(result, ctx)
-      },
-    },
-    '/vault/api/webauthn/register/complete': {
-      POST: async (req) => {
-        const body = await req.json()
-        const ctx = getRequestContext(req)
-        const result = await svc.webAuthnRegisterComplete(body, ctx)
-        return handleResponse(result, ctx)
-      },
-    },
-    '/vault/api/webauthn/login/start': {
-      POST: async (req) => {
-        const body = await req.json()
-        const ctx = getRequestContext(req)
-        const result = await svc.webAuthnLoginStart(body, ctx)
-        return handleResponse(result, ctx)
-      },
-    },
-    '/vault/api/webauthn/login/complete': {
-      POST: async (req) => {
-        const body = await req.json()
-        const ctx = getRequestContext(req)
-        const result = await svc.webAuthnLoginComplete(body, ctx)
-        return handleResponse(result, ctx)
-      },
-    },
-    '/vault/api/webauthn/vault': {
-      POST: async (req) => {
-        const body = await req.json()
-        const ctx = getRequestContext(req)
-        const result = await svc.webAuthnVaultStore(body, ctx)
-        return handleResponse(result, ctx)
-      },
-    },
   }
 }
 
-function handleResponse(data: unknown, ctx: api.ServerContext, status = 200): Response {
+function handleResponse(data: unknown, ctx: api.ServerContext, status = 200, extraHeaders?: HeadersInit): Response {
   const headers = new Headers({'Content-Type': 'application/json'})
+
+  if (extraHeaders) {
+    new Headers(extraHeaders).forEach((value, key) => {
+      headers.set(key, value)
+    })
+  }
 
   if (ctx.sessionCookie !== undefined) {
     headers.append('Set-Cookie', ctx.sessionCookie === null ? session.clearCookie() : ctx.sessionCookie)
@@ -344,7 +356,42 @@ function handleResponse(data: unknown, ctx: api.ServerContext, status = 200): Re
 function getRequestContext(req: BunRequest): api.ServerContext {
   const sessionId = req.cookies.get(session.SESSION_COOKIE_NAME) || null
   const challengeCookie = req.cookies.get(challenge.getCookieName(isProd)) || null
-  return {sessionId, challengeCookie}
+  const bearerAuth = parseBearerToken(req.headers.get('authorization'))
+  return {sessionId, bearerAuth, challengeCookie}
+}
+
+function parseBearerToken(authorizationHeader: string | null): string | null {
+  if (!authorizationHeader) {
+    return null
+  }
+
+  const parts = authorizationHeader.trim().split(/\s+/)
+  if (parts.length !== 2) {
+    return null
+  }
+
+  const [scheme, token] = parts
+  if (!scheme || !token || scheme.toLowerCase() !== 'bearer') {
+    return null
+  }
+
+  return token
+}
+
+function parseKnownVersion(knownVersionRaw: string | null): number | undefined {
+  if (knownVersionRaw === null) {
+    return undefined
+  }
+  if (knownVersionRaw.trim() === '') {
+    throw new apisvc.APIError('Invalid knownVersion', 400)
+  }
+
+  const knownVersion = Number(knownVersionRaw)
+  if (!Number.isSafeInteger(knownVersion) || knownVersion < 0) {
+    throw new apisvc.APIError('Invalid knownVersion', 400)
+  }
+
+  return knownVersion
 }
 
 async function handleError(error: unknown): Promise<Response> {

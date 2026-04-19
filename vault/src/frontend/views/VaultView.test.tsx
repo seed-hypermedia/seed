@@ -1,4 +1,4 @@
-import {act, cleanup, render, waitFor} from '@testing-library/react'
+import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {afterEach, describe, expect, mock, test} from 'bun:test'
 import * as blobs from '@shm/shared/blobs'
 import {MemoryRouter} from 'react-router-dom'
@@ -21,7 +21,7 @@ describe('VaultView', () => {
     store.state.sessionChecked = true
     store.state.session = {
       authenticated: true,
-      relyingPartyOrigin: 'https://vault.example.com',
+      relyingPartyOrigin: 'https://example.com',
       email: 'test@example.com',
     }
     store.state.decryptedDEK = new Uint8Array(32)
@@ -133,6 +133,57 @@ describe('VaultView', () => {
         expect(store.state.selectedAccountIndex).toBe(1)
         expect(window.location.hash).toBe(`#/a/${encodeURIComponent(principals[1]!)}`)
       })
+    } finally {
+      global.fetch = originalFetch
+      history.replaceState(null, '', originalPath)
+    }
+  })
+
+  test('shows and dismisses the desktop connection success banner', async () => {
+    const originalFetch = global.fetch
+    const originalPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    const fetchMock = mock(async () => {
+      return new Response(
+        JSON.stringify({
+          accountId: 'account-1',
+          email: null,
+          verifiedTime: null,
+          verificationSendTime: null,
+          verificationExpired: false,
+          isRegistered: false,
+        }),
+        {
+          status: 200,
+          headers: {'Content-Type': 'application/json'},
+        },
+      )
+    })
+    global.fetch = fetchMock as unknown as typeof fetch
+    const {store} = createVaultStore(['Alice'], 'https://notify.example.com')
+    store.state.vaultConnectionSuccessMessage =
+      'Your Seed desktop app has been linked with this remote vault successfully.'
+    history.replaceState(null, '', '/vault')
+
+    try {
+      render(
+        <MemoryRouter>
+          <StoreContext.Provider value={store}>
+            <VaultView />
+          </StoreContext.Provider>
+        </MemoryRouter>,
+      )
+
+      expect(screen.getByText('Desktop app connected')).toBeTruthy()
+      expect(
+        screen.getByText('Your Seed desktop app has been linked with this remote vault successfully.'),
+      ).toBeTruthy()
+
+      fireEvent.click(screen.getByRole('button', {name: 'Dismiss desktop app connected message'}))
+
+      await waitFor(() => {
+        expect(store.state.vaultConnectionSuccessMessage).toBe('')
+      })
+      expect(screen.queryByText('Desktop app connected')).toBeNull()
     } finally {
       global.fetch = originalFetch
       history.replaceState(null, '', originalPath)

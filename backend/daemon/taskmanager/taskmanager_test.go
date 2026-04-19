@@ -42,13 +42,13 @@ func TestTaskManagerLifecycle(t *testing.T) {
 func TestTaskManagerGlobalState(t *testing.T) {
 	tm := NewTaskManager()
 
-	if state := tm.GlobalState(); state != daemonpb.State_STARTING {
-		t.Fatalf("GlobalState: expected STARTING, got %v", state)
+	if recordState := tm.GlobalState(); recordState != daemonpb.State_STARTING {
+		t.Fatalf("GlobalState: expected STARTING, got %v", recordState)
 	}
 
 	tm.UpdateGlobalState(daemonpb.State_MIGRATING)
 
-	if state := tm.GlobalState(); state != daemonpb.State_MIGRATING {
-		t.Fatalf("GlobalState: expected MIGRATING, got %v", state)
+	if recordState := tm.GlobalState(); recordState != daemonpb.State_MIGRATING {
+		t.Fatalf("GlobalState: expected MIGRATING, got %v", recordState)
 	}
 }

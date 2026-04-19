@@ -3,17 +3,23 @@ package daemon
 import (
 	context "context"
 	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
-	"seed/backend/storage/keystore"
 	taskmanager "seed/backend/daemon/taskmanager"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/storage"
+	"seed/backend/storage/vault"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -25,9 +31,38 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/chacha20poly1305"
+	"golang.org/x/crypto/hkdf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+const (
+	testVaultConnectionTokenRawLength = 32
+	testVaultConnectionTokenTTL       = 2 * time.Minute
+)
+
+func testVaultRemoteCredential() string {
+	return base64.RawURLEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef"))
+}
+
+func testVaultRemoteAuthKey(t *testing.T) string {
+	t.Helper()
+
+	secret, err := base64.RawURLEncoding.DecodeString(testVaultRemoteCredential())
+	require.NoError(t, err)
+
+	authKey := make([]byte, chacha20poly1305.KeySize)
+	reader := hkdf.New(sha256.New, secret, nil, []byte("seed-hypermedia-vault-secret-authentication"))
+	_, err = io.ReadFull(reader, authKey)
+	require.NoError(t, err)
+
+	return base64.RawURLEncoding.EncodeToString(authKey)
+}
+
+// vaultConnectionHandoffResponse mirrors the anonymous struct returned by HandleConnectionHandoff.
+type vaultConnectionHandoffResponse struct {
+	Success bool `json:"success"`
+}
 
 func TestGenMnemonic(t *testing.T) {
 	srv := newTestServer(t, "alice")
@@ -46,6 +81,110 @@ func TestGetInfo(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, testProtocolID, resp.ProtocolId)
+}
+
+func TestGetStatusDefaultsToLocal(t *testing.T) {
+	srv := newTestServer(t, "alice")
+
+	resp, err := srv.GetVaultStatus(t.Context(), &daemon.GetVaultStatusRequest{})
+	require.NoError(t, err)
+	require.Equal(t, daemon.VaultBackendMode_VAULT_BACKEND_MODE_LOCAL, resp.BackendMode)
+	require.Equal(t, daemon.VaultConnectionStatus_VAULT_CONNECTION_STATUS_DISCONNECTED, resp.ConnectionStatus)
+	require.Empty(t, resp.RemoteVaultUrl)
+	require.NotNil(t, resp.SyncStatus)
+	require.Zero(t, resp.SyncStatus.LocalVersion)
+	require.Zero(t, resp.SyncStatus.RemoteVersion)
+	require.Nil(t, resp.SyncStatus.LastSyncTime)
+	require.Empty(t, resp.SyncStatus.LastSyncError)
+}
+
+func TestGetStatusRemote(t *testing.T) {
+	user := coretest.NewTester("alice")
+	dataDir := t.TempDir()
+	localKey := []byte("0123456789abcdef0123456789abcdef")
+	ks, remoteURL := newConnectedTestVault(t, dataDir, localKey, user.Device)
+
+	store, err := storage.Open(dataDir, user.Device.Libp2pKey(), ks, "debug")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+
+	tMgr := taskmanager.NewTaskManager()
+	idx, err := blob.OpenIndex(t.Context(), store.DB(), zap.NewNop())
+	require.NoError(t, err)
+
+	srv := NewServer(store, &mockedP2PNode{}, idx, nil, tMgr, zap.NewNop())
+
+	resp, err := srv.GetVaultStatus(t.Context(), &daemon.GetVaultStatusRequest{})
+	require.NoError(t, err)
+	require.Equal(t, daemon.VaultBackendMode_VAULT_BACKEND_MODE_REMOTE, resp.BackendMode)
+	require.Equal(t, daemon.VaultConnectionStatus_VAULT_CONNECTION_STATUS_CONNECTED, resp.ConnectionStatus)
+	require.Equal(t, remoteURL, resp.RemoteVaultUrl)
+	require.NotNil(t, resp.SyncStatus)
+	require.Zero(t, resp.SyncStatus.LocalVersion)
+	require.Equal(t, int64(1), resp.SyncStatus.RemoteVersion)
+	require.NotNil(t, resp.SyncStatus.LastSyncTime)
+	require.Empty(t, resp.SyncStatus.LastSyncError)
+}
+
+func TestStartConnection(t *testing.T) {
+	srv := newTestServer(t, "alice")
+
+	resp, err := srv.StartVaultConnection(t.Context(), &daemon.StartVaultConnectionRequest{
+		VaultUrl: "https://example.com/vault/",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "https://example.com/vault", resp.VaultUrl)
+	require.NotNil(t, resp.ExpireTime)
+
+	tokenRaw, err := base64.RawURLEncoding.DecodeString(resp.HandoffToken)
+	require.NoError(t, err)
+	require.Len(t, tokenRaw, testVaultConnectionTokenRawLength)
+
+	expireAt := resp.ExpireTime.AsTime()
+	require.WithinDuration(t, time.Now().Add(testVaultConnectionTokenTTL), expireAt, 5*time.Second)
+}
+
+func TestDisconnect(t *testing.T) {
+	user := coretest.NewTester("alice")
+	dataDir := t.TempDir()
+	localKey := []byte("0123456789abcdef0123456789abcdef")
+	ks, _ := newConnectedTestVault(t, dataDir, localKey, user.Device)
+
+	store, err := storage.Open(dataDir, user.Device.Libp2pKey(), ks, "debug")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+
+	tMgr := taskmanager.NewTaskManager()
+	idx, err := blob.OpenIndex(t.Context(), store.DB(), zap.NewNop())
+	require.NoError(t, err)
+
+	srv := NewServer(store, &mockedP2PNode{}, idx, nil, tMgr, zap.NewNop())
+
+	_, err = srv.DisconnectVault(t.Context(), &daemon.DisconnectVaultRequest{})
+	require.NoError(t, err)
+
+	statusResp, err := srv.GetVaultStatus(t.Context(), &daemon.GetVaultStatusRequest{})
+	require.NoError(t, err)
+	require.Equal(t, daemon.VaultBackendMode_VAULT_BACKEND_MODE_LOCAL, statusResp.BackendMode)
+	require.Equal(t, daemon.VaultConnectionStatus_VAULT_CONNECTION_STATUS_DISCONNECTED, statusResp.ConnectionStatus)
+	require.Empty(t, statusResp.RemoteVaultUrl)
+}
+
+func TestHandleConnectionHandoff(t *testing.T) {
+	srv := newTestServer(t, "alice")
+	remoteServer := newRemoteVaultServer(t)
+
+	startResp, err := srv.StartVaultConnection(t.Context(), &daemon.StartVaultConnectionRequest{
+		VaultUrl: remoteServer.URL,
+	})
+	require.NoError(t, err)
+
+	rec := performVaultHandoffRequest(t, srv, http.MethodPost, `{"handoffToken":"`+startResp.HandoffToken+`","vaultUrl":"`+remoteServer.URL+`","userId":"user-123","credentialId":"cred-1","secret":"`+testVaultRemoteCredential()+`"}`)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp vaultConnectionHandoffResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.True(t, resp.Success)
 }
 
 func TestForceReindexTracksTaskWhileRemainingActive(t *testing.T) {
@@ -471,10 +610,17 @@ func TestSignData(t *testing.T) {
 	})
 }
 
-func newTestServer(t *testing.T, name string) *Server {
+func newTestServer(t *testing.T, name string, opts ...vault.RemoteOption) *Server {
 	u := coretest.NewTester(name)
+	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
+	dataDir := t.TempDir()
+	secretStore := vault.NewMemorySecretStore()
+	require.NoError(t, secretStore.Store("local", keyMaterial))
 
-	store, err := storage.Open(t.TempDir(), u.Device.Libp2pKey(), keystore.NewMemory(), "debug")
+	ks, err := vault.New(dataDir, secretStore, opts...)
+	require.NoError(t, err)
+
+	store, err := storage.Open(dataDir, u.Device.Libp2pKey(), ks, "debug")
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close()) })
 	tMgr := taskmanager.NewTaskManager()
@@ -482,6 +628,135 @@ func newTestServer(t *testing.T, name string) *Server {
 	require.NoError(t, err)
 
 	return NewServer(store, &mockedP2PNode{}, idx, nil, tMgr, zap.NewNop())
+}
+
+func newConnectedTestVault(t *testing.T, dataDir string, localKey []byte, kp *core.KeyPair) (*vault.Vault, string) {
+	t.Helper()
+
+	remoteServer := newRemoteVaultServer(t)
+	secretStore := vault.NewMemorySecretStore()
+	require.NoError(t, secretStore.Store("local", localKey))
+
+	ks, err := vault.New(
+		dataDir,
+		secretStore,
+		vault.WithHTTPClient(remoteServer.Client()),
+		vault.WithPollingConfig(10*time.Millisecond, time.Second),
+	)
+	require.NoError(t, err)
+
+	if kp != nil {
+		require.NoError(t, ks.StoreKey(t.Context(), "main", kp))
+	}
+
+	start, err := ks.StartConnection(remoteServer.URL, false)
+	require.NoError(t, err)
+	err = ks.HandleConnection(start.HandoffToken, vault.ConnectionHandoff{
+		RemoteURL:    remoteServer.URL,
+		UserID:       "user-123",
+		CredentialID: "cred-1",
+		Credential:   testVaultRemoteCredential(),
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		status, err := ks.Status()
+		return err == nil && status.RemoteMode && status.RemoteURL == remoteServer.URL && status.RemoteVersion == 1
+	}, time.Second, 10*time.Millisecond)
+
+	return ks, remoteServer.URL
+}
+
+func newRemoteVaultServer(t *testing.T) *httptest.Server {
+	t.Helper()
+
+	type saveRequest struct {
+		EncryptedData   string `json:"encryptedData"`
+		ExpectedVersion int    `json:"version"`
+	}
+
+	dek := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+
+	var mu sync.Mutex
+	version := 0
+	encryptedData := ""
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/vault":
+			require.Equal(t, "Bearer cred-1:"+testVaultRemoteAuthKey(t), r.Header.Get("Authorization"))
+
+			switch r.Method {
+			case http.MethodGet:
+				remoteSecret, err := base64.RawURLEncoding.DecodeString(testVaultRemoteCredential())
+				require.NoError(t, err)
+				wrappedDEK, err := encryptTestPayload(dek, remoteSecret)
+				require.NoError(t, err)
+
+				mu.Lock()
+				resp := map[string]any{
+					"encryptedData": encryptedData,
+					"version":       version,
+					"credentials": []map[string]string{{
+						"kind":         "secret",
+						"credentialId": "cred-1",
+						"wrappedDEK":   base64.RawURLEncoding.EncodeToString(wrappedDEK),
+					}},
+				}
+				mu.Unlock()
+
+				w.Header().Set("Content-Type", "application/json")
+				require.NoError(t, json.NewEncoder(w).Encode(resp))
+			case http.MethodPost:
+				var req saveRequest
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+
+				mu.Lock()
+				if req.ExpectedVersion != version {
+					mu.Unlock()
+					http.Error(w, "version conflict", http.StatusConflict)
+					return
+				}
+				encryptedData = req.EncryptedData
+				version++
+				mu.Unlock()
+
+				w.Header().Set("Content-Type", "application/json")
+				require.NoError(t, json.NewEncoder(w).Encode(map[string]bool{"success": true}))
+			default:
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	return server
+}
+
+func encryptTestPayload(plaintext []byte, key []byte) ([]byte, error) {
+	aead, err := chacha20poly1305.NewX(key[:chacha20poly1305.KeySize])
+	if err != nil {
+		return nil, err
+	}
+
+	nonce := make([]byte, chacha20poly1305.NonceSizeX)
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, err
+	}
+
+	ciphertext := aead.Seal(nil, nonce, plaintext, nil)
+	return append(nonce, ciphertext...), nil
+}
+
+func performVaultHandoffRequest(t *testing.T, srv *Server, method string, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(method, "/vault-handoff", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	srv.HandleConnectionHandoff(rec, req)
+	return rec
 }
 
 type fakeBlobIndex struct {

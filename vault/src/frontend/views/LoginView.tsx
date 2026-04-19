@@ -11,7 +11,8 @@ import {useActions, useAppState} from '@/frontend/store'
  * Sign in view for existing users.
  */
 export function LoginView() {
-  const {email, password, loading, error, passkeySupported, userHasPassword, userHasPasskey} = useAppState()
+  const {email, password, loading, error, passkeySupported, userHasPassword, userHasPasskey, vaultConnectionRequest} =
+    useAppState()
   const actions = useActions()
   const navigate = navigation.useHashNavigate()
 
@@ -23,8 +24,12 @@ export function LoginView() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-center">Welcome Back</CardTitle>
-        <CardDescription className="text-center">Sign in to {email}</CardDescription>
+        <CardTitle className="text-center">
+          {vaultConnectionRequest ? 'Connect your desktop app' : 'Welcome Back'}
+        </CardTitle>
+        <CardDescription className="text-center">
+          {vaultConnectionRequest ? `Sign in to ${email} to continue connecting this vault.` : `Sign in to ${email}`}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <ErrorMessage message={error} />

@@ -2,6 +2,7 @@ import type * as api from '@/api'
 import {code as cborCodec} from '@ipld/dag-cbor'
 import * as base64 from '@shm/shared/base64'
 import * as blobs from '@shm/shared/blobs'
+import * as cbor from '@shm/shared/cbor'
 import * as encryption from '@shm/shared/encryption'
 import * as hmauth from '@shm/shared/hmauth'
 import * as keyfile from '@shm/shared/keyfile'
@@ -30,6 +31,30 @@ export interface SessionInfo {
   }
 }
 
+type VaultConnectionRequest = {
+  handoffToken: string
+  callbackURL: string
+}
+
+type VaultConnectionHandoffResponse = {
+  success: boolean
+}
+
+const VAULT_CONNECTION_SUCCESS_MESSAGE = 'Your Seed desktop app has been linked with this remote vault successfully.'
+
+/**
+ * Returns the route to continue a pending external flow after auth or profile setup completes.
+ */
+export function getPendingFlowPath(state: Pick<AppState, 'delegationRequest' | 'vaultConnectionRequest'>): string {
+  if (state.delegationRequest) {
+    return '/delegate'
+  }
+  if (state.vaultConnectionRequest) {
+    return '/connect'
+  }
+  return '/'
+}
+
 /** Creates the initial state for the store. */
 function initialState(backendHttpBaseUrl = '', notificationServerUrl = '') {
   return {
@@ -48,6 +73,7 @@ function initialState(backendHttpBaseUrl = '', notificationServerUrl = '') {
     userHasPasskey: false,
     vaultData: null as vault.State | null,
     vaultVersion: 0,
+    vaultLoaded: false,
     selectedAccountIndex: -1,
     creatingAccount: false,
     newEmail: '', // For email change flow.
@@ -59,6 +85,12 @@ function initialState(backendHttpBaseUrl = '', notificationServerUrl = '') {
     emailPreFilledFromUrl: false,
     /** Whether the user has given consent for the current delegation. */
     delegationConsented: false,
+    /** Pending vault handoff parsed from URL fragment. */
+    vaultConnectionRequest: null as VaultConnectionRequest | null,
+    /** Prevent duplicate handoff completion calls. */
+    vaultConnectionInProgress: false,
+    /** Success notice shown after a desktop handoff completes. */
+    vaultConnectionSuccessMessage: '',
     /** Server-configured relying party origin used by WebAuthn verification. */
     relyingPartyOrigin: '',
     /** Daemon base URL used for direct IPFS asset reads. */
@@ -97,6 +129,50 @@ function isNetworkError(error: unknown) {
   )
 }
 
+async function derivePasskeyWrapKey(
+  registrationOptions: api.AddPasskeyStartResponse,
+  registrationResponse: webauthn.RegistrationResponseJSON,
+): Promise<Uint8Array | null> {
+  const registrationPrfOutput = registrationResponse.clientExtensionResults as {
+    prf?: localCrypto.PRFOutput
+  }
+  const registrationWrapKey = localCrypto.extractPRFKey(registrationPrfOutput.prf)
+  if (registrationWrapKey) {
+    return registrationWrapKey
+  }
+
+  try {
+    const authenticationResponse = await webauthn.startAuthentication({
+      optionsJSON: {
+        challenge: base64.encode(crypto.getRandomValues(new Uint8Array(32))),
+        rpId: registrationOptions.rp.id,
+        allowCredentials: [
+          {
+            id: registrationResponse.id,
+            type: 'public-key',
+          },
+        ],
+        userVerification: 'required',
+        extensions: {
+          prf: {
+            eval: {
+              first: localCrypto.PRF_SALT,
+            },
+          },
+        },
+      } as Parameters<typeof webauthn.startAuthentication>[0]['optionsJSON'],
+    })
+
+    const authenticationPrfOutput = authenticationResponse.clientExtensionResults as {
+      prf?: localCrypto.PRFOutput
+    }
+    return localCrypto.extractPRFKey(authenticationPrfOutput.prf)
+  } catch (e) {
+    console.warn('Failed to evaluate passkey PRF after registration:', e)
+    return null
+  }
+}
+
 function getVaultSaveErrorMessage(error: unknown) {
   if (isNetworkError(error)) {
     return "Couldn't reach the Vault backend to save your changes. Make sure the backend server is running and try again."
@@ -130,8 +206,89 @@ function normalizeNotificationServerUrl(notificationServerUrl: string) {
   return new URL(trimmedNotificationServerUrl).toString()
 }
 
+function normalizeBaseURL(rawURL: string, fieldName: string): string {
+  let parsed: URL
+  try {
+    parsed = new URL(rawURL)
+  } catch {
+    throw new Error(`Invalid ${fieldName}`)
+  }
+
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error(`Invalid ${fieldName}`)
+  }
+  if (!parsed.host) {
+    throw new Error(`Invalid ${fieldName}`)
+  }
+  if (parsed.username || parsed.password) {
+    throw new Error(`Invalid ${fieldName}`)
+  }
+  if (parsed.search || parsed.hash) {
+    throw new Error(`Invalid ${fieldName}`)
+  }
+
+  const normalizedPath = parsed.pathname === '/' ? '' : parsed.pathname.replace(/\/+$/, '')
+  return `${parsed.protocol}//${parsed.host}${normalizedPath}`
+}
+
+function getCurrentVaultBaseURL() {
+  return normalizeBaseURL(new URL('.', window.location.href).toString(), 'current vault URL')
+}
+
+function normalizeCallbackURL(rawURL: string) {
+  let parsed: URL
+  try {
+    parsed = new URL(rawURL)
+  } catch {
+    throw new Error('Invalid callback URL: must be a valid URL')
+  }
+
+  if (parsed.protocol !== 'http:') {
+    throw new Error('Invalid callback URL: protocol must be http')
+  }
+  if (parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1') {
+    throw new Error('Invalid callback URL: host must be localhost or 127.0.0.1')
+  }
+  if (parsed.username || parsed.password) {
+    throw new Error('Invalid callback URL: username and password are not allowed')
+  }
+  if (parsed.pathname !== '/vault-handoff') {
+    throw new Error('Invalid callback URL: path must be /vault-handoff')
+  }
+  if (parsed.search || parsed.hash) {
+    throw new Error('Invalid callback URL: query string and fragment are not allowed')
+  }
+
+  return `${parsed.origin}${parsed.pathname}`
+}
+
+function parseVaultConnectionRequest(urlLike: URL | string): VaultConnectionRequest | null {
+  const parsedURL = typeof urlLike === 'string' ? new URL(urlLike) : urlLike
+  const fragment = parsedURL.hash.startsWith('#') ? parsedURL.hash.slice(1) : parsedURL.hash
+  if (!fragment) {
+    return null
+  }
+
+  const params = new URLSearchParams(fragment)
+  const handoffToken = (params.get('token') ?? '').trim()
+  const callback = (params.get('callback') ?? '').trim()
+  if (!handoffToken && !callback) {
+    return null
+  }
+  if (!handoffToken || !callback) {
+    throw new Error('Invalid vault connection fragment')
+  }
+
+  return {
+    handoffToken,
+    callbackURL: normalizeCallbackURL(callback),
+  }
+}
+
 /** Creates actions bound to a specific state proxy and client. */
 function createActions(state: AppState, client: api.ClientInterface, navigator: Navigator, blockstore: Blockstore) {
+  let pendingVaultLoad: Promise<void> | null = null
+
   async function ensurePasswordSalt() {
     if (state.passwordSalt) {
       return state.passwordSalt
@@ -169,13 +326,17 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     }
   }
 
-  function getPasswordCredential(vaultData: api.GetVaultResponse): api.PasswordVaultCredential | null {
+  function isVaultDataResponse(vaultData: api.GetVaultResponse): vaultData is api.GetVaultDataResponse {
+    return 'version' in vaultData
+  }
+
+  function getPasswordCredential(vaultData: api.GetVaultDataResponse): api.PasswordVaultCredential | null {
     const credential = vaultData.credentials.find((item) => item.kind === 'password')
     return credential?.kind === 'password' ? credential : null
   }
 
   function getPasskeyCredential(
-    vaultData: api.GetVaultResponse,
+    vaultData: api.GetVaultDataResponse,
     credentialId: string,
   ): api.PasskeyVaultCredential | null {
     const credential = vaultData.credentials.find(
@@ -249,6 +410,86 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     notificationRegistration?: {
       includeEmail: boolean
     }
+  }
+
+  async function hydrateVaultData(serverData?: api.GetVaultResponse) {
+    if (!state.decryptedDEK) {
+      return
+    }
+
+    const vaultResponse = serverData ?? (await client.getVault({}))
+    if (!isVaultDataResponse(vaultResponse)) {
+      return
+    }
+
+    const passwordCredential = getPasswordCredential(vaultResponse)
+    if (passwordCredential) {
+      state.passwordSalt = passwordCredential.salt
+    }
+
+    state.emailPrevalidation = vaultResponse.emailPrevalidation ?? null
+
+    if (vaultResponse.encryptedData) {
+      const encryptedData = base64.decode(vaultResponse.encryptedData)
+      const decryptedData = await localCrypto.decrypt(encryptedData, state.decryptedDEK)
+      state.vaultData = await vault.deserialize(decryptedData)
+
+      if (state.vaultData.accounts.length === 1) {
+        state.selectedAccountIndex = 0
+      }
+      if (state.vaultData.accounts.length === 0) {
+        state.creatingAccount = true
+      }
+    } else {
+      state.vaultData = vault.createEmpty()
+      state.creatingAccount = true
+    }
+
+    state.vaultVersion = vaultResponse.version ?? 0
+    state.vaultLoaded = true
+  }
+
+  async function ensureVaultLoaded(serverData?: api.GetVaultResponse) {
+    if (!state.decryptedDEK) {
+      return
+    }
+
+    if (serverData) {
+      const loadPromise = hydrateVaultData(serverData)
+      pendingVaultLoad = loadPromise
+      try {
+        await loadPromise
+      } finally {
+        if (pendingVaultLoad === loadPromise) {
+          pendingVaultLoad = null
+        }
+      }
+      return
+    }
+
+    if (state.vaultLoaded) {
+      return
+    }
+
+    if (pendingVaultLoad) {
+      await pendingVaultLoad
+      return
+    }
+
+    const loadPromise = hydrateVaultData()
+    pendingVaultLoad = loadPromise
+    try {
+      await loadPromise
+    } finally {
+      if (pendingVaultLoad === loadPromise) {
+        pendingVaultLoad = null
+      }
+    }
+  }
+
+  async function reloadVaultAfterConflict() {
+    const freshVaultResponse = await client.getVault({})
+    await ensureVaultLoaded(freshVaultResponse)
   }
 
   const actions = {
@@ -445,10 +686,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         const salt = base64.encode(localCrypto.generatePasswordSalt())
         const {encryptionKey, authKey} = await derivePasswordMaterial(state.password, salt)
         const dek = localCrypto.generateDEK()
-        const encryptedDEK = await localCrypto.encrypt(dek, encryptionKey)
+        const wrappedDEK = await localCrypto.encrypt(dek, encryptionKey)
 
         await client.addPassword({
-          encryptedDEK: base64.encode(encryptedDEK),
+          wrappedDEK: base64.encode(wrappedDEK),
           authKey: base64.encode(authKey),
           salt,
         })
@@ -489,10 +730,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       try {
         const salt = base64.encode(localCrypto.generatePasswordSalt())
         const {encryptionKey, authKey} = await derivePasswordMaterial(state.password, salt)
-        const encryptedDEK = await localCrypto.encrypt(state.decryptedDEK, encryptionKey)
+        const wrappedDEK = await localCrypto.encrypt(state.decryptedDEK, encryptionKey)
 
         await client.addPassword({
-          encryptedDEK: base64.encode(encryptedDEK),
+          wrappedDEK: base64.encode(wrappedDEK),
           authKey: base64.encode(authKey),
           salt,
         })
@@ -534,10 +775,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       try {
         const salt = base64.encode(localCrypto.generatePasswordSalt())
         const {encryptionKey, authKey} = await derivePasswordMaterial(state.password, salt)
-        const encryptedDEK = await localCrypto.encrypt(state.decryptedDEK, encryptionKey)
+        const wrappedDEK = await localCrypto.encrypt(state.decryptedDEK, encryptionKey)
 
         await client.changePassword({
-          encryptedDEK: base64.encode(encryptedDEK),
+          wrappedDEK: base64.encode(wrappedDEK),
           authKey: base64.encode(authKey),
           salt,
         })
@@ -567,8 +808,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           throw new Error('Session expired. Please verify your email again.')
         }
 
-        // Step 1: Register the passkey with PRF extension enabled and try to evaluate it immediately.
-        const regOptions = await client.webAuthnRegisterStart()
+        // Step 1: Start registration and perform the WebAuthn create() ceremony with PRF enabled.
+        const regOptions = await client.addPasskeyStart()
 
         const regOptionsWithPrf = {
           ...regOptions,
@@ -586,51 +827,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           optionsJSON: regOptionsWithPrf,
         })
 
-        const completeData = await client.webAuthnRegisterComplete({
-          response: regResponse,
-        })
-
-        // Check if we got PRF output from registration.
-        let wrapKey: Uint8Array | null = null
-        const regPrfOutput = regResponse.clientExtensionResults as {
-          prf?: localCrypto.PRFOutput
-        }
-        wrapKey = localCrypto.extractPRFKey(regPrfOutput.prf)
-
-        if (!wrapKey) {
-          // Step 2: PRF not evaluated during registration. Try to authenticate immediately to get PRF output.
-          try {
-            const authOptions = await client.webAuthnLoginStart({
-              email: state.email,
-            })
-
-            const authOptionsWithPrf = {
-              ...authOptions,
-              extensions: {
-                ...authOptions.extensions,
-                prf: {
-                  eval: {
-                    first: localCrypto.PRF_SALT,
-                  },
-                },
-              },
-            }
-
-            const authResponse = await webauthn.startAuthentication({
-              optionsJSON: authOptionsWithPrf,
-            })
-
-            // Extract the PRF key from the authenticator response to wrap the DEK.
-            const authPrfOutput = authResponse.clientExtensionResults as {
-              prf?: localCrypto.PRFOutput
-            }
-            wrapKey = localCrypto.extractPRFKey(authPrfOutput.prf)
-
-            // Cleanup the pending login challenge on server best-effort (or just let it expire).
-          } catch (e) {
-            console.warn('Failed to perform immediate PRF evaluation after registration:', e)
-          }
-        }
+        // PRF may surface during create() or only on an immediate get() retry for this credential.
+        const wrapKey = await derivePasskeyWrapKey(regOptions, regResponse)
+        let dek = state.decryptedDEK ?? localCrypto.generateDEK()
 
         if (!wrapKey) {
           state.error = "Your authenticator doesn't support encryption. Please set up a password instead."
@@ -638,18 +837,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           return
         }
 
-        // Step 3: Encrypt DEK with PRF-derived key.
-        let dek = state.decryptedDEK
-        if (!dek) {
-          dek = localCrypto.generateDEK()
-        }
-
-        const encryptedDEK = await localCrypto.encrypt(dek, wrapKey)
-
-        // Store encrypted DEK for this credential.
-        await client.webAuthnVaultStore({
-          credentialId: completeData.credentialId,
-          encryptedDEK: base64.encode(encryptedDEK),
+        const wrappedDEK = await localCrypto.encrypt(dek, wrapKey)
+        const completeData = await client.addPasskeyFinish({
+          response: regResponse,
+          wrappedDEK: base64.encode(wrappedDEK),
         })
 
         if (!completeData.backupState) {
@@ -683,7 +874,11 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           authKey: base64.encode(authKey),
         })
 
-        const vaultData = await client.getVault()
+        const vaultData = await client.getVault({})
+        if (!isVaultDataResponse(vaultData)) {
+          throw new Error('Vault data was not returned.')
+        }
+
         const passwordCredential = getPasswordCredential(vaultData)
         if (!passwordCredential) {
           throw new Error('No password credential found for this account.')
@@ -708,7 +903,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.loading = true
 
       try {
-        const options = await client.webAuthnLoginStart({
+        const options = await client.loginPasskeyStart({
           email: state.email,
         })
 
@@ -729,7 +924,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           optionsJSON: optionsWithPrf,
         })
 
-        await client.webAuthnLoginComplete({
+        await client.loginPasskeyFinish({
           response: authResponse,
         })
 
@@ -746,7 +941,11 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           return
         }
 
-        const vaultData = await client.getVault()
+        const vaultData = await client.getVault({})
+        if (!isVaultDataResponse(vaultData)) {
+          throw new Error('Vault data was not returned.')
+        }
+
         const passkeyCredential = getPasskeyCredential(vaultData, authResponse.id)
         if (!passkeyCredential) {
           state.error =
@@ -773,9 +972,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.loading = true
 
       try {
-        let options: api.WebAuthnLoginStartResponse
+        let options: api.LoginPasskeyStartResponse
         try {
-          options = await client.webAuthnLoginStart({email: state.email})
+          options = await client.loginPasskeyStart({email: state.email})
         } catch (e) {
           if ((e as Error).message === 'No passkeys registered') {
             navigator.go('/login')
@@ -801,7 +1000,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           optionsJSON: optionsWithPrf,
         })
 
-        await client.webAuthnLoginComplete({
+        await client.loginPasskeyFinish({
           response: authResponse,
         })
 
@@ -817,7 +1016,11 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           return
         }
 
-        const vaultData = await client.getVault()
+        const vaultData = await client.getVault({})
+        if (!isVaultDataResponse(vaultData)) {
+          throw new Error('Vault data was not returned.')
+        }
+
         const passkeyCredential = getPasskeyCredential(vaultData, authResponse.id)
         if (!passkeyCredential) {
           state.error =
@@ -862,7 +1065,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
       try {
         // Request an anonymous challenge (no email).
-        const options = await client.webAuthnLoginStart({})
+        const options = await client.loginPasskeyStart({})
 
         const optionsWithPrf = {
           ...options,
@@ -883,7 +1086,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         })
 
         // User selected a passkey from autofill.
-        await client.webAuthnLoginComplete({
+        await client.loginPasskeyFinish({
           response: authResponse,
         })
 
@@ -898,7 +1101,11 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           return
         }
 
-        const vaultData = await client.getVault()
+        const vaultData = await client.getVault({})
+        if (!isVaultDataResponse(vaultData)) {
+          throw new Error('Vault data was not returned.')
+        }
+
         const passkeyCredential = getPasskeyCredential(vaultData, authResponse.id)
         if (!passkeyCredential) {
           state.error =
@@ -926,7 +1133,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.loading = true
 
       try {
-        const options = await client.webAuthnLoginStart({})
+        const options = await client.loginPasskeyStart({})
 
         const optionsWithPrf = {
           ...options,
@@ -944,7 +1151,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           optionsJSON: optionsWithPrf,
         })
 
-        await client.webAuthnLoginComplete({
+        await client.loginPasskeyFinish({
           response: authResponse,
         })
 
@@ -959,7 +1166,11 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           return
         }
 
-        const vaultData = await client.getVault()
+        const vaultData = await client.getVault({})
+        if (!isVaultDataResponse(vaultData)) {
+          throw new Error('Vault data was not returned.')
+        }
+
         const passkeyCredential = getPasskeyCredential(vaultData, authResponse.id)
         if (!passkeyCredential) {
           state.error =
@@ -999,8 +1210,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.loading = true
 
       try {
-        // Step 1: Register the passkey with PRF extension enabled and try to evaluate it immediately.
-        const regOptions = await client.webAuthnRegisterStart()
+        // Step 1: Start registration and perform the WebAuthn create() ceremony with PRF enabled.
+        const regOptions = await client.addPasskeyStart()
 
         const regOptionsWithPrf = {
           ...regOptions,
@@ -1018,78 +1229,27 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           optionsJSON: regOptionsWithPrf,
         })
 
-        const data = await client.webAuthnRegisterComplete({
-          response: regResponse,
-        })
+        const wrapKey = await derivePasskeyWrapKey(regOptions, regResponse)
 
-        // Check if we got PRF output from registration.
-        let wrapKey: Uint8Array | null = null
-        const regPrfOutput = regResponse.clientExtensionResults as {
-          prf?: localCrypto.PRFOutput
-        }
-        wrapKey = localCrypto.extractPRFKey(regPrfOutput.prf)
-
-        if (!wrapKey) {
-          // Step 2: PRF not evaluated during registration. Try to authenticate immediately to get PRF output.
-          try {
-            const authOptions = await client.webAuthnLoginStart({
-              email: state.email,
-            })
-
-            const authOptionsWithPrf = {
-              ...authOptions,
-              extensions: {
-                ...authOptions.extensions,
-                prf: {
-                  eval: {
-                    first: localCrypto.PRF_SALT, // Only first salt needed needed for one key (hmac-secret).
-                  },
-                },
-              },
-            }
-
-            const authResponse = await webauthn.startAuthentication({
-              optionsJSON: authOptionsWithPrf,
-            })
-
-            const authPrfOutput = authResponse.clientExtensionResults as {
-              prf?: localCrypto.PRFOutput
-            }
-            wrapKey = localCrypto.extractPRFKey(authPrfOutput.prf)
-          } catch (e) {
-            console.warn('Failed to perform immediate PRF evaluation after registration:', e)
-          }
-        }
-
-        if (!wrapKey) {
-          state.error =
-            "Passkey registered for authentication, but it doesn't support encryption. Please set up a password instead."
-          state.loading = false
-          if (!data.backupState) {
-            alert(
-              'Your passkey is not backed up to the cloud. If you lose this device, you may not be able to sign in. Consider adding a password or another passkey as a backup.',
-            )
-          }
-          return
-        }
-
-        // Step 3: Encrypt DEK with PRF-derived key.
         let dek = state.decryptedDEK
         if (!dek) {
           if (isNewUser) {
             dek = localCrypto.generateDEK()
           } else {
-            // Should not reach here due to check above.
             throw new Error('Vault locked')
           }
         }
 
-        const encryptedDEK = await localCrypto.encrypt(dek, wrapKey)
+        if (!wrapKey) {
+          state.error = "Your authenticator doesn't support encryption. Please set up a password instead."
+          state.loading = false
+          return
+        }
 
-        // Store encrypted DEK for this credential.
-        await client.webAuthnVaultStore({
-          credentialId: data.credentialId,
-          encryptedDEK: base64.encode(encryptedDEK),
+        const wrappedDEK = await localCrypto.encrypt(dek, wrapKey)
+        const data = await client.addPasskeyFinish({
+          response: regResponse,
+          wrappedDEK: base64.encode(wrappedDEK),
         })
 
         if (!data.backupState) {
@@ -1111,38 +1271,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     },
 
     async loadVaultData(serverData?: api.GetVaultResponse) {
-      if (!state.decryptedDEK) {
-        return
-      }
-
       try {
-        const vaultResponse = serverData ?? (await client.getVault())
-        const passwordCredential = getPasswordCredential(vaultResponse)
-        if (passwordCredential) {
-          state.passwordSalt = passwordCredential.salt
-        }
-
-        if (vaultResponse.encryptedData) {
-          const encryptedData = base64.decode(vaultResponse.encryptedData)
-          const decryptedData = await localCrypto.decrypt(encryptedData, state.decryptedDEK)
-          state.vaultData = await vault.deserialize(decryptedData)
-
-          if (state.vaultData.accounts.length === 1) {
-            state.selectedAccountIndex = 0
-          }
-          if (state.vaultData.accounts.length === 0) {
-            state.creatingAccount = true
-          }
-        } else {
-          state.vaultData = vault.createEmpty()
-          state.creatingAccount = true
-        }
-        state.vaultVersion = vaultResponse.version ?? 0
-
-        if (vaultResponse.emailPrevalidation) {
-          state.emailPrevalidation = vaultResponse.emailPrevalidation
-        }
+        await ensureVaultLoaded(serverData)
       } catch (e) {
+        state.vaultLoaded = false
         console.error('Failed to load vault data:', e)
       }
     },
@@ -1159,7 +1291,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         const dataBytes = await vault.serialize(state.vaultData)
         const encryptedData = await localCrypto.encrypt(dataBytes, state.decryptedDEK)
 
-        await client.saveVaultData({
+        await client.saveVault({
           encryptedData: base64.encode(encryptedData),
           version: state.vaultVersion,
         })
@@ -1216,7 +1348,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     },
 
     async createAccount(name: string, description?: string, avatarFile?: File, options?: CreateAccountOptions) {
-      if (!state.vaultData || !state.decryptedDEK) {
+      if (!state.decryptedDEK) {
         state.error = 'Vault must be unlocked first'
         return false
       }
@@ -1224,6 +1356,17 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.loading = true
       state.error = ''
 
+      if (!state.vaultLoaded && !state.vaultData) {
+        try {
+          await ensureVaultLoaded()
+        } catch (e) {
+          state.error = state.error || getErrorMessage(e, 'Failed to load vault')
+          state.loading = false
+          return false
+        }
+      }
+
+      const vaultData = state.vaultData ?? (state.vaultData = vault.createEmpty())
       const previousSelectedAccountIndex = state.selectedAccountIndex
       const previousCreatingAccount = state.creatingAccount
       let didSaveAccount = false
@@ -1240,16 +1383,38 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         }
 
         const account: vault.Account = {
+          name: accountUid,
           seed: kp.seed,
           createTime: ts,
           delegations: [],
         }
 
-        state.vaultData.accounts.push(account)
+        vaultData.accounts.push(account)
         insertedAccount = true
-        state.selectedAccountIndex = state.vaultData.accounts.length - 1
+        state.selectedAccountIndex = vaultData.accounts.length - 1
 
-        await actions.saveVaultData()
+        try {
+          await actions.saveVaultData()
+        } catch (error) {
+          if (!(error instanceof APIError) || error.statusCode !== 409) {
+            throw error
+          }
+
+          await reloadVaultAfterConflict()
+          const refreshedVaultData = state.vaultData ?? (state.vaultData = vault.createEmpty())
+          const existingAccountIndex = refreshedVaultData.accounts.findIndex((candidate) => {
+            return vault.getAccountName(candidate) === accountUid
+          })
+
+          if (existingAccountIndex === -1) {
+            refreshedVaultData.accounts.push(account)
+            state.selectedAccountIndex = refreshedVaultData.accounts.length - 1
+          } else {
+            state.selectedAccountIndex = existingAccountIndex
+          }
+
+          await actions.saveVaultData()
+        }
         didSaveAccount = true
         state.creatingAccount = false
 
@@ -1321,7 +1486,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     },
 
     async importAccount(keyFileJSON: string, password?: string) {
-      if (!state.vaultData || !state.decryptedDEK) {
+      if (!state.decryptedDEK) {
         state.error = 'Vault must be unlocked first'
         throw new Error(state.error)
       }
@@ -1329,29 +1494,62 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.loading = true
       state.error = ''
 
+      if (!state.vaultLoaded) {
+        try {
+          await ensureVaultLoaded()
+        } catch (e) {
+          state.error = state.error || getErrorMessage(e, 'Failed to load vault')
+          state.loading = false
+          throw e
+        }
+      }
+
+      const vaultData = state.vaultData ?? (state.vaultData = vault.createEmpty())
       const previousSelectedAccountIndex = state.selectedAccountIndex
       let insertedAccount = false
 
       try {
         const loaded = await keyfile.load(keyFileJSON, password)
-        const alreadyExists = state.vaultData.accounts.some((candidate) => {
-          const kp = blobs.nobleKeyPairFromSeed(candidate.seed)
-          return blobs.principalToString(kp.principal) === loaded.publicKey
+        const alreadyExists = vaultData.accounts.some((candidate) => {
+          return vault.getAccountName(candidate) === loaded.publicKey
         })
 
         if (alreadyExists) {
           throw new Error(`Account ${loaded.publicKey} already exists in vault`)
         }
 
-        state.vaultData.accounts.push({
+        const importedAccount: vault.Account = {
+          name: loaded.publicKey,
           seed: loaded.seed,
           createTime: Date.now(),
           delegations: [],
-        })
-        insertedAccount = true
-        state.selectedAccountIndex = state.vaultData.accounts.length - 1
+        }
 
-        await actions.saveVaultData()
+        vaultData.accounts.push(importedAccount)
+        insertedAccount = true
+        state.selectedAccountIndex = vaultData.accounts.length - 1
+
+        try {
+          await actions.saveVaultData()
+        } catch (error) {
+          if (!(error instanceof APIError) || error.statusCode !== 409) {
+            throw error
+          }
+
+          await reloadVaultAfterConflict()
+          const refreshedVaultData = state.vaultData ?? (state.vaultData = vault.createEmpty())
+          const existingAccountIndex = refreshedVaultData.accounts.findIndex((candidate) => {
+            return vault.getAccountName(candidate) === loaded.publicKey
+          })
+
+          if (existingAccountIndex !== -1) {
+            throw new Error(`Account ${loaded.publicKey} already exists in vault`)
+          }
+
+          refreshedVaultData.accounts.push(importedAccount)
+          state.selectedAccountIndex = refreshedVaultData.accounts.length - 1
+          await actions.saveVaultData()
+        }
         return loaded.publicKey
       } catch (e) {
         if (insertedAccount) {
@@ -1420,6 +1618,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
     setCreatingAccount(open: boolean) {
       state.creatingAccount = open
+      if (open) {
+        state.error = ''
+      }
     },
 
     getSelectedAccount(): vault.Account | null {
@@ -1453,10 +1654,22 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.error = ''
 
       try {
-        // 1. Remove the account
+        // 1. Record the deletion as a tombstone before removing
+        if (!state.vaultData.deletedAccounts) {
+          state.vaultData.deletedAccounts = {}
+        }
+        const account = state.vaultData.accounts[index]
+        if (!account) {
+          state.error = 'Account not found'
+          return
+        }
+        const accountName = vault.getAccountName(account)
+        state.vaultData.deletedAccounts[accountName] = Date.now()
+
+        // 2. Remove the account
         state.vaultData.accounts.splice(index, 1)
 
-        // 2. Adjust selectedAccountIndex
+        // 3. Adjust selectedAccountIndex
         if (state.vaultData.accounts.length === 0) {
           state.selectedAccountIndex = -1
         } else if (state.selectedAccountIndex === index) {
@@ -1642,6 +1855,107 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
+    /**
+     * Parse vault handoff connection data from URL fragment and store it for post-login completion.
+     * The fragment must include a handoff token and callback URL.
+     */
+    parseVaultConnectionFromUrl(url: URL | string) {
+      try {
+        const request = parseVaultConnectionRequest(url)
+        if (!request) {
+          return
+        }
+
+        state.vaultConnectionRequest = request
+      } catch (e) {
+        state.error = getErrorMessage(e, 'Invalid vault connection request')
+        state.vaultConnectionRequest = null
+      }
+    },
+
+    /**
+     * Complete vault handoff by registering a daemon credential and sending it to the desktop callback.
+     */
+    async completeVaultConnection() {
+      if (state.vaultConnectionInProgress) {
+        return
+      }
+      if (!state.vaultConnectionRequest) {
+        state.error = 'No desktop connection request is active.'
+        return
+      }
+      if (!state.session?.authenticated) {
+        state.error = 'Your session expired. Sign in again and retry connecting desktop.'
+        return
+      }
+      if (!state.decryptedDEK) {
+        state.error = 'Vault must be unlocked before connecting desktop.'
+        return
+      }
+
+      state.vaultConnectionInProgress = true
+      state.error = ''
+
+      const {handoffToken, callbackURL} = state.vaultConnectionRequest
+      try {
+        const expectedVaultBaseURL = getCurrentVaultBaseURL()
+        const userId = state.session.userId?.trim()
+        if (!userId) {
+          throw new Error('Session is missing the authenticated user ID')
+        }
+
+        const daemonSecret = crypto.getRandomValues(new Uint8Array(32))
+        const encodedSecret = base64.encode(daemonSecret)
+        const authKey = await localCrypto.deriveSecretCredentialAuthKey(daemonSecret)
+        const wrappedDEK = await localCrypto.encrypt(state.decryptedDEK, daemonSecret)
+        const credential = await client.addSecretCredential({
+          authKey: base64.encode(authKey),
+          wrappedDEK: base64.encode(wrappedDEK),
+        })
+        const handoffResp = await fetch(callbackURL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            handoffToken,
+            vaultUrl: expectedVaultBaseURL,
+            userId,
+            credentialId: credential.credentialId,
+            secret: encodedSecret,
+          }),
+        })
+        if (!handoffResp.ok) {
+          const bodyText = await handoffResp.text()
+          throw new Error(bodyText || 'Failed to complete vault handoff')
+        }
+        const handoff = (await handoffResp.json()) as VaultConnectionHandoffResponse
+        if (!handoff.success) {
+          throw new Error('Failed to complete vault handoff')
+        }
+
+        state.vaultConnectionRequest = null
+        state.vaultConnectionSuccessMessage = VAULT_CONNECTION_SUCCESS_MESSAGE
+        navigator.go('/')
+      } catch (e) {
+        state.error = getErrorMessage(e, 'Failed to complete vault connection')
+      } finally {
+        state.vaultConnectionInProgress = false
+      }
+    },
+
+    /** Cancel the current desktop vault connection flow. */
+    cancelVaultConnection() {
+      state.error = ''
+      state.vaultConnectionRequest = null
+      navigator.go('/')
+    },
+
+    /** Clear the desktop connection success notice after the user sees it. */
+    clearVaultConnectionSuccessMessage() {
+      state.vaultConnectionSuccessMessage = ''
+    },
+
     /** Set whether the user has consented to the current delegation. */
     setDelegationConsent(consented: boolean) {
       state.delegationConsented = consented
@@ -1702,18 +2016,46 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
         await actions.saveVaultData()
 
-        const callbackUrl = await hmauth.buildCallbackUrl(
-          state.delegationRequest.redirectUri,
-          state.delegationRequest.state,
-          issuerKeyPair.principal,
-          encoded,
-          getEffectiveNotificationServerUrl(),
-        )
+        const callbackUrl = new URL(state.delegationRequest.redirectUri)
+        const callbackData = {
+          account: issuerKeyPair.principal,
+          capability: encoded.decoded,
+          capabilityCid: encoded.cid,
+          notifyServerUrl: getEffectiveNotificationServerUrl(),
+        }
+        const compressedCallbackData = await (async () => {
+          const stream = new CompressionStream('gzip')
+          const writer = stream.writable.getWriter()
+          writer.write(new Uint8Array(cbor.encode(callbackData)) as Uint8Array<ArrayBuffer>)
+          writer.close()
+
+          const reader = stream.readable.getReader()
+          const chunks: Uint8Array[] = []
+          let totalLength = 0
+          for (;;) {
+            const {done, value} = await reader.read()
+            if (done) {
+              break
+            }
+            chunks.push(value)
+            totalLength += value.length
+          }
+
+          const result = new Uint8Array(totalLength)
+          let offset = 0
+          for (const chunk of chunks) {
+            result.set(chunk, offset)
+            offset += chunk.length
+          }
+          return result
+        })()
+        callbackUrl.searchParams.set(hmauth.PARAM_DATA, base64.encode(compressedCallbackData))
+        callbackUrl.searchParams.set(hmauth.PARAM_STATE, state.delegationRequest.state)
 
         state.delegationRequest = null
         state.delegationConsented = false
 
-        window.location.href = callbackUrl
+        window.location.href = callbackUrl.toString()
       } catch (e) {
         // Error is surfaced to the user via state.error; no console.error
         // to avoid noisy output in tests that intentionally trigger failures.
@@ -1744,6 +2086,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.decryptedDEK = null
       state.password = ''
       state.vaultData = null
+      state.vaultVersion = 0
+      state.vaultLoaded = false
       state.selectedAccountIndex = -1
       state.email = ''
       navigator.go('/')

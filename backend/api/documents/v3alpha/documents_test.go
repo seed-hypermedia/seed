@@ -10,7 +10,7 @@ import (
 	"seed/backend/config"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
-	"seed/backend/storage/keystore"
+	"seed/backend/core/keystore"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/ipfs"
 	"seed/backend/logging"

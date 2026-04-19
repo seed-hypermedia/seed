@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"runtime/debug"
+	daemonapi "seed/backend/api/daemon/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/hmnet"
@@ -32,6 +33,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 )
+
+const vaultConnectionHandoffPath = "/vault-handoff"
 
 var (
 	commit string
@@ -112,6 +115,7 @@ func initHTTP(
 	blobs blockstore.Blockstore,
 	ipfsHandler *hmnet.FileManager,
 	p2pnet *hmnet.Node,
+	daemonServer *daemonapi.Server,
 	extraHandlers ...func(*Router),
 ) (srv *http.Server, lis net.Listener, err error) {
 	router := &Router{r: mux.NewRouter()}
@@ -152,6 +156,7 @@ func initHTTP(
 		router.Handle("/debug/p2p", p2pnet.DebugHandler(), RouteNav)
 
 		router.Handle("/hm/api/config", p2pnet.HMAPIConfigHandler(), RouteNav)
+		router.Handle(vaultConnectionHandoffPath, corsMiddleware(http.HandlerFunc(daemonServer.HandleConnectionHandoff)), 0)
 
 		for _, handle := range extraHandlers {
 			handle(router)
@@ -350,4 +355,3 @@ func (r *Router) Index(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, `<p><a href="%s">%s</a></p>`, route, route)
 	}
 }
-

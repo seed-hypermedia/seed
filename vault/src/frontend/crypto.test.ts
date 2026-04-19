@@ -98,10 +98,15 @@ describe('key derivation', () => {
     const encryptionKey2 = await crypto.deriveEncryptionKey(masterKey)
     const authKey1 = await crypto.deriveAuthKey(masterKey)
     const authKey2 = await crypto.deriveAuthKey(masterKey)
+    const secretCredentialAuthKey1 = await crypto.deriveSecretCredentialAuthKey(masterKey)
+    const secretCredentialAuthKey2 = await crypto.deriveSecretCredentialAuthKey(masterKey)
 
     expect(encryptionKey1).toEqual(encryptionKey2)
     expect(authKey1).toEqual(authKey2)
+    expect(secretCredentialAuthKey1).toEqual(secretCredentialAuthKey2)
     expect(encryptionKey1).not.toEqual(authKey1)
+    expect(secretCredentialAuthKey1).not.toEqual(authKey1)
+    expect(secretCredentialAuthKey1).not.toEqual(encryptionKey1)
   })
 })
 

@@ -29,6 +29,8 @@ async function deriveHKDFKey(masterKey: Uint8Array, info: string): Promise<Uint8
   return new Uint8Array(derived)
 }
 
+const SECRET_CREDENTIAL_AUTH_INFO = 'seed-hypermedia-vault-secret-authentication'
+
 /**
  * Derive the vault encryption key from the master key.
  */
@@ -41,6 +43,13 @@ export async function deriveEncryptionKey(masterKey: Uint8Array): Promise<Uint8A
  */
 export async function deriveAuthKey(masterKey: Uint8Array): Promise<Uint8Array> {
   return deriveHKDFKey(masterKey, 'seed-hypermedia-vault-authentication')
+}
+
+/**
+ * Derive the authentication key for a secret credential from its KEK.
+ */
+export async function deriveSecretCredentialAuthKey(secret: Uint8Array): Promise<Uint8Array> {
+  return deriveHKDFKey(secret, SECRET_CREDENTIAL_AUTH_INFO)
 }
 
 /**

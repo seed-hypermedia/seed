@@ -138,6 +138,28 @@ const (
 	C_DocumentGenerationsResource             = "document_generations.resource"
 )
 
+// Table domains.
+const (
+	Domains            sqlitegen.Table  = "domains"
+	DomainsDomain      sqlitegen.Column = "domains.domain"
+	DomainsLastCheck   sqlitegen.Column = "domains.last_check"
+	DomainsLastConfig  sqlitegen.Column = "domains.last_config"
+	DomainsLastError   sqlitegen.Column = "domains.last_error"
+	DomainsLastStatus  sqlitegen.Column = "domains.last_status"
+	DomainsLastSuccess sqlitegen.Column = "domains.last_success"
+)
+
+// Table domains. Plain strings.
+const (
+	T_Domains            = "domains"
+	C_DomainsDomain      = "domains.domain"
+	C_DomainsLastCheck   = "domains.last_check"
+	C_DomainsLastConfig  = "domains.last_config"
+	C_DomainsLastError   = "domains.last_error"
+	C_DomainsLastStatus  = "domains.last_status"
+	C_DomainsLastSuccess = "domains.last_success"
+)
+
 // Table embeddings.
 const (
 	Embeddings                        sqlitegen.Table  = "embeddings"
@@ -637,6 +659,12 @@ var Schema = sqlitegen.Schema{
 		DocumentGenerationsLastTombstoneRefTime: {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsMetadata:             {Table: DocumentGenerations, SQLType: "JSON"},
 		DocumentGenerationsResource:             {Table: DocumentGenerations, SQLType: "INTEGER"},
+		DomainsDomain:                           {Table: Domains, SQLType: "TEXT"},
+		DomainsLastCheck:                        {Table: Domains, SQLType: "INTEGER"},
+		DomainsLastConfig:                       {Table: Domains, SQLType: "JSON"},
+		DomainsLastError:                        {Table: Domains, SQLType: "TEXT"},
+		DomainsLastStatus:                       {Table: Domains, SQLType: "TEXT"},
+		DomainsLastSuccess:                      {Table: Domains, SQLType: "INTEGER"},
 		EmbeddingsDistance:                      {Table: Embeddings, SQLType: ""},
 		EmbeddingsFtsID:                         {Table: Embeddings, SQLType: ""},
 		EmbeddingsK:                             {Table: Embeddings, SQLType: ""},

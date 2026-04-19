@@ -49,7 +49,7 @@ async function decompress(data: Uint8Array): Promise<Uint8Array> {
 async function createSignedDelegationUrl(
   clientId = 'https://example.com',
   redirectUri = 'https://example.com/callback',
-  vaultOrigin = 'https://vault.example.com',
+  vaultOrigin = 'https://example.com',
 ) {
   const keyPair = (await crypto.subtle.generateKey('Ed25519' as unknown as AlgorithmIdentifier, false, [
     'sign',
@@ -97,14 +97,14 @@ describe('delegation request protocol', () => {
     const {url} = await createSignedDelegationUrl()
     const request = SDK.parseDelegationRequest(url)
     expect(request).not.toBeNull()
-    await expect(SDK.verifyDelegationRequestProof(request!, 'https://vault.example.com')).resolves.toBeUndefined()
+    await expect(SDK.verifyDelegationRequestProof(request!, 'https://example.com')).resolves.toBeUndefined()
   })
 
   cryptoTest('rejects request when signed fields are tampered', async () => {
     const {url} = await createSignedDelegationUrl()
     url.searchParams.set(SDK.PARAM_STATE, 'BBBBBBBBBBBBBBBBBBBBBB')
     const request = SDK.parseDelegationRequest(url)
-    await expect(SDK.verifyDelegationRequestProof(request!, 'https://vault.example.com')).rejects.toThrow(
+    await expect(SDK.verifyDelegationRequestProof(request!, 'https://example.com')).rejects.toThrow(
       'does not match session key',
     )
   })
@@ -113,7 +113,7 @@ describe('delegation request protocol', () => {
     const {url} = await createSignedDelegationUrl()
     url.searchParams.set(SDK.PARAM_PROOF, 'not-base64url')
     const request = SDK.parseDelegationRequest(url)
-    await expect(SDK.verifyDelegationRequestProof(request!, 'https://vault.example.com')).rejects.toThrow(
+    await expect(SDK.verifyDelegationRequestProof(request!, 'https://example.com')).rejects.toThrow(
       'Invalid proof signature encoding',
     )
   })
@@ -122,9 +122,7 @@ describe('delegation request protocol', () => {
     const {url} = await createSignedDelegationUrl()
     const request = SDK.parseDelegationRequest(url)
     const now = Date.now() + 6 * 60 * 1000
-    await expect(SDK.verifyDelegationRequestProof(request!, 'https://vault.example.com', now)).rejects.toThrow(
-      'expired',
-    )
+    await expect(SDK.verifyDelegationRequestProof(request!, 'https://example.com', now)).rejects.toThrow('expired')
   })
 
   cryptoTest('rejects request when proof is not the final query parameter', async () => {

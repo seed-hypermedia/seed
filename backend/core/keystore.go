@@ -1,6 +1,8 @@
 package core
 
-import "context"
+import (
+	"context"
+)
 
 // KeyStore is an interface for managing signing keys.
 type KeyStore interface {

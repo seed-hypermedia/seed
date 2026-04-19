@@ -5,8 +5,8 @@ import (
 	"errors"
 	"seed/backend/blob"
 	"seed/backend/config"
-	"seed/backend/storage/keystore"
 	"seed/backend/core/coretest"
+	"seed/backend/core/keystore"
 	networking "seed/backend/genproto/networking/v1alpha"
 	"seed/backend/hmnet"
 	"seed/backend/logging"
@@ -35,7 +35,7 @@ func TestNetworkingGetPeerInfo(t *testing.T) {
 
 func makeTestServer(t *testing.T, u coretest.Tester) *Server {
 	db := storage.MakeTestDB(t)
-	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/hyper", "debug"),))
+	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/hyper", "debug")))
 
 	cfg := config.Default().P2P
 	cfg.Port = 0

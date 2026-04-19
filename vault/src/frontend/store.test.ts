@@ -7,12 +7,12 @@ import * as simplewebauthn from '@simplewebauthn/browser'
 import {afterEach, beforeEach, describe, expect, mock, spyOn, test} from 'bun:test'
 import {code as rawCodec} from 'multiformats/codecs/raw'
 import {CID} from 'multiformats/cid'
-import type {SaveVaultDataRequest} from '@/api'
+import type {SaveVaultRequest} from '@/api'
 import * as joinedSite from '@shm/shared/publish-default-joined-site'
 import {APIError} from './api-client'
 import * as localCrypto from './crypto'
 import * as notificationApi from './notification-api'
-import {createStore} from './store'
+import {createStore, getPendingFlowPath} from './store'
 import {createMockBlockstore, createMockClient, createSuccessMockClient} from './test-utils'
 import * as vault from './vault'
 
@@ -87,6 +87,35 @@ async function decompress(data: Uint8Array): Promise<Uint8Array> {
 }
 
 describe('Store', () => {
+  describe('getPendingFlowPath', () => {
+    test('returns delegation route when delegation is pending', () => {
+      expect(
+        getPendingFlowPath({
+          delegationRequest: {} as any,
+          vaultConnectionRequest: {handoffToken: 'token', callbackURL: 'http://127.0.0.1:7777/vault-handoff'},
+        }),
+      ).toBe('/delegate')
+    })
+
+    test('returns connect route when desktop connection is pending', () => {
+      expect(
+        getPendingFlowPath({
+          delegationRequest: null,
+          vaultConnectionRequest: {handoffToken: 'token', callbackURL: 'http://127.0.0.1:7777/vault-handoff'},
+        }),
+      ).toBe('/connect')
+    })
+
+    test('returns root route when no external flow is pending', () => {
+      expect(
+        getPendingFlowPath({
+          delegationRequest: null,
+          vaultConnectionRequest: null,
+        }),
+      ).toBe('/')
+    })
+  })
+
   describe('handlePreLogin', () => {
     test('navigates to verify-pending when user does not exist', async () => {
       const client = createMockClient({
@@ -214,7 +243,7 @@ describe('Store', () => {
       const client = createMockClient({
         getSession: async () => ({
           authenticated: true,
-          relyingPartyOrigin: 'https://vault.example.com',
+          relyingPartyOrigin: 'https://example.com',
           email: 'test@test.com',
           credentials: {},
         }),
@@ -234,7 +263,7 @@ describe('Store', () => {
       const client = createMockClient({
         getSession: async () => ({
           authenticated: true,
-          relyingPartyOrigin: 'https://vault.example.com',
+          relyingPartyOrigin: 'https://example.com',
           email: 'test@test.com',
           credentials: {
             password: true,
@@ -277,9 +306,9 @@ describe('Store', () => {
 
   describe('saveNotificationServerUrl', () => {
     test('stores a custom notification server URL in encrypted vault data', async () => {
-      const saveVaultDataCalls: SaveVaultDataRequest[] = []
+      const saveVaultDataCalls: SaveVaultRequest[] = []
       const client = createMockClient({
-        saveVaultData: async (req) => {
+        saveVault: async (req) => {
           saveVaultDataCalls.push(req)
           return {success: true}
         },
@@ -308,9 +337,9 @@ describe('Store', () => {
     })
 
     test('resets the notification server URL override when saving the server default', async () => {
-      const saveVaultDataCalls: SaveVaultDataRequest[] = []
+      const saveVaultDataCalls: SaveVaultRequest[] = []
       const client = createMockClient({
-        saveVaultData: async (req) => {
+        saveVault: async (req) => {
           saveVaultDataCalls.push(req)
           return {success: true}
         },
@@ -551,7 +580,7 @@ describe('Store', () => {
 
       state.session = {
         authenticated: true,
-        relyingPartyOrigin: 'https://vault.example.com',
+        relyingPartyOrigin: 'https://example.com',
         email: 'test@test.com',
       }
       state.decryptedDEK = new Uint8Array(64)
@@ -573,7 +602,7 @@ describe('Store', () => {
         createSuccessMockClient({
           getSession: async () => ({
             authenticated: true,
-            relyingPartyOrigin: 'https://vault.example.com',
+            relyingPartyOrigin: 'https://example.com',
             email: 'test@passkey.com',
           }),
         }),
@@ -581,7 +610,7 @@ describe('Store', () => {
       )
       state.session = {
         authenticated: true,
-        relyingPartyOrigin: 'https://vault.example.com',
+        relyingPartyOrigin: 'https://example.com',
       }
 
       mockStartRegistration.mockRejectedValueOnce(new Error('The operation was canceled'))
@@ -596,20 +625,33 @@ describe('Store', () => {
     })
 
     test('completes registration with PRF from auth fallback', async () => {
+      const addPasskeyFinish = mock(async (_req: {response: {id: string}; wrappedDEK: string}) => ({
+        success: true,
+        credentialId: 'cred-1',
+        backupEligible: true,
+        backupState: true,
+        prfEnabled: true,
+      }))
+      const loginPasskeyStart = mock(async () => ({
+        challenge: 'server-login-should-not-run',
+        allowCredentials: [],
+      }))
       const {state, actions} = createStore(
         createSuccessMockClient({
+          addPasskeyFinish,
           getSession: async () => ({
             authenticated: true,
-            relyingPartyOrigin: 'https://vault.example.com',
+            relyingPartyOrigin: 'https://example.com',
             email: 'test@passkey.com',
           }),
+          loginPasskeyStart,
         }),
         createMockBlockstore(),
       )
       state.email = 'test@passkey.com'
       state.session = {
         authenticated: true,
-        relyingPartyOrigin: 'https://vault.example.com',
+        relyingPartyOrigin: 'https://example.com',
       }
 
       // Registration succeeds but without PRF output.
@@ -649,6 +691,13 @@ describe('Store', () => {
 
       expect(state.error).toBe('')
       expect(state.decryptedDEK).not.toBeNull()
+      expect(addPasskeyFinish).toHaveBeenCalledTimes(1)
+      const firstAddPasskeyFinishCall = addPasskeyFinish.mock.calls.at(0)?.[0]
+      expect(firstAddPasskeyFinishCall).toMatchObject({
+        response: {id: 'cred123'},
+      })
+      expect(firstAddPasskeyFinishCall?.wrappedDEK).toBeTruthy()
+      expect(loginPasskeyStart).not.toHaveBeenCalled()
 
       mockStartRegistration.mockReset()
       mockStartAuthentication.mockReset()
@@ -661,7 +710,7 @@ describe('Store', () => {
       const saveVaultDataCalls: unknown[] = []
       const publishCalls: Array<{cid: unknown; data: Uint8Array}> = []
       const client = createMockClient({
-        saveVaultData: async (req) => {
+        saveVault: async (req) => {
           saveVaultDataCalls.push(req)
           return {success: true}
         },
@@ -680,6 +729,7 @@ describe('Store', () => {
         version: 2,
         accounts: [],
       }
+      state.vaultLoaded = true
       state.selectedAccountIndex = -1
       state.creatingAccount = true
 
@@ -698,10 +748,159 @@ describe('Store', () => {
       publishDefaultJoinedSiteSpy.mockRestore()
     })
 
+    test('creates an account when the vault payload has not loaded yet', async () => {
+      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const saveVaultDataCalls: unknown[] = []
+      const client = createMockClient({
+        getVault: async () => ({
+          encryptedData: '',
+          version: 0,
+          credentials: [],
+        }),
+        saveVault: async (req) => {
+          saveVaultDataCalls.push(req)
+          return {success: true}
+        },
+      })
+      const {state, actions} = createStore(client, createMockBlockstore())
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = null
+      state.selectedAccountIndex = -1
+      state.creatingAccount = true
+
+      await actions.createAccount('Test')
+
+      const vaultData = state.vaultData as vault.State | null
+      expect(vaultData).not.toBeNull()
+      expect(vaultData?.version).toBe(2)
+      expect(vaultData?.accounts).toEqual([expect.objectContaining({createTime: expect.any(Number), delegations: []})])
+      expect(state.selectedAccountIndex).toBe(0)
+      expect(state.creatingAccount).toBe(false)
+      expect(state.error).toBe('')
+      expect(saveVaultDataCalls.length).toBe(1)
+
+      publishDefaultJoinedSiteSpy.mockRestore()
+    })
+
+    test('waits for the initial vault load before saving a new account', async () => {
+      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const saveVaultDataCalls: Array<{version: number}> = []
+      let resolveGetVault: (value: {encryptedData: string; version: number; credentials: []}) => void = () => {}
+      const client = createMockClient({
+        getVault: () =>
+          new Promise<{encryptedData: string; version: number; credentials: []}>((resolve) => {
+            resolveGetVault = resolve
+          }),
+        saveVault: async (req) => {
+          saveVaultDataCalls.push({version: req.version})
+          return {success: true}
+        },
+      })
+      const {state, actions} = createStore(client, createMockBlockstore())
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = null
+      state.selectedAccountIndex = -1
+      state.creatingAccount = true
+
+      const initialLoad = actions.loadVaultData()
+      const createAccountPromise = actions.createAccount('Test')
+
+      resolveGetVault({
+        encryptedData: '',
+        version: 7,
+        credentials: [],
+      })
+
+      await initialLoad
+      await createAccountPromise
+
+      const vaultData = state.vaultData as vault.State | null
+
+      expect(saveVaultDataCalls).toEqual([{version: 7}])
+      expect(state.vaultVersion).toBe(8)
+      expect(vaultData?.accounts).toHaveLength(1)
+      expect(state.error).toBe('')
+
+      publishDefaultJoinedSiteSpy.mockRestore()
+    })
+
+    test('does not save a new account when the initial vault load fails', async () => {
+      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const saveVault = mock(async () => ({success: true}))
+      const client = createMockClient({
+        getVault: async () => {
+          throw new Error('vault load failed')
+        },
+        saveVault,
+      })
+      const {state, actions} = createStore(client, createMockBlockstore())
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = null
+      state.selectedAccountIndex = -1
+      state.creatingAccount = true
+
+      await actions.createAccount('Test')
+
+      expect(saveVault).not.toHaveBeenCalled()
+      expect(state.vaultData).toBeNull()
+      expect(state.selectedAccountIndex).toBe(-1)
+      expect(state.creatingAccount).toBe(true)
+      expect(state.error).toBe('vault load failed')
+      expect(publishDefaultJoinedSiteSpy).not.toHaveBeenCalled()
+
+      publishDefaultJoinedSiteSpy.mockRestore()
+    })
+
+    test('refetches and retries account creation after a version conflict', async () => {
+      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const saveVaultDataCalls: number[] = []
+      const client = createMockClient({
+        getVault: mock(async () => ({
+          encryptedData: '',
+          version: 7,
+          credentials: [],
+        })),
+        saveVault: mock(async (req) => {
+          saveVaultDataCalls.push(req.version)
+          if (saveVaultDataCalls.length === 1) {
+            throw new APIError('Vault has been modified by another session. Please reload.', 409)
+          }
+          return {success: true}
+        }),
+      })
+      const {state, actions} = createStore(client, createMockBlockstore())
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [],
+      }
+      state.vaultLoaded = true
+      state.selectedAccountIndex = -1
+      state.creatingAccount = true
+
+      await actions.createAccount('Test')
+
+      expect(saveVaultDataCalls).toEqual([0, 7])
+      expect(client.getVault).toHaveBeenCalledTimes(1)
+      expect(state.vaultData?.accounts).toHaveLength(1)
+      expect(state.vaultData?.accounts[0]?.name).toBe(
+        blobs.principalToString(blobs.nobleKeyPairFromSeed(state.vaultData!.accounts[0]!.seed).principal),
+      )
+      expect(state.selectedAccountIndex).toBe(0)
+      expect(state.creatingAccount).toBe(false)
+      expect(state.error).toBe('')
+
+      publishDefaultJoinedSiteSpy.mockRestore()
+    })
+
     test('rolls back local state without publishing when vault save fails', async () => {
       const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
       const client = createMockClient({
-        saveVaultData: async () => ({success: true}),
+        saveVault: async () => ({success: true}),
       })
       const publishCalls: Array<{cid: unknown; data: Uint8Array}> = []
       const {state, actions} = createStore(
@@ -720,6 +919,7 @@ describe('Store', () => {
         version: 2,
         accounts: [],
       }
+      state.vaultLoaded = true
       state.selectedAccountIndex = -1
       state.creatingAccount = true
 
@@ -738,7 +938,7 @@ describe('Store', () => {
 
     test('surfaces a backend-unavailable error when saving the new account fails over the network', async () => {
       const client = createMockClient({
-        saveVaultData: async () => {
+        saveVault: async () => {
           throw new TypeError('Load failed')
         },
       })
@@ -750,6 +950,7 @@ describe('Store', () => {
         version: 2,
         accounts: [],
       }
+      state.vaultLoaded = true
       state.selectedAccountIndex = -1
       state.creatingAccount = true
 
@@ -768,7 +969,7 @@ describe('Store', () => {
     test('keeps the saved account when publishing the new profile fails', async () => {
       const callOrder: string[] = []
       const client = createMockClient({
-        saveVaultData: async () => {
+        saveVault: async () => {
           callOrder.push('save')
           return {success: true}
         },
@@ -789,6 +990,7 @@ describe('Store', () => {
         version: 2,
         accounts: [],
       }
+      state.vaultLoaded = true
       state.selectedAccountIndex = -1
       state.creatingAccount = true
 
@@ -821,7 +1023,7 @@ describe('Store', () => {
       const published: Array<{cid: string; data: Uint8Array}> = []
       const {state, actions} = createStore(
         createMockClient({
-          saveVaultData: async () => ({success: true}),
+          saveVault: async () => ({success: true}),
         }),
         createMockBlockstore({
           put: async (cid, data) => {
@@ -835,6 +1037,7 @@ describe('Store', () => {
         version: 2,
         accounts: [],
       }
+      state.vaultLoaded = true
       state.selectedAccountIndex = -1
       state.creatingAccount = true
 
@@ -869,7 +1072,7 @@ describe('Store', () => {
       })
       const {state, actions} = createStore(
         createMockClient({
-          saveVaultData: async () => ({success: true}),
+          saveVault: async () => ({success: true}),
         }),
         createMockBlockstore(),
         '',
@@ -922,7 +1125,7 @@ describe('Store', () => {
       })
       const {state, actions} = createStore(
         createMockClient({
-          saveVaultData: async () => ({success: true}),
+          saveVault: async () => ({success: true}),
         }),
         createMockBlockstore(),
         '',
@@ -986,7 +1189,7 @@ describe('Store', () => {
       })
       const {state, actions} = createStore(
         createMockClient({
-          saveVaultData: async () => ({success: true}),
+          saveVault: async () => ({success: true}),
         }),
         createMockBlockstore(),
         '',
@@ -1035,7 +1238,7 @@ describe('Store', () => {
     test('imports a plaintext key file into the vault', async () => {
       const saveVaultDataCalls: unknown[] = []
       const client = createMockClient({
-        saveVaultData: async (req) => {
+        saveVault: async (req) => {
           saveVaultDataCalls.push(req)
           return {success: true}
         },
@@ -1048,6 +1251,7 @@ describe('Store', () => {
         version: 2,
         accounts: [],
       }
+      state.vaultLoaded = true
       state.selectedAccountIndex = -1
 
       const payload = await keyfile.create({
@@ -1060,6 +1264,7 @@ describe('Store', () => {
 
       expect(principal).toBe(blobs.principalToString(kp.principal))
       expect(state.vaultData!.accounts).toHaveLength(1)
+      expect(state.vaultData!.accounts[0]!.name).toBe(blobs.principalToString(kp.principal))
       expect(state.vaultData!.accounts[0]!.seed).toEqual(kp.seed)
       expect(state.selectedAccountIndex).toBe(0)
       expect(state.error).toBe('')
@@ -1069,7 +1274,7 @@ describe('Store', () => {
     test('imports an encrypted key file into the vault', async () => {
       const {state, actions} = createStore(
         createMockClient({
-          saveVaultData: async () => ({success: true}),
+          saveVault: async () => ({success: true}),
         }),
         createMockBlockstore(),
       )
@@ -1080,6 +1285,7 @@ describe('Store', () => {
         version: 2,
         accounts: [],
       }
+      state.vaultLoaded = true
 
       const payload = await keyfile.create({
         publicKey: blobs.principalToString(kp.principal),
@@ -1097,7 +1303,7 @@ describe('Store', () => {
     test('rejects duplicate account imports', async () => {
       const {state, actions} = createStore(
         createMockClient({
-          saveVaultData: async () => ({success: true}),
+          saveVault: async () => ({success: true}),
         }),
         createMockBlockstore(),
       )
@@ -1114,6 +1320,7 @@ describe('Store', () => {
           },
         ],
       }
+      state.vaultLoaded = true
       state.selectedAccountIndex = 0
 
       const payload = await keyfile.create({
@@ -1127,6 +1334,50 @@ describe('Store', () => {
       )
       expect(state.vaultData!.accounts).toHaveLength(1)
       expect(state.selectedAccountIndex).toBe(0)
+    })
+
+    test('refetches and retries account import after a version conflict', async () => {
+      const kp = blobs.generateNobleKeyPair()
+      const saveVaultDataCalls: number[] = []
+      const client = createMockClient({
+        getVault: mock(async () => ({
+          encryptedData: '',
+          version: 4,
+          credentials: [],
+        })),
+        saveVault: mock(async (req) => {
+          saveVaultDataCalls.push(req.version)
+          if (saveVaultDataCalls.length === 1) {
+            throw new APIError('Vault has been modified by another session. Please reload.', 409)
+          }
+          return {success: true}
+        }),
+      })
+      const {state, actions} = createStore(client, createMockBlockstore())
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = {
+        version: 2,
+        accounts: [],
+      }
+      state.vaultLoaded = true
+      state.selectedAccountIndex = -1
+
+      const payload = await keyfile.create({
+        publicKey: blobs.principalToString(kp.principal),
+        key: kp.seed,
+        createTime: '2026-03-17T00:00:00.000Z',
+      })
+
+      const principal = await actions.importAccount(keyfile.stringify(payload))
+
+      expect(principal).toBe(blobs.principalToString(kp.principal))
+      expect(saveVaultDataCalls).toEqual([0, 4])
+      expect(client.getVault).toHaveBeenCalledTimes(1)
+      expect(state.vaultData?.accounts).toHaveLength(1)
+      expect(state.vaultData?.accounts[0]?.name).toBe(blobs.principalToString(kp.principal))
+      expect(state.selectedAccountIndex).toBe(0)
+      expect(state.error).toBe('')
     })
   })
 
@@ -1329,7 +1580,7 @@ describe('Store', () => {
     test('removes account and related delegations, and updates indexes', async () => {
       const saveVaultDataCalls: unknown[] = []
       const client = createMockClient({
-        saveVaultData: async (req) => {
+        saveVault: async (req) => {
           saveVaultDataCalls.push(req)
           return {success: true}
         },
@@ -1369,13 +1620,34 @@ describe('Store', () => {
       expect(state.selectedAccountIndex).toBe(0)
       expect(saveVaultDataCalls.length).toBe(1)
     })
+
+    test('records deletion tombstone in deletedAccounts before removing account', async () => {
+      const client = createMockClient({
+        saveVault: async () => ({success: true}),
+      })
+      const {state, actions} = createStore(client, createMockBlockstore())
+
+      const {vaultData, principals} = await makeVaultState(1)
+
+      state.decryptedDEK = new Uint8Array(32)
+      state.vaultData = vaultData
+      state.selectedAccountIndex = 0
+
+      const principal = principals[0]!
+
+      await actions.deleteAccount(principal)
+
+      expect(state.vaultData!.accounts.length).toBe(0)
+      expect(state.vaultData!.deletedAccounts).toBeDefined()
+      expect(state.vaultData!.deletedAccounts![principal]).toBeGreaterThan(0)
+    })
   })
 
   describe('reorderAccount', () => {
     test('moves account correctly, shifts selection and delegations', async () => {
       const saveVaultDataCalls: unknown[] = []
       const client = createMockClient({
-        saveVaultData: async (req) => {
+        saveVault: async (req) => {
           saveVaultDataCalls.push(req)
           return {success: true}
         },
@@ -1412,7 +1684,7 @@ describe('delegation flow', () => {
   async function makeSignedDelegationUrl(
     clientId = 'https://example.com',
     redirectUri = 'https://example.com/callback',
-    vaultOrigin = 'https://vault.example.com',
+    vaultOrigin = 'https://example.com',
   ) {
     const keyPair = (await crypto.subtle.generateKey('Ed25519' as unknown as AlgorithmIdentifier, false, [
       'sign',
@@ -1469,7 +1741,7 @@ describe('delegation flow', () => {
     }
     store.state.selectedAccountIndex = 0
     store.state.vaultVersion = 0
-    store.state.relyingPartyOrigin = 'https://vault.example.com'
+    store.state.relyingPartyOrigin = 'https://example.com'
   }
 
   beforeEach(() => {
@@ -1479,7 +1751,7 @@ describe('delegation flow', () => {
     window.location = {
       href: '',
       pathname: '/',
-      origin: 'https://vault.example.com',
+      origin: 'https://example.com',
     }
   })
 
@@ -1490,7 +1762,7 @@ describe('delegation flow', () => {
   test('completes delegation with signed protocol request and redirects with state', async () => {
     const saveVaultDataCalls: unknown[] = []
     const client = createMockClient({
-      saveVaultData: async (req) => {
+      saveVault: async (req) => {
         saveVaultDataCalls.push(req)
         return {success: true}
       },
@@ -1522,7 +1794,7 @@ describe('delegation flow', () => {
     const bs = createMockBlockstore()
     const store = createStore(
       createMockClient({
-        saveVaultData: async () => ({success: true}),
+        saveVault: async () => ({success: true}),
       }),
       bs,
       '',
@@ -1578,14 +1850,14 @@ describe('delegation flow', () => {
 
     state.delegationRequest = {
       originalUrl:
-        'https://vault.example.com/delegate?client_id=https%3A%2F%2Fexample.com&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback&session_key=missing&state=AAAAAAAAAAAAAAAAAAAAAA&ts=1700000000000&proof=cA',
+        'https://example.com/vault/delegate?client_id=https%3A%2F%2Fexample.com&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback&session_key=missing&state=AAAAAAAAAAAAAAAAAAAAAA&ts=1700000000000&proof=cA',
       clientId: 'https://example.com',
       redirectUri: 'https://example.com/callback',
       sessionKeyPrincipal: blobs.principalToString(sessionKeyPair.principal),
       state: 'AAAAAAAAAAAAAAAAAAAAAA',
       requestTs: Date.now(),
       proof: 'cA',
-      vaultOrigin: 'https://vault.example.com',
+      vaultOrigin: 'https://example.com',
     }
 
     actions.cancelDelegation()
@@ -1594,5 +1866,276 @@ describe('delegation flow', () => {
     expect(window.location.href).toContain('error=access_denied')
     expect(state.delegationRequest).toBeNull()
     expect(state.delegationConsented).toBe(false)
+  })
+})
+
+describe('vault connection handoff flow', () => {
+  const originalFetch = globalThis.fetch
+  const originalLocation = window.location
+
+  beforeEach(() => {
+    // @ts-expect-error
+    delete window.location
+    // @ts-expect-error
+    window.location = {
+      href: 'https://example.com/vault/connect',
+      origin: 'https://example.com',
+      pathname: '/vault/connect',
+    }
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+    window.location = originalLocation as any
+  })
+
+  test('parses fragment, exchanges handoff token, and registers secret credential', async () => {
+    const registerRequests: Array<{authKey: string; wrappedDEK: string}> = []
+    let handoffRequestURL = ''
+    let handoffRequestInit: RequestInit | undefined
+
+    const fetchMock = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      handoffRequestURL = String(input)
+      handoffRequestInit = init
+      return new Response(JSON.stringify({success: true}), {
+        status: 200,
+        headers: {'Content-Type': 'application/json'},
+      })
+    })
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const {state, actions, navigator} = createStore(
+      createMockClient({
+        addSecretCredential: async (req) => {
+          registerRequests.push(req)
+          return {success: true, credentialId: 'secret-credential'}
+        },
+      }),
+      createMockBlockstore(),
+    )
+    const navigate = mock()
+    navigator.setNavigate(navigate)
+    const dek = new Uint8Array(64)
+    dek.fill(9)
+    state.decryptedDEK = dek
+    state.session = {
+      authenticated: true,
+      relyingPartyOrigin: 'https://example.com',
+      userId: 'user-123',
+    }
+
+    actions.parseVaultConnectionFromUrl(
+      'https://example.com/vault/connect#token=token-123&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
+    )
+
+    await actions.completeVaultConnection()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(handoffRequestURL).toBe('http://127.0.0.1:7777/vault-handoff')
+    expect(handoffRequestInit).toMatchObject({
+      method: 'POST',
+    })
+    const handoffRequest = JSON.parse((handoffRequestInit?.body as string) || '{}')
+    expect(handoffRequest).toMatchObject({
+      handoffToken: 'token-123',
+      vaultUrl: 'https://example.com/vault',
+      userId: 'user-123',
+      credentialId: 'secret-credential',
+    })
+
+    expect(registerRequests.length).toBe(1)
+    expect(registerRequests[0]?.authKey).toBe(
+      base64.encode(await localCrypto.deriveSecretCredentialAuthKey(base64.decode(handoffRequest.secret))),
+    )
+    expect(typeof handoffRequest.secret).toBe('string')
+    const decrypted = await localCrypto.decrypt(
+      base64.decode(registerRequests[0]!.wrappedDEK),
+      base64.decode(handoffRequest.secret),
+    )
+    expect(Array.from(decrypted)).toEqual(Array.from(dek))
+    expect(state.vaultConnectionRequest).toBeNull()
+    expect(state.vaultConnectionSuccessMessage).toBe(
+      'Your Seed desktop app has been linked with this remote vault successfully.',
+    )
+    expect(state.error).toBe('')
+    expect(navigate).toHaveBeenCalledWith('/')
+  })
+
+  test('accepts localhost handoff URL with any port', async () => {
+    const fetchMock = mock(async (input: RequestInfo | URL) => {
+      return new Response(JSON.stringify({success: true}), {
+        status: 200,
+        headers: {'Content-Type': 'application/json'},
+      })
+    })
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const {state, actions, navigator} = createStore(
+      createMockClient({
+        addSecretCredential: async () => ({success: true, credentialId: 'secret-credential'}),
+      }),
+      createMockBlockstore(),
+    )
+    const navigate = mock()
+    navigator.setNavigate(navigate)
+    state.decryptedDEK = new Uint8Array(64)
+    state.session = {
+      authenticated: true,
+      relyingPartyOrigin: 'https://example.com',
+      userId: 'user-123',
+    }
+
+    actions.parseVaultConnectionFromUrl(
+      'https://example.com/vault/connect#token=token-abc&callback=http%3A%2F%2Flocalhost%3A43125%2Fvault-handoff',
+    )
+
+    await actions.completeVaultConnection()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://localhost:43125/vault-handoff')
+    expect(state.vaultConnectionSuccessMessage).toBe(
+      'Your Seed desktop app has been linked with this remote vault successfully.',
+    )
+    expect(state.error).toBe('')
+    expect(navigate).toHaveBeenCalledWith('/')
+  })
+
+  test('surfaces fragment validation errors', () => {
+    const {state, actions} = createStore(createMockClient(), createMockBlockstore())
+
+    actions.parseVaultConnectionFromUrl('https://example.com/vault#token=token-only')
+
+    expect(state.vaultConnectionRequest).toBeNull()
+    expect(state.error).toContain('Invalid vault connection fragment')
+  })
+
+  test('rejects non-loopback callback URLs', () => {
+    const {state, actions} = createStore(createMockClient(), createMockBlockstore())
+
+    actions.parseVaultConnectionFromUrl(
+      'https://example.com/vault#token=token-only&callback=http%3A%2F%2Fexample.com%2Fvault-handoff',
+    )
+
+    expect(state.vaultConnectionRequest).toBeNull()
+    expect(state.error).toContain('Invalid callback URL: host must be localhost or 127.0.0.1')
+  })
+
+  test('rejects callback URLs with the wrong path', () => {
+    const {state, actions} = createStore(createMockClient(), createMockBlockstore())
+
+    actions.parseVaultConnectionFromUrl(
+      'https://example.com/vault#token=token-only&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fproxy%2Fvault-handoff',
+    )
+
+    expect(state.vaultConnectionRequest).toBeNull()
+    expect(state.error).toContain('Invalid callback URL: path must be /vault-handoff')
+  })
+
+  test('rejects callback URLs with the wrong protocol', () => {
+    const {state, actions} = createStore(createMockClient(), createMockBlockstore())
+
+    actions.parseVaultConnectionFromUrl(
+      'https://example.com/vault#token=token-only&callback=https%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
+    )
+
+    expect(state.vaultConnectionRequest).toBeNull()
+    expect(state.error).toContain('Invalid callback URL: protocol must be http')
+  })
+
+  test('surfaces daemon vault URL mismatch errors', async () => {
+    const fetchMock = mock(async () => {
+      return new Response('vault URL mismatch: expected https://example.com/vault, got https://example.net/vault', {
+        status: 400,
+      })
+    })
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const addSecretCredential = mock(async () => ({success: true, credentialId: 'secret-credential'}))
+    const {state, actions} = createStore(
+      createMockClient({
+        addSecretCredential,
+      }),
+      createMockBlockstore(),
+    )
+    state.decryptedDEK = new Uint8Array(64)
+    state.session = {
+      authenticated: true,
+      relyingPartyOrigin: 'https://example.com',
+      userId: 'user-123',
+    }
+    actions.parseVaultConnectionFromUrl(
+      'https://example.com/vault/connect#token=token-456&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
+    )
+
+    await actions.completeVaultConnection()
+
+    expect(addSecretCredential).toHaveBeenCalledTimes(1)
+    expect(state.vaultConnectionRequest).toEqual({
+      handoffToken: 'token-456',
+      callbackURL: 'http://127.0.0.1:7777/vault-handoff',
+    })
+    expect(state.error).toContain('vault URL mismatch')
+  })
+
+  test('surfaces daemon vault URL mismatch errors for same-origin path mismatches', async () => {
+    // @ts-expect-error
+    window.location = {
+      href: 'https://example.com/vault-b/connect',
+      origin: 'https://example.com',
+      pathname: '/vault-b/connect',
+    }
+
+    const fetchMock = mock(async () => {
+      return new Response('vault URL mismatch: expected https://example.com/vault-a, got https://example.com/vault-b', {
+        status: 400,
+      })
+    })
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const addSecretCredential = mock(async () => ({success: true, credentialId: 'secret-credential'}))
+    const {state, actions} = createStore(
+      createMockClient({
+        addSecretCredential,
+      }),
+      createMockBlockstore(),
+    )
+    state.decryptedDEK = new Uint8Array(64)
+    state.session = {
+      authenticated: true,
+      relyingPartyOrigin: 'https://example.com',
+      userId: 'user-123',
+    }
+    actions.parseVaultConnectionFromUrl(
+      'https://example.com/vault-b/connect#token=token-789&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
+    )
+
+    await actions.completeVaultConnection()
+
+    expect(addSecretCredential).toHaveBeenCalledTimes(1)
+    expect(state.error).toContain('vault URL mismatch')
+  })
+
+  test('cancel clears the pending desktop connection flow', () => {
+    const {state, actions, navigator} = createStore(createMockClient(), createMockBlockstore())
+    const navigate = mock()
+    navigator.setNavigate(navigate)
+
+    actions.parseVaultConnectionFromUrl(
+      'https://example.com/vault/connect#token=token-789&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
+    )
+    actions.cancelVaultConnection()
+
+    expect(state.vaultConnectionRequest).toBeNull()
+    expect(state.error).toBe('')
+    expect(navigate).toHaveBeenCalledWith('/')
+  })
+
+  test('clears the desktop connection success message when dismissed', () => {
+    const {state, actions} = createStore(createMockClient(), createMockBlockstore())
+    state.vaultConnectionSuccessMessage = 'linked'
+
+    actions.clearVaultConnectionSuccessMessage()
+
+    expect(state.vaultConnectionSuccessMessage).toBe('')
   })
 })

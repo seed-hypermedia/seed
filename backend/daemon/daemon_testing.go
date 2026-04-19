@@ -3,8 +3,8 @@ package daemon
 import (
 	"context"
 	"seed/backend/config"
-	"seed/backend/storage/keystore"
 	"seed/backend/core/coretest"
+	"seed/backend/core/keystore"
 	"seed/backend/storage"
 	"seed/backend/testutil"
 	"testing"

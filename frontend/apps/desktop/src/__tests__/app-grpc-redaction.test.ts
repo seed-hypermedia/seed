@@ -9,7 +9,7 @@ describe('app-grpc loggingInterceptor', () => {
     const logErrorSpy = vi.spyOn(log, 'error').mockImplementation(() => {})
     const req = {
       service: {typeName: 'com.seed.daemon.v1alpha.Daemon'},
-      method: {name: 'ExportKey'},
+      method: {name: 'StartVaultConnection'},
       message: {password: 'secret-password'},
       init: {},
     }

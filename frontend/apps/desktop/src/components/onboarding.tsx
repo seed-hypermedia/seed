@@ -1,14 +1,23 @@
 import {grpcClient} from '@/grpc-client'
 import {desktopUniversalClient} from '@/desktop-universal-client'
-import {useImportKey, useMnemonics, useRegisterKey} from '@/models/daemon'
+import {
+  useDisconnectVault,
+  useImportKey,
+  useListKeys,
+  NamedKey,
+  useRegisterKey,
+  useStartVaultConnection,
+  useVaultStatus,
+} from '@/models/daemon'
 import {client} from '@/trpc'
+import {buildVaultConnectionURL, normalizeVaultOriginURL} from '@/utils/vault-connection'
 import {fileUpload} from '@/utils/file-upload'
 import {getImportKeyFilePathError, normalizeImportKeyFilePath} from '@/utils/onboarding-import'
 import {extractWords, isWordsValid} from '@/utils/onboarding'
 import {useNavigate} from '@/utils/useNavigate'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {eventStream, postAccountCreateAction, useOpenUrl, useUniversalAppContext} from '@shm/shared'
-import {IS_PROD_DESKTOP} from '@shm/shared/constants'
+import {DAEMON_HTTP_URL, IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useMutation} from '@tanstack/react-query'
@@ -21,12 +30,13 @@ import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Textarea} from '@shm/ui/components/textarea'
-import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
-import {Prev as ArrowLeft, Copy, Reload} from '@shm/ui/icons'
+import {Prev as ArrowLeft} from '@shm/ui/icons'
+import {Spinner} from '@shm/ui/spinner'
 import {SizableText, Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {useCallback, useEffect, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {useAppContext} from '../app-context'
 import {
   cleanupOnboardingFormData,
@@ -178,6 +188,27 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
     onComplete()
   }, [modal, localState, onComplete])
 
+  const completeOnboarding = useCallback(
+    (nextAccount?: UnpackedHypermediaId) => {
+      console.log('Completing onboarding')
+      if (modal) {
+        setLocalState((prev) => ({...prev, hasCompletedOnboarding: true}))
+      } else {
+        setHasCompletedOnboarding(true)
+        cleanupOnboardingFormData()
+      }
+
+      const resolvedAccount = nextAccount ?? account
+      if (resolvedAccount) {
+        setSelectedIdentity?.(resolvedAccount.uid)
+        navigate({key: 'library'})
+      }
+
+      onComplete()
+    },
+    [account, modal, navigate, onComplete, setSelectedIdentity],
+  )
+
   const handleNext = useCallback(() => {
     console.group('🚀 Next Step in Onboarding')
     const beforeState = modal ? localState : getOnboardingState()
@@ -193,7 +224,15 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       }
       setCurrentStep('profile')
     } else if (currentStep === 'profile') {
-      console.log('Moving from profile to recovery')
+      console.log('Moving from profile to vault')
+      if (modal) {
+        setLocalState((prev) => ({...prev, currentStep: 'vault'}))
+      } else {
+        setOnboardingStep('vault')
+      }
+      setCurrentStep('vault')
+    } else if (currentStep === 'vault') {
+      console.log('Moving from vault to create account')
       if (modal) {
         setLocalState((prev) => ({...prev, currentStep: 'recovery'}))
       } else {
@@ -201,7 +240,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       }
       setCurrentStep('recovery')
     } else if (currentStep === 'recovery') {
-      console.log('Moving from recovery to ready')
+      console.log('Moving from create account to ready')
       if (modal) {
         setLocalState((prev) => ({...prev, currentStep: 'ready'}))
       } else {
@@ -209,7 +248,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       }
       setCurrentStep('ready')
     } else if (currentStep === 'existing') {
-      console.log('Moving from existing to ready')
+      console.log('Moving from restore from phrase to ready')
       if (modal) {
         setLocalState((prev) => ({...prev, currentStep: 'ready'}))
       } else {
@@ -225,40 +264,18 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       }
       setCurrentStep('ready')
     } else if (currentStep === 'ready') {
-      console.log('Completing onboarding')
       if (modal) {
-        setLocalState((prev) => ({...prev, hasCompletedOnboarding: true}))
-        // Update initialAccountIdCount in modal mode
         setInitialAccountIdCount(globalState.initialAccountIdCount + 1)
-      } else {
-        setHasCompletedOnboarding(true)
-        // Clean up form data but keep the completed flag
-        cleanupOnboardingFormData()
       }
-      if (account) {
-        // Ensure the account is selected when completing onboarding
-        setSelectedIdentity?.(account.uid)
-
-        navigate({key: 'library'})
-      }
-      onComplete()
+      completeOnboarding()
     }
 
     const afterState = modal ? localState : getOnboardingState()
     console.log('After - Store state:', afterState)
     console.groupEnd()
-  }, [
-    currentStep,
-    modal,
-    localState,
-    account,
-    navigate,
-    onComplete,
-    globalState.initialAccountIdCount,
-    setSelectedIdentity,
-  ])
+  }, [currentStep, modal, localState, completeOnboarding, globalState.initialAccountIdCount])
 
-  const handleUseRecoveryPhrase = useCallback(() => {
+  const handleRestoreFromRecoveryPhrase = useCallback(() => {
     if (modal) {
       setLocalState((prev) => ({...prev, currentStep: 'existing'}))
     } else {
@@ -284,6 +301,13 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
 
     if (currentStep === 'recovery') {
       if (modal) {
+        setLocalState((prev) => ({...prev, currentStep: 'vault'}))
+      } else {
+        setOnboardingStep('vault')
+      }
+      setCurrentStep('vault')
+    } else if (currentStep === 'vault') {
+      if (modal) {
         setLocalState((prev) => ({...prev, currentStep: 'profile'}))
       } else {
         setOnboardingStep('profile')
@@ -297,21 +321,19 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       }
       setCurrentStep('welcome')
     } else if (currentStep === 'existing') {
-      // Reset the existing account flag when going back
-
       if (modal) {
-        setLocalState((prev) => ({...prev, currentStep: 'profile'}))
+        setLocalState((prev) => ({...prev, currentStep: 'vault'}))
       } else {
-        setOnboardingStep('profile')
+        setOnboardingStep('vault')
       }
-      setCurrentStep('profile')
+      setCurrentStep('vault')
     } else if (currentStep === 'import') {
       if (modal) {
-        setLocalState((prev) => ({...prev, currentStep: 'profile'}))
+        setLocalState((prev) => ({...prev, currentStep: 'vault'}))
       } else {
-        setOnboardingStep('profile')
+        setOnboardingStep('vault')
       }
-      setCurrentStep('profile')
+      setCurrentStep('vault')
     }
 
     const afterState = modal ? localState : getOnboardingState()
@@ -346,16 +368,29 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
     <div className={cn('bg-background window-drag flex flex-1 flex-col', !modal && 'size-full')}>
       {currentStep === 'welcome' && <WelcomeStep onNext={handleNext} />}
       {currentStep === 'profile' && (
-        <ProfileStep
-          onSkip={modal ? handleSkip : undefined}
+        <ProfileStep onSkip={modal ? handleSkip : undefined} onNext={handleNext} onPrev={handlePrev} />
+      )}
+      {currentStep === 'vault' && (
+        <VaultStep
+          initialAccountIdCount={globalState.initialAccountIdCount}
           onNext={handleNext}
           onPrev={handlePrev}
-          onUseRecoveryPhrase={handleUseRecoveryPhrase}
+          onUseRecoveryPhrase={handleRestoreFromRecoveryPhrase}
           onImportKeyFile={handleImportKeyFile}
+          onRemoteAccountsReady={(accountId, accountCount) => {
+            const syncedAccount = hmId(accountId)
+            console.log('🔄 Resolved remote-synced account during onboarding:', syncedAccount)
+            setAccount(syncedAccount)
+            setSelectedIdentity?.(syncedAccount.uid)
+            handleSubscription(syncedAccount)
+            setInitialAccountIdCount(accountCount)
+            toast.success('Remote vault connected and accounts synced to this device.')
+            completeOnboarding(syncedAccount)
+          }}
         />
       )}
       {currentStep === 'recovery' && (
-        <RecoveryStep
+        <CreateAccountStep
           onNext={handleNext}
           onPrev={handlePrev}
           onAccountCreate={(id) => {
@@ -368,7 +403,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
         />
       )}
       {currentStep === 'existing' && (
-        <ExistingStep
+        <RestoreFromPhraseStep
           onNext={handleNext}
           onPrev={handlePrev}
           onAccountCreate={(id) => {
@@ -464,19 +499,7 @@ function WelcomeStep({onNext}: {onNext: () => void}) {
   )
 }
 
-function ProfileStep({
-  onSkip,
-  onNext,
-  onPrev,
-  onUseRecoveryPhrase,
-  onImportKeyFile,
-}: {
-  onSkip?: () => void
-  onNext: () => void
-  onPrev: () => void
-  onUseRecoveryPhrase: () => void
-  onImportKeyFile: () => void
-}) {
+function ProfileStep({onSkip, onNext, onPrev}: {onSkip?: () => void; onNext: () => void; onPrev: () => void}) {
   // Initialize form data from store
   const [formData, setFormData] = useState<ProfileFormData>(() => {
     const state = getOnboardingState()
@@ -578,14 +601,6 @@ function ProfileStep({
           </div>
         </div>
         <div className="no-window-drag flex flex-col gap-4 self-center">
-          <div className="flex flex-col items-center gap-1">
-            <Button id="profile-existing" type="button" size="sm" variant="link" onClick={onUseRecoveryPhrase}>
-              Use Recovery Phrase
-            </Button>
-            <Button id="profile-import-key" type="button" size="sm" variant="link" onClick={onImportKeyFile}>
-              Import Key File
-            </Button>
-          </div>
           <div className="no-window-drag mt-8 flex items-center justify-center gap-4">
             {onSkip && (
               <Button type="button" onClick={onSkip} variant="link" id="profile-skip">
@@ -598,6 +613,229 @@ function ProfileStep({
           </div>
         </div>
       </form>
+    </StepWrapper>
+  )
+}
+
+function modeFromBackend(backendMode: VaultBackendMode | undefined): 'local' | 'remote' {
+  return backendMode === VaultBackendMode.REMOTE ? 'remote' : 'local'
+}
+
+function statusFromConnection(connectionStatus: VaultConnectionStatus | undefined): 'connected' | 'disconnected' {
+  return connectionStatus === VaultConnectionStatus.CONNECTED ? 'connected' : 'disconnected'
+}
+
+function VaultStep({
+  initialAccountIdCount,
+  onNext,
+  onPrev,
+  onUseRecoveryPhrase,
+  onImportKeyFile,
+  onRemoteAccountsReady,
+}: {
+  initialAccountIdCount: number
+  onNext: () => void
+  onPrev: () => void
+  onUseRecoveryPhrase: () => void
+  onImportKeyFile: () => void
+  onRemoteAccountsReady: (accountId: string, accountCount: number) => void
+}) {
+  const openUrl = useOpenUrl()
+  const vaultStatus = useVaultStatus()
+  const startVaultConnection = useStartVaultConnection()
+  const disconnectVault = useDisconnectVault()
+  const [selectedMode, setSelectedMode] = useState<'local' | 'remote'>('local')
+  const [remoteVaultURL, setRemoteVaultURL] = useState('')
+  const listKeys = useListKeys({
+    refetchInterval:
+      selectedMode === 'remote' && statusFromConnection(vaultStatus.data?.connectionStatus) === 'connected'
+        ? 2_000
+        : false,
+  })
+  const hasResolvedRemoteAccounts = useRef(false)
+
+  useEffect(() => {
+    setSelectedMode(modeFromBackend(vaultStatus.data?.backendMode))
+  }, [vaultStatus.data?.backendMode])
+
+  useEffect(() => {
+    if (vaultStatus.data?.remoteVaultUrl) {
+      setRemoteVaultURL(vaultStatus.data.remoteVaultUrl)
+    }
+  }, [vaultStatus.data?.remoteVaultUrl])
+
+  const connectionState = statusFromConnection(vaultStatus.data?.connectionStatus)
+  const isPending = startVaultConnection.isPending || disconnectVault.isPending
+  const canContinue = selectedMode === 'local' || connectionState === 'connected'
+
+  useEffect(() => {
+    if (selectedMode !== 'remote' || connectionState !== 'connected') {
+      hasResolvedRemoteAccounts.current = false
+      return
+    }
+    if (initialAccountIdCount !== 0 || hasResolvedRemoteAccounts.current) {
+      return
+    }
+
+    const syncedKeys = listKeys.data ?? []
+    if (syncedKeys.length === 0) {
+      return
+    }
+
+    hasResolvedRemoteAccounts.current = true
+    onRemoteAccountsReady(syncedKeys[0].accountId, syncedKeys.length)
+  }, [connectionState, initialAccountIdCount, listKeys.data, onRemoteAccountsReady, selectedMode])
+
+  const handleDisconnect = async () => {
+    try {
+      await disconnectVault.mutateAsync()
+      setSelectedMode('local')
+      toast.success('Remote vault disconnected')
+      return true
+    } catch (error) {
+      toast.error('Failed to disconnect remote vault: ' + (error instanceof Error ? error.message : String(error)))
+      return false
+    }
+  }
+
+  const handleModeChange = async (nextMode: 'local' | 'remote') => {
+    setSelectedMode(nextMode)
+    if (nextMode === 'remote') {
+      return
+    }
+
+    const daemonMode = modeFromBackend(vaultStatus.data?.backendMode)
+    if (daemonMode === 'remote' || connectionState === 'connected') {
+      const disconnected = await handleDisconnect()
+      if (!disconnected) {
+        setSelectedMode('remote')
+      }
+    }
+  }
+
+  const handleStartConnection = async () => {
+    let normalizedVaultURL = ''
+    try {
+      normalizedVaultURL = normalizeVaultOriginURL(remoteVaultURL, 'vault URL')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Invalid vault URL')
+      return
+    }
+
+    try {
+      const handoff = await startVaultConnection.mutateAsync({
+        vaultUrl: normalizedVaultURL,
+        force: connectionState === 'connected',
+      })
+      const browserURL = buildVaultConnectionURL(handoff.vaultUrl, handoff.handoffToken, DAEMON_HTTP_URL)
+      openUrl(browserURL)
+      toast.success('Opened browser handoff. Complete sign-in, then return here.')
+    } catch (error) {
+      toast.error('Failed to start vault connection: ' + (error instanceof Error ? error.message : String(error)))
+    }
+  }
+
+  return (
+    <StepWrapper onPrev={onPrev}>
+      <StepTitle>CHOOSE YOUR VAULT</StepTitle>
+      <Text size="lg" className="text-muted-foreground max-w-[520px] text-center">
+        First choose where Seed should keep your encrypted vault. After that you can create a new account, restore from
+        an existing recovery phrase, or import a key file.
+      </Text>
+
+      <div className="flex w-full max-w-[520px] flex-1 flex-col gap-4 pt-4">
+        <div className="border-border bg-background/70 flex flex-col gap-3 rounded-lg border p-4">
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="radio"
+              name="vault-mode"
+              checked={selectedMode === 'local'}
+              onChange={() => handleModeChange('local')}
+              disabled={isPending}
+            />
+            <div className="flex flex-col gap-1">
+              <Text size="lg">Local only</Text>
+              <Text size="sm" className="text-muted-foreground">
+                Keep your encrypted vault on this device only.
+              </Text>
+            </div>
+          </label>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="radio"
+              name="vault-mode"
+              checked={selectedMode === 'remote'}
+              onChange={() => handleModeChange('remote')}
+              disabled={isPending}
+            />
+            <div className="flex flex-col gap-1">
+              <Text size="lg">Remote sync</Text>
+              <Text size="sm" className="text-muted-foreground">
+                Keep the same encrypted vault here and sync a remote copy for multi-device continuity.
+              </Text>
+            </div>
+          </label>
+        </div>
+
+        {selectedMode === 'remote' ? (
+          <div className="border-border bg-background/70 flex flex-col gap-4 rounded-lg border p-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="onboarding-vault-url">Remote Vault URL</Label>
+              <Input
+                id="onboarding-vault-url"
+                value={remoteVaultURL}
+                onChange={(event) => setRemoteVaultURL(event.currentTarget.value)}
+                placeholder="https://example.com/vault"
+                disabled={isPending}
+              />
+            </div>
+            <Text size="sm" className="text-muted-foreground">
+              Open the browser handoff to sign in and connect this device before continuing.
+            </Text>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={handleStartConnection} disabled={isPending || !remoteVaultURL.trim()}>
+                {connectionState === 'connected' ? 'Reconnect in Browser' : 'Connect in Browser'}
+              </Button>
+              {connectionState === 'connected' ? (
+                <Button variant="outline" onClick={handleDisconnect} disabled={isPending}>
+                  Disconnect
+                </Button>
+              ) : null}
+              <Text
+                size="sm"
+                className={cn(connectionState === 'connected' ? 'text-green-700' : 'text-muted-foreground')}
+              >
+                {connectionState === 'connected' ? 'Remote vault connected.' : 'Waiting for connection.'}
+              </Text>
+            </div>
+            {vaultStatus.data?.syncStatus?.lastSyncError ? (
+              <Text size="sm" className="text-destructive">
+                {vaultStatus.data.syncStatus.lastSyncError}
+              </Text>
+            ) : null}
+          </div>
+        ) : (
+          <div className="border-border bg-background/70 rounded-lg border p-4">
+            <Text size="sm" className="text-muted-foreground">
+              You can add remote sync later from Settings.
+            </Text>
+          </div>
+        )}
+
+        <div className="mt-auto flex flex-col items-center gap-3">
+          <Button variant="default" onClick={onNext} disabled={!canContinue}>
+            CREATE NEW ACCOUNT
+          </Button>
+          <div className="flex flex-col items-center gap-1">
+            <Button type="button" size="sm" variant="link" onClick={onUseRecoveryPhrase} disabled={!canContinue}>
+              Restore from Recovery Phrase
+            </Button>
+            <Button type="button" size="sm" variant="link" onClick={onImportKeyFile} disabled={!canContinue}>
+              Import Key File
+            </Button>
+          </div>
+        </div>
+      </div>
     </StepWrapper>
   )
 }
@@ -719,7 +957,7 @@ function ImportKeyStep({
   )
 }
 
-function ExistingStep({
+function RestoreFromPhraseStep({
   onNext,
   onPrev,
   onAccountCreate,
@@ -839,7 +1077,7 @@ function ExistingStep({
   )
 }
 
-function RecoveryStep({
+function CreateAccountStep({
   onNext,
   onPrev,
   onAccountCreate,
@@ -849,14 +1087,12 @@ function RecoveryStep({
   onAccountCreate: (id: UnpackedHypermediaId) => void
 }) {
   const register = useRegisterKey()
-  const mnemonics = useMnemonics()
-  const saveWords = useMutation({
-    mutationFn: (input: Parameters<typeof client.secureStorage.write.mutate>[0]) =>
-      client.secureStorage.write.mutate(input),
-  })
-  const [shouldSaveWords, setShouldSaveWords] = useState(true)
-
-  const [formData, setFormData] = useState<ProfileFormData>(() => {
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const hasStarted = useRef(false)
+  const generatedMnemonicRef = useRef<string[] | null>(null)
+  const createdAccountRef = useRef<NamedKey | null>(null)
+  const [formData] = useState<ProfileFormData>(() => {
     const state = getOnboardingState()
     return {
       name: state.formData.name || '',
@@ -864,74 +1100,48 @@ function RecoveryStep({
     }
   })
 
-  let icon = ''
-
-  useEffect(() => {
-    return () => {
-      mnemonics.refetch()
-    }
-  }, [])
-
   async function handleSubmit() {
     try {
+      setIsSubmitting(true)
+      setSubmitError(null)
       console.group('📝 Starting Profile Submission')
-
-      // Log initial state
-      const initialState = getOnboardingState()
-      console.log('Initial onboarding state:', initialState)
       console.log('Current form data:', formData)
 
-      // Upload the images if they exist
+      let icon = ''
       try {
         console.group('🖼️ Processing Images')
-
-        // Handle icon
         if (formData.icon) {
-          console.group('📤 Processing Site Icon')
-          console.log('Image data:', {
-            type: formData.icon.type,
-            size: formData.icon.size,
-            name: formData.icon.name,
-          })
-
-          console.log('Converting base64 to File...')
           const iconFile = base64ToFile(formData.icon)
-          console.log('File created:', {
-            type: iconFile.type,
-            size: iconFile.size,
-            name: iconFile.name,
-          })
-
-          console.log('Uploading to IPFS...')
           const ipfsIcon = await fileUpload(iconFile)
-
           icon = ipfsIcon
           console.log('✅ Icon uploaded to IPFS:', icon)
-          console.groupEnd()
         } else {
           console.log('ℹ️ No icon to process')
         }
-
         console.groupEnd()
       } catch (error) {
         console.error('❌ Failed to upload images:', error)
         throw new Error('Failed to upload images: ' + (error as Error).message)
       }
 
-      // Create the Account
       let createdAccount
-      // const name = `temp${nanoid(8)}`
       try {
         console.group('👤 Creating Account')
-        if (!mnemonics.data) {
-          throw new Error('Mnemonics not found')
-        }
-        // console.log('Using temporary name:', name)
+        createdAccount = createdAccountRef.current
+        if (!createdAccount) {
+          if (!generatedMnemonicRef.current) {
+            const mnemonicResponse = await grpcClient.daemon.genMnemonic({})
+            if (!mnemonicResponse.mnemonic.length) {
+              throw new Error('Mnemonic generation failed')
+            }
+            generatedMnemonicRef.current = [...mnemonicResponse.mnemonic]
+          }
 
-        createdAccount = await register.mutateAsync({
-          // name,
-          mnemonic: mnemonics.data,
-        })
+          createdAccount = await register.mutateAsync({
+            mnemonic: generatedMnemonicRef.current,
+          })
+          createdAccountRef.current = createdAccount
+        }
         console.log('✅ Account created:', createdAccount)
         console.groupEnd()
       } catch (error) {
@@ -939,51 +1149,8 @@ function RecoveryStep({
         throw new Error('Failed to create account: ' + (error as Error).message)
       }
 
-      // // Update account key name
-      // let renamedKey
-      // try {
-      //   console.group('🔑 Updating Account Key')
-      //   console.log('Renaming from', name, 'to', createdAccount.accountId)
-
-      //   renamedKey = await grpcClient.daemon.updateKey({
-      //     currentName: name,
-      //     newName: createdAccount.accountId,
-      //   })
-      //   console.log('✅ Account key updated:', renamedKey)
-      //   console.groupEnd()
-      // } catch (error) {
-      //   console.error('❌ Failed to update account key:', error)
-      //   throw new Error(
-      //     'Failed to update account key: ' + (error as Error).message,
-      //   )
-      // }
-
-      // Save mnemonics to secure storage only if checkbox is checked
-      try {
-        console.group('💾 Saving Mnemonics')
-        console.log('Saving to key:', createdAccount.publicKey)
-        console.log('Should save words:', shouldSaveWords)
-
-        if (shouldSaveWords) {
-          saveWords.mutate({
-            key: createdAccount.publicKey,
-            value: mnemonics.data,
-          })
-          console.log('✅ Mnemonics saved')
-        } else {
-          console.log('⏭️ Skipping mnemonic save as per user preference')
-        }
-        console.groupEnd()
-      } catch (error) {
-        console.error('❌ Failed to save mnemonics:', error)
-        throw new Error('Failed to save mnemonics: ' + (error as Error).message)
-      }
-
-      // Create profile for the account
       try {
         console.group('📝 Creating Profile')
-        console.log('Current uploaded icon:', icon)
-
         await grpcClient.documents.updateProfile({
           account: createdAccount.accountId,
           profile: {
@@ -993,26 +1160,17 @@ function RecoveryStep({
           signingKeyName: createdAccount.publicKey,
         })
 
-        console.log('✅ Profile created')
-        console.log('Invalidating queries...')
-        const id = hmId(createdAccount!.accountId)
+        const id = hmId(createdAccount.accountId)
         invalidateQueries([queryKeys.ACCOUNT, id.uid])
         invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
-        console.log('✅ Queries invalidated')
+        console.log('✅ Profile created')
         console.groupEnd()
       } catch (error) {
         console.error('❌ Failed to create profile:', error)
         throw new Error('Failed to create profile: ' + (error as Error).message)
       }
 
-      // Clean up onboarding form data
-      console.log('🧹 Cleaning up onboarding form data...')
-      // Don't reset the entire state, just clean up the form data
       cleanupOnboardingFormData()
-      console.log('✅ Onboarding form data cleaned up')
-
-      console.log('✅ Profile submission completed successfully')
-      console.groupEnd()
       onAccountCreate(hmId(createdAccount.accountId))
       await postAccountCreateAction(
         {
@@ -1023,72 +1181,60 @@ function RecoveryStep({
           publish: desktopUniversalClient.publish,
         },
       )
+      console.groupEnd()
       onNext()
     } catch (error) {
       console.error('❌ Profile submission failed:', error)
       console.groupEnd()
-      throw error
+      const message = error instanceof Error ? error.message : String(error)
+      setSubmitError(message)
+      toast.error('Account creation failed: ' + message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
+  useEffect(() => {
+    if (hasStarted.current) return
+    hasStarted.current = true
+    handleSubmit()
+  }, [])
+
   return (
-    <StepWrapper onPrev={onPrev}>
-      <StepTitle>SAVE YOUR ACCOUNT</StepTitle>
-      <Text size="xl" className="no-window-drag text-muted-foreground text-center">
-        Store this Secret Recover Phrase somewhere safe. You'll need it to recover your account if you lose access.
-      </Text>
+    <StepWrapper onPrev={isSubmitting ? undefined : onPrev}>
+      <StepTitle>CREATING YOUR SITE</StepTitle>
+      <div className="no-window-drag flex w-full max-w-[420px] flex-1 flex-col items-center justify-center gap-4 text-center">
+        <Text size="xl" className="text-muted-foreground">
+          Seed is creating your account and storing it in this device&apos;s encrypted local vault.
+        </Text>
+        <Text size="sm" className="text-muted-foreground max-w-[360px]">
+          Your account is being set up in this device&apos;s encrypted local vault.
+        </Text>
 
-      <div className="no-window-drag flex w-full max-w-[400px] flex-1 flex-col gap-4">
-        <Textarea
-          className="flex-1 resize-none bg-white opacity-100!"
-          disabled
-          value={Array.isArray(mnemonics.data) ? mnemonics.data.join(', ') : mnemonics.data}
-        />
-
-        <div className="flex gap-4">
-          <Button size="sm" className="flex-1" onClick={() => mnemonics.refetch()}>
-            <Reload className="size-4" />
-            Regenerate
-          </Button>
-          <Button
-            size="sm"
-            className="flex-1"
-            onClick={() => {
-              if (mnemonics.data) {
-                copyTextToClipboard(Array.isArray(mnemonics.data) ? mnemonics.data.join(', ') : mnemonics.data).then(
-                  () => {
-                    toast.success('Copied to clipboard')
-                  },
-                )
-              }
-            }}
-          >
-            <Copy className="size-4" />
-            Copy
-          </Button>
-        </div>
-
-        <CheckboxField
-          checked={shouldSaveWords}
-          id="register-save-words"
-          onCheckedChange={(v) => setShouldSaveWords(v === 'indeterminate' ? false : v)}
-        >
-          Store the Secret Recovery Phrase on this device
-        </CheckboxField>
-        <div className="flex-1" />
-        <div className="mt-4 flex justify-center gap-4">
-          <Button
-            variant="default"
-            onClick={() => {
-              handleSubmit().catch((err) => {
-                console.error('[Onboarding] handleSubmit error:', err)
-                toast.error('Account creation failed: ' + (err instanceof Error ? err.message : String(err)))
-              })
-            }}
-          >
-            NEXT
-          </Button>
-        </div>
+        {isSubmitting ? (
+          <div className="flex flex-col items-center gap-3">
+            <Spinner />
+            <Text size="sm" className="text-muted-foreground">
+              This should only take a moment.
+            </Text>
+          </div>
+        ) : submitError ? (
+          <>
+            <Text size="sm" className="text-destructive">
+              {submitError}
+            </Text>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  handleSubmit()
+                }}
+              >
+                Retry
+              </Button>
+            </div>
+          </>
+        ) : null}
       </div>
     </StepWrapper>
   )
@@ -1138,7 +1284,6 @@ function ReadyStep({onComplete}: {onComplete: () => void}) {
             </SizableText>
           </div>
         </div>
-
         <Button variant="default" onClick={onComplete}>
           DONE
         </Button>
@@ -1211,6 +1356,7 @@ function OnboardingProgress({currentStep}: {currentStep: OnboardingStep}) {
     <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 transform gap-2 pt-4">
       <OnboardingProgressStep active={currentStep === 'welcome'} />
       <OnboardingProgressStep active={currentStep === 'profile'} />
+      <OnboardingProgressStep active={currentStep === 'vault'} />
       {showExistingStep ? (
         <OnboardingProgressStep active={currentStep === 'existing' || currentStep === 'import'} />
       ) : (

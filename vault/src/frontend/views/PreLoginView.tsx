@@ -16,8 +16,17 @@ import {useActions, useAppState} from '@/frontend/store'
  * with resident passkeys can sign in without typing their email.
  */
 export function PreLoginView() {
-  const {email, loading, error, passkeySupported, session, sessionChecked, delegationRequest, emailPreFilledFromUrl} =
-    useAppState()
+  const {
+    email,
+    loading,
+    error,
+    passkeySupported,
+    session,
+    sessionChecked,
+    delegationRequest,
+    emailPreFilledFromUrl,
+    vaultConnectionRequest,
+  } = useAppState()
   const actions = useActions()
 
   useEffect(() => {
@@ -59,6 +68,13 @@ export function PreLoginView() {
               Good to see you again
             </CardTitle>
             <CardDescription className="text-left">Use your Hypermedia account to access this site.</CardDescription>
+          </>
+        ) : vaultConnectionRequest ? (
+          <>
+            <CardTitle className="text-left text-xl">Connect your desktop app</CardTitle>
+            <CardDescription className="text-left">
+              Sign in to continue connecting this vault to Seed desktop.
+            </CardDescription>
           </>
         ) : (
           <>

@@ -56,10 +56,10 @@ func (m *TaskManager) AddTask(id string, name daemonpb.TaskName, description str
 }
 
 // UpdateGlobalState updates the global daemon state.
-func (m *TaskManager) UpdateGlobalState(state daemonpb.State) {
+func (m *TaskManager) UpdateGlobalState(recordState daemonpb.State) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.globalState = state
+	m.globalState = recordState
 }
 
 // GlobalState returns the current global daemon state.

@@ -6,7 +6,7 @@ import {Card, CardContent, CardHeader, CardTitle} from '@/frontend/components/ui
 import {Input} from '@/frontend/components/ui/input'
 import {Label} from '@/frontend/components/ui/label'
 import {StepIndicator} from '@/frontend/components/StepIndicator'
-import {useActions, useAppState} from '@/frontend/store'
+import {getPendingFlowPath, useActions, useAppState} from '@/frontend/store'
 import {Plus} from 'lucide-react'
 
 const MAX_AVATAR_BYTES = 1024 * 1024
@@ -15,7 +15,7 @@ const MAX_AVATAR_BYTES = 1024 * 1024
  * View for creating a profile after account security setup (Step 3 of 3).
  */
 export function CreateProfileView() {
-  const {loading, error, delegationRequest, session, email} = useAppState()
+  const {loading, error, delegationRequest, vaultConnectionRequest, session, email} = useAppState()
   const actions = useActions()
   const navigate = navigation.useHashNavigate()
 
@@ -71,12 +71,7 @@ export function CreateProfileView() {
       return
     }
 
-    // Navigate to delegation consent if there's a pending request, otherwise to dashboard
-    if (delegationRequest) {
-      navigate('/delegate')
-    } else {
-      navigate('/')
-    }
+    navigate(getPendingFlowPath({delegationRequest, vaultConnectionRequest}))
   }
 
   return (

@@ -7,6 +7,7 @@ describe('isSensitiveRPCMethod', () => {
     expect(isSensitiveRPCMethod('com.seed.daemon.v1alpha.Daemon', 'ImportKey')).toBe(true)
     expect(isSensitiveRPCMethod('com.seed.daemon.v1alpha.Daemon', 'RegisterKey')).toBe(true)
     expect(isSensitiveRPCMethod('com.seed.daemon.v1alpha.Daemon', 'GenMnemonic')).toBe(true)
+    expect(isSensitiveRPCMethod('com.seed.daemon.v1alpha.Daemon', 'StartVaultConnection')).toBe(true)
     expect(isSensitiveRPCMethod('com.seed.daemon.v1alpha.Daemon', 'ListKeys')).toBe(false)
   })
 })

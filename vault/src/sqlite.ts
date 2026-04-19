@@ -11,7 +11,10 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 // The list is reversed immediately to be executed from the oldest migration for runtime correctness.
 // Be very careful. Never delete and move existing migrations around.
 // This list is prepend-only.
-export const migrations = [].reverse()
+export const migrations = [
+  // ======= IMPORTANT: Add new migrations below this line. =======
+  `CREATE INDEX sessions_by_expire_time ON sessions (expire_time);`,
+].reverse()
 
 export const desiredVersion = migrations.length
 export const schema = stripSQLComments(schemaSQL).trim()

@@ -8,7 +8,10 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"seed/backend/blob"
@@ -19,6 +22,7 @@ import (
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/ipfs"
 	"seed/backend/storage"
+	"seed/backend/storage/vault"
 	"seed/backend/util/colx"
 	"seed/backend/util/longrunning"
 	"strings"
@@ -60,8 +64,9 @@ type blobIndex interface {
 }
 
 const (
-	importKeyFileSuffix  = ".hmkey.json"
-	importKeyFileMaxSize = 1 << 20 // 1 MiB
+	importKeyFileSuffix           = ".hmkey.json"
+	importKeyFileMaxSize          = 1 << 20 // 1 MiB.
+	vaultConnectionHandoffMaxBody = 4 << 10 // 4 KiB.
 )
 
 type importedKeyFile struct {
@@ -265,12 +270,18 @@ func (srv *Server) ExportKey(ctx context.Context, req *daemon.ExportKeyRequest) 
 
 // DeleteKey implement the corresponding gRPC method.
 func (srv *Server) DeleteKey(ctx context.Context, req *daemon.DeleteKeyRequest) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, srv.store.KeyStore().DeleteKey(ctx, req.Name)
+	if err := srv.store.KeyStore().DeleteKey(ctx, req.Name); err != nil {
+		return nil, err
+	}
+	return &emptypb.Empty{}, nil
 }
 
 // DeleteAllKeys implement the corresponding gRPC method.
 func (srv *Server) DeleteAllKeys(ctx context.Context, req *daemon.DeleteAllKeysRequest) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, srv.store.KeyStore().DeleteAllKeys(ctx)
+	if err := srv.store.KeyStore().DeleteAllKeys(ctx); err != nil {
+		return nil, err
+	}
+	return &emptypb.Empty{}, nil
 }
 
 // ListKeys implement the corresponding gRPC method.
@@ -578,18 +589,182 @@ func (srv *Server) GetInfo(context.Context, *daemon.GetInfoRequest) (*daemon.Inf
 }
 
 // GetVaultStatus implements the corresponding gRPC method.
-func (srv *Server) GetVaultStatus(context.Context, *daemon.GetVaultStatusRequest) (*daemon.GetVaultStatusResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "GetVaultStatus is not implemented")
+func (srv *Server) GetVaultStatus(ctx context.Context, req *daemon.GetVaultStatusRequest) (*daemon.GetVaultStatusResponse, error) {
+	resp := &daemon.GetVaultStatusResponse{
+		BackendMode:      daemon.VaultBackendMode_VAULT_BACKEND_MODE_LOCAL,
+		ConnectionStatus: daemon.VaultConnectionStatus_VAULT_CONNECTION_STATUS_DISCONNECTED,
+		SyncStatus:       &daemon.VaultSyncStatus{},
+	}
+
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+
+	if req.ForceSync {
+		if !vlt.IsConnected() {
+			return nil, status.Error(codes.FailedPrecondition, "remote vault is not connected")
+		}
+		if err := vlt.ForceSyncNow(ctx); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to force sync: %v", err)
+		}
+	}
+
+	vaultStatus, err := vlt.Status()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to load vault status: %v", err)
+	}
+
+	resp.SyncStatus.LocalVersion = int64(vaultStatus.LocalVersion)
+	resp.SyncStatus.RemoteVersion = int64(vaultStatus.RemoteVersion)
+	resp.SyncStatus.LastSyncError = vaultStatus.LastSyncError
+	if vaultStatus.RemoteMode {
+		resp.BackendMode = daemon.VaultBackendMode_VAULT_BACKEND_MODE_REMOTE
+		resp.ConnectionStatus = daemon.VaultConnectionStatus_VAULT_CONNECTION_STATUS_CONNECTED
+		resp.RemoteVaultUrl = vaultStatus.RemoteURL
+	}
+	if !vaultStatus.LastSyncTime.IsZero() {
+		resp.SyncStatus.LastSyncTime = timestamppb.New(vaultStatus.LastSyncTime)
+	}
+
+	return resp, nil
 }
 
 // StartVaultConnection implements the corresponding gRPC method.
-func (srv *Server) StartVaultConnection(context.Context, *daemon.StartVaultConnectionRequest) (*daemon.StartVaultConnectionResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "StartVaultConnection is not implemented")
+func (srv *Server) StartVaultConnection(_ context.Context, in *daemon.StartVaultConnectionRequest) (*daemon.StartVaultConnectionResponse, error) {
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+
+	start, err := vlt.StartConnection(in.VaultUrl, in.Force)
+	if err != nil {
+		switch {
+		case errors.Is(err, vault.ErrInvalidRemoteURL):
+			return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+		case errors.Is(err, vault.ErrAlreadyConnected), errors.Is(err, vault.ErrConnectionInProgress):
+			return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+		default:
+			return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+		}
+	}
+
+	return &daemon.StartVaultConnectionResponse{
+		VaultUrl:     start.RemoteURL,
+		HandoffToken: start.HandoffToken,
+		ExpireTime:   timestamppb.New(start.ExpireTime),
+	}, nil
 }
 
 // DisconnectVault implements the corresponding gRPC method.
 func (srv *Server) DisconnectVault(context.Context, *daemon.DisconnectVaultRequest) (*emptypb.Empty, error) {
-	return nil, status.Error(codes.Unimplemented, "DisconnectVault is not implemented")
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := vlt.Disconnect(); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to disconnect vault: %v", err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// HandleConnectionHandoff completes a browser-mediated remote vault handoff.
+func (srv *Server) HandleConnectionHandoff(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+
+	defer r.Body.Close()
+
+	var req struct {
+		HandoffToken      string `json:"handoffToken"`
+		VaultURL          string `json:"vaultUrl"`
+		UserID            string `json:"userId"`
+		CredentialID      string `json:"credentialId"`
+		CredentialPayload string `json:"secret"` //nolint:gosec // This runtime payload carries the remote KEK to the local daemon; it is not a hardcoded secret.
+	}
+	body := io.LimitReader(r.Body, vaultConnectionHandoffMaxBody)
+	decoder := json.NewDecoder(body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	var trailingToken json.RawMessage
+	if err := decoder.Decode(&trailingToken); err != io.EOF {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	handoffToken := strings.TrimSpace(req.HandoffToken)
+	if handoffToken == "" {
+		http.Error(w, "handoffToken is required", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.VaultURL) == "" {
+		http.Error(w, "vaultUrl is required", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.UserID) == "" {
+		http.Error(w, "userId is required", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.CredentialID) == "" {
+		http.Error(w, "credentialId is required", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.CredentialPayload) == "" {
+		http.Error(w, "secret is required", http.StatusBadRequest)
+		return
+	}
+
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusFailedDependency)
+		return
+	}
+
+	err = vlt.HandleConnection(handoffToken, vault.ConnectionHandoff{
+		RemoteURL:    req.VaultURL,
+		UserID:       req.UserID,
+		CredentialID: req.CredentialID,
+		Credential:   req.CredentialPayload,
+	})
+	switch {
+	case err == nil:
+	case errors.Is(err, vault.ErrConnectionTokenExpired):
+		http.Error(w, "handoff token expired", http.StatusUnauthorized)
+		return
+	case errors.Is(err, vault.ErrConnectionTokenInvalid):
+		http.Error(w, "invalid handoff token", http.StatusUnauthorized)
+		return
+	case errors.Is(err, vault.ErrConnectionRemoteURLMismatch):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	resp := struct {
+		Success bool `json:"success"`
+	}{
+		Success: true,
+	}
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		srv.log.Warn("Failed to encode vault handoff response", zap.Error(err))
+	}
 }
 
 // ForceSync implements the corresponding gRPC method.

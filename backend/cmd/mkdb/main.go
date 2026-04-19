@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"os"
 	"seed/backend/config"
-	"seed/backend/storage/keystore"
 	"seed/backend/core/coretest"
+	"seed/backend/core/keystore"
 	"seed/backend/storage"
 
 	"github.com/burdiyan/go/mainutil"

@@ -3645,18 +3645,18 @@ func pushDocuments(t *testing.T, src, dst *App, resources ...string) {
 	}
 }
 
-func pullDocument(t *testing.T, app *App, account, path, wantVersion string) {
+func pullDocument(t *testing.T, app *App, recordAccount, path, wantVersion string) {
 	t.Helper()
 	ctx := t.Context()
 
-	var state entities.DiscoveryTaskState
-	for state != entities.DiscoveryTaskState_DISCOVERY_TASK_COMPLETED {
+	var recordState entities.DiscoveryTaskState
+	for recordState != entities.DiscoveryTaskState_DISCOVERY_TASK_COMPLETED {
 		resp, err := app.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
-			Account: account,
+			Account: recordAccount,
 			Path:    path,
 		})
 		require.NoError(t, err)
-		state = resp.State
+		recordState = resp.State
 		time.Sleep(100 * time.Millisecond)
 	}
 }

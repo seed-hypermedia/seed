@@ -32,68 +32,14 @@ export class FetchClient implements api.ClientInterface {
     return data as T
   }
 
-  // ==========================================================================
-  // Auth
-  // ==========================================================================
+  // Session and identity.
 
   async preLogin(req: api.PreLoginRequest): Promise<api.PreLoginResponse> {
-    return this.request('/api/pre-login', {
-      method: 'POST',
-      body: JSON.stringify(req),
-    })
-  }
-
-  async registerStart(req: api.RegisterStartRequest): Promise<api.RegisterStartResponse> {
-    return this.request('/api/register/start', {
-      method: 'POST',
-      body: JSON.stringify(req),
-    })
-  }
-
-  async registerPoll(req: api.RegisterPollRequest): Promise<api.RegisterPollResponse> {
-    return this.request('/api/register/poll', {
-      method: 'POST',
-      body: JSON.stringify(req),
-    })
-  }
-
-  async registerVerifyLink(req: api.RegisterVerifyLinkRequest): Promise<api.RegisterVerifyLinkResponse> {
-    return this.request('/api/register/verify-link', {
-      method: 'POST',
-      body: JSON.stringify(req),
-    })
-  }
-
-  async addPassword(req: api.AddPasswordRequest): Promise<api.AddPasswordResponse> {
-    return this.request('/api/add-password', {
-      method: 'POST',
-      body: JSON.stringify(req),
-    })
-  }
-
-  async changePassword(req: api.ChangePasswordRequest): Promise<api.ChangePasswordResponse> {
-    return this.request('/api/change-password', {
-      method: 'POST',
-      body: JSON.stringify(req),
-    })
+    return this.request('/api/pre-login', {method: 'POST', body: JSON.stringify(req)})
   }
 
   async login(req: api.LoginRequest): Promise<api.LoginResponse> {
-    return this.request('/api/login', {
-      method: 'POST',
-      body: JSON.stringify(req),
-    })
-  }
-
-  async getVault(): Promise<api.GetVaultResponse> {
-    return this.request('/api/vault', {method: 'GET'})
-  }
-
-  async saveVaultData(req: api.SaveVaultDataRequest): Promise<api.SaveVaultDataResponse> {
-    return this.request('/api/vault', {
-      method: 'POST',
-      body: JSON.stringify(req),
-    })
+    return this.request('/api/login', {method: 'POST', body: JSON.stringify(req)})
   }
 
   async logout(): Promise<api.LogoutResponse> {
@@ -112,66 +58,79 @@ export class FetchClient implements api.ClientInterface {
     return this.request('/api/config', {method: 'GET'})
   }
 
-  // ==========================================================================
-  // Email Change
-  // ==========================================================================
+  // Email-based registration.
+
+  async registerStart(req: api.RegisterStartRequest): Promise<api.RegisterStartResponse> {
+    return this.request('/api/register/start', {method: 'POST', body: JSON.stringify(req)})
+  }
+
+  async registerPoll(req: api.RegisterPollRequest): Promise<api.RegisterPollResponse> {
+    return this.request('/api/register/poll', {method: 'POST', body: JSON.stringify(req)})
+  }
+
+  async registerVerifyLink(req: api.RegisterVerifyLinkRequest): Promise<api.RegisterVerifyLinkResponse> {
+    return this.request('/api/register/verify-link', {method: 'POST', body: JSON.stringify(req)})
+  }
+
+  // Vault data.
+
+  async getVault(req: api.GetVaultRequest = {}): Promise<api.GetVaultResponse> {
+    const params = new URLSearchParams()
+    if (req.knownVersion !== undefined) {
+      params.set('knownVersion', String(req.knownVersion))
+    }
+    const queryString = params.toString()
+    const query = queryString ? `?${queryString}` : ''
+    return this.request(`/api/vault${query}`, {method: 'GET'})
+  }
+
+  async saveVault(req: api.SaveVaultRequest): Promise<api.SaveVaultResponse> {
+    return this.request('/api/vault', {method: 'POST', body: JSON.stringify(req)})
+  }
+
+  // Credential management.
+
+  async addPassword(req: api.AddPasswordRequest): Promise<api.AddPasswordResponse> {
+    return this.request('/api/credentials/password', {method: 'POST', body: JSON.stringify(req)})
+  }
+
+  async changePassword(req: api.ChangePasswordRequest): Promise<api.ChangePasswordResponse> {
+    return this.request('/api/credentials/password/change', {method: 'POST', body: JSON.stringify(req)})
+  }
+
+  async addSecretCredential(req: api.AddSecretCredentialRequest): Promise<api.AddSecretCredentialResponse> {
+    return this.request('/api/credentials/secret', {method: 'POST', body: JSON.stringify(req)})
+  }
+
+  async addPasskeyStart(): Promise<api.AddPasskeyStartResponse> {
+    return this.request('/api/credentials/passkey/start', {method: 'POST'})
+  }
+
+  async addPasskeyFinish(req: api.AddPasskeyFinishRequest): Promise<api.AddPasskeyFinishResponse> {
+    return this.request('/api/credentials/passkey/finish', {method: 'POST', body: JSON.stringify(req)})
+  }
+
+  // Passkey authentication.
+
+  async loginPasskeyStart(req: api.LoginPasskeyStartRequest): Promise<api.LoginPasskeyStartResponse> {
+    return this.request('/api/login/passkey/start', {method: 'POST', body: JSON.stringify(req)})
+  }
+
+  async loginPasskeyFinish(req: api.LoginPasskeyFinishRequest): Promise<api.LoginPasskeyFinishResponse> {
+    return this.request('/api/login/passkey/finish', {method: 'POST', body: JSON.stringify(req)})
+  }
+
+  // Email change.
 
   async changeEmailStart(req: api.ChangeEmailStartRequest): Promise<api.ChangeEmailStartResponse> {
-    return this.request('/api/change-email/start', {
-      method: 'POST',
-      body: JSON.stringify(req),
-    })
+    return this.request('/api/email-change/start', {method: 'POST', body: JSON.stringify(req)})
   }
 
   async changeEmailPoll(req: api.ChangeEmailPollRequest): Promise<api.ChangeEmailPollResponse> {
-    return this.request('/api/change-email/poll', {
-      method: 'POST',
-      body: JSON.stringify(req),
-    })
+    return this.request('/api/email-change/poll', {method: 'POST', body: JSON.stringify(req)})
   }
 
   async changeEmailVerifyLink(req: api.ChangeEmailVerifyLinkRequest): Promise<api.ChangeEmailVerifyLinkResponse> {
-    return this.request('/api/change-email/verify-link', {
-      method: 'POST',
-      body: JSON.stringify(req),
-    })
-  }
-
-  // ==========================================================================
-  // WebAuthn
-  // ==========================================================================
-
-  async webAuthnRegisterStart(): Promise<api.WebAuthnRegisterStartResponse> {
-    return this.request('/api/webauthn/register/start', {method: 'POST'})
-  }
-
-  async webAuthnRegisterComplete(
-    req: api.WebAuthnRegisterCompleteRequest,
-  ): Promise<api.WebAuthnRegisterCompleteResponse> {
-    return this.request('/api/webauthn/register/complete', {
-      method: 'POST',
-      body: JSON.stringify(req),
-    })
-  }
-
-  async webAuthnLoginStart(req: api.WebAuthnLoginStartRequest): Promise<api.WebAuthnLoginStartResponse> {
-    return this.request('/api/webauthn/login/start', {
-      method: 'POST',
-      body: JSON.stringify(req),
-    })
-  }
-
-  async webAuthnLoginComplete(req: api.WebAuthnLoginCompleteRequest): Promise<api.WebAuthnLoginCompleteResponse> {
-    return this.request('/api/webauthn/login/complete', {
-      method: 'POST',
-      body: JSON.stringify(req),
-    })
-  }
-
-  async webAuthnVaultStore(req: api.WebAuthnVaultStoreRequest): Promise<api.WebAuthnVaultStoreResponse> {
-    return this.request('/api/webauthn/vault', {
-      method: 'POST',
-      body: JSON.stringify(req),
-    })
+    return this.request('/api/email-change/verify-link', {method: 'POST', body: JSON.stringify(req)})
   }
 }

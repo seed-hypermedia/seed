@@ -16,6 +16,7 @@ export const queryKeys = {
 
   // daemon
   GET_DAEMON_INFO: 'GET_DAEMON_INFO',
+  GET_VAULT_STATUS: 'GET_VAULT_STATUS',
   LOCAL_ACCOUNT_ID_LIST: 'LOCAL_ACCOUNT_ID_LIST',
   KEYS_GET: 'KEYS_GET',
   GENERATE_MNEMONIC: 'GENERATE_MNEMONIC',
@@ -169,6 +170,8 @@ export function labelOfQueryKey(key: QueryKey) {
     // daemon
     case queryKeys.GET_DAEMON_INFO:
       return 'Daemon Info'
+    case queryKeys.GET_VAULT_STATUS:
+      return 'Vault Status'
 
     // networking
     case queryKeys.PEERS:

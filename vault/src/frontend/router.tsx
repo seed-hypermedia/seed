@@ -6,7 +6,7 @@ import {Header} from './components/Header'
 import {Button} from './components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from './components/ui/card'
 import * as navigation from './navigation'
-import {useActions, useAppState} from './store'
+import {getPendingFlowPath, useActions, useAppState} from './store'
 import {AddPasswordView} from './views/AddPasswordView'
 import {ChangeEmailPendingView} from './views/ChangeEmailPendingView'
 import {ChangeEmailVerifyView} from './views/ChangeEmailVerifyView'
@@ -14,6 +14,7 @@ import {ChangeEmailView} from './views/ChangeEmailView'
 import {ChangeNotifyServerUrlView} from './views/ChangeNotifyServerUrlView'
 import {ChangePasswordView} from './views/ChangePasswordView'
 import {ChooseAuthView} from './views/ChooseAuthView'
+import {ConnectView} from './views/ConnectView'
 import {CreateProfileView} from './views/CreateProfileView'
 import {DelegateView} from './views/DelegateView'
 import {LoginView} from './views/LoginView'
@@ -28,13 +29,11 @@ import {VerifyPendingView} from './views/VerifyPendingView'
  * Wrap auth routes that should not be visible when fully unlocked.
  */
 function RedirectIfUnlocked() {
-  const {session, decryptedDEK, delegationRequest} = useAppState()
+  const {session, decryptedDEK, delegationRequest, vaultConnectionRequest} = useAppState()
 
   if (session?.authenticated && decryptedDEK) {
-    if (delegationRequest) {
-      return <navigation.HashNavigate to="/delegate" replace />
-    }
-    return <navigation.HashNavigate to="/" replace />
+    const pendingPath = getPendingFlowPath({delegationRequest, vaultConnectionRequest})
+    return <navigation.HashNavigate to={pendingPath} replace />
   }
 
   return <Outlet />
@@ -123,6 +122,16 @@ function WideLayout() {
   )
 }
 
+function hasVaultConnectionFragment() {
+  const fragment = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash
+  if (!fragment) {
+    return false
+  }
+
+  const params = new URLSearchParams(fragment)
+  return params.has('token') || params.has('callback')
+}
+
 /** Application shell shared across all vault routes. */
 export function RootLayout() {
   const actions = useActions()
@@ -130,6 +139,7 @@ export function RootLayout() {
   useEffect(() => {
     actions.checkSession()
     actions.parseDelegationFromUrl(window.location.href)
+    actions.parseVaultConnectionFromUrl(window.location.href)
   }, [actions])
 
   return (
@@ -143,7 +153,7 @@ export function RootLayout() {
 }
 
 function RootView() {
-  const {session, decryptedDEK, delegationRequest, sessionChecked} = useAppState()
+  const {session, decryptedDEK, delegationRequest, sessionChecked, vaultConnectionRequest} = useAppState()
 
   if (!sessionChecked) {
     return null
@@ -158,9 +168,11 @@ function RootView() {
       )
     }
 
-    if (delegationRequest) {
-      return <navigation.HashNavigate to="/delegate" replace />
+    const pendingFlowPath = getPendingFlowPath({delegationRequest, vaultConnectionRequest})
+    if (pendingFlowPath !== '/') {
+      return <navigation.HashNavigate to={pendingFlowPath} replace />
     }
+
     return (
       <div className="w-full max-w-5xl">
         <VaultView />
@@ -173,6 +185,32 @@ function RootView() {
       <PreLoginView />
     </div>
   )
+}
+
+function ConnectRouteView() {
+  const {session, decryptedDEK, sessionChecked, vaultConnectionRequest} = useAppState()
+
+  if (!sessionChecked) {
+    return null
+  }
+
+  if (!vaultConnectionRequest && !hasVaultConnectionFragment()) {
+    return <navigation.HashNavigate to="/" replace />
+  }
+
+  if (!session?.authenticated) {
+    return <PreLoginView />
+  }
+
+  if (!decryptedDEK) {
+    return <LockedView />
+  }
+
+  if (!vaultConnectionRequest) {
+    return <navigation.HashNavigate to="/" replace />
+  }
+
+  return <ConnectView />
 }
 
 /** Creates the application router with all route definitions. */
@@ -213,6 +251,10 @@ export function createRouter() {
               {
                 path: '/verify/:challengeId/:token',
                 element: <VerifyLinkView />,
+              },
+              {
+                path: '/connect',
+                element: <ConnectRouteView />,
               },
               {
                 element: <EnsureUnlocked />,

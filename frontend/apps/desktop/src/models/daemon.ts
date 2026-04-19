@@ -1,14 +1,20 @@
 import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
 import {Code, ConnectError} from '@connectrpc/connect'
-import {GenMnemonicResponse, Info, RegisterKeyRequest} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
+import {
+  GenMnemonicResponse,
+  GetVaultStatusResponse,
+  Info,
+  RegisterKeyRequest,
+  StartVaultConnectionResponse,
+} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {useResources} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {FetchQueryOptions, useMutation, UseMutationOptions, useQuery, UseQueryOptions} from '@tanstack/react-query'
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 
 export type NamedKey = {
   name: string
@@ -20,6 +26,24 @@ export type NamedKey = {
 const DEFAULT_DAEMON_INFO_INTERVAL = 10_000
 // Fast interval for daemon info polling (when tasks are active)
 const ACTIVE_TASKS_DAEMON_INFO_INTERVAL = 2_000
+const VAULT_STATUS_POLL_INTERVAL = 10_000
+
+export function invalidateVaultDependentQueries() {
+  invalidateQueries([queryKeys.GET_VAULT_STATUS])
+  invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
+}
+
+export function getVaultStatusCacheBustKey(status: GetVaultStatusResponse | null | undefined) {
+  if (!status) return null
+
+  return [
+    status.backendMode,
+    status.connectionStatus,
+    status.remoteVaultUrl,
+    status.syncStatus?.localVersion?.toString() || '0',
+    status.syncStatus?.remoteVersion?.toString() || '0',
+  ].join(':')
+}
 
 function queryDaemonInfo(
   grpcClient: GRPCClient,
@@ -75,6 +99,91 @@ export function useDaemonInfo(opts: UseQueryOptions<Info | null> = {}) {
   }, [query.data?.tasks?.length])
 
   return query
+}
+
+/**
+ * Returns daemon vault backend and remote-sync status metadata.
+ */
+export function useVaultStatus(opts: UseQueryOptions<GetVaultStatusResponse | null> = {}) {
+  const query = useQuery({
+    queryKey: [queryKeys.GET_VAULT_STATUS],
+    queryFn: async () => {
+      try {
+        return await grpcClient.daemon.getVaultStatus({})
+      } catch (error) {
+        if (error) {
+          console.error('useVaultStatus failed:', error)
+        }
+      }
+      return null
+    },
+    refetchInterval: VAULT_STATUS_POLL_INTERVAL,
+    useErrorBoundary: false,
+    ...opts,
+  })
+
+  const cacheBustKey = getVaultStatusCacheBustKey(query.data)
+  const previousCacheBustKey = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!cacheBustKey) return
+    if (previousCacheBustKey.current && previousCacheBustKey.current !== cacheBustKey) {
+      invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
+    }
+    previousCacheBustKey.current = cacheBustKey
+  }, [cacheBustKey])
+
+  return query
+}
+
+/** Input parameters for starting a daemon-managed remote vault connection flow. */
+export type StartVaultConnectionInput = {
+  vaultUrl: string
+  force?: boolean
+}
+
+/** Starts daemon remote vault connection handoff and returns browser handoff metadata. */
+export function useStartVaultConnection(
+  opts?: UseMutationOptions<StartVaultConnectionResponse, unknown, StartVaultConnectionInput>,
+) {
+  return useMutation({
+    ...opts,
+    mutationFn: async ({vaultUrl, force = false}) => {
+      return await grpcClient.daemon.startVaultConnection({vaultUrl, force})
+    },
+    onSuccess: async (data, variables, context) => {
+      invalidateVaultDependentQueries()
+      opts?.onSuccess?.(data, variables, context)
+    },
+  })
+}
+
+/** Disconnects daemon remote vault mode and returns to local backend mode. */
+export function useDisconnectVault(opts?: UseMutationOptions<void, unknown, void>) {
+  return useMutation({
+    ...opts,
+    mutationFn: async () => {
+      await grpcClient.daemon.disconnectVault({})
+    },
+    onSuccess: async (data, variables, context) => {
+      invalidateVaultDependentQueries()
+      opts?.onSuccess?.(data, variables, context)
+    },
+  })
+}
+
+/** Forces an immediate sync with the remote vault. Returns error if remote is not configured or offline. */
+export function useForceVaultSync(opts?: UseMutationOptions<GetVaultStatusResponse, unknown, void>) {
+  return useMutation({
+    ...opts,
+    mutationFn: async () => {
+      return await grpcClient.daemon.getVaultStatus({forceSync: true})
+    },
+    onSuccess: async (data, variables, context) => {
+      invalidateVaultDependentQueries()
+      opts?.onSuccess?.(data, variables, context)
+    },
+  })
 }
 
 export function useMnemonics(opts?: UseQueryOptions<GenMnemonicResponse['mnemonic']>) {

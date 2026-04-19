@@ -31,6 +31,8 @@ CREATE TABLE sessions (
 
 CREATE INDEX sessions_by_user_id ON sessions (user_id);
 
+CREATE INDEX sessions_by_expire_time ON sessions (expire_time);
+
 CREATE TABLE email_challenges (
     -- Unique identifier for this challenge instance (used for polling).
     id TEXT PRIMARY KEY,

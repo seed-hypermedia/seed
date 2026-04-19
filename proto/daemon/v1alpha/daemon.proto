@@ -142,7 +142,11 @@ message ExportKeyRequest {
 message GetInfoRequest {}
 
 // Request to get vault backend and sync status.
-message GetVaultStatusRequest {}
+message GetVaultStatusRequest {
+  // Optional. When true, forces an immediate sync with the remote vault.
+  // Returns an error if the remote vault is not configured or offline.
+  bool force_sync = 1;
+}
 
 // Request to start remote vault connection handoff.
 message StartVaultConnectionRequest {
@@ -344,10 +348,10 @@ enum VaultConnectionStatus {
 // VaultSyncStatus describes daemon sync metadata for vault state.
 message VaultSyncStatus {
   // Last local vault version known by the daemon.
-  uint64 local_version = 1;
+  int64 local_version = 1;
 
   // Last remote vault version observed by the daemon.
-  uint64 remote_version = 2;
+  int64 remote_version = 2;
 
   // Last successful or attempted sync time.
   google.protobuf.Timestamp last_sync_time = 3;

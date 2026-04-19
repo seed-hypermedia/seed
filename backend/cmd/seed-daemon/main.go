@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -18,10 +19,11 @@ import (
 
 	"seed/backend/config"
 	"seed/backend/core"
+	"seed/backend/core/keystore"
 	"seed/backend/daemon"
-	"seed/backend/storage/keystore"
 	"seed/backend/logging"
 	"seed/backend/storage"
+	"seed/backend/storage/vault"
 	"seed/backend/util/grpcprom"
 	"seed/backend/util/pprofx"
 
@@ -100,7 +102,13 @@ func main() {
 			if keyStoreEnvironment == "" {
 				keyStoreEnvironment = "main"
 			}
-			ks = keystore.NewOS(keyStoreEnvironment)
+
+			var err error
+			ks, err = vault.NewProduction(cfg.Base.DataDir, keyStoreEnvironment)
+			if err != nil {
+				return fmt.Errorf("failed to create production keystore: %w", err)
+			}
+			log.Info("UsingLocalVaultKeyStore", zap.String("path", filepath.Join(cfg.Base.DataDir, "vault.json")))
 		}
 
 		dir, err := storage.Open(cfg.Base.DataDir, nil, ks, cfg.LogLevel)
