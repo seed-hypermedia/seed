@@ -39,6 +39,7 @@ import {
   selectPublishedVersion,
   useAccountSync,
   useCapabilitySync,
+  useDocumentMachineRef,
   useDocumentSelector,
   useDocumentSend,
   useDocumentSync,
@@ -46,6 +47,7 @@ import {
   useScrollSync,
   useVersionLatestSync,
 } from '@shm/shared/models/use-document-machine'
+import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
 import {
@@ -777,7 +779,6 @@ function DocumentBody({
   const publishedVersion = useDocumentSelector(selectPublishedVersion)
   const isEditing = useDocumentSelector(selectIsEditing)
   const ctx = useDocumentSelector(selectContext)
-  const documentSend = useDocumentSend()
 
   const route = useNavRoute()
   const navigate = useNavigate()
@@ -1091,22 +1092,17 @@ function DocumentBody({
   }, [docId, navigate, route.key])
   const documentOptionsMenuItem = useMemo<MenuItemType | null>(() => {
     if (!IS_DESKTOP) return null
+    if (!canEdit) return null
     return {
       key: 'options',
       label: 'Document Options',
       icon: <Settings className="size-4" />,
       onClick: () => {
-        console.log('[DocumentOptions] clicked', {isEditing, panelKey, routeKey: route.key})
-        if (!isEditing) {
-          console.log('[DocumentOptions] not editing, sending edit.start')
-          documentSend({type: 'edit.start'})
-        }
         const newPanel = panelKey === 'options' ? null : {key: 'options' as const}
-        console.log('[DocumentOptions] setting panel', newPanel)
         replaceRoute({...route, panel: newPanel} as any)
       },
     }
-  }, [isEditing, panelKey, route, documentSend, replaceRoute])
+  }, [canEdit, panelKey, route, replaceRoute])
 
   const allMenuItems = useMemo(() => {
     const extras = extraMenuItems || []
@@ -1596,12 +1592,28 @@ function EditableDocumentHeader({
 
 function OldVersionEditDialog() {
   const isConfirming = useDocumentSelector(selectIsConfirmingOldVersionEdit)
+  const actorRef = useDocumentMachineRef()
   const send = useDocumentSend()
+  console.log('[OldVersionEditDialog] render', {isConfirming})
   return (
     <AlertDialog
       open={isConfirming}
       onOpenChange={(open) => {
-        if (!open) send({type: 'edit.cancel'})
+        const currentState = actorRef.getSnapshot().value
+        console.log('[OldVersionEditDialog] onOpenChange', {open, currentState})
+        // Only send edit.cancel when the dialog closes while we're still
+        // waiting for confirmation (overlay click / Escape). Clicking "Edit
+        // Anyway" sends edit.confirm first, transitioning out of
+        // confirmingOldVersionEdit; Radix then closes the dialog and fires
+        // onOpenChange(false) — we must not send edit.cancel in that case
+        // because it would bounce us back to `loaded` and re-prompt on the
+        // next click. Read the machine's *current* snapshot (not the
+        // React-rendered value) because onOpenChange fires synchronously
+        // inside the same event handler as edit.confirm.
+        if (!open && actorRef.getSnapshot().matches('confirmingOldVersionEdit')) {
+          console.log('[OldVersionEditDialog] sending edit.cancel from onOpenChange')
+          send({type: 'edit.cancel'})
+        }
       }}
     >
       <AlertDialogContent>
@@ -1613,8 +1625,22 @@ function OldVersionEditDialog() {
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => send({type: 'edit.cancel'})}>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={() => send({type: 'edit.confirm'})}>Edit Anyway</AlertDialogAction>
+          <AlertDialogCancel
+            onClick={() => {
+              console.log('[OldVersionEditDialog] Cancel clicked')
+              send({type: 'edit.cancel'})
+            }}
+          >
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              console.log('[OldVersionEditDialog] Edit Anyway clicked')
+              send({type: 'edit.confirm'})
+            }}
+          >
+            Edit Anyway
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -1643,10 +1669,8 @@ function PanelContentRenderer({
   siteUrl?: string
   fileUpload?: (file: File) => Promise<string>
 }) {
-  console.log('[PanelContentRenderer]', {panelKey: panelRoute.key, docId: docId.id})
   switch (panelRoute.key) {
     case 'options':
-      console.log('[PanelContentRenderer] rendering DocumentOptionsPanel')
       return <DocumentOptionsPanel docId={docId} fileUpload={fileUpload} />
     case 'activity':
       return (
@@ -1703,26 +1727,23 @@ function DocumentOptionsPanel({
 }) {
   const ctx = useDocumentSelector(selectContext)
   const send = useDocumentSend()
-  const draftId = ctx.draftId
+  const {beginEditIfNeeded} = useEditorGate()
   const isHomeDoc = !docId.path?.length
 
   const metadata = {...(ctx.document?.metadata || {}), ...ctx.metadata}
-
-  console.log('[DocumentOptionsPanel]', {draftId, isHomeDoc, hasMetadata: !!metadata, docId: docId.id})
-
-  if (!draftId) {
-    console.log('[DocumentOptionsPanel] no draftId, returning null')
-    return null
-  }
+  // draftId may not exist yet when the panel is opened in read mode. Fall back
+  // to docId.id so form field HTML ids remain stable and unique.
+  const formId = ctx.draftId ?? docId.id
 
   return (
     <OptionsPanel
-      draftId={draftId}
+      draftId={formId}
       metadata={metadata as any}
       isHomeDoc={isHomeDoc}
       fileUpload={fileUpload}
       onMetadata={(newMetadata) => {
         if (!newMetadata) return
+        beginEditIfNeeded()
         send({type: 'change', metadata: newMetadata})
       }}
     />
