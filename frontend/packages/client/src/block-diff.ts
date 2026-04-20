@@ -133,6 +133,9 @@ export function computeReplaceOps(
     if (node.block.childrenType !== undefined) {
       block.childrenType = node.block.childrenType
     }
+    if (node.block.link !== undefined) {
+      block.link = node.block.link
+    }
 
     if (isNew) {
       // New block: need both ReplaceBlock and MoveBlocks
@@ -202,6 +205,7 @@ function collectIds(nodes: BlockNode[], set: Set<string>) {
 function isBlockContentEqual(old: APIBlock, newBlock: SeedBlock): boolean {
   if (old.type !== newBlock.type) return false
   if ((old.text || '') !== (newBlock.text || '')) return false
+  if ((old.link || '') !== (newBlock.link || '')) return false
 
   // Compare annotations
   const oldAnn = old.annotations || []

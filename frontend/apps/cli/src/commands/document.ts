@@ -34,6 +34,7 @@ import {parseMarkdown, flattenToOperations, type BlockNode} from '../utils/markd
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
 import {createBlocksMap, computeReplaceOps, hmBlockNodeToBlockNode, type APIBlockNode} from '../utils/block-diff'
 import {resolveFileLinks} from '../utils/file-links'
+import {markdownBlockNodesToHMBlockNodes} from '@seed-hypermedia/client'
 import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
 
 // ── Input helpers ────────────────────────────────────────────────────────────
@@ -186,16 +187,17 @@ export async function readInput(options: {file?: string; grobidUrl?: string; qui
 
   // ── Markdown path ──
   const {tree, metadata} = parseMarkdown(content!)
-  const ops = flattenToOperations(tree)
 
-  // Resolve file:// links in the tree (images with local paths)
-  // We need to convert BlockNode tree back through operations,
-  // but file:// links are in the operations already via the link field.
-  // For now, file:// resolution only applies to JSON blocks input.
-  // Markdown images get file:// prepended at tokenizer level and will
-  // be resolved when we add block-level file link resolution.
+  // Resolve file:// links on image blocks: read the local file, chunk it
+  // with UnixFS, and rewrite link to ipfs://CID. The roundtrip through
+  // HMBlockNode reuses the shared resolver used by the JSON path.
+  const hmNodes = markdownBlockNodesToHMBlockNodes(tree)
+  const resolved = await resolveFileLinks(hmNodes)
+  const resolvedTree = resolved.nodes.map(hmBlockNodeToBlockNode)
 
-  return {ops, metadata, fileBlobs: [], tree}
+  const ops = flattenToOperations(resolvedTree)
+
+  return {ops, metadata, fileBlobs: resolved.blobs, tree: resolvedTree}
 }
 
 export function registerDocumentCommands(program: Command) {

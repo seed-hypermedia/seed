@@ -126,6 +126,51 @@ describe('computeReplaceOps', () => {
   })
 })
 
+// ── link-field preservation (image/file/video blocks) ───────────────────────
+
+describe('computeReplaceOps — link field', () => {
+  it('preserves link on ReplaceBlock for new blocks', () => {
+    const old: APIBlockNode[] = []
+    const map = createBlocksMap(old)
+    const input: BlockNode[] = [
+      {block: {id: 'img-1', type: 'Image', text: '', annotations: [], link: 'ipfs://bafk123'}, children: []},
+    ]
+
+    const ops = computeReplaceOps(map, input)
+    const replaceOps = ops.filter((o) => o.type === 'ReplaceBlock')
+    expect(replaceOps).toHaveLength(1)
+    expect((replaceOps[0] as any).block.link).toBe('ipfs://bafk123')
+  })
+
+  it('link-only change produces ReplaceBlock', () => {
+    const old: APIBlockNode[] = [
+      {block: {id: 'img-1', type: 'Image', text: '', link: 'ipfs://old-cid', annotations: [], attributes: {}}, children: []},
+    ]
+    const map = createBlocksMap(old)
+    const input: BlockNode[] = [
+      {block: {id: 'img-1', type: 'Image', text: '', annotations: [], link: 'ipfs://new-cid'}, children: []},
+    ]
+
+    const ops = computeReplaceOps(map, input)
+    const replaceOps = ops.filter((o) => o.type === 'ReplaceBlock')
+    expect(replaceOps).toHaveLength(1)
+    expect((replaceOps[0] as any).block.link).toBe('ipfs://new-cid')
+  })
+
+  it('unchanged link produces no ReplaceBlock', () => {
+    const old: APIBlockNode[] = [
+      {block: {id: 'img-1', type: 'Image', text: '', link: 'ipfs://same-cid', annotations: [], attributes: {}}, children: []},
+    ]
+    const map = createBlocksMap(old)
+    const input: BlockNode[] = [
+      {block: {id: 'img-1', type: 'Image', text: '', annotations: [], link: 'ipfs://same-cid'}, children: []},
+    ]
+
+    const ops = computeReplaceOps(map, input)
+    expect(ops.filter((o) => o.type === 'ReplaceBlock')).toHaveLength(0)
+  })
+})
+
 // ── ID-based diffing (smart update flow) ─────────────────────────────────────
 
 describe('computeReplaceOps — ID-based diff', () => {
