@@ -8,9 +8,9 @@ import {
   useSearch,
   useUniversalAppContext,
 } from '@shm/shared'
-import {SearchType} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
+import {ContentTypeFilter, SearchType} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
 import {useResource} from '@shm/shared/models/entity'
-import {Fragment, PropsWithChildren, useEffect, useRef, useState} from 'react'
+import {Fragment, PropsWithChildren, useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
 import {Search} from './icons'
@@ -27,6 +27,64 @@ import {Separator} from './separator'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
+// Runs two parallel keyword searches and merges them:
+// - Primary: scoped to the current site (keeps accountUid).
+// - Secondary: global TITLE-only search, client-filtered to account-home
+//   entries (no path) so foreign contributor profiles surface without
+//   polluting results with unrelated docs from other sites.
+// Keyword-only because the web server runs the embedder on CPU and HYBRID
+// costs 5-8s; keyword is ~20ms per leg and the two run in parallel.
+function useSiteSearch(searchValue: string, siteHomeId: UnpackedHypermediaId | null) {
+  const enabled = !!searchValue
+  const primary = useSearch(searchValue, {
+    enabled,
+    accountUid: siteHomeId?.uid,
+    includeBody: true,
+    contextSize: 48 - searchValue.length,
+    searchType: SearchType.SEARCH_KEYWORD,
+    pageSize: 50,
+  })
+  const profiles = useSearch(searchValue, {
+    enabled,
+    contentTypeFilter: [ContentTypeFilter.CONTENT_TYPE_TITLE],
+    searchType: SearchType.SEARCH_KEYWORD,
+    pageSize: 10,
+  })
+  const entities = useMemo(() => {
+    const primaryEntities = primary.data?.entities ?? []
+    const profileEntities = (profiles.data?.entities ?? []).filter(
+      (e) => !e.id.path || e.id.path.length === 0,
+    )
+    const seen = new Set<string>()
+    const out: typeof primaryEntities = []
+    for (const e of [...profileEntities, ...primaryEntities]) {
+      const key = packReferenceUrl(e.id)
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push(e)
+    }
+    return out
+  }, [primary.data, profiles.data])
+  return {entities, isFetching: primary.isFetching || profiles.isFetching}
+}
+
+function toSearchResults(entities: ReturnType<typeof useSiteSearch>['entities']): SearchResult[] {
+  return entities.map((item) => {
+    const title = item.title || item.id.uid
+    return {
+      id: item.id,
+      key: packReferenceUrl(item.id),
+      title,
+      path: item.parentNames,
+      icon: item.icon,
+      onFocus: () => {},
+      onMouseEnter: () => {},
+      searchQuery: item.searchQuery,
+      versionTime: item.versionTime || '',
+    } as SearchResult
+  })
+}
+
 export function MobileSearch({
   siteHomeId,
   onSelect,
@@ -38,32 +96,8 @@ export function MobileSearch({
 }) {
   const [searchValue, setSearchValue] = useState('')
   const isSearchActive = searchValue.trim().length > 0
-  const searchResults = useSearch(searchValue, {
-    enabled: !!searchValue,
-    accountUid: siteHomeId?.uid,
-    includeBody: true,
-    contextSize: 48 - searchValue.length,
-    searchType: searchValue.length < 3 ? SearchType.SEARCH_KEYWORD : SearchType.SEARCH_HYBRID,
-    pageSize: 50,
-  })
-  const searchItems: SearchResult[] =
-    searchResults?.data?.entities
-      ?.map((item) => {
-        const title = item.title || item.id.uid
-        return {
-          id: item.id,
-          key: packReferenceUrl(item.id),
-          title,
-          path: item.parentNames,
-          icon: item.icon,
-          onFocus: () => {},
-          onMouseEnter: () => {},
-          subtitle: 'Document',
-          searchQuery: item.searchQuery,
-          versionTime: item.versionTime || '',
-        } as SearchResult
-      })
-      .filter(Boolean) ?? []
+  const searchResults = useSiteSearch(searchValue, siteHomeId)
+  const searchItems: SearchResult[] = toSearchResults(searchResults.entities)
 
   useEffect(() => {
     onSearchActiveChange?.(isSearchActive)
@@ -113,14 +147,7 @@ export function MobileSearch({
 export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | null}) {
   const popoverState = usePopoverState()
   const [searchValue, setSearchValue] = useState('')
-  const searchResults = useSearch(searchValue, {
-    enabled: !!searchValue,
-    accountUid: siteHomeId?.uid,
-    includeBody: true,
-    contextSize: 48 - searchValue.length,
-    searchType: searchValue.length < 3 ? SearchType.SEARCH_KEYWORD : SearchType.SEARCH_HYBRID,
-    pageSize: 50,
-  })
+  const searchResults = useSiteSearch(searchValue, siteHomeId)
   const [focusedIndex, setFocusedIndex] = useState(0)
   const universalAppContext = useUniversalAppContext()
 
@@ -155,25 +182,7 @@ export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | n
     }, [])
   }
 
-  const searchItems: SearchResult[] =
-    searchResults?.data?.entities
-      ?.map((item) => {
-        const title = item.title || item.id.uid
-        return {
-          id: item.id,
-          key: packReferenceUrl(item.id),
-          title,
-          path: item.parentNames,
-          icon: item.icon,
-          onFocus: () => {},
-          onMouseEnter: () => {},
-          // onSelect: () => {}, Now it's assumed it can be undefined for query search?
-          subtitle: 'Document',
-          searchQuery: item.searchQuery,
-          versionTime: item.versionTime || '',
-        }
-      })
-      .filter(Boolean) ?? []
+  const searchItems: SearchResult[] = toSearchResults(searchResults.entities)
 
   useEffect(() => {
     if (focusedIndex >= searchItems.length) setFocusedIndex(0)
@@ -215,7 +224,7 @@ export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | n
                       return
                     }
 
-                    const selectedEntity = searchResults.data?.entities[focusedIndex]
+                    const selectedEntity = searchResults.entities[focusedIndex]
 
                     if (!selectedEntity) {
                       return

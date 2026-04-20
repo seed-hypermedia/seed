@@ -1,5 +1,5 @@
 import {useQuery} from '@tanstack/react-query'
-import {SearchType} from '../client/.generated/entities/v1alpha/entities_pb'
+import {ContentTypeFilter, SearchType} from '../client/.generated/entities/v1alpha/entities_pb'
 import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {packHmId} from '../utils/entity-id-url'
 import {queryKeys} from './query-keys'
@@ -31,6 +31,8 @@ export function useSearch(
     perspectiveAccountUid,
     searchType,
     pageSize,
+    iriFilter,
+    contentTypeFilter,
   }: {
     enabled?: boolean
     accountUid?: string
@@ -39,6 +41,8 @@ export function useSearch(
     perspectiveAccountUid?: string
     searchType?: SearchType
     pageSize?: number
+    iriFilter?: string
+    contentTypeFilter?: ContentTypeFilter[]
   } = {},
 ) {
   const client = useUniversalClient()
@@ -52,6 +56,8 @@ export function useSearch(
       contextSize,
       searchType,
       pageSize || null,
+      iriFilter || null,
+      contentTypeFilter || null,
     ],
     queryFn: async () => {
       const out = await client.request('Search', {
@@ -62,6 +68,8 @@ export function useSearch(
         contextSize: contextSize || 48,
         searchType,
         pageSize: pageSize || undefined,
+        iriFilter: iriFilter || undefined,
+        contentTypeFilter: contentTypeFilter && contentTypeFilter.length ? contentTypeFilter : undefined,
       })
       const alreadySeenIds = new Set<string>()
       const entities: SearchResultItem[] = []

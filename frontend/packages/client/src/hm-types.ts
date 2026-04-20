@@ -1208,6 +1208,8 @@ export const HMSearchInputSchema = z.object({
   perspectiveAccountUid: z.string().optional(),
   searchType: z.number().optional(),
   pageSize: z.number().optional(),
+  iriFilter: z.string().optional(),
+  contentTypeFilter: z.array(z.number()).optional(),
 })
 export type HMSearchInput = z.infer<typeof HMSearchInputSchema>
 
