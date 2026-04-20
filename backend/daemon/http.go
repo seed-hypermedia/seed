@@ -15,6 +15,7 @@ import (
 	"seed/backend/hmnet"
 	"seed/backend/logging"
 	"seed/backend/util/cleanup"
+	"seed/backend/util/trcstats"
 	"strconv"
 	"time"
 
@@ -149,7 +150,7 @@ func initHTTP(
 		router.Handle("/debug/buildinfo", buildInfoHandler(), RouteNav)
 		router.Handle("/debug/version", gitVersionHandler(), RouteNav)
 		router.Handle("/debug/cid/{cid}", corsMiddleware(makeBlobDebugHandler(cfg, blobs)), 0)
-		router.Handle("/debug/traces", eztrc.Handler(), RouteNav)
+		router.Handle("/debug/traces", trcstats.Handler(eztrc.Handler()), RouteNav)
 		router.Handle("/debug/logs", logging.DebugHandler(), RouteNav)
 		router.Handle("/debug/requests", http.DefaultServeMux, RouteNav)
 		router.Handle("/debug/events", http.DefaultServeMux, RouteNav)
