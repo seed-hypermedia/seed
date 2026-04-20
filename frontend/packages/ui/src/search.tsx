@@ -52,9 +52,7 @@ function useSiteSearch(searchValue: string, siteHomeId: UnpackedHypermediaId | n
   })
   const entities = useMemo(() => {
     const primaryEntities = primary.data?.entities ?? []
-    const profileEntities = (profiles.data?.entities ?? []).filter(
-      (e) => !e.id.path || e.id.path.length === 0,
-    )
+    const profileEntities = (profiles.data?.entities ?? []).filter((e) => !e.id.path || e.id.path.length === 0)
     const seen = new Set<string>()
     const out: typeof primaryEntities = []
     for (const e of [...profileEntities, ...primaryEntities]) {

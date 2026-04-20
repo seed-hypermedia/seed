@@ -3,6 +3,7 @@ import {useAppContext, useListen} from '@/app-context'
 import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {CloseButton} from '@/components/window-controls'
 import appError from '@/errors'
+import {ipc} from '@/ipc'
 import {useAIProviders} from '@/models/ai-config'
 import {useConnectPeer} from '@/models/contacts'
 import {useMyAccountIds} from '@/models/daemon'
@@ -24,10 +25,9 @@ import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import React, {lazy, ReactElement, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {lazy, ReactElement, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {ImperativePanelGroupHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
-import {ipc} from '@/ipc'
 import {AppErrorPage, RootAppError} from '../components/app-error'
 import {AssistantPanel} from '../components/assistant-panel'
 import {AutoUpdater} from '../components/auto-updater'
@@ -37,7 +37,6 @@ import {AppSidebar} from '../components/sidebar'
 import {TitleBar} from '../components/titlebar'
 import {BaseLoading, NotFoundPage} from './base'
 import {DocumentPlaceholder} from './document-placeholder'
-import {RemoteVaultReminder} from '@/components/remote-vault-reminder'
 import './polyfills'
 
 var Settings = lazy(() => import('./settings'))
@@ -167,8 +166,6 @@ export default function Main({className}: {className?: string}) {
           <div className="flex h-full flex-col">
             <SidebarContextProvider>
               {titlebar}
-              <RemoteVaultReminder />
-
               <PanelContent>
                 {sidebar}
                 <Panel id="page" order={2} className="pl-1">

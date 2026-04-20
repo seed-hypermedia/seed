@@ -144,7 +144,10 @@ describe('computeReplaceOps — link field', () => {
 
   it('link-only change produces ReplaceBlock', () => {
     const old: APIBlockNode[] = [
-      {block: {id: 'img-1', type: 'Image', text: '', link: 'ipfs://old-cid', annotations: [], attributes: {}}, children: []},
+      {
+        block: {id: 'img-1', type: 'Image', text: '', link: 'ipfs://old-cid', annotations: [], attributes: {}},
+        children: [],
+      },
     ]
     const map = createBlocksMap(old)
     const input: BlockNode[] = [
@@ -159,7 +162,10 @@ describe('computeReplaceOps — link field', () => {
 
   it('unchanged link produces no ReplaceBlock', () => {
     const old: APIBlockNode[] = [
-      {block: {id: 'img-1', type: 'Image', text: '', link: 'ipfs://same-cid', annotations: [], attributes: {}}, children: []},
+      {
+        block: {id: 'img-1', type: 'Image', text: '', link: 'ipfs://same-cid', annotations: [], attributes: {}},
+        children: [],
+      },
     ]
     const map = createBlocksMap(old)
     const input: BlockNode[] = [
