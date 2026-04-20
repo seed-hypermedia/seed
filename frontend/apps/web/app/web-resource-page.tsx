@@ -231,6 +231,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
           inlineInsert={inlineInsert}
           DocumentContentComponent={DocumentContentComponent}
           ssrContentHTML={ssrContentHTML}
+          perspectiveAccountUid={ownAccountUid}
         />
       </CommentsProvider>
       {editProfileDialog.content}

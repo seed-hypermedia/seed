@@ -574,6 +574,7 @@ export default function DesktopResourcePage() {
                 editingFloatingActions={editingFloatingActions}
                 signingAccountId={selectedAccountId || undefined}
                 publishAccountUid={selectedAccount?.id?.uid || undefined}
+                perspectiveAccountUid={selectedAccountId}
                 fileUpload={fileUpload}
               />
             </QuerySearchInputProvider>

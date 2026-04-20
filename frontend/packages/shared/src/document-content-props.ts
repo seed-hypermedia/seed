@@ -23,4 +23,6 @@ export type DocumentContentProps = {
   onEditorReady?: (editor: any) => void
   /** Cursor position saved in the draft file; used to restore cursor on reload. */
   draftCursorPosition?: number | null
+  /** Account uid used in inline mention suggestions. */
+  perspectiveAccountUid?: string | null
 }

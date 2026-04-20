@@ -2,8 +2,8 @@ import '@/blocknote/core/style.css'
 import '@/editor.css'
 
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import type {DocumentContentProps} from '@shm/shared/document-content-props'
 import {useOpenUrl} from '@shm/shared'
+import type {DocumentContentProps} from '@shm/shared/document-content-props'
 import {
   selectCanEdit,
   selectIsEditing,
@@ -11,27 +11,27 @@ import {
   useDocumentSelector,
 } from '@shm/shared/models/use-document-machine'
 import {useImageUrl} from '@shm/ui/get-file-url'
-import {useCallback, useEffect, useMemo, useRef} from 'react'
-import {FragmentActionsContext, type FragmentActions} from './fragment-actions-context'
 import {Extension} from '@tiptap/core'
 import {TextSelection} from 'prosemirror-state'
+import {useCallback, useEffect, useMemo, useRef} from 'react'
 import {
-  BlockNoteView,
   BlockHoverActionsPositioner,
+  BlockNoteView,
   FormattingToolbarPositioner,
   FullBlockSelectionObserver,
   HyperlinkToolbarPositioner,
   ImageGalleryOverlay,
   LinkMenuPositioner,
   RangeSelectionPositioner,
-  SideMenuPositioner,
   SlashMenuPositioner,
   SupernumbersController,
   useBlockNote,
 } from './blocknote'
 import {blockHighlightPluginKey} from './blocknote/core/extensions/BlockHighlight/BlockHighlightPlugin'
+import {FragmentActionsContext, type FragmentActions} from './fragment-actions-context'
 import {HMFormattingToolbar} from './hm-formatting-toolbar'
 import {HypermediaLinkPreview} from './hm-link-preview'
+import {MentionMenuPositioner} from './mention-menu-positioner'
 import {hmBlockSchema, HMBlockSchema} from './schema'
 
 export type {DocumentContentProps}
@@ -63,6 +63,7 @@ export function DocumentEditor({
   onEditorReady,
   onBlocksFullSelected,
   draftCursorPosition,
+  perspectiveAccountUid,
 }: DocumentContentProps) {
   const openUrl = useOpenUrl()
   const getImageUrl = useImageUrl()
@@ -334,6 +335,7 @@ export function DocumentEditor({
             {/* <SideMenuPositioner editor={editor} /> */}
             <SlashMenuPositioner editor={editor} />
             <LinkMenuPositioner editor={editor} />
+            <MentionMenuPositioner editor={editor} perspectiveAccountUid={perspectiveAccountUid} />
             <HyperlinkToolbarPositioner
               // @ts-expect-error
               hyperlinkToolbar={HypermediaLinkPreview}

@@ -83,7 +83,6 @@ import {HistoryIcon, Link} from './icons'
 import {useDocumentLayout} from './layout'
 import {MembersFacepile} from './members-facepile'
 import {MobilePanelSheet} from './mobile-panel-sheet'
-import {OptionsPanel} from './options-panel'
 import {
   DocNavigationItem,
   DocNavigationWrapper,
@@ -93,6 +92,7 @@ import {
 } from './navigation'
 import {OpenInPanelButton} from './open-in-panel'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
+import {OptionsPanel} from './options-panel'
 import {PageLayout} from './page-layout'
 import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
 import {PanelLayout} from './panel-layout'
@@ -250,6 +250,8 @@ export interface ResourcePageProps {
   publishAccountUid?: string
   /** Async function that uploads a File to the daemon and resolves to its CID. Platform-specific. */
   fileUpload?: (file: File) => Promise<string>
+  /** Account uid used in inline mention suggestions. */
+  perspectiveAccountUid?: string | null
 }
 
 /** Get panel title for display */
@@ -297,6 +299,7 @@ export function ResourcePage({
   publishAccountUid,
   fileUpload,
   ssrContentHTML,
+  perspectiveAccountUid,
 }: ResourcePageProps) {
   const route = useNavRoute()
   const isSiteProfile = route.key === 'site-profile'
@@ -469,6 +472,7 @@ export function ResourcePage({
             pageFooter={pageFooter}
             DocumentContentComponent={DocumentContentComponent}
             ssrContentHTML={ssrContentHTML}
+            perspectiveAccountUid={perspectiveAccountUid}
           />
         </PageWrapper>
       </DocumentMachineProvider>
@@ -530,6 +534,7 @@ export function ResourcePage({
           publishAccountUid={publishAccountUid}
           fileUpload={fileUpload}
           ssrContentHTML={ssrContentHTML}
+          perspectiveAccountUid={perspectiveAccountUid}
         />
       </PageWrapper>
       {machineExtras}
@@ -679,6 +684,7 @@ function DocumentBody({
   publishAccountUid,
   fileUpload,
   ssrContentHTML,
+  perspectiveAccountUid,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
@@ -713,6 +719,8 @@ function DocumentBody({
   /** Async function that uploads a File to the daemon and resolves to its CID */
   fileUpload?: (file: File) => Promise<string>
   ssrContentHTML?: string | null
+  /** Account uid used in inline mention suggestions. */
+  perspectiveAccountUid?: string | null
 }) {
   // Sync document into state machine
   useDocumentSync(document)
@@ -1334,6 +1342,7 @@ function DocumentBody({
           existingDraftContent={existingDraftContent}
           existingDraftCursorPosition={existingDraftCursorPosition}
           ssrContentHTML={ssrContentHTML}
+          perspectiveAccountUid={perspectiveAccountUid}
         />
       </div>
       {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
@@ -1739,6 +1748,7 @@ function MainContent({
   existingDraftContent,
   existingDraftCursorPosition,
   ssrContentHTML,
+  perspectiveAccountUid,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1780,6 +1790,7 @@ function MainContent({
   existingDraftContent?: HMBlockNode[]
   existingDraftCursorPosition?: number
   ssrContentHTML?: string | null
+  perspectiveAccountUid?: string | null
 }) {
   switch (activeView) {
     case 'directory':
@@ -1860,6 +1871,7 @@ function MainContent({
           existingDraftContent={existingDraftContent}
           existingDraftCursorPosition={existingDraftCursorPosition}
           ssrContentHTML={ssrContentHTML}
+          perspectiveAccountUid={perspectiveAccountUid}
         />
       )
   }
@@ -1886,6 +1898,7 @@ function ContentViewWithOutline({
   existingDraftContent,
   existingDraftCursorPosition,
   ssrContentHTML,
+  perspectiveAccountUid,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1911,6 +1924,7 @@ function ContentViewWithOutline({
   existingDraftContent?: HMBlockNode[]
   existingDraftCursorPosition?: number
   ssrContentHTML?: string | null
+  perspectiveAccountUid?: string | null
 }) {
   const outline = useNodesOutline(document, docId)
 
@@ -1950,6 +1964,7 @@ function ContentViewWithOutline({
             onBlockSelect={onBlockSelect}
             onEditorReady={onEditorReady}
             draftCursorPosition={existingDraftCursorPosition}
+            perspectiveAccountUid={perspectiveAccountUid}
           />
         ) : ssrContentHTML ? (
           <div dangerouslySetInnerHTML={{__html: ssrContentHTML}} />
