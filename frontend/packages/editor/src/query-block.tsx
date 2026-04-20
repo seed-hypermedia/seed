@@ -3,6 +3,7 @@ import {EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
 import {queryBlockSortedItems} from '@shm/shared/content'
 import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
+import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
@@ -115,12 +116,15 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
     enabled: !!directoryItems.data?.length || false,
   })
 
+  const {canEdit, beginEditIfNeeded} = useEditorGate()
+
   const assign = useCallback(
     (props: Partial<EditorQueryBlock['props']>) => {
+      beginEditIfNeeded()
       // @ts-ignore
       editor.updateBlock(block.id, {props})
     },
-    [editor, block.id],
+    [editor, block.id, beginEditIfNeeded],
   )
 
   // Batch-fetch interaction summaries
@@ -169,15 +173,13 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
     return documents?.find((document) => document.data?.id?.id === id.id)?.data || null
   }
 
-  const isEditable = editor.isEditable
-
   return (
     <div
       // @ts-ignore
       contentEditable={false}
       className="group relative -mx-4 flex flex-col px-4 select-none"
     >
-      {isEditable && (
+      {canEdit && (
         <QuerySettings
           // @ts-expect-error
           queryDocName={entity.data?.document?.metadata.name || ''}
@@ -188,6 +190,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
           // @ts-expect-error
           block={block}
           editor={editor}
+          beginEditIfNeeded={beginEditIfNeeded}
           onValuesChange={({id, props}) => {
             if (id) {
               setQueryId(id)
@@ -221,6 +224,7 @@ function QuerySettings({
   querySort,
   editor,
   banner,
+  beginEditIfNeeded,
 }: {
   queryDocName: string
   block: EditorQueryBlock
@@ -229,6 +233,7 @@ function QuerySettings({
   banner: boolean
   onValuesChange: ({id, props}: {id: UnpackedHypermediaId | null; props: EditorQueryBlock['props']}) => void
   editor: BlockNoteEditor<HMBlockSchema>
+  beginEditIfNeeded: () => void
 }) {
   // @ts-expect-error
   const popoverState = usePopoverState(block.props.defaultOpen === 'true')
@@ -267,10 +272,15 @@ function QuerySettings({
         {popoverState.open && (
           <div
             className="bg-background absolute top-full right-0 z-30 mt-1 flex w-full max-w-[350px] flex-col gap-4 rounded-lg p-4 shadow-lg"
+            // Prevent ProseMirror from intercepting focus-stealing events when
+            // the editor is still read-only. Without this the search input
+            // below cannot be focused until the doc is in edit mode.
+            onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
             <QuerySearch
               selectedDocName={queryDocName}
+              beginEditIfNeeded={beginEditIfNeeded}
               onSelect={({id}) => {
                 if (id) {
                   const newVal: HMQueryBlockIncludes = [
@@ -456,6 +466,7 @@ function QuerySettings({
                 <Button
                   size="icon"
                   onClick={() => {
+                    beginEditIfNeeded()
                     editor.removeBlocks([block.id])
                   }}
                 >
@@ -476,10 +487,12 @@ function QuerySearch({
   selectedDocName = '',
   onSelect,
   allowWebURL,
+  beginEditIfNeeded,
 }: {
   selectedDocName?: string | null | undefined
   onSelect: ({id, webUrl}: {id?: UnpackedHypermediaId; webUrl?: string}) => void
   allowWebURL?: boolean
+  beginEditIfNeeded?: () => void
 }) {
   const SearchInputComponent = useQuerySearchInput()
   const [showSearch, setShowSearch] = useState(false)
@@ -487,7 +500,12 @@ function QuerySearch({
   return (
     <div className="relative flex flex-col">
       <Button
-        onClick={() => setShowSearch(true)}
+        onClick={() => {
+          // Flip the editor to editable before the search input mounts so
+          // ProseMirror stops stealing focus from the embedded <Input>.
+          beginEditIfNeeded?.()
+          setShowSearch(true)
+        }}
         className="border-border hover:bg-input h-9 gap-2 overflow-hidden border"
       >
         <Search className="size-4 shrink-0" />
