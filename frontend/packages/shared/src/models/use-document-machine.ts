@@ -1,6 +1,6 @@
 import {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {useActorRef, useSelector} from '@xstate/react'
-import {createContext, createElement, ReactNode, useContext, useEffect, useRef} from 'react'
+import {createContext, createElement, ReactNode, useContext, useEffect, useMemo, useRef} from 'react'
 import {ActorRefFrom, SnapshotFrom} from 'xstate'
 import {
   documentMachine,
@@ -10,6 +10,7 @@ import {
   PublishInput,
   WriteDraftInput,
 } from './document-machine'
+import {EditorHandlers, EditorHandlersContext} from './editor-handlers-context'
 
 // -- Actor types --
 
@@ -50,35 +51,34 @@ export interface DocumentMachineProviderProps {
  * The actor starts automatically via `useActorRef` and stops on unmount.
  */
 export function DocumentMachineProvider({input, machine, inspect, children}: DocumentMachineProviderProps) {
-  const actorRef = useActorRef(machine ?? documentMachine, {input, inspect})
+  // Mutable ref populated by `DocumentEditor` with the imperative handlers the
+  // machine needs to flip the editor's editable flag, replace blocks on entry,
+  // and place the cursor. Read lazily inside provided actions so replacing the
+  // handlers does not require recreating the actor.
+  const editorHandlersRef = useRef<EditorHandlers | null>(null)
 
-  // Debug: log actual actor creation (fires only on mount / machine change)
-  useEffect(() => {
-    console.log('[DocumentMachine] actor created with input:', {
-      documentId: input.documentId.uid + '/' + (input.documentId.path?.join('/') || ''),
-      canEdit: input.canEdit,
-      existingDraftId: input.existingDraftId,
-      signingAccountId: input.signingAccountId,
-    })
+  // Compose the incoming machine (or the default) with React-layer action
+  // implementations. The ref is stable, so this only runs once per mount.
+  const providedMachine = useMemo(
+    () =>
+      (machine ?? documentMachine).provide({
+        actions: {
+          setEditorEditable: () => editorHandlersRef.current?.setEditable(true),
+          setEditorReadOnly: () => editorHandlersRef.current?.setEditable(false),
+          applyInitialContentToEditor: () => editorHandlersRef.current?.applyInitialContent(),
+          placeCursorFromPendingOrDraft: () => editorHandlersRef.current?.placeCursor(),
+        },
+      }),
+    [machine],
+  )
 
-    const sub = actorRef.subscribe((snapshot) => {
-      const value = snapshot.value
-      const ctx = snapshot.context
-      console.log(
-        '[DocumentMachine] state:',
-        JSON.stringify(value),
-        '| draftId:',
-        ctx.draftId,
-        '| draftCreated:',
-        ctx.draftCreated,
-        '| shouldAutoEdit:',
-        ctx.shouldAutoEdit,
-      )
-    })
-    return () => sub.unsubscribe()
-  }, [actorRef])
+  const actorRef = useActorRef(providedMachine, {input, inspect})
 
-  return createElement(DocumentMachineContext_.Provider, {value: actorRef}, children)
+  return createElement(
+    EditorHandlersContext.Provider,
+    {value: editorHandlersRef},
+    createElement(DocumentMachineContext_.Provider, {value: actorRef}, children),
+  )
 }
 
 /**

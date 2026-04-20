@@ -4,6 +4,7 @@ import '@/editor.css'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {useOpenUrl} from '@shm/shared'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
+import {useEditorHandlersRef} from '@shm/shared/models/editor-handlers-context'
 import {
   selectCanEdit,
   selectIsEditing,
@@ -14,6 +15,8 @@ import {useImageUrl} from '@shm/ui/get-file-url'
 import {Extension} from '@tiptap/core'
 import {TextSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useMemo, useRef} from 'react'
+import {addBlockAtEnd} from './add-block-at-end'
+import {AddBlockAtEndButton} from './add-block-at-end-button'
 import {
   BlockHoverActionsPositioner,
   BlockNoteView,
@@ -84,9 +87,20 @@ export function DocumentEditor({
   // Track mousedown coords so we can distinguish a click from a drag.
   const mousedownCoordsRef = useRef<{x: number; y: number} | null>(null)
 
+  // Set when edit mode is being entered via the "+" button, so the
+  // justEnteredEditing effect can call addBlockAtEnd after the editor
+  // becomes editable.
+  const pendingAddBlockRef = useRef(false)
+
   const onEditStart = useCallback(() => {
+    console.log('[DocEditor] sending edit.start', {state: actorRef.getSnapshot().value})
     actorRef.send({type: 'edit.start'})
   }, [actorRef])
+
+  const onEditStartForAddBlock = useCallback(() => {
+    pendingAddBlockRef.current = true
+    onEditStart()
+  }, [onEditStart])
 
   // Suppress change events during programmatic content replacement
   // (e.g. when loading draft content on edit-mode entry).
@@ -97,20 +111,11 @@ export function DocumentEditor({
   const frozenBlocksRef = useRef<typeof blocks | null>(null)
   if (isEditing && !frozenBlocksRef.current) {
     frozenBlocksRef.current = blocks
-    console.log('[DocumentEditor] frozenBlocksRef captured:', blocks?.length, 'blocks, isEditing:', isEditing)
   }
   if (!isEditing) {
     frozenBlocksRef.current = null
   }
   const effectiveBlocks = frozenBlocksRef.current ?? blocks
-
-  console.log('[DocumentEditor] render:', {
-    blocksCount: blocks?.length,
-    frozenCount: frozenBlocksRef.current?.length,
-    effectiveCount: effectiveBlocks?.length,
-    isEditing,
-    canEdit,
-  })
 
   const initialContent = useMemo(() => {
     // Detect format: HMBlockNode has { block, children }, EditorBlock has { type, id } at top level.
@@ -121,11 +126,6 @@ export function DocumentEditor({
     const editorBlocks = isEditorFormat
       ? (effectiveBlocks as any[])
       : hmBlocksToEditorContent(effectiveBlocks, {childrenType: 'Group'})
-    console.log('[DocumentEditor] initialContent recalc:', {
-      inputBlocksCount: effectiveBlocks?.length,
-      outputEditorBlocksCount: editorBlocks.length,
-      isEditorFormat,
-    })
     return editorBlocks.length > 0 ? editorBlocks : [{type: 'paragraph' as const, id: 'empty'}]
   }, [effectiveBlocks])
 
@@ -142,6 +142,11 @@ export function DocumentEditor({
         actorRef.send({type: 'change'})
       },
       initialContent,
+      linkExtensionOptions: {
+        // @ts-expect-error — LinkExtensionOptions is under-typed; the link
+        // extension reads `openUrl` via (this.options as any).openUrl.
+        openUrl,
+      },
       _tiptapOptions: {
         extensions: [
           Extension.create({
@@ -168,6 +173,33 @@ export function DocumentEditor({
               }
             },
           }),
+          Extension.create({
+            name: 'document-open-link-toolbar',
+            priority: 1000,
+            addKeyboardShortcuts() {
+              return {
+                'Mod-k': ({editor}) => {
+                  if (!editor.isEditable) return false
+                  const view = editor.view
+                  const linkType = view.state.schema.marks.link
+                  if (!linkType) return false
+                  // Nudge the selection so HyperlinkToolbarPlugin re-runs
+                  // updateFromSelection and shows the toolbar. If there's no
+                  // link mark yet, toggle one on the current selection with
+                  // an empty href so the form opens for editing.
+                  const {from, to, empty} = view.state.selection
+                  const hasLinkMark = view.state.doc.rangeHasMark(from, to, linkType)
+                  if (!hasLinkMark && !empty) {
+                    editor.commands.toggleLink({href: ''})
+                  }
+                  // Re-dispatch the current selection to trigger the
+                  // hyperlink toolbar plugin's update cycle.
+                  view.dispatch(view.state.tr.setSelection(view.state.selection))
+                  return true
+                },
+              }
+            },
+          }),
         ],
       },
     },
@@ -179,68 +211,150 @@ export function DocumentEditor({
     onEditorReady?.(editor)
   }, [editor, onEditorReady])
 
-  // Track editing transitions to detect enter/exit.
-  const wasEditingRef = useRef(false)
+  // Latest values for handlers — read lazily so the machine always sees fresh
+  // content without re-registering handlers.
+  const initialContentRef = useRef(initialContent)
+  initialContentRef.current = initialContent
+  const draftCursorPositionRef = useRef(draftCursorPosition)
+  draftCursorPositionRef.current = draftCursorPosition
 
-  // Sync editable state with machine, replace blocks on edit entry, place cursor.
+  const handlersRef = useEditorHandlersRef()
+
+  // Register imperative handlers the document machine calls when entering /
+  // exiting the `editing` state (flip editable, replace blocks with the right
+  // content, place cursor). Replacing the effect-based sync with a machine-
+  // driven entry/exit guarantees the editor is editable synchronously as part
+  // of the `edit.start` transition — so any callsite may `send({type: 'edit.start'})`
+  // immediately followed by `editor.updateBlock(...)`.
   useEffect(() => {
-    const justEnteredEditing = isEditing && !wasEditingRef.current
-    wasEditingRef.current = isEditing
-
-    if (editor.isEditable !== isEditing) {
-      editor.isEditable = isEditing
-    }
-
-    console.log('[DocumentEditor] edit effect:', {
-      justEnteredEditing,
-      isEditing,
-      editorBlockCount: editor.topLevelBlocks?.length,
-      initialContentCount: initialContent?.length,
-    })
-
-    if (justEnteredEditing) {
-      // When entering editing mode, explicitly replace editor content with the
-      // correct blocks (draft or published). This handles the race condition
-      // where the editor was created before draft content was available.
-      suppressChangeRef.current = true
-      try {
-        editor.replaceBlocks(editor.topLevelBlocks, initialContent)
-      } finally {
-        suppressChangeRef.current = false
-      }
-    }
-
-    if (isEditing) {
-      const view = editor._tiptapEditor?.view
-      if (!view) return
-
-      let pos = pendingClickPosRef.current
-      pendingClickPosRef.current = null
-
-      // Fall back to saved draft cursor position when no click position is pending
-      if (pos === null && draftCursorPosition != null) {
-        pos = draftCursorPosition
-      }
-
-      if (pos !== null) {
-        // Clamp to valid doc range
-        const safePos = Math.min(Math.max(pos, 0), view.state.doc.content.size)
-        try {
-          const selection = TextSelection.create(view.state.doc, safePos)
-          view.dispatch(view.state.tr.setSelection(selection))
-          // Scroll the cursor into view using the DOM — ProseMirror's scrollIntoView
-          // doesn't work with the custom ScrollArea container used in the layout.
-          const cursorDOM = view.domAtPos(safePos)
-          const node = cursorDOM.node instanceof HTMLElement ? cursorDOM.node : cursorDOM.node.parentElement
-          node?.scrollIntoView({block: 'center', behavior: 'instant'})
-        } catch {
-          // If the stored position is invalid for any reason, just focus without moving cursor
+    handlersRef.current = {
+      setEditable: (editable) => {
+        if (editor.isEditable !== editable) {
+          editor.isEditable = editable
         }
+      },
+      applyInitialContent: () => {
+        suppressChangeRef.current = true
+        try {
+          editor.replaceBlocks(editor.topLevelBlocks, initialContentRef.current)
+        } finally {
+          suppressChangeRef.current = false
+        }
+      },
+      placeCursor: () => {
+        const view = editor._tiptapEditor?.view
+        if (!view) {
+          console.log('[DocEditor] placeCursor: no view')
+          return
+        }
+
+        // If edit mode was entered via the "+" button, append an empty block at
+        // the end and open the slash menu. This supersedes click-position logic
+        // because addBlockAtEnd sets its own cursor position.
+        if (pendingAddBlockRef.current) {
+          pendingAddBlockRef.current = false
+          pendingClickPosRef.current = null
+          addBlockAtEnd(editor)
+          return
+        }
+
+        let pos = pendingClickPosRef.current
+        pendingClickPosRef.current = null
+
+        // Fall back to saved draft cursor position when no click position is pending
+        if (pos === null && draftCursorPositionRef.current != null) {
+          pos = draftCursorPositionRef.current
+        }
+
+        console.log('[DocEditor] placeCursor', {pos, docSize: view.state.doc.content.size})
+
+        const applySelection = () => {
+          if (pos !== null) {
+            const safePos = Math.min(Math.max(pos, 0), view.state.doc.content.size)
+            try {
+              const selection = TextSelection.create(view.state.doc, safePos)
+              view.dispatch(view.state.tr.setSelection(selection))
+              // ProseMirror's scrollIntoView doesn't work with the custom ScrollArea
+              // container used in the layout — use the DOM directly.
+              const cursorDOM = view.domAtPos(safePos)
+              const node = cursorDOM.node instanceof HTMLElement ? cursorDOM.node : cursorDOM.node.parentElement
+              node?.scrollIntoView({block: 'center', behavior: 'instant'})
+            } catch (err) {
+              console.log('[DocEditor] placeCursor selection failed', err)
+            }
+          }
+          view.focus()
+        }
+
+        // Apply immediately, but also re-apply on the next frame to survive
+        // Radix's focus restoration when entering editing from the
+        // confirmingOldVersionEdit dialog. Radix moves focus back to the
+        // previously focused element after the dialog unmounts, which can
+        // steal focus from the editor — reapplying after the Radix cleanup
+        // lets our cursor placement win.
+        applySelection()
+        requestAnimationFrame(() => {
+          if (view.isDestroyed) return
+          applySelection()
+        })
+      },
+    }
+
+    // Resync: when `DocumentEditor` mounts after the machine has already
+    // entered `editing` (e.g. auto-enter via existingDraftId), the entry
+    // actions already fired with `handlersRef.current === null` and no-oped.
+    // Replay them here so the editor still flips editable, loads draft
+    // content, and places the cursor.
+    if (actorRef.getSnapshot().matches('editing')) {
+      handlersRef.current.setEditable(true)
+      handlersRef.current.applyInitialContent()
+      handlersRef.current.placeCursor()
+    }
+
+    return () => {
+      handlersRef.current = null
+    }
+  }, [editor, actorRef, handlersRef])
+
+  // Keyboard shortcut: while in read-only mode and the document area has
+  // focus (or focus is on document.body), pressing Enter enters edit mode
+  // and places the cursor at the end of the document. This is the fallback
+  // entry point for documents with no text blocks.
+  useEffect(() => {
+    if (!canEdit || isEditing) return
+
+    const view = editor._tiptapEditor?.view
+    if (!view) return
+
+    const domRoot = view.dom as HTMLElement
+
+    const handleKeydown = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter') return
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
+
+      // Ignore when focus is inside an input/textarea/contentEditable outside
+      // the editor — those have their own Enter semantics.
+      const active = document.activeElement as HTMLElement | null
+      if (active && active !== document.body) {
+        const tag = active.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+        if (active.isContentEditable && !domRoot.contains(active)) return
+        // Only accept activation when focus is on the editor container, one
+        // of its ancestors, or the body — prevents stealing Enter from
+        // buttons / dialogs elsewhere in the page.
+        if (!domRoot.contains(active) && !active.contains(domRoot)) return
       }
 
-      view.focus()
+      pendingClickPosRef.current = view.state.doc.content.size
+      onEditStart()
+      e.preventDefault()
     }
-  }, [editor, isEditing, initialContent])
+
+    document.addEventListener('keydown', handleKeydown)
+    return () => {
+      document.removeEventListener('keydown', handleKeydown)
+    }
+  }, [editor, canEdit, isEditing, onEditStart])
 
   // Dispatch block highlight when focusBlockId changes
   useEffect(() => {
@@ -270,7 +384,10 @@ export function DocumentEditor({
 
     const handleClick = (e: MouseEvent) => {
       // Only intercept when in read-only mode and the user has edit permission
-      if (view.editable || !canEditRef.current) return
+      if (view.editable || !canEditRef.current) {
+        console.log('[DocEditor] click ignored', {editable: view.editable, canEdit: canEditRef.current})
+        return
+      }
 
       // Ignore drags — if the pointer moved more than 4px from mousedown it was
       // a text-selection drag and we must not enter edit mode.
@@ -283,6 +400,10 @@ export function DocumentEditor({
 
       const target = e.target as Element
 
+      // If the click landed on a link, let the link plugin handle navigation.
+      // Do not enter edit mode and do not preventDefault.
+      if (target.closest?.('.link, a[href]')) return
+
       // --- Case 1: click on a known text block ---
       const contentType = getContentTypeFromTarget(target, domRoot)
       if (contentType !== null) {
@@ -292,6 +413,7 @@ export function DocumentEditor({
         const coords = view.posAtCoords({left: e.clientX, top: e.clientY})
         pendingClickPosRef.current = coords ? coords.pos : null
 
+        console.log('[DocEditor] click on text block → onEditStart')
         onEditStart()
         e.preventDefault()
         return
@@ -304,6 +426,7 @@ export function DocumentEditor({
       const editorRect = domRoot.getBoundingClientRect()
       if (e.clientX >= editorRect.left && e.clientX <= editorRect.right && e.clientY > editorRect.bottom) {
         pendingClickPosRef.current = view.state.doc.content.size
+        console.log('[DocEditor] click below last block → onEditStart')
         onEditStart()
         e.preventDefault()
       }
@@ -380,6 +503,7 @@ export function DocumentEditor({
         />
         <FullBlockSelectionObserver editor={editor} onBlocksFullSelected={onBlocksFullSelected} />
       </BlockNoteView>
+      {canEdit && <AddBlockAtEndButton editor={editor} onEditStart={onEditStartForAddBlock} />}
     </FragmentActionsContext.Provider>
   )
 }

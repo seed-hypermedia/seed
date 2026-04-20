@@ -621,6 +621,83 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
+  it('edit.start on old version with existing draft → skips dialog, goes to editing', () => {
+    // A draft already exists for this document, meaning the user previously
+    // confirmed "Edit Anyway". They should not be prompted again.
+    const actor = createTestActor({isLatest: false})
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({
+      type: 'draft.resolved',
+      draftId: 'existing-draft',
+      content: [],
+      cursorPosition: null,
+    })
+    expect(actor.getSnapshot().value).toBe('loaded')
+    expect(actor.getSnapshot().context.draftId).toBe('existing-draft')
+    actor.send({type: 'edit.start'})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    actor.stop()
+  })
+
+  it('confirm → write draft → cancel → edit.start again → no dialog', async () => {
+    // Once the first autosave creates a draft, subsequent edit.start clicks
+    // must bypass the confirmation dialog.
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-new'})),
+        publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+      },
+      delays: {autosaveTimeout: 10, saveIndicatorDismiss: 10},
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true, isLatest: false},
+    })
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'draft.resolved', draftId: null, content: null, cursorPosition: null})
+    actor.send({type: 'edit.start'})
+    expect(actor.getSnapshot().value).toBe('confirmingOldVersionEdit')
+    actor.send({type: 'edit.confirm'})
+    actor.send({type: 'change'})
+    await new Promise((r) => setTimeout(r, 80))
+    expect(actor.getSnapshot().context.draftId).toBe('draft-new')
+    actor.send({type: 'edit.cancel'})
+    expect(actor.getSnapshot().value).toBe('loaded')
+    expect(actor.getSnapshot().context.draftId).toBe('draft-new')
+    actor.send({type: 'edit.start'})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    actor.stop()
+  })
+
+  it('confirm → discard → edit.start again → dialog re-appears', async () => {
+    // edit.discard clears the draft, so the user must confirm again.
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-disc'})),
+        publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+      },
+      delays: {autosaveTimeout: 10, saveIndicatorDismiss: 10},
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true, isLatest: false},
+    })
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'draft.resolved', draftId: null, content: null, cursorPosition: null})
+    actor.send({type: 'edit.start'})
+    actor.send({type: 'edit.confirm'})
+    actor.send({type: 'change'})
+    await new Promise((r) => setTimeout(r, 80))
+    expect(actor.getSnapshot().context.draftId).toBe('draft-disc')
+    actor.send({type: 'edit.discard'})
+    expect(actor.getSnapshot().value).toBe('loaded')
+    expect(actor.getSnapshot().context.draftId).toBeNull()
+    actor.send({type: 'edit.start'})
+    expect(actor.getSnapshot().value).toBe('confirmingOldVersionEdit')
+    actor.stop()
+  })
+
   it('version.changed updates isLatestVersion in loaded state', () => {
     const actor = createTestActor({isLatest: true})
     actor.start()
@@ -698,5 +775,140 @@ describe('DocumentLifecycle machine', () => {
     expect(capturedInput).not.toBeNull()
     expect(capturedInput.signingAccountId).toBe('my-account')
     actor.stop()
+  })
+
+  describe('editor handler entry/exit actions', () => {
+    function createActorWithEditorActions() {
+      const calls: string[] = []
+      const machine = documentMachine.provide({
+        actors: {
+          writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-ent'})),
+          publishDocument: fromPromise<HMDocument, any>(async () => ({
+            ...mockDocument,
+            version: 'bafynew',
+          })),
+        },
+        actions: {
+          setEditorEditable: () => {
+            calls.push('setEditorEditable')
+          },
+          setEditorReadOnly: () => {
+            calls.push('setEditorReadOnly')
+          },
+          applyInitialContentToEditor: () => {
+            calls.push('applyInitialContentToEditor')
+          },
+          placeCursorFromPendingOrDraft: () => {
+            calls.push('placeCursorFromPendingOrDraft')
+          },
+        },
+        delays: {
+          saveIndicatorDismiss: 20,
+        },
+      })
+      const actor = createActor(machine, {
+        input: {documentId: mockDocumentId, canEdit: true},
+      })
+      return {actor, calls}
+    }
+
+    it('loaded → edit.start fires entry actions in editable/content/cursor order', () => {
+      const {actor, calls} = createActorWithEditorActions()
+      actor.start()
+      loadDocument(actor)
+      calls.length = 0 // discard anything that fired during load
+      actor.send({type: 'edit.start'})
+      expect(calls).toEqual(['setEditorEditable', 'applyInitialContentToEditor', 'placeCursorFromPendingOrDraft'])
+      actor.stop()
+    })
+
+    it('editing → edit.cancel fires setEditorReadOnly on exit', () => {
+      const {actor, calls} = createActorWithEditorActions()
+      actor.start()
+      loadDocument(actor)
+      actor.send({type: 'edit.start'})
+      calls.length = 0
+      actor.send({type: 'edit.cancel'})
+      expect(actor.getSnapshot().value).toBe('loaded')
+      expect(calls).toContain('setEditorReadOnly')
+      actor.stop()
+    })
+
+    it('editing → publish.start fires setEditorReadOnly on exit into publishing', async () => {
+      const {actor, calls} = createActorWithEditorActions()
+      actor.start()
+      loadDocument(actor)
+      actor.send({type: 'edit.start'})
+      // Need a draftId to satisfy hasDraftId guard on publish.start
+      actor.send({type: 'change'})
+      await new Promise((r) => setTimeout(r, 600)) // wait for autosave → draftId assigned
+      calls.length = 0
+      actor.send({type: 'publish.start'})
+      expect(calls).toContain('setEditorReadOnly')
+      actor.stop()
+    })
+
+    it('re-entering editing after cancel fires entry actions again', () => {
+      const {actor, calls} = createActorWithEditorActions()
+      actor.start()
+      loadDocument(actor)
+      actor.send({type: 'edit.start'})
+      actor.send({type: 'edit.cancel'})
+      calls.length = 0
+      actor.send({type: 'edit.start'})
+      expect(calls).toEqual(['setEditorEditable', 'applyInitialContentToEditor', 'placeCursorFromPendingOrDraft'])
+      actor.stop()
+    })
+
+    it('entry actions route through a mutable handlers ref (DocumentMachineProvider wiring)', () => {
+      // Mirrors what `DocumentMachineProvider` does: `.provide({actions})` where
+      // each action reads the freshest handler from a ref at call time.
+      const ref: {
+        current: {setEditable: (v: boolean) => void; applyInitialContent: () => void; placeCursor: () => void} | null
+      } = {
+        current: null,
+      }
+      const machine = documentMachine.provide({
+        actors: {
+          writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-1'})),
+          publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        },
+        actions: {
+          setEditorEditable: () => ref.current?.setEditable(true),
+          setEditorReadOnly: () => ref.current?.setEditable(false),
+          applyInitialContentToEditor: () => ref.current?.applyInitialContent(),
+          placeCursorFromPendingOrDraft: () => ref.current?.placeCursor(),
+        },
+      })
+      const actor = createActor(machine, {input: {documentId: mockDocumentId, canEdit: true}})
+      actor.start()
+      loadDocument(actor)
+
+      // Late registration: machine enters editing before handlers are populated → no-ops.
+      actor.send({type: 'edit.start'})
+
+      // Now populate the ref — any subsequent transition must use the fresh handlers.
+      const flips: boolean[] = []
+      const contentCalls: number[] = []
+      const cursorCalls: number[] = []
+      ref.current = {
+        setEditable: (v) => flips.push(v),
+        applyInitialContent: () => contentCalls.push(1),
+        placeCursor: () => cursorCalls.push(1),
+      }
+
+      // Exit editing → setEditorReadOnly should flow through the freshly registered ref.
+      actor.send({type: 'edit.cancel'})
+      expect(flips).toContain(false)
+
+      // Re-enter editing → all three entry actions should fire via the ref.
+      flips.length = 0
+      actor.send({type: 'edit.start'})
+      expect(flips).toContain(true)
+      expect(contentCalls.length).toBeGreaterThan(0)
+      expect(cursorCalls.length).toBeGreaterThan(0)
+
+      actor.stop()
+    })
   })
 })

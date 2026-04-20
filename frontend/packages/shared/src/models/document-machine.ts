@@ -272,6 +272,18 @@ export const documentMachine = setup({
     notifyPublishSuccess: () => {
       // Provided via .provide() in consuming app
     },
+    setEditorEditable: () => {
+      // Provided via .provide() in the React layer (editor handlers ref)
+    },
+    setEditorReadOnly: () => {
+      // Provided via .provide() in the React layer (editor handlers ref)
+    },
+    applyInitialContentToEditor: () => {
+      // Provided via .provide() in the React layer (editor handlers ref)
+    },
+    placeCursorFromPendingOrDraft: () => {
+      // Provided via .provide() in the React layer (editor handlers ref)
+    },
     updatePublishedVersion: assign({
       publishedVersion: ({event}) => {
         // After publish completes, the done event output is the new HMDocument
@@ -286,8 +298,27 @@ export const documentMachine = setup({
     }),
   },
   guards: {
-    canTransitionToEditing: ({context}) => context.canEdit,
-    canEditOldVersion: ({context}) => context.canEdit && !context.isLatestVersion,
+    canTransitionToEditing: ({context}) => {
+      const result = context.canEdit
+      console.log('[DocMachine] guard canTransitionToEditing', {
+        canEdit: context.canEdit,
+        isLatestVersion: context.isLatestVersion,
+        draftId: context.draftId,
+        result,
+      })
+      return result
+    },
+    canEditOldVersion: ({context}) => {
+      const result =
+        context.canEdit && !context.isLatestVersion && context.draftId === null
+      console.log('[DocMachine] guard canEditOldVersion', {
+        canEdit: context.canEdit,
+        isLatestVersion: context.isLatestVersion,
+        draftId: context.draftId,
+        result,
+      })
+      return result
+    },
     didChangeWhileSaving: ({context}) => context.hasChangedWhileSaving,
     hasDraftId: ({context}) => context.draftId !== null,
     hasExistingDraft: ({context}) => context.shouldAutoEdit,
@@ -422,13 +453,21 @@ export const documentMachine = setup({
     },
 
     confirmingOldVersionEdit: {
+      entry: () => console.log('[DocMachine] enter confirmingOldVersionEdit'),
+      exit: () => console.log('[DocMachine] exit confirmingOldVersionEdit'),
       on: {
         'edit.confirm': {
           target: 'editing',
-          actions: ['setDepsFromPublished'],
+          actions: [
+            () => console.log('[DocMachine] edit.confirm received → editing'),
+            'setDepsFromPublished',
+          ],
         },
         'edit.cancel': {
           target: 'loaded',
+          actions: [
+            () => console.log('[DocMachine] edit.cancel received in confirmingOldVersionEdit → loaded'),
+          ],
         },
         'capability.changed': {
           actions: ['setCanEdit'],
@@ -444,14 +483,30 @@ export const documentMachine = setup({
 
     editing: {
       type: 'parallel',
+      entry: [
+        () => console.log('[DocMachine] enter editing'),
+        {type: 'setEditorEditable'},
+        {type: 'applyInitialContentToEditor'},
+        {type: 'placeCursorFromPendingOrDraft'},
+      ],
+      exit: [
+        () => console.log('[DocMachine] exit editing'),
+        {type: 'setEditorReadOnly'},
+      ],
       on: {
         'edit.cancel': {
           target: 'loaded',
-          actions: ['clearEditingState'],
+          actions: [
+            () => console.log('[DocMachine] edit.cancel received in editing → loaded'),
+            'clearEditingState',
+          ],
         },
         'edit.discard': {
           target: 'loaded',
-          actions: ['clearDraftState'],
+          actions: [
+            () => console.log('[DocMachine] edit.discard received in editing → loaded'),
+            'clearDraftState',
+          ],
         },
         'capability.changed': [
           {
