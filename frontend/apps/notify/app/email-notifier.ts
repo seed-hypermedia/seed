@@ -83,6 +83,7 @@ const notifVerboseEnabled = process.env.VERBOSE === 'true'
 const errorBatchDelayMs = 30_000 // 30 seconds
 let pendingErrors: string[] = []
 let errorBatchTimeout: ReturnType<typeof setTimeout> | null = null
+const reportedInvalidEventIdentityKeys = new Set<string>()
 
 type NotificationEventMeta = {
   eventId?: string
@@ -115,6 +116,10 @@ type NotificationCollection = {
   queuedNotifications: QueuedNotification[]
   notificationsByEmail: NotificationsByEmail
 }
+
+type EventCursorFingerprint =
+  | {kind: 'blob'; cid: string}
+  | {kind: 'mention'; cid: string; mentionType: string; target: string}
 
 type EmailIdentity = {
   adminToken: string
@@ -323,6 +328,15 @@ async function handleBatchNotifications(signal?: AbortSignal) {
     setBatchNotifierLastProcessedEventId(lastEventId)
     return
   }
+  if (!isValidEventCursorId(lastProcessedEventId)) {
+    reportError(
+      'Batch notifier had invalid cursor value. Resetting to latest valid event ID: ' +
+        JSON.stringify({lastProcessedEventId, lastEventId}),
+    )
+    setBatchNotifierLastSendTime(new Date())
+    setBatchNotifierLastProcessedEventId(lastEventId)
+    return
+  }
   const nowTime = Date.now()
   const nextSendTime = lastSendTime.getTime() + emailBatchNotifIntervalHours * 60 * 60 * 1000
   if (nextSendTime < nowTime) {
@@ -349,6 +363,11 @@ async function handleEmailNotifications(signal?: AbortSignal) {
   //   lastProcessedEventId,
   // })
   if (lastProcessedEventId) {
+    if (!isValidEventCursorId(lastProcessedEventId)) {
+      reportError('Invalid notifier last processed event ID found. Resetting: ' + lastProcessedEventId)
+      await resetNotifierLastProcessedEventId()
+      return
+    }
     await handleImmediateNotificationsAfterEventId(lastProcessedEventId, signal)
     const elapsed = Date.now() - startTime
     if (elapsed > 10_000) {
@@ -361,17 +380,32 @@ async function handleEmailNotifications(signal?: AbortSignal) {
 }
 
 async function getLastEventId(): Promise<string | undefined> {
-  const {events} = await grpcClient.activityFeed.listEvents({
-    pageToken: undefined,
-    pageSize: 5,
-  })
-  const event = events.at(0)
-  if (!event) return
-  const plainEvent =
-    typeof (event as any).toJson === 'function' ? toPlainMessage(event) : (event as PlainMessage<Event>)
-  const lastEventId = getEventId(plainEvent)
-  if (!lastEventId) return
-  return lastEventId
+  let pageToken: string | undefined
+  let skippedInvalidEvents = 0
+
+  for (let pageCount = 0; pageCount < MAX_EVENT_PAGES; pageCount++) {
+    const response = await grpcClient.activityFeed.listEvents({
+      pageToken,
+      pageSize: EVENT_PAGE_SIZE,
+    })
+    for (const event of response.events) {
+      const plainEvent =
+        typeof (event as any).toJson === 'function' ? toPlainMessage(event) : (event as PlainMessage<Event>)
+      const lastEventId = getEventId(plainEvent)
+      if (lastEventId) {
+        if (skippedInvalidEvents > 0) {
+          console.warn(`[notify][email] skipped ${skippedInvalidEvents} latest events without valid cursor identity`)
+        }
+        return lastEventId
+      }
+      skippedInvalidEvents++
+      reportInvalidEventIdentity(plainEvent, 'getLastEventId')
+    }
+    if (!response.nextPageToken) break
+    pageToken = response.nextPageToken
+  }
+
+  return undefined
 }
 
 async function sendBatchNotifications(lastProcessedEventId: string, signal?: AbortSignal) {
@@ -547,7 +581,7 @@ async function collectNotificationsForEvents({
   const mentionSourceBlobCids = new Set<string>()
   for (const event of events) {
     if (event.data.case !== 'newMention') continue
-    const sourceBlobCid = event.data.value?.sourceBlob?.cid
+    const sourceBlobCid = normalizeCidString(event.data.value?.sourceBlob?.cid)
     if (sourceBlobCid) mentionSourceBlobCids.add(sourceBlobCid)
   }
 
@@ -576,6 +610,10 @@ async function collectNotificationsForEvents({
   for (const event of events) {
     const eventStartTime = Date.now()
     const eventId = getEventId(event)
+    if (!eventId) {
+      reportInvalidEventIdentity(event, 'collectNotificationsForEvents')
+      continue
+    }
     const notificationCountBefore = Object.values(notificationsToSend).reduce((count, items) => count + items.length, 0)
     try {
       await evaluateEventForNotifications(event, subscriptions, appendNotification, {mentionSourceBlobCids})
@@ -855,40 +893,33 @@ async function processBatchNotifications(events: PlainMessage<Event>[]) {
   // Batch events were already persisted when they were first processed as immediate.
 }
 
-function getEventId(event: PlainMessage<Event>) {
-  if (event.data.case === 'newBlob') {
-    if (!event.data.value) return undefined
-    return `blob-${event.data.value.cid}`
-  }
-  if (event.data.case === 'newMention') {
-    if (!event.data.value) return undefined
-    const {sourceBlob, mentionType, target} = event.data.value
-    const normalizedMentionType = typeof mentionType === 'string' ? mentionType : ''
-    const normalizedTarget = typeof target === 'string' ? target : ''
-    return `mention-${sourceBlob?.cid}-${normalizedMentionType}-${normalizedTarget}`
-  }
-  return undefined
+/** Returns the stable notifier cursor ID for activity events with valid identity fields. */
+export function getEventId(event: PlainMessage<Event>) {
+  const fingerprint = getEventCursorFingerprint(event)
+  if (!fingerprint) return undefined
+  return formatEventCursorId(fingerprint)
 }
-
-type EventCursorFingerprint = {kind: 'blob'; cid: string} | {kind: 'mention'; cid: string}
 
 function getEventCursorFingerprint(event: PlainMessage<Event>): EventCursorFingerprint | null {
   if (event.data.case === 'newBlob') {
-    const cid = event.data.value?.cid
+    const cid = normalizeCidString(event.data.value?.cid)
     if (!cid) return null
     return {kind: 'blob', cid}
   }
   if (event.data.case === 'newMention') {
-    const cid = event.data.value?.sourceBlob?.cid
-    if (!cid) return null
-    return {kind: 'mention', cid}
+    const mention = event.data.value
+    const cid = normalizeCidString(mention?.sourceBlob?.cid)
+    const target = normalizeRequiredString(mention?.target)
+    if (!cid || !target) return null
+    const mentionType = typeof mention?.mentionType === 'string' ? mention.mentionType : ''
+    return {kind: 'mention', cid, mentionType, target}
   }
   return null
 }
 
 function parseCursorFingerprintFromId(eventId: string): EventCursorFingerprint | null {
   if (eventId.startsWith('blob-')) {
-    const cid = eventId.slice('blob-'.length)
+    const cid = normalizeCidString(eventId.slice('blob-'.length))
     if (!cid) return null
     return {kind: 'blob', cid}
   }
@@ -896,19 +927,105 @@ function parseCursorFingerprintFromId(eventId: string): EventCursorFingerprint |
     const withoutPrefix = eventId.slice('mention-'.length)
     const firstDash = withoutPrefix.indexOf('-')
     if (firstDash <= 0) return null
-    const cid = withoutPrefix.slice(0, firstDash)
-    if (!cid) return null
-    return {kind: 'mention', cid}
+    const cid = normalizeCidString(withoutPrefix.slice(0, firstDash))
+    const withoutCid = withoutPrefix.slice(firstDash + 1)
+    const secondDash = withoutCid.indexOf('-')
+    if (!cid || secondDash < 0) return null
+    const mentionType = withoutCid.slice(0, secondDash)
+    const target = normalizeRequiredString(withoutCid.slice(secondDash + 1))
+    if (!target) return null
+    return {kind: 'mention', cid, mentionType, target}
   }
   return null
 }
 
-function matchesCursorEvent(event: PlainMessage<Event>, eventId: string | undefined, lastProcessedEventId: string) {
+/** Returns whether an activity event matches a stored notifier cursor ID. */
+export function matchesCursorEvent(
+  event: PlainMessage<Event>,
+  eventId: string | undefined,
+  lastProcessedEventId: string,
+) {
   if (eventId && eventId === lastProcessedEventId) return true
   const cursorFingerprint = parseCursorFingerprintFromId(lastProcessedEventId)
   const eventFingerprint = getEventCursorFingerprint(event)
   if (!cursorFingerprint || !eventFingerprint) return false
-  return cursorFingerprint.kind === eventFingerprint.kind && cursorFingerprint.cid === eventFingerprint.cid
+  return isSameEventCursorFingerprint(cursorFingerprint, eventFingerprint)
+}
+
+function isValidEventCursorId(eventId: string) {
+  return parseCursorFingerprintFromId(eventId) !== null
+}
+
+function formatEventCursorId(fingerprint: EventCursorFingerprint) {
+  if (fingerprint.kind === 'blob') {
+    return `blob-${fingerprint.cid}`
+  }
+  return `mention-${fingerprint.cid}-${fingerprint.mentionType}-${fingerprint.target}`
+}
+
+function isSameEventCursorFingerprint(left: EventCursorFingerprint, right: EventCursorFingerprint) {
+  if (left.kind !== right.kind || left.cid !== right.cid) return false
+  if (left.kind === 'blob' || right.kind === 'blob') return true
+  return left.mentionType === right.mentionType && left.target === right.target
+}
+
+function normalizeCidString(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  try {
+    return CID.parse(trimmed).toString()
+  } catch {
+    return null
+  }
+}
+
+function normalizeRequiredString(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed || null
+}
+
+function reportInvalidEventIdentity(event: PlainMessage<Event>, context: string) {
+  const details = getInvalidEventIdentityDetails(event)
+  const key = `${context}:${JSON.stringify(details)}`
+  if (reportedInvalidEventIdentityKeys.has(key)) return
+  if (reportedInvalidEventIdentityKeys.size > 5_000) reportedInvalidEventIdentityKeys.clear()
+  reportedInvalidEventIdentityKeys.add(key)
+  console.warn('[notify][email] skipping event without valid cursor identity', {
+    context,
+    ...details,
+  })
+}
+
+function getInvalidEventIdentityDetails(event: PlainMessage<Event>) {
+  if (event.data.case === 'newBlob') {
+    const blob = event.data.value
+    return {
+      eventCase: event.data.case,
+      account: event.account,
+      blobType: blob?.blobType,
+      cid: blob?.cid,
+      resource: blob?.resource,
+      blobId: blob?.blobId == null ? undefined : String(blob.blobId),
+    }
+  }
+  if (event.data.case === 'newMention') {
+    const mention = event.data.value
+    return {
+      eventCase: event.data.case,
+      account: event.account,
+      sourceBlobCid: mention?.sourceBlob?.cid,
+      mentionType: mention?.mentionType,
+      sourceType: mention?.sourceType,
+      target: mention?.target,
+      source: mention?.source,
+    }
+  }
+  return {
+    eventCase: event.data.case,
+    account: event.account,
+  }
 }
 
 function getEventAtMs(event: PlainMessage<Event>): number {
@@ -949,8 +1066,13 @@ async function evaluateEventForNotifications(
     }
     return
   }
+  const eventId = getEventId(event)
+  if (!eventId) {
+    reportInvalidEventIdentity(event, 'evaluateEventForNotifications')
+    return
+  }
   const eventMeta: NotificationEventMeta = {
-    eventId: getEventId(event),
+    eventId,
     eventAtMs: getEventAtMs(event),
   }
   logNotifDebug('evaluate event', {
@@ -1023,7 +1145,8 @@ async function evaluateEventForNotifications(
     }
     const rawComment = toPlainMessage(serverComment)
     const comment = HMCommentSchema.parse(rawComment)
-    const includeMentionsFromBody = !options.mentionSourceBlobCids.has(blob.cid)
+    const blobCid = normalizeCidString(blob.cid)
+    const includeMentionsFromBody = !blobCid || !options.mentionSourceBlobCids.has(blobCid)
     logNotifVerbose('comment blob loaded', {
       eventId: eventMeta.eventId,
       eventAtMs: eventMeta.eventAtMs,
@@ -1501,12 +1624,18 @@ async function getParentComments(comment: HMComment) {
 }
 
 function markEventsAsProcessed(events: PlainMessage<Event>[]) {
-  const newestEvent = events.at(0)
-  if (!newestEvent) return
-  const lastProcessedEventId = getEventId(newestEvent)
+  const lastProcessedEventId = getNewestEventId(events)
   if (!lastProcessedEventId) return
   console.log('Setting notifier last processed event ID to ' + lastProcessedEventId)
   setNotifierLastProcessedEventId(lastProcessedEventId)
+}
+
+function getNewestEventId(events: PlainMessage<Event>[]) {
+  for (const event of events) {
+    const eventId = getEventId(event)
+    if (eventId) return eventId
+  }
+  return undefined
 }
 
 // Maximum pages to fetch when looking for lastProcessedEventId
@@ -1539,6 +1668,11 @@ type LoadEventsResult = {
 }
 
 async function loadEventsAfterEventId(lastProcessedEventId: string, signal?: AbortSignal): Promise<LoadEventsResult> {
+  if (!isValidEventCursorId(lastProcessedEventId)) {
+    reportError(`Invalid notifier cursor "${lastProcessedEventId}". Skipping event load until cursor is reset.`)
+    return {events: [], foundCursor: false, aborted: false}
+  }
+
   const startTime = Date.now()
   const eventsAfterEventId: PlainMessage<Event>[] = []
   let currentPageToken: string | undefined
@@ -1589,6 +1723,10 @@ async function loadEventsAfterEventId(lastProcessedEventId: string, signal?: Abo
 
     for (const event of events) {
       const eventId = getEventId(event)
+      if (!eventId) {
+        reportInvalidEventIdentity(event, 'loadEventsAfterEventId')
+        continue
+      }
       if (matchesCursorEvent(event, eventId, lastProcessedEventId)) {
         const totalTime = Date.now() - startTime
         if (totalTime > 5000) {
@@ -1598,9 +1736,7 @@ async function loadEventsAfterEventId(lastProcessedEventId: string, signal?: Abo
         }
         return {events: eventsAfterEventId, foundCursor: true, aborted: false}
       }
-      if (eventId) {
-        eventsAfterEventId.push(event)
-      }
+      eventsAfterEventId.push(event)
     }
 
     if (!nextPageToken) break
@@ -1629,13 +1765,22 @@ async function loadEventsAfterEventId(lastProcessedEventId: string, signal?: Abo
 async function loadRefEvent(event: PlainMessage<Event>) {
   if (event.data.case !== 'newBlob') throw new Error('Invalid event for loadRefEvent')
   const blob = event.data.value
+  if (!blob) {
+    reportInvalidEventIdentity(event, 'loadRefEvent')
+    return null
+  }
+  const refCid = normalizeCidString(blob.cid)
+  if (!refCid) {
+    reportInvalidEventIdentity(event, 'loadRefEvent')
+    return null
+  }
   const id = unpackHmId(blob.resource)
 
   if (!id?.uid) throw new Error('Invalid ref event for resource: ' + blob.resource)
 
-  const refData = await loadRefFromIpfs(blob.cid)
+  const refData = await loadRefFromIpfs(refCid)
 
-  const changeCid = refData.heads?.[0]?.toString()
+  const changeCid = normalizeCidString(refData.heads?.[0]?.toString())
   if (!changeCid) return null
 
   const changeData = await loadRefFromIpfs(changeCid)
@@ -1740,7 +1885,10 @@ function extractMentionsFromBlockNode(blockNode: HMBlockNode, mentionMap: Mentio
 const IPFS_FETCH_TIMEOUT_MS = 5_000
 
 async function loadRefFromIpfs(cid: string): Promise<any> {
-  const url = `${DAEMON_HTTP_URL}/ipfs/${cid}`
+  const normalizedCid = normalizeCidString(cid)
+  if (!normalizedCid) throw new Error(`Invalid IPFS CID for ref fetch: ${String(cid)}`)
+
+  const url = `${DAEMON_HTTP_URL}/ipfs/${normalizedCid}`
 
   // Use AbortController for fetch timeout since fetch() doesn't have native timeout
   const controller = new AbortController()
@@ -1751,7 +1899,7 @@ async function loadRefFromIpfs(cid: string): Promise<any> {
 
     // Check HTTP status before attempting to decode - a 404/500 would cause CBOR decode errors
     if (!response.ok) {
-      throw new Error(`IPFS fetch failed for CID ${cid}: HTTP ${response.status} ${response.statusText}`)
+      throw new Error(`IPFS fetch failed for CID ${normalizedCid}: HTTP ${response.status} ${response.statusText}`)
     }
 
     const buffer = await response.arrayBuffer()
@@ -1759,7 +1907,7 @@ async function loadRefFromIpfs(cid: string): Promise<any> {
   } catch (error: any) {
     // Convert AbortError to more descriptive timeout error
     if (error.name === 'AbortError') {
-      throw new Error(`IPFS fetch timed out after ${IPFS_FETCH_TIMEOUT_MS}ms for CID ${cid}`)
+      throw new Error(`IPFS fetch timed out after ${IPFS_FETCH_TIMEOUT_MS}ms for CID ${normalizedCid}`)
     }
     throw error
   } finally {

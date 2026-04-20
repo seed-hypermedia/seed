@@ -9,6 +9,7 @@ import {
   HMTimestamp,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
+import {CID} from 'multiformats'
 import {Mention} from '../client/.generated/entities/v1alpha/entities_pb'
 import {prepareHMComment, prepareHMDocument} from '../document-utils'
 import {GRPCClient} from '../grpc-client'
@@ -172,16 +173,37 @@ export function getEventType(event: HMActivityEvent): string | null {
   return null
 }
 
+/** Returns the stable feed event ID for events with valid identity fields. */
 export function getFeedEventId(event: HMActivityEvent): string | null {
   if ('newBlob' in event) {
-    return event.newBlob?.cid ? `blob-${event.newBlob.cid}` : null
+    const cid = normalizeFeedCid(event.newBlob?.cid)
+    return cid ? `blob-${cid}` : null
   }
   if ('newMention' in event) {
     const mention = event.newMention
-    const sourceCid = mention.sourceBlob?.cid || ''
-    return `mention-${sourceCid}-${mention.mentionType}-${mention.target}`
+    const sourceCid = normalizeFeedCid(mention.sourceBlob?.cid)
+    const target = normalizeRequiredFeedValue(mention.target)
+    if (!sourceCid || !target) return null
+    return `mention-${sourceCid}-${mention.mentionType || ''}-${target}`
   }
   return null
+}
+
+function normalizeFeedCid(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  try {
+    return CID.parse(trimmed).toString()
+  } catch {
+    return null
+  }
+}
+
+function normalizeRequiredFeedValue(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed || null
 }
 
 export function getEventAtMs(event: HMActivityEvent): number {
