@@ -53,10 +53,9 @@ import {grpcClient, requestAPI} from './notify-request'
 
 async function getDocument(id: UnpackedHypermediaId) {
   const resource = await requestAPI('Resource', id)
-  if (resource.type !== 'document') {
-    throw new Error(`Expected document resource, got ${resource.type}`)
-  }
-  return resource.document
+  if (resource.type === 'document') return resource.document
+  if (resource.type === 'redirect') return null
+  throw new Error(`Expected document resource, got ${resource.type}`)
 }
 
 // Track if notification processing is actually running (survives timeout)
@@ -1009,34 +1008,37 @@ async function evaluateEventForNotifications(
       if (refTime > 5000) {
         reportError(`Slow loadRefEvent: ${blob.cid} took ${refTime}ms (threshold: 5000ms)`)
       }
+      if (!refEvent) return
       await evaluateDocUpdateForNotifications(refEvent, allSubscriptions, appendNotification)
+      return
     }
-    if (blob.blobType === 'Comment') {
-      const commentStartTime = Date.now()
-      const serverComment = await grpcClient.comments.getComment({id: blob.cid})
-      const commentTime = Date.now() - commentStartTime
-      if (commentTime > 5000) {
-        reportError(`Slow getComment: ${blob.cid} took ${commentTime}ms (threshold: 5000ms)`)
-      }
-      const rawComment = toPlainMessage(serverComment)
-      const comment = HMCommentSchema.parse(rawComment)
-      const includeMentionsFromBody = !options.mentionSourceBlobCids.has(blob.cid)
-      logNotifVerbose('comment blob loaded', {
-        eventId: eventMeta.eventId,
-        eventAtMs: eventMeta.eventAtMs,
-        cid: blob.cid,
-        commentId: comment.id,
-        commentAuthor: comment.author,
-        targetAccount: comment.targetAccount,
-        targetPath: comment.targetPath ?? null,
-        replyParent: comment.replyParent ?? null,
-        threadRoot: comment.threadRoot ?? null,
-        includeMentionsFromBody,
-      })
-      await evaluateNewCommentForNotifications(comment, allSubscriptions, appendNotification, eventMeta, {
-        includeMentionsFromBody,
-      })
+
+    if (blob.blobType !== 'Comment') return
+
+    const commentStartTime = Date.now()
+    const serverComment = await grpcClient.comments.getComment({id: blob.cid})
+    const commentTime = Date.now() - commentStartTime
+    if (commentTime > 5000) {
+      reportError(`Slow getComment: ${blob.cid} took ${commentTime}ms (threshold: 5000ms)`)
     }
+    const rawComment = toPlainMessage(serverComment)
+    const comment = HMCommentSchema.parse(rawComment)
+    const includeMentionsFromBody = !options.mentionSourceBlobCids.has(blob.cid)
+    logNotifVerbose('comment blob loaded', {
+      eventId: eventMeta.eventId,
+      eventAtMs: eventMeta.eventAtMs,
+      cid: blob.cid,
+      commentId: comment.id,
+      commentAuthor: comment.author,
+      targetAccount: comment.targetAccount,
+      targetPath: comment.targetPath ?? null,
+      replyParent: comment.replyParent ?? null,
+      threadRoot: comment.threadRoot ?? null,
+      includeMentionsFromBody,
+    })
+    await evaluateNewCommentForNotifications(comment, allSubscriptions, appendNotification, eventMeta, {
+      includeMentionsFromBody,
+    })
   }
 }
 
@@ -1286,6 +1288,7 @@ async function evaluateNewCommentForNotifications(
 
   try {
     const targetDocument = await getDocument(targetDocId)
+    if (!targetDocument) return
     targetMeta = targetDocument.metadata || null
     targetAuthorUids = Array.isArray(targetDocument.authors)
       ? targetDocument.authors.filter((author): author is string => typeof author === 'string' && author.length > 0)
@@ -1633,10 +1636,12 @@ async function loadRefEvent(event: PlainMessage<Event>) {
   const refData = await loadRefFromIpfs(blob.cid)
 
   const changeCid = refData.heads?.[0]?.toString()
+  if (!changeCid) return null
 
   const changeData = await loadRefFromIpfs(changeCid)
 
   const changedDoc = await getDocument(id)
+  if (!changedDoc) return null
 
   const documentSiteUrl = normalizeSiteBaseUrl(changedDoc.metadata?.siteUrl)
   let accountSiteUrl: string | null = null
@@ -1668,6 +1673,7 @@ async function loadRefEvent(event: PlainMessage<Event>) {
   // Check if there are previous mentions to compare against
   if (prevVersionId?.version) {
     const prevVersionDoc = await getDocument(prevVersionId)
+    if (!prevVersionDoc) return null
     const prevVersionDocMentions = getMentionsOfDocument(prevVersionDoc)
     newMentions = {}
     for (const [blockId, mentions] of Object.entries(currentDocMentions)) {
