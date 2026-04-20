@@ -1,4 +1,4 @@
-import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
+import {DAEMON_FILE_UPLOAD_URL, MAX_FILE_SIZE_B, MAX_FILE_SIZE_MB} from '@shm/shared/constants'
 import {toast} from '@shm/ui/toast'
 import {Node, NodeType} from 'prosemirror-model'
 
@@ -50,8 +50,8 @@ type FileType = {
 
 // @ts-ignore
 export async function handleDragMedia(file: File) {
-  if (file.size > 62914560) {
-    toast.error(`The size of ${file.name} exceeds 60 MB.`)
+  if (file.size > MAX_FILE_SIZE_B) {
+    toast.error(`The size of ${file.name} exceeds ${MAX_FILE_SIZE_MB} MB.`)
     return null
   }
 

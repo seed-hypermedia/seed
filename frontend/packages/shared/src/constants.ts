@@ -83,6 +83,9 @@ export const API_HTTP_URL = `${DAEMON_HOSTNAME || 'http://localhost'}:${API_HTTP
 
 export const DAEMON_FILE_UPLOAD_URL = `${DAEMON_HTTP_URL}/ipfs/file-upload`
 
+export const MAX_FILE_SIZE_MB = 150
+export const MAX_FILE_SIZE_B = MAX_FILE_SIZE_MB * 1024 * 1024
+
 export const DAEMON_GRAPHQL_ENDPOINT = `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/graphql`
 
 export const SITE_BASE_URL = WEB_ENV.SITE_BASE_URL || process.env.SEED_BASE_URL || 'https://hyper.media'

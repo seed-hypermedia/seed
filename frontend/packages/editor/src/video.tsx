@@ -4,6 +4,7 @@ import {ResizeHandle} from '@shm/ui/resize-handle'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
+import {CheckCircle2} from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 import {RiVideoAddLine} from 'react-icons/ri'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
@@ -261,6 +262,13 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
   const autoplay = block.props.autoplay === 'true'
   const loop = block.props.loop === 'true'
   const muted = block.props.muted === 'true'
+  const [showSuccess, setShowSuccess] = useState(true)
+
+  useEffect(() => {
+    if (!showSuccess) return
+    const timer = setTimeout(() => setShowSuccess(false), 4000)
+    return () => clearTimeout(timer)
+  }, [showSuccess])
 
   const setAutoplay = (v: boolean) => {
     if (v) {
@@ -470,6 +478,12 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
           />
         ) : null}
       </div>
+      {editor.isEditable && showSuccess && block.props.name && (
+        <div className="flex w-full items-center gap-2 rounded-sm bg-green-50 px-3 py-2 dark:bg-green-950/30">
+          <CheckCircle2 className="size-4 shrink-0 text-green-600 dark:text-green-400" />
+          <span className="text-sm text-green-800 dark:text-green-300">{block.props.name} uploaded successfully</span>
+        </div>
+      )}
       {editor.isEditable && (block.props.displaySrc || isIpfsUrl(block.props.url || '')) && (
         <VideoOptions
           autoplay={autoplay}

@@ -8,9 +8,6 @@ import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender} from './media-render'
 import {HMBlockSchema} from './schema'
 
-export const MaxFileSizeMB = 150
-export const MaxFileSizeB = MaxFileSizeMB * 1024 * 1024
-
 export const FileBlock = createReactBlockSpec({
   type: 'file',
   propSchema: {

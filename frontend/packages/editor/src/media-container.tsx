@@ -1,4 +1,4 @@
-import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
+import {DAEMON_FILE_UPLOAD_URL, MAX_FILE_SIZE_B, MAX_FILE_SIZE_MB} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
 import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -7,7 +7,6 @@ import {useRef, useState} from 'react'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {InlineContent} from './blocknote/react/ReactBlockSpec'
-import {MaxFileSizeB, MaxFileSizeMB} from './file'
 import {MediaType} from './media-render'
 import {HMBlockSchema} from './schema'
 
@@ -49,8 +48,8 @@ export const MediaContainer = ({
   const isEmbed = ['embed', 'web-embed'].includes(mediaType)
 
   const handleDragReplace = async (file: File) => {
-    if (file.size > MaxFileSizeB) {
-      toast.error(`The size of ${file.name} exceeds ${MaxFileSizeMB} MB.`)
+    if (file.size > MAX_FILE_SIZE_B) {
+      toast.error(`The size of ${file.name} exceeds ${MAX_FILE_SIZE_MB} MB.`)
       return
     }
 
