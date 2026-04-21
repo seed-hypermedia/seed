@@ -4,6 +4,7 @@ import {CommentBox, renderDesktopInlineEditor, triggerCommentDraftFocus} from '@
 import {CreateDocumentButton} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {DesktopDocumentActionsProvider} from '@/components/document-actions-provider'
+import {DesktopQueryBlockDraftSlot} from '@/components/desktop-query-block-draft-slot'
 import {EditNavHeaderPane} from '@/components/edit-nav-header-pane'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {EditingDocToolsRight} from '@/components/editing-toolbar'
@@ -16,13 +17,7 @@ import {domainResolver, grpcClient} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
-import {
-  useChildDrafts,
-  useCreateInlineDraft,
-  useDeleteDraft,
-  usePublishResource,
-  useUpdateDraftMetadata,
-} from '@/models/documents'
+import {useChildDrafts, useCreateInlineDraft, usePublishResource} from '@/models/documents'
 import {useExistingDraft} from '@/models/drafts'
 import {useGatewayUrl, useGatewayUrlStream} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
@@ -33,7 +28,7 @@ import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {fileUpload} from '@/utils/file-upload'
 import {useNavigate} from '@/utils/useNavigate'
-import {HMBlockNode, HMComment} from '@seed-hypermedia/client/hm-types'
+import {HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {DocumentEditor} from '@shm/editor/document-editor'
 import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
@@ -129,8 +124,30 @@ export default function DesktopResourcePage() {
     [linkGwUrl, linkOpenUrl, checkWebUrlMutation.mutateAsync],
   )
 
-  // Publish mutation (ref-based so the fromPromise actor can access it)
-  const publishResource = usePublishResource(docId)
+  // Publish mutation (ref-based so the fromPromise actor can access it).
+  // After publish completes, if the user was viewing a pinned (old) version,
+  // navigate them to the new merged version so they see the published result
+  // rather than remaining on the outdated pinned URL.
+  const publishResource = usePublishResource(docId, {
+    onSuccess: (result) => {
+      const currentId = (route as any).id as UnpackedHypermediaId | undefined
+      if (!currentId) return
+      // Only rewrite the route when we were viewing a pinned version, or when
+      // the published version differs from the pinned one. Clearing it is
+      // safer than setting result.version because the user ends up on
+      // "latest" and future publishes won't re-pin them.
+      if (currentId.version) {
+        console.log('[DesktopResource] post-publish navigate → latest (was pinned)', {
+          was: currentId.version,
+          now: result.version,
+        })
+        replace({
+          ...(route as any),
+          id: {...currentId, version: null},
+        } as any)
+      }
+    },
+  })
   const publishResourceRef = useRef(publishResource)
   publishResourceRef.current = publishResource
 
@@ -214,14 +231,13 @@ export default function DesktopResourcePage() {
   const isPrivate = doc?.visibility === 'PRIVATE'
   const docIsInMyAccount = myAccountIds.data?.includes(docId.uid)
 
-  // Inline document creation
+  // Inline document creation (page-level: bottom fallback + CreateDocumentButton inline create)
   const childDrafts = useChildDrafts(docId)
   const createInlineDraft = useCreateInlineDraft(docId)
-  const deleteDraft = useDeleteDraft()
-  const updateDraftMetadata = useUpdateDraftMetadata()
   const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)
 
-  // Detect self-referential query block
+  // Detect self-referential query block — if present, drafts render inside query blocks
+  // and the bottom fallback is suppressed.
   const selfQueryBlock = useMemo(() => {
     if (!doc?.content) return null
     return findSelfQueryBlock(doc.content, docId.uid, docId.path || null)
@@ -229,7 +245,7 @@ export default function DesktopResourcePage() {
 
   const hasSelfQuery = !!selfQueryBlock
 
-  // When self-query exists, drafts render inside query block; otherwise at the bottom
+  // Bottom fallback: drafts of the current doc when no query block on the page targets it
   const inlineCards = useMemo(() => {
     if (!childDrafts.length || hasSelfQuery) return null
     return (
@@ -240,53 +256,6 @@ export default function DesktopResourcePage() {
       </div>
     )
   }, [childDrafts, lastCreatedDraftId, hasSelfQuery])
-
-  // Context value for query block draft rendering
-  const queryBlockDraftsValue = useMemo(
-    () => ({
-      targetBlockId: selfQueryBlock?.id ?? null,
-      drafts: hasSelfQuery
-        ? childDrafts
-            .slice()
-            .reverse()
-            .map((d) => ({draft: d, autoFocus: d.id === lastCreatedDraftId}))
-        : [],
-      onOpenDraft: (draftId: string) => {
-        navigate({key: 'draft', id: draftId})
-      },
-      onDeleteDraft: (draftId: string) => {
-        deleteDraft.mutate(draftId)
-      },
-      onUpdateDraftName: (draftId: string, name: string) => {
-        updateDraftMetadata.mutate({draftId, metadata: {name}})
-      },
-      onCreateDraft:
-        canEdit && !isPrivate
-          ? () => {
-              createInlineDraft.mutate(
-                {},
-                {
-                  onSuccess: ({draftId}) => {
-                    setLastCreatedDraftId(draftId)
-                  },
-                },
-              )
-            }
-          : undefined,
-    }),
-    [
-      selfQueryBlock?.id,
-      hasSelfQuery,
-      childDrafts,
-      lastCreatedDraftId,
-      navigate,
-      deleteDraft,
-      updateDraftMetadata,
-      canEdit,
-      isPrivate,
-      createInlineDraft,
-    ],
-  )
 
   // Profile editing for site-profile pages
   const editProfileDialog = useEditProfileDialog()
@@ -571,7 +540,7 @@ export default function DesktopResourcePage() {
         showDeletedContent
       >
         <DesktopDocumentActionsProvider>
-          <QueryBlockDraftsProvider {...queryBlockDraftsValue}>
+          <QueryBlockDraftsProvider DraftSlot={DesktopQueryBlockDraftSlot}>
             <QuerySearchInputProvider value={SearchInput}>
               <ResourcePage
                 docId={docId}

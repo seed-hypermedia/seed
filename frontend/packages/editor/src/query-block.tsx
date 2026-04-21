@@ -4,17 +4,22 @@ import {queryBlockSortedItems} from '@shm/shared/content'
 import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
+import {QueryBlockDraftSlotData, useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {SelectField, SwitchField} from '@shm/ui/form-fields'
 import {Pencil, Search, Trash} from '@shm/ui/icons'
+import {InlineDraftCard} from '@shm/ui/inline-draft-card'
+import {InlineDraftListItem} from '@shm/ui/inline-draft-list-item'
+import {NewDocumentCard} from '@shm/ui/new-document-card'
+import {NewDocumentListItem} from '@shm/ui/new-document-list-item'
 import {QueryBlockContent} from '@shm/ui/query-block-content'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {Fragment} from '@tiptap/pm/model'
-import {useCallback, useEffect, useMemo, useState} from 'react'
+import {ReactNode, useCallback, useEffect, useMemo, useState} from 'react'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
 import {useQuerySearchInput} from './query-search-context'
@@ -173,6 +178,27 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
     return documents?.find((document) => document.data?.id?.id === id.id)?.data || null
   }
 
+  const style = block.props.style as 'Card' | 'List'
+  const {DraftSlot} = useQueryBlockDrafts()
+
+  const renderContent = (slot: QueryBlockDraftSlotData | null) => {
+    const {prependItems, bannerContent} = buildSlotItems(slot, style, banner)
+    return (
+      <QueryBlockContent
+        items={sortedItems}
+        style={style}
+        columnCount={block.props.columnCount}
+        banner={bannerContent ? false : banner}
+        accountsMetadata={accountsMetadata}
+        itemContributors={itemContributors}
+        getEntity={getEntity}
+        isDiscovering={entity.isDiscovering || directoryItems.isLoading}
+        prependItems={prependItems}
+        bannerContent={bannerContent}
+      />
+    )
+  }
+
   return (
     <div
       // @ts-ignore
@@ -185,7 +211,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
           queryDocName={entity.data?.document?.metadata.name || ''}
           queryIncludes={queryIncludes}
           querySort={querySort}
-          style={block.props.style as 'Card' | 'List'}
+          style={style}
           banner={banner}
           // @ts-expect-error
           block={block}
@@ -201,19 +227,79 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
       )}
       {/* Stop mousedown propagation so ProseMirror doesn't intercept clicks on item links */}
       <div onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-        <QueryBlockContent
-          items={sortedItems}
-          style={block.props.style as 'Card' | 'List'}
-          columnCount={block.props.columnCount}
-          banner={banner}
-          accountsMetadata={accountsMetadata}
-          itemContributors={itemContributors}
-          getEntity={getEntity}
-          isDiscovering={entity.isDiscovering || directoryItems.isLoading}
-        />
+        {DraftSlot ? (
+          <DraftSlot targetId={queryId}>{(data) => renderContent(data)}</DraftSlot>
+        ) : (
+          renderContent(null)
+        )}
       </div>
     </div>
   )
+}
+
+function buildSlotItems(
+  slot: QueryBlockDraftSlotData | null,
+  style: 'Card' | 'List',
+  banner: boolean,
+): {prependItems?: ReactNode[]; bannerContent?: ReactNode} {
+  if (!slot) return {}
+  const {drafts, onCreateDraft, onOpenDraft, onDeleteDraft, onUpdateDraftName} = slot
+
+  const createButton = onCreateDraft
+    ? style === 'Card'
+      ? <NewDocumentCard key="new-doc-btn" onCreateDraft={onCreateDraft} />
+      : <NewDocumentListItem key="new-doc-btn" onCreateDraft={onCreateDraft} />
+    : null
+
+  const hasDrafts = drafts.length > 0 && !!onOpenDraft && !!onDeleteDraft && !!onUpdateDraftName
+  if (!hasDrafts) {
+    return createButton ? {prependItems: [createButton]} : {}
+  }
+
+  if (style === 'Card') {
+    const cards = drafts.map(({draft, autoFocus}) => (
+      <InlineDraftCard
+        key={`draft-${draft.id}`}
+        draft={draft}
+        autoFocus={autoFocus}
+        onOpenDraft={onOpenDraft!}
+        onDeleteDraft={onDeleteDraft!}
+        onUpdateDraftName={onUpdateDraftName!}
+      />
+    ))
+    if (banner && cards.length > 0) {
+      const bannerDraft = drafts[0]!
+      const bannerEl = (
+        <InlineDraftCard
+          key={`draft-banner-${bannerDraft.draft.id}`}
+          draft={bannerDraft.draft}
+          autoFocus={bannerDraft.autoFocus}
+          banner
+          onOpenDraft={onOpenDraft!}
+          onDeleteDraft={onDeleteDraft!}
+          onUpdateDraftName={onUpdateDraftName!}
+        />
+      )
+      const remainingCards = cards.slice(1)
+      return {
+        prependItems: createButton ? [createButton, ...remainingCards] : remainingCards,
+        bannerContent: bannerEl,
+      }
+    }
+    return {prependItems: createButton ? [createButton, ...cards] : cards}
+  }
+
+  const listItems = drafts.map(({draft, autoFocus}) => (
+    <InlineDraftListItem
+      key={`draft-${draft.id}`}
+      draft={draft}
+      autoFocus={autoFocus}
+      onOpenDraft={onOpenDraft!}
+      onDeleteDraft={onDeleteDraft!}
+      onUpdateDraftName={onUpdateDraftName!}
+    />
+  ))
+  return {prependItems: createButton ? [createButton, ...listItems] : listItems}
 }
 
 function QuerySettings({
