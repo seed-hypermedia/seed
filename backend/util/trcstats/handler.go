@@ -5,7 +5,6 @@ package trcstats
 import (
 	"fmt"
 	"html/template"
-	"math"
 	"net/http"
 	"net/url"
 	"sort"
@@ -27,15 +26,20 @@ func Handler(next http.Handler) http.Handler {
 			return
 		}
 
+		// Search with a finer bucketing than trc's default so the
+		// histogram-derived percentiles have reasonable resolution. Limit is
+		// intentionally small — we don't consume resp.Traces, only resp.Stats,
+		// and stats are observed over the full ring buffer regardless of Limit.
 		resp, err := eztrc.Collector().Search(r.Context(), &trc.SearchRequest{
-			Limit: math.MaxInt32,
+			Bucketing: fineBucketing,
+			Limit:     1,
 		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		render(w, compute(resp))
+		render(w, compute(resp.Stats))
 	})
 }
 
@@ -54,6 +58,27 @@ func shouldDelegate(r *http.Request) bool {
 	return false
 }
 
+// fineBucketing is prepended-with-zero by trc.Normalize; the leading 0 is
+// therefore optional but included for clarity.
+var fineBucketing = []time.Duration{
+	0,
+	100 * time.Microsecond,
+	500 * time.Microsecond,
+	1 * time.Millisecond,
+	2 * time.Millisecond,
+	5 * time.Millisecond,
+	10 * time.Millisecond,
+	25 * time.Millisecond,
+	50 * time.Millisecond,
+	100 * time.Millisecond,
+	250 * time.Millisecond,
+	500 * time.Millisecond,
+	1 * time.Second,
+	2 * time.Second,
+	5 * time.Second,
+	10 * time.Second,
+}
+
 // Thresholds above which percentile cells are rendered in red.
 const (
 	warnP50 = 100 * time.Millisecond
@@ -68,16 +93,23 @@ type row struct {
 	P50      time.Duration
 	P90      time.Duration
 	P99      time.Duration
+	// finishedCount is the number of finished, non-errored traces contributing
+	// to the percentile estimates. Separate from Count (which also includes
+	// active and errored) because percentiles are undefined when there are no
+	// finished traces.
+	finishedCount int
 }
 
-func (r row) Href() string          { return "?category=" + url.QueryEscape(r.Category) }
-func (r row) P10Str() string        { return formatDuration(r.P10) }
-func (r row) P50Str() string        { return formatDuration(r.P50) }
-func (r row) P90Str() string        { return formatDuration(r.P90) }
-func (r row) P99Str() string        { return formatDuration(r.P99) }
-func (r row) P50Class() string      { return warnClass(r.Count > 0 && r.P50 > warnP50) }
-func (r row) P90Class() string      { return warnClass(r.Count > 0 && r.P90 > warnP90) }
-func (r row) P99Class() string      { return warnClass(r.Count > 0 && r.P99 > warnP99) }
+func (r row) Href() string     { return "?category=" + url.QueryEscape(r.Category) }
+func (r row) P10Str() string   { return formatDuration(r.P10) }
+func (r row) P50Str() string   { return formatDuration(r.P50) }
+func (r row) P90Str() string   { return formatDuration(r.P90) }
+func (r row) P99Str() string   { return formatDuration(r.P99) }
+func (r row) P50Class() string { return warnClass(r.finishedCount > 0 && r.P50 > warnP50) }
+func (r row) P90Class() string { return warnClass(r.finishedCount > 0 && r.P90 > warnP90) }
+func (r row) P99Class() string { return warnClass(r.finishedCount > 0 && r.P99 > warnP99) }
+func (r row) HasFinished() bool { return r.finishedCount > 0 }
+
 func warnClass(warn bool) string {
 	if warn {
 		return "num warn"
@@ -85,49 +117,81 @@ func warnClass(warn bool) string {
 	return "num"
 }
 
-func compute(resp *trc.SearchResponse) []row {
-	// Seed categories from stats so rows line up with the full trc report
-	// (even categories whose traces are all active or all errored).
-	byCategory := map[string][]time.Duration{}
-	for cat := range resp.Stats.Categories {
-		byCategory[cat] = nil
-	}
-	for _, tr := range resp.Traces {
-		if !tr.Finished() || tr.Errored() {
-			continue
-		}
-		byCategory[tr.Category()] = append(byCategory[tr.Category()], tr.Duration())
+func compute(stats *trc.SearchStats) []row {
+	if stats == nil {
+		return nil
 	}
 
-	rows := make([]row, 0, len(byCategory))
-	for cat, durs := range byCategory {
-		sort.Slice(durs, func(i, j int) bool { return durs[i] < durs[j] })
+	rows := make([]row, 0, len(stats.Categories))
+	for cat, cs := range stats.Categories {
+		finished := 0
+		if len(cs.BucketCounts) > 0 {
+			finished = cs.BucketCounts[0]
+		}
 		rows = append(rows, row{
-			Category: cat,
-			Count:    len(durs),
-			P10:      percentile(durs, 0.10),
-			P50:      percentile(durs, 0.50),
-			P90:      percentile(durs, 0.90),
-			P99:      percentile(durs, 0.99),
+			Category:      cat,
+			Count:         cs.ActiveCount + finished + cs.ErroredCount,
+			finishedCount: finished,
+			P10:           histogramQuantile(0.10, stats.Bucketing, cs.BucketCounts),
+			P50:           histogramQuantile(0.50, stats.Bucketing, cs.BucketCounts),
+			P90:           histogramQuantile(0.90, stats.Bucketing, cs.BucketCounts),
+			P99:           histogramQuantile(0.99, stats.Bucketing, cs.BucketCounts),
 		})
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Category < rows[j].Category })
 	return rows
 }
 
-// percentile returns the nearest-rank percentile of a pre-sorted duration slice.
-func percentile(sorted []time.Duration, p float64) time.Duration {
-	if len(sorted) == 0 {
+// histogramQuantile estimates the p-quantile of trace durations from trc's
+// at-or-above bucket counts, using linear interpolation inside the bucket that
+// contains the target rank.
+//
+// buckets are the lower boundaries, sorted ascending, with buckets[0] == 0.
+// counts[i] is the number of samples with duration >= buckets[i], so counts[0]
+// is the total sample size. The last bucket (>= buckets[len-1]) has no upper
+// bound — if the quantile falls there, we return the lower boundary.
+func histogramQuantile(p float64, buckets []time.Duration, counts []int) time.Duration {
+	if len(buckets) == 0 || len(counts) == 0 || len(buckets) != len(counts) {
 		return 0
 	}
-	idx := int(math.Ceil(p*float64(len(sorted)))) - 1
-	if idx < 0 {
-		idx = 0
+	total := counts[0]
+	if total == 0 {
+		return 0
 	}
-	if idx >= len(sorted) {
-		idx = len(sorted) - 1
+
+	// Target rank among samples sorted ascending (1-indexed nearest-rank).
+	rank := int(float64(total)*p + 0.5)
+	if rank < 1 {
+		rank = 1
 	}
-	return sorted[idx]
+	if rank > total {
+		rank = total
+	}
+	// We search for the bucket where the cumulative count (samples with
+	// duration < bucket upper bound) first reaches rank. Working in the
+	// at-or-above representation: samples strictly above buckets[i+1] is
+	// counts[i+1]; we want to find i such that counts[i+1] < total-rank+1 and
+	// counts[i] >= total-rank+1. Equivalently, find smallest i where
+	// counts[i+1] <= total-rank.
+	remaining := total - rank // number of samples allowed above the quantile
+
+	for i := 0; i < len(buckets)-1; i++ {
+		if counts[i+1] <= remaining {
+			// Quantile lies in [buckets[i], buckets[i+1]).
+			bucketSamples := counts[i] - counts[i+1]
+			if bucketSamples <= 0 {
+				return buckets[i]
+			}
+			// Position within the bucket: how many samples into this bucket
+			// (from its low end) is the target rank.
+			within := counts[i] - remaining // 1..bucketSamples
+			frac := float64(within) / float64(bucketSamples)
+			span := buckets[i+1] - buckets[i]
+			return buckets[i] + time.Duration(float64(span)*frac)
+		}
+	}
+	// Fell off the end — quantile is at or above the highest bucket boundary.
+	return buckets[len(buckets)-1]
 }
 
 // formatDuration renders d with one decimal place in a human-friendly unit.
@@ -136,7 +200,7 @@ func formatDuration(d time.Duration) string {
 	case d <= 0:
 		return "0"
 	case d < time.Microsecond:
-		return fmt.Sprintf("%.1fns", float64(d))
+		return fmt.Sprintf("%dns", d)
 	case d < time.Millisecond:
 		return fmt.Sprintf("%.1fµs", float64(d)/float64(time.Microsecond))
 	case d < time.Second:
@@ -164,7 +228,7 @@ a{color:#0a58ca;text-decoration:none}
 a:hover{text-decoration:underline}
 </style></head><body>
 <h2>trc per-category percentiles</h2>
-<p class="hint">Nearest-rank percentiles over all currently retained, finished, non-errored traces in eztrc's in-memory collector. Red cells exceed: p50&nbsp;&gt;&nbsp;100ms, p90&nbsp;&gt;&nbsp;200ms, p99&nbsp;&gt;&nbsp;500ms. Click a category for the full trc UI.</p>
+<p class="hint">Percentiles estimated from trc's in-memory histogram (active + finished + errored retained traces; same set as the native trc summary). Red cells exceed: p50&nbsp;&gt;&nbsp;100ms, p90&nbsp;&gt;&nbsp;200ms, p99&nbsp;&gt;&nbsp;500ms. Click a category for the full trc UI.</p>
 <table>
   <tr>
     <th>Category</th>
@@ -178,7 +242,7 @@ a:hover{text-decoration:underline}
   <tr>
     <td><a href="{{.Href}}">{{.Category}}</a></td>
     <td class="num">{{.Count}}</td>
-    {{if .Count}}
+    {{if .HasFinished}}
     <td class="num">{{.P10Str}}</td>
     <td class="{{.P50Class}}">{{.P50Str}}</td>
     <td class="{{.P90Class}}">{{.P90Str}}</td>
