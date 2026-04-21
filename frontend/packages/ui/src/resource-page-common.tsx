@@ -256,6 +256,8 @@ export interface ResourcePageProps {
   perspectiveAccountUid?: string | null
   /** Options passed to the link extension. */
   linkExtensionOptions?: Record<string, unknown>
+  /** Optional site-header edit-nav pane rendered inside DocumentMachineProvider. */
+  editNavPane?: ReactNode
 }
 
 /** Get panel title for display */
@@ -305,6 +307,7 @@ export function ResourcePage({
   ssrContentHTML,
   perspectiveAccountUid,
   linkExtensionOptions,
+  editNavPane,
 }: ResourcePageProps) {
   const route = useNavRoute()
   const isSiteProfile = route.key === 'site-profile'
@@ -516,6 +519,7 @@ export function ResourcePage({
         headerData={headerData}
         document={document}
         rightActions={rightActions}
+        editNavPane={editNavPane}
       >
         <DocumentBody
           docId={docId}
@@ -619,6 +623,7 @@ export function PageWrapper({
   children,
   isMainFeedVisible = false,
   rightActions,
+  editNavPane,
 }: {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId
@@ -627,6 +632,7 @@ export function PageWrapper({
   children: React.ReactNode
   isMainFeedVisible?: boolean
   rightActions?: React.ReactNode
+  editNavPane?: React.ReactNode
 }) {
   // Mobile: let content flow naturally (document scroll)
   // Desktop: fixed height container (element scroll via ScrollArea in children)
@@ -660,6 +666,7 @@ export function PageWrapper({
         isMainFeedVisible={isMainFeedVisible}
         notifyServiceHost={NOTIFY_SERVICE_HOST}
         rightActions={rightActions}
+        editNavPane={editNavPane}
       />
       {children}
     </div>

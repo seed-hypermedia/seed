@@ -4,6 +4,7 @@ import {CommentBox, renderDesktopInlineEditor, triggerCommentDraftFocus} from '@
 import {CreateDocumentButton} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {DesktopDocumentActionsProvider} from '@/components/document-actions-provider'
+import {EditNavHeaderPane} from '@/components/edit-nav-header-pane'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {EditingDocToolsRight} from '@/components/editing-toolbar'
 import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
@@ -595,6 +596,9 @@ export default function DesktopResourcePage() {
                 perspectiveAccountUid={selectedAccountId}
                 linkExtensionOptions={linkExtensionOptions}
                 fileUpload={fileUpload}
+                editNavPane={
+                  canEdit && !docId.path?.length ? <EditNavHeaderPane homeId={hmId(docId.uid)} /> : undefined
+                }
               />
             </QuerySearchInputProvider>
           </QueryBlockDraftsProvider>
