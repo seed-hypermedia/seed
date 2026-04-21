@@ -309,8 +309,7 @@ export const documentMachine = setup({
       return result
     },
     canEditOldVersion: ({context}) => {
-      const result =
-        context.canEdit && !context.isLatestVersion && context.draftId === null
+      const result = context.canEdit && !context.isLatestVersion && context.draftId === null
       console.log('[DocMachine] guard canEditOldVersion', {
         canEdit: context.canEdit,
         isLatestVersion: context.isLatestVersion,
@@ -458,16 +457,11 @@ export const documentMachine = setup({
       on: {
         'edit.confirm': {
           target: 'editing',
-          actions: [
-            () => console.log('[DocMachine] edit.confirm received → editing'),
-            'setDepsFromPublished',
-          ],
+          actions: [() => console.log('[DocMachine] edit.confirm received → editing'), 'setDepsFromPublished'],
         },
         'edit.cancel': {
           target: 'loaded',
-          actions: [
-            () => console.log('[DocMachine] edit.cancel received in confirmingOldVersionEdit → loaded'),
-          ],
+          actions: [() => console.log('[DocMachine] edit.cancel received in confirmingOldVersionEdit → loaded')],
         },
         'capability.changed': {
           actions: ['setCanEdit'],
@@ -489,24 +483,15 @@ export const documentMachine = setup({
         {type: 'applyInitialContentToEditor'},
         {type: 'placeCursorFromPendingOrDraft'},
       ],
-      exit: [
-        () => console.log('[DocMachine] exit editing'),
-        {type: 'setEditorReadOnly'},
-      ],
+      exit: [() => console.log('[DocMachine] exit editing'), {type: 'setEditorReadOnly'}],
       on: {
         'edit.cancel': {
           target: 'loaded',
-          actions: [
-            () => console.log('[DocMachine] edit.cancel received in editing → loaded'),
-            'clearEditingState',
-          ],
+          actions: [() => console.log('[DocMachine] edit.cancel received in editing → loaded'), 'clearEditingState'],
         },
         'edit.discard': {
           target: 'loaded',
-          actions: [
-            () => console.log('[DocMachine] edit.discard received in editing → loaded'),
-            'clearDraftState',
-          ],
+          actions: [() => console.log('[DocMachine] edit.discard received in editing → loaded'), 'clearDraftState'],
         },
         'capability.changed': [
           {

@@ -27,10 +27,7 @@ const defaultValue: QueryBlockDraftsContextValue = {}
 
 const QueryBlockDraftsContext = createContext<QueryBlockDraftsContextValue>(defaultValue)
 
-export function QueryBlockDraftsProvider({
-  children,
-  DraftSlot,
-}: PropsWithChildren<QueryBlockDraftsContextValue>) {
+export function QueryBlockDraftsProvider({children, DraftSlot}: PropsWithChildren<QueryBlockDraftsContextValue>) {
   const ctx = useMemo(() => ({DraftSlot}), [DraftSlot])
   return <QueryBlockDraftsContext.Provider value={ctx}>{children}</QueryBlockDraftsContext.Provider>
 }

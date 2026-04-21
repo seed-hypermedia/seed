@@ -104,9 +104,7 @@ function DocumentMention({unpackedRef, selected}: {unpackedRef: UnpackedHypermed
   const entity = useResource(unpackedRef)
   const highlight = useHighlighter()
   const resolved =
-    entity.data && 'document' in entity.data && entity.data.document
-      ? getDocumentTitle(entity.data.document)
-      : null
+    entity.data && 'document' in entity.data && entity.data.document ? getDocumentTitle(entity.data.document) : null
   console.log('[DocumentMention]', unpackedRef.id, 'resolved=', resolved, 'status=', entity.status)
   return (
     <MentionText selected={selected} {...highlight(unpackedRef)}>

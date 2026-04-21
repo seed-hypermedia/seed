@@ -227,11 +227,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
       )}
       {/* Stop mousedown propagation so ProseMirror doesn't intercept clicks on item links */}
       <div onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-        {DraftSlot ? (
-          <DraftSlot targetId={queryId}>{(data) => renderContent(data)}</DraftSlot>
-        ) : (
-          renderContent(null)
-        )}
+        {DraftSlot ? <DraftSlot targetId={queryId}>{(data) => renderContent(data)}</DraftSlot> : renderContent(null)}
       </div>
     </div>
   )
@@ -245,11 +241,13 @@ function buildSlotItems(
   if (!slot) return {}
   const {drafts, onCreateDraft, onOpenDraft, onDeleteDraft, onUpdateDraftName} = slot
 
-  const createButton = onCreateDraft
-    ? style === 'Card'
-      ? <NewDocumentCard key="new-doc-btn" onCreateDraft={onCreateDraft} />
-      : <NewDocumentListItem key="new-doc-btn" onCreateDraft={onCreateDraft} />
-    : null
+  const createButton = onCreateDraft ? (
+    style === 'Card' ? (
+      <NewDocumentCard key="new-doc-btn" onCreateDraft={onCreateDraft} />
+    ) : (
+      <NewDocumentListItem key="new-doc-btn" onCreateDraft={onCreateDraft} />
+    )
+  ) : null
 
   const hasDrafts = drafts.length > 0 && !!onOpenDraft && !!onDeleteDraft && !!onUpdateDraftName
   if (!hasDrafts) {

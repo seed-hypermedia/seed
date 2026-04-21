@@ -309,8 +309,7 @@ p.block-paragraph.is-comment *:not(.text-code) {
 
 /* Heading → anything-non-heading: tighten so figures/code/quotes bind to
  * their heading (overrides the media-category LG sibling rule above). */
-.blocknode-content[data-block-type='Heading']
-  + .blocknode-content:not([data-block-type='Heading']) {
+.blocknode-content[data-block-type='Heading'] + .blocknode-content:not([data-block-type='Heading']) {
   margin-top: var(--space-md);
 }
 
@@ -368,7 +367,10 @@ html[data-debug-blocks='1'] .blocknode-content[data-block-type]::before {
   left: 0;
   transform: translate(0, -100%);
   z-index: 49;
-  font: 10px/1 ui-monospace, Menlo, monospace;
+  font:
+    10px/1 ui-monospace,
+    Menlo,
+    monospace;
   padding: 2px 6px;
   background: rgba(37, 99, 235, 0.85);
   color: #fff;

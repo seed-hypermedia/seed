@@ -12,13 +12,7 @@ import type {HyperMediaEditor} from './types'
  *   the editor becomes editable (see DocumentEditor's justEnteredEditing
  *   effect).
  */
-export function AddBlockAtEndButton({
-  editor,
-  onEditStart,
-}: {
-  editor: HyperMediaEditor
-  onEditStart?: () => void
-}) {
+export function AddBlockAtEndButton({editor, onEditStart}: {editor: HyperMediaEditor; onEditStart?: () => void}) {
   const isEditable = editor.isEditable
   return (
     <Button

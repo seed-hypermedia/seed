@@ -22,11 +22,7 @@ export function clickHandler(options: ClickHandlerOptions): Plugin {
         const linkEl = targetEl?.closest?.('.link, a[href]') as HTMLElement | null
         const embedEl = targetEl?.closest?.('[data-inline-embed]') as HTMLElement | null
         const attrs = getAttributes(view.state, options.type.name)
-        const href =
-          linkEl?.getAttribute('href') ??
-          attrs.href ??
-          embedEl?.getAttribute('data-inline-embed') ??
-          null
+        const href = linkEl?.getAttribute('href') ?? attrs.href ?? embedEl?.getAttribute('data-inline-embed') ?? null
 
         if (!href) {
           return false
