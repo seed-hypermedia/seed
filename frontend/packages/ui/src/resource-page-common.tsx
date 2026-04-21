@@ -252,6 +252,8 @@ export interface ResourcePageProps {
   fileUpload?: (file: File) => Promise<string>
   /** Account uid used in inline mention suggestions. */
   perspectiveAccountUid?: string | null
+  /** Options passed to the link extension. */
+  linkExtensionOptions?: Record<string, unknown>
 }
 
 /** Get panel title for display */
@@ -300,6 +302,7 @@ export function ResourcePage({
   fileUpload,
   ssrContentHTML,
   perspectiveAccountUid,
+  linkExtensionOptions,
 }: ResourcePageProps) {
   const route = useNavRoute()
   const isSiteProfile = route.key === 'site-profile'
@@ -473,6 +476,7 @@ export function ResourcePage({
             DocumentContentComponent={DocumentContentComponent}
             ssrContentHTML={ssrContentHTML}
             perspectiveAccountUid={perspectiveAccountUid}
+            linkExtensionOptions={linkExtensionOptions}
           />
         </PageWrapper>
       </DocumentMachineProvider>
@@ -535,6 +539,7 @@ export function ResourcePage({
           fileUpload={fileUpload}
           ssrContentHTML={ssrContentHTML}
           perspectiveAccountUid={perspectiveAccountUid}
+          linkExtensionOptions={linkExtensionOptions}
         />
       </PageWrapper>
       {machineExtras}
@@ -685,6 +690,7 @@ function DocumentBody({
   fileUpload,
   ssrContentHTML,
   perspectiveAccountUid,
+  linkExtensionOptions,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
@@ -721,6 +727,8 @@ function DocumentBody({
   ssrContentHTML?: string | null
   /** Account uid used in inline mention suggestions. */
   perspectiveAccountUid?: string | null
+  /** Options passed to the link extension. */
+  linkExtensionOptions?: Record<string, unknown>
 }) {
   // Sync document into state machine
   useDocumentSync(document)
@@ -1343,6 +1351,7 @@ function DocumentBody({
           existingDraftCursorPosition={existingDraftCursorPosition}
           ssrContentHTML={ssrContentHTML}
           perspectiveAccountUid={perspectiveAccountUid}
+          linkExtensionOptions={linkExtensionOptions}
         />
       </div>
       {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
@@ -1749,6 +1758,7 @@ function MainContent({
   existingDraftCursorPosition,
   ssrContentHTML,
   perspectiveAccountUid,
+  linkExtensionOptions,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1791,6 +1801,7 @@ function MainContent({
   existingDraftCursorPosition?: number
   ssrContentHTML?: string | null
   perspectiveAccountUid?: string | null
+  linkExtensionOptions?: Record<string, unknown>
 }) {
   switch (activeView) {
     case 'directory':
@@ -1872,6 +1883,7 @@ function MainContent({
           existingDraftCursorPosition={existingDraftCursorPosition}
           ssrContentHTML={ssrContentHTML}
           perspectiveAccountUid={perspectiveAccountUid}
+          linkExtensionOptions={linkExtensionOptions}
         />
       )
   }
@@ -1899,6 +1911,7 @@ function ContentViewWithOutline({
   existingDraftCursorPosition,
   ssrContentHTML,
   perspectiveAccountUid,
+  linkExtensionOptions,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1925,6 +1938,7 @@ function ContentViewWithOutline({
   existingDraftCursorPosition?: number
   ssrContentHTML?: string | null
   perspectiveAccountUid?: string | null
+  linkExtensionOptions?: Record<string, unknown>
 }) {
   const outline = useNodesOutline(document, docId)
 
@@ -1965,6 +1979,7 @@ function ContentViewWithOutline({
             onEditorReady={onEditorReady}
             draftCursorPosition={existingDraftCursorPosition}
             perspectiveAccountUid={perspectiveAccountUid}
+            linkExtensionOptions={linkExtensionOptions}
           />
         ) : ssrContentHTML ? (
           <div dangerouslySetInnerHTML={{__html: ssrContentHTML}} />

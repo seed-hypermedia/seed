@@ -25,4 +25,6 @@ export type DocumentContentProps = {
   draftCursorPosition?: number | null
   /** Account uid used in inline mention suggestions. */
   perspectiveAccountUid?: string | null
+  /** Options passed to the link extension. */
+  linkExtensionOptions?: Record<string, unknown>
 }

@@ -9,8 +9,9 @@ import {EditingDocToolsRight} from '@/components/editing-toolbar'
 import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
 import {JoinButton} from '@/components/join-button'
 import {MoveDialog} from '@/components/move-dialog'
-import {fileUpload} from '@/utils/file-upload'
 import {usePublishSite, useRemoveSiteDialog} from '@/components/publish-site'
+import {SearchInput} from '@/components/search-input'
+import {domainResolver, grpcClient} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
@@ -22,18 +23,19 @@ import {
   useUpdateDraftMetadata,
 } from '@/models/documents'
 import {useExistingDraft} from '@/models/drafts'
-import {useGatewayUrl} from '@/models/gateway-settings'
+import {useGatewayUrl, useGatewayUrlStream} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
+import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
+import {fileUpload} from '@/utils/file-upload'
 import {useNavigate} from '@/utils/useNavigate'
-import {HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMBlockNode, HMComment} from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {DocumentEditor} from '@shm/editor/document-editor'
 import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
-import {SearchInput} from '@/components/search-input'
 import {hmId, hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
 import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
@@ -43,15 +45,13 @@ import {useDocumentInspector} from '@shm/shared/models/document-machine-inspect'
 import {useResource} from '@shm/shared/models/entity'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
-import {Button} from '@shm/ui/button'
 import {CloudOff, Download, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {ResourcePage} from '@shm/ui/resource-page-common'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {cn} from '@shm/ui/utils'
+import {useMutation} from '@tanstack/react-query'
 import {Copy, ForwardIcon, GitFork} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -109,6 +109,24 @@ export default function DesktopResourcePage() {
   const handleEditorReady = useCallback((editor: any) => {
     editorRef.current = editor
   }, [])
+
+  // Link extension options for the paste handler. Platform-specific deps
+  // must be injected here because `@shm/editor` can't import from the desktop app.
+  const linkOpenUrl = useOpenUrl()
+  const linkGwUrl = useGatewayUrlStream()
+  const checkWebUrlMutation = useMutation({
+    mutationFn: (url: string) => client.webImporting.checkWebUrl.mutate(url),
+  })
+  const linkExtensionOptions = useMemo<Record<string, unknown>>(
+    () => ({
+      grpcClient,
+      domainResolver,
+      gwUrl: linkGwUrl,
+      openUrl: linkOpenUrl,
+      checkWebUrl: checkWebUrlMutation.mutateAsync,
+    }),
+    [linkGwUrl, linkOpenUrl, checkWebUrlMutation.mutateAsync],
+  )
 
   // Publish mutation (ref-based so the fromPromise actor can access it)
   const publishResource = usePublishResource(docId)
@@ -575,6 +593,7 @@ export default function DesktopResourcePage() {
                 signingAccountId={selectedAccountId || undefined}
                 publishAccountUid={selectedAccount?.id?.uid || undefined}
                 perspectiveAccountUid={selectedAccountId}
+                linkExtensionOptions={linkExtensionOptions}
                 fileUpload={fileUpload}
               />
             </QuerySearchInputProvider>

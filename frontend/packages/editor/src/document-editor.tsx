@@ -64,6 +64,7 @@ export function DocumentEditor({
   onBlocksFullSelected,
   draftCursorPosition,
   perspectiveAccountUid,
+  linkExtensionOptions,
 }: DocumentContentProps) {
   const openUrl = useOpenUrl()
   const getImageUrl = useImageUrl()
@@ -132,6 +133,7 @@ export function DocumentEditor({
       willBeEditable: canEdit,
       renderType: 'document',
       blockSchema: hmBlockSchema,
+      linkExtensionOptions: linkExtensionOptions as any,
       onEditorContentChange() {
         if (suppressChangeRef.current) return
         actorRef.send({type: 'change'})
