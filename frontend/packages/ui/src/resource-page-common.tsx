@@ -2041,7 +2041,7 @@ function SiteProfileContent({
   const elapsed = now - mountedAt
   const stillLooking = !hasData && elapsed < PROFILE_DISCOVERY_TIMEOUT_MS
 
-  if (account.isLoading || profileResource.isDiscovering || stillLooking) {
+  if (!hasData && (account.isLoading || profileResource.isDiscovering || stillLooking)) {
     return (
       <>
         <PageDiscovery entityType="profile" />
