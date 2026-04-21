@@ -25,7 +25,7 @@
   --brand-11: #d0f1d1;
   --brand-12: #e4f6e5;
   --brand: var(--brand-5);
-  --highlight: hsl(123, 50%, 93%);
+  --highlight: lch(95.19% 10.86 145.56);
   --link: lch(44.196 70 286.91);
   --link-hover: lch(38 70 286.91);
   --background: oklch(0.98 0 0);
@@ -38,7 +38,7 @@
   --popover-foreground: oklch(0.2686 0 0);
   --primary: var(--brand);
   --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.9552 0.0294 146.9093);
+  --secondary: var(--highlight);
   --secondary-foreground: oklch(0 0 0);
   --muted: oklch(0.9846 0.0017 247.8389);
   --muted-foreground: oklch(0.551 0.0234 264.3637);
