@@ -1,5 +1,10 @@
 .bn-full-block-selected {
-  background-color: hsl(213 94% 55% / 0.08);
+  background-color: #b4d5fe;
   border-radius: 4px;
   transition: background-color 0.15s ease;
+}
+
+.bn-full-block-selected ::selection,
+.bn-full-block-selected::selection {
+  background: transparent;
 }

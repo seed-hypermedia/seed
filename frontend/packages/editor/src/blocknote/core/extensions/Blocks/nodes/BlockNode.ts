@@ -377,15 +377,8 @@ export const BlockNode = Node.create<{
       const applyDecorations = (decos: readonly Decoration[]) => {
         for (const deco of decos) {
           const spec = (deco as any).type?.attrs
-          if (spec) {
-            if (spec.class) {
-              dom.classList.add(...spec.class.split(' '))
-            }
-            for (const [k, v] of Object.entries(spec)) {
-              if (k !== 'class' && typeof v === 'string') {
-                dom.setAttribute(k, v)
-              }
-            }
+          if (spec?.class) {
+            dom.classList.add(...spec.class.split(' '))
           }
         }
       }

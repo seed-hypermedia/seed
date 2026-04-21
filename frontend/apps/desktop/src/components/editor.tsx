@@ -83,7 +83,7 @@ export function HyperMediaEditorView({
           openUrl={openUrl}
         />
         <MentionMenuPositioner editor={editor} perspectiveAccountUid={selectedAccountId} />
-        {/* {editable && !comment ? <SideMenuPositioner editor={editor} placement="left" /> : null} */}
+        {editable && !comment ? <SideMenuPositioner editor={editor} placement="left" /> : null}
         {!editable && hasPublishedVersion && (
           <>
             <BlockHoverActionsPositioner

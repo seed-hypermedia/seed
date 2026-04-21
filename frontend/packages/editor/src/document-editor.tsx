@@ -26,6 +26,7 @@ import {
   ImageGalleryOverlay,
   LinkMenuPositioner,
   RangeSelectionPositioner,
+  SideMenuPositioner,
   SlashMenuPositioner,
   SupernumbersController,
   useBlockNote,
@@ -491,7 +492,7 @@ export function DocumentEditor({
         {editable && (
           <>
             <FormattingToolbarPositioner editor={editor} formattingToolbar={HMFormattingToolbar} />
-            {/* <SideMenuPositioner editor={editor} /> */}
+            <SideMenuPositioner editor={editor} />
             <SlashMenuPositioner editor={editor} />
             <LinkMenuPositioner editor={editor} />
             <MentionMenuPositioner editor={editor} perspectiveAccountUid={perspectiveAccountUid} />

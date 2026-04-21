@@ -15,6 +15,7 @@ import type {BlockNoteEditor} from '../../BlockNoteEditor'
 import type {BlockSchema} from '../../extensions/Blocks/api/blockTypes'
 import {executeBlockMove} from './block-move-executor'
 import type {DragStateManager} from './drag-state'
+import {fullBlockSelectionPluginKey} from '../FullBlockSelection/FullBlockSelectionPlugin'
 import {attachHitboxData, extractDropInstruction, getBlockLevel, getContainerType, getItemMode} from './hitbox-strategy'
 import {MultipleNodeSelection} from './MultipleNodeSelection'
 
@@ -52,12 +53,10 @@ export function setupBlockDraggable<BSchema extends BlockSchema>(
       const blockId = getBlockId()
       if (!blockId) return {type: EDITOR_BLOCK_TYPE, blockIds: [], editorId: editorDragId}
 
-      // Check for multi-block selection
       const selection = editor.prosemirrorView.state.selection
       let blockIds: string[] = [blockId]
 
       if (selection instanceof MultipleNodeSelection) {
-        // Collect all selected block IDs
         const selectedIds: string[] = []
         selection.content().content.forEach((node) => {
           if (node.type.name === 'blockNode' && node.attrs.id) {
@@ -66,6 +65,11 @@ export function setupBlockDraggable<BSchema extends BlockSchema>(
         })
         if (selectedIds.length > 0 && selectedIds.includes(blockId)) {
           blockIds = selectedIds
+        }
+      } else {
+        const fullBlockState = fullBlockSelectionPluginKey.getState(editor.prosemirrorView.state)
+        if (fullBlockState && fullBlockState.blockIds.length > 0 && fullBlockState.blockIds.includes(blockId)) {
+          blockIds = fullBlockState.blockIds
         }
       }
 
@@ -232,25 +236,17 @@ export function createBlockDragGuardPlugin(): Plugin {
     key: pragmaticDndPluginKey,
     props: {
       handleDOMEvents: {
-        dragstart(view, event) {
-          // Check if the drag originates from a drag handle.
-          // Pragmatic DnD manages these drags, so we prevent PM from
-          // setting view.dragging which would conflict.
-          const target = event.target as HTMLElement | null
-          if (!target) return false
+        dragstart(_view, event) {
+          const rawTarget = event.target as Node | null
+          const targetEl: HTMLElement | null =
+            rawTarget && rawTarget.nodeType === 1
+              ? (rawTarget as HTMLElement)
+              : (rawTarget?.parentElement ?? null)
+          if (!targetEl) return false
 
-          // Walk up to see if this came from the side menu / drag handle
-          let el: HTMLElement | null = target
-          while (el) {
-            if (el.hasAttribute('data-drag-handle') || el.getAttribute('role') === 'button') {
-              // Check if the closest parent has the drag indicator
-              const sideMenu = el.closest('[data-test="dragHandle"]')
-              if (sideMenu) {
-                // Prevent ProseMirror from handling this drag
-                return true
-              }
-            }
-            el = el.parentElement
+          if (targetEl.closest('[data-drag-handle]')) {
+            // Drag originated from the SideMenu — let Pragmatic DnD own it.
+            return true
           }
 
           return false

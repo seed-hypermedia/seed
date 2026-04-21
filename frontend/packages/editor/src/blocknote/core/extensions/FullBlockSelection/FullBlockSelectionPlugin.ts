@@ -129,7 +129,11 @@ function buildDecorations(doc: Node, blockIds: string[]): DecorationSet {
 
   doc.descendants((node, pos) => {
     if (node.type.name === 'blockNode' && idSet.has(node.attrs['id'] as string)) {
-      decorations.push(Decoration.node(pos, pos + node.nodeSize, {class: DECORATION_CLASS}))
+      decorations.push(
+        Decoration.node(pos, pos + node.nodeSize, {
+          class: DECORATION_CLASS,
+        }),
+      )
     }
   })
 
