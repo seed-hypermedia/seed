@@ -1,5 +1,6 @@
 import {HMBlockEmbed, HMEmbedViewSchema} from '@seed-hypermedia/client/hm-types'
 import {useGatewayUrlStream} from '@shm/shared/gateway-url'
+import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@seed-hypermedia/client'
@@ -115,6 +116,7 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
 }
 
 const display = ({editor, block, assign, selected, setSelected}: DisplayComponentProps) => {
+  const {canEdit, isEditing} = useEditorGate()
   return (
     <MediaContainer
       editor={editor}
@@ -141,7 +143,7 @@ const display = ({editor, block, assign, selected, setSelected}: DisplayComponen
     >
       {block.props.url && (
         <EditorEmbedContent
-          openOnClick={!editor.isEditable}
+          openOnClick={!canEdit || !isEditing}
           parentBlockId={block.props.parentBlockId || null}
           block={{
             id: block.id,
