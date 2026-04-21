@@ -6,7 +6,8 @@ import {languagePacks} from '@shm/shared/language-packs'
 import {registerQueryClient} from '@shm/shared/models/query-client'
 import {ReadOnlyViewerComponent, ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
 import {defaultRoute} from '@shm/shared/routes'
-import {NavAction, NavContextProvider, NavState, navStateReducer} from '@shm/shared/utils/navigation'
+import {isHttpUrl, NavAction, NavContextProvider, NavState, navStateReducer} from '@shm/shared/utils/navigation'
+import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import type {StateStream} from '@shm/shared/utils/stream'
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
@@ -294,8 +295,27 @@ export function WebSiteProvider(props: {
       languagePack={languagePack}
       getOptimizedImageUrl={getOptimizedImageUrl}
       ipfsFileUrl={DAEMON_FILE_URL}
-      openUrl={(url) => {
-        window.open(url, '_blank')
+      openUrl={(url, newWindow) => {
+        if (!url) return
+        const route = hypermediaUrlToRoute(url)
+        if (route) {
+          const href = routeToHref(route, {originHomeId: props.originHomeId}) || undefined
+          if (href !== undefined) {
+            if (newWindow) {
+              window.open(href, '_blank')
+            } else {
+              isInternalNav.current = true
+              navigation.dispatch({type: 'push', route})
+              navigate(href)
+            }
+            return
+          }
+        }
+        if (isHttpUrl(url)) {
+          window.open(url, newWindow ? '_blank' : '_self')
+          return
+        }
+        console.warn(`[openUrl] Failed to resolve route for "${url}"`)
       }}
       universalClient={webUniversalClient}
       selectedIdentity={selectedIdentity}

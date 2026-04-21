@@ -20,18 +20,23 @@ export function clickHandler(options: ClickHandlerOptions): Plugin {
 
         const targetEl = event.target as HTMLElement | null
         const linkEl = targetEl?.closest?.('.link, a[href]') as HTMLElement | null
+        const embedEl = targetEl?.closest?.('[data-inline-embed]') as HTMLElement | null
         const attrs = getAttributes(view.state, options.type.name)
-        const href = linkEl?.getAttribute('href') ?? attrs.href
+        const href =
+          linkEl?.getAttribute('href') ??
+          attrs.href ??
+          embedEl?.getAttribute('data-inline-embed') ??
+          null
 
         if (!href) {
           return false
         }
 
+        const newWindow = event.shiftKey
         if (options.openUrl) {
-          const newWindow = event.metaKey || event.ctrlKey
           options.openUrl(href, newWindow)
         } else if (typeof window !== 'undefined') {
-          if (event.metaKey || event.ctrlKey) {
+          if (newWindow) {
             window.open(href, '_blank', 'noopener,noreferrer')
           } else {
             window.location.href = href

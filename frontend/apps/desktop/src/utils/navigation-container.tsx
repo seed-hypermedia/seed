@@ -9,7 +9,9 @@ import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {DAEMON_FILE_URL, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {NavRoute} from '@shm/shared/routes'
 import {AppEvent, UniversalAppProvider} from '@shm/shared/routing'
+import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {routeToUrl} from '@shm/shared/utils/entity-id-url'
+import {isHttpUrl} from '@shm/shared/utils/navigation'
 import {NavAction, NavContextProvider, NavState, navStateReducer, useNavRoute} from '@shm/shared/utils/navigation'
 import {streamSelector, writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
@@ -96,8 +98,28 @@ export function NavigationContainer({children}: {children: ReactNode}) {
           accessoryWidth,
         })
       }}
-      openUrl={(url: string) => {
-        externalOpen(url)
+      openUrl={(url: string, newWindow?: boolean) => {
+        if (!url) return
+        const route = hypermediaUrlToRoute(url)
+        if (route) {
+          if (newWindow) {
+            const path = encodeRouteToPath(route)
+            const currentState = navigation.state.get()
+            ipc.invoke('plugin:window|open', {
+              path,
+              selectedIdentity: currentState.selectedIdentity,
+              accessoryWidth: currentState.accessoryWidth,
+            })
+          } else {
+            navigation.dispatch({type: 'push', route})
+          }
+          return
+        }
+        if (isHttpUrl(url)) {
+          externalOpen(url)
+          return
+        }
+        console.warn(`[openUrl] Failed to resolve route for "${url}"`)
       }}
       origin={gwUrl}
       hmUrlHref={true}

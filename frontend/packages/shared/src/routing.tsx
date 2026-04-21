@@ -46,7 +46,7 @@ type UniversalAppContextValue = {
   // on desktop its the gateway URL, on mobile its the web site host.
   origin?: string | null
 
-  openUrl: (url: string) => void
+  openUrl: (url: string, newWindow?: boolean) => void
   onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
 
   // set this to true if you want all <a href="" values to be full hm:// hypermedia urls. otherwise, web URLs will be prepared
@@ -104,7 +104,7 @@ export function UniversalAppProvider(props: {
   originHomeId?: UnpackedHypermediaId
   origin?: string | null
   ipfsFileUrl?: string
-  openUrl: (url: string) => void
+  openUrl: (url: string, newWindow?: boolean) => void
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string
   openRoute: null | ((route: NavRoute, replace?: boolean) => void)
   openRouteNewWindow?: null | ((route: NavRoute) => void)
