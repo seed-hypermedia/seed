@@ -295,10 +295,72 @@ export function usePublishResource(
 
             const docPath = hmIdPathToEntityQueryPath(destinationId.path || [])
 
+            // Bump the draft to the current latest heads before publishing. Until the
+            // rebase flow lands, this is a shallow "rebase": baseVersion = latest, and
+            // the minimal block diff is applied on top. Blocks the user didn't touch keep
+            // the latest's content; blocks the user edited overwrite (last-writer-wins).
+            // The draft's persisted `deps` is also updated so a retry after failure (or a
+            // subsequent publish from the same draft) starts from the new base.
+            let latestHeads: string[] = []
+            let latestVersion = ''
+            if (editId) {
+              try {
+                const latestDoc = await grpcClient.documents.getDocument({
+                  account: destinationId.uid,
+                  path: docPath,
+                })
+                if (latestDoc?.version) {
+                  latestVersion = latestDoc.version
+                  latestHeads = latestDoc.version.split('.')
+                }
+                console.log('[publish] fetched latest heads', {
+                  account: destinationId.uid,
+                  path: docPath,
+                  latestVersion,
+                  latestHeads,
+                })
+              } catch (err) {
+                // Doc doesn't exist yet (first publish) — leave latestHeads empty.
+                console.log('[publish] getDocument(latest) failed — treating as first publish', err)
+              }
+            }
+            const draftDeps = draft.deps ?? []
+            const baseVersion = latestVersion || draftDeps.join('.')
+
+            const depsChanged =
+              latestHeads.length > 0 &&
+              (latestHeads.length !== draftDeps.length || latestHeads.some((h) => !draftDeps.includes(h)))
+            if (depsChanged) {
+              console.log('[publish] persisting rebased deps to draft', {
+                draftId: draft.id,
+                from: draftDeps,
+                to: latestHeads,
+              })
+              await client.drafts.write.mutate({
+                id: draft.id,
+                locationUid: draft.locationUid,
+                locationPath: draft.locationPath,
+                editUid: draft.editUid,
+                editPath: draft.editPath,
+                metadata: draft.metadata,
+                content: draft.content,
+                deps: latestHeads,
+                navigation: draft.navigation,
+                visibility: draft.visibility,
+              })
+            }
+
+            console.log('[publish] computed baseVersion', {
+              draftDeps,
+              latestHeads,
+              baseVersion,
+              depsChanged,
+            })
+
             await desktopUniversalClient.publishDocument!({
               signerAccountUid: accountId,
               account: destinationId.uid,
-              baseVersion: draft.deps?.join('.') || '',
+              baseVersion,
               path: docPath,
               // allChanges is DocumentChange[] from shared helpers; structurally compatible with plain change objects
               changes: allChanges as any,
@@ -318,6 +380,33 @@ export function usePublishResource(
               requestedVisibility: visibility,
               returnedVisibility: updatedDoc.visibility,
             })
+            console.log('[publish] result', {
+              requestedBaseVersion: baseVersion,
+              resultVersion: updatedDoc.version,
+            })
+
+            // Inspect the Change blob the server produced to verify deps = latestHeads.
+            try {
+              const changesResp = await grpcClient.documents.listDocumentChanges({
+                account: destinationId.uid,
+                path: docPath,
+                version: updatedDoc.version,
+                pageSize: 10,
+              })
+              const newChange = changesResp.changes.find((c) => c.id === updatedDoc.version)
+              console.log('[publish] new change deps', {
+                newChangeId: newChange?.id,
+                deps: newChange?.deps,
+                author: newChange?.author,
+                expectedDeps: latestHeads,
+                depsMatch:
+                  newChange?.deps?.length === latestHeads.length &&
+                  (newChange?.deps ?? []).every((d) => latestHeads.includes(d)),
+                allChanges: changesResp.changes.map((c) => ({id: c.id, deps: c.deps})),
+              })
+            } catch (err) {
+              console.log('[publish] listDocumentChanges failed', err)
+            }
             const resultDoc: HMDocument = prepareHMDocument(updatedDoc)
             return resultDoc
           } else {
