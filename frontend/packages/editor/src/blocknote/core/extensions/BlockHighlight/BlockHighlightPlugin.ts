@@ -149,9 +149,7 @@ export function createBlockHighlightPlugin(): Plugin {
               const from = codepointOffsetToPos(found.content, found.contentBeforePos, action.start)
               const to = codepointOffsetToPos(found.content, found.contentBeforePos, action.end)
               if (to <= from) return DecorationSet.empty
-              return DecorationSet.create(tr.doc, [
-                Decoration.inline(from, to, {class: 'bn-range-highlight-focus'}),
-              ])
+              return DecorationSet.create(tr.doc, [Decoration.inline(from, to, {class: 'bn-range-highlight-focus'})])
             }
 
             case 'highlight':

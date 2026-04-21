@@ -384,12 +384,7 @@ export function BlockDiscussions({
 
   if (targetId.blockRef && doc.data?.type == 'document' && doc.data.document) {
     quotedContent = (
-      <QuotedDocBlock
-        docId={targetId}
-        blockId={targetId.blockRef}
-        doc={doc.data.document}
-        blockRange={blockRange}
-      />
+      <QuotedDocBlock docId={targetId} blockId={targetId.blockRef} doc={doc.data.document} blockRange={blockRange} />
     )
   } else if (doc.isInitialLoading) {
     quotedContent = (

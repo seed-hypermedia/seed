@@ -377,8 +377,7 @@ export function DocumentEditor({
   // Dispatch block highlight when focusBlockId / focusBlockRange changes.
   // When a codepoint range is provided, highlight only that fragment;
   // otherwise fall back to highlighting the whole block.
-  const rangeStart =
-    focusBlockRange && 'start' in focusBlockRange ? focusBlockRange.start : null
+  const rangeStart = focusBlockRange && 'start' in focusBlockRange ? focusBlockRange.start : null
   const rangeEnd = focusBlockRange && 'end' in focusBlockRange ? focusBlockRange.end : null
   useEffect(() => {
     const view = editor._tiptapEditor?.view

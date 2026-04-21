@@ -239,9 +239,7 @@ export function createBlockDragGuardPlugin(): Plugin {
         dragstart(_view, event) {
           const rawTarget = event.target as Node | null
           const targetEl: HTMLElement | null =
-            rawTarget && rawTarget.nodeType === 1
-              ? (rawTarget as HTMLElement)
-              : (rawTarget?.parentElement ?? null)
+            rawTarget && rawTarget.nodeType === 1 ? (rawTarget as HTMLElement) : rawTarget?.parentElement ?? null
           if (!targetEl) return false
 
           if (targetEl.closest('[data-drag-handle]')) {
