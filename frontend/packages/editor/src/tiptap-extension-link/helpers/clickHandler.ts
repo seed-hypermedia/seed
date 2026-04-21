@@ -2,9 +2,11 @@ import {getAttributes} from '@tiptap/core'
 import {MarkType} from '@tiptap/pm/model'
 import {Plugin, PluginKey} from '@tiptap/pm/state'
 
+type OpenUrlFn = (url?: string, newWindow?: boolean) => void
+
 type ClickHandlerOptions = {
   type: MarkType
-  openUrl?: any
+  openUrl?: OpenUrlFn
 }
 
 export function clickHandler(options: ClickHandlerOptions): Plugin {
@@ -16,22 +18,27 @@ export function clickHandler(options: ClickHandlerOptions): Plugin {
           return false
         }
 
-        // In read-only mode, let the browser handle link clicks natively (navigate).
-        if (!view.editable) {
+        const targetEl = event.target as HTMLElement | null
+        const linkEl = targetEl?.closest?.('.link, a[href]') as HTMLElement | null
+        const attrs = getAttributes(view.state, options.type.name)
+        const href = linkEl?.getAttribute('href') ?? attrs.href
+
+        if (!href) {
           return false
         }
 
-        const attrs = getAttributes(view.state, options.type.name)
-        const link = event.target as HTMLLinkElement
-
-        const href = link?.href ?? attrs.href
-
-        if (link && href) {
-          // In editable mode, swallow the click to avoid navigating away while editing.
-          return true
+        if (options.openUrl) {
+          const newWindow = event.metaKey || event.ctrlKey
+          options.openUrl(href, newWindow)
+        } else if (typeof window !== 'undefined') {
+          if (event.metaKey || event.ctrlKey) {
+            window.open(href, '_blank', 'noopener,noreferrer')
+          } else {
+            window.location.href = href
+          }
         }
 
-        return false
+        return true
       },
     },
   })

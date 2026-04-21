@@ -135,18 +135,21 @@ export function DocumentEditor({
       willBeEditable: canEdit,
       renderType: 'document',
       blockSchema: hmBlockSchema,
-      linkExtensionOptions: linkExtensionOptions as any,
       getSlashMenuItems: () => getSlashMenuItems({docId: resourceId}),
       onEditorContentChange() {
         if (suppressChangeRef.current) return
         actorRef.send({type: 'change'})
       },
       initialContent,
+      // Caller-provided options (grpcClient, domainResolver, gwUrl,
+      // checkWebUrl, queryClient, etc.) are required by pasteHandler to
+      // (a) convert pasted web URLs to hm:// and (b) apply a link mark to
+      // the current selection on paste. Merge here so the editor can always
+      // resolve a local openUrl fallback.
       linkExtensionOptions: {
-        // @ts-expect-error — LinkExtensionOptions is under-typed; the link
-        // extension reads `openUrl` via (this.options as any).openUrl.
-        openUrl,
-      },
+        ...(linkExtensionOptions ?? {}),
+        openUrl: (linkExtensionOptions as any)?.openUrl ?? openUrl,
+      } as any,
       _tiptapOptions: {
         extensions: [
           Extension.create({
