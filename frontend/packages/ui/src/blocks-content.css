@@ -2,6 +2,47 @@
 .blocks-content-root {
   padding-left: calc(var(--layout-unit, 24px) / 3);
   padding-right: calc(var(--layout-unit, 24px) / 3);
+  /* 8px-grid block spacing tokens — kept in sync with editor.css so the
+     editor and the read-only/published viewer share the same rhythm. */
+  --space-xs: 8px;
+  --space-sm: 16px;
+  --space-md: 24px;
+  --space-lg: 32px;
+  --space-xl: 48px;
+}
+
+@media (max-width: 640px) {
+  .blocks-content-root {
+    --space-xs: 8px;
+    --space-sm: 12px;
+    --space-md: 20px;
+    --space-lg: 24px;
+    --space-xl: 40px;
+  }
+}
+
+/* Default block-to-block gap (MD). Per-category overrides below. */
+.blocknode-content + .blocknode-content {
+  margin-top: var(--space-md);
+}
+
+/* List-item rhythm — tight. */
+.blocknode-list[data-list-type='Unordered'] > .blocknode-content + .blocknode-content,
+.blocknode-list[data-list-type='Ordered'] > .blocknode-content + .blocknode-content {
+  margin-top: var(--space-xs);
+}
+
+/* Media / code / quote / embed sibling breathing room. */
+.blocknode-content + .blocknode-content[data-block-type='Image'],
+.blocknode-content + .blocknode-content[data-block-type='Video'],
+.blocknode-content + .blocknode-content[data-block-type='File'],
+.blocknode-content + .blocknode-content[data-block-type='Embed'],
+.blocknode-content + .blocknode-content[data-block-type='WebEmbed'],
+.blocknode-content + .blocknode-content[data-block-type='Button'],
+.blocknode-content + .blocknode-content[data-block-type='Math'],
+.blocknode-content + .blocknode-content[data-block-type='Query'],
+.blocknode-content + .blocknode-content[data-block-type='Code'] {
+  margin-top: var(--space-lg);
 }
 
 .blocknode-list {
@@ -219,28 +260,32 @@ p.block-paragraph.is-comment *:not(.text-code) {
   padding-left: 0 !important;
 }
 
-/* Heading margins scaled by depth — 2:1 top:bottom ratio */
+/* === 8px-grid heading rhythm ===
+ * Mirrors editor.css so editor and viewer share the same scale.
+ * H1/H2 open sections (XL). H3 is sub-section (LG). H4+ rides body (MD).
+ */
 [data-block-type='Heading'][data-depth='1'],
 [data-block-type='Heading'][data-depth='2'] {
-  margin-top: 1.5em;
-  margin-bottom: 0.75em;
+  margin-top: var(--space-xl);
+  margin-bottom: var(--space-md);
 }
 
 [data-block-type='Heading'][data-depth='3'] {
-  margin-top: 1.25em;
-  margin-bottom: 0.5em;
+  margin-top: var(--space-lg);
+  margin-bottom: var(--space-md);
 }
 
 [data-block-type='Heading'][data-depth='4'],
-[data-block-type='Heading'][data-depth='5'] {
-  margin-top: 1em;
-  margin-bottom: 0.4em;
+[data-block-type='Heading'][data-depth='5'],
+[data-block-type='Heading'][data-depth='6'] {
+  margin-top: var(--space-md);
+  margin-bottom: var(--space-sm);
 }
 
 /* Fallback for headings without depth */
 [data-block-type='Heading']:not([data-depth]) {
-  margin-top: 1.5em;
-  margin-bottom: 0.75em;
+  margin-top: var(--space-xl);
+  margin-bottom: var(--space-md);
 }
 
 /* First heading in a container: no top margin */
@@ -257,9 +302,16 @@ p.block-paragraph.is-comment *:not(.text-code) {
   margin-top: 0 !important;
 }
 
-/* Consecutive headings: collapse top margin */
+/* Consecutive headings: collapse to body rhythm. */
 [data-block-type='Heading'] + [data-block-type='Heading'] {
-  margin-top: 0;
+  margin-top: var(--space-md);
+}
+
+/* Heading → anything-non-heading: tighten so figures/code/quotes bind to
+ * their heading (overrides the media-category LG sibling rule above). */
+.blocknode-content[data-block-type='Heading']
+  + .blocknode-content:not([data-block-type='Heading']) {
+  margin-top: var(--space-md);
 }
 
 .bottom-gradient {
@@ -296,4 +348,44 @@ p.block-paragraph.is-comment *:not(.text-code) {
   /* font-size: 1.2em !important; */
   font-weight: lighter !important;
   font-style: italic !important;
+}
+
+/* === DEBUG: block border overlay (viewer side) ===
+ * Kept in sync with editor.css. Toggled via html[data-debug-blocks="1"]. */
+html[data-debug-blocks='1'] .blocknode-content {
+  outline: 1px dashed rgba(219, 39, 119, 0.6);
+  outline-offset: -1px;
+  position: relative;
+}
+html[data-debug-blocks='1'] .blocknode-inner {
+  outline: 1px solid rgba(37, 99, 235, 0.35);
+  outline-offset: -1px;
+}
+html[data-debug-blocks='1'] .blocknode-content[data-block-type]::before {
+  content: attr(data-block-type) ' ' attr(data-depth);
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translate(0, -100%);
+  z-index: 49;
+  font: 10px/1 ui-monospace, Menlo, monospace;
+  padding: 2px 6px;
+  background: rgba(37, 99, 235, 0.85);
+  color: #fff;
+  border-radius: 3px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+html[data-debug-blocks='1'] .blocknode-list[data-list-type] {
+  background: rgba(16, 185, 129, 0.04);
+}
+html[data-debug-blocks='1'] .blocknode-list[data-list-type='Unordered'],
+html[data-debug-blocks='1'] .blocknode-list[data-list-type='Ordered'] {
+  background: rgba(249, 115, 22, 0.04);
+}
+html[data-debug-blocks='1'] .blocknode-list[data-list-type='Blockquote'] {
+  background: rgba(168, 85, 247, 0.06);
+}
+html[data-debug-blocks='1'] .blocknode-list[data-list-type='Grid'] {
+  background: rgba(236, 72, 153, 0.05);
 }

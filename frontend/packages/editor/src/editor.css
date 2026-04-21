@@ -2,10 +2,29 @@
 .editor {
   --text-unit: 18;
   --layout-unit: 24;
+  /* 8px-grid block spacing tokens. Consumed by .blockNode sibling rules
+     in Block.module.css and by heading/media/quote overrides below. */
+  --space-xs: 8px;
+  --space-sm: 16px;
+  --space-md: 24px;
+  --space-lg: 32px;
+  --space-xl: 48px;
   /* max-width: calc(75ch + 108px); */
   width: 100%;
   margin-left: auto;
   margin-right: auto;
+}
+
+/* Mobile scale-down. Keeps the rhythm but shortens it for narrow viewports. */
+@media (max-width: 640px) {
+  #editor-header-content,
+  .editor {
+    --space-xs: 8px;
+    --space-sm: 12px;
+    --space-md: 20px;
+    --space-lg: 24px;
+    --space-xl: 40px;
+  }
 }
 
 /* #editor-header-content {
@@ -503,33 +522,131 @@ ul[data-list-type='Unordered'] > [data-node-type='blockNode'] > [data-list-type=
   margin-left: 0;
 }
 
-/* Heading margins scaled by level — 2:1 top:bottom ratio */
-[data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='1']),
-[data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='2']) {
-  margin-top: 1.5em;
-  margin-bottom: 0.75em;
+/* === 8px-grid block spacing ===
+ *
+ * Strategy: each block type declares its own "marginBefore" (gap it wants
+ * above it), scaled on an 8px grid via --space-* tokens from :root above.
+ * Default sibling gap is MD (see Block.module.css .blockNode + .blockNode).
+ * The rules below override that default when the next block is a section
+ * marker (heading), media, code, or quote — or when the previous block is
+ * a heading that binds tightly to its content.
+ */
+
+/* Section markers: H1 and H2 open a new section. Sibling-combinator form so
+ * specificity (0,4,0) beats both the `.blockNode + .blockNode` default (0,2,0)
+ * AND the first-child reset (0,3,0). Doesn't fire on first-child (no `+`
+ * predecessor), so wrapper padding on the content container is the sole
+ * source of top spacing for a document that begins with a heading. */
+[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='1']),
+[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='2']) {
+  margin-top: var(--space-xl);
 }
 
-[data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='3']) {
-  margin-top: 1.25em;
-  margin-bottom: 0.5em;
+/* Sub-section markers: H3 breathes less than H1/H2. */
+[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='3']) {
+  margin-top: var(--space-lg);
 }
 
-[data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='4']),
-[data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='5']) {
-  margin-top: 1em;
-  margin-bottom: 0.4em;
+/* Minor headings: H4/H5/H6 ride the body rhythm. */
+[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='4']),
+[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='5']),
+[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='6']) {
+  margin-top: var(--space-md);
 }
 
-/* First block in a group: no top margin */
+/* Media / embed / code / quote blocks want LG breathing room above them. */
+[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='image']),
+[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='video']),
+[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='file']),
+[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='embed']),
+[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='web-embed']),
+[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='button']),
+[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='math']),
+[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='query']),
+[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='code-block']) {
+  margin-top: var(--space-lg);
+}
+
+/* First block in a group: no top margin. */
 [data-node-type='blockChildren'] > [data-node-type='blockNode']:first-child {
   margin-top: 0;
 }
 
-/* Consecutive headings: collapse top margin */
+/* Consecutive headings: collapse to a body-rhythm gap so a stacked H1→H2
+ * doesn't open a double section break. */
 [data-node-type='blockNode']:has(> [data-content-type='heading'])
   + [data-node-type='blockNode']:has(> [data-content-type='heading']) {
-  margin-top: 0;
+  margin-top: var(--space-md);
+}
+
+/* Heading → anything-non-heading: tighten to MD so a figure or code block
+ * immediately after a heading stays visually bound to it (overrides the
+ * media-category LG above). */
+[data-node-type='blockNode']:has(> [data-content-type='heading'])
+  + [data-node-type='blockNode']:not(:has(> [data-content-type='heading'])) {
+  margin-top: var(--space-md);
+}
+
+/* === DEBUG: block border overlay ===
+ *
+ * Activate with Cmd/Ctrl+Shift+D (wired in DocumentEditor). Sets
+ * html[data-debug-blocks="1"]. Reveals:
+ *   · dashed magenta outline per .blockNode
+ *   · solid outline on .blockContent inside it
+ *   · floating badge showing content-type + data-level on hover
+ *   · tinted backgrounds per container type (Group/List/Blockquote/Grid)
+ */
+html[data-debug-blocks='1'] .blockNode {
+  outline: 1px dashed rgba(219, 39, 119, 0.6);
+  outline-offset: -1px;
+  position: relative;
+}
+html[data-debug-blocks='1'] .blockContent {
+  outline: 1px solid rgba(37, 99, 235, 0.35);
+  outline-offset: -1px;
+}
+html[data-debug-blocks='1'] .blockNode:hover::after {
+  content: attr(data-node-type) ' · ' attr(data-prev-type);
+  position: absolute;
+  top: 0;
+  right: 0;
+  transform: translateY(-100%);
+  z-index: 50;
+  font: 10px/1 ui-monospace, Menlo, monospace;
+  padding: 2px 6px;
+  background: rgba(17, 24, 39, 0.9);
+  color: #fff;
+  border-radius: 3px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+html[data-debug-blocks='1'] .blockContent[data-content-type]::before {
+  content: attr(data-content-type) attr(data-level);
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translate(0, -100%);
+  z-index: 49;
+  font: 10px/1 ui-monospace, Menlo, monospace;
+  padding: 2px 6px;
+  background: rgba(37, 99, 235, 0.85);
+  color: #fff;
+  border-radius: 3px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+html[data-debug-blocks='1'] .blockChildren[data-list-type] {
+  background: rgba(16, 185, 129, 0.04);
+}
+html[data-debug-blocks='1'] .blockChildren[data-list-type='Unordered'],
+html[data-debug-blocks='1'] .blockChildren[data-list-type='Ordered'] {
+  background: rgba(249, 115, 22, 0.04);
+}
+html[data-debug-blocks='1'] .blockChildren[data-list-type='Blockquote'] {
+  background: rgba(168, 85, 247, 0.06);
+}
+html[data-debug-blocks='1'] .blockChildren[data-list-type='Grid'] {
+  background: rgba(236, 72, 153, 0.05);
 }
 
 .bn-focused-heading-block {

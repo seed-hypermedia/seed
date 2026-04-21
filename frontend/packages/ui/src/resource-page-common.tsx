@@ -1515,13 +1515,33 @@ function EditableDocumentHeader({
   const name = ctx.metadata?.name ?? docMetadata?.name ?? ''
   const summary = ctx.metadata?.summary ?? docMetadata?.summary ?? ''
 
+  // Reflow both textareas. Runs the resize immediately, on the next animation
+  // frame (after React commits paint), and once fonts have loaded — reading
+  // `scrollHeight` before fonts settle or before the parent has its final
+  // width produces a stale height that sticks until the next window resize,
+  // which is why opening DevTools (a window resize) "fixes" the layout.
+  const reflowBoth = useCallback(() => {
+    const doResize = () => {
+      if (inputName.current) applyTitleResize(inputName.current)
+      if (inputSummary.current) applyTitleResize(inputSummary.current)
+    }
+    doResize()
+    requestAnimationFrame(doResize)
+    if (typeof document !== 'undefined' && (document as any).fonts?.ready) {
+      ;(document as any).fonts.ready.then(doResize).catch(() => {})
+    }
+  }, [])
+
   useEffect(() => {
     const target = inputName.current
     if (!target) return
     if (target.value !== name) {
       target.value = name || ''
-      applyTitleResize(target)
     }
+    applyTitleResize(target)
+    requestAnimationFrame(() => {
+      if (inputName.current) applyTitleResize(inputName.current)
+    })
   }, [name])
 
   useEffect(() => {
@@ -1529,19 +1549,32 @@ function EditableDocumentHeader({
     if (!target) return
     if (target.value !== summary) {
       target.value = summary || ''
-      applyTitleResize(target)
     }
+    applyTitleResize(target)
+    requestAnimationFrame(() => {
+      if (inputSummary.current) applyTitleResize(inputSummary.current)
+    })
   }, [summary])
 
   useEffect(() => {
-    function handleResize() {
-      if (inputName.current) applyTitleResize(inputName.current)
-      if (inputSummary.current) applyTitleResize(inputSummary.current)
+    reflowBoth()
+    window.addEventListener('resize', reflowBoth)
+
+    // Watch the parent container so any width change (panel open/close,
+    // content re-layout after publish, scrollbar appearing) re-reflows the
+    // textareas without waiting for a window resize.
+    const parent = inputName.current?.parentElement
+    let observer: ResizeObserver | null = null
+    if (parent && typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => reflowBoth())
+      observer.observe(parent)
     }
-    handleResize()
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
+
+    return () => {
+      window.removeEventListener('resize', reflowBoth)
+      observer?.disconnect()
+    }
+  }, [reflowBoth])
 
   return (
     <DocumentHeader
@@ -1994,7 +2027,7 @@ function ContentViewWithOutline({
         </div>
       )}
 
-      <div {...mainContentProps} className={cn(mainContentProps.className, 'px-4')}>
+      <div {...mainContentProps} className={cn(mainContentProps.className, 'px-4 pt-8')}>
         {DocumentContentComponent ? (
           <DocumentContentComponent
             blocks={existingDraftContent ?? document.content}

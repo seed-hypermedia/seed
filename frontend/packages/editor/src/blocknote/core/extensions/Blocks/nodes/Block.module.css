@@ -28,8 +28,11 @@ BASIC STYLES
   max-height: 100%;
 }
 
+/* Default block-to-block gap follows the 8px grid (MD 24px). Per-category
+ * overrides (section markers, media, code, quote) live in editor.css and
+ * win via sibling :has() selectors. */
 .blockNode + .blockNode {
-  margin-top: 2px;
+  margin-top: var(--space-md, 24px);
 }
 
 .blockContent::before {
@@ -111,7 +114,7 @@ NESTED BLOCKS
 .blockChildren[data-list-type='Blockquote'] {
   border-left: 3px solid var(--border);
   padding-left: 15px;
-  margin: 1em 0;
+  margin: var(--space-lg, 32px) 0;
   /* font-style: italic; */
 }
 .blockChildren[data-list-type='Unordered'],
@@ -120,6 +123,12 @@ NESTED BLOCKS
   margin-bottom: 0;
   padding: 0;
   padding-inline-start: 1.5em;
+}
+
+/* Tight rhythm between list items — they belong to one visual group. */
+.blockChildren[data-list-type='Unordered'] > .blockNode + .blockNode,
+.blockChildren[data-list-type='Ordered'] > .blockNode + .blockNode {
+  margin-top: var(--space-xs, 8px);
 }
 
 .blockChildren[data-list-type='Unordered'] {
@@ -332,7 +341,7 @@ NESTED BLOCKS
 .blockNode:not([data-prev-type]) > .blockContent[data-content-type='heading'] {
   font-size: var(--level);
   line-height: 1.2;
-  /* margin-top: 0.6em; */
+  margin-top: 0.6em;
   font-weight: bold;
 }
 
