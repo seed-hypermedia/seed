@@ -35,7 +35,12 @@ function _DiscussionsPanel(props: {docId: UnpackedHypermediaId; selection: Comme
     })
     return (
       <PanelContent>
-        <BlockDiscussions targetId={targetId} commentEditor={commentEditor} targetDomain={targetDomain} />
+        <BlockDiscussions
+          targetId={targetId}
+          commentEditor={commentEditor}
+          targetDomain={targetDomain}
+          blockRange={selection.blockRange || undefined}
+        />
       </PanelContent>
     )
   }

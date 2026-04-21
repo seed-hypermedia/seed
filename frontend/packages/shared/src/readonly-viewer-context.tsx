@@ -1,4 +1,4 @@
-import type {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {BlockRange, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {createContext, useContext} from 'react'
 
 export type ReadOnlyViewerComponent = React.ComponentType<{
@@ -8,6 +8,10 @@ export type ReadOnlyViewerComponent = React.ComponentType<{
   layoutUnit?: number
   className?: string
   commentStyle?: boolean
+  /** Block whose whole node (or fragment, when combined with `blockRange`) should be visually highlighted. */
+  focusBlockId?: string
+  /** Codepoint range within `focusBlockId` to highlight instead of the whole block. */
+  blockRange?: BlockRange
   onCopyBlockLink?: (blockId: string) => void
   onStartComment?: (blockId: string) => void
   onCopyFragmentLink?: (blockId: string, rangeStart: number, rangeEnd: number) => void

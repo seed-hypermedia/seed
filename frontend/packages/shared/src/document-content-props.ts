@@ -9,6 +9,8 @@ export type DocumentContentProps = {
   blocks: HMBlockNode[]
   resourceId: UnpackedHypermediaId
   focusBlockId?: string
+  /** Optional codepoint range within `focusBlockId` to highlight instead of the whole block. */
+  focusBlockRange?: BlockRange | null
   blockCitations?: Record<string, {citations: number; comments: number}> | null
   onBlockCitationClick?: (blockId?: string | null) => void
   onBlockCommentClick?: (

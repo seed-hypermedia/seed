@@ -353,10 +353,13 @@ export function BlockDiscussions({
   targetId,
   commentEditor,
   targetDomain,
+  blockRange,
 }: {
   targetId: UnpackedHypermediaId
   commentEditor?: ReactNode
   targetDomain?: string
+  /** Optional codepoint range within `targetId.blockRef` to visually highlight inside the quoted block. */
+  blockRange?: BlockRange
 }) {
   const commentsService = useBlockDiscussionsService({targetId})
   const doc = useResource(targetId)
@@ -380,7 +383,14 @@ export function BlockDiscussions({
   if (!targetId) return null
 
   if (targetId.blockRef && doc.data?.type == 'document' && doc.data.document) {
-    quotedContent = <QuotedDocBlock docId={targetId} blockId={targetId.blockRef} doc={doc.data.document} />
+    quotedContent = (
+      <QuotedDocBlock
+        docId={targetId}
+        blockId={targetId.blockRef}
+        doc={doc.data.document}
+        blockRange={blockRange}
+      />
+    )
   } else if (doc.isInitialLoading) {
     quotedContent = (
       <div className="flex items-center justify-center">
@@ -871,12 +881,26 @@ function CommentDate({comment}: {comment: HMComment}) {
   return <Timestamp time={comment.createTime} route={destRoute} />
 }
 
-export function QuotedDocBlock({docId, blockId, doc}: {docId: UnpackedHypermediaId; blockId: string; doc: HMDocument}) {
+export function QuotedDocBlock({
+  docId,
+  blockId,
+  doc,
+  blockRange,
+}: {
+  docId: UnpackedHypermediaId
+  blockId: string
+  doc: HMDocument
+  blockRange?: BlockRange
+}) {
   const Viewer = useReadOnlyViewer()
   const blockContent = useMemo(() => {
     if (!doc.content) return null
     return getBlockNodeById(doc.content, blockId)
   }, [doc.content, blockId])
+
+  // Only forward a codepoint range — `{expanded: true}` blockRange variants
+  // should not trigger fragment highlighting.
+  const fragmentRange = blockRange && 'start' in blockRange ? blockRange : undefined
 
   return (
     <div className="bg-brand-50 dark:bg-brand-950 rounded-lg">
@@ -885,7 +909,14 @@ export function QuotedDocBlock({docId, blockId, doc}: {docId: UnpackedHypermedia
           <BlockQuote size={23} />
         </div>
         <div className="flex-1">
-          {blockContent && Viewer && <Viewer blocks={[blockContent]} resourceId={{...docId, blockRef: blockId}} />}
+          {blockContent && Viewer && (
+            <Viewer
+              blocks={[blockContent]}
+              resourceId={{...docId, blockRef: blockId}}
+              focusBlockId={fragmentRange ? blockId : undefined}
+              blockRange={fragmentRange}
+            />
+          )}
         </div>
       </div>
     </div>

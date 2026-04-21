@@ -2033,6 +2033,7 @@ function ContentViewWithOutline({
             blocks={existingDraftContent ?? document.content}
             resourceId={resourceId}
             focusBlockId={docId.blockRef ?? undefined}
+            focusBlockRange={docId.blockRange ?? undefined}
             blockCitations={blockCitations}
             onBlockCitationClick={onBlockCitationClick}
             onBlockCommentClick={onBlockCommentClick}

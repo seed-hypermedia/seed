@@ -61,6 +61,7 @@ export function DocumentEditor({
   blocks,
   resourceId,
   focusBlockId,
+  focusBlockRange,
   blockCitations,
   onBlockCitationClick,
   onBlockCommentClick,
@@ -372,17 +373,31 @@ export function DocumentEditor({
     return () => document.removeEventListener('keydown', handleDebugToggle)
   }, [])
 
-  // Dispatch block highlight when focusBlockId changes
+  // Dispatch block highlight when focusBlockId / focusBlockRange changes.
+  // When a codepoint range is provided, highlight only that fragment;
+  // otherwise fall back to highlighting the whole block.
+  const rangeStart =
+    focusBlockRange && 'start' in focusBlockRange ? focusBlockRange.start : null
+  const rangeEnd = focusBlockRange && 'end' in focusBlockRange ? focusBlockRange.end : null
   useEffect(() => {
     const view = editor._tiptapEditor?.view
     if (!view) return
 
-    if (focusBlockId) {
+    if (focusBlockId && rangeStart != null && rangeEnd != null) {
+      view.dispatch(
+        view.state.tr.setMeta(blockHighlightPluginKey, {
+          type: 'rangeFocus',
+          blockId: focusBlockId,
+          start: rangeStart,
+          end: rangeEnd,
+        }),
+      )
+    } else if (focusBlockId) {
       view.dispatch(view.state.tr.setMeta(blockHighlightPluginKey, {type: 'focus', blockId: focusBlockId}))
     } else {
       view.dispatch(view.state.tr.setMeta(blockHighlightPluginKey, {type: 'clear'}))
     }
-  }, [editor, focusBlockId])
+  }, [editor, focusBlockId, rangeStart, rangeEnd])
 
   // Attach DOM click listener for click-to-edit. Using a DOM listener (rather
   // than a ProseMirror plugin) gives us reliable access to the raw event target

@@ -1,9 +1,10 @@
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import type {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useMemo} from 'react'
+import type {BlockRange, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useEffect, useMemo} from 'react'
 import {useBlockNote} from './blocknote'
 import {BlockHoverActionsPositioner} from './blocknote/react/BlockHoverActions/BlockHoverActionsPositioner'
 import {RangeSelectionPositioner} from './blocknote/react/RangeSelection/RangeSelectionPositioner'
+import {blockHighlightPluginKey} from './blocknote/core/extensions/BlockHighlight/BlockHighlightPlugin'
 import {ReadOnlyBlockNoteView} from './readonly-blocknote-view'
 import type {HMBlockSchema} from './schema'
 import {hmBlockSchema} from './schema'
@@ -15,6 +16,10 @@ export interface ReadOnlyViewerProps {
   layoutUnit?: number
   className?: string
   commentStyle?: boolean
+  /** Block whose whole node (or fragment, when combined with `blockRange`) should be visually highlighted. */
+  focusBlockId?: string
+  /** Codepoint range within `focusBlockId` to highlight instead of the whole block. */
+  blockRange?: BlockRange
   onCopyBlockLink?: (blockId: string) => void
   onStartComment?: (blockId: string) => void
   onCopyFragmentLink?: (blockId: string, rangeStart: number, rangeEnd: number) => void
@@ -27,6 +32,8 @@ export function ReadOnlyViewer({
   layoutUnit,
   className,
   commentStyle,
+  focusBlockId,
+  blockRange,
   onCopyBlockLink,
   onStartComment,
   onCopyFragmentLink,
@@ -47,6 +54,29 @@ export function ReadOnlyViewer({
     },
     [initialContent],
   )
+
+  const rangeStart = blockRange && 'start' in blockRange ? blockRange.start : null
+  const rangeEnd = blockRange && 'end' in blockRange ? blockRange.end : null
+
+  useEffect(() => {
+    const view = editor._tiptapEditor?.view
+    if (!view) return
+
+    if (focusBlockId && rangeStart != null && rangeEnd != null) {
+      view.dispatch(
+        view.state.tr.setMeta(blockHighlightPluginKey, {
+          type: 'rangeFocus',
+          blockId: focusBlockId,
+          start: rangeStart,
+          end: rangeEnd,
+        }),
+      )
+    } else if (focusBlockId) {
+      view.dispatch(view.state.tr.setMeta(blockHighlightPluginKey, {type: 'focus', blockId: focusBlockId}))
+    } else {
+      view.dispatch(view.state.tr.setMeta(blockHighlightPluginKey, {type: 'clear'}))
+    }
+  }, [editor, focusBlockId, rangeStart, rangeEnd])
 
   const hasHoverActions = !!(onCopyBlockLink || onStartComment)
   const hasRangeSelection = !!(onCopyFragmentLink || onComment)

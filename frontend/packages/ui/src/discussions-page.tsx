@@ -48,7 +48,14 @@ export function DiscussionsPageContent({
       ...docId,
       blockRef: targetBlockId,
     })
-    content = <BlockDiscussions targetId={targetId} commentEditor={commentEditor} targetDomain={targetDomain} />
+    content = (
+      <BlockDiscussions
+        targetId={targetId}
+        commentEditor={commentEditor}
+        targetDomain={targetDomain}
+        blockRange={blockRange || undefined}
+      />
+    )
   } else if (openComment) {
     content = (
       <CommentDiscussions
