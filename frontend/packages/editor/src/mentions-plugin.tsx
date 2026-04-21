@@ -103,11 +103,14 @@ export function MentionToken(props: {value: string; selected?: boolean}) {
 function DocumentMention({unpackedRef, selected}: {unpackedRef: UnpackedHypermediaId; selected?: boolean}) {
   const entity = useResource(unpackedRef)
   const highlight = useHighlighter()
+  const resolved =
+    entity.data && 'document' in entity.data && entity.data.document
+      ? getDocumentTitle(entity.data.document)
+      : null
+  console.log('[DocumentMention]', unpackedRef.id, 'resolved=', resolved, 'status=', entity.status)
   return (
     <MentionText selected={selected} {...highlight(unpackedRef)}>
-      {entity.data && 'document' in entity.data && entity.data.document
-        ? getDocumentTitle(entity.data.document)
-        : unpackedRef.id}
+      {resolved || unpackedRef.id}
     </MentionText>
   )
 }
@@ -124,10 +127,12 @@ function ContactMention({
   const {contacts} = useUniversalAppContext()
   const highlight = useHighlighter()
   const entity = useAccount(accountUid)
+  const meta = getContactMetadata(accountUid, entity.data?.metadata, contacts)
+  console.log('[ContactMention]', accountUid, 'name=', meta.name, 'status=', entity.status)
 
   return (
     <MentionText selected={selected} {...highlight(highlightId)}>
-      {getContactMetadata(accountUid, entity.data?.metadata, contacts).name}
+      {meta.name}
     </MentionText>
   )
 }

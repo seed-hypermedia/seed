@@ -267,8 +267,36 @@ function isResourceSubscribed(resource: string): boolean {
 function processEvents(events: Event[]) {
   for (const event of events) {
     const resource = extractResource(event)
-    if (resource && isResourceSubscribed(resource)) {
+    const blobType = event.data.case === 'newBlob' ? event.data.value.blobType : null
+    const subscribed = resource ? isResourceSubscribed(resource) : false
+    console.log(`[Activity] event: type=${blobType}, resource=${resource}, subscribed=${subscribed}`)
+    if (resource && subscribed) {
       scheduleInvalidation(resource)
+    }
+
+    // Handle profile events specially - always invalidate account queries regardless of subscription
+    if (event.data.case === 'newBlob' && event.data.value.blobType?.toLowerCase() === 'profile') {
+      const resource = event.data.value.resource
+      if (resource) {
+        const id = unpackHmId(resource.split('?')[0] || '')
+        if (id) {
+          console.log(`[Activity] Profile event -> invalidating ACCOUNT for uid=${id.uid}`)
+          appInvalidateQueries([queryKeys.ACCOUNT, id.uid])
+        }
+      }
+    }
+
+    // Handle ref events specially - always invalidate entity queries so document mentions update
+    if (event.data.case === 'newBlob' && event.data.value.blobType?.toLowerCase() === 'ref') {
+      const resource = event.data.value.resource
+      if (resource) {
+        const id = unpackHmId(resource.split('?')[0] || '')
+        if (id) {
+          console.log(`[Activity] Ref event -> invalidating ENTITY for id=${id.id}`)
+          appInvalidateQueries([queryKeys.ENTITY, id.id])
+          appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+        }
+      }
     }
 
     // Handle contact events specially - invalidate contact queries
@@ -307,7 +335,7 @@ function processEvents(events: Event[]) {
 }
 
 // Event types to poll from the activity feed
-const ACTIVITY_EVENT_TYPES = ['Ref', 'Comment', 'Capability', 'Contact']
+const ACTIVITY_EVENT_TYPES = ['Ref', 'Comment', 'Capability', 'Contact', 'Profile']
 
 async function fetchNewEvents(): Promise<Event[]> {
   if (!state.lastEventId) {
