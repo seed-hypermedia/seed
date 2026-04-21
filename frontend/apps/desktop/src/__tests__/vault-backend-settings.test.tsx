@@ -126,8 +126,17 @@ vi.mock('@sentry/electron/main', () => ({}))
 vi.mock('@sentry/electron/renderer', () => ({}))
 vi.mock('@sentry/electron/preload', () => ({}))
 
+import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {VaultBackendSettings} from '../pages/settings'
 import {buildVaultConnectionURL} from '../utils/vault-connection'
+
+// Build the expected handoff URL from the resolved DAEMON_HTTP_URL so this test
+// is independent of the developer's local env (which may override the port via
+// DAEMON_HTTP_PORT / VITE_DESKTOP_HTTP_PORT).
+function expectedHandoffUrl(vaultUrl: string, token: string) {
+  const callback = encodeURIComponent(`${DAEMON_HTTP_URL}/vault-handoff`)
+  return `${vaultUrl}/connect#token=${token}&callback=${callback}`
+}
 
 function renderComponent() {
   const container = document.createElement('div')
@@ -251,9 +260,7 @@ describe('Vault backend settings', () => {
       vaultUrl: 'https://example.com/vault',
       force: false,
     })
-    expect(openUrlMock).toHaveBeenCalledWith(
-      'https://example.com/vault/connect#token=token-123&callback=http%3A%2F%2Flocalhost%3A56001%2Fvault-handoff',
-    )
+    expect(openUrlMock).toHaveBeenCalledWith(expectedHandoffUrl('https://example.com/vault', 'token-123'))
 
     cleanupRendered(root, container)
   })
@@ -301,9 +308,7 @@ describe('Vault backend settings', () => {
       vaultUrl: 'https://example.com/vault',
       force: false,
     })
-    expect(openUrlMock).toHaveBeenCalledWith(
-      'https://example.com/vault/connect#token=token-456&callback=http%3A%2F%2Flocalhost%3A56001%2Fvault-handoff',
-    )
+    expect(openUrlMock).toHaveBeenCalledWith(expectedHandoffUrl('https://example.com/vault', 'token-456'))
 
     cleanupRendered(root, container)
   })
