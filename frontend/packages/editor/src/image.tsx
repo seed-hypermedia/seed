@@ -1,3 +1,4 @@
+import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
 import {useEffect, useRef, useState} from 'react'
@@ -157,6 +158,7 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
 
 const display = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
   const getImageUrl = useImageUrl()
+  const {canEdit} = useEditorGate()
 
   useEffect(() => {
     // @ts-ignore
@@ -403,7 +405,7 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
       setSelected={setSelected}
       assign={assign}
       onHoverIn={() => {
-        if (editor.isEditable) {
+        if (canEdit) {
           setShowHandle(true)
         }
       }}

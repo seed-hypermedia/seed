@@ -1,4 +1,5 @@
 import {DAEMON_FILE_UPLOAD_URL, MAX_FILE_SIZE_B, MAX_FILE_SIZE_MB} from '@shm/shared/constants'
+import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {Button} from '@shm/ui/button'
 import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -46,6 +47,7 @@ export const MediaContainer = ({
   const [drag, setDrag] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isEmbed = ['embed', 'web-embed'].includes(mediaType)
+  const {canEdit, beginEditIfNeeded} = useEditorGate()
 
   const handleDragReplace = async (file: File) => {
     if (file.size > MAX_FILE_SIZE_B) {
@@ -165,7 +167,7 @@ export const MediaContainer = ({
 
   const mediaProps = {
     ...styleProps,
-    ...(isEmbed || !editor.isEditable ? {} : dragProps),
+    ...(isEmbed || !canEdit ? {} : dragProps),
     onMouseEnter: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       if (onHoverIn) onHoverIn()
     },
@@ -181,7 +183,7 @@ export const MediaContainer = ({
       //   'relative flex w-full flex-col gap-2 self-center',
       //   mediaType === 'file' ? 'items-stretch' : 'items-center',
       // )}
-      draggable={editor.isEditable ? 'true' : 'false'}
+      draggable={canEdit ? 'true' : 'false'}
       onDragStart={(e: any) => {
         // Uncomment to allow drag only if block is selected
         // if (!selected) {
@@ -189,6 +191,7 @@ export const MediaContainer = ({
         //   return
         // }
         e.stopPropagation()
+        beginEditIfNeeded()
         editor.sideMenu!.blockDragStart(e)
       }}
       onDragEnd={(e: any) => {
@@ -227,7 +230,7 @@ export const MediaContainer = ({
         {...mediaProps}
         contentEditable={false}
       >
-        {mediaType !== 'embed' && editor.isEditable && (
+        {mediaType !== 'embed' && canEdit && (
           <>
             <input
               ref={fileInputRef}

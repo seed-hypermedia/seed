@@ -1,4 +1,5 @@
 import {DAEMON_FILE_UPLOAD_URL, MAX_FILE_SIZE_B, MAX_FILE_SIZE_MB} from '@shm/shared/constants'
+import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
@@ -98,6 +99,7 @@ export const MediaRender: React.FC<RenderProps> = ({
   const [selected, setSelected] = useState(false)
   const [uploading, setUploading] = useState(false)
   const hasSrc = !!block.props?.src
+  const {canEdit, beginEditIfNeeded} = useEditorGate()
 
   useEditorSelectionChange(editor, () => updateSelection(editor, block, setSelected))
 
@@ -147,6 +149,7 @@ export const MediaRender: React.FC<RenderProps> = ({
   }, [hasSrc, block, uploading, editor, editor.importWebFile])
 
   const assignMedia = (props: MediaType) => {
+    beginEditIfNeeded()
     // we used to spread the current block.props into the new props, but now we just overwrite the whole thing because it was causing bugs
     // @ts-expect-error
     editor.updateBlock(block.id, props)
@@ -177,7 +180,7 @@ export const MediaRender: React.FC<RenderProps> = ({
           setSelected={setSelection}
           DisplayComponent={DisplayComponent}
         />
-      ) : editor.isEditable ? (
+      ) : canEdit ? (
         <MediaForm
           block={block}
           assign={assignMedia}
