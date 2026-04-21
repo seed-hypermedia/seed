@@ -33,6 +33,7 @@ import {HMFormattingToolbar} from './hm-formatting-toolbar'
 import {HypermediaLinkPreview} from './hm-link-preview'
 import {MentionMenuPositioner} from './mention-menu-positioner'
 import {hmBlockSchema, HMBlockSchema} from './schema'
+import {getSlashMenuItems} from './slash-menu-items'
 
 export type {DocumentContentProps}
 
@@ -55,6 +56,7 @@ function getContentTypeFromTarget(el: Element | null, root: Element): string | n
 
 export function DocumentEditor({
   blocks,
+  resourceId,
   focusBlockId,
   blockCitations,
   onBlockCitationClick,
@@ -134,6 +136,7 @@ export function DocumentEditor({
       renderType: 'document',
       blockSchema: hmBlockSchema,
       linkExtensionOptions: linkExtensionOptions as any,
+      getSlashMenuItems: () => getSlashMenuItems({docId: resourceId}),
       onEditorContentChange() {
         if (suppressChangeRef.current) return
         actorRef.send({type: 'change'})
