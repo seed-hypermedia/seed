@@ -1,3 +1,4 @@
+import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {Switch} from '@shm/ui/components/switch'
 import {isIpfsUrl, useFileProxyUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
@@ -259,6 +260,7 @@ function VideoOptions({
 
 const display = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
   const getFileUrl = useFileProxyUrl()
+  const {canEdit} = useEditorGate()
   const autoplay = block.props.autoplay === 'true'
   const loop = block.props.loop === 'true'
   const muted = block.props.muted === 'true'
@@ -431,7 +433,7 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
       setSelected={setSelected}
       assign={assign}
       onHoverIn={() => {
-        if (editor.isEditable) {
+        if (canEdit) {
           setShowHandle(true)
         }
       }}
@@ -467,9 +469,9 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
             contentEditable={false}
             className={cn(
               'video-iframe absolute top-0 right-0 bottom-0 left-0',
-              !editor.isEditable && 'pointer-events-auto',
-              editor.isEditable && !selected && 'pointer-events-none',
-              editor.isEditable && selected && 'pointer-events-auto',
+              !canEdit && 'pointer-events-auto',
+              canEdit && !selected && 'pointer-events-none',
+              canEdit && selected && 'pointer-events-auto',
             )}
             src={getVideoIframeSrc(block.props.url)}
             allowFullScreen
@@ -478,13 +480,13 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
           />
         ) : null}
       </div>
-      {editor.isEditable && showSuccess && block.props.name && (
+      {canEdit && showSuccess && block.props.name && (
         <div className="flex w-full items-center gap-2 rounded-sm bg-green-50 px-3 py-2 dark:bg-green-950/30">
           <CheckCircle2 className="size-4 shrink-0 text-green-600 dark:text-green-400" />
           <span className="text-sm text-green-800 dark:text-green-300">{block.props.name} uploaded successfully</span>
         </div>
       )}
-      {editor.isEditable && (block.props.displaySrc || isIpfsUrl(block.props.url || '')) && (
+      {canEdit && (block.props.displaySrc || isIpfsUrl(block.props.url || '')) && (
         <VideoOptions
           autoplay={autoplay}
           setAutoplay={setAutoplay}
