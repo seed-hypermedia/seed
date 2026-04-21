@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   commentRecordIdFromBlobMock: vi.fn(),
   createCommentMock: vi.fn(),
   createContactMock: vi.fn(),
+  updateContactMock: vi.fn(),
   getCurrentAccountUidWithDelegationMock: vi.fn(),
   getCurrentSignerMock: vi.fn(),
   getPendingIntentMock: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock('@seed-hypermedia/client', () => ({
   commentRecordIdFromBlob: mocks.commentRecordIdFromBlobMock,
   createComment: mocks.createCommentMock,
   createContact: mocks.createContactMock,
+  updateContact: mocks.updateContactMock,
 }))
 
 vi.mock('@shm/shared', () => ({

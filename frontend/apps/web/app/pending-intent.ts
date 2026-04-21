@@ -1,4 +1,4 @@
-import {commentRecordIdFromBlob, createComment, createContact} from '@seed-hypermedia/client'
+import {commentRecordIdFromBlob, createComment, createContact, updateContact} from '@seed-hypermedia/client'
 import type {HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {queryKeys} from '@shm/shared'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -17,24 +17,39 @@ async function joinSite(signer: HMSigner, siteUid: string) {
   if (!accountUid) {
     throw new Error('No account UID available to join site')
   }
-  // console.log('[joinSite] Getting contacts for account', {accountUid})
   const contacts = await webUniversalClient.request('AccountContacts', accountUid)
   console.log('[joinSite] Existing Contacts', contacts)
-  const existingJoinContact = contacts.find((c) => c.subject === siteUid && c.subscribe?.site)
-  if (existingJoinContact) {
-    console.log('[joinSite] Already have a contact for this site', {existingJoinContact})
+  const existingContact = contacts.find((c) => c.subject === siteUid)
+  if (existingContact?.subscribe?.site) {
+    console.log('[joinSite] Already have a site contact', {existingContact})
     return
   }
-  console.log('[joinSite] Creating contact for site', {siteUid, accountUid})
-  const contactPayload = await createContact(
-    {
-      subjectUid: siteUid,
-      accountUid,
-      subscribe: {site: true},
-    },
-    signer,
-  )
-  await webUniversalClient.publish(contactPayload)
+  if (existingContact) {
+    // Update existing contact to add site subscription instead of creating a duplicate
+    console.log('[joinSite] Updating existing contact to add site subscription', {existingContact})
+    const contactPayload = await updateContact(
+      {
+        contactId: existingContact.id,
+        subjectUid: siteUid,
+        accountUid,
+        name: existingContact.name,
+        subscribe: {...existingContact.subscribe, site: true},
+      },
+      signer,
+    )
+    await webUniversalClient.publish(contactPayload)
+  } else {
+    console.log('[joinSite] Creating contact for site', {siteUid, accountUid})
+    const contactPayload = await createContact(
+      {
+        subjectUid: siteUid,
+        accountUid,
+        subscribe: {site: true},
+      },
+      signer,
+    )
+    await webUniversalClient.publish(contactPayload)
+  }
 
   invalidateQueries([queryKeys.CONTACTS_ACCOUNT, accountUid])
   invalidateQueries([queryKeys.CONTACTS_SUBJECT, siteUid])
@@ -55,15 +70,31 @@ async function followProfile(signer: HMSigner, profileUid: string) {
     return
   }
 
-  const contactPayload = await createContact(
-    {
-      subjectUid: profileUid,
-      accountUid,
-      subscribe: existingContact ? {...existingContact.subscribe, profile: true} : {profile: true},
-    },
-    signer,
-  )
-  await webUniversalClient.publish(contactPayload)
+  if (existingContact) {
+    // Update existing contact to add profile subscription instead of creating a duplicate
+    console.log('[followProfile] Updating existing contact to add profile subscription', {existingContact})
+    const contactPayload = await updateContact(
+      {
+        contactId: existingContact.id,
+        subjectUid: profileUid,
+        accountUid,
+        name: existingContact.name,
+        subscribe: {...existingContact.subscribe, profile: true},
+      },
+      signer,
+    )
+    await webUniversalClient.publish(contactPayload)
+  } else {
+    const contactPayload = await createContact(
+      {
+        subjectUid: profileUid,
+        accountUid,
+        subscribe: {profile: true},
+      },
+      signer,
+    )
+    await webUniversalClient.publish(contactPayload)
+  }
 
   invalidateQueries([queryKeys.CONTACTS_ACCOUNT, accountUid])
   invalidateQueries([queryKeys.CONTACTS_SUBJECT, profileUid])

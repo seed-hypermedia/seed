@@ -195,7 +195,6 @@ function SiteLink({account}: {account?: HMMetadataPayload | null}) {
   const hasSite = !!siteUrl || !!homeDocData?.content?.length
   const domainInfo = useDomain(hostname, {
     enabled: !!hostname,
-    forceCheck: true,
     retry: false,
     staleTime: DOMAIN_LINK_STALE_TIME_MS,
     refetchOnWindowFocus: false,

@@ -1999,6 +1999,9 @@ function ContentViewWithOutline({
  * Subscribes to the profile account so it gets discovered from the network, then shows
  * appropriate loading/discovery indicators before rendering the AccountPage.
  */
+/** Profile discovery can take much longer than normal entity discovery (sync, etc). */
+const PROFILE_DISCOVERY_TIMEOUT_MS = 5 * 60 * 1000
+
 function SiteProfileContent({
   siteUid,
   accountUid,
@@ -2017,21 +2020,28 @@ function SiteProfileContent({
   pageFooter?: ReactNode
 }) {
   const profileId = hmId(accountUid)
+  // Subscribe to trigger background discovery/sync and track discovery state
   const profileResource = useResource(profileId, {subscribed: true, recursive: true})
   const account = useAccount(accountUid)
 
-  if (profileResource.isInitialLoading) {
-    return (
-      <>
-        <div className="flex flex-1 items-center justify-center">
-          <Spinner />
-        </div>
-        {pageFooter}
-      </>
-    )
-  }
+  // Track when we started looking so we can keep showing discovery UI
+  // beyond the short global discovery timeout. Periodically refetch the
+  // account query while waiting — data may arrive from sync at any point.
+  const [mountedAt] = useState(() => Date.now())
+  const [now, setNow] = useState(() => Date.now())
+  const hasData = !!account.data
+  useEffect(() => {
+    if (hasData) return
+    const id = setInterval(() => {
+      setNow(Date.now())
+      account.refetch()
+    }, 5_000)
+    return () => clearInterval(id)
+  }, [hasData, account.refetch])
+  const elapsed = now - mountedAt
+  const stillLooking = !hasData && elapsed < PROFILE_DISCOVERY_TIMEOUT_MS
 
-  if (profileResource.isDiscovering) {
+  if (account.isLoading || profileResource.isDiscovering || stillLooking) {
     return (
       <>
         <PageDiscovery entityType="profile" />
@@ -2040,21 +2050,17 @@ function SiteProfileContent({
     )
   }
 
-  if (account.isLoading) {
+  if (account.data) {
     return (
       <>
-        <div className="flex flex-1 items-center justify-center">
-          <Spinner />
-        </div>
-        {pageFooter}
-      </>
-    )
-  }
-
-  if (!account.data) {
-    return (
-      <>
-        <PageNotFound entityType="profile" />
+        <AccountPage
+          siteUid={siteUid}
+          accountUid={accountUid}
+          tab={tab}
+          onEditProfile={onEditProfile}
+          headerButtons={headerButtons}
+          onFollowClick={onFollowClick}
+        />
         {pageFooter}
       </>
     )
@@ -2062,14 +2068,7 @@ function SiteProfileContent({
 
   return (
     <>
-      <AccountPage
-        siteUid={siteUid}
-        accountUid={accountUid}
-        tab={tab}
-        onEditProfile={onEditProfile}
-        headerButtons={headerButtons}
-        onFollowClick={onFollowClick}
-      />
+      <PageNotFound entityType="profile" />
       {pageFooter}
     </>
   )
