@@ -77,6 +77,8 @@ var fineBucketing = []time.Duration{
 	2 * time.Second,
 	5 * time.Second,
 	10 * time.Second,
+	30 * time.Second,
+	60 * time.Second,
 }
 
 // Thresholds above which percentile cells are rendered in red.
@@ -183,9 +185,15 @@ func histogramQuantile(p float64, buckets []time.Duration, counts []int) time.Du
 				return buckets[i]
 			}
 			// Position within the bucket: how many samples into this bucket
-			// (from its low end) is the target rank.
-			within := counts[i] - remaining // 1..bucketSamples
-			frac := float64(within) / float64(bucketSamples)
+			// (from its low end) is the target rank (1..bucketSamples).
+			// Midpoint interpolation: sample k sits at slot center
+			// (k-0.5)/bucketSamples — so the result never pins to an exact
+			// bucket boundary.
+			within := counts[i] - remaining
+			frac := (float64(within) - 0.5) / float64(bucketSamples)
+			if frac < 0 {
+				frac = 0
+			}
 			span := buckets[i+1] - buckets[i]
 			return buckets[i] + time.Duration(float64(span)*frac)
 		}
