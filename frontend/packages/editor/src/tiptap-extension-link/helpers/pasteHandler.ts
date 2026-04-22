@@ -1,7 +1,7 @@
+import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
+import {HMDocumentMetadataSchema, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getDocumentTitle} from '@shm/shared/content'
 import {GRPCClient} from '@shm/shared/grpc-client'
-import {HMDocumentMetadataSchema, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
 import {hmId, isHypermediaScheme, isPublicGatewayLink, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {StateStream} from '@shm/shared/utils/stream'
@@ -329,7 +329,24 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           // Capture position before async work, since document state may change.
           const insertPos = view.state.selection.$from.pos
 
-          // Resolve the URL fully before inserting anything, to avoid flashing.
+          // Synchronously insert the raw URL with a link mark.
+          // - The hm-resolved path overwrites it with the document title.
+          // - The web path keeps it.
+          // - handleWebUrl's internal web case already
+          //   assumes the URL is in the doc and will delete+replace if it later
+          //   resolves to an hm resource.
+          const insertWebUrl = () => {
+            view.dispatch(
+              view.state.tr
+                .insertText(link.href, insertPos)
+                .addMark(
+                  insertPos,
+                  insertPos + link.href.length,
+                  options.editor.schema.mark('link', {href: link.href}),
+                ),
+            )
+          }
+
           ;(async () => {
             try {
               const linkMetaResult = await resolveHypermediaUrl(link.href, {domainResolver: options.domainResolver})
@@ -380,10 +397,12 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                   }),
                 )
               } else {
+                insertWebUrl()
                 handleWebUrl(view, link, options)
               }
             } catch (err) {
               console.log('Error checking for hypermedia site:', err)
+              insertWebUrl()
               handleWebUrl(view, link, options)
             }
           })()
