@@ -90,7 +90,7 @@ export function AuthorNameLink({author, siteUid}: {author: HMContactItem | null;
   const authorName = resolvedName || abbreviateUid(author?.id?.uid)
   const linkProps = useRouteLink(getContextualProfileRoute(currentRoute, author?.id || null, siteUid))
   return (
-    <a className={`text-sm font-bold${resolvedName ? 'text-foreground' : 'text-muted-foreground'}`} {...linkProps}>
+    <a className={`text-sm font-bold ${resolvedName ? 'text-foreground' : 'text-muted-foreground'}`} {...linkProps}>
       {authorName}
       {isLoading ? (
         <span className="ml-1">

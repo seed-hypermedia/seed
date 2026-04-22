@@ -20,6 +20,10 @@ const (
 	StagingGatewayPID = "12D3KooWMK6YJNcLuwwLBQigfQUsu5B71mdwf89bKusbVoYHoHPH"
 	// DevGatewayPID is the peer id of the dev gateway.
 	DevGatewayPID = "12D3KooWMjs8x6ST53ZuXAegedQ4dJ2HYYQmFpw1puGpBZmLRCGB"
+	// GaboEsGatewayPID is the peer id of the gabo.es gateway. It tracks the
+	// main branch rather than :latest, giving the bootstrap list a second
+	// production-grade anchor on a different release cadence.
+	GaboEsGatewayPID = "12D3KooWKXHnBR2kwtaZTePYKTh3FQuaSQVcpMwSwobLeVkuWjPC"
 
 	bootstrapSupportKey = "bootstrap-support" // This is what we use as a key to protect the connection in ConnManager.
 )

@@ -31,9 +31,7 @@ describe('unpackHmId', () => {
       latest: true,
     })
   })
-  test('unpacks hm://foo#bar - blockRef forces latest=false', () => {
-    // When blockRef is present, latest should be false because
-    // the block only exists in a specific version
+  test('unpacks hm://foo#bar - no version means latest=true even with blockRef', () => {
     expect(unpackHmId('hm://foo#bar')).toEqual({
       id: 'hm://foo',
       scheme: 'hm',
@@ -45,7 +43,7 @@ describe('unpackHmId', () => {
       },
       blockRef: 'bar',
       path: [],
-      latest: false,
+      latest: true,
     })
   })
   test('unpacks hm://foo?v=bar', () => {
@@ -76,7 +74,7 @@ describe('unpackHmId', () => {
         latest: false,
       })
     })
-    test('unpacks http://foobar.com/hm/1#block - blockRef forces latest=false', () => {
+    test('unpacks http://foobar.com/hm/1#block - no version means latest=true even with blockRef', () => {
       expect(unpackHmId('http://foobar.com/hm/1#block')).toEqual({
         scheme: 'http',
         hostname: 'foobar.com',
@@ -85,7 +83,7 @@ describe('unpackHmId', () => {
         blockRange: {
           expanded: false,
         },
-        latest: false,
+        latest: true,
         blockRef: 'block',
         id: 'hm://1',
         path: [],
@@ -180,9 +178,7 @@ describe('createOSProtocolUrl', () => {
 })
 
 describe('unpackHmId - blockRef and version precedence', () => {
-  test('blockRef with ?l param - blockRef takes precedence, latest=false', () => {
-    // When blockRef is present, ?l should be ignored because
-    // the block only exists in a specific version
+  test('blockRef with ?l param - ?l is honored, latest=true', () => {
     const result = unpackHmId('hm://uid?l#blockId')
     expect(result).toEqual({
       id: 'hm://uid',
@@ -195,7 +191,7 @@ describe('unpackHmId - blockRef and version precedence', () => {
       },
       blockRef: 'blockId',
       path: [],
-      latest: false, // blockRef forces latest=false
+      latest: true,
     })
   })
 
@@ -212,12 +208,11 @@ describe('unpackHmId - blockRef and version precedence', () => {
       },
       blockRef: 'blockId',
       path: [],
-      latest: false, // version is specified, so latest=false
+      latest: false,
     })
   })
 
-  test('blockRef with both ?l and ?v params - version takes precedence', () => {
-    // When both ?l and ?v are present with blockRef, version wins
+  test('blockRef with both ?l and ?v params - ?l is honored, latest=true', () => {
     const result = unpackHmId('hm://uid?l&v=abc123#blockId')
     expect(result).toEqual({
       id: 'hm://uid',
@@ -230,7 +225,7 @@ describe('unpackHmId - blockRef and version precedence', () => {
       },
       blockRef: 'blockId',
       path: [],
-      latest: false, // blockRef forces latest=false regardless of ?l
+      latest: true,
     })
   })
 
@@ -245,12 +240,11 @@ describe('unpackHmId - blockRef and version precedence', () => {
       blockRange: null,
       blockRef: null,
       path: [],
-      latest: true, // no blockRef, so ?l is respected
+      latest: true,
     })
   })
 
-  test('expanded blockRef also forces latest=false', () => {
-    // parseFragment expects 8-character block IDs
+  test('expanded blockRef with ?l param - latest=true', () => {
     const result = unpackHmId('hm://uid?l#XK6l8B4d+')
     expect(result).toEqual({
       id: 'hm://uid',
@@ -263,12 +257,11 @@ describe('unpackHmId - blockRef and version precedence', () => {
       },
       blockRef: 'XK6l8B4d',
       path: [],
-      latest: false,
+      latest: true,
     })
   })
 
-  test('blockRef with range also forces latest=false', () => {
-    // parseFragment expects 8-character block IDs
+  test('blockRef with range and ?l param - latest=true', () => {
     const result = unpackHmId('hm://uid?l#XK6l8B4d[21:41]')
     expect(result).toEqual({
       id: 'hm://uid',
@@ -282,7 +275,7 @@ describe('unpackHmId - blockRef and version precedence', () => {
       },
       blockRef: 'XK6l8B4d',
       path: [],
-      latest: false,
+      latest: true,
     })
   })
 })
@@ -1171,6 +1164,16 @@ describe('roundtrip: createWebHMUrl -> unpackHmId', () => {
     const unpacked = unpackHmId(url)
     expect(unpacked?.latest).toBe(true)
     expect(unpacked?.version).toBeNull()
+  })
+
+  test('doc URL with version, latest, and blockRef roundtrips as latest', () => {
+    const url = packHmId(hmId('abc', {version: 'v1', latest: true, blockRef: 'XK6l8B4d'}))
+    expect(url).toBe('hm://abc?v=v1&l#XK6l8B4d')
+    const unpacked = unpackHmId(url)
+    expect(unpacked?.uid).toBe('abc')
+    expect(unpacked?.version).toBe('v1')
+    expect(unpacked?.blockRef).toBe('XK6l8B4d')
+    expect(unpacked?.latest).toBe(true)
   })
 })
 
