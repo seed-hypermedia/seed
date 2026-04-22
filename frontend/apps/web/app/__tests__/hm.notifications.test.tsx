@@ -27,6 +27,10 @@ vi.mock('@/web-notifications', () => ({
 
 vi.mock('@remix-run/react', () => ({
   useNavigate: () => vi.fn(),
+  // `notifications-page-content` persists the `view` filter to the URL via
+  // `useSearchParams`. The component reads `searchParams.get('view')` and
+  // calls `setSearchParams({view}, {replace: true})`, so we return an empty
+  // URLSearchParams + a noop setter.
   useSearchParams: () => [new URLSearchParams(), vi.fn()],
 }))
 

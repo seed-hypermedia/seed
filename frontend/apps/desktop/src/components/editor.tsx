@@ -67,7 +67,7 @@ export function HyperMediaEditorView({
 
   return (
     <FragmentActionsContext.Provider value={fragmentActionsValue}>
-      <BlockNoteView editor={editor}>
+      <BlockNoteView editor={editor} className={comment ? 'hm-prose is-comment' : 'hm-prose draft-editor'}>
         {editable && (
           <>
             <FormattingToolbarPositioner editor={editor} formattingToolbar={HMFormattingToolbar} />

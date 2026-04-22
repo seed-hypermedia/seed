@@ -486,7 +486,7 @@ export function DocumentEditor({
 
   return (
     <FragmentActionsContext.Provider value={fragmentActionsValue}>
-      <BlockNoteView editor={editor}>
+      <BlockNoteView editor={editor} className="hm-prose draft-editor">
         {/* Editing-only positioners — gated behind isEditing */}
         {editable && (
           <>

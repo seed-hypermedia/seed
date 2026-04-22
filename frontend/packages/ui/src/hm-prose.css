@@ -1,0 +1,360 @@
+/*
+ * .hm-prose — natural typography for hypermedia documents.
+ *
+ * Applied to the root container of any rendered document body: the
+ * editor, the read-only viewer, embed wrappers, and comment bodies.
+ * Works as an extension of Tailwind Typography's `prose` class: the
+ * plugin's `:where()`-wrapped defaults give zero-specificity em-based
+ * rhythm, and our `.hm-prose` descendant rules layer our font stacks,
+ * link treatment, code styling, and wrapper-aware section rhythm on
+ * top.
+ *
+ * Rules use *descendant* (not child) selectors — the editor wraps
+ * every block in `.blockNode > .blockContent` for ProseMirror
+ * decoration plumbing, so `.hm-prose > h1` would miss real `<h1>`
+ * elements nested two levels deeper.
+ *
+ * Size is controlled via `--hm-prose-size` (default 1rem). Apply
+ * `.hm-prose-sm`, `.hm-prose-lg`, or `.hm-prose-xl` on the same
+ * element as `.hm-prose` to swap the size without touching margins
+ * — em-based spacing scales automatically.
+ */
+
+/* ---------- Size modifiers (à la prose-sm / prose-lg) ----------
+ * Default baseline is 1.125rem (18px at a 16px root) — the document
+ * reading size. Comments drop to 1rem via `.is-comment` below.
+ * Apply a modifier class to opt into a different scale without
+ * touching the rhythm rules (all margins are in em, so they scale
+ * automatically). */
+.hm-prose-sm {
+  --hm-prose-size: 0.875rem;
+}
+.hm-prose-base {
+  --hm-prose-size: 1rem;
+}
+.hm-prose-lg {
+  --hm-prose-size: 1.125rem;
+}
+.hm-prose-xl {
+  --hm-prose-size: 1.25rem;
+}
+
+/* ---------- Base ---------- */
+.hm-prose {
+  font-family: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+  font-size: var(--hm-prose-size, 1.125rem);
+  line-height: 1.6;
+  color: var(--foreground, inherit);
+  max-width: none;
+}
+
+.hm-prose.is-comment,
+.hm-prose .is-comment {
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  font-size: 1rem;
+}
+
+/* Headings ride the UI sans stack so they read as structure, not prose. */
+.hm-prose h1,
+.hm-prose h2,
+.hm-prose h3,
+.hm-prose h4,
+.hm-prose h5,
+.hm-prose h6 {
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--foreground, inherit);
+  /* margin-top is owned by the wrapper (.blockNode) so the first-child
+   * reset works cleanly in both editor and SSR DOM trees. See below. */
+  /* margin-top: 0; */
+}
+
+.hm-prose h1 {
+  font-size: 1.9em;
+  margin-bottom: 0.4em;
+}
+.hm-prose h2 {
+  font-size: 1.5em;
+  margin-bottom: 0.4em;
+}
+.hm-prose h3 {
+  font-size: 1.25em;
+  margin-bottom: 0.35em;
+}
+.hm-prose h4 {
+  font-size: 1.1em;
+  margin-bottom: 0.3em;
+}
+.hm-prose h5,
+.hm-prose h6 {
+  font-size: 1em;
+  margin-bottom: 0.25em;
+}
+
+/* ---------- Block rhythm ----------
+ * Selectors target the data-node-type attributes emitted by
+ * BlockNode.renderHTML — NOT `.blockNode` / `.blockChildren`, which
+ * are CSS-module-scoped classes (hashed to `_blockNode_xxxx` at
+ * build time) so they'd never match from a global stylesheet.
+ *
+ * The wrapper carries the gap so the same rule works across all
+ * block types (paragraph, list, quote, media, code, embed). Heading
+ * wrappers override with a bigger section-marker gap, and the
+ * `:first-child` rule zeroes it for the first block. */
+.hm-prose [data-node-type='blockNode'] + [data-node-type='blockNode'] {
+  margin-top: 0.75rem; /* ~12px at 16px base — visible "paragraph" gap */
+}
+
+/* Section-marker rhythm lives on the heading's WRAPPER, not the
+ * heading element itself, so that the first-child reset works
+ * cleanly. Scale uses rem (not em) so wrappers don't need to know
+ * their own font-size. */
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='1']) {
+  margin-top: 2.5rem;
+}
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='2']) {
+  margin-top: 2rem;
+}
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='3']) {
+  margin-top: 1.5rem;
+}
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='4']),
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='5']),
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='6']) {
+  margin-top: 1.25rem;
+}
+
+/* Media / code / quote / embed get a bit more breathing room than
+ * plain text, but less than a section heading. */
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='image']),
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='video']),
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='file']),
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='embed']),
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='web-embed']),
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='button']),
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='math']),
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='query']),
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='code-block']) {
+  margin-top: 1.25rem;
+}
+
+/* Top-of-document first block: no margin. Covers both the editor's
+ * root ProseMirror child and the SSR outer container. */
+.hm-prose [data-node-type='blockNode']:first-child,
+.hm-prose [data-node-type='blockChildren'] > [data-node-type='blockNode']:first-child {
+  margin-top: 0;
+}
+
+/* Nested first-child: small separation from the parent block's own
+ * content so the nested group reads as "part of, but distinct from"
+ * its parent. Specificity (0,3,0) beats the reset above (0,2,0). */
+.hm-prose [data-node-type='blockChildren'] [data-node-type='blockChildren'] > [data-node-type='blockNode']:first-child {
+  margin-top: 0.25em;
+}
+
+/* Consecutive headings collapse to body rhythm so stacked H1→H2
+ * doesn't open a double section break. */
+.hm-prose
+  [data-node-type='blockNode']:has(> [data-content-type='heading'])
+  + [data-node-type='blockNode']:has(> [data-content-type='heading']) {
+  margin-top: 1rem;
+}
+
+/* List items tighten: items inside a list belong to one visual unit. */
+.hm-prose
+  [data-node-type='blockChildren'][data-list-type='Unordered']
+  > [data-node-type='blockNode']
+  + [data-node-type='blockNode'],
+.hm-prose
+  [data-node-type='blockChildren'][data-list-type='Ordered']
+  > [data-node-type='blockNode']
+  + [data-node-type='blockNode'] {
+  margin-top: 0.25rem;
+}
+
+/* ---------- SSR parity (no .blockNode wrapper in SSR output) ----------
+ * The server emits the same class names, so the rules above apply
+ * identically. If the SSR emits bare semantic tags anywhere, these
+ * fallbacks keep rhythm sane. */
+.hm-prose > h1,
+.hm-prose > h2,
+.hm-prose > h3,
+.hm-prose > h4,
+.hm-prose > h5,
+.hm-prose > h6 {
+  margin-top: 1.75rem;
+}
+.hm-prose > h1:first-child,
+.hm-prose > h2:first-child,
+.hm-prose > h3:first-child,
+.hm-prose > h4:first-child,
+.hm-prose > h5:first-child,
+.hm-prose > h6:first-child {
+  margin-top: 0;
+}
+
+/* ---------- Body ---------- */
+.hm-prose p {
+  margin: 0;
+}
+
+/* ---------- Inline marks ---------- */
+.hm-prose strong,
+.hm-prose b {
+  font-weight: 600;
+  color: inherit;
+}
+.hm-prose em,
+.hm-prose i {
+  font-style: italic;
+}
+.hm-prose u {
+  text-decoration-line: underline;
+  text-underline-offset: 0.2em;
+}
+.hm-prose s,
+.hm-prose del {
+  text-decoration-line: line-through;
+}
+
+/* ---------- Links ----------
+ * Targeting the `.link` class rather than every `<a>` descendant so
+ * structural links that happen to sit inside `.hm-prose` — e.g. a
+ * `DocumentCard` that wraps its whole body in an `<a>` — keep their
+ * own chrome. The editor and SSR renderer both tag real hyperlinks
+ * (and inline-embed spans) with `.link`, so every actual link still
+ * gets the underline treatment. */
+.hm-prose .link {
+  color: var(--link, inherit);
+  text-decoration-line: underline;
+  text-decoration-color: currentColor;
+  text-underline-offset: 0.2em;
+  text-decoration-skip-ink: none;
+  transition: color 0.15s ease;
+}
+.hm-prose .link:hover {
+  color: var(--link-hover, inherit);
+}
+
+/* ---------- Inline code ----------
+ * Pill treatment: visible background, softer foreground, monospace.
+ * Light-mode uses a subtle tinted gray; dark-mode flips to a higher-
+ * contrast chip that reads clearly against the panel background.
+ * Colors are written as fallbacks so the pill works even in contexts
+ * that don't register the design tokens (e.g. naked SSR). */
+.hm-prose code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace);
+  font-size: 0.875em;
+  background-color: rgba(0, 0, 0, 0.07);
+  color: #b91c1c; /* slate-red, WCAG AA on light muted bg */
+  padding: 0.15em 0.4em;
+  border-radius: 0.3em;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+.dark .hm-prose code,
+[data-theme='dark'] .hm-prose code {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #fca5a5; /* soft red-pink, WCAG AA on dark muted bg */
+}
+
+/* ---------- Code blocks ---------- */
+.hm-prose pre {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace);
+  font-size: 0.9em;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.hm-prose pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+
+/* ---------- Blockquotes ---------- */
+.hm-prose blockquote {
+  margin: 0;
+  font-style: normal;
+  color: inherit;
+}
+
+/* ---------- Lists ---------- */
+.hm-prose ul,
+.hm-prose ol {
+  margin: 0;
+  padding-inline-start: 1.5em;
+}
+
+.hm-prose li {
+  margin: 0;
+}
+
+.hm-prose li > p {
+  margin: 0;
+}
+
+/* ---------- Horizontal rule ---------- */
+.hm-prose hr {
+  border: 0;
+  border-top: 1px solid var(--border, currentColor);
+  opacity: 0.4;
+  margin: 1.5em 0;
+}
+
+/* ---------- Images / figures ----------
+ * Safety-cap is scoped to the image BLOCK specifically, not every <img>
+ * under `.hm-prose`. Broad `.hm-prose img` defaults conflict with
+ * Tailwind utility classes (`h-full`, `object-cover`, `w-full`) that
+ * sibling components like document-card covers and query-block thumbs
+ * apply to their own imagery — those shouldn't inherit prose sizing
+ * just because they happen to be inside a prose container. */
+.hm-prose [data-content-type='image'] img {
+  max-width: 100%;
+  height: auto;
+}
+
+.hm-prose figure {
+  margin: 0;
+}
+
+.hm-prose figcaption {
+  font-size: 0.875em;
+  opacity: 0.7;
+  text-align: center;
+  margin-top: 0.5em;
+}
+
+/* ---------- Comment variant ---------- */
+.hm-prose.is-comment .blockNode:has(> [data-content-type='heading'][data-level='1']),
+.hm-prose.is-comment .blockNode:has(> [data-content-type='heading'][data-level='2']),
+.hm-prose.is-comment .blockNode:has(> [data-content-type='heading'][data-level='3']) {
+  /* Comments tighten section rhythm. */
+  margin-top: 1rem;
+}
+.hm-prose.is-comment .blockNode:has(> [data-content-type='heading'][data-level='4']),
+.hm-prose.is-comment .blockNode:has(> [data-content-type='heading'][data-level='5']),
+.hm-prose.is-comment .blockNode:has(> [data-content-type='heading'][data-level='6']) {
+  margin-top: 0.75rem;
+}

@@ -40,7 +40,7 @@ export function renderDocumentToHTML(blocks: HMBlockNode[], opts?: SSRRenderOpts
     // Wrap in a blockChildren container at depth 1 (matching editor's root group)
     const inner = renderBlockChildren(blocks, 'Group', 1, null, embeds)
     if (!inner) return null
-    const result = `<div class="ssr-content-placeholder">${inner}</div>`
+    const result = `<div class="ssr-content-placeholder hm-prose">${inner}</div>`
 
     if (key) {
       htmlCache.set(key, result)

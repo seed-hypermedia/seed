@@ -1,3 +1,4 @@
+import './blocks-content.css'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {NavRoute} from '@shm/shared'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
@@ -55,7 +56,7 @@ export function EmbedWrapper({
     <div
       contentEditable={false}
       className={cn(
-        'block-embed flex flex-col',
+        'block-embed hm-prose flex flex-col',
         blockStyles,
         !hideBorder && 'border-l-primary border-l-3',
         'm-0 rounded-none',

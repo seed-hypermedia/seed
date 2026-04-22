@@ -200,7 +200,13 @@ export const blockNoteToMantineTheme = (theme: Theme): MantineThemeOverride => {
                 backgroundColor: theme.colors.editor.background,
                 borderRadius: editorBorderRadius,
                 color: theme.colors.editor.text,
-                fontFamily: theme.fontFamily,
+                // fontFamily is owned by `.hm-prose` on the editor
+                // container (see packages/ui/src/hm-prose.css). Emitting
+                // it here produces a `.mantine-xxxx .ProseMirror` rule
+                // that emotion caches across HMR — old rules can linger
+                // after an editor remount (e.g. right after a markdown
+                // import) and fight the prose stack until a full
+                // reload rebuilds the cache.
               },
               // Placeholders
               // @ts-expect-error

@@ -40,6 +40,7 @@
     "@radix-ui/react-tabs": "^1.1.12",
     "@seed-hypermedia/client": "workspace:*",
     "@shm/shared": "workspace:*",
+    "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "^4.1.8",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

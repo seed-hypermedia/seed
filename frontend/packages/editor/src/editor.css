@@ -2,29 +2,9 @@
 .editor {
   --text-unit: 18;
   --layout-unit: 24;
-  /* 8px-grid block spacing tokens. Consumed by .blockNode sibling rules
-     in Block.module.css and by heading/media/quote overrides below. */
-  --space-xs: 8px;
-  --space-sm: 16px;
-  --space-md: 24px;
-  --space-lg: 32px;
-  --space-xl: 48px;
-  /* max-width: calc(75ch + 108px); */
   width: 100%;
   margin-left: auto;
   margin-right: auto;
-}
-
-/* Mobile scale-down. Keeps the rhythm but shortens it for narrow viewports. */
-@media (max-width: 640px) {
-  #editor-header-content,
-  .editor {
-    --space-xs: 8px;
-    --space-sm: 12px;
-    --space-md: 20px;
-    --space-lg: 24px;
-    --space-xl: 40px;
-  }
 }
 
 /* #editor-header-content {
@@ -54,36 +34,8 @@
   background-color: transparent;
 }
 
-.draft-editor .ProseMirror {
-  font-family: Georgia, 'Times New Roman', Times, serif !important;
-}
-
-.draft-editor .ProseMirror .editor-controls {
-  font-family:
-    'Inter',
-    'SF Pro Display',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Open Sans',
-    'Segoe UI',
-    'Roboto',
-    'Oxygen',
-    'Ubuntu',
-    'Cantarell',
-    'Fira Sans',
-    'Droid Sans',
-    'Helvetica Neue',
-    sans-serif !important;
-}
-
-.comment-editor .ProseMirror {
-  font-family:
-    'Inter',
-    'SF Pro Display',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Open Sans';
-}
+/* Font-family rules live in hm-prose.css (ui-serif for docs,
+ * ui-sans-serif for editor controls and comments). */
 
 /* recommendation from Haz: https://twitter.com/diegohaz/status/1591829631811846147 */
 .link {
@@ -143,46 +95,17 @@
   display: list-item;
 }
 
-.comment-editor,
-.comment-editor .ProseMirror {
-  font-family:
-    'Inter',
-    'SF Pro Display',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Open Sans',
-    'Segoe UI',
-    'Roboto',
-    'Oxygen',
-    'Ubuntu',
-    'Cantarell',
-    'Fira Sans',
-    'Droid Sans',
-    'Helvetica Neue',
-    sans-serif !important;
-  font-size: 1em;
+/* Comment font stack, blockquote chrome, and inline code styling now
+ * live in hm-prose.css. */
+
+.comment-editor {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-.comment-editor [data-list-type='Blockquote'] {
-  border-left: 3px solid rgb(0 0 0 / 0.2) !important;
+.hm-prose [data-list-type='Blockquote'] {
+  border-left: 3px solid var(--border, rgb(0 0 0 / 0.2));
   padding-left: 15px;
-  margin: 1em 0;
-}
-
-.dark .comment-editor [data-list-type='Blockquote'] {
-  border-left: 3px solid rgb(255 255 255 / 0.3) !important;
-}
-
-.editor code {
-  background-color: var(--muted);
-  font-family: 'ui-monospace', 'SFMono-Regular', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
-  overflow: hidden;
-  font-size: 0.8em;
-  line-height: 1.5;
-  padding: var(--space-5);
-  border-radius: 4px;
 }
 
 [data-node-type='blockNode']::marker {
@@ -522,70 +445,11 @@ ul[data-list-type='Unordered'] > [data-node-type='blockNode'] > [data-list-type=
   margin-left: 0;
 }
 
-/* === 8px-grid block spacing ===
- *
- * Strategy: each block type declares its own "marginBefore" (gap it wants
- * above it), scaled on an 8px grid via --space-* tokens from :root above.
- * Default sibling gap is MD (see Block.module.css .blockNode + .blockNode).
- * The rules below override that default when the next block is a section
- * marker (heading), media, code, or quote — or when the previous block is
- * a heading that binds tightly to its content.
- */
-
-/* Section markers: H1 and H2 open a new section. Sibling-combinator form so
- * specificity (0,4,0) beats both the `.blockNode + .blockNode` default (0,2,0)
- * AND the first-child reset (0,3,0). Doesn't fire on first-child (no `+`
- * predecessor), so wrapper padding on the content container is the sole
- * source of top spacing for a document that begins with a heading. */
-[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='1']),
-[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='2']) {
-  margin-top: var(--space-xl);
-}
-
-/* Sub-section markers: H3 breathes less than H1/H2. */
-[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='3']) {
-  margin-top: var(--space-lg);
-}
-
-/* Minor headings: H4/H5/H6 ride the body rhythm. */
-[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='4']),
-[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='5']),
-[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='6']) {
-  margin-top: var(--space-md);
-}
-
-/* Media / embed / code / quote blocks want LG breathing room above them. */
-[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='image']),
-[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='video']),
-[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='file']),
-[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='embed']),
-[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='web-embed']),
-[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='button']),
-[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='math']),
-[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='query']),
-[data-node-type='blockNode'] + [data-node-type='blockNode']:has(> [data-content-type='code-block']) {
-  margin-top: var(--space-lg);
-}
-
-/* First block in a group: no top margin. */
-[data-node-type='blockChildren'] > [data-node-type='blockNode']:first-child {
-  margin-top: 0;
-}
-
-/* Consecutive headings: collapse to a body-rhythm gap so a stacked H1→H2
- * doesn't open a double section break. */
-[data-node-type='blockNode']:has(> [data-content-type='heading'])
-  + [data-node-type='blockNode']:has(> [data-content-type='heading']) {
-  margin-top: var(--space-md);
-}
-
-/* Heading → anything-non-heading: tighten to MD so a figure or code block
- * immediately after a heading stays visually bound to it (overrides the
- * media-category LG above). */
-[data-node-type='blockNode']:has(> [data-content-type='heading'])
-  + [data-node-type='blockNode']:not(:has(> [data-content-type='heading'])) {
-  margin-top: var(--space-md);
-}
+/* Block rhythm is owned by .hm-prose (see packages/ui/src/hm-prose.css).
+ * Wrappers (.blockNode / .blockContent / .blockChildren) are structurally
+ * transparent — zero margin of their own — so that em-based spacing on
+ * the real semantic tags (h1..h6, p, blockquote, pre, ul, ol, li) can
+ * scale naturally with their font-size. */
 
 /* === DEBUG: block border overlay ===
  *
