@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
-@import '@shm/ui/hm-prose.css' layer(components);
+@import '@shm/ui/hm-prose.css';
 
 @plugin "@tailwindcss/typography";
 

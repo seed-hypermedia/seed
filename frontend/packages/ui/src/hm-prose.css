@@ -236,8 +236,14 @@
   text-decoration-line: line-through;
 }
 
-/* ---------- Links ---------- */
-.hm-prose a {
+/* ---------- Links ----------
+ * Targeting the `.link` class rather than every `<a>` descendant so
+ * structural links that happen to sit inside `.hm-prose` — e.g. a
+ * `DocumentCard` that wraps its whole body in an `<a>` — keep their
+ * own chrome. The editor and SSR renderer both tag real hyperlinks
+ * (and inline-embed spans) with `.link`, so every actual link still
+ * gets the underline treatment. */
+.hm-prose .link {
   color: var(--link, inherit);
   text-decoration-line: underline;
   text-decoration-color: currentColor;
@@ -245,7 +251,7 @@
   text-decoration-skip-ink: none;
   transition: color 0.15s ease;
 }
-.hm-prose a:hover {
+.hm-prose .link:hover {
   color: var(--link-hover, inherit);
 }
 
@@ -317,8 +323,14 @@
   margin: 1.5em 0;
 }
 
-/* ---------- Images / figures ---------- */
-.hm-prose :where(img) {
+/* ---------- Images / figures ----------
+ * Safety-cap is scoped to the image BLOCK specifically, not every <img>
+ * under `.hm-prose`. Broad `.hm-prose img` defaults conflict with
+ * Tailwind utility classes (`h-full`, `object-cover`, `w-full`) that
+ * sibling components like document-card covers and query-block thumbs
+ * apply to their own imagery — those shouldn't inherit prose sizing
+ * just because they happen to be inside a prose container. */
+.hm-prose [data-content-type='image'] img {
   max-width: 100%;
   height: auto;
 }
