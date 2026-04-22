@@ -27,6 +27,7 @@ vi.mock('@/web-notifications', () => ({
 
 vi.mock('@remix-run/react', () => ({
   useNavigate: () => vi.fn(),
+  useSearchParams: () => [new URLSearchParams(), vi.fn()],
 }))
 
 vi.mock('@shm/shared', async () => {
