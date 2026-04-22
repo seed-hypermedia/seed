@@ -560,6 +560,7 @@ export default function DesktopResourcePage() {
                 onEditorReady={handleEditorReady}
                 machineExtras={null}
                 editingFloatingActions={editingFloatingActions}
+                newButton={newButton}
                 signingAccountId={selectedAccountId || undefined}
                 publishAccountUid={selectedAccount?.id?.uid || undefined}
                 perspectiveAccountUid={selectedAccountId}

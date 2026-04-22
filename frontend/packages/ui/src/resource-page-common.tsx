@@ -246,6 +246,8 @@ export interface ResourcePageProps {
   machineExtras?: ReactNode
   /** Render prop for floating overlay when editing. Receives existing menu items so they can be merged. */
   editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
+  /** Button for creating a new document. Rendered in the top-right floating overlay in both editing and non-editing states. */
+  newButton?: ReactNode
   /** Signing account ID for draft saving (desktop only). Flows into machine context. */
   signingAccountId?: string
   /** Publish account UID for publishing (desktop only). Flows into machine context. */
@@ -301,6 +303,7 @@ export function ResourcePage({
   onEditorReady,
   machineExtras,
   editingFloatingActions,
+  newButton,
   signingAccountId,
   publishAccountUid,
   fileUpload,
@@ -540,6 +543,7 @@ export function ResourcePage({
           onEditorReady={onEditorReady}
           canEdit={canEdit}
           editingFloatingActions={editingFloatingActions}
+          newButton={newButton}
           signingAccountId={signingAccountId}
           publishAccountUid={publishAccountUid}
           fileUpload={fileUpload}
@@ -694,6 +698,7 @@ function DocumentBody({
   onEditorReady,
   canEdit = false,
   editingFloatingActions,
+  newButton,
   signingAccountId,
   publishAccountUid,
   fileUpload,
@@ -727,6 +732,8 @@ function DocumentBody({
   canEdit?: boolean
   /** Render prop for floating overlay when editing */
   editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
+  /** Button for creating a new document. Rendered in the top-right floating overlay in both editing and non-editing states. */
+  newButton?: ReactNode
   /** Signing account ID for draft saving (desktop only) */
   signingAccountId?: string
   /** Publish account UID for publishing (desktop only) */
@@ -1453,7 +1460,7 @@ function DocumentBody({
         onFilterChange={handleFilterChange}
       >
         <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
-        {/* Floating action buttons — when editing, show editing toolbar; otherwise show normal action buttons */}
+        {/* Floating action buttons — when editing, show editing toolbar; otherwise show new button + options menu */}
         {isEditing && editingFloatingActions ? (
           <div
             className={cn(
@@ -1462,12 +1469,13 @@ function DocumentBody({
           >
             {editingFloatingActions({menuItems: allMenuItems})}
           </div>
-        ) : actionButtons ? (
+        ) : newButton || actionButtons ? (
           <div
             className={cn(
               'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
             )}
           >
+            {newButton ? <div className="hidden md:block">{newButton}</div> : null}
             {actionButtons}
           </div>
         ) : null}
