@@ -3,14 +3,21 @@ package vault
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"seed/backend/core"
 	"seed/backend/core/keystore"
+)
+
+var (
+	errProductionVaultAlreadyInitialized = errors.New("production vault already initialized in this process")
+	productionVaultInitialized           atomic.Bool
 )
 
 // NewProduction creates the daemon production vault.
@@ -19,11 +26,16 @@ import (
 // This function also does the migration (if needed) from the legacy setup,
 // where we were storing the signing keys themselves in the OS keychain.
 func NewProduction(dataDir, environment string, opts ...RemoteOption) (*Vault, error) {
-	secretStore, err := NewOSKeychainSecretStore()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load vault key: %w", err)
+	// Intentionally never reset this flag on error: the production vault is process-wide
+	// and there must only ever be a single initialization attempt in a process.
+	if !productionVaultInitialized.CompareAndSwap(false, true) {
+		return nil, errProductionVaultAlreadyInitialized
 	}
 
+	secretStore, err := newOSKeychainSecretStore()
+	if err != nil {
+		return nil, err
+	}
 	return openProduction(dataDir, keystore.NewOS(environment), secretStore, opts...)
 }
 
@@ -84,7 +96,7 @@ func (v *Vault) migrateLegacyKeySnapshot(ctx context.Context, legacyKeys map[str
 		return fmt.Errorf("failed comparing local and legacy key snapshots: %w", err)
 	}
 
-	if _, err := v.applyMutation(func(_ *Envelope, state *State) (bool, error) {
+	if _, err := v.applyMutation(func(state *State) (bool, error) {
 		for _, name := range missingLegacyKeys {
 			kp := new(core.KeyPair)
 			if err := kp.UnmarshalBinary(legacyKeys[name]); err != nil {
@@ -130,37 +142,15 @@ func (v *Vault) migrateLegacyKeySnapshot(ctx context.Context, legacyKeys map[str
 }
 
 func (v *Vault) keySnapshot(ctx context.Context) (map[string][]byte, error) {
-	keys, err := v.ListKeys(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	snapshot := make(map[string][]byte, len(keys))
-	for _, key := range keys {
-		if _, exists := snapshot[key.Name]; exists {
-			return nil, fmt.Errorf("duplicate key name %q in keystore list", key.Name)
-		}
-
-		kp, err := v.GetKey(ctx, key.Name)
-		if err != nil {
-			return nil, err
-		}
-		if kp == nil {
-			return nil, fmt.Errorf("key %q resolved to nil keypair", key.Name)
-		}
-
-		privBytes, err := kp.MarshalBinary()
-		if err != nil {
-			return nil, err
-		}
-		snapshot[key.Name] = privBytes
-	}
-
-	return snapshot, nil
+	return keySnapshot(ctx, v)
 }
 
 func (v *Vault) legacyKeySnapshot(ctx context.Context, legacy core.KeyStore) (map[string][]byte, error) {
-	keys, err := legacy.ListKeys(ctx)
+	return keySnapshot(ctx, legacy)
+}
+
+func keySnapshot(ctx context.Context, store core.KeyStore) (map[string][]byte, error) {
+	keys, err := store.ListKeyPairs(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -170,16 +160,11 @@ func (v *Vault) legacyKeySnapshot(ctx context.Context, legacy core.KeyStore) (ma
 		if _, exists := snapshot[key.Name]; exists {
 			return nil, fmt.Errorf("duplicate key name %q in keystore list", key.Name)
 		}
-
-		kp, err := legacy.GetKey(ctx, key.Name)
-		if err != nil {
-			return nil, err
-		}
-		if kp == nil {
+		if key.KeyPair == nil {
 			return nil, fmt.Errorf("key %q resolved to nil keypair", key.Name)
 		}
 
-		privBytes, err := kp.MarshalBinary()
+		privBytes, err := key.KeyPair.MarshalBinary()
 		if err != nil {
 			return nil, err
 		}

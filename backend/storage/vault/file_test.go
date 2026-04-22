@@ -3,6 +3,8 @@ package vault
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,10 +19,11 @@ func TestLocal(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
 	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
 
-	ks, err := newLocalStore(dir, secretStore)
+	ks, err := New(dir, secretStore)
 	require.NoError(t, err)
 
 	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
@@ -46,6 +49,19 @@ func TestLocal(t *testing.T) {
 	keys, err = ks.ListKeys(ctx)
 	require.NoError(t, err)
 	require.Len(t, keys, 2)
+
+	keyPairs, err := ks.ListKeyPairs(ctx)
+	require.NoError(t, err)
+	require.Len(t, keyPairs, 2)
+	principalsByName := make(map[string]core.Principal, len(keyPairs))
+	for _, keyPair := range keyPairs {
+		require.NotNil(t, keyPair.KeyPair)
+		principalsByName[keyPair.Name] = keyPair.Principal()
+	}
+	require.Equal(t, map[string]core.Principal{
+		"main":   kp.Principal(),
+		"second": kp2.Principal(),
+	}, principalsByName)
 
 	require.NoError(t, ks.ChangeKeyName(ctx, "main", "renamed"))
 	_, err = ks.GetKey(ctx, "main")
@@ -79,19 +95,21 @@ func TestLocalPersistsAcrossInstances(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
 	keyMaterial := []byte("fedcba9876543210fedcba9876543210")
-	firstStore := NewMemorySecretStore()
+	firstStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, firstStore.Store(localVaultKEKName, keyMaterial))
 
-	first, err := newLocalStore(dir, firstStore)
+	first, err := New(dir, firstStore)
 	require.NoError(t, err)
 
 	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
 	require.NoError(t, err)
 	require.NoError(t, first.StoreKey(ctx, "main", kp))
 
-	secondStore := NewMemorySecretStore()
+	secondStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secondStore.Store(localVaultKEKName, keyMaterial))
-	second, err := newLocalStore(dir, secondStore)
+	second, err := New(dir, secondStore)
 	require.NoError(t, err)
 
 	got, err := second.GetKey(ctx, "main")
@@ -99,14 +117,101 @@ func TestLocalPersistsAcrossInstances(t *testing.T) {
 	require.Equal(t, kp.Principal(), got.Principal())
 }
 
+func TestLocalConcurrentReadsAndWrites(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	keyMaterial := []byte("fedcba9876543210fedcba9876543210")
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
+	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
+
+	ks, err := New(dir, secretStore)
+	require.NoError(t, err)
+
+	mainKey, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
+	require.NoError(t, err)
+	require.NoError(t, ks.StoreKey(ctx, "main", mainKey))
+
+	const (
+		readerCount      = 6
+		readerIterations = 40
+		writerIterations = 20
+	)
+
+	errCh := make(chan error, readerCount*readerIterations*5+writerIterations)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+
+	for range readerCount {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+
+			for range readerIterations {
+				if _, err := ks.GetKey(ctx, "main"); err != nil {
+					errCh <- err
+					return
+				}
+				if _, err := ks.ListKeys(ctx); err != nil {
+					errCh <- err
+					return
+				}
+				if _, err := ks.ListKeyPairs(ctx); err != nil {
+					errCh <- err
+					return
+				}
+				if _, err := ks.Status(); err != nil {
+					errCh <- err
+					return
+				}
+				if _, err := ks.buildRemoteStateFromLocal(); err != nil {
+					errCh <- err
+					return
+				}
+			}
+		}()
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		<-start
+
+		for i := range writerIterations {
+			kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			if err := ks.StoreKey(ctx, fmt.Sprintf("key-%02d", i), kp); err != nil {
+				errCh <- err
+				return
+			}
+		}
+	}()
+
+	close(start)
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		require.NoError(t, err)
+	}
+
+	keys, err := ks.ListKeys(ctx)
+	require.NoError(t, err)
+	require.Len(t, keys, writerIterations+1)
+}
+
 func TestLocalStoreKeyWithMetadata(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
 	keyMaterial := []byte("fedcba9876543210fedcba9876543210")
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
 
-	ks, err := newLocalStore(dir, secretStore)
+	ks, err := New(dir, secretStore)
 	require.NoError(t, err)
 
 	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
@@ -130,40 +235,41 @@ func TestLocalStoreKeyWithMetadata(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	envelope, state, err := ks.loadState()
+	snapshot, err := ks.store.LoadSnapshot()
 	require.NoError(t, err)
-	require.NotNil(t, envelope)
-	require.Len(t, state.Accounts, 1)
-	require.Equal(t, createTime.UnixMilli(), state.Accounts[0].CreateTime)
-	require.Len(t, state.Accounts[0].Delegations, 1)
-	require.Equal(t, "https://example.com", state.Accounts[0].Delegations[0].ClientID)
-	require.Equal(t, "desktop", state.Accounts[0].Delegations[0].DeviceType)
-	require.Equal(t, capabilityCID, state.Accounts[0].Delegations[0].Capability.CID)
-	require.Equal(t, delegateKey.Principal(), state.Accounts[0].Delegations[0].Capability.Delegate)
-	require.Equal(t, delegationTime.UnixMilli(), state.Accounts[0].Delegations[0].CreateTime)
+	require.NotNil(t, snapshot.Envelope)
+	require.Len(t, snapshot.State.Accounts, 1)
+	require.Equal(t, createTime.UnixMilli(), snapshot.State.Accounts[0].CreateTime)
+	require.Len(t, snapshot.State.Accounts[0].Delegations, 1)
+	require.Equal(t, "https://example.com", snapshot.State.Accounts[0].Delegations[0].ClientID)
+	require.Equal(t, "desktop", snapshot.State.Accounts[0].Delegations[0].DeviceType)
+	require.Equal(t, capabilityCID, snapshot.State.Accounts[0].Delegations[0].Capability.CID)
+	require.Equal(t, delegateKey.Principal(), snapshot.State.Accounts[0].Delegations[0].Capability.Delegate)
+	require.Equal(t, delegationTime.UnixMilli(), snapshot.State.Accounts[0].Delegations[0].CreateTime)
 }
 
 func TestLocalRejectsInvalidConfiguration(t *testing.T) {
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, []byte("0123456789abcdef0123456789abcdef")))
-	_, err := newLocalStore("relative/path", secretStore)
+	_, err = New("relative/path", secretStore)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "must be absolute")
 
 	shortSecretStore := newFixedTestSecretStore(map[string][]byte{
 		localVaultKEKName: []byte("too-short"),
 	})
-	_, err = newLocalStore(t.TempDir(), shortSecretStore)
+	_, err = New(t.TempDir(), shortSecretStore)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid local vault KEK length")
 }
 
-func TestLocalReadsAndWritesRemoteEnvelope(t *testing.T) {
-	ctx := context.Background()
+func TestFileStoreReadsAndWritesRemoteEnvelope(t *testing.T) {
 	dir := t.TempDir()
 	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
 	remoteSecret := []byte("fedcba9876543210fedcba9876543210")
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
 	remoteKEKName, err := remoteVaultKEKName("https://example.com/vault", testRemoteUserID)
 	require.NoError(t, err)
@@ -191,16 +297,24 @@ func TestLocalReadsAndWritesRemoteEnvelope(t *testing.T) {
 		},
 	}))
 
-	ks, err := newLocalStore(dir, secretStore)
+	store, err := newFileStore(dir, secretStore)
 	require.NoError(t, err)
 
-	keys, err := ks.ListKeys(ctx)
+	snapshot, err := store.LoadSnapshot()
 	require.NoError(t, err)
-	require.Empty(t, keys)
+	require.Empty(t, snapshot.State.Accounts)
 
 	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
 	require.NoError(t, err)
-	require.NoError(t, ks.StoreKey(ctx, "main", kp))
+	seed, err := exportedSeed(kp)
+	require.NoError(t, err)
+	accountID, err := accountIDFromSeed(seed)
+	require.NoError(t, err)
+
+	snapshot.State.Accounts = append(snapshot.State.Accounts, payloadAccountFromMetadata("main", seed, KeyMetadata{}))
+	delete(snapshot.State.DeletedAccounts, accountID)
+	snapshot.Envelope.Remote.LocalVersion++
+	require.NoError(t, store.SaveSnapshot(snapshot))
 
 	envelope, err := load(dir)
 	require.NoError(t, err)
@@ -216,7 +330,8 @@ func TestLocalReadsAndWritesRemoteEnvelope(t *testing.T) {
 func TestLocalRejectsUndecryptablePayload(t *testing.T) {
 	dir := t.TempDir()
 	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
 
 	require.NoError(t, saveEnvelopeFile(dir, &Envelope{
@@ -224,7 +339,7 @@ func TestLocalRejectsUndecryptablePayload(t *testing.T) {
 		WrappedDEK:    mustWrapLocalTestDEK(t, keyMaterial),
 	}))
 
-	ks, err := newLocalStore(dir, secretStore)
+	ks, err := New(dir, secretStore)
 	require.NoError(t, err)
 
 	_, err = ks.ListKeys(context.Background())
@@ -237,19 +352,21 @@ func TestLocalRejectsWrongKeyForExisting(t *testing.T) {
 	dir := t.TempDir()
 	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
 	differentKeyMaterial := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-	firstStore := NewMemorySecretStore()
+	firstStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, firstStore.Store(localVaultKEKName, keyMaterial))
 
-	first, err := newLocalStore(dir, firstStore)
+	first, err := New(dir, firstStore)
 	require.NoError(t, err)
 
 	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
 	require.NoError(t, err)
 	require.NoError(t, first.StoreKey(ctx, "main", kp))
 
-	secondStore := NewMemorySecretStore()
+	secondStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secondStore.Store(localVaultKEKName, differentKeyMaterial))
-	second, err := newLocalStore(dir, secondStore)
+	second, err := New(dir, secondStore)
 	require.NoError(t, err)
 
 	_, err = second.ListKeys(ctx)
@@ -261,7 +378,8 @@ func TestLocalRejectsCorruptStatePayload(t *testing.T) {
 	dir := t.TempDir()
 	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
 	dek := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
 
 	aead, err := chacha20poly1305.NewX(dek)
@@ -279,7 +397,7 @@ func TestLocalRejectsCorruptStatePayload(t *testing.T) {
 		WrappedDEK:    mustWrapExplicitTestDEK(t, keyMaterial, dek),
 	}))
 
-	ks, err := newLocalStore(dir, secretStore)
+	ks, err := New(dir, secretStore)
 	require.NoError(t, err)
 
 	_, err = ks.ListKeys(context.Background())

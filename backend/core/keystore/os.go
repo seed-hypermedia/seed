@@ -152,6 +152,37 @@ func (ks *osStore) ListKeys(_ context.Context) ([]core.NamedKey, error) {
 	return ret, nil
 }
 
+func (ks *osStore) ListKeyPairs(_ context.Context) ([]core.NamedKeyPair, error) {
+	secret, err := keyring.Get(ks.serviceName, collectionName)
+	if err != nil {
+		return nil, nil
+	}
+
+	decoded, err := decodeKeyringSecret(secret)
+	if err != nil {
+		return nil, err
+	}
+
+	collection := keyCollection{}
+	if err := json.Unmarshal([]byte(decoded), &collection); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal keyring record: %w", err)
+	}
+
+	out := make([]core.NamedKeyPair, 0, len(collection))
+	for name, privBytes := range collection {
+		priv := new(core.KeyPair)
+		if err := priv.UnmarshalBinary(privBytes); err != nil {
+			return nil, err
+		}
+
+		out = append(out, core.NamedKeyPair{
+			Name:    name,
+			KeyPair: priv,
+		})
+	}
+	return out, nil
+}
+
 func (ks *osStore) DeleteAllKeys(_ context.Context) error {
 	if err := keyring.Delete(ks.serviceName, collectionName); err != nil {
 		return errEmptyEnvironment

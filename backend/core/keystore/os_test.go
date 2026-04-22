@@ -45,6 +45,18 @@ func TestOS(t *testing.T) {
 	keys, err = ks.ListKeys(ctx)
 	require.NoError(t, err)
 	require.Len(t, keys, 2)
+	keyPairs, err := ks.ListKeyPairs(ctx)
+	require.NoError(t, err)
+	require.Len(t, keyPairs, 2)
+	principalsByName := make(map[string]core.Principal, len(keyPairs))
+	for _, keyPair := range keyPairs {
+		require.NotNil(t, keyPair.KeyPair)
+		principalsByName[keyPair.Name] = keyPair.Principal()
+	}
+	require.Equal(t, map[string]core.Principal{
+		"keyName":        kp.Principal(),
+		"anotherKeyName": kp2.Principal(),
+	}, principalsByName)
 	require.Error(t, ks.ChangeKeyName(ctx, "wrongKeyName", "someName"))
 	require.NoError(t, ks.ChangeKeyName(ctx, "keyName", "changedName"))
 	emptyKey, err = ks.GetKey(ctx, "keyName")

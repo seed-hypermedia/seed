@@ -49,7 +49,8 @@ func TestRemote(t *testing.T) {
 	dataDir := t.TempDir()
 	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
 	remoteURL := "https://example.com/vault"
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
 
 	ks, err := New(dataDir, secretStore)
@@ -76,6 +77,18 @@ func TestRemote(t *testing.T) {
 	require.Equal(t, kp.Principal(), got.Principal())
 
 	require.NoError(t, ks.StoreKey(ctx, "second", kp2))
+	keyPairs, err := ks.ListKeyPairs(ctx)
+	require.NoError(t, err)
+	require.Len(t, keyPairs, 2)
+	principalsByName := make(map[string]core.Principal, len(keyPairs))
+	for _, keyPair := range keyPairs {
+		require.NotNil(t, keyPair.KeyPair)
+		principalsByName[keyPair.Name] = keyPair.Principal()
+	}
+	require.Equal(t, map[string]core.Principal{
+		"main":   kp.Principal(),
+		"second": kp2.Principal(),
+	}, principalsByName)
 	require.NoError(t, ks.ChangeKeyName(ctx, "main", "renamed"))
 	require.NoError(t, ks.DeleteKey(ctx, "renamed"))
 	require.NoError(t, ks.DeleteAllKeys(ctx))
@@ -97,7 +110,8 @@ func TestRemoteDeleteKeyRecordsTombstone(t *testing.T) {
 	dataDir := t.TempDir()
 	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
 	remoteURL := "https://example.com/vault"
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
 
 	ks, err := New(dataDir, secretStore)
@@ -116,7 +130,7 @@ func TestRemoteDeleteKeyRecordsTombstone(t *testing.T) {
 	envelope, err := load(dataDir)
 	require.NoError(t, err)
 	require.NotNil(t, envelope)
-	state, err := decodeStateFromEnvelope(t, ks.local, envelope)
+	state, err := decodeStateFromEnvelope(t, ks.store, envelope)
 	require.NoError(t, err)
 	require.Empty(t, state.Accounts)
 	require.NotEmpty(t, state.DeletedAccounts)
@@ -127,15 +141,17 @@ func TestRemoteKeepsLocalEnvelopeLocalUntilConnect(t *testing.T) {
 	ctx := context.Background()
 	dataDir := t.TempDir()
 	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
-	localSecretStore := NewMemorySecretStore()
+	localSecretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, localSecretStore.Store(localVaultKEKName, keyMaterial))
-	local, err := newLocalStore(dataDir, localSecretStore)
+	local, err := New(dataDir, localSecretStore)
 	require.NoError(t, err)
 	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
 	require.NoError(t, err)
 	require.NoError(t, local.StoreKey(ctx, "main", kp))
 
-	remoteSecretStore := NewMemorySecretStore()
+	remoteSecretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, remoteSecretStore.Store(localVaultKEKName, keyMaterial))
 	ks, err := New(dataDir, remoteSecretStore)
 	require.NoError(t, err)
@@ -159,7 +175,8 @@ func TestRemoteMergeKeepsNewerDeleteTombstone(t *testing.T) {
 	dataDir := t.TempDir()
 	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
 	remoteURL := "https://example.com/vault"
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
 
 	ks, err := New(dataDir, secretStore)
@@ -188,7 +205,7 @@ func TestRemoteMergeKeepsNewerDeleteTombstone(t *testing.T) {
 	envelope, err := load(dataDir)
 	require.NoError(t, err)
 	require.NotNil(t, envelope)
-	state, err := decodeStateFromEnvelope(t, ks.local, envelope)
+	state, err := decodeStateFromEnvelope(t, ks.store, envelope)
 	require.NoError(t, err)
 	require.Empty(t, state.Accounts)
 	require.NotZero(t, state.DeletedAccounts[accountID])
@@ -459,7 +476,8 @@ func TestRemotePreservesSyncMetadataAndBumpsLocalVersion(t *testing.T) {
 		},
 	}))
 
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
 	remoteKEKName, err := remoteVaultKEKName(remoteURL, testRemoteUserID)
 	require.NoError(t, err)
@@ -472,7 +490,7 @@ func TestRemotePreservesSyncMetadataAndBumpsLocalVersion(t *testing.T) {
 	seed, err := exportedSeed(kp)
 	require.NoError(t, err)
 
-	shouldSync, err := ks.applyMutation(func(_ *Envelope, state *State) (bool, error) {
+	shouldSync, err := ks.applyMutation(func(state *State) (bool, error) {
 		state.Accounts = append(state.Accounts, payloadAccountFromMetadata("main", seed, KeyMetadata{}))
 		return true, nil
 	})
@@ -492,7 +510,8 @@ func TestRemoteConnectCreatesEnvelopeWhenMissing(t *testing.T) {
 	dataDir := t.TempDir()
 	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
 	remoteURL := "https://example.com/vault"
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
 
 	ks, err := New(dataDir, secretStore)
@@ -510,7 +529,7 @@ func TestRemoteConnectCreatesEnvelopeWhenMissing(t *testing.T) {
 	require.Equal(t, int64(1234), envelope.Remote.LastSyncTime)
 	require.Empty(t, envelope.Remote.LastSyncError)
 
-	state, err := decodeStateFromEnvelope(t, ks.local, envelope)
+	state, err := decodeStateFromEnvelope(t, ks.store, envelope)
 	require.NoError(t, err)
 	require.Equal(t, newEmptyState(), state)
 }
@@ -518,7 +537,8 @@ func TestRemoteConnectCreatesEnvelopeWhenMissing(t *testing.T) {
 func TestRemoteRecordsSyncFailureWithoutRemoteIsNoop(t *testing.T) {
 	dataDir := t.TempDir()
 	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
 
 	ks, err := New(dataDir, secretStore)
@@ -532,9 +552,10 @@ func TestRemoteRecordsSyncFailureWithoutRemoteIsNoop(t *testing.T) {
 }
 
 func TestRemoteRejectsInvalidConfiguration(t *testing.T) {
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, []byte("0123456789abcdef0123456789abcdef")))
-	_, err := New("relative/path", secretStore)
+	_, err = New("relative/path", secretStore)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "must be absolute")
 
@@ -545,7 +566,8 @@ func TestRemoteRejectsInvalidConfiguration(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid local vault KEK length")
 
-	validSecretStore := NewMemorySecretStore()
+	validSecretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, validSecretStore.Store(localVaultKEKName, []byte("0123456789abcdef0123456789abcdef")))
 	ks, err := New(t.TempDir(), validSecretStore)
 	require.NoError(t, err)
@@ -580,7 +602,8 @@ func TestRemoteGetAllowsLargeFetchResponses(t *testing.T) {
 	}))
 	defer server.Close()
 
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, []byte("0123456789abcdef0123456789abcdef")))
 	ks, err := New(t.TempDir(), secretStore, WithHTTPClient(server.Client()))
 	require.NoError(t, err)
@@ -638,7 +661,8 @@ func TestRemoteLoadRemoteSyncConfigLoadsStoredRemoteSecretAfterRestart(t *testin
 	dataDir := t.TempDir()
 	localKey := []byte("0123456789abcdef0123456789abcdef")
 	remoteURL := "https://example.com/vault"
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, localKey))
 
 	ks, err := New(dataDir, secretStore)
@@ -713,15 +737,15 @@ func TestFindCredential(t *testing.T) {
 	require.EqualError(t, err, `remote vault response is missing secret credential "cred-1"`)
 }
 
-func decodeStateFromEnvelope(t *testing.T, local *localStore, envelope *Envelope) (State, error) {
+func decodeStateFromEnvelope(t *testing.T, store *fileStore, envelope *Envelope) (State, error) {
 	t.Helper()
 
-	dek, err := local.loadDataEncryptionKey(envelope)
+	dek, err := store.loadDataEncryptionKey(envelope)
 	if err != nil {
 		return State{}, err
 	}
 
-	plaintext, err := local.decrypt(envelope.EncryptedData, dek)
+	plaintext, err := store.decrypt(envelope.EncryptedData, dek)
 	if err != nil {
 		return State{}, err
 	}

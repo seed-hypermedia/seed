@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"sync"
 
@@ -21,10 +22,13 @@ const (
 	remoteAuthKeyInfo       = "seed-hypermedia-vault-secret-authentication"
 )
 
-// SecretStore stores vault secrets by name.
+// SecretStore stores vault secrets by name. Implementations guarantee that
+// the local KEK (localVaultKEKName) is present by the time a successful
+// constructor returns; callers can rely on Load(localVaultKEKName) succeeding
+// without any prior Store. Values under a given name are meant to be
+// immutable for the lifetime of the store — callers rotate by Delete + Store.
 type SecretStore interface {
 	Load(name string) ([]byte, error)
-	Ensure(name string) ([]byte, error)
 	Store(name string, secret []byte) error
 	Delete(name string) error
 }
@@ -34,18 +38,41 @@ type memorySecretStore struct {
 	secrets map[string][]byte
 }
 
-type osKeychainSecretStore struct{}
-
-// NewOSKeychainSecretStore returns the shared OS-keychain-backed secret store.
-func NewOSKeychainSecretStore() (SecretStore, error) {
-	return osKeychainSecretStore{}, nil
+type osKeychainSecretStore struct {
+	mu      sync.RWMutex
+	secrets map[string][]byte
+	get     func(service string, user string) (string, error)
+	set     func(service string, user string, password string) error
+	remove  func(service string, user string) error
 }
 
-// NewMemorySecretStore returns an in-memory secret store.
-func NewMemorySecretStore() SecretStore {
-	return &memorySecretStore{
+// newOSKeychainSecretStore returns an OS-keychain-backed secret store with an
+// in-memory cache. The local KEK is loaded from the keychain or
+// auto-generated on first use so that Load(localVaultKEKName) is always
+// satisfied after this function returns without error.
+func newOSKeychainSecretStore() (SecretStore, error) {
+	s := &osKeychainSecretStore{
 		secrets: make(map[string][]byte),
+		get:     keyring.Get,
+		set:     keyring.Set,
+		remove:  keyring.Delete,
 	}
+	if err := s.ensureLocalKEK(); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// NewMemorySecretStore returns an in-memory secret store with a freshly
+// generated local KEK.
+func NewMemorySecretStore() (SecretStore, error) {
+	secret, err := newRandomSecret()
+	if err != nil {
+		return nil, err
+	}
+	return &memorySecretStore{
+		secrets: map[string][]byte{localVaultKEKName: secret},
+	}, nil
 }
 
 func (s *memorySecretStore) Load(name string) ([]byte, error) {
@@ -61,28 +88,7 @@ func (s *memorySecretStore) Load(name string) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("vault KEK not found for %s", key)
 	}
-	return append([]byte(nil), secret...), nil
-}
-
-func (s *memorySecretStore) Ensure(name string) ([]byte, error) {
-	key, err := normalizeKEKName(name)
-	if err != nil {
-		return nil, err
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if secret, ok := s.secrets[key]; ok {
-		return append([]byte(nil), secret...), nil
-	}
-
-	secret, err := newRandomSecret()
-	if err != nil {
-		return nil, err
-	}
-	s.secrets[key] = append([]byte(nil), secret...)
-	return append([]byte(nil), secret...), nil
+	return slices.Clone(secret), nil
 }
 
 func (s *memorySecretStore) Store(name string, secret []byte) error {
@@ -96,7 +102,7 @@ func (s *memorySecretStore) Store(name string, secret []byte) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.secrets[key] = append([]byte(nil), secret...)
+	s.secrets[key] = slices.Clone(secret)
 	return nil
 }
 
@@ -112,46 +118,46 @@ func (s *memorySecretStore) Delete(name string) error {
 	return nil
 }
 
-func (s osKeychainSecretStore) Load(name string) ([]byte, error) {
+func (s *osKeychainSecretStore) Load(name string) ([]byte, error) {
 	account, err := normalizeKEKName(name)
 	if err != nil {
 		return nil, err
 	}
 
-	encoded, err := keyring.Get(vaultKEKKeychainService, account)
+	s.mu.RLock()
+	if secret, ok := s.secrets[account]; ok {
+		secret = slices.Clone(secret)
+		s.mu.RUnlock()
+		return secret, nil
+	}
+	s.mu.RUnlock()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Double-check under the write lock: a concurrent Store/Load may have
+	// populated the cache while we were re-acquiring, and if we skipped
+	// this check we could overwrite a fresh value with a stale keychain
+	// read.
+	if secret, ok := s.secrets[account]; ok {
+		return slices.Clone(secret), nil
+	}
+
+	encoded, err := s.get(vaultKEKKeychainService, account)
 	if err != nil {
 		return nil, fmt.Errorf("failed reading vault KEK from keyring: %w", err)
 	}
 
-	return decodeSecret(encoded)
-}
-
-func (s osKeychainSecretStore) Ensure(name string) ([]byte, error) {
-	account, err := normalizeKEKName(name)
+	secret, err := decodeSecret(encoded)
 	if err != nil {
 		return nil, err
 	}
 
-	encoded, err := keyring.Get(vaultKEKKeychainService, account)
-	switch {
-	case err == nil:
-		return decodeSecret(encoded)
-	case !errors.Is(err, keyring.ErrNotFound):
-		return nil, fmt.Errorf("failed reading vault KEK from keyring: %w", err)
-	}
-
-	secret, err := newRandomSecret()
-	if err != nil {
-		return nil, err
-	}
-	if err := keyring.Set(vaultKEKKeychainService, account, base64.StdEncoding.EncodeToString(secret)); err != nil {
-		return nil, fmt.Errorf("failed storing vault KEK in keyring: %w", err)
-	}
-
-	return append([]byte(nil), secret...), nil
+	s.secrets[account] = secret
+	return slices.Clone(secret), nil
 }
 
-func (s osKeychainSecretStore) Store(name string, secret []byte) error {
+func (s *osKeychainSecretStore) Store(name string, secret []byte) error {
 	account, err := normalizeKEKName(name)
 	if err != nil {
 		return err
@@ -160,21 +166,59 @@ func (s osKeychainSecretStore) Store(name string, secret []byte) error {
 		return fmt.Errorf("invalid vault KEK length: got %d bytes", len(secret))
 	}
 
-	if err := keyring.Set(vaultKEKKeychainService, account, base64.StdEncoding.EncodeToString(secret)); err != nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.set(vaultKEKKeychainService, account, base64.StdEncoding.EncodeToString(secret)); err != nil {
 		return fmt.Errorf("failed storing vault KEK in keyring: %w", err)
 	}
+	s.secrets[account] = slices.Clone(secret)
 	return nil
 }
 
-func (s osKeychainSecretStore) Delete(name string) error {
+func (s *osKeychainSecretStore) Delete(name string) error {
 	account, err := normalizeKEKName(name)
 	if err != nil {
 		return err
 	}
 
-	if err := keyring.Delete(vaultKEKKeychainService, account); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.remove(vaultKEKKeychainService, account); err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		return fmt.Errorf("failed deleting vault KEK from keyring: %w", err)
 	}
+	delete(s.secrets, account)
+	return nil
+}
+
+// ensureLocalKEK seeds localVaultKEKName from the keychain, generating and
+// storing a fresh secret if none exists. Called once at construction.
+func (s *osKeychainSecretStore) ensureLocalKEK() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	encoded, err := s.get(vaultKEKKeychainService, localVaultKEKName)
+	switch {
+	case err == nil:
+		secret, err := decodeSecret(encoded)
+		if err != nil {
+			return err
+		}
+		s.secrets[localVaultKEKName] = secret
+		return nil
+	case !errors.Is(err, keyring.ErrNotFound):
+		return fmt.Errorf("failed reading vault KEK from keyring: %w", err)
+	}
+
+	secret, err := newRandomSecret()
+	if err != nil {
+		return err
+	}
+	if err := s.set(vaultKEKKeychainService, localVaultKEKName, base64.StdEncoding.EncodeToString(secret)); err != nil {
+		return fmt.Errorf("failed storing vault KEK in keyring: %w", err)
+	}
+	s.secrets[localVaultKEKName] = secret
 	return nil
 }
 

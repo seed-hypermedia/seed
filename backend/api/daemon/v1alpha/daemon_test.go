@@ -614,7 +614,8 @@ func newTestServer(t *testing.T, name string, opts ...vault.RemoteOption) *Serve
 	u := coretest.NewTester(name)
 	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
 	dataDir := t.TempDir()
-	secretStore := vault.NewMemorySecretStore()
+	secretStore, err := vault.NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store("local", keyMaterial))
 
 	ks, err := vault.New(dataDir, secretStore, opts...)
@@ -634,7 +635,8 @@ func newConnectedTestVault(t *testing.T, dataDir string, localKey []byte, kp *co
 	t.Helper()
 
 	remoteServer := newRemoteVaultServer(t)
-	secretStore := vault.NewMemorySecretStore()
+	secretStore, err := vault.NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store("local", localKey))
 
 	ks, err := vault.New(

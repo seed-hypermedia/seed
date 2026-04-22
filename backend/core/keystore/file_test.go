@@ -41,6 +41,20 @@ func TestFile(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, keys, 2)
 
+	keyPairs, err := ks.ListKeyPairs(ctx)
+	require.NoError(t, err)
+	require.Len(t, keyPairs, 2)
+
+	principalsByName := make(map[string]core.Principal, len(keyPairs))
+	for _, keyPair := range keyPairs {
+		require.NotNil(t, keyPair.KeyPair)
+		principalsByName[keyPair.Name] = keyPair.Principal()
+	}
+	require.Equal(t, map[string]core.Principal{
+		"keyName":    kp.Principal(),
+		"anotherKey": kp2.Principal(),
+	}, principalsByName)
+
 	require.NoError(t, ks.ChangeKeyName(ctx, "keyName", "renamedKey"))
 	_, err = ks.GetKey(ctx, "keyName")
 	require.Error(t, err)

@@ -27,9 +27,9 @@ import (
 
 // Vault is a the main vault implementation with local file and optional remote syncing.
 type Vault struct {
-	mu sync.Mutex
+	mu sync.RWMutex
 
-	local *localStore
+	store *fileStore
 
 	secretStore  SecretStore
 	httpClient   *http.Client
@@ -55,11 +55,11 @@ func New(dataDir string, secretStore SecretStore, opts ...RemoteOption) (*Vault,
 	if ks.httpClient == nil {
 		ks.httpClient = defaultRemoteHTTPClient()
 	}
-	local, err := newLocalStore(dataDir, ks.secretStore)
+	store, err := newFileStore(dataDir, ks.secretStore)
 	if err != nil {
 		return nil, err
 	}
-	ks.local = local
+	ks.store = store
 
 	return ks, nil
 }
@@ -292,7 +292,7 @@ func defaultRemoteHTTPClient() *http.Client {
 
 // ResumeRemoteConnection refreshes remote sync state for an already-connected vault.
 func (ks *Vault) ResumeRemoteConnection() {
-	go ks.syncAfterMutation(context.Background())
+	go ks.syncRemoteMaybe(context.Background())
 }
 
 // SetPendingConnectionExpiry rewrites the current pending handoff expiry.
@@ -309,8 +309,8 @@ func (ks *Vault) SetPendingConnectionExpiry(expireTime time.Time) {
 
 // GetKey returns the named key from the local vault state.
 func (ks *Vault) GetKey(_ context.Context, name string) (*core.KeyPair, error) {
-	ks.mu.Lock()
-	defer ks.mu.Unlock()
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
 
 	_, state, err := ks.loadStateLocked()
 	if err != nil {
@@ -348,7 +348,7 @@ func (ks *Vault) StoreKeyWithMetadata(ctx context.Context, name string, kp *core
 		return err
 	}
 
-	shouldSync, err := ks.applyMutation(func(_ *Envelope, state *State) (bool, error) {
+	shouldSync, err := ks.applyMutation(func(state *State) (bool, error) {
 		if _, ok := findAccountByName(state.Accounts, name); ok {
 			return false, fmt.Errorf("name already exists, delete it first")
 		}
@@ -363,7 +363,7 @@ func (ks *Vault) StoreKeyWithMetadata(ctx context.Context, name string, kp *core
 		return err
 	}
 	if shouldSync {
-		ks.syncAfterMutation(ctx)
+		ks.syncRemoteMaybe(ctx)
 	}
 
 	return nil
@@ -371,8 +371,8 @@ func (ks *Vault) StoreKeyWithMetadata(ctx context.Context, name string, kp *core
 
 // ListKeys lists all named keys from the local vault state.
 func (ks *Vault) ListKeys(_ context.Context) ([]core.NamedKey, error) {
-	ks.mu.Lock()
-	defer ks.mu.Unlock()
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
 
 	_, state, err := ks.loadStateLocked()
 	if err != nil {
@@ -395,9 +395,35 @@ func (ks *Vault) ListKeys(_ context.Context) ([]core.NamedKey, error) {
 	return out, nil
 }
 
+// ListKeyPairs lists all named keys together with their private key material.
+func (ks *Vault) ListKeyPairs(_ context.Context) ([]core.NamedKeyPair, error) {
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	_, state, err := ks.loadStateLocked()
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]core.NamedKeyPair, 0, len(state.Accounts))
+	for _, account := range state.Accounts {
+		kp, err := keyPairFromAccount(account)
+		if err != nil {
+			return nil, err
+		}
+
+		out = append(out, core.NamedKeyPair{
+			Name:    account.Name,
+			KeyPair: kp,
+		})
+	}
+
+	return out, nil
+}
+
 // DeleteKey removes a named key and syncs the change when remote mode is active.
 func (ks *Vault) DeleteKey(ctx context.Context, name string) error {
-	shouldSync, err := ks.applyMutation(func(_ *Envelope, state *State) (bool, error) {
+	shouldSync, err := ks.applyMutation(func(state *State) (bool, error) {
 		accountIdx := findAccountIndexByName(state.Accounts, name)
 		if accountIdx < 0 {
 			return false, errLocalKeyNotFound
@@ -416,7 +442,7 @@ func (ks *Vault) DeleteKey(ctx context.Context, name string) error {
 		return err
 	}
 	if shouldSync {
-		ks.syncAfterMutation(ctx)
+		ks.syncRemoteMaybe(ctx)
 	}
 
 	return nil
@@ -424,7 +450,7 @@ func (ks *Vault) DeleteKey(ctx context.Context, name string) error {
 
 // DeleteAllKeys removes all named keys and syncs the change when remote mode is active.
 func (ks *Vault) DeleteAllKeys(ctx context.Context) error {
-	shouldSync, err := ks.applyMutation(func(_ *Envelope, state *State) (bool, error) {
+	shouldSync, err := ks.applyMutation(func(state *State) (bool, error) {
 		if len(state.Accounts) == 0 {
 			return false, nil
 		}
@@ -444,7 +470,7 @@ func (ks *Vault) DeleteAllKeys(ctx context.Context) error {
 		return err
 	}
 	if shouldSync {
-		ks.syncAfterMutation(ctx)
+		ks.syncRemoteMaybe(ctx)
 	}
 
 	return nil
@@ -459,7 +485,7 @@ func (ks *Vault) ChangeKeyName(ctx context.Context, currentName, newName string)
 		return fmt.Errorf("invalid new name format")
 	}
 
-	shouldSync, err := ks.applyMutation(func(_ *Envelope, state *State) (bool, error) {
+	shouldSync, err := ks.applyMutation(func(state *State) (bool, error) {
 		accountIdx := findAccountIndexByName(state.Accounts, currentName)
 		if accountIdx < 0 {
 			return false, errLocalKeyNotFound
@@ -475,7 +501,7 @@ func (ks *Vault) ChangeKeyName(ctx context.Context, currentName, newName string)
 		return err
 	}
 	if shouldSync {
-		ks.syncAfterMutation(ctx)
+		ks.syncRemoteMaybe(ctx)
 	}
 
 	return nil
@@ -483,10 +509,10 @@ func (ks *Vault) ChangeKeyName(ctx context.Context, currentName, newName string)
 
 // Status returns backend mode and sync metadata from the local vault file.
 func (ks *Vault) Status() (Status, error) {
-	ks.mu.Lock()
-	defer ks.mu.Unlock()
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
 
-	envelope, err := load(ks.local.dataDir)
+	envelope, err := ks.store.LoadEnvelope()
 	if err != nil {
 		return Status{}, fmt.Errorf("failed to load vault envelope: %w", err)
 	}
@@ -601,27 +627,19 @@ func (ks *Vault) Disconnect() error {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
 
-	envelope, err := load(ks.local.dataDir)
-	if err != nil {
-		return fmt.Errorf("failed to load vault envelope: %w", err)
-	}
-	if envelope == nil {
-		ks.connection = nil
-		return nil
-	}
-	envelope, state, dek, err := ks.local.loadStateWithDEK()
+	snapshot, err := ks.loadSnapshotLocked()
 	if err != nil {
 		return err
 	}
-	if envelope == nil {
+	if snapshot.Envelope == nil {
 		ks.connection = nil
 		return nil
 	}
 
-	previousRemote := cloneRemoteState(envelope.Remote)
-	envelope.Remote = nil
-	envelope.Credentials = nil
-	if err := ks.saveStateLockedWithDEK(envelope, state, 0, dek); err != nil {
+	previousRemote := cloneRemoteState(snapshot.Envelope.Remote)
+	snapshot.Envelope.Remote = nil
+	snapshot.Envelope.Credentials = nil
+	if err := ks.saveSnapshotLocked(snapshot); err != nil {
 		return fmt.Errorf("failed to save disconnected vault envelope: %w", err)
 	}
 	if previousRemote != nil {
@@ -635,90 +653,57 @@ func (ks *Vault) Disconnect() error {
 	return nil
 }
 
-func (ks *Vault) applyMutation(fn func(envelope *Envelope, state *State) (bool, error)) (shouldSync bool, err error) {
+func (ks *Vault) applyMutation(fn func(state *State) (bool, error)) (shouldSync bool, err error) {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
 
-	envelope, state, err := ks.loadStateLocked()
+	snapshot, err := ks.loadSnapshotLocked()
 	if err != nil {
 		return false, err
 	}
 
-	changed, err := fn(envelope, &state)
+	changed, err := fn(&snapshot.State)
 	if err != nil || !changed {
 		return false, err
 	}
 
-	envelope, localVersionIncrement := ks.prepareEnvelopeForSave(envelope, 1)
-	if err := ks.saveStateLocked(envelope, state, localVersionIncrement); err != nil {
+	if snapshot.Envelope == nil {
+		snapshot.Envelope = &Envelope{}
+	}
+	if snapshot.Envelope.Remote != nil {
+		snapshot.Envelope.Remote.LocalVersion++
+	}
+	if err := ks.saveSnapshotLocked(snapshot); err != nil {
 		return false, err
 	}
 
-	return ks.shouldSyncRemote(envelope), nil
+	return ks.shouldSyncRemote(snapshot.Envelope), nil
+}
+
+func (ks *Vault) loadSnapshotLocked() (vaultSnapshot, error) {
+	snapshot, err := ks.store.LoadSnapshot()
+	if err != nil {
+		return vaultSnapshot{}, fmt.Errorf("failed to load vault state: %w", err)
+	}
+
+	return snapshot, nil
 }
 
 func (ks *Vault) loadStateLocked() (*Envelope, State, error) {
-	envelope, state, _, err := ks.local.loadStateWithDEK()
+	snapshot, err := ks.loadSnapshotLocked()
 	if err != nil {
-		return nil, State{}, fmt.Errorf("failed to decode remote sync vault state: %w", err)
+		return nil, State{}, err
 	}
 
-	return envelope, state, nil
+	return snapshot.Envelope, snapshot.State, nil
 }
 
-func (ks *Vault) prepareEnvelopeForSave(existingEnvelope *Envelope, requestedLocalVersionIncrement int) (*Envelope, int) {
-	next := &Envelope{}
-	if existingEnvelope != nil {
-		next.Credentials = append([]Credential(nil), existingEnvelope.Credentials...)
-		next.Remote = cloneRemoteState(existingEnvelope.Remote)
-	}
-	if next.Remote == nil {
-		return next, 0
+func (ks *Vault) saveSnapshotLocked(snapshot vaultSnapshot) error {
+	if err := ks.store.SaveSnapshot(snapshot); err != nil {
+		return fmt.Errorf("failed to save vault state: %w", err)
 	}
 
-	return next, requestedLocalVersionIncrement
-}
-
-func (ks *Vault) saveStateLocked(envelope *Envelope, state State, localVersionIncrement int) error {
-	dek := []byte(nil)
-	if envelope != nil && len(envelope.WrappedDEK) > 0 {
-		var err error
-		dek, err = ks.local.loadDataEncryptionKey(envelope)
-		if err != nil {
-			return err
-		}
-	} else {
-		var err error
-		dek, err = newRandomSecret()
-		if err != nil {
-			return err
-		}
-	}
-
-	return ks.saveStateLockedWithDEK(envelope, state, localVersionIncrement, dek)
-}
-
-func (ks *Vault) saveStateLockedWithDEK(envelope *Envelope, state State, localVersionIncrement int, dek []byte) error {
-	plaintext, err := encodeState(state)
-	if err != nil {
-		return fmt.Errorf("failed to encode remote sync vault state: %w", err)
-	}
-
-	ciphertext, err := ks.local.encrypt(plaintext, dek)
-	if err != nil {
-		return err
-	}
-
-	envelope.EncryptedData = ciphertext
-	envelope.WrappedDEK, err = ks.local.wrapDataEncryptionKey(envelope.Remote, dek)
-	if err != nil {
-		return err
-	}
-	if envelope.Remote != nil {
-		envelope.Remote.LocalVersion += localVersionIncrement
-	}
-
-	return saveEnvelopeFile(ks.local.dataDir, envelope)
+	return nil
 }
 
 func (ks *Vault) consumeConnectionHandoff(handoffToken string, remoteURL string, now time.Time) error {
@@ -805,23 +790,23 @@ func (ks *Vault) recordSyncFailure(message string) {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
 
-	envelope, err := load(ks.local.dataDir)
+	envelope, err := ks.store.LoadEnvelope()
 	if err != nil || envelope == nil || envelope.Remote == nil {
 		return
 	}
 
 	envelope.Remote.LastSyncTime = time.Now().UTC().Unix()
 	envelope.Remote.LastSyncError = strings.TrimSpace(message)
-	_ = saveEnvelopeFile(ks.local.dataDir, envelope)
+	_ = ks.store.SaveEnvelope(envelope)
 }
 
-func (ks *Vault) syncAfterMutation(ctx context.Context) {
-	if err := ks.syncAfterMutationOnce(ctx); err != nil {
+func (ks *Vault) syncRemoteMaybe(ctx context.Context) {
+	if err := ks.syncRemote(ctx); err != nil {
 		ks.recordSyncFailure(fmt.Sprintf("remote sync failed after local mutation: %v", err))
 	}
 }
 
-func (ks *Vault) syncAfterMutationOnce(ctx context.Context) error {
+func (ks *Vault) syncRemote(ctx context.Context) error {
 	syncConfig, enabled, err := ks.loadRemoteSyncConfig()
 	if err != nil {
 		return err
@@ -872,7 +857,10 @@ func (ks *Vault) syncAfterMutationOnce(ctx context.Context) error {
 }
 
 func (ks *Vault) loadRemoteSyncConfig() (syncConfig, bool, error) {
-	envelope, err := load(ks.local.dataDir)
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	envelope, err := ks.store.LoadEnvelope()
 	if err != nil {
 		return syncConfig{}, false, fmt.Errorf("failed to read local vault status: %w", err)
 	}
@@ -1024,14 +1012,15 @@ func (ks *Vault) buildRemoteSaveRequest(
 }
 
 func (ks *Vault) buildRemoteStateFromLocal() (State, error) {
-	ks.mu.Lock()
-	defer ks.mu.Unlock()
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
 
-	_, state, err := ks.loadStateLocked()
+	snapshot, err := ks.loadSnapshotLocked()
 	if err != nil {
 		return State{}, fmt.Errorf("failed to load local vault state: %w", err)
 	}
 
+	state := snapshot.State
 	state.SchemaVersion = stateSchemaVersion
 	if state.Accounts == nil {
 		state.Accounts = []AccountInfo{}
@@ -1117,13 +1106,12 @@ func (ks *Vault) mergeRemoteAccounts(
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
 
-	envelope, state, err := ks.loadStateLocked()
+	snapshot, err := ks.loadSnapshotLocked()
 	if err != nil {
 		return err
 	}
-	envelope, _ = ks.prepareEnvelopeForSave(envelope, 0)
 
-	localNormalized, err := normalizeLocalState(state)
+	localNormalized, err := normalizeLocalState(snapshot.State)
 	if err != nil {
 		return err
 	}
@@ -1136,7 +1124,8 @@ func (ks *Vault) mergeRemoteAccounts(
 		return nil
 	}
 
-	return ks.saveStateLocked(envelope, mergedState, 0)
+	snapshot.State = mergedState
+	return ks.saveSnapshotLocked(snapshot)
 }
 
 func (ks *Vault) connect(
@@ -1165,16 +1154,9 @@ func (ks *Vault) connect(
 		return fmt.Errorf("remote vault credential ID is required")
 	}
 
-	envelope, state, _, err := ks.local.loadStateWithDEK()
+	snapshot, err := ks.loadSnapshotLocked()
 	if err != nil {
 		return fmt.Errorf("failed to load vault state: %w", err)
-	}
-	if envelope == nil {
-		envelope, err = ks.newEmptyEnvelopeLocked()
-		if err != nil {
-			return fmt.Errorf("failed to create connected vault envelope: %w", err)
-		}
-		state = newEmptyState()
 	}
 
 	dek, err := decodeRemoteDataEncryptionKey(remoteSecret, wrappedDEK)
@@ -1188,53 +1170,30 @@ func (ks *Vault) connect(
 		CredentialID:  normalizedCredentialID,
 		RemoteVersion: remoteVersion,
 	}
-	if envelope.Remote != nil {
-		remote.LocalVersion = envelope.Remote.LocalVersion
+	if snapshot.Envelope != nil && snapshot.Envelope.Remote != nil {
+		remote.LocalVersion = snapshot.Envelope.Remote.LocalVersion
 	}
 	if !syncTime.IsZero() {
 		remote.LastSyncTime = syncTime.UTC().Unix()
 	}
-	envelope.Remote = remote
-	envelope.Credentials = mergeCredentialJSONs(envelope.Credentials, credentials)
+	if snapshot.Envelope == nil {
+		snapshot.Envelope = &Envelope{}
+	}
+	snapshot.Envelope.Remote = remote
+	snapshot.Envelope.Credentials = mergeCredentialJSONs(snapshot.Envelope.Credentials, credentials)
+	snapshot.DEK = dek
 
-	if err := ks.saveStateLockedWithDEK(envelope, state, 0, dek); err != nil {
+	if err := ks.saveSnapshotLocked(snapshot); err != nil {
 		return fmt.Errorf("failed to save connected vault envelope: %w", err)
 	}
 
 	return nil
 }
 
-func (ks *Vault) newEmptyEnvelopeLocked() (*Envelope, error) {
-	plaintext, err := encodeState(newEmptyState())
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode empty vault state: %w", err)
-	}
-
-	dek, err := newRandomSecret()
-	if err != nil {
-		return nil, err
-	}
-	ciphertext, err := ks.local.encrypt(plaintext, dek)
-	if err != nil {
-		return nil, err
-	}
-
-	wrappedDEK, err := ks.local.wrapDataEncryptionKey(nil, dek)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Envelope{
-		EncryptedData: ciphertext,
-		WrappedDEK:    wrappedDEK,
-		Credentials:   []Credential{},
-	}, nil
-}
-
 func (ks *Vault) httpClientDo(req *http.Request) (*http.Response, error) {
-	ks.mu.Lock()
+	ks.mu.RLock()
 	client := ks.httpClient
-	ks.mu.Unlock()
+	ks.mu.RUnlock()
 	if client == nil {
 		client = &http.Client{Timeout: 5 * time.Second}
 	}
@@ -1874,5 +1833,5 @@ func (ks *Vault) IsConnected() bool {
 
 // ForceSyncNow triggers an immediate sync with the remote vault.
 func (ks *Vault) ForceSyncNow(ctx context.Context) error {
-	return ks.syncAfterMutationOnce(ctx)
+	return ks.syncRemote(ctx)
 }

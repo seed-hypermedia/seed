@@ -560,35 +560,20 @@ func (s *Service) computeAuthInfo(ctx context.Context, eids map[string]bool) *au
 		return info
 	}
 
-	// Get all local keys.
-	localKeys, err := s.keyStore.ListKeys(ctx)
-	if err != nil || len(localKeys) == 0 {
-		return info
-	}
-
-	// Get full keypairs for all local keys.
-	localKeyPairs := make(map[string]*core.KeyPair)
-	for _, namedKey := range localKeys {
-		kp, err := s.keyStore.GetKey(ctx, namedKey.Name)
-		if err != nil {
-			continue
-		}
-		localKeyPairs[namedKey.Name] = kp
-	}
-
-	if len(localKeyPairs) == 0 {
+	keyPairs, err := s.keyStore.ListKeyPairs(ctx)
+	if err != nil || len(keyPairs) == 0 {
 		return info
 	}
 
 	// Collect unique spaces from entities being synced.
-	spaces := make(map[string]core.Principal)
+	spaces := make(map[core.PrincipalUnsafeString]core.Principal)
 	for eid := range eids {
 		iri := blob.IRI(eid)
 		space, _, err := iri.SpacePath()
 		if err != nil {
 			continue
 		}
-		spaces[space.String()] = space
+		spaces[space.UnsafeString()] = space
 	}
 
 	if len(spaces) == 0 {
@@ -613,7 +598,7 @@ func (s *Service) computeAuthInfo(ctx context.Context, eids map[string]bool) *au
 		info.addrInfos[addrInfo.ID] = addrInfo
 
 		// Check which local keys have access to this space.
-		for _, kp := range localKeyPairs {
+		for _, kp := range keyPairs {
 			authorizedSpaces, err := s.index.GetAuthorizedSpaces(ctx, []core.Principal{kp.Principal()})
 			if err != nil {
 				continue
@@ -622,7 +607,7 @@ func (s *Service) computeAuthInfo(ctx context.Context, eids map[string]bool) *au
 			for _, authSpace := range authorizedSpaces {
 				if authSpace.Equal(space) {
 					// This key has access to the space. Add to peerKeys.
-					info.peerKeys[addrInfo.ID] = append(info.peerKeys[addrInfo.ID], kp)
+					info.peerKeys[addrInfo.ID] = append(info.peerKeys[addrInfo.ID], kp.KeyPair)
 					break
 				}
 			}

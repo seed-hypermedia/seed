@@ -12,10 +12,17 @@ type KeyStore interface {
 	DeleteKey(ctx context.Context, name string) error
 	DeleteAllKeys(ctx context.Context) error
 	ChangeKeyName(ctx context.Context, currentName, newName string) error
+	ListKeyPairs(ctx context.Context) ([]NamedKeyPair, error)
 }
 
 // NamedKey is a record for the stored private key with a name.
 type NamedKey struct {
 	Name      string
 	PublicKey Principal
+}
+
+// NamedKeyPair is a stored private key with its name.
+type NamedKeyPair struct {
+	Name string
+	*KeyPair
 }

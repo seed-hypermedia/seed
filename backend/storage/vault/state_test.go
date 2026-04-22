@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"seed/backend/core"
@@ -455,7 +456,7 @@ type fixedTestSecretStore struct {
 func newFixedTestSecretStore(secrets map[string][]byte) SecretStore {
 	cloned := make(map[string][]byte, len(secrets))
 	for name, secret := range secrets {
-		cloned[name] = append([]byte(nil), secret...)
+		cloned[name] = slices.Clone(secret)
 	}
 
 	return fixedTestSecretStore{secrets: cloned}
@@ -467,15 +468,11 @@ func (s fixedTestSecretStore) Load(name string) ([]byte, error) {
 		return nil, fmt.Errorf("missing secret %q", name)
 	}
 
-	return append([]byte(nil), secret...), nil
-}
-
-func (s fixedTestSecretStore) Ensure(name string) ([]byte, error) {
-	return s.Load(name)
+	return slices.Clone(secret), nil
 }
 
 func (s fixedTestSecretStore) Store(name string, secret []byte) error {
-	s.secrets[name] = append([]byte(nil), secret...)
+	s.secrets[name] = slices.Clone(secret)
 	return nil
 }
 

@@ -120,6 +120,27 @@ func (fks *fileStore) ListKeys(_ context.Context) ([]core.NamedKey, error) {
 	return ret, nil
 }
 
+func (fks *fileStore) ListKeyPairs(_ context.Context) ([]core.NamedKeyPair, error) {
+	collection, err := fks.readCollection()
+	if err != nil {
+		return nil, err
+	}
+
+	var ret []core.NamedKeyPair
+	for name, privBytes := range collection {
+		priv := new(core.KeyPair)
+		if err := priv.UnmarshalBinary(privBytes); err != nil {
+			return nil, err
+		}
+
+		ret = append(ret, core.NamedKeyPair{
+			Name:    name,
+			KeyPair: priv,
+		})
+	}
+	return ret, nil
+}
+
 func (fks *fileStore) DeleteAllKeys(_ context.Context) error {
 	if err := os.Remove(fks.keysFilePath()); err != nil {
 		if os.IsNotExist(err) {

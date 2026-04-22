@@ -29,11 +29,19 @@ func (mks *memoryStore) StoreKey(_ context.Context, name string, kp *core.KeyPai
 }
 
 func (mks *memoryStore) ListKeys(_ context.Context) ([]core.NamedKey, error) {
-	var namedKeys []core.NamedKey
+	out := make([]core.NamedKey, 0, len(mks.keys))
 	for name, key := range mks.keys {
-		namedKeys = append(namedKeys, core.NamedKey{Name: name, PublicKey: key.Principal()})
+		out = append(out, core.NamedKey{Name: name, PublicKey: key.Principal()})
 	}
-	return namedKeys, nil
+	return out, nil
+}
+
+func (mks *memoryStore) ListKeyPairs(_ context.Context) ([]core.NamedKeyPair, error) {
+	out := make([]core.NamedKeyPair, 0, len(mks.keys))
+	for name, key := range mks.keys {
+		out = append(out, core.NamedKeyPair{Name: name, KeyPair: key})
+	}
+	return out, nil
 }
 
 func (mks *memoryStore) DeleteKey(_ context.Context, name string) error {

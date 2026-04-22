@@ -59,6 +59,21 @@ func (s *stubKeyStore) ListKeys(_ context.Context) ([]core.NamedKey, error) {
 	return out, nil
 }
 
+func (s *stubKeyStore) ListKeyPairs(_ context.Context) ([]core.NamedKeyPair, error) {
+	names := make([]string, 0, len(s.keys))
+	for name := range s.keys {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	out := make([]core.NamedKeyPair, 0, len(names))
+	for _, name := range names {
+		out = append(out, core.NamedKeyPair{Name: name, KeyPair: s.keys[name]})
+	}
+
+	return out, nil
+}
+
 func (s *stubKeyStore) DeleteKey(_ context.Context, name string) error {
 	delete(s.keys, name)
 	return nil
@@ -88,7 +103,8 @@ func TestNewProductionLoadsKeysAndMigratesLegacyKeys(t *testing.T) {
 	require.NoError(t, legacy.StoreKey(ctx, "alice", kp))
 
 	localKey := bytes.Repeat([]byte{0x11}, 32)
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, localKey))
 
 	ks, err := openProduction(dataDir, legacy, secretStore)
@@ -116,11 +132,22 @@ func TestNewProductionReturnsSecretLoaderError(t *testing.T) {
 	require.Contains(t, err.Error(), "boom")
 }
 
+func TestNewProductionRejectsSecondInitializationInProcess(t *testing.T) {
+	productionVaultInitialized.Store(true)
+	t.Cleanup(func() {
+		productionVaultInitialized.Store(false)
+	})
+
+	_, err := NewProduction(t.TempDir(), "test")
+	require.ErrorIs(t, err, errProductionVaultAlreadyInitialized)
+}
+
 func TestNewProductionSkipsLegacyMigrationWhenLocalVaultExists(t *testing.T) {
 	ctx := context.Background()
 	dataDir := t.TempDir()
 	localKey := bytes.Repeat([]byte{0x33}, 32)
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, localKey))
 
 	existingLocal, err := New(dataDir, secretStore)
@@ -153,7 +180,8 @@ func TestNewProductionSkipsLegacyMigrationWhenLocalVaultExists(t *testing.T) {
 func TestMigrateLegacyKeySnapshotDoesNotWritePartialVaultFile(t *testing.T) {
 	ctx := context.Background()
 	dataDir := t.TempDir()
-	secretStore := NewMemorySecretStore()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, bytes.Repeat([]byte{0x55}, 32)))
 
 	ks, err := New(dataDir, secretStore)
@@ -180,7 +208,6 @@ func TestMigrateLegacyKeySnapshotDoesNotWritePartialVaultFile(t *testing.T) {
 
 type boomSecretStore struct{}
 
-func (boomSecretStore) Load(string) ([]byte, error)   { return nil, fmt.Errorf("boom") }
-func (boomSecretStore) Store(string, []byte) error    { return fmt.Errorf("boom") }
-func (boomSecretStore) Delete(string) error           { return fmt.Errorf("boom") }
-func (boomSecretStore) Ensure(string) ([]byte, error) { return nil, fmt.Errorf("boom") }
+func (boomSecretStore) Load(string) ([]byte, error) { return nil, fmt.Errorf("boom") }
+func (boomSecretStore) Store(string, []byte) error  { return fmt.Errorf("boom") }
+func (boomSecretStore) Delete(string) error         { return fmt.Errorf("boom") }
