@@ -43,6 +43,20 @@ export interface DisplayComponentProps {
   assign?: any
 }
 
+const uploadedBlockIds = new Set<string>()
+
+export function markBlockUploaded(blockId: string) {
+  uploadedBlockIds.add(blockId)
+}
+
+export function consumeUploaded(blockId: string): boolean {
+  if (uploadedBlockIds.has(blockId)) {
+    uploadedBlockIds.delete(blockId)
+    return true
+  }
+  return false
+}
+
 interface RenderProps {
   block: Block<HMBlockSchema>
   editor: BlockNoteEditor<HMBlockSchema>
@@ -360,6 +374,7 @@ function MediaForm({
             props.displaySrc = result.displaySrc
           }
         }
+        markBlockUploaded(block.id)
         assign({props} as MediaType)
       } else {
         // upload to IPFS immediately if handleFileAttachment is not available
@@ -381,6 +396,7 @@ function MediaForm({
           throw new Error('Failed to upload file to IPFS: No CID returned')
         }
         const ipfsUrl = `ipfs://${responseCID}`
+        markBlockUploaded(block.id)
         assign({
           props: {
             url: ipfsUrl,

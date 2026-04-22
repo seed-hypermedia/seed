@@ -8,7 +8,7 @@ import {useRef, useState} from 'react'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {InlineContent} from './blocknote/react/ReactBlockSpec'
-import {MediaType} from './media-render'
+import {markBlockUploaded, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'
 
 interface ContainerProps {
@@ -81,6 +81,7 @@ export const MediaContainer = ({
             props.displaySrc = result.displaySrc
           }
         }
+        markBlockUploaded(block.id)
         assign({props} as MediaType)
       } catch (error) {
         console.error(`Editor: ${mediaType} replace error: ${error}`)
@@ -97,6 +98,7 @@ export const MediaContainer = ({
         })
         const data = await response.text()
 
+        markBlockUploaded(block.id)
         assign({
           props: {
             url: data ? `ipfs://${data}` : '',

@@ -13,7 +13,7 @@ import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
 import {createReactBlockSpec} from './blocknote/react/ReactBlockSpec'
 import {MediaContainer} from './media-container'
-import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
+import {consumeUploaded, DisplayComponentProps, MediaRender, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'
 import {isValidUrl, youtubeParser} from './utils'
 
@@ -264,7 +264,7 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
   const autoplay = block.props.autoplay === 'true'
   const loop = block.props.loop === 'true'
   const muted = block.props.muted === 'true'
-  const [showSuccess, setShowSuccess] = useState(true)
+  const [showSuccess, setShowSuccess] = useState(() => consumeUploaded(block.id))
 
   useEffect(() => {
     if (!showSuccess) return
@@ -453,8 +453,11 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
             key={videoSrc}
             contentEditable={false}
             playsInline
-            controls
+            controls={!autoplay}
             preload="metadata"
+            autoPlay={!editor.isEditable && autoplay}
+            loop={!editor.isEditable && loop}
+            muted={!editor.isEditable && muted}
             className="absolute top-0 left-0 h-full w-full"
           >
             <source
@@ -480,21 +483,27 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
           />
         ) : null}
       </div>
-      {canEdit && showSuccess && block.props.name && (
-        <div className="flex w-full items-center gap-2 rounded-sm bg-green-50 px-3 py-2 dark:bg-green-950/30">
-          <CheckCircle2 className="size-4 shrink-0 text-green-600 dark:text-green-400" />
-          <span className="text-sm text-green-800 dark:text-green-300">{block.props.name} uploaded successfully</span>
-        </div>
-      )}
-      {canEdit && (block.props.displaySrc || isIpfsUrl(block.props.url || '')) && (
-        <VideoOptions
-          autoplay={autoplay}
-          setAutoplay={setAutoplay}
-          loop={loop}
-          setLoop={setLoop}
-          muted={muted}
-          setMuted={setMuted}
-        />
+      {editor.isEditable && (
+        <>
+          {showSuccess && block.props.name && (
+            <div className="flex w-full items-center gap-2 rounded-sm bg-green-50 px-3 py-2 dark:bg-green-950/30">
+              <CheckCircle2 className="size-4 shrink-0 text-green-600 dark:text-green-400" />
+              <span className="text-sm text-green-800 dark:text-green-300">
+                {block.props.name} uploaded successfully
+              </span>
+            </div>
+          )}
+          {(block.props.displaySrc || isIpfsUrl(block.props.url || '')) && (
+            <VideoOptions
+              autoplay={autoplay}
+              setAutoplay={setAutoplay}
+              loop={loop}
+              setLoop={setLoop}
+              muted={muted}
+              setMuted={setMuted}
+            />
+          )}
+        </>
       )}
     </MediaContainer>
   )
