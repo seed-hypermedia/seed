@@ -1883,8 +1883,7 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
   const version = parsed.query.v || null
   const fragment = parseFragment(parsed.fragment)
 
-  const hasBlockRef = !!fragment?.blockId
-  const latest = hasBlockRef ? false : parsed.query.l === null || parsed.query.l === '' || !version
+  const latest = parsed.query.l === null || parsed.query.l === '' || !version
 
   let blockRange = null
   if (fragment) {

@@ -1172,6 +1172,16 @@ describe('roundtrip: createWebHMUrl -> unpackHmId', () => {
     expect(unpacked?.latest).toBe(true)
     expect(unpacked?.version).toBeNull()
   })
+
+  test('doc URL with version, latest, and blockRef roundtrips as latest', () => {
+    const url = packHmId(hmId('abc', {version: 'v1', latest: true, blockRef: 'XK6l8B4d'}))
+    expect(url).toBe('hm://abc?v=v1&l#XK6l8B4d')
+    const unpacked = unpackHmId(url)
+    expect(unpacked?.uid).toBe('abc')
+    expect(unpacked?.version).toBe('v1')
+    expect(unpacked?.blockRef).toBe('XK6l8B4d')
+    expect(unpacked?.latest).toBe(true)
+  })
 })
 
 describe('packHmId with latest and version', () => {
