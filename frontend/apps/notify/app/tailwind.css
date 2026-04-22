@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
+@import '@shm/ui/hm-prose.css';
+
+@plugin "@tailwindcss/typography";
 
 @source "../../../packages/ui/src";
 @source "../../../packages/editor/src";

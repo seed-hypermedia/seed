@@ -1,5 +1,4 @@
 import 'katex/dist/katex.min.css'
-import './blocks-content.css'
 import {Button} from './button'
 import {SizableText} from './text'
 import {cn} from './utils'

@@ -45,10 +45,9 @@ Tippy popups that are appended to document.body directly
   }
 
   .defaultStyles {
-    font-size: 18px;
-    font-weight: normal;
-
-    font-size: 1.2em;
+    /* Font-size, font-weight, and font-family are owned by .hm-prose
+     * on the editor container (see packages/ui/src/hm-prose.css).
+     * Keeping only the font-smoothing reset here. */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -58,40 +57,10 @@ Tippy popups that are appended to document.body directly
     font-size: inherit;
   }
 
-  .draft-editor .defaultStyles {
-    background-color: red;
-    font-family: Georgia, 'Times New Roman', Times, serif !important;
-  }
-
-  .comment-editor .ProseMirror .defaultStyles p {
-    font-family:
-      'Inter',
-      'SF Pro Display',
-      -apple-system,
-      BlinkMacSystemFont,
-      'Open Sans',
-      'Segoe UI',
-      'Roboto',
-      'Oxygen',
-      'Ubuntu',
-      'Cantarell',
-      'Fira Sans',
-      'Droid Sans',
-      'Helvetica Neue',
-      sans-serif !important;
-  }
-
-  .defaultStyles h1,
-  .defaultStyles h2,
-  .defaultStyles h3,
-  .defaultStyles h4,
-  .defaultStyles h5,
-  .defaultStyles h6 {
-    font-family: 'Inter', sans-serif !important;
-    font-weight: 400;
-    font-size: 18px;
-    line-height: 1.5;
-  }
+  /* Font family, weight, and size for body + headings are owned by
+   * .hm-prose (see packages/ui/src/hm-prose.css). Removing the old
+   * overrides here lets the `.hm-prose` stack inherit into the
+   * ProseMirror root. */
 
   .dragPreview {
     position: absolute;

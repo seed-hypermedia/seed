@@ -82,8 +82,11 @@ export const lightDefaultTheme: Theme = {
     },
   },
   borderRadius: 6,
-  fontFamily:
-    '"Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Open Sans", "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
+  // Inherit from the nearest `.hm-prose` container (serif for docs,
+  // sans for comments via `.hm-prose.is-comment`). Hard-coding a sans
+  // stack here produces a high-specificity `.mantine-xxxx .ProseMirror`
+  // rule that overrides our prose class.
+  fontFamily: 'inherit',
 }
 
 export const darkDefaultTheme: Theme = {

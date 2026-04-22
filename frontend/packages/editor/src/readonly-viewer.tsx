@@ -89,7 +89,9 @@ export function ReadOnlyViewer({
           '--layout-unit': `${layoutUnit ?? 24}px`,
         } as React.CSSProperties
       }
-      className={commentStyle ? `${className ?? ''} comment-editor`.trim() : className}
+      className={[className ?? '', 'hm-prose', commentStyle ? 'comment-editor is-comment' : '']
+        .filter(Boolean)
+        .join(' ')}
     >
       <ReadOnlyBlockNoteView editor={editor}>
         <>
