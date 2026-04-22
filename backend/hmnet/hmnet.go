@@ -279,6 +279,25 @@ func (n *Node) Start(ctx context.Context) (err error) {
 
 	defer func() { n.log.Info("P2PNodeFinished", zap.Error(err)) }()
 
+	// Prune peer rows we haven't observed within PeerFreshnessWindow. Runs once
+	// here so nothing else in the node is reading/writing the peers table yet.
+	// Active peers bump updated_at on every direct contact, so only genuinely
+	// unseen records are removed. Ingress/egress filters on peer-exchange keep
+	// stale rows from being re-seeded between prunes.
+	if err := n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		var pruned int64
+		if err := sqlitex.Exec(conn, `DELETE FROM peers WHERE updated_at < (strftime('%s', 'now') - 30*86400);`, nil); err != nil {
+			return err
+		}
+		pruned = int64(conn.Changes())
+		if pruned > 0 {
+			n.log.Info("PrunedStalePeers", zap.Int64("removed", pruned))
+		}
+		return nil
+	}); err != nil {
+		n.log.Warn("Failed to prune stale peers at startup", zap.Error(err))
+	}
+
 	if err := n.startLibp2p(ctx); err != nil {
 		return err
 	}

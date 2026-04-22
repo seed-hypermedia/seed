@@ -354,6 +354,10 @@ var customBootstrapPeers = []string{
 	"/dns4/hyper.media/udp/56001/quic-v1/p2p/" + ipfs.ProductionGatewayPID,
 	"/dns4/hyper.media/tcp/56001/p2p/" + ipfs.ProductionGatewayPID,
 	"/dns4/hyper.media/tcp/143/p2p/" + ipfs.ProductionGatewayPID,
+
+	// gabo.es Gateway — production server pinned to the main branch rather
+	// than :latest, so the bootstrap list has an anchor on a slower cadence.
+	"/dns4/gabo.es/tcp/56000/p2p/" + ipfs.GaboEsGatewayPID,
 }
 
 func bootstrapPeers() []peer.AddrInfo {

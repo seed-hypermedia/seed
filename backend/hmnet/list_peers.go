@@ -25,6 +25,11 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// qListPeers is the query the hmnet peer-exchange endpoint uses to decide what
+// to hand back to callers. It filters by PeerFreshnessWindow so we never
+// propagate rows we haven't observed recently, even if they survived pruning
+// (e.g. pruning runs only at startup). The administrative Networking.ListPeers
+// endpoint uses its own unfiltered query for visibility into the full table.
 var qListPeers = dqb.Str(`
 	SELECT
 		id,
@@ -32,7 +37,7 @@ var qListPeers = dqb.Str(`
 		pid,
 		updated_at
 	FROM peers
-	WHERE id < :last_cursor
+	WHERE id < :last_cursor AND updated_at > (strftime('%s', 'now') - 30*86400)
 	ORDER BY id DESC LIMIT :page_size;
 `)
 
