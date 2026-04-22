@@ -104,6 +104,19 @@ async function flushEffects() {
   })
 }
 
+// Polls for a DOM state that only materializes after N rounds of async
+// resolution (e.g. the 2-step `GetEntity → GetDomain` flow in
+// `useValidatedWebRouteLink`). Fixed `await flushEffects()` counts race
+// under CI load; this retries until the predicate passes or the budget
+// is exhausted.
+async function waitForHref(container: HTMLElement, expected: string, rounds = 10) {
+  for (let i = 0; i < rounds; i++) {
+    const actual = container.querySelector('a')?.getAttribute('href')
+    if (actual === expected) return
+    await flushEffects()
+  }
+}
+
 describe('validated web links', () => {
   beforeEach(() => {
     ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -121,7 +134,7 @@ describe('validated web links', () => {
     const route = 'https://alice.example/hm/alice/posts/:comments/comment123#blk1+'
     const {container, root} = renderHarness(<ValidatedLinkHarness route={route} />)
 
-    await flushEffects()
+    await waitForHref(container, '/hm/alice/posts/:comments/comment123#blk1+')
 
     const link = container.querySelector('a')
     expect(link?.getAttribute('href')).toBe('/hm/alice/posts/:comments/comment123#blk1+')
@@ -136,8 +149,7 @@ describe('validated web links', () => {
     const route = 'https://alice.example/hm/alice/posts/:comments/comment123#blk1+'
     const {container, root} = renderHarness(<ValidatedLinkHarness route={route} />)
 
-    await flushEffects()
-    await flushEffects()
+    await waitForHref(container, 'https://alice.example/posts/:comments/comment123#blk1+')
 
     const link = container.querySelector('a')
     expect(link?.getAttribute('href')).toBe('https://alice.example/posts/:comments/comment123#blk1+')
@@ -152,8 +164,7 @@ describe('validated web links', () => {
     const route = 'hm://alice/posts/:comments/comment123#blk1+'
     const {container, root} = renderHarness(<ValidatedLinkHarness route={route} />)
 
-    await flushEffects()
-    await flushEffects()
+    await waitForHref(container, 'https://alice.example/posts/:comments/comment123#blk1+')
 
     const link = container.querySelector('a')
     expect(link?.getAttribute('href')).toBe('https://alice.example/posts/:comments/comment123#blk1+')

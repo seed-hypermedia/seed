@@ -167,25 +167,25 @@
 /* Nested first-child: small separation from the parent block's own
  * content so the nested group reads as "part of, but distinct from"
  * its parent. Specificity (0,3,0) beats the reset above (0,2,0). */
-.hm-prose
-  [data-node-type='blockChildren']
-  [data-node-type='blockChildren']
-  > [data-node-type='blockNode']:first-child {
+.hm-prose [data-node-type='blockChildren'] [data-node-type='blockChildren'] > [data-node-type='blockNode']:first-child {
   margin-top: 0.25em;
 }
 
 /* Consecutive headings collapse to body rhythm so stacked H1→H2
  * doesn't open a double section break. */
-.hm-prose [data-node-type='blockNode']:has(> [data-content-type='heading'])
+.hm-prose
+  [data-node-type='blockNode']:has(> [data-content-type='heading'])
   + [data-node-type='blockNode']:has(> [data-content-type='heading']) {
   margin-top: 1rem;
 }
 
 /* List items tighten: items inside a list belong to one visual unit. */
-.hm-prose [data-node-type='blockChildren'][data-list-type='Unordered']
+.hm-prose
+  [data-node-type='blockChildren'][data-list-type='Unordered']
   > [data-node-type='blockNode']
   + [data-node-type='blockNode'],
-.hm-prose [data-node-type='blockChildren'][data-list-type='Ordered']
+.hm-prose
+  [data-node-type='blockChildren'][data-list-type='Ordered']
   > [data-node-type='blockNode']
   + [data-node-type='blockNode'] {
   margin-top: 0.25rem;
