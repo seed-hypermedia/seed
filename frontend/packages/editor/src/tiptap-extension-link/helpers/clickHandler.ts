@@ -28,7 +28,15 @@ export function clickHandler(options: ClickHandlerOptions): Plugin {
           return false
         }
 
-        const newWindow = event.shiftKey
+        // In edit mode, plain click must place the cursor so the hyperlink
+        // toolbar can open. Only navigate when the editor is read-only, or
+        // when the user explicitly holds a modifier.
+        const modifierPressed = event.shiftKey || event.metaKey || event.ctrlKey
+        if (view.editable && !modifierPressed) {
+          return false
+        }
+
+        const newWindow = modifierPressed
         if (options.openUrl) {
           options.openUrl(href, newWindow)
         } else if (typeof window !== 'undefined') {
