@@ -318,7 +318,7 @@
 }
 
 /* ---------- Images / figures ---------- */
-.hm-prose img {
+.hm-prose :where(img) {
   max-width: 100%;
   height: auto;
 }
