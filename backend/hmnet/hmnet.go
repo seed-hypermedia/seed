@@ -175,6 +175,10 @@ func New(cfg config.P2P, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Poo
 			grpc.ChainStreamInterceptor(
 				rpcServerMetrics.StreamServerInterceptor(),
 			),
+			// Match the client's extended message size so peer-exchange responses
+			// from nodes with thousands of peers don't hit the default 4 MiB cap.
+			grpc.MaxRecvMsgSize(maxP2PMessageSize),
+			grpc.MaxSendMsgSize(maxP2PMessageSize),
 		),
 		clean: clean,
 		ready: make(chan struct{}),

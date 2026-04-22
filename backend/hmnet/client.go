@@ -44,6 +44,14 @@ func (sc *singleConn) Close() error {
 	return sc.conn.Close()
 }
 
+// maxP2PMessageSize bounds the gRPC message size for peer-to-peer calls in
+// both directions. The default (4 MiB) is exceeded by healthy peer-exchange
+// responses on nodes with a few thousand peers (~14 KiB per entry with all
+// addresses), causing silent ResourceExhausted failures and starved peer
+// discovery. 32 MiB fits populations well beyond any realistic peer table
+// while still capping worst-case memory use on a malicious sender.
+const maxP2PMessageSize = 32 * 1024 * 1024
+
 // newClient creates a new Client using the provided libp2p host.
 func newClient(me peer.ID, h host.Host, protoID protocol.ID) *Client {
 	return &Client{
@@ -64,6 +72,10 @@ func newClient(me peer.ID, h host.Host, protoID protocol.ID) *Client {
 			),
 			grpc.WithChainStreamInterceptor(
 				rpcClientMetrics.StreamClientInterceptor(),
+			),
+			grpc.WithDefaultCallOptions(
+				grpc.MaxCallRecvMsgSize(maxP2PMessageSize),
+				grpc.MaxCallSendMsgSize(maxP2PMessageSize),
 			),
 		},
 		me:   me,
