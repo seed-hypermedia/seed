@@ -21,6 +21,7 @@ import {
   markNotificationReadAndNavigate,
 } from '@shm/shared/models/notification-helpers'
 import {useSelectedAccount} from '@/selected-account'
+import {client} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
 import {NotificationListItem} from '@shm/ui/notification-list-item'
 import {Button} from '@shm/ui/button'
@@ -31,8 +32,12 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {useNavRoute} from '@shm/shared/utils/navigation'
+import {useMutation, useQuery} from '@tanstack/react-query'
 import {Bell, Info, Settings} from 'lucide-react'
-import {useEffect, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo, useState} from 'react'
 
 export default function NotificationsPage() {
   const selectedAccount = useSelectedAccount()
@@ -59,8 +64,12 @@ export default function NotificationsPage() {
   return <NotificationsForAccount accountUid={accountUid} />
 }
 
+const NOTIFICATIONS_VIEW_KEY = 'notifications-view'
+
 function NotificationsForAccount({accountUid}: {accountUid: string}) {
   const navigate = useNavigate()
+  const replaceNavigate = useNavigate('replace')
+  const route = useNavRoute()
   const notifyServiceHost = useNotifyServiceHost()
   const readState = useLocalNotificationReadState(accountUid)
   const syncStatus = useNotificationSyncStatus(accountUid)
@@ -70,7 +79,32 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
   const syncNow = useSyncNotificationReadState()
   const inbox = useNotificationInbox(accountUid)
   const notifications = inbox.data || []
-  const [filter, setFilter] = useState<'all' | 'unread'>('all')
+  const filter = (route.key === 'notifications' && route.view) || 'all'
+
+  const persistedView = useQuery({
+    queryKey: [queryKeys.SETTINGS, NOTIFICATIONS_VIEW_KEY],
+    queryFn: () => client.appSettings.getSetting.query(NOTIFICATIONS_VIEW_KEY),
+  })
+  const setPersistedView = useMutation({
+    mutationFn: (view: string) => client.appSettings.setSetting.mutate({key: NOTIFICATIONS_VIEW_KEY, value: view}),
+    onSuccess: () => invalidateQueries([queryKeys.SETTINGS, NOTIFICATIONS_VIEW_KEY]),
+  })
+
+  const setFilter = useCallback(
+    (view: 'all' | 'unread') => {
+      setPersistedView.mutate(view)
+      replaceNavigate({key: 'notifications', view})
+    },
+    [replaceNavigate, setPersistedView],
+  )
+
+  // On mount, if no view in the route, restore from persisted setting
+  useEffect(() => {
+    if (route.key !== 'notifications' || route.view) return
+    if (persistedView.data === 'unread') {
+      replaceNavigate({key: 'notifications', view: 'unread'})
+    }
+  }, [persistedView.data]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredNotifications = useMemo(() => {
     if (filter === 'all') return notifications

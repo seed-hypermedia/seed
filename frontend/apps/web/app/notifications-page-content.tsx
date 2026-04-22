@@ -15,9 +15,9 @@ import {Button} from '@shm/ui/button'
 import {NotificationListItem} from '@shm/ui/notification-list-item'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
-import {useNavigate as useRemixNavigate} from '@remix-run/react'
+import {useNavigate as useRemixNavigate, useSearchParams} from '@remix-run/react'
 import {Bell} from 'lucide-react'
-import {useCallback, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo} from 'react'
 
 /** Client-only notifications page content for the web app. */
 export function WebNotificationsPage() {
@@ -53,6 +53,8 @@ export function WebNotificationsPage() {
   return <WebNotificationsForAccount accountUid={accountUid} />
 }
 
+const NOTIFICATIONS_VIEW_KEY = 'seed-notifications-view'
+
 function WebNotificationsForAccount({accountUid}: {accountUid: string}) {
   const {origin, originHomeId} = useUniversalAppContext()
   const siteUid = originHomeId?.uid
@@ -63,7 +65,27 @@ function WebNotificationsForAccount({accountUid}: {accountUid: string}) {
   const markAllRead = useWebMarkAllNotificationsRead(siteUid)
 
   const notifications = inbox.data?.notifications ?? []
-  const [filter, setFilter] = useState<'all' | 'unread'>('all')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const viewParam = searchParams.get('view')
+  const filter: 'all' | 'unread' = viewParam === 'unread' ? 'unread' : 'all'
+
+  const setFilter = useCallback(
+    (view: 'all' | 'unread') => {
+      localStorage.setItem(NOTIFICATIONS_VIEW_KEY, view)
+      setSearchParams({view}, {replace: true})
+    },
+    [setSearchParams],
+  )
+
+  // On mount, if no view in URL, restore from localStorage
+  useEffect(() => {
+    if (viewParam) return
+    const stored = localStorage.getItem(NOTIFICATIONS_VIEW_KEY)
+    if (stored === 'unread') {
+      setSearchParams({view: 'unread'}, {replace: true})
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const queryError = inbox.error ?? readState.error
   const queryErrorMessage =
     queryError instanceof Error ? queryError.message : queryError ? String(queryError) : 'Unknown notification error'

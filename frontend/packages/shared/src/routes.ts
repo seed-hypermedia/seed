@@ -251,6 +251,7 @@ export type SettingsRoute = z.infer<typeof settingsRouteSchema>
 
 export const notificationsRouteSchema = z.object({
   key: z.literal('notifications'),
+  view: z.enum(['all', 'unread']).optional(),
 })
 export type NotificationsRoute = z.infer<typeof notificationsRouteSchema>
 

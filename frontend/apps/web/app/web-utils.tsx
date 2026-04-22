@@ -293,7 +293,8 @@ export function WebSitePageShell({
 }
 
 function NotifsButton() {
-  const linkProps = useRouteLink({key: 'notifications'})
+  const storedView = typeof window !== 'undefined' ? localStorage.getItem('seed-notifications-view') : null
+  const linkProps = useRouteLink({key: 'notifications', view: storedView === 'unread' ? 'unread' : undefined})
   const {originHomeId} = useUniversalAppContext()
   const siteUid = originHomeId?.uid
   const inbox = useWebNotificationInbox(siteUid)

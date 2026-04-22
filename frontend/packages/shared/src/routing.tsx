@@ -201,7 +201,8 @@ export function routeToHref(
     return `/hm/contact/${route.id.uid}`
   }
   if (typeof route !== 'string' && route.key === 'notifications') {
-    return `/hm/notifications`
+    const viewParam = route.view ? `?view=${route.view}` : ''
+    return `/hm/notifications${viewParam}`
   }
 
   if (typeof route !== 'string' && route.key === 'inspect') {

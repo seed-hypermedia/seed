@@ -12,6 +12,7 @@ import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
 import {resolveOmnibarUrlToRoute, selectValidatedOmnibarSiteUrl} from '@/omnibar-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
+import {client} from '@/trpc'
 import {SidebarContext} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {pathNameify} from '@/utils/path'
@@ -23,6 +24,7 @@ import {VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alph
 import {hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {DocumentRoute, DraftRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {formattedDate} from '@shm/shared/utils/date'
@@ -47,6 +49,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
+import {useQuery} from '@tanstack/react-query'
 import {
   ArrowLeftFromLine,
   ArrowRightFromLine,
@@ -334,6 +337,10 @@ function NotificationButton() {
   const inbox = useNotificationInbox(accountUid)
   const readState = useLocalNotificationReadState(accountUid)
   const isActive = route.key === 'notifications'
+  const persistedView = useQuery({
+    queryKey: [queryKeys.SETTINGS, 'notifications-view'],
+    queryFn: () => client.appSettings.getSetting.query('notifications-view'),
+  })
 
   const unreadCount = useMemo(() => {
     if (!inbox.data || !readState.data) return 0
@@ -358,7 +365,14 @@ function NotificationButton() {
         )}
         aria-current={isActive ? 'page' : undefined}
         aria-disabled={isActive || undefined}
-        onClick={isActive ? undefined : () => navigate({key: 'notifications'})}
+        onClick={
+          isActive
+            ? undefined
+            : () => {
+                const view = persistedView.data === 'unread' ? ('unread' as const) : undefined
+                navigate({key: 'notifications', view})
+              }
+        }
       >
         <Bell className="size-4" />
         {unreadCount > 0 ? (
