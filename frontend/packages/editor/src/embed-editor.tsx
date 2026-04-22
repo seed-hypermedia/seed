@@ -49,7 +49,7 @@ function EmbedEditorInner({blocks}: {blocks: HMBlockNode[]}) {
   const editor = useEmbedEditor(blocks)
 
   return (
-    <BlockNoteView editor={editor}>
+    <BlockNoteView editor={editor} className="hm-prose">
       {/* No positioners/controllers for embed editors */}
       <></>
     </BlockNoteView>

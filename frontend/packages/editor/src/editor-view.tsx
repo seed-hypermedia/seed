@@ -23,7 +23,7 @@ export function HyperMediaEditorView({
 }) {
   const editable = editor.isEditable
   return (
-    <BlockNoteView editor={editor}>
+    <BlockNoteView editor={editor} className="hm-prose draft-editor">
       {editable && (
         <>
           <FormattingToolbarPositioner editor={editor} formattingToolbar={HMFormattingToolbar} />

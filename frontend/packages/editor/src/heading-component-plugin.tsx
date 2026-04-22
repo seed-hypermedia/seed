@@ -1,7 +1,6 @@
 import {createTipTapBlock} from './blocknote/core/extensions/Blocks/api/block'
 import {updateBlockCommand} from './blocknote/core/api/blockManipulation/commands/updateBlock'
 import styles from './blocknote/core/extensions/Blocks/nodes/Block.module.css'
-import {headingVariants} from '@shm/ui/heading'
 import {InputRule, mergeAttributes} from '@tiptap/core'
 
 export const HMHeadingBlockContent = createTipTapBlock<'heading'>({
@@ -91,9 +90,12 @@ export const HMHeadingBlockContent = createTipTapBlock<'heading'>({
     return [
       `h${node.attrs.level}`,
       mergeAttributes(HTMLAttributes, {
-        class: `block-heading heading-content ${styles.blockContent} ${headingVariants({
-          level: node.attrs.level as 1 | 2 | 3 | 4,
-        })}`,
+        // Heading typography (size, weight, color, line-height) is owned
+        // by `.hm-prose h1..h6` in packages/ui/src/hm-prose.css. Emitting
+        // Tailwind utility classes on the element itself — as the old
+        // `headingVariants()` helper did — baked per-heading styling into
+        // the DOM and overrode the prose class.
+        class: `block-heading heading-content ${styles.blockContent}`,
         'data-content-type': this.name,
       }),
       0,
