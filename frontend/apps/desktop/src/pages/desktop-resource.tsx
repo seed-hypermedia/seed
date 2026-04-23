@@ -17,9 +17,10 @@ import {domainResolver, grpcClient} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
-import {useChildDrafts, useCreateInlineDraft, usePublishResource, usePushResource} from '@/models/documents'
+import {useChildDrafts, useCreateInlineDraft, usePublishResource} from '@/models/documents'
 import {useExistingDraft} from '@/models/drafts'
-import {useGatewayUrl, useGatewayUrlStream, usePushOnPublish} from '@/models/gateway-settings'
+import {useGatewayUrl, useGatewayUrlStream} from '@/models/gateway-settings'
+import {usePushAfterPublish} from '@/models/push-after-publish'
 import {useHostSession} from '@/models/host'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
@@ -36,21 +37,14 @@ import {hmId, hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
 import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {findSelfQueryBlock} from '@shm/shared/content'
-import {
-  documentMachine,
-  PublishInput,
-  PushDocumentInput,
-  WriteDraftInput,
-} from '@shm/shared/models/document-machine'
+import {documentMachine, PublishInput, PushDocumentInput, WriteDraftInput} from '@shm/shared/models/document-machine'
 import {useDocumentInspector} from '@shm/shared/models/document-machine-inspect'
 import {useResource} from '@shm/shared/models/entity'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
-import {writeableStateStream} from '@shm/shared/utils/stream'
 import {CloudOff, Download, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
-import {PushedToast, PushResourceStatus} from '@shm/ui/push-toast'
 import {ResourcePage} from '@shm/ui/resource-page-common'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -159,14 +153,11 @@ export default function DesktopResourcePage() {
   const publishResourceRef = useRef(publishResource)
   publishResourceRef.current = publishResource
 
-  // Push-on-publish plumbing: refs keep the fromPromise actor stable across
-  // renders while always reading the latest hook values when it fires.
-  const pushResource = usePushResource()
-  const pushResourceRef = useRef(pushResource)
-  pushResourceRef.current = pushResource
-  const pushOnPublish = usePushOnPublish()
-  const pushOnPublishRef = useRef(pushOnPublish)
-  pushOnPublishRef.current = pushOnPublish
+  // Push-on-publish: ref keeps the fromPromise actor stable across renders
+  // while always reading the latest hook value when it fires.
+  const pushAfterPublish = usePushAfterPublish()
+  const pushAfterPublishRef = useRef(pushAfterPublish)
+  pushAfterPublishRef.current = pushAfterPublish
 
   // Create writeDraft actor that reads content from the captured editor ref.
   // Account ID flows through machine context → actor input (no closure deps).
@@ -223,32 +214,18 @@ export default function DesktopResourcePage() {
   )
 
   // Create pushDocument actor — spawned fire-and-forget after publish succeeds.
-  // Respects the user's "push on publish" preference: 'never' skips entirely,
-  // 'always' and 'ask' both push (ask is not currently surfaced in the UI).
-  // The actor resolves as soon as the push is kicked off; toast.promise owns
-  // the lifecycle so errors don't bubble back into the state machine.
+  // Delegates to the shared usePushAfterPublish helper (same flow used for
+  // comment publishing), which handles the setting gate, toast, and errors.
   const pushDocumentActor = useMemo(
     () =>
       fromPromise<void, PushDocumentInput>(async ({input}) => {
-        if (pushOnPublishRef.current.data === 'never') return
         const doc = input.publishedDocument
         if (!doc?.account || !doc?.version) return
         const pushId = hmId(doc.account, {
           path: entityQueryPathToHmIdPath(doc.path),
           version: doc.version,
         })
-        const [setPushStatus, pushStatus] = writeableStateStream<PushResourceStatus | null>(null)
-        const pushPromise = pushResourceRef.current(pushId, undefined, setPushStatus)
-        toast.promise(pushPromise, {
-          loading: <PushedToast pushStatus={pushStatus} status="loading" />,
-          success: <PushedToast pushStatus={pushStatus} status="success" />,
-          error: (err) => <PushedToast pushStatus={pushStatus} status="error" errorMessage={err?.message} />,
-        })
-        // Keep failures off the machine: toast already reports them, and we
-        // don't want an unhandled rejection from the spawned child.
-        pushPromise.catch((err) => {
-          console.error('[DesktopResource] push-on-publish failed:', err)
-        })
+        pushAfterPublishRef.current(pushId)
       }),
     [],
   )

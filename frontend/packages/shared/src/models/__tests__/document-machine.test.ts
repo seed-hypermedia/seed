@@ -414,7 +414,6 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
-
   it('document.remoteUpdate in loaded → updates publishedVersion', () => {
     const updatedDoc = {...mockDocument, version: 'bafynewer'}
     const actor = createTestActor()

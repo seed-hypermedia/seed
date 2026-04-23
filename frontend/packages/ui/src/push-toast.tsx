@@ -43,7 +43,8 @@ export function PublishedToast({
 
 /**
  * Compact push-status toast used by the unified editor's pushDocument actor.
- * Shows a single summary line without the per-host breakdown.
+ * Shows a single summary line without the per-host breakdown. During loading
+ * it surfaces progress as "(done/total)" once destination hosts are known.
  */
 export function PushedToast({
   pushStatus,
@@ -57,7 +58,9 @@ export function PushedToast({
   const state = useStream(pushStatus)
   const hostCount = state?.hosts.length ?? 0
   if (status === 'loading') {
-    return <p>Publishing to servers…</p>
+    const done = state?.hosts.filter((h) => h.status === 'success' || h.status === 'error').length ?? 0
+    const progress = hostCount > 0 ? ` (${done}/${hostCount})` : ''
+    return <p>{`Publishing to servers…${progress}`}</p>
   }
   if (status === 'success') {
     const suffix = hostCount > 0 ? ` to ${hostCount} server${hostCount === 1 ? '' : 's'}` : ' to servers'
