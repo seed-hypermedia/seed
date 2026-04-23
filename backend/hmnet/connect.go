@@ -148,7 +148,7 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	sort.Strings(addrsStr)
 	initialAddrs := strings.ReplaceAll(strings.Join(addrsStr, ","), " ", "")
 
-	if initialAddrs != "" {
+	if initialAddrs != "" && !n.peerWriteIsRedundant(ctx, info.ID.String(), initialAddrs) {
 		if err = n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
 			// On direct contact we always bump updated_at, whether or not the address
 			// set changed. Gating the update on address change would let an active
@@ -166,6 +166,34 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 		}
 	}
 	return nil
+}
+
+// peerWriteIsRedundant returns true when the peers-table row for pid already
+// holds the given addresses and was updated within the last 60s. Callers use
+// it to short-circuit an INSERT-on-conflict write whose only effect would be
+// bumping updated_at by milliseconds — the kind of write that stacks up when
+// the scheduler dials the same peer repeatedly or dialStoredPeers re-dials
+// peers we bulk-inserted a moment ago. A failed lookup falls through to the
+// write rather than silently dropping it.
+func (n *Node) peerWriteIsRedundant(ctx context.Context, pid, incomingAddrs string) bool {
+	var skip bool
+	if err := n.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, "SELECT addresses, updated_at FROM peers WHERE pid = ? LIMIT 1;", func(stmt *sqlite.Stmt) error {
+			stored := stmt.ColumnText(0)
+			updatedAt := stmt.ColumnInt64(1)
+			recent := time.Now().Unix()-updatedAt < 60
+			// If we have no new addresses to contribute the INSERT would only
+			// bump the timestamp; if we do have addresses they must match the
+			// stored set for the write to be truly redundant.
+			unchanged := incomingAddrs == "" || stored == incomingAddrs
+			skip = recent && unchanged
+			return nil
+		}, pid)
+	}); err != nil {
+		n.log.Debug("Peer freshness check failed, falling through to write", zap.String("PID", pid), zap.Error(err))
+		return false
+	}
+	return skip
 }
 
 // maxSharedPeers caps how many peers we request from a remote node's peer
@@ -411,32 +439,7 @@ func (n *Node) onLibp2pIdentification(ctx context.Context, event event.EvtPeerId
 	sort.Strings(addrsString)
 	incomingAddrs := strings.ReplaceAll(strings.Join(addrsString, ","), " ", "")
 
-	// Short-circuit the INSERT when the peer-table row is already fresh and
-	// unchanged. The identify-handler fires once per successful libp2p
-	// connection, including every dial we kick off from dialStoredPeers right
-	// after bulk-inserting the same peers from peer-exchange. Re-writing the
-	// same addresses with a timestamp bumped by milliseconds produces nothing
-	// but BEGIN IMMEDIATE collisions with the scheduler's blob-reconcile
-	// writers. The check is an indexed lookup on the UNIQUE pid column, so it
-	// costs ~nothing next to the write we're avoiding.
-	skip := false
-	if err := n.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, "SELECT addresses, updated_at FROM peers WHERE pid = ? LIMIT 1;", func(stmt *sqlite.Stmt) error {
-			stored := stmt.ColumnText(0)
-			updatedAt := stmt.ColumnInt64(1)
-			recent := time.Now().Unix()-updatedAt < 60
-			// If we have no new addresses to contribute, the INSERT would only
-			// bump updated_at; if we do have addresses, they must match what's
-			// already stored for the write to be truly redundant.
-			unchanged := incomingAddrs == "" || stored == incomingAddrs
-			skip = recent && unchanged
-			return nil
-		}, event.Peer.String())
-	}); err != nil {
-		n.log.Debug("Peer freshness check failed, falling through to write", zap.String("PID", event.Peer.String()), zap.Error(err))
-	}
-
-	if !skip {
+	if !n.peerWriteIsRedundant(ctx, event.Peer.String(), incomingAddrs) {
 		if err := n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
 			// Identify completed — we have direct first-hand evidence this peer exists
 			// right now. Always bump updated_at, regardless of whether addresses changed,
