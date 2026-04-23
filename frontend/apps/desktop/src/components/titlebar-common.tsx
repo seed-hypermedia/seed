@@ -434,8 +434,6 @@ export function AccountProfileButton() {
       : 'Remote vault connected'
     : 'Vault stored locally'
 
-  if (!accountUid) return null
-
   return (
     <DropdownMenu
       onOpenChange={(open) => {
@@ -445,12 +443,18 @@ export function AccountProfileButton() {
     >
       <DropdownMenuTrigger asChild>
         <Button className="window-no-drag relative h-8 w-8 overflow-hidden rounded-full border-1 border-transparent p-0">
-          <HMIcon
-            id={hmId(accountUid)}
-            name={selectedAccount?.metadata?.name}
-            icon={selectedAccount?.metadata?.icon}
-            size={32}
-          />
+          {accountUid ? (
+            <HMIcon
+              id={hmId(accountUid)}
+              name={selectedAccount?.metadata?.name}
+              icon={selectedAccount?.metadata?.icon}
+              size={32}
+            />
+          ) : (
+            <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-full">
+              <User className="text-muted-foreground size-4" />
+            </div>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="bottom" align="end" className="w-[260px]">
@@ -460,12 +464,18 @@ export function AccountProfileButton() {
             className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2"
             onClick={() => setSwitcherOpen(!switcherOpen)}
           >
-            <HMIcon
-              id={hmId(accountUid)}
-              name={selectedAccount?.metadata?.name}
-              icon={selectedAccount?.metadata?.icon}
-              size={32}
-            />
+            {accountUid ? (
+              <HMIcon
+                id={hmId(accountUid)}
+                name={selectedAccount?.metadata?.name}
+                icon={selectedAccount?.metadata?.icon}
+                size={32}
+              />
+            ) : (
+              <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+                <User className="text-muted-foreground size-4" />
+              </div>
+            )}
             <div className="min-w-0 flex-1 text-left">
               <p className="truncate text-sm font-medium">{selectedAccount?.metadata?.name || 'Account'}</p>
             </div>
@@ -533,14 +543,16 @@ export function AccountProfileButton() {
           )}
         </div>
         <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-        <DropdownMenuItem
-          onClick={() => {
-            navigate({key: 'profile', id: hmId(accountUid)})
-          }}
-        >
-          <User className="size-4" />
-          My Profile
-        </DropdownMenuItem>
+        {accountUid && (
+          <DropdownMenuItem
+            onClick={() => {
+              navigate({key: 'profile', id: hmId(accountUid)})
+            }}
+          >
+            <User className="size-4" />
+            My Profile
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem disabled>
           <UserCog className="size-4" />
           Manage account
