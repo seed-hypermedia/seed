@@ -373,10 +373,43 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 		}
 		if len(vals) != 0 {
 			sqlStr = sqlStr[0:len(sqlStr)-1] + " ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=excluded.updated_at WHERE addresses!=excluded.addresses AND excluded.addresses !='' AND excluded.updated_at > updated_at"
-			if err := n.db.WithTx(ctxStore, func(conn *sqlite.Conn) error {
-				return sqlitex.ExecTransient(conn, sqlStr, nil, vals...)
-			}); err != nil && !errors.Is(err, sqlitex.ErrBeginImmediateTx) {
-				return err
+			peerCount := len(vals) / 4
+			// The bulk INSERT competes with indexing writers for the SQLite pool. If
+			// it hits SQLITE_BUSY (ErrBeginImmediateTx) we used to silently swallow
+			// the error, losing every peer from this exchange. Retry with short
+			// backoff so transient lock contention doesn't wipe hundreds of rows;
+			// only give up after a few attempts, and log loudly when we do so
+			// operators can actually see when peer-graph data is being lost.
+			var insertErr error
+			for attempt := 0; attempt < 3; attempt++ {
+				insertErr = n.db.WithTx(ctxStore, func(conn *sqlite.Conn) error {
+					return sqlitex.ExecTransient(conn, sqlStr, nil, vals...)
+				})
+				if insertErr == nil {
+					break
+				}
+				if !errors.Is(insertErr, sqlitex.ErrBeginImmediateTx) {
+					return insertErr
+				}
+				n.log.Debug("Bulk peer INSERT busy, retrying",
+					zap.Int("peers", peerCount),
+					zap.Int("attempt", attempt+1),
+					zap.Error(insertErr))
+				select {
+				case <-ctxStore.Done():
+					// Outer timeout took priority — fall through to the final warn below.
+					break
+				case <-time.After(time.Duration(attempt+1) * 500 * time.Millisecond):
+				}
+			}
+			if insertErr != nil {
+				// Still failing after retries. Do NOT silently swallow — this is
+				// real data loss that used to be invisible and routinely cost users
+				// hundreds of peer-graph entries during startup indexing pressure.
+				n.log.Warn("Bulk peer INSERT gave up after retries, peer-exchange rows dropped",
+					zap.String("from_peer", id.String()),
+					zap.Int("peers_lost", peerCount),
+					zap.Error(insertErr))
 			}
 		}
 		if nonSeedPeers > 0 {
