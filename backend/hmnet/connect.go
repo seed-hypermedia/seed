@@ -196,10 +196,16 @@ func (n *Node) peerWriteIsRedundant(ctx context.Context, pid, incomingAddrs stri
 	return skip
 }
 
-// maxSharedPeers caps how many peers we request from a remote node's peer
-// table. Requesting the full table (previously math.MaxInt32) caused massive
-// protobuf allocations, multiaddr parsing, and downstream goroutine storms.
-const maxSharedPeers = 200
+// maxSharedPeersPerPage caps how many rows we ask a remote node for per
+// ListPeers request. The old code asked for math.MaxInt32, which some remote
+// implementations interpreted literally and returned every row they had ever
+// seen — leading to massive protobuf payloads. The right answer is not a
+// tight cap on *total* rows (we want the full peer graph the remote knows
+// about) but a sane cap on a single *page*, combined with the pagination
+// loop below. 2000 is large enough that any real deployment returns its
+// whole table in one round-trip; the loop is a correctness belt for the
+// degenerate case where a remote genuinely has more.
+const maxSharedPeersPerPage = 2000
 
 func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 	n.log.Debug("storeRemotePeers Called", zap.String("PID", id.String()))
@@ -238,28 +244,57 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 	}
 	hash := sha256.Sum256(orderedPeersBytes)
 
-	res, err := c.ListPeers(ctxStore, &p2p.ListPeersRequest{PageSize: maxSharedPeers, ListHash: hex.EncodeToString(hash[:])})
-	if err != nil {
-		return fmt.Errorf("Could not get list of peers from %s: %w", id.String(), err)
+	// Pull the remote's full peer table across as many pages as it takes.
+	// Only the first request carries ListHash: that's a "we already agree on
+	// the whole list, skip the round-trip" optimization; it's meaningless once
+	// we're mid-cursor. A defensive page cap stops us from looping forever
+	// against a pathological remote that keeps returning NextPageToken.
+	var allPeers []*p2p.PeerInfo
+	const maxPages = 50 // 50 * 2000 = 100k rows — more than any real deployment
+	pageToken := ""
+	localHash := hex.EncodeToString(hash[:])
+	for page := 0; page < maxPages; page++ {
+		req := &p2p.ListPeersRequest{PageSize: maxSharedPeersPerPage, PageToken: pageToken}
+		if page == 0 {
+			req.ListHash = localHash
+		}
+		res, err := c.ListPeers(ctxStore, req)
+		if err != nil {
+			return fmt.Errorf("Could not get list of peers from %s: %w", id.String(), err)
+		}
+		if res == nil {
+			// Remote short-circuited on ListHash: our tables match, nothing to do.
+			return nil
+		}
+		allPeers = append(allPeers, res.Peers...)
+		if res.NextPageToken == "" {
+			break
+		}
+		pageToken = res.NextPageToken
+	}
+	if len(allPeers) >= maxSharedPeersPerPage*maxPages {
+		n.log.Warn("Peer-exchange hit page cap, remote has an unusually large table",
+			zap.String("PID", id.String()),
+			zap.Int("received", len(allPeers)))
 	}
 
 	// Ingress freshness filter: drop stale entries from the shared list before
 	// we process them. Even if the sharer still remembers a long-dead peer, we
 	// shouldn't accept it — it would bloat our table, waste our dial budget,
 	// and (if later re-shared by us) re-pollute the peer graph.
-	if len(res.Peers) > 0 {
+	if len(allPeers) > 0 {
 		freshnessThreshold := time.Now().Add(-PeerFreshnessWindow).Unix()
-		fresh := res.Peers[:0]
+		fresh := allPeers[:0]
 		staleCount := 0
-		for _, p := range res.Peers {
+		for _, p := range allPeers {
 			if p.UpdatedAt != nil && p.UpdatedAt.Seconds >= freshnessThreshold {
 				fresh = append(fresh, p)
 			} else {
 				staleCount++
 			}
 		}
-		total := len(res.Peers)
-		res.Peers = fresh
+		total := len(allPeers)
+		allPeers = fresh
 		if staleCount > 0 && float64(staleCount)/float64(total) >= suspiciousStaleShare {
 			n.log.Warn("Peer-exchange source shared mostly stale data",
 				zap.String("PID", id.String()),
@@ -274,7 +309,7 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 		}
 	}
 
-	if len(res.Peers) > 0 {
+	if len(allPeers) > 0 {
 		// Store-first: persist peer metadata immediately without blocking on
 		// per-peer dials or protocol checks. A background goroutine below
 		// dials the freshly-stored peers so discovery.go's Connectedness
@@ -283,7 +318,7 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 		var toDial []peer.AddrInfo
 		sqlStr := "INSERT INTO peers (pid, addresses, explicitly_connected, updated_at) VALUES "
 
-		for _, p := range res.Peers {
+		for _, p := range allPeers {
 			if p.Id == n.client.me.String() {
 				continue
 			}
