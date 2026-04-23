@@ -10,6 +10,7 @@ import {
   DocumentPanelRoute,
   findContentBlock,
   getBlockText,
+  getDraftNodesOutline,
   hmId,
   NavRoute,
   ProfileTab,
@@ -2009,7 +2010,12 @@ function ContentViewWithOutline({
   perspectiveAccountUid?: string | null
   linkExtensionOptions?: Record<string, unknown>
 }) {
-  const outline = useNodesOutline(document, docId)
+  const publishedOutline = useNodesOutline(document, docId)
+  const draftOutline = useMemo(
+    () => (existingDraftContent ? getDraftNodesOutline(existingDraftContent, docId) : null),
+    [existingDraftContent, docId],
+  )
+  const outline = draftOutline ?? publishedOutline
 
   return (
     <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
