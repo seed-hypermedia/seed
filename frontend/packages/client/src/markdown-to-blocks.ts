@@ -97,6 +97,30 @@ export function parseInlineFormatting(raw: string): InlineParseResult {
       }
     }
 
+    // Autolink: <scheme://...>  →  Embed annotation.
+    // CommonMark autolinks have a URI with a scheme, no whitespace, and
+    // balanced angle brackets. We insert an object replacement character
+    // (￼) as a placeholder in the text so the annotation has a non-empty
+    // range — matching the existing convention for inline embeds.
+    if (raw[i] === '<') {
+      const end = raw.indexOf('>', i + 1)
+      if (end !== -1) {
+        const inner = raw.slice(i + 1, end)
+        if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\S*$/.test(inner) && !/[\s<>]/.test(inner)) {
+          const start = text.length
+          text += '￼'
+          annotations.push({
+            type: 'Embed',
+            starts: [start],
+            ends: [text.length],
+            link: inner,
+          })
+          i = end + 1
+          continue
+        }
+      }
+    }
+
     // Link: [text](url)
     if (raw[i] === '[') {
       const closeBracket = findClosingBracket(raw, i)

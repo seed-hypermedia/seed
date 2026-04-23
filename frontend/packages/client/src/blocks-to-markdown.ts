@@ -175,7 +175,11 @@ function blockNodeToMarkdown(node: HMBlockNode, depth: number, opts: Required<Bl
       } else if (childrenType === 'Blockquote') {
         result += '\n' + indent(depth + 1) + '> ' + childMd.trim()
       } else {
-        result += '\n' + childMd
+        // Group children (default): blank-line separated so CommonMark
+        // parsers read each child as a distinct paragraph/block. A single
+        // newline would merge siblings into one soft-wrapped paragraph
+        // on re-import.
+        result += '\n\n' + childMd
       }
     }
   }
@@ -341,13 +345,11 @@ function getAnnotationMarker(ann: HMAnnotation, type: 'open' | 'close'): string 
         return `](${ann.link || ''})`
       }
     case 'Embed': {
+      // CommonMark autolink: <url>. The ￼ placeholder inside the annotation
+      // range is stripped by applyAnnotations' final pass, so the emitted
+      // span becomes `<url>` with no literal text between brackets.
       const link = 'link' in ann ? (ann.link as string) || '' : ''
-      if (type === 'open') {
-        const pathPart = link.includes('/') ? link.split('/').pop() || 'embed' : link.replace('hm://', '').slice(0, 12)
-        return `[↗ ${pathPart}`
-      } else {
-        return `](${link})`
-      }
+      return type === 'open' ? `<${link}` : '>'
     }
     default:
       return ''
