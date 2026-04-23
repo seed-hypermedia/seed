@@ -170,11 +170,14 @@ func (s *Store) Device() *core.KeyPair {
 }
 
 func newSQLite(path string) (*sqlitex.Pool, error) {
-	// Use half of the available CPUs as the pool size.
-	// The minimum pool size is set a bit arbitrarily,
-	// but using a lower value has caused issues in the past
-	// with the database being locked.
-	poolSize := max(runtime.NumCPU()/2, 8)
+	// Pool size gates how many concurrent SQLite operations can be in flight.
+	// Bitswap's GetSize, per-peer connect lookups, peer-exchange, and domain
+	// tracking all pull connections from this pool; when the pool is exhausted,
+	// writers queue, then collide on BEGIN IMMEDIATE once they get a conn.
+	// Grew from NumCPU/2-with-floor-8 to NumCPU-with-floor-12 to keep readers
+	// from starving writers under p2p sync load. Higher floor trades a bit of
+	// resident memory per conn for much less SQLITE_BUSY under normal traffic.
+	poolSize := max(runtime.NumCPU(), 12)
 
 	// The database is owned by the store, and is closed when the store is closed.
 	db, err := OpenSQLite(path, 0, poolSize)

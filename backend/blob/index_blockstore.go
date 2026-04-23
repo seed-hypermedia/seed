@@ -43,7 +43,13 @@ func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
 // Blocks are processed in batches to avoid holding the SQLite write lock
 // for too long, which would block other writers (e.g. document publish).
 func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
-	const batchSize = 100
+	// Chunk size caps how long a single write transaction holds the RESERVED
+	// SQLite lock. indexBlob for a Change/Comment/Ref blob does several
+	// INSERT/UPDATEs each, so 100 blobs per tx regularly held the lock for
+	// multiple seconds and triggered SQLITE_BUSY on every other writer (peer
+	// INSERTs, domain tracking, bulk peer-exchange). Smaller batches finish
+	// in ~hundreds of ms so other writers drain quickly between chunks.
+	const batchSize = 10
 
 	trackUnreads := unreadsTrackingEnabled(ctx)
 
