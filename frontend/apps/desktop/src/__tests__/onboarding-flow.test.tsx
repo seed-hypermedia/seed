@@ -190,7 +190,7 @@ vi.mock('@sentry/electron/preload', () => ({}))
 
 import {Onboarding} from '../components/onboarding'
 
-function renderComponent() {
+function renderComponent({modal = true}: {modal?: boolean} = {}) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
@@ -204,7 +204,7 @@ function renderComponent() {
     act(() => {
       root.render(
         <QueryClientProvider client={queryClient}>
-          <Onboarding modal={true} onComplete={onCompleteMock} />
+          <Onboarding modal={modal} onComplete={onCompleteMock} />
         </QueryClientProvider>,
       )
     })
@@ -313,6 +313,27 @@ describe('Onboarding flow', () => {
 
   afterEach(() => {
     document.body.innerHTML = ''
+  })
+
+  it('exposes a SKIP button on the profile step in the full-screen (non-modal) flow', async () => {
+    const {container, root, queryClient} = renderComponent({modal: false})
+
+    await act(async () => {
+      findButton(container, 'NEXT')?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      await Promise.resolve()
+    })
+
+    const skipButton = findButton(container, 'SKIP')
+    expect(skipButton).toBeDefined()
+
+    await act(async () => {
+      skipButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      await Promise.resolve()
+    })
+
+    expect(onCompleteMock).toHaveBeenCalled()
+
+    cleanupRendered(root, container, queryClient)
   })
 
   it('shows vault choice before create, restore, and import actions', async () => {
