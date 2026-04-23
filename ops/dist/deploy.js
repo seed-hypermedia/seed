@@ -1073,16 +1073,102 @@ async function detectOldInstall(shell) {
     trafficStats
   };
 }
+var SEED_PUBLISHED_PORTS = [80, 443, 3000, 56000];
+var LEGACY_AUTOUPDATER_IMAGES = ["containrrr/watchtower", "v2tec/watchtower"];
+var LEGACY_CONTAINER_NAMES = [
+  "seed-site",
+  "seed-daemon",
+  "seed-web",
+  "seed-proxy",
+  "autoupdater",
+  "prometheus",
+  "grafana"
+];
+function composeProjectName(paths) {
+  return basename(paths.seedDir).toLowerCase();
+}
+function removeLegacyAutoupdaters(shell) {
+  const filters = LEGACY_AUTOUPDATER_IMAGES.map((img) => `--filter "ancestor=${img}"`).join(" ");
+  const out = shell.runSafe(`docker ps -aq ${filters} 2>/dev/null`);
+  if (!out)
+    return [];
+  const ids = out.split(`
+`).filter(Boolean);
+  for (const id of ids) {
+    shell.runSafe(`docker rm -f ${id} 2>/dev/null`);
+  }
+  if (ids.length > 0) {
+    log(`Removed ${ids.length} legacy autoupdater container(s).`);
+  }
+  return ids;
+}
+function freeConflictingPortBindings(shell, projectName) {
+  const portFilters = SEED_PUBLISHED_PORTS.map((p2) => `--filter "publish=${p2}"`).join(" ");
+  const portOut = shell.runSafe(`docker ps -aq ${portFilters} 2>/dev/null`) ?? "";
+  const nameFilters = LEGACY_CONTAINER_NAMES.map((n) => `--filter "name=^${n}$"`).join(" ");
+  const nameOut = shell.runSafe(`docker ps -aq ${nameFilters} 2>/dev/null`) ?? "";
+  const allIds = Array.from(new Set([...portOut.split(`
+`).filter(Boolean), ...nameOut.split(`
+`).filter(Boolean)]));
+  const removed = [];
+  for (const id of allIds) {
+    const proj = shell.runSafe(`docker inspect ${id} --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null`);
+    if (proj === projectName)
+      continue;
+    shell.runSafe(`docker rm -f ${id} 2>/dev/null`);
+    removed.push(id);
+  }
+  if (removed.length > 0) {
+    log(`Removed ${removed.length} legacy/orphan container(s) holding our published ports or names.`);
+  }
+  return removed;
+}
+function removeLegacyHostCronLines(existing) {
+  const filtered = existing.split(`
+`).filter((line) => !line.includes("website_deployment.sh") && !line.includes("# website-deploy")).join(`
+`).trim();
+  return filtered ? filtered + `
+` : "";
+}
+function removeLegacyHostCron(shell) {
+  const existing = shell.runSafe("crontab -l 2>/dev/null") ?? "";
+  if (!existing.includes("website_deployment.sh") && !existing.includes("# website-deploy")) {
+    return false;
+  }
+  const cleaned = removeLegacyHostCronLines(existing);
+  try {
+    shell.run(`echo '${cleaned}' | crontab -`);
+    log("Removed legacy website_deployment.sh cron entries.");
+    return true;
+  } catch (err) {
+    log(`Warning: failed to remove legacy cron entries: ${err}`);
+    return false;
+  }
+}
+function describeBindFailure(errMsg) {
+  const match = errMsg.match(/Bind for 0\.0\.0\.0:(\d+) failed/);
+  if (!match)
+    return null;
+  const port = match[1];
+  return [
+    `Port ${port} is held by a non-Docker process.`,
+    `Likely a leftover seed-daemon binary or systemd unit from an old installation.`,
+    `Run \`ss -lntup '( sport = :${port} )'\` to identify it,`,
+    `then stop it and re-run \`${cmd("deploy")}\`.`
+  ].join(" ");
+}
 async function migrateDataFromOldInstall(paths, shell) {
   const oldInstall = await detectOldInstall(shell);
   if (!oldInstall || oldInstall.workspace === paths.seedDir)
     return;
+  removeLegacyHostCron(shell);
+  removeLegacyAutoupdaters(shell);
   const daemonDir = join(paths.seedDir, "daemon");
   const daemonEmpty = shell.runSafe(`find "${daemonDir}" -mindepth 1 -maxdepth 1 2>/dev/null | head -1`) === "";
   if (!daemonEmpty)
     return;
   log("Stopping old containers before migrating data...");
-  shell.runSafe("docker stop seed-site seed-daemon seed-web seed-proxy autoupdater grafana prometheus 2>/dev/null");
+  freeConflictingPortBindings(shell, composeProjectName(paths));
   log(`Copying ${oldInstall.workspace} \u2192 ${paths.seedDir} ...`);
   if (!shell.runSafe(`cp -a "${oldInstall.workspace}/." "${paths.seedDir}/" 2>/dev/null`)) {
     shell.run(`sudo cp -a "${oldInstall.workspace}/." "${paths.seedDir}/"`);
@@ -1689,11 +1775,10 @@ async function deploy(config, paths, shell) {
     }
   }
   const env = buildComposeEnv(config, paths);
-  if (!config.compose_sha) {
-    step("Removing legacy containers...");
-    shell.runSafe("docker stop seed-site seed-daemon seed-web seed-proxy autoupdater grafana prometheus 2>/dev/null");
-    shell.runSafe("docker rm seed-site seed-daemon seed-web seed-proxy autoupdater grafana prometheus 2>/dev/null");
-  }
+  step("Removing legacy autoupdaters...");
+  removeLegacyAutoupdaters(shell);
+  step("Clearing port and name conflicts from prior installs...");
+  freeConflictingPortBindings(shell, composeProjectName(paths));
   step("Pulling latest images...");
   try {
     await shell.exec(`${env} docker compose -f ${paths.composePath} pull --quiet`);
@@ -1712,6 +1797,10 @@ async function deploy(config, paths, shell) {
     log(`docker compose up failed: ${err}`);
     if (previousImages.size > 0) {
       await rollback(previousImages, config, paths, shell);
+    }
+    const bindMsg = describeBindFailure(String(err));
+    if (bindMsg) {
+      throw new Error(bindMsg);
     }
     throw new Error(`Deployment failed: ${err}`);
   }
@@ -2452,6 +2541,9 @@ export {
   setupCron,
   selfUpdate,
   removeSeedCronLines,
+  removeLegacyHostCronLines,
+  removeLegacyHostCron,
+  removeLegacyAutoupdaters,
   readConfig,
   printHelp,
   parseWebEnv,
@@ -2469,14 +2561,17 @@ export {
   getContainerEnvs,
   generateSecret,
   generateCaddyfile,
+  freeConflictingPortBindings,
   extractSeedCronLines,
   extractDns,
   environmentPresets,
   ensureSeedDir,
   detectOldInstall,
+  describeBindFailure,
   deploy,
   defaultReleaseChannel,
   configExists,
+  composeProjectName,
   cmd,
   checkGpuAcceleration,
   checkForNewImages,
@@ -2484,10 +2579,13 @@ export {
   buildCrontab,
   buildComposeEnv,
   VERSION,
+  SEED_PUBLISHED_PORTS,
   OPS_BASE_URL,
   NOTIFY_SERVICE_HOST,
   LIGHTNING_URL_TESTNET,
   LIGHTNING_URL_MAINNET,
+  LEGACY_CONTAINER_NAMES,
+  LEGACY_AUTOUPDATER_IMAGES,
   GITHUB_RELEASES_API,
   DEV_DEPLOY_SCRIPT_URL,
   DEFAULT_SEED_DIR,

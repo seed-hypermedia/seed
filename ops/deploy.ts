@@ -432,6 +432,143 @@ export async function detectOldInstall(shell: ShellRunner): Promise<OldInstallIn
 }
 
 // ---------------------------------------------------------------------------
+// Legacy / orphan container cleanup
+// ---------------------------------------------------------------------------
+
+/** Host ports the new compose stack publishes. Kept in sync with docker-compose.yml. */
+export const SEED_PUBLISHED_PORTS = [80, 443, 3000, 56000] as const
+
+/** Watchtower-style autoupdater images shipped by older installs. */
+export const LEGACY_AUTOUPDATER_IMAGES = ['containrrr/watchtower', 'v2tec/watchtower'] as const
+
+/**
+ * Container names the new compose stack creates (and that legacy installs
+ * created with `docker run --name`). Used to evict stopped non-compose
+ * leftovers that would otherwise trigger a "name already in use" conflict
+ * when compose tries to recreate them.
+ */
+export const LEGACY_CONTAINER_NAMES = [
+  'seed-site',
+  'seed-daemon',
+  'seed-web',
+  'seed-proxy',
+  'autoupdater',
+  'prometheus',
+  'grafana',
+] as const
+
+/** Compute the docker compose project name for the configured seed dir. */
+export function composeProjectName(paths: DeployPaths): string {
+  return basename(paths.seedDir).toLowerCase()
+}
+
+/**
+ * Remove any container running a watchtower-style autoupdater image.
+ * The new deploy system manages updates via cron; a leftover watchtower
+ * would race the deploy by recreating legacy containers (under their old
+ * non-compose identity) in response to image pulls, re-binding our P2P
+ * port outside compose's tracking. Returns the IDs of removed containers.
+ */
+export function removeLegacyAutoupdaters(shell: ShellRunner): string[] {
+  const filters = LEGACY_AUTOUPDATER_IMAGES.map((img) => `--filter "ancestor=${img}"`).join(' ')
+  const out = shell.runSafe(`docker ps -aq ${filters} 2>/dev/null`)
+  if (!out) return []
+  const ids = out.split('\n').filter(Boolean)
+  for (const id of ids) {
+    shell.runSafe(`docker rm -f ${id} 2>/dev/null`)
+  }
+  if (ids.length > 0) {
+    log(`Removed ${ids.length} legacy autoupdater container(s).`)
+  }
+  return ids
+}
+
+/**
+ * Remove non-compose-managed containers that conflict with our stack —
+ * either by publishing one of our ports or by carrying one of our
+ * well-known container names. Containers that already belong to our
+ * compose project are left alone (compose's own update path handles them
+ * with a zero-downtime swap), so this is a true no-op on healthy re-runs
+ * and a takeover for legacy or orphan containers. Returns removed IDs.
+ */
+export function freeConflictingPortBindings(shell: ShellRunner, projectName: string): string[] {
+  const portFilters = SEED_PUBLISHED_PORTS.map((p) => `--filter "publish=${p}"`).join(' ')
+  const portOut = shell.runSafe(`docker ps -aq ${portFilters} 2>/dev/null`) ?? ''
+
+  const nameFilters = LEGACY_CONTAINER_NAMES.map((n) => `--filter "name=^${n}$"`).join(' ')
+  const nameOut = shell.runSafe(`docker ps -aq ${nameFilters} 2>/dev/null`) ?? ''
+
+  const allIds = Array.from(
+    new Set([...portOut.split('\n').filter(Boolean), ...nameOut.split('\n').filter(Boolean)]),
+  )
+
+  const removed: string[] = []
+  for (const id of allIds) {
+    const proj = shell.runSafe(
+      `docker inspect ${id} --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null`,
+    )
+    if (proj === projectName) continue
+    shell.runSafe(`docker rm -f ${id} 2>/dev/null`)
+    removed.push(id)
+  }
+  if (removed.length > 0) {
+    log(`Removed ${removed.length} legacy/orphan container(s) holding our published ports or names.`)
+  }
+  return removed
+}
+
+/**
+ * Strip lines installed by the legacy `website_deployment.sh` from a
+ * crontab string. Recognized markers: the script path itself and the
+ * `# website-deploy` comment marker some variants used.
+ */
+export function removeLegacyHostCronLines(existing: string): string {
+  const filtered = existing
+    .split('\n')
+    .filter((line) => !line.includes('website_deployment.sh') && !line.includes('# website-deploy'))
+    .join('\n')
+    .trim()
+  return filtered ? filtered + '\n' : ''
+}
+
+/**
+ * Install a cleaned crontab if the legacy `website_deployment.sh` lines
+ * were present. No-op (returns false) when no legacy markers are found.
+ */
+export function removeLegacyHostCron(shell: ShellRunner): boolean {
+  const existing = shell.runSafe('crontab -l 2>/dev/null') ?? ''
+  if (!existing.includes('website_deployment.sh') && !existing.includes('# website-deploy')) {
+    return false
+  }
+  const cleaned = removeLegacyHostCronLines(existing)
+  try {
+    shell.run(`echo '${cleaned}' | crontab -`)
+    log('Removed legacy website_deployment.sh cron entries.')
+    return true
+  } catch (err) {
+    log(`Warning: failed to remove legacy cron entries: ${err}`)
+    return false
+  }
+}
+
+/**
+ * Detect a "Bind for 0.0.0.0:<port> failed" error from `docker compose up`
+ * and produce a user-friendly remediation message. Returns null when the
+ * error doesn't match the bind-failure pattern.
+ */
+export function describeBindFailure(errMsg: string): string | null {
+  const match = errMsg.match(/Bind for 0\.0\.0\.0:(\d+) failed/)
+  if (!match) return null
+  const port = match[1]
+  return [
+    `Port ${port} is held by a non-Docker process.`,
+    `Likely a leftover seed-daemon binary or systemd unit from an old installation.`,
+    `Run \`ss -lntup '( sport = :${port} )'\` to identify it,`,
+    `then stop it and re-run \`${cmd('deploy')}\`.`,
+  ].join(' ')
+}
+
+// ---------------------------------------------------------------------------
 // Data Migration
 // ---------------------------------------------------------------------------
 
@@ -445,6 +582,13 @@ async function migrateDataFromOldInstall(paths: DeployPaths, shell: ShellRunner)
   const oldInstall = await detectOldInstall(shell)
   if (!oldInstall || oldInstall.workspace === paths.seedDir) return
 
+  // Always sweep legacy host cron + watchtower when an old install is
+  // detected, even when data has already been migrated. Either would
+  // otherwise relaunch legacy containers on its own schedule and re-bind
+  // our published ports under non-compose identities.
+  removeLegacyHostCron(shell)
+  removeLegacyAutoupdaters(shell)
+
   // Check if the daemon dir is empty — if it already has data, migration
   // already happened (or the node was set up fresh). The daemon dir is the
   // most reliable indicator since it's never pre-populated by the deploy script.
@@ -453,7 +597,7 @@ async function migrateDataFromOldInstall(paths: DeployPaths, shell: ShellRunner)
   if (!daemonEmpty) return
 
   log('Stopping old containers before migrating data...')
-  shell.runSafe('docker stop seed-site seed-daemon seed-web seed-proxy autoupdater grafana prometheus 2>/dev/null')
+  freeConflictingPortBindings(shell, composeProjectName(paths))
 
   // Copy all contents from old workspace into the new seed directory.
   // This preserves daemon identity, web state, proxy TLS certs, monitoring, etc.
@@ -1212,15 +1356,19 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
 
   const env = buildComposeEnv(config, paths)
 
-  // On first compose-managed deploy, remove legacy containers that were
-  // created by the old website_deployment.sh via `docker run`. They aren't
-  // compose-managed, so `docker compose up` can't recreate them and will
-  // fail with a "name already in use" conflict.
-  if (!config.compose_sha) {
-    step('Removing legacy containers...')
-    shell.runSafe('docker stop seed-site seed-daemon seed-web seed-proxy autoupdater grafana prometheus 2>/dev/null')
-    shell.runSafe('docker rm seed-site seed-daemon seed-web seed-proxy autoupdater grafana prometheus 2>/dev/null')
-  }
+  // Always evict watchtower-style autoupdaters before pulling images.
+  // If left running, watchtower would react to the new image and recreate
+  // the legacy daemon under its old non-compose name, re-binding port
+  // 56000 outside compose's tracking. Idempotent: no-op when none exist.
+  step('Removing legacy autoupdaters...')
+  removeLegacyAutoupdaters(shell)
+
+  // Remove non-compose containers that publish one of our ports or use
+  // one of our well-known names. Healthy compose-managed containers carry
+  // our project label and are skipped, so this is a true no-op on routine
+  // re-runs / `--reconfigure` and a clean takeover for legacy installs.
+  step('Clearing port and name conflicts from prior installs...')
+  freeConflictingPortBindings(shell, composeProjectName(paths))
 
   // Pull new images while existing containers keep serving traffic.
   // This eliminates image download time from the downtime window.
@@ -1246,6 +1394,10 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
     log(`docker compose up failed: ${err}`)
     if (previousImages.size > 0) {
       await rollback(previousImages, config, paths, shell)
+    }
+    const bindMsg = describeBindFailure(String(err))
+    if (bindMsg) {
+      throw new Error(bindMsg)
     }
     throw new Error(`Deployment failed: ${err}`)
   }

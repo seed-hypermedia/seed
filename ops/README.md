@@ -172,8 +172,14 @@ seed-deploy restore /path/to/backup.tar.gz
   exits cleanly.
 - **SELinux** — all Docker bind mounts use `:z` flag. Without it, Fedora/CentOS/RHEL silently block container access to
   host files.
-- **Legacy installations** — detects old `website_deployment.sh` containers (`docker run`-based). Stops and removes them
-  before first `docker compose up` to avoid name conflicts.
+- **Legacy installations** — every deploy first removes any watchtower-style autoupdater container
+  (`containrrr/watchtower`, `v2tec/watchtower`) so it can't race the new compose stack by recreating legacy daemons in
+  response to image pulls. It then evicts any non-compose container that publishes one of our ports (80, 443, 3000,
+  56000) or carries one of our well-known names (`seed-site`, `seed-daemon`, `seed-web`, `seed-proxy`, `autoupdater`,
+  `prometheus`, `grafana`). Containers already managed by our compose project are skipped via the
+  `com.docker.compose.project` label, so `--reconfigure` and routine cron re-runs remain a true no-op and rely on
+  compose's own zero-downtime swap. Legacy `website_deployment.sh` host crontab entries are stripped during migration so
+  they can't relaunch the old daemon out-of-band.
 - **Non-root operation** — containers run as the host user. Caddy binds ports 80/443 via `CAP_NET_BIND_SERVICE` file
   capability. `sudo` is only used when creating directories outside the user's home.
 - **Disk exhaustion** — old Docker images are pruned both inline after deploys and on a 4-hour cron schedule.

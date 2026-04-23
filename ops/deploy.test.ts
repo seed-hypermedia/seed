@@ -45,6 +45,12 @@ import {
   getDeployScriptUrl,
   GITHUB_RELEASES_API,
   DEV_DEPLOY_SCRIPT_URL,
+  composeProjectName,
+  removeLegacyAutoupdaters,
+  freeConflictingPortBindings,
+  removeLegacyHostCronLines,
+  removeLegacyHostCron,
+  describeBindFailure,
 } from './deploy'
 
 // ---------------------------------------------------------------------------
@@ -1180,6 +1186,286 @@ describe('removeSeedCronLines', () => {
     ].join('\n')
     const result = removeSeedCronLines(crontab)
     expect(result.trim()).toBe('')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// composeProjectName
+// ---------------------------------------------------------------------------
+
+describe('composeProjectName', () => {
+  test('uses basename of seedDir', () => {
+    expect(composeProjectName(makePaths('/opt/seed'))).toBe('seed')
+  })
+
+  test('lowercases the basename', () => {
+    expect(composeProjectName(makePaths('/Users/alice/Seed'))).toBe('seed')
+  })
+
+  test('preserves dashes in the basename', () => {
+    expect(composeProjectName(makePaths('/tmp/seed-test-xyz'))).toBe('seed-test-xyz')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// removeLegacyAutoupdaters / freeConflictingPortBindings
+// ---------------------------------------------------------------------------
+
+interface FakeDockerOptions {
+  portIds?: string[]
+  nameIds?: string[]
+  ancestorIds?: string[]
+  /** Map of container ID -> compose project label value. Missing IDs return empty string. */
+  projectByCid?: Record<string, string>
+  /** Make `docker rm -f <id>` throw for these IDs. */
+  removeFailures?: string[]
+}
+
+interface FakeDocker {
+  shell: ShellRunner
+  removed: string[]
+  inspected: string[]
+}
+
+function makeFakeDocker(opts: FakeDockerOptions = {}): FakeDocker {
+  const removed: string[] = []
+  const inspected: string[] = []
+  const shell: ShellRunner = {
+    run(cmd: string): string {
+      if (cmd.includes('docker ps -aq')) {
+        if (cmd.includes('ancestor=')) return (opts.ancestorIds ?? []).join('\n')
+        if (cmd.includes('publish=')) return (opts.portIds ?? []).join('\n')
+        if (cmd.includes('name=^')) return (opts.nameIds ?? []).join('\n')
+        return ''
+      }
+      if (cmd.startsWith('docker inspect') && cmd.includes('com.docker.compose.project')) {
+        const id = cmd.split(/\s+/)[2]
+        inspected.push(id)
+        return opts.projectByCid?.[id] ?? ''
+      }
+      if (cmd.startsWith('docker rm -f')) {
+        const id = cmd.split(/\s+/)[3]
+        if (opts.removeFailures?.includes(id)) {
+          throw new Error(`docker rm failed for ${id}`)
+        }
+        removed.push(id)
+        return ''
+      }
+      throw new Error(`unmocked: ${cmd}`)
+    },
+    runSafe(cmd: string): string | null {
+      try {
+        return this.run(cmd)
+      } catch {
+        return null
+      }
+    },
+    exec(): Promise<{stdout: string; stderr: string}> {
+      return Promise.reject(new Error('exec not used in these tests'))
+    },
+  }
+  return {shell, removed, inspected}
+}
+
+describe('removeLegacyAutoupdaters', () => {
+  test('no-op when no watchtower images are running', () => {
+    const {shell, removed} = makeFakeDocker({})
+    expect(removeLegacyAutoupdaters(shell)).toEqual([])
+    expect(removed).toEqual([])
+  })
+
+  test('removes watchtower containers regardless of container name', () => {
+    const {shell, removed} = makeFakeDocker({ancestorIds: ['wt-1', 'wt-2']})
+    expect(removeLegacyAutoupdaters(shell)).toEqual(['wt-1', 'wt-2'])
+    expect(removed).toEqual(['wt-1', 'wt-2'])
+  })
+
+  test('returns empty array when docker is unavailable', () => {
+    expect(removeLegacyAutoupdaters(makeNoopShell())).toEqual([])
+  })
+})
+
+describe('freeConflictingPortBindings', () => {
+  test('no-op when no containers match port or name filters', () => {
+    const {shell, removed} = makeFakeDocker({})
+    expect(freeConflictingPortBindings(shell, 'seed')).toEqual([])
+    expect(removed).toEqual([])
+  })
+
+  test('removes legacy container that publishes a conflicting port', () => {
+    const {shell, removed, inspected} = makeFakeDocker({
+      portIds: ['legacy-daemon'],
+      // No project label -> not part of our compose project -> remove.
+      projectByCid: {},
+    })
+    expect(freeConflictingPortBindings(shell, 'seed')).toEqual(['legacy-daemon'])
+    expect(removed).toEqual(['legacy-daemon'])
+    expect(inspected).toEqual(['legacy-daemon'])
+  })
+
+  test('removes stopped legacy container detected by name only', () => {
+    const {shell, removed} = makeFakeDocker({
+      // Stopped container -> publishes nothing, but matches by name.
+      nameIds: ['stopped-seed-site'],
+      projectByCid: {},
+    })
+    expect(freeConflictingPortBindings(shell, 'seed')).toEqual(['stopped-seed-site'])
+    expect(removed).toEqual(['stopped-seed-site'])
+  })
+
+  test('skips compose-managed container with matching project label', () => {
+    const {shell, removed, inspected} = makeFakeDocker({
+      portIds: ['ours'],
+      nameIds: ['ours'],
+      projectByCid: {ours: 'seed'},
+    })
+    expect(freeConflictingPortBindings(shell, 'seed')).toEqual([])
+    expect(removed).toEqual([])
+    // Inspected exactly once thanks to dedup.
+    expect(inspected).toEqual(['ours'])
+  })
+
+  test('removes orphan but keeps compose-managed container in mixed scenario', () => {
+    const {shell, removed} = makeFakeDocker({
+      portIds: ['ours', 'legacy'],
+      projectByCid: {ours: 'seed'},
+    })
+    expect(freeConflictingPortBindings(shell, 'seed')).toEqual(['legacy'])
+    expect(removed).toEqual(['legacy'])
+  })
+
+  test('dedupes IDs that appear in both port and name filters', () => {
+    const {shell, removed, inspected} = makeFakeDocker({
+      portIds: ['x'],
+      nameIds: ['x'],
+      projectByCid: {},
+    })
+    expect(freeConflictingPortBindings(shell, 'seed')).toEqual(['x'])
+    expect(removed).toEqual(['x'])
+    expect(inspected).toEqual(['x'])
+  })
+
+  test('honors a custom project name (test fixtures with non-default seed dir)', () => {
+    const {shell, removed} = makeFakeDocker({
+      portIds: ['ours-test'],
+      projectByCid: {'ours-test': 'seed-test-xyz'},
+    })
+    expect(freeConflictingPortBindings(shell, 'seed-test-xyz')).toEqual([])
+    expect(removed).toEqual([])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// removeLegacyHostCronLines / removeLegacyHostCron
+// ---------------------------------------------------------------------------
+
+describe('removeLegacyHostCronLines', () => {
+  test('strips lines invoking website_deployment.sh', () => {
+    const crontab = [
+      '0 * * * * /usr/bin/other # my-job',
+      '*/5 * * * * /opt/seed-site/website_deployment.sh',
+      '30 * * * * /usr/bin/another # another-job',
+    ].join('\n')
+    const result = removeLegacyHostCronLines(crontab)
+    expect(result).toContain('my-job')
+    expect(result).toContain('another-job')
+    expect(result).not.toContain('website_deployment.sh')
+  })
+
+  test('strips lines marked with # website-deploy comment', () => {
+    const crontab = [
+      '*/10 * * * * /usr/local/bin/whatever # website-deploy',
+      '0 * * * * /usr/bin/other # my-job',
+    ].join('\n')
+    const result = removeLegacyHostCronLines(crontab)
+    expect(result).toContain('my-job')
+    expect(result).not.toContain('# website-deploy')
+  })
+
+  test('returns empty string when only legacy lines present', () => {
+    const crontab = '*/5 * * * * /opt/seed-site/website_deployment.sh'
+    expect(removeLegacyHostCronLines(crontab)).toBe('')
+  })
+
+  test('preserves seed-deploy and seed-cleanup lines', () => {
+    const crontab = [
+      '*/10 * * * * /opt/seed-site/website_deployment.sh',
+      '*/10 * * * * /usr/bin/bun /opt/seed/deploy.js # seed-deploy',
+      '0 * * * * docker image prune -f # seed-cleanup',
+    ].join('\n')
+    const result = removeLegacyHostCronLines(crontab)
+    expect(result).toContain('# seed-deploy')
+    expect(result).toContain('# seed-cleanup')
+    expect(result).not.toContain('website_deployment.sh')
+  })
+})
+
+describe('removeLegacyHostCron', () => {
+  test('returns false when crontab unavailable', () => {
+    expect(removeLegacyHostCron(makeNoopShell())).toBe(false)
+  })
+
+  test('returns false when no legacy markers present', () => {
+    const shell = makeMockShell({'crontab -l': '0 * * * * /usr/bin/something'})
+    expect(removeLegacyHostCron(shell)).toBe(false)
+  })
+
+  test('returns true and rewrites crontab when legacy markers present', () => {
+    let written: string | null = null
+    const shell: ShellRunner = {
+      run(cmd: string): string {
+        if (cmd.includes('crontab -l')) {
+          return '*/5 * * * * /opt/seed-site/website_deployment.sh'
+        }
+        if (cmd.includes('crontab -')) {
+          // The pipeline is `echo '<contents>' | crontab -`.
+          const m = cmd.match(/echo '([\s\S]*)' \| crontab -/)
+          if (m) written = m[1]
+          return ''
+        }
+        throw new Error(`unmocked: ${cmd}`)
+      },
+      runSafe(cmd: string): string | null {
+        try {
+          return this.run(cmd)
+        } catch {
+          return null
+        }
+      },
+      exec(): Promise<{stdout: string; stderr: string}> {
+        return Promise.reject(new Error('unused'))
+      },
+    }
+    expect(removeLegacyHostCron(shell)).toBe(true)
+    expect(written).not.toBeNull()
+    expect(written ?? '').not.toContain('website_deployment.sh')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// describeBindFailure
+// ---------------------------------------------------------------------------
+
+describe('describeBindFailure', () => {
+  test('extracts the offending port from a docker bind error', () => {
+    const err =
+      "Error response from daemon: driver failed programming external connectivity on endpoint seed-daemon (...): Bind for 0.0.0.0:56000 failed: port is already allocated"
+    const msg = describeBindFailure(err)
+    expect(msg).not.toBeNull()
+    expect(msg!).toContain('Port 56000')
+    expect(msg!).toContain('non-Docker process')
+    expect(msg!).toContain(":56000")
+  })
+
+  test('returns null when the error is not a bind failure', () => {
+    expect(describeBindFailure('something completely unrelated')).toBeNull()
+    expect(describeBindFailure('Error: container exited with code 1')).toBeNull()
+  })
+
+  test('handles a different conflicting port', () => {
+    const msg = describeBindFailure('Bind for 0.0.0.0:80 failed: port is already allocated')
+    expect(msg).not.toBeNull()
+    expect(msg!).toContain('Port 80')
   })
 })
 
