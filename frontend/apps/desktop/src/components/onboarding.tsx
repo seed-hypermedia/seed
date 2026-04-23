@@ -367,9 +367,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
   return (
     <div className={cn('bg-background window-drag flex flex-1 flex-col', !modal && 'size-full')}>
       {currentStep === 'welcome' && <WelcomeStep onNext={handleNext} />}
-      {currentStep === 'profile' && (
-        <ProfileStep onSkip={modal ? handleSkip : undefined} onNext={handleNext} onPrev={handlePrev} />
-      )}
+      {currentStep === 'profile' && <ProfileStep onSkip={handleSkip} onNext={handleNext} onPrev={handlePrev} />}
       {currentStep === 'vault' && (
         <VaultStep
           initialAccountIdCount={globalState.initialAccountIdCount}
