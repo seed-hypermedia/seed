@@ -113,8 +113,9 @@ export function DocNavigationDraftLoader({
   const siteList = useListSite(id)
   const siteListQuery = siteList?.data && id ? {in: hmId(id.uid), results: siteList.data} : null
 
-  // Only load embeds from the document if we're editing an existing document
-  const embeds = isEditingExistingDoc ? useDocumentEmbeds(document) : []
+  // Always call the hook to respect React's rules of hooks; pass undefined when not editing an existing doc
+  const documentEmbeds = useDocumentEmbeds(isEditingExistingDoc ? document : undefined)
+  const embeds = isEditingExistingDoc ? documentEmbeds : []
 
   // Force re-render when editor content changes
   const [updateCounter, setUpdateCounter] = useState(0)
