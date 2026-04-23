@@ -283,24 +283,15 @@ func (n *Node) Start(ctx context.Context) (err error) {
 
 	defer func() { n.log.Info("P2PNodeFinished", zap.Error(err)) }()
 
-	// Prune peer rows we haven't observed within PeerFreshnessWindow. Runs once
-	// here so nothing else in the node is reading/writing the peers table yet.
-	// Active peers bump updated_at on every direct contact, so only genuinely
-	// unseen records are removed. Ingress/egress filters on peer-exchange keep
-	// stale rows from being re-seeded between prunes.
-	if err := n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
-		var pruned int64
-		if err := sqlitex.Exec(conn, `DELETE FROM peers WHERE updated_at < (strftime('%s', 'now') - 30*86400);`, nil); err != nil {
-			return err
-		}
-		pruned = int64(conn.Changes())
-		if pruned > 0 {
-			n.log.Info("PrunedStalePeers", zap.Int64("removed", pruned))
-		}
-		return nil
-	}); err != nil {
-		n.log.Warn("Failed to prune stale peers at startup", zap.Error(err))
-	}
+	// Startup prune was removed after a regression where it deleted ~1,240 peer
+	// records on first deploy — the `updated_at` always-bump fix shipped in the
+	// same release, so rows still carried stale timestamps from before the fix
+	// and were wrongly judged inactive. Freshness filters on peer-exchange
+	// ingress/egress are enough to keep stale data from propagating; the table
+	// will also shrink naturally over time since rows are updated in place
+	// rather than duplicated. We can revisit an explicit prune once the network
+	// has cycled through at least one full freshness window (30 days) of
+	// updated_at-bumping traffic.
 
 	if err := n.startLibp2p(ctx); err != nil {
 		return err
