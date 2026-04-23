@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {createActor, fromPromise} from 'xstate'
-import {documentMachine, DocumentMachineInput} from '../document-machine'
+import {documentMachine, DocumentMachineInput, PushDocumentInput} from '../document-machine'
 import {HMDocument} from '@seed-hypermedia/client/hm-types'
 
 const mockDocumentId = {
@@ -356,6 +356,64 @@ describe('DocumentLifecycle machine', () => {
     expect(actor.getSnapshot().context.draftCreated).toBe(false)
     actor.stop()
   })
+
+  it('publishing success spawns pushDocument actor with the published document', async () => {
+    const pushCalls: PushDocumentInput[] = []
+    const publishedDoc: HMDocument = {...mockDocument, version: 'bafynew'}
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-123'})),
+        publishDocument: fromPromise<HMDocument, any>(async () => publishedDoc),
+        pushDocument: fromPromise<void, PushDocumentInput>(async ({input}) => {
+          pushCalls.push(input)
+        }),
+      },
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true, existingDraftId: 'my-draft'},
+    })
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'publish.start'})
+    await new Promise((r) => setTimeout(r, 50))
+    expect(pushCalls).toHaveLength(1)
+    const firstCall = pushCalls[0]!
+    expect(firstCall.publishedDocument.version).toBe('bafynew')
+    expect(firstCall.publishedDocument.account).toBe(publishedDoc.account)
+    actor.stop()
+  })
+
+  it('publishing transitions to loaded without waiting for pushDocument (fire-and-forget)', async () => {
+    let resolvePush: () => void = () => {}
+    const pushStarted = new Promise<void>((resolve) => {
+      resolvePush = resolve
+    })
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-123'})),
+        publishDocument: fromPromise<HMDocument, any>(async () => ({
+          ...mockDocument,
+          version: 'bafynew',
+        })),
+        pushDocument: fromPromise<void, PushDocumentInput>(async () => {
+          resolvePush()
+          // Hang for longer than the test so we can prove the machine doesn't wait.
+          await new Promise((r) => setTimeout(r, 10_000))
+        }),
+      },
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true, existingDraftId: 'my-draft'},
+    })
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'publish.start'})
+    await pushStarted
+    // Machine should be back in loaded even though pushDocument is still running.
+    expect(actor.getSnapshot().value).toBe('loaded')
+    actor.stop()
+  })
+
 
   it('document.remoteUpdate in loaded → updates publishedVersion', () => {
     const updatedDoc = {...mockDocument, version: 'bafynewer'}

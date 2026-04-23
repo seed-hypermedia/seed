@@ -6,7 +6,7 @@ import {
   HMNavigationItem,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {assign, emit, fromPromise, raise, setup, StateFrom} from 'xstate'
+import {assign, emit, fromPromise, raise, setup, spawnChild, StateFrom} from 'xstate'
 
 // -- Types --
 
@@ -108,6 +108,11 @@ export type PublishInput = {
   metadata: HMDraft['metadata']
   navigation: HMNavigationItem[] | undefined
   publishAccountUid: string | null
+}
+
+/** Input for the pushDocument actor, fired after a successful publish. */
+export type PushDocumentInput = {
+  publishedDocument: HMDocument
 }
 
 export type DocumentMachineState = StateFrom<typeof documentMachine>
@@ -269,9 +274,6 @@ export const documentMachine = setup({
         return context.publishAccountUid
       },
     }),
-    notifyPublishSuccess: () => {
-      // Provided via .provide() in consuming app
-    },
     setEditorEditable: () => {
       // Provided via .provide() in the React layer (editor handlers ref)
     },
@@ -331,6 +333,10 @@ export const documentMachine = setup({
     }),
     publishDocument: fromPromise<HMDocument, PublishInput>(async () => {
       throw new Error('publishDocument actor must be provided via .provide()')
+    }),
+    pushDocument: fromPromise<void, PushDocumentInput>(async () => {
+      // Default no-op: consumers that want push-on-publish must provide this actor.
+      return
     }),
   },
   delays: {
@@ -735,7 +741,18 @@ export const documentMachine = setup({
           },
         },
         cleaningUp: {
-          entry: ['notifyPublishSuccess', 'clearDraftState', 'updatePublishedVersion'],
+          entry: [
+            'clearDraftState',
+            'updatePublishedVersion',
+            // Fire-and-forget push to destination servers. The spawned child runs
+            // independently of the machine's state transitions; its outcome is
+            // surfaced via toast in the consumer-provided actor.
+            spawnChild('pushDocument', {
+              input: ({event}) => ({
+                publishedDocument: (event as any).output as HMDocument,
+              }),
+            }),
+          ],
           always: {
             target: '#DocumentLifecycle.loaded',
           },

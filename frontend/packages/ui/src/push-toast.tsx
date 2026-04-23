@@ -41,6 +41,31 @@ export function PublishedToast({
   )
 }
 
+/**
+ * Compact push-status toast used by the unified editor's pushDocument actor.
+ * Shows a single summary line without the per-host breakdown.
+ */
+export function PushedToast({
+  pushStatus,
+  status,
+  errorMessage,
+}: {
+  pushStatus: StateStream<PushResourceStatus | null>
+  status: 'loading' | 'success' | 'error'
+  errorMessage?: string
+}) {
+  const state = useStream(pushStatus)
+  const hostCount = state?.hosts.length ?? 0
+  if (status === 'loading') {
+    return <p>Publishing to servers…</p>
+  }
+  if (status === 'success') {
+    const suffix = hostCount > 0 ? ` to ${hostCount} server${hostCount === 1 ? '' : 's'}` : ' to servers'
+    return <p>{`Published${suffix}`}</p>
+  }
+  return <p>{errorMessage ? `Failed to push to servers: ${errorMessage}` : 'Failed to push to servers'}</p>
+}
+
 export function PushToast({
   pushStatus,
   status,
