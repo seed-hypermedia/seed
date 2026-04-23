@@ -5,9 +5,9 @@ import {
   DropdownMenuContent,
   DropdownMenuContentProps,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './components/dropdown-menu'
-import {Separator} from './separator'
 import {SizableText} from './text'
 import {usePopoverState} from './use-popover-state'
 import {cn} from './utils'
@@ -55,36 +55,45 @@ export function OptionsDropdown({
         </DropdownMenuTrigger>
         <DropdownMenuContent className="p-1" side={side} align={align}>
           <div className="flex flex-col">
-            {menuItems.flatMap((item, index) =>
-              item
-                ? [
-                    index > 0 ? <Separator key={`${item.key}-separator`} /> : null,
-                    <div key={item.key}>
-                      <DropdownMenuItem
-                        variant={item.variant}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          popoverState.onOpenChange(false)
-                          item.onClick?.(e as any)
-                        }}
-                      >
-                        {item.icon}
-                        {item.subLabel ? (
-                          <div className="flex flex-col gap-1">
-                            <SizableText>{item.label}</SizableText>
+            {(() => {
+              // Filter items so destructive items are rendered at the bottom of the menu
+              const presentItems = menuItems.filter((item): item is MenuItemType => item != null)
+              const nonDestructive = presentItems.filter((item) => item.variant !== 'destructive')
+              const destructive = presentItems.filter((item) => item.variant === 'destructive')
+              const ordered = [...nonDestructive, ...destructive]
+              const firstDestructiveIndex =
+                nonDestructive.length > 0 && destructive.length > 0 ? nonDestructive.length : -1
 
-                            <SizableText size="sm" className="text-muted-foreground text-xs">
-                              {item.subLabel}
-                            </SizableText>
-                          </div>
-                        ) : (
-                          <SizableText>{item.label}</SizableText>
-                        )}
-                      </DropdownMenuItem>
-                    </div>,
-                  ]
-                : [],
-            )}
+              return ordered.map((item, index) => (
+                <div key={item.key}>
+                  {index === firstDestructiveIndex ? (
+                    // Show separator before first destructive item
+                    <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+                  ) : null}
+                  <DropdownMenuItem
+                    variant={item.variant}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      popoverState.onOpenChange(false)
+                      item.onClick?.(e as any)
+                    }}
+                  >
+                    {item.icon}
+                    {item.subLabel ? (
+                      <div className="flex flex-col gap-1">
+                        <SizableText>{item.label}</SizableText>
+
+                        <SizableText size="sm" className="text-muted-foreground text-xs">
+                          {item.subLabel}
+                        </SizableText>
+                      </div>
+                    ) : (
+                      <SizableText>{item.label}</SizableText>
+                    )}
+                  </DropdownMenuItem>
+                </div>
+              ))
+            })()}
           </div>
         </DropdownMenuContent>
       </DropdownMenu>
