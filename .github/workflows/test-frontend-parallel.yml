@@ -17,11 +17,13 @@ on:
       - 'renovate/**'
 
 jobs:
-  # Job 1: All unit tests together (fast)
-  unit-tests:
-    name: Unit Tests
+  # Job 1a: Prettier + ts-directive scan. No type checker — cheapest possible
+  # lint signal, fails fast on formatting regressions while the expensive
+  # typecheck / vitest jobs are still running.
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -32,31 +34,109 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
 
+      - name: Install Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Validate Code Formatting
         run: pnpm format:check
 
+  # Job 1b: TypeScript check. Heaviest of the static-analysis jobs — runs in
+  # parallel with lint and the vitest matrix.
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      # Cache TypeScript `.tsbuildinfo` files so `tsc --noEmit --incremental`
+      # reuses the previous run's type-check graph. Keyed on the commit SHA
+      # so every run uploads a fresh cache; `restore-keys` pulls the most
+      # recent available cache for this branch/OS as a warm starting point.
+      # Placed AFTER `pnpm install` to avoid pnpm touching the files inside
+      # `node_modules/.tmp/` where several packages store their buildinfo.
+      - name: Restore tsbuildinfo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            frontend/apps/*/tsconfig*.tsbuildinfo
+            frontend/packages/*/tsconfig*.tsbuildinfo
+            frontend/apps/*/node_modules/.tmp/*.tsbuildinfo
+            frontend/packages/*/node_modules/.tmp/*.tsbuildinfo
+          key: tsbuildinfo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            tsbuildinfo-${{ runner.os }}-
+
       - name: Run typecheck
         run: pnpm typecheck
 
-      - name: Run Web Unit tests
-        run: pnpm --filter @shm/web test
+  # Job 1b: Vitest unit suites across a matrix so they run in parallel across
+  # three runners (web, shared, desktop) instead of sequentially on one.
+  unit-tests:
+    name: Unit Tests - ${{ matrix.suite }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: web
+            filter: "@shm/web"
+            command: "test"
+          - suite: shared
+            filter: "@shm/shared"
+            command: "test"
+          - suite: desktop
+            filter: "@shm/desktop"
+            command: "test:unit"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Run Shared Unit Tests
-        run: pnpm --filter @shm/shared test
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
 
-      - name: Run Desktop Unit Tests
-        id: desktop_tests
-        timeout-minutes: 3
-        continue-on-error: true
+      - name: Install Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Run ${{ matrix.suite }} unit tests
+        id: vitest
+        timeout-minutes: 10
+        # Desktop vitest is known to hang after all tests pass (jsdom env
+        # teardown bug). Preserve the existing tolerant handling for it but
+        # keep web/shared strict.
+        continue-on-error: ${{ matrix.suite == 'desktop' }}
         run: |
-          pnpm --filter @shm/desktop test:unit
-          echo "VITEST_EXIT_CODE=$?" > /tmp/desktop-tests-status
+          pnpm --filter ${{ matrix.filter }} ${{ matrix.command }}
+          echo "VITEST_EXIT_CODE=$?" > /tmp/${{ matrix.suite }}-tests-status
 
       - name: Verify Desktop Tests Passed
-        if: steps.desktop_tests.outcome != 'success'
+        if: matrix.suite == 'desktop' && steps.vitest.outcome != 'success'
         run: |
           if [ -f /tmp/desktop-tests-status ]; then
             echo "❌ Desktop tests failed (vitest exited with error)"
@@ -86,7 +166,7 @@ jobs:
         with:
           go-version: '1.26.2'
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile --prefer-offline
       - name: Install build dependencies
         run: sudo apt-get install -y cmake
       - name: Cache GGUF model
@@ -102,7 +182,25 @@ jobs:
             curl -fSL -o backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf \
               "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
           fi
+      - name: Compute llama-go submodule sha
+        id: llama-sha
+        run: echo "sha=$(git -C backend/util/llama-go rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      # Cache the llama.cpp static-library outputs. Key on the submodule SHA
+      # plus the build-flag string so CPU-only / Vulkan / Metal builds don't
+      # collide. Rebuild only on cache miss.
+      - name: Cache llama.cpp build
+        id: llama-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            backend/util/llama-go/libbinding.a
+            backend/util/llama-go/libllama.a
+            backend/util/llama-go/libggml*.a
+            backend/util/llama-go/libcommon.a
+            backend/util/llama-go/build
+          key: llama-cpu-linux-${{ steps.llama-sha.outputs.sha }}
       - name: Build llama.cpp (CPU-only)
+        if: steps.llama-cache.outputs.cache-hit != 'true'
         run: |
           cd backend/util/llama-go
           CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF" make libbinding.a
@@ -116,19 +214,35 @@ jobs:
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
       - name: Build web app
         run: pnpm web:prod
+      # Cache Chromium (~300 MB) across runs. The cache key is tied to
+      # pnpm-lock.yaml because Playwright's browser version bumps land there
+      # alongside the `playwright` devDependency.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: cd tests && pnpm test:install-browsers
       - name: Run integration tests
         run: cd tests && pnpm test
 
-  # Job 3: E2E tests (desktop and editor in parallel)
+  # Job 3: E2E tests. The `desktop` suite is currently a no-op (see the
+  # commented-out commands below) — keeping it in the matrix just burned a
+  # runner and 30 s of install for an echo statement. When desktop E2E is
+  # re-enabled, re-add `desktop` to the list and drop the `if:` guard on
+  # the Playwright-cache step below.
   e2e-tests:
     name: E2E Tests - ${{ matrix.suite }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        suite: [desktop, editor]
+        suite: [editor]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -143,25 +257,31 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile --prefer-offline
 
+      # Cache Chromium binaries. `--with-deps` also installs system libs via
+      # apt-get; those aren't cacheable and run every time, but the browser
+      # download (the slow part) is.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
       - name: Install Playwright browsers
         run: |
-          if [ "${{ matrix.suite }}" == "desktop" ]; then
-            echo 'SKIP DESKTOP E2E FOR NOW.'
-            # cd frontend/apps/desktop && pnpm exec playwright install chromium --with-deps
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" == "true" ]; then
+            # Cache hit — only install the OS-level dependencies (fast).
+            cd frontend/packages/editor && pnpm exec playwright install-deps chromium
           else
             cd frontend/packages/editor && pnpm exec playwright install chromium --with-deps
           fi
 
       - name: Run E2E tests
         run: |
-          if [ "${{ matrix.suite }}" == "desktop" ]; then
-            echo 'SKIP DESKTOP E2E FOR NOW.'
-            # pnpm desktop:test
-          else
-            xvfb-run --auto-servernum --server-args='-screen 0, 1920x1080x24' pnpm --filter @shm/editor test:e2e
-          fi
+          xvfb-run --auto-servernum --server-args='-screen 0, 1920x1080x24' pnpm --filter @shm/editor test:e2e
 
       - name: Upload test results
         if: failure()
@@ -178,13 +298,22 @@ jobs:
   all-tests-passed:
     name: All Tests Passed
     runs-on: ubuntu-latest
-    needs: [unit-tests, integration-tests, e2e-tests]
-    # needs: [unit-tests, integration-tests]
+    needs: [lint, typecheck, unit-tests, integration-tests, e2e-tests]
     if: always()
     steps:
       - name: Check test results
         run: |
-          # Check unit tests (always run)
+          if [ "${{ needs.lint.result }}" != "success" ]; then
+            echo "Lint (format:check / ts-directives) failed!"
+            exit 1
+          fi
+
+          if [ "${{ needs.typecheck.result }}" != "success" ]; then
+            echo "Typecheck failed!"
+            exit 1
+          fi
+
+          # Matrix job result aggregates every matrix leg.
           if [ "${{ needs.unit-tests.result }}" != "success" ]; then
             echo "Unit tests failed!"
             exit 1
