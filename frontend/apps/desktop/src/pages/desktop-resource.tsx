@@ -568,6 +568,7 @@ export default function DesktopResourcePage() {
         onReplyCountClick={onReplyCountClick}
         renderInlineEditor={renderDesktopInlineEditor}
         showDeletedContent
+        pushAfterCommentPublish={(targetDocId) => pushAfterAction({id: targetDocId, trigger: 'publish'})}
       >
         <DesktopDocumentActionsProvider>
           <QueryBlockDraftsProvider DraftSlot={DesktopQueryBlockDraftSlot}>
