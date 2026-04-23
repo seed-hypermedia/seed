@@ -1,17 +1,14 @@
-import {usePushResource} from '@/models/documents'
+import {usePushAfterAction} from '@/models/push-after-action'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {NavRoute, routeToUrl} from '@shm/shared'
 import {NavigationContext} from '@shm/shared/utils/navigation'
-import {writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
 import {CheckboxField} from '@shm/ui/components/checkbox'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
-import {CopiedToast, PushResourceStatus} from '@shm/ui/push-toast'
-import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useState} from 'react'
-import {usePushOnCopy, useSetPushOnCopy, useSetPushOnPublish} from '../models/gateway-settings'
+import {useSetPushOnCopy, useSetPushOnPublish} from '../models/gateway-settings'
 
 export function useCopyReferenceUrl(
   hostname: string,
@@ -21,8 +18,7 @@ export function useCopyReferenceUrl(
   const dialog = useAppDialog(PushToGatewayDialog, {
     overrideNavigation: overrideNav,
   })
-  const pushOnCopy = usePushOnCopy()
-  const pushResource = usePushResource()
+  const pushAfterAction = usePushAfterAction()
   function onCopy(route: NavRoute) {
     console.log('== onCopy routeToUrl', route, {hostname, originHomeId})
     const url = routeToUrl(route, {
@@ -30,19 +26,9 @@ export function useCopyReferenceUrl(
       originHomeId,
     })
     copyTextToClipboard(url)
-    if (pushOnCopy.data === 'never') {
-      return
-    }
-    const [setPushStatus, pushStatus] = writeableStateStream<PushResourceStatus | null>(null)
-
     const pushId = route.key === 'document' ? route.id : null
     if (pushId) {
-      const pushPromise = pushResource(pushId, hostname, setPushStatus)
-      toast.promise(pushPromise, {
-        loading: <CopiedToast pushStatus={pushStatus} status="loading" />,
-        success: <CopiedToast pushStatus={pushStatus} status="success" />,
-        error: (err) => <CopiedToast pushStatus={pushStatus} status="error" errorMessage={err.message} />,
-      })
+      pushAfterAction({id: pushId, trigger: 'copy', onlyPushToHost: hostname})
     }
   }
   return [dialog.content, onCopy] as const

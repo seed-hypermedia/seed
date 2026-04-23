@@ -20,7 +20,7 @@ import {useMyAccountIds} from '@/models/daemon'
 import {useChildDrafts, useCreateInlineDraft, usePublishResource} from '@/models/documents'
 import {useExistingDraft} from '@/models/drafts'
 import {useGatewayUrl, useGatewayUrlStream} from '@/models/gateway-settings'
-import {usePushAfterPublish} from '@/models/push-after-publish'
+import {usePushAfterAction} from '@/models/push-after-action'
 import {useHostSession} from '@/models/host'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
@@ -155,9 +155,9 @@ export default function DesktopResourcePage() {
 
   // Push-on-publish: ref keeps the fromPromise actor stable across renders
   // while always reading the latest hook value when it fires.
-  const pushAfterPublish = usePushAfterPublish()
-  const pushAfterPublishRef = useRef(pushAfterPublish)
-  pushAfterPublishRef.current = pushAfterPublish
+  const pushAfterAction = usePushAfterAction()
+  const pushAfterActionRef = useRef(pushAfterAction)
+  pushAfterActionRef.current = pushAfterAction
 
   // Create writeDraft actor that reads content from the captured editor ref.
   // Account ID flows through machine context → actor input (no closure deps).
@@ -214,8 +214,9 @@ export default function DesktopResourcePage() {
   )
 
   // Create pushDocument actor — spawned fire-and-forget after publish succeeds.
-  // Delegates to the shared usePushAfterPublish helper (same flow used for
-  // comment publishing), which handles the setting gate, toast, and errors.
+  // Delegates to the shared usePushAfterAction helper (same flow used for
+  // comment publishing and copy-link), which handles the setting gate, toast,
+  // and errors.
   const pushDocumentActor = useMemo(
     () =>
       fromPromise<void, PushDocumentInput>(async ({input}) => {
@@ -225,7 +226,7 @@ export default function DesktopResourcePage() {
           path: entityQueryPathToHmIdPath(doc.path),
           version: doc.version,
         })
-        pushAfterPublishRef.current(pushId)
+        pushAfterActionRef.current({id: pushId, trigger: 'publish'})
       }),
     [],
   )

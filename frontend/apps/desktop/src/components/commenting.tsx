@@ -1,5 +1,5 @@
 import {useCommentDraft} from '@/models/comments'
-import {usePushAfterPublish} from '@/models/push-after-publish'
+import {usePushAfterAction} from '@/models/push-after-action'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {handleDragMedia} from '@/utils/media-drag'
@@ -66,7 +66,7 @@ function _CommentBox(props: {
   const account = useSelectedAccount()
   const selectedAccountId = useSelectedAccountId()
   const targetEntity = useResource(docId)
-  const pushAfterPublish = usePushAfterPublish()
+  const pushAfterAction = usePushAfterAction()
   const {getSigner, publish} = useUniversalClient()
   const route = useNavRoute()
   const navigate = useNavigate('replace')
@@ -212,7 +212,7 @@ function _CommentBox(props: {
       invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
       invalidateQueries([queryKeys.ACTIVITY_FEED])
 
-      pushAfterPublish(docId)
+      pushAfterAction({id: docId, trigger: 'publish'})
     },
   })
 
