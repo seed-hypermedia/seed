@@ -230,7 +230,8 @@ function getEventId(event: Event): string {
   return `unknown-${Date.now()}`
 }
 
-function extractResource(event: Event): string | null {
+/** Extracts the resource IRI from an activity event (exported for testing). */
+export function extractResource(event: Event): string | null {
   if (event.data.case === 'newBlob') {
     const resource = event.data.value.resource
     return resource.split('?')[0] || null
@@ -264,13 +265,29 @@ function isResourceSubscribed(resource: string): boolean {
   return false
 }
 
-function processEvents(events: Event[]) {
+/**
+ * Returns the unconditional query key invalidations that should fire for a given event,
+ * regardless of subscription status. Exported for testing.
+ */
+export function getUnconditionalInvalidations(event: Event): Array<[string, string]> {
+  const invalidations: Array<[string, string]> = []
+  if (event.data.case === 'newBlob' && event.data.value.blobType?.toLowerCase() === 'profile') {
+    const resource = event.data.value.resource
+    if (resource) {
+      const id = unpackHmId(resource.split('?')[0] || '')
+      if (id) {
+        invalidations.push([queryKeys.ACCOUNT, id.uid])
+      }
+    }
+  }
+  return invalidations
+}
+
+/** Processes activity events and fires invalidations. Exported for testing. */
+export function processEvents(events: Event[]) {
   for (const event of events) {
     const resource = extractResource(event)
-    const blobType = event.data.case === 'newBlob' ? event.data.value.blobType : null
-    const subscribed = resource ? isResourceSubscribed(resource) : false
-    console.log(`[Activity] event: type=${blobType}, resource=${resource}, subscribed=${subscribed}`)
-    if (resource && subscribed) {
+    if (resource && isResourceSubscribed(resource)) {
       scheduleInvalidation(resource)
     }
 
@@ -280,21 +297,7 @@ function processEvents(events: Event[]) {
       if (resource) {
         const id = unpackHmId(resource.split('?')[0] || '')
         if (id) {
-          console.log(`[Activity] Profile event -> invalidating ACCOUNT for uid=${id.uid}`)
           appInvalidateQueries([queryKeys.ACCOUNT, id.uid])
-        }
-      }
-    }
-
-    // Handle ref events specially - always invalidate entity queries so document mentions update
-    if (event.data.case === 'newBlob' && event.data.value.blobType?.toLowerCase() === 'ref') {
-      const resource = event.data.value.resource
-      if (resource) {
-        const id = unpackHmId(resource.split('?')[0] || '')
-        if (id) {
-          console.log(`[Activity] Ref event -> invalidating ENTITY for id=${id.id}`)
-          appInvalidateQueries([queryKeys.ENTITY, id.id])
-          appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
         }
       }
     }
@@ -339,14 +342,16 @@ const ACTIVITY_EVENT_TYPES = ['Ref', 'Comment', 'Capability', 'Contact', 'Profil
 
 async function fetchNewEvents(): Promise<Event[]> {
   if (!state.lastEventId) {
+    // First poll: fetch recent events and process them so that profiles/refs
+    // that were indexed before polling started still trigger invalidation.
     const response = await grpcClient.activityFeed.listEvents({
-      pageSize: 1,
+      pageSize: ACTIVITY_PAGE_SIZE,
       filterEventType: ACTIVITY_EVENT_TYPES,
     })
     if (response.events[0]) {
       state.lastEventId = getEventId(response.events[0])
     }
-    return []
+    return response.events
   }
 
   const eventsToProcess: Event[] = []

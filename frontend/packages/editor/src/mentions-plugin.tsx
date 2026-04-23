@@ -1,7 +1,6 @@
-import {hmId} from '@shm/shared'
-import {useUniversalAppContext} from '@shm/shared'
-import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmId, useUniversalAppContext} from '@shm/shared'
+import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useHighlighter} from '@shm/ui/highlight-context'
@@ -105,7 +104,6 @@ function DocumentMention({unpackedRef, selected}: {unpackedRef: UnpackedHypermed
   const highlight = useHighlighter()
   const resolved =
     entity.data && 'document' in entity.data && entity.data.document ? getDocumentTitle(entity.data.document) : null
-  console.log('[DocumentMention]', unpackedRef.id, 'resolved=', resolved, 'status=', entity.status)
   return (
     <MentionText selected={selected} {...highlight(unpackedRef)}>
       {resolved || unpackedRef.id}
@@ -126,7 +124,6 @@ function ContactMention({
   const highlight = useHighlighter()
   const entity = useAccount(accountUid)
   const meta = getContactMetadata(accountUid, entity.data?.metadata, contacts)
-  console.log('[ContactMention]', accountUid, 'name=', meta.name, 'status=', entity.status)
 
   return (
     <MentionText selected={selected} {...highlight(highlightId)}>
