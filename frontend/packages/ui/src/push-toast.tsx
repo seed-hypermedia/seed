@@ -10,6 +10,18 @@ export type PushResourceStatus = {
   }[]
 }
 
+/** Counts of completed (success or error) and total destination hosts. */
+function pushProgress(state: PushResourceStatus | null | undefined): {done: number; total: number} {
+  const total = state?.hosts.length ?? 0
+  const done = state?.hosts.filter((h) => h.status === 'success' || h.status === 'error').length ?? 0
+  return {done, total}
+}
+
+/**
+ * Compact push-status toast for the "copy link" action. Shows a single
+ * summary line; during loading it surfaces progress as "(done/total)" once
+ * destination hosts are known.
+ */
 export function CopiedToast({
   pushStatus,
   status,
@@ -19,7 +31,17 @@ export function CopiedToast({
   status: 'loading' | 'success' | 'error'
   errorMessage?: string
 }) {
-  return <PushToast pushStatus={pushStatus} status={status} baseMessage="Copied URL" errorMessage={errorMessage} />
+  const state = useStream(pushStatus)
+  const {done, total} = pushProgress(state)
+  if (status === 'loading') {
+    const progress = total > 0 ? ` (${done}/${total})` : ''
+    return <p>{`Copied URL. Pushing…${progress}`}</p>
+  }
+  if (status === 'success') {
+    const suffix = total > 0 ? ` to ${total} server${total === 1 ? '' : 's'}` : ' to servers'
+    return <p>{`Copied URL. Pushed${suffix}`}</p>
+  }
+  return <p>{errorMessage ? `Copied URL. Failed to push: ${errorMessage}` : 'Copied URL. Failed to push to servers'}</p>
 }
 
 export function PublishedToast({
@@ -39,6 +61,33 @@ export function PublishedToast({
       errorMessage={errorMessage}
     />
   )
+}
+
+/**
+ * Compact push-status toast used by the unified editor's pushDocument actor.
+ * Shows a single summary line without the per-host breakdown. During loading
+ * it surfaces progress as "(done/total)" once destination hosts are known.
+ */
+export function PushedToast({
+  pushStatus,
+  status,
+  errorMessage,
+}: {
+  pushStatus: StateStream<PushResourceStatus | null>
+  status: 'loading' | 'success' | 'error'
+  errorMessage?: string
+}) {
+  const state = useStream(pushStatus)
+  const {done, total} = pushProgress(state)
+  if (status === 'loading') {
+    const progress = total > 0 ? ` (${done}/${total})` : ''
+    return <p>{`Publishing to servers…${progress}`}</p>
+  }
+  if (status === 'success') {
+    const suffix = total > 0 ? ` to ${total} server${total === 1 ? '' : 's'}` : ' to servers'
+    return <p>{`Published${suffix}`}</p>
+  }
+  return <p>{errorMessage ? `Failed to push to servers: ${errorMessage}` : 'Failed to push to servers'}</p>
 }
 
 export function PushToast({

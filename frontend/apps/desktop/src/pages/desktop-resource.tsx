@@ -20,6 +20,7 @@ import {useMyAccountIds} from '@/models/daemon'
 import {useChildDrafts, useCreateInlineDraft, usePublishResource} from '@/models/documents'
 import {useExistingDraft} from '@/models/drafts'
 import {useGatewayUrl, useGatewayUrlStream} from '@/models/gateway-settings'
+import {usePushAfterAction} from '@/models/push-after-action'
 import {useHostSession} from '@/models/host'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
@@ -36,11 +37,12 @@ import {hmId, hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
 import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {findSelfQueryBlock} from '@shm/shared/content'
-import {documentMachine, PublishInput, WriteDraftInput} from '@shm/shared/models/document-machine'
+import {documentMachine, PublishInput, PushDocumentInput, WriteDraftInput} from '@shm/shared/models/document-machine'
 import {useDocumentInspector} from '@shm/shared/models/document-machine-inspect'
 import {useResource} from '@shm/shared/models/entity'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
+import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {CloudOff, Download, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {ResourcePage} from '@shm/ui/resource-page-common'
@@ -151,6 +153,12 @@ export default function DesktopResourcePage() {
   const publishResourceRef = useRef(publishResource)
   publishResourceRef.current = publishResource
 
+  // Push-on-publish: ref keeps the fromPromise actor stable across renders
+  // while always reading the latest hook value when it fires.
+  const pushAfterAction = usePushAfterAction()
+  const pushAfterActionRef = useRef(pushAfterAction)
+  pushAfterActionRef.current = pushAfterAction
+
   // Create writeDraft actor that reads content from the captured editor ref.
   // Account ID flows through machine context → actor input (no closure deps).
   const writeDraftActor = useMemo(
@@ -205,13 +213,35 @@ export default function DesktopResourcePage() {
     [],
   )
 
+  // Create pushDocument actor — spawned fire-and-forget after publish succeeds.
+  // Delegates to the shared usePushAfterAction helper (same flow used for
+  // comment publishing and copy-link), which handles the setting gate, toast,
+  // and errors.
+  const pushDocumentActor = useMemo(
+    () =>
+      fromPromise<void, PushDocumentInput>(async ({input}) => {
+        const doc = input.publishedDocument
+        if (!doc?.account || !doc?.version) return
+        const pushId = hmId(doc.account, {
+          path: entityQueryPathToHmIdPath(doc.path),
+          version: doc.version,
+        })
+        pushAfterActionRef.current({id: pushId, trigger: 'publish'})
+      }),
+    [],
+  )
+
   // Provide actors to the document machine
   const machine = useMemo(
     () =>
       documentMachine.provide({
-        actors: {writeDraft: writeDraftActor, publishDocument: publishDocumentActor},
+        actors: {
+          writeDraft: writeDraftActor,
+          publishDocument: publishDocumentActor,
+          pushDocument: pushDocumentActor,
+        },
       }),
-    [writeDraftActor, publishDocumentActor],
+    [writeDraftActor, publishDocumentActor, pushDocumentActor],
   )
 
   // Get site URL for CreateDocumentButton
@@ -538,6 +568,7 @@ export default function DesktopResourcePage() {
         onReplyCountClick={onReplyCountClick}
         renderInlineEditor={renderDesktopInlineEditor}
         showDeletedContent
+        pushAfterCommentPublish={(targetDocId) => pushAfterAction({id: targetDocId, trigger: 'publish'})}
       >
         <DesktopDocumentActionsProvider>
           <QueryBlockDraftsProvider DraftSlot={DesktopQueryBlockDraftSlot}>

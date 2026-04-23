@@ -19,6 +19,7 @@ import {invalidateQueries} from './models/query-client'
 import {queryKeys} from './models/query-keys'
 import {useUniversalClient} from './routing'
 import {hmId} from './utils/entity-id-url'
+import {entityQueryPathToHmIdPath} from './utils/path-api'
 
 /** Props passed to the inline comment editor renderer. */
 export type InlineEditCommentProps = {
@@ -45,6 +46,13 @@ type CommentsProviderValue = {
    * Disabled on web to respect the author's intent to delete.
    */
   showDeletedContent?: boolean
+  /**
+   * Optional. Called after a comment edit or delete is published locally,
+   * with the target document id. Lets the desktop app push the resulting
+   * change to destination servers (gated by the user's pushOnPublish setting).
+   * No-op on web.
+   */
+  pushAfterCommentPublish?: (targetDocId: UnpackedHypermediaId) => void
 }
 
 const defaultCommentsContext: CommentsProviderValue = {
@@ -68,12 +76,27 @@ export function CommentsProvider({
   renderInlineEditor,
   useHackyAuthorsSubscriptions,
   showDeletedContent = false,
+  pushAfterCommentPublish,
 }: PropsWithChildren<CommentsProviderValue>) {
   return (
     <CommentsContext.Provider
       value={useMemo(
-        () => ({onReplyClick, onReplyCountClick, renderInlineEditor, useHackyAuthorsSubscriptions, showDeletedContent}),
-        [onReplyClick, onReplyCountClick, renderInlineEditor, useHackyAuthorsSubscriptions, showDeletedContent],
+        () => ({
+          onReplyClick,
+          onReplyCountClick,
+          renderInlineEditor,
+          useHackyAuthorsSubscriptions,
+          showDeletedContent,
+          pushAfterCommentPublish,
+        }),
+        [
+          onReplyClick,
+          onReplyCountClick,
+          renderInlineEditor,
+          useHackyAuthorsSubscriptions,
+          showDeletedContent,
+          pushAfterCommentPublish,
+        ],
       )}
     >
       {children}
@@ -169,6 +192,7 @@ export function isRouteEqualToCommentTarget({
 
 export function useDeleteComment() {
   const client = useUniversalClient()
+  const {pushAfterCommentPublish} = useCommentsServiceContext()
 
   return useMutation({
     mutationFn: async (params: {comment: HMComment; signingAccountId: string}) => {
@@ -188,12 +212,15 @@ export function useDeleteComment() {
       )
       await client.publish(publishInput)
     },
-    onSuccess: () => {
+    onSuccess: (_result, params) => {
       // Invalidate all comment-related queries to refresh the UI
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
       invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
       invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
       invalidateQueries([queryKeys.ACTIVITY_FEED])
+      pushAfterCommentPublish?.(
+        hmId(params.comment.targetAccount, {path: entityQueryPathToHmIdPath(params.comment.targetPath || '')}),
+      )
     },
   })
 }
@@ -201,6 +228,7 @@ export function useDeleteComment() {
 /** Mutation hook to edit an existing comment. */
 export function useUpdateComment() {
   const client = useUniversalClient()
+  const {pushAfterCommentPublish} = useCommentsServiceContext()
 
   return useMutation({
     mutationFn: async (params: {comment: HMComment; newContent: HMBlockNode[]; signingAccountId: string}) => {
@@ -223,12 +251,15 @@ export function useUpdateComment() {
       )
       await client.publish(publishInput)
     },
-    onSuccess: () => {
+    onSuccess: (_result, params) => {
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
       invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
       invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
       invalidateQueries([queryKeys.ACTIVITY_FEED])
       invalidateQueries([queryKeys.COMMENT_VERSIONS])
+      pushAfterCommentPublish?.(
+        hmId(params.comment.targetAccount, {path: entityQueryPathToHmIdPath(params.comment.targetPath || '')}),
+      )
     },
   })
 }
