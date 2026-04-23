@@ -409,15 +409,43 @@ func (n *Node) onLibp2pIdentification(ctx context.Context, event event.EvtPeerId
 		addrsString = append(addrsString, strings.ReplaceAll(addrs.String(), "/p2p/"+event.Peer.String(), "")+"/p2p/"+event.Peer.String())
 	}
 	sort.Strings(addrsString)
+	incomingAddrs := strings.ReplaceAll(strings.Join(addrsString, ","), " ", "")
 
-	if err := n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
-		// Identify completed — we have direct first-hand evidence this peer exists
-		// right now. Always bump updated_at, regardless of whether addresses changed,
-		// so TTL pruning doesn't evict long-lived peers with stable addrs. Addresses
-		// only overwrite the stored set when the newly observed set is non-empty.
-		return sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=CASE WHEN excluded.addresses!='' THEN excluded.addresses ELSE addresses END, updated_at=strftime('%s', 'now');", nil, event.Peer.String(), strings.ReplaceAll(strings.Join(addrsString, ","), " ", ""), bootstrapped)
+	// Short-circuit the INSERT when the peer-table row is already fresh and
+	// unchanged. The identify-handler fires once per successful libp2p
+	// connection, including every dial we kick off from dialStoredPeers right
+	// after bulk-inserting the same peers from peer-exchange. Re-writing the
+	// same addresses with a timestamp bumped by milliseconds produces nothing
+	// but BEGIN IMMEDIATE collisions with the scheduler's blob-reconcile
+	// writers. The check is an indexed lookup on the UNIQUE pid column, so it
+	// costs ~nothing next to the write we're avoiding.
+	skip := false
+	if err := n.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, "SELECT addresses, updated_at FROM peers WHERE pid = ? LIMIT 1;", func(stmt *sqlite.Stmt) error {
+			stored := stmt.ColumnText(0)
+			updatedAt := stmt.ColumnInt64(1)
+			recent := time.Now().Unix()-updatedAt < 60
+			// If we have no new addresses to contribute, the INSERT would only
+			// bump updated_at; if we do have addresses, they must match what's
+			// already stored for the write to be truly redundant.
+			unchanged := incomingAddrs == "" || stored == incomingAddrs
+			skip = recent && unchanged
+			return nil
+		}, event.Peer.String())
 	}); err != nil {
-		n.log.Warn("Could not store new peer", zap.String("PID", event.Peer.String()), zap.Error(err))
+		n.log.Debug("Peer freshness check failed, falling through to write", zap.String("PID", event.Peer.String()), zap.Error(err))
+	}
+
+	if !skip {
+		if err := n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+			// Identify completed — we have direct first-hand evidence this peer exists
+			// right now. Always bump updated_at, regardless of whether addresses changed,
+			// so TTL pruning doesn't evict long-lived peers with stable addrs. Addresses
+			// only overwrite the stored set when the newly observed set is non-empty.
+			return sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=CASE WHEN excluded.addresses!='' THEN excluded.addresses ELSE addresses END, updated_at=strftime('%s', 'now');", nil, event.Peer.String(), incomingAddrs, bootstrapped)
+		}); err != nil {
+			n.log.Warn("Could not store new peer", zap.String("PID", event.Peer.String()), zap.Error(err))
+		}
 	}
 
 	n.p2p.ConnManager().Protect(event.Peer, ProtocolSupportKey)
