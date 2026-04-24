@@ -274,12 +274,12 @@ export function useResolvedResource(
 }
 
 type DiscoveryStateInfo = {
-  isDiscovering: boolean
+  isDiscovering: boolean | undefined
   isTombstone: boolean
   isNotFound: boolean
 }
 
-// Hook to get discovery states for multiple entity IDs
+/** Hook to get discovery states for multiple entity IDs. */
 function useDiscoveryStates(entityIds: (string | undefined)[]): DiscoveryStateInfo[] {
   const client = useUniversalClient()
 
@@ -293,12 +293,14 @@ function useDiscoveryStates(entityIds: (string | undefined)[]): DiscoveryStateIn
   }, [client.discovery, idsKey])
 
   // Get current values from all streams
+  // isDiscovering is undefined when no discovery state has been received yet,
+  // matching useDiscoveryState behavior so callers can distinguish "unknown" from "not discovering"
   const [states, setStates] = useState<DiscoveryStateInfo[]>(() =>
     streams.map((stream) => {
       const state = stream?.get()
       const isTimedOut = state ? Date.now() - state.startedAt > DISCOVERY_TIMEOUT_MS : false
       return {
-        isDiscovering: (state?.isDiscovering && !isTimedOut) ?? false,
+        isDiscovering: state ? state.isDiscovering && !isTimedOut : undefined,
         isTombstone: state?.isTombstone ?? false,
         isNotFound: state?.isNotFound ?? false,
       }
@@ -315,7 +317,7 @@ function useDiscoveryStates(entityIds: (string | undefined)[]): DiscoveryStateIn
           const next = [...prev]
           const isTimedOut = state ? Date.now() - state.startedAt > DISCOVERY_TIMEOUT_MS : false
           next[index] = {
-            isDiscovering: (state?.isDiscovering && !isTimedOut) ?? false,
+            isDiscovering: state ? state.isDiscovering && !isTimedOut : undefined,
             isTombstone: state?.isTombstone ?? false,
             isNotFound: state?.isNotFound ?? false,
           }
@@ -361,6 +363,7 @@ export function useResources(
   })
 
   // Combine query results with discovery state
+  const hasDiscoveryService = !!client.discovery
   return queryResults.map((result, index) => {
     const {
       isDiscovering: discoveryInProgress,
@@ -373,12 +376,17 @@ export function useResources(
     }
     // Show discovering when: subscribed, not-found, AND either discovery in progress OR query is fetching
     // BUT: never show discovering UI for tombstoned or settled not-found resources
+    // discoveryInProgress === undefined means we haven't received discovery state yet (the
+    // subscription round-trip hasn't completed). Since we're subscribed and discovery will start,
+    // treat this gap as discovering rather than flashing "not found" prematurely.
+    // However, on web there is no discovery service, so discoveryInProgress is permanently
+    // undefined — don't treat that as "discovering" or profiles will never resolve.
     const isDiscovering =
       !!subscribed &&
       !isTombstone &&
       !isNotFound &&
       result.data?.type === 'not-found' &&
-      (!!discoveryInProgress || result.isFetching)
+      (!!discoveryInProgress || result.isFetching || (hasDiscoveryService && discoveryInProgress === undefined))
     return {
       ...result,
       isDiscovering,

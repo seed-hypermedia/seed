@@ -884,7 +884,7 @@ function DocumentBody({
     return getBreadcrumbDocumentIds(docId)
   }, [docId, isHomeDoc])
 
-  const breadcrumbResults = useResources(breadcrumbIds)
+  const breadcrumbResults = useResources(breadcrumbIds, {subscribed: true})
 
   const breadcrumbs = useMemo((): BreadcrumbEntry[] | undefined => {
     if (isHomeDoc) return undefined
