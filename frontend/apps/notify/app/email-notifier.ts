@@ -26,6 +26,7 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {DAEMON_HTTP_URL, NOTIFY_SERVICE_HOST, SITE_BASE_URL} from '@shm/shared/constants'
+import {createDomainVerifier} from '@shm/shared/models/domain-resolver'
 import {
   classifyCommentNotificationForAccount,
   extractMentionedAccountUidsFromComment,
@@ -839,6 +840,7 @@ async function sendBatchNotificationEmails(notificationsToSend: NotificationsByE
 
 async function processImmediateNotifications(events: PlainMessage<Event>[]) {
   if (!events.length) return
+  domainVerifier.clear()
   const allEmails = getAllEmails()
   const emailIdentityMap = buildEmailIdentityMap(allEmails)
   const subscriptions = getImmediateSubscriptions(emailIdentityMap)
@@ -880,6 +882,7 @@ async function processImmediateNotifications(events: PlainMessage<Event>[]) {
 
 async function processBatchNotifications(events: PlainMessage<Event>[]) {
   if (!events.length) return
+  domainVerifier.clear()
   const allEmails = getAllEmails()
   const emailIdentityMap = buildEmailIdentityMap(allEmails)
   const subscriptions = getBatchSubscriptions(allEmails, emailIdentityMap)
@@ -1198,16 +1201,17 @@ async function evaluateDocUpdateForNotifications(
   }
 }
 
-async function getAccountSiteBaseUrl(accountId: string): Promise<string> {
+/** Returns the account's configured site URL, or null if none is configured. */
+async function getAccountSiteUrl(accountId: string): Promise<string | null> {
   try {
     const accountResult = await requestAPI('Account', accountId)
     if (accountResult.type === 'account') {
-      return normalizeSiteBaseUrl(accountResult.metadata?.siteUrl) || fallbackSiteBaseUrl
+      return normalizeSiteBaseUrl(accountResult.metadata?.siteUrl)
     }
   } catch (error: any) {
     reportError(`Error getting account site url ${accountId}: ${error.message}`)
   }
-  return fallbackSiteBaseUrl
+  return null
 }
 
 async function getAccountMetadata(accountId: string): Promise<HMMetadata | null> {
@@ -1223,6 +1227,66 @@ async function getAccountMetadata(accountId: string): Promise<HMMetadata | null>
 function normalizeSiteBaseUrl(siteUrl?: string | null): string | null {
   const normalized = siteUrl?.replace(/\/$/, '') || null
   return normalized || null
+}
+
+/** Shared domain verifier backed by the daemon's domain store with in-memory caching. */
+const domainVerifier = createDomainVerifier(grpcClient)
+
+/**
+ * Extracts the hostname (without protocol) from a full site URL.
+ * e.g. "https://example.com" → "example.com"
+ */
+function extractDomain(siteUrl: string): string | null {
+  try {
+    return new URL(siteUrl).hostname
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Builds the correct URL for a resource, using the custom domain when it is
+ * verified for the expected account, or falling back to a gateway-style URL.
+ *
+ * When verified and uid matches siteOwnerUid:
+ *   `https://custom-domain.com/path`  (clean, no /hm/{uid})
+ * When verified but uid differs (e.g. comment by another author):
+ *   `https://custom-domain.com/hm/{uid}/path`  (still on the right domain)
+ * When NOT verified:
+ *   `https://gateway.com/hm/{uid}/path`
+ */
+async function buildVerifiedResourceUrl(
+  uid: string,
+  opts: {
+    siteUrl: string | null
+    siteOwnerUid: string
+    path?: string[] | null
+    viewTerm?: string | null
+    blockRef?: string | null
+  },
+): Promise<string> {
+  if (opts.siteUrl) {
+    const domain = extractDomain(opts.siteUrl)
+    if (domain) {
+      const verified = await domainVerifier.isVerified(domain, opts.siteOwnerUid)
+      if (verified) {
+        return createWebHMUrl(uid, {
+          hostname: opts.siteUrl,
+          path: opts.path,
+          viewTerm: opts.viewTerm,
+          blockRef: opts.blockRef,
+          originHomeId: hmId(opts.siteOwnerUid),
+        })
+      }
+    }
+  }
+  // Fallback: gateway URL
+  return createWebHMUrl(uid, {
+    hostname: fallbackSiteBaseUrl,
+    path: opts.path,
+    viewTerm: opts.viewTerm,
+    blockRef: opts.blockRef,
+  })
 }
 
 async function evaluateMentionEventForNotifications(
@@ -1295,9 +1359,9 @@ async function evaluateMentionEventForNotifications(
     reportError(`Error getting mention author ${authorAccountId}: ${error.message}`)
   }
 
-  let siteBaseUrl = normalizeSiteBaseUrl(targetMeta?.siteUrl)
-  if (!siteBaseUrl) {
-    siteBaseUrl = await getAccountSiteBaseUrl(sourceDocId.uid)
+  let siteUrl = normalizeSiteBaseUrl(targetMeta?.siteUrl)
+  if (!siteUrl) {
+    siteUrl = await getAccountSiteUrl(sourceDocId.uid)
   }
 
   let mentionUrl: string
@@ -1308,9 +1372,10 @@ async function evaluateMentionEventForNotifications(
     if (!sourceCommentId || !commentPath) {
       return
     }
-    mentionUrl = createWebHMUrl(sourceCommentId.uid, {
+    mentionUrl = await buildVerifiedResourceUrl(sourceCommentId.uid, {
+      siteUrl,
+      siteOwnerUid: sourceDocId.uid,
       path: [commentPath],
-      hostname: siteBaseUrl,
     })
     try {
       const sourceBlobCid = mentionEvent.sourceBlob?.cid
@@ -1325,9 +1390,10 @@ async function evaluateMentionEventForNotifications(
       reportError(`Error loading mention comment ${mentionEvent.sourceBlob?.cid}: ${error.message}`)
     }
   } else {
-    mentionUrl = createWebHMUrl(sourceDocId.uid, {
+    mentionUrl = await buildVerifiedResourceUrl(sourceDocId.uid, {
+      siteUrl,
+      siteOwnerUid: sourceDocId.uid,
       path: sourceDocId.path,
-      hostname: siteBaseUrl,
     })
   }
 
@@ -1442,17 +1508,19 @@ async function evaluateNewCommentForNotifications(
     }
   }
 
-  // Create comment-specific URL for comment-related notifications
-  // Prefer the target document's siteUrl; fall back to account siteUrl, then default site base URL.
+  // Create comment-specific URL for comment-related notifications.
+  // Prefer the target document's siteUrl; fall back to account siteUrl.
+  // Uses domain verification to produce clean URLs on live custom domains.
   const commentIdParts = comment.id.split('/')
   const commentTSID = commentIdParts[1]
   if (!commentTSID) {
     throw new Error('Invalid comment ID format: ' + comment.id)
   }
-  const commentBaseUrl = targetDocumentSiteUrl || targetAccountSiteUrl || fallbackSiteBaseUrl
-  const commentUrl = createWebHMUrl(comment.author, {
+  const commentSiteUrl = targetDocumentSiteUrl || targetAccountSiteUrl
+  const commentUrl = await buildVerifiedResourceUrl(comment.author, {
+    siteUrl: commentSiteUrl,
+    siteOwnerUid: comment.targetAccount,
     path: [commentTSID],
-    hostname: commentBaseUrl,
   })
 
   // Get all mentioned users in this comment
@@ -1795,11 +1863,12 @@ async function loadRefEvent(event: PlainMessage<Event>) {
     accountSiteUrl =
       homeAccountResult.type === 'account' ? normalizeSiteBaseUrl(homeAccountResult.metadata?.siteUrl) : null
   }
-  const baseUrl = documentSiteUrl || accountSiteUrl || fallbackSiteBaseUrl
+  const siteUrl = documentSiteUrl || accountSiteUrl
 
-  const openUrl = createWebHMUrl(id.uid, {
+  const openUrl = await buildVerifiedResourceUrl(id.uid, {
+    siteUrl,
+    siteOwnerUid: id.uid,
     path: id.path,
-    hostname: baseUrl,
   })
 
   const prevVersionId = {
