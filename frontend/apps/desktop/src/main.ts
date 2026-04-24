@@ -550,17 +550,6 @@ function initializeIpcHandlers() {
     closeLoadingWindow()
   })
 
-  ipcMain.on('find_in_page_query', (_event, _info) => {
-    getFocusedWindow()?.webContents?.findInPage(_info.query, {
-      findNext: _info.findNext,
-      forward: _info.forward,
-    })
-  })
-
-  ipcMain.on('find_in_page_cancel', (_event) => {
-    getFocusedWindow()?.webContents?.stopFindInPage('clearSelection')
-  })
-
   // File and system operation handlers
   ipcMain.on('save-file', saveCidAsFile)
   ipcMain.on('export-document', saveMarkdownFile)

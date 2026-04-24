@@ -25,6 +25,21 @@ ipcRenderer.addListener('darkMode', (info, state) => {
   updateDarkMode(state)
 })
 
+// Find-in-page result stream. Using the event-stream pattern (not the generic
+// ipc.listen) because contextBridge can't clone the IpcRendererEvent object
+// across isolated worlds, which silently drops the callback.
+type FindInPageResult = {
+  activeMatchOrdinal: number
+  matches: number
+  finalUpdate: boolean
+}
+const [dispatchFindInPageResult, findInPageResults] = eventStream<FindInPageResult>()
+contextBridge.exposeInMainWorld('findInPageResults', findInPageResults)
+
+ipcRenderer.addListener('find_in_page_result', (_info, payload: FindInPageResult) => {
+  dispatchFindInPageResult(payload)
+})
+
 contextBridge.exposeInMainWorld('ipc', {
   // @ts-expect-error
   send: (cmd, args) => {
