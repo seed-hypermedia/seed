@@ -698,7 +698,10 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
             icon: account.data?.metadata?.icon || null,
           }}
           onSubmit={(newValues) => {
-            update.mutateAsync(newValues).then(() => onClose())
+            update.mutateAsync(newValues).then(() => {
+              toast.success(tx('Profile updated'))
+              onClose()
+            })
           }}
           processImage={optimizeImage}
         />
