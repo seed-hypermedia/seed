@@ -183,8 +183,7 @@ export const MediaRender: React.FC<RenderProps> = ({
   }
 
   return (
-    // For some reason, the file block is not taking up the full width of the editor on mobile, so we need to add this style
-    <div className={cn('flex flex-col', mediaType === 'file' && 'w-full')}>
+    <div className="flex w-full flex-col">
       {hideForm ? (
         <MediaComponent
           block={block}
