@@ -1,5 +1,7 @@
 import {describe, expect, test} from 'vitest'
+import {DEFAULT_GATEWAY_URL} from '../../constants'
 import {
+  buildCopyLinkUrl,
   createCommentUrl,
   createOSProtocolUrl,
   createSiteUrl,
@@ -1184,5 +1186,161 @@ describe('packHmId with latest and version', () => {
 
   test('omits ?l when no version', () => {
     expect(packHmId(hmId('abc', {latest: true}))).toBe('hm://abc')
+  })
+})
+
+describe('buildCopyLinkUrl', () => {
+  const gatewayId = hmId('z6MkOwner', {path: ['doc-path']})
+  // Derived from the env so tests work under both hyper.media and dev.hyper.media
+  const GW = DEFAULT_GATEWAY_URL
+
+  test('plain document (gateway) — no version, no fragment', () => {
+    expect(buildCopyLinkUrl({id: gatewayId})).toBe(`${GW}/hm/z6MkOwner/doc-path`)
+  })
+
+  test('document with version → ?v=…', () => {
+    expect(
+      buildCopyLinkUrl({
+        id: hmId('z6MkOwner', {path: ['doc-path'], version: 'v1hash'}),
+      }),
+    ).toBe(`${GW}/hm/z6MkOwner/doc-path?v=v1hash`)
+  })
+
+  test('block link (blockRef + version, no blockRange) auto-expands with +', () => {
+    expect(
+      buildCopyLinkUrl({
+        id: hmId('z6MkOwner', {
+          path: ['doc-path'],
+          version: 'v1hash',
+          blockRef: 'XK6l8B4d',
+        }),
+      }),
+    ).toBe(`${GW}/hm/z6MkOwner/doc-path?v=v1hash#XK6l8B4d+`)
+  })
+
+  test('explicit {expanded:false} is respected (no +)', () => {
+    expect(
+      buildCopyLinkUrl({
+        id: hmId('z6MkOwner', {
+          path: ['doc-path'],
+          version: 'v1hash',
+          blockRef: 'XK6l8B4d',
+          blockRange: {expanded: false},
+        }),
+      }),
+    ).toBe(`${GW}/hm/z6MkOwner/doc-path?v=v1hash#XK6l8B4d`)
+  })
+
+  test('fragment link (blockRef + {start,end}) produces [start:end]', () => {
+    expect(
+      buildCopyLinkUrl({
+        id: hmId('z6MkOwner', {
+          path: ['doc-path'],
+          version: 'v1hash',
+          blockRef: 'blk1',
+          blockRange: {start: 10, end: 20},
+        }),
+      }),
+    ).toBe(`${GW}/hm/z6MkOwner/doc-path?v=v1hash#blk1[10:20]`)
+  })
+
+  test('site-style URL when hostname is set', () => {
+    expect(
+      buildCopyLinkUrl({
+        id: hmId('z6MkOwner', {
+          path: ['doc-path'],
+          version: 'v1hash',
+          blockRef: 'blk1',
+          hostname: 'https://example.com',
+        }),
+      }),
+    ).toBe('https://example.com/doc-path?v=v1hash#blk1+')
+  })
+
+  test('comment link only (no blockRef) — delegates to createCommentUrl', () => {
+    const commentId = hmId('z6MkAuthor', {path: ['tsid123']})
+    expect(
+      buildCopyLinkUrl({
+        id: hmId('z6MkOwner', {path: ['doc-path']}),
+        commentId,
+      }),
+    ).toContain('/hm/z6MkOwner/doc-path/:comments/z6MkAuthor/tsid123')
+  })
+
+  test('comment link with commentVersion (on commentId) and latest (on docId)', () => {
+    const commentId = hmId('z6MkAuthor', {path: ['tsid123'], version: 'cVer'})
+    expect(
+      buildCopyLinkUrl({
+        id: hmId('z6MkOwner', {path: ['doc-path'], latest: true, hostname: 'https://example.com'}),
+        commentId,
+      }),
+    ).toBe('https://example.com/doc-path/:comments/z6MkAuthor/tsid123?v=cVer&l')
+  })
+
+  test('comment + blockRef auto-expands with +', () => {
+    const commentId = hmId('z6MkAuthor', {path: ['tsid123']})
+    expect(
+      buildCopyLinkUrl({
+        id: hmId('z6MkOwner', {
+          path: ['doc-path'],
+          blockRef: 'blk1',
+          hostname: 'https://example.com',
+        }),
+        commentId,
+      }),
+    ).toBe('https://example.com/doc-path/:comments/z6MkAuthor/tsid123#blk1+')
+  })
+
+  test('comment + blockRef + {start,end}', () => {
+    const commentId = hmId('z6MkAuthor', {path: ['tsid123']})
+    expect(
+      buildCopyLinkUrl({
+        id: hmId('z6MkOwner', {
+          path: ['doc-path'],
+          blockRef: 'blk1',
+          blockRange: {start: 10, end: 20},
+          hostname: 'https://example.com',
+        }),
+        commentId,
+      }),
+    ).toBe('https://example.com/doc-path/:comments/z6MkAuthor/tsid123#blk1[10:20]')
+  })
+
+  test('gatewayUrl overrides the default gateway host', () => {
+    expect(
+      buildCopyLinkUrl({
+        id: hmId('z6MkOwner', {path: ['doc-path'], version: 'v1'}),
+        gatewayUrl: 'https://custom-gateway.example',
+      }),
+    ).toBe('https://custom-gateway.example/hm/z6MkOwner/doc-path?v=v1')
+  })
+
+  test('block link roundtrips through unpackHmId (blockRef + expanded)', () => {
+    const url = buildCopyLinkUrl({
+      id: hmId('abc123', {
+        path: ['some-doc'],
+        version: 'v1hash',
+        blockRef: 'XK6l8B4d',
+      }),
+    })
+    const unpacked = unpackHmId(url)
+    expect(unpacked?.uid).toBe('abc123')
+    expect(unpacked?.version).toBe('v1hash')
+    expect(unpacked?.blockRef).toBe('XK6l8B4d')
+    expect(unpacked?.blockRange).toEqual({expanded: true})
+  })
+
+  test('fragment link roundtrips through unpackHmId ({start,end})', () => {
+    const url = buildCopyLinkUrl({
+      id: hmId('abc123', {
+        path: ['some-doc'],
+        version: 'v1hash',
+        blockRef: 'blk1',
+        blockRange: {start: 3, end: 7},
+      }),
+    })
+    const unpacked = unpackHmId(url)
+    expect(unpacked?.blockRef).toBe('blk1')
+    expect(unpacked?.blockRange).toEqual({start: 3, end: 7})
   })
 })

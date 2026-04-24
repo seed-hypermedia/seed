@@ -51,13 +51,7 @@ import {
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
-import {
-  activityFilterToSlug,
-  createSiteUrl,
-  createWebHMUrl,
-  getCommentTargetId,
-  parseFragment,
-} from '@shm/shared/utils/entity-id-url'
+import {activityFilterToSlug, getCommentTargetId, parseFragment} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Folder, Search, Settings} from 'lucide-react'
 import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -75,6 +69,7 @@ import {
 } from './components/alert-dialog'
 import {ScrollArea} from './components/scroll-area'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
+import {useCopyHmLink} from './use-copy-hm-link'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
@@ -986,6 +981,10 @@ function DocumentBody({
 
   // Block tools handlers
   const blockCitations = useMemo(() => interactionSummary.data?.blocks || null, [interactionSummary.data?.blocks])
+  const copyHmLink = useCopyHmLink()
+  // Current origin for gateway-format links (web: site's own URL; desktop: the
+  // configured gateway). Used as a fallback when the document has no site URL.
+  const {origin: appOrigin} = useUniversalAppContext()
 
   const handleBlockCitationClick = useCallback(
     (blockId?: string | null) => {
@@ -995,16 +994,21 @@ function DocumentBody({
         id: {
           ...route.id,
           blockRef: blockId || null,
-          blockRange: null,
+          // Mark the block as expanded so the editor highlight plugin focuses
+          // and highlights the whole block (not just a text range).
+          blockRange: blockId ? {expanded: true} : null,
         },
         panel: {
           key: 'comments',
           id: route.id,
-          blockId: blockId || undefined,
-        },
+          // DiscussionsPanel reads `targetBlockId` to scope the panel to a
+          // single block's discussions; `blockId` was the wrong field.
+          targetBlockId: blockId || undefined,
+        } as any,
       })
+      if (blockId) scrollToBlock(blockId)
     },
-    [route, navigate],
+    [route, navigate, scrollToBlock],
   )
 
   const handleBlockCommentClick = useCallback(
@@ -1053,32 +1057,45 @@ function DocumentBody({
       }
       const shouldCopy = opts?.copyToClipboard !== false
       if (blockId && shouldCopy) {
-        // Block links must include version (block tied to specific version)
-        // and use siteUrl hostname when available
-        const versionForLink = publishedVersion ?? document.version
-        const url = siteUrl
-          ? createSiteUrl({
-              path: docId.path,
-              hostname: siteUrl,
-              blockRef: blockId,
-              blockRange,
-              version: versionForLink,
-            })
-          : createWebHMUrl(docId.uid, {
-              path: docId.path,
-              blockRef: blockId,
-              blockRange,
-              version: versionForLink,
-            })
-        copyUrlToClipboardWithFeedback(url, 'Block')
+        // Pin to the published version only if the block actually exists there.
+        // Newly-added draft blocks aren't in any published version yet — emit
+        // a version-less, latest-resolving link so the URL stays valid once
+        // the next publish lands.
+        const publishedVersionCandidate = publishedVersion ?? document.version
+        const existsInPublished = !!findContentBlock(document.content ?? [], blockId)
+        const versionForLink = existsInPublished ? publishedVersionCandidate : null
+        copyHmLink({
+          id: {
+            ...docId,
+            version: versionForLink ?? null,
+            blockRef: blockId,
+            blockRange,
+            hostname: siteUrl ?? docId.hostname ?? null,
+            latest: existsInPublished ? null : true,
+          },
+          // Fall back to the app origin for gateway-format URLs so copied
+          // links on web point back to this deployment (instead of the
+          // default `hyper.media` gateway) when no site URL is set.
+          gatewayUrl: appOrigin ?? undefined,
+        })
       }
-      // Navigate to update route with blockRef (unless explicitly copy-only)
-      if (opts?.copyToClipboard !== true) {
-        scrollToBlock(blockId)
-        navigate(blockRoute)
-      }
+      // Always scroll + navigate so the URL updates and the target block gets
+      // visually focused/highlighted — even on copy clicks.
+      scrollToBlock(blockId)
+      navigate(blockRoute)
     },
-    [route, navigate, scrollToBlock, docId, document.version, siteUrl, publishedVersion],
+    [
+      route,
+      navigate,
+      scrollToBlock,
+      docId,
+      document.version,
+      document.content,
+      siteUrl,
+      publishedVersion,
+      copyHmLink,
+      appOrigin,
+    ],
   )
 
   // Activity filter change handler (main page)

@@ -46,7 +46,7 @@ import {
   extractDeletes,
   getDocAttributeChanges,
 } from '@shm/shared/utils/document-changes'
-import {createWebHMUrl, hmId, hmIdToURL, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {buildCopyLinkUrl, hmId, hmIdToURL, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {eventStream} from '@shm/shared/utils/stream'
@@ -601,13 +601,17 @@ export function useDraftEditor() {
       if (!editId) return undefined
       const siteHomeDoc = editHomeEntity.data?.type === 'document' ? editHomeEntity.data.document : undefined
       const siteHomeUrl = siteHomeDoc?.metadata?.siteUrl
-      // When copying a block link, include the version to ensure
-      // the block can be found in the correct document version
-      return createWebHMUrl(editId.uid, {
-        path: editId.path,
-        hostname: siteHomeUrl || gwUrl.get(),
-        blockRef: blockId,
-        version: blockId ? editDocument?.version : undefined,
+      // Set hostname only for true site URLs so buildCopyLinkUrl produces the
+      // site-style `/path` form. Without a siteUrl, use the configured gateway
+      // so `/hm/<uid>/path` is served off the user's chosen gateway host.
+      return buildCopyLinkUrl({
+        id: {
+          ...editId,
+          hostname: siteHomeUrl || null,
+          blockRef: blockId ?? null,
+          version: blockId ? editDocument?.version ?? null : null,
+        },
+        gatewayUrl: siteHomeUrl ? undefined : gwUrl.get(),
       })
     }
   }, [editId, editHomeEntity.data, editDocument?.version])

@@ -509,7 +509,7 @@ export function DocumentEditor({
         <ImageGalleryOverlay editor={editor} resolveImageUrl={getImageUrl} />
         <BlockHoverActionsPositioner
           editor={editor}
-          onCopyBlockLink={onBlockCitationClick ? (blockId) => onBlockCitationClick(blockId) : undefined}
+          onCopyBlockLink={onBlockSelect ? (blockId) => onBlockSelect(blockId, {copyToClipboard: true}) : undefined}
           onStartComment={onBlockCommentClick ? (blockId) => onBlockCommentClick(blockId, undefined, true) : undefined}
         />
         <RangeSelectionPositioner

@@ -3,22 +3,21 @@ import {HMBlockNode, HMTimestamp, UnpackedHypermediaId} from '@seed-hypermedia/c
 import {HMListEventsParams, LoadedCommentEvent, LoadedEvent} from '@shm/shared/models/activity-service'
 import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
 import {DocumentRoute, NavRoute} from '@shm/shared/routes'
-import {useRouteLink} from '@shm/shared/routing'
+import {useRouteLink, useUniversalAppContext} from '@shm/shared/routing'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {useActivityFeed} from '@shm/shared/use-activity-feed'
 import {AnyTimestamp, formattedDateShort, normalizeDate} from '@shm/shared/utils/date'
-import {createCommentUrl, getCommentTargetId, hmId} from '@shm/shared/utils/entity-id-url'
+import {commentIdToHmId, getCommentTargetId, hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import _ from 'lodash'
 import {CircleAlert, Link, Trash2} from 'lucide-react'
 import {memo, useEffect, useMemo, useRef} from 'react'
-import {toast} from 'sonner'
 import {SelectionContent} from './accessories'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {Button} from './button'
 import {CommentContent, useDeleteCommentDialog} from './comments'
 import {SizableText} from './components/text'
-import {copyTextToClipboard} from './copy-to-clipboard'
+import {useCopyHmLink} from './use-copy-hm-link'
 import {HMIcon} from './hm-icon'
 import {ReplyArrow} from './icons'
 import {AuthorNameLink, DocumentNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
@@ -198,6 +197,8 @@ function EventHeaderContent({
   const currentAccount = useSelectedAccountId()
   const deleteCommentMutation = useDeleteComment()
   const deleteCommentDialog = useDeleteCommentDialog()
+  const copyHmLink = useCopyHmLink()
+  const {origin: appOrigin} = useUniversalAppContext()
   if (event.type == 'comment') {
     const options: MenuItemType[] = []
     if (event.comment && currentAccount && currentAccount == event.comment.author) {
@@ -242,22 +243,22 @@ function EventHeaderContent({
                     e.preventDefault()
                     e.stopPropagation()
                     const targetDocId = getCommentTargetId(event.comment!)
-                    if (targetDocId && event.comment) {
-                      const routeLatest =
-                        currentRoute.key === 'document' ||
-                        currentRoute.key === 'comments' ||
-                        currentRoute.key === 'activity'
-                          ? currentRoute.id.latest
-                          : undefined
-                      const url = createCommentUrl({
-                        docId: targetDocId,
-                        commentId: event.comment.id,
-                        siteUrl: targetDomain,
-                        latest: routeLatest,
-                      })
-                      copyTextToClipboard(url)
-                      toast.success('Copied Comment URL')
-                    }
+                    if (!targetDocId || !event.comment) return
+                    const routeLatest =
+                      currentRoute.key === 'document' ||
+                      currentRoute.key === 'comments' ||
+                      currentRoute.key === 'activity'
+                        ? currentRoute.id.latest
+                        : undefined
+                    copyHmLink({
+                      id: {
+                        ...targetDocId,
+                        hostname: targetDomain ?? null,
+                        latest: routeLatest ?? null,
+                      },
+                      commentId: commentIdToHmId(event.comment.id, event.comment.version),
+                      gatewayUrl: appOrigin ?? undefined,
+                    })
                   }}
                 >
                   <Link className="size-3" />

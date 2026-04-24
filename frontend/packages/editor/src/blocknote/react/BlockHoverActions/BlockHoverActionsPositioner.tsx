@@ -124,17 +124,22 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
   const rect = hoverState.referenceRect
   const blockId = hoverState.blockId
 
-  // Position the card above the top-right corner of the block so it does not
-  // overlap block content. We use a wrapper with padding-bottom to create an
-  // invisible bridge between the card and the block, so the mouse can travel
-  // from the block to the card without triggering a mouseleave.
+  // Anchor the card to the top-right of the block, nudged up by 16px so it
+  // sits slightly above the block's first line (keeps positioning consistent
+  // regardless of block height — tall blocks no longer place the card in the
+  // middle). The wrapper overlaps the block by ~8px on its left side so the
+  // cursor can travel from the block into the buttons without crossing a gap
+  // and losing hover; small padding on the right keeps outward mouse travel
+  // forgiving too.
+  const OVERLAP_PX = 8
+  const TOP_OFFSET_PX = -16
   const style: React.CSSProperties = {
     position: 'fixed',
-    top: rect.top,
-    left: rect.right + 4,
-    transform: 'translate(-100%, -100%)',
+    top: rect.top + TOP_OFFSET_PX,
+    left: rect.right - OVERLAP_PX,
     zIndex: 50,
-    paddingBottom: 8,
+    paddingLeft: OVERLAP_PX,
+    paddingRight: 4,
   }
 
   return (
