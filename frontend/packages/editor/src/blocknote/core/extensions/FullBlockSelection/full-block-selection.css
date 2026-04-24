@@ -1,5 +1,5 @@
 .bn-full-block-selected {
-  background-color: #b4d5fe;
+  background-color: var(--selection-strong);
   border-radius: 4px;
   transition: background-color 0.15s ease;
 }
@@ -7,4 +7,9 @@
 .bn-full-block-selected ::selection,
 .bn-full-block-selected::selection {
   background: transparent;
+}
+
+.bn-container ::selection,
+.bn-container::selection {
+  background-color: var(--selection);
 }
