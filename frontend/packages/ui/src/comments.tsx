@@ -12,7 +12,6 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {
   commentIdToHmId,
-  createCommentUrl,
   formattedDateShort,
   getCommentTargetId,
   hmId,
@@ -20,6 +19,7 @@ import {
   useCommentGroups,
   useCommentParents,
   useRouteLink,
+  useUniversalAppContext,
 } from '@shm/shared'
 
 import {HMListDiscussionsOutput} from '@seed-hypermedia/client/hm-types'
@@ -40,13 +40,12 @@ import {useTxString} from '@shm/shared/translation'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Link, MessageSquare, Pencil, Trash2, X} from 'lucide-react'
 import {memo, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
-import {toast} from 'sonner'
 import {SelectionContent} from './accessories'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {getBlockNodeById} from './blocks-content-utils'
 import {Button} from './button'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
-import {copyTextToClipboard, copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
+import {useCopyHmLink} from './use-copy-hm-link'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
 import {AuthorNameLink, getContextualProfileRoute, InlineDescriptor, Timestamp} from './inline-descriptor'
@@ -579,6 +578,8 @@ export const Comment = memo(function Comment({
   const authorHmId = comment.author || authorId ? hmId(authorId || comment.author) : null
   const docId = getCommentTargetId(comment)
   const authorLink = useRouteLink(getContextualProfileRoute(currentRoute, authorHmId, docId?.uid))
+  const copyHmLink = useCopyHmLink()
+  const {origin: appOrigin} = useUniversalAppContext()
 
   const externalTargetLink = useRouteLink(externalTarget ? {key: 'document', id: externalTarget.id} : null)
 
@@ -699,23 +700,22 @@ export const Comment = memo(function Comment({
                     variant="ghost"
                     className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
                     onClick={() => {
-                      if (docId) {
-                        const routeLatest =
-                          currentRoute.key === 'document' ||
-                          currentRoute.key === 'comments' ||
-                          currentRoute.key === 'activity'
-                            ? currentRoute.id.latest
-                            : undefined
-                        const url = createCommentUrl({
-                          docId,
-                          commentId: comment.id,
-                          commentVersion: comment.version,
-                          siteUrl: targetDomain,
-                          latest: routeLatest,
-                        })
-                        copyTextToClipboard(url)
-                        toast.success('Copied Comment URL')
-                      }
+                      if (!docId) return
+                      const routeLatest =
+                        currentRoute.key === 'document' ||
+                        currentRoute.key === 'comments' ||
+                        currentRoute.key === 'activity'
+                          ? currentRoute.id.latest
+                          : undefined
+                      copyHmLink({
+                        id: {
+                          ...docId,
+                          hostname: targetDomain ?? null,
+                          latest: routeLatest ?? null,
+                        },
+                        commentId: commentIdToHmId(comment.id, comment.version),
+                        gatewayUrl: appOrigin ?? undefined,
+                      })
                     }}
                   >
                     <Link className="size-3" />
@@ -810,6 +810,8 @@ export function CommentContent({
   const textUnit = size === 'sm' ? 12 : 14
   const layoutUnit = size === 'sm' ? 14 : 16
 
+  const copyHmLink = useCopyHmLink()
+  const {origin: appOrigin} = useUniversalAppContext()
   const copyBlockUrl = useCallback(
     (blockId: string, blockRange?: BlockRange | null) => {
       if (!targetDocId) return
@@ -817,17 +819,19 @@ export function CommentContent({
         currentRoute.key === 'document' || currentRoute.key === 'comments' || currentRoute.key === 'activity'
           ? currentRoute.id.latest
           : undefined
-      const fullUrl = createCommentUrl({
-        docId: targetDocId,
-        commentId: comment.id,
-        siteUrl,
-        latest: routeLatest,
-        blockRef: blockId,
-        blockRange: blockRange ?? null,
+      copyHmLink({
+        id: {
+          ...targetDocId,
+          hostname: siteUrl ?? null,
+          latest: routeLatest ?? null,
+          blockRef: blockId,
+          blockRange: blockRange ?? null,
+        },
+        commentId: commentIdToHmId(comment.id),
+        gatewayUrl: appOrigin ?? undefined,
       })
-      copyUrlToClipboardWithFeedback(fullUrl, 'Comment Block')
     },
-    [targetDocId, currentRoute, comment.id, siteUrl],
+    [targetDocId, currentRoute, comment.id, siteUrl, copyHmLink, appOrigin],
   )
 
   const onCopyBlockLink = useCallback((blockId: string) => copyBlockUrl(blockId), [copyBlockUrl])

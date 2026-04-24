@@ -248,6 +248,80 @@ export function createCommentUrl({
   })
 }
 
+/**
+ * Input for the unified copy-link builder. Describes the link target as an
+ * `UnpackedHypermediaId` (document-like or a comment's containing document),
+ * optionally with a separate `commentId: UnpackedHypermediaId` for the comment
+ * itself. All other link parameters (version, blockRef, blockRange, latest,
+ * hostname) are read from the respective ids.
+ *
+ * `id.hostname` acts as the site-vs-gateway flag: when set the URL is built in
+ * site-style (`<hostname>/<path>`); when null/undefined it falls back to the
+ * gateway-style `<gatewayUrl>/hm/<uid>/<path>` form. Callers with a custom
+ * gateway (e.g. the desktop app's user-configurable gateway) can override the
+ * default gateway via `gatewayUrl`.
+ */
+export type CopyLinkInput = {
+  id: UnpackedHypermediaId
+  commentId?: UnpackedHypermediaId | null
+  gatewayUrl?: string | null
+}
+
+/**
+ * Build a shareable URL for a document, block, fragment, comment, or a
+ * block/fragment inside a comment — a single entry point that replaces the
+ * scattered site/gateway/comment URL-building used for "Copy link" actions.
+ *
+ * Behavior:
+ * - `input.id.hostname` set → site-style URL via `createSiteUrl`.
+ * - `input.id.hostname` unset → gateway URL via `createWebHMUrl`.
+ * - `input.commentId` present → delegates to `createCommentUrl` using the
+ *   comment's uid+tsid as the comment identifier and the comment id's own
+ *   `version` as `commentVersion`.
+ * - If `blockRef` is present on `input.id` and `blockRange` is `undefined`,
+ *   default to `{expanded: true}` so whole-block links end in `+`. Callers may
+ *   pass `{expanded: false}` or `{start,end}` to override.
+ */
+export function buildCopyLinkUrl(input: CopyLinkInput): string {
+  const {id, commentId, gatewayUrl} = input
+  const effectiveRange: BlockRange | null | undefined =
+    id.blockRef && (id.blockRange === undefined || id.blockRange === null) ? {expanded: true} : id.blockRange
+
+  if (commentId) {
+    const tsid = commentId.path?.[0]
+    const packedCommentId = tsid ? `${commentId.uid}/${tsid}` : commentId.uid
+    return createCommentUrl({
+      docId: id,
+      commentId: packedCommentId,
+      commentVersion: commentId.version ?? null,
+      siteUrl: id.hostname ?? null,
+      blockRef: id.blockRef,
+      blockRange: effectiveRange,
+      latest: id.latest ?? null,
+    })
+  }
+
+  if (id.hostname) {
+    return createSiteUrl({
+      path: id.path,
+      hostname: id.hostname,
+      version: id.version,
+      latest: id.latest ?? undefined,
+      blockRef: id.blockRef,
+      blockRange: effectiveRange,
+    })
+  }
+
+  return createWebHMUrl(id.uid, {
+    version: id.version,
+    blockRef: id.blockRef,
+    blockRange: effectiveRange,
+    latest: id.latest,
+    path: id.path,
+    hostname: gatewayUrl ?? undefined,
+  })
+}
+
 export function getCommentTargetId(comment: HMComment | undefined): UnpackedHypermediaId | undefined {
   if (!comment) return undefined
   return hmId(comment.targetAccount, {

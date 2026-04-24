@@ -1,6 +1,6 @@
 import {useLocation, useNavigate, useNavigation} from '@remix-run/react'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client'
-import {createWebHMUrl, NavRoute, OptimizedImageSize, routeToHref, UniversalAppProvider} from '@shm/shared'
+import {NavRoute, OptimizedImageSize, routeToHref, UniversalAppProvider} from '@shm/shared'
 import {DAEMON_FILE_URL, SEED_ASSET_HOST, SITE_BASE_URL} from '@shm/shared/constants'
 import {languagePacks} from '@shm/shared/language-packs'
 import {registerQueryClient} from '@shm/shared/models/query-client'
@@ -10,7 +10,7 @@ import {isHttpUrl, NavAction, NavContextProvider, NavState, navStateReducer} fro
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import type {StateStream} from '@shm/shared/utils/stream'
 import {writeableStateStream} from '@shm/shared/utils/stream'
-import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {useCopyHmLink} from '@shm/ui/use-copy-hm-link'
 import {Spinner} from '@shm/ui/spinner'
 import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
@@ -273,6 +273,7 @@ export function WebSiteProvider(props: {
   // Track whether navigation was initiated by openRoute (vs browser back/forward)
   const isInternalNav = useMemo(() => ({current: false}), [])
   const location = useLocation()
+  const copyHmLink = useCopyHmLink()
 
   // Sync browser back/forward into NavContext
   // When Remix re-runs the loader on popstate, initialRoute updates but NavContext
@@ -354,12 +355,12 @@ export function WebSiteProvider(props: {
         }
       }}
       onCopyReference={async (hmId: UnpackedHypermediaId) => {
-        const url = createWebHMUrl(hmId.uid, {
-          ...hmId,
-          hostname: SITE_BASE_URL,
+        // Keep the link pointing at this deployment's origin (passed as the
+        // gateway URL) so gateway-format links (/hm/<uid>/...) resolve here.
+        await copyHmLink({
+          id: {...hmId, hostname: null},
+          gatewayUrl: SITE_BASE_URL,
         })
-        copyTextToClipboard(url)
-        toast.success('Comment link copied to clipboard')
       }}
     >
       <NavContextProvider value={navigation}>{props.children}</NavContextProvider>

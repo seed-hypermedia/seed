@@ -30,6 +30,7 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {BlockNoteEditor} from '@shm/editor/blocknote'
+import {blockHighlightPluginKey} from '@shm/editor/blocknote/core/extensions/BlockHighlight/BlockHighlightPlugin'
 import '@shm/editor/editor.css'
 import {chromiumSupportedImageMimeTypes, chromiumSupportedVideoMimeTypes, generateBlockId} from '@shm/editor/utils'
 import {CommentsProvider} from '@shm/shared/comments-service-provider'
@@ -684,6 +685,11 @@ function DocumentEditor({
                       onSupernumberClick={
                         editId
                           ? (blockId) => {
+                              // Open the comments panel focused on the block
+                              // and highlight + scroll the block directly.
+                              // (Draft routes don't carry a blockRef, so we
+                              // dispatch on the editor instead of relying on
+                              // a focusBlockId prop.)
                               replace({
                                 ...route,
                                 panel: {
@@ -692,6 +698,17 @@ function DocumentEditor({
                                   targetBlockId: blockId,
                                 },
                               })
+                              const view = editor?._tiptapEditor?.view
+                              if (view) {
+                                view.dispatch(
+                                  view.state.tr.setMeta(blockHighlightPluginKey, {
+                                    type: 'focus',
+                                    blockId,
+                                  }),
+                                )
+                              }
+                              const el = window.document.getElementById(blockId)
+                              if (el) el.scrollIntoView({behavior: 'smooth', block: 'start'})
                             }
                           : undefined
                       }
