@@ -210,7 +210,10 @@ function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
   if (crumb.isTombstone) {
     return (
       <Tooltip content="This document has been deleted">
-        <a {...linkProps} className="min-w-0 truncate text-xs whitespace-nowrap text-red-500 no-underline hover:underline">
+        <a
+          {...linkProps}
+          className="min-w-0 truncate text-xs whitespace-nowrap text-red-500 no-underline hover:underline"
+        >
           {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
         </a>
       </Tooltip>
@@ -220,7 +223,10 @@ function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
   if (crumb.isNotFound) {
     return (
       <Tooltip content="Document not found on the network">
-        <a {...linkProps} className="min-w-0 truncate text-xs whitespace-nowrap text-red-500 no-underline hover:underline">
+        <a
+          {...linkProps}
+          className="min-w-0 truncate text-xs whitespace-nowrap text-red-500 no-underline hover:underline"
+        >
           {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
         </a>
       </Tooltip>
@@ -230,7 +236,10 @@ function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
   if (crumb.isError) {
     return (
       <Tooltip content="Failed to load this document">
-        <a {...linkProps} className="min-w-0 truncate text-xs whitespace-nowrap text-red-500 no-underline hover:underline">
+        <a
+          {...linkProps}
+          className="min-w-0 truncate text-xs whitespace-nowrap text-red-500 no-underline hover:underline"
+        >
           {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
         </a>
       </Tooltip>

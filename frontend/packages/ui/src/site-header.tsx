@@ -88,12 +88,8 @@ export function SiteHeader({
   // Priority: current doc if on home page, otherwise siteHomeDocument
   const homeDoc =
     docId && !docId.path?.length
-      ? {document, id: docId} // On home page with actual docId
-      : siteHomeDocument
-      ? {document: siteHomeDocument, id: siteHomeId} // Non-home page or utility page
-      : document
-      ? {document, id: siteHomeId} // Fallback if document provided without docId
-      : undefined
+      ? {document, id: docId} // On home page — document IS the home doc
+      : {document: siteHomeDocument ?? undefined, id: siteHomeId} // Non-home: use site home (may be undefined while loading)
   const headerSearch = (
     <>
       <Button
