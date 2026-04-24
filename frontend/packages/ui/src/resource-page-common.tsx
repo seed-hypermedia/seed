@@ -1160,7 +1160,7 @@ function DocumentBody({
       <DocumentCover cover={document.metadata?.cover} />
 
       {!isMobile ? (
-        <div {...wrapperProps} className={cn(wrapperProps.className)}>
+        <div {...wrapperProps} className={cn(wrapperProps.className, 'flex-none')}>
           {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
           <div {...mainContentProps} className={cn(mainContentProps.className, 'flex flex-col')}>
             {isHomeDoc && !siteMembers.isInitialLoading && siteMembers.members.length > 0 && (
@@ -1332,7 +1332,7 @@ function DocumentBody({
       )}
 
       {/* Main content based on activeView */}
-      <div className={cn('pb-60', isMobile && 'px-4')}>
+      <div className={cn('flex-1 pb-60', isMobile && 'px-4')}>
         <MainContent
           docId={docId}
           resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
