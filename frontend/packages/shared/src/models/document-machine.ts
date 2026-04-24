@@ -260,7 +260,15 @@ export const documentMachine = setup({
       pendingRebase: null,
     }),
     snapshotBaseBlocks: assign({
-      baseBlocks: ({context}) => context.document?.content ?? [],
+      baseBlocks: ({context}) => {
+        const blocks = context.document?.content ?? []
+        console.log('[Rebase machine] snapshotBaseBlocks', {
+          count: blocks.length,
+          ids: blocks.map((n) => n.block?.id),
+          publishedVersion: context.publishedVersion,
+        })
+        return blocks
+      },
       mineTouchedIds: [],
     }),
     appendMineTouched: assign({
@@ -275,12 +283,22 @@ export const documentMachine = setup({
             changed = true
           }
         }
-        return changed ? Array.from(seen) : context.mineTouchedIds
+        const next = changed ? Array.from(seen) : context.mineTouchedIds
+        if (changed) {
+          console.log('[Rebase machine] appendMineTouched', {added: event.blockIds, total: next})
+        }
+        return next
       },
     }),
     setPendingRemoteDocument: assign({
       pendingRemoteDocument: ({event}) => {
-        if (event.type === 'document.remoteUpdate') return event.document
+        if (event.type === 'document.remoteUpdate') {
+          console.log('[Rebase machine] setPendingRemoteDocument', {
+            version: event.document.version,
+            blockIds: (event.document.content ?? []).map((n) => n.block?.id),
+          })
+          return event.document
+        }
         return null
       },
     }),

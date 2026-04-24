@@ -212,6 +212,7 @@ export function DocumentEditor({
             name: 'document-rebase-track-touches',
             priority: 0,
             addProseMirrorPlugins() {
+              console.log('[Rebase track] addProseMirrorPlugins() called — plugin registered')
               const pluginKey = new PluginKey('documentRebaseTrackTouches')
               let scheduled = false
               let pending = new Set<string>()
@@ -220,16 +221,21 @@ export function DocumentEditor({
                 if (!pending.size) return
                 const ids = Array.from(pending)
                 pending = new Set()
+                console.log('[Rebase track] emit blockTouched', ids)
                 actorRef.send({type: 'rebase.blockTouched', blockIds: ids})
               }
               return [
                 new Plugin({
                   key: pluginKey,
                   appendTransaction: (transactions, _oldState, newState) => {
-                    if (suppressChangeRef.current) return null
                     let docChanged = false
                     for (const tr of transactions) if (tr.docChanged) docChanged = true
                     if (!docChanged) return null
+                    if (suppressChangeRef.current) {
+                      console.log('[Rebase track] skip: suppressChangeRef set')
+                      return null
+                    }
+                    console.log('[Rebase track] appendTransaction docChanged, walking blocks')
                     // Walk the new doc, collecting BlockNote block ids whose
                     // positions map back to any changed range.
                     newState.doc.descendants((node, pos) => {

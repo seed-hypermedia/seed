@@ -79,7 +79,7 @@ def main():
 
     @cmd(cmds, "run-desktop", "Run frontend desktop app for development.")
     def run_desktop(args):
-        run("node scripts/cleanup-desktop.js")
+        # run("node scripts/cleanup-desktop.js")
         run("plz build //:pnpm")
 
         if "SEED_NO_DAEMON_SPAWN" not in os.environ:
@@ -90,13 +90,22 @@ def main():
     @cmd(
         cmds,
         "2-run-desktop",
-        "Run TWO dev desktop instances: starts instance B (alt ports + alt appdata) detached, then runs the normal dev in the foreground. Useful for testing draft auto-rebase across two accounts.",
+        "Run TWO desktop instances: packages SeedDev.app for instance B (alt ports + alt appdata), ad-hoc signs it, launches its binary directly to bypass Gatekeeper, then runs the normal dev in the foreground. Pass --skip-package to reuse the existing packaged build.",
     )
     def run_desktop_2(args):
         import atexit
+        import pathlib
+        import platform
         import time
 
-        # Alt instance ports/appdata — bumped by +100 from the standard dev values in .env.vars
+        skip_package = "--skip-package" in args
+        forward_args = [a for a in args if a != "--skip-package"]
+
+        # Alt instance ports/appdata — bumped by +100 from the standard dev values in .env.vars.
+        # Packaged bundle is Seed.app (forge.config.ts IS_PROD_DEV reads from package.json,
+        # not an env var). Launching the Mach-O binary directly (not via `open`) avoids
+        # LaunchServices bundle-id registration, so two Seed.app copies coexist fine as long as
+        # their userData paths (VITE_DESKTOP_APPDATA) and daemon ports differ.
         alt_env_overrides = {
             "VITE_DESKTOP_P2P_PORT": "58100",
             "VITE_DESKTOP_HTTP_PORT": "58101",
@@ -110,36 +119,72 @@ def main():
             "SEED_P2P_PORT": "58100",
             "SEED_HTTP_PORT": "58101",
             "SEED_GRPC_PORT": "58102",
+            "SEED_P2P_TESTNET_NAME": os.environ.get("SEED_P2P_TESTNET_NAME", "dev"),
         }
 
-        run("node scripts/cleanup-desktop.js")
-        run("plz build //:pnpm")
-        if "SEED_NO_DAEMON_SPAWN" not in os.environ:
-            run("plz build //backend:seed-daemon")
+        desktop_dir = pathlib.Path("frontend/apps/desktop").resolve()
+        system = platform.system()
+        machine = platform.machine()
+        arch = "arm64" if machine in ("arm64", "aarch64") else "x64"
 
-        # Start instance B detached. electron-forge start builds .vite/build then
-        # spawns electron. We must wait for instance B's electron to be alive
-        # (loaded main.js into memory) BEFORE starting instance A, otherwise
-        # instance A's forge overwrites .vite/build/main.js while B is still
-        # booting. ~25s is typically enough; watch the log file for issues.
-        alt_env = os.environ.copy()
-        alt_env.update(alt_env_overrides)
+        if system == "Darwin":
+            app_bundle = desktop_dir / "out" / f"Seed-darwin-{arch}" / "Seed.app"
+            binary_path = app_bundle / "Contents" / "MacOS" / "Seed"
+        elif system == "Linux":
+            app_bundle = desktop_dir / "out" / f"Seed-linux-{arch}"
+            binary_path = app_bundle / "Seed"
+        else:
+            app_bundle = desktop_dir / "out" / f"Seed-win32-{arch}"
+            binary_path = app_bundle / "Seed.exe"
+
+        if not skip_package:
+            run("node scripts/cleanup-desktop.js")
+            run("plz build //:pnpm")
+            if "SEED_NO_DAEMON_SPAWN" not in os.environ:
+                run("plz build //backend:seed-daemon")
+
+            package_env = os.environ.copy()
+            package_env.update(alt_env_overrides)
+            print(
+                "📦 Packaging Seed.app for instance B (alt ports + alt appdata '{}')…".format(
+                    alt_env_overrides["VITE_DESKTOP_APPDATA"]
+                )
+            )
+            run("pnpm --filter @shm/desktop package", env=package_env)
+
+        if not binary_path.exists():
+            print(f"❌ Packaged binary not found at {binary_path}. Re-run without --skip-package.")
+            sys.exit(1)
+
+        # macOS bundle: ad-hoc codesign + strip quarantine xattr. Launching the
+        # Mach-O binary directly (not via `open`) bypasses Gatekeeper's
+        # LaunchServices check, but hardened-runtime Electron still needs a
+        # valid (ad-hoc) signature or it fails with "cannot be opened because
+        # of a problem." Sign AFTER any file mutations.
+        if system == "Darwin":
+            subprocess.run(
+                f'xattr -cr "{app_bundle}" 2>/dev/null || true',
+                shell=True,
+            )
+            sign = subprocess.run(
+                f'codesign --force --deep --sign - "{app_bundle}"',
+                shell=True,
+                capture_output=True,
+            )
+            if sign.returncode != 0:
+                print("⚠️  codesign --sign - failed:")
+                print(sign.stderr.decode("utf-8", errors="replace"))
+
         log_path = os.path.abspath(".ai/desktop-2.log")
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
-        print(f"📝 Instance B logs → {log_path}")
-        print(
-            "🅱️  Starting instance B (detached): appdata={appdata}, p2p={p2p}, http={http}, grpc={grpc}".format(
-                appdata=alt_env_overrides["VITE_DESKTOP_APPDATA"],
-                p2p=alt_env_overrides["VITE_DESKTOP_P2P_PORT"],
-                http=alt_env_overrides["VITE_DESKTOP_HTTP_PORT"],
-                grpc=alt_env_overrides["VITE_DESKTOP_GRPC_PORT"],
-            )
-        )
         instance_b_log = open(log_path, "w")
+        print(f"📝 Instance B logs → {log_path}")
+        print(f"🅱️  Launching {binary_path}")
+        instance_b_env = os.environ.copy()
+        instance_b_env.update(alt_env_overrides)
         instance_b = subprocess.Popen(
-            "pnpm desktop",
-            shell=True,
-            env=alt_env,
+            [str(binary_path)],
+            env=instance_b_env,
             stdout=instance_b_log,
             stderr=subprocess.STDOUT,
             start_new_session=True,
@@ -155,19 +200,17 @@ def main():
 
         atexit.register(stop_instance_b)
 
-        wait_seconds = 25
-        print(
-            f"⏳ Waiting {wait_seconds}s for instance B's forge build to finish + electron to boot (tail {log_path} to watch)…"
-        )
-        for _ in range(wait_seconds):
+        # Give instance B a couple of seconds to fail fast on bad bundle / signing
+        # before we fire up instance A.
+        for _ in range(3):
             time.sleep(1)
             if instance_b.poll() is not None:
                 print(f"❌ Instance B exited early (code {instance_b.returncode}). Check {log_path}.")
                 sys.exit(1)
 
-        print("🅰️  Starting instance A (normal dev ports / appdata 'Seed-local')…")
+        print("🅰️  Starting instance A (dev ports, appdata 'Seed-local')…")
         try:
-            return run("pnpm desktop", args=args)
+            return run("pnpm desktop", args=forward_args)
         finally:
             stop_instance_b()
 

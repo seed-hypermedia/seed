@@ -494,8 +494,15 @@ export function useDocumentSend(actorRef?: DocumentMachineActorRef) {
  * editors but avoids a direct dependency on the editor package.
  */
 export type AutoRebaseEditor = {
-  readonly topLevelBlocks: unknown[]
+  readonly topLevelBlocks: any[]
   replaceBlocks: (existing: unknown[], replacement: unknown[]) => void
+  updateBlock?: (blockOrId: string | {id: string}, update: unknown) => void
+  insertBlocks?: (
+    blocks: unknown[],
+    referenceBlock: string | {id: string},
+    placement?: 'before' | 'after',
+  ) => void
+  removeBlocks?: (blocks: Array<string | {id: string}>) => void
   readonly _tiptapEditor?: {
     view?: {
       state?: {
@@ -614,6 +621,21 @@ export function useAutoRebase({
   // Idle (no pending autosave) + debounce window since first entering idle
   // guards against applying mid-stroke.
   useEffect(() => {
+    // Gate logs: only start reporting once we at least see a pending remote.
+    if (pendingRemoteDocument) {
+      console.log('[Rebase hook] gate', {
+        isEditing,
+        isIdle,
+        hasPendingRemote: !!pendingRemoteDocument,
+        pendingRemoteVersion: pendingRemoteDocument?.version,
+        pendingRebase: pendingRebase?.kind ?? null,
+        hasEditor: !!editor,
+        hasBaseBlocks: !!ctx.baseBlocks,
+        changesLoading: changesQuery.isLoading,
+        mineTouched: ctx.mineTouchedIds,
+        baseDeps: ctx.deps,
+      })
+    }
     if (!isEditing) return
     if (!isIdle) return
     if (!pendingRemoteDocument) return
@@ -635,23 +657,57 @@ export function useAutoRebase({
 
     const timer = setTimeout(() => {
       const snap = actorRef.getSnapshot()
-      if (!snap.matches('editing')) return
-      if (!snap.matches({editing: {draft: 'idle'}})) return
-      if (!snap.context.pendingRemoteDocument) return
-      if (snap.context.pendingRebase) return
+      if (!snap.matches('editing')) {
+        console.log('[Rebase hook] skip: not in editing')
+        return
+      }
+      if (!snap.matches({editing: {draft: 'idle'}})) {
+        console.log('[Rebase hook] skip: not idle', snap.value)
+        return
+      }
+      if (!snap.context.pendingRemoteDocument) {
+        console.log('[Rebase hook] skip: pendingRemoteDocument cleared while waiting')
+        return
+      }
+      if (snap.context.pendingRebase) {
+        console.log('[Rebase hook] skip: pendingRebase already set')
+        return
+      }
 
       const {newCids} = collectNewChangeCids(changesList, remoteDoc.version, baseDeps)
+      console.log('[Rebase hook] newCids from DAG walk', {
+        count: newCids.size,
+        cids: Array.from(newCids),
+        remoteVersion: remoteDoc.version,
+        baseDeps,
+        totalChangesInList: changesList.length,
+      })
 
       let mineNodes: HMBlockNode[]
       try {
         mineNodes = editorBlocksToHMBlockNodes(editor.topLevelBlocks as any)
-      } catch {
+      } catch (err) {
+        console.log('[Rebase hook] editorBlocksToHMBlockNodes threw, falling back to baseBlocks', err)
         mineNodes = baseBlocks
       }
 
       const classification = classifyRebase(baseBlocks, mineNodes, remoteDoc.content ?? [], mineTouched, newCids)
+      console.log('[Rebase hook] classification', {
+        autoMergeable: classification.autoMergeable,
+        conflictedBlockIds: classification.conflictedBlockIds,
+        planMineBlocks: Array.from(classification.plan.mineBlocks),
+        planTheirsBlocks: Array.from(classification.plan.theirsBlocks),
+        mineTouchedInput: mineTouched,
+        baseBlockIds: baseBlocks.map((n) => n.block?.id),
+        mineBlockIds: mineNodes.map((n) => n.block?.id),
+        theirsBlockIds: (remoteDoc.content ?? []).map((n) => n.block?.id),
+      })
 
       if (!classification.autoMergeable) {
+        console.log('[Rebase hook] -> detectConflict', {
+          conflictedBlockIds: classification.conflictedBlockIds,
+          author: authorName,
+        })
         actorRef.send({
           type: 'rebase.detectConflict',
           conflictedBlockIds: classification.conflictedBlockIds,
@@ -662,16 +718,120 @@ export function useAutoRebase({
       }
 
       const merged = applyRebasePlan(mineNodes, remoteDoc.content ?? [], classification.plan)
+      console.log('[Rebase hook] applying merge', {
+        mergedBlockIds: merged.map((n) => n.block?.id),
+        author: authorName,
+      })
+      // Peek the effective suppressRef on the editor right now. The one passed
+      // as prop may have been captured as undefined if it was set on the editor
+      // after useAutoRebase first ran.
+      const liveSuppressRef =
+        suppressChangeRef ??
+        ((editor as unknown as {_suppressChangeRef?: {current: boolean}})._suppressChangeRef ?? undefined)
+      console.log('[Rebase hook] suppressChangeRef present?', {
+        fromProps: !!suppressChangeRef,
+        fromEditor: !!(editor as any)?._suppressChangeRef,
+        willSuppress: !!liveSuppressRef,
+      })
       const editorBlocks = hmBlocksToEditorContent(merged, {childrenType: 'Group'})
-      const prev = suppressChangeRef?.current ?? false
-      if (suppressChangeRef) suppressChangeRef.current = true
-      try {
-        editor.replaceBlocks(editor.topLevelBlocks, editorBlocks as unknown[])
-      } finally {
-        if (suppressChangeRef) suppressChangeRef.current = prev
+      const extractText = (b: any): string => {
+        const inline = b?.content
+        if (Array.isArray(inline)) {
+          return inline.map((i: any) => (typeof i?.text === 'string' ? i.text : '')).join('')
+        }
+        return ''
       }
+      const mergedTextsHM = merged.map((n) => (n.block as any)?.text ?? '')
+      const incomingTexts = (editorBlocks as any[]).map(extractText)
+      const currentTexts = editor.topLevelBlocks.map(extractText)
+      console.log('[Rebase hook] editor before replaceBlocks', {
+        topLevelBlockIds: editor.topLevelBlocks.map((b: any) => b?.id),
+        topLevelBlockTexts: currentTexts,
+        incomingEditorBlockIds: (editorBlocks as any[]).map((b: any) => b?.id),
+        incomingEditorBlockTexts: incomingTexts,
+        mergedHMBlockNodeTexts: mergedTextsHM,
+        textsDiffer: JSON.stringify(currentTexts) !== JSON.stringify(incomingTexts),
+      })
+      const prev = liveSuppressRef?.current ?? false
+      if (liveSuppressRef) liveSuppressRef.current = true
+      try {
+        // BlockNote's `replaceBlocks` keeps existing blocks whose IDs match the incoming
+        // ones — so a naive call with same-id merged blocks is a no-op. Instead apply
+        // surgical ops: updateBlock for existing ids, insertBlocks for mine-only adds,
+        // removeBlocks for structural deletes. This ensures same-id content actually
+        // changes when theirs' text differs from mine's.
+        const canSurgicalUpdate =
+          typeof editor.updateBlock === 'function' &&
+          typeof editor.insertBlocks === 'function' &&
+          typeof editor.removeBlocks === 'function'
+
+        if (canSurgicalUpdate) {
+          const currentBlocks = editor.topLevelBlocks as Array<{id: string}>
+          const currentIds = new Set(currentBlocks.map((b) => b.id))
+          const incomingArr = editorBlocks as Array<{id: string}>
+          const incomingIds = new Set(incomingArr.map((b) => b.id))
+
+          // 1. Remove blocks no longer in merged output.
+          const toRemove = currentBlocks.filter((b) => !incomingIds.has(b.id)).map((b) => b.id)
+          if (toRemove.length) editor.removeBlocks!(toRemove)
+
+          // 2. Update existing blocks + insert new ones in-order.
+          let prevId: string | null = null
+          for (const block of incomingArr) {
+            if (currentIds.has(block.id)) {
+              editor.updateBlock!(block.id, block)
+              prevId = block.id
+            } else {
+              if (prevId) {
+                editor.insertBlocks!([block], prevId, 'after')
+              } else {
+                // No prior anchor yet — insert before the first existing block, or at end.
+                const firstExisting = incomingArr.find((b) => currentIds.has(b.id))
+                if (firstExisting) {
+                  editor.insertBlocks!([block], firstExisting.id, 'before')
+                } else {
+                  // Fallback: use replaceBlocks for the edge case of no existing anchor.
+                  editor.replaceBlocks(editor.topLevelBlocks, [block])
+                }
+              }
+              prevId = block.id
+            }
+          }
+          console.log('[Rebase hook] surgical update applied', {
+            removed: toRemove,
+            total: incomingArr.length,
+          })
+        } else {
+          console.log('[Rebase hook] editor lacks surgical API, falling back to replaceBlocks')
+          editor.replaceBlocks(editor.topLevelBlocks, editorBlocks as unknown[])
+        }
+      } finally {
+        if (liveSuppressRef) liveSuppressRef.current = prev
+      }
+      console.log('[Rebase hook] editor after replaceBlocks', {
+        topLevelBlockIds: editor.topLevelBlocks.map((b: any) => b?.id),
+        topLevelBlockTexts: editor.topLevelBlocks.map((b: any) => {
+          const inline = b?.content
+          if (Array.isArray(inline)) {
+            return inline.map((i: any) => (typeof i?.text === 'string' ? i.text : '')).join('')
+          }
+          return ''
+        }),
+      })
 
       actorRef.send({type: 'rebase.apply', mergedBlocks: merged, newDocument: remoteDoc})
+      // Kick the autosave pipeline so the merged blocks hit the draft file on disk.
+      // Without this, a reload before the user's next keystroke reverts the merge.
+      actorRef.send({type: 'change'})
+      const postSnap = actorRef.getSnapshot()
+      console.log('[Rebase hook] post-apply state', {
+        stateValue: postSnap.value,
+        publishedVersion: postSnap.context.publishedVersion,
+        deps: postSnap.context.deps,
+        mineTouchedIds: postSnap.context.mineTouchedIds,
+        pendingRemoteDocument: !!postSnap.context.pendingRemoteDocument,
+        pendingRebase: postSnap.context.pendingRebase,
+      })
       onAutoMerged?.(authorName)
     }, idleDebounceMs)
     return () => clearTimeout(timer)
