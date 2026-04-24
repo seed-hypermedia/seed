@@ -2,6 +2,7 @@ import {updateBlockCommand} from '../../../../../api/blockManipulation/commands/
 import {InputRule, mergeAttributes} from '@tiptap/core'
 import {mergeCSSClasses} from '../../../../../shared/utils'
 import {createTipTapBlock} from '../../../api/block'
+import {getBlockInfoFromPos} from '../../../helpers/getBlockInfoFromPos'
 import styles from '../../Block.module.css'
 
 export const HeadingBlockContent = createTipTapBlock<'heading'>({
@@ -30,22 +31,20 @@ export const HeadingBlockContent = createTipTapBlock<'heading'>({
         return new InputRule({
           find: new RegExp(`^(#{${parseInt(level)}})\\s$`),
           handler: ({state, chain, range}) => {
+            // Resolve the nearest enclosing block regardless of nesting depth.
+            // The previous `$pos.start() - 2` math only held for paragraphs
+            // directly under the top-level blockChildren and silently no-oped
+            // when the cursor was inside a nested block.
+            const blockInfo = getBlockInfoFromPos(state, state.selection.from)
             chain()
-              // .BNUpdateBlock(state.selection.from, {
-              //   type: 'heading',
-              //   props: {
-              //     level: level,
-              //   },
-              // })
               .command(
-                updateBlockCommand(state.doc.resolve(state.selection.from).start() - 2, {
+                updateBlockCommand(blockInfo.block.beforePos, {
                   type: 'heading',
                   props: {
                     level: level,
                   },
                 }),
               )
-              // Removes the "#" character(s) used to set the heading.
               .deleteRange({from: range.from, to: range.to})
           },
         })
