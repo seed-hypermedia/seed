@@ -36,26 +36,15 @@ export function Feed({
   filterEventType,
   targetDomain,
   size = 'md',
-  navigationContext,
 }: {
   size?: 'sm' | 'md'
   filterResource: HMListEventsParams['filterResource']
   filterAuthors?: HMListEventsParams['filterAuthors']
   filterEventType?: HMListEventsParams['filterEventType']
   targetDomain?: string
-  navigationContext?: 'page' | 'panel'
 }) {
   const observerRef = useRef<IntersectionObserver>()
   const lastElementNodeRef = useRef<HTMLDivElement>(null)
-  const currentRoute = useNavRoute()
-
-  // Determine navigation context: 'page' means navigate to full discussions page
-  // 'panel' means navigate to document with discussions panel open
-  const useFullPageNavigation = useMemo(() => {
-    if (navigationContext) return navigationContext === 'page'
-    // Auto-detect: if we're on activity or discussions page, use full page navigation
-    return currentRoute.key === 'activity' || currentRoute.key === 'comments'
-  }, [navigationContext, currentRoute.key])
 
   const {data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error, refetch} = useActivityFeed({
     filterResource,
@@ -153,7 +142,7 @@ export function Feed({
     <SelectionContent>
       <div>
         {allEvents.map((e) => {
-          const route = getEventRoute(e, useFullPageNavigation)
+          const route = getEventRoute(e)
 
           if (e.type == 'comment' && e.replyingComment) {
             return (
@@ -719,29 +708,15 @@ function formatUTC(date: Date) {
   return `${year}-${month}-${day} ${hours}:${minutes} (UTC)`
 }
 
-function getEventRoute(event: LoadedEvent, useFullPageNavigation: boolean = false): NavRoute | null {
+function getEventRoute(event: LoadedEvent): NavRoute | null {
   if (event.type == 'comment') {
-    // Navigate to the target document with discussions open and the comment focused
+    // Navigate to the full comments page with the comment focused in the main panel
     if (!event.target?.id || !event.comment) return null
 
-    if (useFullPageNavigation) {
-      // Navigate to full discussions page
-      return {
-        key: 'comments' as const,
-        id: event.target.id,
-        openComment: event.comment.id,
-      }
-    }
-
-    // Navigate to document with discussions panel
     return {
-      key: 'document' as const,
+      key: 'comments' as const,
       id: event.target.id,
-      panel: {
-        key: 'comments' as const,
-        id: event.target.id,
-        openComment: event.comment.id,
-      },
+      openComment: event.comment.id,
     }
   }
 
@@ -790,23 +765,12 @@ function getEventRoute(event: LoadedEvent, useFullPageNavigation: boolean = fals
     // Navigate to the target document (the document being cited)
     if (!event.source?.id) return null
 
-    // For comment citations, open the comment in discussions
+    // For comment citations, open the comment in the full comments page
     if (event.citationType === 'c' && event.comment) {
-      if (useFullPageNavigation) {
-        return {
-          key: 'comments' as const,
-          id: event.source.id,
-          openComment: event.comment.id,
-        }
-      }
       return {
-        key: 'document' as const,
+        key: 'comments' as const,
         id: event.source.id,
-        panel: {
-          key: 'comments' as const,
-          id: event.source.id,
-          openComment: event.comment.id,
-        },
+        openComment: event.comment.id,
       }
     }
 
@@ -840,11 +804,7 @@ function EventItem({
   size?: 'sm' | 'md'
 }) {
   const currentRoute = useNavRoute()
-  const linkProps = useRouteLink(route ? _.merge({}, currentRoute, route) : currentRoute, {
-    onClick: () => {
-      console.log('== link props clicked!!')
-    },
-  })
+  const linkProps = useRouteLink(route ? _.merge({}, currentRoute, route) : currentRoute)
 
   const tx = useTx()
   return (
