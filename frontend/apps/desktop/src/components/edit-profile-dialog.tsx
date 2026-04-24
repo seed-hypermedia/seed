@@ -1,57 +1,50 @@
-import {desktopUniversalClient} from '@/desktop-universal-client'
+import {grpcClient} from '@/grpc-client'
 import {fileUpload} from '@/utils/file-upload'
-import {HMPrepareDocumentChangeInput} from '@seed-hypermedia/client/hm-types'
-import {hmId, queryKeys} from '@shm/shared'
-import {useAccount, useResource} from '@shm/shared/models/entity'
+import {queryKeys} from '@shm/shared'
+import {useAccount} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {DialogTitle} from '@shm/ui/components/dialog'
 import {EditProfileForm, SiteMetaFields} from '@shm/ui/edit-profile-form'
 import {Spinner} from '@shm/ui/spinner'
+import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 
 export function useEditProfileDialog() {
   return useAppDialog<{accountUid: string}>(EditProfileDialog)
 }
 
-function EditProfileDialog({onClose, input}: {onClose: () => void; input: {accountUid: string}}) {
+export function EditProfileDialog({onClose, input}: {onClose: () => void; input: {accountUid: string}}) {
   const {accountUid} = input
   const account = useAccount(accountUid)
-  const accountDocument = useResource(account.data?.id)
-  const document = accountDocument?.data?.type === 'document' ? accountDocument.data.document : undefined
+  const metadata = account.data?.metadata ?? undefined
 
   async function handleSubmit(updates: SiteMetaFields) {
-    const changes: HMPrepareDocumentChangeInput['changes'] = []
-
-    if (updates.name && updates.name !== document?.metadata?.name) {
-      changes.push({op: {case: 'setMetadata', value: {key: 'name', value: updates.name}}})
-    }
-
-    if (updates.icon && typeof updates.icon !== 'string') {
+    let iconUri = ''
+    if (updates.icon instanceof Blob) {
       const cid = await fileUpload(new File([updates.icon], 'icon'))
-      changes.push({op: {case: 'setMetadata', value: {key: 'icon', value: `ipfs://${cid}`}}})
+      iconUri = `ipfs://${cid}`
+    } else if (typeof updates.icon === 'string' && updates.icon) {
+      iconUri = updates.icon
     }
 
-    if (changes.length === 0) {
-      onClose()
-      return
-    }
-
-    await desktopUniversalClient.publishDocument!({
-      signerAccountUid: accountUid,
+    await grpcClient.documents.updateProfile({
       account: accountUid,
-      changes,
+      profile: {
+        name: updates.name ?? '',
+        icon: iconUri,
+        description: metadata?.summary ?? '',
+      },
+      signingKeyName: accountUid,
     })
 
-    const id = hmId(accountUid)
-    invalidateQueries([queryKeys.ENTITY, id.id])
-    invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
-    invalidateQueries([queryKeys.ACCOUNT, id.uid])
-    invalidateQueries([queryKeys.DOCUMENT_ACTIVITY])
+    invalidateQueries([queryKeys.ACCOUNT, accountUid])
+    invalidateQueries([queryKeys.LIST_ACCOUNTS])
 
+    toast.success('Profile updated')
     onClose()
   }
 
-  if (account.isLoading || accountDocument?.isLoading) {
+  if (account.isLoading) {
     return (
       <>
         <DialogTitle>Edit Profile</DialogTitle>
@@ -67,8 +60,8 @@ function EditProfileDialog({onClose, input}: {onClose: () => void; input: {accou
       <DialogTitle>Edit Profile</DialogTitle>
       <EditProfileForm
         defaultValues={{
-          name: account.data?.metadata?.name || '',
-          icon: account.data?.metadata?.icon || null,
+          name: metadata?.name || '',
+          icon: metadata?.icon || null,
         }}
         onSubmit={handleSubmit}
       />

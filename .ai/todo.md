@@ -67,3 +67,30 @@ The advisories don't reach runtime code — `xmldom` is pulled in via `@electron
 - [ ] Revisit `ip < 2.0.2` (SSRF, no patch) — reaches us via `lighthouse > puppeteer-core` and `react-devtools`. Both are devDeps only. Track whether upstream publishes a fix, or swap `react-devtools` for the browser-extension equivalent so we stop shipping it as a dep.
 
 **Estimate:** 30 min if option 1 works; half a day if option 2 is needed; no-go otherwise.
+
+## 3. Web Edit Profile — switch to Account Profile blob (own PR)
+
+**Why:** Issue #494 fixed the desktop `EditProfileDialog` to call `grpcClient.documents.updateProfile` (writes the Account Profile blob) instead of `desktopUniversalClient.publishDocument` (which appended a `setMetadata` change to the home document). The web app's `updateProfile` helper in `frontend/apps/web/app/auth.tsx:240-271` still does the wrong thing — it builds `setMetadata` ops and calls `seedClient.publishDocument(..., signer)`, mutating the home doc.
+
+We deferred the web fix because the `UpdateProfile` RPC expects a daemon-resolved `signing_key_name`, but the web app holds a browser-held `CryptoKeyPair` and has no path to produce a server-signed Profile blob.
+
+**Scope (rough order):**
+
+- [ ] Add a `prepareProfileChange` (or similarly named) helper to `@shm/client` / `@shm/shared` that takes a `CryptoKeyPair` + `{ name, icon, description, account, timestamp }` and produces a signed Profile blob `{ data, cid }`. Mirror `backend/api/documents/v3alpha/blob_profile.go::NewProfile` so the browser-produced blob validates identically on the daemon side.
+- [ ] Publish via `seedClient.publish({ blobs: [{ data, cid }] })` — the existing icon-upload path already uses this primitive.
+- [ ] Rewrite `frontend/apps/web/app/auth.tsx::updateProfile` (≈lines 240-271) to build the Profile blob from form state and publish it. Preserve existing `description` by reading from the current `Account.profile.description` (not from `HMDocument.metadata`).
+- [ ] Update the `EditProfileDialog` caller at `auth.tsx:674` — the signature changes (it no longer needs `document`).
+- [ ] Walk other callers of `updateProfile` in `auth.tsx` (check `auth.tsx:659-708` and the account-creation flow around `createAccount`/`createIdentity` to confirm whether they should also write a Profile blob immediately instead of only a home-doc change).
+- [ ] Add a Vitest for the new `prepareProfileChange` helper (round-trip the blob through the daemon's verifier if possible).
+- [ ] Add an integration test (`tests/`) that signs in on web, edits profile, and asserts `Account.profile.name/icon` updates while the home document history does NOT gain a new change.
+- [ ] `pnpm --filter @shm/web typecheck`, `pnpm --filter @shm/web test`, manual smoke test in browser.
+
+**Reference files:**
+
+- Desktop fix (done): `frontend/apps/desktop/src/components/edit-profile-dialog.tsx`.
+- Desktop test pattern: `frontend/apps/desktop/src/__tests__/edit-profile-dialog.test.tsx`.
+- Server-side Profile blob: `backend/api/documents/v3alpha/blob_profile.go::NewProfile`, `backend/api/documents/v3alpha/documents.go:927-967`.
+- Proto: `proto/documents/v3alpha/documents.proto::UpdateProfile` / `Profile`.
+- Read path (already coalesces profile → home-doc fallback): `frontend/packages/shared/src/account-metadata.ts:41-49`, `frontend/packages/shared/src/api-account.ts:22-47`.
+
+**Estimate:** ~half a day (most of it is getting the client-side Profile blob signing + CID generation to match the daemon exactly).
