@@ -1,5 +1,6 @@
 import {createTipTapBlock} from './blocknote/core/extensions/Blocks/api/block'
 import {updateBlockCommand} from './blocknote/core/api/blockManipulation/commands/updateBlock'
+import {getBlockInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import styles from './blocknote/core/extensions/Blocks/nodes/Block.module.css'
 import {InputRule, mergeAttributes} from '@tiptap/core'
 
@@ -24,23 +25,25 @@ export const HMHeadingBlockContent = createTipTapBlock<'heading'>({
 
   addInputRules() {
     return [
-      ...['1'].map((level) => {
-        return new InputRule({
-          find: new RegExp(`^#\\s$`),
-          handler: ({state, chain, range}) => {
-            chain()
-              .command(
-                updateBlockCommand(state.doc.resolve(state.selection.from).start() - 2, {
-                  type: 'heading',
-                  props: {
-                    level: '2',
-                  },
-                }),
-              )
-              // Removes the "#" character(s) used to set the heading.
-              .deleteRange({from: range.from, to: range.to})
-          },
-        })
+      new InputRule({
+        find: new RegExp(`^#\\s$`),
+        handler: ({state, chain, range}) => {
+          // Resolve the enclosing block regardless of nesting depth — the
+          // old `$pos.start() - 2` math assumed the paragraph was a direct
+          // child of the top-level blockChildren and silently no-oped for
+          // any nested paragraph (issue #490).
+          const blockInfo = getBlockInfoFromPos(state, state.selection.from)
+          chain()
+            .command(
+              updateBlockCommand(blockInfo.block.beforePos, {
+                type: 'heading',
+                props: {
+                  level: '2',
+                },
+              }),
+            )
+            .deleteRange({from: range.from, to: range.to})
+        },
       }),
     ]
   },
