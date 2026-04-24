@@ -7,7 +7,7 @@ import {grpcClient} from '@/grpc-client'
 import {HMHostConfigSchema, SiteDiscoverRequest} from '@seed-hypermedia/client/hm-types'
 import {defaultRoute, NavRoute, navRouteSchema} from '@shm/shared/routes'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
-import {app, BrowserWindow, dialog, ipcMain, NativeImage, WebContentsView} from 'electron'
+import {app, BrowserWindow, dialog, ipcMain, NativeImage} from 'electron'
 import {createIPCHandler} from 'electron-trpc/main'
 import {writeFile} from 'fs-extra'
 import path from 'path'
@@ -49,6 +49,7 @@ import {
   getSelectedIdentityFromWindowState,
   getWindowNavState,
   getWindowsState,
+  hideFindView,
 } from './app-windows'
 import * as log from './logger'
 ipcMain.on('invalidate_queries', (_event, info) => {
@@ -99,24 +100,19 @@ ipcMain.on('close_window', (_event, _info) => {
   getFocusedWindow()?.close()
 })
 
-ipcMain.on('find_in_page_query', (_event, _info) => {
-  getFocusedWindow()?.webContents?.findInPage(_info.query, {
-    findNext: _info.findNext,
-    forward: _info.forward,
+ipcMain.on('find_in_page_query', (_event, info: {query: string; findNext?: boolean; forward?: boolean}) => {
+  const focusedWindow = getFocusedWindow()
+  if (!focusedWindow || focusedWindow.webContents.isDestroyed()) return
+  focusedWindow.webContents.findInPage(info.query, {
+    findNext: info.findNext,
+    forward: info.forward,
   })
 })
 
 ipcMain.on('find_in_page_cancel', () => {
-  console.log('Cancelling search - empty query')
-  let focusedWindow = getFocusedWindow()
-  focusedWindow?.webContents?.stopFindInPage('keepSelection')
-  let findInPageView = focusedWindow?.contentView.children[0] as WebContentsView | undefined
-  if (findInPageView) {
-    findInPageView.setBounds({
-      ...findInPageView.getBounds(),
-      y: -200,
-    })
-  }
+  const focusedWindow = getFocusedWindow()
+  if (!focusedWindow) return
+  hideFindView(focusedWindow)
 })
 
 // duplicated logic with app-windows

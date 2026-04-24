@@ -1,95 +1,142 @@
 // Find-in-page UI using vanilla JS to avoid React duplication issues
 import './tailwind.css'
 
-// Use window.ipc from preload (type-cast to avoid conflicts with main app types)
-const ipc = (window as any).ipc as {send: (cmd: string, args?: any) => void}
+type FindInPageResult = {
+  activeMatchOrdinal: number
+  matches: number
+  finalUpdate: boolean
+}
+
+const ipc = (window as any).ipc as {
+  send: (cmd: string, args?: any) => void
+}
 const appWindowEvents = (window as any).appWindowEvents as
   | {subscribe: (handler: (event: any) => void) => () => void}
   | undefined
 const darkModeStream = (window as any).darkMode as
   | {subscribe: (handler: (value: boolean) => void) => () => void}
   | undefined
+const findInPageResults = (window as any).findInPageResults as
+  | {subscribe: (handler: (result: FindInPageResult) => void) => () => void}
+  | undefined
 
-// Create the UI
 function createFindInPageUI() {
   const root = document.getElementById('root')
   if (!root) return
 
-  // Create wrapper with dark/light mode
   const wrapper = document.createElement('div')
   wrapper.className = 'light'
   wrapper.style.width = '100%'
   wrapper.style.height = '100%'
 
-  // Subscribe to dark mode changes
   darkModeStream?.subscribe((isDark: boolean) => {
     wrapper.className = isDark ? 'dark' : 'light'
   })
 
-  // Create container
-  const container = document.createElement('div')
-  container.className = 'fixed inset-0 flex items-center justify-center gap-2 p-4'
+  // Single-card container that fills the WebContentsView bounds exactly.
+  const card = document.createElement('div')
+  card.className = 'bg-panel border-border flex h-full w-full items-center overflow-hidden rounded-md border shadow-sm'
 
-  // Create input wrapper
-  const inputWrapper = document.createElement('div')
-  inputWrapper.className = 'flex flex-1 items-center'
+  // Input lives inside a relative wrap so the counter can sit absolutely over
+  // the right side of the field — this keeps the overall layout stable when
+  // the counter appears/disappears.
+  const inputWrap = document.createElement('div')
+  inputWrap.className = 'relative flex h-full min-w-0 flex-1 items-center'
 
-  // Create input
   const input = document.createElement('input')
   input.type = 'text'
-  input.placeholder = 'Find in page...'
-  input.className =
-    'bg-panel border-border text-foreground h-8 flex-1 rounded-sm border px-2 text-sm outline-none focus:ring-1 focus:ring-ring'
+  input.placeholder = 'Find in page…'
+  input.className = 'text-foreground h-full w-full border-0 bg-transparent pl-3 pr-16 text-sm outline-none focus:ring-0'
 
-  // Create button container
-  const buttonContainer = document.createElement('div')
-  buttonContainer.className = 'border-border bg-panel flex h-8 items-center overflow-hidden rounded-sm border'
+  const counter = document.createElement('span')
+  counter.className =
+    'text-muted-foreground pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs tabular-nums select-none'
+  counter.textContent = ''
 
-  // Create up button
-  const upButton = document.createElement('button')
-  upButton.type = 'button'
-  upButton.className = 'flex size-8 items-center justify-center text-foreground hover:bg-muted'
-  upButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>`
+  inputWrap.appendChild(input)
+  inputWrap.appendChild(counter)
 
-  // Create down button
-  const downButton = document.createElement('button')
-  downButton.type = 'button'
-  downButton.className = 'flex size-8 items-center justify-center text-foreground hover:bg-muted'
-  downButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`
+  const divider = document.createElement('div')
+  divider.className = 'bg-border mx-1 h-5 w-px'
 
-  // Create close button
-  const closeButton = document.createElement('button')
-  closeButton.type = 'button'
-  closeButton.className = 'flex size-8 items-center justify-center text-foreground hover:bg-muted'
-  closeButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`
+  const makeIconButton = (svg: string, ariaLabel: string) => {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.setAttribute('aria-label', ariaLabel)
+    btn.className = 'text-foreground hover:bg-muted flex size-9 shrink-0 items-center justify-center'
+    btn.innerHTML = svg
+    return btn
+  }
 
-  // State
+  const upButton = makeIconButton(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>`,
+    'Previous match',
+  )
+  const downButton = makeIconButton(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`,
+    'Next match',
+  )
+  const closeButton = makeIconButton(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`,
+    'Close find',
+  )
+
   let query = ''
+  let matches = 0
+  let activeMatchOrdinal = 0
+  let hasActiveSearch = false
+
+  function updateCounter() {
+    if (query.length === 0 || matches === 0) {
+      counter.textContent = ''
+      divider.style.visibility = 'hidden'
+    } else {
+      counter.textContent = `${activeMatchOrdinal}/${matches}`
+      divider.style.visibility = ''
+    }
+  }
+  updateCounter()
+
+  function resetResult() {
+    matches = 0
+    activeMatchOrdinal = 0
+    hasActiveSearch = false
+    updateCounter()
+  }
 
   function clearFind() {
     query = ''
     input.value = ''
+    resetResult()
     ipc.send('find_in_page_cancel')
   }
 
-  function search(forward: boolean = true) {
-    if (query.length > 0) {
-      ipc.send('find_in_page_query', {
-        query,
-        findNext: false,
-        forward,
-      })
+  function navigate(forward: boolean) {
+    if (query.length === 0) return
+    if (!hasActiveSearch) {
+      // First query after a cleared/empty state: start a new search.
+      ipc.send('find_in_page_query', {query, findNext: false, forward})
+      hasActiveSearch = true
+    } else {
+      // Advance the cursor within the existing request so Chromium cycles.
+      ipc.send('find_in_page_query', {query, findNext: true, forward})
     }
   }
 
-  // Event handlers
   input.addEventListener('input', (e) => {
     query = (e.target as HTMLInputElement).value
     if (query.length === 0) {
+      resetResult()
       ipc.send('find_in_page_cancel')
-    } else {
-      ipc.send('find_in_page_query', {query, findNext: true})
+      return
     }
+    // `findNext: true` forces Chromium to stop the previous session and start
+    // a new one with this query — that's what makes each keystroke visibly
+    // repaint the page. `false` is "continue", which the engine coalesces
+    // when calls arrive faster than a scan completes (symptom: page only
+    // updates after Enter).
+    hasActiveSearch = true
+    ipc.send('find_in_page_query', {query, findNext: true, forward: true})
   })
 
   input.addEventListener('keydown', (e) => {
@@ -98,15 +145,14 @@ function createFindInPageUI() {
       clearFind()
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      search(true)
+      navigate(!e.shiftKey)
     }
   })
 
-  upButton.addEventListener('click', () => search(false))
-  downButton.addEventListener('click', () => search(true))
+  upButton.addEventListener('click', () => navigate(false))
+  downButton.addEventListener('click', () => navigate(true))
   closeButton.addEventListener('click', clearFind)
 
-  // Global escape handler
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       e.preventDefault()
@@ -114,7 +160,13 @@ function createFindInPageUI() {
     }
   })
 
-  // Focus input on load and when find_in_page event is received
+  findInPageResults?.subscribe((result: FindInPageResult) => {
+    if (!result) return
+    matches = result.matches ?? 0
+    activeMatchOrdinal = result.activeMatchOrdinal ?? 0
+    updateCounter()
+  })
+
   setTimeout(() => {
     input.focus()
     input.select()
@@ -129,18 +181,15 @@ function createFindInPageUI() {
     }
   })
 
-  // Assemble the UI
-  inputWrapper.appendChild(input)
-  buttonContainer.appendChild(upButton)
-  buttonContainer.appendChild(downButton)
-  buttonContainer.appendChild(closeButton)
-  container.appendChild(inputWrapper)
-  container.appendChild(buttonContainer)
-  wrapper.appendChild(container)
+  card.appendChild(inputWrap)
+  card.appendChild(divider)
+  card.appendChild(upButton)
+  card.appendChild(downButton)
+  card.appendChild(closeButton)
+  wrapper.appendChild(card)
   root.appendChild(wrapper)
 }
 
-// Initialize when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', createFindInPageUI)
 } else {

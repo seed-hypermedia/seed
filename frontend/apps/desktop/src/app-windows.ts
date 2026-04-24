@@ -19,6 +19,18 @@ let windowIdCount = 1
 
 const allWindows = new Map<string, BrowserWindow>()
 
+// Per-window find-in-page overlay view. Kept alive after first show so
+// subsequent Ctrl+F presses are instant, but detached from the window's
+// contentView while hidden so transparent regions don't swallow clicks.
+const findViews = new WeakMap<BrowserWindow, WebContentsView>()
+
+const FIND_VIEW_WIDTH = 320
+const FIND_VIEW_HEIGHT = 44
+const FIND_VIEW_MARGIN = 12
+// Offset the view below the draggable title bar region so clicks on the card
+// don't get eaten by the window-drag handler.
+const FIND_VIEW_TOP_OFFSET = 48
+
 export function getAllWindows() {
   return allWindows
 }
@@ -105,9 +117,8 @@ export function broadcastUseDarkColors() {
   const darkColors = settingsTheme === 'system' ? nativeTheme.shouldUseDarkColors : settingsTheme === 'dark'
   allWindows.forEach((window) => {
     window.webContents.send('darkMode', darkColors)
-    // Also send to find-in-page view if it exists
-    const findView = window.contentView.children[0] as WebContentsView | undefined
-    if (findView) {
+    const findView = findViews.get(window)
+    if (findView && !findView.webContents.isDestroyed()) {
       findView.webContents.send('darkMode', darkColors)
     }
   })
@@ -409,8 +420,6 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     trafficLightPosition: windowType.trafficLightPosition || undefined,
   })
 
-  createFindView(browserWindow)
-
   debug('Window created', {windowId})
 
   const windowLogger = childLogger(`seed/${windowId}`)
@@ -620,6 +629,8 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   })
 
   browserWindow.on('close', () => {
+    destroyFindView(browserWindow)
+
     // Clean up daemon listener
     releaseDaemonListener()
 
@@ -662,49 +673,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     globalShortcut.register('CommandOrControl+F', () => {
       const focusedWindow = getLastFocusedWindow()
       if (focusedWindow) {
-        let findInPageView = focusedWindow.contentView.children[0] as WebContentsView | undefined
-
-        info(`== ~ globalShortcut.register ~ findInPageView:`)
-
-        // Get current dark mode state
-        const darkColors = shouldUseDarkColors()
-
-        if (!findInPageView) {
-          info('[CMD+F]: no view present')
-          createFindView(focusedWindow)
-          // Get the newly created view and show it after it loads
-          findInPageView = focusedWindow.contentView.children[0] as WebContentsView | undefined
-          if (findInPageView) {
-            findInPageView.webContents.once('did-finish-load', () => {
-              // Send dark mode state to the view
-              findInPageView?.webContents.send('darkMode', darkColors)
-              findInPageView?.setBounds({
-                ...findInPageView.getBounds(),
-                y: 20,
-              })
-              setTimeout(() => {
-                findInPageView?.webContents.focus()
-                findInPageView?.webContents.send('appWindowEvent', {
-                  type: 'find_in_page',
-                })
-              }, 10)
-            })
-          }
-        } else {
-          info('[CMD+F]: view present', {bounds: findInPageView.getBounds()})
-          // Send dark mode state to the view
-          findInPageView.webContents.send('darkMode', darkColors)
-          findInPageView.setBounds({
-            ...findInPageView.getBounds(),
-            y: 20,
-          })
-          setTimeout(() => {
-            findInPageView?.webContents.focus()
-            findInPageView?.webContents.send('appWindowEvent', {
-              type: 'find_in_page',
-            })
-          }, 10)
-        }
+        showFindView(focusedWindow)
       }
     })
 
@@ -723,10 +692,14 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     }
   })
 
-  browserWindow.webContents.on('found-in-page', (event, result) => {
-    // if (result.finalUpdate) {
-    //   browserWindow.webContents.stopFindInPage('clearSelection')
-    // }
+  browserWindow.webContents.on('found-in-page', (_event, result) => {
+    const view = findViews.get(browserWindow)
+    if (!view || view.webContents.isDestroyed()) return
+    view.webContents.send('find_in_page_result', {
+      activeMatchOrdinal: result.activeMatchOrdinal,
+      matches: result.matches,
+      finalUpdate: result.finalUpdate,
+    })
   })
 
   browserWindow.on('blur', () => {
@@ -762,39 +735,34 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
 }
 
 function updateFindInPageView(win: BrowserWindow) {
-  const bounds = win.getBounds()
-  const view = win.contentView.children[0] as WebContentsView | undefined
-  if (view) {
-    view.setBounds({
-      ...view.getBounds(),
-      x: bounds.width - 320,
-    })
-  }
+  const view = findViews.get(win)
+  if (!view || !win.contentView.children.includes(view)) return
+  positionFindView(win, view)
 }
 
-function createFindView(win: BrowserWindow) {
-  const {width} = win.getBounds()
+function positionFindView(win: BrowserWindow, view: WebContentsView) {
+  // Use content size (not getBounds().width) so the view stays inside the
+  // contentView coordinate space — getBounds() can include window chrome on
+  // some platforms and push the right edge past where child views render.
+  const [contentWidth] = win.getContentSize()
+  view.setBounds({
+    x: Math.max(FIND_VIEW_MARGIN, contentWidth - FIND_VIEW_WIDTH - FIND_VIEW_MARGIN),
+    y: FIND_VIEW_TOP_OFFSET,
+    width: FIND_VIEW_WIDTH,
+    height: FIND_VIEW_HEIGHT,
+  })
+}
 
+function createFindView(win: BrowserWindow): WebContentsView {
   const findView = new WebContentsView({
     webPreferences: {
       preload: path.join(__dirname, 'preload-find-in-page.js'),
     },
   })
 
-  // Set transparent background
+  // Set transparent background so the card rounded corners blend with the page.
   findView.setBackgroundColor('#00000000')
 
-  // Add the view to the window's content view
-  win.contentView.addChildView(findView)
-
-  findView.setBounds({
-    x: width - 320,
-    y: -200,
-    width: 320,
-    height: 100,
-  })
-
-  // Log errors from the find view
   findView.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
     warn('[FIND-VIEW]: Failed to load', {errorCode, errorDescription})
   })
@@ -815,6 +783,75 @@ function createFindView(win: BrowserWindow) {
     const filePath = path.join(__dirname, `../renderer/${FIND_IN_PAGE_VITE_NAME}/find.html`)
     info('[FIND-VIEW]: Loading file', {filePath})
     findView.webContents.loadFile(filePath)
+  }
+
+  findViews.set(win, findView)
+  return findView
+}
+
+export function showFindView(win: BrowserWindow) {
+  if (win.isDestroyed()) return
+  let view = findViews.get(win)
+  const darkColors = shouldUseDarkColors()
+
+  if (!view || view.webContents.isDestroyed()) {
+    view = createFindView(win)
+    const attach = () => {
+      if (win.isDestroyed() || !view) return
+      if (!win.contentView.children.includes(view)) {
+        win.contentView.addChildView(view)
+      }
+      positionFindView(win, view)
+      view.webContents.send('darkMode', darkColors)
+      view.webContents.focus()
+      view.webContents.send('appWindowEvent', {type: 'find_in_page'})
+    }
+    if (view.webContents.isLoading()) {
+      view.webContents.once('did-finish-load', attach)
+    } else {
+      attach()
+    }
+    return
+  }
+
+  if (!win.contentView.children.includes(view)) {
+    win.contentView.addChildView(view)
+  }
+  positionFindView(win, view)
+  view.webContents.send('darkMode', darkColors)
+  // Give the view focus on the next tick so keyboard targets the input.
+  setTimeout(() => {
+    if (view && !view.webContents.isDestroyed()) {
+      view.webContents.focus()
+      view.webContents.send('appWindowEvent', {type: 'find_in_page'})
+    }
+  }, 10)
+}
+
+export function hideFindView(win: BrowserWindow) {
+  if (win.isDestroyed()) return
+  const view = findViews.get(win)
+  if (view && win.contentView.children.includes(view)) {
+    win.contentView.removeChildView(view)
+  }
+  if (!win.webContents.isDestroyed()) {
+    win.webContents.stopFindInPage('clearSelection')
+  }
+  // Return focus to the host page so typing doesn't fall into a detached view.
+  if (!win.webContents.isDestroyed()) {
+    win.webContents.focus()
+  }
+}
+
+function destroyFindView(win: BrowserWindow) {
+  const view = findViews.get(win)
+  if (!view) return
+  findViews.delete(win)
+  if (!win.isDestroyed() && win.contentView.children.includes(view)) {
+    win.contentView.removeChildView(view)
+  }
+  if (!view.webContents.isDestroyed()) {
+    view.webContents.close()
   }
 }
 
