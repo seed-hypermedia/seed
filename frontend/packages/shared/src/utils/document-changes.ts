@@ -366,6 +366,242 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
   return result
 }
 
+// -- Rebase helpers --
+
+/**
+ * Flatten HMBlockNode tree into {id -> block}, preserving recursion into children.
+ * Used by the rebase classifier to compare blocks across base / mine / theirs.
+ */
+function flattenBlocks(nodes: HMBlockNode[]): Map<string, HMBlock> {
+  const out = new Map<string, HMBlock>()
+  const walk = (ns: HMBlockNode[]) => {
+    for (const n of ns) {
+      if (n.block?.id) out.set(n.block.id, n.block)
+      if (n.children?.length) walk(n.children)
+    }
+  }
+  walk(nodes)
+  return out
+}
+
+/** Collect all block IDs present in an HMBlockNode tree. */
+function collectBlockIds(nodes: HMBlockNode[]): Set<string> {
+  const out = new Set<string>()
+  const walk = (ns: HMBlockNode[]) => {
+    for (const n of ns) {
+      if (n.block?.id) out.add(n.block.id)
+      if (n.children?.length) walk(n.children)
+    }
+  }
+  walk(nodes)
+  return out
+}
+
+/**
+ * Classify which block IDs were touched by the remote side (theirs).
+ *
+ * A block is considered "touched by theirs" when:
+ *  - its `revision` (CID of the last change that modified it) is present in
+ *    `newChangeCids` — the set of CIDs introduced since our base, OR
+ *  - the block exists in base but is missing in theirs (structural delete), OR
+ *  - the block is new in theirs but absent from base (structural add).
+ *
+ * If `revision` is missing (legacy blocks), falls back to a deep-equals check
+ * against base.
+ */
+export function computeTheirsTouches(
+  base: HMBlockNode[],
+  theirs: HMBlockNode[],
+  newChangeCids: Set<string>,
+): Set<string> {
+  const baseMap = flattenBlocks(base)
+  const theirsMap = flattenBlocks(theirs)
+  const touched = new Set<string>()
+
+  theirsMap.forEach((block, id) => {
+    const baseBlock = baseMap.get(id)
+    if (!baseBlock) {
+      touched.add(id) // structural add
+      return
+    }
+    const rev = (block as {revision?: string}).revision
+    if (rev && newChangeCids.has(rev)) {
+      touched.add(id)
+      return
+    }
+    if (!rev && !isBlocksEqual(baseBlock, block)) {
+      touched.add(id)
+    }
+  })
+
+  baseMap.forEach((_, id) => {
+    if (!theirsMap.has(id)) touched.add(id) // structural delete
+  })
+
+  return touched
+}
+
+/**
+ * A rebase plan describes, per-block, where the final merged tree should source
+ * content from for each block id. This is the minimal shape consumed by
+ * `applyRebasePlan` and extensible for Phase B per-block user picks.
+ */
+export type RebasePlan = {
+  /** Final merged tree uses theirs as the scaffold (ordering, structure). */
+  scaffold: 'theirs'
+  /** Block IDs that should keep Mine's content, overriding theirs. */
+  mineBlocks: Set<string>
+  /** Block IDs that should use theirs. All other blocks also use theirs. */
+  theirsBlocks: Set<string>
+  /** Block IDs that need conflict resolution (in Phase B). */
+  conflictedBlockIds: string[]
+}
+
+export type RebaseClassification = {
+  /** True when there are no conflicts and the plan can be applied silently. */
+  autoMergeable: boolean
+  conflictedBlockIds: string[]
+  plan: RebasePlan
+}
+
+/**
+ * Classify a rebase given three-way knowledge.
+ *
+ * - `base`: published blocks at edit-start time.
+ * - `mine`: current editor blocks (the user's in-progress draft).
+ * - `theirs`: blocks of the incoming remote document.
+ * - `mineTouchedIds`: IDs the user edited locally, tracked by ProseMirror listener.
+ * - `newChangeCids`: CIDs introduced between base and theirs' version.
+ *
+ * Conflicts = blocks touched on both sides. Includes edit-vs-edit, edit-vs-delete,
+ * and delete-vs-edit via structural intersection logic.
+ */
+export function classifyRebase(
+  base: HMBlockNode[],
+  mine: HMBlockNode[],
+  theirs: HMBlockNode[],
+  mineTouchedIds: Iterable<string>,
+  newChangeCids: Set<string>,
+): RebaseClassification {
+  const theirsTouched = computeTheirsTouches(base, theirs, newChangeCids)
+
+  const baseIds = collectBlockIds(base)
+  const mineIds = collectBlockIds(mine)
+
+  // Extend mineTouched with structural deletes (in base, not in mine) so
+  // "user deleted a block" participates in conflict detection.
+  const mineTouched = new Set<string>(mineTouchedIds)
+  baseIds.forEach((id) => {
+    if (!mineIds.has(id)) mineTouched.add(id)
+  })
+  // And structural adds (in mine, not in base).
+  mineIds.forEach((id) => {
+    if (!baseIds.has(id)) mineTouched.add(id)
+  })
+
+  const conflicted: string[] = []
+  mineTouched.forEach((id) => {
+    if (theirsTouched.has(id)) conflicted.push(id)
+  })
+
+  // Blocks we take from mine: any block mine touched that theirs did NOT touch.
+  const mineBlocks = new Set<string>()
+  mineTouched.forEach((id) => {
+    if (!theirsTouched.has(id)) mineBlocks.add(id)
+  })
+
+  const theirsBlocks = new Set<string>(theirsTouched)
+
+  return {
+    autoMergeable: conflicted.length === 0,
+    conflictedBlockIds: conflicted,
+    plan: {
+      scaffold: 'theirs',
+      mineBlocks,
+      theirsBlocks,
+      conflictedBlockIds: conflicted,
+    },
+  }
+}
+
+/**
+ * Apply a rebase plan to produce the final merged HMBlockNode[] tree.
+ *
+ * Strategy: walk theirs' structure (ordering, nesting). For each block id:
+ *   - If picked as "mine" (either by the plan or user pick in Phase B),
+ *     take the block payload from `mine`.
+ *   - Otherwise keep theirs.
+ *
+ * Then re-attach any mine-exclusive blocks (present in mine, absent from theirs
+ * and not deleted by theirs) at their original mine-relative positions under
+ * their original parent when the parent still exists. If the parent was
+ * removed by theirs, they are appended at the end of the root list.
+ *
+ * `picks` is an optional per-block override (used by Phase B conflict modal).
+ * Default: conflicted blocks take theirs (Phase A never produces this path
+ * because auto-merge gates on no conflicts; Phase B supplies picks).
+ */
+export function applyRebasePlan(
+  mine: HMBlockNode[],
+  theirs: HMBlockNode[],
+  plan: RebasePlan,
+  picks: Record<string, 'mine' | 'theirs'> = {},
+): HMBlockNode[] {
+  const mineFlat = flattenBlocks(mine)
+  const mineChildrenOf = buildChildrenMap(mine)
+  const theirsIds = collectBlockIds(theirs)
+
+  const chooseMine = (id: string): boolean => {
+    const pick = picks[id]
+    if (pick === 'mine') return true
+    if (pick === 'theirs') return false
+    return plan.mineBlocks.has(id)
+  }
+
+  const rebuild = (nodes: HMBlockNode[]): HMBlockNode[] =>
+    nodes.map((n) => {
+      const id = n.block?.id
+      const block = id && chooseMine(id) ? mineFlat.get(id) ?? n.block : n.block
+      return {
+        block,
+        children: n.children?.length ? rebuild(n.children) : n.children,
+      } as HMBlockNode
+    })
+
+  const rebuilt = rebuild(theirs)
+
+  // Re-attach mine-only blocks (adds) that theirs didn't include and weren't deleted by theirs.
+  const appended: HMBlockNode[] = []
+  const mineOnlyIds: string[] = []
+  mineFlat.forEach((_, id) => {
+    if (!theirsIds.has(id)) mineOnlyIds.push(id)
+  })
+
+  for (const id of mineOnlyIds) {
+    const block = mineFlat.get(id)
+    if (!block) continue
+    const children = mineChildrenOf.get(id) ?? []
+    appended.push({block, children} as HMBlockNode)
+  }
+
+  return appended.length ? [...rebuilt, ...appended] : rebuilt
+}
+
+/** Build {parentId -> children HMBlockNode[]} for a tree. Root uses key ''. */
+function buildChildrenMap(nodes: HMBlockNode[]): Map<string, HMBlockNode[]> {
+  const map = new Map<string, HMBlockNode[]>()
+  const walk = (ns: HMBlockNode[], parent: string) => {
+    const bucket = map.get(parent) ?? []
+    for (const n of ns) {
+      bucket.push(n)
+      if (n.block?.id && n.children?.length) walk(n.children, n.block.id)
+    }
+    map.set(parent, bucket)
+  }
+  walk(nodes, '')
+  return map
+}
+
 function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
   if (!q1 && !q2) return true
   if (!q1 || !q2) return false

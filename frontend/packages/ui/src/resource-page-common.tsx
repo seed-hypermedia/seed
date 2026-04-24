@@ -39,6 +39,7 @@ import {
   selectIsEditing,
   selectPublishedVersion,
   useAccountSync,
+  useAutoRebase,
   useCapabilitySync,
   useDocumentMachineRef,
   useDocumentSelector,
@@ -55,6 +56,7 @@ import {activityFilterToSlug, getCommentTargetId, parseFragment} from '@shm/shar
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Folder, Search, Settings} from 'lucide-react'
 import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {toast} from './toast'
 import {AccountPage} from './account-page'
 import {CollaboratorsPage} from './collaborators-page'
 import {
@@ -790,6 +792,26 @@ function DocumentBody({
   const isEditing = useDocumentSelector(selectIsEditing)
   const ctx = useDocumentSelector(selectContext)
 
+  // Capture the editor instance locally and forward to upstream onEditorReady.
+  // The local state drives useAutoRebase (auto-rebase on remote updates during editing).
+  const [autoRebaseEditor, setAutoRebaseEditor] = useState<any>(null)
+  const handleEditorReadyWrapped = useCallback(
+    (editor: any) => {
+      setAutoRebaseEditor(editor)
+      onEditorReady?.(editor)
+    },
+    [onEditorReady],
+  )
+  useAutoRebase({
+    editor: autoRebaseEditor,
+    suppressChangeRef: autoRebaseEditor?._suppressChangeRef,
+    onAutoMerged: (author) => {
+      const msg = author ? `Draft updated with ${author}'s latest changes.` : `Draft updated to latest version.`
+      toast.success(msg)
+    },
+    // Phase B will render a conflict modal; for Phase A, we just record it in the machine.
+  })
+
   const route = useNavRoute()
   const navigate = useNavigate()
 
@@ -1374,7 +1396,7 @@ function DocumentBody({
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
           DocumentContentComponent={DocumentContentComponent}
-          onEditorReady={onEditorReady}
+          onEditorReady={handleEditorReadyWrapped}
           existingDraftContent={existingDraftContent}
           existingDraftCursorPosition={existingDraftCursorPosition}
           ssrContentHTML={ssrContentHTML}

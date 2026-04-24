@@ -1,17 +1,22 @@
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
+import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {useActorRef, useSelector} from '@xstate/react'
 import {createContext, createElement, ReactNode, useContext, useEffect, useMemo, useRef} from 'react'
 import {ActorRefFrom, SnapshotFrom} from 'xstate'
+import {classifyRebase, applyRebasePlan} from '../utils/document-changes'
 import {
   documentMachine,
   DocumentMachineContext,
   DocumentMachineEvent,
   DocumentMachineInput,
+  PendingRebase,
   PublishInput,
   WriteDraftInput,
 } from './document-machine'
 import {EditorHandlers, EditorHandlersContext} from './editor-handlers-context'
+import {useAccount, useChanges} from './entity'
 
 // -- Actor types --
 
@@ -421,6 +426,31 @@ export function selectSaveIndicatorStatus(snapshot: DocumentMachineSnapshot): 'h
   return 'hidden'
 }
 
+/** The snapshot'd base blocks (set when entering editing). */
+export function selectBaseBlocks(snapshot: DocumentMachineSnapshot): HMBlockNode[] | null {
+  return snapshot.context.baseBlocks
+}
+
+/** Block IDs touched locally during this editing session. */
+export function selectMineTouchedIds(snapshot: DocumentMachineSnapshot): string[] {
+  return snapshot.context.mineTouchedIds
+}
+
+/** Remote document stashed while editing (null when no pending update). */
+export function selectPendingRemoteDocument(snapshot: DocumentMachineSnapshot): HMDocument | null {
+  return snapshot.context.pendingRemoteDocument
+}
+
+/** Pending rebase classification (auto/conflict/null). */
+export function selectPendingRebase(snapshot: DocumentMachineSnapshot): PendingRebase | null {
+  return snapshot.context.pendingRebase
+}
+
+/** Whether the draft machine is in the editing.draft.idle sub-state (safe-to-apply rebase gate). */
+export function selectIsEditingIdle(snapshot: DocumentMachineSnapshot): boolean {
+  return snapshot.matches({editing: {draft: 'idle'}})
+}
+
 // -- React hook helpers --
 
 /**
@@ -459,6 +489,217 @@ export function useDocumentSend(actorRef?: DocumentMachineActorRef) {
   return ref.send as (event: DocumentMachineEvent) => void
 }
 
+/**
+ * Minimal editor interface `useAutoRebase` needs. Compatible with BlockNote
+ * editors but avoids a direct dependency on the editor package.
+ */
+export type AutoRebaseEditor = {
+  readonly topLevelBlocks: unknown[]
+  replaceBlocks: (existing: unknown[], replacement: unknown[]) => void
+  readonly _tiptapEditor?: {
+    view?: {
+      state?: {
+        selection?: {
+          $anchor?: {pos?: number}
+        }
+      }
+    }
+  }
+}
+
+export type AutoRebaseOptions = {
+  /** Editor ref captured from `onEditorReady`. Must accept HMBlockNode[] via replaceBlocks after hmBlocksToEditorContent conversion. */
+  editor: AutoRebaseEditor | null
+  /** Called after a successful silent auto-merge. `author` may be null if unresolved. */
+  onAutoMerged?: (author: string | null) => void
+  /** Called when the merge can't be done automatically (Phase B will render UI). */
+  onConflictDetected?: (conflict: {conflictedBlockIds: string[]; author: string | null}) => void
+  /** Optional ref set to true while the hook is replacing editor content, so editor listeners can suppress `change` events. */
+  suppressChangeRef?: {current: boolean}
+  /** Debounce ms after the last `change` before attempting auto-rebase. Defaults to 1500. */
+  idleDebounceMs?: number
+}
+
+/**
+ * Walk a ListDocumentChanges payload backwards from `fromVersion` collecting
+ * change CIDs introduced after `baseDeps`. Stops traversal when all predecessor
+ * edges reach a dep in `baseDeps`.
+ */
+function collectNewChangeCids(
+  changes: Array<{id?: string; deps?: string[]; createTime?: string; author?: string}>,
+  fromVersion: string,
+  baseDeps: string[],
+): {newCids: Set<string>; latestAuthorCid: string | null; latestCreateTime: string | null} {
+  const byId = new Map<string, (typeof changes)[number]>()
+  for (const c of changes) if (c.id) byId.set(c.id, c)
+  const baseSet = new Set(baseDeps)
+  // fromVersion may be a dot-separated CID list (multi-head)
+  const heads = fromVersion.split('.').filter(Boolean)
+  const newCids = new Set<string>()
+  const stack: string[] = []
+  for (const h of heads) if (!baseSet.has(h)) stack.push(h)
+  while (stack.length) {
+    const id = stack.pop()!
+    if (newCids.has(id) || baseSet.has(id)) continue
+    newCids.add(id)
+    const node = byId.get(id)
+    if (!node?.deps) continue
+    for (const d of node.deps) {
+      if (!baseSet.has(d) && !newCids.has(d)) stack.push(d)
+    }
+  }
+  let latestAuthorCid: string | null = null
+  let latestCreateTime: string | null = null
+  newCids.forEach((id) => {
+    const node = byId.get(id)
+    if (!node) return
+    const t = node.createTime ?? ''
+    if (!latestCreateTime || t > latestCreateTime) {
+      latestCreateTime = t
+      latestAuthorCid = node.author ?? null
+    }
+  })
+  return {newCids, latestAuthorCid, latestCreateTime}
+}
+
+/**
+ * Drives automatic rebase when a remote document update arrives during editing.
+ *
+ * Flow:
+ * 1. When `editing.draft.idle` + a pending remote document is stashed + the
+ *    user has been idle for `idleDebounceMs`.
+ * 2. Fetch ListDocumentChanges for the document; walk the DAG from
+ *    `pendingRemoteDocument.version` back to `context.deps` to compute the
+ *    CIDs introduced since our base.
+ * 3. Feed {base, mine, theirs, mineTouchedIds, newCids} to `classifyRebase`.
+ * 4. If no conflicts: produce the merged tree with `applyRebasePlan`, swap
+ *    editor content under `suppressChangeRef`, send `rebase.apply`, call
+ *    `onAutoMerged` with the author display name.
+ * 5. Otherwise: send `rebase.detectConflict` and call `onConflictDetected`
+ *    (Phase B renders UI; Phase A leaves the UI stubbed).
+ */
+export function useAutoRebase({
+  editor,
+  onAutoMerged,
+  onConflictDetected,
+  suppressChangeRef,
+  idleDebounceMs = 1500,
+}: AutoRebaseOptions) {
+  const actorRef = useDocumentMachineRef()
+  const ctx = useSelector(actorRef, selectContext)
+  const isIdle = useSelector(actorRef, selectIsEditingIdle)
+  const isEditing = useSelector(actorRef, selectIsEditing)
+  const pendingRemoteDocument = ctx.pendingRemoteDocument
+  const pendingRebase = ctx.pendingRebase
+
+  const targetId = ctx.documentId
+  const changesQuery = useChanges(pendingRemoteDocument ? targetId : null)
+
+  const latestAuthor = useMemo(() => {
+    if (!pendingRemoteDocument || !changesQuery.data?.changes?.length) {
+      return {cid: null as string | null, createTime: null as string | null}
+    }
+    const {latestAuthorCid, latestCreateTime} = collectNewChangeCids(
+      changesQuery.data.changes,
+      pendingRemoteDocument.version,
+      ctx.deps,
+    )
+    return {cid: latestAuthorCid, createTime: latestCreateTime}
+  }, [pendingRemoteDocument, changesQuery.data, ctx.deps])
+
+  const authorAccount = useAccount(latestAuthor.cid)
+  const authorName = authorAccount.data?.metadata?.name ?? null
+
+  // Attempt to resolve the rebase once everything is ready.
+  // Idle (no pending autosave) + debounce window since first entering idle
+  // guards against applying mid-stroke.
+  useEffect(() => {
+    if (!isEditing) return
+    if (!isIdle) return
+    if (!pendingRemoteDocument) return
+    if (pendingRebase) return
+    if (!editor) return
+    if (!ctx.baseBlocks) return
+    if (changesQuery.isLoading) return
+
+    const baseBlocks = ctx.baseBlocks
+    const remoteDoc = pendingRemoteDocument
+    const mineTouched = ctx.mineTouchedIds
+    const baseDeps = ctx.deps
+    const changesList = (changesQuery.data?.changes ?? []) as Array<{
+      id?: string
+      deps?: string[]
+      author?: string
+      createTime?: string
+    }>
+
+    const timer = setTimeout(() => {
+      const snap = actorRef.getSnapshot()
+      if (!snap.matches('editing')) return
+      if (!snap.matches({editing: {draft: 'idle'}})) return
+      if (!snap.context.pendingRemoteDocument) return
+      if (snap.context.pendingRebase) return
+
+      const {newCids} = collectNewChangeCids(changesList, remoteDoc.version, baseDeps)
+
+      let mineNodes: HMBlockNode[]
+      try {
+        mineNodes = editorBlocksToHMBlockNodes(editor.topLevelBlocks as any)
+      } catch {
+        mineNodes = baseBlocks
+      }
+
+      const classification = classifyRebase(baseBlocks, mineNodes, remoteDoc.content ?? [], mineTouched, newCids)
+
+      if (!classification.autoMergeable) {
+        actorRef.send({
+          type: 'rebase.detectConflict',
+          conflictedBlockIds: classification.conflictedBlockIds,
+          author: authorName,
+        })
+        onConflictDetected?.({conflictedBlockIds: classification.conflictedBlockIds, author: authorName})
+        return
+      }
+
+      const merged = applyRebasePlan(mineNodes, remoteDoc.content ?? [], classification.plan)
+      const editorBlocks = hmBlocksToEditorContent(merged, {childrenType: 'Group'})
+      const prev = suppressChangeRef?.current ?? false
+      if (suppressChangeRef) suppressChangeRef.current = true
+      try {
+        editor.replaceBlocks(editor.topLevelBlocks, editorBlocks as unknown[])
+      } finally {
+        if (suppressChangeRef) suppressChangeRef.current = prev
+      }
+
+      actorRef.send({type: 'rebase.apply', mergedBlocks: merged, newDocument: remoteDoc})
+      onAutoMerged?.(authorName)
+    }, idleDebounceMs)
+    return () => clearTimeout(timer)
+  }, [
+    actorRef,
+    isEditing,
+    isIdle,
+    pendingRemoteDocument,
+    pendingRebase,
+    editor,
+    ctx.baseBlocks,
+    ctx.mineTouchedIds,
+    ctx.deps,
+    changesQuery.data,
+    changesQuery.isLoading,
+    authorName,
+    idleDebounceMs,
+    onAutoMerged,
+    onConflictDetected,
+    suppressChangeRef,
+  ])
+}
+
 // Re-export machine and types for convenience
 export {documentMachine} from './document-machine'
-export type {DocumentMachineContext, DocumentMachineEvent, DocumentMachineInput} from './document-machine'
+export type {
+  DocumentMachineContext,
+  DocumentMachineEvent,
+  DocumentMachineInput,
+  PendingRebase,
+} from './document-machine'

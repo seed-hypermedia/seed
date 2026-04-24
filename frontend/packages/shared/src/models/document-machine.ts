@@ -27,6 +27,15 @@ export type DocumentMachineInput = {
   publishAccountUid?: string
 }
 
+/**
+ * Pending rebase state recorded during editing.
+ * - `auto`: non-overlapping incoming changes can be merged silently.
+ * - `conflict`: at least one block was touched on both sides — Phase B handles picks.
+ */
+export type PendingRebase =
+  | {kind: 'auto'; author: string | null}
+  | {kind: 'conflict'; conflictedBlockIds: string[]; author: string | null}
+
 /** Full context managed by the machine. */
 export type DocumentMachineContext = {
   documentId: UnpackedHypermediaId
@@ -59,6 +68,14 @@ export type DocumentMachineContext = {
   draftCursorPosition: number | null
   /** Published content in editor-block format. Baseline for unpublished-change diffs. */
   editorBaseline: EditorBlock[] | null
+  /** Snapshot of the published blocks taken on entry to editing. Used as the three-way merge base. */
+  baseBlocks: HMBlockNode[] | null
+  /** Block IDs touched by the local user since edit start (from ProseMirror tr listener). */
+  mineTouchedIds: string[]
+  /** Full remote document stashed on remoteUpdate while editing. Classification runs outside the machine. */
+  pendingRemoteDocument: HMDocument | null
+  /** Classification of pending remote update: auto-mergeable or conflict. */
+  pendingRebase: PendingRebase | null
   error: unknown
 }
 
@@ -91,6 +108,10 @@ export type DocumentMachineEvent =
   | {type: '_save.completed'}
   | {type: 'editor.baselineUpdate'; blocks: EditorBlock[]}
   | {type: 'scroll'}
+  | {type: 'rebase.blockTouched'; blockIds: string[]}
+  | {type: 'rebase.apply'; mergedBlocks: HMBlockNode[]; newDocument: HMDocument}
+  | {type: 'rebase.detectConflict'; conflictedBlockIds: string[]; author: string | null}
+  | {type: 'rebase.dismiss'}
 
 /** Input for the writeDraft actor. */
 export type WriteDraftInput = {
@@ -222,6 +243,10 @@ export const documentMachine = setup({
       draftCursorPosition: null,
       metadata: {},
       navigation: undefined,
+      baseBlocks: null,
+      mineTouchedIds: [],
+      pendingRemoteDocument: null,
+      pendingRebase: null,
     }),
     clearEditingState: assign({
       // Preserve draftId and metadata so re-entering editing reuses the same draft
@@ -229,6 +254,70 @@ export const documentMachine = setup({
       draftCreated: false,
       hasChangedWhileSaving: false,
       pendingRemoteVersion: null,
+      baseBlocks: null,
+      mineTouchedIds: [],
+      pendingRemoteDocument: null,
+      pendingRebase: null,
+    }),
+    snapshotBaseBlocks: assign({
+      baseBlocks: ({context}) => context.document?.content ?? [],
+      mineTouchedIds: [],
+    }),
+    appendMineTouched: assign({
+      mineTouchedIds: ({context, event}) => {
+        if (event.type !== 'rebase.blockTouched') return context.mineTouchedIds
+        if (!event.blockIds.length) return context.mineTouchedIds
+        const seen = new Set(context.mineTouchedIds)
+        let changed = false
+        for (const id of event.blockIds) {
+          if (!seen.has(id)) {
+            seen.add(id)
+            changed = true
+          }
+        }
+        return changed ? Array.from(seen) : context.mineTouchedIds
+      },
+    }),
+    setPendingRemoteDocument: assign({
+      pendingRemoteDocument: ({event}) => {
+        if (event.type === 'document.remoteUpdate') return event.document
+        return null
+      },
+    }),
+    applyRebaseMerge: assign({
+      document: ({context, event}) => {
+        if (event.type !== 'rebase.apply') return context.document
+        return event.newDocument
+      },
+      publishedVersion: ({context, event}) => {
+        if (event.type !== 'rebase.apply') return context.publishedVersion
+        return event.newDocument.version
+      },
+      deps: ({context, event}) => {
+        if (event.type !== 'rebase.apply') return context.deps
+        return event.newDocument.version ? [event.newDocument.version] : context.deps
+      },
+      baseBlocks: ({context, event}) => {
+        if (event.type !== 'rebase.apply') return context.baseBlocks
+        return event.mergedBlocks
+      },
+      mineTouchedIds: [],
+      pendingRemoteDocument: null,
+      pendingRemoteVersion: null,
+      pendingRebase: null,
+    }),
+    setRebaseConflict: assign({
+      pendingRebase: ({event}): PendingRebase | null => {
+        if (event.type !== 'rebase.detectConflict') return null
+        return {
+          kind: 'conflict',
+          conflictedBlockIds: event.conflictedBlockIds,
+          author: event.author,
+        }
+      },
+    }),
+    clearPendingRebase: assign({
+      pendingRebase: null,
     }),
     markDocumentReady: assign({
       documentReady: true,
@@ -402,6 +491,10 @@ export const documentMachine = setup({
     draftContent: null,
     draftCursorPosition: null,
     editorBaseline: null,
+    baseBlocks: null,
+    mineTouchedIds: [],
+    pendingRemoteDocument: null,
+    pendingRebase: null,
     error: null,
   }),
   initial: 'loading',
@@ -454,7 +547,7 @@ export const documentMachine = setup({
           {
             target: 'editing',
             guard: 'canTransitionToEditing',
-            actions: ['setDepsFromPublished'],
+            actions: ['setDepsFromPublished', 'snapshotBaseBlocks'],
           },
         ],
         'document.remoteUpdate': {
@@ -473,13 +566,13 @@ export const documentMachine = setup({
         },
         'draft.existing': {
           target: 'editing',
-          actions: ['setExistingDraft', 'clearShouldAutoEdit', 'setDepsFromPublished'],
+          actions: ['setExistingDraft', 'clearShouldAutoEdit', 'setDepsFromPublished', 'snapshotBaseBlocks'],
         },
       },
       always: {
         target: 'editing',
         guard: ({context}) => context.shouldAutoEdit && context.isLatestVersion,
-        actions: ['clearShouldAutoEdit', 'setDepsFromPublished'],
+        actions: ['clearShouldAutoEdit', 'setDepsFromPublished', 'snapshotBaseBlocks'],
       },
     },
 
@@ -489,7 +582,11 @@ export const documentMachine = setup({
       on: {
         'edit.confirm': {
           target: 'editing',
-          actions: [() => console.log('[DocMachine] edit.confirm received → editing'), 'setDepsFromPublished'],
+          actions: [
+            () => console.log('[DocMachine] edit.confirm received → editing'),
+            'setDepsFromPublished',
+            'snapshotBaseBlocks',
+          ],
         },
         'edit.cancel': {
           target: 'loaded',
@@ -539,10 +636,22 @@ export const documentMachine = setup({
           actions: ['setAccountIds'],
         },
         'document.remoteUpdate': {
-          actions: ['setPendingRemoteVersion'],
+          actions: ['setPendingRemoteVersion', 'setPendingRemoteDocument'],
         },
         'version.changed': {
           actions: ['setIsLatestVersion'],
+        },
+        'rebase.blockTouched': {
+          actions: ['appendMineTouched'],
+        },
+        'rebase.apply': {
+          actions: ['applyRebaseMerge'],
+        },
+        'rebase.detectConflict': {
+          actions: ['setRebaseConflict'],
+        },
+        'rebase.dismiss': {
+          actions: ['clearPendingRebase'],
         },
       },
       states: {
