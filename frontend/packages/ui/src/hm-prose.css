@@ -191,6 +191,22 @@
   margin-top: 0.25rem;
 }
 
+/* Override margin top on the first child of blockChildren in grid layout */
+.hm-prose [data-node-type='blockChildren'][data-list-type='Grid'] > [data-node-type='blockNode'],
+.hm-prose
+  [data-node-type='blockChildren']
+  [data-node-type='blockChildren'][data-list-type='Grid']
+  > [data-node-type='blockNode']:first-child {
+  margin-top: 0;
+}
+
+/* Move the first child margin onto the grid container itself,
+ * so the grid as a whole sits 0.25em below the parent block while its
+ * cells still align to each other at the top. */
+.hm-prose [data-node-type='blockChildren'] [data-node-type='blockChildren'][data-list-type='Grid'] {
+  margin-top: 0.25em;
+}
+
 /* ---------- SSR parity (no .blockNode wrapper in SSR output) ----------
  * The server emits the same class names, so the rules above apply
  * identically. If the SSR emits bare semantic tags anywhere, these

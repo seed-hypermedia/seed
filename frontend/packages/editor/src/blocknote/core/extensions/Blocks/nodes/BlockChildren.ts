@@ -184,7 +184,9 @@ export const BlockChildren = Node.create<{
     const isGrid = node.attrs.listType === 'Grid'
     const gridStyles = isGrid
       ? {
-          style: `display: grid; grid-template-columns: repeat(${node.attrs.columnCount || 3}, 1fr); gap: 8px;`,
+          style: `display: grid; grid-template-columns: repeat(${
+            node.attrs.columnCount || 3
+          }, 1fr); gap: 8px; align-items: start;`,
         }
       : {}
 
