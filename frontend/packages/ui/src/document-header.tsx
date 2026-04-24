@@ -176,7 +176,7 @@ export function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
           'id' in crumb ? (
             <BreadcrumbLink key={key} crumb={crumb} />
           ) : (
-            <span key={key} className="max-w-[15ch] truncate text-xs whitespace-nowrap">
+            <span key={key} className="min-w-0 truncate text-xs whitespace-nowrap">
               {crumb.label}
             </span>
           ),
@@ -210,7 +210,7 @@ function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
   if (crumb.isTombstone) {
     return (
       <Tooltip content="This document has been deleted">
-        <span className="max-w-[15ch] truncate text-xs whitespace-nowrap text-red-500">
+        <span className="min-w-0 truncate text-xs whitespace-nowrap text-red-500">
           {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
         </span>
       </Tooltip>
@@ -220,7 +220,7 @@ function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
   if (crumb.isNotFound) {
     return (
       <Tooltip content="Document not found on the network">
-        <span className="max-w-[15ch] truncate text-xs whitespace-nowrap text-red-500">
+        <span className="min-w-0 truncate text-xs whitespace-nowrap text-red-500">
           {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
         </span>
       </Tooltip>
@@ -230,7 +230,7 @@ function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
   if (crumb.isError) {
     return (
       <Tooltip content="Failed to load this document">
-        <span className="max-w-[15ch] truncate text-xs whitespace-nowrap text-red-500">
+        <span className="min-w-0 truncate text-xs whitespace-nowrap text-red-500">
           {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
         </span>
       </Tooltip>
@@ -239,7 +239,7 @@ function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
 
   if (!crumb.metadata?.name) {
     return (
-      <span className="text-muted-foreground max-w-[15ch] truncate text-xs whitespace-nowrap">
+      <span className="text-muted-foreground min-w-0 truncate text-xs whitespace-nowrap">
         {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
       </span>
     )
@@ -248,7 +248,7 @@ function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
   return (
     <a
       {...linkProps}
-      className="max-w-[15ch] truncate overflow-hidden text-xs whitespace-nowrap no-underline hover:underline"
+      className="min-w-0 truncate overflow-hidden text-xs whitespace-nowrap no-underline hover:underline"
     >
       {crumb.metadata.name}
     </a>

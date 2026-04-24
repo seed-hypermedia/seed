@@ -1334,7 +1334,7 @@ function DraftBreadcrumbLink({id, metadata}: {id: UnpackedHypermediaId; metadata
   return (
     <a
       {...linkProps}
-      className="max-w-[15ch] truncate overflow-hidden text-xs whitespace-nowrap no-underline hover:underline"
+      className="min-w-0 truncate overflow-hidden text-xs whitespace-nowrap no-underline hover:underline"
     >
       {metadata?.name ?? id?.path?.at(-1) ?? '?'}
     </a>
