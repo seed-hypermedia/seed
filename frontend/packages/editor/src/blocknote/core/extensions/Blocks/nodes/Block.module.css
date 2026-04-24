@@ -61,8 +61,8 @@ NESTED BLOCKS
   max-width: 100% !important;
 }
 
-/* Constrain images inside grid cells to fit within their cell */
-.blockChildren[data-list-type='Grid'] > .blockNode img {
+/* Constrain images inside image-block cells to fit within the grid column. */
+.blockChildren[data-list-type='Grid'] > .blockNode [data-content-type='image'] img {
   max-width: 100% !important;
   max-height: 200px !important;
   width: auto !important;
