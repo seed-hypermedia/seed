@@ -310,26 +310,29 @@ function EventHeaderContent({
 
   if (event.type == 'doc-update') {
     return (
-      <InlineDescriptor>
-        <AuthorNameLink author={event.author} />{' '}
-        {!isSingleResource ? (
-          <>
-            <span>
-              {/* TODO: check if this is the correct way of getting the first ref update of a document */}
-              {event.document.version == event.document.genesis ? 'created' : 'updated'}
-            </span>{' '}
-            <DocumentNameLink metadata={event.document.metadata} id={event.docId} />{' '}
-          </>
-        ) : (
-          <>
-            <span>
-              {/* TODO: check if this is the correct way of getting the first ref update of a document */}
-              {event.document.version == event.document.genesis ? 'created the document' : 'updated the document'}
-            </span>{' '}
-          </>
-        )}
-        <Timestamp time={event.time} route={route} />
-      </InlineDescriptor>
+      <div className="flex flex-col gap-0.5">
+        <InlineDescriptor>
+          <AuthorNameLink author={event.author} />{' '}
+          {!isSingleResource ? (
+            <>
+              <span>
+                {/* TODO: check if this is the correct way of getting the first ref update of a document */}
+                {event.document.version == event.document.genesis ? 'created' : 'updated'}
+              </span>{' '}
+              <DocumentNameLink metadata={event.document.metadata} id={event.docId} />{' '}
+            </>
+          ) : (
+            <>
+              <span>
+                {/* TODO: check if this is the correct way of getting the first ref update of a document */}
+                {event.document.version == event.document.genesis ? 'created the document' : 'updated the document'}
+              </span>{' '}
+            </>
+          )}
+          <Timestamp time={event.time} route={route} />
+        </InlineDescriptor>
+        {event.message && <p className="text-muted-foreground ml-6 text-xs italic">{event.message}</p>}
+      </div>
     )
   }
 

@@ -382,7 +382,7 @@ func (dm *Document) CreateChange(signer core.Signer, at time.Time) (hb blob.Enco
 }
 
 // Ref creates a Ref blob for the current heads.
-func (dm *Document) Ref(kp *core.KeyPair, visibility blob.Visibility) (ref blob.Encoded[*blob.Ref], err error) {
+func (dm *Document) Ref(kp *core.KeyPair, visibility blob.Visibility, message string) (ref blob.Encoded[*blob.Ref], err error) {
 	// TODO(hm24): make genesis detection more reliable.
 	genesis := dm.crdt.cids[0]
 
@@ -403,7 +403,7 @@ func (dm *Document) Ref(kp *core.KeyPair, visibility blob.Visibility) (ref blob.
 		dm.Generation = maybe.New(head.Ts.UnixMilli())
 	}
 
-	return blob.NewRef(kp, dm.Generation.Value(), genesis, space, path, []cid.Cid{headCID}, head.Ts, visibility)
+	return blob.NewRef(kp, dm.Generation.Value(), genesis, space, path, []cid.Cid{headCID}, head.Ts, visibility, message)
 }
 
 func (dm *Document) cleanupPatch() (out blob.ChangeBody, err error) {

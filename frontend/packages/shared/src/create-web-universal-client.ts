@@ -35,6 +35,7 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
           version: contentChange.cid.toString(),
           generation: input.generation != null ? Number(input.generation) : 1,
           capability: input.capability,
+          message: input.message,
         },
         signer,
       )
@@ -67,6 +68,7 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
         generation: input.generation,
         capability: input.capability,
         visibility: input.visibility,
+        message: input.message,
       },
       signer,
     )

@@ -23,6 +23,8 @@ export type CreateVersionRefInput = {
   capability?: string
   /** Optional CBOR visibility value (e.g., "Private"). Omit or leave empty for public. */
   visibility?: string
+  /** Optional human-readable publish message, similar to a git commit message. */
+  message?: string
 }
 
 export type CreateTombstoneRefInput = {
@@ -36,6 +38,8 @@ export type CreateTombstoneRefInput = {
   generation: number
   /** Optional capability CID string */
   capability?: string
+  /** Optional human-readable publish message, similar to a git commit message. */
+  message?: string
 }
 
 export type CreateRedirectRefInput = {
@@ -55,6 +59,8 @@ export type CreateRedirectRefInput = {
   republish?: boolean
   /** Optional capability CID string */
   capability?: string
+  /** Optional human-readable publish message, similar to a git commit message. */
+  message?: string
 }
 
 function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
@@ -77,6 +83,7 @@ function buildUnsignedRef({
   generation,
   capability,
   visibility,
+  message,
 }: {
   signerKey: Uint8Array
   space: string
@@ -85,6 +92,7 @@ function buildUnsignedRef({
   generation: number
   capability?: string
   visibility?: string
+  message?: string
 }): Record<string, unknown> {
   const signerBytes = new Uint8Array(signerKey)
   const spaceBytes = new Uint8Array(base58btc.decode(space))
@@ -118,6 +126,10 @@ function buildUnsignedRef({
     unsigned.visibility = visibility
   }
 
+  if (message) {
+    unsigned.message = message
+  }
+
   return unsigned
 }
 
@@ -137,6 +149,7 @@ export async function createVersionRef(input: CreateVersionRefInput, signer: HMS
     generation: input.generation,
     capability: input.capability,
     visibility: input.visibility,
+    message: input.message,
   })
 
   // Parse version string into CID array
@@ -164,6 +177,7 @@ export async function createTombstoneRef(
     genesis: input.genesis,
     generation: input.generation,
     capability: input.capability,
+    message: input.message,
   })
 
   // Tombstone: empty heads
@@ -189,6 +203,7 @@ export async function createRedirectRef(input: CreateRedirectRefInput, signer: H
     genesis: input.genesis,
     generation: input.generation,
     capability: input.capability,
+    message: input.message,
   })
 
   // Redirect refs have no heads
