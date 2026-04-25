@@ -2,6 +2,8 @@ package blob
 
 import (
 	"context"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"seed/backend/core"
 	"seed/backend/ipfs"
@@ -121,11 +123,13 @@ func (idx *Index) canPeerAccessSpace(ctx context.Context, peerID peer.ID, spaceA
 	// Check if peer has capability-based access via any of their authenticated accounts.
 	accounts := idx.peerAuth.accountsForPeer(peerID)
 	if len(accounts) > 0 {
-		authorizedSpaces, err := idx.GetAuthorizedSpaces(ctx, accounts)
+		spacesByAccount, err := idx.GetSpacesByAccount(ctx, accounts)
 		if err == nil {
-			for _, space := range authorizedSpaces {
-				if space.Equal(spaceAccount) {
-					return true, nil
+			for _, account := range accounts {
+				for _, space := range spacesByAccount[account.UnsafeString()] {
+					if space.Equal(spaceAccount) {
+						return true, nil
+					}
 				}
 			}
 		}
@@ -269,25 +273,32 @@ func (idx *Index) isBlobPublic(ctx context.Context, c cid.Cid) (resp struct {
 	return resp, err
 }
 
-// GetAuthorizedSpaces returns the spaces that the given accounts can access.
-// This includes the accounts themselves plus any spaces where the accounts have
-// been granted access via WRITER or OWNER capabilities.
-func (idx *Index) GetAuthorizedSpaces(ctx context.Context, accounts []core.Principal) ([]core.Principal, error) {
+// GetSpacesByAccount returns the spaces each account can access.
+// This includes each account's own space plus any spaces where the account has
+// been granted access via WRITER capabilities.
+func (idx *Index) GetSpacesByAccount(ctx context.Context, accounts []core.Principal) (map[core.PrincipalUnsafeString][]core.Principal, error) {
+	spacesByAccount := make(map[core.PrincipalUnsafeString][]core.Principal, len(accounts))
 	if len(accounts) == 0 {
-		return nil, nil
+		return spacesByAccount, nil
 	}
 
-	// Start with the accounts themselves — users can always access their own space.
-	spaces := make([]core.Principal, 0, len(accounts))
-	spaces = append(spaces, accounts...)
+	// Start with the accounts themselves; users can always access their own space.
+	for _, account := range accounts {
+		spacesByAccount[account.UnsafeString()] = append(spacesByAccount[account.UnsafeString()], account)
+	}
 
-	err := idx.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	accountsJSON, err := encodePrincipalHexJSON(accounts)
+	if err != nil {
+		return nil, err
+	}
+
+	err = idx.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		// Query capabilities where any of the accounts is a delegate.
 		// The resource owner (space) is the signer of the capability.
 		// IMPORTANT: 'del' in extra_attrs is stored as the public_keys.id (integer), not the principal.
 		// We look for WRITER role which grants access to private content.
 		const q = `
-			SELECT DISTINCT pk_author.principal
+			SELECT DISTINCT pk_del.principal, pk_author.principal
 			FROM structural_blobs sb
 			JOIN public_keys pk_author ON pk_author.id = sb.author
 			JOIN public_keys pk_del ON pk_del.id = sb.extra_attrs->>'del'
@@ -296,16 +307,6 @@ func (idx *Index) GetAuthorizedSpaces(ctx context.Context, accounts []core.Princ
 			AND sb.extra_attrs->>'role' = 'WRITER'
 		`
 
-		// Build JSON array of account principals as hex strings for the query.
-		accountsJSON := "["
-		for i, acc := range accounts {
-			if i > 0 {
-				accountsJSON += ","
-			}
-			accountsJSON += `"` + fmt.Sprintf("%X", []byte(acc)) + `"`
-		}
-		accountsJSON += "]"
-
 		rows, discard, check := sqlitex.Query(conn, q, accountsJSON).All()
 		defer func() {
 			var err error
@@ -313,9 +314,10 @@ func (idx *Index) GetAuthorizedSpaces(ctx context.Context, accounts []core.Princ
 		}()
 
 		for row := range rows {
-			space := core.Principal(row.ColumnBytes(0))
-			if len(space) > 0 {
-				spaces = append(spaces, space)
+			account := core.Principal(append([]byte(nil), row.ColumnBytes(0)...))
+			space := core.Principal(append([]byte(nil), row.ColumnBytes(1)...))
+			if len(account) > 0 && len(space) > 0 {
+				spacesByAccount[account.UnsafeString()] = append(spacesByAccount[account.UnsafeString()], space)
 			}
 		}
 		return check()
@@ -324,13 +326,27 @@ func (idx *Index) GetAuthorizedSpaces(ctx context.Context, accounts []core.Princ
 		return nil, err
 	}
 
-	return spaces, nil
+	return spacesByAccount, nil
+}
+
+func encodePrincipalHexJSON(accounts []core.Principal) (string, error) {
+	encoded := make([]string, 0, len(accounts))
+	for _, account := range accounts {
+		encoded = append(encoded, hex.EncodeToString(account))
+	}
+
+	data, err := json.Marshal(encoded)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode account principal list: %w", err)
+	}
+
+	return string(data), nil
 }
 
 // GetAuthorizedSpacesForPeer computes which spaces a peer can access.
 // It considers:
 //  1. Spaces the peer owns (authenticated accounts).
-//  2. Spaces the peer has capability access to (via GetAuthorizedSpaces).
+//  2. Spaces the peer has capability access to.
 //  3. Spaces where the peer is the siteURL server (for given resources).
 //
 // The requestedResources parameter is used for siteURL checking — if the peer
@@ -340,15 +356,23 @@ func (idx *Index) GetAuthorizedSpacesForPeer(ctx context.Context, pid peer.ID, r
 	accounts := idx.peerAuth.accountsForPeer(pid)
 
 	// Get all spaces these accounts can access (including via capabilities).
-	spaces, err := idx.GetAuthorizedSpaces(ctx, accounts)
+	spacesByAccount, err := idx.GetSpacesByAccount(ctx, accounts)
 	if err != nil {
 		return nil, err
 	}
 
 	// Build a set for deduplication.
-	seenSpaces := make(map[string]struct{}, len(spaces))
-	for _, sp := range spaces {
-		seenSpaces[sp.String()] = struct{}{}
+	seenSpaces := make(map[core.PrincipalUnsafeString]struct{}, len(accounts))
+	spaces := make([]core.Principal, 0, len(accounts))
+	for _, account := range accounts {
+		for _, space := range spacesByAccount[account.UnsafeString()] {
+			key := space.UnsafeString()
+			if _, ok := seenSpaces[key]; ok {
+				continue
+			}
+			seenSpaces[key] = struct{}{}
+			spaces = append(spaces, space)
+		}
 	}
 
 	// Check if the peer is the siteURL server for any of the requested resources.
@@ -359,7 +383,7 @@ func (idx *Index) GetAuthorizedSpacesForPeer(ctx context.Context, pid peer.ID, r
 		}
 
 		// Skip if already authorized.
-		if _, ok := seenSpaces[space.String()]; ok {
+		if _, ok := seenSpaces[space.UnsafeString()]; ok {
 			continue
 		}
 
@@ -367,7 +391,7 @@ func (idx *Index) GetAuthorizedSpacesForPeer(ctx context.Context, pid peer.ID, r
 		isSiteURL, err := idx.checkSiteURLPeer(ctx, pid, space)
 		if err == nil && isSiteURL {
 			spaces = append(spaces, space)
-			seenSpaces[space.String()] = struct{}{}
+			seenSpaces[space.UnsafeString()] = struct{}{}
 		}
 	}
 

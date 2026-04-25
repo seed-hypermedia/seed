@@ -120,7 +120,7 @@ type Index interface {
 	GetAuthorizedSpacesForPeer(ctx context.Context, peerID peer.ID, requestedResources []blob.IRI) ([]core.Principal, error)
 	GetSiteURL(ctx context.Context, space core.Principal) (string, error)
 	ResolveSiteURL(ctx context.Context, siteURL string) (peer.AddrInfo, error)
-	GetAuthorizedSpaces(ctx context.Context, accounts []core.Principal) ([]core.Principal, error)
+	GetSpacesByAccount(ctx context.Context, accounts []core.Principal) (map[core.PrincipalUnsafeString][]core.Principal, error)
 }
 
 type protocolChecker struct {
@@ -565,6 +565,22 @@ func (s *Service) computeAuthInfo(ctx context.Context, eids map[string]bool) *au
 		return info
 	}
 
+	localAccounts := make([]core.Principal, 0, len(keyPairs))
+	for _, kp := range keyPairs {
+		if kp.KeyPair == nil {
+			continue
+		}
+		localAccounts = append(localAccounts, kp.Principal())
+	}
+	if len(localAccounts) == 0 {
+		return info
+	}
+
+	spacesByAccount, err := s.index.GetSpacesByAccount(ctx, localAccounts)
+	if err != nil {
+		return info
+	}
+
 	// Collect unique spaces from entities being synced.
 	spaces := make(map[core.PrincipalUnsafeString]core.Principal)
 	for eid := range eids {
@@ -599,12 +615,10 @@ func (s *Service) computeAuthInfo(ctx context.Context, eids map[string]bool) *au
 
 		// Check which local keys have access to this space.
 		for _, kp := range keyPairs {
-			authorizedSpaces, err := s.index.GetAuthorizedSpaces(ctx, []core.Principal{kp.Principal()})
-			if err != nil {
+			if kp.KeyPair == nil {
 				continue
 			}
-
-			for _, authSpace := range authorizedSpaces {
+			for _, authSpace := range spacesByAccount[kp.Principal().UnsafeString()] {
 				if authSpace.Equal(space) {
 					// This key has access to the space. Add to peerKeys.
 					info.peerKeys[addrInfo.ID] = append(info.peerKeys[addrInfo.ID], kp.KeyPair)

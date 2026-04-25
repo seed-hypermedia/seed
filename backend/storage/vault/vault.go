@@ -27,7 +27,8 @@ import (
 
 // Vault is a the main vault implementation with local file and optional remote syncing.
 type Vault struct {
-	mu sync.RWMutex
+	mu           sync.RWMutex
+	remoteSyncMu sync.Mutex
 
 	store *fileStore
 
@@ -244,13 +245,6 @@ type saveResponse struct {
 	Success bool `json:"success"`
 }
 
-type syncConfig struct {
-	RemoteURL    string
-	UserID       string
-	CredentialID string
-	Credential   string
-}
-
 type mergeAccount struct {
 	Principal string
 	Account   AccountInfo
@@ -325,12 +319,12 @@ func (ks *Vault) GetKey(_ context.Context, name string) (*core.KeyPair, error) {
 	return keyPairFromAccount(account)
 }
 
-// StoreKey stores a new named key and syncs it when remote mode is active.
+// StoreKey stores a new named key and schedules remote sync when remote mode is active.
 func (ks *Vault) StoreKey(ctx context.Context, name string, kp *core.KeyPair) error {
 	return ks.StoreKeyWithMetadata(ctx, name, kp, KeyMetadata{})
 }
 
-// StoreKeyWithMetadata stores a new named key with vault-specific metadata and syncs it when remote mode is active.
+// StoreKeyWithMetadata stores a new named key with vault-specific metadata and schedules remote sync when remote mode is active.
 func (ks *Vault) StoreKeyWithMetadata(ctx context.Context, name string, kp *core.KeyPair, metadata KeyMetadata) error {
 	if !localKeyNameFormat.MatchString(name) {
 		return fmt.Errorf("invalid name format")
@@ -363,7 +357,7 @@ func (ks *Vault) StoreKeyWithMetadata(ctx context.Context, name string, kp *core
 		return err
 	}
 	if shouldSync {
-		ks.syncRemoteMaybe(ctx)
+		ks.scheduleRemoteSync()
 	}
 
 	return nil
@@ -421,7 +415,7 @@ func (ks *Vault) ListKeyPairs(_ context.Context) ([]core.NamedKeyPair, error) {
 	return out, nil
 }
 
-// DeleteKey removes a named key and syncs the change when remote mode is active.
+// DeleteKey removes a named key and schedules remote sync when remote mode is active.
 func (ks *Vault) DeleteKey(ctx context.Context, name string) error {
 	shouldSync, err := ks.applyMutation(func(state *State) (bool, error) {
 		accountIdx := findAccountIndexByName(state.Accounts, name)
@@ -442,13 +436,13 @@ func (ks *Vault) DeleteKey(ctx context.Context, name string) error {
 		return err
 	}
 	if shouldSync {
-		ks.syncRemoteMaybe(ctx)
+		ks.scheduleRemoteSync()
 	}
 
 	return nil
 }
 
-// DeleteAllKeys removes all named keys and syncs the change when remote mode is active.
+// DeleteAllKeys removes all named keys and schedules remote sync when remote mode is active.
 func (ks *Vault) DeleteAllKeys(ctx context.Context) error {
 	shouldSync, err := ks.applyMutation(func(state *State) (bool, error) {
 		if len(state.Accounts) == 0 {
@@ -470,13 +464,13 @@ func (ks *Vault) DeleteAllKeys(ctx context.Context) error {
 		return err
 	}
 	if shouldSync {
-		ks.syncRemoteMaybe(ctx)
+		ks.scheduleRemoteSync()
 	}
 
 	return nil
 }
 
-// ChangeKeyName renames a stored key and syncs the change when remote mode is active.
+// ChangeKeyName renames a stored key and schedules remote sync when remote mode is active.
 func (ks *Vault) ChangeKeyName(ctx context.Context, currentName, newName string) error {
 	if currentName == newName {
 		return fmt.Errorf("new name equals current name")
@@ -501,7 +495,7 @@ func (ks *Vault) ChangeKeyName(ctx context.Context, currentName, newName string)
 		return err
 	}
 	if shouldSync {
-		ks.syncRemoteMaybe(ctx)
+		ks.scheduleRemoteSync()
 	}
 
 	return nil
@@ -755,7 +749,7 @@ func (ks *Vault) finishConnection(ctx context.Context, remoteURL string, userID 
 		remoteState = State(decodedRemoteState)
 	}
 
-	localState, err := ks.buildRemoteStateFromLocal()
+	localState, syncedLocalVersion, err := ks.buildRemoteStateSnapshotFromLocal()
 	if err != nil {
 		return fmt.Errorf("failed to build local vault state: %w", err)
 	}
@@ -768,7 +762,7 @@ func (ks *Vault) finishConnection(ctx context.Context, remoteURL string, userID 
 
 	remoteVersion := remoteSnapshot.RemoteVersion
 	if needsUpload {
-		saveReq, err := ks.buildRemoteSaveRequest(ctx, secret, credentialID, credential.WrappedDEK, remoteSnapshot)
+		saveReq, uploadedLocalVersion, err := ks.buildRemoteSaveRequest(ctx, secret, credentialID, credential.WrappedDEK, remoteSnapshot)
 		if err != nil {
 			return fmt.Errorf("failed to build remote vault save request: %w", err)
 		}
@@ -776,10 +770,11 @@ func (ks *Vault) finishConnection(ctx context.Context, remoteURL string, userID 
 			return fmt.Errorf("remote vault upload failed: %w", err)
 		}
 		remoteVersion = saveReq.ExpectedVersion + 1
+		syncedLocalVersion = uploadedLocalVersion
 	}
 
 	credentials := mergeCredentialJSONs(remoteSnapshot.Credentials, []Credential{credential})
-	if err := ks.connect(remoteURL, userID, credentialID, secret, credential.WrappedDEK, credentials, remoteVersion, time.Now().UTC()); err != nil {
+	if err := ks.connect(remoteURL, userID, credentialID, secret, credential.WrappedDEK, credentials, remoteVersion, syncedLocalVersion, time.Now().UTC()); err != nil {
 		return fmt.Errorf("failed to persist remote vault connection: %w", err)
 	}
 
@@ -806,8 +801,15 @@ func (ks *Vault) syncRemoteMaybe(ctx context.Context) {
 	}
 }
 
+func (ks *Vault) scheduleRemoteSync() {
+	go ks.syncRemoteMaybe(context.Background())
+}
+
 func (ks *Vault) syncRemote(ctx context.Context) error {
-	syncConfig, enabled, err := ks.loadRemoteSyncConfig()
+	ks.remoteSyncMu.Lock()
+	defer ks.remoteSyncMu.Unlock()
+
+	localRemote, localCredential, remoteSecret, enabled, err := ks.loadRemoteSyncState()
 	if err != nil {
 		return err
 	}
@@ -817,36 +819,53 @@ func (ks *Vault) syncRemote(ctx context.Context) error {
 
 	const maxAttempts = 3
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		bearerAuth, err := buildRemoteBearerAuth(syncConfig.CredentialID, syncConfig.Credential)
+		bearerAuth, err := buildRemoteBearerAuth(localRemote.CredentialID, remoteSecret)
 		if err != nil {
 			return fmt.Errorf("failed to derive remote vault bearer auth: %w", err)
 		}
 
-		remoteSnapshot, err := ks.getRemote(ctx, syncConfig.RemoteURL, bearerAuth, 0)
+		remoteSnapshot, err := ks.getRemote(ctx, localRemote.RemoteURL, bearerAuth, localRemote.RemoteVersion)
 		if err != nil {
 			return fmt.Errorf("failed to fetch remote snapshot: %w", err)
 		}
-		credential, err := remoteSnapshot.findCredential(syncConfig.CredentialID)
-		if err != nil {
-			return err
+		credential := Credential{
+			Kind:         "secret",
+			CredentialID: localRemote.CredentialID,
+			WrappedDEK:   localCredential.WrappedDEK,
 		}
-		if err := ks.mergeRemoteSnapshot(syncConfig.CredentialID, syncConfig.Credential, credential.WrappedDEK, remoteSnapshot); err != nil {
+		if !remoteSnapshot.Unchanged {
+			credential, err = remoteSnapshot.findCredential(localRemote.CredentialID)
+			if err != nil {
+				return err
+			}
+		}
+		if err := ks.mergeRemoteSnapshot(localRemote.CredentialID, remoteSecret, credential.WrappedDEK, remoteSnapshot); err != nil {
 			return fmt.Errorf("failed to merge remote snapshot: %w", err)
 		}
 
-		saveReq, err := ks.buildRemoteSaveRequest(ctx, syncConfig.Credential, syncConfig.CredentialID, credential.WrappedDEK, remoteSnapshot)
+		needsUpload, syncedLocalVersion, err := ks.remoteNeedsUpload(localRemote, remoteSecret, credential.WrappedDEK, remoteSnapshot)
 		if err != nil {
 			return err
 		}
-		if err := ks.saveRemoteSnapshot(ctx, syncConfig.RemoteURL, bearerAuth, saveReq); err != nil {
-			if errors.Is(err, errRemoteWriteConflict) && attempt < maxAttempts {
-				continue
+
+		remoteVersion := remoteSnapshot.RemoteVersion
+		if needsUpload {
+			saveReq, uploadedLocalVersion, err := ks.buildRemoteSaveRequest(ctx, remoteSecret, localRemote.CredentialID, credential.WrappedDEK, remoteSnapshot)
+			if err != nil {
+				return err
 			}
-			return err
+			if err := ks.saveRemoteSnapshot(ctx, localRemote.RemoteURL, bearerAuth, saveReq); err != nil {
+				if errors.Is(err, errRemoteWriteConflict) && attempt < maxAttempts {
+					continue
+				}
+				return err
+			}
+			remoteVersion = saveReq.ExpectedVersion + 1
+			syncedLocalVersion = uploadedLocalVersion
 		}
 
 		credentials := mergeCredentialJSONs(remoteSnapshot.Credentials, []Credential{credential})
-		if err := ks.connect(syncConfig.RemoteURL, syncConfig.UserID, syncConfig.CredentialID, syncConfig.Credential, credential.WrappedDEK, credentials, saveReq.ExpectedVersion+1, time.Now().UTC()); err != nil {
+		if err := ks.recordRemoteSyncSuccess(localRemote, remoteSecret, credential.WrappedDEK, credentials, remoteVersion, syncedLocalVersion, time.Now().UTC()); err != nil {
 			return fmt.Errorf("failed to persist remote sync success metadata: %w", err)
 		}
 
@@ -856,36 +875,112 @@ func (ks *Vault) syncRemote(ctx context.Context) error {
 	return fmt.Errorf("remote sync failed after conflict retries")
 }
 
-func (ks *Vault) loadRemoteSyncConfig() (syncConfig, bool, error) {
-	ks.mu.RLock()
-	defer ks.mu.RUnlock()
+func (ks *Vault) recordRemoteSyncSuccess(
+	expectedRemote RemoteState,
+	remoteSecret string,
+	wrappedDEK string,
+	credentials []Credential,
+	remoteVersion int,
+	syncedLocalVersion int,
+	syncTime time.Time,
+) error {
+	ks.mu.Lock()
+	defer ks.mu.Unlock()
 
-	envelope, err := ks.store.LoadEnvelope()
+	snapshot, err := ks.loadSnapshotLocked()
 	if err != nil {
-		return syncConfig{}, false, fmt.Errorf("failed to read local vault status: %w", err)
+		return fmt.Errorf("failed to load vault state: %w", err)
+	}
+	if snapshot.Envelope == nil || snapshot.Envelope.Remote == nil {
+		return nil
+	}
+	remote := snapshot.Envelope.Remote
+	if remote.RemoteURL != expectedRemote.RemoteURL ||
+		remote.UserID != expectedRemote.UserID ||
+		remote.CredentialID != expectedRemote.CredentialID {
+		return nil
+	}
+
+	dek, err := decodeRemoteDataEncryptionKey(remoteSecret, wrappedDEK)
+	if err != nil {
+		return fmt.Errorf("failed to decode remote vault DEK: %w", err)
+	}
+
+	remote.RemoteVersion = remoteVersion
+	remote.SyncedLocalVersion = syncedLocalVersion
+	remote.LastSyncTime = syncTime.UTC().Unix()
+	remote.LastSyncError = ""
+	snapshot.Envelope.Credentials = mergeCredentialJSONs(snapshot.Envelope.Credentials, credentials)
+	snapshot.DEK = dek
+
+	if err := ks.saveSnapshotLocked(snapshot); err != nil {
+		return fmt.Errorf("failed to save remote vault sync metadata: %w", err)
+	}
+
+	return nil
+}
+
+func (ks *Vault) remoteNeedsUpload(
+	localRemote RemoteState,
+	remoteSecret string,
+	wrappedDEK string,
+	remoteSnapshot GetVaultResponse,
+) (needsUpload bool, syncedLocalVersion int, err error) {
+	if remoteSnapshot.Unchanged {
+		return localRemote.LocalVersion != localRemote.SyncedLocalVersion, localRemote.SyncedLocalVersion, nil
+	}
+
+	remoteState := newEmptyState()
+	if !remoteSnapshot.Unchanged && strings.TrimSpace(remoteSnapshot.EncryptedData) != "" {
+		decodedRemoteState, err := decodeRemoteState(remoteSecret, wrappedDEK, remoteSnapshot)
+		if err != nil {
+			return false, 0, fmt.Errorf("failed to decode remote vault snapshot for credential %q: %w", localRemote.CredentialID, err)
+		}
+		remoteState = State(decodedRemoteState)
+	}
+
+	localState, localVersion, err := ks.buildRemoteStateSnapshotFromLocal()
+	if err != nil {
+		return false, 0, fmt.Errorf("failed to build local vault state: %w", err)
+	}
+
+	equal, err := statesEqual(remoteState, localState)
+	if err != nil {
+		return false, 0, fmt.Errorf("failed to compare vault states: %w", err)
+	}
+
+	return !equal, localVersion, nil
+}
+
+func (ks *Vault) loadRemoteSyncState() (remote RemoteState, credential Credential, remoteSecret string, syncEnabled bool, err error) {
+	ks.mu.RLock()
+	envelope, err := ks.store.LoadEnvelope()
+	ks.mu.RUnlock()
+	if err != nil {
+		return RemoteState{}, Credential{}, "", false, fmt.Errorf("failed to read local vault status: %w", err)
 	}
 	if envelope == nil || envelope.Remote == nil || strings.TrimSpace(envelope.Remote.RemoteURL) == "" {
-		return syncConfig{}, false, nil
+		return RemoteState{}, Credential{}, "", false, nil
+	}
+	remote = *envelope.Remote
+	credential, err = GetVaultResponse{Credentials: envelope.Credentials}.findCredential(remote.CredentialID)
+	if err != nil {
+		return RemoteState{}, Credential{}, "", false, err
 	}
 
 	if ks.secretStore == nil {
-		return syncConfig{}, false, fmt.Errorf("vault KEK store is required")
+		return RemoteState{}, Credential{}, "", false, fmt.Errorf("vault KEK store is required")
 	}
-	remoteKEKName, err := remoteVaultKEKName(envelope.Remote.RemoteURL, envelope.Remote.UserID)
+	remoteKEKName, err := remoteVaultKEKName(remote.RemoteURL, remote.UserID)
 	if err != nil {
-		return syncConfig{}, false, err
+		return RemoteState{}, Credential{}, "", false, err
 	}
-	remoteSecret, err := ks.secretStore.Load(remoteKEKName)
+	remoteSecretBytes, err := ks.secretStore.Load(remoteKEKName)
 	if err != nil {
-		return syncConfig{}, false, fmt.Errorf("failed to load remote auth secret: %w", err)
+		return RemoteState{}, Credential{}, "", false, fmt.Errorf("failed to load remote auth secret: %w", err)
 	}
 
-	return syncConfig{
-		RemoteURL:    envelope.Remote.RemoteURL,
-		UserID:       envelope.Remote.UserID,
-		CredentialID: envelope.Remote.CredentialID,
-		Credential:   base64.RawURLEncoding.EncodeToString(remoteSecret),
-	}, true, nil
+	return remote, credential, base64.RawURLEncoding.EncodeToString(remoteSecretBytes), true, nil
 }
 
 func (ks *Vault) shouldSyncRemote(envelope *Envelope) bool {
@@ -992,32 +1087,37 @@ func (ks *Vault) buildRemoteSaveRequest(
 	credentialID string,
 	wrappedDEK string,
 	remoteSnapshot GetVaultResponse,
-) (saveRequest, error) {
+) (saveRequest, int, error) {
 	dek, err := decodeRemoteDataEncryptionKey(remoteSecret, wrappedDEK)
 	if err != nil {
-		return saveRequest{}, fmt.Errorf("failed to decrypt wrapped DEK for remote credential %q: %w", credentialID, err)
+		return saveRequest{}, 0, fmt.Errorf("failed to decrypt wrapped DEK for remote credential %q: %w", credentialID, err)
 	}
 
-	localState, err := ks.buildRemoteStateFromLocal()
+	localState, localVersion, err := ks.buildRemoteStateSnapshotFromLocal()
 	if err != nil {
-		return saveRequest{}, err
+		return saveRequest{}, 0, err
 	}
 
 	encryptedData, err := encodeRemoteState(localState, dek)
 	if err != nil {
-		return saveRequest{}, err
+		return saveRequest{}, 0, err
 	}
 
-	return saveRequest{EncryptedData: encryptedData, ExpectedVersion: remoteSnapshot.RemoteVersion}, nil
+	return saveRequest{EncryptedData: encryptedData, ExpectedVersion: remoteSnapshot.RemoteVersion}, localVersion, nil
 }
 
 func (ks *Vault) buildRemoteStateFromLocal() (State, error) {
+	state, _, err := ks.buildRemoteStateSnapshotFromLocal()
+	return state, err
+}
+
+func (ks *Vault) buildRemoteStateSnapshotFromLocal() (State, int, error) {
 	ks.mu.RLock()
 	defer ks.mu.RUnlock()
 
 	snapshot, err := ks.loadSnapshotLocked()
 	if err != nil {
-		return State{}, fmt.Errorf("failed to load local vault state: %w", err)
+		return State{}, 0, fmt.Errorf("failed to load local vault state: %w", err)
 	}
 
 	state := snapshot.State
@@ -1025,7 +1125,11 @@ func (ks *Vault) buildRemoteStateFromLocal() (State, error) {
 	if state.Accounts == nil {
 		state.Accounts = []AccountInfo{}
 	}
-	return state, nil
+	localVersion := 0
+	if snapshot.Envelope != nil && snapshot.Envelope.Remote != nil {
+		localVersion = snapshot.Envelope.Remote.LocalVersion
+	}
+	return state, localVersion, nil
 }
 
 func (ks *Vault) saveRemoteSnapshot(
@@ -1136,6 +1240,7 @@ func (ks *Vault) connect(
 	wrappedDEK string,
 	credentials []Credential,
 	remoteVersion int,
+	syncedLocalVersion int,
 	syncTime time.Time,
 ) error {
 	ks.mu.Lock()
@@ -1165,16 +1270,18 @@ func (ks *Vault) connect(
 	}
 
 	remote := &RemoteState{
-		RemoteURL:     normalizedURL,
-		UserID:        normalizedUserID,
-		CredentialID:  normalizedCredentialID,
-		RemoteVersion: remoteVersion,
+		RemoteURL:          normalizedURL,
+		UserID:             normalizedUserID,
+		CredentialID:       normalizedCredentialID,
+		RemoteVersion:      remoteVersion,
+		SyncedLocalVersion: 0,
 	}
 	if snapshot.Envelope != nil && snapshot.Envelope.Remote != nil {
 		remote.LocalVersion = snapshot.Envelope.Remote.LocalVersion
 	}
 	if !syncTime.IsZero() {
 		remote.LastSyncTime = syncTime.UTC().Unix()
+		remote.SyncedLocalVersion = syncedLocalVersion
 	}
 	if snapshot.Envelope == nil {
 		snapshot.Envelope = &Envelope{}

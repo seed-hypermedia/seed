@@ -27,13 +27,14 @@ type Envelope struct {
 
 // RemoteState stores remote vault connection, version, and last-sync metadata in the envelope.
 type RemoteState struct {
-	RemoteURL     string `json:"vaultUrl"`
-	UserID        string `json:"userId"`
-	CredentialID  string `json:"credentialId"`
-	LocalVersion  int    `json:"localVersion,omitempty"`
-	RemoteVersion int    `json:"remoteVersion,omitempty"`
-	LastSyncTime  int64  `json:"lastSyncTime,omitempty"`
-	LastSyncError string `json:"lastSyncError,omitempty"`
+	RemoteURL          string `json:"vaultUrl"`
+	UserID             string `json:"userId"`
+	CredentialID       string `json:"credentialId"`
+	LocalVersion       int    `json:"localVersion,omitempty"`
+	RemoteVersion      int    `json:"remoteVersion,omitempty"`
+	SyncedLocalVersion int    `json:"syncedLocalVersion,omitempty"`
+	LastSyncTime       int64  `json:"lastSyncTime,omitempty"`
+	LastSyncError      string `json:"lastSyncError,omitempty"`
 }
 
 // load loads the vault envelope from <data-dir>/vault.json.

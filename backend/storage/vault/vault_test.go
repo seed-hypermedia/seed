@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -135,6 +136,430 @@ func TestRemoteDeleteKeyRecordsTombstone(t *testing.T) {
 	require.Empty(t, state.Accounts)
 	require.NotEmpty(t, state.DeletedAccounts)
 	require.NotZero(t, state.DeletedAccounts[accountID])
+}
+
+func TestRemoteMutationDoesNotWaitForRemoteSync(t *testing.T) {
+	ctx := context.Background()
+	remoteCredential, err := base64.RawURLEncoding.DecodeString(testEncodedRemoteCredential())
+	require.NoError(t, err)
+	dek := []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	wrappedDEK, err := encryptXChaCha20Payload(dek, remoteCredential, "wrapped DEK")
+	require.NoError(t, err)
+	encryptedData, err := encodeRemoteState(State(newEmptyState()), dek)
+	require.NoError(t, err)
+
+	syncStarted := make(chan struct{}, 1)
+	syncUploaded := make(chan struct{}, 1)
+	releaseSync := make(chan struct{})
+	releaseSyncClosed := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			select {
+			case syncStarted <- struct{}{}:
+			default:
+			}
+			<-releaseSync
+			require.NoError(t, json.NewEncoder(w).Encode(GetVaultResponse{
+				EncryptedData: encryptedData,
+				RemoteVersion: 0,
+				Credentials: []Credential{{
+					Kind:         "secret",
+					CredentialID: testRemoteCredentialID,
+					WrappedDEK:   base64.RawURLEncoding.EncodeToString(wrappedDEK),
+				}},
+			}))
+		case http.MethodPost:
+			require.NoError(t, json.NewEncoder(w).Encode(saveResponse{Success: true}))
+			select {
+			case syncUploaded <- struct{}{}:
+			default:
+			}
+		default:
+			t.Errorf("unexpected remote vault method %s", r.Method)
+		}
+	}))
+	defer server.Close()
+	defer func() {
+		if !releaseSyncClosed {
+			close(releaseSync)
+		}
+	}()
+
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
+	require.NoError(t, secretStore.Store(localVaultKEKName, []byte("0123456789abcdef0123456789abcdef")))
+	ks, err := New(t.TempDir(), secretStore, WithHTTPClient(server.Client()))
+	require.NoError(t, err)
+	connectTestRemoteVault(t, ks, server.URL, 0, time.Time{})
+
+	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
+	require.NoError(t, err)
+	done := make(chan error, 1)
+	go func() {
+		done <- ks.StoreKey(ctx, "main", kp)
+	}()
+
+	select {
+	case <-syncStarted:
+	case <-time.After(time.Second):
+		require.FailNow(t, "remote sync did not start")
+	}
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(100 * time.Millisecond):
+		require.FailNow(t, "StoreKey waited for remote vault sync")
+	}
+
+	close(releaseSync)
+	releaseSyncClosed = true
+	select {
+	case <-syncUploaded:
+	case <-time.After(time.Second):
+		require.FailNow(t, "remote sync did not finish")
+	}
+
+	require.Eventually(t, func() bool {
+		envelope, err := load(ks.store.dataDir)
+		if err != nil || envelope == nil || envelope.Remote == nil {
+			return false
+		}
+		return envelope.Remote.RemoteVersion == 1
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestRemoteBackgroundSyncDoesNotRestoreDisconnectedRemote(t *testing.T) {
+	ctx := context.Background()
+	remoteCredential, err := base64.RawURLEncoding.DecodeString(testEncodedRemoteCredential())
+	require.NoError(t, err)
+	dek := []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	wrappedDEK, err := encryptXChaCha20Payload(dek, remoteCredential, "wrapped DEK")
+	require.NoError(t, err)
+	encryptedData, err := encodeRemoteState(State(newEmptyState()), dek)
+	require.NoError(t, err)
+
+	syncStarted := make(chan struct{}, 1)
+	syncDone := make(chan struct{}, 1)
+	releaseSync := make(chan struct{})
+	releaseSyncClosed := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			select {
+			case syncStarted <- struct{}{}:
+			default:
+			}
+			<-releaseSync
+			require.NoError(t, json.NewEncoder(w).Encode(GetVaultResponse{
+				EncryptedData: encryptedData,
+				RemoteVersion: 0,
+				Credentials: []Credential{{
+					Kind:         "secret",
+					CredentialID: testRemoteCredentialID,
+					WrappedDEK:   base64.RawURLEncoding.EncodeToString(wrappedDEK),
+				}},
+			}))
+		case http.MethodPost:
+			require.NoError(t, json.NewEncoder(w).Encode(saveResponse{Success: true}))
+			select {
+			case syncDone <- struct{}{}:
+			default:
+			}
+		default:
+			t.Errorf("unexpected remote vault method %s", r.Method)
+		}
+	}))
+	defer server.Close()
+	defer func() {
+		if !releaseSyncClosed {
+			close(releaseSync)
+		}
+	}()
+
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
+	require.NoError(t, secretStore.Store(localVaultKEKName, []byte("0123456789abcdef0123456789abcdef")))
+	ks, err := New(t.TempDir(), secretStore, WithHTTPClient(server.Client()))
+	require.NoError(t, err)
+	connectTestRemoteVault(t, ks, server.URL, 0, time.Time{})
+
+	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
+	require.NoError(t, err)
+	require.NoError(t, ks.StoreKey(ctx, "main", kp))
+
+	select {
+	case <-syncStarted:
+	case <-time.After(time.Second):
+		require.FailNow(t, "remote sync did not start")
+	}
+
+	require.NoError(t, ks.Disconnect())
+	close(releaseSync)
+	releaseSyncClosed = true
+
+	select {
+	case <-syncDone:
+	case <-time.After(time.Second):
+		require.FailNow(t, "remote sync did not finish")
+	}
+
+	require.Eventually(t, func() bool {
+		envelope, err := load(ks.store.dataDir)
+		return err == nil && envelope != nil && envelope.Remote == nil
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestRemoteSyncSkipsUploadWhenRemoteMatchesLocal(t *testing.T) {
+	ctx := context.Background()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
+	require.NoError(t, secretStore.Store(localVaultKEKName, []byte("0123456789abcdef0123456789abcdef")))
+	ks, err := New(t.TempDir(), secretStore)
+	require.NoError(t, err)
+
+	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
+	require.NoError(t, err)
+	require.NoError(t, ks.StoreKey(ctx, "main", kp))
+
+	var posts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			require.Equal(t, "4", r.URL.Query().Get("knownVersion"))
+			require.NoError(t, json.NewEncoder(w).Encode(GetVaultResponse{
+				Unchanged: true,
+			}))
+		case http.MethodPost:
+			posts.Add(1)
+			t.Errorf("sync uploaded an unchanged vault")
+		default:
+			t.Errorf("unexpected remote vault method %s", r.Method)
+		}
+	}))
+	defer server.Close()
+
+	connectTestRemoteVault(t, ks, server.URL, 4, time.Time{})
+	require.NoError(t, ks.ForceSyncNow(ctx))
+	require.Zero(t, posts.Load())
+}
+
+func TestRemoteSyncUploadsOldVaultFileToBackfillSyncedLocalVersion(t *testing.T) {
+	ctx := context.Background()
+	dataDir := t.TempDir()
+	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
+	remoteCredential, err := base64.RawURLEncoding.DecodeString(testEncodedRemoteCredential())
+	require.NoError(t, err)
+	dek := []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	plaintext, err := encodeState(newEmptyState())
+	require.NoError(t, err)
+	encryptedData, err := encryptXChaCha20Payload(plaintext, dek, "local vault payload")
+	require.NoError(t, err)
+	wrappedDEK, err := encryptXChaCha20Payload(dek, remoteCredential, "wrapped DEK")
+	require.NoError(t, err)
+
+	var posts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			require.Equal(t, "4", r.URL.Query().Get("knownVersion"))
+			require.NoError(t, json.NewEncoder(w).Encode(GetVaultResponse{Unchanged: true}))
+		case http.MethodPost:
+			posts.Add(1)
+			var req saveRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			require.Equal(t, 4, req.ExpectedVersion)
+			require.NotEmpty(t, req.EncryptedData)
+			require.NoError(t, json.NewEncoder(w).Encode(saveResponse{Success: true}))
+		default:
+			t.Errorf("unexpected remote vault method %s", r.Method)
+		}
+	}))
+	defer server.Close()
+
+	require.NoError(t, saveEnvelopeFile(dataDir, &Envelope{
+		EncryptedData: encryptedData,
+		WrappedDEK:    wrappedDEK,
+		Credentials: []Credential{{
+			Kind:         "secret",
+			CredentialID: testRemoteCredentialID,
+			WrappedDEK:   base64.RawURLEncoding.EncodeToString(wrappedDEK),
+		}},
+		Remote: &RemoteState{
+			RemoteURL:     server.URL,
+			UserID:        testRemoteUserID,
+			CredentialID:  testRemoteCredentialID,
+			LocalVersion:  3,
+			RemoteVersion: 4,
+			LastSyncTime:  1234,
+		},
+	}))
+
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
+	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
+	remoteKEKName, err := remoteVaultKEKName(server.URL, testRemoteUserID)
+	require.NoError(t, err)
+	require.NoError(t, secretStore.Store(remoteKEKName, remoteCredential))
+	ks, err := New(dataDir, secretStore)
+	require.NoError(t, err)
+
+	require.NoError(t, ks.ForceSyncNow(ctx))
+	require.Equal(t, int32(1), posts.Load())
+	envelope, err := load(dataDir)
+	require.NoError(t, err)
+	require.NotNil(t, envelope)
+	require.NotNil(t, envelope.Remote)
+	require.Equal(t, 3, envelope.Remote.LocalVersion)
+	require.Equal(t, 3, envelope.Remote.SyncedLocalVersion)
+	require.Equal(t, 5, envelope.Remote.RemoteVersion)
+	require.Empty(t, envelope.Remote.LastSyncError)
+}
+
+func TestRemoteSyncDoesNotMarkConcurrentMutationSynced(t *testing.T) {
+	ctx := context.Background()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
+	require.NoError(t, secretStore.Store(localVaultKEKName, []byte("0123456789abcdef0123456789abcdef")))
+	ks, err := New(t.TempDir(), secretStore)
+	require.NoError(t, err)
+
+	remoteCredential, err := base64.RawURLEncoding.DecodeString(testEncodedRemoteCredential())
+	require.NoError(t, err)
+	dek := []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	wrappedDEK, err := encryptXChaCha20Payload(dek, remoteCredential, "wrapped DEK")
+	require.NoError(t, err)
+	encryptedData, err := encodeRemoteState(State(newEmptyState()), dek)
+	require.NoError(t, err)
+
+	var mutatedDuringUpload atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			require.NoError(t, json.NewEncoder(w).Encode(GetVaultResponse{
+				EncryptedData: encryptedData,
+				RemoteVersion: 0,
+				Credentials: []Credential{{
+					Kind:         "secret",
+					CredentialID: testRemoteCredentialID,
+					WrappedDEK:   base64.RawURLEncoding.EncodeToString(wrappedDEK),
+				}},
+			}))
+		case http.MethodPost:
+			if mutatedDuringUpload.CompareAndSwap(false, true) {
+				kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
+				require.NoError(t, err)
+				seed, err := exportedSeed(kp)
+				require.NoError(t, err)
+				shouldSync, err := ks.applyMutation(func(state *State) (bool, error) {
+					state.Accounts = append(state.Accounts, payloadAccountFromMetadata("second", seed, KeyMetadata{}))
+					return true, nil
+				})
+				require.NoError(t, err)
+				require.True(t, shouldSync)
+			}
+			require.NoError(t, json.NewEncoder(w).Encode(saveResponse{Success: true}))
+		default:
+			t.Errorf("unexpected remote vault method %s", r.Method)
+		}
+	}))
+	defer server.Close()
+	connectTestRemoteVault(t, ks, server.URL, 0, time.Time{})
+
+	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
+	require.NoError(t, err)
+	seed, err := exportedSeed(kp)
+	require.NoError(t, err)
+	shouldSync, err := ks.applyMutation(func(state *State) (bool, error) {
+		state.Accounts = append(state.Accounts, payloadAccountFromMetadata("main", seed, KeyMetadata{}))
+		return true, nil
+	})
+	require.NoError(t, err)
+	require.True(t, shouldSync)
+
+	require.NoError(t, ks.ForceSyncNow(ctx))
+	envelope, err := load(ks.store.dataDir)
+	require.NoError(t, err)
+	require.NotNil(t, envelope)
+	require.NotNil(t, envelope.Remote)
+	require.Equal(t, 2, envelope.Remote.LocalVersion)
+	require.Equal(t, 1, envelope.Remote.SyncedLocalVersion)
+	require.Equal(t, 1, envelope.Remote.RemoteVersion)
+}
+
+func TestRemoteSyncsDoNotOverlap(t *testing.T) {
+	ctx := context.Background()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
+	require.NoError(t, secretStore.Store(localVaultKEKName, []byte("0123456789abcdef0123456789abcdef")))
+	ks, err := New(t.TempDir(), secretStore)
+	require.NoError(t, err)
+
+	remoteCredential, err := base64.RawURLEncoding.DecodeString(testEncodedRemoteCredential())
+	require.NoError(t, err)
+	dek := []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	wrappedDEK, err := encryptXChaCha20Payload(dek, remoteCredential, "wrapped DEK")
+	require.NoError(t, err)
+	encryptedData, err := encodeRemoteState(State(newEmptyState()), dek)
+	require.NoError(t, err)
+
+	firstStarted := make(chan struct{}, 1)
+	releaseFirst := make(chan struct{})
+	var gets atomic.Int32
+	var active atomic.Int32
+	var maxActive atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		nowActive := active.Add(1)
+		defer active.Add(-1)
+		for {
+			current := maxActive.Load()
+			if nowActive <= current || maxActive.CompareAndSwap(current, nowActive) {
+				break
+			}
+		}
+		if gets.Add(1) == 1 {
+			firstStarted <- struct{}{}
+			<-releaseFirst
+		}
+		require.NoError(t, json.NewEncoder(w).Encode(GetVaultResponse{
+			EncryptedData: encryptedData,
+			RemoteVersion: 0,
+			Credentials: []Credential{{
+				Kind:         "secret",
+				CredentialID: testRemoteCredentialID,
+				WrappedDEK:   base64.RawURLEncoding.EncodeToString(wrappedDEK),
+			}},
+		}))
+	}))
+	defer server.Close()
+	connectTestRemoteVault(t, ks, server.URL, 0, time.Time{})
+
+	done := make(chan error, 2)
+	go func() {
+		done <- ks.ForceSyncNow(ctx)
+	}()
+	select {
+	case <-firstStarted:
+	case <-time.After(time.Second):
+		require.FailNow(t, "first remote sync did not start")
+	}
+	go func() {
+		done <- ks.ForceSyncNow(ctx)
+	}()
+
+	close(releaseFirst)
+	for range 2 {
+		select {
+		case err := <-done:
+			require.NoError(t, err)
+		case <-time.After(time.Second):
+			require.FailNow(t, "remote sync did not finish")
+		}
+	}
+	require.Equal(t, int32(2), gets.Load())
+	require.Equal(t, int32(1), maxActive.Load())
 }
 
 func TestRemoteKeepsLocalEnvelopeLocalUntilConnect(t *testing.T) {
@@ -657,7 +1082,7 @@ func TestDecodeRemoteStateRequiresWrappedDEK(t *testing.T) {
 	require.EqualError(t, err, "wrapped DEK is required")
 }
 
-func TestRemoteLoadRemoteSyncConfigLoadsStoredRemoteSecretAfterRestart(t *testing.T) {
+func TestRemoteLoadRemoteSyncStateLoadsStoredRemoteSecretAfterRestart(t *testing.T) {
 	dataDir := t.TempDir()
 	localKey := []byte("0123456789abcdef0123456789abcdef")
 	remoteURL := "https://example.com/vault"
@@ -672,13 +1097,15 @@ func TestRemoteLoadRemoteSyncConfigLoadsStoredRemoteSecretAfterRestart(t *testin
 	reopened, err := New(dataDir, secretStore)
 	require.NoError(t, err)
 
-	got, enabled, err := reopened.loadRemoteSyncConfig()
+	remote, credential, remoteSecret, enabled, err := reopened.loadRemoteSyncState()
 	require.NoError(t, err)
 	require.True(t, enabled)
-	require.Equal(t, remoteURL, got.RemoteURL)
-	require.Equal(t, testRemoteUserID, got.UserID)
-	require.Equal(t, testRemoteCredentialID, got.CredentialID)
-	require.Equal(t, testEncodedRemoteCredential(), got.Credential)
+	require.Equal(t, remoteURL, remote.RemoteURL)
+	require.Equal(t, testRemoteUserID, remote.UserID)
+	require.Equal(t, testRemoteCredentialID, remote.CredentialID)
+	require.Equal(t, testRemoteCredentialID, credential.CredentialID)
+	require.NotEmpty(t, credential.WrappedDEK)
+	require.Equal(t, testEncodedRemoteCredential(), remoteSecret)
 }
 
 func TestResolveRemoteDaemonEndpointURL(t *testing.T) {
@@ -793,6 +1220,7 @@ func connectTestRemoteVault(t *testing.T, ks *Vault, remoteURL string, remoteVer
 			WrappedDEK:   base64.RawURLEncoding.EncodeToString(wrappedDEK),
 		}},
 		remoteVersion,
+		0,
 		syncTime,
 	))
 }

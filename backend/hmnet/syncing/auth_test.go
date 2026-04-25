@@ -57,6 +57,7 @@ func TestComputeAuthInfoUsesListKeyPairs(t *testing.T) {
 	require.Equal(t, 1, store.listKeyPairsCalls)
 	require.Zero(t, store.listKeysCalls)
 	require.Zero(t, store.getKeyCalls)
+	require.Equal(t, 1, index.getSpacesByAccountCalls)
 	require.Len(t, info.peerKeys, 1)
 	require.Contains(t, info.peerKeys, peer.ID("peer-1"))
 	require.Len(t, info.peerKeys[peer.ID("peer-1")], 1)
@@ -103,9 +104,10 @@ func (f *fakeAuthKeyStore) ListKeyPairs(context.Context) ([]core.NamedKeyPair, e
 }
 
 type fakeAuthIndex struct {
-	siteURLs         map[string]string
-	addrInfos        map[string]peer.AddrInfo
-	authorizedSpaces map[string][]core.Principal
+	getSpacesByAccountCalls int
+	siteURLs                map[string]string
+	addrInfos               map[string]peer.AddrInfo
+	authorizedSpaces        map[string][]core.Principal
 }
 
 func (f *fakeAuthIndex) Put(context.Context, blocks.Block) error {
@@ -132,11 +134,13 @@ func (f *fakeAuthIndex) ResolveSiteURL(_ context.Context, siteURL string) (peer.
 	return addrInfo, nil
 }
 
-func (f *fakeAuthIndex) GetAuthorizedSpaces(_ context.Context, accounts []core.Principal) ([]core.Principal, error) {
-	if len(accounts) != 1 {
-		return nil, fmt.Errorf("expected exactly one account, got %d", len(accounts))
+func (f *fakeAuthIndex) GetSpacesByAccount(_ context.Context, accounts []core.Principal) (map[core.PrincipalUnsafeString][]core.Principal, error) {
+	f.getSpacesByAccountCalls++
+	out := make(map[core.PrincipalUnsafeString][]core.Principal, len(accounts))
+	for _, account := range accounts {
+		out[account.UnsafeString()] = f.authorizedSpaces[account.String()]
 	}
-	return f.authorizedSpaces[accounts[0].String()], nil
+	return out, nil
 }
 
 func (f *fakeAuthIndex) FindProvidersAsync(context.Context, cid.Cid, int) <-chan peer.AddrInfo {
