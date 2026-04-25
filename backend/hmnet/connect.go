@@ -8,15 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/rand"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet/netutil"
 	"seed/backend/util/dqb"
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
-
 	"time"
 
 	"seed/backend/util/sqlite"
@@ -40,24 +37,11 @@ const (
 	PeerSharingTimeout = time.Second * 30
 	// CheckProtocolTimeout is the maximum time spent trying to check for protocols.
 	CheckProtocolTimeout = time.Second * 12
-	// PeerBatchTimeout is the maximum time spent pert batch of checking.
-	PeerBatchTimeout = time.Second * 10
-	// StorePeersBatchSize is the number of shared peers to check at once for protocols.
-	StorePeersBatchSize = 20
-	// maxNonSeedPeersAllowed caps how many peers from a bootstrap-shared list can
-	// fail the hypermedia protocol check before we stop processing the remainder.
-	// The limit guards against a malicious or misconfigured bootstrap peer feeding
-	// us garbage. The list is shuffled on each exchange, so successive rounds
-	// sample different subsets and coverage accumulates over time. We raised the
-	// cap modestly from 15 to give legitimate noise (identify-timeouts under
-	// batch pressure, transient IPFS-only peers) headroom without abandoning the
-	// fail-closed guarantee against a malicious bootstrap.
-	maxNonSeedPeersAllowed = 30
 	// PeerFreshnessWindow is the maximum age of a peer record before we treat it
 	// as stale. Peers older than this are rejected on ingress (won't be accepted
-	// from peer-exchange), excluded on egress (won't be shared with others), and
-	// pruned on daemon startup. Active peers bump their updated_at on every
-	// direct contact, so only genuinely unseen records age out.
+	// from peer-exchange) and excluded on egress (won't be shared with others).
+	// Active peers bump their updated_at on every direct contact, so only
+	// genuinely unseen records age out.
 	PeerFreshnessWindow = 30 * 24 * time.Hour
 	// suspiciousStaleShare is the fraction of stale rows in a single peer-exchange
 	// response above which we log the sharer as suspicious. A healthy peer will
@@ -164,7 +148,7 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	sort.Strings(addrsStr)
 	initialAddrs := strings.ReplaceAll(strings.Join(addrsStr, ","), " ", "")
 
-	if initialAddrs != "" {
+	if initialAddrs != "" && !n.peerWriteIsRedundant(ctx, info.ID.String(), initialAddrs) {
 		if err = n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
 			// On direct contact we always bump updated_at, whether or not the address
 			// set changed. Gating the update on address change would let an active
@@ -184,7 +168,44 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	return nil
 }
 
-var rng = rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec
+// peerWriteIsRedundant returns true when the peers-table row for pid already
+// holds the given addresses and was updated within the last 60s. Callers use
+// it to short-circuit an INSERT-on-conflict write whose only effect would be
+// bumping updated_at by milliseconds — the kind of write that stacks up when
+// the scheduler dials the same peer repeatedly or dialStoredPeers re-dials
+// peers we bulk-inserted a moment ago. A failed lookup falls through to the
+// write rather than silently dropping it.
+func (n *Node) peerWriteIsRedundant(ctx context.Context, pid, incomingAddrs string) bool {
+	var skip bool
+	if err := n.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, "SELECT addresses, updated_at FROM peers WHERE pid = ? LIMIT 1;", func(stmt *sqlite.Stmt) error {
+			stored := stmt.ColumnText(0)
+			updatedAt := stmt.ColumnInt64(1)
+			recent := time.Now().Unix()-updatedAt < 60
+			// If we have no new addresses to contribute the INSERT would only
+			// bump the timestamp; if we do have addresses they must match the
+			// stored set for the write to be truly redundant.
+			unchanged := incomingAddrs == "" || stored == incomingAddrs
+			skip = recent && unchanged
+			return nil
+		}, pid)
+	}); err != nil {
+		n.log.Debug("Peer freshness check failed, falling through to write", zap.String("PID", pid), zap.Error(err))
+		return false
+	}
+	return skip
+}
+
+// maxSharedPeersPerPage caps how many rows we ask a remote node for per
+// ListPeers request. The old code asked for math.MaxInt32, which some remote
+// implementations interpreted literally and returned every row they had ever
+// seen — leading to massive protobuf payloads. The right answer is not a
+// tight cap on *total* rows (we want the full peer graph the remote knows
+// about) but a sane cap on a single *page*, combined with the pagination
+// loop below. 2000 is large enough that any real deployment returns its
+// whole table in one round-trip; the loop is a correctness belt for the
+// degenerate case where a remote genuinely has more.
+const maxSharedPeersPerPage = 2000
 
 func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 	n.log.Debug("storeRemotePeers Called", zap.String("PID", id.String()))
@@ -223,28 +244,57 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 	}
 	hash := sha256.Sum256(orderedPeersBytes)
 
-	res, err := c.ListPeers(ctxStore, &p2p.ListPeersRequest{PageSize: math.MaxInt32, ListHash: hex.EncodeToString(hash[:])})
-	if err != nil {
-		return fmt.Errorf("Could not get list of peers from %s: %w", id.String(), err)
+	// Pull the remote's full peer table across as many pages as it takes.
+	// Only the first request carries ListHash: that's a "we already agree on
+	// the whole list, skip the round-trip" optimization; it's meaningless once
+	// we're mid-cursor. A defensive page cap stops us from looping forever
+	// against a pathological remote that keeps returning NextPageToken.
+	var allPeers []*p2p.PeerInfo
+	const maxPages = 50 // 50 * 2000 = 100k rows — more than any real deployment
+	pageToken := ""
+	localHash := hex.EncodeToString(hash[:])
+	for page := 0; page < maxPages; page++ {
+		req := &p2p.ListPeersRequest{PageSize: maxSharedPeersPerPage, PageToken: pageToken}
+		if page == 0 {
+			req.ListHash = localHash
+		}
+		res, err := c.ListPeers(ctxStore, req)
+		if err != nil {
+			return fmt.Errorf("Could not get list of peers from %s: %w", id.String(), err)
+		}
+		if res == nil {
+			// Remote short-circuited on ListHash: our tables match, nothing to do.
+			return nil
+		}
+		allPeers = append(allPeers, res.Peers...)
+		if res.NextPageToken == "" {
+			break
+		}
+		pageToken = res.NextPageToken
+	}
+	if len(allPeers) >= maxSharedPeersPerPage*maxPages {
+		n.log.Warn("Peer-exchange hit page cap, remote has an unusually large table",
+			zap.String("PID", id.String()),
+			zap.Int("received", len(allPeers)))
 	}
 
 	// Ingress freshness filter: drop stale entries from the shared list before
 	// we process them. Even if the sharer still remembers a long-dead peer, we
 	// shouldn't accept it — it would bloat our table, waste our dial budget,
 	// and (if later re-shared by us) re-pollute the peer graph.
-	if len(res.Peers) > 0 {
+	if len(allPeers) > 0 {
 		freshnessThreshold := time.Now().Add(-PeerFreshnessWindow).Unix()
-		fresh := res.Peers[:0]
+		fresh := allPeers[:0]
 		staleCount := 0
-		for _, p := range res.Peers {
+		for _, p := range allPeers {
 			if p.UpdatedAt != nil && p.UpdatedAt.Seconds >= freshnessThreshold {
 				fresh = append(fresh, p)
 			} else {
 				staleCount++
 			}
 		}
-		total := len(res.Peers)
-		res.Peers = fresh
+		total := len(allPeers)
+		allPeers = fresh
 		if staleCount > 0 && float64(staleCount)/float64(total) >= suspiciousStaleShare {
 			n.log.Warn("Peer-exchange source shared mostly stale data",
 				zap.String("PID", id.String()),
@@ -259,120 +309,40 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 		}
 	}
 
-	if len(res.Peers) > 0 {
+	if len(allPeers) > 0 {
+		// Store-first: persist peer metadata immediately without blocking on
+		// per-peer dials or protocol checks. A background goroutine below
+		// dials the freshly-stored peers so discovery.go's Connectedness
+		// filter sees them without forcing the caller to wait.
 		var vals []any
+		var toDial []peer.AddrInfo
 		sqlStr := "INSERT INTO peers (pid, addresses, explicitly_connected, updated_at) VALUES "
-		var nonSeedPeers uint32
-		var xerr []error
-		var mu sync.Mutex
 
-		var wg sync.WaitGroup
-
-		rng.Shuffle(len(res.Peers), func(i, j int) { res.Peers[i], res.Peers[j] = res.Peers[j], res.Peers[i] })
-		var waitThreshold = int(math.Min(float64(len(res.Peers)), StorePeersBatchSize))
-		ctxBatch, cancelBatch := context.WithTimeout(ctxStore, PeerBatchTimeout)
-		defer cancelBatch()
-		for i, p := range res.Peers {
-			wg.Add(1)
-			go func() {
-				// In order not to get spammed with thousands of peers and make us waste computing
-				// resources, we abort early
-				defer wg.Done()
-				if nonSeedPeers >= maxNonSeedPeersAllowed {
-					return
-				}
-				pid, err := peer.Decode(p.Id)
-				if err != nil {
-					mu.Lock()
-					xerr = append(xerr, fmt.Errorf("Could not decode shared peer %s", p))
-					mu.Unlock()
-					atomic.AddUint32(&nonSeedPeers, 1)
-					n.p2p.ConnManager().Unprotect(pid, ProtocolSupportKey)
-					return
-				}
-				if _, ok := om.Get(p.Id); ok {
-					if n.p2p.Host.Network().Connectedness(pid) == network.Connected {
-						n.p2p.ConnManager().Protect(pid, ProtocolSupportKey)
-						return
-					}
-					// Known peer but not connected — fall through to reconnect.
-				}
-
-				if len(p.Addrs) > 0 {
-					// Skipping our own node.
-					if p.Id == n.client.me.String() {
-						return
-					}
-
-					// Skipping bootstrap nodes where the code is the only source of truth.
-					if n.cfg.IsBootstrap(pid) {
-						return
-					}
-					info, err := netutil.AddrInfoFromStrings(p.Addrs...)
-					if err != nil {
-						mu.Lock()
-						xerr = append(xerr, fmt.Errorf("Could not get peer info from shared addresses: %w", err))
-						mu.Unlock()
-						atomic.AddUint32(&nonSeedPeers, 1)
-
-						return
-					}
-					// Dial failure does not mean the peer isn't a seed peer — it may be
-					// behind NAT, temporarily offline, or otherwise unreachable right now.
-					// We still record its address so that (a) future reconnect attempts can
-					// find it, and (b) peer-exchange with us propagates the full graph we
-					// were told about, not just the subset we happened to reach on first
-					// try. storeRemotePeers is only invoked for bootstrap peers, which are
-					// already in our trust root, so we accept their assertion that this is
-					// a seed peer without a local protocol check.
-					if err := n.p2p.Host.Connect(ctxBatch, info); err != nil {
-						mu.Lock()
-						sqlStr += "(?, ?, ?, ?),"
-						sort.Strings(p.Addrs)
-						vals = append(vals, p.Id, strings.Join(p.Addrs, ","), false, p.UpdatedAt.Seconds)
-						mu.Unlock()
-						return
-					}
-					n.p2p.ConnManager().Protect(pid, ProtocolSupportKey)
-					if err := n.CheckHyperMediaProtocolVersion(ctxBatch, pid, n.protocol.Version); err != nil {
-						atomic.AddUint32(&nonSeedPeers, 1)
-						mu.Lock()
-						xerr = append(xerr, fmt.Errorf("Peer [%s] failed to pass seed-protocol-check: %w", p.Id, err))
-						mu.Unlock()
-						n.p2p.ConnManager().Unprotect(pid, ProtocolSupportKey)
-
-						return
-					}
-					mu.Lock()
-					sqlStr += "(?, ?, ?, ?),"
-					sort.Strings(p.Addrs)
-					vals = append(vals, p.Id, strings.Join(p.Addrs, ","), false, p.UpdatedAt.Seconds)
-					mu.Unlock()
-				} else {
-					atomic.AddUint32(&nonSeedPeers, 1)
-					mu.Lock()
-					xerr = append(xerr, fmt.Errorf("Invalid peer [%s] with no addresses", p))
-					mu.Unlock()
-					return
-				}
-			}()
-			if i >= waitThreshold {
-				wg.Wait()
-				waitThreshold = i + int(math.Min(float64(StorePeersBatchSize), float64(len(res.Peers)-i)-1))
-				ctxBatch, cancelBatch = context.WithTimeout(ctxStore, PeerBatchTimeout)
-				defer cancelBatch()
+		for _, p := range allPeers {
+			if p.Id == n.client.me.String() {
+				continue
+			}
+			pid, err := peer.Decode(p.Id)
+			if err != nil {
+				continue
+			}
+			if n.cfg.IsBootstrap(pid) {
+				continue
+			}
+			if len(p.Addrs) == 0 {
+				continue
 			}
 
-			if nonSeedPeers >= maxNonSeedPeersAllowed {
-				break
+			sort.Strings(p.Addrs)
+			sqlStr += "(?, ?, ?, ?),"
+			vals = append(vals, p.Id, strings.Join(p.Addrs, ","), false, p.UpdatedAt.Seconds)
+			if info, err := netutil.AddrInfoFromStrings(p.Addrs...); err == nil {
+				toDial = append(toDial, info)
 			}
 		}
-		wg.Wait()
-		if nonSeedPeers > 0 {
-			n.log.Debug("Some of the remote shared peers are not running up to date seed protocol", zap.Uint32("Number of non-seed (outdated) peers", nonSeedPeers), zap.Int("Number of actual Seed-peers at the moment we stopped", len(vals)/4) /*since we insert four params at a time*/, zap.Errors("errors", xerr))
-		}
+
 		if len(vals) != 0 {
-			sqlStr = sqlStr[0:len(sqlStr)-1] + " ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=excluded.updated_at WHERE addresses!=excluded.addresses AND excluded.addresses !='' AND excluded.updated_at > updated_at"
+			sqlStr = sqlStr[:len(sqlStr)-1] + " ON CONFLICT(pid) DO UPDATE SET addresses=excluded.addresses, updated_at=excluded.updated_at WHERE addresses!=excluded.addresses AND excluded.addresses !='' AND excluded.updated_at > updated_at"
 			peerCount := len(vals) / 4
 			// Give the bulk INSERT its own timeout rather than inheriting ctxStore.
 			// ctxStore is scoped to the whole peer-exchange (dial + verify + insert),
@@ -417,12 +387,52 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 					zap.Error(insertErr))
 			}
 		}
-		if nonSeedPeers > 0 {
-			return fmt.Errorf("We encounter at least %d non-seed (outdated) peers on the sharing table", nonSeedPeers)
+
+		if len(toDial) > 0 {
+			go n.dialStoredPeers(toDial)
 		}
 	}
 
 	return nil
+}
+
+// dialStoredPeers opens libp2p connections to freshly-stored peers in the
+// background. Discovery filters known peers by Connectedness, so peers we've
+// only persisted to the DB are invisible until something dials them. This runs
+// detached from the caller's context with bounded concurrency; failures are
+// logged at debug level only.
+func (n *Node) dialStoredPeers(infos []peer.AddrInfo) {
+	const maxConcurrentDials = 20
+	const perPeerDialTimeout = 10 * time.Second
+
+	ctx, cancel := context.WithTimeout(context.Background(), PeerSharingTimeout)
+	defer cancel()
+
+	sem := make(chan struct{}, maxConcurrentDials)
+	var wg sync.WaitGroup
+	for _, info := range infos {
+		if info.ID == "" || len(info.Addrs) == 0 {
+			continue
+		}
+		select {
+		case <-ctx.Done():
+			wg.Wait()
+			return
+		case sem <- struct{}{}:
+		}
+		wg.Add(1)
+		go func(info peer.AddrInfo) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			dialCtx, dialCancel := context.WithTimeout(ctx, perPeerDialTimeout)
+			defer dialCancel()
+			n.p2p.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
+			if err := n.p2p.Host.Connect(dialCtx, info); err != nil {
+				n.log.Debug("BackgroundPeerDialFailed", zap.String("PID", info.ID.String()), zap.Error(err))
+			}
+		}(info)
+	}
+	wg.Wait()
 }
 func (n *Node) onLibp2pConnection(_ context.Context, event event.EvtPeerConnectednessChanged) {
 	// Clear authentication for disconnected peers.
@@ -462,15 +472,18 @@ func (n *Node) onLibp2pIdentification(ctx context.Context, event event.EvtPeerId
 		addrsString = append(addrsString, strings.ReplaceAll(addrs.String(), "/p2p/"+event.Peer.String(), "")+"/p2p/"+event.Peer.String())
 	}
 	sort.Strings(addrsString)
+	incomingAddrs := strings.ReplaceAll(strings.Join(addrsString, ","), " ", "")
 
-	if err := n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
-		// Identify completed — we have direct first-hand evidence this peer exists
-		// right now. Always bump updated_at, regardless of whether addresses changed,
-		// so TTL pruning doesn't evict long-lived peers with stable addrs. Addresses
-		// only overwrite the stored set when the newly observed set is non-empty.
-		return sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=CASE WHEN excluded.addresses!='' THEN excluded.addresses ELSE addresses END, updated_at=strftime('%s', 'now');", nil, event.Peer.String(), strings.ReplaceAll(strings.Join(addrsString, ","), " ", ""), bootstrapped)
-	}); err != nil {
-		n.log.Warn("Could not store new peer", zap.String("PID", event.Peer.String()), zap.Error(err))
+	if !n.peerWriteIsRedundant(ctx, event.Peer.String(), incomingAddrs) {
+		if err := n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+			// Identify completed — we have direct first-hand evidence this peer exists
+			// right now. Always bump updated_at, regardless of whether addresses changed,
+			// so TTL pruning doesn't evict long-lived peers with stable addrs. Addresses
+			// only overwrite the stored set when the newly observed set is non-empty.
+			return sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=CASE WHEN excluded.addresses!='' THEN excluded.addresses ELSE addresses END, updated_at=strftime('%s', 'now');", nil, event.Peer.String(), incomingAddrs, bootstrapped)
+		}); err != nil {
+			n.log.Warn("Could not store new peer", zap.String("PID", event.Peer.String()), zap.Error(err))
+		}
 	}
 
 	n.p2p.ConnManager().Protect(event.Peer, ProtocolSupportKey)

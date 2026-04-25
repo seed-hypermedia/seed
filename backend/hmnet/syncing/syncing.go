@@ -2,7 +2,6 @@ package syncing
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"seed/backend/blob"
 	"seed/backend/config"
@@ -13,7 +12,6 @@ import (
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet/syncing/rbsr"
 	"slices"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -31,6 +29,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 // Metrics. This is exported as a temporary measure,
@@ -186,7 +185,7 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer I
 		version: net.ProtocolVersion(),
 	}
 
-	if cfg.MinWorkers == 0 || cfg.MaxWorkers == 0 {
+	if cfg.MaxWorkers == 0 {
 		panic("BUG: invalid config for syncing service")
 	}
 
@@ -309,41 +308,81 @@ type SyncResult struct {
 	Errs          []error
 }
 
-// syncWithManyPeers syncs with many peers in parallel.
+// maxPeerConcurrency bounds the number of peers a single discovery task syncs
+// with simultaneously. The per-task peer pool is a rolling sliding window:
+// gateways fill the first slots, then the remaining slots stream non-gateway
+// peers in, with a new peer dispatched the moment any in-flight peer returns
+// (see errgroup.SetLimit usage in syncWithManyPeers). With MaxWorkers=6 tasks
+// and 20 peers each, the system-wide concurrent peer syncs are bounded at 120.
+const maxPeerConcurrency = 20
+
+// gatewayPIDs is the set of well-known gateway peer IDs. Gateways are
+// well-connected infrastructure peers that are most likely to have content,
+// so we sync with them first.
+var gatewayPIDs = func() map[peer.ID]bool {
+	m := make(map[peer.ID]bool, 3)
+	for _, s := range []string{
+		ipfs.ProductionGatewayPID,
+		ipfs.StagingGatewayPID,
+		ipfs.DevGatewayPID,
+	} {
+		pid, err := peer.Decode(s)
+		if err == nil {
+			m[pid] = true
+		}
+	}
+	return m
+}()
+
+// syncWithManyPeers syncs with many peers in parallel, bounded by maxPeerConcurrency.
+// Gateways are synced first because they are better-connected and more likely to
+// have the requested content.
 func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap, store *authorizedStore, prog *Progress, auth *authInfo) (res SyncResult) {
-	var i int
-	var wg sync.WaitGroup
-	wg.Add(len(subsMap))
 	res.Peers = make([]peer.ID, len(subsMap))
 	res.Errs = make([]error, len(subsMap))
 
-	for pid, eids := range subsMap {
-		go func(i int, pid peer.ID, eids map[string]bool) {
+	var g errgroup.Group
+	g.SetLimit(maxPeerConcurrency)
+
+	dispatch := func(i int, pid peer.ID, eids map[string]bool) {
+		res.Peers[i] = pid
+		g.Go(func() error {
 			var err error
-			defer func() {
-				res.Errs[i] = err
-				if err == nil {
-					atomic.AddInt64(&res.NumSyncOK, 1)
-					prog.PeersSyncedOK.Add(1)
-				} else {
-					atomic.AddInt64(&res.NumSyncFailed, 1)
-					prog.PeersFailed.Add(1)
-				}
-
-				wg.Done()
-			}()
-
-			res.Peers[i] = pid
 			s.log.Debug("Syncing with peer", zap.String("PID", pid.String()))
 			if xerr := s.syncWithPeer(ctx, pid, eids, store, prog, auth); xerr != nil {
 				s.log.Debug("Could not sync with content", zap.String("PID", pid.String()), zap.Error(xerr))
-				err = errors.Join(err, fmt.Errorf("failed to sync objects: %w", xerr))
+				err = fmt.Errorf("failed to sync objects: %w", xerr)
 			}
-		}(i, pid, eids)
-		i++
+
+			res.Errs[i] = err
+			if err == nil {
+				atomic.AddInt64(&res.NumSyncOK, 1)
+				prog.PeersSyncedOK.Add(1)
+			} else {
+				atomic.AddInt64(&res.NumSyncFailed, 1)
+				prog.PeersFailed.Add(1)
+			}
+			return nil
+		})
 	}
 
-	wg.Wait()
+	// First pass: gateways get the first concurrency slots.
+	var i int
+	for pid, eids := range subsMap {
+		if gatewayPIDs[pid] {
+			dispatch(i, pid, eids)
+			i++
+		}
+	}
+	// Second pass: everyone else.
+	for pid, eids := range subsMap {
+		if !gatewayPIDs[pid] {
+			dispatch(i, pid, eids)
+			i++
+		}
+	}
+
+	_ = g.Wait()
 
 	return res
 }
@@ -373,7 +412,11 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 		}
 	}
 
-	c, err := s.rbsrClient(ctx, pid)
+	c, err := func() (p2p.SyncingClient, error) {
+		dialCtx, dialCancel := context.WithTimeout(ctx, 10*time.Second)
+		defer dialCancel()
+		return s.rbsrClient(dialCtx, pid)
+	}()
 	if err != nil {
 		return err
 	}
