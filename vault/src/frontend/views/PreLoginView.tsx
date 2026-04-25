@@ -1,6 +1,6 @@
 import {WebAuthnAbortService} from '@simplewebauthn/browser'
 import type React from 'react'
-import {useEffect} from 'react'
+import {useEffect, useRef} from 'react'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import * as navigation from '@/frontend/navigation'
 import {SeedLogo} from '@/frontend/components/SeedLogo'
@@ -16,18 +16,10 @@ import {useActions, useAppState} from '@/frontend/store'
  * with resident passkeys can sign in without typing their email.
  */
 export function PreLoginView() {
-  const {
-    email,
-    loading,
-    error,
-    passkeySupported,
-    session,
-    sessionChecked,
-    delegationRequest,
-    emailPreFilledFromUrl,
-    vaultConnectionRequest,
-  } = useAppState()
+  const {email, loading, error, passkeySupported, session, sessionChecked, delegationRequest, vaultConnectionRequest} =
+    useAppState()
   const actions = useActions()
+  const autoSubmittedRef = useRef(false)
 
   useEffect(() => {
     if (sessionChecked) {
@@ -36,12 +28,20 @@ export function PreLoginView() {
     return () => WebAuthnAbortService.cancelCeremony()
   }, [actions, sessionChecked])
 
-  // Auto-submit only when email was pre-filled from the delegation URL
+  // Auto-submit only when the delegation URL provided the matching email.
   useEffect(() => {
-    if (sessionChecked && !session?.authenticated && emailPreFilledFromUrl && delegationRequest && !loading) {
+    if (
+      sessionChecked &&
+      !session?.authenticated &&
+      delegationRequest?.email &&
+      email === delegationRequest.email &&
+      !loading &&
+      !autoSubmittedRef.current
+    ) {
+      autoSubmittedRef.current = true
       actions.handlePreLogin()
     }
-  }, [sessionChecked, session, emailPreFilledFromUrl, delegationRequest, loading, actions])
+  }, [sessionChecked, session, delegationRequest, email, loading, actions])
 
   if (!sessionChecked) {
     return null

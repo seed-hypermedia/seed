@@ -431,15 +431,26 @@ export class Service implements api.ServerInterface {
       }
     }
 
+    const existingChallenge = this.db
+      .query<
+        Pick<Challenge, 'id'>,
+        [string, number]
+      >(`SELECT id FROM email_challenges WHERE email = ? AND purpose = 'registration' AND expire_time > ? ORDER BY expire_time DESC LIMIT 1`)
+      .get(normalizedEmail, Date.now())
+
+    if (existingChallenge) {
+      return {
+        message: 'Verification link sent',
+        challengeId: existingChallenge.id,
+      }
+    }
+
     // Generate high-entropy token (256-bit) for the magic link.
     const tokenBytes = new Uint8Array(32)
     crypto.getRandomValues(tokenBytes)
     const token = base64.encode(tokenBytes)
     const tokenHash = base64.encode(sha256Hash(tokenBytes))
     const challengeId = sess.randomId()
-
-    // Clean up any existing registration challenges for this email.
-    this.db.run(`DELETE FROM email_challenges WHERE email = ? AND purpose = 'registration'`, [normalizedEmail])
 
     // Store the challenge with the hash of the token (not the token itself).
     this.db.run(
@@ -449,7 +460,12 @@ export class Service implements api.ServerInterface {
 
     // URL includes challengeId for efficient lookup and token for verification.
     const verifyUrl = `${this.rp.origin}/vault/verify/${challengeId}/${token}`
-    await this.emailSender.sendLoginLink(normalizedEmail, verifyUrl)
+    try {
+      await this.emailSender.sendLoginLink(normalizedEmail, verifyUrl)
+    } catch (error) {
+      this.db.run(`DELETE FROM email_challenges WHERE id = ?`, [challengeId])
+      throw error
+    }
 
     return {
       message: 'Verification link sent',

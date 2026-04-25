@@ -131,6 +131,12 @@ function getSecretCredentialRow(userId: string) {
     .get(userId, 'secret')
 }
 
+function getRegistrationChallenge(email: string) {
+  return db
+    .query<{id: string}, [string]>(`SELECT id FROM email_challenges WHERE email = ? AND purpose = 'registration'`)
+    .get(email.toLowerCase())
+}
+
 function generateSecret(): string {
   return base64.encode(globalThis.crypto.getRandomValues(new Uint8Array(32)))
 }
@@ -177,6 +183,81 @@ describe('vault auth service', () => {
       exists: true,
       credentials: {},
     })
+  })
+
+  test('registerStart reuses an active registration challenge without sending another email', async () => {
+    const sendLoginLink = spyOn(emailSender, 'sendLoginLink')
+    const svc = createService()
+    const email = 'active-registration@test.com'
+
+    try {
+      const first = await svc.registerStart({email}, createContext())
+      const second = await svc.registerStart({email}, createContext())
+
+      expect(second.challengeId).toBe(first.challengeId)
+      expect(sendLoginLink).toHaveBeenCalledTimes(1)
+      expect(getRegistrationChallenge(email)?.id).toBe(first.challengeId)
+    } finally {
+      sendLoginLink.mockRestore()
+    }
+  })
+
+  test('registerStart creates a new challenge after the previous one expires', async () => {
+    const sendLoginLink = spyOn(emailSender, 'sendLoginLink')
+    const svc = createService()
+    const email = 'expired-registration@test.com'
+
+    try {
+      db.run(
+        `INSERT INTO email_challenges (id, user_id, purpose, token_hash, email, verified, expire_time) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        ['expired-challenge', null, 'registration', 'expired-token-hash', email, 0, Date.now() - 1],
+      )
+
+      const result = await svc.registerStart({email}, createContext())
+
+      expect(result.challengeId).not.toBe('expired-challenge')
+      expect(sendLoginLink).toHaveBeenCalledTimes(1)
+      expect(getRegistrationChallenge(email)?.id).toBe(result.challengeId)
+    } finally {
+      sendLoginLink.mockRestore()
+    }
+  })
+
+  test('registerStart removes a new challenge if sending the email fails', async () => {
+    const sendLoginLink = spyOn(emailSender, 'sendLoginLink').mockImplementation(async () => {
+      throw new Error('smtp unavailable')
+    })
+    const svc = createService()
+    const email = 'send-failure@test.com'
+
+    try {
+      await expect(svc.registerStart({email}, createContext())).rejects.toThrow('smtp unavailable')
+      expect(getRegistrationChallenge(email)).toBeNull()
+    } finally {
+      sendLoginLink.mockRestore()
+    }
+  })
+
+  test('registerStart rejects an existing user with credentials', async () => {
+    const sendLoginLink = spyOn(emailSender, 'sendLoginLink')
+    const svc = createService()
+    const email = 'registered-user@test.com'
+    const userId = createUser(email)
+
+    try {
+      db.run(
+        `INSERT INTO credentials (id, user_id, type, encrypted_dek, metadata, create_time) VALUES (?, ?, ?, ?, ?, ?)`,
+        ['registered-credential', userId, 'password', null, null, Date.now()],
+      )
+
+      await expect(svc.registerStart({email}, createContext())).rejects.toMatchObject({
+        message: 'User already exists',
+        statusCode: 409,
+      })
+      expect(sendLoginLink).not.toHaveBeenCalled()
+    } finally {
+      sendLoginLink.mockRestore()
+    }
   })
 
   test('addPassword stores a verifier, not the submitted auth key, and preLogin returns the password salt', async () => {

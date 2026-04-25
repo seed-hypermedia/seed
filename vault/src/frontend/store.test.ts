@@ -511,6 +511,26 @@ describe('Store', () => {
     })
   })
 
+  describe('startPollingVerification', () => {
+    test('keeps the user on pending verification when polling fails', async () => {
+      const client = createMockClient({
+        registerPoll: async () => {
+          throw new Error('expired')
+        },
+      })
+      const {state, actions, navigator} = createStore(client, createMockBlockstore())
+      const navigate = mock()
+      navigator.setNavigate(navigate)
+      state.challengeId = 'expired-challenge'
+
+      await actions.startPollingVerification()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(state.error).toBe('Verification failed or expired. Please try again.')
+      expect(navigate).not.toHaveBeenCalled()
+    })
+  })
+
   describe('handleVerifyLink', () => {
     test('calls verify-link API with challengeId and token', async () => {
       let receivedChallengeId = ''

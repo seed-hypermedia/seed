@@ -81,8 +81,6 @@ function initialState(backendHttpBaseUrl = '', notificationServerUrl = '') {
     sessionChecked: false,
     /** Active delegation request parsed from URL params. Null when not in delegation flow. */
     delegationRequest: null as hmauth.DelegationRequest | null,
-    /** Whether the email was pre-filled from the delegation URL params. */
-    emailPreFilledFromUrl: false,
     /** Whether the user has given consent for the current delegation. */
     delegationConsented: false,
     /** Pending vault handoff parsed from URL fragment. */
@@ -638,12 +636,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
             setTimeout(poll, pollInterval)
           } else {
             state.error = 'Verification link expired. Please try again.'
-            navigator.go('/')
           }
         } catch (_e) {
           // Challenge expired or error - stop polling.
           state.error = 'Verification failed or expired. Please try again.'
-          navigator.go('/')
         }
       }
 
@@ -1847,7 +1843,6 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           state.delegationRequest = request
           if (request.email) {
             state.email = request.email
-            state.emailPreFilledFromUrl = true
           }
         }
       } catch (e) {

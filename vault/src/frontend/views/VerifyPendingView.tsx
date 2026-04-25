@@ -31,7 +31,7 @@ function Countdown({seconds}: {seconds: number}) {
  * Displays instructions while polling for verification in the background.
  */
 export function VerifyPendingView() {
-  const {email, error} = useAppState()
+  const {email, error, loading} = useAppState()
   const actions = useActions()
   const navigate = navigation.useHashNavigate()
 
@@ -53,6 +53,7 @@ export function VerifyPendingView() {
               type="button"
               className="text-primary underline hover:opacity-80"
               onClick={() => actions.handleStartRegistration()}
+              disabled={loading}
             >
               request a new link
             </button>
