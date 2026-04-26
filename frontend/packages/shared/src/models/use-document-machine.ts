@@ -273,6 +273,8 @@ export function useDraftResolutionSync(
         content: HMBlockNode[] | null
         cursorPosition: number | null
         metadata?: HMMetadata | null
+        mineTouchedIds?: string[] | null
+        baseBlocks?: HMBlockNode[] | null
       }
     | undefined,
 ) {
@@ -287,6 +289,10 @@ export function useDraftResolutionSync(
         resolved.draftId,
         'metadata:',
         resolved.metadata,
+        'restoredTouchedIds:',
+        resolved.mineTouchedIds?.length ?? 0,
+        'restoredBaseBlocks:',
+        resolved.baseBlocks?.length ?? 0,
       )
       actorRef.send({
         type: 'draft.resolved',
@@ -294,6 +300,8 @@ export function useDraftResolutionSync(
         content: resolved.content,
         cursorPosition: resolved.cursorPosition,
         metadata: resolved.metadata ?? null,
+        mineTouchedIds: resolved.mineTouchedIds ?? null,
+        baseBlocks: resolved.baseBlocks ?? null,
       })
     }
   }, [actorRef, resolved])
@@ -503,13 +511,22 @@ export type AutoRebaseEditor = {
     placement?: 'before' | 'after',
   ) => void
   removeBlocks?: (blocks: Array<string | {id: string}>) => void
+  getTextCursorPosition?: () => {
+    block?: {id?: string}
+    prevBlock?: {id?: string} | null
+    nextBlock?: {id?: string} | null
+  } | null
+  setTextCursorPosition?: (blockOrId: string | {id: string}, placement?: 'start' | 'end') => void
   readonly _tiptapEditor?: {
     view?: {
       state?: {
         selection?: {
-          $anchor?: {pos?: number}
+          $anchor?: {pos?: number; parentOffset?: number}
+          from?: number
         }
+        doc?: {content?: {size?: number}}
       }
+      dispatch?: (tr: unknown) => void
     }
   }
 }
@@ -752,6 +769,22 @@ export function useAutoRebase({
         mergedHMBlockNodeTexts: mergedTextsHM,
         textsDiffer: JSON.stringify(currentTexts) !== JSON.stringify(incomingTexts),
       })
+      // Capture cursor position before applying merge so we can restore it
+      // afterwards. Surgical updateBlock/insertBlocks/removeBlocks calls reset
+      // the selection to the end of the document, which is jarring while the
+      // user is typing.
+      let savedCursorBlockId: string | null = null
+      let savedAbsolutePos: number | null = null
+      try {
+        const cursor = editor.getTextCursorPosition?.()
+        if (cursor?.block?.id) savedCursorBlockId = cursor.block.id
+        const sel = editor._tiptapEditor?.view?.state?.selection
+        const fromCandidate = sel?.from ?? sel?.$anchor?.pos
+        if (typeof fromCandidate === 'number') savedAbsolutePos = fromCandidate
+      } catch {
+        // ignore — best-effort capture
+      }
+
       const prev = liveSuppressRef?.current ?? false
       if (liveSuppressRef) liveSuppressRef.current = true
       try {
@@ -808,6 +841,53 @@ export function useAutoRebase({
       } finally {
         if (liveSuppressRef) liveSuppressRef.current = prev
       }
+
+      // Restore cursor. Prefer placing it at the saved absolute position so
+      // the user keeps their typing context. If the absolute position falls
+      // outside the rebuilt doc (block was removed) or restoration throws,
+      // fall back to the start of the originally-focused block. As a last
+      // resort, place cursor at end of doc.
+      try {
+        const view = editor._tiptapEditor?.view as any
+        const docSize: number | undefined = view?.state?.doc?.content?.size
+        let restored = false
+        if (view && typeof savedAbsolutePos === 'number' && typeof docSize === 'number') {
+          const safe = Math.min(Math.max(savedAbsolutePos, 0), Math.max(docSize - 1, 0))
+          try {
+            const stateMod = (view as any).state
+            const TextSel = stateMod?.selection?.constructor
+            // ProseMirror's TextSelection is reachable from the existing selection's
+            // prototype chain; try to use its static `create` if available.
+            const TS = (TextSel as any)?.create ? TextSel : null
+            if (TS) {
+              const sel = TS.create(stateMod.doc, safe)
+              view.dispatch(stateMod.tr.setSelection(sel))
+              restored = true
+            }
+          } catch {
+            // fall through to block-level restore
+          }
+        }
+        if (!restored && savedCursorBlockId && typeof editor.setTextCursorPosition === 'function') {
+          const stillExists = editor.topLevelBlocks.some((b: any) => b?.id === savedCursorBlockId)
+          if (stillExists) {
+            editor.setTextCursorPosition(savedCursorBlockId, 'end')
+            restored = true
+          }
+        }
+        if (!restored && typeof editor.setTextCursorPosition === 'function' && editor.topLevelBlocks.length) {
+          const last = editor.topLevelBlocks[editor.topLevelBlocks.length - 1] as any
+          if (last?.id) editor.setTextCursorPosition(last.id, 'end')
+        }
+        console.log('[Rebase hook] cursor restored', {
+          savedCursorBlockId,
+          savedAbsolutePos,
+          restoredViaAbsolute: restored,
+        })
+      } catch (err) {
+        console.log('[Rebase hook] cursor restore failed', err)
+      }
+
       console.log('[Rebase hook] editor after replaceBlocks', {
         topLevelBlockIds: editor.topLevelBlocks.map((b: any) => b?.id),
         topLevelBlockTexts: editor.topLevelBlocks.map((b: any) => {

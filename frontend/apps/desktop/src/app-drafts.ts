@@ -517,6 +517,8 @@ export const draftsApi = t.router({
         navigation: z.array(HMNavigationItemSchema).optional(),
         visibility: HMResourceVisibilitySchema,
         cursorPosition: z.number().optional(),
+        mineTouchedIds: z.array(z.string()).optional(),
+        baseBlocks: z.array(z.any()).optional(),
       }),
     )
     .mutation(async ({input}) => {
@@ -553,6 +555,8 @@ export const draftsApi = t.router({
         deps: input.deps,
         navigation: input.navigation,
         cursorPosition: input.cursorPosition,
+        mineTouchedIds: input.mineTouchedIds,
+        baseBlocks: input.baseBlocks,
       }
 
       HMDraftContentSchema.parse(draft)

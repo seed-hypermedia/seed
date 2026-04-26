@@ -117,17 +117,19 @@ export function useResource(
   options?: UseQueryOptions<HMResource | null> & {
     subscribed?: boolean
     recursive?: boolean
+    /** `'high'` requests faster discovery polling for the active document. */
+    priority?: 'normal' | 'high'
     onRedirectOrDeleted?: (opts: {isDeleted: boolean; redirectTarget: UnpackedHypermediaId | null}) => void
   },
 ) {
   const client = useUniversalClient()
-  const {subscribed, recursive, onRedirectOrDeleted, ...queryOptions} = options ?? {}
+  const {subscribed, recursive, priority, onRedirectOrDeleted, ...queryOptions} = options ?? {}
 
   // Discovery subscription (desktop only)
   useEffect(() => {
     if (!subscribed || !id || !client.subscribeEntity) return
-    return client.subscribeEntity({id, recursive})
-  }, [subscribed, recursive, id?.id, client.subscribeEntity])
+    return client.subscribeEntity({id, recursive, priority})
+  }, [subscribed, recursive, priority, id?.id, client.subscribeEntity])
 
   const result = useQuery({
     ...queryResource(client, id),

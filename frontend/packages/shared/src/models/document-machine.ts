@@ -103,6 +103,10 @@ export type DocumentMachineEvent =
       content: HMBlockNode[] | null
       cursorPosition: number | null
       metadata?: HMMetadata | null
+      /** Block IDs the user previously touched in this draft (persisted across reloads). */
+      mineTouchedIds?: string[] | null
+      /** Three-way merge base captured when the draft was first started or last rebased. */
+      baseBlocks?: HMBlockNode[] | null
     }
   | {type: '_save.started'}
   | {type: '_save.completed'}
@@ -124,6 +128,10 @@ export type WriteDraftInput = {
   editUid: string
   editPath: string[]
   signingAccountId: string | null
+  /** Block IDs the user has locally touched since edit-start (or last rebase). */
+  mineTouchedIds: string[]
+  /** Three-way merge base captured at edit-start (or updated by `rebase.apply`). */
+  baseBlocks: HMBlockNode[] | null
 }
 
 /** Input for the publishDocument actor. */
@@ -261,15 +269,29 @@ export const documentMachine = setup({
     }),
     snapshotBaseBlocks: assign({
       baseBlocks: ({context}) => {
+        // Preserve restored base blocks from a reloaded draft. We only snapshot
+        // fresh from the published document when starting a brand-new draft
+        // session (baseBlocks === null and not yet hydrated by draft.resolved).
+        if (context.baseBlocks && context.baseBlocks.length) {
+          console.log('[Rebase machine] snapshotBaseBlocks: preserving restored', {
+            count: context.baseBlocks.length,
+          })
+          return context.baseBlocks
+        }
         const blocks = context.document?.content ?? []
-        console.log('[Rebase machine] snapshotBaseBlocks', {
+        console.log('[Rebase machine] snapshotBaseBlocks: fresh', {
           count: blocks.length,
           ids: blocks.map((n) => n.block?.id),
           publishedVersion: context.publishedVersion,
         })
         return blocks
       },
-      mineTouchedIds: [],
+      mineTouchedIds: ({context}) => {
+        // Preserve restored mineTouchedIds across reload; reset only on a truly
+        // fresh edit-start where nothing was loaded from disk.
+        if (context.mineTouchedIds.length) return context.mineTouchedIds
+        return []
+      },
     }),
     appendMineTouched: assign({
       mineTouchedIds: ({context, event}) => {
@@ -365,6 +387,18 @@ export const documentMachine = setup({
       metadata: ({event, context}) => {
         if (event.type === 'draft.resolved' && event.metadata) return event.metadata
         return context.metadata
+      },
+      mineTouchedIds: ({event, context}) => {
+        if (event.type === 'draft.resolved' && event.mineTouchedIds && event.mineTouchedIds.length) {
+          return event.mineTouchedIds
+        }
+        return context.mineTouchedIds
+      },
+      baseBlocks: ({event, context}) => {
+        if (event.type === 'draft.resolved' && event.baseBlocks && event.baseBlocks.length) {
+          return event.baseBlocks
+        }
+        return context.baseBlocks
       },
     }),
     setExistingDraft: assign({
@@ -751,6 +785,8 @@ export const documentMachine = setup({
                   editUid: context.editUid,
                   editPath: context.editPath,
                   signingAccountId: context.signingAccountId,
+                  mineTouchedIds: context.mineTouchedIds,
+                  baseBlocks: context.baseBlocks,
                 }),
                 onDone: [
                   {
@@ -811,6 +847,8 @@ export const documentMachine = setup({
                   editUid: context.editUid,
                   editPath: context.editPath,
                   signingAccountId: context.signingAccountId,
+                  mineTouchedIds: context.mineTouchedIds,
+                  baseBlocks: context.baseBlocks,
                 }),
                 onDone: [
                   {

@@ -210,6 +210,10 @@ export interface ResourcePageProps {
   existingDraftContent?: HMBlockNode[]
   /** Cursor position saved in the draft file; used to restore cursor on reload. */
   existingDraftCursorPosition?: number
+  /** Block IDs the user previously touched in this draft, persisted across reloads (for rebase classifier). */
+  existingDraftMineTouchedIds?: string[]
+  /** Three-way merge base captured at draft start or last rebase, persisted across reloads. */
+  existingDraftBaseBlocks?: HMBlockNode[]
   /** Pre-rendered document content HTML for SSR (avoids blank flash before editor loads) */
   ssrContentHTML?: string | null
   /** Platform-specific page footer (web only) */
@@ -285,6 +289,8 @@ export function ResourcePage({
   existingDraft,
   existingDraftContent,
   existingDraftCursorPosition,
+  existingDraftMineTouchedIds,
+  existingDraftBaseBlocks,
   floatingButtons,
   pageFooter,
   inlineCards,
@@ -313,10 +319,15 @@ export function ResourcePage({
   const route = useNavRoute()
   const isSiteProfile = route.key === 'site-profile'
 
-  // Load document data via React Query (hydrated from SSR prefetch)
+  // Load document data via React Query (hydrated from SSR prefetch).
+  // The active resource page subscribes with priority: 'high' so the daemon
+  // polls discovery faster (3s vs 20s) while the window is focused — this
+  // shrinks the time-to-detect for incoming remote updates while the user
+  // is editing or actively reading the document.
   const resource = useResource(docId, {
     subscribed: true,
     recursive: true,
+    priority: 'high',
   })
 
   // docId.uid determines the site header — for site-profile, docId IS the site context
@@ -533,6 +544,8 @@ export function ResourcePage({
           existingDraft={existingDraft}
           existingDraftContent={existingDraftContent}
           existingDraftCursorPosition={existingDraftCursorPosition}
+          existingDraftMineTouchedIds={existingDraftMineTouchedIds}
+          existingDraftBaseBlocks={existingDraftBaseBlocks}
           floatingButtons={floatingButtons}
           pageFooter={pageFooter}
           inlineCards={inlineCards}
@@ -687,6 +700,8 @@ function DocumentBody({
   existingDraft,
   existingDraftContent,
   existingDraftCursorPosition,
+  existingDraftMineTouchedIds,
+  existingDraftBaseBlocks,
   floatingButtons,
   pageFooter,
   inlineCards,
@@ -715,6 +730,8 @@ function DocumentBody({
   existingDraft?: HMExistingDraft | false
   existingDraftContent?: HMBlockNode[]
   existingDraftCursorPosition?: number
+  existingDraftMineTouchedIds?: string[]
+  existingDraftBaseBlocks?: HMBlockNode[]
   floatingButtons?: ReactNode
   pageFooter?: ReactNode
   inlineCards?: ReactNode
@@ -763,6 +780,8 @@ function DocumentBody({
           content: HMBlockNode[] | null
           cursorPosition: number | null
           metadata?: import('@seed-hypermedia/client/hm-types').HMMetadata | null
+          mineTouchedIds?: string[] | null
+          baseBlocks?: HMBlockNode[] | null
         }
       | undefined
     if (existingDraft === undefined) {
@@ -775,6 +794,8 @@ function DocumentBody({
         content: existingDraftContent,
         cursorPosition: existingDraftCursorPosition ?? null,
         metadata: existingDraft.metadata ?? null,
+        mineTouchedIds: existingDraftMineTouchedIds ?? null,
+        baseBlocks: existingDraftBaseBlocks ?? null,
       }
     } else {
       result = undefined // draft found but content not loaded yet
@@ -783,10 +804,18 @@ function DocumentBody({
       existingDraft: existingDraft === undefined ? 'undefined' : existingDraft === false ? 'false' : existingDraft?.id,
       hasContent: !!existingDraftContent,
       hasMetadata: !!(existingDraft && 'metadata' in existingDraft && existingDraft.metadata),
+      restoredTouched: existingDraftMineTouchedIds?.length ?? 0,
+      restoredBaseBlocks: existingDraftBaseBlocks?.length ?? 0,
       resolution: result === undefined ? 'undefined (waiting)' : `draftId=${result.draftId}`,
     })
     return result
-  }, [existingDraft, existingDraftContent, existingDraftCursorPosition])
+  }, [
+    existingDraft,
+    existingDraftContent,
+    existingDraftCursorPosition,
+    existingDraftMineTouchedIds,
+    existingDraftBaseBlocks,
+  ])
   useDraftResolutionSync(draftResolution)
   const publishedVersion = useDocumentSelector(selectPublishedVersion)
   const isEditing = useDocumentSelector(selectIsEditing)

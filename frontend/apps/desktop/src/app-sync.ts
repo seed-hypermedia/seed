@@ -33,6 +33,7 @@ import {t} from './app-trpc'
 
 // Polling intervals (base values, multiplied by getPollingMultiplier())
 const DISCOVERY_POLL_INTERVAL_MS = 20_000
+const HIGH_PRIORITY_DISCOVERY_POLL_INTERVAL_MS = 3_000
 const ACTIVITY_POLL_INTERVAL_MS = 15_000 // was 3_000
 const DELETED_POLL_INTERVAL_MS = 60_000 // Slower polling for deleted/redirected resources
 
@@ -44,6 +45,19 @@ function getPollingMultiplier(): number {
 /** Apply adaptive multiplier to a base interval. */
 function getAdaptiveInterval(baseMs: number): number {
   return baseMs * getPollingMultiplier()
+}
+
+/**
+ * Resolve the discovery poll interval for a subscription. High-priority
+ * subs (active document under edit/view) poll faster while focused; in the
+ * background they fall back to the normal cadence to avoid burning network
+ * for windows the user isn't looking at.
+ */
+function getDiscoveryInterval(priority: 'normal' | 'high' = 'normal'): number {
+  if (priority === 'high' && isAnyWindowFocused()) {
+    return HIGH_PRIORITY_DISCOVERY_POLL_INTERVAL_MS
+  }
+  return getAdaptiveInterval(DISCOVERY_POLL_INTERVAL_MS)
 }
 
 // Debounce window for batching invalidations
@@ -58,6 +72,11 @@ const MAX_KNOWN_VERSIONS = 500
 export type ResourceSubscription = {
   id: UnpackedHypermediaId
   recursive?: boolean
+  /**
+   * `'high'` polls faster (3s while focused) — use for the active document
+   * the user is currently editing/viewing. Defaults to `'normal'` (20s).
+   */
+  priority?: 'normal' | 'high'
 }
 
 type SubscriptionState = {
@@ -718,7 +737,7 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
 
     if (nowCovered) {
       // Defer to the recursive subscription
-      discoveryTimer = setTimeout(discoveryLoop, getAdaptiveInterval(DISCOVERY_POLL_INTERVAL_MS))
+      discoveryTimer = setTimeout(discoveryLoop, getDiscoveryInterval(sub.priority))
       return
     }
 
@@ -736,12 +755,12 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
         // Normal resource - clear discovering state
         discoveryStream.write(null)
         updateAggregatedDiscoveryState()
-        discoveryTimer = setTimeout(discoveryLoop, getAdaptiveInterval(DISCOVERY_POLL_INTERVAL_MS))
+        discoveryTimer = setTimeout(discoveryLoop, getDiscoveryInterval(sub.priority))
       })
       .catch(() => {
         if (cancelled) return
         // Keep discovering state and retry on errors
-        discoveryTimer = setTimeout(discoveryLoop, getAdaptiveInterval(DISCOVERY_POLL_INTERVAL_MS))
+        discoveryTimer = setTimeout(discoveryLoop, getDiscoveryInterval(sub.priority))
       })
   }
 
@@ -848,6 +867,7 @@ export const syncApi = t.router({
       z.object({
         id: unpackedHmIdSchema,
         recursive: z.boolean().optional(),
+        priority: z.enum(['normal', 'high']).optional(),
       }),
     )
     .subscription(({input}) => {
@@ -855,6 +875,7 @@ export const syncApi = t.router({
         const unsubscribe = subscribe({
           id: input.id as UnpackedHypermediaId,
           recursive: input.recursive,
+          priority: input.priority,
         })
 
         emit.next({status: 'subscribed'})

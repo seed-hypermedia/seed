@@ -188,6 +188,8 @@ export default function DesktopResourcePage() {
           editUid: input.editUid || undefined,
           editPath: input.editPath.length > 0 ? input.editPath : undefined,
           visibility: 'PUBLIC',
+          mineTouchedIds: input.mineTouchedIds.length ? input.mineTouchedIds : undefined,
+          baseBlocks: input.baseBlocks ?? undefined,
         })
         console.log('[writeDraft] saved successfully:', {draftId: result.id})
         return result
@@ -581,6 +583,8 @@ export default function DesktopResourcePage() {
                 existingDraft={existingDraft}
                 existingDraftContent={existingDraftContent}
                 existingDraftCursorPosition={draftQuery.data?.cursorPosition}
+                existingDraftMineTouchedIds={draftQuery.data?.mineTouchedIds}
+                existingDraftBaseBlocks={draftQuery.data?.baseBlocks}
                 inlineCards={inlineCards}
                 rightActions={<JoinButton siteUid={docId.uid} />}
                 onEditProfile={onEditProfile}
