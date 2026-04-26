@@ -17,7 +17,8 @@ import {domainResolver, grpcClient} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
-import {useChildDrafts, useCreateInlineDraft, usePublishResource} from '@/models/documents'
+import {autoLinkParentAfterPublish, useChildDrafts, useCreateInlineDraft, usePublishResource} from '@/models/documents'
+import {ParentUpdateToast} from '@/components/parent-update-toast'
 import {useExistingDraft} from '@/models/drafts'
 import {useGatewayUrl, useGatewayUrlStream} from '@/models/gateway-settings'
 import {usePushAfterAction} from '@/models/push-after-action'
@@ -28,12 +29,14 @@ import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {fileUpload} from '@/utils/file-upload'
+import {useBroadcastWindowEvent, useListenAppEvent} from '@/utils/window-events'
+import {computeInlineDraftPublishPath} from '@/utils/publish-utils'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {DocumentEditor} from '@shm/editor/document-editor'
 import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
-import {hmId, hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
+import {hmId, hostnameStripProtocol, unpackHmId, useUniversalAppContext} from '@shm/shared'
 import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {findSelfQueryBlock} from '@shm/shared/content'
@@ -95,6 +98,51 @@ export default function DesktopResourcePage() {
       existingDraftContent ? {blocksCount: existingDraftContent.length} : 'not loaded',
     )
   }, [existingDraft, canEdit, docId, existingDraftContent])
+
+  // When another window writes to this draft (e.g. a child publish appended a
+  // card embed via auto-link-parent), the editor's in-memory ProseMirror state
+  // is stale. Show a persistent toast that the user can click to reload.
+  const currentDraftId = existingDraft ? existingDraft.id : undefined
+  const currentDraftIdRef = useRef(currentDraftId)
+  currentDraftIdRef.current = currentDraftId
+
+  // Auto-redirect when another window publishes this draft (so it gets a real
+  // slug-based URL while we are still on the temporary `-${draftId}` URL).
+  const docIdRef = useRef(docId)
+  docIdRef.current = docId
+  const replaceRoute = useNavigate('replace')
+  const replaceRouteRef = useRef(replaceRoute)
+  replaceRouteRef.current = replaceRoute
+  const handleDocumentPathChanged = useCallback(
+    (event: {type: 'document_path_changed'; oldId: string; newId: string}) => {
+      if (docIdRef.current?.id !== event.oldId) return
+      const newId = unpackHmId(event.newId)
+      if (!newId) return
+      replaceRouteRef.current({key: 'document', id: newId} as any)
+    },
+    [],
+  )
+  useListenAppEvent('document_path_changed', handleDocumentPathChanged)
+
+  // When another window writes to this draft (e.g. an auto-link append),
+  // the editor's in-memory ProseMirror state is stale. Show a persistent
+  // toast that the user can click to reload the page.
+  const handleDraftExternallyModified = useCallback(
+    (event: {type: 'draft_externally_modified'; draftId: string}) => {
+      const id = currentDraftIdRef.current
+      if (!id || event.draftId !== id) return
+      toast.message('This draft was updated in another window', {
+        id: `draft-externally-modified-${id}`,
+        duration: Infinity,
+        action: {
+          label: 'Reload page',
+          onClick: () => window.location.reload(),
+        },
+      })
+    },
+    [],
+  )
+  useListenAppEvent('draft_externally_modified', handleDraftExternallyModified)
 
   // Developer tools: XState inspect callback + event store (when enabled)
   const devTools = useUniversalAppContext().experiments?.developerTools
@@ -197,16 +245,112 @@ export default function DesktopResourcePage() {
 
   // Create publishDocument actor that uses the stored publish mutation ref.
   // Account UID flows through machine context → actor input (no closure deps).
+  const navigateRef = useRef(navigate)
+  navigateRef.current = navigate
+  const broadcastWindowEvent = useBroadcastWindowEvent()
+  const broadcastWindowEventRef = useRef(broadcastWindowEvent)
+  broadcastWindowEventRef.current = broadcastWindowEvent
   const publishDocumentActor = useMemo(
     () =>
       fromPromise<any, PublishInput>(async ({input}) => {
         const draftData = await client.drafts.get.query(input.draftId)
         if (!draftData) throw new Error('Draft not found: ' + input.draftId)
+
+        const isPrivate = draftData.visibility === 'PRIVATE'
+        // First-publish detection covers two cases:
+        //   1. Legacy location-only drafts (no editUid) — clearly new docs.
+        //   2. "Claimed" drafts (editUid+editPath set) where the doc at that
+        //      path doesn't exist yet — also new docs (e.g. inline card flow).
+        let isFirstPublish = !draftData.editUid
+        if (!isFirstPublish && draftData.editUid) {
+          try {
+            const editPathString = '/' + (draftData.editPath ?? []).join('/')
+            const existing = await grpcClient.documents.getDocument({
+              account: draftData.editUid,
+              path: editPathString,
+            })
+            if (!existing?.version) isFirstPublish = true
+          } catch {
+            isFirstPublish = true
+          }
+        }
+
+        // For first publish, compute the destination path from the title slug
+        // (the route URL holds the temporary `-${draftId}` slug). For re-publishes,
+        // keep the existing route id as the destination so the path doesn't change.
+        let publishDestinationId = input.documentId
+        if (isFirstPublish && draftData.editUid) {
+          const newPath = computeInlineDraftPublishPath(
+            draftData.editPath ?? [],
+            draftData.metadata?.name || '',
+            input.draftId,
+          )
+          publishDestinationId = hmId(draftData.editUid, {path: newPath})
+        }
+
         const result = await publishResourceRef.current.mutateAsync({
           draft: draftData,
-          destinationId: input.documentId,
+          destinationId: publishDestinationId,
           accountId: input.publishAccountUid || '',
         })
+
+        const oldRouteId = input.documentId
+        const newRouteId = hmId(result.account, {
+          path: entityQueryPathToHmIdPath(result.path),
+        })
+        const pathChanged = oldRouteId.id !== newRouteId.id
+
+        // If the URL changed (first publish from `-${draftId}` → real slug),
+        // navigate this window to the new URL and broadcast the change so any
+        // other window stuck on the old draft URL can react.
+        if (pathChanged) {
+          navigateRef.current({key: 'document', id: newRouteId})
+          broadcastWindowEventRef.current({
+            type: 'document_path_changed',
+            oldId: oldRouteId.id,
+            newId: newRouteId.id,
+          })
+        }
+
+        if (isFirstPublish) {
+          try {
+            const childId = hmId(result.account, {
+              path: entityQueryPathToHmIdPath(result.path),
+            })
+            const outcome = await autoLinkParentAfterPublish({
+              childId,
+              signingAccountUid: input.publishAccountUid || undefined,
+              isPrivate,
+            })
+            if (outcome.kind === 'added-to-draft' || outcome.kind === 'published-parent') {
+              const parentId = outcome.parentId
+              const navigateToParent = () => {
+                navigateRef.current({
+                  key: 'document',
+                  id: hmId(parentId.uid, {path: parentId.path, latest: true}),
+                })
+              }
+              const message =
+                outcome.kind === 'added-to-draft' ? 'Link added to parent draft' : 'Parent document updated'
+              toast.success(<ParentUpdateToast message={message} onViewParent={navigateToParent} />)
+
+              // Tell every window holding this draft open that its on-disk
+              // content has changed under it. The ProseMirror editor in the
+              // parent's window keeps its own state, so React-Query
+              // invalidation alone won't surface the new embed.
+              if (outcome.kind === 'added-to-draft') {
+                broadcastWindowEventRef.current({
+                  type: 'draft_externally_modified',
+                  draftId: outcome.parentDraftId,
+                })
+              }
+            }
+          } catch (error) {
+            console.error('Failed to add link to parent:', error)
+            toast.error('Published document, but failed to add link to parent')
+          }
+        }
+
         await client.drafts.delete.mutate(input.draftId)
         return result
       }),

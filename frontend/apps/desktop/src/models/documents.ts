@@ -29,7 +29,7 @@ import {BlockNoteEditor} from '@shm/editor/blocknote/core'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {getSlashMenuItems} from '@shm/editor/slash-menu-items'
 import {getCommentTargetId, getParentPaths, UniversalClient, useUniversalClient} from '@shm/shared'
-import {Block, DocumentChange, ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {AnnounceBlobsProgress} from '@shm/shared/client/.generated/p2p/v1alpha/syncing_pb'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
@@ -128,16 +128,25 @@ export function useCreateInlineDraft(parentId: UnpackedHypermediaId | undefined)
     mutationFn: async ({visibility}: {visibility?: HMResourceVisibility} = {}) => {
       if (!parentId) throw new Error('No parent ID')
       const draftId = nanoid(10)
+      // The draft lives at parent + `-${draftId}` so it has a stable, unique
+      // path before publish. We set BOTH locationUid/Path (so useChildDrafts
+      // — which filters by parent location — keeps listing it under the
+      // parent) AND editUid/Path (so useExistingDraft can find it when the
+      // unified editor mounts at the new doc's route URL).
+      const parentPath = parentId.path || []
+      const draftPath = [...parentPath, `-${draftId}`]
       await client.drafts.write.mutate({
         id: draftId,
         locationUid: parentId.uid,
-        locationPath: parentId.path || [],
+        locationPath: parentPath,
+        editUid: parentId.uid,
+        editPath: draftPath,
         metadata: {name: ''},
         content: [],
         deps: [],
         visibility: visibility ?? 'PUBLIC',
       })
-      return {draftId}
+      return {draftId, draftPath}
     },
     onSuccess: () => {
       invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, parentId?.uid])
@@ -1155,135 +1164,16 @@ export function usePushResource() {
     pushResource(universalClient, gwUrl, id, onlyPushToHost, onStatusChange)
 }
 
-// ============================================================================
-// Auto-link child to parent on first publish
-// ============================================================================
-
-// Re-export utility functions from client SDK for easier testing
-export {documentContainsLinkToChild, documentHasSelfQuery} from '@seed-hypermedia/client'
-
-/**
- * Add an embed link to a parent draft file
- * TODO: If user discards this draft later, the auto-link will be lost.
- * Discuss with team whether we should warn user or handle this differently.
- */
-export async function addLinkToParentDraft(parentDraftId: string, childId: UnpackedHypermediaId): Promise<void> {
-  const draft = await client.drafts.get.query(parentDraftId)
-  if (!draft) {
-    throw new Error(`Draft ${parentDraftId} not found`)
-  }
-
-  // Create new embed block in editor format
-  const newBlock = {
-    id: nanoid(10),
-    type: 'embed',
-    props: {
-      url: packHmId(childId),
-      view: 'Card',
-      defaultOpen: 'false',
-    },
-    content: [],
-    children: [],
-  }
-
-  // Append block to end of draft content
-  const updatedContent = [...(draft.content || []), newBlock]
-
-  // Write back to draft
-  await client.drafts.write.mutate({
-    id: draft.id,
-    locationUid: draft.locationUid,
-    locationPath: draft.locationPath,
-    editUid: draft.editUid,
-    editPath: draft.editPath,
-    metadata: draft.metadata,
-    content: updatedContent,
-    deps: draft.deps,
-    navigation: draft.navigation,
-    visibility: draft.visibility,
-  })
-
-  // Invalidate draft queries to refresh any open editors
-  invalidateQueries([queryKeys.DRAFT, parentDraftId])
-}
-
-/**
- * Publish an embed link to a parent document (when parent has no draft)
- */
-export async function publishLinkToParentDocument(
-  parentId: UnpackedHypermediaId,
-  parentDocument: HMDocument,
-  childId: UnpackedHypermediaId,
-  signingKeyName: string,
-): Promise<HMDocument> {
-  // Find the last root-level block in parent document
-  const rootBlocks = parentDocument.content || []
-  const lastBlock = rootBlocks[rootBlocks.length - 1]
-  const lastBlockId = lastBlock?.block?.id || ''
-
-  // Generate new block ID
-  const newBlockId = nanoid(10)
-
-  // Create the embed block in HM format
-  const embedBlock = {
-    id: newBlockId,
-    type: 'Embed',
-    link: packHmId(childId),
-    attributes: {view: 'Card'},
-  }
-
-  // Create DocumentChange operations: MoveBlock then ReplaceBlock
-  // NOTE: Block.fromJson() is required to properly convert the attributes plain object
-  // into a google.protobuf.Struct. Without it, attributes like {view: 'Card'} are silently dropped.
-  // See: https://github.com/nicholasgasior/seed-hypermedia/issues/322
-  const changes = [
-    new DocumentChange({
-      op: {case: 'moveBlock', value: {blockId: newBlockId, parent: '', leftSibling: lastBlockId}},
-    }),
-    new DocumentChange({
-      op: {case: 'replaceBlock', value: Block.fromJson(embedBlock)},
-    }),
-  ]
-
-  // Check if signing account has write access (same as child publish)
-  let capabilityId = ''
-  if (signingKeyName !== parentId.uid) {
-    const capabilities = await grpcClient.accessControl.listCapabilities({
-      account: parentId.uid,
-      path: hmIdPathToEntityQueryPath(parentId.path || []),
-    })
-    const capability = capabilities.capabilities.find((cap) => cap.delegate === signingKeyName)
-    if (!capability) {
-      throw new Error('Could not find capability for signing account to update parent document')
-    }
-    capabilityId = capability.id
-  }
-
-  const parentPath = hmIdPathToEntityQueryPath(parentId.path || [])
-
-  await desktopUniversalClient.publishDocument!({
-    signerAccountUid: signingKeyName,
-    account: parentId.uid,
-    baseVersion: parentDocument.version,
-    path: parentPath,
-    changes,
-    capability: capabilityId,
-    genesis: parentDocument.genesis,
-    generation: parentDocument.generationInfo?.generation,
-  })
-
-  const updatedDoc = await grpcClient.documents.getDocument({
-    account: parentId.uid,
-    path: parentPath,
-  })
-  const resultDoc: HMDocument = prepareHMDocument(updatedDoc)
-
-  // Invalidate parent document queries
-  invalidateQueries([queryKeys.ENTITY, parentId.id])
-  invalidateQueries([queryKeys.RESOLVED_ENTITY, parentId.id])
-
-  return resultDoc
-}
+// Auto-link helpers moved to ./auto-link-parent.ts so tests can import them
+// without pulling in the editor bundle via documents.ts.
+export {
+  addLinkToParentDraft,
+  autoLinkParentAfterPublish,
+  documentContainsLinkToChild,
+  documentHasSelfQuery,
+  publishLinkToParentDocument,
+} from './auto-link-parent'
+export type {AutoLinkParentResult} from './auto-link-parent'
 
 export function useListSite(id?: UnpackedHypermediaId) {
   return useQuery({

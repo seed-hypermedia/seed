@@ -37,6 +37,7 @@ import {
   selectContext,
   selectIsConfirmingOldVersionEdit,
   selectIsEditing,
+  selectIsUnpublishedDraft,
   selectPublishedVersion,
   useAccountSync,
   useCapabilitySync,
@@ -376,8 +377,20 @@ export function ResourcePage({
     )
   }
 
+  // Drafts can target a path that has no published document yet (the user
+  // is creating a new doc via the unified editor). When that's the case,
+  // bypass discovery / not-found and render the editor over a placeholder
+  // document so the document machine can transition to "loaded" → editing.
+  const hasUnpublishedDraft =
+    !!existingDraft &&
+    canEdit &&
+    (resource.isDiscovering ||
+      !resource.data ||
+      resource.data.type === 'not-found' ||
+      (resource.data.type === 'error' && !resource.data.message?.toLowerCase?.().includes('permission')))
+
   // Handle discovery state
-  if (resource.isDiscovering) {
+  if (resource.isDiscovering && !hasUnpublishedDraft) {
     return (
       <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <PageDiscovery />
@@ -387,7 +400,7 @@ export function ResourcePage({
   }
 
   // Handle not-found
-  if (!resource.data || resource.data.type === 'not-found') {
+  if ((!resource.data || resource.data.type === 'not-found') && !hasUnpublishedDraft) {
     return (
       <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <PageNotFound />
@@ -397,7 +410,7 @@ export function ResourcePage({
   }
 
   // Handle tombstone (deleted)
-  if (resource.isTombstone || resource.data.type === 'tombstone') {
+  if (!hasUnpublishedDraft && (resource.isTombstone || resource.data?.type === 'tombstone')) {
     const isCommentRoute = route.key === 'comments'
     return (
       <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
@@ -408,7 +421,10 @@ export function ResourcePage({
   }
 
   // Handle private document (permission denied)
-  if (resource.data.type === 'error' && resource.data.message.toLowerCase().includes('permission')) {
+  if (
+    resource.data?.type === 'error' &&
+    resource.data.message.toLowerCase().includes('permission')
+  ) {
     return (
       <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <PagePrivate />
@@ -418,7 +434,7 @@ export function ResourcePage({
   }
 
   // Handle error
-  if (resource.data.type === 'error') {
+  if (!hasUnpublishedDraft && resource.data?.type === 'error') {
     return (
       <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <div className="flex flex-1 items-center justify-center p-8">
@@ -487,8 +503,25 @@ export function ResourcePage({
     )
   }
 
-  // Success: render document
-  if (resource.data.type !== 'document') {
+  // Success: render document. When the doc isn't published yet but a draft
+  // exists, fabricate a placeholder so DocumentBody / the document machine
+  // can transition to "loaded" → editing for the new-document case.
+  let document: HMDocument
+  if (resource.data?.type === 'document') {
+    document = resource.data.document
+  } else if (hasUnpublishedDraft) {
+    document = {
+      account: docId.uid,
+      path: `/${(docId.path ?? []).join('/')}`,
+      content: [],
+      metadata: existingDraft && existingDraft.metadata ? existingDraft.metadata : {},
+      version: '',
+      authors: [],
+      createTime: undefined as any,
+      updateTime: undefined as any,
+      genesis: '',
+    } as unknown as HMDocument
+  } else {
     return (
       <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <PageNotFound />
@@ -496,10 +529,14 @@ export function ResourcePage({
       </PageWrapper>
     )
   }
-  const document = resource.data.document
 
   return (
     <DocumentMachineProvider
+      // Key on the route id so the machine actor is recreated when the URL
+      // path changes (e.g. after first publish from `-${draftId}` → real slug).
+      // Without this, useActorRef keeps the original actor instance and its
+      // context still references the old documentId/editPath.
+      key={docId.id}
       input={{
         documentId: docId,
         canEdit,
@@ -788,6 +825,7 @@ function DocumentBody({
   useDraftResolutionSync(draftResolution)
   const publishedVersion = useDocumentSelector(selectPublishedVersion)
   const isEditing = useDocumentSelector(selectIsEditing)
+  const isUnpublishedDraft = useDocumentSelector(selectIsUnpublishedDraft)
   const ctx = useDocumentSelector(selectContext)
 
   const route = useNavRoute()
@@ -883,19 +921,26 @@ function DocumentBody({
 
   const breadcrumbs = useMemo((): BreadcrumbEntry[] | undefined => {
     if (isHomeDoc) return undefined
+    const lastIdx = breadcrumbIds.length - 1
     const items: BreadcrumbEntry[] = breadcrumbIds.map((id, i) => {
       const result = breadcrumbResults[i]
       const data = result?.data
       const metadata = data?.type === 'document' ? data.document?.metadata || {} : {}
       const fallbackName = id.path?.at(-1) || id.uid.slice(0, 8)
+      const isCurrent = i === lastIdx
+      // The current doc may be a local-only draft (no published version on
+      // disk yet). Surface a friendlier "draft" tooltip on this crumb instead
+      // of the generic "Document not found on the network".
+      const showAsUnpublishedDraft = isCurrent && isUnpublishedDraft
       return {
         id,
         metadata,
         fallbackName,
         isLoading: result?.isDiscovering || result?.isLoading,
         isTombstone: result?.isTombstone,
-        isNotFound: data?.type === 'not-found' && !result?.isDiscovering,
+        isNotFound: !showAsUnpublishedDraft && data?.type === 'not-found' && !result?.isDiscovering,
         isError: result?.isError && !result?.isDiscovering && !result?.isTombstone,
+        isUnpublishedDraft: showAsUnpublishedDraft,
       }
     })
 
@@ -1140,7 +1185,7 @@ function DocumentBody({
     const extras = extraMenuItems || []
     const nonDestructiveExtras = extras.filter((item) => item.variant !== 'destructive')
     const destructiveExtras = extras.filter((item) => item.variant === 'destructive')
-    const items = [...commonMenuItems]
+    let items = [...commonMenuItems]
     if (inspectMenuItem) {
       const copyLinkIndex = items.findIndex((item) => item.key === 'copy-link')
       items.splice(copyLinkIndex >= 0 ? copyLinkIndex + 1 : 0, 0, inspectMenuItem)
@@ -1148,8 +1193,14 @@ function DocumentBody({
     if (documentOptionsMenuItem) {
       items.push(documentOptionsMenuItem)
     }
+    // Drop share/copy-link entries while the doc is an unpublished draft —
+    // its URL won't resolve for anyone else, so any "share" action is a footgun.
+    if (isUnpublishedDraft) {
+      const drop = (key: string) => key === 'copy-link' || key.startsWith('copy-') || key === 'share'
+      items = items.filter((item) => !drop(item.key))
+    }
     return [...nonDestructiveExtras, ...items, ...destructiveExtras]
-  }, [extraMenuItems, commonMenuItems, inspectMenuItem, documentOptionsMenuItem])
+  }, [extraMenuItems, commonMenuItems, inspectMenuItem, documentOptionsMenuItem, isUnpublishedDraft])
 
   const hasOptions = allMenuItems.length > 0
   const actionButtons = hasOptions ? (
@@ -1367,7 +1418,7 @@ function DocumentBody({
           blockCitations={blockCitations}
           onBlockCitationClick={handleBlockCitationClick}
           onBlockCommentClick={handleBlockCommentClick}
-          onBlockSelect={handleBlockSelect}
+          onBlockSelect={isUnpublishedDraft ? undefined : handleBlockSelect}
           CommentEditor={CommentEditor}
           directory={directory.data}
           siteUrl={siteUrl}

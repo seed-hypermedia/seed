@@ -138,20 +138,30 @@ export function DocOptionsButton({
   const removeSite = useRemoveSiteDialog()
   const capability = useSelectedAccountCapability(id || undefined)
   const canEditDoc = roleCanWrite(capability?.role)
+  // No published version = not yet published. `doc` is undefined when the
+  // resource hasn't resolved or doesn't exist; `doc.version === ''` is the
+  // placeholder ResourcePage fabricates for the unified-editor draft flow.
+  // Private docs DO have a real `version`, so they fall through this check
+  // correctly and keep their copy-link entries.
+  const isDraftRoute = !doc?.version
   const seedHostDialog = useSeedHostDialog()
   const branchDialog = useAppDialog(BranchDialog)
   const moveDialog = useAppDialog(MoveDialog)
   const myAccountIds = useMyAccountIds()
   const pendingDomain = useHostSession().pendingDomains?.find((pending) => !!id && pending.siteUid === id.uid)
   const menuItems: MenuItemType[] = [
-    {
-      key: 'link',
-      label: `Copy ${displayHostname(gwUrl)} Link`,
-      icon: <Link className="size-4" />,
-      onClick: () => {
-        onCopyGateway(route)
-      },
-    },
+    ...(isDraftRoute
+      ? []
+      : [
+          {
+            key: 'link',
+            label: `Copy ${displayHostname(gwUrl)} Link`,
+            icon: <Link className="size-4" />,
+            onClick: () => {
+              onCopyGateway(route)
+            },
+          },
+        ]),
     {
       key: 'export',
       label: 'Export Document',
@@ -193,7 +203,7 @@ export function DocOptionsButton({
       },
     },
   ]
-  if (siteUrl) {
+  if (siteUrl && !isDraftRoute) {
     menuItems.unshift({
       key: 'link-site',
       label: `Copy ${displayHostname(siteUrl)} Link`,

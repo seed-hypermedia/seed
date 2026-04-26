@@ -6,6 +6,7 @@ import {client} from '@/trpc'
 import {pathNameify} from '@/utils/path'
 import {computePublishPath, shouldAutoLinkParent, validatePublishPath} from '@/utils/publish-utils'
 import {useNavigate} from '@/utils/useNavigate'
+import {useBroadcastWindowEvent} from '@/utils/window-events'
 import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -64,6 +65,7 @@ export default function PublishDraftButton() {
   )
 
   const signingAccount = useSelectedAccount()
+  const broadcastWindowEvent = useBroadcastWindowEvent()
   const signingAccountId = signingAccount?.id.uid
 
   // Determine if this is an edit (existing doc) or first publish (new doc)
@@ -265,6 +267,13 @@ export default function PublishDraftButton() {
             await addLinkToParentDraft(parentPublishInfo.draftId, childResultId)
             // Show success toast for draft update
             toast.success(<ParentUpdateToast message="Link added to parent draft" onViewParent={navigateToParent} />)
+            // Tell every window holding this draft open that its on-disk
+            // content has changed under it (the parent's editor in another
+            // window keeps stale ProseMirror state).
+            broadcastWindowEvent({
+              type: 'draft_externally_modified',
+              draftId: parentPublishInfo.draftId,
+            })
           } else if (parentPublishInfo.parentDocument) {
             // Publish to parent document
             parentResultDoc = await publishLinkToParentDocument(

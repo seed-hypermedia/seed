@@ -1,7 +1,13 @@
 import {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
 import {describe, expect, it, vi} from 'vitest'
-import {computeDraftRoute, computePublishPath, shouldAutoLinkParent, validatePublishPath} from '../publish-utils'
+import {
+  computeDraftRoute,
+  computeInlineDraftPublishPath,
+  computePublishPath,
+  shouldAutoLinkParent,
+  validatePublishPath,
+} from '../publish-utils'
 
 function createDocument(content: HMBlockNode[]): HMDocument {
   return {
@@ -162,6 +168,45 @@ describe('shouldAutoLinkParent', () => {
     const editableLocation = hmId('parent-uid', {path: ['parent', 'child']})
     const result = shouldAutoLinkParent(false, null, editableLocation, parentId)
     expect(result).toBe(true)
+  })
+})
+
+describe('computeInlineDraftPublishPath', () => {
+  it('replaces the trailing -${draftId} segment with the title slug', () => {
+    const editPath = ['parent', '-zrBTq6Tr6d']
+    const result = computeInlineDraftPublishPath(editPath, 'My Cool Doc', 'zrBTq6Tr6d')
+    expect(result).toEqual(['parent', 'my-cool-doc'])
+  })
+
+  it('falls back to untitled-${draftId} when title is empty', () => {
+    const editPath = ['parent', '-zrBTq6Tr6d']
+    const result = computeInlineDraftPublishPath(editPath, '', 'zrBTq6Tr6d')
+    expect(result).toEqual(['parent', 'untitled-zrBTq6Tr6d'])
+  })
+
+  it('falls back to untitled-${draftId} when title slugifies to empty', () => {
+    // Title made of only punctuation that pathNameify strips entirely
+    const editPath = ['parent', '-abc']
+    const result = computeInlineDraftPublishPath(editPath, '!@#$%', 'abc')
+    expect(result).toEqual(['parent', 'untitled-abc'])
+  })
+
+  it('preserves multi-segment parent paths', () => {
+    const editPath = ['a', 'b', 'c', '-xyz']
+    const result = computeInlineDraftPublishPath(editPath, 'Hello World', 'xyz')
+    expect(result).toEqual(['a', 'b', 'c', 'hello-world'])
+  })
+
+  it('handles a top-level draft (only draftId segment)', () => {
+    const editPath = ['-onlySeg']
+    const result = computeInlineDraftPublishPath(editPath, 'Top Level', 'onlySeg')
+    expect(result).toEqual(['top-level'])
+  })
+
+  it('produces collision-free fallbacks for two untitled drafts at the same parent', () => {
+    const a = computeInlineDraftPublishPath(['parent', '-aaa'], '', 'aaa')
+    const b = computeInlineDraftPublishPath(['parent', '-bbb'], '', 'bbb')
+    expect(a).not.toEqual(b)
   })
 })
 

@@ -17,6 +17,8 @@ export type AppWindowEvent =
   | {type: 'hypermediaHoverOut'; id: string}
   | {type: 'selectedIdentityChanged'; selectedIdentity: string | null}
   | {type: 'deviceLink'; origin?: string}
+  | {type: 'draft_externally_modified'; draftId: string}
+  | {type: 'document_path_changed'; oldId: string; newId: string}
 
 // Helper type to extract payload for a given key
 type EventPayload<K extends AppWindowEvent['type']> = Extract<AppWindowEvent, {type: K}>
@@ -37,5 +39,17 @@ export function useTriggerWindowEvent() {
   const ipc = useIPC()
   return (event: AppWindowEvent) => {
     ipc.send('focusedWindowAppEvent', event)
+  }
+}
+
+/**
+ * Broadcast an event to every renderer window (including the sender).
+ * Use for cross-window notifications such as "this draft was modified
+ * externally — please reload".
+ */
+export function useBroadcastWindowEvent() {
+  const ipc = useIPC()
+  return (event: AppWindowEvent) => {
+    ipc.send('broadcastWindowEvent', event)
   }
 }

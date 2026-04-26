@@ -15,6 +15,17 @@ export function computePublishPath(isPrivate: boolean, basePath: string[], docNa
 }
 
 /**
+ * For a "claimed" inline draft (editPath = parent + `-${draftId}`),
+ * compute the final published path from the title slug. The fallback
+ * `untitled-${draftId}` keeps multiple untitled drafts collision-free.
+ */
+export function computeInlineDraftPublishPath(currentEditPath: string[], docName: string, draftId: string): string[] {
+  const parentPath = currentEditPath.slice(0, -1)
+  const slug = pathNameify(docName || '') || `untitled-${draftId}`
+  return [...parentPath, slug]
+}
+
+/**
  * Validate the publish path. Returns an error string or null.
  * Private docs skip path validation entirely since their paths
  * contain random IDs that start with special characters.

@@ -1,6 +1,10 @@
 import {useDeleteDraft, useUpdateDraftMetadata} from '@/models/documents'
+import {client} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMListedDraft} from '@seed-hypermedia/client/hm-types'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
@@ -56,24 +60,56 @@ export function InlineNewDocumentCard({draft, autoFocus}: {draft: HMListedDraft;
     }
   }, [])
 
-  const openDraft = useCallback(() => {
+  const openDraft = useCallback(async () => {
     // Cancel any pending debounced save to prevent duplicate mutations
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
       saveTimeoutRef.current = undefined
     }
-    // Flush save then navigate
-    updateMetadata.mutate(
-      {draftId: draft.id, metadata: {name: title}},
-      {
-        onSuccess: () => navigate({key: 'draft', id: draft.id}),
-        onError: () => {
-          toast.error('Failed to save draft title')
-          navigate({key: 'draft', id: draft.id})
-        },
-      },
-    )
-  }, [navigate, draft.id, title, updateMetadata])
+
+    // The draft is already at parent + `-${draftId}` (set by useCreateInlineDraft).
+    // For older drafts created before that change (location-only, no editUid),
+    // backfill the edit path so the unified editor can find them.
+    let editUid = draft.editUid ?? draft.locationUid
+    let editPath = draft.editPath?.length
+      ? draft.editPath
+      : [...(draft.locationPath ?? []), `-${draft.id}`]
+    if (!editUid) {
+      toast.error('Cannot open draft: missing target location')
+      return
+    }
+
+    try {
+      const fullDraft = await client.drafts.get.query(draft.id)
+      if (!fullDraft) throw new Error(`Draft ${draft.id} not found`)
+      const needsBackfill = !fullDraft.editUid || !(fullDraft.editPath?.length)
+      await client.drafts.write.mutate({
+        id: fullDraft.id,
+        editUid,
+        editPath,
+        locationUid: fullDraft.locationUid ?? editUid,
+        locationPath: fullDraft.locationPath ?? editPath.slice(0, -1),
+        metadata: {...fullDraft.metadata, name: title},
+        content: fullDraft.content,
+        deps: fullDraft.deps,
+        navigation: fullDraft.navigation,
+        visibility: fullDraft.visibility,
+      })
+      if (needsBackfill) {
+        invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, editUid])
+      }
+      invalidateQueries([queryKeys.DRAFT, draft.id])
+      invalidateQueries([queryKeys.DRAFTS_LIST])
+    } catch (err) {
+      console.error('Failed to save draft title before navigating:', err)
+      // Fall through and navigate anyway — the unified editor will use whatever's on disk.
+    }
+
+    navigate({
+      key: 'document',
+      id: hmId(editUid, {path: editPath}),
+    })
+  }, [navigate, draft, title])
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value

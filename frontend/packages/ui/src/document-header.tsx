@@ -30,6 +30,8 @@ export type BreadcrumbEntry =
       isNotFound?: boolean
       isTombstone?: boolean
       isError?: boolean
+      /** Set on the last crumb when the current page is an unpublished local draft. */
+      isUnpublishedDraft?: boolean
       fallbackName?: string
     }
   | {label: string}
@@ -216,6 +218,16 @@ function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
         >
           {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
         </a>
+      </Tooltip>
+    )
+  }
+
+  if (crumb.isUnpublishedDraft) {
+    return (
+      <Tooltip content="This document is a draft and has not been published yet — its URL is private to you.">
+        <span className="text-muted-foreground min-w-0 truncate text-xs whitespace-nowrap italic">
+          {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
+        </span>
       </Tooltip>
     )
   }

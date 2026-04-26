@@ -353,6 +353,20 @@ export function selectPublishedVersion(snapshot: DocumentMachineSnapshot): strin
   return snapshot.context.publishedVersion
 }
 
+/**
+ * Whether the resource is a draft of a not-yet-published document.
+ *
+ * True when there's no real published version on the document — the editor is
+ * mounted over a synthetic placeholder created by ResourcePage for the
+ * inline-card flow. Use this to gate share/copy-link affordances so users
+ * don't propagate URLs that won't resolve for anyone else.
+ */
+export function selectIsUnpublishedDraft(snapshot: DocumentMachineSnapshot): boolean {
+  const doc = snapshot.context.document
+  if (!doc) return false
+  return !doc.version
+}
+
 /** A new version received while editing (not yet applied). */
 export function selectPendingRemoteVersion(snapshot: DocumentMachineSnapshot): string | null {
   return snapshot.context.pendingRemoteVersion
