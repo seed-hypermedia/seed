@@ -5,13 +5,14 @@
 import type {Command} from 'commander'
 import {readFileSync} from 'fs'
 import {createComment, deleteComment, updateComment} from '@seed-hypermedia/client'
-import type {HMAnnotation, HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {getClient, getOutputFormat, isPretty} from '../index'
 import {formatOutput, printError, printSuccess} from '../output'
 import {resolveKey} from '../utils/keyring'
 import {resolveIdWithClient} from '../utils/resolve-id'
 import {createSignerFromKey} from '../utils/signer'
+import {textToBlocks as parseCommentMarkdown} from './comment-blocks'
 
 export function registerCommentCommands(program: Command) {
   const comment = program.command('comment').description('Manage comments (get, list, create, edit, discussions)')
@@ -280,70 +281,8 @@ export function registerCommentCommands(program: Command) {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Parse a line of text, extracting inline mentions of the form
- * `@[DisplayName](hm://accountId)`. Each mention is replaced with
- * U+FFFC (object replacement character) in the output text and an
- * Embed annotation is created spanning that single character.
- */
-function parseMentions(line: string): {text: string; annotations: HMAnnotation[]} {
-  const mentionRe = /@\[([^\]]*)\]\((hm:\/\/[^)]+)\)/g
-  const annotations: HMAnnotation[] = []
-  let result = ''
-  let lastIndex = 0
-  let match: RegExpExecArray | null
-
-  while ((match = mentionRe.exec(line)) !== null) {
-    // Append text before the mention
-    result += line.slice(lastIndex, match.index)
-    const pos = result.length
-    // Insert the object replacement character
-    result += '\uFFFC'
-    annotations.push({
-      type: 'Embed',
-      starts: [pos],
-      ends: [pos + 1],
-      link: match[2],
-    })
-    lastIndex = match.index + match[0].length
-  }
-
-  // Append remaining text
-  result += line.slice(lastIndex)
-  return {text: result, annotations}
-}
-
 function textToBlocks(text: string): HMBlockNode[] {
-  const lines = text.split('\n').filter((line) => line.trim().length > 0)
-
-  if (lines.length === 0) {
-    return [
-      {
-        block: {
-          id: generateBlockId(),
-          type: 'Paragraph',
-          text: '',
-          attributes: {},
-          annotations: [],
-        },
-        children: [],
-      },
-    ]
-  }
-
-  return lines.map((line) => {
-    const {text: parsedText, annotations} = parseMentions(line)
-    return {
-      block: {
-        id: generateBlockId(),
-        type: 'Paragraph',
-        text: parsedText,
-        attributes: {},
-        annotations,
-      },
-      children: [],
-    }
-  })
+  return parseCommentMarkdown(text, generateBlockId)
 }
 
 function readCommentText(options: {body?: string; file?: string}): string {
