@@ -97,24 +97,40 @@ export function parseInlineFormatting(raw: string): InlineParseResult {
       }
     }
 
-    // Autolink: <scheme://...>  →  Embed annotation.
+    // Autolink: <scheme://...>
+    //
     // CommonMark autolinks have a URI with a scheme, no whitespace, and
-    // balanced angle brackets. We insert an object replacement character
-    // (￼) as a placeholder in the text so the annotation has a non-empty
-    // range — matching the existing convention for inline embeds.
+    // balanced angle brackets. Two cases by scheme:
+    //   - hm://...  → Embed annotation on a U+FFFC placeholder. Embeds
+    //     point to hypermedia resources and are rendered by the editor
+    //     as inline mention chips.
+    //   - any other scheme (http, https, mailto, …) → Link annotation
+    //     spanning the visible URL text. The editor's mention renderer
+    //     would print "ERROR" for an Embed pointing at a non-hm URL,
+    //     so external autolinks must be plain links.
     if (raw[i] === '<') {
       const end = raw.indexOf('>', i + 1)
       if (end !== -1) {
         const inner = raw.slice(i + 1, end)
         if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\S*$/.test(inner) && !/[\s<>]/.test(inner)) {
           const start = text.length
-          text += '￼'
-          annotations.push({
-            type: 'Embed',
-            starts: [start],
-            ends: [text.length],
-            link: inner,
-          })
+          if (inner.startsWith('hm://')) {
+            text += '￼'
+            annotations.push({
+              type: 'Embed',
+              starts: [start],
+              ends: [text.length],
+              link: inner,
+            })
+          } else {
+            text += inner
+            annotations.push({
+              type: 'Link',
+              starts: [start],
+              ends: [text.length],
+              link: inner,
+            })
+          }
           i = end + 1
           continue
         }

@@ -128,7 +128,7 @@ describe('markdown round-trip', () => {
     expect(md).not.toContain('↗')
   })
 
-  it('parses autolinks as Embed annotations', () => {
+  it('parses hm:// autolinks as Embed annotations', () => {
     const {text, annotations} = parseInlineFormatting('cc <hm://z6Mktest/:profile>')
     expect(text).toBe('cc ￼')
     expect(annotations).toHaveLength(1)
@@ -136,6 +136,20 @@ describe('markdown round-trip', () => {
     expect(annotations[0]!.link).toBe('hm://z6Mktest/:profile')
     expect(annotations[0]!.starts).toEqual([3])
     expect(annotations[0]!.ends).toEqual([4])
+  })
+
+  it('parses external autolinks as Link annotations spanning the URL text', () => {
+    // Embed annotations are rendered as mention chips and break (showing
+    // "ERROR") when the link is not an hm:// resource. External autolinks
+    // must therefore be Link annotations, not Embeds.
+    const {text, annotations} = parseInlineFormatting('See <https://example.com/foo> please')
+    expect(text).toBe('See https://example.com/foo please')
+    expect(text).not.toContain('￼')
+    expect(annotations).toHaveLength(1)
+    expect(annotations[0]!.type).toBe('Link')
+    expect(annotations[0]!.link).toBe('https://example.com/foo')
+    expect(annotations[0]!.starts).toEqual([4])
+    expect(annotations[0]!.ends).toEqual([4 + 'https://example.com/foo'.length])
   })
 
   it('keeps bracketed links as Link annotations (not Embed)', () => {
