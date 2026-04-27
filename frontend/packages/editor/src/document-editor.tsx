@@ -244,7 +244,11 @@ export function DocumentEditor({
         } finally {
           suppressChangeRef.current = false
         }
+        // Use the post-replace blocks as the diff baseline so future change counts
+        // compare against blocks after editor initialization.
+        actorRef.send({type: 'editor.baselineUpdate', blocks: editor.topLevelBlocks as any})
       },
+      getCurrentBlocks: () => editor.topLevelBlocks as any,
       placeCursor: () => {
         const view = editor._tiptapEditor?.view
         if (!view) {

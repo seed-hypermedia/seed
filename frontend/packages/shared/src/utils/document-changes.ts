@@ -335,6 +335,9 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
     'query',
     'columnCount',
     'style', // Query block style attribute
+    'autoplay',
+    'loop',
+    'muted',
   ]
 
   // Helper function to check if a single attribute is equal

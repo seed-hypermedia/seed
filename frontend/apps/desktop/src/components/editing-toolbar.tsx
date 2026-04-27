@@ -1,47 +1,270 @@
-import {useDeleteDraftDialog} from './delete-draft-dialog'
+import {useGatewayUrl} from '@/models/gateway-settings'
 import {client} from '@/trpc'
+import {useNavigate} from '@/utils/useNavigate'
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useEditorHandlersRef} from '@shm/shared/models/editor-handlers-context'
+import {useAccount, useResource} from '@shm/shared/models/entity'
 import {
+  selectDocument,
   selectDraftId,
+  selectEditorBaseline,
+  selectMetadata,
   selectSaveIndicatorStatus,
+  selectSaveStatus,
   useDocumentSelector,
   useDocumentSend,
 } from '@shm/shared/models/use-document-machine'
-import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
+import {type AnyTimestamp, formattedDateMedium, formattedDateShort, normalizeDate} from '@shm/shared/utils/date'
+import {compareBlocksWithMap, createBlocksMap, extractDeletes} from '@shm/shared/utils/document-changes'
+import {createSiteUrl, createWebHMUrl, hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
+import {Popover, PopoverAnchor, PopoverContent} from '@shm/ui/components/popover'
+import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
+import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
+import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
-import {Check, Eye, Settings, Trash} from 'lucide-react'
-import {ReactNode} from 'react'
+import {usePopoverState} from '@shm/ui/use-popover-state'
+import {Check, ChevronRight, Clock, Copy, FileDiff, Trash} from 'lucide-react'
+import {forwardRef, ReactNode, useMemo, useState} from 'react'
+import {useDeleteDraftDialog} from './delete-draft-dialog'
 
+// Tracks whether the user has already opened the publish popover and triggered a
+// publish for a given document in this app session. Survives component remounts.
+// Keyed by `docId.id` so switching documents shows the popover on first click for each.
+const publishTriggeredForDoc = new Set<string>()
+
+/** Dark pill shown top-right while autosave is saving or just saved. */
 function SaveIndicator() {
   const status = useDocumentSelector(selectSaveIndicatorStatus)
 
-  if (status === 'saving') {
-    return (
-      <div className="flex items-center gap-1 opacity-60">
-        <Spinner />
-        <span className="text-xs">saving...</span>
-      </div>
-    )
-  }
+  if (status === 'hidden') return null
 
-  if (status === 'saved') {
-    return (
-      <div className="flex items-center gap-1 opacity-60">
-        <Check className="size-3" />
-        <span className="text-xs">saved</span>
-      </div>
-    )
-  }
+  const label = status === 'saving' ? 'Saving…' : 'Saved'
+  const icon = status === 'saving' ? <Spinner className="size-3" /> : <Check className="size-3" />
 
-  return null
+  return (
+    <div className="flex items-center gap-1.5 rounded-full bg-neutral-800 px-3 py-1 text-white dark:bg-neutral-700">
+      {icon}
+      <span className="text-xs">{label}</span>
+    </div>
+  )
+}
+
+/** Format time/date to show in the last document activity in publish popover */
+function formatRelativeTime(updateTime: AnyTimestamp): string | null {
+  const date = normalizeDate(updateTime)
+  if (!date) return null
+  const diffSeconds = (Date.now() - date.getTime()) / 1000
+  if (diffSeconds < 60) return 'just now'
+  if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)}m ago`
+  if (diffSeconds < 86400) return `${Math.floor(diffSeconds / 3600)}h ago`
+  if (diffSeconds < 86400 * 7) return `${Math.floor(diffSeconds / 86400)}d ago`
+  return formattedDateShort(date)
 }
 
 /**
+ * Count of unpublished changes: block diffs against the editor baseline plus any
+ * metadata fields touched this session (title, summary, etc.). Reads
+ * `editor.topLevelBlocks` directly and reruns whenever `selectSaveStatus` ticks.
+ */
+function useUnpublishedChangeCount(): number {
+  const handlersRef = useEditorHandlersRef()
+  const baseline = useDocumentSelector(selectEditorBaseline)
+  const metadata = useDocumentSelector(selectMetadata)
+  const saveStatus = useDocumentSelector(selectSaveStatus)
+
+  return useMemo(() => {
+    const metadataChangeCount = Object.keys(metadata ?? {}).length
+    if (!baseline) return metadataChangeCount
+    const editorBlocks = handlersRef.current?.getCurrentBlocks() ?? []
+    if (editorBlocks.length === 0) return metadataChangeCount
+    const baselineMap = createBlocksMap(editorBlocksToHMBlockNodes(baseline), '')
+    const {changes, touchedBlocks} = compareBlocksWithMap(baselineMap, editorBlocks, '')
+    const deletes = extractDeletes(baselineMap, touchedBlocks)
+    return changes.length + deletes.length + metadataChangeCount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseline, metadata, saveStatus, handlersRef])
+}
+
+/** The public URL where this document is or will be available. */
+function useDocumentUrl(docId: UnpackedHypermediaId): string | null {
+  const gatewayUrl = useGatewayUrl()
+  // Site home doc for this account. Its metadata may carry a configured siteUrl.
+  const siteHomeResource = useResource(hmId(docId.uid))
+  const siteUrl =
+    siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document?.metadata?.siteUrl : undefined
+
+  return useMemo(() => {
+    if (!gatewayUrl.data) return null
+    if (siteUrl) {
+      return createSiteUrl({path: docId.path, hostname: siteUrl})
+    }
+    return createWebHMUrl(docId.uid, {path: docId.path, hostname: gatewayUrl.data})
+  }, [docId.uid, docId.path, gatewayUrl.data, siteUrl])
+}
+
+/**
+ * Popover body shown when the user clicks Publish before the first successful publish.
+ */
+function PublishPopoverBody({
+  docId,
+  changeCount,
+  onPublish,
+  onClose,
+  publishDisabled,
+}: {
+  docId: UnpackedHypermediaId
+  changeCount: number
+  onPublish: () => void
+  onClose: () => void
+  publishDisabled: boolean
+}) {
+  const publishedDoc = useDocumentSelector(selectDocument)
+  const draftId = useDocumentSelector(selectDraftId)
+  const documentUrl = useDocumentUrl(docId)
+  const navigate = useNavigate('replace')
+
+  const firstAuthorUid = publishedDoc?.authors?.[0]
+  const authorAccount = useAccount(firstAuthorUid)
+  const authorName = authorAccount.data?.metadata?.name
+  const relativeTime = formatRelativeTime(publishedDoc?.updateTime)
+  const absoluteTime = publishedDoc?.updateTime ? formattedDateMedium(publishedDoc.updateTime) : undefined
+
+  const goToVersions = () => {
+    onClose()
+    navigate({
+      key: 'document',
+      id: docId,
+      panel: {key: 'activity', id: docId, filterEventType: ['Ref']},
+    } as any)
+  }
+
+  const openPreview = () => {
+    onClose()
+    // Preview the draft when one exists. Fall back to the
+    // published doc otherwise.
+    const previewRoute = draftId ? {key: 'preview' as const, draftId} : {key: 'preview' as const, docId}
+    client.createAppWindow.mutate({
+      routes: [previewRoute],
+      sidebarLocked: false,
+      sidebarWidth: 0,
+      accessoryWidth: 0,
+    })
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* URL row */}
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-medium">Your document will be available at</p>
+        {documentUrl ? (
+          <div className="flex items-center gap-2">
+            <span
+              className="text-muted-foreground min-w-0 flex-1 text-xs"
+              style={{
+                direction: 'rtl',
+                textAlign: 'left',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {documentUrl}
+            </span>
+            <Tooltip content="Copy URL">
+              <Button
+                size="iconSm"
+                variant="ghost"
+                className="shrink-0"
+                onClick={() => {
+                  copyTextToClipboard(documentUrl).then(() => toast.success('Copied document URL'))
+                }}
+              >
+                <Copy size={14} />
+              </Button>
+            </Tooltip>
+          </div>
+        ) : (
+          <div className="text-muted-foreground flex items-center gap-2 text-xs">
+            <Spinner className="size-3" />
+            <span>Loading…</span>
+          </div>
+        )}
+      </div>
+
+      <Separator className="bg-black/10 dark:bg-white/10" />
+
+      {/* Last published row that opens versions panel on click */}
+      {publishedDoc && relativeTime ? (
+        <button
+          type="button"
+          onClick={goToVersions}
+          title={absoluteTime}
+          className="hover:bg-muted -mx-2 flex items-center gap-2 rounded px-2 py-1 text-left text-xs"
+        >
+          <Clock className="text-muted-foreground size-3.5" />
+          <span className="flex-1">
+            <span className="text-foreground">{relativeTime}</span>
+            {authorName ? <span className="text-muted-foreground"> by {authorName}</span> : null}
+          </span>
+          <ChevronRight className="text-muted-foreground size-3.5" />
+        </button>
+      ) : null}
+
+      {/* Changes count row */}
+      <div className="-mx-2 flex items-center gap-2 rounded px-2 py-1 text-xs">
+        <FileDiff className="text-muted-foreground size-3.5" />
+        <span className="flex-1">
+          {changeCount === 0 ? 'No changes to publish' : `${changeCount} ${changeCount === 1 ? 'change' : 'changes'}`}
+        </span>
+      </div>
+
+      <Separator className="bg-black/10 dark:bg-white/10" />
+
+      <div className="flex flex-col gap-1">
+        <Button size="sm" variant="brand" disabled={publishDisabled} onClick={onPublish}>
+          Publish: Make it live now
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="border-brand text-brand hover:text-brand dark:border-brand"
+          onClick={openPreview}
+        >
+          Preview: View before publishing
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/** Trigger button for the Publish popover. Shows a pulsing white dot when there are unsaved changes. */
+const PublishTrigger = forwardRef<
+  HTMLButtonElement,
+  {hasUnsavedChanges: boolean; onClick: (e: React.MouseEvent) => void}
+>(({hasUnsavedChanges, onClick}, ref) => {
+  return (
+    <Button ref={ref} size="sm" variant="brand" className="gap-1.5" onClick={onClick}>
+      {hasUnsavedChanges ? (
+        <span className="relative flex size-2 shrink-0 rounded-full bg-white">
+          <span className="absolute inset-0 animate-ping rounded-full bg-white opacity-75" />
+        </span>
+      ) : null}
+      Publish
+    </Button>
+  )
+})
+PublishTrigger.displayName = 'PublishTrigger'
+
+/**
  * Combined right-actions for DocumentTools when editing.
- * Renders: save indicator, publish, preview, new button, three-dots (merged menu).
+ * Renders: save indicator, publish (with popover), new button, three-dots (merged menu).
  * Must be rendered inside DocumentMachineProvider.
  */
 export function EditingDocToolsRight({
@@ -54,27 +277,27 @@ export function EditingDocToolsRight({
   newButton?: ReactNode
 }) {
   const draftId = useDocumentSelector(selectDraftId)
+  const changeCount = useUnpublishedChangeCount()
+  const hasUnpublishedChanges = changeCount > 0
   const send = useDocumentSend()
   const deleteDraftDialog = useDeleteDraftDialog()
-  const route = useNavRoute()
-  const navigate = useNavigate('replace')
 
-  // Editing-specific menu items (prepended to existing items)
-  const editingMenuItems: MenuItemType[] = []
+  // Track first-time popover behavior. Flipped when the user actually triggers a
+  // publish from inside the popover. Persisted at module scope keyed by docId so
+  // the flag survives the remount that happens after a successful publish.
+  const [hasTriggeredPublish, setHasTriggeredPublishState] = useState(() => publishTriggeredForDoc.has(docId.id))
+  const setHasTriggeredPublish = () => {
+    publishTriggeredForDoc.add(docId.id)
+    setHasTriggeredPublishState(true)
+  }
+  const popoverState = usePopoverState()
+
+  // Destructive "Discard Changes" is appended so it sits with other destructive
+  // actions at the bottom.
+  const editingTrailingItems: MenuItemType[] = []
 
   if (draftId) {
-    editingMenuItems.push({
-      key: 'doc-options',
-      label: 'Document Options',
-      icon: <Settings className="size-4" />,
-      onClick: () => {
-        navigate({
-          ...route,
-          panel: (route as any).panel?.key === 'options' ? null : ({key: 'options'} as any),
-        } as any)
-      },
-    })
-    editingMenuItems.push({
+    editingTrailingItems.push({
       key: 'discard-changes',
       label: 'Discard Changes',
       icon: <Trash className="size-4" />,
@@ -88,32 +311,41 @@ export function EditingDocToolsRight({
     })
   }
 
-  const allItems = [...editingMenuItems, ...existingMenuItems]
+  const allItems = [...existingMenuItems, ...editingTrailingItems]
+
+  const publishNow = () => {
+    popoverState.onOpenChange(false)
+    setHasTriggeredPublish()
+    send({type: 'publish.start'})
+  }
+
+  const handlePublishTriggerClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (hasTriggeredPublish) {
+      publishNow()
+    } else {
+      popoverState.onOpenChange(!popoverState.open)
+    }
+  }
 
   return (
     <div className="flex items-center gap-1">
       <SaveIndicator />
 
-      <Button size="sm" disabled={!draftId} onClick={() => send({type: 'publish.start'})}>
-        Publish
-      </Button>
-
-      <Tooltip content="Preview Published Version">
-        <Button
-          size="icon"
-          variant="outline"
-          onClick={() => {
-            client.createAppWindow.mutate({
-              routes: [{key: 'preview', docId}],
-              sidebarLocked: false,
-              sidebarWidth: 0,
-              accessoryWidth: 0,
-            })
-          }}
-        >
-          <Eye className="size-3.5" />
-        </Button>
-      </Tooltip>
+      <Popover open={popoverState.open} onOpenChange={popoverState.onOpenChange}>
+        <PopoverAnchor asChild>
+          <PublishTrigger hasUnsavedChanges={hasUnpublishedChanges} onClick={handlePublishTriggerClick} />
+        </PopoverAnchor>
+        <PopoverContent align="end" className="w-80">
+          <PublishPopoverBody
+            docId={docId}
+            changeCount={changeCount}
+            onPublish={publishNow}
+            onClose={() => popoverState.onOpenChange(false)}
+            publishDisabled={!draftId || changeCount === 0}
+          />
+        </PopoverContent>
+      </Popover>
 
       {newButton}
 

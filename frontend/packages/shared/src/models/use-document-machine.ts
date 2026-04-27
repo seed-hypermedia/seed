@@ -1,3 +1,4 @@
+import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {useActorRef, useSelector} from '@xstate/react'
 import {createContext, createElement, ReactNode, useContext, useEffect, useMemo, useRef} from 'react'
@@ -372,6 +373,11 @@ export function selectDocument(snapshot: DocumentMachineSnapshot): HMDocument | 
   return snapshot.context.document
 }
 
+/** Pending metadata changes set during this editing session (e.g. title/summary edits). */
+export function selectMetadata(snapshot: DocumentMachineSnapshot): HMMetadata {
+  return snapshot.context.metadata
+}
+
 /** The current error, if any (available in both loading and error states). */
 export function selectError(snapshot: DocumentMachineSnapshot): unknown {
   return snapshot.context.error
@@ -387,6 +393,11 @@ export function selectBlocks(snapshot: DocumentMachineSnapshot): HMBlockNode[] {
   const ctx = snapshot.context
   if (ctx.draftContent) return ctx.draftContent
   return ctx.document?.content ?? []
+}
+
+/** Published content in editor-block format. Baseline for unpublished-change diffs. */
+export function selectEditorBaseline(snapshot: DocumentMachineSnapshot): EditorBlock[] | null {
+  return snapshot.context.editorBaseline
 }
 
 /** Cursor position saved in the draft file, or null if none. */

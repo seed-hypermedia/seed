@@ -1,3 +1,5 @@
+import {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {
   HMBlockNode,
   HMDocument,
@@ -55,6 +57,8 @@ export type DocumentMachineContext = {
   draftContent: HMBlockNode[] | null
   /** Cursor position saved in the draft file; restored when re-entering editing after reload. */
   draftCursorPosition: number | null
+  /** Published content in editor-block format. Baseline for unpublished-change diffs. */
+  editorBaseline: EditorBlock[] | null
   error: unknown
 }
 
@@ -85,6 +89,7 @@ export type DocumentMachineEvent =
     }
   | {type: '_save.started'}
   | {type: '_save.completed'}
+  | {type: 'editor.baselineUpdate'; blocks: EditorBlock[]}
   | {type: 'scroll'}
 
 /** Input for the writeDraft actor. */
@@ -137,6 +142,12 @@ export const documentMachine = setup({
       publishedVersion: ({event}) => {
         if (event.type === 'document.loaded' || event.type === 'document.remoteUpdate') {
           return event.document.version
+        }
+        return null
+      },
+      editorBaseline: ({event}) => {
+        if (event.type === 'document.loaded' || event.type === 'document.remoteUpdate') {
+          return hmBlocksToEditorContent(event.document.content ?? [], {childrenType: 'Group'})
         }
         return null
       },
@@ -297,6 +308,17 @@ export const documentMachine = setup({
         const doc = (event as any).output as HMDocument
         return doc ?? null
       },
+      editorBaseline: ({event}) => {
+        const doc = (event as any).output as HMDocument
+        if (!doc) return null
+        return hmBlocksToEditorContent(doc.content ?? [], {childrenType: 'Group'})
+      },
+    }),
+    setEditorBaselineFromSnapshot: assign({
+      editorBaseline: ({event, context}) => {
+        if (event.type === 'editor.baselineUpdate') return event.blocks
+        return context.editorBaseline
+      },
     }),
   },
   guards: {
@@ -351,6 +373,9 @@ export const documentMachine = setup({
     scroll: {
       actions: emit({type: 'scrolling'}),
     },
+    'editor.baselineUpdate': {
+      actions: ['setEditorBaselineFromSnapshot'],
+    },
   },
   context: ({input}) => ({
     documentId: input.documentId,
@@ -376,6 +401,7 @@ export const documentMachine = setup({
     draftReady: !!input.existingDraftId,
     draftContent: null,
     draftCursorPosition: null,
+    editorBaseline: null,
     error: null,
   }),
   initial: 'loading',

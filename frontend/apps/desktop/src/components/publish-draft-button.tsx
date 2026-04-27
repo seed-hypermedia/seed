@@ -20,7 +20,7 @@ import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
-import {AlertCircle, Check, Copy, Document, Share} from '@shm/ui/icons'
+import {AlertCircle, Check, Copy} from '@shm/ui/icons'
 import {PublishedToast, PushResourceStatus} from '@shm/ui/push-toast'
 import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
@@ -28,7 +28,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {useMutation, useQuery} from '@tanstack/react-query'
-import {HTMLAttributes, PropsWithChildren, useEffect, useMemo, useRef, useState} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 import {useDraft} from '../models/accounts'
 import {
   addLinkToParentDraft,
@@ -374,8 +374,7 @@ export default function PublishDraftButton() {
       <Popover {...popoverState}>
         <Tooltip content={signingAccount ? `Publish as ${signingAccount?.metadata?.name}` : 'Publish Document...'}>
           <PopoverTrigger asChild>
-            <Button size="sm" className="hover:bg-hover dark:bg-background bg-white px-2">
-              <Share className="size-4" />
+            <Button size="sm" variant="brand">
               Publish
             </Button>
           </PopoverTrigger>
@@ -389,28 +388,7 @@ export default function PublishDraftButton() {
           }}
         >
           <div className="flex flex-col gap-3">
-            {/* Header - first publish only */}
-            {isFirstPublish && <p className="text-base font-semibold">Ready to publish?</p>}
-
-            {/* You are publishing section */}
-            <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium">You are publishing</p>
-              <div className="flex items-center gap-1.5">
-                <span className="shrink-0">
-                  <Document size={12} color="currentColor" />
-                </span>
-                <span className="truncate text-sm">{draft.data?.metadata.name || 'Untitled'}</span>
-              </div>
-              {isFirstPublish && (
-                <p className="text-muted-foreground text-xs">
-                  Publishing means your document will be public and live on the URL below.
-                </p>
-              )}
-            </div>
-
-            <Separator />
-
-            {/* Your document will be available at section */}
+            {/* URL row */}
             <div className="flex flex-col gap-2">
               <p className="text-sm font-medium">Your document will be available at</p>
               {documentUrl ? (
@@ -468,21 +446,25 @@ export default function PublishDraftButton() {
                       }
                     }}
                     placeholder="/document-path"
-                    className={`h-8 text-xs ${publishError ? 'border-red-500' : ''}`}
+                    className={`h-8 border-black/10 text-xs dark:border-white/20 ${
+                      publishError ? 'border-red-500 dark:border-red-500' : ''
+                    }`}
                   />
                   {publishError && <p className="text-destructive text-xs">{publishError}</p>}
                 </div>
               )}
             </div>
 
-            <Separator />
+            <Separator className="bg-black/10 dark:bg-white/10" />
+
             <div className="flex flex-col gap-1">
-              <Button size="sm" variant="default" onClick={handlePublishPress}>
+              <Button size="sm" variant="brand" onClick={handlePublishPress}>
                 Publish: Make it live now
               </Button>
               <Button
                 size="sm"
                 variant="outline"
+                className="border-brand text-brand hover:text-brand dark:border-brand"
                 onClick={() => {
                   client.createAppWindow.mutate({
                     routes: [{key: 'preview', draftId}],
@@ -505,14 +487,7 @@ export default function PublishDraftButton() {
   )
 }
 
-function StatusWrapper({children, className, ...props}: PropsWithChildren<HTMLAttributes<HTMLDivElement>>) {
-  return (
-    <div className={`flex flex-col gap-2 opacity-60 ${className || ''}`} {...props}>
-      {children}
-    </div>
-  )
-}
-
+/** Dark pill shown next to the publish button while autosave is saving / just saved / errored. */
 function SaveIndicatorStatus() {
   const [status, setStatus] = useState('idle' as DraftStatus)
 
@@ -527,42 +502,28 @@ function SaveIndicatorStatus() {
     })
   }, [])
 
-  if (status == 'saving') {
+  if (status === 'idle') return null
+
+  if (status === 'error') {
     return (
-      <StatusWrapper>
-        <Button variant="ghost" size="xs">
-          <Spinner />
-          saving...
-        </Button>
-      </StatusWrapper>
+      <Tooltip content="An error occurred while trying to save the latest changes.">
+        <div className="bg-destructive flex items-center gap-1.5 rounded-full px-3 py-1 text-white">
+          <AlertCircle size={12} />
+          <span className="text-xs">Error</span>
+        </div>
+      </Tooltip>
     )
   }
 
-  if (status == 'saved') {
-    return (
-      <StatusWrapper>
-        <Button variant="ghost" size="xs" disabled>
-          <Check />
-          saved
-        </Button>
-      </StatusWrapper>
-    )
-  }
+  const label = status === 'saving' ? 'Saving…' : 'Saved'
+  const icon = status === 'saving' ? <Spinner className="size-3" /> : <Check size={12} color="currentColor" />
 
-  if (status == 'error') {
-    return (
-      <StatusWrapper className="items-end">
-        <Tooltip content="An error ocurred while trying to save the latest changes.">
-          <Button variant="destructive" size="xs">
-            <AlertCircle className="size-2" />
-            Error
-          </Button>
-        </Tooltip>
-      </StatusWrapper>
-    )
-  }
-
-  return null
+  return (
+    <div className="flex items-center gap-1.5 rounded-full bg-neutral-800 px-3 py-1 text-white dark:bg-neutral-700">
+      {icon}
+      <span className="text-xs">{label}</span>
+    </div>
+  )
 }
 
 function ParentUpdateToast({message, onViewParent}: {message: string; onViewParent: () => void}) {

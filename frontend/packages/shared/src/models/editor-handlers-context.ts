@@ -1,3 +1,4 @@
+import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {createContext, MutableRefObject, useContext} from 'react'
 
 /**
@@ -12,6 +13,8 @@ export type EditorHandlers = {
   applyInitialContent: () => void
   /** Place the cursor from the pending click position or the saved draft position. */
   placeCursor: () => void
+  /** Live snapshot of the editor's top-level blocks. Used for unpublished-change diffs. */
+  getCurrentBlocks: () => EditorBlock[]
 }
 
 /**
