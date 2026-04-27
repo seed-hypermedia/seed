@@ -74,12 +74,17 @@ jobs:
             backend/util/llama-go/libggml*.a
             backend/util/llama-go/libcommon.a
             backend/util/llama-go/build
-          key: llama-vulkan-linux-${{ steps.llama-sha.outputs.sha }}
+          # Cache key suffix `portable` indicates GGML_NATIVE=OFF builds.
+          # Older `llama-vulkan-linux-<sha>` caches were built with
+          # GGML_NATIVE=ON on heterogeneous ubuntu-latest runners, which
+          # baked AVX-512 instructions into the artifact and crashed with
+          # SIGILL on runners without AVX-512.
+          key: llama-vulkan-linux-portable-${{ steps.llama-sha.outputs.sha }}
       - name: Build llama.cpp (with Vulkan GPU support)
         if: steps.llama-cache.outputs.cache-hit != 'true'
         run: |
           cd backend/util/llama-go
-          BUILD_TYPE=vulkan CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a
+          BUILD_TYPE=vulkan CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF" make libbinding.a
 
       - name: Run tests
         run: go test --count 1 ./backend/...

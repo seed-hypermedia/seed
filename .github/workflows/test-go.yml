@@ -67,13 +67,20 @@ jobs:
             backend/util/llama-go/libggml*.a
             backend/util/llama-go/libcommon.a
             backend/util/llama-go/build
-          key: llama-cpu-linux-${{ steps.llama-sha.outputs.sha }}
+          # `portable` suffix: GGML_NATIVE=OFF so the cached artifact is
+          # safe to reuse across heterogeneous GitHub-hosted runners
+          # (mixed AVX-512 / non-AVX-512 CPUs). With NATIVE=ON, an
+          # artifact built on an AVX-512 host crashes with SIGILL on
+          # runners that lack AVX-512.
+          key: llama-cpu-linux-portable-${{ steps.llama-sha.outputs.sha }}
       - name: Build llama.cpp (CPU-only for tests)
         if: steps.llama-cache.outputs.cache-hit != 'true'
         run: |
           cd backend/util/llama-go
-          # Tests run without GPU hardware, so we build CPU-only
-          CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF" make libbinding.a
+          # Tests run without GPU hardware, so we build CPU-only.
+          # GGML_NATIVE=OFF prevents -march=native from baking in
+          # whichever ISA extensions the build host happens to expose.
+          CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF" make libbinding.a
 
       - name: Run tests
         run: go test -tags cpu --count 1 ./backend/...
