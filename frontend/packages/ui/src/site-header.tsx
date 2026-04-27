@@ -35,7 +35,6 @@ export function SiteHeader({
   siteHomeId,
   docId,
   items,
-  homeNavigationItems,
   directoryItems: _directoryItems,
   isCenterLayout = false,
   document,
@@ -211,11 +210,11 @@ export function SiteHeader({
               {isMobileSearchActive ? <div className="bg-background absolute inset-0 z-10" /> : null}
 
               <div className="relative z-0">
-                {/* Always show home navigation items */}
-                {homeNavigationItems && homeNavigationItems.length > 0 && (
+                {/* Always show the same navigation items as the desktop header */}
+                {items && items.length > 0 && (
                   <div className="mt-2.5 mb-4 flex flex-col gap-2 px-1">
                     <NavItems
-                      items={homeNavigationItems}
+                      items={items}
                       onClick={() => {
                         setIsMobileMenuOpen(false)
                       }}
@@ -268,12 +267,14 @@ export function SiteHeader({
 function NavItems({items, onClick}: {items?: DocNavigationItem[] | null; onClick?: () => void}) {
   return items
     ? items.map((doc) => {
-        // Skip items without id or draftId to prevent routing errors
-        if (!doc.id && !doc.draftId) return null
+        if (!doc.id && !doc.draftId && !doc.webUrl) return null
+        if (doc.webUrl && !doc.id && !doc.draftId) {
+          return <MobileWebLinkItem key={doc.key} item={doc} onClick={onClick} />
+        }
         return (
           <DocumentSmallListItem
             onClick={onClick}
-            key={doc.id?.id || doc.draftId || ''}
+            key={doc.key}
             metadata={doc.metadata}
             id={doc.id}
             draftId={doc.draftId}
@@ -283,6 +284,12 @@ function NavItems({items, onClick}: {items?: DocNavigationItem[] | null; onClick
         )
       })
     : null
+}
+
+function MobileWebLinkItem({item, onClick}: {item: DocNavigationItem; onClick?: () => void}) {
+  const linkProps = useValidatedWebRouteLink(item.webUrl || null, {onClick})
+
+  return <SmallListItem bold title={getMetadataName(item.metadata)} {...linkProps} />
 }
 
 function MobileMenuOutline({
