@@ -260,7 +260,7 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 		}
 		res, err := c.ListPeers(ctxStore, req)
 		if err != nil {
-			return fmt.Errorf("Could not get list of peers from %s: %w", id.String(), err)
+			return fmt.Errorf("could not get list of peers from %s: %w", id.String(), err)
 		}
 		if res == nil {
 			// Remote short-circuited on ListHash: our tables match, nothing to do.
