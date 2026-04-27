@@ -584,11 +584,13 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
     appInvalidateQueries([queryKeys.ENTITY, id.id])
     appInvalidateQueries([queryKeys.ACCOUNT, id.uid])
     appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+    // Always invalidate the directory for the discovered entity itself
+    // so site header navigation updates after discovery
+    appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.id])
 
-    // For recursive subscriptions, also invalidate directory queries
+    // For recursive subscriptions, also invalidate parent directory queries
     // so query blocks refresh when discovery completes
     if (recursive) {
-      appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.id])
       getParentPaths(id.path).forEach((parentPath) => {
         const parentId = hmId(id.uid, {path: parentPath})
         appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])

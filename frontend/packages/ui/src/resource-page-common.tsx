@@ -318,7 +318,7 @@ export function ResourcePage({
   })
 
   // docId.uid determines the site header — for site-profile, docId IS the site context
-  const siteHomeId = hmId(docId.uid)
+  const siteHomeId = hmId(docId.uid, {latest: true})
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
   const homeDirectory = useDirectory(siteHomeId)
   const isLatest = useIsLatest(docId, resource)
