@@ -57,10 +57,19 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version
 }
 
 // DiscoverObjectWithProgress is similar to DiscoverObject, but tracks the progress of the discovery process.
-func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, prog *Progress) (blob.Version, error) {
+func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, prog *Progress) (resultVersion blob.Version, resultErr error) {
 	if s.cfg.NoDiscovery {
 		return "", fmt.Errorf("remote content discovery is disabled")
 	}
+
+	discoverStart := time.Now()
+	outcome := "notfound"
+	defer func() {
+		if resultErr != nil {
+			outcome = "error"
+		}
+		MDiscoverTotalSeconds.WithLabelValues(outcome).Observe(time.Since(discoverStart).Seconds())
+	}()
 
 	ctxLocalPeers, cancel := context.WithTimeout(ctx, DefaultSyncingTimeout)
 	defer cancel()
@@ -88,6 +97,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 
 	subsMap := make(subscriptionMap)
 	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
+	peerSelectStart := time.Now()
 	if err = s.db.WithSave(ctxLocalPeers, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qListPeersWithPid(), func(stmt *sqlite.Stmt) error {
 			addresStr := stmt.ColumnText(0)
@@ -105,8 +115,10 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 			return nil
 		})
 	}); err != nil {
+		MDiscoverPhaseSeconds.WithLabelValues("peer_select").Observe(time.Since(peerSelectStart).Seconds())
 		return "", err
 	}
+	MDiscoverPhaseSeconds.WithLabelValues("peer_select").Observe(time.Since(peerSelectStart).Seconds())
 
 	// Create RBSR store once for reuse across all peers.
 	dkeys := colx.HashSet[DiscoveryKey]{
@@ -152,13 +164,16 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 			}
 		}
 
+		localSyncStart := time.Now()
 		res := s.syncWithManyPeers(ctxLocalPeers, subsMap, store, prog, auth)
+		MDiscoverPhaseSeconds.WithLabelValues("local_sync").Observe(time.Since(localSyncStart).Seconds())
 		if res.NumSyncOK > 0 && s.resources != nil {
 			doc, err := s.resources.GetResource(ctxLocalPeers, &docspb.GetResourceRequest{
 				Iri: iri,
 			})
 			if err == nil && (version == "" || doc.Version == vstr) {
 				s.log.Debug("Discovered content via local peer, we avoided hitting the DHT!")
+				outcome = "local"
 				return blob.Version(doc.Version), nil
 			}
 		}
@@ -174,8 +189,10 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	}
 	ctxDHT, cancelDHTCtx := context.WithTimeout(ctx, DefaultDHTTimeout)
 	defer cancelDHTCtx()
+	dhtDiscoverStart := time.Now()
 	peers := s.bitswap.FindProvidersAsync(ctxDHT, c, maxProviders)
 	if len(peers) == 0 {
+		MDiscoverPhaseSeconds.WithLabelValues("dht_discover").Observe(time.Since(dhtDiscoverStart).Seconds())
 		return "", nil
 	}
 
@@ -188,14 +205,18 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		// instead of pasting all peers in all documents.
 		subsMap[p.ID] = eidsMap
 	}
+	MDiscoverPhaseSeconds.WithLabelValues("dht_discover").Observe(time.Since(dhtDiscoverStart).Seconds())
 
+	dhtSyncStart := time.Now()
 	res := s.syncWithManyPeers(ctxDHT, subsMap, store, prog, auth)
+	MDiscoverPhaseSeconds.WithLabelValues("dht_sync").Observe(time.Since(dhtSyncStart).Seconds())
 	if res.NumSyncOK > 0 && s.resources != nil {
 		doc, err := s.resources.GetResource(ctxDHT, &docspb.GetResourceRequest{
 			Iri: iri,
 		})
 		if err == nil && (version == "" || doc.Version == vstr) {
 			s.log.Debug("Discovered content via DHT")
+			outcome = "dht"
 			return blob.Version(doc.Version), nil
 		}
 	}

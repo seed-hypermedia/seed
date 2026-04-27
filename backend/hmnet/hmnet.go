@@ -108,6 +108,7 @@ type Node struct {
 	libp2pEvents        event.Subscription
 	currentReachability atomic.Value    // type of network.Reachability
 	ctx                 context.Context // will be set after calling Start()
+	startedAt           time.Time       // set when Start() begins, used for uptime reporting
 }
 
 // New creates a new P2P Node. The users must call Start() before using the node, and can use Ready() to wait
@@ -271,6 +272,10 @@ func (n *Node) GetAccountByKeyName(ctx context.Context, keyName string) (core.Pr
 // Libp2p returns the underlying libp2p host.
 func (n *Node) Libp2p() *ipfs.Libp2p { return n.p2p }
 
+// IsConnCached reports whether we hold a live cached gRPC connection to pid.
+// Used by syncing telemetry to label reconcile rounds as cold/warm.
+func (n *Node) IsConnCached(pid peer.ID) bool { return n.client.IsConnCached(pid) }
+
 // KeyStore returns the key store used by this node.
 func (n *Node) KeyStore() core.KeyStore { return n.keys }
 
@@ -278,6 +283,7 @@ func (n *Node) KeyStore() core.KeyStore { return n.keys }
 // cancel the provided context and wait for Start to return.
 func (n *Node) Start(ctx context.Context) (err error) {
 	n.ctx = ctx
+	n.startedAt = time.Now()
 
 	n.log.Info("P2PNodeStarted", zap.String("protocolID", string(n.protocol.ID)))
 

@@ -13,6 +13,7 @@ import (
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet/syncing/rbsr"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -78,6 +79,132 @@ var (
 			0.99: 0.001,
 		},
 	})
+
+	// Diagnostic histograms. Buckets span 5 ms → ~6 min to give useful p50/p95/p99
+	// across the full dynamic range we see in practice.
+	diagBuckets = prometheus.ExponentialBuckets(0.005, 2.5, 12)
+
+	// MDiscoverTotalSeconds is end-to-end DiscoverObject wall-clock, labeled by outcome.
+	MDiscoverTotalSeconds = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "seed_discover_total_seconds",
+		Help:    "End-to-end DiscoverObject wall-clock, bucketed by outcome (local|dht|notfound|error).",
+		Buckets: diagBuckets,
+	}, []string{"outcome"})
+
+	// MDiscoverPhaseSeconds is per-phase wall-clock of DiscoverObject.
+	MDiscoverPhaseSeconds = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "seed_discover_phase_seconds",
+		Help:    "Per-phase wall-clock of DiscoverObject (peer_select|local_sync|dht_discover|dht_sync).",
+		Buckets: diagBuckets,
+	}, []string{"phase"})
+
+	// MSyncPeerPhaseSeconds is per-phase wall-clock of syncWithPeer.
+	MSyncPeerPhaseSeconds = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "seed_syncpeer_phase_seconds",
+		Help:    "Per-phase wall-clock of syncWithPeer (dial|reconcile_rpc|bitswap_fetch|putmany).",
+		Buckets: diagBuckets,
+	}, []string{"phase"})
+
+	// MSyncOutcomeTotal counts per-sync-attempt categorized results.
+	MSyncOutcomeTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "seed_sync_outcome_total",
+		Help: "Per-sync-attempt categorized result (ok|protocol_mismatch|dial_failed|rpc_error|preempted|putmany_failed).",
+	}, []string{"outcome"})
+
+	// MSyncBitswapOutcome counts how each bitswap fetch loop terminated:
+	//   complete     - blocks channel closed and ctx was still alive (session ended naturally)
+	//   idle_timeout - the 40s idle timer fired without a new block arriving
+	//   ctx_done     - context canceled/expired while the loop was running
+	// Distinguishes "we gave up" vs. "we finished slowly" in the bitswap tail.
+	MSyncBitswapOutcome = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "seed_syncpeer_bitswap_outcome_total",
+		Help: "How each bitswap fetch terminated (complete|idle_timeout|ctx_done).",
+	}, []string{"outcome"})
+
+	// MSyncBitswapCompleteness is downloaded/wanted per bitswap fetch. A value
+	// of 1.0 means every requested blob arrived; low ratios on idle_timeout
+	// calls indicate we're asking peers for blobs they don't actually have.
+	MSyncBitswapCompleteness = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "seed_syncpeer_bitswap_completeness_ratio",
+		Help:    "Ratio of downloaded/wanted blobs per bitswap fetch, in [0,1].",
+		Buckets: []float64{0.1, 0.25, 0.5, 0.75, 0.9, 0.99, 1.0},
+	})
+
+	// MSyncBitswapLastBlockAge is, per fetch, the wall-clock gap between the
+	// most recent received block and the moment the download loop exited.
+	// Interpretation by outcome:
+	//   complete     - gap near 0 means channel closed right after the last
+	//                  block (productive exit). Larger values mean bitswap
+	//                  kept the channel open past the last useful arrival.
+	//   idle_timeout - tautologically equals the idle-timer value; not
+	//                  interesting on its own but included for consistency.
+	//   ctx_done     - tells us how much time we had already spent idle
+	//                  when cancellation landed.
+	// Use this to decide whether shortening the idle timer would clip
+	// legitimate late arrivals (spread across the 0-to-idleTimeout window)
+	// or would only cut dead wait (cluster at idleTimeout).
+	MSyncBitswapLastBlockAge = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "seed_syncpeer_bitswap_last_block_age_seconds",
+		Help:    "Seconds between the last received block and the download loop exit, per outcome.",
+		Buckets: diagBuckets,
+	}, []string{"outcome"})
+
+	// MSyncBitswapFetchSeconds is per-call wall-clock of the download loop,
+	// labeled by outcome. Separates "happy path" latency from "idle timeout"
+	// or "ctx cancellation" tails — MSyncPeerPhaseSeconds{phase="bitswap_fetch"}
+	// aggregates them together.
+	MSyncBitswapFetchSeconds = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "seed_syncpeer_bitswap_seconds",
+		Help:    "Wall-clock of each bitswap fetch, per outcome.",
+		Buckets: diagBuckets,
+	}, []string{"outcome"})
+
+	// Server-side ReconcileBlobs handler sub-phase timing. Our daemon serves
+	// reconcile requests from other peers; gateways run the same code so this
+	// is a structural proxy for what they spend per-request when we're the
+	// client paying the 19s p99 tail.
+	MReconcileServerPhaseSeconds = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "seed_reconcile_server_phase_seconds",
+		Help:    "Per sub-phase wall-clock of Server.ReconcileBlobs (auth_resolve|load_store|rbsr_session|rbsr_reconcile).",
+		Buckets: diagBuckets,
+	}, []string{"phase"})
+
+	// MReconcileServerTotalSeconds is the whole handler wall-clock — directly
+	// comparable to client-side reconcile_rpc to spot client-side stream/dial
+	// latency that the server can't account for.
+	MReconcileServerTotalSeconds = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "seed_reconcile_server_total_seconds",
+		Help:    "Wall-clock of the full Server.ReconcileBlobs handler.",
+		Buckets: diagBuckets,
+	})
+
+	// MReconcileServerStoreSize is store.Size() per request — tells us if the
+	// scale factor on rbsr_reconcile is the corpus the filter pulls in.
+	MReconcileServerStoreSize = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "seed_reconcile_server_store_size",
+		Help:    "Number of blobs in the RBSR store built per ReconcileBlobs request.",
+		Buckets: prometheus.ExponentialBuckets(1, 4, 12), // 1, 4, 16, ..., ~4M
+	})
+
+	// MReconcileServerFilterSize is the caller-driven input size — useful for
+	// normalizing store size to filter breadth ("recursive on a busy account
+	// pulls a big store").
+	MReconcileServerFilterSize = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "seed_reconcile_server_filter_size",
+		Help:    "Number of filters in each ReconcileBlobs request.",
+		Buckets: []float64{1, 2, 4, 8, 16, 32, 64, 128, 256},
+	})
+
+	// MReconcileClientRoundSeconds splits the existing reconcile_rpc round
+	// histogram by whether the gRPC/libp2p connection to this peer was
+	// already cached when the round started (warm_stream) or had to be
+	// established (cold_stream). High p99 on cold_stream with low server
+	// total = stream setup tax, not server compute.
+	MReconcileClientRoundSeconds = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "seed_reconcile_client_round_seconds",
+		Help:    "Per-round client-side ReconcileBlobs wall-clock split by stream warmth (cold_stream|warm_stream).",
+		Buckets: diagBuckets,
+	}, []string{"call"})
 )
 
 // Force metric to appear even if there's no blobs to sync.
@@ -135,11 +262,12 @@ type Service struct {
 	db         *sqlitex.Pool
 	index      Index
 	bitswap    bitswap
-	rbsrClient netDialFunc
-	resources  ResourceAPI
-	p2pClient  func(context.Context, peer.ID, ...multiaddr.Multiaddr) (p2p.P2PClient, error)
-	host       host.Host
-	pc         protocolChecker
+	rbsrClient   netDialFunc
+	resources    ResourceAPI
+	p2pClient    func(context.Context, peer.ID, ...multiaddr.Multiaddr) (p2p.P2PClient, error)
+	host         host.Host
+	isConnCached func(peer.ID) bool
+	pc           protocolChecker
 
 	keyStore core.KeyStore
 
@@ -166,20 +294,22 @@ type P2PNode interface {
 	Libp2p() *ipfs.Libp2p
 	CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, desiredVersion string, protos ...protocol.ID) (err error)
 	ProtocolVersion() string
+	IsConnCached(peer.ID) bool
 }
 
 // NewService creates a new syncing service. Users should call Start() to start the periodic syncing.
 func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer Index, net P2PNode, keyStore core.KeyStore) *Service {
 	svc := &Service{
-		cfg:        cfg,
-		log:        log,
-		db:         db,
-		index:      indexer,
-		bitswap:    net.Bitswap(),
-		rbsrClient: net.SyncingClient,
-		p2pClient:  net.Client,
-		host:       net.Libp2p().Host,
-		keyStore:   keyStore,
+		cfg:          cfg,
+		log:          log,
+		db:           db,
+		index:        indexer,
+		bitswap:      net.Bitswap(),
+		rbsrClient:   net.SyncingClient,
+		p2pClient:    net.Client,
+		host:         net.Libp2p().Host,
+		isConnCached: net.IsConnCached,
+		keyStore:     keyStore,
 	}
 	svc.pc = protocolChecker{
 		checker: net.CheckHyperMediaProtocolVersion,
@@ -348,7 +478,14 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	return res
 }
 
-func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool, store *authorizedStore, prog *Progress, auth *authInfo) error {
+func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool, store *authorizedStore, prog *Progress, auth *authInfo) (err error) {
+	// lastPhase tracks the most recent phase we entered. On error it's used to
+	// classify the failure into an outcome counter label.
+	lastPhase := "dial"
+	defer func() {
+		MSyncOutcomeTotal.WithLabelValues(classifySyncOutcome(lastPhase, err)).Inc()
+	}()
+
 	// Can't sync with self.
 	if s.host.Network().LocalPeer() == pid {
 		s.log.Debug("Sync with self attempted")
@@ -361,6 +498,7 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 		defer cancel()
 	}
 
+	dialStart := time.Now()
 	// Auto-authenticate if this peer is a siteURL server for a space we have access to.
 	// We only authenticate with keys that have access to spaces where this peer is the siteURL server.
 	if auth != nil {
@@ -373,7 +511,13 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 		}
 	}
 
+	// Snapshot connection-cache state BEFORE dialing so the first reconcile
+	// round can be labeled cold_stream when we paid the dial cost vs.
+	// warm_stream when the gRPC conn was already cached.
+	connCachedBefore := s.isConnCached != nil && s.isConnCached(pid)
+
 	c, err := s.rbsrClient(ctx, pid)
+	MSyncPeerPhaseSeconds.WithLabelValues("dial").Observe(time.Since(dialStart).Seconds())
 	if err != nil {
 		return err
 	}
@@ -391,7 +535,31 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 
 	bswap := s.bitswap.NewSession(ctx)
 
-	return syncResources(ctx, pid, c, s.index, bswap, s.log, eids, filteredStore, prog)
+	return syncResources(ctx, pid, c, s.index, bswap, s.log, eids, filteredStore, prog, &lastPhase, connCachedBefore)
+}
+
+// classifySyncOutcome maps a (phase, err) pair to a counter label.
+// Phase is the most recent phase syncWithPeer entered; it's used when err
+// has no other identifying marker.
+func classifySyncOutcome(phase string, err error) string {
+	if err == nil {
+		return "ok"
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return "preempted"
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "Hypermedia protocol") || strings.Contains(msg, "not a Hypermedia peer") {
+		return "protocol_mismatch"
+	}
+	switch phase {
+	case "dial":
+		return "dial_failed"
+	case "putmany":
+		return "putmany_failed"
+	default:
+		return "rpc_error"
+	}
 }
 
 func syncResources(
@@ -404,6 +572,8 @@ func syncResources(
 	eids map[string]bool,
 	store rbsr.Store,
 	prog *Progress,
+	phase *string,
+	connCachedAtStart bool,
 ) (err error) {
 	ctx = blob.ContextWithUnreadsTracking(ctx)
 
@@ -450,18 +620,32 @@ func syncResources(
 		haves [][]byte
 		wants [][]byte
 	)
+	*phase = "reconcile_rpc"
 	for msg != nil {
 		rounds++
 		if rounds > 1000 {
 			return fmt.Errorf("too many rounds of interactive syncing")
 		}
 
-		res, err := c.ReconcileBlobs(ctx, &p2p.ReconcileBlobsRequest{
+		// One observation per ReconcileBlobs RPC call. The prior once-per-sync
+		// timing hid cases where many cheap rounds accumulated vs. a single
+		// slow round; per-round data makes that distinction visible.
+		// Round 1 carries the cold/warm label captured before the dial; later
+		// rounds reuse the (now cached) gRPC conn so they're warm by definition.
+		warmth := "warm_stream"
+		if rounds == 1 && !connCachedAtStart {
+			warmth = "cold_stream"
+		}
+		rpcStart := time.Now()
+		res, rerr := c.ReconcileBlobs(ctx, &p2p.ReconcileBlobsRequest{
 			Ranges:  msg,
 			Filters: filters,
 		})
-		if err != nil {
-			return err
+		rpcElapsed := time.Since(rpcStart).Seconds()
+		MSyncPeerPhaseSeconds.WithLabelValues("reconcile_rpc").Observe(rpcElapsed)
+		MReconcileClientRoundSeconds.WithLabelValues(warmth).Observe(rpcElapsed)
+		if rerr != nil {
+			return rerr
 		}
 		msg = res.Ranges
 
@@ -474,9 +658,9 @@ func syncResources(
 		}
 
 		for _, want := range wants {
-			blockCid, err := cid.Cast(want)
-			if err != nil {
-				return err
+			blockCid, werr := cid.Cast(want)
+			if werr != nil {
+				return werr
 			}
 			prog.BlobsDiscovered.Add(1)
 			wantsIdx[blockCid] = len(allWants)
@@ -493,12 +677,24 @@ func syncResources(
 	MSyncingWantedBlobs.WithLabelValues("syncing").Add(float64(len(allWants)))
 	defer MSyncingWantedBlobs.WithLabelValues("syncing").Sub(float64(len(allWants)))
 
+	*phase = "bitswap_fetch"
+	bitswapStart := time.Now()
 	downloaded := make([]blocks.Block, len(allWants))
 	ch, err := sess.GetBlocks(ctx, allWants)
 	if err != nil {
+		MSyncPeerPhaseSeconds.WithLabelValues("bitswap_fetch").Observe(time.Since(bitswapStart).Seconds())
+		MSyncBitswapOutcome.WithLabelValues("ctx_done").Inc()
 		return fmt.Errorf("failed to initiate bitswap session for syncing: %w", err)
 	}
 
+	// bitswapOutcome is set by the download closure below and consumed by the
+	// metric observations after it returns.
+	var bitswapOutcome string
+	// Tracks the wall-clock moment of the most recent received block so we
+	// can record the gap between "last block in" and "loop exited" —
+	// that gap distinguishes "channel closed right after last block"
+	// (productive exit) from "we sat on the idle timer" (dead wait).
+	lastBlockAt := bitswapStart
 	download := func() {
 		const idleTimeout = 40 * time.Second
 		t := time.NewTimer(idleTimeout)
@@ -508,13 +704,22 @@ func syncResources(
 			select {
 			case blk, ok := <-ch:
 				if !ok {
+					// Channel closed. If ctx is dead the session was torn down
+					// by cancellation; otherwise bitswap finished naturally.
+					if ctx.Err() != nil {
+						bitswapOutcome = "ctx_done"
+					} else {
+						bitswapOutcome = "complete"
+					}
 					return
 				}
 				t.Reset(idleTimeout)
+				lastBlockAt = time.Now()
 				downloaded[wantsIdx[blk.Cid()]] = blk
 				prog.BlobsDownloaded.Add(1)
 			case <-t.C:
 				prog.BlobsFailed.Add(int32(len(allWants)) - prog.BlobsDownloaded.Load()) //nolint:gosec
+				bitswapOutcome = "idle_timeout"
 				return
 			}
 		}
@@ -522,6 +727,14 @@ func syncResources(
 
 	download()
 	downloaded = slices.DeleteFunc(downloaded, func(x blocks.Block) bool { return x == nil })
+	fetchElapsed := time.Since(bitswapStart).Seconds()
+	MSyncPeerPhaseSeconds.WithLabelValues("bitswap_fetch").Observe(fetchElapsed)
+	MSyncBitswapFetchSeconds.WithLabelValues(bitswapOutcome).Observe(fetchElapsed)
+	MSyncBitswapOutcome.WithLabelValues(bitswapOutcome).Inc()
+	MSyncBitswapLastBlockAge.WithLabelValues(bitswapOutcome).Observe(time.Since(lastBlockAt).Seconds())
+	if len(allWants) > 0 {
+		MSyncBitswapCompleteness.Observe(float64(len(downloaded)) / float64(len(allWants)))
+	}
 
 	if len(downloaded) == 0 {
 		return nil
@@ -536,10 +749,14 @@ func syncResources(
 		tracker.Finish(nil)
 	}()
 
+	*phase = "putmany"
+	putmanyStart := time.Now()
 	if err := idx.PutMany(ctx, downloaded); err != nil {
+		MSyncPeerPhaseSeconds.WithLabelValues("putmany").Observe(time.Since(putmanyStart).Seconds())
 		tracker.Finish(err)
 		return fmt.Errorf("failed to put reconciled blobs: %w", err)
 	}
+	MSyncPeerPhaseSeconds.WithLabelValues("putmany").Observe(time.Since(putmanyStart).Seconds())
 
 	return nil
 }

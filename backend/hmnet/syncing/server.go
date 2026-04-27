@@ -224,17 +224,28 @@ var qFilterWantedBlobsIdx = dqb.Str(`
 
 // ReconcileBlobs reconciles a set of blobs from the initiator. Finds the difference from what we have.
 func (s *Server) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsRequest) (*p2p.ReconcileBlobsResponse, error) {
+	totalStart := time.Now()
+	defer func() {
+		MReconcileServerTotalSeconds.Observe(time.Since(totalStart).Seconds())
+	}()
+	MReconcileServerFilterSize.Observe(float64(len(in.Filters)))
+
 	store, err := s.loadStore(ctx, in.Filters)
 	if err != nil {
 		return nil, err
 	}
+	MReconcileServerStoreSize.Observe(float64(store.Size()))
 
+	sessionStart := time.Now()
 	ne, err := rbsr.NewSession(store, 50000)
+	MReconcileServerPhaseSeconds.WithLabelValues("rbsr_session").Observe(time.Since(sessionStart).Seconds())
 	if err != nil {
 		return nil, err
 	}
 
+	reconcileStart := time.Now()
 	out, err := ne.Reconcile(in.Ranges)
+	MReconcileServerPhaseSeconds.WithLabelValues("rbsr_reconcile").Observe(time.Since(reconcileStart).Seconds())
 	if err != nil {
 		return nil, err
 	}
@@ -261,24 +272,31 @@ func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Sto
 	// Get authorized spaces for the calling peer.
 	pid, err := getRemoteID(ctx)
 	var authorizedSpaces []core.Principal
+	authStart := time.Now()
 	if err == nil {
 		authorizedSpaces, err = s.index.GetAuthorizedSpacesForPeer(ctx, pid, requestedIRIs)
 		if err != nil {
+			MReconcileServerPhaseSeconds.WithLabelValues("auth_resolve").Observe(time.Since(authStart).Seconds())
 			return nil, err
 		}
 	}
+	MReconcileServerPhaseSeconds.WithLabelValues("auth_resolve").Observe(time.Since(authStart).Seconds())
 
+	loadStart := time.Now()
 	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return loadRBSRStore(conn, dkeys, store)
 	}); err != nil {
+		MReconcileServerPhaseSeconds.WithLabelValues("load_store").Observe(time.Since(loadStart).Seconds())
 		return nil, err
 	}
 
 	if err := store.Seal(); err != nil {
+		MReconcileServerPhaseSeconds.WithLabelValues("load_store").Observe(time.Since(loadStart).Seconds())
 		return nil, err
 	}
 
 	store = store.WithFilter(authorizedSpaces)
+	MReconcileServerPhaseSeconds.WithLabelValues("load_store").Observe(time.Since(loadStart).Seconds())
 
 	return store, nil
 }

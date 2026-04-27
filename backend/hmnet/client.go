@@ -113,6 +113,23 @@ func (c *Client) Close() (err error) {
 	return err
 }
 
+// IsConnCached reports whether we already hold a live (non-Shutdown) gRPC
+// connection to pid. Used by syncing to label reconcile rounds as cold/warm
+// so we can attribute the 19s reconcile_rpc tail between server compute and
+// stream-setup cost. Best-effort: a true result means we'll *probably* skip
+// the dial; a false result means we'll certainly pay it.
+func (c *Client) IsConnCached(pid peer.ID) bool {
+	c.mu.Lock()
+	sc := c.conns[pid]
+	c.mu.Unlock()
+	if sc == nil {
+		return false
+	}
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
+	return sc.conn != nil && sc.conn.GetState() != connectivity.Shutdown
+}
+
 func (c *Client) dialPeer(ctx context.Context, pid peer.ID) (*grpc.ClientConn, error) {
 	ctx, cancel := context.WithTimeout(ctx, netutil.ConnectTimeout)
 	defer cancel()
