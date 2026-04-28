@@ -1,4 +1,4 @@
-import * as base64 from '@shm/shared/base64'
+import * as base64 from '@seed-hypermedia/client/base64'
 import * as blobs from '@shm/shared/blobs'
 import * as rtl from '@testing-library/react'
 import {afterEach, describe, expect, mock, test} from 'bun:test'

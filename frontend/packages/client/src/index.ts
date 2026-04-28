@@ -86,6 +86,9 @@ export {editorBlockToHMBlock, editorBlocksToHMBlockNodes} from './editorblock-to
 export {hmBlocksToEditorContent, hmBlockToEditorBlock, annotationContains} from './hmblock-to-editorblock'
 export {AnnotationSet, addSpanToAnnotation, pushSpanToAnnotation} from './unicode'
 export type {MutableAnnotation, SpanAnnotation} from './unicode'
+
+export * as keyfile from './keyfile'
+export * as keyEncryption from './encryption'
 export type {
   EditorBlock,
   EditorBaseBlock,

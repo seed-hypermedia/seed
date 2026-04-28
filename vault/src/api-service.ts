@@ -1,7 +1,7 @@
 import type {Database} from 'bun:sqlite'
 import * as connect from '@connectrpc/connect'
 import {encode as cborEncode} from '@ipld/dag-cbor'
-import * as base64 from '@shm/shared/base64'
+import * as base64 from '@seed-hypermedia/client/base64'
 import type {GRPCClient} from '@shm/shared/grpc-client'
 import * as webauthn from '@simplewebauthn/server'
 import {argon2id} from 'hash-wasm'

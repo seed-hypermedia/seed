@@ -1,6 +1,6 @@
 import type * as api from '@/api'
 import {encode as cborEncode} from '@ipld/dag-cbor'
-import * as base64 from '@shm/shared/base64'
+import * as base64 from '@seed-hypermedia/client/base64'
 import type * as blobs from '@shm/shared/blobs'
 
 type NotificationRequestSigner = Pick<blobs.NobleKeyPair, 'principal' | 'sign'>

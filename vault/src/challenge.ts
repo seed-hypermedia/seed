@@ -1,5 +1,5 @@
 import {createHmac, timingSafeEqual} from 'node:crypto'
-import * as base64 from '@shm/shared/base64'
+import * as base64 from '@seed-hypermedia/client/base64'
 import {Cookie} from 'bun'
 
 export function getCookieName(isProd: boolean): string {

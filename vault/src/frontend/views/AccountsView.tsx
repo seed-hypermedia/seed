@@ -35,7 +35,7 @@ import {
 import {SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy} from '@dnd-kit/sortable'
 import {CSS} from '@dnd-kit/utilities'
 import * as blobs from '@shm/shared/blobs'
-import * as keyfile from '@shm/shared/keyfile'
+import * as keyfile from '@seed-hypermedia/client/keyfile'
 import {
   AlertTriangle,
   Check,

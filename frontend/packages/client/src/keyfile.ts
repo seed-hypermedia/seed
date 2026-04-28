@@ -1,6 +1,20 @@
+import {ed25519} from '@noble/curves/ed25519.js'
+import {base58btc} from 'multiformats/bases/base58'
 import * as base64 from './base64'
-import * as blobs from './blobs'
 import * as encryption from './encryption'
+
+const ED25519_VARINT_PREFIX = new Uint8Array([0xed, 0x01])
+
+/**
+ * Derives the base58btc-multibase principal string for the given 32-byte ed25519 seed.
+ */
+export function principalStringFromSeed(seed: Uint8Array): string {
+  const pub = ed25519.getPublicKey(seed)
+  const principal = new Uint8Array(ED25519_VARINT_PREFIX.length + pub.length)
+  principal.set(ED25519_VARINT_PREFIX, 0)
+  principal.set(pub, ED25519_VARINT_PREFIX.length)
+  return base58btc.encode(principal)
+}
 
 /**
  * Profile metadata included in exported key files for human readability.
@@ -173,7 +187,7 @@ export async function load(json: string, password?: string): Promise<LoadedPaylo
     throw new Error(`invalid private key length: expected 32 bytes, got ${seed.length}`)
   }
 
-  const publicKey = blobs.principalToString(blobs.nobleKeyPairFromSeed(seed).principal)
+  const publicKey = principalStringFromSeed(seed)
   if (payload.publicKey && payload.publicKey !== publicKey) {
     throw new Error('publicKey does not match private key')
   }

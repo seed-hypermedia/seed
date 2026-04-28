@@ -1,5 +1,4 @@
 import {describe, expect, test} from 'vitest'
-import * as blobs from './blobs'
 import * as keyfile from './keyfile'
 
 function makeKey(fill = 7): Uint8Array {
@@ -7,7 +6,7 @@ function makeKey(fill = 7): Uint8Array {
 }
 
 function makePublicKey(fill = 7): string {
-  return blobs.principalToString(blobs.nobleKeyPairFromSeed(makeKey(fill)).principal)
+  return keyfile.principalStringFromSeed(makeKey(fill))
 }
 
 describe('keyfile', () => {

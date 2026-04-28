@@ -5,6 +5,9 @@
  */
 
 import type {Command} from 'commander'
+import {existsSync, writeFileSync} from 'fs'
+import path from 'path'
+import * as keyfile from '@seed-hypermedia/client/keyfile'
 import {formatOutput, printError, printSuccess, printInfo, printWarning} from '../output'
 import {generateMnemonic, validateMnemonic, deriveKeyPairFromMnemonic} from '../utils/key-derivation'
 import {
@@ -243,6 +246,50 @@ export function registerKeyCommands(program: Command) {
 
         const keyPair = deriveKeyPairFromMnemonic(mnemonic, options.passphrase)
         console.log(keyPair.accountId)
+      } catch (error) {
+        printError((error as Error).message)
+        process.exit(1)
+      }
+    })
+
+  key
+    .command('export [nameOrId]')
+    .description('Export a stored key to a .hmkey.json file (compatible with desktop and vault)')
+    .option('-o, --output <path>', 'Output file path (default: <accountId>.hmkey.json in CWD)')
+    .option('--password <pass>', 'Encrypt the exported file with a password')
+    .option('-f, --force', 'Overwrite the output file if it already exists')
+    .action(async (nameOrId: string | undefined, options, cmd) => {
+      const globalOpts = cmd.optsWithGlobals()
+      const dev = !!globalOpts.dev
+
+      try {
+        const stored = nameOrId ? keyringGetKey(nameOrId, dev) : keyringGetDefaultKey(dev)
+        if (!stored) {
+          printError(nameOrId ? `Key "${nameOrId}" not found` : 'No keys stored')
+          process.exit(1)
+          return
+        }
+
+        const outputPath = path.resolve(options.output ?? `${stored.accountId}.hmkey.json`)
+        if (!options.force && existsSync(outputPath)) {
+          printError(`File already exists: ${outputPath}. Use --force to overwrite.`)
+          process.exit(1)
+          return
+        }
+
+        const payload = await keyfile.create({
+          publicKey: stored.accountId,
+          key: stored.privateKey,
+          password: options.password || undefined,
+        })
+        writeFileSync(outputPath, keyfile.stringify(payload), {mode: 0o600})
+
+        if (!globalOpts.quiet) {
+          printSuccess(`Key "${stored.name}" exported to ${outputPath}`)
+          if (!options.password) {
+            printWarning('File is unencrypted — keep it secret. Use --password to encrypt.')
+          }
+        }
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)

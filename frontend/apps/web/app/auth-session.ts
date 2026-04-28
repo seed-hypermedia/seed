@@ -3,7 +3,7 @@
  * Handles the auth flow with a Seed Hypermedia Vault, storing sessions in local IDB.
  */
 
-import * as base64 from '@shm/shared/base64'
+import * as base64 from '@seed-hypermedia/client/base64'
 import * as blobs from '@shm/shared/blobs'
 import * as cbor from '@shm/shared/cbor'
 import {

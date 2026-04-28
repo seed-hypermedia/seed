@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import * as base64 from './base64'
+import * as base64 from '@seed-hypermedia/client/base64'
 import * as blobs from './blobs'
 import * as cbor from './cbor'
 import * as SDK from './hmauth'
