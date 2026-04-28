@@ -18,7 +18,7 @@ import (
 // NetworkDebugHandler returns an interactive HTML report of per-phase
 // sync/discovery latency, peer-table state, and reachability — modeled on
 // /debug/traces. Latency cells are color-coded against fixed thresholds
-// (p50>100ms, p95>1s, p99>5s warn).
+// (p10>50ms, p50>100ms, p90>1s, p99>5s warn).
 func (n *Node) NetworkDebugHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -52,7 +52,7 @@ type section struct {
 	// orient themselves without leaving the page.
 	Help template.HTML
 	// Each section renders one of:
-	//   Latency: per-row p50/p95/p99 + count
+	//   Latency: per-row p10/p50/p90/p99 + count
 	//   Counter: per-row label + count
 	//   Bucket:  per-row "<= X" + count
 	Latency *latencyTable
@@ -77,13 +77,15 @@ type latencyTable struct {
 type latencyRow struct {
 	Label string
 	HasData bool
+	P10   string
 	P50   string
-	P95   string
+	P90   string
 	P99   string
 	Count uint64
 	// Severity classes computed at build time so the template stays simple.
+	P10Class string
 	P50Class string
-	P95Class string
+	P90Class string
 	P99Class string
 }
 
@@ -126,8 +128,9 @@ type reachRow struct {
 // --- thresholds for severity highlighting ----------------------------------
 
 const (
+	warnP10 = 50 * time.Millisecond
 	warnP50 = 100 * time.Millisecond
-	warnP95 = 1 * time.Second
+	warnP90 = 1 * time.Second
 	warnP99 = 5 * time.Second
 )
 
@@ -228,13 +231,15 @@ func buildLatencySection(title, subtitle, header, family string, rowLabels []str
 		row := latencyRow{
 			Label:   lbl,
 			HasData: true,
+			P10:     formatDuration(s.percentile(0.10)),
 			P50:     formatDuration(s.percentile(0.50)),
-			P95:     formatDuration(s.percentile(0.95)),
+			P90:     formatDuration(s.percentile(0.90)),
 			P99:     formatDuration(s.percentile(0.99)),
 			Count:   s.count,
 		}
+		row.P10Class = warnClass(asDur(s.percentile(0.10)) > warnP10)
 		row.P50Class = warnClass(asDur(s.percentile(0.50)) > warnP50)
-		row.P95Class = warnClass(asDur(s.percentile(0.95)) > warnP95)
+		row.P90Class = warnClass(asDur(s.percentile(0.90)) > warnP90)
 		row.P99Class = warnClass(asDur(s.percentile(0.99)) > warnP99)
 		tbl.Rows = append(tbl.Rows, row)
 	}
@@ -316,12 +321,14 @@ func buildReconcileServerTotalSection() section {
 	tbl := &latencyTable{LabelHeader: "row", N: s.count, Rows: []latencyRow{{
 		Label:    "TOTAL",
 		HasData:  true,
+		P10:      formatDuration(s.percentile(0.10)),
 		P50:      formatDuration(s.percentile(0.50)),
-		P95:      formatDuration(s.percentile(0.95)),
+		P90:      formatDuration(s.percentile(0.90)),
 		P99:      formatDuration(s.percentile(0.99)),
 		Count:    s.count,
+		P10Class: warnClass(asDur(s.percentile(0.10)) > warnP10),
 		P50Class: warnClass(asDur(s.percentile(0.50)) > warnP50),
-		P95Class: warnClass(asDur(s.percentile(0.95)) > warnP95),
+		P90Class: warnClass(asDur(s.percentile(0.90)) > warnP90),
 		P99Class: warnClass(asDur(s.percentile(0.99)) > warnP99),
 	}}}
 	return section{
@@ -628,7 +635,7 @@ const helpBitswapOutcomes template.HTML = `
 </dl>`
 
 const helpBitswapByOutcome template.HTML = `
-<p>Same per-call timing as the bitswap_fetch row above, but split by termination reason. Watch the <code>complete</code> row's p95/p99 — that's "real fetches, how long do they take" without the timeout cases skewing the picture. The <code>idle_timeout</code> row is always ≥40s by construction.</p>`
+<p>Same per-call timing as the bitswap_fetch row above, but split by termination reason. Watch the <code>complete</code> row's p90/p99 — that's "real fetches, how long do they take" without the timeout cases skewing the picture.</p>`
 
 const helpBitswapLastBlockAge template.HTML = `
 <p>For each fetch: time between the LAST block received and the moment the download loop exited. Tells us what each outcome actually means in practice.</p>
@@ -679,7 +686,7 @@ const helpSyncOutcomes template.HTML = `
 const helpHowToRead template.HTML = `
 <p>This page is a live snapshot of how syncing is performing on this daemon.</p>
 <ul>
-<li><strong>Latency tables</strong> show p50/p95/p99 percentiles. Cells turn red when crossing fixed thresholds (p50&nbsp;&gt;&nbsp;100ms, p95&nbsp;&gt;&nbsp;1s, p99&nbsp;&gt;&nbsp;5s).</li>
+<li><strong>Latency tables</strong> show p10/p50/p90/p99 percentiles. Cells turn red when crossing fixed thresholds (p10&nbsp;&gt;&nbsp;50ms, p50&nbsp;&gt;&nbsp;100ms, p90&nbsp;&gt;&nbsp;1s, p99&nbsp;&gt;&nbsp;5s).</li>
 <li><strong>Counter tables</strong> show cumulative counts since the daemon started. Some rows highlight red when they're a meaningful share of the total.</li>
 <li><strong>Bucket tables</strong> show distributions — store size, completeness ratio, etc.</li>
 <li>All percentile values are <em>lifetime</em> (since this daemon's last restart), not rolling.</li>
@@ -743,7 +750,7 @@ details.howto>summary{color:#0a58ca;font-weight:600}
   · generated {{.GeneratedAt}}
 </div>
 <div class="controls">
-  red cells: p50&nbsp;&gt;&nbsp;100ms, p95&nbsp;&gt;&nbsp;1s, p99&nbsp;&gt;&nbsp;5s · counter rows highlight when error/timeout share &gt;&nbsp;5–20%
+  red cells: p10&nbsp;&gt;&nbsp;50ms, p50&nbsp;&gt;&nbsp;100ms, p90&nbsp;&gt;&nbsp;1s, p99&nbsp;&gt;&nbsp;5s · counter rows highlight when error/timeout share &gt;&nbsp;5–20%
 </div>
 
 <details class="howto">
@@ -759,17 +766,18 @@ details.howto>summary{color:#0a58ca;font-weight:600}
 {{if .Latency}}
 {{with .Latency}}
 <table>
-<tr><th>{{.LabelHeader}}</th><th>p50</th><th>p95</th><th>p99</th><th>count</th></tr>
+<tr><th>{{.LabelHeader}}</th><th>p10</th><th>p50</th><th>p90</th><th>p99</th><th>count</th></tr>
 {{range .Rows}}
 <tr>
 <td>{{.Label}}</td>
 {{if .HasData}}
+<td class="{{.P10Class}}">{{.P10}}</td>
 <td class="{{.P50Class}}">{{.P50}}</td>
-<td class="{{.P95Class}}">{{.P95}}</td>
+<td class="{{.P90Class}}">{{.P90}}</td>
 <td class="{{.P99Class}}">{{.P99}}</td>
 <td class="num">{{.Count}}</td>
 {{else}}
-<td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">0</td>
+<td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">0</td>
 {{end}}
 </tr>
 {{end}}

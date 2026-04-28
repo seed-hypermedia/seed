@@ -315,7 +315,7 @@ func (c Syncing) Default() Syncing {
 	return Syncing{
 		WarmupDuration:  time.Second * 20,
 		Interval:        time.Minute,
-		TimeoutPerPeer:  time.Minute * 5,
+		TimeoutPerPeer:  time.Minute * 2,
 		RefreshInterval: time.Second * 50,
 		MinWorkers:      max(min(numCPU, 8), 2),
 		MaxWorkers:      max(min(numCPU*2, 16), 4),

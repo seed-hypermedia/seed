@@ -637,11 +637,20 @@ func syncResources(
 		if rounds == 1 && !connCachedAtStart {
 			connReuse = "new_conn"
 		}
+		// reconcileRoundTimeout caps a single ReconcileBlobs RPC. Resets between
+		// rounds so a multi-round sync isn't punished cumulatively. Sized with
+		// ~3x headroom over the observed reused_conn p99 (4.79s) — generous
+		// enough that healthy round-1 reconciles against gateways with big
+		// filters complete, tight enough that a hung server doesn't dominate
+		// the user-visible discovery wall-clock.
+		const reconcileRoundTimeout = 15 * time.Second
 		rpcStart := time.Now()
-		res, rerr := c.ReconcileBlobs(ctx, &p2p.ReconcileBlobsRequest{
+		roundCtx, roundCancel := context.WithTimeout(ctx, reconcileRoundTimeout)
+		res, rerr := c.ReconcileBlobs(roundCtx, &p2p.ReconcileBlobsRequest{
 			Ranges:  msg,
 			Filters: filters,
 		})
+		roundCancel()
 		rpcElapsed := time.Since(rpcStart).Seconds()
 		MSyncPeerPhaseSeconds.WithLabelValues("reconcile_rpc").Observe(rpcElapsed)
 		MReconcileClientRoundSeconds.WithLabelValues(connReuse).Observe(rpcElapsed)
@@ -697,7 +706,7 @@ func syncResources(
 	// (productive exit) from "we sat on the idle timer" (dead wait).
 	lastBlockAt := bitswapStart
 	download := func() {
-		const idleTimeout = 40 * time.Second
+		const idleTimeout = 10 * time.Second
 		t := time.NewTimer(idleTimeout)
 		defer t.Stop()
 
