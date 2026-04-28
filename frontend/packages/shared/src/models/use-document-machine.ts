@@ -178,26 +178,28 @@ export function useDocumentSync(document: HMDocument | null | undefined) {
 
   useEffect(() => {
     if (!document) {
-      console.log('[DocumentSync] no document yet')
+      console.log('[Rebase sync] no document yet')
       return
     }
 
     if (prevVersionRef.current === null) {
       // First time we have a document — transition from loading → loaded
-      console.log('[DocumentSync] sending document.loaded, version:', document.version)
+      console.log('[Rebase sync] sending document.loaded', {version: document.version})
       actorRef.send({type: 'document.loaded', document})
       prevVersionRef.current = document.version
     } else if (document.version !== prevVersionRef.current) {
       // Version changed — remote update
-      console.log(
-        '[DocumentSync] sending document.remoteUpdate, version:',
-        document.version,
-        '(prev:',
-        prevVersionRef.current,
-        ')',
-      )
+      console.log('[Rebase sync] sending document.remoteUpdate', {
+        version: document.version,
+        prev: prevVersionRef.current,
+        machineDeps: actorRef.getSnapshot().context.deps,
+        machineDocVersion: actorRef.getSnapshot().context.document?.version,
+      })
       actorRef.send({type: 'document.remoteUpdate', document})
       prevVersionRef.current = document.version
+    } else {
+      // Same version — log so we can see if React Query is re-running with stale data
+      console.log('[Rebase sync] noop (same version)', {version: document.version})
     }
   }, [actorRef, document])
 }
@@ -721,9 +723,57 @@ export function useAutoRebase({
       })
 
       if (!classification.autoMergeable) {
-        console.log('[Rebase hook] -> detectConflict', {
+        // Conflict diagnostic: for each conflicted block, dump base/mine/theirs
+        // text + revision so we can see exactly why the classifier flagged it.
+        const indexById = (nodes: HMBlockNode[]) => {
+          const map = new Map<string, HMBlockNode>()
+          const walk = (ns: HMBlockNode[]) => {
+            for (const n of ns) {
+              if (n.block?.id) map.set(n.block.id, n)
+              if (n.children?.length) walk(n.children)
+            }
+          }
+          walk(nodes)
+          return map
+        }
+        const baseMap = indexById(baseBlocks)
+        const mineMap = indexById(mineNodes)
+        const theirsMap = indexById(remoteDoc.content ?? [])
+        const summarize = (n: HMBlockNode | undefined) =>
+          n
+            ? {
+                text: (n.block as any)?.text,
+                revision: (n.block as any)?.revision ?? null,
+                type: (n.block as any)?.type,
+              }
+            : null
+        const conflictDetail = classification.conflictedBlockIds.map((id) => ({
+          id,
+          base: summarize(baseMap.get(id)),
+          mine: summarize(mineMap.get(id)),
+          theirs: summarize(theirsMap.get(id)),
+          mineTouched: mineTouched.includes(id),
+          theirsRevisionInNewCids: (() => {
+            const rev = (theirsMap.get(id)?.block as any)?.revision
+            return typeof rev === 'string' ? newCids.has(rev) : null
+          })(),
+        }))
+        console.log('[Rebase hook] CONFLICT detail', {
           conflictedBlockIds: classification.conflictedBlockIds,
           author: authorName,
+          baseDeps,
+          newCidsCount: newCids.size,
+          newCids: Array.from(newCids),
+          remoteVersion: remoteDoc.version,
+          mineTouched,
+          baseBlockIdSet: Array.from(baseMap.keys()),
+          mineBlockIdSet: Array.from(mineMap.keys()),
+          theirsBlockIdSet: Array.from(theirsMap.keys()),
+          structuralMineDeletes: Array.from(baseMap.keys()).filter((id) => !mineMap.has(id)),
+          structuralMineAdds: Array.from(mineMap.keys()).filter((id) => !baseMap.has(id)),
+          structuralTheirsDeletes: Array.from(baseMap.keys()).filter((id) => !theirsMap.has(id)),
+          structuralTheirsAdds: Array.from(theirsMap.keys()).filter((id) => !baseMap.has(id)),
+          conflictDetail,
         })
         actorRef.send({
           type: 'rebase.detectConflict',

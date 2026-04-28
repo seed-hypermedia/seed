@@ -106,6 +106,12 @@ def main():
         # not an env var). Launching the Mach-O binary directly (not via `open`) avoids
         # LaunchServices bundle-id registration, so two Seed.app copies coexist fine as long as
         # their userData paths (VITE_DESKTOP_APPDATA) and daemon ports differ.
+        # Each instance gets its own VITE_VERSION so the in-app version label /
+        # debug indicator make it obvious which window is which. Instance B's
+        # value is baked at package time; instance A's is set at dev launch.
+        instance_a_version = os.environ.get("VITE_VERSION", "0.0.0.local") + "-A"
+        instance_b_version = os.environ.get("VITE_VERSION", "0.0.0.local") + "-B"
+
         alt_env_overrides = {
             "VITE_DESKTOP_P2P_PORT": "58100",
             "VITE_DESKTOP_HTTP_PORT": "58101",
@@ -120,6 +126,7 @@ def main():
             "SEED_HTTP_PORT": "58101",
             "SEED_GRPC_PORT": "58102",
             "SEED_P2P_TESTNET_NAME": os.environ.get("SEED_P2P_TESTNET_NAME", "dev"),
+            "VITE_VERSION": instance_b_version,
         }
 
         desktop_dir = pathlib.Path("frontend/apps/desktop").resolve()
@@ -136,6 +143,14 @@ def main():
         else:
             app_bundle = desktop_dir / "out" / f"Seed-win32-{arch}"
             binary_path = app_bundle / "Seed.exe"
+
+        if skip_package:
+            print(
+                "⚠️  --skip-package: Instance B will run the EXISTING packaged bundle. "
+                "If you've changed renderer/main source since the last package, the dev "
+                "instance (A) will see your changes but the packaged instance (B) will "
+                "NOT. Re-run without --skip-package to repackage with current source."
+            )
 
         if not skip_package:
             run("node scripts/cleanup-desktop.js")
@@ -179,7 +194,7 @@ def main():
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
         instance_b_log = open(log_path, "w")
         print(f"📝 Instance B logs → {log_path}")
-        print(f"🅱️  Launching {binary_path}")
+        print(f"🅱️  Launching {binary_path} (version '{instance_b_version}')")
         instance_b_env = os.environ.copy()
         instance_b_env.update(alt_env_overrides)
         instance_b = subprocess.Popen(
@@ -208,9 +223,11 @@ def main():
                 print(f"❌ Instance B exited early (code {instance_b.returncode}). Check {log_path}.")
                 sys.exit(1)
 
-        print("🅰️  Starting instance A (dev ports, appdata 'Seed-local')…")
+        print(f"🅰️  Starting instance A (dev ports, appdata 'Seed-local', version '{instance_a_version}')…")
+        instance_a_env = os.environ.copy()
+        instance_a_env["VITE_VERSION"] = instance_a_version
         try:
-            return run("pnpm desktop", args=forward_args)
+            return run("pnpm desktop", args=forward_args, env=instance_a_env)
         finally:
             stop_instance_b()
 

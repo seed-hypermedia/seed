@@ -541,7 +541,10 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
   } catch (e) {
     // Discovery failed (timeout, network error, etc.)
     // Check resource status anyway - data may have been synced
-    console.log(`[Discovery] ${id.id}: discovery error, checking resource status`)
+    const errMsg = e instanceof Error ? e.message : String(e)
+    // Single-line so `tail | grep` doesn't truncate the error.
+    const errSingle = errMsg.replace(/\s+/g, ' ').slice(0, 240)
+    console.log(`[Discovery] ${id.id}: discovery error: ${errSingle}`)
   }
 
   // After discovery, check resource status via GetResource

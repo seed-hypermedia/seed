@@ -327,6 +327,12 @@ export const documentMachine = setup({
     applyRebaseMerge: assign({
       document: ({context, event}) => {
         if (event.type !== 'rebase.apply') return context.document
+        console.log('[Rebase machine] applyRebaseMerge', {
+          fromDeps: context.deps,
+          toDeps: event.newDocument.version ? [event.newDocument.version] : context.deps,
+          fromMineTouched: context.mineTouchedIds,
+          mergedBlockCount: event.mergedBlocks.length,
+        })
         return event.newDocument
       },
       publishedVersion: ({context, event}) => {
@@ -489,6 +495,9 @@ export const documentMachine = setup({
     hasRemoteUpdate: ({context}) => context.pendingRemoteVersion !== null,
     bothSourcesReady: ({context}) => context.documentReady && context.draftReady,
     capabilityLost: ({event}) => event.type === 'capability.changed' && !event.canEdit,
+    /** Block publish while an unresolved rebase conflict is pending. */
+    canPublishGivenRebaseState: ({context}) =>
+      context.draftId !== null && context.pendingRebase?.kind !== 'conflict',
   },
   actors: {
     writeDraft: fromPromise<{id: string}, WriteDraftInput>(async () => {
@@ -696,15 +705,6 @@ export const documentMachine = setup({
         'rebase.blockTouched': {
           actions: ['appendMineTouched'],
         },
-        'rebase.apply': {
-          actions: ['applyRebaseMerge'],
-        },
-        'rebase.detectConflict': {
-          actions: ['setRebaseConflict'],
-        },
-        'rebase.dismiss': {
-          actions: ['clearPendingRebase'],
-        },
       },
       states: {
         draft: {
@@ -734,7 +734,7 @@ export const documentMachine = setup({
                 },
                 'publish.start': {
                   target: '#DocumentLifecycle.publishing',
-                  guard: 'hasDraftId',
+                  guard: 'canPublishGivenRebaseState',
                 },
               },
             },
@@ -900,6 +900,44 @@ export const documentMachine = setup({
               on: {
                 '_save.started': {
                   target: 'saving',
+                },
+              },
+            },
+          },
+        },
+        // Rebase region: tracks whether an incoming remote update has been
+        // classified as a conflict awaiting Phase B resolution. The actual
+        // classification + auto-merge happens in `useAutoRebase` (React layer);
+        // the machine just records the resulting state so guards (like
+        // publish.start) and selectors can read it explicitly.
+        rebase: {
+          initial: 'idle',
+          states: {
+            idle: {
+              entry: () => console.log('[Rebase machine] region.idle entered'),
+              on: {
+                'rebase.detectConflict': {
+                  target: 'conflict',
+                  actions: ['setRebaseConflict'],
+                },
+                // Auto-merge applied from idle stays in idle; the action
+                // updates context (document/deps/baseBlocks) and clears
+                // pending fields.
+                'rebase.apply': {
+                  actions: ['applyRebaseMerge'],
+                },
+              },
+            },
+            conflict: {
+              entry: () => console.log('[Rebase machine] region.conflict entered'),
+              on: {
+                'rebase.apply': {
+                  target: 'idle',
+                  actions: ['applyRebaseMerge'],
+                },
+                'rebase.dismiss': {
+                  target: 'idle',
+                  actions: ['clearPendingRebase'],
                 },
               },
             },

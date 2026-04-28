@@ -85,7 +85,7 @@ describe('documentMachine rebase transitions', () => {
     expect(ctx.pendingRemoteDocument).toBe(remoteDocument)
     expect(ctx.pendingRemoteVersion).toBe('remoteVersion')
     // Still in editing (rebase detection/apply happens outside machine)
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     actor.stop()
   })
 
@@ -108,7 +108,7 @@ describe('documentMachine rebase transitions', () => {
     actor.stop()
   })
 
-  it('rebase.detectConflict stores pendingRebase without transitioning', () => {
+  it('rebase.detectConflict transitions rebase region to conflict', () => {
     const actor = createTestActor()
     enterEditing(actor)
     actor.send({type: 'document.remoteUpdate', document: remoteDocument})
@@ -117,13 +117,15 @@ describe('documentMachine rebase transitions', () => {
       conflictedBlockIds: ['b1'],
       author: 'Alice',
     })
-    const ctx = actor.getSnapshot().context
+    const snapshot = actor.getSnapshot()
+    const ctx = snapshot.context
     expect(ctx.pendingRebase).toEqual({
       kind: 'conflict',
       conflictedBlockIds: ['b1'],
       author: 'Alice',
     })
     expect(ctx.pendingRemoteDocument).toBe(remoteDocument)
+    expect(snapshot.matches({editing: {rebase: 'conflict'}})).toBe(true)
     actor.stop()
   })
 
@@ -159,6 +161,75 @@ describe('documentMachine rebase transitions', () => {
     expect(ctx.pendingRemoteDocument).toBeNull()
     expect(ctx.pendingRebase).toBeNull()
     expect(ctx.baseBlocks).toBeNull()
+    actor.stop()
+  })
+
+  it('rebase.apply from conflict region returns to idle', () => {
+    const actor = createTestActor()
+    enterEditing(actor)
+    actor.send({type: 'document.remoteUpdate', document: remoteDocument})
+    actor.send({
+      type: 'rebase.detectConflict',
+      conflictedBlockIds: ['b1'],
+      author: 'Alice',
+    })
+    expect(actor.getSnapshot().matches({editing: {rebase: 'conflict'}})).toBe(true)
+    actor.send({type: 'rebase.apply', mergedBlocks: remoteDocument.content, newDocument: remoteDocument})
+    expect(actor.getSnapshot().matches({editing: {rebase: 'idle'}})).toBe(true)
+    expect(actor.getSnapshot().context.pendingRebase).toBeNull()
+    actor.stop()
+  })
+
+  it('rebase.dismiss returns rebase region to idle from conflict', () => {
+    const actor = createTestActor()
+    enterEditing(actor)
+    actor.send({type: 'document.remoteUpdate', document: remoteDocument})
+    actor.send({
+      type: 'rebase.detectConflict',
+      conflictedBlockIds: ['b1'],
+      author: 'Alice',
+    })
+    expect(actor.getSnapshot().matches({editing: {rebase: 'conflict'}})).toBe(true)
+    actor.send({type: 'rebase.dismiss'})
+    expect(actor.getSnapshot().matches({editing: {rebase: 'idle'}})).toBe(true)
+    actor.stop()
+  })
+
+  it('publish.start is blocked while rebase region is in conflict', async () => {
+    const actor = createTestActor()
+    enterEditing(actor)
+    actor.send({type: 'document.remoteUpdate', document: remoteDocument})
+    // Ensure draft id exists so the rebase guard is the only blocker.
+    actor.send({type: 'change'})
+    await new Promise((r) => setTimeout(r, 600))
+    expect(actor.getSnapshot().context.draftId).toBe('draft-123')
+    actor.send({
+      type: 'rebase.detectConflict',
+      conflictedBlockIds: ['b1'],
+      author: 'Alice',
+    })
+    expect(actor.getSnapshot().matches({editing: {rebase: 'conflict'}})).toBe(true)
+    // Attempt to publish — should be rejected by the guard, machine stays in editing.
+    actor.send({type: 'publish.start'})
+    expect(actor.getSnapshot().matches('publishing')).toBe(false)
+    expect(actor.getSnapshot().matches({editing: {rebase: 'conflict'}})).toBe(true)
+    actor.stop()
+  })
+
+  it('publish.start succeeds after rebase.dismiss resolves the conflict', async () => {
+    const actor = createTestActor()
+    enterEditing(actor)
+    actor.send({type: 'document.remoteUpdate', document: remoteDocument})
+    actor.send({type: 'change'})
+    await new Promise((r) => setTimeout(r, 600))
+    actor.send({
+      type: 'rebase.detectConflict',
+      conflictedBlockIds: ['b1'],
+      author: 'Alice',
+    })
+    actor.send({type: 'rebase.dismiss'})
+    actor.send({type: 'publish.start'})
+    expect(actor.getSnapshot().matches('publishing')).toBe(true)
     actor.stop()
   })
 })
