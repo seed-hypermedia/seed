@@ -262,7 +262,7 @@ export const MediaContainer = ({
         )}
         {children}
       </div>
-      {mediaType === 'image' && <InlineContent className="image-caption" contentEditable={true} />}
+      {mediaType === 'image' && <InlineContent className="image-caption" contentEditable={editor.isEditable} />}
     </div>
   )
 }
