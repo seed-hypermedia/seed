@@ -496,8 +496,7 @@ export const documentMachine = setup({
     bothSourcesReady: ({context}) => context.documentReady && context.draftReady,
     capabilityLost: ({event}) => event.type === 'capability.changed' && !event.canEdit,
     /** Block publish while an unresolved rebase conflict is pending. */
-    canPublishGivenRebaseState: ({context}) =>
-      context.draftId !== null && context.pendingRebase?.kind !== 'conflict',
+    canPublishGivenRebaseState: ({context}) => context.draftId !== null && context.pendingRebase?.kind !== 'conflict',
   },
   actors: {
     writeDraft: fromPromise<{id: string}, WriteDraftInput>(async () => {

@@ -507,11 +507,7 @@ export type AutoRebaseEditor = {
   readonly topLevelBlocks: any[]
   replaceBlocks: (existing: unknown[], replacement: unknown[]) => void
   updateBlock?: (blockOrId: string | {id: string}, update: unknown) => void
-  insertBlocks?: (
-    blocks: unknown[],
-    referenceBlock: string | {id: string},
-    placement?: 'before' | 'after',
-  ) => void
+  insertBlocks?: (blocks: unknown[], referenceBlock: string | {id: string}, placement?: 'before' | 'after') => void
   removeBlocks?: (blocks: Array<string | {id: string}>) => void
   getTextCursorPosition?: () => {
     block?: {id?: string}
@@ -794,7 +790,8 @@ export function useAutoRebase({
       // after useAutoRebase first ran.
       const liveSuppressRef =
         suppressChangeRef ??
-        ((editor as unknown as {_suppressChangeRef?: {current: boolean}})._suppressChangeRef ?? undefined)
+        (editor as unknown as {_suppressChangeRef?: {current: boolean}})._suppressChangeRef ??
+        undefined
       console.log('[Rebase hook] suppressChangeRef present?', {
         fromProps: !!suppressChangeRef,
         fromEditor: !!(editor as any)?._suppressChangeRef,
