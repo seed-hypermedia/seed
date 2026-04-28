@@ -127,8 +127,10 @@ export function isWebAuthnSupported(): boolean {
  */
 export async function isPlatformAuthenticatorAvailable(): Promise<boolean> {
   if (!isWebAuthnSupported()) return false
+  if (typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable !== 'function') return false
+
   try {
-    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+    return await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
   } catch {
     return false
   }

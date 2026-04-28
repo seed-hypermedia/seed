@@ -6,7 +6,7 @@ import type {GRPCClient} from '@shm/shared/grpc-client'
 import * as webauthn from '@simplewebauthn/server'
 import {argon2id} from 'hash-wasm'
 import {base58btc} from 'multiformats/bases/base58'
-import * as challenge from '@/challenge'
+import * as cookies from '@/cookies'
 import type * as config from '@/config'
 import type * as email from '@/email'
 import * as sess from '@/session'
@@ -56,13 +56,12 @@ interface SecretMetadata {
 }
 
 interface Challenge {
-  id: string
-  user_id: string | null
-  purpose: 'registration' | 'email_change'
-  token_hash: string
   email: string
+  binding_hash: string
+  code_hash: string
   new_email: string | null
-  verified: number
+  attempt_count: number
+  create_time: number
   expire_time: number
 }
 
@@ -118,6 +117,46 @@ function decodeBase64UrlOrThrow(value: string, fieldName: string): Uint8Array {
   }
 }
 
+function normalizeEmail(value: string): string {
+  return value.toLowerCase()
+}
+
+function createEmailCode(): string {
+  const values = new Uint16Array(1)
+  const unbiasedLimit = 60_000
+
+  while (true) {
+    crypto.getRandomValues(values)
+    const value = values[0]
+    if (value === undefined) {
+      throw new Error('Failed to generate email verification code')
+    }
+    if (value < unbiasedLimit) {
+      return String(value % 10_000).padStart(4, '0')
+    }
+  }
+}
+
+function createEmailBinding(): string {
+  const bindingBytes = new Uint8Array(32)
+  crypto.getRandomValues(bindingBytes)
+  return base64.encode(bindingBytes)
+}
+
+function hashEmailBinding(binding: string): Uint8Array {
+  return sha256Hash(textEncoder.encode(binding))
+}
+
+function hashEmailCode(binding: string, code: string, email: string, newEmail: string | null): Uint8Array {
+  return sha256Hash(textEncoder.encode(`${binding}\0${code}\0${email}\0${newEmail ?? ''}`))
+}
+
+function assertEmailCode(value: string): void {
+  if (!/^\d{4}$/.test(value)) {
+    throw new APIError('Invalid verification code', 400)
+  }
+}
+
 export class APIError extends Error {
   constructor(
     message: string,
@@ -128,7 +167,12 @@ export class APIError extends Error {
   }
 }
 
-const MAGIC_LINK_EXPIRY_MS = 2 * 60 * 1000 // 2 minutes (short-lived for security).
+const EMAIL_CODE_EXPIRY_MS = 15 * 60 * 1000
+const EMAIL_CODE_RESEND_COOLDOWN_MS = 60 * 1000
+const EMAIL_CODE_MAX_ATTEMPTS = 3
+const EMAIL_CODE_BINDING_COOKIE_MAX_AGE_SECONDS = EMAIL_CODE_EXPIRY_MS / 1000
+
+const textEncoder = new TextEncoder()
 
 /**
  * API server implementation.
@@ -166,7 +210,7 @@ export class Service implements api.ServerInterface {
    * Called at the start of challenge-related operations.
    */
   cleanupExpiredChallenges(): void {
-    this.db.run(`DELETE FROM email_challenges WHERE expire_time < ?`, [Date.now()])
+    this.db.run(`DELETE FROM email_challenges WHERE expire_time <= ?`, [Date.now()])
   }
 
   /**
@@ -415,7 +459,7 @@ export class Service implements api.ServerInterface {
 
     this.cleanupExpiredChallenges()
 
-    const normalizedEmail = req.email.toLowerCase()
+    const normalizedEmail = normalizeEmail(req.email)
 
     const existingUser = this.db
       .query<{id: string}, [string]>(`SELECT id FROM users WHERE email = ?`)
@@ -431,140 +475,127 @@ export class Service implements api.ServerInterface {
       }
     }
 
+    const now = Date.now()
     const existingChallenge = this.db
       .query<
-        Pick<Challenge, 'id'>,
+        Pick<Challenge, 'create_time'>,
         [string, number]
-      >(`SELECT id FROM email_challenges WHERE email = ? AND purpose = 'registration' AND expire_time > ? ORDER BY expire_time DESC LIMIT 1`)
-      .get(normalizedEmail, Date.now())
+      >(`SELECT create_time FROM email_challenges WHERE email = ? AND expire_time > ?`)
+      .get(normalizedEmail, now)
 
     if (existingChallenge) {
-      return {
-        message: 'Verification link sent',
-        challengeId: existingChallenge.id,
+      const resendAllowedTime = existingChallenge.create_time + EMAIL_CODE_RESEND_COOLDOWN_MS
+      if (now < resendAllowedTime) {
+        throw new APIError('Please wait before requesting another verification code', 429)
       }
     }
 
-    // Generate high-entropy token (256-bit) for the magic link.
-    const tokenBytes = new Uint8Array(32)
-    crypto.getRandomValues(tokenBytes)
-    const token = base64.encode(tokenBytes)
-    const tokenHash = base64.encode(sha256Hash(tokenBytes))
-    const challengeId = sess.randomId()
+    const binding = createEmailBinding()
+    const code = createEmailCode()
+    const expireTime = now + EMAIL_CODE_EXPIRY_MS
+    const resendAllowedTime = now + EMAIL_CODE_RESEND_COOLDOWN_MS
 
-    // Store the challenge with the hash of the token (not the token itself).
+    this.db.run(`DELETE FROM email_challenges WHERE email = ?`, [normalizedEmail])
     this.db.run(
-      `INSERT INTO email_challenges (id, user_id, purpose, token_hash, email, verified, expire_time) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [challengeId, null, 'registration', tokenHash, normalizedEmail, 0, Date.now() + MAGIC_LINK_EXPIRY_MS],
+      `INSERT INTO email_challenges (email, binding_hash, code_hash, new_email, attempt_count, create_time, expire_time) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        normalizedEmail,
+        base64.encode(hashEmailBinding(binding)),
+        base64.encode(hashEmailCode(binding, code, normalizedEmail, null)),
+        null,
+        0,
+        now,
+        expireTime,
+      ],
     )
 
-    // URL includes challengeId for efficient lookup and token for verification.
-    const verifyUrl = `${this.rp.origin}/vault/verify/${challengeId}/${token}`
     try {
-      await this.emailSender.sendLoginLink(normalizedEmail, verifyUrl)
+      await this.emailSender.sendVerificationEmail(normalizedEmail, code)
     } catch (error) {
-      this.db.run(`DELETE FROM email_challenges WHERE id = ?`, [challengeId])
+      this.db.run(`DELETE FROM email_challenges WHERE email = ?`, [normalizedEmail])
       throw error
     }
 
+    _ctx.outboundEmailChallengeCookie = cookies.createEmailCookieHeader(
+      cookies.encodeEmailCookieValue({binding, email: normalizedEmail, newEmail: null}),
+      EMAIL_CODE_BINDING_COOKIE_MAX_AGE_SECONDS,
+      isProd,
+    )
+
     return {
-      message: 'Verification link sent',
-      challengeId,
+      message: 'Verification code sent',
+      expireTime,
+      resendAllowedTime,
     }
   }
 
-  /**
-   * Poll endpoint for the original device to check if the magic link was clicked.
-   */
-  async registerPoll(req: api.RegisterPollRequest, ctx: api.ServerContext): Promise<api.RegisterPollResponse> {
-    if (!req.challengeId) {
-      throw new APIError('Challenge ID required', 400)
-    }
+  async registerVerify(req: api.RegisterVerifyRequest, ctx: api.ServerContext): Promise<api.RegisterVerifyResponse> {
+    assertEmailCode(req.code)
 
     this.cleanupExpiredChallenges()
 
-    const challenge = this.db
-      .query<
-        Challenge,
-        [string, string]
-      >(`SELECT * FROM email_challenges WHERE id = ? AND purpose = 'registration' AND expire_time > ?`)
-      .get(req.challengeId, Date.now().toString())
-
-    if (!challenge) {
-      throw new APIError('Challenge expired or not found', 400)
+    const cookieValue = ctx.emailChallengeCookie ? cookies.decodeEmailCookieValue(ctx.emailChallengeCookie) : null
+    if (!cookieValue || cookieValue.newEmail !== null) {
+      throw new APIError('Missing email challenge cookie. Start verification from scratch.', 400)
     }
 
-    if (challenge.verified) {
-      this.db.run(`DELETE FROM email_challenges WHERE id = ?`, [challenge.id])
+    const normalizedEmail = normalizeEmail(cookieValue.email)
+    const challengeRow = this.db
+      .query<Challenge, [string, number]>(`SELECT * FROM email_challenges WHERE email = ? AND expire_time > ?`)
+      .get(normalizedEmail, Date.now())
 
-      let userId: string
-      const normalizedEmail = challenge.email.toLowerCase()
+    if (!challengeRow || challengeRow.new_email !== null) {
+      throw new APIError(`No email verification challenge found for email '${cookieValue.email}'.`, 400)
+    }
 
-      // Check if user exists.
-      const existingUser = this.db
-        .query<{id: string}, [string]>(`SELECT id FROM users WHERE email = ?`)
-        .get(normalizedEmail)
+    if (!timingSafeEqual(base64.decode(challengeRow.binding_hash), hashEmailBinding(cookieValue.binding))) {
+      throw new APIError(
+        'Invalid email challenge cookie. Make sure to use the same browser you requested the code from.',
+        400,
+      )
+    }
 
-      if (existingUser) {
-        userId = existingUser.id
+    const expectedCodeHash = base64.decode(challengeRow.code_hash)
+    const providedCodeHash = hashEmailCode(cookieValue.binding, req.code, normalizedEmail, null)
+    if (!timingSafeEqual(providedCodeHash, expectedCodeHash)) {
+      const attempts = challengeRow.attempt_count + 1
+      if (attempts >= EMAIL_CODE_MAX_ATTEMPTS) {
+        this.db.run(`DELETE FROM email_challenges WHERE email = ?`, [normalizedEmail])
+        ctx.outboundEmailChallengeCookie = null
       } else {
-        // Create new user.
-        userId = sess.randomId()
-        this.db.run(`INSERT INTO users (id, email, create_time) VALUES (?, ?, ?)`, [
-          userId,
-          normalizedEmail,
-          Date.now(),
-        ])
+        this.db.run(`UPDATE email_challenges SET attempt_count = ? WHERE email = ?`, [attempts, normalizedEmail])
       }
-
-      // Create session.
-      const session = this.sessions.createSession(userId)
-      ctx.sessionCookie = sess.createCookie(session)
-
-      return {verified: true, userId}
+      throw new APIError(`Invalid code. ${EMAIL_CODE_MAX_ATTEMPTS - attempts} attempts remaining.`, 400)
     }
 
-    return {verified: false}
-  }
+    this.db.run(`DELETE FROM email_challenges WHERE email = ?`, [normalizedEmail])
 
-  /**
-   * Called when user clicks the magic link. Marks the challenge as verified.
-   */
-  async registerVerifyLink(
-    req: api.RegisterVerifyLinkRequest,
-    _ctx: api.ServerContext,
-  ): Promise<api.RegisterVerifyLinkResponse> {
-    if (!req.challengeId || !req.token) {
-      throw new APIError('Challenge ID and token required', 400)
+    let userId: string
+    const existingUser = this.db
+      .query<{id: string}, [string]>(`SELECT id FROM users WHERE email = ?`)
+      .get(normalizedEmail)
+    if (existingUser) {
+      const credential = this.db
+        .query<{id: string}, [string]>(`SELECT id FROM credentials WHERE user_id = ?`)
+        .get(existingUser.id)
+      if (credential) {
+        this.db.run(`DELETE FROM email_challenges WHERE email = ?`, [normalizedEmail])
+        ctx.outboundEmailChallengeCookie = null
+        throw new APIError('User already exists', 409)
+      }
+      userId = existingUser.id
+    } else {
+      userId = sess.randomId()
+      this.db.run(`INSERT INTO users (id, email, create_time) VALUES (?, ?, ?)`, [userId, normalizedEmail, Date.now()])
     }
 
-    // Lookup by primary key for efficiency.
-    const challenge = this.db
-      .query<
-        Challenge,
-        [string, string]
-      >(`SELECT * FROM email_challenges WHERE id = ? AND purpose = 'registration' AND expire_time > ?`)
-      .get(req.challengeId, Date.now().toString())
-
-    if (!challenge) {
-      throw new APIError('Invalid or expired link', 400)
-    }
-
-    // Verify the token by comparing its hash with the stored hash.
-    const tokenBytes = base64.decode(req.token)
-    const providedHash = sha256Hash(tokenBytes)
-    const storedHash = base64.decode(challenge.token_hash)
-
-    if (!timingSafeEqual(providedHash, storedHash)) {
-      throw new APIError('Invalid or expired link', 400)
-    }
-
-    // Mark as verified so the polling device can proceed.
-    this.db.run(`UPDATE email_challenges SET verified = 1 WHERE id = ?`, [challenge.id])
+    const session = this.sessions.createSession(userId)
+    ctx.sessionCookie = sess.createCookie(session)
+    ctx.outboundEmailChallengeCookie = null
 
     return {
       verified: true,
-      email: challenge.email,
+      userId,
     }
   }
 
@@ -830,12 +861,8 @@ export class Service implements api.ServerInterface {
     }
   }
 
-  // ==========================================================================
-  // Email Change Endpoints
-  // ==========================================================================
-
   /**
-   * Start email change process. Sends a magic link to the new email address.
+   * Start email change process. Sends a verification code to the new email address.
    * Requires authentication.
    */
   async changeEmailStart(
@@ -857,7 +884,7 @@ export class Service implements api.ServerInterface {
       throw new APIError('New email required', 400)
     }
 
-    const normalizedNewEmail = req.newEmail.toLowerCase()
+    const normalizedNewEmail = normalizeEmail(req.newEmail)
 
     // Check if new email is already in use.
     const existingUser = this.db
@@ -875,137 +902,123 @@ export class Service implements api.ServerInterface {
       throw new APIError('User not found', 404)
     }
 
-    // Generate high-entropy token for the magic link.
-    const tokenBytes = new Uint8Array(32)
-    crypto.getRandomValues(tokenBytes)
-    const token = base64.encode(tokenBytes)
-    const tokenHash = base64.encode(sha256Hash(tokenBytes))
-    const challengeId = sess.randomId()
+    const now = Date.now()
+    const existingChallenge = this.db
+      .query<
+        Pick<Challenge, 'create_time'>,
+        [string, number]
+      >(`SELECT create_time FROM email_challenges WHERE email = ? AND expire_time > ?`)
+      .get(user.email, now)
 
-    // Clean up any existing email change challenges for this user.
-    this.db.run(`DELETE FROM email_challenges WHERE user_id = ? AND purpose = 'email_change'`, [session.user_id])
+    if (existingChallenge) {
+      const resendAllowedTime = existingChallenge.create_time + EMAIL_CODE_RESEND_COOLDOWN_MS
+      if (now < resendAllowedTime) {
+        throw new APIError('Please wait before requesting another verification code', 429)
+      }
+    }
 
-    // Store the challenge with hash of the token.
+    const binding = createEmailBinding()
+    const code = createEmailCode()
+    const expireTime = now + EMAIL_CODE_EXPIRY_MS
+    const resendAllowedTime = now + EMAIL_CODE_RESEND_COOLDOWN_MS
+
+    this.db.run(`DELETE FROM email_challenges WHERE email = ?`, [user.email])
     this.db.run(
-      `INSERT INTO email_challenges (id, user_id, purpose, token_hash, email, new_email, verified, expire_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO email_challenges (email, binding_hash, code_hash, new_email, attempt_count, create_time, expire_time) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
-        challengeId,
-        session.user_id,
-        'email_change',
-        tokenHash,
         user.email,
+        base64.encode(hashEmailBinding(binding)),
+        base64.encode(hashEmailCode(binding, code, user.email, normalizedNewEmail)),
         normalizedNewEmail,
         0,
-        Date.now() + MAGIC_LINK_EXPIRY_MS,
+        now,
+        expireTime,
       ],
     )
 
-    // URL includes challengeId for efficient lookup and token for verification.
-    const verifyUrl = `${this.rp.origin}/vault/email/change-verify/${challengeId}/${token}`
-    await this.emailSender.sendLoginLink(normalizedNewEmail, verifyUrl)
+    try {
+      await this.emailSender.sendVerificationEmail(normalizedNewEmail, code)
+    } catch (error) {
+      this.db.run(`DELETE FROM email_challenges WHERE email = ?`, [user.email])
+      throw error
+    }
+
+    ctx.outboundEmailChallengeCookie = cookies.createEmailCookieHeader(
+      cookies.encodeEmailCookieValue({binding, email: user.email, newEmail: normalizedNewEmail}),
+      EMAIL_CODE_BINDING_COOKIE_MAX_AGE_SECONDS,
+      isProd,
+    )
 
     return {
-      message: 'Verification link sent to new email',
-      challengeId,
+      message: 'Verification code sent to new email',
+      expireTime,
+      resendAllowedTime,
     }
   }
 
-  /**
-   * Poll endpoint to check if email change magic link was clicked.
-   */
-  async changeEmailPoll(req: api.ChangeEmailPollRequest, ctx: api.ServerContext): Promise<api.ChangeEmailPollResponse> {
-    if (!ctx.sessionId) {
-      throw new APIError('Not authenticated', 401)
-    }
+  async changeEmailVerify(
+    req: api.ChangeEmailVerifyRequest,
+    ctx: api.ServerContext,
+  ): Promise<api.ChangeEmailVerifyResponse> {
+    assertEmailCode(req.code)
 
-    const session = this.sessions.getSession(ctx.sessionId)
-    if (!session) {
-      throw new APIError('Session expired', 401)
+    const session = this.requireCookieSession(ctx)
+    const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE id = ?`).get(session.user_id)
+    if (!user) {
+      throw new APIError('User not found', 404)
     }
 
     this.cleanupExpiredChallenges()
 
-    if (!req.challengeId) {
-      throw new APIError('Challenge ID required', 400)
+    const cookieValue = ctx.emailChallengeCookie ? cookies.decodeEmailCookieValue(ctx.emailChallengeCookie) : null
+    if (!cookieValue || cookieValue.newEmail === null || normalizeEmail(cookieValue.email) !== user.email) {
+      throw new APIError('Invalid or expired verification code', 400)
     }
 
-    const challenge = this.db
-      .query<
-        Challenge,
-        [string, string, string]
-      >(`SELECT * FROM email_challenges WHERE id = ? AND user_id = ? AND purpose = 'email_change' AND expire_time > ?`)
-      .get(req.challengeId, session.user_id, Date.now().toString())
+    const normalizedNewEmail = normalizeEmail(cookieValue.newEmail)
+    const challengeRow = this.db
+      .query<Challenge, [string, number]>(`SELECT * FROM email_challenges WHERE email = ? AND expire_time > ?`)
+      .get(user.email, Date.now())
 
-    if (!challenge) {
-      throw new APIError('Challenge expired or not found', 400)
+    if (
+      !challengeRow ||
+      challengeRow.new_email !== normalizedNewEmail ||
+      !timingSafeEqual(base64.decode(challengeRow.binding_hash), hashEmailBinding(cookieValue.binding))
+    ) {
+      throw new APIError('Invalid or expired verification code', 400)
     }
 
-    if (challenge.verified && challenge.new_email) {
-      // User clicked the magic link - update email and clean up.
-      this.db.run(`UPDATE users SET email = ? WHERE id = ?`, [challenge.new_email, session.user_id])
-      this.db.run(`DELETE FROM email_challenges WHERE id = ?`, [challenge.id])
-
-      return {
-        verified: true,
-        newEmail: challenge.new_email,
+    const expectedCodeHash = base64.decode(challengeRow.code_hash)
+    const providedCodeHash = hashEmailCode(cookieValue.binding, req.code, user.email, normalizedNewEmail)
+    if (!timingSafeEqual(providedCodeHash, expectedCodeHash)) {
+      const attempts = challengeRow.attempt_count + 1
+      if (attempts >= EMAIL_CODE_MAX_ATTEMPTS) {
+        this.db.run(`DELETE FROM email_challenges WHERE email = ?`, [user.email])
+        ctx.outboundEmailChallengeCookie = null
+      } else {
+        this.db.run(`UPDATE email_challenges SET attempt_count = ? WHERE email = ?`, [attempts, user.email])
       }
-    }
-
-    return {verified: false}
-  }
-
-  /**
-   * Called when user clicks the email change magic link. Marks the challenge as verified.
-   */
-  async changeEmailVerifyLink(
-    req: api.ChangeEmailVerifyLinkRequest,
-    _ctx: api.ServerContext,
-  ): Promise<api.ChangeEmailVerifyLinkResponse> {
-    if (!req.challengeId || !req.token) {
-      throw new APIError('Challenge ID and token required', 400)
-    }
-
-    // Lookup by primary key for efficiency.
-    const challenge = this.db
-      .query<
-        Challenge,
-        [string, string]
-      >(`SELECT * FROM email_challenges WHERE id = ? AND purpose = 'email_change' AND expire_time > ?`)
-      .get(req.challengeId, Date.now().toString())
-
-    if (!challenge) {
-      throw new APIError('Invalid or expired link', 400)
-    }
-
-    // Verify the token by comparing its hash with the stored hash.
-    const tokenBytes = base64.decode(req.token)
-    const providedHash = sha256Hash(tokenBytes)
-    const storedHash = base64.decode(challenge.token_hash)
-
-    if (!timingSafeEqual(providedHash, storedHash)) {
-      throw new APIError('Invalid or expired link', 400)
-    }
-
-    if (!challenge.new_email) {
-      throw new APIError('Invalid challenge', 400)
+      throw new APIError('Invalid or expired verification code', 400)
     }
 
     // Verify the new email is still available (race condition check).
     const existingUser = this.db
       .query<{id: string}, [string, string]>(`SELECT id FROM users WHERE email = ? AND id != ?`)
-      .get(challenge.new_email, challenge.user_id ?? '')
+      .get(normalizedNewEmail, session.user_id)
 
     if (existingUser) {
-      this.db.run(`DELETE FROM email_challenges WHERE id = ?`, [challenge.id])
+      this.db.run(`DELETE FROM email_challenges WHERE email = ?`, [user.email])
+      ctx.outboundEmailChallengeCookie = null
       throw new APIError('Email already in use', 409)
     }
 
-    // Mark as verified so the polling device can proceed.
-    this.db.run(`UPDATE email_challenges SET verified = 1 WHERE id = ?`, [challenge.id])
+    this.db.run(`UPDATE users SET email = ? WHERE id = ?`, [normalizedNewEmail, session.user_id])
+    this.db.run(`DELETE FROM email_challenges WHERE email = ?`, [user.email])
+    ctx.outboundEmailChallengeCookie = null
 
     return {
       verified: true,
-      newEmail: challenge.new_email,
+      newEmail: normalizedNewEmail,
     }
   }
 
@@ -1050,8 +1063,13 @@ export class Service implements api.ServerInterface {
       challenge: base64.encode(crypto.getRandomValues(new Uint8Array(32))),
     })
 
-    const hmac = challenge.computeHmac(this.hmacSecret, 'webauthn-register', options.challenge, ctx.sessionId ?? '')
-    ctx.outboundChallengeCookie = challenge.createCookieHeader(hmac, isProd)
+    const hmac = cookies.webauthnChallengeComputeHmac(
+      this.hmacSecret,
+      'webauthn-register',
+      options.challenge,
+      ctx.sessionId ?? '',
+    )
+    ctx.outboundChallengeCookie = cookies.webauthnChallengeCreateCookie(hmac, isProd)
 
     return options as api.AddPasskeyStartResponse
   }
@@ -1077,7 +1095,7 @@ export class Service implements api.ServerInterface {
       new TextDecoder().decode(base64.decode(req.response.response.clientDataJSON)),
     ) as {challenge: string}
 
-    const valid = challenge.verifyHmac(
+    const valid = cookies.webauthnChallengeVerifyHmac(
       this.hmacSecret,
       ctx.challengeCookie,
       'webauthn-register',
@@ -1162,8 +1180,8 @@ export class Service implements api.ServerInterface {
         userVerification: 'required',
       })
 
-      const hmac = challenge.computeHmac(this.hmacSecret, 'webauthn-login', options.challenge)
-      ctx.outboundChallengeCookie = challenge.createCookieHeader(hmac, isProd)
+      const hmac = cookies.webauthnChallengeComputeHmac(this.hmacSecret, 'webauthn-login', options.challenge)
+      ctx.outboundChallengeCookie = cookies.webauthnChallengeCreateCookie(hmac, isProd)
 
       return options as api.LoginPasskeyStartResponse
     }
@@ -1205,8 +1223,8 @@ export class Service implements api.ServerInterface {
       userVerification: 'required',
     })
 
-    const hmac = challenge.computeHmac(this.hmacSecret, 'webauthn-login', options.challenge)
-    ctx.outboundChallengeCookie = challenge.createCookieHeader(hmac, isProd)
+    const hmac = cookies.webauthnChallengeComputeHmac(this.hmacSecret, 'webauthn-login', options.challenge)
+    ctx.outboundChallengeCookie = cookies.webauthnChallengeCreateCookie(hmac, isProd)
 
     return {
       ...options,
@@ -1242,7 +1260,12 @@ export class Service implements api.ServerInterface {
       throw new APIError('No pending authentication', 400)
     }
 
-    const valid = challenge.verifyHmac(this.hmacSecret, ctx.challengeCookie, 'webauthn-login', clientDataJSON.challenge)
+    const valid = cookies.webauthnChallengeVerifyHmac(
+      this.hmacSecret,
+      ctx.challengeCookie,
+      'webauthn-login',
+      clientDataJSON.challenge,
+    )
     if (!valid) {
       throw new APIError('Invalid or expired challenge', 400)
     }

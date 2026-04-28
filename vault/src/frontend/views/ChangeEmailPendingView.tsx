@@ -1,71 +1,85 @@
-import {useEffect, useState} from 'react'
+import {type FormEvent, useEffect, useState} from 'react'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import * as navigation from '@/frontend/navigation'
-import {Spinner} from '@/frontend/components/Spinner'
 import {Alert, AlertDescription} from '@/frontend/components/ui/alert'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
-import {useAppState} from '@/frontend/store'
+import {Label} from '@/frontend/components/ui/label'
+import {CodeInput} from '@/frontend/components/CodeInput'
+import {useActions, useAppState} from '@/frontend/store'
 
-function Countdown({seconds}: {seconds: number}) {
-  const [timeLeft, setTimeLeft] = useState(seconds)
+function Countdown({expireTime}: {expireTime: number}) {
+  const [now, setNow] = useState(Date.now())
 
   useEffect(() => {
-    if (timeLeft <= 0) return
-
     const intervalId = setInterval(() => {
-      setTimeLeft((t) => t - 1)
+      setNow(Date.now())
     }, 1000)
 
     return () => clearInterval(intervalId)
-  }, [timeLeft])
+  }, [])
 
+  const timeLeft = Math.max(0, Math.ceil((expireTime - now) / 1000))
   const minutes = Math.floor(timeLeft / 60)
   const remainingSeconds = timeLeft % 60
   const formattedTime = `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
 
-  return <p className="mt-2 text-sm opacity-80">Link expires in {formattedTime}</p>
+  return <p className="mt-2 text-sm opacity-80">Code expires in {formattedTime}</p>
 }
 
-/**
- * View shown while waiting for the user to click the email change magic link.
- * Displays instructions and a spinner while polling for verification.
- */
+/** View shown while waiting for the user to enter an email-change verification code. */
 export function ChangeEmailPendingView() {
-  const {newEmail, error} = useAppState()
+  const {newEmail, error, loading, verificationExpireTime} = useAppState()
+  const actions = useActions()
   const navigate = navigation.useHashNavigate()
+  const [code, setCode] = useState('')
+
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault()
+    actions.handleChangeEmailVerify(code)
+  }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-center">Verify New Email</CardTitle>
         <CardDescription className="text-center">
-          We sent a verification link to <strong>{newEmail}</strong>
+          We sent a verification code to <strong>{newEmail}</strong>
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Alert variant="info" className="my-6">
           <AlertDescription>
-            <p>Click the link in your email to confirm the change.</p>
-            <Countdown seconds={120} />
+            <p>Enter the code from your email to confirm the change.</p>
+            <Countdown expireTime={verificationExpireTime || Date.now() + 15 * 60 * 1000} />
           </AlertDescription>
         </Alert>
 
-        <div className="my-8 flex justify-center">
-          <Spinner size="lg" />
-        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label>Verification code</Label>
+            <CodeInput value={code} onChange={(newCode) => setCode(newCode)} />
+          </div>
 
-        <p className="text-center text-sm opacity-70">Waiting for verification...</p>
+          <Button type="submit" loading={loading} disabled={code.length !== 4} className="w-full">
+            Verify email
+          </Button>
+        </form>
+
+        <Button
+          variant="ghost"
+          className="mt-4 w-full"
+          onClick={() => actions.handleStartEmailChange()}
+          disabled={loading}
+        >
+          Request a new code
+        </Button>
 
         <ErrorMessage message={error} />
 
         <Button variant="secondary" className="mt-6 w-full" onClick={() => navigate('/')}>
           Cancel
         </Button>
-
-        <Alert variant="info" className="mt-6">
-          <AlertDescription>Check the server console for the magic link (in development).</AlertDescription>
-        </Alert>
       </CardContent>
     </Card>
   )

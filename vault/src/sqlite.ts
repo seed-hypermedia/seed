@@ -13,6 +13,18 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 // This list is prepend-only.
 export const migrations = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  `DROP TABLE email_challenges;
+  CREATE TABLE email_challenges (
+      email TEXT PRIMARY KEY,
+      binding_hash TEXT NOT NULL,
+      code_hash TEXT NOT NULL,
+      new_email TEXT,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      create_time INTEGER NOT NULL,
+      expire_time INTEGER NOT NULL
+  ) WITHOUT ROWID;
+  CREATE INDEX email_challenges_by_expire_time ON email_challenges (expire_time);`,
+
   `CREATE INDEX sessions_by_expire_time ON sessions (expire_time);`,
 ].reverse()
 
@@ -265,7 +277,7 @@ function applyPendingMigrations(db: Database, currentVersion: number): void {
 
       db.run(`SAVEPOINT ${savepoint}`)
       try {
-        db.run(migration)
+        db.run(dedent(migration))
         setServerConfigValue(db, SCHEMA_MIGRATION_VERSION_KEY, String(nextVersion))
         db.run(`RELEASE ${savepoint}`)
       } catch (error) {
@@ -299,4 +311,17 @@ function normalizeStrippedSQL(sql: string): string {
   }
 
   return normalizedLines.join('\n')
+}
+
+function dedent(str: string) {
+  const lines = str
+    .replace(/^\n/, '')
+    .replace(/\n\s*$/, '')
+    .split('\n')
+
+  const indents = lines.filter((line) => line.trim() !== '').map((line) => line.match(/^[ \t]*/)?.[0].length ?? 0)
+
+  const minIndent = indents.length ? Math.min(...indents) : 0
+
+  return lines.map((line) => line.slice(minIndent)).join('\n')
 }

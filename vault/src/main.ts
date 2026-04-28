@@ -1,6 +1,6 @@
 import type * as api from '@/api'
 import * as apisvc from '@/api-service'
-import * as challenge from '@/challenge'
+import * as cookies from '@/cookies'
 import * as config from '@/config'
 import {createClient} from '@/daemon-client'
 import * as email from '@/email'
@@ -210,19 +210,11 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
         return handleResponse(result, ctx)
       },
     },
-    '/vault/api/register/poll': {
+    '/vault/api/register/verify': {
       POST: async (req) => {
         const body = await req.json()
         const ctx = getRequestContext(req)
-        const result = await svc.registerPoll(body, ctx)
-        return handleResponse(result, ctx)
-      },
-    },
-    '/vault/api/register/verify-link': {
-      POST: async (req) => {
-        const body = await req.json()
-        const ctx = getRequestContext(req)
-        const result = await svc.registerVerifyLink(body, ctx)
+        const result = await svc.registerVerify(body, ctx)
         return handleResponse(result, ctx)
       },
     },
@@ -292,19 +284,11 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
         return handleResponse(result, ctx)
       },
     },
-    '/vault/api/email-change/poll': {
+    '/vault/api/email-change/verify': {
       POST: async (req) => {
         const body = await req.json()
         const ctx = getRequestContext(req)
-        const result = await svc.changeEmailPoll(body, ctx)
-        return handleResponse(result, ctx)
-      },
-    },
-    '/vault/api/email-change/verify-link': {
-      POST: async (req) => {
-        const body = await req.json()
-        const ctx = getRequestContext(req)
-        const result = await svc.changeEmailVerifyLink(body, ctx)
+        const result = await svc.changeEmailVerify(body, ctx)
         return handleResponse(result, ctx)
       },
     },
@@ -338,7 +322,16 @@ function handleResponse(data: unknown, ctx: api.ServerContext, status = 200, ext
   if (ctx.outboundChallengeCookie !== undefined) {
     headers.append(
       'Set-Cookie',
-      ctx.outboundChallengeCookie === null ? challenge.clearCookieHeader(isProd) : ctx.outboundChallengeCookie,
+      ctx.outboundChallengeCookie === null ? cookies.webauthnChallengeClearCookie(isProd) : ctx.outboundChallengeCookie,
+    )
+  }
+
+  if (ctx.outboundEmailChallengeCookie !== undefined) {
+    headers.append(
+      'Set-Cookie',
+      ctx.outboundEmailChallengeCookie === null
+        ? cookies.clearEmailCookieHeader(isProd)
+        : ctx.outboundEmailChallengeCookie,
     )
   }
 
@@ -355,9 +348,10 @@ function handleResponse(data: unknown, ctx: api.ServerContext, status = 200, ext
 
 function getRequestContext(req: BunRequest): api.ServerContext {
   const sessionId = req.cookies.get(session.SESSION_COOKIE_NAME) || null
-  const challengeCookie = req.cookies.get(challenge.getCookieName(isProd)) || null
+  const challengeCookie = req.cookies.get(cookies.webauthnChallengeCookieName(isProd)) || null
+  const emailChallengeCookie = req.cookies.get(cookies.emailVerificationCookieName(isProd)) || null
   const bearerAuth = parseBearerToken(req.headers.get('authorization'))
-  return {sessionId, bearerAuth, challengeCookie}
+  return {sessionId, bearerAuth, challengeCookie, emailChallengeCookie}
 }
 
 function parseBearerToken(authorizationHeader: string | null): string | null {

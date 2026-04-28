@@ -122,9 +122,9 @@ describe('Store', () => {
         preLogin: async () => ({exists: false}),
         registerStart: async () => ({
           message: 'ok',
-          challengeId: 'test-challenge',
+          expireTime: 1000,
+          resendAllowedTime: 500,
         }),
-        registerPoll: async () => ({verified: false}),
       })
       const {state, actions, navigator} = createStore(client, createMockBlockstore())
       const navigate = mock()
@@ -135,7 +135,8 @@ describe('Store', () => {
       await actions.handlePreLogin()
 
       expect(navigate).toHaveBeenCalledWith('/verify/pending')
-      expect(state.challengeId).toBe('test-challenge')
+      expect(state.verificationExpireTime).toBe(1000)
+      expect(state.resendAllowedTime).toBe(500)
     })
 
     test('navigates to login when user exists', async () => {
@@ -167,9 +168,9 @@ describe('Store', () => {
         }),
         registerStart: async () => ({
           message: 'ok',
-          challengeId: 'retry-challenge',
+          expireTime: 2000,
+          resendAllowedTime: 1500,
         }),
-        registerPoll: async () => ({verified: false}),
       })
       const {state, actions, navigator} = createStore(client, createMockBlockstore())
       const navigate = mock()
@@ -180,7 +181,8 @@ describe('Store', () => {
       await actions.handlePreLogin()
 
       expect(navigate).toHaveBeenCalledWith('/verify/pending')
-      expect(state.challengeId).toBe('retry-challenge')
+      expect(state.verificationExpireTime).toBe(2000)
+      expect(state.resendAllowedTime).toBe(1500)
       expect(state.userHasPassword).toBe(false)
       expect(state.userHasPasskey).toBe(false)
     })
@@ -211,8 +213,7 @@ describe('Store', () => {
             loadingDuringFetch = state.loading
             return {exists: false}
           },
-          registerStart: async () => ({message: 'ok', challengeId: 'c'}),
-          registerPoll: async () => ({verified: false}),
+          registerStart: async () => ({message: 'ok', expireTime: 1000, resendAllowedTime: 500}),
         }),
         createMockBlockstore(),
       )
@@ -474,13 +475,13 @@ describe('Store', () => {
   })
 
   describe('handleStartRegistration', () => {
-    test('navigates to verify-pending on success and stores challengeId', async () => {
+    test('navigates to verify-pending on success and stores verification times', async () => {
       const client = createMockClient({
         registerStart: async () => ({
           message: 'ok',
-          challengeId: 'test-challenge-123',
+          expireTime: 3000,
+          resendAllowedTime: 2500,
         }),
-        registerPoll: async () => ({verified: false}),
       })
       const {state, actions, navigator} = createStore(client, createMockBlockstore())
       const navigate = mock()
@@ -491,7 +492,8 @@ describe('Store', () => {
       await actions.handleStartRegistration()
 
       expect(navigate).toHaveBeenCalledWith('/verify/pending')
-      expect(state.challengeId).toBe('test-challenge-123')
+      expect(state.verificationExpireTime).toBe(3000)
+      expect(state.resendAllowedTime).toBe(2500)
     })
 
     test('sets error on failure', async () => {
@@ -511,57 +513,89 @@ describe('Store', () => {
     })
   })
 
-  describe('startPollingVerification', () => {
-    test('keeps the user on pending verification when polling fails', async () => {
+  describe('handleRegisterVerify', () => {
+    test('calls register verify API with code', async () => {
+      let receivedCode = ''
       const client = createMockClient({
-        registerPoll: async () => {
-          throw new Error('expired')
+        registerVerify: async (req) => {
+          receivedCode = req.code
+          return {verified: true, userId: 'user-1'}
+        },
+        getSession: async () => ({
+          authenticated: true,
+          relyingPartyOrigin: 'https://example.com',
+          userId: 'user-1',
+          email: 'test@example.com',
+          credentials: {},
+        }),
+      })
+      const {state, actions, navigator} = createStore(client, createMockBlockstore())
+      const navigate = mock()
+      navigator.setNavigate(navigate)
+      state.email = 'test@example.com'
+
+      await actions.handleRegisterVerify('1234')
+
+      expect(receivedCode).toBe('1234')
+      expect(navigate).toHaveBeenCalledWith('/auth/choose')
+    })
+
+    test('sets error on invalid code', async () => {
+      const client = createMockClient({
+        registerVerify: async () => {
+          throw new Error('Invalid or expired verification code')
+        },
+      })
+      const {state, actions} = createStore(client, createMockBlockstore())
+
+      await actions.handleRegisterVerify('0000')
+
+      expect(state.error).toBe('Invalid or expired verification code')
+    })
+  })
+
+  describe('email change verification', () => {
+    test('starts email change and stores verification times', async () => {
+      const client = createMockClient({
+        changeEmailStart: async () => ({
+          message: 'ok',
+          expireTime: 4000,
+          resendAllowedTime: 3500,
+        }),
+      })
+      const {state, actions, navigator} = createStore(client, createMockBlockstore())
+      const navigate = mock()
+      navigator.setNavigate(navigate)
+      state.session = {authenticated: true, relyingPartyOrigin: 'https://example.com', email: 'old@example.com'}
+      state.newEmail = 'new@example.com'
+
+      await actions.handleStartEmailChange()
+
+      expect(navigate).toHaveBeenCalledWith('/email/change-pending')
+      expect(state.verificationExpireTime).toBe(4000)
+      expect(state.resendAllowedTime).toBe(3500)
+    })
+
+    test('verifies email change with code', async () => {
+      let receivedCode = ''
+      const client = createMockClient({
+        changeEmailVerify: async (req) => {
+          receivedCode = req.code
+          return {verified: true, newEmail: 'new@example.com'}
         },
       })
       const {state, actions, navigator} = createStore(client, createMockBlockstore())
       const navigate = mock()
       navigator.setNavigate(navigate)
-      state.challengeId = 'expired-challenge'
+      state.session = {authenticated: true, relyingPartyOrigin: 'https://example.com', email: 'old@example.com'}
+      state.newEmail = 'new@example.com'
 
-      await actions.startPollingVerification()
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      await actions.handleChangeEmailVerify('1234')
 
-      expect(state.error).toBe('Verification failed or expired. Please try again.')
-      expect(navigate).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('handleVerifyLink', () => {
-    test('calls verify-link API with challengeId and token', async () => {
-      let receivedChallengeId = ''
-      let receivedToken = ''
-      const client = createMockClient({
-        registerVerifyLink: async (req) => {
-          receivedChallengeId = req.challengeId
-          receivedToken = req.token
-          return {verified: true, email: 'test@example.com'}
-        },
-      })
-      const {state, actions} = createStore(client, createMockBlockstore())
-
-      await actions.handleVerifyLink('test-challenge-123', 'test-token-456')
-
-      expect(receivedChallengeId).toBe('test-challenge-123')
-      expect(receivedToken).toBe('test-token-456')
-      expect(state.email).toBe('test@example.com')
-    })
-
-    test('sets error on invalid token', async () => {
-      const client = createMockClient({
-        registerVerifyLink: async () => {
-          throw new Error('Invalid or expired link')
-        },
-      })
-      const {state, actions} = createStore(client, createMockBlockstore())
-
-      await actions.handleVerifyLink('invalid-challenge', 'invalid-token')
-
-      expect(state.error).toBe('Invalid or expired link')
+      expect(receivedCode).toBe('1234')
+      expect(state.session?.email).toBe('new@example.com')
+      expect(state.email).toBe('new@example.com')
+      expect(navigate).toHaveBeenCalledWith('/')
     })
   })
 

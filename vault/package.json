@@ -10,6 +10,10 @@
     "format:write": "prettier --write .",
     "check": "conc 'bun typecheck' 'bun format:write'"
   },
+  "overrides": {
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
   "dependencies": {
     "@bufbuild/protobuf": "1.10.0",
     "@connectrpc/connect": "1.4.0",

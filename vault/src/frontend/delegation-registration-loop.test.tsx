@@ -37,16 +37,9 @@ describe('delegation registration loop', () => {
   test('does not restart registration when pending verification fails back into the delegation flow', async () => {
     const registerStart = mock(async () => ({
       message: 'ok',
-      challengeId: `challenge-${registerStart.mock.calls.length}`,
+      expireTime: Date.now() + 15 * 60 * 1000,
+      resendAllowedTime: Date.now() + 60 * 1000,
     }))
-    let pollCalls = 0
-    const registerPoll = mock(async () => {
-      pollCalls++
-      if (pollCalls === 1) {
-        throw new Error('expired')
-      }
-      return {verified: true}
-    })
     let sessionCalls = 0
     const client = createMockClient({
       getSession: async () => {
@@ -67,7 +60,6 @@ describe('delegation registration loop', () => {
       },
       preLogin: async () => ({exists: false}),
       registerStart,
-      registerPoll,
     })
     const delegationUrl = makeDelegationUrl('loop@example.com')
     setWindowUrl('http://localhost/')
@@ -84,26 +76,23 @@ describe('delegation registration loop', () => {
       )
     })
 
-    await rtl.act(async () => {
-      await rtl.waitFor(() => {
-        expect(rtl.screen.getByText('Verification failed or expired. Please try again.')).toBeDefined()
-      })
+    await rtl.waitFor(() => {
+      expect(window.location.pathname).toBe('/vault/verify/pending')
     })
 
     expect(registerStart).toHaveBeenCalledTimes(1)
-    expect(window.location.pathname).toBe('/vault/verify/pending')
   })
 
   test('auto-submits matching delegation email once across rerenders', async () => {
     const registerStart = mock(async () => ({
       message: 'ok',
-      challengeId: 'challenge-1',
+      expireTime: Date.now() + 15 * 60 * 1000,
+      resendAllowedTime: Date.now() + 60 * 1000,
     }))
     const store = createStore(
       createMockClient({
         preLogin: async () => ({exists: false}),
         registerStart,
-        registerPoll: async () => ({verified: false}),
       }),
       createMockBlockstore(),
     )
@@ -141,13 +130,13 @@ describe('delegation registration loop', () => {
   test('does not auto-submit manually typed email in delegation flow', async () => {
     const registerStart = mock(async () => ({
       message: 'ok',
-      challengeId: 'challenge-1',
+      expireTime: Date.now() + 15 * 60 * 1000,
+      resendAllowedTime: Date.now() + 60 * 1000,
     }))
     const store = createStore(
       createMockClient({
         preLogin: async () => ({exists: false}),
         registerStart,
-        registerPoll: async () => ({verified: false}),
       }),
       createMockBlockstore(),
     )

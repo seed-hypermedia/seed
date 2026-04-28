@@ -9,7 +9,6 @@ import * as navigation from './navigation'
 import {getPendingFlowPath, useActions, useAppState} from './store'
 import {AddPasswordView} from './views/AddPasswordView'
 import {ChangeEmailPendingView} from './views/ChangeEmailPendingView'
-import {ChangeEmailVerifyView} from './views/ChangeEmailVerifyView'
 import {ChangeEmailView} from './views/ChangeEmailView'
 import {ChangeNotifyServerUrlView} from './views/ChangeNotifyServerUrlView'
 import {ChangePasswordView} from './views/ChangePasswordView'
@@ -21,7 +20,6 @@ import {LoginView} from './views/LoginView'
 import {PreLoginView} from './views/PreLoginView'
 import {SetPasswordView} from './views/SetPasswordView'
 import {VaultView} from './views/VaultView'
-import {VerifyLinkView} from './views/VerifyLinkView'
 import {VerifyPendingView} from './views/VerifyPendingView'
 
 /**
@@ -137,7 +135,9 @@ export function RootLayout() {
   const actions = useActions()
 
   useEffect(() => {
-    actions.checkSession()
+    void actions.checkSession().catch((error) => {
+      console.error('Session check failed:', error)
+    })
     actions.parseDelegationFromUrl(window.location.href)
     actions.parseVaultConnectionFromUrl(window.location.href)
   }, [actions])
@@ -215,6 +215,9 @@ function ConnectRouteView() {
 
 /** Creates the application router with all route definitions. */
 export function createRouter() {
+  // TODO(burdiyan): some of these routes need more robust guards for checking whether session exists.
+  // The current state is harmless — simply may cause confusion if the user navigates to those routes without having a session, and sees a half-baked page.
+
   return createBrowserRouter(
     [
       {
@@ -247,10 +250,6 @@ export function createRouter() {
               {
                 path: '/verify/pending',
                 element: <VerifyPendingView />,
-              },
-              {
-                path: '/verify/:challengeId/:token',
-                element: <VerifyLinkView />,
               },
               {
                 path: '/connect',
@@ -288,10 +287,6 @@ export function createRouter() {
                     element: <DelegateView />,
                   },
                 ],
-              },
-              {
-                path: '/email/change-verify/:challengeId/:token',
-                element: <ChangeEmailVerifyView />,
               },
             ],
           },

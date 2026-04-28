@@ -64,12 +64,8 @@ export class FetchClient implements api.ClientInterface {
     return this.request('/api/register/start', {method: 'POST', body: JSON.stringify(req)})
   }
 
-  async registerPoll(req: api.RegisterPollRequest): Promise<api.RegisterPollResponse> {
-    return this.request('/api/register/poll', {method: 'POST', body: JSON.stringify(req)})
-  }
-
-  async registerVerifyLink(req: api.RegisterVerifyLinkRequest): Promise<api.RegisterVerifyLinkResponse> {
-    return this.request('/api/register/verify-link', {method: 'POST', body: JSON.stringify(req)})
+  async registerVerify(req: api.RegisterVerifyRequest): Promise<api.RegisterVerifyResponse> {
+    return this.request('/api/register/verify', {method: 'POST', body: JSON.stringify(req)})
   }
 
   // Vault data.
@@ -126,11 +122,7 @@ export class FetchClient implements api.ClientInterface {
     return this.request('/api/email-change/start', {method: 'POST', body: JSON.stringify(req)})
   }
 
-  async changeEmailPoll(req: api.ChangeEmailPollRequest): Promise<api.ChangeEmailPollResponse> {
-    return this.request('/api/email-change/poll', {method: 'POST', body: JSON.stringify(req)})
-  }
-
-  async changeEmailVerifyLink(req: api.ChangeEmailVerifyLinkRequest): Promise<api.ChangeEmailVerifyLinkResponse> {
-    return this.request('/api/email-change/verify-link', {method: 'POST', body: JSON.stringify(req)})
+  async changeEmailVerify(req: api.ChangeEmailVerifyRequest): Promise<api.ChangeEmailVerifyResponse> {
+    return this.request('/api/email-change/verify', {method: 'POST', body: JSON.stringify(req)})
   }
 }

@@ -34,22 +34,18 @@ CREATE INDEX sessions_by_user_id ON sessions (user_id);
 CREATE INDEX sessions_by_expire_time ON sessions (expire_time);
 
 CREATE TABLE email_challenges (
-    -- Unique identifier for this challenge instance (used for polling).
-    id TEXT PRIMARY KEY,
-    -- User this challenge belongs to (NULL for new user registration).
-    user_id TEXT REFERENCES users (id),
-    -- Purpose of the challenge: 'registration' | 'email_change'.
-    purpose TEXT NOT NULL,
-    -- SHA-256 hash of the high-entropy token (token itself is sent in URL).
-    token_hash TEXT NOT NULL,
-    -- Email address associated with this challenge.
-    -- For registration: the email being verified.
-    -- For email_change: the current email.
-    email TEXT NOT NULL,
-    -- New email address (only for email_change purpose).
+    -- Registration email, or current account email when changing email.
+    email TEXT PRIMARY KEY,
+    -- SHA-256 hash of the browser binding cookie preimage.
+    binding_hash TEXT NOT NULL,
+    -- Contextual hash of the email verification code.
+    code_hash TEXT NOT NULL,
+    -- Target email address when changing email. NULL for registration.
     new_email TEXT,
-    -- Whether the email verification link has been clicked.
-    verified INTEGER NOT NULL DEFAULT 0,
+    -- Number of failed code attempts.
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    -- Unix timestamp (ms) when this challenge was created.
+    create_time INTEGER NOT NULL,
     -- Unix timestamp (ms) when this challenge expires.
     expire_time INTEGER NOT NULL
 ) WITHOUT ROWID;

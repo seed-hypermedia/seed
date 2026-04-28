@@ -21,7 +21,7 @@ const rp = {
 
 const hmacSecret = new Uint8Array(32)
 const emailSender = {
-  sendLoginLink: async () => {},
+  sendVerificationEmail: async () => {},
 }
 
 function createService(getAccountImpl: (req: {id: string}) => Promise<Account>) {
@@ -55,7 +55,9 @@ describe('vault account api service', () => {
       })
     })
 
-    await expect(svc.getAccount({id: 'alice'}, {sessionId: null, challengeCookie: null})).resolves.toEqual(
+    await expect(
+      svc.getAccount({id: 'alice'}, {sessionId: null, challengeCookie: null, emailChallengeCookie: null}),
+    ).resolves.toEqual(
       new Account({
         id: 'alice',
         profile: new Profile({
@@ -70,7 +72,9 @@ describe('vault account api service', () => {
       throw new ConnectError('missing', Code.NotFound)
     })
 
-    await expect(svc.getAccount({id: 'missing'}, {sessionId: null, challengeCookie: null})).rejects.toMatchObject({
+    await expect(
+      svc.getAccount({id: 'missing'}, {sessionId: null, challengeCookie: null, emailChallengeCookie: null}),
+    ).rejects.toMatchObject({
       message: 'Account not found',
       statusCode: 404,
     } as Partial<APIError>)
@@ -79,7 +83,7 @@ describe('vault account api service', () => {
   test('returns frontend config from the service', async () => {
     const svc = createService(async ({id}) => new Account({id}))
 
-    await expect(svc.getConfig({sessionId: null, challengeCookie: null})).resolves.toEqual({
+    await expect(svc.getConfig({sessionId: null, challengeCookie: null, emailChallengeCookie: null})).resolves.toEqual({
       backendHttpBaseUrl: 'https://daemon.example.com',
       notificationServerUrl: 'https://notify.example.com',
     })

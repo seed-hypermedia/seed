@@ -1,7 +1,6 @@
 import {
   Mjml,
   MjmlBody,
-  MjmlButton,
   MjmlColumn,
   MjmlHead,
   MjmlImage,
@@ -13,22 +12,22 @@ import {
 import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
 import mjml2html from 'mjml'
 
-/** Rendered login confirmation email with subject, plain text, and HTML. */
-export type LoginEmail = {
+/** Rendered verification email with subject, plain text, and HTML. */
+export type VerificationEmail = {
   subject: string
   text: string
   html: string
 }
 
-/** Render a login confirmation email for the given login URL. */
-export function createLoginEmail(loginUrl: string): LoginEmail {
-  const subject = 'Your login link for Seed Hypermedia'
-  const text = `Your login link for Seed Hypermedia
+/** Render a verification email for the given code. */
+export function createVerificationEmail(code: string): VerificationEmail {
+  const subject = 'Your verification code for Seed Hypermedia'
+  const text = `Your verification code for Seed Hypermedia
 
-Click the link below to log in:
-${loginUrl}
+Enter this code in the browser where you requested it:
+${code}
 
-This link will expire in 2 minutes. If you didn't request this, you can safely ignore this email.
+This code will expire in 15 minutes. If you didn't request this, you can safely ignore this email.
 
 Seed Hypermedia`
 
@@ -36,7 +35,7 @@ Seed Hypermedia`
     <Mjml>
       <MjmlHead>
         <MjmlTitle>{subject}</MjmlTitle>
-        <MjmlPreview>Click to log in to Seed Hypermedia</MjmlPreview>
+        <MjmlPreview>Enter this code to continue in Seed Hypermedia</MjmlPreview>
       </MjmlHead>
       <MjmlBody width={500} backgroundColor="#f4f4f5">
         <MjmlSection padding="40px 0 20px">
@@ -58,25 +57,23 @@ Seed Hypermedia`
         <MjmlSection backgroundColor="#ffffff" borderRadius="8px" padding="32px 24px">
           <MjmlColumn>
             <MjmlText fontSize="24px" fontWeight="bold" color="#1a1a1a" padding="0 0 24px">
-              Your login link
+              Your verification code
             </MjmlText>
 
-            <MjmlButton
-              href={loginUrl}
-              backgroundColor="#068f7b"
-              color="#ffffff"
-              fontSize="16px"
-              fontWeight="600"
-              borderRadius="6px"
+            <MjmlText
+              fontSize="32px"
+              fontWeight="700"
+              color="#1a1a1a"
+              letterSpacing="8px"
               padding="0 0 24px"
-              innerPadding="14px 28px"
-              align="left"
+              align="center"
             >
-              Log in to Seed Hypermedia
-            </MjmlButton>
+              {code}
+            </MjmlText>
 
             <MjmlText fontSize="14px" color="#71717a" lineHeight="1.5" padding="0">
-              This link will expire in 2 minutes. If you didn't request this, you can safely ignore this email.
+              This code will expire in 15 minutes. Enter it in the browser where you requested it. If you didn't request
+              this, you can safely ignore this email.
             </MjmlText>
           </MjmlColumn>
         </MjmlSection>

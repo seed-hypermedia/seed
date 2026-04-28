@@ -12,7 +12,7 @@ export type SmtpConfig = {
 
 /** Sends login/verification emails. */
 export interface EmailSender {
-  sendLoginLink(to: string, loginUrl: string): Promise<void>
+  sendVerificationEmail(to: string, code: string): Promise<void>
 }
 
 /** Sends emails via SMTP using nodemailer. */
@@ -35,9 +35,9 @@ class SmtpSender implements EmailSender {
     } as nodemailer.TransportOptions)
   }
 
-  async sendLoginLink(to: string, loginUrl: string): Promise<void> {
+  async sendVerificationEmail(to: string, code: string): Promise<void> {
     console.log(`Sending email to ${to}...`)
-    const {subject, text, html} = emailTemplate.createLoginEmail(loginUrl)
+    const {subject, text, html} = emailTemplate.createVerificationEmail(code)
     await this.transporter.sendMail({
       from: this.sender,
       to,
@@ -49,10 +49,10 @@ class SmtpSender implements EmailSender {
   }
 }
 
-/** Dev fallback that logs magic links to the console. */
+/** Dev fallback that logs verification codes to the console. */
 class ConsoleSender implements EmailSender {
-  async sendLoginLink(to: string, loginUrl: string): Promise<void> {
-    console.log(`\n📧 Magic link for ${to}:\n${loginUrl}\n`)
+  async sendVerificationEmail(to: string, code: string): Promise<void> {
+    console.log(`\n📧 Verification code for ${to}: ${code}\n`)
   }
 }
 
@@ -62,6 +62,6 @@ export function createSender(smtp: SmtpConfig | null): EmailSender {
     console.log('Email: SMTP configured, sending real emails')
     return new SmtpSender(smtp)
   }
-  console.warn('Email: No SMTP configured, magic links will be logged to console')
+  console.warn('Email: No SMTP configured, verification codes will be logged to console')
   return new ConsoleSender()
 }

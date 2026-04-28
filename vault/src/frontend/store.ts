@@ -62,7 +62,8 @@ function initialState(backendHttpBaseUrl = '', notificationServerUrl = '') {
     password: '',
     passwordSalt: '',
     confirmPassword: '',
-    challengeId: '', // For polling during magic link verification.
+    verificationExpireTime: 0,
+    resendAllowedTime: 0,
     error: '',
     loading: false,
     session: null as SessionInfo | null,
@@ -77,7 +78,6 @@ function initialState(backendHttpBaseUrl = '', notificationServerUrl = '') {
     selectedAccountIndex: -1,
     creatingAccount: false,
     newEmail: '', // For email change flow.
-    emailChangeChallengeId: '', // For email change polling.
     sessionChecked: false,
     /** Active delegation request parsed from URL params. Null when not in delegation flow. */
     delegationRequest: null as hmauth.DelegationRequest | null,
@@ -507,10 +507,6 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.confirmPassword = confirmPassword
     },
 
-    setChallengeId(challengeId: string) {
-      state.challengeId = challengeId
-    },
-
     setError(error: string) {
       state.error = error
     },
@@ -555,8 +551,14 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         console.error('Session check failed:', e)
       } finally {
         state.sessionChecked = true
-        state.passkeySupported = localCrypto.isWebAuthnSupported()
-        state.platformAuthAvailable = await localCrypto.isPlatformAuthenticatorAvailable()
+        try {
+          state.passkeySupported = localCrypto.isWebAuthnSupported()
+          state.platformAuthAvailable = await localCrypto.isPlatformAuthenticatorAvailable()
+        } catch (e) {
+          console.warn('Passkey capability check failed:', e)
+          state.passkeySupported = false
+          state.platformAuthAvailable = false
+        }
       }
     },
 
@@ -596,9 +598,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
       try {
         const data = await client.registerStart({email: state.email})
-        state.challengeId = data.challengeId
+        state.verificationExpireTime = data.expireTime
+        state.resendAllowedTime = data.resendAllowedTime
         navigator.go('/verify/pending')
-        actions.startPollingVerification()
       } catch (e) {
         state.error = (e as Error).message || 'Registration failed'
       } finally {
@@ -606,56 +608,14 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
-    /**
-     * Polls the server to check if the magic link was clicked.
-     * Automatically proceeds to auth setup once verified.
-     */
-    async startPollingVerification() {
-      const pollInterval = 2000 // Poll every 2 seconds.
-      const maxAttempts = 60 // 2 minutes max (matching link expiry).
-
-      let attempts = 0
-
-      const poll = async () => {
-        if (!state.challengeId) return
-
-        try {
-          const data = await client.registerPoll({
-            challengeId: state.challengeId,
-          })
-
-          if (data.verified) {
-            // Poll successful, session created. Update local state.
-            await actions.checkSession()
-            navigator.go('/auth/choose')
-            return
-          }
-
-          attempts++
-          if (attempts < maxAttempts) {
-            setTimeout(poll, pollInterval)
-          } else {
-            state.error = 'Verification link expired. Please try again.'
-          }
-        } catch (_e) {
-          // Challenge expired or error - stop polling.
-          state.error = 'Verification failed or expired. Please try again.'
-        }
-      }
-
-      poll()
-    },
-
-    /**
-     * Called when user clicks the magic link. Verifies the token and shows confirmation.
-     */
-    async handleVerifyLink(challengeId: string, token: string) {
+    async handleRegisterVerify(code: string) {
       state.loading = true
       state.error = ''
 
       try {
-        const data = await client.registerVerifyLink({challengeId, token})
-        state.email = data.email
+        await client.registerVerify({code})
+        await actions.checkSession()
+        navigator.go('/auth/choose')
       } catch (e) {
         state.error = (e as Error).message || 'Verification failed'
       } finally {
@@ -739,7 +699,6 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         state.password = ''
         state.confirmPassword = ''
         navigator.go('/')
-        alert('Master password added successfully!')
       } catch (e) {
         console.error('Add password error:', e)
         state.error = (e as Error).message || 'Failed to add password. Please try again.'
@@ -784,7 +743,6 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         state.password = ''
         state.confirmPassword = ''
         navigator.go('/')
-        alert('Password changed successfully!')
       } catch (e) {
         console.error('Change password error:', e)
         state.error = (e as Error).message || 'Failed to change password. Please try again.'
@@ -834,16 +792,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         }
 
         const wrappedDEK = await localCrypto.encrypt(dek, wrapKey)
-        const completeData = await client.addPasskeyFinish({
+        await client.addPasskeyFinish({
           response: regResponse,
           wrappedDEK: base64.encode(wrappedDEK),
         })
-
-        if (!completeData.backupState) {
-          alert(
-            'Your passkey is not backed up to the cloud. If you lose this device, you may not be able to sign in. Consider adding a password or another passkey as a backup.',
-          )
-        }
 
         state.decryptedDEK = dek
         await actions.loadVaultData()
@@ -1243,16 +1195,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         }
 
         const wrappedDEK = await localCrypto.encrypt(dek, wrapKey)
-        const data = await client.addPasskeyFinish({
+        await client.addPasskeyFinish({
           response: regResponse,
           wrappedDEK: base64.encode(wrappedDEK),
         })
-
-        if (!data.backupState) {
-          alert(
-            'Your passkey is not backed up to the cloud. If you lose this device, you may not be able to sign in. Consider adding a password or another passkey as a backup.',
-          )
-        }
 
         state.decryptedDEK = dek
         await actions.loadVaultData()
@@ -1736,7 +1682,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     },
 
     /**
-     * Start the email change process. Sends a magic link to the new email.
+     * Start the email change process. Sends a verification code to the new email.
      */
     async handleStartEmailChange() {
       if (!state.newEmail) {
@@ -1756,9 +1702,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         const data = await client.changeEmailStart({
           newEmail: state.newEmail,
         })
-        state.emailChangeChallengeId = data.challengeId
+        state.verificationExpireTime = data.expireTime
+        state.resendAllowedTime = data.resendAllowedTime
         navigator.go('/email/change-pending')
-        actions.startPollingEmailChange()
       } catch (e) {
         state.error = (e as Error).message || 'Failed to start email change'
       } finally {
@@ -1766,64 +1712,18 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
-    /**
-     * Polls the server to check if the email change magic link was clicked.
-     */
-    async startPollingEmailChange() {
-      const pollInterval = 2000
-      const maxAttempts = 60
-
-      let attempts = 0
-
-      const poll = async () => {
-        if (!state.emailChangeChallengeId) {
-          return
-        }
-
-        try {
-          const data = await client.changeEmailPoll({
-            challengeId: state.emailChangeChallengeId,
-          })
-
-          if (data.verified && data.newEmail) {
-            // Update session with new email.
-            if (state.session) {
-              state.session.email = data.newEmail
-              state.email = data.newEmail
-            }
-            state.newEmail = ''
-            state.emailChangeChallengeId = ''
-            navigator.go('/')
-            alert(`Email changed successfully to ${data.newEmail}`)
-            return
-          }
-
-          attempts++
-          if (attempts < maxAttempts) {
-            setTimeout(poll, pollInterval)
-          } else {
-            state.error = 'Verification link expired. Please try again.'
-            navigator.go('/email/change')
-          }
-        } catch (_e) {
-          state.error = 'Verification failed or expired. Please try again.'
-          navigator.go('/email/change')
-        }
-      }
-
-      poll()
-    },
-
-    /**
-     * Called when user clicks the email change magic link.
-     */
-    async handleVerifyEmailChangeLink(challengeId: string, token: string) {
+    async handleChangeEmailVerify(code: string) {
       state.loading = true
       state.error = ''
 
       try {
-        const data = await client.changeEmailVerifyLink({challengeId, token})
-        state.newEmail = data.newEmail
+        const data = await client.changeEmailVerify({code})
+        if (state.session) {
+          state.session.email = data.newEmail
+          state.email = data.newEmail
+        }
+        state.newEmail = ''
+        navigator.go('/')
       } catch (e) {
         state.error = (e as Error).message || 'Verification failed'
       } finally {

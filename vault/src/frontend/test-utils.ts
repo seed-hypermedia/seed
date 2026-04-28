@@ -20,8 +20,7 @@ export function createMockClient(overrides: Partial<api.ClientInterface> = {}): 
     getAccount: notImplemented('getAccount'),
     getConfig: notImplemented('getConfig'),
     registerStart: notImplemented('registerStart'),
-    registerPoll: notImplemented('registerPoll'),
-    registerVerifyLink: notImplemented('registerVerifyLink'),
+    registerVerify: notImplemented('registerVerify'),
     getVault: notImplemented('getVault'),
     saveVault: notImplemented('saveVault'),
     addPassword: notImplemented('addPassword'),
@@ -32,8 +31,7 @@ export function createMockClient(overrides: Partial<api.ClientInterface> = {}): 
     loginPasskeyStart: notImplemented('loginPasskeyStart'),
     loginPasskeyFinish: notImplemented('loginPasskeyFinish'),
     changeEmailStart: notImplemented('changeEmailStart'),
-    changeEmailPoll: notImplemented('changeEmailPoll'),
-    changeEmailVerifyLink: notImplemented('changeEmailVerifyLink'),
+    changeEmailVerify: notImplemented('changeEmailVerify'),
     ...overrides,
   }
 }
@@ -58,12 +56,12 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
     }),
     registerStart: async () => ({
       message: 'ok',
-      challengeId: 'test-challenge',
+      expireTime: Date.now() + 15 * 60 * 1000,
+      resendAllowedTime: Date.now() + 60 * 1000,
     }),
-    registerPoll: async () => ({verified: false}),
-    registerVerifyLink: async () => ({
+    registerVerify: async () => ({
       verified: true,
-      email: 'test@example.com',
+      userId: 'user-1',
     }),
     getVault: async () => ({encryptedData: '', version: 0, credentials: []}),
     saveVault: async () => ({success: true}),
@@ -93,10 +91,10 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
     }),
     changeEmailStart: async () => ({
       message: 'ok',
-      challengeId: 'change-challenge',
+      expireTime: Date.now() + 15 * 60 * 1000,
+      resendAllowedTime: Date.now() + 60 * 1000,
     }),
-    changeEmailPoll: async () => ({verified: false}),
-    changeEmailVerifyLink: async () => ({
+    changeEmailVerify: async () => ({
       verified: true,
       newEmail: 'new@example.com',
     }),

@@ -45,10 +45,9 @@ export interface ServiceDefinition {
   getAccount(req: GetAccountRequest): Promise<GetAccountResponse>
   getConfig(): Promise<GetConfigResponse>
 
-  // Email-based registration (magic link).
+  // Email-based registration.
   registerStart(req: RegisterStartRequest): Promise<RegisterStartResponse>
-  registerPoll(req: RegisterPollRequest): Promise<RegisterPollResponse>
-  registerVerifyLink(req: RegisterVerifyLinkRequest): Promise<RegisterVerifyLinkResponse>
+  registerVerify(req: RegisterVerifyRequest): Promise<RegisterVerifyResponse>
 
   // Vault data.
   getVault(req: GetVaultRequest): Promise<GetVaultResponse>
@@ -67,8 +66,7 @@ export interface ServiceDefinition {
 
   // Email change.
   changeEmailStart(req: ChangeEmailStartRequest): Promise<ChangeEmailStartResponse>
-  changeEmailPoll(req: ChangeEmailPollRequest): Promise<ChangeEmailPollResponse>
-  changeEmailVerifyLink(req: ChangeEmailVerifyLinkRequest): Promise<ChangeEmailVerifyLinkResponse>
+  changeEmailVerify(req: ChangeEmailVerifyRequest): Promise<ChangeEmailVerifyResponse>
 }
 
 // Pre-login.
@@ -90,26 +88,17 @@ export type RegisterStartRequest = {
 }
 export type RegisterStartResponse = {
   message: string
-  challengeId: string
+  expireTime: number
+  resendAllowedTime: number
 }
 
-// Register poll — called by the original device to check whether the magic link was clicked.
-export type RegisterPollRequest = {
-  challengeId: string
+// Register verify.
+export type RegisterVerifyRequest = {
+  code: string
 }
-export type RegisterPollResponse = {
+export type RegisterVerifyResponse = {
   verified: boolean
-  userId?: string
-}
-
-// Register verify link — called when the user clicks the magic link.
-export type RegisterVerifyLinkRequest = {
-  challengeId: string
-  token: string
-}
-export type RegisterVerifyLinkResponse = {
-  verified: boolean
-  email: string
+  userId: string
 }
 
 // Add password credential. Fails if the user already has a password.
@@ -254,24 +243,15 @@ export type ChangeEmailStartRequest = {
 }
 export type ChangeEmailStartResponse = {
   message: string
-  challengeId: string
+  expireTime: number
+  resendAllowedTime: number
 }
 
-// Change email poll — check if verification link was clicked.
-export type ChangeEmailPollRequest = {
-  challengeId: string
+// Change email verify.
+export type ChangeEmailVerifyRequest = {
+  code: string
 }
-export type ChangeEmailPollResponse = {
-  verified: boolean
-  newEmail?: string
-}
-
-// Change email verify link — called when the user clicks the magic link.
-export type ChangeEmailVerifyLinkRequest = {
-  challengeId: string
-  token: string
-}
-export type ChangeEmailVerifyLinkResponse = {
+export type ChangeEmailVerifyResponse = {
   verified: boolean
   newEmail: string
 }
@@ -338,6 +318,11 @@ export interface ServerContext {
   readonly challengeCookie: string | null
   // Set to a string to send a new challenge cookie, null to clear it.
   outboundChallengeCookie?: string | null
+
+  // The raw value of the email verification binding cookie.
+  readonly emailChallengeCookie: string | null
+  // Set to a string to send a new email verification binding cookie, null to clear it.
+  outboundEmailChallengeCookie?: string | null
 }
 
 /**

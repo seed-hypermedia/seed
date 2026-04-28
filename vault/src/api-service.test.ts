@@ -5,7 +5,7 @@ import * as encryption from '@seed-hypermedia/client/encryption'
 import * as webauthn from '@simplewebauthn/server'
 import {APIError, Service} from '@/api-service'
 import type * as api from '@/api'
-import * as challenge from '@/challenge'
+import * as cookies from '@/cookies'
 import type * as email from '@/email'
 import * as crypto from '@/frontend/crypto'
 import * as storage from '@/sqlite'
@@ -20,7 +20,7 @@ const rp = {
 
 const hmacSecret = new Uint8Array(32).fill(7)
 const emailSender: email.EmailSender = {
-  sendLoginLink: async () => {},
+  sendVerificationEmail: async () => {},
 }
 
 beforeAll(() => {
@@ -69,11 +69,13 @@ function createContext(
   sessionId: string | null = null,
   bearerAuth: string | null = null,
   challengeCookie: string | null = null,
+  emailChallengeCookie: string | null = null,
 ): api.ServerContext {
   return {
     sessionId,
     bearerAuth,
     challengeCookie,
+    emailChallengeCookie,
   }
 }
 
@@ -131,10 +133,22 @@ function getSecretCredentialRow(userId: string) {
     .get(userId, 'secret')
 }
 
-function getRegistrationChallenge(email: string) {
+function getEmailChallenge(email: string) {
   return db
-    .query<{id: string}, [string]>(`SELECT id FROM email_challenges WHERE email = ? AND purpose = 'registration'`)
+    .query<
+      {email: string; binding_hash: string; code_hash: string; new_email: string | null},
+      [string]
+    >(`SELECT email, binding_hash, code_hash, new_email FROM email_challenges WHERE email = ?`)
     .get(email.toLowerCase())
+}
+
+function getEmailBindingCookie(ctx: api.ServerContext): string {
+  const cookie = ctx.outboundEmailChallengeCookie
+  if (!cookie) {
+    throw new Error('Missing email challenge cookie')
+  }
+  const cookiePair = cookie.split(';')[0]!
+  return cookiePair.slice(cookiePair.indexOf('=') + 1)
 }
 
 function generateSecret(): string {
@@ -185,46 +199,54 @@ describe('vault auth service', () => {
     })
   })
 
-  test('registerStart reuses an active registration challenge without sending another email', async () => {
-    const sendLoginLink = spyOn(emailSender, 'sendLoginLink')
+  test('registerStart rate-limits an active registration challenge', async () => {
+    const sendVerificationEmail = spyOn(emailSender, 'sendVerificationEmail')
     const svc = createService()
     const email = 'active-registration@test.com'
 
     try {
-      const first = await svc.registerStart({email}, createContext())
-      const second = await svc.registerStart({email}, createContext())
+      const firstCtx = createContext()
+      const first = await svc.registerStart({email}, firstCtx)
 
-      expect(second.challengeId).toBe(first.challengeId)
-      expect(sendLoginLink).toHaveBeenCalledTimes(1)
-      expect(getRegistrationChallenge(email)?.id).toBe(first.challengeId)
+      await expect(svc.registerStart({email}, createContext())).rejects.toMatchObject({
+        statusCode: 429,
+      })
+      expect(first).toMatchObject({
+        message: 'Verification code sent',
+      })
+      expect(first.expireTime).toBeGreaterThan(Date.now())
+      expect(first.resendAllowedTime).toBeGreaterThan(Date.now())
+      expect(sendVerificationEmail).toHaveBeenCalledTimes(1)
+      expect(getEmailChallenge(email)?.email).toBe(email)
+      expect(getEmailBindingCookie(firstCtx)).toBeString()
     } finally {
-      sendLoginLink.mockRestore()
+      sendVerificationEmail.mockRestore()
     }
   })
 
   test('registerStart creates a new challenge after the previous one expires', async () => {
-    const sendLoginLink = spyOn(emailSender, 'sendLoginLink')
+    const sendVerificationEmail = spyOn(emailSender, 'sendVerificationEmail')
     const svc = createService()
     const email = 'expired-registration@test.com'
 
     try {
       db.run(
-        `INSERT INTO email_challenges (id, user_id, purpose, token_hash, email, verified, expire_time) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        ['expired-challenge', null, 'registration', 'expired-token-hash', email, 0, Date.now() - 1],
+        `INSERT INTO email_challenges (email, binding_hash, code_hash, new_email, attempt_count, create_time, expire_time) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [email, 'old-binding-hash', 'old-code-hash', null, 0, Date.now() - 120_000, Date.now() - 1],
       )
 
       const result = await svc.registerStart({email}, createContext())
 
-      expect(result.challengeId).not.toBe('expired-challenge')
-      expect(sendLoginLink).toHaveBeenCalledTimes(1)
-      expect(getRegistrationChallenge(email)?.id).toBe(result.challengeId)
+      expect(result.expireTime).toBeGreaterThan(Date.now())
+      expect(sendVerificationEmail).toHaveBeenCalledTimes(1)
+      expect(getEmailChallenge(email)?.binding_hash).not.toBe('old-binding-hash')
     } finally {
-      sendLoginLink.mockRestore()
+      sendVerificationEmail.mockRestore()
     }
   })
 
   test('registerStart removes a new challenge if sending the email fails', async () => {
-    const sendLoginLink = spyOn(emailSender, 'sendLoginLink').mockImplementation(async () => {
+    const sendVerificationEmail = spyOn(emailSender, 'sendVerificationEmail').mockImplementation(async () => {
       throw new Error('smtp unavailable')
     })
     const svc = createService()
@@ -232,14 +254,14 @@ describe('vault auth service', () => {
 
     try {
       await expect(svc.registerStart({email}, createContext())).rejects.toThrow('smtp unavailable')
-      expect(getRegistrationChallenge(email)).toBeNull()
+      expect(getEmailChallenge(email)).toBeNull()
     } finally {
-      sendLoginLink.mockRestore()
+      sendVerificationEmail.mockRestore()
     }
   })
 
   test('registerStart rejects an existing user with credentials', async () => {
-    const sendLoginLink = spyOn(emailSender, 'sendLoginLink')
+    const sendVerificationEmail = spyOn(emailSender, 'sendVerificationEmail')
     const svc = createService()
     const email = 'registered-user@test.com'
     const userId = createUser(email)
@@ -254,9 +276,204 @@ describe('vault auth service', () => {
         message: 'User already exists',
         statusCode: 409,
       })
-      expect(sendLoginLink).not.toHaveBeenCalled()
+      expect(sendVerificationEmail).not.toHaveBeenCalled()
     } finally {
-      sendLoginLink.mockRestore()
+      sendVerificationEmail.mockRestore()
+    }
+  })
+
+  test('registerVerify requires the same browser binding and correct code', async () => {
+    const svc = createService()
+    const email = 'verify-code@test.com'
+    let code = ''
+    const sendVerificationEmail = spyOn(emailSender, 'sendVerificationEmail').mockImplementation(
+      async (_to, sentCode) => {
+        code = sentCode
+      },
+    )
+
+    try {
+      const startCtx = createContext()
+      await svc.registerStart({email}, startCtx)
+
+      await expect(svc.registerVerify({code}, createContext())).rejects.toMatchObject({
+        statusCode: 400,
+      })
+
+      const verifyCtx = createContext(null, null, null, getEmailBindingCookie(startCtx))
+      const result = await svc.registerVerify({code}, verifyCtx)
+
+      expect(result.verified).toBe(true)
+      expect(result.userId).toBeString()
+      expect(verifyCtx.sessionCookie).toBeString()
+      expect(verifyCtx.outboundEmailChallengeCookie).toBeNull()
+      expect(getEmailChallenge(email)).toBeNull()
+    } finally {
+      sendVerificationEmail.mockRestore()
+    }
+  })
+
+  test('registerVerify deletes the challenge after three failed attempts', async () => {
+    const svc = createService()
+    const email = 'failed-code@test.com'
+    let code = ''
+    const sendVerificationEmail = spyOn(emailSender, 'sendVerificationEmail').mockImplementation(
+      async (_to, sentCode) => {
+        code = sentCode
+      },
+    )
+    const startCtx = createContext()
+    try {
+      await svc.registerStart({email}, startCtx)
+      const binding = getEmailBindingCookie(startCtx)
+      const wrongCode = code === '0000' ? '0001' : '0000'
+
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await expect(
+          svc.registerVerify({code: wrongCode}, createContext(null, null, null, binding)),
+        ).rejects.toMatchObject({
+          statusCode: 400,
+        })
+      }
+
+      expect(getEmailChallenge(email)).toBeNull()
+    } finally {
+      sendVerificationEmail.mockRestore()
+    }
+  })
+
+  test('registerVerify rejects when the email was claimed after start', async () => {
+    const svc = createService()
+    const email = 'claimed-registration@test.com'
+    let code = ''
+    const sendVerificationEmail = spyOn(emailSender, 'sendVerificationEmail').mockImplementation(
+      async (_to, sentCode) => {
+        code = sentCode
+      },
+    )
+
+    try {
+      const startCtx = createContext()
+      await svc.registerStart({email}, startCtx)
+      const userId = createUser(email)
+      db.run(
+        `INSERT INTO credentials (id, user_id, type, encrypted_dek, metadata, create_time) VALUES (?, ?, ?, ?, ?, ?)`,
+        ['claimed-registration-credential', userId, 'password', null, null, Date.now()],
+      )
+
+      const verifyCtx = createContext(null, null, null, getEmailBindingCookie(startCtx))
+      await expect(svc.registerVerify({code}, verifyCtx)).rejects.toMatchObject({
+        message: 'User already exists',
+        statusCode: 409,
+      })
+      expect(getEmailChallenge(email)).toBeNull()
+      expect(verifyCtx.outboundEmailChallengeCookie).toBeNull()
+      expect(verifyCtx.sessionCookie).toBeUndefined()
+    } finally {
+      sendVerificationEmail.mockRestore()
+    }
+  })
+
+  test('changeEmailVerify requires the same browser binding and updates the user email', async () => {
+    const svc = createService()
+    const oldEmail = 'old-email@test.com'
+    const newEmail = 'new-email@test.com'
+    const userId = createUser(oldEmail)
+    const sessionId = createSession(userId)
+    let code = ''
+    const sendVerificationEmail = spyOn(emailSender, 'sendVerificationEmail').mockImplementation(
+      async (_to, sentCode) => {
+        code = sentCode
+      },
+    )
+
+    try {
+      const startCtx = createContext(sessionId)
+      const start = await svc.changeEmailStart({newEmail}, startCtx)
+
+      expect(start.expireTime).toBeGreaterThan(Date.now())
+      expect(getEmailChallenge(oldEmail)).toMatchObject({
+        email: oldEmail,
+        new_email: newEmail,
+      })
+      await expect(svc.changeEmailVerify({code}, createContext(sessionId))).rejects.toMatchObject({
+        statusCode: 400,
+      })
+
+      const verifyCtx = createContext(sessionId, null, null, getEmailBindingCookie(startCtx))
+      await expect(svc.changeEmailVerify({code}, verifyCtx)).resolves.toEqual({
+        verified: true,
+        newEmail,
+      })
+      expect(verifyCtx.outboundEmailChallengeCookie).toBeNull()
+      expect(db.query<{email: string}, [string]>(`SELECT email FROM users WHERE id = ?`).get(userId)?.email).toBe(
+        newEmail,
+      )
+      expect(getEmailChallenge(oldEmail)).toBeNull()
+    } finally {
+      sendVerificationEmail.mockRestore()
+    }
+  })
+
+  test('changeEmailStart rate-limits reissuing a code for the same current email', async () => {
+    const svc = createService()
+    const userId = createUser('source-email@test.com')
+    const sessionId = createSession(userId)
+    const newEmail = 'limited-new-email@test.com'
+
+    await svc.changeEmailStart({newEmail}, createContext(sessionId))
+
+    await expect(svc.changeEmailStart({newEmail}, createContext(sessionId))).rejects.toMatchObject({
+      statusCode: 429,
+    })
+  })
+
+  test('changeEmailStart keys the challenge by current email', async () => {
+    const svc = createService()
+    const oldEmail = 'keyed-source@test.com'
+    const newEmail = 'keyed-target@test.com'
+    const userId = createUser(oldEmail)
+    const sessionId = createSession(userId)
+
+    await svc.changeEmailStart({newEmail}, createContext(sessionId))
+
+    expect(getEmailChallenge(oldEmail)).toMatchObject({
+      email: oldEmail,
+      new_email: newEmail,
+    })
+    expect(getEmailChallenge(newEmail)).toBeNull()
+  })
+
+  test('changeEmailVerify rejects when the target email was claimed after start', async () => {
+    const svc = createService()
+    const oldEmail = 'race-source@test.com'
+    const newEmail = 'race-target@test.com'
+    const userId = createUser(oldEmail)
+    const sessionId = createSession(userId)
+    let code = ''
+    const sendVerificationEmail = spyOn(emailSender, 'sendVerificationEmail').mockImplementation(
+      async (_to, sentCode) => {
+        code = sentCode
+      },
+    )
+
+    try {
+      const startCtx = createContext(sessionId)
+      await svc.changeEmailStart({newEmail}, startCtx)
+      createUser(newEmail)
+
+      const verifyCtx = createContext(sessionId, null, null, getEmailBindingCookie(startCtx))
+      await expect(svc.changeEmailVerify({code}, verifyCtx)).rejects.toMatchObject({
+        message: 'Email already in use',
+        statusCode: 409,
+      })
+      expect(getEmailChallenge(oldEmail)).toBeNull()
+      expect(verifyCtx.outboundEmailChallengeCookie).toBeNull()
+      expect(db.query<{email: string}, [string]>(`SELECT email FROM users WHERE id = ?`).get(userId)?.email).toBe(
+        oldEmail,
+      )
+    } finally {
+      sendVerificationEmail.mockRestore()
     }
   })
 
@@ -613,7 +830,7 @@ describe('vault auth service', () => {
       const firstCtx = createContext(
         sessionId,
         null,
-        challenge.computeHmac(hmacSecret, 'webauthn-register', 'passkey-register-challenge', sessionId),
+        cookies.webauthnChallengeComputeHmac(hmacSecret, 'webauthn-register', 'passkey-register-challenge', sessionId),
       )
 
       const inlineWrappedDEK = base64.encode(new Uint8Array([21, 22, 23]))
@@ -696,7 +913,12 @@ describe('vault auth service', () => {
           createContext(
             sessionId,
             null,
-            challenge.computeHmac(hmacSecret, 'webauthn-register', 'passkey-register-challenge', sessionId),
+            cookies.webauthnChallengeComputeHmac(
+              hmacSecret,
+              'webauthn-register',
+              'passkey-register-challenge',
+              sessionId,
+            ),
           ),
         ),
       ).rejects.toMatchObject({statusCode: 400} as Partial<APIError>)
