@@ -63,6 +63,52 @@ describe('createComment', () => {
     expect(decodedComment.body[0].text).toBe('hello world')
   })
 
+  it('preserves list containers (empty-text Paragraph + childrenType) so list items survive publishing', async () => {
+    // Lists are stored as an empty-text Paragraph with attributes.childrenType =
+    // 'Unordered'/'Ordered' and the items as children. Earlier behaviour dropped
+    // any empty-text Paragraph, which silently removed the entire list.
+    const listContainer: HMBlockNode = {
+      block: {
+        id: 'list-container',
+        type: 'Paragraph',
+        text: '',
+        attributes: {childrenType: 'Unordered'},
+        annotations: [],
+      },
+      children: [
+        {
+          block: {id: 'item-1', type: 'Paragraph', text: 'first item', attributes: {}, annotations: []},
+          children: [],
+        },
+        {
+          block: {id: 'item-2', type: 'Paragraph', text: 'second item', attributes: {}, annotations: []},
+          children: [],
+        },
+      ],
+    } as HMBlockNode
+
+    const signer = makeSigner()
+    const publishInput = await createComment(
+      {
+        content: [...makeBlocks('intro paragraph'), listContainer],
+        docId: TEST_DOC_ID,
+        docVersion: 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi',
+        blobs: [],
+      },
+      signer,
+    )
+
+    const decodedComment = cborDecode(publishInput.blobs[0]!.data) as any
+    expect(decodedComment.body).toHaveLength(2)
+    expect(decodedComment.body[0].text).toBe('intro paragraph')
+    const container = decodedComment.body[1]
+    expect(container.type).toBe('Paragraph')
+    expect(container.childrenType).toBe('Unordered')
+    expect(container.children).toHaveLength(2)
+    expect(container.children[0].text).toBe('first item')
+    expect(container.children[1].text).toBe('second item')
+  })
+
   it('supports editor-style input with quoting and trims trailing empty blocks', async () => {
     const signer = makeSigner()
     const publishInput = await createComment(

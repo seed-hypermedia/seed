@@ -114,11 +114,20 @@ function annotationsToPublishable(annotations: HMAnnotation[]): HMPublishableAnn
 function blockToPublishable(blockNode: HMBlockNode): HMPublishableBlock | null {
   const block = blockNode.block
   if (block.type === 'Paragraph') {
-    if (block.text === '' || block.text === undefined) return null
+    // List containers are stored as an empty-text Paragraph with
+    // attributes.childrenType set to 'Unordered'/'Ordered' and the list
+    // items as children. Dropping such a container would also drop the
+    // entire list, so keep any Paragraph that has children or list
+    // childrenType regardless of its own text.
+    const hasChildren = (blockNode.children || []).length > 0
+    const isListContainer = block.attributes?.childrenType !== undefined
+    if ((block.text === '' || block.text === undefined) && !hasChildren && !isListContainer) {
+      return null
+    }
     return {
       id: block.id,
       type: 'Paragraph',
-      text: block.text,
+      text: block.text || '',
       annotations: annotationsToPublishable(block.annotations || []),
       ...block.attributes,
       children: blocksToPublishable(blockNode.children || []),
