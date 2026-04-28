@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"seed/backend/util/sqlite"
-	"seed/backend/util/sqlite/sqlitex"
 	"sort"
 	"time"
 
@@ -19,14 +17,12 @@ import (
 // NetworkDebugHandler returns an interactive HTML report of per-phase
 // sync/discovery latency, peer-table state, and reachability — modeled on
 // /debug/traces. Latency cells are color-coded against fixed thresholds
-// (p50>100ms, p95>1s, p99>5s warn). Page auto-refreshes every 10s; append
-// ?refresh=off to disable for copying.
+// (p50>100ms, p95>1s, p99>5s warn).
 func (n *Node) NetworkDebugHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 		page := n.buildPage(r.Context())
-		page.AutoRefresh = r.URL.Query().Get("refresh") != "off"
 
 		if err := pageTpl.Execute(w, page); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -38,12 +34,10 @@ func (n *Node) NetworkDebugHandler() http.Handler {
 
 type networkPage struct {
 	GeneratedAt  string
-	AutoRefresh  bool
 	Uptime       string
 	PeerID       string
 	ProtocolID   string
 	HowToRead    template.HTML
-	PeerTable    kvSection
 	Sections     []section
 	Reachability reachSection
 }
@@ -116,16 +110,6 @@ type bucketRow struct {
 	Count      uint64
 }
 
-type kvSection struct {
-	Rows []kvRow
-}
-
-type kvRow struct {
-	Key   string
-	Value string
-	Note  string
-}
-
 type reachSection struct {
 	Total      int
 	Rows       []reachRow
@@ -160,8 +144,6 @@ func (n *Node) buildPage(ctx context.Context) networkPage {
 	} else {
 		page.Uptime = "—"
 	}
-
-	page.PeerTable = n.buildPeerTable(ctx)
 
 	page.Sections = []section{
 		withHelp(buildLatencySection(
@@ -228,36 +210,6 @@ func (n *Node) buildPage(ctx context.Context) networkPage {
 
 	page.Reachability = n.buildReachability()
 	return page
-}
-
-func (n *Node) buildPeerTable(ctx context.Context) kvSection {
-	var (
-		total      int
-		explicit   int
-	)
-	err := n.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		if err := sqlitex.Exec(conn, "SELECT COUNT(*) FROM peers;", func(stmt *sqlite.Stmt) error {
-			total = stmt.ColumnInt(0)
-			return nil
-		}); err != nil {
-			return err
-		}
-		return sqlitex.Exec(conn, "SELECT COUNT(*) FROM peers WHERE explicitly_connected = 1;", func(stmt *sqlite.Stmt) error {
-			explicit = stmt.ColumnInt(0)
-			return nil
-		})
-	})
-	if err != nil {
-		return kvSection{Rows: []kvRow{{Key: "error", Value: err.Error()}}}
-	}
-
-	connected := len(n.p2p.Network().Peers())
-
-	return kvSection{Rows: []kvRow{
-		{Key: "total (DB rows)", Value: fmt.Sprintf("%d", total)},
-		{Key: "direct-dial records", Value: fmt.Sprintf("%d", explicit), Note: "peers we dialed, not heard via peer-exchange"},
-		{Key: "currently connected", Value: fmt.Sprintf("%d", connected), Note: "live libp2p connections right now"},
-	}}
 }
 
 func buildLatencySection(title, subtitle, header, family string, rowLabels []string) section {
@@ -705,7 +657,7 @@ const helpSyncOutcomes template.HTML = `
 <p>Highlighted red if any non-<code>ok</code> row is &gt;5% of total. <code>protocol_mismatch</code> volume is fine; the others should be near zero.</p>`
 
 const helpHowToRead template.HTML = `
-<p>This page is a live snapshot of how syncing is performing on this daemon. It refreshes every 10s.</p>
+<p>This page is a live snapshot of how syncing is performing on this daemon.</p>
 <ul>
 <li><strong>Latency tables</strong> show p50/p95/p99 percentiles. Cells turn red when crossing fixed thresholds (p50&nbsp;&gt;&nbsp;100ms, p95&nbsp;&gt;&nbsp;1s, p99&nbsp;&gt;&nbsp;5s).</li>
 <li><strong>Counter tables</strong> show cumulative counts since the daemon started. Some rows highlight red when they're a meaningful share of the total.</li>
@@ -729,7 +681,6 @@ var pageTpl = template.Must(template.New("network").Funcs(template.FuncMap{
 <html lang="en"><head>
 <meta charset="utf-8">
 <title>seed network health</title>
-{{if .AutoRefresh}}<meta http-equiv="refresh" content="10">{{end}}
 <style>
 body{font-family:sans-serif;margin:1em;color:#222;max-width:900px}
 h1{font-size:18px;margin:0 0 6px 0}
@@ -772,21 +723,13 @@ details.howto>summary{color:#0a58ca;font-weight:600}
   · generated {{.GeneratedAt}}
 </div>
 <div class="controls">
-  {{if .AutoRefresh}}auto-refreshing every 10s · <a href="?refresh=off">pause</a>{{else}}refresh paused · <a href=".">resume</a>{{end}}
-  · red cells: p50&nbsp;&gt;&nbsp;100ms, p95&nbsp;&gt;&nbsp;1s, p99&nbsp;&gt;&nbsp;5s · counter rows highlight when error/timeout share &gt;&nbsp;5–20%
+  red cells: p50&nbsp;&gt;&nbsp;100ms, p95&nbsp;&gt;&nbsp;1s, p99&nbsp;&gt;&nbsp;5s · counter rows highlight when error/timeout share &gt;&nbsp;5–20%
 </div>
 
 <details class="howto">
 <summary>How to read this page</summary>
 {{.HowToRead}}
 </details>
-
-<h2>Peer table</h2>
-<table class="kv">
-{{range .PeerTable.Rows}}
-<tr><td>{{.Key}}</td><td class="num">{{.Value}}</td>{{if .Note}}<td class="note">{{.Note}}</td>{{end}}</tr>
-{{end}}
-</table>
 
 {{range .Sections}}
 <h2>{{.Title}}</h2>
