@@ -32,6 +32,7 @@ import {
   useBlockNote,
 } from './blocknote'
 import {blockHighlightPluginKey} from './blocknote/core/extensions/BlockHighlight/BlockHighlightPlugin'
+import {applyReadOnlyClickSelectionGuard} from './click-edit-mode-guard'
 import {FragmentActionsContext, type FragmentActions} from './fragment-actions-context'
 import {HMFormattingToolbar} from './hm-formatting-toolbar'
 import {HypermediaLinkPreview} from './hm-link-preview'
@@ -88,6 +89,10 @@ export function DocumentEditor({
 
   // Track mousedown coords so we can distinguish a click from a drag.
   const mousedownCoordsRef = useRef<{x: number; y: number} | null>(null)
+
+  // Whether ProseMirror had a non-empty selection at the most recent mousedown.
+  // Used to suppress edit.start when a click is intended to dismiss a selection.
+  const mousedownHadSelectionRef = useRef<boolean>(false)
 
   // Set when edit mode is being entered via the "+" button, so the
   // justEnteredEditing effect can call addBlockAtEnd after the editor
@@ -415,6 +420,7 @@ export function DocumentEditor({
 
     const handleMousedown = (e: MouseEvent) => {
       mousedownCoordsRef.current = {x: e.clientX, y: e.clientY}
+      mousedownHadSelectionRef.current = !view.state.selection.empty
     }
 
     const handleClick = (e: MouseEvent) => {
@@ -438,6 +444,16 @@ export function DocumentEditor({
       // If the click landed on a link, let the link plugin handle navigation.
       // Do not enter edit mode and do not preventDefault.
       if (target.closest?.('.link, a[href]')) return
+
+      // If a non-empty ProseMirror selection existed at mousedown, treat the
+      // click as "dismiss my selection" rather than "enter edit mode".
+      const hadSelection = mousedownHadSelectionRef.current
+      mousedownHadSelectionRef.current = false
+      if (hadSelection) {
+        applyReadOnlyClickSelectionGuard(view, true)
+        e.preventDefault()
+        return
+      }
 
       // --- Case 1: click on a known text block ---
       const contentType = getContentTypeFromTarget(target, domRoot)
