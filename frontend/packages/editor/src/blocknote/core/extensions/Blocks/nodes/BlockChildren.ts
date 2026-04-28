@@ -1,6 +1,6 @@
 import {HMBlockChildrenType} from '@seed-hypermedia/client/hm-types'
 import {InputRule, mergeAttributes, Node} from '@tiptap/core'
-import {Fragment, Slice} from '@tiptap/pm/model'
+import {Slice} from '@tiptap/pm/model'
 import {EditorState, Plugin} from '@tiptap/pm/state'
 import {updateGroupCommand} from '../../../api/blockManipulation/commands/updateGroup'
 import {mergeCSSClasses} from '../../../shared/utils'
@@ -214,18 +214,28 @@ export const BlockChildren = Node.create<{
       new Plugin({
         props: {
           transformPasted: (slice, view) => {
-            console.log('original slice', slice)
-            const {state} = view
-            const {selection} = state
+            const {selection} = view.state
             const isSelectionInText =
               selection.$from.parent.isTextblock &&
               selection.$from.parent.type.spec.group === 'block' &&
               selection.$from.parent.content.content.length > 0
 
-            // Let default PM paste handling if pasting inline content in a node with text.
-            // Block-level structures (blockNode/blockChildren) must go through normalization
-            // because PM's default fitting silently drops nested content when blockNode
-            // is not in the 'block' group.
+            // Pasting into a non-empty textblock with an open slice.
+            // ProseMirror intends the leading inline content to merge with the cursor's
+            // paragraph. Run normalizeFragment to make the structure schema-valid,
+            // but recompute openStart/openEnd so the first block merge is correct.
+            if (isSelectionInText && slice.openStart >= 1) {
+              const schema = view.state.schema
+              const normalizedContent = normalizeFragment(slice.content, schema)
+              // Each boundary's depth shifts by what normalize did to it
+              const depthDelta = (n: any | null | undefined) =>
+                n?.type.name === 'blockChildren' ? -1 : n?.type.spec?.group === 'block' ? +1 : 0
+              const newOpenStart = Math.max(slice.openStart + depthDelta(slice.content.firstChild), 0)
+              const newOpenEnd = Math.max(slice.openEnd + depthDelta(slice.content.lastChild), 0)
+              return new Slice(normalizedContent, newOpenStart, newOpenEnd)
+            }
+
+            // Pasting plain inline content into text, merge as is.
             if (isSelectionInText) {
               let hasBlockStructure = false
               slice.content.forEach((node: any) => {
@@ -245,16 +255,12 @@ export const BlockChildren = Node.create<{
                 allBlockNodes = false
               }
             })
-
-            console.log('allBlockNodes', allBlockNodes)
-
             if (allBlockNodes) {
               return slice
             }
 
-            // Internal list copy: single blockChildren with listType group wrapping
-            // deeper structure with high openStart. Strip outer Group wrappers
-            // until inside the actual content.
+            // Internal list copy: peel off outer blockChildren(Group) and
+            // blockNode wrappers until we reach the actual list contents.
             if (
               slice.content.childCount === 1 &&
               slice.content.firstChild?.type.name === 'blockChildren' &&
@@ -262,9 +268,6 @@ export const BlockChildren = Node.create<{
             ) {
               let content = slice.content
               let openStart = slice.openStart
-              let openEnd = slice.openEnd
-
-              // Remove blockChildren->blockNode layers until we reach actual content
               while (
                 content.childCount === 1 &&
                 content.firstChild?.type.name === 'blockChildren' &&
@@ -272,35 +275,23 @@ export const BlockChildren = Node.create<{
                 openStart >= 2
               ) {
                 const group = content.firstChild
-                // If the group has a single blockNode child, unwrap one level
                 if (group.childCount === 1 && group.firstChild?.type.name === 'blockNode') {
                   content = group.firstChild.content
                   openStart -= 2
-                  openEnd -= 2
                 } else {
                   break
                 }
               }
-
               if (content !== slice.content) {
-                console.log('unwrapped internal list copy', openStart, openEnd)
-                // Continue to normalizeFragment with the unwrapped content
-                // so it wraps the list in a blockNode (1 level of nesting),
-                // preserving the list type.
                 const schema = view.state.schema
-                const normalizedContent = normalizeFragment(content, schema)
-                const finalSlice = new Slice(normalizedContent, 0, 0)
-                console.log('final slice', finalSlice)
-                return finalSlice
+                return new Slice(normalizeFragment(content, schema), 0, 0)
               }
             }
 
-            // External paste: normalize orphan nodes into blockNode/blockChildren structure
+            // External paste: normalize into the blockNode/blockChildren shape the
+            // schema expects, then close the slice so it's inserted as new blocks.
             const schema = view.state.schema
-            const normalizedContent = normalizeFragment(slice.content, schema)
-            const finalSlice = new Slice(normalizedContent, 0, 0)
-            console.log('final slice', finalSlice)
-            return finalSlice
+            return new Slice(normalizeFragment(slice.content, schema), 0, 0)
           },
         },
       }),
