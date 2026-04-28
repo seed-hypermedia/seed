@@ -199,12 +199,12 @@ func (n *Node) buildPage(ctx context.Context) networkPage {
 			"%.0f",
 		), helpReconcileServerStoreSize),
 		withHelp(buildLatencySection(
-			"Reconcile client cold/warm",
-			"per-round timing of OUR outbound ReconcileBlobs, split by whether the gRPC conn was already cached",
+			"Reconcile client by connection reuse",
+			"per-round timing of OUR outbound ReconcileBlobs, split by whether we reused an existing gRPC connection to this peer",
 			"call",
 			"seed_reconcile_client_round_seconds",
-			[]string{"cold_stream", "warm_stream"},
-		), helpReconcileClientWarmth),
+			[]string{"new_conn", "reused_conn"},
+		), helpReconcileClientConnReuse),
 		withHelp(buildSyncOutcomesSection(), helpSyncOutcomes),
 	}
 
@@ -636,13 +636,13 @@ const helpReconcileServerTotal template.HTML = `
 const helpReconcileServerStoreSize template.HTML = `
 <p>How many blobs the RBSR set ends up holding for one inbound request. Bigger store → more compute everywhere. A mean around 1-10 means most filters are tight; spikes into 1000+ mean a recursive filter pulled in a heavy account.</p>`
 
-const helpReconcileClientWarmth template.HTML = `
-<p>Per-round timing of our outbound ReconcileBlobs calls, split by gRPC connection warmth.</p>
+const helpReconcileClientConnReuse template.HTML = `
+<p>Per-round timing of our outbound ReconcileBlobs calls, split by whether the gRPC conn map already had a live connection to that peer at the start of the round.</p>
 <dl>
-<dt>cold_stream</dt><dd>This was the first RPC to that peer in this process — we paid the gRPC handshake + libp2p stream setup cost.</dd>
-<dt>warm_stream</dt><dd>The connection was already cached.</dd>
+<dt>new_conn</dt><dd>First RPC to this peer in this process — we paid the libp2p stream open + gRPC HTTP/2 setup cost before the request.</dd>
+<dt>reused_conn</dt><dd>An existing gRPC ClientConn to this peer was already in <code>hmnet.Client.conns</code>, so this round skipped the dial and went straight to the request.</dd>
 </dl>
-<p>If <code>cold_stream</code> p99 is dramatically higher than <code>warm_stream</code> p99, dial cost is the bottleneck. If they're comparable, time is being spent on the gateway side, not the wire.</p>`
+<p>If <code>new_conn</code> p99 is dramatically higher than <code>reused_conn</code> p99, dial cost is the bottleneck. If they're comparable, time is being spent on the gateway side, not the wire.</p>`
 
 const helpSyncOutcomes template.HTML = `
 <p>Cumulative counter for how each sync-with-peer call ended.</p>

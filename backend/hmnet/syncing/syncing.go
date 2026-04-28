@@ -197,12 +197,12 @@ var (
 
 	// MReconcileClientRoundSeconds splits the existing reconcile_rpc round
 	// histogram by whether the gRPC/libp2p connection to this peer was
-	// already cached when the round started (warm_stream) or had to be
-	// established (cold_stream). High p99 on cold_stream with low server
-	// total = stream setup tax, not server compute.
+	// already in the client conn map when the round started (reused_conn)
+	// or had to be established (new_conn). High p99 on new_conn with low
+	// server total = stream setup tax, not server compute.
 	MReconcileClientRoundSeconds = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "seed_reconcile_client_round_seconds",
-		Help:    "Per-round client-side ReconcileBlobs wall-clock split by stream warmth (cold_stream|warm_stream).",
+		Help:    "Per-round client-side ReconcileBlobs wall-clock split by gRPC connection reuse (new_conn|reused_conn).",
 		Buckets: diagBuckets,
 	}, []string{"call"})
 )
@@ -512,8 +512,8 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 	}
 
 	// Snapshot connection-cache state BEFORE dialing so the first reconcile
-	// round can be labeled cold_stream when we paid the dial cost vs.
-	// warm_stream when the gRPC conn was already cached.
+	// round can be labeled new_conn when we paid the dial cost vs.
+	// reused_conn when the gRPC conn was already cached.
 	connCachedBefore := s.isConnCached != nil && s.isConnCached(pid)
 
 	c, err := s.rbsrClient(ctx, pid)
@@ -630,11 +630,11 @@ func syncResources(
 		// One observation per ReconcileBlobs RPC call. The prior once-per-sync
 		// timing hid cases where many cheap rounds accumulated vs. a single
 		// slow round; per-round data makes that distinction visible.
-		// Round 1 carries the cold/warm label captured before the dial; later
-		// rounds reuse the (now cached) gRPC conn so they're warm by definition.
-		warmth := "warm_stream"
+		// Round 1 carries the new_conn/reused_conn label captured before the
+		// dial; later rounds reuse the (now cached) gRPC conn by definition.
+		connReuse := "reused_conn"
 		if rounds == 1 && !connCachedAtStart {
-			warmth = "cold_stream"
+			connReuse = "new_conn"
 		}
 		rpcStart := time.Now()
 		res, rerr := c.ReconcileBlobs(ctx, &p2p.ReconcileBlobsRequest{
@@ -643,7 +643,7 @@ func syncResources(
 		})
 		rpcElapsed := time.Since(rpcStart).Seconds()
 		MSyncPeerPhaseSeconds.WithLabelValues("reconcile_rpc").Observe(rpcElapsed)
-		MReconcileClientRoundSeconds.WithLabelValues(warmth).Observe(rpcElapsed)
+		MReconcileClientRoundSeconds.WithLabelValues(connReuse).Observe(rpcElapsed)
 		if rerr != nil {
 			return rerr
 		}
