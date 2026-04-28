@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html/template"
+	"math"
 	"net/http"
 	"sort"
 	"time"
@@ -151,14 +152,14 @@ func (n *Node) buildPage(ctx context.Context) networkPage {
 			"time spent in each phase of one Subscribe / DiscoverObject call",
 			"phase",
 			"seed_discover_phase_seconds",
-			[]string{"peer_select", "local_sync", "dht_discover", "dht_sync"},
+			[]string{"peer_select", "connected_sync", "dht_discover", "dht_sync"},
 		), helpDiscoveryPhases),
 		withHelp(buildLatencySection(
 			"Discovery end-to-end",
 			"total Subscribe wall-clock, grouped by how it ended",
 			"outcome",
 			"seed_discover_total_seconds",
-			[]string{"local", "dht", "notfound", "error"},
+			[]string{"connected", "dht", "notfound", "error"},
 		), helpDiscoveryOutcomes),
 		withHelp(buildLatencySection(
 			"Sync-with-peer latency",
@@ -451,10 +452,29 @@ func (h *histStats) percentile(p float64) float64 {
 		return -1
 	}
 	target := float64(h.count) * p
+	var prevUpper, prevCount float64
 	for _, b := range h.buckets {
-		if float64(b.GetCumulativeCount()) >= target {
-			return b.GetUpperBound()
+		upper := b.GetUpperBound()
+		cum := float64(b.GetCumulativeCount())
+		if cum >= target {
+			// +Inf bucket has no finite upper bound to interpolate to;
+			// fall back to the previous bucket's upper bound.
+			if math.IsInf(upper, +1) {
+				if prevUpper > 0 {
+					return prevUpper
+				}
+				return -1
+			}
+			// Empty bucket (no observations between prev and this) —
+			// nothing to interpolate; return the bucket's upper bound.
+			if cum <= prevCount {
+				return upper
+			}
+			frac := (target - prevCount) / (cum - prevCount)
+			return prevUpper + frac*(upper-prevUpper)
 		}
+		prevUpper = upper
+		prevCount = cum
 	}
 	if len(h.buckets) > 0 {
 		return h.buckets[len(h.buckets)-1].GetUpperBound()
@@ -577,15 +597,15 @@ func warnClass(warn bool) string {
 const helpDiscoveryPhases template.HTML = `
 <dl>
 <dt>peer_select</dt><dd>One DB query — which peers do we ask? Should be milliseconds.</dd>
-<dt>local_sync</dt><dd>Reconcile + download from connected peers in parallel. Waits for ALL of them. This is what dominates the user-visible "click → content" delay.</dd>
-<dt>dht_discover</dt><dd>Only fires if local_sync didn't find content. Asks the Kademlia DHT for providers of the requested CID.</dd>
+<dt>connected_sync</dt><dd>Reconcile + download from already-connected peers in parallel. Waits for ALL of them. This is what dominates the user-visible "click → content" delay.</dd>
+<dt>dht_discover</dt><dd>Only fires if connected_sync didn't find content. Asks the Kademlia DHT for providers of the requested CID.</dd>
 <dt>dht_sync</dt><dd>If DHT returned providers, reconcile + download from them. Often empty in healthy operation.</dd>
 </dl>`
 
 const helpDiscoveryOutcomes template.HTML = `
 <dl>
-<dt>local</dt><dd>Content was found via a connected peer. The fast happy path.</dd>
-<dt>dht</dt><dd>Local peers didn't have it; DHT discovery + sync succeeded.</dd>
+<dt>connected</dt><dd>Content was found via an already-connected peer. The fast happy path.</dd>
+<dt>dht</dt><dd>Already-connected peers didn't have it; DHT discovery + sync succeeded.</dd>
 <dt>notfound</dt><dd>Nothing found anywhere. User sees a stuck spinner or "not found."</dd>
 <dt>error</dt><dd>Discovery aborted with an error.</dd>
 </dl>`
@@ -667,7 +687,7 @@ const helpHowToRead template.HTML = `
 </ul>
 <p>The two tails worth watching most:</p>
 <ul>
-<li><code>local_sync</code> p99 in <strong>Discovery latency</strong> — what the user feels when clicking a document.</li>
+<li><code>connected_sync</code> p99 in <strong>Discovery latency</strong> — what the user feels when clicking a document.</li>
 <li><code>bitswap_fetch</code> in <strong>Sync-with-peer latency</strong> — usually the dominant wall-clock per peer.</li>
 </ul>`
 

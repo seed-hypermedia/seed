@@ -150,7 +150,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	auth := s.computeAuthInfo(ctxLocalPeers, eidsMap)
 
 	if len(allPeers) != 0 {
-		s.log.Debug("Discovering via connected local peers first", zap.Error(err))
+		s.log.Debug("Discovering via already-connected peers first", zap.Error(err))
 		for _, pid := range allPeers {
 			// TODO(juligasa): look into the providers store who has each eid
 			// instead of pasting all peers in all documents.
@@ -164,21 +164,21 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 			}
 		}
 
-		localSyncStart := time.Now()
+		connectedSyncStart := time.Now()
 		res := s.syncWithManyPeers(ctxLocalPeers, subsMap, store, prog, auth)
-		MDiscoverPhaseSeconds.WithLabelValues("local_sync").Observe(time.Since(localSyncStart).Seconds())
+		MDiscoverPhaseSeconds.WithLabelValues("connected_sync").Observe(time.Since(connectedSyncStart).Seconds())
 		if res.NumSyncOK > 0 && s.resources != nil {
 			doc, err := s.resources.GetResource(ctxLocalPeers, &docspb.GetResourceRequest{
 				Iri: iri,
 			})
 			if err == nil && (version == "" || doc.Version == vstr) {
-				s.log.Debug("Discovered content via local peer, we avoided hitting the DHT!")
-				outcome = "local"
+				s.log.Debug("Discovered content via an already-connected peer, we avoided hitting the DHT!")
+				outcome = "connected"
 				return blob.Version(doc.Version), nil
 			}
 		}
 	}
-	s.log.Debug("None of the local peers have the document, hitting the DHT :(")
+	s.log.Debug("None of the connected peers have the document, hitting the DHT :(")
 	// Arbitrary number of maximum providers
 	maxProviders := 15
 

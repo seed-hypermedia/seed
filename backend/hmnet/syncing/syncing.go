@@ -80,21 +80,22 @@ var (
 		},
 	})
 
-	// Diagnostic histograms. Buckets span 5 ms → ~6 min to give useful p50/p95/p99
-	// across the full dynamic range we see in practice.
-	diagBuckets = prometheus.ExponentialBuckets(0.005, 2.5, 12)
+	// Diagnostic histograms. Buckets span 1 ms → ~6 min with 50 exponential
+	// bins to give useful p50/p95/p99 across the full dynamic range we see
+	// in practice.
+	diagBuckets = prometheus.ExponentialBuckets(0.001, 1.30, 50)
 
 	// MDiscoverTotalSeconds is end-to-end DiscoverObject wall-clock, labeled by outcome.
 	MDiscoverTotalSeconds = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "seed_discover_total_seconds",
-		Help:    "End-to-end DiscoverObject wall-clock, bucketed by outcome (local|dht|notfound|error).",
+		Help:    "End-to-end DiscoverObject wall-clock, bucketed by outcome (connected|dht|notfound|error).",
 		Buckets: diagBuckets,
 	}, []string{"outcome"})
 
 	// MDiscoverPhaseSeconds is per-phase wall-clock of DiscoverObject.
 	MDiscoverPhaseSeconds = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "seed_discover_phase_seconds",
-		Help:    "Per-phase wall-clock of DiscoverObject (peer_select|local_sync|dht_discover|dht_sync).",
+		Help:    "Per-phase wall-clock of DiscoverObject (peer_select|connected_sync|dht_discover|dht_sync).",
 		Buckets: diagBuckets,
 	}, []string{"phase"})
 
