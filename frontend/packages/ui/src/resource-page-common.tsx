@@ -838,7 +838,15 @@ function DocumentBody({
       const msg = author ? `Draft updated with ${author}'s latest changes.` : `Draft updated to latest version.`
       toast.success(msg)
     },
-    // Phase B will render a conflict modal; for Phase A, we just record it in the machine.
+    // Conflict path applies a mine-wins merge automatically (publish is never
+    // blocked). The toast informs the user so they can review the other side's
+    // changes if desired. Phase B will surface a per-block picker.
+    onConflictDetected: ({conflictedBlockIds, author}) => {
+      const blockCount = conflictedBlockIds.length
+      const blockNoun = blockCount === 1 ? 'block' : 'blocks'
+      const who = author ? `${author}` : 'another author'
+      toast.info(`${who} also edited ${blockCount} ${blockNoun} — your version was kept.`, {duration: 6000})
+    },
   })
 
   const route = useNavRoute()

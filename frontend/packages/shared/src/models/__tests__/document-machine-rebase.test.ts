@@ -195,11 +195,11 @@ describe('documentMachine rebase transitions', () => {
     actor.stop()
   })
 
-  it('publish.start is blocked while rebase region is in conflict', async () => {
+  it('publish.start succeeds even while rebase region is in conflict (mine-wins is auto-applied)', async () => {
     const actor = createTestActor()
     enterEditing(actor)
     actor.send({type: 'document.remoteUpdate', document: remoteDocument})
-    // Ensure draft id exists so the rebase guard is the only blocker.
+    // Ensure draft id exists; hasDraftId guard is the only one for publish.
     actor.send({type: 'change'})
     await new Promise((r) => setTimeout(r, 600))
     expect(actor.getSnapshot().context.draftId).toBe('draft-123')
@@ -209,14 +209,14 @@ describe('documentMachine rebase transitions', () => {
       author: 'Alice',
     })
     expect(actor.getSnapshot().matches({editing: {rebase: 'conflict'}})).toBe(true)
-    // Attempt to publish — should be rejected by the guard, machine stays in editing.
+    // Conflicts no longer block publish — mine-wins is auto-applied and the
+    // user can ship at any time. Publish should proceed.
     actor.send({type: 'publish.start'})
-    expect(actor.getSnapshot().matches('publishing')).toBe(false)
-    expect(actor.getSnapshot().matches({editing: {rebase: 'conflict'}})).toBe(true)
+    expect(actor.getSnapshot().matches('publishing')).toBe(true)
     actor.stop()
   })
 
-  it('publish.start succeeds after rebase.dismiss resolves the conflict', async () => {
+  it('publish.start succeeds after rebase.dismiss clears the conflict', async () => {
     const actor = createTestActor()
     enterEditing(actor)
     actor.send({type: 'document.remoteUpdate', document: remoteDocument})

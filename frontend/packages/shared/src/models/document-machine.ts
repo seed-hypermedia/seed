@@ -495,8 +495,6 @@ export const documentMachine = setup({
     hasRemoteUpdate: ({context}) => context.pendingRemoteVersion !== null,
     bothSourcesReady: ({context}) => context.documentReady && context.draftReady,
     capabilityLost: ({event}) => event.type === 'capability.changed' && !event.canEdit,
-    /** Block publish while an unresolved rebase conflict is pending. */
-    canPublishGivenRebaseState: ({context}) => context.draftId !== null && context.pendingRebase?.kind !== 'conflict',
   },
   actors: {
     writeDraft: fromPromise<{id: string}, WriteDraftInput>(async () => {
@@ -733,7 +731,7 @@ export const documentMachine = setup({
                 },
                 'publish.start': {
                   target: '#DocumentLifecycle.publishing',
-                  guard: 'canPublishGivenRebaseState',
+                  guard: 'hasDraftId',
                 },
               },
             },

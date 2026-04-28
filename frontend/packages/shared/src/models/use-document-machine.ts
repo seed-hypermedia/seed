@@ -771,19 +771,23 @@ export function useAutoRebase({
           structuralTheirsAdds: Array.from(theirsMap.keys()).filter((id) => !baseMap.has(id)),
           conflictDetail,
         })
-        actorRef.send({
-          type: 'rebase.detectConflict',
-          conflictedBlockIds: classification.conflictedBlockIds,
-          author: authorName,
-        })
-        onConflictDetected?.({conflictedBlockIds: classification.conflictedBlockIds, author: authorName})
-        return
       }
 
-      const merged = applyRebasePlan(mineNodes, remoteDoc.content ?? [], classification.plan)
+      // Default conflict picks to "mine wins" so the user's in-progress edits
+      // are preserved while non-conflicting blocks fold in from theirs. The
+      // conflict UI (Phase B) can later let the user opt into theirs per block.
+      const conflictPicks: Record<string, 'mine' | 'theirs'> = {}
+      if (!classification.autoMergeable) {
+        for (const id of classification.conflictedBlockIds) {
+          conflictPicks[id] = 'mine'
+        }
+      }
+      const merged = applyRebasePlan(mineNodes, remoteDoc.content ?? [], classification.plan, conflictPicks)
       console.log('[Rebase hook] applying merge', {
         mergedBlockIds: merged.map((n) => n.block?.id),
         author: authorName,
+        autoMergeable: classification.autoMergeable,
+        conflictedBlockIds: classification.conflictedBlockIds,
       })
       // Peek the effective suppressRef on the editor right now. The one passed
       // as prop may have been captured as undefined if it was set on the editor
@@ -950,6 +954,17 @@ export function useAutoRebase({
       // Kick the autosave pipeline so the merged blocks hit the draft file on disk.
       // Without this, a reload before the user's next keystroke reverts the merge.
       actorRef.send({type: 'change'})
+      // If the rebase carried unresolved conflicts, re-record them in machine
+      // context so the UI can surface a "conflicts kept your version" indicator.
+      // Mine-wins picks were already baked into the merged blocks above; this
+      // event is purely informational and does NOT block publish.
+      if (!classification.autoMergeable) {
+        actorRef.send({
+          type: 'rebase.detectConflict',
+          conflictedBlockIds: classification.conflictedBlockIds,
+          author: authorName,
+        })
+      }
       const postSnap = actorRef.getSnapshot()
       console.log('[Rebase hook] post-apply state', {
         stateValue: postSnap.value,
@@ -959,7 +974,14 @@ export function useAutoRebase({
         pendingRemoteDocument: !!postSnap.context.pendingRemoteDocument,
         pendingRebase: postSnap.context.pendingRebase,
       })
-      onAutoMerged?.(authorName)
+      if (!classification.autoMergeable) {
+        onConflictDetected?.({
+          conflictedBlockIds: classification.conflictedBlockIds,
+          author: authorName,
+        })
+      } else {
+        onAutoMerged?.(authorName)
+      }
     }, idleDebounceMs)
     return () => clearTimeout(timer)
   }, [
