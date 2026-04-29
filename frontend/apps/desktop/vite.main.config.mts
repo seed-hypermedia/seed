@@ -62,7 +62,7 @@ export default defineConfig(({command, mode}) => {
       },
     },
     plugins:
-      command == 'build'
+      command == 'build' && process.env.SENTRY_AUTH_TOKEN
         ? [
             tsConfigPaths({
               root: '../../',
@@ -72,19 +72,20 @@ export default defineConfig(({command, mode}) => {
               org: 'mintter',
               project: 'seed-electron',
               telemetry: false,
+              applicationKey: 'seed-electron-main',
+              release: {
+                name: process.env.VITE_VERSION || undefined,
+                setCommits: {auto: true, ignoreMissing: true, ignoreEmpty: true},
+              },
+              sourcemaps: {
+                filesToDeleteAfterUpload: ['.vite/build/main*.js.map', '.vite/build/**/*.map'],
+              },
             }),
           ]
         : [
             tsConfigPaths({
               root: '../../',
             }),
-            // {
-            //   name: 'log-files',
-            //   transform(code, id) {
-            //     console.log('Processing file:', id)
-            //     return code
-            //   },
-            // },
           ],
     alias: {
       'react-native': 'react-native-web',

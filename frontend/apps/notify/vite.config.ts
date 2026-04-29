@@ -27,6 +27,15 @@ export default defineConfig(({isSsrBuild}) => {
           'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
           'process.env.NODE_DEBUG': JSON.stringify(process.env.NODE_DEBUG),
           'process.env.SEED_ENABLE_STATISTICS': JSON.stringify(process.env.SEED_ENABLE_STATISTICS),
+          'process.env.NOTIFY_SENTRY_DSN': JSON.stringify(process.env.NOTIFY_SENTRY_DSN),
+          'process.env.NOTIFY_SENTRY_RELEASE': JSON.stringify(
+            process.env.NOTIFY_SENTRY_RELEASE || process.env.SENTRY_RELEASE || process.env.COMMIT_HASH || '',
+          ),
+          'process.env.NOTIFY_SENTRY_ENVIRONMENT': JSON.stringify(
+            process.env.NOTIFY_SENTRY_ENVIRONMENT || process.env.SENTRY_ENVIRONMENT || 'production',
+          ),
+          'process.env.SENTRY_RELEASE': JSON.stringify(process.env.SENTRY_RELEASE || ''),
+          'process.env.SENTRY_ENVIRONMENT': JSON.stringify(process.env.SENTRY_ENVIRONMENT || ''),
         },
     optimizeDeps: {
       exclude:
@@ -51,8 +60,18 @@ export default defineConfig(({isSsrBuild}) => {
         sentryVitePlugin({
           authToken: process.env.SENTRY_AUTH_TOKEN,
           org: 'mintter',
-          project: 'seed-site',
+          project: 'seed-notify',
           telemetry: false,
+          applicationKey: 'seed-notify',
+          release: {
+            name:
+              process.env.NOTIFY_SENTRY_RELEASE || process.env.SENTRY_RELEASE || process.env.COMMIT_HASH || undefined,
+            setCommits: {auto: true, ignoreMissing: true, ignoreEmpty: true},
+            deploy: {env: process.env.NOTIFY_SENTRY_ENVIRONMENT || 'production'},
+          },
+          sourcemaps: {
+            filesToDeleteAfterUpload: ['./build/client/**/*.map', './build/server/**/*.map'],
+          },
         }),
     ].filter(Boolean),
     resolve: {

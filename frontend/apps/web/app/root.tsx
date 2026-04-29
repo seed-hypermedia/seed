@@ -1,5 +1,6 @@
 import {json, LinksFunction, LoaderFunctionArgs} from '@remix-run/node'
 import {isRouteErrorResponse, Links, Meta, Outlet, Scripts, useRouteLoaderData, useRouteError} from '@remix-run/react'
+import * as Sentry from '@sentry/remix'
 import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
 import {
   ENABLE_EMAIL_NOTIFICATIONS,
@@ -124,7 +125,18 @@ export function ErrorBoundary({}: {}) {
     errorMessage = error.message
   }
 
-  captureRemixErrorBoundaryError(error)
+  Sentry.withScope((scope) => {
+    scope.setTag('boundary', 'root')
+    if (isRouteErrorResponse(error)) {
+      scope.setTag('http.status', String(error.status))
+      scope.setContext('route_error', {
+        status: error.status,
+        statusText: error.statusText,
+        data: error.data,
+      })
+    }
+    captureRemixErrorBoundaryError(error)
+  })
 
   return (
     <html>
