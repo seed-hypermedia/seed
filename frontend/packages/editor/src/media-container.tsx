@@ -47,7 +47,7 @@ export const MediaContainer = ({
   const [drag, setDrag] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isEmbed = ['embed', 'web-embed'].includes(mediaType)
-  const {canEdit, beginEditIfNeeded} = useEditorGate()
+  const {canEdit, isEditing, beginEditIfNeeded} = useEditorGate()
 
   const handleDragReplace = async (file: File) => {
     if (file.size > MAX_FILE_SIZE_B) {
@@ -232,7 +232,7 @@ export const MediaContainer = ({
         {...mediaProps}
         contentEditable={false}
       >
-        {mediaType !== 'embed' && canEdit && (
+        {mediaType !== 'embed' && canEdit && (mediaType !== 'file' || isEditing) && (
           <>
             <input
               ref={fileInputRef}
