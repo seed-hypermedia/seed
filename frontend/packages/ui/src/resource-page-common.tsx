@@ -1326,6 +1326,7 @@ function DocumentBody({
                   updateTime={document.updateTime}
                   breadcrumbs={breadcrumbs}
                   visibility={document.visibility}
+                  version={document.version}
                 />
               ) : (
                 <DocumentHeader
@@ -1335,6 +1336,7 @@ function DocumentBody({
                   updateTime={document.updateTime}
                   breadcrumbs={breadcrumbs}
                   visibility={document.visibility}
+                  version={document.version}
                 />
               ))}
           </div>
@@ -1381,6 +1383,7 @@ function DocumentBody({
                 updateTime={document.updateTime}
                 breadcrumbs={breadcrumbs}
                 visibility={document.visibility}
+                version={document.version}
               />
             ) : (
               <DocumentHeader
@@ -1390,6 +1393,7 @@ function DocumentBody({
                 updateTime={document.updateTime}
                 breadcrumbs={breadcrumbs}
                 visibility={document.visibility}
+                version={document.version}
               />
             ))}
         </div>
@@ -1630,6 +1634,7 @@ function EditableDocumentHeader({
   updateTime,
   breadcrumbs,
   visibility,
+  version,
 }: {
   docId: UnpackedHypermediaId
   docMetadata: HMDocument['metadata']
@@ -1637,6 +1642,7 @@ function EditableDocumentHeader({
   updateTime: HMDocument['updateTime']
   breadcrumbs?: BreadcrumbEntry[]
   visibility?: string
+  version?: HMDocument['version'] | null
 }) {
   const ctx = useDocumentSelector(selectContext)
   const isEditing = useDocumentSelector(selectIsEditing)
@@ -1717,6 +1723,7 @@ function EditableDocumentHeader({
       updateTime={updateTime}
       breadcrumbs={breadcrumbs}
       visibility={visibility as any}
+      version={version}
       showTitle={false}
     >
       <textarea

@@ -48,6 +48,11 @@ type UniversalAppContextValue = {
 
   openUrl: (url: string, newWindow?: boolean) => void
   onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
+  /** Optional platform-specific push trigger fired AFTER a link has already
+   * been copied by the caller. On desktop this delegates to the
+   * pushOnCopy-gated push flow with toast feedback. Web/mobile may leave it
+   * undefined. */
+  onPushReference?: (hmId: UnpackedHypermediaId) => void
 
   // set this to true if you want all <a href="" values to be full hm:// hypermedia urls. otherwise, web URLs will be prepared
   // you must be confused at this point, because I wrote this and I got confused! Here's why we do it:
@@ -109,6 +114,7 @@ export function UniversalAppProvider(props: {
   openRoute: null | ((route: NavRoute, replace?: boolean) => void)
   openRouteNewWindow?: null | ((route: NavRoute) => void)
   onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
+  onPushReference?: (hmId: UnpackedHypermediaId) => void
   hmUrlHref?: boolean
   languagePack?: LanguagePack
   selectedIdentity?: StateStream<string | null>
@@ -131,6 +137,7 @@ export function UniversalAppProvider(props: {
         openRoute: props.openRoute,
         openRouteNewWindow: props.openRouteNewWindow,
         onCopyReference: props.onCopyReference,
+        onPushReference: props.onPushReference,
         hmUrlHref: props.hmUrlHref,
         languagePack: props.languagePack,
         selectedIdentity: props.selectedIdentity,

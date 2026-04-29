@@ -2,6 +2,7 @@ import {HMAccountsMetadata, HMResourceFetchResult, UnpackedHypermediaId} from '@
 import {getDocumentImage, hmId, plainTextOfContent, useRouteLink} from '@shm/shared'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
+import {getVersionHeads} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {Bookmark, Copy, Forward, GitFork, Link, MessageSquare, Pencil} from 'lucide-react'
 import {HTMLAttributes, useMemo} from 'react'
@@ -11,6 +12,7 @@ import {FacePile} from './face-pile'
 import {useImageUrl} from './get-file-url'
 import {useHighlighter} from './highlight-context'
 import {Download, Trash} from './icons'
+import {MergedBadge} from './merged-badge'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {PrivateBadge} from './private-badge'
 import {SizableText} from './text'
@@ -61,6 +63,7 @@ export function DocumentCard({
   const coverImage = entity?.document ? getDocumentImage(entity?.document) : undefined
   const isPrivate = entity?.document?.visibility === 'PRIVATE'
   const doc = entity?.document
+  const headCount = getVersionHeads(doc?.version).length
 
   // Context-driven state
   const draftId = actions.getDraftId?.(docId)
@@ -192,6 +195,7 @@ export function DocumentCard({
               )}
               {!!draftId && <DraftBadge />}
               {!draftId && isPrivate && <PrivateBadge size="sm" />}
+              {!draftId && headCount > 1 && <MergedBadge count={headCount} size="sm" />}
             </div>
             <div className="flex items-center gap-1">
               {actions.onBookmarkToggle && (

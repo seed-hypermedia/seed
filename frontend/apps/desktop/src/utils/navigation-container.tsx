@@ -136,6 +136,9 @@ export function NavigationContainer({children}: {children: ReactNode}) {
         await copyTextToClipboard(url)
         pushAfterAction({id, trigger: 'copy', onlyPushToHost: gwUrl})
       }}
+      onPushReference={(id: UnpackedHypermediaId) => {
+        pushAfterAction({id, trigger: 'copy', onlyPushToHost: gwUrl})
+      }}
     >
       <NavContextProvider value={navigation}>
         {children}

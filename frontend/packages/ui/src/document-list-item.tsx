@@ -10,6 +10,7 @@ import {
 import {formattedDate, getMetadataName, hmId, InteractionSummaryPayload, useRouteLink} from '@shm/shared'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
+import {getVersionHeads} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {Bookmark, Copy, Forward, GitFork, Link, MessageSquare, Pencil} from 'lucide-react'
 import {useMemo} from 'react'
@@ -20,6 +21,7 @@ import {DraftBadge} from './draft-badge'
 import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
 import {Download, Trash} from './icons'
+import {MergedBadge} from './merged-badge'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {PrivateBadge} from './private-badge'
 import {SizableText} from './text'
@@ -64,6 +66,7 @@ export function DocumentListItem({
   const metadata = item.metadata
   const visibility = 'visibility' in item ? item.visibility : undefined
   const isPrivate = visibility === 'PRIVATE'
+  const headCount = getVersionHeads('version' in item ? item.version : undefined).length
   const itemActivitySummary =
     activitySummary !== undefined ? activitySummary : 'activitySummary' in item ? item.activitySummary : null
   const itemLatestComment =
@@ -222,6 +225,7 @@ export function DocumentListItem({
               </SizableText>
               {!!draftId && <DraftBadge />}
               {isPrivate && <PrivateBadge size="sm" />}
+              {headCount > 1 && <MergedBadge count={headCount} size="sm" />}
             </div>
             {commentCount > 0 && !hasActions && <DocumentListItemCommentCount count={commentCount} />}
             {!itemActivitySummary && 'updateTime' in item && (

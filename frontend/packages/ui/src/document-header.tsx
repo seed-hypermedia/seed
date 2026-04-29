@@ -7,6 +7,7 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {abbreviateUid, useRouteLink} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
+import {getVersionHeads} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useMemo} from 'react'
 import {Container} from './container'
@@ -15,6 +16,7 @@ import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
 import {Home} from './icons'
 import {getContextualProfileRoute} from './inline-descriptor'
+import {MergedBadge} from './merged-badge'
 import {PrivateBadge} from './private-badge'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
@@ -45,6 +47,7 @@ export function DocumentHeader({
   siteUrl,
   documentTools,
   visibility,
+  version,
   showTitle = true,
   children,
 }: {
@@ -56,6 +59,7 @@ export function DocumentHeader({
   siteUrl?: string
   documentTools?: React.ReactNode
   visibility?: HMResourceVisibility
+  version?: HMDocument['version'] | null
   showTitle?: boolean
   children?: React.ReactNode
 }) {
@@ -64,6 +68,7 @@ export function DocumentHeader({
   const isHomeDoc = !docId?.path?.length
   const highlighter = useHighlighter()
   const isPrivate = visibility === 'PRIVATE'
+  const headCount = getVersionHeads(version).length
 
   return (
     <Container
@@ -85,7 +90,12 @@ export function DocumentHeader({
           </div>
         ) : null}
         {breadcrumbs && breadcrumbs.length > 0 ? <Breadcrumbs breadcrumbs={breadcrumbs} /> : null}
-        {isPrivate && <PrivateBadge />}
+        {(isPrivate || headCount > 1) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {isPrivate && <PrivateBadge />}
+            {headCount > 1 && <MergedBadge count={headCount} />}
+          </div>
+        )}
         {children ? (
           children
         ) : (
