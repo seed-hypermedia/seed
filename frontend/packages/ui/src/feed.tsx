@@ -198,7 +198,7 @@ function EventHeaderContent({
   const deleteCommentMutation = useDeleteComment()
   const deleteCommentDialog = useDeleteCommentDialog()
   const copyHmLink = useCopyHmLink()
-  const {origin: appOrigin} = useUniversalAppContext()
+  const {origin: appOrigin, onPushReference} = useUniversalAppContext()
   if (event.type == 'comment') {
     const options: MenuItemType[] = []
     if (event.comment && currentAccount && currentAccount == event.comment.author) {
@@ -353,15 +353,17 @@ function EventHeaderContent({
                 currentRoute.key === 'document' || currentRoute.key === 'comments' || currentRoute.key === 'activity'
                   ? currentRoute.id.latest
                   : undefined
+              const versionedId = hmId(event.docId.uid, {
+                path: event.docId.path,
+                version: event.document.version,
+                latest: routeLatest ?? false,
+                hostname: targetDomain ?? null,
+              })
               copyHmLink({
-                id: hmId(event.docId.uid, {
-                  path: event.docId.path,
-                  version: event.document.version,
-                  latest: routeLatest ?? false,
-                  hostname: targetDomain ?? null,
-                }),
+                id: versionedId,
                 gatewayUrl: appOrigin ?? undefined,
               })
+              onPushReference?.(versionedId)
             }}
           >
             <Link className="size-3" />
