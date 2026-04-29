@@ -7,10 +7,10 @@ import {useRouteLink, useUniversalAppContext} from '@shm/shared/routing'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {useActivityFeed} from '@shm/shared/use-activity-feed'
 import {AnyTimestamp, formattedDateShort, normalizeDate} from '@shm/shared/utils/date'
-import {commentIdToHmId, getCommentTargetId, hmId} from '@shm/shared/utils/entity-id-url'
+import {commentIdToHmId, getCommentTargetId, getVersionHeads, hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import _ from 'lodash'
-import {CircleAlert, Link, Trash2} from 'lucide-react'
+import {CircleAlert, Link, Merge, Trash2} from 'lucide-react'
 import {memo, useEffect, useMemo, useRef} from 'react'
 import {SelectionContent} from './accessories'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
@@ -309,27 +309,65 @@ function EventHeaderContent({
   }
 
   if (event.type == 'doc-update') {
+    const docUpdateHeadCount = getVersionHeads(event.document.version).length
     return (
-      <InlineDescriptor>
-        <AuthorNameLink author={event.author} />{' '}
-        {!isSingleResource ? (
-          <>
-            <span>
-              {/* TODO: check if this is the correct way of getting the first ref update of a document */}
-              {event.document.version == event.document.genesis ? 'created' : 'updated'}
-            </span>{' '}
-            <DocumentNameLink metadata={event.document.metadata} id={event.docId} />{' '}
-          </>
-        ) : (
-          <>
-            <span>
-              {/* TODO: check if this is the correct way of getting the first ref update of a document */}
-              {event.document.version == event.document.genesis ? 'created the document' : 'updated the document'}
-            </span>{' '}
-          </>
-        )}
-        <Timestamp time={event.time} route={route} />
-      </InlineDescriptor>
+      <div className="flex w-full items-start justify-between gap-2">
+        <InlineDescriptor>
+          <AuthorNameLink author={event.author} />{' '}
+          {!isSingleResource ? (
+            <>
+              <span>
+                {/* TODO: check if this is the correct way of getting the first ref update of a document */}
+                {event.document.version == event.document.genesis ? 'created' : 'updated'}
+              </span>{' '}
+              <DocumentNameLink metadata={event.document.metadata} id={event.docId} />{' '}
+            </>
+          ) : (
+            <>
+              <span>
+                {/* TODO: check if this is the correct way of getting the first ref update of a document */}
+                {event.document.version == event.document.genesis ? 'created the document' : 'updated the document'}
+              </span>{' '}
+            </>
+          )}
+          <Timestamp time={event.time} route={route} />
+          {docUpdateHeadCount > 1 ? (
+            <Tooltip content={`Merged ${docUpdateHeadCount} concurrent versions`}>
+              <span className="text-muted-foreground ml-1 inline-flex items-center gap-0.5 align-middle">
+                <Merge size={12} strokeWidth={2} />
+                <span className="text-xs">{docUpdateHeadCount}</span>
+              </span>
+            </Tooltip>
+          ) : null}
+        </InlineDescriptor>
+        <Tooltip content={tx('Copy Link to Version')}>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (!event.docId?.uid) return
+              const routeLatest =
+                currentRoute.key === 'document' || currentRoute.key === 'comments' || currentRoute.key === 'activity'
+                  ? currentRoute.id.latest
+                  : undefined
+              copyHmLink({
+                id: hmId(event.docId.uid, {
+                  path: event.docId.path,
+                  version: event.document.version,
+                  latest: routeLatest ?? false,
+                  hostname: targetDomain ?? null,
+                }),
+                gatewayUrl: appOrigin ?? undefined,
+              })
+            }}
+          >
+            <Link className="size-3" />
+          </Button>
+        </Tooltip>
+      </div>
     )
   }
 

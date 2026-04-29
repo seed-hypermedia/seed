@@ -8,6 +8,7 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {getMetadataName, getNodesOutline, NavRoute, NodeOutline, useRouteLink} from '@shm/shared'
+import {getVersionHeads} from '@shm/shared/utils/entity-id-url'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {ReactNode, useMemo} from 'react'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from './/hover-card'
@@ -15,6 +16,7 @@ import {ButtonProps} from './button'
 import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
 import {SmallListItem} from './list-item'
+import {MergedBadge} from './merged-badge'
 import {PrivateBadge} from './private-badge'
 import {useMedia} from './use-media'
 import {usePopoverState} from './use-popover-state'
@@ -47,7 +49,14 @@ export function DocumentSmallListItem({
   const isPrivate = visibility === 'PRIVATE'
   const icon = id ? <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} /> : null
 
-  const privateBadge = isPrivate ? <PrivateBadge size="sm" /> : null
+  const headCount = getVersionHeads(id?.version).length
+  const accessory =
+    isPrivate || headCount > 1 ? (
+      <div className="flex items-center gap-1">
+        {isPrivate && <PrivateBadge size="sm" />}
+        {headCount > 1 && <MergedBadge count={headCount} size="sm" />}
+      </div>
+    ) : null
 
   return (
     <SmallListItem
@@ -60,7 +69,7 @@ export function DocumentSmallListItem({
       icon={icon}
       active={active}
       isDraft={!!draftId}
-      accessory={privateBadge}
+      accessory={accessory}
       {...linkProps}
     />
   )

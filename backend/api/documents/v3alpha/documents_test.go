@@ -485,6 +485,20 @@ func TestConcurrentChanges(t *testing.T) {
 		must.Do2(cid.Decode(doc22.Version)),
 	)
 	require.Equal(t, wantVersion.String(), concurrent.Version, "concurrent version must match")
+	require.Contains(t, concurrent.Version, ".", "concurrent version must be a dot-joined compound of multiple heads")
+
+	// Asking for the document at the dot-joined compound version must return the
+	// same CRDT-merged state as asking for the latest. This is the silent-merge
+	// case the UI must surface: callers see one "version" string but it represents
+	// multiple concurrent heads merged on read.
+	concurrentExplicit, err := alice.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: doc1.Account,
+		Path:    doc1.Path,
+		Version: concurrent.Version,
+	})
+	require.NoError(t, err)
+	require.Equal(t, concurrent.Version, concurrentExplicit.Version, "explicit compound version must round-trip")
+	testutil.StructsEqual(concurrent, concurrentExplicit).Compare(t, "compound-version fetch must match latest fetch")
 
 	merged, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		SigningKeyName: "main",

@@ -25,6 +25,9 @@ const ChangesTab: React.FC<{changes: any[] | undefined; docId: UnpackedHypermedi
       }
       if (deps) {
         out.deps = deps.map((dep: string) => `ipfs://${dep}`)
+        if (deps.length > 1) {
+          out.mergedFrom = deps.length
+        }
       }
       return out
     })

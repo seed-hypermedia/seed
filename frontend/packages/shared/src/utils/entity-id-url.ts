@@ -901,6 +901,19 @@ export function displayHostname(fullHost: string): string {
   return fullHost.replace(/https?:\/\//, '')
 }
 
+/**
+ * Splits a version string into its constituent head CIDs.
+ *
+ * A version is a dot-separated list of CIDs (one per concurrent head). When the document
+ * has more than one head, the version becomes `cid1.cid2[.cid3...]`. This helper is the
+ * single source of truth for "how many heads is this version" so UI code can detect the
+ * merged/concurrent state without re-implementing the split.
+ */
+export function getVersionHeads(version: string | null | undefined): string[] {
+  if (!version) return []
+  return version.split('.').filter(Boolean)
+}
+
 export function hmIdMatches(a: UnpackedHypermediaId, b: UnpackedHypermediaId) {
   return (
     // @ts-expect-error

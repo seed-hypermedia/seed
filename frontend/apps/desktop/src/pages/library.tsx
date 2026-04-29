@@ -15,7 +15,7 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {getMetadataName} from '@shm/shared/content'
 import {DocumentRoute} from '@shm/shared/routes'
-import {hmId} from '@shm/shared/utils/entity-id-url'
+import {getVersionHeads, hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
@@ -25,6 +25,7 @@ import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popove
 import {Container, PanelContainer} from '@shm/ui/container'
 import {FacePile} from '@shm/ui/face-pile'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {MergedBadge} from '@shm/ui/merged-badge'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {PrivateBadge} from '@shm/ui/private-badge'
 import {SizableText} from '@shm/ui/text'
@@ -400,6 +401,7 @@ export function LibraryDocumentItem({
   const {isSelecting, selectedDocIds, onSelect} = useContext(librarySelectionContext)
   const isSelected = selectedDocIds.includes(id.id)
   const isRead = !item.activitySummary?.isUnread
+  const headCount = getVersionHeads(item.version).length
   return (
     <Button
       // this data attribute is used by the hypermedia highlight component
@@ -434,6 +436,7 @@ export function LibraryDocumentItem({
               {getMetadataName(metadata)}
             </SizableText>
             {item.visibility === 'PRIVATE' && <PrivateBadge />}
+            {headCount > 1 && <MergedBadge count={headCount} />}
           </div>
           {item.activitySummary && <LibraryEntryCommentCount activitySummary={item.activitySummary} />}
           <LibraryEntryAuthors item={item} accountsMetadata={accountsMetadata} />
