@@ -235,6 +235,18 @@ export class DiscoverEntityRequest extends Message<DiscoverEntityRequest> {
    */
   recursive = false;
 
+  /**
+   * Optional. Blob-type allowlist. If empty, all blob types are discovered (default).
+   * Useful values:
+   *   ["Profile", "Ref", "Change"]  → just enough to render the home doc + avatar
+   *   ["Profile"]                    → minimal: name + avatar URI only
+   * Used by callers (e.g. avatar/name lookups) that want to avoid pulling
+   * Capability/Comment/Contact blobs anchored under the requested resource.
+   *
+   * @generated from field: repeated string blob_types = 5;
+   */
+  blobTypes: string[] = [];
+
   constructor(data?: PartialMessage<DiscoverEntityRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -247,6 +259,7 @@ export class DiscoverEntityRequest extends Message<DiscoverEntityRequest> {
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 5, name: "blob_types", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DiscoverEntityRequest {

@@ -57,6 +57,13 @@ message Filter {
   // If its recursive, then all the documents below the path are
   // will also pass the filter.
   bool recursive = 2;
+
+  // Optional. Blob-type allowlist. If empty (default), no type filter is applied.
+  // When non-empty, only blobs of the listed structural types
+  // (e.g. "Profile", "Ref", "Change") will be reconciled.
+  // Allows callers (e.g. avatar/name lookups) to skip pulling
+  // Capability/Comment/Contact blobs that are otherwise included.
+  repeated string types = 3;
 }
 
 message SetReconciliationRange {

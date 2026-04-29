@@ -226,6 +226,17 @@ export class Filter extends Message<Filter> {
    */
   recursive = false;
 
+  /**
+   * Optional. Blob-type allowlist. If empty (default), no type filter is applied.
+   * When non-empty, only blobs of the listed structural types
+   * (e.g. "Profile", "Ref", "Change") will be reconciled.
+   * Allows callers (e.g. avatar/name lookups) to skip pulling
+   * Capability/Comment/Contact blobs that are otherwise included.
+   *
+   * @generated from field: repeated string types = 3;
+   */
+  types: string[] = [];
+
   constructor(data?: PartialMessage<Filter>) {
     super();
     proto3.util.initPartial(data, this);
@@ -236,6 +247,7 @@ export class Filter extends Message<Filter> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "resource", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 3, name: "types", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Filter {

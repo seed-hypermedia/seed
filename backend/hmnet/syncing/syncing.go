@@ -470,8 +470,18 @@ func (s *Service) listSubscriptionsFromDB(ctx context.Context) ([]Subscription, 
 
 // TouchHotTask returns an existing task or creates a new ephemeral one.
 // If a subscription task already exists, it wakes it up and returns its info.
-func (s *Service) TouchHotTask(iri blob.IRI, version blob.Version, recursive bool) TaskInfo {
-	key := DiscoveryKey{IRI: iri, Version: version, Recursive: recursive}
+//
+// blobTypes is an optional allowlist of structural blob types to discover
+// (e.g. ["Profile", "Ref", "Change"]); nil/empty disables filtering.
+// Tasks with different blobTypes settings are tracked independently, so
+// the filter is part of the task identity.
+func (s *Service) TouchHotTask(iri blob.IRI, version blob.Version, recursive bool, blobTypes []string) TaskInfo {
+	key := DiscoveryKey{
+		IRI:       iri,
+		Version:   version,
+		Recursive: recursive,
+		BlobTypes: BlobTypesString(blobTypes),
+	}
 	return s.scheduler.scheduleTask(key, time.Now(), schedOpts{isHot: true})
 }
 
@@ -511,8 +521,10 @@ var gatewayPIDs = func() map[peer.ID]bool {
 
 // syncWithManyPeers syncs with many peers in parallel, bounded by maxPeerConcurrency.
 // Gateways are synced first because they are better-connected and more likely to
-// have the requested content.
-func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap, store *authorizedStore, prog *Progress, auth *authInfo) (res SyncResult) {
+// have the requested content. blobTypes is an optional allowlist of structural
+// blob types to reconcile; nil/empty disables the filter (all types). The same
+// filter is applied uniformly to every peer in this call.
+func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string) (res SyncResult) {
 	res.Peers = make([]peer.ID, len(subsMap))
 	res.Errs = make([]error, len(subsMap))
 
@@ -524,7 +536,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 		g.Go(func() error {
 			var err error
 			s.log.Debug("Syncing with peer", zap.String("PID", pid.String()))
-			if xerr := s.syncWithPeer(ctx, pid, eids, store, prog, auth); xerr != nil {
+			if xerr := s.syncWithPeer(ctx, pid, eids, store, prog, auth, blobTypes); xerr != nil {
 				s.log.Debug("Could not sync with content", zap.String("PID", pid.String()), zap.Error(xerr))
 				err = fmt.Errorf("failed to sync objects: %w", xerr)
 			}
@@ -562,7 +574,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	return res
 }
 
-func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool, store *authorizedStore, prog *Progress, auth *authInfo) (err error) {
+func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string) (err error) {
 	// lastPhase tracks the most recent phase we entered. On error it's used to
 	// classify the failure into an outcome counter label.
 	lastPhase := "dial"
@@ -623,7 +635,7 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 
 	bswap := s.bitswap.NewSession(ctx)
 
-	return syncResources(ctx, pid, c, s.index, bswap, s.log, eids, filteredStore, prog, &lastPhase, connCachedBefore)
+	return syncResources(ctx, pid, c, s.index, bswap, s.log, eids, blobTypes, filteredStore, prog, &lastPhase, connCachedBefore)
 }
 
 // classifySyncOutcome maps a (phase, err) pair to a counter label.
@@ -658,6 +670,7 @@ func syncResources(
 	sess exchange.Fetcher,
 	log *zap.Logger,
 	eids map[string]bool,
+	blobTypes []string,
 	store rbsr.Store,
 	prog *Progress,
 	phase *string,
@@ -696,7 +709,7 @@ func syncResources(
 
 	filters := make([]*p2p.Filter, 0, len(eids))
 	for eid, recursive := range eids {
-		filters = append(filters, &p2p.Filter{Resource: eid, Recursive: recursive})
+		filters = append(filters, &p2p.Filter{Resource: eid, Recursive: recursive, Types: blobTypes})
 	}
 
 	var (

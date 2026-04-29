@@ -46,7 +46,9 @@ import (
 type Discoverer interface {
 	// TouchHotTask returns or creates a discovery task for the given parameters.
 	// The task is ephemeral (evicts when not called) unless a subscription exists for the same IRI.
-	TouchHotTask(iri blob.IRI, version blob.Version, recursive bool) syncing.TaskInfo
+	// blobTypes is an optional structural-blob-type allowlist (e.g. ["Profile","Ref","Change"]);
+	// nil/empty disables the filter so all blob types are discovered (default behavior).
+	TouchHotTask(iri blob.IRI, version blob.Version, recursive bool, blobTypes []string) syncing.TaskInfo
 }
 
 // Server implements Entities API.
@@ -118,7 +120,7 @@ func (srv *Server) DiscoverEntity(_ context.Context, in *entpb.DiscoverEntityReq
 	v := blob.Version(in.Version)
 
 	// Delegate to syncing service for task management.
-	info := srv.disc.TouchHotTask(iri, v, in.Recursive)
+	info := srv.disc.TouchHotTask(iri, v, in.Recursive, in.BlobTypes)
 
 	resp := &entpb.DiscoverEntityResponse{
 		Version:  info.Result.String(),

@@ -68,6 +68,14 @@ message DiscoverEntityRequest {
   // Optional. If true, we sync the document and the child
   // documents as well.
   bool recursive = 4;
+
+  // Optional. Blob-type allowlist. If empty, all blob types are discovered (default).
+  // Useful values:
+  //   ["Profile", "Ref", "Change"]  → just enough to render the home doc + avatar
+  //   ["Profile"]                    → minimal: name + avatar URI only
+  // Used by callers (e.g. avatar/name lookups) that want to avoid pulling
+  // Capability/Comment/Contact blobs anchored under the requested resource.
+  repeated string blob_types = 5;
 }
 
 // Describes the state of the discovery task.

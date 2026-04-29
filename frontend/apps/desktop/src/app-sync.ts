@@ -469,12 +469,14 @@ export async function discoverDocument(
   version?: string | null,
   recursive?: boolean,
   onProgress?: (progress: DiscoveryProgress) => void,
+  blobTypes?: readonly string[],
 ) {
   const discoverRequest = {
     account: uid,
     path: hmIdPathToEntityQueryPath(path),
     version: version || undefined,
     recursive,
+    blobTypes: blobTypes ? Array.from(blobTypes) : undefined,
   } as const
 
   function checkDiscoverySuccess(discoverResp: {version: string}) {

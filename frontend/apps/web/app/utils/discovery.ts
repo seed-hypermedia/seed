@@ -11,12 +11,14 @@ export async function discoverDocument(
   path: string[],
   version?: string,
   latest?: boolean | undefined | null,
+  blobTypes?: readonly string[],
 ): Promise<{version: string} | true | null> {
   const discoverRequest = {
     account: uid,
     path: hmIdPathToEntityQueryPath(path),
     version: version || undefined,
     recursive: true,
+    blobTypes: blobTypes ? Array.from(blobTypes) : undefined,
   } as const
   function checkDiscoverySuccess(discoveredVersion: string) {
     if (latest && discoveredVersion) return true

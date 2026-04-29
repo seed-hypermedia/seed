@@ -356,6 +356,7 @@ func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Sto
 		dkeys.Put(DiscoveryKey{
 			IRI:       iri,
 			Recursive: f.Recursive,
+			BlobTypes: BlobTypesString(f.Types),
 		})
 		requestedIRIs = append(requestedIRIs, iri)
 	}
