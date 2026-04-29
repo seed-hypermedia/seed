@@ -754,7 +754,7 @@ const helpReconcileServerTotal template.HTML = `
 <p>Whole-handler wall-clock for inbound ReconcileBlobs requests. Compare directly against the client-side <code>reconcile_rpc</code> row higher up. If client p99 ≫ server p99, the gap is in the network/stream layer between us, not on either CPU.</p>`
 
 const helpReconcileLimiter template.HTML = `
-<p>Backpressure in front of inbound <code>ReconcileBlobs</code>. Default limit is <code>max(2, 2*GOMAXPROCS)</code>; callers wait up to 1s for a slot, then receive <code>ResourceExhausted</code>.</p>
+<p>Backpressure in front of inbound <code>ReconcileBlobs</code>. Default limit is <code>max(2, 2*GOMAXPROCS)</code>; callers wait up to 3s for a slot, then receive <code>ResourceExhausted</code>.</p>
 <dl>
 <dt>in_flight</dt><dd>Requests currently inside the expensive SQLite/RBSR handler. Red when it reaches the limit.</dd>
 <dt>waiting</dt><dd>Requests queued for a slot right now. Any non-zero value means the limiter is saturated at this instant.</dd>

@@ -40,6 +40,12 @@ func TestInboundReconcileLimiterHasMinimumAutoLimit(t *testing.T) {
 	require.Equal(t, 2, l.limit)
 }
 
+func TestInboundReconcileLimiterDefaultsToThreeSecondWait(t *testing.T) {
+	l := newInboundReconcileLimiter(1, 0)
+	require.NotNil(t, l)
+	require.Equal(t, 3*time.Second, l.wait)
+}
+
 func TestInboundReconcileLimiterUnlimited(t *testing.T) {
 	require.Nil(t, newInboundReconcileLimiter(-1, time.Second))
 }

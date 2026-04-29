@@ -59,7 +59,7 @@ func NewServer(db *sqlitex.Pool, index *blob.Index, bswap bitswap, maxInboundRec
 	}
 }
 
-const defaultInboundReconcileWait = time.Second
+const defaultInboundReconcileWait = 3 * time.Second
 
 type inboundReconcileLimiter struct {
 	sem   chan struct{}
