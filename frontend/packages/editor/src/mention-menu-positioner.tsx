@@ -199,7 +199,11 @@ export function MentionMenuPositioner<BSchema extends BlockSchema>({
   const content = useMemo(() => {
     return (
       <TooltipProvider>
-        <div className="border-border bg-background flex max-h-[10em] w-[20em] flex-col overflow-y-auto rounded border shadow-lg">
+        <div
+          className="border-border bg-background flex max-h-[10em] w-[20em] flex-col overflow-y-auto rounded border shadow-lg"
+          // Prevent the editor from losing focus when the popup is clicked.
+          onMouseDown={(e) => e.preventDefault()}
+        >
           {hasFetched && !hasResults && (
             <div className="flex gap-2 bg-white px-4 py-2 dark:bg-black">
               <SizableText size="sm" className="flex-1">
