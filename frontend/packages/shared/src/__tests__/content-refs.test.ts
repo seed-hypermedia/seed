@@ -1,5 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {extractAllContentRefs, findSelfQueryBlock, hasQueryBlockTargetingSelf} from '../content'
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
+import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 
 function makeBlock(block: any, children?: HMBlockNode[]): HMBlockNode {
@@ -325,5 +327,85 @@ describe('findSelfQueryBlock', () => {
     const result = findSelfQueryBlock(blocks, 'uid1', null)
     expect(result).not.toBeNull()
     expect(result!.id).toBe('q1')
+  })
+})
+
+// `UnreferencedDocuments` relies on `editorBlocksToHMBlockNodes` to convert
+// in-memory draft content (BlockNote `EditorBlock[]`) into the published
+// `HMBlockNode[]` shape so the existing ref/query extraction utilities work
+// uniformly. These tests pin that conversion path.
+describe('extractAllContentRefs from editor draft blocks', () => {
+  it('extracts refs from embed blocks, link inlines, and inline-embeds', () => {
+    const draftBlocks: EditorBlock[] = [
+      {
+        id: 'e1',
+        type: 'embed',
+        props: {view: 'Content', url: 'hm://uid1/embedded'},
+        content: [],
+        children: [],
+      },
+      {
+        id: 'p1',
+        type: 'paragraph',
+        props: {},
+        content: [
+          {
+            type: 'link',
+            href: 'hm://uid1/linked',
+            content: [{type: 'text', text: 'click', styles: {}}],
+          },
+        ],
+        children: [],
+      },
+      {
+        id: 'p2',
+        type: 'paragraph',
+        props: {},
+        content: [{type: 'inline-embed', link: 'hm://uid1/mentioned', styles: {}}],
+        children: [],
+      },
+    ]
+    const refs = extractAllContentRefs(editorBlocksToHMBlockNodes(draftBlocks))
+    const links = refs.map((r) => r.link).sort()
+    expect(links).toEqual(['hm://uid1/embedded', 'hm://uid1/linked', 'hm://uid1/mentioned'])
+  })
+
+  it('extracts refs from nested children of editor blocks', () => {
+    const draftBlocks: EditorBlock[] = [
+      {
+        id: 'p1',
+        type: 'paragraph',
+        props: {},
+        content: [{type: 'text', text: 'parent', styles: {}}],
+        children: [
+          {
+            id: 'e1',
+            type: 'embed',
+            props: {view: 'Content', url: 'hm://uid1/nested'},
+            content: [],
+            children: [],
+          },
+        ],
+      },
+    ]
+    const refs = extractAllContentRefs(editorBlocksToHMBlockNodes(draftBlocks))
+    expect(refs).toHaveLength(1)
+    expect(refs[0]!.refId.path).toEqual(['nested'])
+  })
+
+  it('hasQueryBlockTargetingSelf detects a self-targeting Query block in a draft', () => {
+    const draftBlocks: EditorBlock[] = [
+      {
+        id: 'q1',
+        type: 'query',
+        props: {
+          style: 'List',
+          queryIncludes: JSON.stringify([{space: 'uid1', path: '', mode: 'Children'}]),
+        },
+        content: [],
+        children: [],
+      },
+    ]
+    expect(hasQueryBlockTargetingSelf(editorBlocksToHMBlockNodes(draftBlocks), 'uid1', null)).toBe(true)
   })
 })

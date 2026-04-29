@@ -2079,7 +2079,12 @@ function ContentViewWithOutline({
         ) : null}
         {inlineInsert}
         {inlineCards}
-        <UnreferencedDocuments docId={docId} content={document.content} directory={directory} />
+        <UnreferencedDocuments
+          docId={docId}
+          content={document.content}
+          draftContent={existingDraftContent}
+          directory={directory}
+        />
       </div>
 
       {showSidebars && <div {...sidebarProps} />}
