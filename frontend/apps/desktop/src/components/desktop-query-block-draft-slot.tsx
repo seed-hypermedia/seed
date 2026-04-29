@@ -2,8 +2,8 @@ import {useChildDrafts, useCreateInlineDraft, useDeleteDraft, useUpdateDraftMeta
 import {useNavigate} from '@/utils/useNavigate'
 import {roleCanWrite, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
 import {useResource} from '@shm/shared/models/entity'
-import {QueryBlockDraftSlotProps} from '@shm/shared/query-block-drafts-context'
-import {useMemo, useState} from 'react'
+import {QueryBlockDraftSlotProps, useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
+import {useMemo} from 'react'
 
 export function DesktopQueryBlockDraftSlot({targetId, children}: QueryBlockDraftSlotProps) {
   const navigate = useNavigate()
@@ -17,7 +17,7 @@ export function DesktopQueryBlockDraftSlot({targetId, children}: QueryBlockDraft
   const createInlineDraft = useCreateInlineDraft(targetId ?? undefined)
   const deleteDraft = useDeleteDraft()
   const updateDraftMetadata = useUpdateDraftMetadata()
-  const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)
+  const {lastCreatedDraftId, setLastCreatedDraftId} = useQueryBlockDrafts()
 
   const drafts = useMemo(
     () =>
@@ -35,12 +35,12 @@ export function DesktopQueryBlockDraftSlot({targetId, children}: QueryBlockDraft
         {},
         {
           onSuccess: ({draftId}) => {
-            setLastCreatedDraftId(draftId)
+            setLastCreatedDraftId?.(draftId)
           },
         },
       )
     }
-  }, [targetId, canEdit, isPrivate, createInlineDraft])
+  }, [targetId, canEdit, isPrivate, createInlineDraft, setLastCreatedDraftId])
 
   return (
     <>

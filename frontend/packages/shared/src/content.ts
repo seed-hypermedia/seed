@@ -282,21 +282,28 @@ export function extractAllContentRefs(children: HMBlockNode[]): RefDefinition[] 
   return refs
 }
 
+function isSelfQueryInclude(
+  include: HMBlockQuery['attributes']['query']['includes'][number] | undefined,
+  parentUid: string,
+  parentPath: string[] | null,
+): boolean {
+  if (!include) return false
+  if (include.space !== parentUid) return false
+  const includePath = entityQueryPathToHmIdPath(include.path)
+  const parentPathStr = (parentPath || []).join('/')
+  const includePathStr = (includePath || []).join('/')
+  return includePathStr === parentPathStr
+}
+
 export function hasQueryBlockTargetingSelf(
   children: HMBlockNode[],
   parentUid: string,
   parentPath: string[] | null,
 ): boolean {
   const queryBlocks = extractQueryBlocks(children)
-  return queryBlocks.some((qb) => {
-    const include = qb.attributes.query.includes[0]
-    if (!include) return false
-    if (include.space !== parentUid) return false
-    const includePath = entityQueryPathToHmIdPath(include.path)
-    const parentPathStr = (parentPath || []).join('/')
-    const includePathStr = (includePath || []).join('/')
-    return includePathStr === parentPathStr
-  })
+  return queryBlocks.some((qb) =>
+    qb.attributes.query.includes.some((include) => isSelfQueryInclude(include, parentUid, parentPath)),
+  )
 }
 
 export function findSelfQueryBlock(
@@ -306,15 +313,47 @@ export function findSelfQueryBlock(
 ): HMBlockQuery | null {
   const queryBlocks = extractQueryBlocks(children)
   for (const qb of queryBlocks) {
-    const include = qb.attributes.query.includes[0]
-    if (!include) continue
-    if (include.space !== parentUid) continue
-    const includePath = entityQueryPathToHmIdPath(include.path)
-    const parentPathStr = (parentPath || []).join('/')
-    const includePathStr = (includePath || []).join('/')
-    if (includePathStr === parentPathStr) return qb
+    if (qb.attributes.query.includes.some((include) => isSelfQueryInclude(include, parentUid, parentPath))) {
+      return qb
+    }
   }
   return null
+}
+
+const DEFAULT_QUERY_INCLUDES = '[{"space":"","path":"","mode":"Children"}]'
+
+type EditorBlockLike = {
+  type?: string
+  props?: Record<string, any>
+  children?: any[]
+  [key: string]: any
+}
+
+export function hasSelfQueryBlockInEditorContent(
+  blocks: EditorBlockLike[] | undefined | null,
+  parentUid: string,
+  parentPath: string[] | null,
+): boolean {
+  if (!blocks?.length) return false
+  for (const block of blocks) {
+    if (block?.type === 'query') {
+      const raw = block.props?.queryIncludes ?? DEFAULT_QUERY_INCLUDES
+      let includes: Array<{space?: string; path?: string; mode?: string}> = []
+      try {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) includes = parsed
+      } catch {
+        includes = []
+      }
+      if (includes.some((include) => isSelfQueryInclude(include as any, parentUid, parentPath))) {
+        return true
+      }
+    }
+    if (block?.children?.length && hasSelfQueryBlockInEditorContent(block.children, parentUid, parentPath)) {
+      return true
+    }
+  }
+  return false
 }
 
 export function extractQueryBlocks(children: HMBlockNode[]): HMBlockQuery[] {

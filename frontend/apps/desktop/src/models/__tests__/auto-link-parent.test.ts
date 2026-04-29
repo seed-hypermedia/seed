@@ -202,7 +202,9 @@ describe('documentHasSelfQuery', () => {
     expect(documentHasSelfQuery(doc, documentId)).toBe(false)
   })
 
-  it('returns true when query includes self (empty space)', () => {
+  it('returns false when query includes have empty space (unconfigured)', () => {
+    // Unified semantics: empty space is not a self-match — the editor renders
+    // empty for an unconfigured query block, so it does not auto-include children.
     const doc = createDocument([
       {
         block: {
@@ -219,10 +221,10 @@ describe('documentHasSelfQuery', () => {
         },
       },
     ] as HMBlockNode[])
-    expect(documentHasSelfQuery(doc, documentId)).toBe(true)
+    expect(documentHasSelfQuery(doc, documentId)).toBe(false)
   })
 
-  it('returns true when query includes self (matching space and empty path)', () => {
+  it('returns false when query includes match space but path is empty (and parent path is not root)', () => {
     const doc = createDocument([
       {
         block: {
@@ -239,7 +241,7 @@ describe('documentHasSelfQuery', () => {
         },
       },
     ] as HMBlockNode[])
-    expect(documentHasSelfQuery(doc, documentId)).toBe(true)
+    expect(documentHasSelfQuery(doc, documentId)).toBe(false)
   })
 
   it('returns true when query includes self (matching space and path with leading slash)', () => {
@@ -337,7 +339,7 @@ describe('documentHasSelfQuery', () => {
             query: {
               includes: [
                 {space: 'other-uid', path: 'some/path', mode: 'Children'},
-                {space: 'doc-uid', path: '', mode: 'Children'},
+                {space: 'doc-uid', path: 'my/document', mode: 'Children'},
               ],
             },
           },
@@ -361,7 +363,7 @@ describe('documentHasSelfQuery', () => {
                 banner: false,
                 columnCount: 1,
                 query: {
-                  includes: [{space: '', path: '', mode: 'Children'}],
+                  includes: [{space: 'doc-uid', path: 'my/document', mode: 'Children'}],
                 },
               },
             },

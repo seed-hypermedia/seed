@@ -21,14 +21,24 @@ export type QueryBlockDraftSlotProps = {
 
 export type QueryBlockDraftsContextValue = {
   DraftSlot?: React.ComponentType<QueryBlockDraftSlotProps>
+  lastCreatedDraftId?: string | null
+  setLastCreatedDraftId?: (id: string | null) => void
 }
 
 const defaultValue: QueryBlockDraftsContextValue = {}
 
 const QueryBlockDraftsContext = createContext<QueryBlockDraftsContextValue>(defaultValue)
 
-export function QueryBlockDraftsProvider({children, DraftSlot}: PropsWithChildren<QueryBlockDraftsContextValue>) {
-  const ctx = useMemo(() => ({DraftSlot}), [DraftSlot])
+export function QueryBlockDraftsProvider({
+  children,
+  DraftSlot,
+  lastCreatedDraftId,
+  setLastCreatedDraftId,
+}: PropsWithChildren<QueryBlockDraftsContextValue>) {
+  const ctx = useMemo(
+    () => ({DraftSlot, lastCreatedDraftId, setLastCreatedDraftId}),
+    [DraftSlot, lastCreatedDraftId, setLastCreatedDraftId],
+  )
   return <QueryBlockDraftsContext.Provider value={ctx}>{children}</QueryBlockDraftsContext.Provider>
 }
 

@@ -39,7 +39,7 @@ import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
 import {hmId, hostnameStripProtocol, unpackHmId, useUniversalAppContext} from '@shm/shared'
 import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {findSelfQueryBlock} from '@shm/shared/content'
+import {hasQueryBlockTargetingSelf, hasSelfQueryBlockInEditorContent} from '@shm/shared/content'
 import {documentMachine, PublishInput, PushDocumentInput, WriteDraftInput} from '@shm/shared/models/document-machine'
 import {useDocumentInspector} from '@shm/shared/models/document-machine-inspect'
 import {useResource} from '@shm/shared/models/entity'
@@ -410,13 +410,19 @@ export default function DesktopResourcePage() {
   const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)
 
   // Detect self-referential query block — if present, drafts render inside query blocks
-  // and the bottom fallback is suppressed.
-  const selfQueryBlock = useMemo(() => {
-    if (!doc?.content) return null
-    return findSelfQueryBlock(doc.content, docId.uid, docId.path || null)
-  }, [doc?.content, docId.uid, docId.path])
-
-  const hasSelfQuery = !!selfQueryBlock
+  // and the bottom fallback is suppressed. We check both the published doc content
+  // and the parent's draft content so a query block added in an unpublished draft
+  // also suppresses the duplicate.
+  const hasSelfQuery = useMemo(() => {
+    const parentPath = docId.path || null
+    if (existingDraftContent && hasSelfQueryBlockInEditorContent(existingDraftContent, docId.uid, parentPath)) {
+      return true
+    }
+    if (doc?.content && hasQueryBlockTargetingSelf(doc.content, docId.uid, parentPath)) {
+      return true
+    }
+    return false
+  }, [doc?.content, existingDraftContent, docId.uid, docId.path])
 
   // Bottom fallback: drafts of the current doc when no query block on the page targets it
   const inlineCards = useMemo(() => {
@@ -714,7 +720,11 @@ export default function DesktopResourcePage() {
         pushAfterCommentPublish={(targetDocId) => pushAfterAction({id: targetDocId, trigger: 'publish'})}
       >
         <DesktopDocumentActionsProvider>
-          <QueryBlockDraftsProvider DraftSlot={DesktopQueryBlockDraftSlot}>
+          <QueryBlockDraftsProvider
+            DraftSlot={DesktopQueryBlockDraftSlot}
+            lastCreatedDraftId={lastCreatedDraftId}
+            setLastCreatedDraftId={setLastCreatedDraftId}
+          >
             <QuerySearchInputProvider value={SearchInput}>
               <ResourcePage
                 docId={docId}
