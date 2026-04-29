@@ -13,8 +13,7 @@ if (process.env.NODE_ENV === 'production' && process.env.NOTIFY_SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.NOTIFY_SENTRY_DSN,
     release: process.env.NOTIFY_SENTRY_RELEASE || process.env.SENTRY_RELEASE || undefined,
-    environment:
-      process.env.NOTIFY_SENTRY_ENVIRONMENT || process.env.SENTRY_ENVIRONMENT || 'production',
+    environment: process.env.NOTIFY_SENTRY_ENVIRONMENT || process.env.SENTRY_ENVIRONMENT || 'production',
     integrations: [
       Sentry.browserTracingIntegration({
         useEffect,

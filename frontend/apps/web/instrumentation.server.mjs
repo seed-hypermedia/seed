@@ -7,10 +7,7 @@ const dsn = process.env.SITE_SENTRY_DSN
 const release =
   process.env.SITE_SENTRY_RELEASE || process.env.SENTRY_RELEASE || readFileFirstLine('COMMIT_HASH') || undefined
 const environment =
-  process.env.SITE_SENTRY_ENVIRONMENT ||
-  process.env.SENTRY_ENVIRONMENT ||
-  process.env.NODE_ENV ||
-  'production'
+  process.env.SITE_SENTRY_ENVIRONMENT || process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'production'
 
 if (dsn) {
   Sentry.init({
@@ -33,11 +30,7 @@ if (dsn) {
     },
     profilesSampleRate: 1.0,
     sendDefaultPii: false,
-    ignoreErrors: [
-      'AbortError',
-      /Unexpected token '<'/,
-      /Loading chunk \d+ failed/,
-    ],
+    ignoreErrors: ['AbortError', /Unexpected token '<'/, /Loading chunk \d+ failed/],
   })
 }
 

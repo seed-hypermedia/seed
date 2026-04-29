@@ -117,11 +117,7 @@ export default defineConfig(({isSsrBuild}) => {
           telemetry: false,
           applicationKey: 'seed-site',
           release: {
-            name:
-              process.env.SITE_SENTRY_RELEASE ||
-              process.env.SENTRY_RELEASE ||
-              process.env.COMMIT_HASH ||
-              undefined,
+            name: process.env.SITE_SENTRY_RELEASE || process.env.SENTRY_RELEASE || process.env.COMMIT_HASH || undefined,
             setCommits: {auto: true, ignoreMissing: true, ignoreEmpty: true},
             deploy: {env: process.env.SITE_SENTRY_ENVIRONMENT || 'production'},
           },

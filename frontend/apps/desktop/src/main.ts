@@ -81,8 +81,7 @@ let isStartingUp = true
 let coldStartDeepLinkUrl: string | null = null
 
 const sentryDsn = process.env.VITE_DESKTOP_SENTRY_DSN
-const sentryEnvironment =
-  process.env.SENTRY_ENVIRONMENT || (app.isPackaged ? 'production' : 'development')
+const sentryEnvironment = process.env.SENTRY_ENVIRONMENT || (app.isPackaged ? 'production' : 'development')
 
 if (sentryDsn) {
   Sentry.init({

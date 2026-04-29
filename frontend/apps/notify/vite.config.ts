@@ -65,10 +65,7 @@ export default defineConfig(({isSsrBuild}) => {
           applicationKey: 'seed-notify',
           release: {
             name:
-              process.env.NOTIFY_SENTRY_RELEASE ||
-              process.env.SENTRY_RELEASE ||
-              process.env.COMMIT_HASH ||
-              undefined,
+              process.env.NOTIFY_SENTRY_RELEASE || process.env.SENTRY_RELEASE || process.env.COMMIT_HASH || undefined,
             setCommits: {auto: true, ignoreMissing: true, ignoreEmpty: true},
             deploy: {env: process.env.NOTIFY_SENTRY_ENVIRONMENT || 'production'},
           },

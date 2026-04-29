@@ -14,8 +14,7 @@ if (process.env.NODE_ENV === 'production' && process.env.SITE_SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.SITE_SENTRY_DSN,
     release: process.env.SITE_SENTRY_RELEASE || process.env.SENTRY_RELEASE || undefined,
-    environment:
-      process.env.SITE_SENTRY_ENVIRONMENT || process.env.SENTRY_ENVIRONMENT || 'production',
+    environment: process.env.SITE_SENTRY_ENVIRONMENT || process.env.SENTRY_ENVIRONMENT || 'production',
     integrations: [
       Sentry.browserTracingIntegration({
         useEffect,
@@ -30,11 +29,7 @@ if (process.env.NODE_ENV === 'production' && process.env.SITE_SENTRY_DSN) {
     ],
     tracesSampleRate: 0.2,
     profilesSampleRate: 1.0,
-    tracePropagationTargets: [
-      'localhost',
-      /^https:\/\/(.*\.)?seed\.hyper\.media/,
-      /^https:\/\/(.*\.)?hyper\.media/,
-    ],
+    tracePropagationTargets: ['localhost', /^https:\/\/(.*\.)?seed\.hyper\.media/, /^https:\/\/(.*\.)?hyper\.media/],
     replaysSessionSampleRate: 0.1,
     replaysOnErrorSampleRate: 1,
     sendDefaultPii: false,

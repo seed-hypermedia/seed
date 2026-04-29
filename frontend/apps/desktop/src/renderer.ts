@@ -80,11 +80,7 @@ if (IS_PROD_DESKTOP && rendererDsn) {
       return importMetaEnv.DEV ? 1.0 : 0.1
     },
     profilesSampleRate: 1.0,
-    tracePropagationTargets: [
-      'localhost',
-      /^https:\/\/(.*\.)?hyper\.media/,
-      /^https:\/\/(.*\.)?seed\.hyper\.media/,
-    ],
+    tracePropagationTargets: ['localhost', /^https:\/\/(.*\.)?hyper\.media/, /^https:\/\/(.*\.)?seed\.hyper\.media/],
     replaysSessionSampleRate: 0.1,
     replaysOnErrorSampleRate: 1.0,
     ignoreErrors: [
