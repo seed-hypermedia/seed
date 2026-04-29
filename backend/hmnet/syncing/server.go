@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"runtime"
 	"seed/backend/blob"
 	"seed/backend/core"
 	p2p "seed/backend/genproto/p2p/v1alpha"
@@ -33,10 +34,11 @@ import (
 
 // Server is the RPC handler for the syncing service.
 type Server struct {
-	db      *sqlitex.Pool
-	index   blobIndex
-	bitswap bitswap
-	log     *zap.Logger
+	db               *sqlitex.Pool
+	index            blobIndex
+	bitswap          bitswap
+	log              *zap.Logger
+	reconcileLimiter *inboundReconcileLimiter
 }
 
 type blobIndex interface {
@@ -47,12 +49,95 @@ type blobIndex interface {
 
 // NewServer creates a new RPC handler instance.
 // It has to be further registered with the actual [grpc.Server].
-func NewServer(db *sqlitex.Pool, index *blob.Index, bswap bitswap) *Server {
+func NewServer(db *sqlitex.Pool, index *blob.Index, bswap bitswap, maxInboundReconciles int, inboundReconcileWait time.Duration) *Server {
 	return &Server{
-		db:      db,
-		index:   index,
-		bitswap: bswap,
-		log:     logging.New("seed/network", logging.GetLogLevel("seed/network").String()),
+		db:               db,
+		index:            index,
+		bitswap:          bswap,
+		log:              logging.New("seed/network", logging.GetLogLevel("seed/network").String()),
+		reconcileLimiter: newInboundReconcileLimiter(maxInboundReconciles, inboundReconcileWait),
+	}
+}
+
+const defaultInboundReconcileWait = time.Second
+
+type inboundReconcileLimiter struct {
+	sem   chan struct{}
+	wait  time.Duration
+	limit int
+}
+
+func newInboundReconcileLimiter(limit int, wait time.Duration) *inboundReconcileLimiter {
+	if limit < 0 {
+		MReconcileServerLimiterLimit.Set(-1)
+		return nil
+	}
+	if limit == 0 {
+		limit = 2 * runtime.GOMAXPROCS(0)
+		if limit < 2 {
+			limit = 2
+		}
+	}
+	if wait <= 0 {
+		wait = defaultInboundReconcileWait
+	}
+	MReconcileServerLimiterLimit.Set(float64(limit))
+	return &inboundReconcileLimiter{
+		sem:   make(chan struct{}, limit),
+		wait:  wait,
+		limit: limit,
+	}
+}
+
+func (s *Server) acquireReconcileSlot(ctx context.Context) (func(), error) {
+	if s.reconcileLimiter == nil {
+		MReconcileServerLimiterWaitSeconds.Observe(0)
+		MReconcileServerLimiterAcceptedTotal.Inc()
+		return func() {}, nil
+	}
+	return s.reconcileLimiter.acquire(ctx)
+}
+
+func (l *inboundReconcileLimiter) acquire(ctx context.Context) (func(), error) {
+	if err := ctx.Err(); err != nil {
+		return nil, status.FromContextError(err).Err()
+	}
+
+	start := time.Now()
+	select {
+	case l.sem <- struct{}{}:
+		MReconcileServerLimiterWaitSeconds.Observe(0)
+		MReconcileServerLimiterAcceptedTotal.Inc()
+		MReconcileServerLimiterInFlight.Inc()
+		return func() {
+			<-l.sem
+			MReconcileServerLimiterInFlight.Dec()
+		}, nil
+	default:
+	}
+
+	MReconcileServerLimiterWaiting.Inc()
+	defer MReconcileServerLimiterWaiting.Dec()
+
+	timer := time.NewTimer(l.wait)
+	defer timer.Stop()
+
+	select {
+	case l.sem <- struct{}{}:
+		MReconcileServerLimiterWaitSeconds.Observe(time.Since(start).Seconds())
+		MReconcileServerLimiterAcceptedTotal.Inc()
+		MReconcileServerLimiterInFlight.Inc()
+		return func() {
+			<-l.sem
+			MReconcileServerLimiterInFlight.Dec()
+		}, nil
+	case <-timer.C:
+		MReconcileServerLimiterWaitSeconds.Observe(time.Since(start).Seconds())
+		MReconcileServerLimiterRejectedTotal.Inc()
+		return nil, status.Errorf(codes.ResourceExhausted, "reconcile server busy: %d concurrent requests, waited %s", l.limit, l.wait)
+	case <-ctx.Done():
+		MReconcileServerLimiterWaitSeconds.Observe(time.Since(start).Seconds())
+		return nil, status.FromContextError(ctx.Err()).Err()
 	}
 }
 
@@ -224,6 +309,12 @@ var qFilterWantedBlobsIdx = dqb.Str(`
 
 // ReconcileBlobs reconciles a set of blobs from the initiator. Finds the difference from what we have.
 func (s *Server) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsRequest) (*p2p.ReconcileBlobsResponse, error) {
+	release, err := s.acquireReconcileSlot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	totalStart := time.Now()
 	defer func() {
 		MReconcileServerTotalSeconds.Observe(time.Since(totalStart).Seconds())

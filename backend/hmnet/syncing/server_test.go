@@ -2,7 +2,9 @@ package syncing
 
 import (
 	"context"
+	"runtime"
 	"testing"
+	"time"
 
 	"seed/backend/blob"
 	"seed/backend/core"
@@ -19,6 +21,63 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+func TestInboundReconcileLimiterAutoScalesWithGOMAXPROCS(t *testing.T) {
+	old := runtime.GOMAXPROCS(2)
+	defer runtime.GOMAXPROCS(old)
+
+	l := newInboundReconcileLimiter(0, time.Second)
+	require.NotNil(t, l)
+	require.Equal(t, 4, l.limit)
+}
+
+func TestInboundReconcileLimiterHasMinimumAutoLimit(t *testing.T) {
+	old := runtime.GOMAXPROCS(1)
+	defer runtime.GOMAXPROCS(old)
+
+	l := newInboundReconcileLimiter(0, time.Second)
+	require.NotNil(t, l)
+	require.Equal(t, 2, l.limit)
+}
+
+func TestInboundReconcileLimiterUnlimited(t *testing.T) {
+	require.Nil(t, newInboundReconcileLimiter(-1, time.Second))
+}
+
+func TestInboundReconcileLimiterRejectsAfterWait(t *testing.T) {
+	l := &inboundReconcileLimiter{
+		sem:   make(chan struct{}, 1),
+		wait:  0,
+		limit: 1,
+	}
+
+	release, err := l.acquire(t.Context())
+	require.NoError(t, err)
+	defer release()
+
+	_, err = l.acquire(t.Context())
+	require.Error(t, err)
+
+	stat, ok := status.FromError(err)
+	require.True(t, ok)
+	require.Equal(t, codes.ResourceExhausted, stat.Code())
+}
+
+func TestInboundReconcileLimiterReleaseFreesSlot(t *testing.T) {
+	l := &inboundReconcileLimiter{
+		sem:   make(chan struct{}, 1),
+		wait:  time.Second,
+		limit: 1,
+	}
+
+	release, err := l.acquire(t.Context())
+	require.NoError(t, err)
+	release()
+
+	release, err = l.acquire(t.Context())
+	require.NoError(t, err)
+	release()
+}
 
 func TestAnnounceBlobsUnavailableDuringReindex(t *testing.T) {
 	db := storage.MakeTestDB(t)

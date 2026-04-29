@@ -302,7 +302,7 @@ type Syncing struct {
 	Interval        time.Duration
 	TimeoutPerPeer  time.Duration
 	RefreshInterval time.Duration
-	MaxWorkers int
+	MaxWorkers      int
 	NoPull          bool
 	NoDiscovery     bool
 	AllowPush       bool
@@ -384,6 +384,10 @@ type P2P struct {
 	NoPrivateIps            bool
 	NoMetrics               bool
 	RelayBackoff            time.Duration
+	// MaxInboundReconciles caps concurrent inbound ReconcileBlobs RPCs; 0 means auto and negative means unlimited.
+	MaxInboundReconciles int
+	// InboundReconcileWait is how long an inbound ReconcileBlobs RPC waits for capacity before failing; 0 means default.
+	InboundReconcileWait time.Duration
 }
 
 func (p2p P2P) Default() P2P {
@@ -422,6 +426,8 @@ func (p2p *P2P) BindFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&p2p.NoMetrics, "p2p.no-metrics", p2p.NoMetrics, "Disable Prometheus metrics collection")
 	fs.BoolVar(&p2p.NoPeerSharing, "syncing.no-peer-sharing", p2p.NoPeerSharing, "We don't share our peer list whenever we connect to another seed peer")
 	fs.DurationVar(&p2p.RelayBackoff, "p2p.relay-backoff", p2p.RelayBackoff, "The time the autorelay waits to reconnect after failing to obtain a reservation with a candidate")
+	fs.IntVar(&p2p.MaxInboundReconciles, "p2p.max-inbound-reconciles", p2p.MaxInboundReconciles, "Max concurrent inbound ReconcileBlobs RPCs; 0 = auto (2*GOMAXPROCS, minimum 2), negative = unlimited")
+	fs.DurationVar(&p2p.InboundReconcileWait, "p2p.inbound-reconcile-wait", p2p.InboundReconcileWait, "How long inbound ReconcileBlobs waits for capacity before ResourceExhausted; 0 = 1s")
 }
 
 // NoBootstrap indicates whether bootstrap nodes are configured.

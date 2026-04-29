@@ -55,9 +55,11 @@ type section struct {
 	//   Latency: per-row p10/p50/p90/p99 + count
 	//   Counter: per-row label + count
 	//   Bucket:  per-row "<= X" + count
+	//   KV:      per-row key/value diagnostic values
 	Latency *latencyTable
 	Counter *counterTable
 	Bucket  *bucketTable
+	KV      *kvTable
 }
 
 // withHelp attaches a Help HTML blob to a section produced by one of the
@@ -75,13 +77,13 @@ type latencyTable struct {
 }
 
 type latencyRow struct {
-	Label string
+	Label   string
 	HasData bool
-	P10   string
-	P50   string
-	P90   string
-	P99   string
-	Count uint64
+	P10     string
+	P50     string
+	P90     string
+	P99     string
+	Count   uint64
 	// Severity classes computed at build time so the template stays simple.
 	P10Class string
 	P50Class string
@@ -101,10 +103,20 @@ type counterRow struct {
 	Class string // optional severity (e.g. high idle_timeout share)
 }
 
+type kvTable struct {
+	Rows []kvRow
+}
+
+type kvRow struct {
+	Key   string
+	Value string
+	Class string
+}
+
 type bucketTable struct {
-	N    uint64
-	Mean string // pre-formatted mean (with unit)
-	Rows []bucketRow
+	N          uint64
+	Mean       string // pre-formatted mean (with unit)
+	Rows       []bucketRow
 	UpperLabel string // e.g. "<= ratio" or "<= blobs"
 }
 
@@ -114,9 +126,9 @@ type bucketRow struct {
 }
 
 type reachSection struct {
-	Total      int
-	Rows       []reachRow
-	OverflowN  int
+	Total     int
+	Rows      []reachRow
+	OverflowN int
 }
 
 type reachRow struct {
@@ -195,6 +207,7 @@ func (n *Node) buildPage(ctx context.Context) networkPage {
 			[]string{"auth_resolve", "load_store", "rbsr_session", "rbsr_reconcile"},
 		), helpReconcileServerPhases),
 		withHelp(buildReconcileServerTotalSection(), helpReconcileServerTotal),
+		withHelp(buildReconcileLimiterSection(), helpReconcileLimiter),
 		withHelp(buildBucketSection(
 			"Reconcile server: store size per request",
 			"how many blobs the RBSR set ends up holding per inbound request",
@@ -335,6 +348,70 @@ func buildReconcileServerTotalSection() section {
 		Title:    "Reconcile server: total handler",
 		Subtitle: "directly comparable to client-side reconcile_rpc",
 		Latency:  tbl,
+	}
+}
+
+func buildReconcileLimiterSection() section {
+	tbl := &kvTable{}
+	limit, limitOK := collectSingleMetricValue("seed_reconcile_server_limiter_limit")
+	inFlight, _ := collectSingleMetricValue("seed_reconcile_server_limiter_in_flight")
+	waiting, _ := collectSingleMetricValue("seed_reconcile_server_limiter_waiting")
+	accepted, _ := collectSingleMetricValue("seed_reconcile_server_limiter_accepted_total")
+	rejected, _ := collectSingleMetricValue("seed_reconcile_server_limiter_rejected_total")
+
+	limitValue := "—"
+	if limitOK {
+		if limit < 0 {
+			limitValue = "unlimited"
+		} else {
+			limitValue = fmt.Sprintf("%.0f", limit)
+		}
+	}
+
+	inFlightClass := "num"
+	if limitOK && limit > 0 && inFlight >= limit {
+		inFlightClass = "num warn"
+	}
+
+	waitingClass := "num"
+	if waiting > 0 {
+		waitingClass = "num warn"
+	}
+
+	rejectedClass := "num"
+	if rejected > 0 {
+		rejectedClass = "num warn"
+	}
+
+	tbl.Rows = append(tbl.Rows,
+		kvRow{Key: "limit", Value: limitValue, Class: "num"},
+		kvRow{Key: "in_flight", Value: fmt.Sprintf("%.0f", inFlight), Class: inFlightClass},
+		kvRow{Key: "waiting", Value: fmt.Sprintf("%.0f", waiting), Class: waitingClass},
+		kvRow{Key: "accepted_total", Value: fmt.Sprintf("%.0f", accepted), Class: "num"},
+		kvRow{Key: "rejected_total", Value: fmt.Sprintf("%.0f", rejected), Class: rejectedClass},
+	)
+
+	queueWait := "—"
+	queueWaitClass := "num"
+	if mf, _ := findMetricFamily("seed_reconcile_server_limiter_wait_seconds"); mf != nil && len(mf.Metric) > 0 && mf.Metric[0].Histogram != nil {
+		h := mf.Metric[0].Histogram
+		if h.GetSampleCount() > 0 {
+			s := &histStats{count: h.GetSampleCount(), sum: h.GetSampleSum(), buckets: h.GetBucket()}
+			p50 := s.percentile(0.50)
+			p90 := s.percentile(0.90)
+			p99 := s.percentile(0.99)
+			queueWait = fmt.Sprintf("%s / %s / %s (n=%d)", formatDuration(p50), formatDuration(p90), formatDuration(p99), s.count)
+			if asDur(p99) > 500*time.Millisecond {
+				queueWaitClass = "num warn"
+			}
+		}
+	}
+	tbl.Rows = append(tbl.Rows, kvRow{Key: "queue_wait p50/p90/p99", Value: queueWait, Class: queueWaitClass})
+
+	return section{
+		Title:    "Inbound ReconcileBlobs limiter",
+		Subtitle: "server-side backpressure before expensive RBSR/SQLite work",
+		KV:       tbl,
 	}
 }
 
@@ -546,6 +623,22 @@ func collectCounterVec(name string) (map[string]float64, bool) {
 	return out, false
 }
 
+func collectSingleMetricValue(name string) (float64, bool) {
+	mf, _ := findMetricFamily(name)
+	if mf == nil {
+		return 0, false
+	}
+	for _, m := range mf.GetMetric() {
+		if m.Gauge != nil {
+			return m.Gauge.GetValue(), true
+		}
+		if m.Counter != nil {
+			return m.Counter.GetValue(), true
+		}
+	}
+	return 0, false
+}
+
 func findMetricFamily(name string) (*dto.MetricFamily, error) {
 	mfs, err := prometheus.DefaultGatherer.Gather()
 	if err != nil {
@@ -660,6 +753,15 @@ const helpReconcileServerPhases template.HTML = `
 const helpReconcileServerTotal template.HTML = `
 <p>Whole-handler wall-clock for inbound ReconcileBlobs requests. Compare directly against the client-side <code>reconcile_rpc</code> row higher up. If client p99 ≫ server p99, the gap is in the network/stream layer between us, not on either CPU.</p>`
 
+const helpReconcileLimiter template.HTML = `
+<p>Backpressure in front of inbound <code>ReconcileBlobs</code>. Default limit is <code>max(2, 2*GOMAXPROCS)</code>; callers wait up to 1s for a slot, then receive <code>ResourceExhausted</code>.</p>
+<dl>
+<dt>in_flight</dt><dd>Requests currently inside the expensive SQLite/RBSR handler. Red when it reaches the limit.</dd>
+<dt>waiting</dt><dd>Requests queued for a slot right now. Any non-zero value means the limiter is saturated at this instant.</dd>
+<dt>rejected_total</dt><dd>Requests that waited too long and were rejected. This should stay near zero; growth means the server is overloaded for its CPU.</dd>
+<dt>queue_wait</dt><dd>How long accepted and rejected requests waited for capacity. A rising p90/p99 means saturation before outright rejects show up.</dd>
+</dl>`
+
 const helpReconcileServerStoreSize template.HTML = `
 <p>How many blobs the RBSR set ends up holding for one inbound request. Bigger store → more compute everywhere. A mean around 1-10 means most filters are tight; spikes into 1000+ mean a recursive filter pulled in a heavy account.</p>`
 
@@ -702,7 +804,7 @@ const helpHowToRead template.HTML = `
 
 var pageTpl = template.Must(template.New("network").Funcs(template.FuncMap{
 	"hasContent": func(s section) bool {
-		return s.Latency != nil || s.Counter != nil || s.Bucket != nil
+		return s.Latency != nil || s.Counter != nil || s.Bucket != nil || s.KV != nil
 	},
 }).Parse(`<!DOCTYPE html>
 <html lang="en"><head>
@@ -794,6 +896,16 @@ details.howto>summary{color:#0a58ca;font-weight:600}
 <tr><td>{{.Label}}</td><td class="num {{.Class}}">{{.Count}}</td></tr>
 {{end}}
 {{if .Total}}<tr><td colspan="2" style="font-size:12px;color:#777">total: {{.Total}}</td></tr>{{end}}
+</table>
+{{end}}
+{{end}}
+
+{{if .KV}}
+{{with .KV}}
+<table class="kv">
+{{range .Rows}}
+<tr><td>{{.Key}}</td><td class="{{.Class}}">{{.Value}}</td></tr>
+{{end}}
 </table>
 {{end}}
 {{end}}

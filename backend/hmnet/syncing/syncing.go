@@ -196,6 +196,49 @@ var (
 		Buckets: []float64{1, 2, 4, 8, 16, 32, 64, 128, 256},
 	})
 
+	// MReconcileServerLimiterLimit is the configured concurrent inbound
+	// ReconcileBlobs cap. -1 means unlimited.
+	MReconcileServerLimiterLimit = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "seed_reconcile_server_limiter_limit",
+		Help: "Configured concurrent inbound ReconcileBlobs cap. -1 means unlimited.",
+	})
+
+	// MReconcileServerLimiterInFlight is the number of inbound ReconcileBlobs
+	// RPCs currently running inside the expensive handler.
+	MReconcileServerLimiterInFlight = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "seed_reconcile_server_limiter_in_flight",
+		Help: "Number of inbound ReconcileBlobs RPCs currently running inside the expensive handler.",
+	})
+
+	// MReconcileServerLimiterWaiting is the number of inbound ReconcileBlobs
+	// RPCs currently waiting for capacity.
+	MReconcileServerLimiterWaiting = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "seed_reconcile_server_limiter_waiting",
+		Help: "Number of inbound ReconcileBlobs RPCs currently waiting for capacity.",
+	})
+
+	// MReconcileServerLimiterWaitSeconds is the time an inbound ReconcileBlobs
+	// RPC waited for capacity before running or being rejected.
+	MReconcileServerLimiterWaitSeconds = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "seed_reconcile_server_limiter_wait_seconds",
+		Help:    "Seconds inbound ReconcileBlobs RPCs waited for capacity before running or being rejected.",
+		Buckets: diagBuckets,
+	})
+
+	// MReconcileServerLimiterAcceptedTotal counts inbound ReconcileBlobs RPCs
+	// that acquired capacity and were allowed to run.
+	MReconcileServerLimiterAcceptedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "seed_reconcile_server_limiter_accepted_total",
+		Help: "Total inbound ReconcileBlobs RPCs that acquired capacity and were allowed to run.",
+	})
+
+	// MReconcileServerLimiterRejectedTotal counts inbound ReconcileBlobs RPCs
+	// rejected after waiting for capacity.
+	MReconcileServerLimiterRejectedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "seed_reconcile_server_limiter_rejected_total",
+		Help: "Total inbound ReconcileBlobs RPCs rejected after waiting for capacity.",
+	})
+
 	// MReconcileClientRoundSeconds splits the existing reconcile_rpc round
 	// histogram by whether the gRPC/libp2p connection to this peer was
 	// already in the client conn map when the round started (reused_conn)
@@ -258,11 +301,11 @@ type protocolChecker struct {
 
 // Service implements syncing content over the P2P network.
 type Service struct {
-	cfg        config.Syncing
-	log        *zap.Logger
-	db         *sqlitex.Pool
-	index      Index
-	bitswap    bitswap
+	cfg          config.Syncing
+	log          *zap.Logger
+	db           *sqlitex.Pool
+	index        Index
+	bitswap      bitswap
 	rbsrClient   netDialFunc
 	resources    ResourceAPI
 	p2pClient    func(context.Context, peer.ID, ...multiaddr.Multiaddr) (p2p.P2PClient, error)
