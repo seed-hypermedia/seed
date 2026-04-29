@@ -51,7 +51,12 @@ export type UniversalClient = {
   ) => Promise<Extract<HMRequest, {key: 'PublishBlobs'}>['output']>
 
   // Discovery subscription (desktop only - no-op on web)
-  subscribeEntity?: (opts: {id: UnpackedHypermediaId; recursive?: boolean}) => () => void
+  subscribeEntity?: (opts: {
+    id: UnpackedHypermediaId
+    recursive?: boolean
+    /** `'high'` polls faster (3s while focused) for the active document. */
+    priority?: 'normal' | 'high'
+  }) => () => void
 
   // Discovery state tracking (desktop only - undefined on web)
   discovery?: DiscoveryService

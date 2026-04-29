@@ -1069,6 +1069,17 @@ export const HMDraftContentSchema = z.object({
   deps: z.array(z.string().min(1)).default([]),
   navigation: z.array(HMNavigationItemSchema).optional(),
   cursorPosition: z.number().optional(),
+  /**
+   * Block IDs the local user touched since starting this draft. Used by the
+   * auto-rebase classifier to distinguish locally-edited blocks from incoming
+   * remote edits. Persisted so reload-after-rebase keeps the touch history.
+   */
+  mineTouchedIds: z.array(z.string()).optional(),
+  /**
+   * Snapshot of the published HMBlockNode[] tree at the time the draft was
+   * started (or last rebased). Acts as the merge base for three-way diff.
+   */
+  baseBlocks: z.array(z.any()).optional(),
 })
 
 export type HMDraftContent = z.infer<typeof HMDraftContentSchema>

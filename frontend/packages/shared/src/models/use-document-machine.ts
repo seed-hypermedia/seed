@@ -1,17 +1,22 @@
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
+import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {useActorRef, useSelector} from '@xstate/react'
 import {createContext, createElement, ReactNode, useContext, useEffect, useMemo, useRef} from 'react'
 import {ActorRefFrom, SnapshotFrom} from 'xstate'
+import {classifyRebase, applyRebasePlan} from '../utils/document-changes'
 import {
   documentMachine,
   DocumentMachineContext,
   DocumentMachineEvent,
   DocumentMachineInput,
+  PendingRebase,
   PublishInput,
   WriteDraftInput,
 } from './document-machine'
 import {EditorHandlers, EditorHandlersContext} from './editor-handlers-context'
+import {useAccount, useChanges} from './entity'
 
 // -- Actor types --
 
@@ -173,26 +178,28 @@ export function useDocumentSync(document: HMDocument | null | undefined) {
 
   useEffect(() => {
     if (!document) {
-      console.log('[DocumentSync] no document yet')
+      console.log('[Rebase sync] no document yet')
       return
     }
 
     if (prevVersionRef.current === null) {
       // First time we have a document — transition from loading → loaded
-      console.log('[DocumentSync] sending document.loaded, version:', document.version)
+      console.log('[Rebase sync] sending document.loaded', {version: document.version})
       actorRef.send({type: 'document.loaded', document})
       prevVersionRef.current = document.version
     } else if (document.version !== prevVersionRef.current) {
       // Version changed — remote update
-      console.log(
-        '[DocumentSync] sending document.remoteUpdate, version:',
-        document.version,
-        '(prev:',
-        prevVersionRef.current,
-        ')',
-      )
+      console.log('[Rebase sync] sending document.remoteUpdate', {
+        version: document.version,
+        prev: prevVersionRef.current,
+        machineDeps: actorRef.getSnapshot().context.deps,
+        machineDocVersion: actorRef.getSnapshot().context.document?.version,
+      })
       actorRef.send({type: 'document.remoteUpdate', document})
       prevVersionRef.current = document.version
+    } else {
+      // Same version — log so we can see if React Query is re-running with stale data
+      console.log('[Rebase sync] noop (same version)', {version: document.version})
     }
   }, [actorRef, document])
 }
@@ -268,6 +275,8 @@ export function useDraftResolutionSync(
         content: HMBlockNode[] | null
         cursorPosition: number | null
         metadata?: HMMetadata | null
+        mineTouchedIds?: string[] | null
+        baseBlocks?: HMBlockNode[] | null
       }
     | undefined,
 ) {
@@ -282,6 +291,10 @@ export function useDraftResolutionSync(
         resolved.draftId,
         'metadata:',
         resolved.metadata,
+        'restoredTouchedIds:',
+        resolved.mineTouchedIds?.length ?? 0,
+        'restoredBaseBlocks:',
+        resolved.baseBlocks?.length ?? 0,
       )
       actorRef.send({
         type: 'draft.resolved',
@@ -289,6 +302,8 @@ export function useDraftResolutionSync(
         content: resolved.content,
         cursorPosition: resolved.cursorPosition,
         metadata: resolved.metadata ?? null,
+        mineTouchedIds: resolved.mineTouchedIds ?? null,
+        baseBlocks: resolved.baseBlocks ?? null,
       })
     }
   }, [actorRef, resolved])
@@ -435,6 +450,31 @@ export function selectSaveIndicatorStatus(snapshot: DocumentMachineSnapshot): 'h
   return 'hidden'
 }
 
+/** The snapshot'd base blocks (set when entering editing). */
+export function selectBaseBlocks(snapshot: DocumentMachineSnapshot): HMBlockNode[] | null {
+  return snapshot.context.baseBlocks
+}
+
+/** Block IDs touched locally during this editing session. */
+export function selectMineTouchedIds(snapshot: DocumentMachineSnapshot): string[] {
+  return snapshot.context.mineTouchedIds
+}
+
+/** Remote document stashed while editing (null when no pending update). */
+export function selectPendingRemoteDocument(snapshot: DocumentMachineSnapshot): HMDocument | null {
+  return snapshot.context.pendingRemoteDocument
+}
+
+/** Pending rebase classification (auto/conflict/null). */
+export function selectPendingRebase(snapshot: DocumentMachineSnapshot): PendingRebase | null {
+  return snapshot.context.pendingRebase
+}
+
+/** Whether the draft machine is in the editing.draft.idle sub-state (safe-to-apply rebase gate). */
+export function selectIsEditingIdle(snapshot: DocumentMachineSnapshot): boolean {
+  return snapshot.matches({editing: {draft: 'idle'}})
+}
+
 // -- React hook helpers --
 
 /**
@@ -473,6 +513,516 @@ export function useDocumentSend(actorRef?: DocumentMachineActorRef) {
   return ref.send as (event: DocumentMachineEvent) => void
 }
 
+/**
+ * Minimal editor interface `useAutoRebase` needs. Compatible with BlockNote
+ * editors but avoids a direct dependency on the editor package.
+ */
+export type AutoRebaseEditor = {
+  readonly topLevelBlocks: any[]
+  replaceBlocks: (existing: unknown[], replacement: unknown[]) => void
+  updateBlock?: (blockOrId: string | {id: string}, update: unknown) => void
+  insertBlocks?: (blocks: unknown[], referenceBlock: string | {id: string}, placement?: 'before' | 'after') => void
+  removeBlocks?: (blocks: Array<string | {id: string}>) => void
+  getTextCursorPosition?: () => {
+    block?: {id?: string}
+    prevBlock?: {id?: string} | null
+    nextBlock?: {id?: string} | null
+  } | null
+  setTextCursorPosition?: (blockOrId: string | {id: string}, placement?: 'start' | 'end') => void
+  readonly _tiptapEditor?: {
+    view?: {
+      state?: {
+        selection?: {
+          $anchor?: {pos?: number; parentOffset?: number}
+          from?: number
+        }
+        doc?: {content?: {size?: number}}
+      }
+      dispatch?: (tr: unknown) => void
+    }
+  }
+}
+
+export type AutoRebaseOptions = {
+  /** Editor ref captured from `onEditorReady`. Must accept HMBlockNode[] via replaceBlocks after hmBlocksToEditorContent conversion. */
+  editor: AutoRebaseEditor | null
+  /** Called after a successful silent auto-merge. `author` may be null if unresolved. */
+  onAutoMerged?: (author: string | null) => void
+  /** Called when the merge can't be done automatically (Phase B will render UI). */
+  onConflictDetected?: (conflict: {conflictedBlockIds: string[]; author: string | null}) => void
+  /** Optional ref set to true while the hook is replacing editor content, so editor listeners can suppress `change` events. */
+  suppressChangeRef?: {current: boolean}
+  /** Debounce ms after the last `change` before attempting auto-rebase. Defaults to 1500. */
+  idleDebounceMs?: number
+}
+
+/**
+ * Walk a ListDocumentChanges payload backwards from `fromVersion` collecting
+ * change CIDs introduced after `baseDeps`. Stops traversal when all predecessor
+ * edges reach a dep in `baseDeps`.
+ */
+function collectNewChangeCids(
+  changes: Array<{id?: string; deps?: string[]; createTime?: string; author?: string}>,
+  fromVersion: string,
+  baseDeps: string[],
+): {newCids: Set<string>; latestAuthorCid: string | null; latestCreateTime: string | null} {
+  const byId = new Map<string, (typeof changes)[number]>()
+  for (const c of changes) if (c.id) byId.set(c.id, c)
+  const baseSet = new Set(baseDeps)
+  // fromVersion may be a dot-separated CID list (multi-head)
+  const heads = fromVersion.split('.').filter(Boolean)
+  const newCids = new Set<string>()
+  const stack: string[] = []
+  for (const h of heads) if (!baseSet.has(h)) stack.push(h)
+  while (stack.length) {
+    const id = stack.pop()!
+    if (newCids.has(id) || baseSet.has(id)) continue
+    newCids.add(id)
+    const node = byId.get(id)
+    if (!node?.deps) continue
+    for (const d of node.deps) {
+      if (!baseSet.has(d) && !newCids.has(d)) stack.push(d)
+    }
+  }
+  let latestAuthorCid: string | null = null
+  let latestCreateTime: string | null = null
+  newCids.forEach((id) => {
+    const node = byId.get(id)
+    if (!node) return
+    const t = node.createTime ?? ''
+    if (!latestCreateTime || t > latestCreateTime) {
+      latestCreateTime = t
+      latestAuthorCid = node.author ?? null
+    }
+  })
+  return {newCids, latestAuthorCid, latestCreateTime}
+}
+
+/**
+ * Drives automatic rebase when a remote document update arrives during editing.
+ *
+ * Flow:
+ * 1. When `editing.draft.idle` + a pending remote document is stashed + the
+ *    user has been idle for `idleDebounceMs`.
+ * 2. Fetch ListDocumentChanges for the document; walk the DAG from
+ *    `pendingRemoteDocument.version` back to `context.deps` to compute the
+ *    CIDs introduced since our base.
+ * 3. Feed {base, mine, theirs, mineTouchedIds, newCids} to `classifyRebase`.
+ * 4. If no conflicts: produce the merged tree with `applyRebasePlan`, swap
+ *    editor content under `suppressChangeRef`, send `rebase.apply`, call
+ *    `onAutoMerged` with the author display name.
+ * 5. Otherwise: send `rebase.detectConflict` and call `onConflictDetected`
+ *    (Phase B renders UI; Phase A leaves the UI stubbed).
+ */
+export function useAutoRebase({
+  editor,
+  onAutoMerged,
+  onConflictDetected,
+  suppressChangeRef,
+  idleDebounceMs = 1500,
+}: AutoRebaseOptions) {
+  const actorRef = useDocumentMachineRef()
+  const ctx = useSelector(actorRef, selectContext)
+  const isIdle = useSelector(actorRef, selectIsEditingIdle)
+  const isEditing = useSelector(actorRef, selectIsEditing)
+  const pendingRemoteDocument = ctx.pendingRemoteDocument
+  const pendingRebase = ctx.pendingRebase
+
+  const targetId = ctx.documentId
+  const changesQuery = useChanges(pendingRemoteDocument ? targetId : null)
+
+  const latestAuthor = useMemo(() => {
+    if (!pendingRemoteDocument || !changesQuery.data?.changes?.length) {
+      return {cid: null as string | null, createTime: null as string | null}
+    }
+    const {latestAuthorCid, latestCreateTime} = collectNewChangeCids(
+      changesQuery.data.changes,
+      pendingRemoteDocument.version,
+      ctx.deps,
+    )
+    return {cid: latestAuthorCid, createTime: latestCreateTime}
+  }, [pendingRemoteDocument, changesQuery.data, ctx.deps])
+
+  const authorAccount = useAccount(latestAuthor.cid)
+  const authorName = authorAccount.data?.metadata?.name ?? null
+
+  // Attempt to resolve the rebase once everything is ready.
+  // Idle (no pending autosave) + debounce window since first entering idle
+  // guards against applying mid-stroke.
+  useEffect(() => {
+    // Gate logs: only start reporting once we at least see a pending remote.
+    if (pendingRemoteDocument) {
+      console.log('[Rebase hook] gate', {
+        isEditing,
+        isIdle,
+        hasPendingRemote: !!pendingRemoteDocument,
+        pendingRemoteVersion: pendingRemoteDocument?.version,
+        pendingRebase: pendingRebase?.kind ?? null,
+        hasEditor: !!editor,
+        hasBaseBlocks: !!ctx.baseBlocks,
+        changesLoading: changesQuery.isLoading,
+        mineTouched: ctx.mineTouchedIds,
+        baseDeps: ctx.deps,
+      })
+    }
+    if (!isEditing) return
+    if (!isIdle) return
+    if (!pendingRemoteDocument) return
+    if (pendingRebase) return
+    if (!editor) return
+    if (!ctx.baseBlocks) return
+    if (changesQuery.isLoading) return
+
+    const baseBlocks = ctx.baseBlocks
+    const remoteDoc = pendingRemoteDocument
+    const mineTouched = ctx.mineTouchedIds
+    const baseDeps = ctx.deps
+    const changesList = (changesQuery.data?.changes ?? []) as Array<{
+      id?: string
+      deps?: string[]
+      author?: string
+      createTime?: string
+    }>
+
+    const timer = setTimeout(() => {
+      const snap = actorRef.getSnapshot()
+      if (!snap.matches('editing')) {
+        console.log('[Rebase hook] skip: not in editing')
+        return
+      }
+      if (!snap.matches({editing: {draft: 'idle'}})) {
+        console.log('[Rebase hook] skip: not idle', snap.value)
+        return
+      }
+      if (!snap.context.pendingRemoteDocument) {
+        console.log('[Rebase hook] skip: pendingRemoteDocument cleared while waiting')
+        return
+      }
+      if (snap.context.pendingRebase) {
+        console.log('[Rebase hook] skip: pendingRebase already set')
+        return
+      }
+
+      const {newCids} = collectNewChangeCids(changesList, remoteDoc.version, baseDeps)
+      console.log('[Rebase hook] newCids from DAG walk', {
+        count: newCids.size,
+        cids: Array.from(newCids),
+        remoteVersion: remoteDoc.version,
+        baseDeps,
+        totalChangesInList: changesList.length,
+      })
+
+      let mineNodes: HMBlockNode[]
+      try {
+        mineNodes = editorBlocksToHMBlockNodes(editor.topLevelBlocks as any)
+      } catch (err) {
+        console.log('[Rebase hook] editorBlocksToHMBlockNodes threw, falling back to baseBlocks', err)
+        mineNodes = baseBlocks
+      }
+
+      const classification = classifyRebase(baseBlocks, mineNodes, remoteDoc.content ?? [], mineTouched, newCids)
+      console.log('[Rebase hook] classification', {
+        autoMergeable: classification.autoMergeable,
+        conflictedBlockIds: classification.conflictedBlockIds,
+        planMineBlocks: Array.from(classification.plan.mineBlocks),
+        planTheirsBlocks: Array.from(classification.plan.theirsBlocks),
+        mineTouchedInput: mineTouched,
+        baseBlockIds: baseBlocks.map((n) => n.block?.id),
+        mineBlockIds: mineNodes.map((n) => n.block?.id),
+        theirsBlockIds: (remoteDoc.content ?? []).map((n) => n.block?.id),
+      })
+
+      if (!classification.autoMergeable) {
+        // Conflict diagnostic: for each conflicted block, dump base/mine/theirs
+        // text + revision so we can see exactly why the classifier flagged it.
+        const indexById = (nodes: HMBlockNode[]) => {
+          const map = new Map<string, HMBlockNode>()
+          const walk = (ns: HMBlockNode[]) => {
+            for (const n of ns) {
+              if (n.block?.id) map.set(n.block.id, n)
+              if (n.children?.length) walk(n.children)
+            }
+          }
+          walk(nodes)
+          return map
+        }
+        const baseMap = indexById(baseBlocks)
+        const mineMap = indexById(mineNodes)
+        const theirsMap = indexById(remoteDoc.content ?? [])
+        const summarize = (n: HMBlockNode | undefined) =>
+          n
+            ? {
+                text: (n.block as any)?.text,
+                revision: (n.block as any)?.revision ?? null,
+                type: (n.block as any)?.type,
+              }
+            : null
+        const conflictDetail = classification.conflictedBlockIds.map((id) => ({
+          id,
+          base: summarize(baseMap.get(id)),
+          mine: summarize(mineMap.get(id)),
+          theirs: summarize(theirsMap.get(id)),
+          mineTouched: mineTouched.includes(id),
+          theirsRevisionInNewCids: (() => {
+            const rev = (theirsMap.get(id)?.block as any)?.revision
+            return typeof rev === 'string' ? newCids.has(rev) : null
+          })(),
+        }))
+        console.log('[Rebase hook] CONFLICT detail', {
+          conflictedBlockIds: classification.conflictedBlockIds,
+          author: authorName,
+          baseDeps,
+          newCidsCount: newCids.size,
+          newCids: Array.from(newCids),
+          remoteVersion: remoteDoc.version,
+          mineTouched,
+          baseBlockIdSet: Array.from(baseMap.keys()),
+          mineBlockIdSet: Array.from(mineMap.keys()),
+          theirsBlockIdSet: Array.from(theirsMap.keys()),
+          structuralMineDeletes: Array.from(baseMap.keys()).filter((id) => !mineMap.has(id)),
+          structuralMineAdds: Array.from(mineMap.keys()).filter((id) => !baseMap.has(id)),
+          structuralTheirsDeletes: Array.from(baseMap.keys()).filter((id) => !theirsMap.has(id)),
+          structuralTheirsAdds: Array.from(theirsMap.keys()).filter((id) => !baseMap.has(id)),
+          conflictDetail,
+        })
+      }
+
+      // Default conflict picks to "mine wins" so the user's in-progress edits
+      // are preserved while non-conflicting blocks fold in from theirs. The
+      // conflict UI (Phase B) can later let the user opt into theirs per block.
+      const conflictPicks: Record<string, 'mine' | 'theirs'> = {}
+      if (!classification.autoMergeable) {
+        for (const id of classification.conflictedBlockIds) {
+          conflictPicks[id] = 'mine'
+        }
+      }
+      const merged = applyRebasePlan(mineNodes, remoteDoc.content ?? [], classification.plan, conflictPicks)
+      console.log('[Rebase hook] applying merge', {
+        mergedBlockIds: merged.map((n) => n.block?.id),
+        author: authorName,
+        autoMergeable: classification.autoMergeable,
+        conflictedBlockIds: classification.conflictedBlockIds,
+      })
+      // Peek the effective suppressRef on the editor right now. The one passed
+      // as prop may have been captured as undefined if it was set on the editor
+      // after useAutoRebase first ran.
+      const liveSuppressRef =
+        suppressChangeRef ??
+        (editor as unknown as {_suppressChangeRef?: {current: boolean}})._suppressChangeRef ??
+        undefined
+      console.log('[Rebase hook] suppressChangeRef present?', {
+        fromProps: !!suppressChangeRef,
+        fromEditor: !!(editor as any)?._suppressChangeRef,
+        willSuppress: !!liveSuppressRef,
+      })
+      const editorBlocks = hmBlocksToEditorContent(merged, {childrenType: 'Group'})
+      const extractText = (b: any): string => {
+        const inline = b?.content
+        if (Array.isArray(inline)) {
+          return inline.map((i: any) => (typeof i?.text === 'string' ? i.text : '')).join('')
+        }
+        return ''
+      }
+      const mergedTextsHM = merged.map((n) => (n.block as any)?.text ?? '')
+      const incomingTexts = (editorBlocks as any[]).map(extractText)
+      const currentTexts = editor.topLevelBlocks.map(extractText)
+      console.log('[Rebase hook] editor before replaceBlocks', {
+        topLevelBlockIds: editor.topLevelBlocks.map((b: any) => b?.id),
+        topLevelBlockTexts: currentTexts,
+        incomingEditorBlockIds: (editorBlocks as any[]).map((b: any) => b?.id),
+        incomingEditorBlockTexts: incomingTexts,
+        mergedHMBlockNodeTexts: mergedTextsHM,
+        textsDiffer: JSON.stringify(currentTexts) !== JSON.stringify(incomingTexts),
+      })
+      // Capture cursor position before applying merge so we can restore it
+      // afterwards. Surgical updateBlock/insertBlocks/removeBlocks calls reset
+      // the selection to the end of the document, which is jarring while the
+      // user is typing.
+      let savedCursorBlockId: string | null = null
+      let savedAbsolutePos: number | null = null
+      try {
+        const cursor = editor.getTextCursorPosition?.()
+        if (cursor?.block?.id) savedCursorBlockId = cursor.block.id
+        const sel = editor._tiptapEditor?.view?.state?.selection
+        const fromCandidate = sel?.from ?? sel?.$anchor?.pos
+        if (typeof fromCandidate === 'number') savedAbsolutePos = fromCandidate
+      } catch {
+        // ignore — best-effort capture
+      }
+
+      const prev = liveSuppressRef?.current ?? false
+      if (liveSuppressRef) liveSuppressRef.current = true
+      try {
+        // BlockNote's `replaceBlocks` keeps existing blocks whose IDs match the incoming
+        // ones — so a naive call with same-id merged blocks is a no-op. Instead apply
+        // surgical ops: updateBlock for existing ids, insertBlocks for mine-only adds,
+        // removeBlocks for structural deletes. This ensures same-id content actually
+        // changes when theirs' text differs from mine's.
+        const canSurgicalUpdate =
+          typeof editor.updateBlock === 'function' &&
+          typeof editor.insertBlocks === 'function' &&
+          typeof editor.removeBlocks === 'function'
+
+        if (canSurgicalUpdate) {
+          const currentBlocks = editor.topLevelBlocks as Array<{id: string}>
+          const currentIds = new Set(currentBlocks.map((b) => b.id))
+          const incomingArr = editorBlocks as Array<{id: string}>
+          const incomingIds = new Set(incomingArr.map((b) => b.id))
+
+          // 1. Remove blocks no longer in merged output.
+          const toRemove = currentBlocks.filter((b) => !incomingIds.has(b.id)).map((b) => b.id)
+          if (toRemove.length) editor.removeBlocks!(toRemove)
+
+          // 2. Update existing blocks + insert new ones in-order.
+          let prevId: string | null = null
+          for (const block of incomingArr) {
+            if (currentIds.has(block.id)) {
+              editor.updateBlock!(block.id, block)
+              prevId = block.id
+            } else {
+              if (prevId) {
+                editor.insertBlocks!([block], prevId, 'after')
+              } else {
+                // No prior anchor yet — insert before the first existing block, or at end.
+                const firstExisting = incomingArr.find((b) => currentIds.has(b.id))
+                if (firstExisting) {
+                  editor.insertBlocks!([block], firstExisting.id, 'before')
+                } else {
+                  // Fallback: use replaceBlocks for the edge case of no existing anchor.
+                  editor.replaceBlocks(editor.topLevelBlocks, [block])
+                }
+              }
+              prevId = block.id
+            }
+          }
+          console.log('[Rebase hook] surgical update applied', {
+            removed: toRemove,
+            total: incomingArr.length,
+          })
+        } else {
+          console.log('[Rebase hook] editor lacks surgical API, falling back to replaceBlocks')
+          editor.replaceBlocks(editor.topLevelBlocks, editorBlocks as unknown[])
+        }
+      } finally {
+        if (liveSuppressRef) liveSuppressRef.current = prev
+      }
+
+      // Restore cursor. Prefer placing it at the saved absolute position so
+      // the user keeps their typing context. If the absolute position falls
+      // outside the rebuilt doc (block was removed) or restoration throws,
+      // fall back to the start of the originally-focused block. As a last
+      // resort, place cursor at end of doc.
+      try {
+        const view = editor._tiptapEditor?.view as any
+        const docSize: number | undefined = view?.state?.doc?.content?.size
+        let restored = false
+        if (view && typeof savedAbsolutePos === 'number' && typeof docSize === 'number') {
+          const safe = Math.min(Math.max(savedAbsolutePos, 0), Math.max(docSize - 1, 0))
+          try {
+            const stateMod = (view as any).state
+            const TextSel = stateMod?.selection?.constructor
+            // ProseMirror's TextSelection is reachable from the existing selection's
+            // prototype chain; try to use its static `create` if available.
+            const TS = (TextSel as any)?.create ? TextSel : null
+            if (TS) {
+              const sel = TS.create(stateMod.doc, safe)
+              view.dispatch(stateMod.tr.setSelection(sel))
+              restored = true
+            }
+          } catch {
+            // fall through to block-level restore
+          }
+        }
+        if (!restored && savedCursorBlockId && typeof editor.setTextCursorPosition === 'function') {
+          const stillExists = editor.topLevelBlocks.some((b: any) => b?.id === savedCursorBlockId)
+          if (stillExists) {
+            editor.setTextCursorPosition(savedCursorBlockId, 'end')
+            restored = true
+          }
+        }
+        if (!restored && typeof editor.setTextCursorPosition === 'function' && editor.topLevelBlocks.length) {
+          const last = editor.topLevelBlocks[editor.topLevelBlocks.length - 1] as any
+          if (last?.id) editor.setTextCursorPosition(last.id, 'end')
+        }
+        console.log('[Rebase hook] cursor restored', {
+          savedCursorBlockId,
+          savedAbsolutePos,
+          restoredViaAbsolute: restored,
+        })
+      } catch (err) {
+        console.log('[Rebase hook] cursor restore failed', err)
+      }
+
+      console.log('[Rebase hook] editor after replaceBlocks', {
+        topLevelBlockIds: editor.topLevelBlocks.map((b: any) => b?.id),
+        topLevelBlockTexts: editor.topLevelBlocks.map((b: any) => {
+          const inline = b?.content
+          if (Array.isArray(inline)) {
+            return inline.map((i: any) => (typeof i?.text === 'string' ? i.text : '')).join('')
+          }
+          return ''
+        }),
+      })
+
+      actorRef.send({type: 'rebase.apply', mergedBlocks: merged, newDocument: remoteDoc})
+      // Kick the autosave pipeline so the merged blocks hit the draft file on disk.
+      // Without this, a reload before the user's next keystroke reverts the merge.
+      actorRef.send({type: 'change'})
+      // If the rebase carried unresolved conflicts, re-record them in machine
+      // context so the UI can surface a "conflicts kept your version" indicator.
+      // Mine-wins picks were already baked into the merged blocks above; this
+      // event is purely informational and does NOT block publish.
+      if (!classification.autoMergeable) {
+        actorRef.send({
+          type: 'rebase.detectConflict',
+          conflictedBlockIds: classification.conflictedBlockIds,
+          author: authorName,
+        })
+      }
+      const postSnap = actorRef.getSnapshot()
+      console.log('[Rebase hook] post-apply state', {
+        stateValue: postSnap.value,
+        publishedVersion: postSnap.context.publishedVersion,
+        deps: postSnap.context.deps,
+        mineTouchedIds: postSnap.context.mineTouchedIds,
+        pendingRemoteDocument: !!postSnap.context.pendingRemoteDocument,
+        pendingRebase: postSnap.context.pendingRebase,
+      })
+      if (!classification.autoMergeable) {
+        onConflictDetected?.({
+          conflictedBlockIds: classification.conflictedBlockIds,
+          author: authorName,
+        })
+      } else {
+        onAutoMerged?.(authorName)
+      }
+    }, idleDebounceMs)
+    return () => clearTimeout(timer)
+  }, [
+    actorRef,
+    isEditing,
+    isIdle,
+    pendingRemoteDocument,
+    pendingRebase,
+    editor,
+    ctx.baseBlocks,
+    ctx.mineTouchedIds,
+    ctx.deps,
+    changesQuery.data,
+    changesQuery.isLoading,
+    authorName,
+    idleDebounceMs,
+    onAutoMerged,
+    onConflictDetected,
+    suppressChangeRef,
+  ])
+}
+
 // Re-export machine and types for convenience
 export {documentMachine} from './document-machine'
-export type {DocumentMachineContext, DocumentMachineEvent, DocumentMachineInput} from './document-machine'
+export type {
+  DocumentMachineContext,
+  DocumentMachineEvent,
+  DocumentMachineInput,
+  PendingRebase,
+} from './document-machine'

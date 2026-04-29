@@ -1,8 +1,8 @@
-import {useCallback, useEffect, useRef, useState} from 'react'
 import {useSelector} from '@xstate/react'
-import {useDocumentMachineRef, type DocumentMachineSnapshot} from './use-document-machine'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import {useUniversalAppContext} from '../routing'
 import type {InspectEntry, InspectEventStore} from './document-machine-inspect'
+import {useDocumentMachineRef, type DocumentMachineSnapshot} from './use-document-machine'
 
 /**
  * Formats a state value into a readable dot-separated path.
@@ -91,7 +91,7 @@ function StatePill({onClick, isOpen}: {onClick: () => void; isOpen: boolean}) {
   return (
     <button
       onClick={onClick}
-      className="fixed right-3 bottom-3 z-[9999] flex items-center gap-1.5 rounded-full border border-neutral-300 bg-neutral-900 px-3 py-1.5 font-mono text-xs text-neutral-100 shadow-lg transition-colors hover:bg-neutral-800 dark:border-neutral-600 dark:bg-neutral-800 dark:hover:bg-neutral-700"
+      className="fixed right-3 bottom-5 z-[9999] flex items-center gap-1.5 rounded-full border border-neutral-300 bg-neutral-900 px-3 py-1.5 font-mono text-xs text-neutral-100 shadow-lg transition-colors hover:bg-neutral-800 dark:border-neutral-600 dark:bg-neutral-800 dark:hover:bg-neutral-700"
       title="Open Document Machine Debug Panel (Cmd+Shift+D)"
       style={{display: isOpen ? 'none' : undefined}}
     >

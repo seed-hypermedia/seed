@@ -13,7 +13,7 @@ import {
 } from '@shm/shared/models/use-document-machine'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {Extension} from '@tiptap/core'
-import {TextSelection} from 'prosemirror-state'
+import {Plugin, PluginKey, TextSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useMemo, useRef} from 'react'
 import {addBlockAtEnd} from './add-block-at-end'
 import {AddBlockAtEndButton} from './add-block-at-end-button'
@@ -209,11 +209,88 @@ export function DocumentEditor({
               }
             },
           }),
+          // Tracks which BlockNote block ids the local user has touched since
+          // entering editing. The ids feed `rebase.blockTouched` so that the
+          // rebase classifier can tell apart locally-edited blocks from
+          // incoming remote edits.
+          Extension.create({
+            name: 'document-rebase-track-touches',
+            priority: 0,
+            addProseMirrorPlugins() {
+              console.log('[Rebase track] addProseMirrorPlugins() called — plugin registered')
+              const pluginKey = new PluginKey('documentRebaseTrackTouches')
+              let scheduled = false
+              let pending = new Set<string>()
+              const flush = () => {
+                scheduled = false
+                if (!pending.size) return
+                const ids = Array.from(pending)
+                pending = new Set()
+                console.log('[Rebase track] emit blockTouched', ids)
+                actorRef.send({type: 'rebase.blockTouched', blockIds: ids})
+              }
+              return [
+                new Plugin({
+                  key: pluginKey,
+                  appendTransaction: (transactions, _oldState, newState) => {
+                    let docChanged = false
+                    for (const tr of transactions) if (tr.docChanged) docChanged = true
+                    if (!docChanged) return null
+                    if (suppressChangeRef.current) {
+                      console.log('[Rebase track] skip: suppressChangeRef set')
+                      return null
+                    }
+                    console.log('[Rebase track] appendTransaction docChanged, walking blocks')
+                    // Walk the new doc, collecting BlockNote block ids whose
+                    // positions map back to any changed range.
+                    newState.doc.descendants((node, pos) => {
+                      if (node.type.name !== 'blockNode') return true
+                      const rawId = node.attrs?.id
+                      if (typeof rawId !== 'string') return true
+                      const from = pos
+                      const to = pos + node.nodeSize
+                      for (const tr of transactions) {
+                        if (!tr.docChanged) continue
+                        for (const step of tr.steps) {
+                          const stepMap = step.getMap()
+                          let intersects = false
+                          stepMap.forEach((oldStart, oldEnd, newStart, newEnd) => {
+                            if (newStart <= to && newEnd >= from) intersects = true
+                          })
+                          if (intersects) {
+                            pending.add(rawId)
+                            break
+                          }
+                        }
+                      }
+                      return true
+                    })
+                    if (pending.size && !scheduled) {
+                      scheduled = true
+                      // rAF-batch so we send at most once per frame.
+                      if (typeof requestAnimationFrame !== 'undefined') {
+                        requestAnimationFrame(flush)
+                      } else {
+                        setTimeout(flush, 0)
+                      }
+                    }
+                    return null
+                  },
+                }),
+              ]
+            },
+          }),
         ],
       },
     },
     [initialContent],
   )
+
+  // Expose the suppress ref on the editor so external consumers (e.g. auto-rebase)
+  // can wrap programmatic `replaceBlocks` calls without triggering `change` events.
+  useEffect(() => {
+    ;(editor as any)._suppressChangeRef = suppressChangeRef
+  }, [editor])
 
   // Notify parent of editor instance (used by desktop to capture ref for draft saving)
   useEffect(() => {

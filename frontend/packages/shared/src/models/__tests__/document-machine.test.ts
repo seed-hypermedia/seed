@@ -109,7 +109,7 @@ describe('DocumentLifecycle machine', () => {
     })
     actor.send({type: 'document.loaded', document: mockDocument})
     // Should auto-transition to editing via shouldAutoEdit
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     expect(actor.getSnapshot().context.draftId).toBe('my-draft')
     expect(actor.getSnapshot().context.shouldAutoEdit).toBe(false) // cleared
     expect(actor.getSnapshot().context.draftContent).toEqual([
@@ -269,7 +269,7 @@ describe('DocumentLifecycle machine', () => {
     actor.start()
     loadDocument(actor)
     actor.send({type: 'edit.start'})
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     // deps should be set from publishedVersion
     expect(actor.getSnapshot().context.deps).toEqual(['bafyabc.bafydef'])
     actor.stop()
@@ -290,7 +290,7 @@ describe('DocumentLifecycle machine', () => {
     loadDocument(actor)
     actor.send({type: 'edit.start'})
     actor.send({type: 'change'})
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'changed', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'changed', saveIndicator: 'hidden', rebase: 'idle'}})
     actor.stop()
   })
 
@@ -303,7 +303,7 @@ describe('DocumentLifecycle machine', () => {
 
     // Wait for autosave timeout (500ms) + buffer
     await new Promise((r) => setTimeout(r, 600))
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     // After creating completes, it goes to idle with draftId set
     expect(actor.getSnapshot().context.draftId).toBe('draft-123')
     expect(actor.getSnapshot().context.draftCreated).toBe(true)
@@ -319,7 +319,7 @@ describe('DocumentLifecycle machine', () => {
 
     await new Promise((r) => setTimeout(r, 600))
     // After saving completes, goes to idle
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     actor.stop()
   })
 
@@ -432,7 +432,7 @@ describe('DocumentLifecycle machine', () => {
     loadDocument(actor)
     actor.send({type: 'edit.start'})
     actor.send({type: 'document.remoteUpdate', document: updatedDoc})
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     expect(actor.getSnapshot().context.pendingRemoteVersion).toBe('bafynewer')
     // publishedVersion stays the same
     expect(actor.getSnapshot().context.publishedVersion).toBe('bafyabc.bafydef')
@@ -443,7 +443,7 @@ describe('DocumentLifecycle machine', () => {
     const actor = createTestActor({existingDraftId: 'existing-draft'})
     actor.start()
     actor.send({type: 'document.loaded', document: mockDocument})
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     actor.stop()
   })
 
@@ -454,7 +454,7 @@ describe('DocumentLifecycle machine', () => {
     actor.send({type: 'edit.start'})
     actor.send({type: 'publish.start'})
     // No draftId, guard blocks transition
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     actor.stop()
   })
 
@@ -486,7 +486,7 @@ describe('DocumentLifecycle machine', () => {
     actor.start()
     loadDocument(actor)
     actor.send({type: 'edit.start'})
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     actor.send({type: 'capability.changed', canEdit: false})
     expect(actor.getSnapshot().value).toBe('loaded')
     expect(actor.getSnapshot().context.canEdit).toBe(false)
@@ -499,7 +499,7 @@ describe('DocumentLifecycle machine', () => {
     loadDocument(actor)
     actor.send({type: 'edit.start'})
     actor.send({type: 'capability.changed', canEdit: true})
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     actor.stop()
   })
 
@@ -519,7 +519,7 @@ describe('DocumentLifecycle machine', () => {
     actor.send({type: 'document.loaded', document: mockDocument})
     // shouldAutoEdit is true (from existingDraftId), draftReady is true,
     // documentReady is now true → transitions to loaded → always to editing
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     actor.stop()
   })
 
@@ -528,7 +528,7 @@ describe('DocumentLifecycle machine', () => {
     actor.start()
     actor.send({type: 'document.loaded', document: mockDocument})
     // auto-transitions to editing because of existingDraftId
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     actor.send({type: 'edit.discard'})
     expect(actor.getSnapshot().value).toBe('loaded')
     expect(actor.getSnapshot().context.draftId).toBeNull()
@@ -550,7 +550,7 @@ describe('DocumentLifecycle machine', () => {
     // Document arrives
     actor.send({type: 'document.loaded', document: mockDocument})
     // Should auto-transition to editing via the always guard
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     expect(actor.getSnapshot().context.shouldAutoEdit).toBe(false) // cleared
     actor.stop()
   })
@@ -562,7 +562,7 @@ describe('DocumentLifecycle machine', () => {
     expect(actor.getSnapshot().value).toBe('loaded')
     // Draft discovered after document loaded
     actor.send({type: 'draft.existing', draftId: 'late-draft'})
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     expect(actor.getSnapshot().context.draftId).toBe('late-draft')
     expect(actor.getSnapshot().context.draftCreated).toBe(true)
     actor.stop()
@@ -632,7 +632,7 @@ describe('DocumentLifecycle machine', () => {
     loadDocument(actor)
     expect(actor.getSnapshot().context.isLatestVersion).toBe(true)
     actor.send({type: 'edit.start'})
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     actor.stop()
   })
 
@@ -653,7 +653,7 @@ describe('DocumentLifecycle machine', () => {
     actor.send({type: 'edit.start'})
     expect(actor.getSnapshot().value).toBe('confirmingOldVersionEdit')
     actor.send({type: 'edit.confirm'})
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     expect(actor.getSnapshot().context.deps).toEqual(['bafyabc.bafydef'])
     actor.stop()
   })
@@ -693,7 +693,7 @@ describe('DocumentLifecycle machine', () => {
     expect(actor.getSnapshot().value).toBe('loaded')
     expect(actor.getSnapshot().context.draftId).toBe('existing-draft')
     actor.send({type: 'edit.start'})
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     actor.stop()
   })
 
@@ -723,7 +723,7 @@ describe('DocumentLifecycle machine', () => {
     expect(actor.getSnapshot().value).toBe('loaded')
     expect(actor.getSnapshot().context.draftId).toBe('draft-new')
     actor.send({type: 'edit.start'})
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     actor.stop()
   })
 
@@ -801,7 +801,7 @@ describe('DocumentLifecycle machine', () => {
       cursorPosition: null,
     })
     actor.send({type: 'document.loaded', document: mockDocument})
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden'}})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     actor.stop()
   })
 

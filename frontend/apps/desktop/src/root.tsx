@@ -266,15 +266,21 @@ function MainApp({}: {}) {
     setShowOnboarding(false)
   }
   useEffect(() => {
+    console.log('[Rebase invalidation] subscribing to queryInvalidation IPC bridge')
     const sub = client.queryInvalidation.subscribe(undefined, {
       // called when invalidation happens in any window (including this one), here we are performing the local invalidation
       onData: (value: unknown) => {
         const queryKey = value as QueryKey
         if (!queryKey) return
+        console.log('[Rebase invalidation] received', queryKey)
         queryClient.invalidateQueries({queryKey})
+      },
+      onError: (err) => {
+        console.log('[Rebase invalidation] subscription error', err)
       },
     })
     return () => {
+      console.log('[Rebase invalidation] unsubscribing from queryInvalidation IPC bridge')
       sub.unsubscribe()
     }
   }, [showOnboarding])

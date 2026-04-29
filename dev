@@ -79,13 +79,157 @@ def main():
 
     @cmd(cmds, "run-desktop", "Run frontend desktop app for development.")
     def run_desktop(args):
-        run("node scripts/cleanup-desktop.js")
+        # run("node scripts/cleanup-desktop.js")
         run("plz build //:pnpm")
 
         if "SEED_NO_DAEMON_SPAWN" not in os.environ:
             run("plz build //backend:seed-daemon")
 
         return run("pnpm desktop", args=args)
+
+    @cmd(
+        cmds,
+        "2-run-desktop",
+        "Run TWO desktop instances: packages SeedDev.app for instance B (alt ports + alt appdata), ad-hoc signs it, launches its binary directly to bypass Gatekeeper, then runs the normal dev in the foreground. Pass --skip-package to reuse the existing packaged build.",
+    )
+    def run_desktop_2(args):
+        import atexit
+        import pathlib
+        import platform
+        import time
+
+        skip_package = "--skip-package" in args
+        forward_args = [a for a in args if a != "--skip-package"]
+
+        # Alt instance ports/appdata — bumped by +100 from the standard dev values in .env.vars.
+        # Packaged bundle is Seed.app (forge.config.ts IS_PROD_DEV reads from package.json,
+        # not an env var). Launching the Mach-O binary directly (not via `open`) avoids
+        # LaunchServices bundle-id registration, so two Seed.app copies coexist fine as long as
+        # their userData paths (VITE_DESKTOP_APPDATA) and daemon ports differ.
+        # Each instance gets its own VITE_VERSION so the in-app version label /
+        # debug indicator make it obvious which window is which. Instance B's
+        # value is baked at package time; instance A's is set at dev launch.
+        instance_a_version = os.environ.get("VITE_VERSION", "0.0.0.local") + "-A"
+        instance_b_version = os.environ.get("VITE_VERSION", "0.0.0.local") + "-B"
+
+        alt_env_overrides = {
+            "VITE_DESKTOP_P2P_PORT": "58100",
+            "VITE_DESKTOP_HTTP_PORT": "58101",
+            "VITE_DESKTOP_GRPC_PORT": "58102",
+            "VITE_METRIC_SERVER_HTTP_PORT": "58103",
+            "VITE_DESKTOP_API_PORT": "58104",
+            "VITE_DESKTOP_APPDATA": "Seed-local-2",
+            "DAEMON_HTTP_PORT": "58101",
+            "DAEMON_HTTP_URL": "http://localhost:58101",
+            "DAEMON_FILE_URL": "http://localhost:58101",
+            "SEED_P2P_PORT": "58100",
+            "SEED_HTTP_PORT": "58101",
+            "SEED_GRPC_PORT": "58102",
+            "SEED_P2P_TESTNET_NAME": os.environ.get("SEED_P2P_TESTNET_NAME", "dev"),
+            "VITE_VERSION": instance_b_version,
+        }
+
+        desktop_dir = pathlib.Path("frontend/apps/desktop").resolve()
+        system = platform.system()
+        machine = platform.machine()
+        arch = "arm64" if machine in ("arm64", "aarch64") else "x64"
+
+        if system == "Darwin":
+            app_bundle = desktop_dir / "out" / f"Seed-darwin-{arch}" / "Seed.app"
+            binary_path = app_bundle / "Contents" / "MacOS" / "Seed"
+        elif system == "Linux":
+            app_bundle = desktop_dir / "out" / f"Seed-linux-{arch}"
+            binary_path = app_bundle / "Seed"
+        else:
+            app_bundle = desktop_dir / "out" / f"Seed-win32-{arch}"
+            binary_path = app_bundle / "Seed.exe"
+
+        if skip_package:
+            print(
+                "⚠️  --skip-package: Instance B will run the EXISTING packaged bundle. "
+                "If you've changed renderer/main source since the last package, the dev "
+                "instance (A) will see your changes but the packaged instance (B) will "
+                "NOT. Re-run without --skip-package to repackage with current source."
+            )
+
+        if not skip_package:
+            run("node scripts/cleanup-desktop.js")
+            run("plz build //:pnpm")
+            if "SEED_NO_DAEMON_SPAWN" not in os.environ:
+                run("plz build //backend:seed-daemon")
+
+            package_env = os.environ.copy()
+            package_env.update(alt_env_overrides)
+            print(
+                "📦 Packaging Seed.app for instance B (alt ports + alt appdata '{}')…".format(
+                    alt_env_overrides["VITE_DESKTOP_APPDATA"]
+                )
+            )
+            run("pnpm --filter @shm/desktop package", env=package_env)
+
+        if not binary_path.exists():
+            print(f"❌ Packaged binary not found at {binary_path}. Re-run without --skip-package.")
+            sys.exit(1)
+
+        # macOS bundle: ad-hoc codesign + strip quarantine xattr. Launching the
+        # Mach-O binary directly (not via `open`) bypasses Gatekeeper's
+        # LaunchServices check, but hardened-runtime Electron still needs a
+        # valid (ad-hoc) signature or it fails with "cannot be opened because
+        # of a problem." Sign AFTER any file mutations.
+        if system == "Darwin":
+            subprocess.run(
+                f'xattr -cr "{app_bundle}" 2>/dev/null || true',
+                shell=True,
+            )
+            sign = subprocess.run(
+                f'codesign --force --deep --sign - "{app_bundle}"',
+                shell=True,
+                capture_output=True,
+            )
+            if sign.returncode != 0:
+                print("⚠️  codesign --sign - failed:")
+                print(sign.stderr.decode("utf-8", errors="replace"))
+
+        log_path = os.path.abspath(".ai/desktop-2.log")
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        instance_b_log = open(log_path, "w")
+        print(f"📝 Instance B logs → {log_path}")
+        print(f"🅱️  Launching {binary_path} (version '{instance_b_version}')")
+        instance_b_env = os.environ.copy()
+        instance_b_env.update(alt_env_overrides)
+        instance_b = subprocess.Popen(
+            [str(binary_path)],
+            env=instance_b_env,
+            stdout=instance_b_log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+
+        def stop_instance_b():
+            if instance_b.poll() is None:
+                print(f"🛑 Stopping instance B (pid {instance_b.pid})…")
+                try:
+                    os.killpg(os.getpgid(instance_b.pid), 15)
+                except ProcessLookupError:
+                    pass
+
+        atexit.register(stop_instance_b)
+
+        # Give instance B a couple of seconds to fail fast on bad bundle / signing
+        # before we fire up instance A.
+        for _ in range(3):
+            time.sleep(1)
+            if instance_b.poll() is not None:
+                print(f"❌ Instance B exited early (code {instance_b.returncode}). Check {log_path}.")
+                sys.exit(1)
+
+        print(f"🅰️  Starting instance A (dev ports, appdata 'Seed-local', version '{instance_a_version}')…")
+        instance_a_env = os.environ.copy()
+        instance_a_env["VITE_VERSION"] = instance_a_version
+        try:
+            return run("pnpm desktop", args=forward_args, env=instance_a_env)
+        finally:
+            stop_instance_b()
 
     @cmd(cmds, "run-desktop-mainnet", "Run frontend desktop app for dev, on mainnet.")
     def run_desktop_mainnet(args):
