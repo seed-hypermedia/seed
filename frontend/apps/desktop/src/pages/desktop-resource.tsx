@@ -260,13 +260,17 @@ export default function DesktopResourcePage() {
         //   1. Legacy location-only drafts (no editUid) — clearly new docs.
         //   2. "Claimed" drafts (editUid+editPath set) where the doc at that
         //      path doesn't exist yet — also new docs (e.g. inline card flow).
+        // Path encoding must match `hmIdPathToEntityQueryPath`: the daemon
+        // expects `''` for the root home doc, not `'/'` — passing `'/'`
+        // resolves to "not found" and would misclassify a home-doc edit as a
+        // first publish, redirecting it to a brand-new child slug.
         let isFirstPublish = !draftData.editUid
         if (!isFirstPublish && draftData.editUid) {
           try {
-            const editPathString = '/' + (draftData.editPath ?? []).join('/')
+            const editPathString = (draftData.editPath ?? []).filter((term) => !!term).join('/')
             const existing = await grpcClient.documents.getDocument({
               account: draftData.editUid,
-              path: editPathString,
+              path: editPathString ? `/${editPathString}` : '',
             })
             if (!existing?.version) isFirstPublish = true
           } catch {
@@ -277,8 +281,11 @@ export default function DesktopResourcePage() {
         // For first publish, compute the destination path from the title slug
         // (the route URL holds the temporary `-${draftId}` slug). For re-publishes,
         // keep the existing route id as the destination so the path doesn't change.
+        // The home doc (editPath = []) is never a first publish — it always exists
+        // at the root once the account is created — so this branch is skipped for it.
         let publishDestinationId = input.documentId
-        if (isFirstPublish && draftData.editUid) {
+        const isHomeDocEdit = (draftData.editPath ?? []).length === 0
+        if (isFirstPublish && draftData.editUid && !isHomeDocEdit) {
           const newPath = computeInlineDraftPublishPath(
             draftData.editPath ?? [],
             draftData.metadata?.name || '',
