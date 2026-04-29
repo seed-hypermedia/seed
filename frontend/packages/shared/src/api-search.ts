@@ -43,6 +43,21 @@ export const Search: HMRequestImplementation<HMSearchRequest> = {
               type: 'contact' as const,
             }
           }
+          if (entity.type === 'comment') {
+            const docId = unpackHmId(entity.docId)
+            return docId
+              ? {
+                  id: docId,
+                  commentId: entity.id.replace(/^hm:\/\//, ''),
+                  title: entity.content,
+                  parentNames: entity.parentNames,
+                  icon: entity.icon,
+                  versionTime: entity.versionTime ? entity.versionTime.toDate().toLocaleString() : undefined,
+                  searchQuery: query,
+                  type: 'comment' as const,
+                }
+              : undefined
+          }
           return id
             ? {
                 id,

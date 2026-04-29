@@ -176,6 +176,8 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 			if err != nil {
 				return nil, err
 			}
+			pb.TargetAccount = acc.String()
+			pb.TargetPath = in.TargetPath
 
 			resp.Comments = append(resp.Comments, pb)
 		}
@@ -282,6 +284,48 @@ func (srv *Server) commentDBMapper() sqlitex.MapperFunc[indexedComment] {
 }
 
 var qIterComments = dqb.Str(`
+	WITH RECURSIVE
+	latest_document_generations AS (
+		SELECT dg.*
+		FROM document_generations dg
+		GROUP BY dg.resource
+		HAVING dg.generation = MAX(dg.generation)
+	),
+	comment_resource_chain(origin_resource, resource, iri, depth) AS (
+		SELECT DISTINCT
+			sb.resource,
+			sb.resource,
+			r.iri,
+			0
+		FROM structural_blobs sb
+		JOIN resources r ON r.id = sb.resource
+		WHERE sb.type = 'Comment'
+		AND sb.resource IS NOT NULL
+
+		UNION ALL
+
+		SELECT
+			cr.origin_resource,
+			target.id,
+			target.iri,
+			cr.depth + 1
+		FROM comment_resource_chain cr
+		JOIN latest_document_generations dg ON dg.resource = cr.resource
+		JOIN resources target ON target.iri = dg.metadata->>'$."$db.redirect".v'
+		WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
+		AND target.id != cr.resource
+		AND cr.depth < 16
+	),
+	effective_comment_resources AS (
+		SELECT origin_resource, resource, iri
+		FROM (
+			SELECT
+				cr.*,
+				ROW_NUMBER() OVER (PARTITION BY cr.origin_resource ORDER BY cr.depth DESC) rn
+			FROM comment_resource_chain cr
+		)
+		WHERE rn = 1
+	)
 	SELECT
 		sb.id,
         b.codec,
@@ -293,8 +337,9 @@ var qIterComments = dqb.Str(`
         	sb.*,
          	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
         FROM structural_blobs sb
+		JOIN effective_comment_resources ecr ON ecr.origin_resource = sb.resource
   		WHERE sb.type = 'Comment'
-    	AND sb.resource = (SELECT id FROM resources WHERE iri = :iri)
+		AND ecr.iri = :iri
 	) sb
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.rn = 1
@@ -303,6 +348,48 @@ var qIterComments = dqb.Str(`
 `)
 
 var qIterCommentsPublicOnly = dqb.Str(`
+	WITH RECURSIVE
+	latest_document_generations AS (
+		SELECT dg.*
+		FROM document_generations dg
+		GROUP BY dg.resource
+		HAVING dg.generation = MAX(dg.generation)
+	),
+	comment_resource_chain(origin_resource, resource, iri, depth) AS (
+		SELECT DISTINCT
+			sb.resource,
+			sb.resource,
+			r.iri,
+			0
+		FROM structural_blobs sb
+		JOIN resources r ON r.id = sb.resource
+		WHERE sb.type = 'Comment'
+		AND sb.resource IS NOT NULL
+
+		UNION ALL
+
+		SELECT
+			cr.origin_resource,
+			target.id,
+			target.iri,
+			cr.depth + 1
+		FROM comment_resource_chain cr
+		JOIN latest_document_generations dg ON dg.resource = cr.resource
+		JOIN resources target ON target.iri = dg.metadata->>'$."$db.redirect".v'
+		WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
+		AND target.id != cr.resource
+		AND cr.depth < 16
+	),
+	effective_comment_resources AS (
+		SELECT origin_resource, resource, iri
+		FROM (
+			SELECT
+				cr.*,
+				ROW_NUMBER() OVER (PARTITION BY cr.origin_resource ORDER BY cr.depth DESC) rn
+			FROM comment_resource_chain cr
+		)
+		WHERE rn = 1
+	)
 	SELECT
 		sb.id,
         b.codec,
@@ -314,8 +401,9 @@ var qIterCommentsPublicOnly = dqb.Str(`
         	sb.*,
          	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
         FROM structural_blobs sb
+		JOIN effective_comment_resources ecr ON ecr.origin_resource = sb.resource
   		WHERE sb.type = 'Comment'
-    	AND sb.resource = (SELECT id FROM resources WHERE iri = :iri)
+		AND ecr.iri = :iri
 	) sb
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.rn = 1

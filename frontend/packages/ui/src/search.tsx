@@ -319,7 +319,8 @@ export function SearchResultItem({
 }) {
   const elm = useRef<HTMLDivElement>(null)
   const collapsedPath = useCollapsedPath(item.path ?? [], elm)
-  const unpackedId = unpackHmId(item.key)
+  const routeKey = item.key.split(':comments/')[0] || item.key
+  const unpackedId = unpackHmId(routeKey)
 
   useIsomorphicLayoutEffect(() => {
     if (selected) {
@@ -327,7 +328,7 @@ export function SearchResultItem({
     }
   }, [selected])
 
-  const navigateProps = useRouteLinkHref(item.key)
+  const navigateProps = useRouteLinkHref(routeKey)
 
   const selectProps = item.onSelect
     ? {

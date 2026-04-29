@@ -1452,14 +1452,24 @@ export function useMoveDocument() {
       push(to)
     },
     onSuccess: (_, {from, to}) => {
+      invalidateQueries([queryKeys.ENTITY, from.id])
+      invalidateQueries([queryKeys.ENTITY, to.id])
+      invalidateQueries([queryKeys.RESOLVED_ENTITY, from.id])
+      invalidateQueries([queryKeys.RESOLVED_ENTITY, to.id])
+      invalidateQueries([queryKeys.SEARCH])
+      invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
+      invalidateQueries([queryKeys.SITE_LIBRARY, from.uid])
+      invalidateQueries([queryKeys.SITE_LIBRARY, to.uid])
       invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, from.id])
       invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, to.id])
       getParentPaths(from.path).forEach((path) => {
         const parentId = hmId(from.uid, {path})
+        invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
         invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentId.id])
       })
       getParentPaths(to.path).forEach((path) => {
         const parentId = hmId(to.uid, {path})
+        invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
         invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentId.id])
       })
     },
