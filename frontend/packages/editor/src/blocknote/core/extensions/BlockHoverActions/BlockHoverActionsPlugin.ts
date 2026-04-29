@@ -40,6 +40,13 @@ type BlockHoverActionsEvents = {
   update: [BlockHoverActionsState]
 }
 
+/** Block types to suppress showing hover action buttons in mobile */
+const TOUCH_SUPPRESSED_BLOCK_CONTENT_TYPES = new Set(['query', 'button'])
+
+/** True when the device cannot hover (phone/tablet). Cached at module load. */
+const isTouchOnlyDevice =
+  typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(hover: none)').matches : false
+
 // ---------------------------------------------------------------------------
 // ProseMirror PluginView
 // ---------------------------------------------------------------------------
@@ -174,6 +181,16 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     if (!blockId) {
       this.hide()
       return
+    }
+
+    // On touch-only devices, suppress for block types whose own click action
+    // competes with the hover action buttons.
+    if (isTouchOnlyDevice) {
+      const contentType = blockElement.querySelector('[data-content-type]')?.getAttribute('data-content-type')
+      if (contentType && TOUCH_SUPPRESSED_BLOCK_CONTENT_TYPES.has(contentType)) {
+        this.hide()
+        return
+      }
     }
 
     // If we are already showing for this exact block, do nothing.
