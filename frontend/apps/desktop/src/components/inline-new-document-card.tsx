@@ -71,9 +71,7 @@ export function InlineNewDocumentCard({draft, autoFocus}: {draft: HMListedDraft;
     // For older drafts created before that change (location-only, no editUid),
     // backfill the edit path so the unified editor can find them.
     let editUid = draft.editUid ?? draft.locationUid
-    let editPath = draft.editPath?.length
-      ? draft.editPath
-      : [...(draft.locationPath ?? []), `-${draft.id}`]
+    let editPath = draft.editPath?.length ? draft.editPath : [...(draft.locationPath ?? []), `-${draft.id}`]
     if (!editUid) {
       toast.error('Cannot open draft: missing target location')
       return
@@ -82,7 +80,7 @@ export function InlineNewDocumentCard({draft, autoFocus}: {draft: HMListedDraft;
     try {
       const fullDraft = await client.drafts.get.query(draft.id)
       if (!fullDraft) throw new Error(`Draft ${draft.id} not found`)
-      const needsBackfill = !fullDraft.editUid || !(fullDraft.editPath?.length)
+      const needsBackfill = !fullDraft.editUid || !fullDraft.editPath?.length
       await client.drafts.write.mutate({
         id: fullDraft.id,
         editUid,

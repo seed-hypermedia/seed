@@ -421,10 +421,7 @@ export function ResourcePage({
   }
 
   // Handle private document (permission denied)
-  if (
-    resource.data?.type === 'error' &&
-    resource.data.message.toLowerCase().includes('permission')
-  ) {
+  if (resource.data?.type === 'error' && resource.data.message.toLowerCase().includes('permission')) {
     return (
       <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <PagePrivate />

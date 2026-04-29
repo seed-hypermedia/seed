@@ -127,21 +127,18 @@ export default function DesktopResourcePage() {
   // When another window writes to this draft (e.g. an auto-link append),
   // the editor's in-memory ProseMirror state is stale. Show a persistent
   // toast that the user can click to reload the page.
-  const handleDraftExternallyModified = useCallback(
-    (event: {type: 'draft_externally_modified'; draftId: string}) => {
-      const id = currentDraftIdRef.current
-      if (!id || event.draftId !== id) return
-      toast.message('This draft was updated in another window', {
-        id: `draft-externally-modified-${id}`,
-        duration: Infinity,
-        action: {
-          label: 'Reload page',
-          onClick: () => window.location.reload(),
-        },
-      })
-    },
-    [],
-  )
+  const handleDraftExternallyModified = useCallback((event: {type: 'draft_externally_modified'; draftId: string}) => {
+    const id = currentDraftIdRef.current
+    if (!id || event.draftId !== id) return
+    toast.message('This draft was updated in another window', {
+      id: `draft-externally-modified-${id}`,
+      duration: Infinity,
+      action: {
+        label: 'Reload page',
+        onClick: () => window.location.reload(),
+      },
+    })
+  }, [])
   useListenAppEvent('draft_externally_modified', handleDraftExternallyModified)
 
   // Developer tools: XState inspect callback + event store (when enabled)
