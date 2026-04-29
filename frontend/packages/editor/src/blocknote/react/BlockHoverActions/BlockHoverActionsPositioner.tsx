@@ -131,16 +131,33 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
   // cursor can travel from the block into the buttons without crossing a gap
   // and losing hover; small padding on the right keeps outward mouse travel
   // forgiving too.
+  //
+  // On narrow viewports (mobile) the block typically fills the screen, so
+  // the default left-anchored positioning would push the second button past
+  // the right edge and clip it. Detect that case and pin the card to the
+  // viewport's right edge instead so all buttons stay visible.
   const OVERLAP_PX = 8
   const TOP_OFFSET_PX = -16
-  const style: React.CSSProperties = {
-    position: 'fixed',
-    top: rect.top + TOP_OFFSET_PX,
-    left: rect.right - OVERLAP_PX,
-    zIndex: 50,
-    paddingLeft: OVERLAP_PX,
-    paddingRight: 4,
-  }
+  // Generous estimate so the overflow check still fires when the popover is
+  // wider than expected.
+  const POPOVER_WIDTH_ESTIMATE_PX = 120
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : Infinity
+  const wouldOverflow = rect.right - OVERLAP_PX + POPOVER_WIDTH_ESTIMATE_PX > viewportWidth
+  const style: React.CSSProperties = wouldOverflow
+    ? {
+        position: 'fixed',
+        top: rect.top + TOP_OFFSET_PX,
+        right: 4,
+        zIndex: 50,
+      }
+    : {
+        position: 'fixed',
+        top: rect.top + TOP_OFFSET_PX,
+        left: rect.right - OVERLAP_PX,
+        zIndex: 50,
+        paddingLeft: OVERLAP_PX,
+        paddingRight: 4,
+      }
 
   return (
     <div
