@@ -1,5 +1,5 @@
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
-import {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
+import {HMBlockNode, HMDocument, HMMetadata, HMNavigationItem} from '@seed-hypermedia/client/hm-types'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {useActorRef, useSelector} from '@xstate/react'
@@ -407,6 +407,11 @@ export function selectMetadata(snapshot: DocumentMachineSnapshot): HMMetadata {
   return snapshot.context.metadata
 }
 
+/** Pending site-header navigation changes set during this editing session (home doc only). */
+export function selectNavigation(snapshot: DocumentMachineSnapshot): HMNavigationItem[] | undefined {
+  return snapshot.context.navigation
+}
+
 /** The current error, if any (available in both loading and error states). */
 export function selectError(snapshot: DocumentMachineSnapshot): unknown {
   return snapshot.context.error
@@ -511,6 +516,17 @@ export function useDocumentSend(actorRef?: DocumentMachineActorRef) {
   const contextRef = useDocumentMachineRef()
   const ref = actorRef ?? contextRef
   return ref.send as (event: DocumentMachineEvent) => void
+}
+
+/**
+ * Read the in-flight site-header navigation from the document machine, safely.
+ * Returns `undefined` when outside a `DocumentMachineProvider` or when no
+ * navigation edits are pending — callers should fall back to the published
+ * navigation block in that case.
+ */
+export function useDocumentNavigationOptional(): HMNavigationItem[] | undefined {
+  const actorRef = useDocumentMachineRefOptional()
+  return useSelector(actorRef ?? undefined, (snapshot) => (snapshot ? selectNavigation(snapshot) : undefined))
 }
 
 /**

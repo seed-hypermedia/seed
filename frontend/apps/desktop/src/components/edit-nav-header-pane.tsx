@@ -2,16 +2,12 @@ import {EditNavPopover} from '@/components/edit-navigation-popover'
 import {HMNavigationItem, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
-import {DocumentMachineSnapshot, useDocumentSelector, useDocumentSend} from '@shm/shared/models/use-document-machine'
-
-function selectMachineNavigation(snapshot: DocumentMachineSnapshot): HMNavigationItem[] | undefined {
-  return snapshot.context.navigation
-}
+import {useDocumentNavigationOptional, useDocumentSend} from '@shm/shared/models/use-document-machine'
 
 export function EditNavHeaderPane({homeId}: {homeId: UnpackedHypermediaId}) {
   const {canEdit, beginEditIfNeeded} = useEditorGate()
   const send = useDocumentSend()
-  const machineNavigation = useDocumentSelector(selectMachineNavigation)
+  const machineNavigation = useDocumentNavigationOptional()
   const homeResource = useResource(homeId, {subscribed: true})
   const homeDocument = homeResource.data?.type === 'document' ? homeResource.data.document : null
 

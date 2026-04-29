@@ -10,11 +10,13 @@ import {
   selectDraftId,
   selectEditorBaseline,
   selectMetadata,
+  selectNavigation,
   selectSaveIndicatorStatus,
   selectSaveStatus,
   useDocumentSelector,
   useDocumentSend,
 } from '@shm/shared/models/use-document-machine'
+import {getNavigationChanges} from '@/models/navigation'
 import {type AnyTimestamp, formattedDateMedium, formattedDateShort, normalizeDate} from '@shm/shared/utils/date'
 import {compareBlocksWithMap, createBlocksMap, extractDeletes} from '@shm/shared/utils/document-changes'
 import {createSiteUrl, createWebHMUrl, hmId} from '@shm/shared/utils/entity-id-url'
@@ -74,19 +76,25 @@ function useUnpublishedChangeCount(): number {
   const handlersRef = useEditorHandlersRef()
   const baseline = useDocumentSelector(selectEditorBaseline)
   const metadata = useDocumentSelector(selectMetadata)
+  const navigation = useDocumentSelector(selectNavigation)
+  const publishedDoc = useDocumentSelector(selectDocument)
   const saveStatus = useDocumentSelector(selectSaveStatus)
 
   return useMemo(() => {
     const metadataChangeCount = Object.keys(metadata ?? {}).length
-    if (!baseline) return metadataChangeCount
+    // Site-header nav edits don't touch the editor or metadata, so count
+    // them via the same diff used at publish time. `navigation === undefined`
+    // means no nav edits this session — return 0 ops.
+    const navigationChangeCount = getNavigationChanges(navigation, publishedDoc?.detachedBlocks?.navigation).length
+    if (!baseline) return metadataChangeCount + navigationChangeCount
     const editorBlocks = handlersRef.current?.getCurrentBlocks() ?? []
-    if (editorBlocks.length === 0) return metadataChangeCount
+    if (editorBlocks.length === 0) return metadataChangeCount + navigationChangeCount
     const baselineMap = createBlocksMap(editorBlocksToHMBlockNodes(baseline), '')
     const {changes, touchedBlocks} = compareBlocksWithMap(baselineMap, editorBlocks, '')
     const deletes = extractDeletes(baselineMap, touchedBlocks)
-    return changes.length + deletes.length + metadataChangeCount
+    return changes.length + deletes.length + metadataChangeCount + navigationChangeCount
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseline, metadata, saveStatus, handlersRef])
+  }, [baseline, metadata, navigation, publishedDoc, saveStatus, handlersRef])
 }
 
 /** The public URL where this document is or will be available. */

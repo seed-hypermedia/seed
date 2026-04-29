@@ -42,6 +42,7 @@ import {
   useAutoRebase,
   useCapabilitySync,
   useDocumentMachineRef,
+  useDocumentNavigationOptional,
   useDocumentSelector,
   useDocumentSend,
   useDocumentSync,
@@ -688,6 +689,30 @@ export function PageWrapper({
   const media = useMedia()
   const isMobile = media.xs && !IS_DESKTOP
 
+  // Live-preview the in-flight nav while the user edits the home doc, so
+  // additions/reorders/deletions in the EditNavPopover show immediately in
+  // the visible site header. Mirrors the legacy draft route at
+  // frontend/apps/desktop/src/pages/draft.tsx:880-893. Returns undefined
+  // outside DocumentMachineProvider (loading/error/discovery branches), in
+  // which case we fall back to the published headerData.items.
+  const machineNav = useDocumentNavigationOptional()
+  const isHomeDoc = !docId.path?.length
+  const liveItems: DocNavigationItem[] | undefined =
+    isHomeDoc && machineNav
+      ? machineNav.map((n) => {
+          const id = unpackHmId(n.link)
+          return {
+            key: n.id,
+            id: id ?? undefined,
+            webUrl: id ? undefined : n.link,
+            draftId: undefined,
+            metadata: {name: n.text || ''},
+            isPublished: true,
+          } satisfies DocNavigationItem
+        })
+      : undefined
+  const itemsForHeader = liveItems ?? headerData.items
+
   return (
     <div
       style={
@@ -705,7 +730,7 @@ export function PageWrapper({
       <SiteHeader
         siteHomeId={siteHomeId}
         docId={docId}
-        items={headerData.items}
+        items={itemsForHeader}
         homeNavigationItems={headerData.homeNavigationItems}
         directoryItems={headerData.directoryItems}
         isCenterLayout={headerData.isCenterLayout}
