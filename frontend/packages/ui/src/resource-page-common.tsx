@@ -20,7 +20,6 @@ import {
 import {useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
 import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import type {BlockRangeSelectOptions, DocumentContentProps} from '@shm/shared/document-content-props'
-import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {
   useAccount,
   useAccountsMetadata,
@@ -336,12 +335,11 @@ export function ResourcePage({
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
   const homeDirectory = useDirectory(siteHomeId)
   const isLatest = useIsLatest(docId, resource)
-  const canSeePrivate = useCanSeePrivateDocs(docId)
 
   const siteHomeDocument = siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
 
   // Compute header data
-  const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data, canSeePrivate)
+  const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data)
 
   // Comment handling: when resource is a comment, resolve and load its target document.
   // Hooks must be called unconditionally, so we always call useResource for the target
@@ -620,7 +618,6 @@ export function computeHeaderData(
   siteHomeId: UnpackedHypermediaId,
   siteHomeDocument: HMDocument | null,
   directory: ReturnType<typeof useDirectory>['data'],
-  includePrivate: boolean = false,
 ): HeaderData {
   // Compute navigation items from home document's navigation block
   const navigationBlockNode = siteHomeDocument?.detachedBlocks?.navigation
@@ -642,10 +639,12 @@ export function computeHeaderData(
         .filter((item): item is DocNavigationItem => item !== null) ?? []
     : []
 
+  // Site-header fallback must NEVER include private documents — even for editors
+  // who can otherwise see them. Editors who want a private doc in the nav must
+  // add it explicitly to the home document's `navigation` detached block.
   const directoryItems = getSiteNavDirectory({
     id: siteHomeId,
     directory: directory ?? undefined,
-    includePrivate,
   })
 
   const items = homeNavigationItems.length > 0 ? homeNavigationItems : directoryItems

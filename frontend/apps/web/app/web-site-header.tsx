@@ -1,6 +1,5 @@
 import {HMDocument, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from '@shm/shared'
-import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
@@ -62,13 +61,14 @@ export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSit
         .filter((item) => !!item) || []
     : []
 
-  const canSeePrivate = useCanSeePrivateDocs(props.siteHomeId)
+  // Site-header fallback must NEVER include private documents — even for editors
+  // who can otherwise see them. Editors who want a private doc in the nav must
+  // add it explicitly to the home document's `navigation` detached block.
   const directoryResults = homeDirectoryQuery.data
   const directoryItems = props.siteHomeId
     ? getSiteNavDirectory({
         id: props.siteHomeId,
         directory: directoryResults ?? undefined,
-        includePrivate: canSeePrivate,
       })
     : []
 

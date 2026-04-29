@@ -36,7 +36,6 @@ import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {extractRefs, getAnnotations} from '@shm/shared/content'
 import {prepareHMDocument} from '@shm/shared/document-utils'
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
-import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {prepareHMDocumentInfo, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {invalidateQueries, setQueriesDataByKey} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -1455,7 +1454,6 @@ export function useSiteNavigationItems(
     mode: 'Children',
   })
   const drafts = useAccountDraftList(siteHomeEntity?.id?.uid)
-  const canSeePrivate = useCanSeePrivateDocs(siteHomeEntity?.id)
   if (!siteHomeEntity) return null
   const navNode = siteHomeEntity.document?.detachedBlocks?.navigation
   const navItems: DocNavigationItem[] = navNode
@@ -1474,11 +1472,13 @@ export function useSiteNavigationItems(
           } satisfies DocNavigationItem
         })
         .filter((b) => !!b) || []
-    : getSiteNavDirectory({
+    : // Site-header fallback must NEVER include private documents — even for
+      // editors. Editors who want a private doc in the nav must add it
+      // explicitly to the home document's `navigation` detached block.
+      getSiteNavDirectory({
         id: siteHomeEntity.id,
         directory: homeDir.data,
         drafts: drafts.data,
-        includePrivate: canSeePrivate,
       })
   return navItems
 }
