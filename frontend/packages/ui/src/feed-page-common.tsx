@@ -1,6 +1,5 @@
 import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
-import {useCanSeePrivateDocs} from '@shm/shared/models/capabilities'
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -28,12 +27,10 @@ export function FeedPage({docId, extraMenuItems, rightActions}: FeedPageProps) {
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
   const homeDirectory = useDirectory(siteHomeId)
 
-  const canSeePrivate = useCanSeePrivateDocs(docId)
-
   const siteHomeDocument: HMDocument | null =
     siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
 
-  const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data, canSeePrivate)
+  const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data)
 
   const targetDomain = siteHomeDocument?.metadata?.siteUrl || undefined
 

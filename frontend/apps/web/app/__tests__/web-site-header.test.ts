@@ -1,15 +1,12 @@
 import {describe, expect, it, vi} from 'vitest'
 import type {DocNavigationItem} from '@shm/ui/navigation'
+import {getSiteNavDirectory} from '@shm/ui/navigation'
+import type {HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 
 vi.mock('@shm/shared', () => ({unpackHmId: vi.fn()}))
-vi.mock('@shm/shared/models/capabilities', () => ({useCanSeePrivateDocs: vi.fn()}))
 vi.mock('@shm/shared/constants', () => ({NOTIFY_SERVICE_HOST: ''}))
 vi.mock('@shm/shared/models/entity', () => ({useDirectory: vi.fn(), useResource: vi.fn()}))
 vi.mock('@shm/ui/hm-host-banner', () => ({HypermediaHostBanner: vi.fn()}))
-vi.mock('@shm/ui/navigation', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@shm/ui/navigation')>()
-  return {...actual, getSiteNavDirectory: vi.fn()}
-})
 vi.mock('@shm/ui/site-header', () => ({SiteHeader: vi.fn()}))
 
 import {resolveNavigationItems} from '../web-site-header'
@@ -69,5 +66,58 @@ describe('resolveNavigationItems', () => {
       directoryItems: [],
     })
     expect(result).toEqual([])
+  })
+})
+
+describe('site-header directory fallback (regression for #418)', () => {
+  function makeId(uid: string, path?: string[]): UnpackedHypermediaId {
+    return {
+      uid,
+      path: path ?? null,
+      version: null,
+      blockRef: null,
+      blockRange: null,
+      hostname: null,
+      scheme: null,
+      latest: null,
+      id: `${uid}/${path?.join('/') ?? ''}`,
+    }
+  }
+
+  function makeDocInfo(uid: string, path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE'): HMDocumentInfo {
+    const ts = '2024-01-01T00:00:00Z'
+    return {
+      type: 'document',
+      id: makeId(uid, path),
+      path,
+      authors: [uid],
+      createTime: ts,
+      updateTime: ts,
+      sortTime: new Date(ts),
+      genesis: 'genesis',
+      version: 'v1',
+      breadcrumbs: [],
+      activitySummary: {commentCount: 0, latestCommentId: '', latestChangeTime: ts, isUnread: false},
+      generationInfo: {genesis: 'genesis', generation: 1n},
+      metadata: {name},
+      visibility,
+    }
+  }
+
+  // The site header builds its directory fallback by calling
+  // `getSiteNavDirectory({id, directory})` with NO `includePrivate` flag.
+  // This locks in that contract: with no flag, private docs must be excluded —
+  // even when the underlying directory query returned them (which happens for
+  // any viewer with writer+ capability on the site home).
+  it('excludes private docs when called the way WebSiteHeader calls it', () => {
+    const homeId = makeId('alice')
+    const directory: HMDocumentInfo[] = [
+      makeDocInfo('alice', ['public-doc'], 'Public Doc', 'PUBLIC'),
+      makeDocInfo('alice', ['private-doc'], 'Private Doc', 'PRIVATE'),
+    ]
+    const items = getSiteNavDirectory({id: homeId, directory})
+    const names = items.map((i) => i.metadata.name)
+    expect(names).toContain('Public Doc')
+    expect(names).not.toContain('Private Doc')
   })
 })
