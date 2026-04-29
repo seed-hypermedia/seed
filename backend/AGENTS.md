@@ -7,6 +7,10 @@
 - For bug fixes, add a failing test first when practical.
 - Before finishing backend work, run `go test ./backend/...` and
   `golangci-lint run --new-from-merge-base origin/main ./backend/...`.
+- For full CI parity before pushing, validate locally via agent-ci:
+  - Lint (fast): `npx @redwoodjs/agent-ci run -w .github/workflows/lint-go.yml -p`
+  - Tests (CPU llama build cached after first run): `npx @redwoodjs/agent-ci run -w .github/workflows/test-go.yml -p`
+  - See `docs/local-ci-with-agent-ci.md` for setup and the fix-and-retry loop.
 - Run the entire set of tests. Don't bother going bottom-up — go caches test results efficiently.
 - Use `go install ./backend/...` when you just need a compile-only check.
 - Follow common Go-specific naming conventions, and avoid stutter in naming.

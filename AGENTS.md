@@ -30,6 +30,19 @@
 - Use OS temp dir for scratch files. Clean up after you're done.
 - Ask for elevated permissions instead of working around sandboxing issues (if you can run in a sandbox).
 
+## Local CI
+
+- Validate changes with [agent-ci](https://agent-ci.dev) before pushing. Full guide: `docs/local-ci-with-agent-ci.md`.
+- Pick the workflow that matches what you touched (subtree `AGENTS.md` files list the canonical command for each area):
+  - Frontend: `npx @redwoodjs/agent-ci run -w .github/workflows/test-frontend-parallel.yml -p --github-token`
+  - Backend lint: `npx @redwoodjs/agent-ci run -w .github/workflows/lint-go.yml -p`
+  - Backend tests: `npx @redwoodjs/agent-ci run -w .github/workflows/test-go.yml -p`
+  - Vault: `npx @redwoodjs/agent-ci run -w .github/workflows/dev-vault-image.yml -p --github-token`
+  - Ops deploy script: `npx @redwoodjs/agent-ci run -w .github/workflows/check-deploy-script.yml -p --github-token`
+- On failure, fix in place and `npx @redwoodjs/agent-ci retry --name <runner-name>` instead of starting a fresh run. Use `npx @redwoodjs/agent-ci abort --name <runner-name>` to give up.
+- Avoid `--all` and `dev-docker-images.yml` for routine work — they include heavy llama.cpp Vulkan builds and Docker image assembly without extra signal beyond `test-go.yml`.
+- Skipped automatically: `windows-*` jobs (unsupported); `macos-*` jobs require `tart` + `sshpass`.
+
 ## Coding Guidelines
 
 - Keep changes minimal and consistent with nearby code.

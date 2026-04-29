@@ -9,3 +9,6 @@
   - make sure all tests pass (`pnpm test`).
   - make sure `pnpm audit` pass.
   - make sure run `pnpm format:write`
+- For full CI parity before pushing, validate locally via agent-ci:
+  `npx @redwoodjs/agent-ci run -w .github/workflows/test-frontend-parallel.yml -p --github-token`.
+  See `docs/local-ci-with-agent-ci.md` for setup, the fix-and-retry loop, and what to skip.
