@@ -1,5 +1,10 @@
 import {describe, expect, it} from 'vitest'
-import {extractAllContentRefs, findSelfQueryBlock, hasQueryBlockTargetingSelf} from '../content'
+import {
+  extractAllContentRefs,
+  findSelfQueryBlock,
+  hasQueryBlockTargetingSelf,
+  hasSelfQueryBlockInEditorContent,
+} from '../content'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {HMBlockNode} from '@seed-hypermedia/client/hm-types'
@@ -327,6 +332,114 @@ describe('findSelfQueryBlock', () => {
     const result = findSelfQueryBlock(blocks, 'uid1', null)
     expect(result).not.toBeNull()
     expect(result!.id).toBe('q1')
+  })
+})
+
+describe('hasSelfQueryBlockInEditorContent', () => {
+  function queryBlock(props: {space: string; path: string; mode?: string}, id = 'q1') {
+    return {
+      id,
+      type: 'query',
+      props: {
+        queryIncludes: JSON.stringify([{space: props.space, path: props.path, mode: props.mode || 'Children'}]),
+      },
+      content: [],
+      children: [],
+    }
+  }
+
+  it('returns false for empty input', () => {
+    expect(hasSelfQueryBlockInEditorContent([], 'uid1', ['p'])).toBe(false)
+    expect(hasSelfQueryBlockInEditorContent(null, 'uid1', ['p'])).toBe(false)
+    expect(hasSelfQueryBlockInEditorContent(undefined, 'uid1', ['p'])).toBe(false)
+  })
+
+  it('returns false when no query blocks exist', () => {
+    expect(
+      hasSelfQueryBlockInEditorContent([{id: 'p1', type: 'paragraph', props: {}, content: [], children: []}], 'uid1', [
+        'p',
+      ]),
+    ).toBe(false)
+  })
+
+  it('returns true when query targets same uid and path with leading slash', () => {
+    const blocks = [queryBlock({space: 'uid1', path: '/my/doc'})]
+    expect(hasSelfQueryBlockInEditorContent(blocks, 'uid1', ['my', 'doc'])).toBe(true)
+  })
+
+  it('returns true when query targets same uid and path without leading slash', () => {
+    const blocks = [queryBlock({space: 'uid1', path: 'my/doc'})]
+    expect(hasSelfQueryBlockInEditorContent(blocks, 'uid1', ['my', 'doc'])).toBe(true)
+  })
+
+  it('returns true for root doc with empty path', () => {
+    const blocks = [queryBlock({space: 'uid1', path: ''})]
+    expect(hasSelfQueryBlockInEditorContent(blocks, 'uid1', null)).toBe(true)
+    expect(hasSelfQueryBlockInEditorContent(blocks, 'uid1', [])).toBe(true)
+  })
+
+  it('returns false when space mismatches', () => {
+    const blocks = [queryBlock({space: 'other', path: 'my/doc'})]
+    expect(hasSelfQueryBlockInEditorContent(blocks, 'uid1', ['my', 'doc'])).toBe(false)
+  })
+
+  it('returns false when path mismatches', () => {
+    const blocks = [queryBlock({space: 'uid1', path: 'other/path'})]
+    expect(hasSelfQueryBlockInEditorContent(blocks, 'uid1', ['my', 'doc'])).toBe(false)
+  })
+
+  it('returns false when query has empty space (unconfigured)', () => {
+    const blocks = [queryBlock({space: '', path: ''})]
+    expect(hasSelfQueryBlockInEditorContent(blocks, 'uid1', ['my', 'doc'])).toBe(false)
+  })
+
+  it('finds query block in nested children', () => {
+    const blocks = [
+      {
+        id: 'g1',
+        type: 'group',
+        props: {},
+        content: [],
+        children: [queryBlock({space: 'uid1', path: 'my/doc'})],
+      },
+    ]
+    expect(hasSelfQueryBlockInEditorContent(blocks, 'uid1', ['my', 'doc'])).toBe(true)
+  })
+
+  it('returns false on malformed queryIncludes JSON', () => {
+    const blocks = [
+      {
+        id: 'q1',
+        type: 'query',
+        props: {queryIncludes: 'not-json'},
+        content: [],
+        children: [],
+      },
+    ]
+    expect(hasSelfQueryBlockInEditorContent(blocks, 'uid1', ['my', 'doc'])).toBe(false)
+  })
+
+  it('uses default queryIncludes when missing (treated as empty space, not self)', () => {
+    const blocks = [{id: 'q1', type: 'query', props: {}, content: [], children: []}]
+    expect(hasSelfQueryBlockInEditorContent(blocks, 'uid1', ['my', 'doc'])).toBe(false)
+  })
+
+  it('matches when one of multiple includes targets self', () => {
+    const blocks = [
+      {
+        id: 'q1',
+        type: 'query',
+        props: {
+          queryIncludes: JSON.stringify([
+            {space: 'other', path: 'foo', mode: 'Children'},
+            {space: 'uid1', path: 'my/doc', mode: 'Children'},
+          ]),
+        },
+        content: [],
+        children: [],
+      },
+    ]
+    expect(hasSelfQueryBlockInEditorContent(blocks, 'uid1', ['my', 'doc'])).toBe(true)
   })
 })
 

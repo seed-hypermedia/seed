@@ -11,7 +11,7 @@
  */
 
 import type {HMBlockNode, HMDocument, HMSigner, UnpackedHypermediaId} from './hm-types'
-import {hmIdPathToEntityQueryPath, packHmId, unpackHmId} from './hm-types'
+import {entityQueryPathToHmIdPath, packHmId, unpackHmId} from './hm-types'
 import type {SeedClient} from './client'
 import type {DocumentOperation} from './change'
 import {createChangeOps, createChange} from './change'
@@ -59,22 +59,27 @@ export function documentContainsLinkToChild(document: HMDocument, childId: Unpac
 /**
  * Check if a document has a self-referential Query block
  * (a query to itself that would automatically include children).
+ *
+ * A query block is self-referential when one of its `query.includes` entries
+ * has `space === documentId.uid` AND a path that, after normalization, equals
+ * the document's path. Empty `space` or `path` does not count as self — that
+ * represents an unconfigured query block, which the editor renders empty.
  */
 export function documentHasSelfQuery(document: HMDocument, documentId: UnpackedHypermediaId): boolean {
-  const documentPathWithSlash = hmIdPathToEntityQueryPath(documentId.path)
-  const documentPathWithoutSlash = documentId.path?.join('/') || ''
+  const parentPathStr = (documentId.path || []).join('/')
+
+  function isSelfMatch(include: {space?: string; path?: string} | undefined): boolean {
+    if (!include) return false
+    if (include.space !== documentId.uid) return false
+    const includePath = entityQueryPathToHmIdPath(include.path)
+    return (includePath || []).join('/') === parentPathStr
+  }
 
   function searchBlocks(nodes: HMBlockNode[]): boolean {
     for (const node of nodes) {
       if (node.block.type === 'Query') {
-        const query = node.block.attributes?.query
-        if (query?.includes) {
-          for (const inc of query.includes) {
-            const isSpaceMatch = !inc.space || inc.space === documentId.uid
-            const isPathMatch = !inc.path || inc.path === documentPathWithSlash || inc.path === documentPathWithoutSlash
-            if (isSpaceMatch && isPathMatch) return true
-          }
-        }
+        const includes = node.block.attributes?.query?.includes
+        if (includes?.some(isSelfMatch)) return true
       }
       if (node.children && searchBlocks(node.children)) return true
     }
