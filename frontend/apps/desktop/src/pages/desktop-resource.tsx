@@ -30,7 +30,6 @@ import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {fileUpload} from '@/utils/file-upload'
 import {useBroadcastWindowEvent, useListenAppEvent} from '@/utils/window-events'
-import {computeInlineDraftPublishPath} from '@/utils/publish-utils'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
@@ -278,26 +277,16 @@ export default function DesktopResourcePage() {
           }
         }
 
-        // For first publish, compute the destination path from the title slug
-        // (the route URL holds the temporary `-${draftId}` slug). For re-publishes,
-        // keep the existing route id as the destination so the path doesn't change.
-        // The home doc (editPath = []) is never a first publish — it always exists
-        // at the root once the account is created — so this branch is skipped for it.
-        let publishDestinationId = input.documentId
-        const isHomeDocEdit = (draftData.editPath ?? []).length === 0
-        if (isFirstPublish && draftData.editUid && !isHomeDocEdit) {
-          const newPath = computeInlineDraftPublishPath(
-            draftData.editPath ?? [],
-            draftData.metadata?.name || '',
-            input.draftId,
-          )
-          publishDestinationId = hmId(draftData.editUid, {path: newPath})
-        }
-
+        // The actual destination (slug rename for inline first-publish, plus
+        // any explicit pathOverride from the publish popover) is resolved
+        // inside `usePublishResource` so both the unified-editor flow and the
+        // legacy draft-route flow share the same logic. We just hand it the
+        // raw route id.
         const result = await publishResourceRef.current.mutateAsync({
           draft: draftData,
-          destinationId: publishDestinationId,
+          destinationId: input.documentId,
           accountId: input.publishAccountUid || '',
+          pathOverride: input.pathOverride,
         })
 
         const oldRouteId = input.documentId

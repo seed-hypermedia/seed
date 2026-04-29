@@ -5,6 +5,7 @@ import {
   computeDraftRoute,
   computeInlineDraftPublishPath,
   computePublishPath,
+  resolvePublishPath,
   shouldAutoLinkParent,
   validatePublishPath,
 } from '../publish-utils'
@@ -207,6 +208,118 @@ describe('computeInlineDraftPublishPath', () => {
     const a = computeInlineDraftPublishPath(['parent', '-aaa'], '', 'aaa')
     const b = computeInlineDraftPublishPath(['parent', '-bbb'], '', 'bbb')
     expect(a).not.toEqual(b)
+  })
+
+  it('preserves empty path for home-document edits regardless of title or draftId', () => {
+    expect(computeInlineDraftPublishPath([], 'Home Title', 'abc')).toEqual([])
+    expect(computeInlineDraftPublishPath([], '', 'abc')).toEqual([])
+    expect(computeInlineDraftPublishPath([], '!@#$', 'abc')).toEqual([])
+  })
+})
+
+describe('resolvePublishPath', () => {
+  const baseArgs = {
+    draftId: 'abc',
+    draftName: 'My Cool Doc',
+    isPrivate: false,
+    existsAtDestination: false,
+    pathOverride: undefined as string[] | undefined,
+  }
+
+  it('renames the placeholder `-${draftId}` to the title slug on first publish', () => {
+    expect(
+      resolvePublishPath({
+        ...baseArgs,
+        currentPath: ['parent', '-abc'],
+      }),
+    ).toEqual(['parent', 'my-cool-doc'])
+  })
+
+  it('falls back to `untitled-${draftId}` when title is empty', () => {
+    expect(
+      resolvePublishPath({
+        ...baseArgs,
+        draftName: '',
+        currentPath: ['parent', '-abc'],
+      }),
+    ).toEqual(['parent', 'untitled-abc'])
+  })
+
+  it('honours pathOverride over the auto-derived slug', () => {
+    expect(
+      resolvePublishPath({
+        ...baseArgs,
+        currentPath: ['parent', '-abc'],
+        pathOverride: ['parent', 'foo-bar'],
+      }),
+    ).toEqual(['parent', 'foo-bar'])
+  })
+
+  it('honours pathOverride even for private drafts', () => {
+    expect(
+      resolvePublishPath({
+        ...baseArgs,
+        currentPath: ['-randomid'],
+        isPrivate: true,
+        pathOverride: ['public', 'slug'],
+      }),
+    ).toEqual(['public', 'slug'])
+  })
+
+  it('skips the rename for private drafts', () => {
+    expect(
+      resolvePublishPath({
+        ...baseArgs,
+        isPrivate: true,
+        currentPath: ['-abc'],
+      }),
+    ).toEqual(['-abc'])
+  })
+
+  it('skips the rename for home-doc edits (empty path)', () => {
+    expect(
+      resolvePublishPath({
+        ...baseArgs,
+        currentPath: [],
+      }),
+    ).toEqual([])
+  })
+
+  it('skips the rename when the doc already exists at the destination', () => {
+    expect(
+      resolvePublishPath({
+        ...baseArgs,
+        currentPath: ['parent', '-abc'],
+        existsAtDestination: true,
+      }),
+    ).toEqual(['parent', '-abc'])
+  })
+
+  it('leaves non-placeholder paths untouched (already renamed by the user)', () => {
+    expect(
+      resolvePublishPath({
+        ...baseArgs,
+        currentPath: ['parent', 'already-named'],
+      }),
+    ).toEqual(['parent', 'already-named'])
+  })
+
+  it('leaves a placeholder for a different draftId untouched', () => {
+    expect(
+      resolvePublishPath({
+        ...baseArgs,
+        currentPath: ['parent', '-otherDraftId'],
+      }),
+    ).toEqual(['parent', '-otherDraftId'])
+  })
+
+  it('renames a top-level placeholder draft', () => {
+    expect(
+      resolvePublishPath({
+        ...baseArgs,
+        currentPath: ['-abc'],
+      }),
+    ).toEqual(['my-cool-doc'])
   })
 })
 

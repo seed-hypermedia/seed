@@ -1,5 +1,7 @@
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {client} from '@/trpc'
+import {pathNameify} from '@/utils/path'
+import {computeInlineDraftPublishPath} from '@/utils/publish-utils'
 import {useNavigate} from '@/utils/useNavigate'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -21,6 +23,7 @@ import {type AnyTimestamp, formattedDateMedium, formattedDateShort, normalizeDat
 import {compareBlocksWithMap, createBlocksMap, extractDeletes} from '@shm/shared/utils/document-changes'
 import {createSiteUrl, createWebHMUrl, hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
+import {Input} from '@shm/ui/components/input'
 import {Popover, PopoverAnchor, PopoverContent} from '@shm/ui/components/popover'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
@@ -30,7 +33,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {Check, ChevronRight, Clock, Copy, FileDiff, Trash} from 'lucide-react'
-import {forwardRef, ReactNode, useMemo, useState} from 'react'
+import {forwardRef, ReactNode, useMemo, useRef, useState} from 'react'
 import {useDeleteDraftDialog} from './delete-draft-dialog'
 
 // Tracks whether the user has already opened the publish popover and triggered a
@@ -116,8 +119,9 @@ function useDocumentUrl(docId: UnpackedHypermediaId): string | null {
 
 /**
  * Popover body shown when the user clicks Publish before the first successful publish.
+ * Exported for testing.
  */
-function PublishPopoverBody({
+export function PublishPopoverBody({
   docId,
   changeCount,
   onPublish,
@@ -126,14 +130,55 @@ function PublishPopoverBody({
 }: {
   docId: UnpackedHypermediaId
   changeCount: number
-  onPublish: () => void
+  onPublish: (pathOverride?: string[]) => void
   onClose: () => void
   publishDisabled: boolean
 }) {
   const publishedDoc = useDocumentSelector(selectDocument)
   const draftId = useDocumentSelector(selectDraftId)
-  const documentUrl = useDocumentUrl(docId)
+  const metadata = useDocumentSelector(selectMetadata)
   const navigate = useNavigate('replace')
+
+  // First-publish detection: no published version exists yet at this route.
+  // Editable permalink is hidden for the site root (empty path) since the
+  // home doc has no slug to edit.
+  const isHomeDoc = (docId.path?.length ?? 0) === 0
+  const isFirstPublish = !publishedDoc?.version && !isHomeDoc
+  const lastSeg = docId.path?.at(-1) || ''
+  // Treat the last segment as a placeholder when it's the inline-draft
+  // pattern (`-${draftId}`) — in that case we auto-fill from the title slug.
+  // Otherwise default to the existing slug so re-edits don't lose the user's
+  // chosen path on first publish.
+  const isPlaceholderPath = !!draftId && lastSeg === `-${draftId}`
+
+  const slugFromTitle = useMemo(() => {
+    if (!isFirstPublish || !draftId || !isPlaceholderPath) return null
+    return computeInlineDraftPublishPath(docId.path ?? [], metadata?.name || '', draftId)
+  }, [isFirstPublish, isPlaceholderPath, docId.path, metadata?.name, draftId])
+
+  // Tracks the latest auto-derived slug we wrote into local state. When the
+  // title changes and the user hasn't manually edited the input, refresh the
+  // input from the new slug; once the user types, we stop syncing.
+  const autoSlugSegment = slugFromTitle?.at(-1) ?? lastSeg
+  const lastAutoSlugRef = useRef<string | null>(null)
+  const [editedPathSegment, setEditedPathSegment] = useState<string | null>(null)
+  const userEditedRef = useRef(false)
+
+  if (autoSlugSegment !== lastAutoSlugRef.current) {
+    lastAutoSlugRef.current = autoSlugSegment
+    if (!userEditedRef.current) {
+      setEditedPathSegment(autoSlugSegment)
+    }
+  }
+
+  const effectivePathSegment = editedPathSegment ?? autoSlugSegment ?? ''
+  const previewPath = useMemo(() => {
+    if (!isFirstPublish) return docId.path
+    const parent = (docId.path ?? []).slice(0, -1)
+    return [...parent, effectivePathSegment || `untitled-${draftId ?? ''}`]
+  }, [isFirstPublish, docId.path, effectivePathSegment, draftId])
+
+  const documentUrl = useDocumentUrl(isFirstPublish ? {...docId, path: previewPath} : docId)
 
   const firstAuthorUid = publishedDoc?.authors?.[0]
   const authorAccount = useAccount(firstAuthorUid)
@@ -201,6 +246,28 @@ function PublishPopoverBody({
             <span>Loading…</span>
           </div>
         )}
+        {/* Editable permalink — shown on first publish (no published version yet). */}
+        {isFirstPublish && (
+          <div className="flex flex-col gap-1">
+            <p className="text-muted-foreground text-xs">Edit your permalink</p>
+            <Input
+              value={`/${effectivePathSegment}`}
+              onChange={(e) => {
+                userEditedRef.current = true
+                const raw = e.target.value.replace(/^\//, '')
+                setEditedPathSegment(pathNameify(raw))
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
+                  e.stopPropagation()
+                  ;(e.target as HTMLInputElement).select()
+                }
+              }}
+              placeholder="/document-path"
+              className="h-8 border-black/10 text-xs dark:border-white/20"
+            />
+          </div>
+        )}
       </div>
 
       <Separator className="bg-black/10 dark:bg-white/10" />
@@ -233,7 +300,19 @@ function PublishPopoverBody({
       <Separator className="bg-black/10 dark:bg-white/10" />
 
       <div className="flex flex-col gap-1">
-        <Button size="sm" variant="brand" disabled={publishDisabled} onClick={onPublish}>
+        <Button
+          size="sm"
+          variant="brand"
+          disabled={publishDisabled}
+          onClick={() => {
+            // Only forward an explicit override when the user typed something
+            // different from the auto-derived slug; otherwise let
+            // `usePublishResource` apply the rename from the freshest disk
+            // metadata.
+            const override = isFirstPublish && userEditedRef.current && previewPath ? previewPath : undefined
+            onPublish(override)
+          }}
+        >
           Publish: Make it live now
         </Button>
         <Button
@@ -321,10 +400,10 @@ export function EditingDocToolsRight({
 
   const allItems = [...existingMenuItems, ...editingTrailingItems]
 
-  const publishNow = () => {
+  const publishNow = (pathOverride?: string[]) => {
     popoverState.onOpenChange(false)
     setHasTriggeredPublish()
-    send({type: 'publish.start'})
+    send({type: 'publish.start', pathOverride})
   }
 
   const handlePublishTriggerClick = (e: React.MouseEvent) => {

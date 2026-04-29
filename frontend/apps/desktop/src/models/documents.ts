@@ -60,7 +60,7 @@ import {useEffect, useMemo, useRef} from 'react'
 import {assign, fromPromise} from 'xstate'
 import {hmBlockSchema} from '../editor'
 import {pathNameify} from '../utils/path'
-import {computeDraftRoute} from '../utils/publish-utils'
+import {computeDraftRoute, resolvePublishPath} from '../utils/publish-utils'
 import {useNavigate} from '../utils/useNavigate'
 import {useMyAccountIds} from './daemon'
 import {draftMachine} from './draft-machine'
@@ -234,6 +234,11 @@ type PublishDraftInput = {
   draft: HMDraft
   destinationId: UnpackedHypermediaId
   accountId: string
+  /**
+   * Optional explicit path the user picked in the publish popover. When set,
+   * it wins over the inline first-publish slug rename below.
+   */
+  pathOverride?: string[]
 }
 export function usePublishResource(
   editId: UnpackedHypermediaId | undefined | null,
@@ -246,7 +251,7 @@ export function usePublishResource(
     mutationFn: (signingKeyName: string) => client.recentSigners.writeRecentSigner.mutate(signingKeyName),
   })
   return useMutation<HMDocument, any, PublishDraftInput>({
-    mutationFn: async ({draft, destinationId, accountId}: PublishDraftInput): Promise<HMDocument> => {
+    mutationFn: async ({draft, destinationId, accountId, pathOverride}: PublishDraftInput): Promise<HMDocument> => {
       const blocksMap = editId ? createBlocksMap(editDocument?.content || [], '') : {}
       let newContent = removeTrailingBlocks(draft.content || [])
 
@@ -266,6 +271,50 @@ export function usePublishResource(
       } else {
         try {
           if (accountId && draft.id) {
+            // Probe whether a doc already exists at the original destination.
+            // The result drives two things:
+            //  1. Whether to apply the inline-first-publish slug rename below.
+            //  2. `latestHeads` for the shallow rebase against the live doc.
+            // Skipped for legacy first-publishes (no `editId` outer arg) because
+            // there is no doc to fetch yet.
+            let existingDocVersion: string | null = null
+            if (editId) {
+              try {
+                const latestDoc = await grpcClient.documents.getDocument({
+                  account: destinationId.uid,
+                  path: hmIdPathToEntityQueryPath(destinationId.path || []),
+                })
+                if (latestDoc?.version) {
+                  existingDocVersion = latestDoc.version
+                }
+              } catch (err) {
+                // Doc doesn't exist yet (first publish) — leave existingDoc null.
+                console.log('[publish] getDocument(latest) failed — treating as first publish', err)
+              }
+            }
+
+            // Resolve the actual destination (slug rename for inline
+            // first-publish, plus any explicit pathOverride from the publish
+            // popover). See `resolvePublishPath` for the precedence rules.
+            const resolvedPath = resolvePublishPath({
+              currentPath: destinationId.path ?? [],
+              draftId: draft.id,
+              draftName: draft.metadata?.name || '',
+              isPrivate: draft.visibility === 'PRIVATE',
+              existsAtDestination: !!existingDocVersion,
+              pathOverride,
+            })
+            const resolvedDestinationId =
+              resolvedPath === destinationId.path ? destinationId : hmId(destinationId.uid, {path: resolvedPath})
+            if (resolvedDestinationId !== destinationId) {
+              console.log('[publish] resolved destination path', {
+                from: destinationId.path,
+                to: resolvedDestinationId.path,
+                name: draft.metadata?.name,
+                pathOverride,
+              })
+            }
+
             const allChanges = [
               ...navigationChanges,
               ...getDocAttributeChanges(draft.metadata),
@@ -274,10 +323,10 @@ export function usePublishResource(
             ]
 
             let capabilityId = ''
-            if (accountId !== destinationId.uid) {
+            if (accountId !== resolvedDestinationId.uid) {
               const capabilities = await grpcClient.accessControl.listCapabilities({
-                account: destinationId.uid,
-                path: hmIdPathToEntityQueryPath(destinationId.path || []),
+                account: resolvedDestinationId.uid,
+                path: hmIdPathToEntityQueryPath(resolvedDestinationId.path || []),
               })
 
               const capability = capabilities.capabilities.find((cap) => cap.delegate === accountId)
@@ -301,7 +350,7 @@ export function usePublishResource(
               visibility = ResourceVisibility.UNSPECIFIED
             }
 
-            const docPath = hmIdPathToEntityQueryPath(destinationId.path || [])
+            const docPath = hmIdPathToEntityQueryPath(resolvedDestinationId.path || [])
 
             // Bump the draft to the current latest heads before publishing. Until the
             // rebase flow lands, this is a shallow "rebase": baseVersion = latest, and
@@ -311,26 +360,15 @@ export function usePublishResource(
             // subsequent publish from the same draft) starts from the new base.
             let latestHeads: string[] = []
             let latestVersion = ''
-            if (editId) {
-              try {
-                const latestDoc = await grpcClient.documents.getDocument({
-                  account: destinationId.uid,
-                  path: docPath,
-                })
-                if (latestDoc?.version) {
-                  latestVersion = latestDoc.version
-                  latestHeads = latestDoc.version.split('.')
-                }
-                console.log('[publish] fetched latest heads', {
-                  account: destinationId.uid,
-                  path: docPath,
-                  latestVersion,
-                  latestHeads,
-                })
-              } catch (err) {
-                // Doc doesn't exist yet (first publish) — leave latestHeads empty.
-                console.log('[publish] getDocument(latest) failed — treating as first publish', err)
-              }
+            if (existingDocVersion) {
+              latestVersion = existingDocVersion
+              latestHeads = existingDocVersion.split('.')
+              console.log('[publish] using existing latest heads', {
+                account: resolvedDestinationId.uid,
+                path: docPath,
+                latestVersion,
+                latestHeads,
+              })
             }
             const draftDeps = draft.deps ?? []
             const baseVersion = latestVersion || draftDeps.join('.')
@@ -367,7 +405,7 @@ export function usePublishResource(
 
             await desktopUniversalClient.publishDocument!({
               signerAccountUid: accountId,
-              account: destinationId.uid,
+              account: resolvedDestinationId.uid,
               baseVersion,
               path: docPath,
               // allChanges is DocumentChange[] from shared helpers; structurally compatible with plain change objects
@@ -379,7 +417,7 @@ export function usePublishResource(
             })
 
             const updatedDoc = await grpcClient.documents.getDocument({
-              account: destinationId.uid,
+              account: resolvedDestinationId.uid,
               path: docPath,
             })
             // TODO(temp): remove after verifying private document visibility fix
@@ -396,7 +434,7 @@ export function usePublishResource(
             // Inspect the Change blob the server produced to verify deps = latestHeads.
             try {
               const changesResp = await grpcClient.documents.listDocumentChanges({
-                account: destinationId.uid,
+                account: resolvedDestinationId.uid,
                 path: docPath,
                 version: updatedDoc.version,
                 pageSize: 10,

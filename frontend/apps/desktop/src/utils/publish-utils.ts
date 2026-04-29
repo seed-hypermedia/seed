@@ -18,8 +18,12 @@ export function computePublishPath(isPrivate: boolean, basePath: string[], docNa
  * For a "claimed" inline draft (editPath = parent + `-${draftId}`),
  * compute the final published path from the title slug. The fallback
  * `untitled-${draftId}` keeps multiple untitled drafts collision-free.
+ * An empty `currentEditPath` means a home-document edit; the root path
+ * is preserved as-is so callers cannot accidentally publish a sibling
+ * `untitled-*` document at the site root.
  */
 export function computeInlineDraftPublishPath(currentEditPath: string[], docName: string, draftId: string): string[] {
+  if (currentEditPath.length === 0) return []
   const parentPath = currentEditPath.slice(0, -1)
   const slug = pathNameify(docName || '') || `untitled-${draftId}`
   return [...parentPath, slug]
@@ -62,6 +66,38 @@ export function shouldAutoLinkParent(
   }
 
   return true
+}
+
+/**
+ * Resolve the path used for a publish, given the current destination path and
+ * the draft. Precedence:
+ *   1. `pathOverride` from the publish popover (user picked it).
+ *   2. Inline first-publish: `currentPath` still ends with `-${draftId}` AND
+ *      no doc exists at that path → swap the placeholder for the title slug
+ *      via `computeInlineDraftPublishPath`.
+ *   3. Otherwise return `currentPath` unchanged.
+ *
+ * Skipped (returns `currentPath` unchanged):
+ *   - private docs (random-id paths are intentional),
+ *   - home-doc edits (empty path),
+ *   - re-publishes (the doc exists at this path).
+ */
+export function resolvePublishPath(args: {
+  currentPath: string[]
+  draftId: string
+  draftName: string
+  isPrivate: boolean
+  existsAtDestination: boolean
+  pathOverride?: string[]
+}): string[] {
+  const {currentPath, draftId, draftName, isPrivate, existsAtDestination, pathOverride} = args
+  if (pathOverride) return pathOverride
+  if (existsAtDestination) return currentPath
+  if (isPrivate) return currentPath
+  if (currentPath.length === 0) return currentPath
+  const lastSeg = currentPath.at(-1) || ''
+  if (lastSeg !== `-${draftId}`) return currentPath
+  return computeInlineDraftPublishPath(currentPath, draftName, draftId)
 }
 
 /**

@@ -357,6 +357,88 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
+  it('publish.start with pathOverride forwards the array verbatim into the actor input', async () => {
+    let receivedInput: any = null
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-123'})),
+        publishDocument: fromPromise<HMDocument, any>(async ({input}) => {
+          receivedInput = input
+          return {...mockDocument, version: 'bafynew'}
+        }),
+      },
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true, existingDraftId: 'my-draft'},
+    })
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    const override = ['parent', 'my-typed-slug']
+    actor.send({type: 'publish.start', pathOverride: override})
+    await new Promise((r) => setTimeout(r, 50))
+    expect(receivedInput).not.toBeNull()
+    expect(receivedInput.pathOverride).toEqual(override)
+    actor.stop()
+  })
+
+  it('publish.start without pathOverride forwards undefined to the actor input', async () => {
+    let receivedInput: any = null
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-123'})),
+        publishDocument: fromPromise<HMDocument, any>(async ({input}) => {
+          receivedInput = input
+          return {...mockDocument, version: 'bafynew'}
+        }),
+      },
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true, existingDraftId: 'my-draft'},
+    })
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'publish.start'})
+    await new Promise((r) => setTimeout(r, 50))
+    expect(receivedInput).not.toBeNull()
+    expect(receivedInput.pathOverride).toBeUndefined()
+    actor.stop()
+  })
+
+  it('successful publish clears pendingPathOverride during cleanup', async () => {
+    const actor = createTestActor({existingDraftId: 'my-draft'})
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'publish.start', pathOverride: ['custom', 'slug']})
+    // While the publish is in flight the override is captured in context
+    expect(actor.getSnapshot().context.pendingPathOverride).toEqual(['custom', 'slug'])
+    await new Promise((r) => setTimeout(r, 50))
+    // clearDraftState in cleaningUp wipes the override
+    expect(actor.getSnapshot().context.pendingPathOverride).toBeNull()
+    actor.stop()
+  })
+
+  it('failed publish clears pendingPathOverride and returns to editing.idle', async () => {
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-123'})),
+        publishDocument: fromPromise<HMDocument, any>(async () => {
+          throw new Error('publish exploded')
+        }),
+      },
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true, existingDraftId: 'my-draft'},
+    })
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'publish.start', pathOverride: ['custom', 'slug']})
+    expect(actor.getSnapshot().context.pendingPathOverride).toEqual(['custom', 'slug'])
+    await new Promise((r) => setTimeout(r, 50))
+    expect(actor.getSnapshot().context.pendingPathOverride).toBeNull()
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
+    actor.stop()
+  })
+
   it('publishing success spawns pushDocument actor with the published document', async () => {
     const pushCalls: PushDocumentInput[] = []
     const publishedDoc: HMDocument = {...mockDocument, version: 'bafynew'}

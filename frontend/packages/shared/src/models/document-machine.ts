@@ -76,6 +76,12 @@ export type DocumentMachineContext = {
   pendingRemoteDocument: HMDocument | null
   /** Classification of pending remote update: auto-mergeable or conflict. */
   pendingRebase: PendingRebase | null
+  /**
+   * Optional path picked by the user in the publish popover, captured on
+   * `publish.start` and forwarded to the publishDocument actor input. Cleared
+   * on cleanup so it does not leak to a subsequent publish.
+   */
+  pendingPathOverride: string[] | null
   error: unknown
 }
 
@@ -89,7 +95,14 @@ export type DocumentMachineEvent =
   | {type: 'change'; metadata?: HMDraft['metadata']}
   | {type: 'change.navigation'; navigation: HMNavigationItem[]}
   | {type: 'reset.content'}
-  | {type: 'publish.start'}
+  | {
+      type: 'publish.start'
+      /**
+       * Optional explicit path the user picked in the publish popover. Wins over
+       * the inline first-publish slug rename in `usePublishResource`.
+       */
+      pathOverride?: string[]
+    }
   | {type: 'document.remoteUpdate'; document: HMDocument}
   | {type: 'edit.discard'}
   | {type: 'capability.changed'; canEdit: boolean}
@@ -142,6 +155,12 @@ export type PublishInput = {
   metadata: HMDraft['metadata']
   navigation: HMNavigationItem[] | undefined
   publishAccountUid: string | null
+  /**
+   * Optional explicit destination path the user picked in the publish popover.
+   * When set, the consumer-provided actor must use it as-is and skip the
+   * inline first-publish slug rename.
+   */
+  pathOverride?: string[]
 }
 
 /** Input for the pushDocument actor, fired after a successful publish. */
@@ -255,6 +274,7 @@ export const documentMachine = setup({
       mineTouchedIds: [],
       pendingRemoteDocument: null,
       pendingRebase: null,
+      pendingPathOverride: null,
     }),
     clearEditingState: assign({
       // Preserve draftId and metadata so re-entering editing reuses the same draft
@@ -266,6 +286,7 @@ export const documentMachine = setup({
       mineTouchedIds: [],
       pendingRemoteDocument: null,
       pendingRebase: null,
+      pendingPathOverride: null,
     }),
     snapshotBaseBlocks: assign({
       baseBlocks: ({context}) => {
@@ -364,6 +385,13 @@ export const documentMachine = setup({
     }),
     clearPendingRebase: assign({
       pendingRebase: null,
+    }),
+    setPathOverrideFromEvent: assign({
+      pendingPathOverride: ({event}) =>
+        event.type === 'publish.start' && event.pathOverride ? event.pathOverride : null,
+    }),
+    clearPathOverride: assign({
+      pendingPathOverride: null,
     }),
     markDocumentReady: assign({
       documentReady: true,
@@ -553,6 +581,7 @@ export const documentMachine = setup({
     mineTouchedIds: [],
     pendingRemoteDocument: null,
     pendingRebase: null,
+    pendingPathOverride: null,
     error: null,
   }),
   initial: 'loading',
@@ -732,6 +761,7 @@ export const documentMachine = setup({
                 'publish.start': {
                   target: '#DocumentLifecycle.publishing',
                   guard: 'hasDraftId',
+                  actions: ['setPathOverrideFromEvent'],
                 },
               },
             },
@@ -957,12 +987,14 @@ export const documentMachine = setup({
               metadata: context.metadata,
               navigation: context.navigation,
               publishAccountUid: context.publishAccountUid,
+              pathOverride: context.pendingPathOverride ?? undefined,
             }),
             onDone: {
               target: 'cleaningUp',
             },
             onError: {
               target: '#DocumentLifecycle.editing.draft.idle',
+              actions: ['clearPathOverride'],
             },
           },
         },

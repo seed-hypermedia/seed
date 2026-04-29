@@ -4,7 +4,12 @@ import {useGatewayUrl, usePushOnPublish} from '@/models/gateway-settings'
 import {useSelectedAccount} from '@/selected-account'
 import {client} from '@/trpc'
 import {pathNameify} from '@/utils/path'
-import {computePublishPath, shouldAutoLinkParent, validatePublishPath} from '@/utils/publish-utils'
+import {
+  computeInlineDraftPublishPath,
+  computePublishPath,
+  shouldAutoLinkParent,
+  validatePublishPath,
+} from '@/utils/publish-utils'
 import {useNavigate} from '@/utils/useNavigate'
 import {useBroadcastWindowEvent} from '@/utils/window-events'
 import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -68,8 +73,18 @@ export default function PublishDraftButton() {
   const broadcastWindowEvent = useBroadcastWindowEvent()
   const signingAccountId = signingAccount?.id.uid
 
-  // Determine if this is an edit (existing doc) or first publish (new doc)
-  const isFirstPublish = !editId
+  // Inline first-publish detection: drafts created via `useCreateInlineDraft`
+  // carry a placeholder editPath `[..parent, -${draftId}]`. Their `editId` is
+  // set, but no doc exists at that path yet — so we still want to treat the
+  // publish as a first publish (slugify the path, show the editable
+  // permalink, link to parent on success).
+  const draftEditPath = draft.data?.editPath ?? draftRoute.editPath ?? null
+  const draftHasPlaceholderEdit = !!draftEditPath && draftEditPath.length > 0 && draftEditPath.at(-1) === `-${draftId}`
+  const editResource = useResource(editId && !draftHasPlaceholderEdit ? editId : undefined)
+  const editTargetExists = editResource.data?.type === 'document' ? !!editResource.data.document?.version : false
+  const isLegacyFirstPublish = !editId
+  const isInlineFirstPublish = !!editId && (draftHasPlaceholderEdit || (editResource.isFetched && !editTargetExists))
+  const isFirstPublish = isLegacyFirstPublish || isInlineFirstPublish
   const isPrivate = draftRoute.visibility === 'PRIVATE' || draft.data?.visibility === 'PRIVATE'
   const defaultLocationId = draftLocationId(draft.data)
 
@@ -160,17 +175,35 @@ export default function PublishDraftButton() {
       return
     }
 
-    // For first publish, use the draft's location if available, otherwise use the signing account
+    initializedWith.current = {name: docName, locationUid}
+
+    // Inline first-publish: replace the placeholder `-${draftId}` segment
+    // with a slugified title via `computeInlineDraftPublishPath`. Falls back
+    // to `untitled-${draftId}` so two untitled drafts don't collide.
+    if (isInlineFirstPublish && editId) {
+      const inlinePath = computeInlineDraftPublishPath(editId.path ?? [], docName, draftId)
+      setEditableLocation(hmId(editId.uid, {path: inlinePath}))
+      return
+    }
+
+    // Legacy first-publish: anchor on the draft's location, append the slug
+    // (or keep the random-id path for private docs).
     const baseUid = locationUid || signingAccountId
     const basePath = defaultLocationId?.path || []
-
-    initializedWith.current = {name: docName, locationUid}
     setEditableLocation(
       hmId(baseUid, {
         path: computePublishPath(!!isPrivate, basePath, docName),
       }),
     )
-  }, [isFirstPublish, signingAccountId, defaultLocationId, draft.data?.metadata.name])
+  }, [
+    isFirstPublish,
+    isInlineFirstPublish,
+    editId,
+    draftId,
+    signingAccountId,
+    defaultLocationId,
+    draft.data?.metadata.name,
+  ])
 
   // Use editable location for first publish, otherwise use editId
   const locationId = isFirstPublish ? editableLocation : editId
@@ -342,8 +375,8 @@ export default function PublishDraftButton() {
 
     setPublishError(null)
 
-    if (editId && signingAccountId) {
-      // Editing existing document
+    if (editId && signingAccountId && !isInlineFirstPublish) {
+      // Editing an existing document — keep the existing path as-is.
       await handlePublish(editId, signingAccountId).catch((err) => {
         console.error('Publish failed:', err)
         toast.error(err.message || 'Publish failed')
