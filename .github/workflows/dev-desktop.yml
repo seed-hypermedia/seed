@@ -415,14 +415,15 @@ jobs:
     needs: [build-info, build-binaries]
     runs-on: ubuntu-latest
     if: ${{ needs.build-binaries.result == 'success' }}
+    env:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Sentry release lifecycle (dev)
-        if: ${{ secrets.SENTRY_AUTH_TOKEN != '' }}
+        if: ${{ env.SENTRY_AUTH_TOKEN != '' }}
         env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: mintter
           SENTRY_PROJECT: seed-electron
           VERSION: ${{ needs.build-info.outputs.version }}
