@@ -7,7 +7,8 @@ declare global {
   namespace NodeJS {
     interface ProcessEnv {
       NODE_ENV: 'development' | 'production' | 'test'
-      SENTRY_DESKTOP_DSN: string
+      VITE_DESKTOP_SENTRY_DSN?: string
+      SENTRY_ENVIRONMENT?: string
       SEED_NO_DAEMON_SPAWN?: string
       VITE_DESKTOP_HTTP_PORT?: string
       VITE_DESKTOP_GRPC_PORT?: string
@@ -79,19 +80,37 @@ let isStartingUp = true
 // Store deep link URL from cold start (passed via process.argv)
 let coldStartDeepLinkUrl: string | null = null
 
-Sentry.init({
-  debug: false,
-  release: VERSION,
-  environment: process.env.NODE_ENV || 'development',
-  dsn: process.env.SENTRY_DESKTOP_DSN,
-  transportOptions: {
-    maxQueueAgeDays: 30,
-    maxQueueCount: 30,
-    queuedLengthChanged: (length: number) => {
-      logger.debug('[MAIN]: Sentry queue changed ' + length)
+const sentryDsn = process.env.VITE_DESKTOP_SENTRY_DSN
+const sentryEnvironment =
+  process.env.SENTRY_ENVIRONMENT || (app.isPackaged ? 'production' : 'development')
+
+if (sentryDsn) {
+  Sentry.init({
+    debug: false,
+    release: VERSION,
+    environment: sentryEnvironment,
+    dsn: sentryDsn,
+    sendDefaultPii: false,
+    attachStacktrace: true,
+    integrations: [Sentry.startupTracingIntegration({timeoutSeconds: 15})],
+    tracesSampler: (samplingContext) => {
+      if (samplingContext?.parentSampled !== undefined) {
+        return samplingContext.parentSampled ? 1.0 : 0
+      }
+      return 0.1
     },
-  },
-})
+    profilesSampleRate: 1.0,
+    transportOptions: {
+      maxAgeDays: 30,
+      maxQueueSize: 30,
+    },
+  })
+  Sentry.setTag('app', 'desktop')
+  Sentry.setTag('process', 'main')
+  Sentry.setTag('platform', process.platform)
+  Sentry.setTag('arch', process.arch)
+  Sentry.setTag('electron', process.versions.electron || 'unknown')
+}
 
 // Core initialization
 initPaths()

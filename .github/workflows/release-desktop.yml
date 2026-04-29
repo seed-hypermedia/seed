@@ -284,11 +284,54 @@ jobs:
           VITE_PLAUSIBLE_DOMAIN: 'stats.desktop.seedhypermedia.com'
           SENTRY_AUTH_TOKEN: '${{ secrets.SENTRY_AUTH_TOKEN }}'
 
+      - name: Upload daemon debug info to Sentry (Unix)
+        if: matrix.config.os != 'windows-2025' && env.SENTRY_AUTH_TOKEN != ''
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: mintter
+          SENTRY_PROJECT: seed-electron
+        run: |
+          node scripts/upload-daemon-symbols.mjs \
+            plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}
+
+      - name: Upload daemon debug info to Sentry (Windows)
+        if: startsWith(matrix.config.os, 'windows') && env.SENTRY_AUTH_TOKEN != ''
+        shell: bash
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: mintter
+          SENTRY_PROJECT: seed-electron
+        run: |
+          node scripts/upload-daemon-symbols.mjs \
+            plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: artifacts-${{ matrix.config.daemon_name }}
           path: frontend/apps/desktop/out/make/**/*
+  finalize-sentry-release:
+    name: Finalize Sentry release
+    needs: [build-info, build-binaries]
+    runs-on: ubuntu-latest
+    if: ${{ needs.build-binaries.result == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Sentry release lifecycle (production)
+        if: ${{ secrets.SENTRY_AUTH_TOKEN != '' }}
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: mintter
+          SENTRY_PROJECT: seed-electron
+          VERSION: ${{ needs.build-info.outputs.version }}
+        run: |
+          npx --yes --package=@sentry/cli@2.42.5 sentry-cli releases new "$VERSION"
+          npx --yes --package=@sentry/cli@2.42.5 sentry-cli releases set-commits "$VERSION" --auto --ignore-missing --ignore-empty
+          npx --yes --package=@sentry/cli@2.42.5 sentry-cli releases finalize "$VERSION"
+          npx --yes --package=@sentry/cli@2.42.5 sentry-cli releases deploys "$VERSION" new --env production
+
   publish-to-github:
     needs: [build-info, build-binaries]
     runs-on: ubuntu-latest

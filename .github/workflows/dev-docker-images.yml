@@ -238,7 +238,7 @@ jobs:
           build-args: |
             PREBUILT=true
             SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
-            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
+            NOTIFY_SENTRY_DSN=${{ secrets.NOTIFY_SENTRY_DSN }}
             COMMIT_HASH=${{ github.sha }}
             BRANCH=${{ github.ref }}
             DATE=${{ env.COMMIT_DATE }}
@@ -369,3 +369,29 @@ jobs:
           AWS_DEFAULT_REGION: eu-west-2
         run: |
           aws s3 cp deploy-script/deploy.js s3://seedappdev/dev/latest/deploy.js
+
+  finalize-sentry-web-release:
+    name: Finalize Sentry release (web dev)
+    runs-on: ubuntu-latest
+    needs: [docker-web, docker-notify]
+    if: ${{ github.ref == 'refs/heads/main' && needs.docker-web.result == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Sentry release lifecycle (dev)
+        if: ${{ secrets.SENTRY_AUTH_TOKEN != '' }}
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: mintter
+          VERSION: ${{ github.sha }}
+        run: |
+          for project in seed-site seed-notify; do
+            echo "::group::Sentry release for $project"
+            export SENTRY_PROJECT=$project
+            npx --yes --package=@sentry/cli@2.42.5 sentry-cli releases new "$VERSION"
+            npx --yes --package=@sentry/cli@2.42.5 sentry-cli releases set-commits "$VERSION" --auto --ignore-missing --ignore-empty
+            npx --yes --package=@sentry/cli@2.42.5 sentry-cli releases finalize "$VERSION"
+            npx --yes --package=@sentry/cli@2.42.5 sentry-cli releases deploys "$VERSION" new --env dev
+            echo "::endgroup::"
+          done

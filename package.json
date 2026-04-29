@@ -69,6 +69,7 @@
     "onlyBuiltDependencies": [
       "@ipshipyard/node-datachannel",
       "@sentry/cli",
+      "@sentry/profiling-node",
       "better-sqlite3",
       "canvas",
       "electron",

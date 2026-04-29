@@ -93,16 +93,29 @@ export default defineConfig(({command, mode}) => {
       'import.meta.env.VITE_VERSION': JSON.stringify(process.env.npm_package_version),
       'import.meta.env.MODE': JSON.stringify(mode),
       'import.meta.env.DEV': mode === 'development',
+      // Allow `SENTRY_ENVIRONMENT` / `SENTRY_RELEASE` at build/dev time to act as
+      // a global override that all three apps honor (web, notify, desktop).
+      'import.meta.env.VITE_SENTRY_ENVIRONMENT': JSON.stringify(process.env.SENTRY_ENVIRONMENT || ''),
+      'import.meta.env.VITE_SENTRY_RELEASE': JSON.stringify(process.env.SENTRY_RELEASE || ''),
     },
   }
 
-  if (command == 'build') {
+  if (command == 'build' && process.env.SENTRY_AUTH_TOKEN) {
     config.plugins.push(
       sentryVitePlugin({
         authToken: process.env.SENTRY_AUTH_TOKEN,
         org: 'mintter',
         project: 'seed-electron',
         telemetry: false,
+        applicationKey: 'seed-electron-renderer',
+        release: {
+          name: process.env.VITE_VERSION || undefined,
+          setCommits: {auto: true, ignoreMissing: true, ignoreEmpty: true},
+          deploy: {env: process.env.SENTRY_ENVIRONMENT || (mode === 'production' ? 'production' : 'dev')},
+        },
+        sourcemaps: {
+          filesToDeleteAfterUpload: ['.vite/renderer/**/*.map'],
+        },
       }),
     )
   }

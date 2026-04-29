@@ -43,39 +43,56 @@ if (plausibleDomain) {
   document.head.appendChild(script)
 }
 
-if (IS_PROD_DESKTOP) {
-  Sentry.init({
-    // @ts-ignore
-    // @ts-ignore
-    // @ts-expect-error
-    dsn: import.meta.env.VITE_DESKTOP_SENTRY_DSN,
-    // @ts-expect-error
-    release: import.meta.env.VITE_VERSION,
-    // @ts-expect-error
-    environment: import.meta.env.MODE,
-    debug: false,
-    // @ts-ignore
-    integrations: [new Sentry.Replay(), new Sentry.BrowserTracing()],
-    // @ts-expect-error
-    tracesSampleRate: import.meta.env.DEV ? 1.0 : 0.25,
-    tracePropagationTargets: ['localhost', /^https:\/\/hyper\.media\//],
-    // Session Replay
-    replaysSessionSampleRate: 0.1, // This sets the sample rate at 10%. You may want to change it to 100% while in development and then sample at a lower rate in production.
-    replaysOnErrorSampleRate: 1.0, // If you're not already sampling the entire session, change the sample rate to 100% when sampling sessions where errors occur.
-    // The maximum number of days to keep an event in the queue.
-    maxQueueAgeDays: 30,
-    // The maximum number of events to keep in the queue.
-    maxQueueCount: 30,
-    // Called every time the number of requests in the queue changes.
-    // queuedLengthChanged: (length) => {},
-    // Called before attempting to send an event to Sentry. Used to override queuing behavior.
-    //
-    // Return 'send' to attempt to send the event.
-    // Return 'queue' to queue and persist the event for sending later.
-    // Return 'drop' to drop the event.
-    // beforeSend: (request) => (isOnline() ? 'send' : 'queue'),
-  })
+// Vite injects these at build time. The desktop tsconfig targets CommonJS so
+// `import.meta` triggers TS1343 here even though it's valid for the bundler.
+// @ts-ignore - Vite-only meta property
+const importMetaEnv = ((import.meta as any)?.env ?? {}) as {
+  VITE_DESKTOP_SENTRY_DSN?: string
+  VITE_VERSION?: string
+  MODE?: string
+  DEV?: boolean
+  VITE_SENTRY_ENVIRONMENT?: string
+  VITE_SENTRY_RELEASE?: string
 }
-// setTimeout(() => {
-//   throw new Error('Some renderer error')
-// }, 500)
+
+const rendererDsn = importMetaEnv.VITE_DESKTOP_SENTRY_DSN
+
+if (IS_PROD_DESKTOP && rendererDsn) {
+  Sentry.init({
+    dsn: rendererDsn,
+    release: importMetaEnv.VITE_SENTRY_RELEASE || importMetaEnv.VITE_VERSION || undefined,
+    environment: importMetaEnv.VITE_SENTRY_ENVIRONMENT || importMetaEnv.MODE || 'production',
+    debug: false,
+    sendDefaultPii: false,
+    attachStacktrace: true,
+    integrations: [
+      Sentry.browserTracingIntegration(),
+      Sentry.browserProfilingIntegration(),
+      Sentry.replayIntegration({
+        maskAllText: true,
+        blockAllMedia: true,
+      }),
+    ],
+    tracesSampler: (samplingContext) => {
+      if (samplingContext?.parentSampled !== undefined) {
+        return samplingContext.parentSampled ? 1.0 : 0
+      }
+      return importMetaEnv.DEV ? 1.0 : 0.1
+    },
+    profilesSampleRate: 1.0,
+    tracePropagationTargets: [
+      'localhost',
+      /^https:\/\/(.*\.)?hyper\.media/,
+      /^https:\/\/(.*\.)?seed\.hyper\.media/,
+    ],
+    replaysSessionSampleRate: 0.1,
+    replaysOnErrorSampleRate: 1.0,
+    ignoreErrors: [
+      'ResizeObserver loop limit exceeded',
+      'ResizeObserver loop completed with undelivered notifications',
+      /Loading chunk \d+ failed/,
+    ],
+  })
+  Sentry.setTag('app', 'desktop')
+  Sentry.setTag('process', 'renderer')
+}

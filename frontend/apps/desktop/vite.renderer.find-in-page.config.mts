@@ -61,13 +61,21 @@ export default defineConfig(({command, mode}) => {
     },
   }
 
-  if (command == 'build') {
+  if (command == 'build' && process.env.SENTRY_AUTH_TOKEN) {
     config.plugins.push(
       sentryVitePlugin({
         authToken: process.env.SENTRY_AUTH_TOKEN,
         org: 'mintter',
         project: 'seed-electron',
         telemetry: false,
+        applicationKey: 'seed-electron-find-in-page',
+        release: {
+          name: process.env.VITE_VERSION || undefined,
+          setCommits: {auto: true, ignoreMissing: true, ignoreEmpty: true},
+        },
+        sourcemaps: {
+          filesToDeleteAfterUpload: ['.vite/find-in-page/**/*.map'],
+        },
       }),
     )
   }
