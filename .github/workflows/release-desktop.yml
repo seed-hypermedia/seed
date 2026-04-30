@@ -294,16 +294,16 @@ jobs:
           node scripts/upload-daemon-symbols.mjs \
             plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}
 
-      - name: Upload daemon debug info to Sentry (Windows)
-        if: startsWith(matrix.config.os, 'windows') && env.SENTRY_AUTH_TOKEN != ''
-        shell: bash
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: mintter
-          SENTRY_PROJECT: seed-electron
-        run: |
-          node scripts/upload-daemon-symbols.mjs \
-            plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe
+      # - name: Upload daemon debug info to Sentry (Windows)
+      #   if: startsWith(matrix.config.os, 'windows') && env.SENTRY_AUTH_TOKEN != ''
+      #   shell: bash
+      #   env:
+      #     SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      #     SENTRY_ORG: mintter
+      #     SENTRY_PROJECT: seed-electron
+      #   run: |
+      #     node scripts/upload-daemon-symbols.mjs \
+      #       plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
