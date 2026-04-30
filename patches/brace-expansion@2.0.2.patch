@@ -1,0 +1,11 @@
+diff --git a/index.js b/index.js
+index a27f81ce041e7cf9b7dd9d95533813527f918fb6..8750a95817e55b6d4eebb7c456a796883859ca9e 100644
+--- a/index.js
++++ b/index.js
+@@ -201,3 +201,6 @@ function expand(str, isTop) {
+   return expansions;
+ }
+ 
++// patch-package: add named export for ESM interop with minimatch
++module.exports.expand = expandTop;
++

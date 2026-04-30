@@ -360,29 +360,4 @@ jobs:
           cache-from: type=gha,scope=docker-vault-release
           cache-to: type=gha,mode=max,scope=docker-vault-release
 
-  finalize-sentry-web-release:
-    name: Finalize Sentry release (web)
-    runs-on: ubuntu-latest
-    needs: [docker-web, docker-notify]
-    if: ${{ needs.docker-web.result == 'success' }}
-    env:
-      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Sentry release lifecycle (production)
-        if: ${{ env.SENTRY_AUTH_TOKEN != '' }}
-        env:
-          SENTRY_ORG: mintter
-          VERSION: ${{ github.sha }}
-        run: |
-          for project in seed-site seed-notify; do
-            echo "::group::Sentry release for $project"
-            export SENTRY_PROJECT=$project
-            npx --yes --package=@sentry/cli@2.42.5 sentry-cli releases new "$VERSION"
-            npx --yes --package=@sentry/cli@2.42.5 sentry-cli releases set-commits "$VERSION" --auto --ignore-missing --ignore-empty
-            npx --yes --package=@sentry/cli@2.42.5 sentry-cli releases finalize "$VERSION"
-            npx --yes --package=@sentry/cli@2.42.5 sentry-cli releases deploys "$VERSION" new --env production
-            echo "::endgroup::"
-          done
+

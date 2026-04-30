@@ -410,29 +410,6 @@ jobs:
           name: artifacts-${{ matrix.config.daemon_name }}
           path: frontend/apps/desktop/out/make/**/*
 
-  finalize-sentry-release:
-    name: Finalize Sentry release (dev)
-    needs: [build-info, build-binaries]
-    runs-on: ubuntu-latest
-    if: ${{ needs.build-binaries.result == 'success' }}
-    env:
-      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Sentry release lifecycle (dev)
-        if: ${{ env.SENTRY_AUTH_TOKEN != '' }}
-        env:
-          SENTRY_ORG: mintter
-          SENTRY_PROJECT: seed-electron
-          VERSION: ${{ needs.build-info.outputs.version }}
-        run: |
-          npx --yes --package=@sentry/cli@2.42.5 sentry-cli releases new "$VERSION"
-          npx --yes --package=@sentry/cli@2.42.5 sentry-cli releases set-commits "$VERSION" --auto --ignore-missing --ignore-empty
-          npx --yes --package=@sentry/cli@2.42.5 sentry-cli releases finalize "$VERSION"
-          npx --yes --package=@sentry/cli@2.42.5 sentry-cli releases deploys "$VERSION" new --env dev
-
   notify-on-discord:
     needs: [build-info, build-binaries]
     runs-on: ubuntu-latest
