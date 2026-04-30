@@ -17,7 +17,7 @@ ENV SENTRY_RELEASE=${COMMIT_HASH}
 ENV NOTIFY_SENTRY_RELEASE=${COMMIT_HASH}
 ENV NOTIFY_SENTRY_ENVIRONMENT=production
 
-RUN apk add git
+RUN apk add --no-cache git python3 make g++
 RUN npm install -g pnpm
 WORKDIR /app
 RUN apk add --no-cache libc6-compat

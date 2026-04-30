@@ -17,7 +17,7 @@ ENV SENTRY_RELEASE=${COMMIT_HASH}
 ENV SITE_SENTRY_RELEASE=${COMMIT_HASH}
 ENV SITE_SENTRY_ENVIRONMENT=production
 
-RUN apk add git
+RUN apk add --no-cache git python3 make g++
 RUN npm install -g pnpm
 WORKDIR /app
 RUN apk add --no-cache libc6-compat
@@ -30,7 +30,7 @@ RUN rm -rf ./frontend/apps/perf-web
 RUN rm -rf ./frontend/apps/performance-dashboard
 RUN rm -rf ./frontend/apps/explore
 RUN pnpm install --frozen-lockfile
-RUN if [ "$PREBUILT" != "true" ]; then pnpm web:prod; fi
+RUN if [ "$PREBUILT" != "true" ]; then NODE_OPTIONS="--max-old-space-size=4096" pnpm web:prod; fi
 
 FROM node:20-alpine AS production
 
