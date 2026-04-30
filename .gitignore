@@ -126,3 +126,5 @@ bun.lock
 ops/dist/*
 !ops/dist/deploy.js
 seed-pprof-*
+
+AGENTS.local.md

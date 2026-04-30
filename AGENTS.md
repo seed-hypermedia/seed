@@ -4,6 +4,8 @@
 
 - Read this file first.
 - Read subtree `AGENTS.md` files only when writing files in their scope, or when local behavior is unclear or confusing.
+- Read `AGENTS.local.md` files if they exist. These are local instructions not checked into the repo. They have
+  precedence over other instructions.
 
 ## Subtree AGENTS.md Map
 
@@ -39,8 +41,10 @@
   - Backend tests: `npx @redwoodjs/agent-ci run -w .github/workflows/test-go.yml -p`
   - Vault: `npx @redwoodjs/agent-ci run -w .github/workflows/dev-vault-image.yml -p --github-token`
   - Ops deploy script: `npx @redwoodjs/agent-ci run -w .github/workflows/check-deploy-script.yml -p --github-token`
-- On failure, fix in place and `npx @redwoodjs/agent-ci retry --name <runner-name>` instead of starting a fresh run. Use `npx @redwoodjs/agent-ci abort --name <runner-name>` to give up.
-- Avoid `--all` and `dev-docker-images.yml` for routine work — they include heavy llama.cpp Vulkan builds and Docker image assembly without extra signal beyond `test-go.yml`.
+- On failure, fix in place and `npx @redwoodjs/agent-ci retry --name <runner-name>` instead of starting a fresh run. Use
+  `npx @redwoodjs/agent-ci abort --name <runner-name>` to give up.
+- Avoid `--all` and `dev-docker-images.yml` for routine work — they include heavy llama.cpp Vulkan builds and Docker
+  image assembly without extra signal beyond `test-go.yml`.
 - Skipped automatically: `windows-*` jobs (unsupported); `macos-*` jobs require `tart` + `sshpass`.
 
 ## Coding Guidelines
