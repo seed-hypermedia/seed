@@ -7,7 +7,6 @@
 - Before finishing Vault work, run `bun check`, and `bun test` from `vault/`.
 - For full CI parity before pushing, validate locally via agent-ci (run from repo root):
   `npx @redwoodjs/agent-ci run -w .github/workflows/dev-vault-image.yml -p --github-token`.
-  See `docs/local-ci-with-agent-ci.md`.
 - Do not suppress lint warnings unless it is a confirmed false positive with a short justification.
 - Prefer namespace imports over destructuring imports.
 - When naming symbols in first-party code avoid stuttering prefixes — assume users will be using namespace imports.
