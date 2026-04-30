@@ -25,7 +25,7 @@ export default defineConfig(({command, mode}) => {
     },
     publicDir: 'assets',
     build: {
-      sourcemap: true,
+      sourcemap: !(process.platform === 'win32' && process.env.CI),
       rollupOptions: {
         external: ['electron', /canvas\.node$/],
         /**

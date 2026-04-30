@@ -11,7 +11,7 @@ const extensions = ['.web.tsx', '.tsx', '.web.ts', '.ts', '.web.jsx', '.jsx', '.
 export default defineConfig(({command, mode}) => {
   const config = {
     build: {
-      sourcemap: true,
+      sourcemap: !(process.platform === 'win32' && process.env.CI),
       rollupOptions: {
         input: {
           app: './find.html',

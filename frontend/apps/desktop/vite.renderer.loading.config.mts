@@ -6,7 +6,7 @@ const extensions = ['.web.tsx', '.tsx', '.web.ts', '.ts', '.web.jsx', '.jsx', '.
 // Minimal config for loading window - no tsConfigPaths, no tailwind, no sentry
 export default defineConfig(() => ({
   build: {
-    sourcemap: true,
+    sourcemap: !(process.platform === 'win32' && process.env.CI),
     rollupOptions: {
       input: {
         app: './loading.html',

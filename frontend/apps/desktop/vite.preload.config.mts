@@ -7,7 +7,7 @@ import tsConfigPaths from 'vite-tsconfig-paths'
 export default defineConfig(({command}) => {
   const config = {
     build: {
-      sourcemap: true,
+      sourcemap: !(process.platform === 'win32' && process.env.CI),
       rollupOptions: {
         external: [],
       },
