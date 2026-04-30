@@ -99,7 +99,7 @@ import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-mess
 import {PanelLayout} from './panel-layout'
 import {GotoLatestBanner, SiteHeader} from './site-header'
 import {Spinner} from './spinner'
-import {UnreferencedDocuments} from './unreferenced-documents'
+// import {UnreferencedDocuments} from './unreferenced-documents'
 import {useBlockScroll} from './use-block-scroll'
 import {useMedia} from './use-media'
 import {cn} from './utils'
@@ -988,7 +988,7 @@ function DocumentBody({
   const isHomeDoc = !docId.path?.length
   const siteId = useMemo(() => hmId(docId.uid), [docId.uid])
   const siteMembers = useSiteMembers(siteId)
-  const directory = useDirectory(docId)
+  // const directory = useDirectory(docId)
   const interactionSummary = useInteractionSummary(docId)
 
   // Breadcrumbs: fetch parent documents for non-home docs
@@ -1504,7 +1504,7 @@ function DocumentBody({
           onBlockCommentClick={handleBlockCommentClick}
           onBlockSelect={isUnpublishedDraft ? undefined : handleBlockSelect}
           CommentEditor={CommentEditor}
-          directory={directory.data}
+          // directory={directory.data}
           siteUrl={siteUrl}
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
@@ -1973,7 +1973,7 @@ function MainContent({
   onBlockCommentClick,
   onBlockSelect,
   CommentEditor,
-  directory,
+  // directory,
   siteUrl,
   inlineCards,
   inlineInsert,
@@ -2099,7 +2099,7 @@ function MainContent({
           onBlockCitationClick={onBlockCitationClick}
           onBlockCommentClick={onBlockCommentClick}
           onBlockSelect={onBlockSelect}
-          directory={directory}
+          // directory={directory}
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
           DocumentContentComponent={DocumentContentComponent}
@@ -2127,7 +2127,7 @@ function ContentViewWithOutline({
   onBlockCitationClick,
   onBlockCommentClick,
   onBlockSelect,
-  directory,
+  // directory,
   inlineCards,
   inlineInsert,
   DocumentContentComponent,
@@ -2217,12 +2217,12 @@ function ContentViewWithOutline({
         ) : null}
         {inlineInsert}
         {inlineCards}
-        <UnreferencedDocuments
+        {/* <UnreferencedDocuments
           docId={docId}
           content={document.content}
           draftContent={existingDraftContent}
           directory={directory}
-        />
+        /> */}
       </div>
 
       {showSidebars && <div {...sidebarProps} />}
