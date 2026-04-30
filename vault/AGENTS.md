@@ -10,3 +10,4 @@
 - Do not suppress lint warnings unless it is a confirmed false positive with a short justification.
 - Prefer namespace imports over destructuring imports.
 - When naming symbols in first-party code avoid stuttering prefixes — assume users will be using namespace imports.
+- For configuration see the top comment of `./src/config.ts`.

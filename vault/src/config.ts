@@ -1,3 +1,15 @@
+/**
+ * All the configuration for the Vault server is defined here.
+ * Flags are the source of truth for configuration values. Everything is defined as flags first.
+ * Then we map flags to config objects.
+ * There's no global singleton config values. Everything should be defined as a flag, and then parsed into objects.
+ * See `create()` function defined here.
+ *
+ * Never use `process.env` directly in the code, especially on the frontend. Most configuration should be runtime, not build-time.
+ *
+ * The frontend fetched public config from the server, which explicitly exposes only what's needed. Check [GetConfigResponse] in `./api.ts`.
+ */
+
 import type * as email from '@/email'
 import type * as cleye from 'cleye'
 
