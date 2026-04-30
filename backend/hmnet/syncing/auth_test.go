@@ -50,8 +50,8 @@ func TestComputeAuthInfoUsesListKeyPairs(t *testing.T) {
 		keyStore: store,
 	}
 
-	info := svc.computeAuthInfo(ctx, map[string]bool{
-		fmt.Sprintf("hm://%s/doc", space.String()): true,
+	info := svc.computeAuthInfo(ctx, map[string]entityScope{
+		fmt.Sprintf("hm://%s/doc", space.String()): {Recursive: true},
 	})
 
 	require.Equal(t, 1, store.listKeyPairsCalls)

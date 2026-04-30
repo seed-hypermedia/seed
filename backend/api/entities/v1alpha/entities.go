@@ -48,7 +48,8 @@ type Discoverer interface {
 	// The task is ephemeral (evicts when not called) unless a subscription exists for the same IRI.
 	// blobTypes is an optional structural-blob-type allowlist (e.g. ["Profile","Ref","Change"]);
 	// nil/empty disables the filter so all blob types are discovered (default behavior).
-	TouchHotTask(iri blob.IRI, version blob.Version, recursive bool, blobTypes []string) syncing.TaskInfo
+	// depthOne, when true, limits recursion to direct children of iri (mutually exclusive with recursive).
+	TouchHotTask(iri blob.IRI, version blob.Version, recursive bool, depthOne bool, blobTypes []string) syncing.TaskInfo
 }
 
 // Server implements Entities API.
@@ -96,21 +97,44 @@ func (srv *Server) DiscoverEntity(_ context.Context, in *entpb.DiscoverEntityReq
 		return nil, status.Errorf(codes.FailedPrecondition, "discovery is not enabled")
 	}
 
-	if in.Account == "" {
-		return nil, errutil.MissingArgument("account")
-	}
+	var (
+		iri       blob.IRI
+		recursive bool
+		depthOne  bool
+		blobTypes []string
+	)
 
-	in.Account = strings.TrimPrefix(in.Account, "hm://")
-	in.Path = strings.TrimSuffix(in.Path, "/")
+	if in.Id != "" {
+		if in.Account != "" || in.Path != "" || in.Recursive {
+			return nil, status.Error(codes.InvalidArgument, "id is mutually exclusive with account, path, and recursive")
+		}
+		t, err := parseDiscoveryURL(in.Id)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "bad id: %v", err)
+		}
+		iri = t.IRI
+		recursive = t.Recursive
+		depthOne = t.DepthOne
+		blobTypes = t.BlobTypes
+	} else {
+		if in.Account == "" {
+			return nil, errutil.MissingArgument("account")
+		}
 
-	acc, err := core.DecodePrincipal(in.Account)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "bad account: %v", err)
-	}
+		in.Account = strings.TrimPrefix(in.Account, "hm://")
+		in.Path = strings.TrimSuffix(in.Path, "/")
 
-	iri, err := blob.NewIRI(acc, in.Path)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "bad IRI: %v", err)
+		acc, err := core.DecodePrincipal(in.Account)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "bad account: %v", err)
+		}
+
+		iri, err = blob.NewIRI(acc, in.Path)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "bad IRI: %v", err)
+		}
+
+		recursive = in.Recursive
 	}
 
 	if _, err := blob.Version(in.Version).Parse(); err != nil {
@@ -120,7 +144,7 @@ func (srv *Server) DiscoverEntity(_ context.Context, in *entpb.DiscoverEntityReq
 	v := blob.Version(in.Version)
 
 	// Delegate to syncing service for task management.
-	info := srv.disc.TouchHotTask(iri, v, in.Recursive, in.BlobTypes)
+	info := srv.disc.TouchHotTask(iri, v, recursive, depthOne, blobTypes)
 
 	resp := &entpb.DiscoverEntityResponse{
 		Version:  info.Result.String(),

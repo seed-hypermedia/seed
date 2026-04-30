@@ -29,7 +29,7 @@ type mockDiscoverer struct {
 	interval     time.Duration
 }
 
-func (m *mockDiscoverer) DiscoverObjectWithProgress(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, blobTypes []string, prog *Progress) (blob.Version, error) {
+func (m *mockDiscoverer) DiscoverObjectWithProgress(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, depthOne bool, blobTypes []string, prog *Progress) (blob.Version, error) {
 	m.mu.Lock()
 	m.calls[entityID]++
 	onDiscover := m.onDiscoverFn

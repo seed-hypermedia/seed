@@ -220,7 +220,7 @@ export class Filter extends Message<Filter> {
 
   /**
    * If its recursive, then all the documents below the path are
-   * will also pass the filter.
+   * will also pass the filter. Mutually exclusive with depth_one.
    *
    * @generated from field: bool recursive = 2;
    */
@@ -237,6 +237,14 @@ export class Filter extends Message<Filter> {
    */
   types: string[] = [];
 
+  /**
+   * If set, only the direct children (depth=1) of the given resource pass the
+   * filter — their descendants are excluded. Mutually exclusive with recursive.
+   *
+   * @generated from field: bool depth_one = 4;
+   */
+  depthOne = false;
+
   constructor(data?: PartialMessage<Filter>) {
     super();
     proto3.util.initPartial(data, this);
@@ -248,6 +256,7 @@ export class Filter extends Message<Filter> {
     { no: 1, name: "resource", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 3, name: "types", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 4, name: "depth_one", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Filter {

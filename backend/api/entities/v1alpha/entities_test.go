@@ -9,6 +9,7 @@ import (
 	"seed/backend/core/keystore"
 	documents "seed/backend/genproto/documents/v3alpha"
 	entpb "seed/backend/genproto/entities/v1alpha"
+	"seed/backend/hmnet/syncing"
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/util/must"
@@ -18,6 +19,31 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// fakeDiscoverer captures the args passed to TouchHotTask for assertion in
+// handler tests, without exercising the real syncing service.
+type fakeDiscoverer struct {
+	calls []fakeDiscoverCall
+}
+
+type fakeDiscoverCall struct {
+	IRI       blob.IRI
+	Version   blob.Version
+	Recursive bool
+	DepthOne  bool
+	BlobTypes []string
+}
+
+func (f *fakeDiscoverer) TouchHotTask(iri blob.IRI, version blob.Version, recursive bool, depthOne bool, blobTypes []string) syncing.TaskInfo {
+	f.calls = append(f.calls, fakeDiscoverCall{
+		IRI:       iri,
+		Version:   version,
+		Recursive: recursive,
+		DepthOne:  depthOne,
+		BlobTypes: blobTypes,
+	})
+	return syncing.TaskInfo{}
+}
 
 type testServices struct {
 	documents *documentsapi.Server
@@ -160,4 +186,102 @@ func TestBuildRankMap(t *testing.T) {
 	require.Equal(t, 2, ranks["hm://a/doc3"], "doc3 has score 30 so must be rank 2")
 	require.Equal(t, 3, ranks["hm://a/doc1"], "doc1 has lowest score (10) so must be rank 3")
 	require.Len(t, ranks, 3, "must have 3 unique IRIs")
+}
+
+func TestDiscoverEntity_RequestShapes(t *testing.T) {
+	t.Parallel()
+
+	alice := coretest.NewTester("alice").Account.Principal()
+	aliceID := alice.String()
+
+	newServer := func() (*Server, *fakeDiscoverer) {
+		fd := &fakeDiscoverer{}
+		srv := NewServer(config.Base{}, nil, fd, nil, logging.New("seed/entities/test", "debug"))
+		return srv, fd
+	}
+
+	t.Run("id with profile scope maps to blob types", func(t *testing.T) {
+		srv, fd := newServer()
+		_, err := srv.DiscoverEntity(context.Background(), &entpb.DiscoverEntityRequest{
+			Id: "hm://" + aliceID + "/:profile",
+		})
+		require.NoError(t, err)
+		require.Len(t, fd.calls, 1)
+		require.Equal(t, blob.IRI("hm://"+aliceID), fd.calls[0].IRI)
+		require.Equal(t, []string{"Profile", "Ref", "Change"}, fd.calls[0].BlobTypes)
+		require.False(t, fd.calls[0].Recursive)
+		require.False(t, fd.calls[0].DepthOne)
+	})
+
+	t.Run("id with ** wildcard sets Recursive", func(t *testing.T) {
+		srv, fd := newServer()
+		_, err := srv.DiscoverEntity(context.Background(), &entpb.DiscoverEntityRequest{
+			Id: "hm://" + aliceID + "/notes/**",
+		})
+		require.NoError(t, err)
+		require.Len(t, fd.calls, 1)
+		require.Equal(t, blob.IRI("hm://"+aliceID+"/notes"), fd.calls[0].IRI)
+		require.True(t, fd.calls[0].Recursive)
+		require.False(t, fd.calls[0].DepthOne)
+	})
+
+	t.Run("id with * wildcard sets DepthOne", func(t *testing.T) {
+		srv, fd := newServer()
+		_, err := srv.DiscoverEntity(context.Background(), &entpb.DiscoverEntityRequest{
+			Id: "hm://" + aliceID + "/notes/*",
+		})
+		require.NoError(t, err)
+		require.Len(t, fd.calls, 1)
+		require.True(t, fd.calls[0].DepthOne)
+		require.False(t, fd.calls[0].Recursive)
+	})
+
+	t.Run("decomposed account+path still works", func(t *testing.T) {
+		srv, fd := newServer()
+		_, err := srv.DiscoverEntity(context.Background(), &entpb.DiscoverEntityRequest{
+			Account:   aliceID,
+			Path:      "/notes/foo",
+			Recursive: true,
+		})
+		require.NoError(t, err)
+		require.Len(t, fd.calls, 1)
+		require.Equal(t, blob.IRI("hm://"+aliceID+"/notes/foo"), fd.calls[0].IRI)
+		require.True(t, fd.calls[0].Recursive)
+		require.Nil(t, fd.calls[0].BlobTypes)
+	})
+
+	t.Run("id rejects mixing with account", func(t *testing.T) {
+		srv, _ := newServer()
+		_, err := srv.DiscoverEntity(context.Background(), &entpb.DiscoverEntityRequest{
+			Id:      "hm://" + aliceID,
+			Account: aliceID,
+		})
+		require.Error(t, err)
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		require.Equal(t, codes.InvalidArgument, st.Code())
+	})
+
+	t.Run("id rejects mixing with recursive", func(t *testing.T) {
+		srv, _ := newServer()
+		_, err := srv.DiscoverEntity(context.Background(), &entpb.DiscoverEntityRequest{
+			Id:        "hm://" + aliceID,
+			Recursive: true,
+		})
+		require.Error(t, err)
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		require.Equal(t, codes.InvalidArgument, st.Code())
+	})
+
+	t.Run("id rejects malformed URL", func(t *testing.T) {
+		srv, _ := newServer()
+		_, err := srv.DiscoverEntity(context.Background(), &entpb.DiscoverEntityRequest{
+			Id: "hm://not-a-real-principal/:profile",
+		})
+		require.Error(t, err)
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		require.Equal(t, codes.InvalidArgument, st.Code())
+	})
 }

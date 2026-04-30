@@ -261,8 +261,16 @@ func init() {
 // of a Syncing RPC client for a given remote Device ID.
 type netDialFunc func(context.Context, peer.ID, ...multiaddr.Multiaddr) (p2p.SyncingClient, error)
 
-// subscriptionMap is a map of peer IDs to an IRI and a boolean indicating whether it's a recursive subscription.
-type subscriptionMap map[peer.ID]map[string]bool
+// entityScope describes how to scope reconciliation for a single entity.
+// Recursive and DepthOne are mutually exclusive: Recursive walks the entire
+// subtree below the entity, DepthOne only its direct children.
+type entityScope struct {
+	Recursive bool
+	DepthOne  bool
+}
+
+// subscriptionMap is a map of peer IDs to an IRI and the recursion scope to apply.
+type subscriptionMap map[peer.ID]map[string]entityScope
 
 // bitswap is a subset of the bitswap that is used by syncing service.
 type bitswap interface {
@@ -473,13 +481,16 @@ func (s *Service) listSubscriptionsFromDB(ctx context.Context) ([]Subscription, 
 //
 // blobTypes is an optional allowlist of structural blob types to discover
 // (e.g. ["Profile", "Ref", "Change"]); nil/empty disables filtering.
-// Tasks with different blobTypes settings are tracked independently, so
-// the filter is part of the task identity.
-func (s *Service) TouchHotTask(iri blob.IRI, version blob.Version, recursive bool, blobTypes []string) TaskInfo {
+// recursive and depthOne are mutually exclusive: recursive walks the entire
+// subtree below iri, depthOne only its direct children. Tasks with different
+// recursion or blobTypes settings are tracked independently, so each is part
+// of the task identity.
+func (s *Service) TouchHotTask(iri blob.IRI, version blob.Version, recursive bool, depthOne bool, blobTypes []string) TaskInfo {
 	key := DiscoveryKey{
 		IRI:       iri,
 		Version:   version,
 		Recursive: recursive,
+		DepthOne:  depthOne,
 		BlobTypes: BlobTypesString(blobTypes),
 	}
 	return s.scheduler.scheduleTask(key, time.Now(), schedOpts{isHot: true})
@@ -531,7 +542,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	var g errgroup.Group
 	g.SetLimit(maxPeerConcurrency)
 
-	dispatch := func(i int, pid peer.ID, eids map[string]bool) {
+	dispatch := func(i int, pid peer.ID, eids map[string]entityScope) {
 		res.Peers[i] = pid
 		g.Go(func() error {
 			var err error
@@ -574,7 +585,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	return res
 }
 
-func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string) (err error) {
+func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]entityScope, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string) (err error) {
 	// lastPhase tracks the most recent phase we entered. On error it's used to
 	// classify the failure into an outcome counter label.
 	lastPhase := "dial"
@@ -669,7 +680,7 @@ func syncResources(
 	idx Index,
 	sess exchange.Fetcher,
 	log *zap.Logger,
-	eids map[string]bool,
+	eids map[string]entityScope,
 	blobTypes []string,
 	store rbsr.Store,
 	prog *Progress,
@@ -708,8 +719,8 @@ func syncResources(
 	}
 
 	filters := make([]*p2p.Filter, 0, len(eids))
-	for eid, recursive := range eids {
-		filters = append(filters, &p2p.Filter{Resource: eid, Recursive: recursive, Types: blobTypes})
+	for eid, sc := range eids {
+		filters = append(filters, &p2p.Filter{Resource: eid, Recursive: sc.Recursive, DepthOne: sc.DepthOne, Types: blobTypes})
 	}
 
 	var (
@@ -877,7 +888,7 @@ func syncResources(
 // 2. Resolve the siteURL to a peer ID.
 // 3. Check if any local key has access to that space.
 // 4. If so, map the siteURL peer to the keypair.
-func (s *Service) computeAuthInfo(ctx context.Context, eids map[string]bool) *authInfo {
+func (s *Service) computeAuthInfo(ctx context.Context, eids map[string]entityScope) *authInfo {
 	info := &authInfo{
 		peerKeys:  make(map[peer.ID][]*core.KeyPair),
 		addrInfos: make(map[peer.ID]peer.AddrInfo),

@@ -59,13 +59,16 @@ func NewDiscoveryProgress() *Progress {
 // discovered (default). Filtering avoids pulling unrelated blobs (e.g.
 // Capability/Comment/Contact) when the caller only needs a subset — useful
 // for "render an avatar" use-cases.
-func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, blobTypes []string) (blob.Version, error) {
+//
+// recursive and depthOne are mutually exclusive: recursive walks the entire
+// subtree below entityID, depthOne only its direct children.
+func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, depthOne bool, blobTypes []string) (blob.Version, error) {
 	prog := NewDiscoveryProgress()
-	return s.DiscoverObjectWithProgress(ctx, entityID, version, recursive, blobTypes, prog)
+	return s.DiscoverObjectWithProgress(ctx, entityID, version, recursive, depthOne, blobTypes, prog)
 }
 
 // DiscoverObjectWithProgress is similar to DiscoverObject, but tracks the progress of the discovery process.
-func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, blobTypes []string, prog *Progress) (resultVersion blob.Version, resultErr error) {
+func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, depthOne bool, blobTypes []string, prog *Progress) (resultVersion blob.Version, resultErr error) {
 	if s.cfg.NoDiscovery {
 		return "", fmt.Errorf("remote content discovery is disabled")
 	}
@@ -147,6 +150,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 			IRI:       entityID,
 			Version:   version,
 			Recursive: recursive,
+			DepthOne:  depthOne,
 			BlobTypes: blobTypesKey,
 		}: {},
 	}
@@ -167,8 +171,8 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 
 	// Compute auth info once for all peers. This determines which siteURL servers
 	// we should authenticate with based on local siteURL and capability info.
-	eidsMap := make(map[string]bool)
-	eidsMap[string(entityID)] = recursive
+	eidsMap := make(map[string]entityScope)
+	eidsMap[string(entityID)] = entityScope{Recursive: recursive, DepthOne: depthOne}
 	auth := s.computeAuthInfo(ctxLocalPeers, eidsMap)
 
 	if len(allPeers) != 0 {
@@ -218,8 +222,8 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		return "", nil
 	}
 
-	eidsMap = make(map[string]bool)
-	eidsMap[string(entityID)] = recursive
+	eidsMap = make(map[string]entityScope)
+	eidsMap[string(entityID)] = entityScope{Recursive: recursive, DepthOne: depthOne}
 	subsMap = make(subscriptionMap)
 	for p := range peers {
 		p := p
@@ -253,8 +257,13 @@ type DiscoveryKey struct {
 	// Version is the specific version of the resource to discover.
 	Version blob.Version
 
-	// Recursive indicates whether to discover the path below the IRI as well.
+	// Recursive indicates whether to discover the entire subtree below the IRI.
+	// Mutually exclusive with DepthOne.
 	Recursive bool
+
+	// DepthOne indicates whether to discover only the direct children of the IRI
+	// (one level deep, no further descent). Mutually exclusive with Recursive.
+	DepthOne bool
 
 	// BlobTypes is a sorted, comma-joined allowlist of structural blob types
 	// to include during discovery (e.g. "Change,Profile,Ref"). Empty means
@@ -626,6 +635,12 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 		if dkey.Recursive {
 			if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_iris
 					SELECT id FROM resources WHERE iri GLOB :pattern`, nil, string(dkey.IRI)+"/*"); err != nil {
+				return err
+			}
+		} else if dkey.DepthOne {
+			if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_iris
+					SELECT id FROM resources WHERE iri GLOB :child AND iri NOT GLOB :grand`,
+				nil, string(dkey.IRI)+"/*", string(dkey.IRI)+"/*/*"); err != nil {
 				return err
 			}
 		}

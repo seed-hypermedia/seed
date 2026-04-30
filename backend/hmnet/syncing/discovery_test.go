@@ -194,6 +194,84 @@ func TestFillTables_BlobTypeFilter(t *testing.T) {
 	})
 }
 
+// TestFillTables_PathScope exercises how fillTables populates rbsr_iris based
+// on the Recursive vs DepthOne flags on a DiscoveryKey. Seeds a small subtree
+// of resources at depths 0/1/1/2 below alice and verifies which IRIs end up in
+// rbsr_iris for each scoping mode.
+func TestFillTables_PathScope(t *testing.T) {
+	t.Parallel()
+
+	db := storage.MakeTestDB(t)
+
+	alice := coretest.NewTester("alice").Account.Principal()
+	root := blob.IRI("hm://" + alice.String())
+	notes := root + "/notes"        // depth 1
+	misc := root + "/misc"          // depth 1
+	notesFoo := notes + "/foo"      // depth 2 under /notes
+	notesFooX := notesFoo + "/deep" // depth 3 under /notes
+
+	require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn,
+			`INSERT INTO public_keys (id, principal) VALUES (1, ?)`, nil, []byte(alice)); err != nil {
+			return err
+		}
+		for id, iri := range map[int]blob.IRI{100: root, 101: notes, 102: misc, 103: notesFoo, 104: notesFooX} {
+			if err := sqlitex.Exec(conn, `INSERT INTO resources (id, iri) VALUES (?, ?)`, nil, id, string(iri)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}))
+
+	collectIRIs := func(t *testing.T, dkey DiscoveryKey) []string {
+		t.Helper()
+		var got []string
+		require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
+			if err := ensureTempTable(conn, "rbsr_iris"); err != nil {
+				return err
+			}
+			if err := ensureTempTable(conn, "rbsr_blobs"); err != nil {
+				return err
+			}
+			if err := fillTables(conn, map[DiscoveryKey]struct{}{dkey: {}}, false); err != nil {
+				return err
+			}
+			return sqlitex.Exec(conn, `SELECT iri FROM resources WHERE id IN rbsr_iris ORDER BY iri`, func(stmt *sqlite.Stmt) error {
+				got = append(got, stmt.ColumnText(0))
+				return nil
+			})
+		}))
+		return got
+	}
+
+	t.Run("exact match selects only the IRI itself", func(t *testing.T) {
+		got := collectIRIs(t, DiscoveryKey{IRI: notes})
+		require.Equal(t, []string{string(notes)}, got)
+	})
+
+	t.Run("recursive selects everything at and below the IRI", func(t *testing.T) {
+		got := collectIRIs(t, DiscoveryKey{IRI: notes, Recursive: true})
+		require.Equal(t, []string{string(notes), string(notesFoo), string(notesFooX)}, got)
+	})
+
+	t.Run("depth-one selects only direct children, excluding the base", func(t *testing.T) {
+		got := collectIRIs(t, DiscoveryKey{IRI: notes, DepthOne: true})
+		require.Equal(t, []string{string(notes), string(notesFoo)}, got,
+			"depth-one must include base + direct children, but exclude grandchildren")
+	})
+
+	t.Run("recursive at root selects the entire account tree", func(t *testing.T) {
+		got := collectIRIs(t, DiscoveryKey{IRI: root, Recursive: true})
+		require.Equal(t, []string{string(root), string(misc), string(notes), string(notesFoo), string(notesFooX)}, got)
+	})
+
+	t.Run("depth-one at root selects only top-level children", func(t *testing.T) {
+		got := collectIRIs(t, DiscoveryKey{IRI: root, DepthOne: true})
+		require.Equal(t, []string{string(root), string(misc), string(notes)}, got,
+			"depth-one at root must include account root + direct children only")
+	})
+}
+
 // TestDiscoveryKey_StableMapKey verifies that DiscoveryKey works as a map key
 // even when BlobTypes is set (i.e. that BlobTypesString produces a canonical
 // representation, so two equivalent slices map to the same key).

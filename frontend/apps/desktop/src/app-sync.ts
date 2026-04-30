@@ -17,13 +17,13 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {Event} from '@shm/shared/client/.generated/activity/v1alpha/activity_pb'
 import {DISCOVERY_DEBOUNCE_MS} from '@shm/shared/constants'
+import {DiscoveryScope, discoveryUrl} from '@shm/shared/discovery'
 import {getErrorMessage, HMRedirectError, HMResourceTombstoneError} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {createResourceFetcher} from '@shm/shared/resource-loader'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {observable} from '@trpc/server/observable'
 import z from 'zod'
@@ -469,14 +469,16 @@ export async function discoverDocument(
   version?: string | null,
   recursive?: boolean,
   onProgress?: (progress: DiscoveryProgress) => void,
-  blobTypes?: readonly string[],
+  scope: DiscoveryScope = 'all',
 ) {
   const discoverRequest = {
-    account: uid,
-    path: hmIdPathToEntityQueryPath(path),
+    id: discoveryUrl({
+      uid,
+      path,
+      recursion: recursive ? 'descendants' : 'none',
+      scope,
+    }),
     version: version || undefined,
-    recursive,
-    blobTypes: blobTypes ? Array.from(blobTypes) : undefined,
   } as const
 
   function checkDiscoverySuccess(discoverResp: {version: string}) {

@@ -88,7 +88,7 @@ func (task *taskHandle) Info() TaskInfo {
 
 // discoverer is an interface for discovering objects.
 type discoverer interface {
-	DiscoverObjectWithProgress(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, blobTypes []string, prog *Progress) (blob.Version, error)
+	DiscoverObjectWithProgress(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, depthOne bool, blobTypes []string, prog *Progress) (blob.Version, error)
 }
 
 // scheduler manages discovery tasks with a bounded worker pool.
@@ -208,6 +208,7 @@ func (s *scheduler) executeTask(task *taskHandle) {
 		task.key.IRI,
 		task.key.Version,
 		task.key.Recursive,
+		task.key.DepthOne,
 		blobTypes,
 		prog,
 	)

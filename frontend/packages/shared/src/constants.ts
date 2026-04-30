@@ -143,13 +143,4 @@ export const NOTIFY_SERVICE_HOST: string | undefined =
 export const DISCOVERY_TIMEOUT_MS = 15_000 // 15 seconds before showing not-found
 export const DISCOVERY_DEBOUNCE_MS = 100 // debounce rapid mounts
 
-// Discovery blob-type allowlists for DiscoverEntityRequest.blob_types.
-// Match the Go side's structural blob type names (see backend/blob).
-//
-// DISCOVER_PROFILE_ONLY: just enough to render the home doc + avatar without
-// pulling Capability/Comment/Contact blobs anchored under the account. Use
-// this for avatar/name lookups (mention previews, comment headers, visitor
-// lists) where the consumer only needs the profile, not the doc tree.
-export const DISCOVER_PROFILE_ONLY: readonly string[] = ['Profile', 'Ref', 'Change']
-
 export const ENABLE_WEB_INSTRUMENTATION = process.env.SEED_INSTRUMENTATION === 'dev'
