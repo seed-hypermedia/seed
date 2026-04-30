@@ -7,7 +7,7 @@ import tsConfigPaths from 'vite-tsconfig-paths'
 export default defineConfig(({command}) => {
   const config = {
     build: {
-      sourcemap: !(process.platform === 'win32' && process.env.CI),
+      sourcemap: !((process.platform === 'win32' || process.arch === 'arm64') && process.env.CI),
       rollupOptions: {
         external: [],
       },
@@ -38,9 +38,7 @@ export default defineConfig(({command}) => {
           name: process.env.VITE_VERSION || undefined,
           setCommits: {auto: true, ignoreMissing: true, ignoreEmpty: true},
         },
-        sourcemaps: {
-          filesToDeleteAfterUpload: ['.vite/build/preload*.js.map', '.vite/preload/**/*.map'],
-        },
+        sourcemaps: {},
       }),
     )
   }

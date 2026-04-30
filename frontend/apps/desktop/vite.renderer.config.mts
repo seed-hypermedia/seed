@@ -16,7 +16,7 @@ export default defineConfig(({command, mode}) => {
 
   const config = {
     build: {
-      sourcemap: !(process.platform === 'win32' && process.env.CI),
+      sourcemap: !((process.platform === 'win32' || process.arch === 'arm64') && process.env.CI),
       rollupOptions: {
         /**
          * Ignore "use client" waning since we are not using SSR
@@ -113,9 +113,7 @@ export default defineConfig(({command, mode}) => {
           setCommits: {auto: true, ignoreMissing: true, ignoreEmpty: true},
           deploy: {env: process.env.SENTRY_ENVIRONMENT || (mode === 'production' ? 'production' : 'dev')},
         },
-        sourcemaps: {
-          filesToDeleteAfterUpload: ['.vite/renderer/**/*.map'],
-        },
+        sourcemaps: {},
       }),
     )
   }

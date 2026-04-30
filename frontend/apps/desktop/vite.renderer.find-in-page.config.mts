@@ -11,7 +11,7 @@ const extensions = ['.web.tsx', '.tsx', '.web.ts', '.ts', '.web.jsx', '.jsx', '.
 export default defineConfig(({command, mode}) => {
   const config = {
     build: {
-      sourcemap: !(process.platform === 'win32' && process.env.CI),
+      sourcemap: !((process.platform === 'win32' || process.arch === 'arm64') && process.env.CI),
       rollupOptions: {
         input: {
           app: './find.html',
@@ -73,9 +73,7 @@ export default defineConfig(({command, mode}) => {
           name: process.env.VITE_VERSION || undefined,
           setCommits: {auto: true, ignoreMissing: true, ignoreEmpty: true},
         },
-        sourcemaps: {
-          filesToDeleteAfterUpload: ['.vite/find-in-page/**/*.map'],
-        },
+        sourcemaps: {},
       }),
     )
   }

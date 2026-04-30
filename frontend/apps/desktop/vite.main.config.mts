@@ -25,7 +25,7 @@ export default defineConfig(({command, mode}) => {
     },
     publicDir: 'assets',
     build: {
-      sourcemap: !(process.platform === 'win32' && process.env.CI),
+      sourcemap: !((process.platform === 'win32' || process.arch === 'arm64') && process.env.CI),
       rollupOptions: {
         external: ['electron', /canvas\.node$/],
         /**
@@ -77,9 +77,7 @@ export default defineConfig(({command, mode}) => {
                 name: process.env.VITE_VERSION || undefined,
                 setCommits: {auto: true, ignoreMissing: true, ignoreEmpty: true},
               },
-              sourcemaps: {
-                filesToDeleteAfterUpload: ['.vite/build/main*.js.map', '.vite/build/**/*.map'],
-              },
+              sourcemaps: {},
             }),
           ]
         : [

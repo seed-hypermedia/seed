@@ -69,9 +69,7 @@ export default defineConfig(({isSsrBuild}) => {
             setCommits: {auto: true, ignoreMissing: true, ignoreEmpty: true},
             deploy: {env: process.env.NOTIFY_SENTRY_ENVIRONMENT || 'production'},
           },
-          sourcemaps: {
-            filesToDeleteAfterUpload: ['./build/client/**/*.map', './build/server/**/*.map'],
-          },
+          sourcemaps: {},
         }),
     ].filter(Boolean),
     resolve: {
