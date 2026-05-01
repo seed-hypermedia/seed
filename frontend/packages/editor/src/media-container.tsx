@@ -167,9 +167,12 @@ export const MediaContainer = ({
     },
   }
 
+  // DocumentMachineProvider isn't available in the comment editor, so canEdit
+  // is always false there. Fall back to editor.isEditable for that case.
+  const canAuthor = canEdit || editor.isEditable
   const mediaProps = {
     ...styleProps,
-    ...(isEmbed || !canEdit ? {} : dragProps),
+    ...(isEmbed || !canAuthor ? {} : dragProps),
     onMouseEnter: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       if (onHoverIn) onHoverIn()
     },
@@ -185,7 +188,7 @@ export const MediaContainer = ({
       //   'relative flex w-full flex-col gap-2 self-center',
       //   mediaType === 'file' ? 'items-stretch' : 'items-center',
       // )}
-      draggable={canEdit ? 'true' : 'false'}
+      draggable={canAuthor ? 'true' : 'false'}
       onDragStart={(e: any) => {
         // Uncomment to allow drag only if block is selected
         // if (!selected) {
