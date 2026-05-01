@@ -103,6 +103,13 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+.comment-editor .ProseMirror,
+.comment-editor .ProseMirror:focus,
+.comment-editor .ProseMirror-focused {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 .hm-prose [data-list-type='Blockquote'] {
   border-left: 3px solid var(--border, rgb(0 0 0 / 0.2));
   padding-left: 15px;

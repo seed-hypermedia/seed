@@ -314,9 +314,25 @@ export function CommentEditor({
   const tx = useTx()
   const isInitializedRef = useRef(false)
   const contentChangeTimeoutRef = useRef<NodeJS.Timeout>()
+  const shouldFocusOnActivateRef = useRef(false)
+  const shouldMoveCursorToEndOnFocusRef = useRef(false)
 
   const reset = () => {
     editor.removeBlocks(editor.topLevelBlocks)
+  }
+
+  const focusEditor = ({moveCursorToEnd = false}: {moveCursorToEnd?: boolean} = {}) => {
+    if (moveCursorToEnd) {
+      editor._tiptapEditor.chain().focus('end').run()
+      return
+    }
+    editor._tiptapEditor.commands.focus()
+  }
+
+  const activateEditor = ({moveCursorToEnd = false}: {moveCursorToEnd?: boolean} = {}) => {
+    shouldFocusOnActivateRef.current = true
+    shouldMoveCursorToEndOnFocusRef.current = moveCursorToEnd
+    setIsEditorFocused(true)
   }
 
   // Initialize editor with draft content and rehydrate media
@@ -471,11 +487,16 @@ export function CommentEditor({
   useEffect(() => {
     if (autoFocus) {
       setIsEditorFocused(true)
-      setTimeout(() => {
-        editor._tiptapEditor.commands.focus()
-      }, 100)
+      shouldFocusOnActivateRef.current = true
     }
   }, [autoFocus])
+
+  useLayoutEffect(() => {
+    if (!isEditorFocused || !shouldFocusOnActivateRef.current) return
+    shouldFocusOnActivateRef.current = false
+    focusEditor({moveCursorToEnd: shouldMoveCursorToEndOnFocusRef.current})
+    shouldMoveCursorToEndOnFocusRef.current = false
+  }, [editor, isEditorFocused])
 
   // Handle mobile keyboard - scroll toolbar into view when keyboard appears
   useLayoutEffect(() => {
@@ -841,7 +862,31 @@ export function CommentEditor({
             )}
           </div>
         )}
-        <div className="bg-muted w-full min-w-0 flex-1 rounded-lg">
+        <div
+          className={cn(
+            'bg-muted w-full min-w-0 flex-1 rounded-lg border border-transparent transition-[filter,border-color]',
+            isEditorFocused
+              ? ''
+              : 'hover:border-black/10 hover:brightness-[1.01] active:brightness-95 dark:hover:border-white/10',
+          )}
+          onMouseDown={(e) => {
+            const target = e.target as HTMLElement
+
+            if (target.closest('button, input, textarea, select, a, [role="button"], .ProseMirror, [contenteditable="true"]')) {
+              return
+            }
+
+            e.preventDefault()
+            e.stopPropagation()
+
+            if (isEditorFocused) {
+              focusEditor({moveCursorToEnd: true})
+              return
+            }
+
+            activateEditor({moveCursorToEnd: true})
+          }}
+        >
           <div
             className={cn(
               'hm-prose is-comment comment-editor max-h-[160px] min-h-20 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto md:max-h-full',
@@ -859,7 +904,11 @@ export function CommentEditor({
                 return // Don't focus the editor in this case
               }
               e.stopPropagation()
-              editor._tiptapEditor.commands.focus()
+              if (isEditorFocused) {
+                focusEditor()
+                return
+              }
+              activateEditor()
             }}
             onDragStart={() => {
               setIsDragging(true)
@@ -878,10 +927,7 @@ export function CommentEditor({
             ) : (
               <Button
                 onClick={() => {
-                  setIsEditorFocused(true)
-                  setTimeout(() => {
-                    editor._tiptapEditor.commands.focus()
-                  }, 100)
+                  activateEditor()
                 }}
                 className={cn(
                   'text-muted-foreground m-0 h-auto min-h-8 w-full flex-1 items-center justify-start border-0 text-left text-base hover:bg-transparent focus:bg-transparent',
