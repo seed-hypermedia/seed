@@ -164,6 +164,7 @@ type FileType = {
   id: string
   props: {
     displaySrc: string
+    url?: string
     name: string
     size: string
     fileBinary?: Uint8Array
@@ -184,6 +185,7 @@ export async function handleDragMedia(
   file: File,
   handleFileAttachment?: (file: File) => Promise<{
     displaySrc: string
+    url?: string
     fileBinary?: Uint8Array
     mediaRef?: {
       draftId: string
@@ -208,6 +210,7 @@ export async function handleDragMedia(
 
     return {
       displaySrc: result.displaySrc,
+      url: result.url,
       fileBinary: result.fileBinary,
       mediaRef: result.mediaRef,
       name: name,

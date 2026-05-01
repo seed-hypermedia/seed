@@ -15,6 +15,7 @@ import {Plugin, PluginKey} from '@tiptap/pm/state'
 import {useEffect, useLayoutEffect, useRef, useState} from 'react'
 import avatarPlaceholder from './assets/avatar.png'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
+import {FILE_DROP_INSERTED_EVENT} from './blocknote/core/extensions/DragMedia/DragExtension'
 import {HyperMediaEditorView} from './editor-view'
 import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
 import {MobileMentionsDialog} from './mobile-mentions-dialog'
@@ -33,6 +34,18 @@ import {
 function crawlEditorBlocks(blocks: EditorBlock[], filter: (block: EditorBlock) => boolean): EditorBlock[] {
   const matchedChildren = blocks.flatMap((block) => crawlEditorBlocks(block.children, filter))
   return [...matchedChildren, ...blocks.filter(filter)]
+}
+
+function collectSerializedMediaRefs(blocks: EditorBlock[]) {
+  const mediaRefs: Record<string, string> = {}
+  const mediaBlocks = crawlEditorBlocks(blocks, (block) => !!(block.props as any)?.mediaRef)
+
+  for (const block of mediaBlocks) {
+    const mediaRef = (block.props as any).mediaRef
+    mediaRefs[block.id] = typeof mediaRef === 'string' ? mediaRef : JSON.stringify(mediaRef)
+  }
+
+  return mediaRefs
 }
 
 const [setGwUrl, gwUrl] = writeableStateStream<string | null>('https://hyper.media')
@@ -310,12 +323,17 @@ export function CommentEditor({
     })
   const [isEditorFocused, setIsEditorFocused] = useState(() => autoFocus || hasDraftContent || false)
   const openUrl = useOpenUrl()
-  const [isDragging, setIsDragging] = useState(false)
+  const [isDraggingOver, setIsDraggingOver] = useState(false)
   const tx = useTx()
   const isInitializedRef = useRef(false)
   const contentChangeTimeoutRef = useRef<NodeJS.Timeout>()
   const shouldFocusOnActivateRef = useRef(false)
   const shouldMoveCursorToEndOnFocusRef = useRef(false)
+  const dragDepthRef = useRef(0)
+  const pendingDropRef = useRef<{
+    files: File[]
+    dropTarget: 'append' | {clientX: number; clientY: number}
+  } | null>(null)
 
   const reset = () => {
     editor.removeBlocks(editor.topLevelBlocks)
@@ -329,10 +347,202 @@ export function CommentEditor({
     editor._tiptapEditor.commands.focus()
   }
 
-  const activateEditor = ({moveCursorToEnd = false}: {moveCursorToEnd?: boolean} = {}) => {
-    shouldFocusOnActivateRef.current = true
+  const activateEditor = ({
+    moveCursorToEnd = false,
+    focusOnActivate = true,
+  }: {
+    moveCursorToEnd?: boolean
+    focusOnActivate?: boolean
+  } = {}) => {
+    shouldFocusOnActivateRef.current = focusOnActivate
     shouldMoveCursorToEndOnFocusRef.current = moveCursorToEnd
     setIsEditorFocused(true)
+  }
+
+  const createMediaBlock = (file: File, props: Awaited<ReturnType<typeof handleDragMedia>>) => {
+    if (!props) return null
+
+    const newId = generateBlockId()
+    const serializedMediaRef = props.mediaRef ? JSON.stringify(props.mediaRef) : ''
+
+    if (props.url && !props.fileBinary && !props.mediaRef) {
+      if (chromiumSupportedImageMimeTypes.has(file.type)) {
+        return {
+          id: newId,
+          type: 'image',
+          props: {
+            url: props.url,
+            name: props.name,
+          },
+        }
+      }
+
+      if (chromiumSupportedVideoMimeTypes.has(file.type)) {
+        return {
+          id: newId,
+          type: 'video',
+          props: {
+            url: props.url,
+            name: props.name,
+          },
+        }
+      }
+
+      return {
+        id: newId,
+        type: 'file',
+        props: {
+          url: props.url,
+          name: props.name,
+          size: props.size,
+        },
+      }
+    }
+
+    if (chromiumSupportedImageMimeTypes.has(file.type)) {
+      return {
+        id: newId,
+        type: 'image',
+        props: {
+          displaySrc: props.displaySrc,
+          fileBinary: props.fileBinary,
+          mediaRef: serializedMediaRef,
+          name: props.name,
+        },
+      }
+    }
+
+    if (chromiumSupportedVideoMimeTypes.has(file.type)) {
+      return {
+        id: newId,
+        type: 'video',
+        props: {
+          displaySrc: props.displaySrc,
+          fileBinary: props.fileBinary,
+          mediaRef: serializedMediaRef,
+          name: props.name,
+        },
+      }
+    }
+
+    return {
+      id: newId,
+      type: 'file',
+      props: {
+        fileBinary: props.fileBinary,
+        mediaRef: serializedMediaRef,
+        name: props.name,
+        size: props.size,
+      },
+    }
+  }
+
+  const getAppendInsertionPos = () => {
+    return Math.max(0, editor._tiptapEditor.view.state.doc.content.size - 4)
+  }
+
+  const emitContentChangeNow = () => {
+    if (!onContentChange) return
+
+    try {
+      // @ts-expect-error
+      const editorBlocks: EditorBlock[] = editor.topLevelBlocks
+      const mediaRefs = collectSerializedMediaRefs(editorBlocks)
+      const blocks = serverBlockNodesFromEditorBlocks(editor, editorBlocks)
+      onContentChange(
+        blocks.map((b) => b.toJson()) as HMBlockNode[],
+        Object.keys(mediaRefs).length > 0 ? mediaRefs : undefined,
+      )
+    } catch (error) {
+      console.error('Failed to emit immediate content change:', error)
+    }
+  }
+
+  const insertDroppedFiles = async ({
+    files,
+    dropTarget,
+  }: {
+    files: File[]
+    dropTarget: 'append' | {clientX: number; clientY: number}
+  }) => {
+    const ttEditor = editor._tiptapEditor
+    let insertionPos = getAppendInsertionPos()
+
+    if (dropTarget !== 'append') {
+      const posAtCoords = ttEditor.view.posAtCoords({
+        left: dropTarget.clientX,
+        top: dropTarget.clientY,
+      })
+      if (posAtCoords && posAtCoords.inside !== -1) {
+        insertionPos = posAtCoords.pos
+      }
+    }
+
+    let lastId: string | undefined
+
+    for (const file of files) {
+      const props = await handleDragMedia(file, handleFileAttachment)
+      const blockNode = createMediaBlock(file, props)
+      if (!blockNode) continue
+
+      if (lastId) {
+        ;(editor as BlockNoteEditor).insertBlocks(
+          // @ts-expect-error
+          [blockNode],
+          lastId,
+          'after',
+        )
+        lastId = blockNode.id
+        continue
+      }
+
+      const blockInfo = getBlockInfoFromPos(ttEditor.view.state, insertionPos)
+      ;(editor as BlockNoteEditor).insertBlocks(
+        // @ts-expect-error
+        [blockNode],
+        blockInfo.block.node.attrs.id,
+        'after',
+      )
+      lastId = blockNode.id
+    }
+
+    emitContentChangeNow()
+  }
+
+  const isFileDrag = (dataTransfer: DataTransfer | null | undefined) => {
+    return !!dataTransfer && Array.from(dataTransfer.types || []).includes('Files')
+  }
+
+  const getDraggedFiles = (dataTransfer: DataTransfer | null | undefined) => {
+    const files: File[] = []
+    if (!dataTransfer) return files
+
+    if (dataTransfer.files.length) {
+      for (let i = 0; i < dataTransfer.files.length; i++) {
+        const file = dataTransfer.files[i]
+        if (file) files.push(file)
+      }
+      return files
+    }
+
+    for (let i = 0; i < dataTransfer.items.length; i++) {
+      const dataItem = dataTransfer.items[i]
+      if (!dataItem) continue
+      const item = dataItem.getAsFile()
+      if (item) files.push(item)
+    }
+
+    return files
+  }
+
+  const isPointInsideEditor = (clientX: number, clientY: number) => {
+    const editorRect = editor._tiptapEditor.view.dom.getBoundingClientRect()
+    return (
+      clientX >= editorRect.left &&
+      clientX <= editorRect.right &&
+      clientY >= editorRect.top &&
+      clientY <= editorRect.bottom
+    )
   }
 
   // Initialize editor with draft content and rehydrate media
@@ -448,20 +658,7 @@ export function CommentEditor({
         try {
           // @ts-expect-error
           const editorBlocks: EditorBlock[] = editor.topLevelBlocks
-          // Extract mediaRefs from editor blocks before HMBlock conversion
-          const mediaRefs: Record<string, string> = {}
-          for (const block of editorBlocks) {
-            // @ts-expect-error
-            if (block.props?.mediaRef) {
-              mediaRefs[block.id] =
-                // @ts-expect-error
-                typeof block.props.mediaRef === 'string'
-                  ? // @ts-expect-error
-                    block.props.mediaRef
-                  : // @ts-expect-error
-                    JSON.stringify(block.props.mediaRef)
-            }
-          }
+          const mediaRefs = collectSerializedMediaRefs(editorBlocks)
           const blocks = serverBlockNodesFromEditorBlocks(editor, editorBlocks)
           onContentChange(
             blocks.map((b) => b.toJson()) as HMBlockNode[],
@@ -497,6 +694,33 @@ export function CommentEditor({
     focusEditor({moveCursorToEnd: shouldMoveCursorToEndOnFocusRef.current})
     shouldMoveCursorToEndOnFocusRef.current = false
   }, [editor, isEditorFocused])
+
+  useEffect(() => {
+    if (!isEditorFocused || !pendingDropRef.current) return
+
+    const pendingDrop = pendingDropRef.current
+    pendingDropRef.current = null
+    const frameId = requestAnimationFrame(() => {
+      void insertDroppedFiles(pendingDrop)
+    })
+
+    return () => cancelAnimationFrame(frameId)
+  }, [editor, isEditorFocused])
+
+  useEffect(() => {
+    if (!onContentChange) return
+
+    const editorDom = editor._tiptapEditor.view.dom
+    const handleInsertedFileDrop = () => {
+      emitContentChangeNow()
+    }
+
+    editorDom.addEventListener(FILE_DROP_INSERTED_EVENT, handleInsertedFileDrop)
+
+    return () => {
+      editorDom.removeEventListener(FILE_DROP_INSERTED_EVENT, handleInsertedFileDrop)
+    }
+  }, [editor, onContentChange])
 
   // Handle mobile keyboard - scroll toolbar into view when keyboard appears
   useLayoutEffect(() => {
@@ -645,47 +869,8 @@ export function CommentEditor({
 
       for (const file of files) {
         const props = await handleDragMedia(file, handleFileAttachment)
-        if (!props) continue
-
-        const newId = generateBlockId()
-        let blockNode
-
-        const serializedMediaRef = props.mediaRef ? JSON.stringify(props.mediaRef) : ''
-
-        if (chromiumSupportedImageMimeTypes.has(file.type)) {
-          blockNode = {
-            id: newId,
-            type: 'image',
-            props: {
-              displaySrc: props.displaySrc,
-              fileBinary: props.fileBinary,
-              mediaRef: serializedMediaRef,
-              name: props.name,
-            },
-          }
-        } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
-          blockNode = {
-            id: newId,
-            type: 'video',
-            props: {
-              displaySrc: props.displaySrc,
-              fileBinary: props.fileBinary,
-              mediaRef: serializedMediaRef,
-              name: props.name,
-            },
-          }
-        } else {
-          blockNode = {
-            id: newId,
-            type: 'file',
-            props: {
-              fileBinary: props.fileBinary,
-              mediaRef: serializedMediaRef,
-              name: props.name,
-              size: props.size,
-            },
-          }
-        }
+        const blockNode = createMediaBlock(file, props)
+        if (!blockNode) continue
 
         const blockInfo = getBlockInfoFromPos(ttEditor.view.state, pos)
         editor.insertBlocks(
@@ -714,131 +899,32 @@ export function CommentEditor({
   }, [submitTrigger])
 
   function onDrop(event: React.DragEvent<HTMLDivElement>) {
-    if (!isDragging) return
-    const dataTransfer = event.dataTransfer
+    if (!isFileDrag(event.dataTransfer)) return false
 
-    if (dataTransfer) {
-      const ttEditor = editor._tiptapEditor
-      const files: File[] = []
-
-      if (dataTransfer.files.length) {
-        for (let i = 0; i < dataTransfer.files.length; i++) {
-          const file = dataTransfer.files[i]
-          if (file) files.push(file)
-        }
-      } else if (dataTransfer.items.length) {
-        for (let i = 0; i < dataTransfer.items.length; i++) {
-          const dataItem = dataTransfer.items[i]
-          if (dataItem) {
-            const item = dataItem.getAsFile()
-            if (item) {
-              files.push(item)
-            }
-          }
-        }
-      }
-
-      if (files.length > 0) {
-        const editorElement = document.getElementsByClassName('mantine-Editor-root')[0]
-        if (!editorElement) return
-        const editorBoundingBox = editorElement.getBoundingClientRect()
-        const posAtCoords = ttEditor.view.posAtCoords({
-          left: editorBoundingBox.left + editorBoundingBox.width / 2,
-          top: event.clientY,
-        })
-        let pos: number | null
-        if (posAtCoords && posAtCoords.inside !== -1) pos = posAtCoords.pos
-        else if (event.clientY > editorBoundingBox.bottom) pos = ttEditor.view.state.doc.content.size - 4
-
-        let lastId: string
-
-        // using reduce so files get inserted sequentially
-        files.reduce((previousPromise, file, index) => {
-          return previousPromise.then(() => {
-            event.preventDefault()
-            event.stopPropagation()
-
-            if (pos) {
-              return handleDragMedia(file, handleFileAttachment).then((props) => {
-                if (!props) return Promise.resolve()
-
-                const {state} = ttEditor.view
-                let blockNode
-                const newId = generateBlockId()
-                const serializedMediaRef = props.mediaRef ? JSON.stringify(props.mediaRef) : ''
-
-                if (chromiumSupportedImageMimeTypes.has(file.type)) {
-                  blockNode = {
-                    id: newId,
-                    type: 'image',
-                    props: {
-                      displaySrc: props.displaySrc,
-                      fileBinary: props.fileBinary,
-                      mediaRef: serializedMediaRef,
-                      name: props.name,
-                    },
-                  }
-                } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
-                  blockNode = {
-                    id: newId,
-                    type: 'video',
-                    props: {
-                      displaySrc: props.displaySrc,
-                      fileBinary: props.fileBinary,
-                      mediaRef: serializedMediaRef,
-                      name: props.name,
-                    },
-                  }
-                } else {
-                  blockNode = {
-                    id: newId,
-                    type: 'file',
-                    props: {
-                      fileBinary: props.fileBinary,
-                      mediaRef: serializedMediaRef,
-                      name: props.name,
-                      size: props.size,
-                    },
-                  }
-                }
-
-                const blockInfo = getBlockInfoFromPos(state, pos)
-
-                if (index === 0) {
-                  ;(editor as BlockNoteEditor).insertBlocks(
-                    // @ts-expect-error
-                    [blockNode],
-                    blockInfo.block.node.attrs.id,
-                    // blockInfo.node.textContent ? 'after' : 'before',
-                    'after',
-                  )
-                } else {
-                  ;(editor as BlockNoteEditor).insertBlocks(
-                    // @ts-expect-error
-                    [blockNode],
-                    lastId,
-                    'after',
-                  )
-                }
-
-                lastId = newId
-                return Promise.resolve()
-              })
-            } else {
-              return Promise.resolve()
-            }
-          })
-        }, Promise.resolve())
-        // .then(() => true) // TODO: @horacio ask Iskak about this
-        setIsDragging(false)
-        return true
-      }
-      setIsDragging(false)
+    const isDropInsideEditor = isEditorFocused && isPointInsideEditor(event.clientX, event.clientY)
+    if (isDropInsideEditor) {
+      dragDepthRef.current = 0
+      setIsDraggingOver(false)
       return false
     }
-    setIsDragging(false)
 
-    return false
+    event.preventDefault()
+    event.stopPropagation()
+
+    dragDepthRef.current = 0
+    setIsDraggingOver(false)
+
+    const files = getDraggedFiles(event.dataTransfer)
+    if (!files.length) return false
+
+    if (!isEditorFocused) {
+      pendingDropRef.current = {files, dropTarget: 'append'}
+      activateEditor({focusOnActivate: false})
+      return true
+    }
+
+    void insertDroppedFiles({files, dropTarget: 'append'})
+    return true
   }
 
   if (!editor) {
@@ -864,15 +950,57 @@ export function CommentEditor({
         )}
         <div
           className={cn(
-            'bg-muted w-full min-w-0 flex-1 rounded-lg border border-transparent transition-[filter,border-color]',
+            'bg-muted w-full min-w-0 flex-1 rounded-lg border border-transparent transition-[filter,border-color,background-color]',
             isEditorFocused
               ? ''
               : 'hover:border-black/10 hover:brightness-[1.01] active:brightness-95 dark:hover:border-white/10',
+            isDraggingOver &&
+              'border-dashed border-black/20 bg-black/[0.03] brightness-100 dark:border-white/20 dark:bg-white/[0.04]',
           )}
+          onDragEnter={(event) => {
+            if (!isFileDrag(event.dataTransfer)) return
+            if (isEditorFocused && isPointInsideEditor(event.clientX, event.clientY)) {
+              dragDepthRef.current = 0
+              setIsDraggingOver(false)
+              return
+            }
+            event.preventDefault()
+            dragDepthRef.current += 1
+            setIsDraggingOver(true)
+          }}
+          onDragLeave={(event) => {
+            if (!isFileDrag(event.dataTransfer)) return
+            if (isEditorFocused && isPointInsideEditor(event.clientX, event.clientY)) {
+              return
+            }
+            event.preventDefault()
+            dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+            if (dragDepthRef.current === 0) {
+              setIsDraggingOver(false)
+            }
+          }}
+          onDragOver={(event) => {
+            if (!isFileDrag(event.dataTransfer)) return
+            if (isEditorFocused && isPointInsideEditor(event.clientX, event.clientY)) {
+              if (isDraggingOver) {
+                dragDepthRef.current = 0
+                setIsDraggingOver(false)
+              }
+              return
+            }
+            event.preventDefault()
+            event.dataTransfer.dropEffect = 'copy'
+            setIsDraggingOver(true)
+          }}
+          onDrop={onDrop}
           onMouseDown={(e) => {
             const target = e.target as HTMLElement
 
-            if (target.closest('button, input, textarea, select, a, [role="button"], .ProseMirror, [contenteditable="true"]')) {
+            if (
+              target.closest(
+                'button, input, textarea, select, a, [role="button"], .ProseMirror, [contenteditable="true"]',
+              )
+            ) {
               return
             }
 
@@ -910,17 +1038,6 @@ export function CommentEditor({
               }
               activateEditor()
             }}
-            onDragStart={() => {
-              setIsDragging(true)
-            }}
-            onDragEnd={() => {
-              setIsDragging(false)
-            }}
-            onDragOver={(event) => {
-              event.preventDefault()
-              setIsDragging(true)
-            }}
-            onDrop={onDrop}
           >
             {isEditorFocused ? (
               <HyperMediaEditorView editor={editor} openUrl={openUrl} perspectiveAccountUid={perspectiveAccountUid} />
