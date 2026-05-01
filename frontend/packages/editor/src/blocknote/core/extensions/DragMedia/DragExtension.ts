@@ -48,13 +48,16 @@ export const DragExtension = Extension.create<DragOptions>({
 
                 if (data.files.length) {
                   for (let i = 0; i < data.files.length; i++) {
-                    // @ts-expect-error
-                    files.push(data.files[i])
+                    const file = data.files[i]
+                    if (file) {
+                      files.push(file)
+                    }
                   }
                 } else if (data.items.length) {
                   for (let i = 0; i < data.items.length; i++) {
-                    // @ts-expect-error
-                    const item = data.items[i].getAsFile()
+                    const dataItem = data.items[i]
+                    if (!dataItem) continue
+                    const item = dataItem.getAsFile()
                     if (item) {
                       files.push(item)
                     }
