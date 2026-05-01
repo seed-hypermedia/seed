@@ -1,7 +1,7 @@
-import {packReferenceUrl, useOpenUrl, writeableStateStream} from '@shm/shared'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
-import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {HMBlockNode, HMMetadata} from '@seed-hypermedia/client/hm-types'
+import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
+import {packReferenceUrl, useOpenUrl, writeableStateStream} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
 import {queryClient} from '@shm/shared/models/query-client'
 import {useTx} from '@shm/shared/translation'
@@ -224,6 +224,7 @@ export function CommentEditor({
   importWebFile,
   handleFileAttachment,
   getDraftMediaBlob,
+  hideAvatar,
 }: {
   submitButton: (opts: {
     reset: () => void
@@ -274,6 +275,8 @@ export function CommentEditor({
     }
   }>
   getDraftMediaBlob?: (draftId: string, mediaId: string) => Promise<Blob | null>
+  /** Hide the leading avatar */
+  hideAvatar?: boolean
 }) {
   const [submitTrigger, setSubmitTrigger] = useState(0)
   const submitCallbackRef = useRef<(() => void) | null>(null)
@@ -829,13 +832,15 @@ export function CommentEditor({
   return (
     <>
       <div className="flex w-full items-start gap-2">
-        <div className="flex shrink-0 grow-0">
-          {account?.metadata ? (
-            <LinkIcon id={account.id} metadata={account.metadata} size={32} />
-          ) : (
-            <UIAvatar url={avatarPlaceholder} size={32} onPress={onAvatarPress} className="rounded-full" />
-          )}
-        </div>
+        {hideAvatar ? null : (
+          <div className="flex shrink-0 grow-0">
+            {account?.metadata ? (
+              <LinkIcon id={account.id} metadata={account.metadata} size={32} />
+            ) : (
+              <UIAvatar url={avatarPlaceholder} size={32} onPress={onAvatarPress} className="rounded-full" />
+            )}
+          </div>
+        )}
         <div className="bg-muted w-full min-w-0 flex-1 rounded-lg">
           <div
             className={cn(

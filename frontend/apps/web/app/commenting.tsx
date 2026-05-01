@@ -682,8 +682,6 @@ export function renderWebInlineEditor({comment, onSave, onCancel, isSaving}: Inl
 
 /** Inline comment editor for the web platform. */
 export function WebInlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentProps) {
-  const myAccount = useAccount(undefined)
-
   const handleSubmit = useCallback(
     async (
       getContent: (
@@ -707,7 +705,7 @@ export function WebInlineEditBox({comment, onSave, onCancel, isSaving}: InlineEd
         isReplying={false}
         handleSubmit={handleSubmit}
         initialBlocks={comment.content}
-        account={myAccount.data}
+        hideAvatar
         submitButton={({getContent, reset}) => (
           <>
             <Button variant="ghost" size="icon" onClick={onCancel} disabled={isSaving}>
