@@ -1,9 +1,8 @@
-import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
-import {toast} from '@shm/ui/toast'
 import {Extension} from '@tiptap/core'
 import {Plugin, PluginKey} from 'prosemirror-state'
 import type {EditorView} from 'prosemirror-view'
 import {HMBlockSchema} from '../../../../schema'
+import {createMediaBlock, handleDragMedia} from '../../../../utils'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {getBlockInfoFromPos} from '../Blocks/helpers/getBlockInfoFromPos'
 
@@ -74,92 +73,18 @@ export const DragExtension = Extension.create<DragOptions>({
                   files
                     // @ts-expect-error
                     .reduce((previousPromise, file, index) => {
-                      // @ts-expect-error
                       return previousPromise.then(() => {
                         event.preventDefault()
                         event.stopPropagation()
 
                         if (pos && pos.inside !== -1) {
-                          // @ts-expect-error
                           return handleDragMedia(file, this.options.editor.handleFileAttachment).then((props) => {
-                            if (!props) return false
-
                             const {state} = view
-                            let blockNode
-                            const newId = generateBlockId()
-
-                            if (
-                              props.url &&
-                              !('fileBinary' in props && props.fileBinary) &&
-                              !('mediaRef' in props && props.mediaRef)
-                            ) {
-                              if (chromiumSupportedImageMimeTypes.has(file.type)) {
-                                blockNode = {
-                                  id: newId,
-                                  type: 'image',
-                                  props: {
-                                    url: props.url,
-                                    name: props.name,
-                                  },
-                                }
-                              } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
-                                blockNode = {
-                                  id: newId,
-                                  type: 'video',
-                                  props: {
-                                    url: props.url,
-                                    name: props.name,
-                                  },
-                                }
-                              } else {
-                                blockNode = {
-                                  id: newId,
-                                  type: 'file',
-                                  props: {
-                                    url: props.url,
-                                    name: props.name,
-                                    size: props.size,
-                                  },
-                                }
-                              }
-                            } else if (chromiumSupportedImageMimeTypes.has(file.type)) {
-                              blockNode = {
-                                id: newId,
-                                type: 'image',
-                                props: {
-                                  displaySrc: props.displaySrc,
-                                  fileBinary: props.fileBinary,
-                                  mediaRef: props.mediaRef ? JSON.stringify(props.mediaRef) : '',
-                                  name: props.name,
-                                },
-                              }
-                            } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
-                              blockNode = {
-                                id: newId,
-                                type: 'video',
-                                props: {
-                                  displaySrc: props.displaySrc,
-                                  fileBinary: props.fileBinary,
-                                  mediaRef: props.mediaRef ? JSON.stringify(props.mediaRef) : '',
-                                  name: props.name,
-                                },
-                              }
-                            } else {
-                              blockNode = {
-                                id: newId,
-                                type: 'file',
-                                props: {
-                                  fileBinary: props.fileBinary,
-                                  mediaRef: props.mediaRef ? JSON.stringify(props.mediaRef) : '',
-                                  name: props.name,
-                                  size: props.size,
-                                  ...(props.url ? {url: props.url} : {}),
-                                },
-                              }
-                            }
+                            const blockNode = createMediaBlock(file, props)
+                            if (!blockNode) return false
 
                             const blockInfo = getBlockInfoFromPos(state, pos.pos)
-                            const placement = pos.pos <= blockInfo.block.beforePos ? 'before' : 'after'
+                            const placement = getDropPlacement(view, blockInfo.block.beforePos, event.clientY)
 
                             if (index === 0) {
                               this.options.editor.insertBlocks(
@@ -171,9 +96,12 @@ export const DragExtension = Extension.create<DragOptions>({
                               this.options.editor.insertBlocks([blockNode as any], lastId, 'after')
                             }
 
-                            lastId = newId
+                            lastId = blockNode.id
+                            return true
                           })
                         }
+
+                        return false
                       })
                     }, Promise.resolve())
                     // @ts-expect-error
@@ -298,109 +226,10 @@ function hasFileDrag(dataTransfer: DataTransfer | null) {
 
 export {FILE_DROP_INSERTED_EVENT}
 
-type FileType = {
-  id: string
-  props: {
-    url: string
-    name: string
-    size: string
-  }
-  children: []
-  content: []
-  type: string
+function getDropPlacement(view: EditorView, blockBeforePos: number, clientY: number): 'before' | 'after' {
+  const blockEl = view.nodeDOM(blockBeforePos) as HTMLElement | null
+  if (!blockEl) return 'after'
+
+  const rect = blockEl.getBoundingClientRect()
+  return clientY <= rect.top + rect.height / 2 ? 'before' : 'after'
 }
-
-type PreparedMedia = {
-  displaySrc?: string
-  url?: string
-  fileBinary?: Uint8Array
-  mediaRef?: {
-    draftId: string
-    mediaId: string
-    name: string
-    mime: string
-    size: number
-  }
-  name: string
-  size: string
-}
-
-async function handleDragMedia(
-  file: File,
-  handleFileAttachment?: (file: File) => Promise<{
-    displaySrc: string
-    url?: string
-    fileBinary?: Uint8Array
-    mediaRef?: {
-      draftId: string
-      mediaId: string
-      name: string
-      mime: string
-      size: number
-    }
-  }>,
-): Promise<PreparedMedia | null> {
-  if (file.size > 62914560) {
-    toast.error(`The size of ${file.name} exceeds 60 MB.`)
-    return null
-  }
-
-  if (handleFileAttachment) {
-    const result = await handleFileAttachment(file)
-    const prepared: Record<string, any> = {
-      displaySrc: result.displaySrc,
-      name: result.mediaRef?.name || file.name,
-      size: (result.mediaRef?.size || file.size).toString(),
-    }
-    if (result.url) prepared.url = result.url
-    if (result.fileBinary) prepared.fileBinary = result.fileBinary
-    if (result.mediaRef) prepared.mediaRef = result.mediaRef
-    return prepared as PreparedMedia
-  }
-
-  const formData = new FormData()
-  formData.append('file', file)
-
-  try {
-    const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
-      method: 'POST',
-      body: formData,
-    })
-    const data = await response.text()
-    return {
-      url: data ? `ipfs://${data}` : '',
-      name: file.name,
-      size: file.size.toString(),
-    }
-  } catch (error) {
-    // @ts-expect-error
-    console.log(error.message)
-    toast.error('Failed to upload file.')
-    return null
-  }
-}
-
-function generateBlockId(length: number = 8): string {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-  let result = ''
-  for (let i = 0; i < length; i++) {
-    result += characters.charAt(Math.floor(Math.random() * characters.length))
-  }
-  return result
-}
-
-const chromiumSupportedImageMimeTypes = new Set([
-  'image/jpeg',
-  'image/jpg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-  'image/bmp',
-  'image/svg+xml',
-  'image/x-icon',
-  'image/vnd.microsoft.icon',
-  'image/apng',
-  'image/avif',
-])
-
-const chromiumSupportedVideoMimeTypes = new Set(['video/mp4', 'video/webm'])

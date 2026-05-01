@@ -2,6 +2,7 @@ import type {BlockSchema} from '@shm/editor/blocknote'
 import type {Block as BNBlock} from '@shm/editor/blocknote/core/extensions/Blocks/api/blockTypes'
 import {HMBlockChildrenTypeSchema} from '@seed-hypermedia/client/hm-types'
 import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
+import {DAEMON_FILE_UPLOAD_URL, MAX_FILE_SIZE_B, MAX_FILE_SIZE_MB} from '@shm/shared/constants'
 import {Block, BlockNode} from '@shm/shared/client/grpc-types'
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {toast} from '@shm/ui/toast'
@@ -196,8 +197,8 @@ export async function handleDragMedia(
     }
   }>,
 ) {
-  if (file.size > 62914560) {
-    toast.error(`The size of ${file.name} exceeds 60 MB.`)
+  if (file.size > MAX_FILE_SIZE_B) {
+    toast.error(`The size of ${file.name} exceeds ${MAX_FILE_SIZE_MB} MB.`)
     return null
   }
 
@@ -217,7 +218,107 @@ export async function handleDragMedia(
       size: size.toString(),
     } as FileType['props']
   }
-  return
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  try {
+    const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
+      method: 'POST',
+      body: formData,
+    })
+    const data = await response.text()
+    return {
+      url: data ? `ipfs://${data}` : '',
+      name: file.name,
+      size: file.size.toString(),
+    } as FileType['props']
+  } catch (error) {
+    // @ts-expect-error
+    console.log(error.message)
+    toast.error('Failed to upload file.')
+    return null
+  }
+}
+
+/** Builds a media block payload from prepared file attachment data. */
+export function createMediaBlock(file: File, props: Awaited<ReturnType<typeof handleDragMedia>>) {
+  if (!props) return null
+
+  const newId = generateBlockId()
+  const serializedMediaRef = props.mediaRef ? JSON.stringify(props.mediaRef) : ''
+
+  if (props.url && !props.fileBinary && !props.mediaRef) {
+    if (chromiumSupportedImageMimeTypes.has(file.type)) {
+      return {
+        id: newId,
+        type: 'image',
+        props: {
+          url: props.url,
+          name: props.name,
+        },
+      }
+    }
+
+    if (chromiumSupportedVideoMimeTypes.has(file.type)) {
+      return {
+        id: newId,
+        type: 'video',
+        props: {
+          url: props.url,
+          name: props.name,
+        },
+      }
+    }
+
+    return {
+      id: newId,
+      type: 'file',
+      props: {
+        url: props.url,
+        name: props.name,
+        size: props.size,
+      },
+    }
+  }
+
+  if (chromiumSupportedImageMimeTypes.has(file.type)) {
+    return {
+      id: newId,
+      type: 'image',
+      props: {
+        displaySrc: props.displaySrc,
+        fileBinary: props.fileBinary,
+        mediaRef: serializedMediaRef,
+        name: props.name,
+      },
+    }
+  }
+
+  if (chromiumSupportedVideoMimeTypes.has(file.type)) {
+    return {
+      id: newId,
+      type: 'video',
+      props: {
+        displaySrc: props.displaySrc,
+        fileBinary: props.fileBinary,
+        mediaRef: serializedMediaRef,
+        name: props.name,
+      },
+    }
+  }
+
+  return {
+    id: newId,
+    type: 'file',
+    props: {
+      fileBinary: props.fileBinary,
+      mediaRef: serializedMediaRef,
+      name: props.name,
+      size: props.size,
+      ...(props.url ? {url: props.url} : {}),
+    },
+  }
 }
 
 export function generateBlockId(length: number = 8): string {

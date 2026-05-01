@@ -23,13 +23,7 @@ import {MobileSlashDialog} from './mobile-slash-dialog'
 import {hmBlockSchema} from './schema'
 import {getSlashMenuItems} from './slash-menu-items'
 import {isMobileDevice, useMobile} from './use-mobile'
-import {
-  chromiumSupportedImageMimeTypes,
-  chromiumSupportedVideoMimeTypes,
-  generateBlockId,
-  handleDragMedia,
-  serverBlockNodesFromEditorBlocks,
-} from './utils'
+import {createMediaBlock, handleDragMedia, serverBlockNodesFromEditorBlocks} from './utils'
 
 function crawlEditorBlocks(blocks: EditorBlock[], filter: (block: EditorBlock) => boolean): EditorBlock[] {
   const matchedChildren = blocks.flatMap((block) => crawlEditorBlocks(block.children, filter))
@@ -357,84 +351,6 @@ export function CommentEditor({
     shouldFocusOnActivateRef.current = focusOnActivate
     shouldMoveCursorToEndOnFocusRef.current = moveCursorToEnd
     setIsEditorFocused(true)
-  }
-
-  const createMediaBlock = (file: File, props: Awaited<ReturnType<typeof handleDragMedia>>) => {
-    if (!props) return null
-
-    const newId = generateBlockId()
-    const serializedMediaRef = props.mediaRef ? JSON.stringify(props.mediaRef) : ''
-
-    if (props.url && !props.fileBinary && !props.mediaRef) {
-      if (chromiumSupportedImageMimeTypes.has(file.type)) {
-        return {
-          id: newId,
-          type: 'image',
-          props: {
-            url: props.url,
-            name: props.name,
-          },
-        }
-      }
-
-      if (chromiumSupportedVideoMimeTypes.has(file.type)) {
-        return {
-          id: newId,
-          type: 'video',
-          props: {
-            url: props.url,
-            name: props.name,
-          },
-        }
-      }
-
-      return {
-        id: newId,
-        type: 'file',
-        props: {
-          url: props.url,
-          name: props.name,
-          size: props.size,
-        },
-      }
-    }
-
-    if (chromiumSupportedImageMimeTypes.has(file.type)) {
-      return {
-        id: newId,
-        type: 'image',
-        props: {
-          displaySrc: props.displaySrc,
-          fileBinary: props.fileBinary,
-          mediaRef: serializedMediaRef,
-          name: props.name,
-        },
-      }
-    }
-
-    if (chromiumSupportedVideoMimeTypes.has(file.type)) {
-      return {
-        id: newId,
-        type: 'video',
-        props: {
-          displaySrc: props.displaySrc,
-          fileBinary: props.fileBinary,
-          mediaRef: serializedMediaRef,
-          name: props.name,
-        },
-      }
-    }
-
-    return {
-      id: newId,
-      type: 'file',
-      props: {
-        fileBinary: props.fileBinary,
-        mediaRef: serializedMediaRef,
-        name: props.name,
-        size: props.size,
-      },
-    }
   }
 
   const getAppendInsertionPos = () => {
