@@ -81,6 +81,50 @@ func TestPostGet(t *testing.T) {
 	require.Equal(t, fileBytes, res.Body.Bytes())
 }
 
+func TestUploadFileOptionsPreflight(t *testing.T) {
+	server := makeManager(t, akey)
+	router := mux.NewRouter()
+	router.HandleFunc("/ipfs/file-upload", server.UploadFile)
+
+	t.Run("plain OPTIONS preflight returns 204 with CORS headers", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodOptions, "/ipfs/file-upload", nil)
+		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Access-Control-Request-Method", "POST")
+		req.Header.Set("Access-Control-Request-Headers", "Content-Type")
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusNoContent, rr.Code)
+		require.Equal(t, "*", rr.Header().Get("Access-Control-Allow-Origin"))
+		require.Contains(t, rr.Header().Get("Access-Control-Allow-Methods"), "POST")
+		require.Contains(t, rr.Header().Get("Access-Control-Allow-Methods"), "OPTIONS")
+		require.Contains(t, rr.Header().Get("Access-Control-Allow-Headers"), "Content-Type")
+		require.Empty(t, rr.Header().Get("Access-Control-Allow-Private-Network"))
+	})
+
+	t.Run("Private Network Access preflight echoes ack header", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodOptions, "/ipfs/file-upload", nil)
+		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Access-Control-Request-Method", "POST")
+		req.Header.Set("Access-Control-Request-Headers", "Content-Type")
+		req.Header.Set("Access-Control-Request-Private-Network", "true")
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusNoContent, rr.Code)
+		require.Equal(t, "true", rr.Header().Get("Access-Control-Allow-Private-Network"))
+	})
+
+	t.Run("non-POST non-OPTIONS still rejected with 405", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/ipfs/file-upload", nil)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		require.Equal(t, http.StatusMethodNotAllowed, rr.Code)
+	})
+}
+
 func TestRangeRequests(t *testing.T) {
 	server := makeManager(t, akey)
 	fileBytes, err := createFile0toBound(fileBoundary)
