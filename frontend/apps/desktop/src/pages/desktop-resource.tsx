@@ -7,7 +7,7 @@ import {DesktopDocumentActionsProvider} from '@/components/document-actions-prov
 import {DesktopQueryBlockDraftSlot} from '@/components/desktop-query-block-draft-slot'
 import {EditNavHeaderPane} from '@/components/edit-nav-header-pane'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
-import {EditingDocToolsRight} from '@/components/editing-toolbar'
+import {DraftActionsToolbar, EditingDocToolsRight} from '@/components/editing-toolbar'
 import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
 import {JoinButton} from '@/components/join-button'
 import {MoveDialog} from '@/components/move-dialog'
@@ -625,6 +625,12 @@ export default function DesktopResourcePage() {
       )
     : undefined
 
+  const draftActions = canEdit
+    ? ({menuItems}: {menuItems: any[]}) => (
+        <DraftActionsToolbar docId={docId} existingMenuItems={menuItems} />
+      )
+    : undefined
+
   const onReplyClick = useCallback(
     (replyComment: HMComment) => {
       const replyVersionData = {
@@ -742,6 +748,7 @@ export default function DesktopResourcePage() {
                 onEditorReady={handleEditorReady}
                 machineExtras={null}
                 editingFloatingActions={editingFloatingActions}
+                draftActions={draftActions}
                 newButton={newButton}
                 signingAccountId={selectedAccountId || undefined}
                 publishAccountUid={selectedAccount?.id?.uid || undefined}
