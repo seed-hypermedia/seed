@@ -1855,52 +1855,20 @@ latest_document_generations AS (
   GROUP BY dg.resource
   HAVING dg.generation = MAX(dg.generation)
 ),
-comment_resource_origins AS (
-  SELECT DISTINCT resource_links.target AS resource
-  FROM resource_links
-  JOIN structural_blobs ON structural_blobs.id = resource_links.source
-  WHERE structural_blobs.type = 'Comment'
-
-  UNION
-
-  SELECT DISTINCT structural_blobs.resource AS resource
-  FROM resource_links
-  JOIN structural_blobs ON structural_blobs.id = resource_links.source
-  WHERE structural_blobs.type = 'Comment'
-  AND structural_blobs.resource IS NOT NULL
-),
-comment_resource_chain(origin_resource, resource, iri, depth) AS (
-  SELECT
-    comment_resource_origins.resource,
-    comment_resource_origins.resource,
-    resources.iri,
-    0
-  FROM comment_resource_origins
-  JOIN resources ON resources.id = comment_resource_origins.resource
+redirect_ancestors(resource, iri, depth) AS (
+  SELECT id, iri, 0
+  FROM resources
+  WHERE id = :target
 
   UNION ALL
 
-  SELECT
-    cr.origin_resource,
-    target.id,
-    target.iri,
-    cr.depth + 1
-  FROM comment_resource_chain cr
-  JOIN latest_document_generations dg ON dg.resource = cr.resource
-  JOIN resources target ON target.iri = dg.metadata->>'$."$db.redirect".v'
-  WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
-  AND target.id != cr.resource
-  AND cr.depth < 16
-),
-effective_comment_resources AS (
-  SELECT origin_resource, resource, iri
-  FROM (
-    SELECT
-      cr.*,
-      ROW_NUMBER() OVER (PARTITION BY cr.origin_resource ORDER BY cr.depth DESC) rn
-    FROM comment_resource_chain cr
-  )
-  WHERE rn = 1
+  SELECT r.id, r.iri, ra.depth + 1
+  FROM redirect_ancestors ra
+  JOIN latest_document_generations dg
+    ON dg.metadata->>'$."$db.redirect".v' = ra.iri
+  JOIN resources r ON r.id = dg.resource
+  WHERE r.iri != ra.iri
+  AND ra.depth < 16
 ),
 changes AS (
 SELECT
@@ -1928,7 +1896,7 @@ AND structural_blobs.type IN ('Change')
 AND (:publicOnly = 0 OR pb3.id IS NOT NULL)
 )
 SELECT
-    source_resource.iri,
+    (SELECT iri FROM redirect_ancestors WHERE depth = 0) AS source_iri,
     blobs.codec,
     blobs.multihash,
 	public_keys.principal AS author,
@@ -1948,14 +1916,12 @@ FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
-LEFT JOIN effective_comment_resources target_resource ON target_resource.origin_resource = resource_links.target
-LEFT JOIN effective_comment_resources source_resource ON source_resource.origin_resource = structural_blobs.resource
 LEFT JOIN public_blobs pb ON pb.id = blobs.id
-WHERE target_resource.resource = :target
+WHERE resource_links.target IN (SELECT resource FROM redirect_ancestors)
 AND blobs.id %s :blob_id
 AND structural_blobs.type IN ('Comment')
 AND (:publicOnly = 0 OR pb.id IS NOT NULL)
-GROUP BY source_resource.iri, link_id, target_version, target_fragment
+GROUP BY source_iri, link_id, target_version, target_fragment
 
 UNION ALL
 SELECT

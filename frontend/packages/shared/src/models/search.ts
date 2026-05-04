@@ -87,9 +87,5 @@ export function useSearch(
       return {out, entities}
     },
     enabled,
-    staleTime: 0,
-    cacheTime: 0,
-    keepPreviousData: false,
-    refetchOnMount: 'always',
   })
 }

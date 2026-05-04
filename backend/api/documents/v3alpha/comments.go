@@ -283,7 +283,11 @@ func (srv *Server) commentDBMapper() sqlitex.MapperFunc[indexedComment] {
 	}
 }
 
-var qIterComments = dqb.Str(`
+// redirectAncestorsCTE collects every resource whose latest generation transitively
+// redirects to :iri (plus :iri's own resource). Seeded from :iri so the recursion
+// only walks the redirect chain relevant to the requested document, not every
+// Comment in the database.
+const redirectAncestorsCTE = `
 	WITH RECURSIVE
 	latest_document_generations AS (
 		SELECT dg.*
@@ -291,41 +295,24 @@ var qIterComments = dqb.Str(`
 		GROUP BY dg.resource
 		HAVING dg.generation = MAX(dg.generation)
 	),
-	comment_resource_chain(origin_resource, resource, iri, depth) AS (
-		SELECT DISTINCT
-			sb.resource,
-			sb.resource,
-			r.iri,
-			0
-		FROM structural_blobs sb
-		JOIN resources r ON r.id = sb.resource
-		WHERE sb.type = 'Comment'
-		AND sb.resource IS NOT NULL
+	redirect_ancestors(resource, iri, depth) AS (
+		SELECT id, iri, 0
+		FROM resources
+		WHERE iri = :iri
 
 		UNION ALL
 
-		SELECT
-			cr.origin_resource,
-			target.id,
-			target.iri,
-			cr.depth + 1
-		FROM comment_resource_chain cr
-		JOIN latest_document_generations dg ON dg.resource = cr.resource
-		JOIN resources target ON target.iri = dg.metadata->>'$."$db.redirect".v'
-		WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
-		AND target.id != cr.resource
-		AND cr.depth < 16
-	),
-	effective_comment_resources AS (
-		SELECT origin_resource, resource, iri
-		FROM (
-			SELECT
-				cr.*,
-				ROW_NUMBER() OVER (PARTITION BY cr.origin_resource ORDER BY cr.depth DESC) rn
-			FROM comment_resource_chain cr
-		)
-		WHERE rn = 1
+		SELECT r.id, r.iri, ra.depth + 1
+		FROM redirect_ancestors ra
+		JOIN latest_document_generations dg
+			ON dg.metadata->>'$."$db.redirect".v' = ra.iri
+		JOIN resources r ON r.id = dg.resource
+		WHERE r.iri != ra.iri
+		AND ra.depth < 16
 	)
+`
+
+var qIterComments = dqb.Str(redirectAncestorsCTE + `
 	SELECT
 		sb.id,
         b.codec,
@@ -337,9 +324,8 @@ var qIterComments = dqb.Str(`
         	sb.*,
          	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
         FROM structural_blobs sb
-		JOIN effective_comment_resources ecr ON ecr.origin_resource = sb.resource
-  		WHERE sb.type = 'Comment'
-		AND ecr.iri = :iri
+		WHERE sb.type = 'Comment'
+		AND sb.resource IN (SELECT resource FROM redirect_ancestors)
 	) sb
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.rn = 1
@@ -347,49 +333,7 @@ var qIterComments = dqb.Str(`
 	ORDER BY sb.ts
 `)
 
-var qIterCommentsPublicOnly = dqb.Str(`
-	WITH RECURSIVE
-	latest_document_generations AS (
-		SELECT dg.*
-		FROM document_generations dg
-		GROUP BY dg.resource
-		HAVING dg.generation = MAX(dg.generation)
-	),
-	comment_resource_chain(origin_resource, resource, iri, depth) AS (
-		SELECT DISTINCT
-			sb.resource,
-			sb.resource,
-			r.iri,
-			0
-		FROM structural_blobs sb
-		JOIN resources r ON r.id = sb.resource
-		WHERE sb.type = 'Comment'
-		AND sb.resource IS NOT NULL
-
-		UNION ALL
-
-		SELECT
-			cr.origin_resource,
-			target.id,
-			target.iri,
-			cr.depth + 1
-		FROM comment_resource_chain cr
-		JOIN latest_document_generations dg ON dg.resource = cr.resource
-		JOIN resources target ON target.iri = dg.metadata->>'$."$db.redirect".v'
-		WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
-		AND target.id != cr.resource
-		AND cr.depth < 16
-	),
-	effective_comment_resources AS (
-		SELECT origin_resource, resource, iri
-		FROM (
-			SELECT
-				cr.*,
-				ROW_NUMBER() OVER (PARTITION BY cr.origin_resource ORDER BY cr.depth DESC) rn
-			FROM comment_resource_chain cr
-		)
-		WHERE rn = 1
-	)
+var qIterCommentsPublicOnly = dqb.Str(redirectAncestorsCTE + `
 	SELECT
 		sb.id,
         b.codec,
@@ -401,9 +345,8 @@ var qIterCommentsPublicOnly = dqb.Str(`
         	sb.*,
          	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
         FROM structural_blobs sb
-		JOIN effective_comment_resources ecr ON ecr.origin_resource = sb.resource
-  		WHERE sb.type = 'Comment'
-		AND ecr.iri = :iri
+		WHERE sb.type = 'Comment'
+		AND sb.resource IN (SELECT resource FROM redirect_ancestors)
 	) sb
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.rn = 1
