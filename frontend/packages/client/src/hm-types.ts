@@ -1226,13 +1226,14 @@ export type HMSearchInput = z.infer<typeof HMSearchInputSchema>
 
 export const HMSearchResultItemSchema = z.object({
   id: unpackedHmIdSchema,
+  commentId: z.string().optional(),
   metadata: HMDocumentMetadataSchema.optional(),
   title: z.string(),
   icon: z.string(),
   parentNames: z.array(z.string()),
   versionTime: z.string().optional(),
   searchQuery: z.string(),
-  type: z.enum(['document', 'contact']),
+  type: z.enum(['document', 'contact', 'comment']),
 })
 
 export const HMSearchPayloadSchema = z.object({

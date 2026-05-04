@@ -208,7 +208,8 @@ SELECT
 `)
 
 var qGetFTSByIDs = dqb.Str(`
-WITH fts_data AS (
+WITH RECURSIVE
+fts_data AS (
   SELECT
     fts.raw_content,
     fts.type,
@@ -216,8 +217,9 @@ WITH fts_data AS (
     fts.version,
     fts.blob_id,
     structural_blobs.genesis_blob,
-	structural_blobs.extra_attrs->>'tsid' AS tsid,
-	fts.rowid
+    structural_blobs.resource,
+    structural_blobs.extra_attrs->>'tsid' AS tsid,
+    fts.rowid
   FROM fts
     JOIN structural_blobs
       ON structural_blobs.id = fts.blob_id
@@ -229,6 +231,47 @@ WITH fts_data AS (
       ON resources.id = structural_blobs.resource
   WHERE fts.rowid IN (SELECT value FROM json_each(?))
 	AND blobs.size > 0
+),
+latest_document_generations AS (
+  SELECT dg.*
+  FROM document_generations dg
+  GROUP BY dg.resource
+  HAVING dg.generation = MAX(dg.generation)
+),
+comment_resource_chain(origin_resource, resource, iri, depth) AS (
+  SELECT DISTINCT
+    f.resource,
+    f.resource,
+    resources.iri,
+    0
+  FROM fts_data f
+  JOIN resources ON resources.id = f.resource
+  WHERE f.type = 'comment'
+  AND f.resource IS NOT NULL
+
+  UNION ALL
+
+  SELECT
+    cr.origin_resource,
+    target.id,
+    target.iri,
+    cr.depth + 1
+  FROM comment_resource_chain cr
+  JOIN latest_document_generations dg ON dg.resource = cr.resource
+  JOIN resources target ON target.iri = dg.metadata->>'$."$db.redirect".v'
+  WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
+  AND target.id != cr.resource
+  AND cr.depth < 16
+),
+effective_comment_resources AS (
+  SELECT origin_resource, resource, iri
+  FROM (
+    SELECT
+      cr.*,
+      ROW_NUMBER() OVER (PARTITION BY cr.origin_resource ORDER BY cr.depth DESC) rn
+    FROM comment_resource_chain cr
+  )
+  WHERE rn = 1
 )
 
 SELECT
@@ -243,7 +286,7 @@ SELECT
   pk_subject.principal AS contact_subject,
   blobs.codec,
   blobs.multihash,
-  COALESCE(document_generations.metadata, structural_blobs.extra_attrs, '{}'),
+  COALESCE(current_document_generation.metadata, document_generations.metadata, structural_blobs.extra_attrs, '{}'),
   dg_subject.metadata AS subject_metadata,
   COALESCE((
     SELECT json_group_array(
@@ -252,7 +295,7 @@ SELECT
                'multihash', hex(b2.multihash)
              )
            )
-    FROM json_each(COALESCE(document_generations.heads, '[]')) AS a
+    FROM json_each(COALESCE(current_document_generation.heads, document_generations.heads, '[]')) AS a
       JOIN blobs AS b2
         ON b2.id = a.value
   ), '[]') AS heads,
@@ -271,8 +314,13 @@ FROM fts_data AS f
   JOIN public_keys
     ON public_keys.id = structural_blobs.author
 
+  LEFT JOIN effective_comment_resources ecr
+    ON ecr.origin_resource = f.resource
+
   LEFT JOIN resources
-    ON resources.id = (SELECT resource from structural_blobs WHERE
+    ON resources.id = COALESCE(
+      CASE WHEN f.type = 'comment' THEN ecr.resource END,
+      (SELECT resource from structural_blobs WHERE
 	     (f.blob_id       = structural_blobs.genesis_blob
            AND structural_blobs.type = 'Ref')
       OR (f.genesis_blob = structural_blobs.genesis_blob
@@ -284,10 +332,15 @@ FROM fts_data AS f
            AND structural_blobs.author = ?)
       OR (f.blob_id       = structural_blobs.id
            AND structural_blobs.type = 'Profile')
-     limit 1)
+     limit 1))
 
   LEFT JOIN document_generations
     ON document_generations.resource = resources.id
+    AND f.type != 'comment'
+
+  LEFT JOIN latest_document_generations AS current_document_generation
+    ON current_document_generation.resource = resources.id
+    AND f.type = 'comment'
 
   LEFT JOIN document_generations dg_subject
 	ON dg_subject.resource = (select id from resources where owner in (select extra_attrs->>'subject' from structural_blobs where id = f.blob_id) order by id limit 1)
@@ -295,31 +348,83 @@ FROM fts_data AS f
   LEFT JOIN public_keys pk_subject
     ON pk_subject.id = structural_blobs.extra_attrs->>'subject'
 
-WHERE (f.type = 'profile' OR document_generations.is_deleted = False)
+WHERE (f.type = 'profile' OR COALESCE(current_document_generation.is_deleted, document_generations.is_deleted) = False)
 `)
 
 var qKeywordSearch = dqb.Str(`
-SELECT
+WITH RECURSIVE
+matched_fts AS (
+  SELECT
     fts.rowid,
-    fts.rank
-FROM fts
-JOIN fts_index fi ON fi.rowid = fts.rowid
-JOIN structural_blobs sb ON sb.id = fts.blob_id
-JOIN blobs ON blobs.id = fts.blob_id
-LEFT JOIN public_blobs pb ON pb.id = fts.blob_id
+    fts.rank,
+    fts.blob_id,
+    fts.type
+  FROM fts
+  WHERE fts.raw_content MATCH ?
+  AND fts.type IN (?, ?, ?, ?, ?)
+),
+latest_document_generations AS (
+  SELECT dg.*
+  FROM document_generations dg
+  GROUP BY dg.resource
+  HAVING dg.generation = MAX(dg.generation)
+),
+comment_resource_chain(origin_resource, resource, iri, depth) AS (
+  SELECT DISTINCT
+    sb.resource,
+    sb.resource,
+    resources.iri,
+    0
+  FROM matched_fts mf
+  JOIN structural_blobs sb ON sb.id = mf.blob_id
+  JOIN resources ON resources.id = sb.resource
+  WHERE mf.type = 'comment'
+  AND sb.resource IS NOT NULL
+
+  UNION ALL
+
+  SELECT
+    cr.origin_resource,
+    target.id,
+    target.iri,
+    cr.depth + 1
+  FROM comment_resource_chain cr
+  JOIN latest_document_generations dg ON dg.resource = cr.resource
+  JOIN resources target ON target.iri = dg.metadata->>'$."$db.redirect".v'
+  WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
+  AND target.id != cr.resource
+  AND cr.depth < 16
+),
+effective_comment_resources AS (
+  SELECT origin_resource, resource, iri
+  FROM (
+    SELECT
+      cr.*,
+      ROW_NUMBER() OVER (PARTITION BY cr.origin_resource ORDER BY cr.depth DESC) rn
+    FROM comment_resource_chain cr
+  )
+  WHERE rn = 1
+)
+SELECT
+    mf.rowid,
+    mf.rank
+FROM matched_fts mf
+JOIN fts_index fi ON fi.rowid = mf.rowid
+JOIN structural_blobs sb ON sb.id = mf.blob_id
+JOIN blobs ON blobs.id = mf.blob_id
+LEFT JOIN public_blobs pb ON pb.id = mf.blob_id
 LEFT JOIN resources r1 ON r1.id = sb.resource
-LEFT JOIN blob_links bl ON bl.target = fts.blob_id AND bl.type = 'ref/head'
+LEFT JOIN blob_links bl ON bl.target = mf.blob_id AND bl.type = 'ref/head'
 LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
 LEFT JOIN resources r2 ON r2.id = sb_ref.resource
-WHERE fts.raw_content MATCH ?
-  AND fts.type IN (?, ?, ?, ?, ?)
-  AND blobs.size > 0
-  AND COALESCE(r1.iri, r2.iri) IS NOT NULL
-  AND COALESCE(r1.iri, r2.iri) GLOB ?
+LEFT JOIN effective_comment_resources ecr ON ecr.origin_resource = sb.resource
+WHERE blobs.size > 0
+  AND COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) IS NOT NULL
+  AND COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) GLOB ?
   AND (? = 0 OR pb.id IS NOT NULL)
 ORDER BY
-  (fts.type = 'contact' OR fts.type = 'title' OR fts.type = 'profile') DESC,
-  fts.rank ASC
+  (mf.type = 'contact' OR mf.type = 'title' OR mf.type = 'profile') DESC,
+  mf.rank ASC
 LIMIT ?
 `)
 
@@ -1743,7 +1848,61 @@ var qEntitiesLookupID = dqb.Str(`
 `)
 
 const qListMentionsTpl = `
-WITH changes AS (
+WITH RECURSIVE
+latest_document_generations AS (
+  SELECT dg.*
+  FROM document_generations dg
+  GROUP BY dg.resource
+  HAVING dg.generation = MAX(dg.generation)
+),
+comment_resource_origins AS (
+  SELECT DISTINCT resource_links.target AS resource
+  FROM resource_links
+  JOIN structural_blobs ON structural_blobs.id = resource_links.source
+  WHERE structural_blobs.type = 'Comment'
+
+  UNION
+
+  SELECT DISTINCT structural_blobs.resource AS resource
+  FROM resource_links
+  JOIN structural_blobs ON structural_blobs.id = resource_links.source
+  WHERE structural_blobs.type = 'Comment'
+  AND structural_blobs.resource IS NOT NULL
+),
+comment_resource_chain(origin_resource, resource, iri, depth) AS (
+  SELECT
+    comment_resource_origins.resource,
+    comment_resource_origins.resource,
+    resources.iri,
+    0
+  FROM comment_resource_origins
+  JOIN resources ON resources.id = comment_resource_origins.resource
+
+  UNION ALL
+
+  SELECT
+    cr.origin_resource,
+    target.id,
+    target.iri,
+    cr.depth + 1
+  FROM comment_resource_chain cr
+  JOIN latest_document_generations dg ON dg.resource = cr.resource
+  JOIN resources target ON target.iri = dg.metadata->>'$."$db.redirect".v'
+  WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
+  AND target.id != cr.resource
+  AND cr.depth < 16
+),
+effective_comment_resources AS (
+  SELECT origin_resource, resource, iri
+  FROM (
+    SELECT
+      cr.*,
+      ROW_NUMBER() OVER (PARTITION BY cr.origin_resource ORDER BY cr.depth DESC) rn
+    FROM comment_resource_chain cr
+  )
+  WHERE rn = 1
+),
+changes AS (
 SELECT
     structural_blobs.genesis_blob,
 	structural_blobs.ts,
@@ -1769,7 +1928,7 @@ AND structural_blobs.type IN ('Change')
 AND (:publicOnly = 0 OR pb3.id IS NOT NULL)
 )
 SELECT
-    resources.iri,
+    source_resource.iri,
     blobs.codec,
     blobs.multihash,
 	public_keys.principal AS author,
@@ -1789,13 +1948,14 @@ FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
-LEFT JOIN resources ON resources.id = structural_blobs.resource
+LEFT JOIN effective_comment_resources target_resource ON target_resource.origin_resource = resource_links.target
+LEFT JOIN effective_comment_resources source_resource ON source_resource.origin_resource = structural_blobs.resource
 LEFT JOIN public_blobs pb ON pb.id = blobs.id
-WHERE resource_links.target = :target
+WHERE target_resource.resource = :target
 AND blobs.id %s :blob_id
 AND structural_blobs.type IN ('Comment')
 AND (:publicOnly = 0 OR pb.id IS NOT NULL)
-GROUP BY resources.iri, link_id, target_version, target_fragment
+GROUP BY source_resource.iri, link_id, target_version, target_fragment
 
 UNION ALL
 SELECT

@@ -32,6 +32,15 @@ describe('HMSearchResultItemSchema', () => {
     expect(result.success).toBe(true)
   })
 
+  it('accepts comment search results with focused comment id', () => {
+    const result = HMSearchResultItemSchema.safeParse({
+      ...validItem,
+      commentId: 'z6MkhUgmuFYwEDED4P5EdPKqh35ybJprcGxaVpK9u3H8vpGh/z6GXComment',
+      type: 'comment',
+    })
+    expect(result.success).toBe(true)
+  })
+
   it('rejects versionTime as a Timestamp-like object (regression for #305)', () => {
     const item = {
       ...validItem,
