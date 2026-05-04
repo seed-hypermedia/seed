@@ -1,4 +1,6 @@
 import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
+import {CID} from 'multiformats'
+import {base58btc} from 'multiformats/bases/base58'
 import type {
   HMAnnotation,
   HMBlockNode,
@@ -9,8 +11,6 @@ import type {
   UnpackedHypermediaId,
 } from './hm-types'
 import {hmIdPathToEntityQueryPath, packHmId} from './hm-types'
-import {CID} from 'multiformats'
-import {base58btc} from 'multiformats/bases/base58'
 import {signObject, toPublishInput} from './signing'
 
 // ─── Block trimming ─────────────────────────────────────────────────────────
@@ -243,6 +243,26 @@ function cleanContentOfUndefined(content: HMBlockNode[]) {
   })
 }
 
+/**
+ * Recursively remove undefined properties from plain objects and arrays.
+ * `@ipld/dag-cbor` throws on any undefined it encounters during encoding,
+ * so we have to scrub them before signing or storing.
+ */
+function deepStripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => deepStripUndefined(item)) as unknown as T
+  }
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    const result: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(value)) {
+      if (v === undefined) continue
+      result[k] = deepStripUndefined(v)
+    }
+    return result as T
+  }
+  return value
+}
+
 function createUnsignedComment({
   content,
   docId,
@@ -317,7 +337,8 @@ async function createCommentBlob({
     rootReplyCommentVersion,
     visibility,
   })
-  const signedComment = await createSignedComment(unsignedComment, signer)
+  const cleanedUnsignedComment = deepStripUndefined(unsignedComment)
+  const signedComment = await createSignedComment(cleanedUnsignedComment, signer)
   return cborEncode(signedComment)
 }
 
@@ -427,10 +448,11 @@ export async function deleteComment(input: DeleteCommentInput, signer: HMSigner)
   if (input.visibility) tombstone.visibility = input.visibility
 
   // Sign the tombstone (CBOR-encode with zeroed sig, then sign)
-  tombstone.sig = await signObject(signer, tombstone)
+  const cleanedTombstone = deepStripUndefined(tombstone)
+  cleanedTombstone.sig = await signObject(signer, cleanedTombstone)
 
   // Encode to CBOR and return as publish input
-  const encoded = cborEncode(tombstone)
+  const encoded = cborEncode(cleanedTombstone)
   return toPublishInput(encoded, [])
 }
 
@@ -474,9 +496,10 @@ export async function updateComment(input: UpdateCommentInput, signer: HMSigner)
   if (input.rootReplyCommentVersion) comment.threadRoot = CID.parse(input.rootReplyCommentVersion)
   if (input.visibility) comment.visibility = input.visibility
 
-  comment.sig = await signObject(signer, comment)
+  const cleanedComment = deepStripUndefined(comment)
+  cleanedComment.sig = await signObject(signer, cleanedComment)
 
-  const encoded = cborEncode(comment)
+  const encoded = cborEncode(cleanedComment)
   return toPublishInput(encoded, [])
 }
 

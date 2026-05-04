@@ -495,7 +495,7 @@ export function CommentEditor({
                     const blob = await getDraftMediaBlob(draftId, mediaId)
                     if (blob) {
                       // Clear any old url and set a new blob url
-                      delete block.props.url
+                      block.props.url = ''
                       block.props.displaySrc = URL.createObjectURL(blob)
                     } else {
                       console.warn(`Media blob not found in IndexedDB for rehydration: ${draftId}/${mediaId}`)
