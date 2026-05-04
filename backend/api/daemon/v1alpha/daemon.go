@@ -670,8 +670,8 @@ func (srv *Server) DisconnectVault(context.Context, *daemon.DisconnectVaultReque
 	return &emptypb.Empty{}, nil
 }
 
-// HandleConnectionHandoff completes a browser-mediated remote vault handoff.
-func (srv *Server) HandleConnectionHandoff(w http.ResponseWriter, r *http.Request) {
+// HandleVaultHandoff completes a browser-mediated remote vault handoff.
+func (srv *Server) HandleVaultHandoff(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -686,11 +686,11 @@ func (srv *Server) HandleConnectionHandoff(w http.ResponseWriter, r *http.Reques
 	defer r.Body.Close()
 
 	var req struct {
-		HandoffToken      string `json:"handoffToken"`
-		VaultURL          string `json:"vaultUrl"`
-		UserID            string `json:"userId"`
-		CredentialID      string `json:"credentialId"`
-		CredentialPayload string `json:"secret"` //nolint:gosec // This runtime payload carries the remote KEK to the local daemon; it is not a hardcoded secret.
+		HandoffToken string `json:"handoffToken"`
+		VaultURL     string `json:"vaultUrl"`
+		UserID       string `json:"userId"`
+		CredentialID string `json:"credentialId"`
+		Secret       string `json:"secret"` //nolint:gosec // This runtime payload carries the remote KEK to the local daemon; it is not a hardcoded secret.
 	}
 	body := io.LimitReader(r.Body, vaultConnectionHandoffMaxBody)
 	decoder := json.NewDecoder(body)
@@ -711,22 +711,18 @@ func (srv *Server) HandleConnectionHandoff(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "handoffToken is required", http.StatusBadRequest)
 		return
 	}
-	if strings.TrimSpace(req.VaultURL) == "" {
+	vaultURL := strings.TrimSpace(req.VaultURL)
+	if vaultURL == "" {
 		http.Error(w, "vaultUrl is required", http.StatusBadRequest)
 		return
 	}
-	if strings.TrimSpace(req.UserID) == "" {
+	userID := strings.TrimSpace(req.UserID)
+	if userID == "" {
 		http.Error(w, "userId is required", http.StatusBadRequest)
 		return
 	}
-	if strings.TrimSpace(req.CredentialID) == "" {
-		http.Error(w, "credentialId is required", http.StatusBadRequest)
-		return
-	}
-	if strings.TrimSpace(req.CredentialPayload) == "" {
-		http.Error(w, "secret is required", http.StatusBadRequest)
-		return
-	}
+	credentialID := strings.TrimSpace(req.CredentialID)
+	secret := strings.TrimSpace(req.Secret)
 
 	vlt, err := srv.store.Vault()
 	if err != nil {
@@ -734,11 +730,47 @@ func (srv *Server) HandleConnectionHandoff(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	err = vlt.HandleConnection(handoffToken, vault.ConnectionHandoff{
-		RemoteURL:    req.VaultURL,
-		UserID:       req.UserID,
-		CredentialID: req.CredentialID,
-		Credential:   req.CredentialPayload,
+	if credentialID == "" && secret == "" {
+		probe, err := vlt.ProbeConnectionCredentials(r.Context(), handoffToken, vaultURL, userID)
+		switch {
+		case err == nil:
+		case errors.Is(err, vault.ErrConnectionTokenExpired):
+			http.Error(w, "handoff token expired", http.StatusUnauthorized)
+			return
+		case errors.Is(err, vault.ErrConnectionTokenInvalid):
+			http.Error(w, "invalid handoff token", http.StatusUnauthorized)
+			return
+		case errors.Is(err, vault.ErrConnectionRemoteURLMismatch):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		resp := struct {
+			Success   bool `json:"success"`
+			Connected bool `json:"connected,omitempty"`
+		}{
+			Success:   true,
+			Connected: probe.Connected,
+		}
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			srv.log.Warn("Failed to encode vault handoff probe response", zap.Error(err))
+		}
+		return
+	}
+	if credentialID == "" {
+		http.Error(w, "credentialId is required", http.StatusBadRequest)
+		return
+	}
+
+	err = vlt.HandleConnection(r.Context(), handoffToken, vault.ConnectionHandoff{
+		RemoteURL:    vaultURL,
+		UserID:       userID,
+		CredentialID: credentialID,
+		Credential:   secret,
 	})
 	switch {
 	case err == nil:
@@ -749,6 +781,9 @@ func (srv *Server) HandleConnectionHandoff(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "invalid handoff token", http.StatusUnauthorized)
 		return
 	case errors.Is(err, vault.ErrConnectionRemoteURLMismatch):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	case errors.Is(err, vault.ErrRemoteCredentialNotFound):
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	default:

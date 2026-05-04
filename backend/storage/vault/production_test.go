@@ -105,7 +105,7 @@ func TestNewProductionLoadsKeysAndMigratesLegacyKeys(t *testing.T) {
 	localKey := bytes.Repeat([]byte{0x11}, 32)
 	secretStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
-	require.NoError(t, secretStore.Store(localVaultKEKName, localKey))
+	require.NoError(t, secretStore.Store(localVaultKEKName, "", localKey))
 
 	ks, err := openProduction(dataDir, legacy, secretStore)
 	require.NoError(t, err)
@@ -148,7 +148,7 @@ func TestNewProductionSkipsLegacyMigrationWhenLocalVaultExists(t *testing.T) {
 	localKey := bytes.Repeat([]byte{0x33}, 32)
 	secretStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
-	require.NoError(t, secretStore.Store(localVaultKEKName, localKey))
+	require.NoError(t, secretStore.Store(localVaultKEKName, "", localKey))
 
 	existingLocal, err := New(dataDir, secretStore)
 	require.NoError(t, err)
@@ -182,7 +182,7 @@ func TestMigrateLegacyKeySnapshotDoesNotWritePartialVaultFile(t *testing.T) {
 	dataDir := t.TempDir()
 	secretStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
-	require.NoError(t, secretStore.Store(localVaultKEKName, bytes.Repeat([]byte{0x55}, 32)))
+	require.NoError(t, secretStore.Store(localVaultKEKName, "", bytes.Repeat([]byte{0x55}, 32)))
 
 	ks, err := New(dataDir, secretStore)
 	require.NoError(t, err)
@@ -208,6 +208,8 @@ func TestMigrateLegacyKeySnapshotDoesNotWritePartialVaultFile(t *testing.T) {
 
 type boomSecretStore struct{}
 
-func (boomSecretStore) Load(string) ([]byte, error) { return nil, fmt.Errorf("boom") }
-func (boomSecretStore) Store(string, []byte) error  { return fmt.Errorf("boom") }
-func (boomSecretStore) Delete(string) error         { return fmt.Errorf("boom") }
+func (boomSecretStore) Load(string, string) ([]byte, error) { return nil, fmt.Errorf("boom") }
+func (boomSecretStore) Store(string, string, []byte) error  { return fmt.Errorf("boom") }
+func (boomSecretStore) ListCredentialIDs(string) ([]string, error) {
+	return nil, fmt.Errorf("boom")
+}

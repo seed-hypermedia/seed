@@ -33,14 +33,14 @@ export function ChooseAuthView() {
               Use passkey
             </Button>
             <p className="text-muted-foreground text-center text-sm">
-              Not familiar with passkey?{' '}
+              Not familiar with passkeys?{' '}
               <a
-                href="https://hyper.media/passkeys"
+                href="https://www.passkeys.com/what-are-passkeys.html"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-emerald-600 underline underline-offset-2 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
               >
-                Learn how it works
+                Learn how they work.
               </a>
             </p>
           </div>

@@ -27,7 +27,7 @@ type Envelope struct {
 
 // RemoteState stores remote vault connection, version, and last-sync metadata in the envelope.
 type RemoteState struct {
-	RemoteURL          string `json:"vaultUrl"`
+	VaultURL           string `json:"vaultUrl"`
 	UserID             string `json:"userId"`
 	CredentialID       string `json:"credentialId"`
 	LocalVersion       int    `json:"localVersion,omitempty"`
@@ -83,7 +83,7 @@ func (envelope *Envelope) validate() error {
 	if len(envelope.WrappedDEK) == 0 {
 		return fmt.Errorf("vault wrapped DEK must not be empty")
 	}
-	if envelope.Remote != nil && envelope.Remote.RemoteURL == "" {
+	if envelope.Remote != nil && envelope.Remote.VaultURL == "" {
 		return fmt.Errorf("remote vault URL is required")
 	}
 	if envelope.Remote != nil && envelope.Remote.UserID == "" {
@@ -127,7 +127,7 @@ func newFileStore(dataDir string, secretStore SecretStore) (*fileStore, error) {
 
 	// Fail fast if the local KEK is unreadable or malformed. Otherwise the
 	// first envelope decrypt would fail later, far from the actual cause.
-	localKey, err := secretStore.Load(localVaultKEKName)
+	localKey, err := secretStore.Load(localVaultKEKName, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load local vault KEK: %w", err)
 	}
@@ -239,7 +239,7 @@ func (s *fileStore) wrapDataEncryptionKey(remote *RemoteState, dek []byte) ([]by
 
 func (s *fileStore) loadWrappingKey(remote *RemoteState) ([]byte, error) {
 	if remote == nil {
-		secret, err := s.secretStore.Load(localVaultKEKName)
+		secret, err := s.secretStore.Load(localVaultKEKName, "")
 		if err != nil {
 			return nil, fmt.Errorf("failed to load local vault KEK: %w", err)
 		}
@@ -249,12 +249,7 @@ func (s *fileStore) loadWrappingKey(remote *RemoteState) ([]byte, error) {
 		return secret, nil
 	}
 
-	remoteKEKName, err := remoteVaultKEKName(remote.RemoteURL, remote.UserID)
-	if err != nil {
-		return nil, err
-	}
-
-	secret, err := s.secretStore.Load(remoteKEKName)
+	secret, err := loadRemoteCredentialSecret(s.secretStore, remote.VaultURL, remote.UserID, remote.CredentialID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load remote vault KEK: %w", err)
 	}
