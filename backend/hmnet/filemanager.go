@@ -294,7 +294,18 @@ func (fm *FileManager) UploadFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
 	w.Header().Set("Access-Control-Allow-Methods", "PUT, POST, OPTIONS")
 
-	if r.Method != "POST" {
+	if r.Method == http.MethodOptions {
+		// Chrome's Private Network Access requires the server to ack the
+		// preflight when a non-private origin targets a private/loopback
+		// address (which the web app does when uploading to the daemon).
+		if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
+			w.Header().Set("Access-Control-Allow-Private-Network", "true")
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		fmt.Fprintf(w, "Only POST method is supported.")
 		return
