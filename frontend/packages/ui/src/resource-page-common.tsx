@@ -249,6 +249,8 @@ export interface ResourcePageProps {
   machineExtras?: ReactNode
   /** Render prop for floating overlay when editing. Receives existing menu items so they can be merged. */
   editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
+  /** Render prop for floating overlay when a draft exists but not actively editing. Shown when a draft exists and isEditing is false. */
+  draftActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
   /** Button for creating a new document. Rendered in the top-right floating overlay in both editing and non-editing states. */
   newButton?: ReactNode
   /** Signing account ID for draft saving (desktop only). Flows into machine context. */
@@ -308,6 +310,7 @@ export function ResourcePage({
   onEditorReady,
   machineExtras,
   editingFloatingActions,
+  draftActions,
   newButton,
   signingAccountId,
   publishAccountUid,
@@ -587,6 +590,7 @@ export function ResourcePage({
           onEditorReady={onEditorReady}
           canEdit={canEdit}
           editingFloatingActions={editingFloatingActions}
+          draftActions={draftActions}
           newButton={newButton}
           signingAccountId={signingAccountId}
           publishAccountUid={publishAccountUid}
@@ -769,6 +773,7 @@ function DocumentBody({
   onEditorReady,
   canEdit = false,
   editingFloatingActions,
+  draftActions,
   newButton,
   signingAccountId,
   publishAccountUid,
@@ -805,6 +810,8 @@ function DocumentBody({
   canEdit?: boolean
   /** Render prop for floating overlay when editing */
   editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
+  /** Render prop for floating overlay when a draft exists but not actively editing */
+  draftActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
   /** Button for creating a new document. Rendered in the top-right floating overlay in both editing and non-editing states. */
   newButton?: ReactNode
   /** Signing account ID for draft saving (desktop only) */
@@ -1613,7 +1620,9 @@ function DocumentBody({
         onFilterChange={handleFilterChange}
       >
         <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
-        {/* Floating action buttons — when editing, show editing toolbar; otherwise show new button + options menu */}
+        {/* Floating action buttons — when editing, show editing toolbar;
+            when a draft exists but not editing, show draft toolbar (publish + menu);
+            otherwise show new button + options menu */}
         {isEditing && editingFloatingActions ? (
           <div
             className={cn(
@@ -1621,6 +1630,14 @@ function DocumentBody({
             )}
           >
             {editingFloatingActions({menuItems: allMenuItems})}
+          </div>
+        ) : !isEditing && ctx.draftId !== null && draftActions ? (
+          <div
+            className={cn(
+              'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
+            )}
+          >
+            {draftActions({menuItems: allMenuItems})}
           </div>
         ) : newButton || actionButtons ? (
           <div
