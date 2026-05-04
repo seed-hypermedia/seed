@@ -104,7 +104,9 @@ function isDocOptionsRoute(route: NavRoute): route is NavRoute & {key: DocOption
   return DOC_OPTIONS_ROUTE_KEYS.includes(route.key as DocOptionsRouteKey) && 'id' in route
 }
 
-export function DocOptionsButton(_props: {onPublishSite: (input: {id: UnpackedHypermediaId; step?: 'seed-host-custom-domain'}) => void}) {
+export function DocOptionsButton(_props: {
+  onPublishSite: (input: {id: UnpackedHypermediaId; step?: 'seed-host-custom-domain'}) => void
+}) {
   return null
 }
 
