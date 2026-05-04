@@ -7,7 +7,14 @@ import {
   HMLibraryDocument,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {formattedDate, getMetadataName, hmId, InteractionSummaryPayload, useRouteLink, useUniversalAppContext} from '@shm/shared'
+import {
+  formattedDate,
+  getMetadataName,
+  hmId,
+  InteractionSummaryPayload,
+  useRouteLink,
+  useUniversalAppContext,
+} from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
