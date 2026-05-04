@@ -122,7 +122,7 @@ function ContactMention({
 }) {
   const {contacts} = useUniversalAppContext()
   const highlight = useHighlighter()
-  const entity = useAccount(accountUid)
+  const entity = useAccount(accountUid, {subscribe: true})
   const meta = getContactMetadata(accountUid, entity.data?.metadata, contacts)
 
   return (

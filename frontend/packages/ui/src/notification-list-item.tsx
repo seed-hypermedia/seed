@@ -8,6 +8,7 @@ import type {NotificationPayload} from '@shm/shared/models/notification-payload'
 import {notificationTitle} from '@shm/shared/models/notification-helpers'
 import {Button} from './button'
 import {HMIcon} from './hm-icon'
+import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 import {Check} from 'lucide-react'
@@ -24,11 +25,11 @@ export type NotificationListItemProps = {
 export function NotificationListItem({item, isRead, onOpen, onToggleRead}: NotificationListItemProps) {
   const authorId = item.author.uid ? hmId(item.author.uid) : null
   const targetId = item.target.uid ? hmId(item.target.uid, {path: item.target.path ?? undefined}) : null
-  const author = useAccount(item.author.uid || undefined)
+  const author = useAccount(item.author.uid || undefined, {subscribe: true})
   const target = useResource(targetId, {subscribed: true})
 
-  const authorName =
-    author.data?.metadata?.name || item.author.name || (item.author.uid ? abbreviateUid(item.author.uid) : undefined)
+  const resolvedName = author.data?.metadata?.name
+  const authorName = resolvedName || item.author.name || (item.author.uid ? abbreviateUid(item.author.uid) : undefined)
   const authorIcon = author.data?.metadata?.icon || item.author.icon || undefined
   const targetName = target.data?.type === 'document' ? getDocumentTitle(target.data.document) || undefined : undefined
 
@@ -50,7 +51,14 @@ export function NotificationListItem({item, isRead, onOpen, onToggleRead}: Notif
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex items-start gap-2">
             {!isRead ? <span className="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full bg-blue-600" /> : null}
-            <p className={cn('text-sm', !isRead && 'font-bold')}>{notificationTitle(item, {authorName, targetName})}</p>
+            <p className={cn('text-sm', !isRead && 'font-bold')}>
+              {notificationTitle(item, {authorName, targetName})}
+              {!resolvedName && item.author.uid ? (
+                <span className="ml-1 inline-block align-middle">
+                  <Spinner size="small" />
+                </span>
+              ) : null}
+            </p>
           </div>
           <p className="text-muted-foreground text-xs">{formattedDateShort(new Date(item.eventAtMs))}</p>
         </div>
