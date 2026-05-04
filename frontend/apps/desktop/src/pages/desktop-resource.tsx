@@ -626,9 +626,7 @@ export default function DesktopResourcePage() {
     : undefined
 
   const draftActions = canEdit
-    ? ({menuItems}: {menuItems: any[]}) => (
-        <DraftActionsToolbar docId={docId} existingMenuItems={menuItems} />
-      )
+    ? ({menuItems}: {menuItems: any[]}) => <DraftActionsToolbar docId={docId} existingMenuItems={menuItems} />
     : undefined
 
   const onReplyClick = useCallback(

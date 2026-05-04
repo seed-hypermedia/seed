@@ -19,10 +19,10 @@ function DeleteDraftDialog({onClose, input}: {onClose: () => void; input: {draft
 
   return (
     <>
-      <AlertDialogTitle>{editId ? 'Discard Changes in this Document?' : 'Discard this Draft?'}</AlertDialogTitle>
+      <AlertDialogTitle>{editId ? 'Discard unpublished changes?' : 'Discard this Draft?'}</AlertDialogTitle>
       <Text className="text-muted-foreground text-sm">
         {editId
-          ? 'All changes made to the current version of this document will be permanently deleted. This action cannot be undone.'
+          ? 'Your unpublished changes will be discarded and the document will revert to its last published version.'
           : 'This draft document and all its content will be permanently deleted. This action cannot be undone.'}
       </Text>
 
