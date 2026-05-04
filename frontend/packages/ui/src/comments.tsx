@@ -713,7 +713,7 @@ export const Comment = memo(function Comment({
                           hostname: targetDomain ?? null,
                           latest: routeLatest ?? null,
                         },
-                        commentId: commentIdToHmId(comment.id, comment.version),
+                        commentId: commentIdToHmId(comment.id),
                         gatewayUrl: appOrigin ?? undefined,
                       })
                     }}

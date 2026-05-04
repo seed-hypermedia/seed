@@ -1267,14 +1267,14 @@ describe('buildCopyLinkUrl', () => {
     ).toContain('/hm/z6MkOwner/doc-path/:comments/z6MkAuthor/tsid123')
   })
 
-  test('comment link with commentVersion (on commentId) and latest (on docId)', () => {
+  test('comment link ignores commentVersion (on commentId) even when present', () => {
     const commentId = hmId('z6MkAuthor', {path: ['tsid123'], version: 'cVer'})
     expect(
       buildCopyLinkUrl({
         id: hmId('z6MkOwner', {path: ['doc-path'], latest: true, hostname: 'https://example.com'}),
         commentId,
       }),
-    ).toBe('https://example.com/doc-path/:comments/z6MkAuthor/tsid123?v=cVer&l')
+    ).toBe('https://example.com/doc-path/:comments/z6MkAuthor/tsid123')
   })
 
   test('comment + blockRef auto-expands with +', () => {
