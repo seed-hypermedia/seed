@@ -67,8 +67,9 @@ export function MentionMenuPositioner<BSchema extends BlockSchema>({
 
   useEffect(() => {
     if (!show) return
+    // Prefer the editor's nearest scroll ancestor over the global page scroller.
     const scrollEl =
-      scroller.current ?? editor.domElement.closest('[data-radix-scroll-area-viewport]') ?? document.documentElement
+      editor.domElement.closest('[data-radix-scroll-area-viewport]') ?? scroller.current ?? document.documentElement
     if (!scrollEl) return
 
     const onScroll = () => refreshReferencePos()
@@ -263,7 +264,9 @@ export function MentionMenuPositioner<BSchema extends BlockSchema>({
 
   return (
     <Tippy
-      appendTo={scroller.current ?? document.body}
+      // Always append to document.body so the popup escapes any container
+      // stacking context.
+      appendTo={document.body}
       content={content}
       getReferenceClientRect={getReferenceClientRect}
       interactive={true}

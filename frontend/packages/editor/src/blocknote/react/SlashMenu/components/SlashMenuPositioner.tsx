@@ -86,7 +86,9 @@ export const SlashMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSc
 
   return (
     <Tippy
-      appendTo={scroller.current ?? document.body}
+      // Always append to document.body so the popup escapes any container
+      // stacking context.
+      appendTo={document.body}
       content={
         <div className="max-h-[50vh] w-[90vw] overflow-y-auto sm:max-h-none sm:w-auto sm:overflow-visible">
           {slashMenuElement}
