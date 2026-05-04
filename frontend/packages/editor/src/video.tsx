@@ -472,9 +472,11 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
             contentEditable={false}
             className={cn(
               'video-iframe absolute top-0 right-0 bottom-0 left-0',
-              !canEdit && 'pointer-events-auto',
-              canEdit && !selected && 'pointer-events-none',
-              canEdit && selected && 'pointer-events-auto',
+              // In a non-editable context the iframe should be clickable.
+              !editor.isEditable && 'pointer-events-auto',
+              editor.isEditable && !canEdit && 'pointer-events-auto',
+              editor.isEditable && canEdit && !selected && 'pointer-events-none',
+              editor.isEditable && canEdit && selected && 'pointer-events-auto',
             )}
             src={getVideoIframeSrc(block.props.url)}
             allowFullScreen
