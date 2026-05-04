@@ -1,6 +1,3 @@
-import {useAppContext} from '@/app-context'
-import {useCopyReferenceUrl} from '@/components/copy-reference-url'
-import {useDeleteDialog} from '@/components/delete-dialog'
 import {domainResolver} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
@@ -14,7 +11,6 @@ import {resolveOmnibarUrlToRoute, selectValidatedOmnibarSiteUrl} from '@/omnibar
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {SidebarContext} from '@/sidebar-context'
-import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
@@ -41,7 +37,6 @@ import {
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Back, CloudOff, Download, Forward, Link, Trash, UploadCloud} from '@shm/ui/icons'
-import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {TitlebarSection} from '@shm/ui/titlebar'
@@ -109,235 +104,8 @@ function isDocOptionsRoute(route: NavRoute): route is NavRoute & {key: DocOption
   return DOC_OPTIONS_ROUTE_KEYS.includes(route.key as DocOptionsRouteKey) && 'id' in route
 }
 
-export function DocOptionsButton({
-  onPublishSite,
-}: {
-  onPublishSite: (input: {id: UnpackedHypermediaId; step?: 'seed-host-custom-domain'}) => void
-}) {
-  const route = useNavRoute()
-  const dispatch = useNavigationDispatch()
-  if (!isDocOptionsRoute(route)) throw new Error('DocOptionsButton must be used within a route that has an id')
-  const id = route.id
-  const {exportDocument, openDirectory} = useAppContext()
-  const deleteEntity = useDeleteDialog()
-  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
-  const resource = useResource(id)
-  const doc = resource.data?.type === 'document' ? resource.data.document : undefined
-  const rootEntity = useResource(hmId(id?.uid))
-  const rootDocument = rootEntity.data?.type === 'document' ? rootEntity.data.document : undefined
-  const siteUrl = rootDocument?.metadata.siteUrl
-  // const copyLatest =
-  //   route.id.latest || !route.id.version || doc?.version === route.id.version
-  const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
-  const [copySiteUrlContent, onCopySiteUrl] = useCopyReferenceUrl(siteUrl || gwUrl, siteUrl ? hmId(id?.uid) : undefined)
-  // const  {
-  //   ...route.id,
-  //   latest: copyLatest,
-  //   version: doc?.version || null,
-  // }
-  const removeSite = useRemoveSiteDialog()
-  const capability = useSelectedAccountCapability(id || undefined)
-  const canEditDoc = roleCanWrite(capability?.role)
-  // No published version = not yet published. `doc` is undefined when the
-  // resource hasn't resolved or doesn't exist; `doc.version === ''` is the
-  // placeholder ResourcePage fabricates for the unified-editor draft flow.
-  // Private docs DO have a real `version`, so they fall through this check
-  // correctly and keep their copy-link entries.
-  const isDraftRoute = !doc?.version
-  const seedHostDialog = useSeedHostDialog()
-  const branchDialog = useAppDialog(BranchDialog)
-  const moveDialog = useAppDialog(MoveDialog)
-  const myAccountIds = useMyAccountIds()
-  const pendingDomain = useHostSession().pendingDomains?.find((pending) => !!id && pending.siteUid === id.uid)
-  const menuItems: MenuItemType[] = [
-    ...(isDraftRoute
-      ? []
-      : [
-          {
-            key: 'link',
-            label: `Copy ${displayHostname(gwUrl)} Link`,
-            icon: <Link className="size-4" />,
-            onClick: () => {
-              onCopyGateway(route)
-            },
-          },
-        ]),
-    {
-      key: 'export',
-      label: 'Export Document',
-      icon: <Download className="size-4" />,
-      onClick: async () => {
-        if (!doc) return
-        const title = doc?.metadata.name || 'document'
-        const blocks: HMBlockNode[] | undefined = doc?.content || undefined
-        const editorBlocks = hmBlocksToEditorContent(blocks, {
-          childrenType: 'Group',
-        })
-        const markdownWithFiles = await convertBlocksToMarkdown(editorBlocks, doc)
-        const {markdownContent, mediaFiles} = markdownWithFiles
-        exportDocument(title, markdownContent, mediaFiles)
-          .then((res) => {
-            const success = (
-              <>
-                <div className="flex max-w-[700px] flex-col gap-1.5">
-                  <SizableText className="text-wrap break-all">
-                    Successfully exported document "{title}" to: <b>{`${res}`}</b>.
-                  </SizableText>
-                  <SizableText
-                    className="text-current underline"
-                    onClick={() => {
-                      // @ts-expect-error
-                      openDirectory(res)
-                    }}
-                  >
-                    Show directory
-                  </SizableText>
-                </div>
-              </>
-            )
-            toast.success(success)
-          })
-          .catch((err) => {
-            toast.error(err)
-          })
-      },
-    },
-  ]
-  if (siteUrl && !isDraftRoute) {
-    menuItems.unshift({
-      key: 'link-site',
-      label: `Copy ${displayHostname(siteUrl)} Link`,
-      icon: <Link className="size-4" />,
-      onClick: () => {
-        onCopySiteUrl(route)
-      },
-    })
-  }
-  if (!!id && !id?.path?.length && canEditDoc) {
-    if (doc?.metadata?.siteUrl) {
-      const siteHost = hostnameStripProtocol(doc?.metadata?.siteUrl)
-      const gwHost = hostnameStripProtocol(gwUrl)
-      if (siteHost.endsWith(gwHost) && !pendingDomain) {
-        menuItems.push({
-          key: 'publish-custom-domain',
-          label: 'Publish Custom Domain',
-          icon: <UploadCloud className="size-4" />,
-          onClick: () => {
-            onPublishSite({id: id, step: 'seed-host-custom-domain'})
-          },
-        })
-      }
-      menuItems.push({
-        key: 'publish-site',
-        label: 'Remove Site from Publication',
-        icon: <CloudOff className="size-4" />,
-        variant: 'destructive',
-        onClick: () => {
-          removeSite.open(id)
-        },
-      })
-    } else
-      menuItems.push({
-        key: 'publish-site',
-        label: 'Publish Site to Domain',
-        icon: <UploadCloud className="size-4" />,
-        onClick: () => {
-          onPublishSite({id})
-        },
-      })
-  }
-  const createDraft = useCreateDraft({
-    locationUid: id?.uid,
-    locationPath: id?.path || undefined,
-  })
-  const importDialog = useImportDialog()
-  const importing = useImporting(id)
-  if (canEditDoc) {
-    menuItems.push({
-      key: 'create-draft',
-      label: 'New Document...',
-      icon: <FilePlus className="size-4" />,
-      onClick: () => createDraft(),
-    })
-    menuItems.push({
-      key: 'import',
-      label: 'Import...',
-      icon: <Import className="size-4" />,
-      onClick: () => {
-        importDialog.open({
-          onImportFile: importing.importFile,
-          onImportDirectory: importing.importDirectory,
-          onImportLatexFile: importing.importLatexFile,
-          onImportLatexDirectory: importing.importLatexDirectory,
-          onImportWebSite: importing.importWebSite,
-          onImportWordPress: importing.importWordPress,
-        })
-      },
-    })
-  }
-
-  if (id && myAccountIds.data?.length) {
-    menuItems.push({
-      key: 'branch',
-      label: 'Create Document Branch',
-      icon: <GitFork className="size-4" />,
-      onClick: () => {
-        branchDialog.open(id)
-      },
-    })
-  }
-
-  if (canEditDoc && myAccountIds.data?.length && id?.path?.length) {
-    menuItems.push({
-      key: 'move',
-      label: 'Move Document',
-      icon: <ForwardIcon className="size-4" />,
-      onClick: () => {
-        moveDialog.open({
-          id,
-        })
-      },
-    })
-  }
-
-  if (doc && canEditDoc && id?.path?.length) {
-    menuItems.push({
-      key: 'delete',
-      label: 'Delete Document',
-      icon: <Trash className="size-4" />,
-      onClick: () => {
-        deleteEntity.open({
-          id: id,
-          onSuccess: () => {
-            dispatch({
-              type: 'backplace',
-              route: {
-                key: 'document',
-                id: hmId(id.uid, {
-                  path: id.path?.slice(0, -1),
-                }),
-              } as any,
-            })
-          },
-        })
-      },
-    })
-  }
-
-  return (
-    <>
-      {copyGatewayContent}
-      {copySiteUrlContent}
-      {deleteEntity.content}
-      {removeSite.content}
-      {importDialog.content}
-      {importing.content}
-      {seedHostDialog.content}
-      {branchDialog.content}
-      {moveDialog.content}
-      <OptionsDropdown className="window-no-drag" menuItems={menuItems} align="start" side="bottom" />
-    </>
-  )
+export function DocOptionsButton(_props: {onPublishSite: (input: {id: UnpackedHypermediaId; step?: 'seed-host-custom-domain'}) => void}) {
+  return null
 }
 
 function NotificationButton() {

@@ -6,6 +6,9 @@ import {
   DropdownMenuContentProps,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from './components/dropdown-menu'
 import {SizableText} from './text'
@@ -17,8 +20,9 @@ export type MenuItemType = {
   label: string
   subLabel?: string
   icon: React.ReactNode
-  onClick: ButtonProps['onClick']
+  onClick?: ButtonProps['onClick']
   variant?: 'default' | 'destructive'
+  children?: MenuItemType[]
 }
 
 export function OptionsDropdown({
@@ -70,27 +74,52 @@ export function OptionsDropdown({
                     // Show separator before first destructive item
                     <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
                   ) : null}
-                  <DropdownMenuItem
-                    variant={item.variant}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      popoverState.onOpenChange(false)
-                      item.onClick?.(e as any)
-                    }}
-                  >
-                    {item.icon}
-                    {item.subLabel ? (
-                      <div className="flex flex-col gap-1">
+                  {item.children ? (
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        {item.icon}
                         <SizableText>{item.label}</SizableText>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        {item.children.map((child) => (
+                          <DropdownMenuItem
+                            key={child.key}
+                            variant={child.variant}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              popoverState.onOpenChange(false)
+                              child.onClick?.(e as any)
+                            }}
+                          >
+                            {child.icon}
+                            <SizableText>{child.label}</SizableText>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  ) : (
+                    <DropdownMenuItem
+                      variant={item.variant}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        popoverState.onOpenChange(false)
+                        item.onClick?.(e as any)
+                      }}
+                    >
+                      {item.icon}
+                      {item.subLabel ? (
+                        <div className="flex flex-col gap-1">
+                          <SizableText>{item.label}</SizableText>
 
-                        <SizableText size="sm" className="text-muted-foreground text-xs">
-                          {item.subLabel}
-                        </SizableText>
-                      </div>
-                    ) : (
-                      <SizableText>{item.label}</SizableText>
-                    )}
-                  </DropdownMenuItem>
+                          <SizableText size="sm" className="text-muted-foreground text-xs">
+                            {item.subLabel}
+                          </SizableText>
+                        </div>
+                      ) : (
+                        <SizableText>{item.label}</SizableText>
+                      )}
+                    </DropdownMenuItem>
+                  )}
                 </div>
               ))
             })()}

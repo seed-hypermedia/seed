@@ -1,8 +1,6 @@
 import {createInspectNavRouteFromRoute, hmId, useJoinSite, useRouteLink, useUniversalAppContext} from '@shm/shared'
-import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
-import {displayHostname, routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {ButtonLink} from '@shm/ui/button'
 import {
@@ -12,7 +10,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
-import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {FloatingAccountFooter} from '@shm/ui/floating-account-footer'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
@@ -31,8 +28,6 @@ import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifi
 export function useWebMenuItems(): MenuItemType[] {
   const route = useNavRoute()
   const navigate = useNavigate()
-  const gwUrl = DEFAULT_GATEWAY_URL
-  const gatewayLink = useMemo(() => routeToUrl(route, {hostname: gwUrl}), [route, gwUrl])
   const inspectRoute = useMemo(() => {
     const wrappedRoute = createInspectNavRouteFromRoute(route)
     return wrappedRoute?.key === 'inspect' ? wrappedRoute : null
@@ -40,16 +35,6 @@ export function useWebMenuItems(): MenuItemType[] {
 
   return useMemo(
     () => [
-      {
-        key: 'copy-link',
-        label: 'Copy Link',
-        icon: <Link className="size-4" />,
-        onClick: () => {
-          if (typeof window !== 'undefined') {
-            copyUrlToClipboardWithFeedback(window.location.href, 'Link')
-          }
-        },
-      },
       ...(inspectRoute
         ? [
             {
@@ -62,18 +47,8 @@ export function useWebMenuItems(): MenuItemType[] {
             } satisfies MenuItemType,
           ]
         : []),
-      {
-        key: 'copy-gateway-link',
-        label: `Copy ${displayHostname(gwUrl)} Link`,
-        icon: <Link className="size-4" />,
-        onClick: () => {
-          if (gatewayLink) {
-            copyUrlToClipboardWithFeedback(gatewayLink, 'Link')
-          }
-        },
-      },
     ],
-    [gwUrl, gatewayLink, inspectRoute, navigate],
+    [inspectRoute, navigate],
   )
 }
 

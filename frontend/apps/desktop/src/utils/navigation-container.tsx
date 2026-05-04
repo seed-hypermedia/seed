@@ -18,7 +18,7 @@ import {Button} from '@shm/ui/button'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {dialogBoxShadow, useAppDialog} from '@shm/ui/universal-dialog'
 import {ReactQueryDevtools} from '@tanstack/react-query-devtools'
-import {ReactNode} from 'react'
+import {ReactNode, useRef} from 'react'
 import {useAppContext} from '../app-context'
 import {encodeRouteToPath} from './route-encoding'
 import {AppWindowEvent} from './window-events'
@@ -72,7 +72,8 @@ export function NavigationContainer({children}: {children: ReactNode}) {
   const experiments = useExperiments().data
 
   const contacts = useSelectedAccountContacts()
-  const pushAfterAction = usePushAfterAction()
+
+  const pushAfterActionRef = useRef<ReturnType<typeof usePushAfterAction>>()
 
   return (
     <UniversalAppProvider
@@ -134,18 +135,29 @@ export function NavigationContainer({children}: {children: ReactNode}) {
       onCopyReference={async (id: UnpackedHypermediaId) => {
         const url = routeToUrl({key: 'document', id}, {hostname: gwUrl})
         await copyTextToClipboard(url)
-        pushAfterAction({id, trigger: 'copy', onlyPushToHost: gwUrl})
+        pushAfterActionRef.current?.({id, trigger: 'copy', onlyPushToHost: gwUrl})
       }}
       onPushReference={(id: UnpackedHypermediaId) => {
-        pushAfterAction({id, trigger: 'copy', onlyPushToHost: gwUrl})
+        pushAfterActionRef.current?.({id, trigger: 'copy', onlyPushToHost: gwUrl})
       }}
     >
       <NavContextProvider value={navigation}>
+        <PushAfterActionSetter pushAfterActionRef={pushAfterActionRef} />
         {children}
         <DevTools />
       </NavContextProvider>
     </UniversalAppProvider>
   )
+}
+
+function PushAfterActionSetter({
+  pushAfterActionRef,
+}: {
+  pushAfterActionRef: React.MutableRefObject<ReturnType<typeof usePushAfterAction> | undefined>
+}) {
+  const pushAfterAction = usePushAfterAction()
+  pushAfterActionRef.current = pushAfterAction
+  return null
 }
 
 function DevTools() {
