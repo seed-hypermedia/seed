@@ -241,11 +241,24 @@ export function useIsLatest(
   return latestResource.data.document.version === currentVersion
 }
 
-export function useAccount(id: string | null | undefined, options?: UseQueryOptions<HMMetadataPayload | null>) {
+export function useAccount(
+  id: string | null | undefined,
+  options?: UseQueryOptions<HMMetadataPayload | null> & {subscribe?: boolean},
+) {
   const client = useUniversalClient()
+  const {subscribe, ...queryOptions} = options ?? {}
+
+  // Profile-scoped discovery subscription (desktop only)
+  useEffect(() => {
+    if (!subscribe || !id || !client.subscribeEntity) return
+    const accountId = hmId(id)
+    const cleanup = client.subscribeEntity({id: accountId, scope: 'profile'})
+    return () => cleanup()
+  }, [subscribe, id, client.subscribeEntity])
+
   return useQuery({
     ...queryAccount(client, id),
-    ...options,
+    ...queryOptions,
   })
 }
 
