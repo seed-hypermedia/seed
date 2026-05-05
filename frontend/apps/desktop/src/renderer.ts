@@ -27,6 +27,7 @@
  */
 import * as Sentry from '@sentry/electron/renderer'
 import {IS_PROD_DESKTOP} from '@shm/shared/constants'
+import {seedBrowserTracePropagationTargets} from '@shm/shared/sentry-tracing'
 
 import './root.tsx'
 
@@ -80,7 +81,7 @@ if (IS_PROD_DESKTOP && rendererDsn) {
       return importMetaEnv.DEV ? 1.0 : 0.1
     },
     profilesSampleRate: 1.0,
-    tracePropagationTargets: ['localhost', /^https:\/\/(.*\.)?hyper\.media/, /^https:\/\/(.*\.)?seed\.hyper\.media/],
+    tracePropagationTargets: seedBrowserTracePropagationTargets,
     replaysSessionSampleRate: 0.1,
     replaysOnErrorSampleRate: 1.0,
     ignoreErrors: [

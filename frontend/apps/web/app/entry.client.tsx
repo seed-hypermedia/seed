@@ -7,6 +7,7 @@ import * as Sentry from '@sentry/remix'
  */
 
 import {RemixBrowser, useLocation, useMatches} from '@remix-run/react'
+import {seedBrowserTracePropagationTargets} from '@shm/shared/sentry-tracing'
 import {startTransition, StrictMode, useEffect} from 'react'
 import {hydrateRoot} from 'react-dom/client'
 
@@ -29,7 +30,7 @@ if (process.env.NODE_ENV === 'production' && process.env.SITE_SENTRY_DSN) {
     ],
     tracesSampleRate: 0.2,
     profilesSampleRate: 1.0,
-    tracePropagationTargets: ['localhost', /^https:\/\/(.*\.)?seed\.hyper\.media/, /^https:\/\/(.*\.)?hyper\.media/],
+    tracePropagationTargets: seedBrowserTracePropagationTargets,
     replaysSessionSampleRate: 0.1,
     replaysOnErrorSampleRate: 1,
     sendDefaultPii: false,
