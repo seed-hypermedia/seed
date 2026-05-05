@@ -1882,9 +1882,11 @@ latest_document_generations AS (
   HAVING dg.generation = MAX(dg.generation)
 ),
 redirect_ancestors(resource, iri, depth) AS (
-  SELECT id, iri, 0
-  FROM resources
-  WHERE id = :target
+  SELECT r.id, r.iri, 0
+  FROM resources r
+  LEFT JOIN latest_document_generations dg ON dg.resource = r.id
+  WHERE r.id = :target
+  AND (dg.metadata IS NULL OR dg.metadata->>'$."$db.redirect".v' IS NULL)
 
   UNION ALL
 
