@@ -220,11 +220,30 @@ export class Filter extends Message<Filter> {
 
   /**
    * If its recursive, then all the documents below the path are
-   * will also pass the filter.
+   * will also pass the filter. Mutually exclusive with depth_one.
    *
    * @generated from field: bool recursive = 2;
    */
   recursive = false;
+
+  /**
+   * Optional. Blob-type allowlist. If empty (default), no type filter is applied.
+   * When non-empty, only blobs of the listed structural types
+   * (e.g. "Profile", "Ref", "Change") will be reconciled.
+   * Allows callers (e.g. avatar/name lookups) to skip pulling
+   * Capability/Comment/Contact blobs that are otherwise included.
+   *
+   * @generated from field: repeated string types = 3;
+   */
+  types: string[] = [];
+
+  /**
+   * If set, only the direct children (depth=1) of the given resource pass the
+   * filter — their descendants are excluded. Mutually exclusive with recursive.
+   *
+   * @generated from field: bool depth_one = 4;
+   */
+  depthOne = false;
 
   constructor(data?: PartialMessage<Filter>) {
     super();
@@ -236,6 +255,8 @@ export class Filter extends Message<Filter> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "resource", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 3, name: "types", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 4, name: "depth_one", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Filter {

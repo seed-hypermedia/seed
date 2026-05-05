@@ -17,13 +17,13 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {Event} from '@shm/shared/client/.generated/activity/v1alpha/activity_pb'
 import {DISCOVERY_DEBOUNCE_MS} from '@shm/shared/constants'
+import {DiscoveryScope, discoveryUrl} from '@shm/shared/discovery'
 import {getErrorMessage, HMRedirectError, HMResourceTombstoneError} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {createResourceFetcher} from '@shm/shared/resource-loader'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {observable} from '@trpc/server/observable'
 import z from 'zod'
@@ -77,6 +77,8 @@ export type ResourceSubscription = {
    * the user is currently editing/viewing. Defaults to `'normal'` (20s).
    */
   priority?: 'normal' | 'high'
+  /** Discovery scope. `'profile'` only fetches profile blobs (name + icon). */
+  scope?: DiscoveryScope
 }
 
 type SubscriptionState = {
@@ -290,15 +292,25 @@ function isResourceSubscribed(resource: string): boolean {
  */
 export function getUnconditionalInvalidations(event: Event): Array<[string, string]> {
   const invalidations: Array<[string, string]> = []
-  if (event.data.case === 'newBlob' && event.data.value.blobType?.toLowerCase() === 'profile') {
-    const resource = event.data.value.resource
-    if (resource) {
-      const id = unpackHmId(resource.split('?')[0] || '')
-      if (id) {
-        invalidations.push([queryKeys.ACCOUNT, id.uid])
-      }
+  if (event.data.case !== 'newBlob') return invalidations
+
+  const blobType = event.data.value.blobType?.toLowerCase()
+  const resource = event.data.value.resource
+
+  if (blobType === 'profile' && resource) {
+    const id = unpackHmId(resource.split('?')[0] || '')
+    if (id) {
+      invalidations.push([queryKeys.ACCOUNT, id.uid])
     }
   }
+
+  if (blobType === 'capability' && resource) {
+    const id = unpackHmId(resource.split('?')[0] || '')
+    if (id) {
+      invalidations.push([queryKeys.CAPABILITIES, id.uid])
+    }
+  }
+
   return invalidations
 }
 
@@ -317,6 +329,36 @@ export function processEvents(events: Event[]) {
         const id = unpackHmId(resource.split('?')[0] || '')
         if (id) {
           appInvalidateQueries([queryKeys.ACCOUNT, id.uid])
+        }
+      }
+    }
+
+    // Handle capability events - invalidate capabilities queries for the target and its ancestors
+    if (event.data.case === 'newBlob' && event.data.value.blobType?.toLowerCase() === 'capability') {
+      const resource = event.data.value.resource
+      if (resource) {
+        const id = unpackHmId(resource.split('?')[0] || '')
+        if (id) {
+          // Invalidate capabilities for the exact target
+          appInvalidateQueries([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
+          // Invalidate parent paths too, since child docs inherit parent capabilities
+          getParentPaths(id.path).forEach((parentPath) => {
+            appInvalidateQueries([queryKeys.CAPABILITIES, id.uid, ...parentPath])
+          })
+          // Root capabilities
+          appInvalidateQueries([queryKeys.CAPABILITIES, id.uid])
+          // Also invalidate the delegate's account capabilities
+          const delegate = event.data.value.extraAttrs
+          if (delegate) {
+            try {
+              const attrs = JSON.parse(delegate) as {del?: string}
+              if (attrs.del) {
+                appInvalidateQueries([queryKeys.ACCOUNT_CAPABILITIES, attrs.del])
+              }
+            } catch {
+              // Ignore JSON parse errors
+            }
+          }
         }
       }
     }
@@ -469,12 +511,16 @@ export async function discoverDocument(
   version?: string | null,
   recursive?: boolean,
   onProgress?: (progress: DiscoveryProgress) => void,
+  scope: DiscoveryScope = 'all',
 ) {
   const discoverRequest = {
-    account: uid,
-    path: hmIdPathToEntityQueryPath(path),
+    id: discoveryUrl({
+      uid,
+      path,
+      recursion: recursive ? 'descendants' : 'none',
+      scope,
+    }),
     version: version || undefined,
-    recursive,
   } as const
 
   function checkDiscoverySuccess(discoverResp: {version: string}) {
@@ -515,7 +561,7 @@ type DiscoveryResult = {
 }
 
 async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult | null> {
-  const {id, recursive} = sub
+  const {id, recursive, scope} = sub
   const discoveryStream = getOrCreateDiscoveryStream(id.id)
 
   // Use effective recursive value - if any recursive subscription exists, report as recursive
@@ -523,21 +569,30 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
 
   // Run discovery first (syncs data from network)
   let discoveryResult: {version: string} | null = null
+  let blobsDownloaded = 0
   try {
-    discoveryResult = await discoverDocument(id.uid, id.path, undefined, recursive, (progress) => {
-      // Don't overwrite settled state (not-found/tombstone) with discovering
-      const currentState = discoveryStream.stream.get()
-      if (currentState?.isNotFound || currentState?.isTombstone) return
+    discoveryResult = await discoverDocument(
+      id.uid,
+      id.path,
+      undefined,
+      recursive,
+      (progress) => {
+        blobsDownloaded = progress.blobsDownloaded
+        // Don't overwrite settled state (not-found/tombstone) with discovering
+        const currentState = discoveryStream.stream.get()
+        if (currentState?.isNotFound || currentState?.isTombstone) return
 
-      discoveryStream.write({
-        isDiscovering: true,
-        startedAt: Date.now(),
-        entityId: id.id,
-        recursive: getEffectiveRecursive(),
-        progress,
-      })
-      updateAggregatedDiscoveryState()
-    })
+        discoveryStream.write({
+          isDiscovering: true,
+          startedAt: Date.now(),
+          entityId: id.id,
+          recursive: getEffectiveRecursive(),
+          progress,
+        })
+        updateAggregatedDiscoveryState()
+      },
+      scope,
+    )
   } catch (e) {
     // Discovery failed (timeout, network error, etc.)
     // Check resource status anyway - data may have been synced
@@ -545,6 +600,19 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
     // Single-line so `tail | grep` doesn't truncate the error.
     const errSingle = errMsg.replace(/\s+/g, ' ').slice(0, 240)
     console.log(`[Discovery] ${id.id}: discovery error: ${errSingle}`)
+  }
+
+  // Profile-scoped discovery doesn't produce a full document, so checkResourceStatus
+  // (which calls GetResource) would always return 'not-found'. Instead, invalidate
+  // the ACCOUNT query directly after discovery so useAccount refetches the profile.
+  if (scope === 'profile') {
+    discoveryStream.write(null)
+    updateAggregatedDiscoveryState()
+    // Always invalidate after profile discovery — the Account RPC may now
+    // return data even if zero new blobs were downloaded this round (e.g.
+    // blobs were synced via activity polling or a prior discovery attempt).
+    appInvalidateQueries([queryKeys.ACCOUNT, id.uid])
+    return discoveryResult
   }
 
   // After discovery, check resource status via GetResource
@@ -644,7 +712,6 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
     }
     state.lastKnownVersions.set(id.id, newVersion)
 
-    console.log(`[Discovery] Invalidating queries for ${id.id}`)
     // Invalidate relevant queries since data changed
     appInvalidateQueries([queryKeys.ENTITY, id.id])
     appInvalidateQueries([queryKeys.ACCOUNT, id.uid])
@@ -676,7 +743,9 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
 // ============ Resource Subscriptions ============
 
 function getSubscriptionKey(sub: ResourceSubscription): string {
-  return sub.id.id + (sub.recursive ? '/*' : '')
+  const prioritySuffix = sub.priority === 'high' ? '!high' : ''
+  const scopeSuffix = sub.scope === 'profile' ? ':profile' : ''
+  return sub.id.id + (sub.recursive ? '/*' : '') + prioritySuffix + scopeSuffix
 }
 
 // Check if there's a recursive subscription for this entity (used for stream writes)
@@ -871,6 +940,7 @@ export const syncApi = t.router({
         id: unpackedHmIdSchema,
         recursive: z.boolean().optional(),
         priority: z.enum(['normal', 'high']).optional(),
+        scope: z.enum(['all', 'profile']).optional(),
       }),
     )
     .subscription(({input}) => {
@@ -879,6 +949,7 @@ export const syncApi = t.router({
           id: input.id as UnpackedHypermediaId,
           recursive: input.recursive,
           priority: input.priority,
+          scope: input.scope,
         })
 
         emit.next({status: 'subscribed'})

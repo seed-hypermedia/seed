@@ -84,15 +84,14 @@ export function AuthorNameLink({author, siteUid}: {author: HMContactItem | null;
   // Use the account query to get fresh cache data and distinguish loading from settled.
   // When useHackyAuthorsSubscriptions discovers the account, this query gets invalidated
   // and re-renders with the resolved name.
-  const account = useAccount(author?.id?.uid)
+  const account = useAccount(author?.id?.uid, {subscribe: true})
   const resolvedName = account.data?.metadata?.name || author?.metadata?.name
-  const isLoading = account.isLoading
   const authorName = resolvedName || abbreviateUid(author?.id?.uid)
   const linkProps = useRouteLink(getContextualProfileRoute(currentRoute, author?.id || null, siteUid))
   return (
     <a className={`text-sm font-bold ${resolvedName ? 'text-foreground' : 'text-muted-foreground'}`} {...linkProps}>
       {authorName}
-      {isLoading ? (
+      {!resolvedName ? (
         <span className="ml-1">
           <Spinner size="small" />
         </span>

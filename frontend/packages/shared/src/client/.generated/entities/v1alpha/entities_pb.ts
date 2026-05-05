@@ -203,18 +203,45 @@ export class GetEntityTimelineRequest extends Message<GetEntityTimelineRequest> 
 /**
  * Request to discover an entity.
  *
+ * The discovery target is specified EITHER by `id` (preferred — single hm:// URL,
+ * suitable as a dedup key for clients that aggregate concurrent discovery requests)
+ * OR by the decomposed `account` + `path` pair (with optional `recursive`).
+ * Setting both forms in the same request is an error.
+ *
  * @generated from message com.seed.entities.v1alpha.DiscoverEntityRequest
  */
 export class DiscoverEntityRequest extends Message<DiscoverEntityRequest> {
   /**
-   * Required. The account the entity belongs to.
+   * The hm:// URL identifying the discovery target. Mutually exclusive with
+   * `account` + `path` + `recursive`.
+   *
+   * Examples — exact path:
+   *   "hm://ACCOUNT_ID"                   — everything at account root
+   *   "hm://ACCOUNT_ID/notes/foo"         — everything at /notes/foo
+   * Examples — wildcards (must be the final path segment):
+   *   "hm://ACCOUNT_ID/notes/*"           — direct children of /notes only
+   *   "hm://ACCOUNT_ID/notes/**"          — /notes and everything under it
+   *   "hm://ACCOUNT_ID/**"                — entire account
+   * Examples — scope keyword (suffix on the last path segment):
+   *   "hm://ACCOUNT_ID/:profile"          — profile blobs at account root
+   *   "hm://ACCOUNT_ID/notes/foo:profile" — profile blobs at /notes/foo
+   *
+   * Wildcards and scope keywords are mutually exclusive in a single URL.
+   * Reserved (not yet implemented): "/path:directory".
+   *
+   * @generated from field: string id = 5;
+   */
+  id = "";
+
+  /**
+   * The account the entity belongs to. Mutually exclusive with `id`.
    *
    * @generated from field: string account = 1;
    */
   account = "";
 
   /**
-   * Required. The path of the wanted entity.
+   * The path of the wanted entity. Mutually exclusive with `id`.
    *
    * @generated from field: string path = 2;
    */
@@ -228,8 +255,9 @@ export class DiscoverEntityRequest extends Message<DiscoverEntityRequest> {
   version = "";
 
   /**
-   * Optional. If true, we sync the document and the child
-   * documents as well.
+   * Optional. If true, we sync the document and the child documents as well.
+   * Mutually exclusive with `id` — when using `id`, encode recursion via the
+   * `**` suffix instead. Prefer the `id` form for new callers.
    *
    * @generated from field: bool recursive = 4;
    */
@@ -243,6 +271,7 @@ export class DiscoverEntityRequest extends Message<DiscoverEntityRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.entities.v1alpha.DiscoverEntityRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 5, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },

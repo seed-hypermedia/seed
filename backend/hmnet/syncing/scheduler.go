@@ -10,6 +10,7 @@ import (
 	"seed/backend/config"
 	"seed/backend/util/heap"
 	"seed/backend/util/maybe"
+	"strings"
 	"sync"
 	"time"
 
@@ -87,7 +88,7 @@ func (task *taskHandle) Info() TaskInfo {
 
 // discoverer is an interface for discovering objects.
 type discoverer interface {
-	DiscoverObjectWithProgress(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, prog *Progress) (blob.Version, error)
+	DiscoverObjectWithProgress(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, depthOne bool, blobTypes []string, prog *Progress) (blob.Version, error)
 }
 
 // scheduler manages discovery tasks with a bounded worker pool.
@@ -197,11 +198,18 @@ func (s *scheduler) executeTask(task *taskHandle) {
 	prog := task.progress
 	s.mu.Unlock()
 
+	var blobTypes []string
+	if task.key.BlobTypes != "" {
+		blobTypes = strings.Split(task.key.BlobTypes, ",")
+	}
+
 	result, err := s.disc.DiscoverObjectWithProgress(
 		taskCtx,
 		task.key.IRI,
 		task.key.Version,
 		task.key.Recursive,
+		task.key.DepthOne,
+		blobTypes,
 		prog,
 	)
 

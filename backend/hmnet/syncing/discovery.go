@@ -14,6 +14,7 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/unsafeutil"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -52,13 +53,22 @@ func NewDiscoveryProgress() *Progress {
 // DiscoverObject discovers an object in the network. If not found, then it returns an error
 // If found, this function will store the object locally so that it can be gotten like any
 // other local object. This function blocks until either success or fails to find providers.
-func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool) (blob.Version, error) {
+//
+// blobTypes is an optional allowlist of structural blob types to discover
+// (e.g. ["Profile", "Ref", "Change"]). When nil/empty, all blob types are
+// discovered (default). Filtering avoids pulling unrelated blobs (e.g.
+// Capability/Comment/Contact) when the caller only needs a subset — useful
+// for "render an avatar" use-cases.
+//
+// recursive and depthOne are mutually exclusive: recursive walks the entire
+// subtree below entityID, depthOne only its direct children.
+func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, depthOne bool, blobTypes []string) (blob.Version, error) {
 	prog := NewDiscoveryProgress()
-	return s.DiscoverObjectWithProgress(ctx, entityID, version, recursive, prog)
+	return s.DiscoverObjectWithProgress(ctx, entityID, version, recursive, depthOne, blobTypes, prog)
 }
 
 // DiscoverObjectWithProgress is similar to DiscoverObject, but tracks the progress of the discovery process.
-func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, prog *Progress) (resultVersion blob.Version, resultErr error) {
+func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, depthOne bool, blobTypes []string, prog *Progress) (resultVersion blob.Version, resultErr error) {
 	if s.cfg.NoDiscovery {
 		return "", fmt.Errorf("remote content discovery is disabled")
 	}
@@ -95,6 +105,8 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 			return blob.Version(res.Version), nil
 		}
 	}
+
+	blobTypesKey := BlobTypesString(blobTypes)
 
 	subsMap := make(subscriptionMap)
 	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
@@ -138,6 +150,8 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 			IRI:       entityID,
 			Version:   version,
 			Recursive: recursive,
+			DepthOne:  depthOne,
+			BlobTypes: blobTypesKey,
 		}: {},
 	}
 
@@ -157,8 +171,8 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 
 	// Compute auth info once for all peers. This determines which siteURL servers
 	// we should authenticate with based on local siteURL and capability info.
-	eidsMap := make(map[string]bool)
-	eidsMap[string(entityID)] = recursive
+	eidsMap := make(map[string]entityScope)
+	eidsMap[string(entityID)] = entityScope{Recursive: recursive, DepthOne: depthOne}
 	auth := s.computeAuthInfo(ctxLocalPeers, eidsMap)
 
 	if len(allPeers) != 0 {
@@ -177,7 +191,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		}
 
 		connectedSyncStart := time.Now()
-		res := s.syncWithManyPeers(ctxLocalPeers, subsMap, store, prog, auth)
+		res := s.syncWithManyPeers(ctxLocalPeers, subsMap, store, prog, auth, blobTypes)
 		MDiscoverPhaseSeconds.WithLabelValues("connected_sync").Observe(time.Since(connectedSyncStart).Seconds())
 		if res.NumSyncOK > 0 && s.resources != nil {
 			doc, err := s.resources.GetResource(ctxLocalPeers, &docspb.GetResourceRequest{
@@ -208,8 +222,8 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		return "", nil
 	}
 
-	eidsMap = make(map[string]bool)
-	eidsMap[string(entityID)] = recursive
+	eidsMap = make(map[string]entityScope)
+	eidsMap[string(entityID)] = entityScope{Recursive: recursive, DepthOne: depthOne}
 	subsMap = make(subscriptionMap)
 	for p := range peers {
 		p := p
@@ -220,7 +234,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	MDiscoverPhaseSeconds.WithLabelValues("dht_discover").Observe(time.Since(dhtDiscoverStart).Seconds())
 
 	dhtSyncStart := time.Now()
-	res := s.syncWithManyPeers(ctxDHT, subsMap, store, prog, auth)
+	res := s.syncWithManyPeers(ctxDHT, subsMap, store, prog, auth, blobTypes)
 	MDiscoverPhaseSeconds.WithLabelValues("dht_sync").Observe(time.Since(dhtSyncStart).Seconds())
 	if res.NumSyncOK > 0 && s.resources != nil {
 		doc, err := s.resources.GetResource(ctxDHT, &docspb.GetResourceRequest{
@@ -243,8 +257,91 @@ type DiscoveryKey struct {
 	// Version is the specific version of the resource to discover.
 	Version blob.Version
 
-	// Recursive indicates whether to discover the path below the IRI as well.
+	// Recursive indicates whether to discover the entire subtree below the IRI.
+	// Mutually exclusive with DepthOne.
 	Recursive bool
+
+	// DepthOne indicates whether to discover only the direct children of the IRI
+	// (one level deep, no further descent). Mutually exclusive with Recursive.
+	DepthOne bool
+
+	// BlobTypes is a sorted, comma-joined allowlist of structural blob types
+	// to include during discovery (e.g. "Change,Profile,Ref"). Empty means
+	// no filter — all blob types are discovered (default behavior).
+	// Stored as a string (not a slice) so DiscoveryKey remains hashable for use as a map key.
+	// Use [BlobTypesString] to construct it from a slice.
+	BlobTypes string
+}
+
+// BlobTypesString canonicalizes a list of blob-type names for storage in
+// [DiscoveryKey.BlobTypes]: it deduplicates, sorts, and comma-joins them.
+// Returns the empty string for a nil or empty slice (i.e. "no filter").
+func BlobTypesString(types []string) string {
+	if len(types) == 0 {
+		return ""
+	}
+	seen := make(map[string]struct{}, len(types))
+	out := make([]string, 0, len(types))
+	for _, t := range types {
+		if t == "" {
+			continue
+		}
+		if _, ok := seen[t]; ok {
+			continue
+		}
+		seen[t] = struct{}{}
+		out = append(out, t)
+	}
+	if len(out) == 0 {
+		return ""
+	}
+	sort.Strings(out)
+	return strings.Join(out, ",")
+}
+
+// effectiveBlobTypeFilter merges blob-type allowlists across the given dkeys.
+// If any dkey has an empty BlobTypes (= no filter), the result is nil — meaning
+// the caller should not apply any type filter, since at least one consumer
+// asked for the full set. Otherwise returns the sorted union of requested types.
+func effectiveBlobTypeFilter(dkeys map[DiscoveryKey]struct{}) []string {
+	if len(dkeys) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	for dk := range dkeys {
+		if dk.BlobTypes == "" {
+			// Any unfiltered consumer disables the filter for this batch.
+			return nil
+		}
+		for _, t := range strings.Split(dk.BlobTypes, ",") {
+			if t != "" {
+				seen[t] = struct{}{}
+			}
+		}
+	}
+	if len(seen) == 0 {
+		return nil
+	}
+	types := make([]string, 0, len(seen))
+	for t := range seen {
+		types = append(types, t)
+	}
+	sort.Strings(types)
+	return types
+}
+
+// hasType reports whether t is in the (already-canonicalized) allowlist.
+// nil/empty allowlist means "no filter" and returns true.
+func hasType(allowlist []string, t string) bool {
+	if len(allowlist) == 0 {
+		return true
+	}
+	for _, x := range allowlist {
+		if x == t {
+			return true
+		}
+	}
+	return false
 }
 
 // loadRBSRStore loads blobs into an RBSR store for the given discovery keys.
@@ -482,39 +579,43 @@ func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLin
 
 	// Find recursively all the agent capabilities for authors of the blobs we've currently selected,
 	// until we can't find any more.
-	for {
-		blobCountBefore, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
-		if err != nil {
-			return err
-		}
+	// Skip when the caller's type allowlist excludes Capability — without
+	// Capability the recursion would never insert anything.
+	if hasType(effectiveBlobTypeFilter(dkeys), "Capability") {
+		for {
+			blobCountBefore, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
+			if err != nil {
+				return err
+			}
 
-		if blobCountBefore == 0 {
-			break
-		}
+			if blobCountBefore == 0 {
+				break
+			}
 
-		const q = `
-			INSERT OR IGNORE INTO rbsr_blobs
-			SELECT id
-			FROM structural_blobs sb
-			WHERE sb.type = 'Capability'
-			AND sb.extra_attrs->>'del' IN (
-				SELECT DISTINCT author
-				FROM structural_blobs
-				WHERE id IN rbsr_blobs
-			)
-			AND sb.extra_attrs->>'role' = 'AGENT';`
+			const q = `
+				INSERT OR IGNORE INTO rbsr_blobs
+				SELECT id
+				FROM structural_blobs sb
+				WHERE sb.type = 'Capability'
+				AND sb.extra_attrs->>'del' IN (
+					SELECT DISTINCT author
+					FROM structural_blobs
+					WHERE id IN rbsr_blobs
+				)
+				AND sb.extra_attrs->>'role' = 'AGENT';`
 
-		if err := sqlitex.Exec(conn, q, nil); err != nil {
-			return err
-		}
+			if err := sqlitex.Exec(conn, q, nil); err != nil {
+				return err
+			}
 
-		blobCountAfter, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
-		if err != nil {
-			return err
-		}
+			blobCountAfter, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
+			if err != nil {
+				return err
+			}
 
-		if blobCountAfter == blobCountBefore {
-			break
+			if blobCountAfter == blobCountBefore {
+				break
+			}
 		}
 	}
 
@@ -522,6 +623,8 @@ func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLin
 }
 
 func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccounts bool) error {
+	typeFilter := effectiveBlobTypeFilter(dkeys)
+
 	// Fill IRIs.
 	for dkey := range dkeys {
 		if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_iris
@@ -532,6 +635,12 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 		if dkey.Recursive {
 			if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_iris
 					SELECT id FROM resources WHERE iri GLOB :pattern`, nil, string(dkey.IRI)+"/*"); err != nil {
+				return err
+			}
+		} else if dkey.DepthOne {
+			if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_iris
+					SELECT id FROM resources WHERE iri GLOB :child AND iri NOT GLOB :grand`,
+				nil, string(dkey.IRI)+"/*", string(dkey.IRI)+"/*/*"); err != nil {
 				return err
 			}
 		}
@@ -576,7 +685,7 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 		}
 	*/
 	// Fill Refs.
-	{
+	if hasType(typeFilter, "Ref") {
 		const q = `INSERT OR IGNORE INTO rbsr_blobs
 				SELECT sb.id
 				FROM structural_blobs sb
@@ -590,7 +699,9 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 	}
 
 	// Fill Changes based on Refs.
-	{
+	// The recursive CTE walks ref/head and change/dep links, all of which
+	// resolve to Change blobs — guard the whole block on Change being allowed.
+	if hasType(typeFilter, "Change") {
 		const q = `WITH RECURSIVE
 				changes (id) AS (
 					SELECT target
@@ -616,17 +727,35 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 			return err
 		}
 	*/
-	// Fill Capabilities and the rest of the related blob types.
+	// Fill Capabilities and the rest of the related blob types,
+	// intersected with the optional type allowlist. When the allowlist
+	// excludes all of these types we skip the query entirely — that's
+	// the bulk of the savings for "render an avatar" use-cases.
 	{
-		const q = `INSERT OR IGNORE INTO rbsr_blobs
-				SELECT sb.id
-				FROM structural_blobs sb
-				LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
-				WHERE resource IN rbsr_iris
-				AND sb.type IN ('Capability', 'Comment', 'Profile', 'Contact')`
+		assortedTypes := []string{"Capability", "Comment", "Profile", "Contact"}
+		var allowed []string
+		for _, t := range assortedTypes {
+			if hasType(typeFilter, t) {
+				allowed = append(allowed, t)
+			}
+		}
+		if len(allowed) > 0 {
+			placeholders := make([]string, len(allowed))
+			args := make([]any, len(allowed))
+			for i, t := range allowed {
+				placeholders[i] = "?"
+				args[i] = t
+			}
+			q := `INSERT OR IGNORE INTO rbsr_blobs
+					SELECT sb.id
+					FROM structural_blobs sb
+					LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
+					WHERE resource IN rbsr_iris
+					AND sb.type IN (` + strings.Join(placeholders, ",") + `)`
 
-		if err := sqlitex.Exec(conn, q, nil); err != nil {
-			return err
+			if err := sqlitex.Exec(conn, q, nil, args...); err != nil {
+				return err
+			}
 		}
 	}
 

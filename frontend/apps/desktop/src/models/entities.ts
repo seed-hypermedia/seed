@@ -237,6 +237,8 @@ export type EntitySubscription = {
   recursive?: boolean
   /** `'high'` polls faster (3s while focused) for the active document. */
   priority?: 'normal' | 'high'
+  /** Discovery scope. `'profile'` only fetches profile blobs (name + icon). */
+  scope?: 'all' | 'profile'
 }
 
 // Entity subscription management - delegates to main process via tRPC
@@ -249,7 +251,8 @@ function getEntitySubscriptionKey(sub: EntitySubscription) {
   // Priority is part of the key so a normal-priority sub doesn't shadow a
   // high-priority one (or vice versa) when both are added concurrently.
   const priorityKey = sub.priority === 'high' ? '!high' : ''
-  return id.id + (recursive ? '/*' : '') + priorityKey
+  const scopeKey = sub.scope === 'profile' ? ':profile' : ''
+  return id.id + (recursive ? '/*' : '') + priorityKey + scopeKey
 }
 
 export function addSubscribedEntity(sub: EntitySubscription) {
@@ -267,6 +270,7 @@ export function addSubscribedEntity(sub: EntitySubscription) {
         id: sub.id,
         recursive: sub.recursive,
         priority: sub.priority,
+        scope: sub.scope,
       },
       {
         onData: () => {

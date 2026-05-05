@@ -67,14 +67,14 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), syncing.DefaultDiscoveryTimeout)
 			defer cancel()
-			_, err := srv.sync.DiscoverObject(ctx, wantedIRI, "", req.Recursive)
+			_, err := srv.sync.DiscoverObject(ctx, wantedIRI, "", req.Recursive, false, nil)
 			if err != nil {
 				srv.log.Debug("Non blocking Sync failed", zap.Error(err))
 			}
 		}()
 	} else {
 		// We ignore the error here because discovering the object during subscribing is a best-effort operation.
-		_, _ = srv.sync.DiscoverObject(ctx, wantedIRI, "", req.Recursive)
+		_, _ = srv.sync.DiscoverObject(ctx, wantedIRI, "", req.Recursive, false, nil)
 	}
 
 	return &emptypb.Empty{}, nil
