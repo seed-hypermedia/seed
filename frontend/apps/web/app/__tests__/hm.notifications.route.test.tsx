@@ -42,10 +42,6 @@ vi.mock('@/notifications-page-content', () => ({
   WebNotificationsPage: () => <div data-web-notifications-page="true" />,
 }))
 
-vi.mock('@/web-utils', () => ({
-  WebAccountFooter: ({children}: PropsWithChildren) => <>{children}</>,
-}))
-
 import NotificationsRoute from '../routes/hm.notifications'
 
 describe('NotificationsRoute', () => {
