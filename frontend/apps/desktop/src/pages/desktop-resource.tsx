@@ -619,6 +619,9 @@ export default function DesktopResourcePage() {
             {
               onSuccess: ({draftId}) => {
                 setLastCreatedDraftId(draftId)
+                if (route.key !== 'document') {
+                  navigate({key: 'document', id: docId})
+                }
               },
             },
           )
