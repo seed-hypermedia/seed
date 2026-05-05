@@ -19,6 +19,7 @@ export type AppWindowEvent =
   | {type: 'deviceLink'; origin?: string}
   | {type: 'draft_externally_modified'; draftId: string}
   | {type: 'document_path_changed'; oldId: string; newId: string}
+  | {type: 'create_new_document'}
 
 // Helper type to extract payload for a given key
 type EventPayload<K extends AppWindowEvent['type']> = Extract<AppWindowEvent, {type: K}>

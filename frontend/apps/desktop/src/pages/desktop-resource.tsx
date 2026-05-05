@@ -472,10 +472,13 @@ export default function DesktopResourcePage() {
           const draftId = nanoid(10)
           const parentPath = docId.path?.slice(0, -1) || []
 
+          const draftEditPath = [...parentPath, `-${draftId}`]
           await client.drafts.write.mutate({
             id: draftId,
             locationUid: docId.uid,
             locationPath: parentPath,
+            editUid: docId.uid,
+            editPath: draftEditPath,
             metadata: {...doc.metadata, name: copyName},
             content: editorContent,
             deps: [],
@@ -483,7 +486,11 @@ export default function DesktopResourcePage() {
           })
 
           sessionStorage.setItem('duplicate-draft-focus', draftId)
-          navigate({key: 'draft', id: draftId, panel: null})
+          navigate({
+            key: 'document',
+            id: hmId(docId.uid, {path: draftEditPath}),
+            panel: null,
+          })
           toast.success(`Duplicated "${sourceName}"`)
         } catch (error) {
           console.error('Error duplicating document:', error)
