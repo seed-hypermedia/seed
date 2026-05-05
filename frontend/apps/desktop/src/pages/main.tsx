@@ -4,13 +4,17 @@ import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {CloseButton} from '@/components/window-controls'
 import appError from '@/errors'
 import {ipc} from '@/ipc'
+import {useDraft} from '@/models/accounts'
 import {useAIProviders} from '@/models/ai-config'
 import {useConnectPeer} from '@/models/contacts'
 import {useMyAccountIds} from '@/models/daemon'
+import {useCreateDraft} from '@/models/documents'
+import {useSelectedAccountId} from '@/selected-account'
 import {SidebarContextProvider, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {getWindowType} from '@/utils/window-types'
+import {hmId} from '@shm/shared'
 import {useAccounts} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
@@ -46,7 +50,6 @@ var Document = lazy(() => import('./desktop-resource'))
 var Feed = lazy(() => import('./desktop-feed'))
 var InspectResource = lazy(() => import('./inspect-resource'))
 var InspectIpfs = lazy(() => import('./inspect-ipfs'))
-var Draft = lazy(() => import('./draft'))
 var Library = lazy(() => import('./library'))
 var DeletedContent = lazy(() => import('./deleted-content'))
 var ApiInspector = lazy(() => import('./api-inspector'))
@@ -55,10 +58,53 @@ var Profile = lazy(() => import('./profile'))
 var Preview = lazy(() => import('./preview'))
 var Notifications = lazy(() => import('./notifications'))
 
+/**
+ * Redirect persisted `key: 'draft'` routes (from before draft-route removal)
+ * onto the unified document route. Looks up the listed draft to recover
+ * editUid/editPath (or locationUid/locationPath) and replaces the route.
+ */
+function DraftRouteRedirect() {
+  const route = useNavRoute()
+  const replace = useNavigate('replace')
+  const draftId = route.key === 'draft' ? route.id : undefined
+  const draftQuery = useDraft(draftId)
+  useEffect(() => {
+    if (route.key !== 'draft') return
+    const inlineUid = route.editUid || route.locationUid
+    if (inlineUid) {
+      const inlinePath = route.editUid ? route.editPath : route.locationPath
+      replace({key: 'document', id: hmId(inlineUid, {path: inlinePath ?? []})})
+      return
+    }
+    if (draftQuery.isLoading) return
+    const draft = draftQuery.data
+    if (!draft) {
+      replace({key: 'drafts'})
+      return
+    }
+    const targetUid = draft.editUid || draft.locationUid
+    if (!targetUid) {
+      replace({key: 'drafts'})
+      return
+    }
+    const targetPath = draft.editUid ? draft.editPath : draft.locationPath
+    replace({key: 'document', id: hmId(targetUid, {path: targetPath ?? []})})
+  }, [route, draftQuery.isLoading, draftQuery.data, replace])
+  return <DocumentPlaceholder />
+}
+
 /** Renders the main desktop app window and optional assistant sidebar. */
 export default function Main({className}: {className?: string}) {
   const navR = useNavRoute()
   const navigate = useNavigate()
+  const selectedAccountId = useSelectedAccountId()
+  const createNewDocument = useCreateDraft({
+    locationUid: selectedAccountId ?? undefined,
+    locationPath: [],
+  })
+  useListenAppEvent('create_new_document', () => {
+    void createNewDocument()
+  })
   const initNavState = (window as any).initNavState
   const [assistantOpen, setAssistantOpen] = useState(initNavState?.assistantOpen || false)
   const [assistantSessionId, setAssistantSessionId] = useState<string | null>(initNavState?.assistantSessionId || null)
@@ -321,7 +367,7 @@ function getPageComponent(navRoute: NavRoute) {
       }
     case 'draft':
       return {
-        PageComponent: Draft,
+        PageComponent: DraftRouteRedirect,
         Fallback: DocumentPlaceholder,
       }
     case 'settings':

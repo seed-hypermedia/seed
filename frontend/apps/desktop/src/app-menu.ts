@@ -2,7 +2,6 @@
 // the keyboard shortcuts apply to every platform
 
 import {BrowserWindow, ipcMain, Menu, MenuItem} from 'electron'
-import {nanoid} from 'nanoid'
 import {dispatchFocusedWindowAppEvent, openRoute, trpc} from './app-api'
 import {getFocusedWindow} from './app-windows'
 import {checkForUpdates} from './auto-update'
@@ -74,10 +73,7 @@ export function createAppMenu() {
           label: 'New Document',
           accelerator: 'CmdOrCtrl+Alt+N',
           click: () => {
-            // Get the initial route to create a draft document
-            trpc.createAppWindow({
-              routes: [{key: 'draft', id: nanoid(10), panel: {key: 'options'}}],
-            })
+            dispatchFocusedWindowAppEvent({type: 'create_new_document'})
           },
         },
         {

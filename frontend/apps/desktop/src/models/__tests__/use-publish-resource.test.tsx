@@ -84,16 +84,9 @@ vi.mock('@shm/shared/document-utils', async (orig) => {
 // menu items, draft machine, etc.). Stub those imports so this test doesn't
 // load the editor's JSX (which expects React in scope under the classic
 // runtime) and only needs the hooks under test.
-vi.mock('@shm/editor/blocknote', () => ({useBlockNote: vi.fn()}))
 vi.mock('@shm/editor/blocknote/core', () => ({BlockNoteEditor: class {}}))
-vi.mock('@shm/editor/hypermedia-link-plugin', () => ({createHypermediaDocLinkPlugin: vi.fn()}))
-vi.mock('@shm/editor/slash-menu-items', () => ({getSlashMenuItems: () => []}))
 vi.mock('../../editor', () => ({hmBlockSchema: {}}))
-vi.mock('../draft-machine', () => ({draftMachine: {}}))
-vi.mock('../editor-utils', () => ({setGroupTypes: vi.fn()}))
 vi.mock('@/components/onboarding', () => ({dispatchOnboardingDialog: vi.fn()}))
-vi.mock('@/models/experiments', () => ({useExperiments: () => ({data: {}})}))
-vi.mock('@/open-url', () => ({useOpenUrl: () => vi.fn()}))
 vi.mock('@/selected-account', () => ({useSelectedAccountId: () => null}))
 vi.mock('@/models/accounts', () => ({useDraft: () => ({data: undefined})}))
 vi.mock('./gateway-settings', () => ({useGatewayUrl: () => ({data: ''}), useGatewayUrlStream: () => ({data: ''})}))

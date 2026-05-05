@@ -1,5 +1,6 @@
 import {useChildDrafts, useCreateInlineDraft, useDeleteDraft, useUpdateDraftMetadata} from '@/models/documents'
 import {useNavigate} from '@/utils/useNavigate'
+import {hmId} from '@shm/shared'
 import {roleCanWrite, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
 import {useResource} from '@shm/shared/models/entity'
 import {QueryBlockDraftSlotProps, useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
@@ -47,7 +48,17 @@ export function DesktopQueryBlockDraftSlot({targetId, children}: QueryBlockDraft
       {children({
         drafts,
         onCreateDraft,
-        onOpenDraft: (draftId) => navigate({key: 'draft', id: draftId}),
+        onOpenDraft: (draftId) => {
+          const draft = childDrafts.find((d) => d.id === draftId)
+          if (!draft) return
+          const targetUid = draft.editUid || draft.locationUid
+          if (!targetUid) return
+          const targetPath = draft.editUid ? draft.editPath : draft.locationPath
+          navigate({
+            key: 'document',
+            id: hmId(targetUid, {path: targetPath ?? []}),
+          })
+        },
         onDeleteDraft: (draftId) => deleteDraft.mutate(draftId),
         onUpdateDraftName: (draftId, name) => updateDraftMetadata.mutate({draftId, metadata: {name}}),
       })}

@@ -1,9 +1,7 @@
 import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {desktopUniversalClient} from '@/desktop-universal-client'
-import {grpcClient, domainResolver} from '@/grpc-client'
+import {grpcClient} from '@/grpc-client'
 import {useDraft} from '@/models/accounts'
-import {useExperiments} from '@/models/experiments'
-import {useOpenUrl} from '@/open-url'
 import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
@@ -19,15 +17,11 @@ import {
   HMDraftContent,
   HMDraftMeta,
   HMListedDraft,
-  HMNavigationItem,
   HMResourceFetchResult,
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {useBlockNote} from '@shm/editor/blocknote'
 import {BlockNoteEditor} from '@shm/editor/blocknote/core'
-import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
-import {getSlashMenuItems} from '@shm/editor/slash-menu-items'
 import {getCommentTargetId, getParentPaths, UniversalClient, useUniversalClient} from '@shm/shared'
 import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {AnnounceBlobsProgress} from '@shm/shared/client/.generated/p2p/v1alpha/syncing_pb'
@@ -46,25 +40,18 @@ import {
   getDocAttributeChanges,
 } from '@shm/shared/utils/document-changes'
 import {buildCopyLinkUrl, hmId, hmIdToURL, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
-import {eventStream} from '@shm/shared/utils/stream'
 import {DocNavigationItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {PushResourceStatus} from '@shm/ui/push-toast'
 import {useMutation, UseMutationOptions, useQuery, UseQueryOptions} from '@tanstack/react-query'
-import {Extension, findParentNode} from '@tiptap/core'
-import {NodeSelection} from '@tiptap/pm/state'
-import {useMachine} from '@xstate/react'
+import {findParentNode} from '@tiptap/core'
 import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef} from 'react'
-import {assign, fromPromise} from 'xstate'
 import {hmBlockSchema} from '../editor'
 import {pathNameify} from '../utils/path'
-import {computeDraftRoute, resolvePublishPath} from '../utils/publish-utils'
+import {computeNewDraftParams, resolvePublishPath} from '../utils/publish-utils'
 import {useNavigate} from '../utils/useNavigate'
 import {useMyAccountIds} from './daemon'
-import {draftMachine} from './draft-machine'
-import {setGroupTypes} from './editor-utils'
 import {useGatewayUrl, useGatewayUrlStream} from './gateway-settings'
 import {getNavigationChanges} from './navigation'
 /**
@@ -75,11 +62,6 @@ export type HMListedDraftWithLocation = HMListedDraft & {
   locationId?: UnpackedHypermediaId
   editId?: UnpackedHypermediaId
 }
-
-export const [draftDispatch, draftEvents] = eventStream<{
-  type: 'change'
-  signingAccount: string
-}>()
 
 export function useDraftList() {
   return useQuery({
@@ -603,320 +585,6 @@ export function queryDraft({
   }
 }
 
-export function useDraftEditor() {
-  /**
-   * fetch:
-   * - draft with draft ID (can be null)
-   * - home document with location UID (can be null)
-   * - edit document with edit UID + edit path (can be null)
-   */
-  const route = useNavRoute()
-  const replace = useNavigate('replace')
-
-  if (route.key != 'draft') throw new Error('DraftPage must have draft route')
-
-  const {data, status: draftStatus} = useDraft(route.id)
-
-  const locationId = useMemo(() => {
-    if (!route.locationUid) return undefined
-    return hmId(route.locationUid, {
-      path: route.locationPath,
-    })
-  }, [route])
-
-  const locationEntity = useResource(locationId)
-
-  const editId = useMemo(() => {
-    if (data?.editUid)
-      return hmId(data.editUid, {
-        path: data.editPath,
-      })
-    if (route.editUid)
-      return hmId(route.editUid, {
-        path: route.editPath,
-      })
-    return undefined
-  }, [route, data])
-
-  const editEntity = useResource(editId)
-  const editDocument = editEntity.data?.type === 'document' ? editEntity.data.document : undefined
-  const editHomeEntity = useResource(editId ? hmId(editId?.uid) : undefined)
-  const getResourceUrl = useRef<(blockId?: string | null) => string | undefined>(() => undefined)
-  useEffect(() => {
-    getResourceUrl.current = (blockId?: string | null) => {
-      if (!editId) return undefined
-      const siteHomeDoc = editHomeEntity.data?.type === 'document' ? editHomeEntity.data.document : undefined
-      const siteHomeUrl = siteHomeDoc?.metadata?.siteUrl
-      // Set hostname only for true site URLs so buildCopyLinkUrl produces the
-      // site-style `/path` form. Without a siteUrl, use the configured gateway
-      // so `/hm/<uid>/path` is served off the user's chosen gateway host.
-      return buildCopyLinkUrl({
-        id: {
-          ...editId,
-          hostname: siteHomeUrl || null,
-          blockRef: blockId ?? null,
-          version: blockId ? editDocument?.version ?? null : null,
-        },
-        gatewayUrl: siteHomeUrl ? undefined : gwUrl.get(),
-      })
-    }
-  }, [editId, editHomeEntity.data, editDocument?.version])
-  // editor props
-  // const [writeEditorStream] = useRef(writeableStateStream<any>(null)).current
-  const experiments = useExperiments()
-  const showNostr = experiments.data?.nostr
-  const openUrl = useOpenUrl()
-  const gwUrl = useGatewayUrlStream()
-  const checkWebUrl = useMutation({
-    mutationFn: (url: string) => client.webImporting.checkWebUrl.mutate(url),
-  })
-  const saveDraft = useMutation({
-    mutationFn: (input: Parameters<typeof client.drafts.write.mutate>[0]) => client.drafts.write.mutate(input),
-  })
-  const importWebFile = useMutation({
-    mutationFn: (input: Parameters<typeof client.webImporting.importWebFile.mutate>[0]) =>
-      client.webImporting.importWebFile.mutate(input),
-  })
-
-  const editor = useBlockNote<typeof hmBlockSchema>({
-    onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
-      // if (!gotEdited.current) {
-      //   gotEdited.current = true
-      // }
-
-      // writeEditorStream(editor.topLevelBlocks)
-      observeBlocks(
-        editor,
-        editor.topLevelBlocks,
-        () => {},
-        // send({type: 'CHANGE'}),
-      )
-      send({type: 'change'})
-    },
-    onTextCursorPositionChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
-      const {view} = editor._tiptapEditor
-      const {selection} = view.state
-      if (selection.from !== selection.to && !(selection instanceof NodeSelection)) return
-      const domAtPos = view.domAtPos(selection.from)
-      try {
-        const node = domAtPos.node as HTMLElement
-        const rect: DOMRect = node.getBoundingClientRect()
-        // Check if the cursor is off screen
-        // if (rect && (rect.top < 0 || rect.top > window.innerHeight)) {
-        if (rect && rect.top > window.innerHeight) {
-          // Scroll the cursor into view if not caused by media drag
-          if (!(editor as any).sideMenu?.sideMenuView?.isDragging) node.scrollIntoView({block: 'center'})
-        }
-      } catch {}
-      return
-    },
-    linkExtensionOptions: {
-      // @ts-expect-error
-      grpcClient,
-      domainResolver,
-      gwUrl,
-      openUrl,
-      checkWebUrl: checkWebUrl.mutateAsync,
-    },
-    getResourceUrl: (blockId?: string | null) => {
-      return getResourceUrl.current(blockId)
-    },
-    importWebFile: importWebFile.mutateAsync,
-    blockSchema: hmBlockSchema,
-    getSlashMenuItems: () => getSlashMenuItems({docId: editId ?? locationId}),
-    _tiptapOptions: {
-      extensions: [
-        Extension.create({
-          name: 'hypermedia-link',
-          addProseMirrorPlugins() {
-            return [createHypermediaDocLinkPlugin({domainResolver}).plugin]
-          },
-        }),
-        Extension.create({
-          name: 'draft-select-all',
-          priority: 1000,
-          addKeyboardShortcuts() {
-            return {
-              'Mod-a': ({editor}) => {
-                editor.commands.selectAll()
-                return true
-              },
-            }
-          },
-        }),
-      ],
-    },
-  })
-
-  const writeDraft = fromPromise<
-    {id: string},
-    {
-      metadata: HMDraft['metadata']
-      deps: HMDraft['deps']
-      // @ts-expect-error
-      signingAccount: HMDraft['signingAccount']
-      navigation?: HMNavigationItem[]
-    }
-  >(async ({input}) => {
-    // Implementation will be provided in documents.ts
-    try {
-      const locationUid = route.locationUid || data?.locationUid
-      const locationPath = route.locationPath || data?.locationPath
-      const editUid = route.editUid || data?.editUid
-      const editPath = route.editPath || data?.editPath
-      console.log('Saving draft with navigation:', input.navigation)
-      const newDraft = await saveDraft.mutateAsync({
-        id: route.id,
-        metadata: input.metadata,
-        signingAccount: input.signingAccount,
-        content: editor.topLevelBlocks,
-        deps: input.deps,
-        navigation: input.navigation,
-        locationUid,
-        locationPath,
-        editUid,
-        editPath,
-        visibility:
-          (route.visibility || data?.visibility) === 'PRIVATE'
-            ? ResourceVisibility.PRIVATE
-            : (route.visibility || data?.visibility) === 'PUBLIC'
-            ? ResourceVisibility.PUBLIC
-            : ResourceVisibility.UNSPECIFIED,
-      })
-
-      return newDraft
-    } catch (error) {
-      console.error('Error creating draft', error)
-      throw error
-    }
-  })
-
-  // state machine
-  const [state, send, actor] = useMachine(
-    draftMachine.provide({
-      actions: {
-        focusContent: ({context, event}) => {
-          if (route.editUid || data?.editUid) {
-            const tiptap = editor?._tiptapEditor
-            if (tiptap && !tiptap.isFocused) {
-              editor._tiptapEditor.commands.focus()
-            }
-          } else {
-            // @ts-expect-error
-            if (context.nameRef) {
-              // @ts-expect-error
-              context.nameRef.focus()
-            }
-          }
-        },
-        populateData: assign(({context, event}) => {
-          let content: Array<EditorBlock> = []
-          if (event.type == 'fetch.success') {
-            if (event.payload.type == 'draft') {
-              content = event.payload.data.content
-              editor.replaceBlocks(editor.topLevelBlocks, content as any)
-              const tiptap = editor?._tiptapEditor
-              // this is a hack to set the current blockGroups in the editor to the correct type, because from the BN API we don't have access to those nodes.
-              setGroupTypes(tiptap, content as any)
-              return {
-                content: event.payload.data.content,
-                metadata: event.payload.data.metadata,
-                // @ts-expect-error
-                signingAccount: event.payload.data.signingAccount,
-                deps: event.payload.data.deps,
-                navigation: event.payload.data.navigation,
-              }
-            } else if (event.payload.type == 'edit') {
-              if (context.editUid && editDocument?.content) {
-                content = hmBlocksToEditorContent(editDocument.content || [], {
-                  childrenType: 'Group',
-                })
-                editor.replaceBlocks(editor.topLevelBlocks, content as any)
-                const tiptap = editor?._tiptapEditor
-                // this is a hack to set the current blockGroups in the editor to the correct type, because from the BN API we don't have access to those nodes.
-                setGroupTypes(tiptap, content as any)
-              }
-              return {
-                metadata: event.payload.data.document?.metadata,
-                // @ts-expect-error
-                signingAccount: context.signingAccount,
-                content,
-                deps: event.payload.data.document?.version ? [event.payload.data.document?.version] : undefined,
-              }
-            }
-          }
-
-          return context
-        }),
-        replaceRoute: (_, {id}) => {
-          replace({
-            key: 'draft',
-            id,
-            deps: route.deps || undefined,
-          })
-          return {}
-        },
-      },
-      actors: {
-        writeDraft,
-      },
-    }),
-    {
-      input: {
-        ...route,
-        deps: data?.deps || undefined,
-      },
-    },
-  )
-
-  // send events to machine when fetch do draft or other documents
-  useEffect(() => {
-    let locationUid = route.locationUid || data?.locationUid
-    let editUid = route.editUid || data?.editUid
-    if (
-      typeof locationUid === 'undefined' &&
-      typeof editUid === 'undefined' &&
-      data === null // drafts can return null if they don't exist
-    ) {
-      send({type: 'fetch.success', payload: {type: 'load.new.draft'}})
-    }
-    if (draftStatus === 'success' && data !== null) {
-      send({type: 'fetch.success', payload: {type: 'draft', data}})
-    } else if (locationEntity.status === 'success' && locationEntity.data) {
-      send({
-        type: 'fetch.success',
-        payload: {type: 'location', data: locationEntity.data},
-      })
-    } else if (editEntity.status === 'success' && editEntity.data) {
-      send({
-        type: 'fetch.success',
-        payload: {type: 'edit', data: editEntity.data},
-      })
-    }
-  }, [data, locationEntity.status, editEntity.status])
-
-  // this updates the draft with the correct signing account
-  useEffect(() => {
-    draftEvents.subscribe((value: {type: 'change'; signingAccount?: string} | null) => {
-      if (value) {
-        send(value)
-      }
-    })
-  }, [])
-
-  return {
-    data,
-    state,
-    send,
-    actor,
-    locationEntity,
-    editEntity,
-    editor,
-  }
-}
-
-export type HyperMediaEditor = Exclude<ReturnType<typeof useDraftEditor>['editor'], null>
-
 export const findBlock = findParentNode((node) => node.type.name === 'blockContainer')
 
 export function useDocTextContent(doc?: HMDocument | null) {
@@ -1355,16 +1023,22 @@ export function useCreateDraft(
   const navigate = useNavigate('push')
   const selectedAccountId = useSelectedAccountId()
 
-  return ({visibility}: {visibility?: HMResourceVisibility} = {}) => {
-    const route = computeDraftRoute(
+  return async ({visibility}: {visibility?: HMResourceVisibility} = {}) => {
+    const plan = computeNewDraftParams(
       visibility,
       draftParams,
       selectedAccountId ?? undefined,
       () => nanoid(10),
       () => nanoid(21),
     )
-    if (!route) return
-    navigate(route)
+    if (!plan) return
+    await client.drafts.write.mutate({
+      ...plan.writeParams,
+      metadata: {},
+      content: [],
+      deps: plan.writeParams.deps ?? [],
+    })
+    navigate({key: 'document', id: plan.routeId})
   }
 }
 

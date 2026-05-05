@@ -283,10 +283,18 @@ export function useImporting(parentId: UnpackedHypermediaId) {
 
     toast.promise(
       ImportDocumentsWithFeedback(parentId, createDraft, signingAccount, documents, docMap, editor, visibility).then(
-        (draftIds) => {
+        async (draftIds) => {
           if (draftIds.draftIds.length === 1) {
-            // @ts-ignore
-            navigate({key: 'draft', id: draftIds.draftIds[0]})
+            const importedDraftId = draftIds.draftIds[0]
+            const draft = await client.drafts.get.query(importedDraftId)
+            const targetUid = draft?.editUid || draft?.locationUid
+            if (targetUid) {
+              const targetPath = draft.editUid ? draft.editPath : draft.locationPath
+              navigate({
+                key: 'document',
+                id: hmId(targetUid, {path: targetPath ?? []}),
+              })
+            }
           }
           return draftIds.draftIds.length
         },
@@ -681,11 +689,15 @@ const ImportDocumentsWithFeedback = (
         // const packedId = packHmId(newId)
 
         const draftId = nanoid(10)
+        const locationPath = id.path ? id.path : []
+        const editPath = [...locationPath, `-${draftId}`]
 
         await createDraft.mutateAsync({
           id: draftId,
           locationUid: id.uid,
-          locationPath: id.path ? id.path : [],
+          locationPath,
+          editUid: id.uid,
+          editPath,
           content: blocks,
           deps: [],
           metadata: {

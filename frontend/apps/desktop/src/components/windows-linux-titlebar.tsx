@@ -1,5 +1,7 @@
 import {useIPC, useWindowUtils} from '@/app-context'
 import {WindowsLinuxWindowControls} from '@/components/window-controls'
+import {useCreateDraft} from '@/models/documents'
+import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {useTriggerWindowEvent} from '@/utils/window-events'
 import {defaultRoute} from '@shm/shared/routes'
@@ -15,7 +17,6 @@ import {
 } from '@shm/ui/components/menubar'
 import {AddSquare, Close, CloseAll, Contact, Delete, Hide, Reload, Search, Settings} from '@shm/ui/icons'
 import {TitlebarRow, TitlebarSection, TitlebarWrapper} from '@shm/ui/titlebar'
-import {nanoid} from 'nanoid'
 import {useMemo} from 'react'
 
 export function WindowsLinuxTitleBar({
@@ -48,7 +49,6 @@ export function WindowsLinuxTitleBar({
 }
 
 export function SystemMenu() {
-  const createDraft = useNavigate('spawn')
   const {hide, close, quit, minimize, maximize, unmaximize, isMaximized} = useWindowUtils()
   const spawn = useNavigate('spawn')
   const push = useNavigate('push')
@@ -56,6 +56,11 @@ export function SystemMenu() {
   const route = useNavRoute()
   const triggerFocusedWindow = useTriggerWindowEvent()
   const {invoke} = useIPC()
+  const selectedAccountId = useSelectedAccountId()
+  const createDraft = useCreateDraft({
+    locationUid: selectedAccountId ?? undefined,
+    locationPath: [],
+  })
   const menuItems = useMemo<MenuItemElement[]>(
     () =>
       [
@@ -107,11 +112,9 @@ export function SystemMenu() {
               id: 'newdocument',
               title: 'New Document',
               accelerator: 'Ctrl+Alt+N',
-              onSelect: () =>
-                createDraft({
-                  key: 'draft',
-                  id: nanoid(10),
-                }),
+              onSelect: () => {
+                void createDraft()
+              },
               icon: <AddSquare className="size-4" />,
             },
             {

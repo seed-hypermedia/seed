@@ -1,5 +1,5 @@
 import {HMDocument, HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {hmIdPathToEntityQueryPath} from '@shm/shared'
+import {hmId, hmIdPathToEntityQueryPath} from '@shm/shared'
 import {documentContainsLinkToChild, documentHasSelfQuery} from '@seed-hypermedia/client'
 import {pathNameify} from './path'
 
@@ -101,12 +101,21 @@ export function resolvePublishPath(args: {
 }
 
 /**
- * Compute the draft route params for creating a new document.
- * Private docs use the current location uid (falling back to selectedAccountId)
- * with a random path. Public docs use draftParams as-is.
- * Returns null if a private doc is requested but no locationUid is available.
+ * Compute the parameters needed to create a new draft and the document route
+ * to navigate to so the unified document machine picks it up.
+ *
+ * Three cases:
+ * 1. Editing an existing doc — `editUid`/`editPath` provided. Document route
+ *    targets that doc; draft writer records edit anchor + deps.
+ * 2. Public new doc at a location — `locationUid` provided. Draft path becomes
+ *    `[...locationPath, '-${draftId}']` so `useExistingDraft` can match the
+ *    document route via editUid/editPath.
+ * 3. Private doc — needs a `locationUid` (or `selectedAccountId`) and a random
+ *    path so the doc has a stable home before publish.
+ *
+ * Returns null when a private doc is requested but no locationUid is available.
  */
-export function computeDraftRoute(
+export function computeNewDraftParams(
   visibility: HMResourceVisibility | undefined,
   draftParams: {
     locationUid?: string
@@ -118,44 +127,71 @@ export function computeDraftRoute(
   selectedAccountId: string | undefined,
   generateId: () => string,
   generatePath: () => string,
-):
-  | {
-      key: 'draft'
-      id: string
-      locationUid: string
-      locationPath: string[]
-      visibility: 'PRIVATE'
-    }
-  | {
-      key: 'draft'
-      id: string
-      locationUid?: string
-      locationPath?: string[]
-      editUid?: string
-      editPath?: string[]
-      deps?: string[]
-      visibility?: HMResourceVisibility
-    }
-  | null {
-  const id = generateId()
+): {
+  draftId: string
+  writeParams: {
+    id: string
+    locationUid?: string
+    locationPath?: string[]
+    editUid?: string
+    editPath?: string[]
+    deps?: string[]
+    visibility: HMResourceVisibility
+  }
+  routeId: UnpackedHypermediaId
+} | null {
+  const draftId = generateId()
 
   if (visibility === 'PRIVATE') {
     const locationUid = draftParams.locationUid || selectedAccountId
     if (!locationUid) return null
     const privatePath = generatePath()
     return {
-      key: 'draft',
-      id,
-      locationUid,
-      locationPath: [privatePath],
-      visibility: 'PRIVATE',
+      draftId,
+      writeParams: {
+        id: draftId,
+        locationUid,
+        locationPath: [privatePath],
+        editUid: locationUid,
+        editPath: [privatePath],
+        visibility: 'PRIVATE',
+      },
+      routeId: hmId(locationUid, {path: [privatePath]}),
     }
   }
 
-  return {
-    key: 'draft',
-    id,
-    ...draftParams,
-    visibility: visibility ?? undefined,
+  if (draftParams.editUid) {
+    const editPath = draftParams.editPath || []
+    return {
+      draftId,
+      writeParams: {
+        id: draftId,
+        editUid: draftParams.editUid,
+        editPath,
+        deps: draftParams.deps,
+        visibility: visibility ?? 'PUBLIC',
+      },
+      routeId: hmId(draftParams.editUid, {path: editPath}),
+    }
   }
+
+  if (draftParams.locationUid) {
+    const locationPath = draftParams.locationPath || []
+    const editPath = [...locationPath, `-${draftId}`]
+    return {
+      draftId,
+      writeParams: {
+        id: draftId,
+        locationUid: draftParams.locationUid,
+        locationPath,
+        editUid: draftParams.locationUid,
+        editPath,
+        deps: draftParams.deps,
+        visibility: visibility ?? 'PUBLIC',
+      },
+      routeId: hmId(draftParams.locationUid, {path: editPath}),
+    }
+  }
+
+  return null
 }
