@@ -283,12 +283,11 @@ func (srv *Server) commentDBMapper() sqlitex.MapperFunc[indexedComment] {
 	}
 }
 
-// redirectAncestorsCTE collects every resource whose latest generation transitively
-// redirects to :iri (plus :iri's own resource). Seeded from :iri so the recursion
-// only walks the redirect chain relevant to the requested document, not every
-// Comment in the database. The seed is suppressed when :iri's own latest
-// generation is itself a redirect, so comments on a moved-away source/intermediate
-// path do not surface when querying that path.
+// redirectAncestorsCTE resolves the canonical (current) document IRI from :iri
+// by following any forward redirect chain, then collects every resource that
+// transitively redirected to that canonical IRI. This ensures that ListComments
+// returns all comments for a document regardless of whether :iri is the current
+// path or a former path that now redirects elsewhere (e.g. after a document move).
 const redirectAncestorsCTE = `
 	WITH RECURSIVE
 	latest_document_generations AS (
@@ -297,12 +296,27 @@ const redirectAncestorsCTE = `
 		GROUP BY dg.resource
 		HAVING dg.generation = MAX(dg.generation)
 	),
+	forward_redirect(iri, depth) AS (
+		SELECT :iri, 0
+
+		UNION ALL
+
+		SELECT dg.metadata->>'$."$db.redirect".v', fr.depth + 1
+		FROM forward_redirect fr
+		JOIN resources r ON r.iri = fr.iri
+		JOIN latest_document_generations dg ON dg.resource = r.id
+		WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
+		AND fr.depth < 16
+	),
+	canonical_iri(iri) AS (
+		SELECT fr.iri
+		FROM forward_redirect fr
+		WHERE fr.depth = (SELECT MAX(fr2.depth) FROM forward_redirect fr2)
+	),
 	redirect_ancestors(resource, iri, depth) AS (
 		SELECT r.id, r.iri, 0
 		FROM resources r
-		LEFT JOIN latest_document_generations dg ON dg.resource = r.id
-		WHERE r.iri = :iri
-		AND (dg.metadata IS NULL OR dg.metadata->>'$."$db.redirect".v' IS NULL)
+		JOIN canonical_iri ci ON r.iri = ci.iri
 
 		UNION ALL
 
