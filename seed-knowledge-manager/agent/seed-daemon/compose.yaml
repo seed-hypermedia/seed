@@ -1,0 +1,30 @@
+# Local Seed daemon for Knowledge Manager agent.
+# Image is the published seed-daemon binary (built from backend/cmd/seed-daemon/Dockerfile).
+# Daemon runs as a regular peer (no site mode). seed-cli on the host signs blobs
+# locally via OS keyring and submits them to this daemon's HTTP API.
+
+services:
+  seed-daemon:
+    image: seedhypermedia/site:latest
+    container_name: km-seed-daemon
+    restart: unless-stopped
+    ports:
+      # HTTP + gRPC bound to loopback only — they are the agent's API surface,
+      # not meant to be reachable from outside the host.
+      - "127.0.0.1:55001:55001"
+      - "127.0.0.1:55002:55002"
+      # P2P port reachable from the public internet.
+      - "55000:55000/tcp"
+      - "55000:55000/udp"
+    volumes:
+      - ./data:/data
+    environment:
+      - SEED_LOG_LEVEL=info
+    command:
+      - seed-daemon
+      - -data-dir=/data
+      - -keystore-dir=/data/keys
+      - -http.port=55001
+      - -grpc.port=55002
+      - -p2p.port=55000
+      - -syncing.smart=true

@@ -87,6 +87,18 @@ TELEGRAM_TOKEN=...     # Phase 7
 OPS_TELEGRAM_ID=...    # Phase 7, numeric Telegram user ID
 ```
 
+## Phase 1 — done
+
+Server `oc.hyper.media` (Ubuntu 24.04, 6.8 kernel, 3.7 GiB RAM, Docker 29):
+
+- Apt deps installed: `python3.12 python3.12-venv pipx libsecret-1-0 libsecret-tools dbus-user-session bubblewrap jq curl rsync logrotate`. `nodejs` swapped from Ubuntu's `node-18` to NodeSource Node 22 (Ubuntu's npm 9 cannot install workspace deps).
+- System user `km` created with `loginctl enable-linger km`, added to `docker` group.
+- Docker compose stack at `/home/km/seed-daemon/compose.yaml` runs `seedhypermedia/site:latest` as a pure peer (`-data-dir=/data -keystore-dir=/data/keys -http.port=55001 -grpc.port=55002 -p2p.port=55000 -syncing.smart=true`). HTTP/gRPC bound to loopback, P2P public.
+- User-systemd unit `seed-daemon.service` enabled, runs `docker compose up -d`. Survives logout (linger) and host reboot (Docker `restart: unless-stopped`).
+- Verification: `curl http://127.0.0.1:55001/debug/version` returns build info.
+
+**Known issue (defers to Phase 2)**: published `@seed-hypermedia/cli@0.1.4` on npm has an unresolved `workspace:*` dep; `npx -y @seed-hypermedia/cli` fails. Phase 2 builds the CLI from this repo's `frontend/apps/cli/` instead.
+
 ## TODO (filled in by later phases)
 
 - [ ] Phase 1: Docker / OS dep install steps + verification.
