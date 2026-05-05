@@ -3858,6 +3858,140 @@ func TestSearchEntitiesFilters(t *testing.T) {
 	})
 }
 
+func TestMovedDocumentSearchEntitiesUsesCurrentPath(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	app := makeTestApp(t, "alice", makeTestConfig(t), true)
+	account := coretest.NewTester("alice").Account.PublicKey.String()
+
+	const (
+		oldPath    = "/moved-doc-search-src"
+		newPath    = "/moved-doc-search-dst"
+		titleText  = "MovedDocSearchTitleUnique"
+		bodyText   = "MovedDocSearchBodyUnique"
+		blockID    = "body"
+		targetType = "document"
+	)
+
+	doc, err := app.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        account,
+		Path:           oldPath,
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: titleText},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: blockID, Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: blockID, Type: "paragraph", Text: bodyText},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = app.RPC.DocumentsV3.CreateRef(ctx, &documents.CreateRefRequest{
+		Account:        account,
+		Path:           newPath,
+		SigningKeyName: "main",
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Version_{
+				Version: &documents.RefTarget_Version{
+					Genesis: doc.Genesis,
+					Version: doc.Version,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = app.RPC.DocumentsV3.CreateRef(ctx, &documents.CreateRefRequest{
+		Account:        account,
+		Path:           oldPath,
+		SigningKeyName: "main",
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Redirect_{
+				Redirect: &documents.RefTarget_Redirect{
+					Account: account,
+					Path:    newPath,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	t.Run("body", func(t *testing.T) {
+		search, err := app.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:       bodyText,
+			IncludeBody: true,
+			PageSize:    10,
+			SearchType:  entities.SearchType_SEARCH_KEYWORD,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, search.Entities, "moved document body search must still return the document")
+
+		found := false
+		for _, entity := range search.Entities {
+			if entity.Type == targetType && strings.Contains(entity.Content, bodyText) {
+				found = true
+				require.Equal(t, "hm://"+account+newPath, entity.DocId)
+				require.Contains(t, entity.Id, newPath)
+			}
+		}
+		require.True(t, found, "moved document body search must return the current document path")
+	})
+
+	t.Run("title", func(t *testing.T) {
+		search, err := app.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:      titleText,
+			PageSize:   10,
+			SearchType: entities.SearchType_SEARCH_KEYWORD,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, search.Entities, "moved document title search must still return the document")
+
+		found := false
+		for _, entity := range search.Entities {
+			if entity.Type == "title" && strings.Contains(entity.Content, titleText) {
+				found = true
+				require.Equal(t, "hm://"+account+newPath, entity.DocId)
+				require.Contains(t, entity.Id, newPath)
+			}
+		}
+		require.True(t, found, "moved document title search must return the current document path")
+	})
+
+	t.Run("new path filter", func(t *testing.T) {
+		search, err := app.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:       bodyText,
+			IncludeBody: true,
+			IriFilter:   "hm://" + account + newPath,
+			PageSize:    10,
+			SearchType:  entities.SearchType_SEARCH_KEYWORD,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, search.Entities, "current path filter must return moved document body search result")
+	})
+
+	t.Run("old path filter returns current path", func(t *testing.T) {
+		search, err := app.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:       bodyText,
+			IncludeBody: true,
+			IriFilter:   "hm://" + account + oldPath,
+			PageSize:    10,
+			SearchType:  entities.SearchType_SEARCH_KEYWORD,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, search.Entities, "old moved-away path filter should still find moved document")
+		for _, entity := range search.Entities {
+			require.Equal(t, "hm://"+account+newPath, entity.DocId)
+			require.Contains(t, entity.Id, newPath)
+		}
+	})
+}
+
 // TestSearchProfileOnlyAccount verifies that accounts with only a profile (no published documents)
 // are discoverable via SearchEntities. This is the fix for https://github.com/seed-hypermedia/seed/issues/426.
 func TestSearchProfileOnlyAccount(t *testing.T) {
