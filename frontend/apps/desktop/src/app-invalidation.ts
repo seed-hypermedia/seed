@@ -21,15 +21,15 @@ export function appInvalidateQueries(queryKey: any) {
       const elapsedSec = (now - broadcastWindowStart) / 1000
       const rate = (broadcastCount / elapsedSec).toFixed(2)
       console.log(
-        `[SyncProfile] invalidations: ${broadcastCount} in ${elapsedSec.toFixed(1)}s (${rate}/s) handlers=${invalidationHandlers.size}`,
+        `[SyncProfile] invalidations: ${broadcastCount} in ${elapsedSec.toFixed(1)}s (${rate}/s) handlers=${
+          invalidationHandlers.size
+        }`,
       )
       broadcastCount = 0
       broadcastWindowStart = now
     }
     const keyPrefix = Array.isArray(queryKey) ? String(queryKey[0]) : String(queryKey)
-    console.log(
-      `[SyncProfile] invalidate key=${keyPrefix} handlers=${invalidationHandlers.size}`,
-    )
+    console.log(`[SyncProfile] invalidate key=${keyPrefix} handlers=${invalidationHandlers.size}`)
   }
   invalidationHandlers.forEach((handler) => handler(queryKey))
 }

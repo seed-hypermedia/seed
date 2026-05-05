@@ -272,7 +272,9 @@ function flushInvalidations() {
   if (PROFILE_ENABLED) {
     const {high, normal} = getPriorityBreakdown()
     profileLog(
-      `flushInvalidations: pending=${resources.length} subs=${state.subscriptions.size} (high=${high} normal=${normal}) handlers=${getInvalidationHandlerCount()}`,
+      `flushInvalidations: pending=${resources.length} subs=${
+        state.subscriptions.size
+      } (high=${high} normal=${normal}) handlers=${getInvalidationHandlerCount()}`,
     )
   }
   timeSync('flushInvalidations', () => {
@@ -623,9 +625,7 @@ type DiscoveryResult = {
 }
 
 async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult | null> {
-  return timeAsync(`runDiscovery(${sub.id.id} priority=${sub.priority ?? 'normal'})`, () =>
-    runDiscoveryInner(sub),
-  )
+  return timeAsync(`runDiscovery(${sub.id.id} priority=${sub.priority ?? 'normal'})`, () => runDiscoveryInner(sub))
 }
 
 async function runDiscoveryInner(sub: ResourceSubscription): Promise<DiscoveryResult | null> {
