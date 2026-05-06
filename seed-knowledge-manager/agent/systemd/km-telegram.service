@@ -1,0 +1,17 @@
+[Unit]
+Description=Knowledge Manager — Telegram operator bot
+After=default.target
+
+[Service]
+Type=simple
+EnvironmentFile=/home/km/.nanobot/secrets.env
+Environment=PATH=/home/km/.local/bin:/usr/bin:/usr/local/bin
+Environment=KM_STATE_DIR=/home/km/km-state
+Environment=KM_LOGS_DIR=/home/km/km-logs
+Environment=SEED_CLI_PATH=/home/km/.local/bin/seed-cli
+ExecStart=/usr/bin/node /home/km/km-agent/mcp/seed-cli-mcp/dist/telegram-bot.js
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
