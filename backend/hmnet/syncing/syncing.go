@@ -590,6 +590,20 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	res.Peers = make([]peer.ID, len(subsMap))
 	res.Errs = make([]error, len(subsMap))
 
+	// One bitswap session for the entire discovery task instead of one per
+	// peer-sync. boxo bitswap allocates a session goroutine plus a handful
+	// of messagequeue / donthave-timeout goroutines per session, so with
+	// maxPeerConcurrency=20 the prior per-peer-sync model spun up O(20)
+	// sessions per task. Sharing within a task drops that to 1.
+	//
+	// This is a resource-hygiene change, not a bandwidth fix: bitswap's
+	// session-level dedup only kicks in for callers within the same
+	// session, but the dominant duplicate traffic comes from sessions
+	// spawned by *different* discovery tasks (one per MaxWorkers slot, one
+	// per scheduler tick) re-fetching content other tasks already have.
+	// That broader bug lives elsewhere; see /debug/network for the data.
+	bswap := s.bitswap.NewSession(ctx)
+
 	var g errgroup.Group
 	g.SetLimit(maxPeerConcurrency)
 
@@ -598,7 +612,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 		g.Go(func() error {
 			var err error
 			s.log.Debug("Syncing with peer", zap.String("PID", pid.String()))
-			if xerr := s.syncWithPeer(ctx, pid, eids, store, prog, auth, blobTypes); xerr != nil {
+			if xerr := s.syncWithPeer(ctx, pid, eids, store, prog, auth, blobTypes, bswap); xerr != nil {
 				s.log.Debug("Could not sync with content", zap.String("PID", pid.String()), zap.Error(xerr))
 				err = fmt.Errorf("failed to sync objects: %w", xerr)
 			}
@@ -636,7 +650,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	return res
 }
 
-func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]entityScope, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string) (err error) {
+func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]entityScope, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string, bswap exchange.Fetcher) (err error) {
 	// lastPhase tracks the most recent phase we entered. On error it's used to
 	// classify the failure into an outcome counter label.
 	lastPhase := "dial"
@@ -694,8 +708,6 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 		return err
 	}
 	filteredStore := store.WithFilter(authorizedSpaces)
-
-	bswap := s.bitswap.NewSession(ctx)
 
 	return syncResources(ctx, pid, c, s.index, bswap, s.log, eids, blobTypes, filteredStore, prog, &lastPhase, connCachedBefore)
 }
