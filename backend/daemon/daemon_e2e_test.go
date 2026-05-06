@@ -3629,18 +3629,37 @@ func pushDocuments(t *testing.T, src, dst *App, resources ...string) {
 			Resources: resources,
 		}, stream)
 	}()
+	var lastProgress *p2p.AnnounceBlobsProgress
+	recordProgress := func(prog *p2p.AnnounceBlobsProgress) {
+		t.Helper()
+		t.Log(prog)
+		if prog != nil {
+			lastProgress = prog
+		}
+	}
 	for {
 		select {
 		case <-t.Context().Done():
 			return
 		case err := <-errc:
-			if errors.Is(err, io.EOF) {
-				err = nil
+			for {
+				select {
+				case prog := <-stream.C:
+					recordProgress(prog)
+				default:
+					if errors.Is(err, io.EOF) {
+						err = nil
+					}
+					require.NoError(t, err)
+					if lastProgress != nil {
+						require.Zero(t, lastProgress.BlobsFailed, "push failed to download blobs: %v", lastProgress)
+						require.Equal(t, lastProgress.BlobsWanted, lastProgress.BlobsProcessed, "push did not process all wanted blobs: %v", lastProgress)
+					}
+					return
+				}
 			}
-			require.NoError(t, err)
-			return
 		case prog := <-stream.C:
-			t.Log(prog)
+			recordProgress(prog)
 		}
 	}
 }
