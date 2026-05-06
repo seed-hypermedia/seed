@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# Browse the Knowledge Manager agent's per-run audit logs.
+#
+# Layout (per Phase 5):
+#   /home/km/km-logs/
+#   ├── runs/<UTC-ISO>__<trigger>__<ulid>/
+#   │     ├── meta.json
+#   │     ├── trace.jsonl
+#   │     ├── llm.jsonl
+#   │     ├── tools.jsonl
+#   │     ├── seed-cli.jsonl
+#   │     ├── stdout.log
+#   │     └── stderr.log
+#   ├── current -> runs/<latest>
+#   └── index.jsonl
+#
+# Subcommands:
+#   km-log tail               # follow the newest run's trace + journal
+#   km-log show <runId>       # pretty-print a specific run
+#   km-log grep <regex>       # ripgrep across all run dirs
+#   km-log mention <id>       # find the run that processed a comment/doc id
+#   km-log latest [N]         # last N runs (summary)
+#
+# Reads use jq when present.
+
+set -euo pipefail
+
+LOGS_DIR="${KM_LOGS_DIR:-/home/km/km-logs}"
+RUNS_DIR="$LOGS_DIR/runs"
+
+die() { echo "$*" >&2; exit 1; }
+
+usage() {
+  sed -n '2,30p' "$0" | sed 's/^# //;s/^#//'
+  exit 0
+}
+
+resolve_run() {
+  local ref="$1"
+  if [[ -d "$RUNS_DIR/$ref" ]]; then
+    echo "$RUNS_DIR/$ref"
+    return
+  fi
+  # match by ULID suffix
+  for d in "$RUNS_DIR"/*"$ref"*; do
+    [[ -d "$d" ]] && { echo "$d"; return; }
+  done
+  die "no run matching '$ref' under $RUNS_DIR"
+}
+
+cmd_tail() {
+  local run
+  if [[ -L "$LOGS_DIR/current" ]]; then
+    run="$LOGS_DIR/current"
+  else
+    run=$(ls -dt "$RUNS_DIR"/*/ 2>/dev/null | head -1)
+  fi
+  [[ -d "$run" ]] || die "no runs yet under $RUNS_DIR"
+  echo "tailing $run/trace.jsonl"
+  tail -F "$run/trace.jsonl"
+}
+
+cmd_show() {
+  local ref="${1:-}"; [[ -n "$ref" ]] || die "usage: km-log show <runId>"
+  local d; d=$(resolve_run "$ref")
+  echo "=== $d ==="
+  if command -v jq >/dev/null; then
+    echo "--- meta"
+    jq . "$d/meta.json" 2>/dev/null || cat "$d/meta.json"
+    echo "--- trace"
+    [[ -f "$d/trace.jsonl" ]] && jq -c . "$d/trace.jsonl"
+    echo "--- llm"
+    [[ -f "$d/llm.jsonl" ]] && jq -c '{ts_start, latency_ms, model, completion: (.completion // null | tostring | .[0:200]), reasoning: (.reasoning // null | tostring | .[0:300]), usage}' "$d/llm.jsonl"
+    echo "--- tools"
+    [[ -f "$d/tools.jsonl" ]] && jq -c '{ts_start, latency_ms, tool, error}' "$d/tools.jsonl"
+    echo "--- seed-cli"
+    [[ -f "$d/seed-cli.jsonl" ]] && jq -c '{ts_start, latency_ms, exit_code, argv: (.argv|.[2:6])}' "$d/seed-cli.jsonl"
+  else
+    cat "$d/meta.json"
+    echo
+    [[ -f "$d/trace.jsonl" ]] && cat "$d/trace.jsonl"
+  fi
+}
+
+cmd_grep() {
+  local pattern="${1:-}"; [[ -n "$pattern" ]] || die "usage: km-log grep <regex>"
+  local cmd
+  if command -v rg >/dev/null; then cmd="rg --no-heading -n"; else cmd="grep -rn"; fi
+  $cmd "$pattern" "$RUNS_DIR" || true
+}
+
+cmd_mention() {
+  local id="${1:-}"; [[ -n "$id" ]] || die "usage: km-log mention <commentId-or-docId>"
+  cmd_grep "$id"
+}
+
+cmd_latest() {
+  local n="${1:-10}"
+  if [[ -f "$LOGS_DIR/index.jsonl" && -x $(command -v jq) ]]; then
+    tail -n "$n" "$LOGS_DIR/index.jsonl" | jq -c '{id, trigger, start, end, status, wall_ms, counters}'
+  else
+    ls -dt "$RUNS_DIR"/*/ 2>/dev/null | head -n "$n"
+  fi
+}
+
+case "${1:-}" in
+  tail) shift; cmd_tail "$@" ;;
+  show) shift; cmd_show "$@" ;;
+  grep) shift; cmd_grep "$@" ;;
+  mention) shift; cmd_mention "$@" ;;
+  latest) shift; cmd_latest "$@" ;;
+  ""|-h|--help) usage ;;
+  *) echo "unknown subcommand: $1" >&2; usage ;;
+esac
