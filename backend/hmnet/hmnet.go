@@ -16,6 +16,7 @@ import (
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet/syncing"
 	"seed/backend/ipfs"
+	"seed/backend/util/bwcounter"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/grpcprom"
 	"seed/backend/util/libp2px"
@@ -109,6 +110,21 @@ type Node struct {
 	currentReachability atomic.Value    // type of network.Reachability
 	ctx                 context.Context // will be set after calling Start()
 	startedAt           time.Time       // set when Start() begins, used for uptime reporting
+
+	// metrics owns the libp2p BandwidthReporter + per-peer/per-scope counters
+	// surfaced on /debug/network. httpServerBW and httpClientBW count bytes at
+	// the HTTP layer (gRPC-Web from the local frontend, file gateway, debug
+	// pages; and outbound HTTP we own such as the delegated DHT client).
+	metrics      *ipfs.Libp2pMetrics
+	httpServerBW *bwcounter.Counter
+	httpClientBW *bwcounter.Counter
+
+	// dbSizeAtStart is the SQLite logical size (page_count * page_size) at
+	// Node.Start. dbSizeAtStartTime records when the measurement was taken so
+	// the page can show growth-over-elapsed. Both are written exactly once
+	// from Start() and read freely after that.
+	dbSizeAtStart     atomic.Uint64
+	dbSizeAtStartTime atomic.Int64 // unix nano
 }
 
 // New creates a new P2P Node. The users must call Start() before using the node, and can use Ready() to wait
@@ -129,7 +145,10 @@ func New(cfg config.P2P, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Poo
 
 	protoInfo := newProtocolInfo(ProtocolPrefix, protocolVersion+testnetSuffix)
 
-	host, closeHost, err := newLibp2p(cfg, device.Libp2pKey(), protoInfo.ID, log)
+	httpServerBW := &bwcounter.Counter{}
+	httpClientBW := &bwcounter.Counter{}
+
+	host, libp2pMetrics, closeHost, err := newLibp2p(cfg, device.Libp2pKey(), protoInfo.ID, log, httpClientBW)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start libp2p host: %w", err)
 	}
@@ -158,16 +177,19 @@ func New(cfg config.P2P, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Poo
 	clean.Add(client)
 
 	n = &Node{
-		log:      log,
-		index:    index,
-		db:       db,
-		device:   device,
-		keys:     ks,
-		cfg:      cfg,
-		client:   client,
-		protocol: protoInfo,
-		p2p:      host,
-		bitswap:  bitswap,
+		log:          log,
+		index:        index,
+		db:           db,
+		device:       device,
+		keys:         ks,
+		cfg:          cfg,
+		client:       client,
+		protocol:     protoInfo,
+		p2p:          host,
+		bitswap:      bitswap,
+		metrics:      libp2pMetrics,
+		httpServerBW: httpServerBW,
+		httpClientBW: httpClientBW,
 		grpc: grpc.NewServer(
 			grpc.StatsHandler(rpcServerMetrics),
 			grpc.ChainUnaryInterceptor(
@@ -272,6 +294,112 @@ func (n *Node) GetAccountByKeyName(ctx context.Context, keyName string) (core.Pr
 // Libp2p returns the underlying libp2p host.
 func (n *Node) Libp2p() *ipfs.Libp2p { return n.p2p }
 
+// Metrics returns the libp2p metrics object, exposing per-peer/per-scope
+// bandwidth book-keeping for the /debug/network page.
+func (n *Node) Metrics() *ipfs.Libp2pMetrics { return n.metrics }
+
+// HTTPServerBW returns the inbound HTTP bandwidth counter (gRPC-Web from the
+// local frontend, file gateway, debug pages).
+func (n *Node) HTTPServerBW() *bwcounter.Counter { return n.httpServerBW }
+
+// HTTPClientBW returns the outbound HTTP bandwidth counter (delegated DHT and
+// any other outbound HTTP we own).
+func (n *Node) HTTPClientBW() *bwcounter.Counter { return n.httpClientBW }
+
+// DBSizeAtStart returns the SQLite logical size sampled at Node.Start, in
+// bytes. Returns (0, zero) before Start() runs.
+func (n *Node) DBSizeAtStart() (size uint64, when time.Time) {
+	size = n.dbSizeAtStart.Load()
+	if ns := n.dbSizeAtStartTime.Load(); ns != 0 {
+		when = time.Unix(0, ns)
+	}
+	return size, when
+}
+
+// DBSizeNow runs PRAGMA page_count * page_size on a fresh connection and
+// returns the current logical SQLite size in bytes. Cheap (header read only).
+func (n *Node) DBSizeNow(ctx context.Context) (uint64, error) {
+	return dbLogicalSize(ctx, n.db)
+}
+
+// IndexDrift reports the number of blobs we have on disk (size >= 0) that are
+// NOT indexed in structural_blobs, broken down by codec. RBSR's local set is
+// built from structural_blobs only, so any drift here is invisible to the
+// diff and gets re-fetched from peers every sync cycle. Surfaced on
+// /debug/network to confirm or refute the "we keep downloading what we
+// already have" hypothesis.
+type IndexDrift struct {
+	Total      int64 // blobs in `blobs` but not in `structural_blobs`
+	TotalBytes int64 // sum of size (uncompressed) of those blobs
+	DagCbor    int64 // subset that should be indexed (Hypermedia structural blobs)
+	DagPb      int64 // subset that's IPFS UnixFS (not always expected in structural_blobs)
+	Other      int64 // other codecs (e.g. raw)
+}
+
+// IndexDrift runs the diagnostic query for blob/structural_blobs drift.
+// Single SQL call, joined on indexed primary key, so cost is O(unindexed rows).
+func (n *Node) IndexDrift(ctx context.Context) (IndexDrift, error) {
+	var d IndexDrift
+	conn, release, err := n.db.Conn(ctx)
+	if err != nil {
+		return d, err
+	}
+	defer release()
+
+	const q = `
+		SELECT
+			COUNT(*),
+			COALESCE(SUM(b.size), 0),
+			COALESCE(SUM(CASE WHEN b.codec = 113 THEN 1 ELSE 0 END), 0), -- dag-cbor
+			COALESCE(SUM(CASE WHEN b.codec = 112 THEN 1 ELSE 0 END), 0), -- dag-pb
+			COALESCE(SUM(CASE WHEN b.codec NOT IN (113, 112) THEN 1 ELSE 0 END), 0)
+		FROM blobs b
+		LEFT JOIN structural_blobs sb ON sb.id = b.id
+		WHERE b.size >= 0 AND sb.id IS NULL`
+
+	if err := sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
+		d.Total = stmt.ColumnInt64(0)
+		d.TotalBytes = stmt.ColumnInt64(1)
+		d.DagCbor = stmt.ColumnInt64(2)
+		d.DagPb = stmt.ColumnInt64(3)
+		d.Other = stmt.ColumnInt64(4)
+		return nil
+	}); err != nil {
+		return d, err
+	}
+	return d, nil
+}
+
+// dbLogicalSize returns the SQLite logical database size in bytes. This is
+// page_count * page_size — what SQLite has allocated on disk for the main
+// DB file, excluding WAL frames not yet checkpointed. It's an O(1) header
+// read, safe to call on every /debug/network render.
+func dbLogicalSize(ctx context.Context, db *sqlitex.Pool) (uint64, error) {
+	conn, release, err := db.Conn(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer release()
+
+	var pageCount, pageSize int64
+	if err := sqlitex.Exec(conn, `PRAGMA page_count`, func(stmt *sqlite.Stmt) error {
+		pageCount = stmt.ColumnInt64(0)
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	if err := sqlitex.Exec(conn, `PRAGMA page_size`, func(stmt *sqlite.Stmt) error {
+		pageSize = stmt.ColumnInt64(0)
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	if pageCount < 0 || pageSize < 0 {
+		return 0, nil
+	}
+	return uint64(pageCount) * uint64(pageSize), nil
+}
+
 // IsConnCached reports whether we hold a live cached gRPC connection to pid.
 // Used by syncing telemetry to label reconcile rounds as cold/warm.
 func (n *Node) IsConnCached(pid peer.ID) bool { return n.client.IsConnCached(pid) }
@@ -284,6 +412,16 @@ func (n *Node) KeyStore() core.KeyStore { return n.keys }
 func (n *Node) Start(ctx context.Context) (err error) {
 	n.ctx = ctx
 	n.startedAt = time.Now()
+
+	// Snapshot SQLite logical size at startup so /debug/network can show
+	// disk growth attributable to this session. Failure here is non-fatal —
+	// the page just renders 0 for the baseline.
+	if size, sErr := dbLogicalSize(ctx, n.db); sErr == nil {
+		n.dbSizeAtStart.Store(size)
+		n.dbSizeAtStartTime.Store(time.Now().UnixNano())
+	} else {
+		n.log.Warn("DBSizeProbeFailed", zap.Error(sErr))
+	}
 
 	n.log.Info("P2PNodeStarted", zap.String("protocolID", string(n.protocol.ID)))
 
@@ -474,12 +612,12 @@ func AddrInfoToStrings(info peer.AddrInfo) []string {
 	return addrs
 }
 
-func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, log *zap.Logger) (*ipfs.Libp2p, io.Closer, error) {
+func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, log *zap.Logger, httpClientBW *bwcounter.Counter) (*ipfs.Libp2p, *ipfs.Libp2pMetrics, io.Closer, error) {
 	var clean cleanup.Stack
 
 	ps, err := pstoremem.NewPeerstore()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	// Not adding peerstore to the cleanup stack because weirdly enough, libp2p host closes it,
 	// even if it doesn't own it. See BasicHost#Close() inside libp2p.
@@ -542,13 +680,17 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, lo
 		opts = append(opts, libp2p.BandwidthReporter(m))
 	}
 
-	node, err := ipfs.NewLibp2pNode(device, ds, ps, protocolID, cfg.DelegatedDHTURL, log, opts...)
+	node, err := ipfs.NewLibp2pNode(device, ds, ps, protocolID, cfg.DelegatedDHTURL, log, httpClientBW, opts...)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	clean.Add(node)
 
 	m.SetHost(node.Host)
+	// Register the metrics object as a network.Notifiee so peerScope is kept
+	// in sync with connection state. This must run regardless of NoMetrics so
+	// the scope classification is always available for the /debug/network page.
+	node.Host.Network().Notify(m)
 
 	if !cfg.NoMetrics {
 		prometheus.MustRegister(
@@ -558,7 +700,7 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, lo
 		)
 	}
 
-	return node, &clean, nil
+	return node, m, &clean, nil
 }
 
 // ProtocolInfo is a parsed main Hypermedia protocol ID.

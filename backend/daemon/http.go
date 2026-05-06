@@ -17,6 +17,7 @@ import (
 	"seed/backend/util/cleanup"
 	"seed/backend/util/trcstats"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -96,6 +97,27 @@ func makeBlobDebugHandler(cfg config.Base, bs blockstore.Blockstore) http.Handle
 	}
 }
 
+// httpRequestTag classifies an inbound HTTP request into a small set of tags
+// surfaced on /debug/network. The gRPC-Web check matches the Content-Type used
+// by the improbable-eng grpc-web wrapper.
+func httpRequestTag(r *http.Request) string {
+	path := r.URL.Path
+	switch {
+	case strings.HasPrefix(path, "/debug/"):
+		return "debug"
+	case strings.HasPrefix(path, "/ipfs/"):
+		return "gateway"
+	}
+	ct := r.Header.Get("Content-Type")
+	if strings.HasPrefix(ct, "application/grpc-web") {
+		return "grpc-web"
+	}
+	if r.Method == http.MethodOptions && strings.HasPrefix(r.Header.Get("Access-Control-Request-Headers"), "x-grpc-web") {
+		return "grpc-web"
+	}
+	return "other"
+}
+
 // setupGRPCWebHandler sets up the gRPC-Web handler.
 func setupGRPCWebHandler(r *Router, rpc *grpc.Server) {
 	grpcWebHandler := grpcweb.WrapServer(rpc, grpcweb.WithOriginFunc(func(origin string) bool {
@@ -124,6 +146,7 @@ func initHTTP(
 	router.r.Use(
 		handlerNameMiddleware,
 		instrument,
+		p2pnet.HTTPServerBW().Middleware(httpRequestTag),
 	)
 
 	{
