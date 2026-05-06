@@ -35,9 +35,10 @@ import {
 } from './mentions.js'
 import type {Mention, SeedComment} from './mentions.js'
 import {bump, checkCap} from './limits.js'
-import {draftReply, gatherSiteContext} from './reply-engine.js'
+import {draftReply, gatherCommentReplyContext} from './reply-engine.js'
 
-const MAX_COMMENT_FETCHES = 25
+const ACTIVITY_LIMIT = 100
+const MAX_COMMENT_FETCHES = 60
 const PLACEHOLDER_BODY = 'Working on this — back in a moment. ⌛'
 const FALLBACK_BODY =
   'I tried to draft a reply but hit a snag. Please rephrase or wait for the next cadence.'
@@ -88,11 +89,17 @@ async function main(): Promise<void> {
     audit.trace({ts: nowIso(), level: 'info', event: 'poll_collect_writers', data: {count: writers.size}})
 
     // ── PASS A: discover new mentions and post placeholders. ───────────────
-    const lastSeenId = state.getCursor()
-    const actR = await cli.runRead(['activity', '--limit', '50'])
+    //
+    // Hyper.media's activity feed is eventually-consistent: new comment
+    // events frequently take minutes to surface, by which point a
+    // cursor-based walker has already advanced past the slot they would
+    // have occupied. We dropped the cursor and rely instead on
+    // `processed.jsonl` + `placeholders.jsonl` for idempotency. Each
+    // poll scans the last ACTIVITY_LIMIT events and fetches comment
+    // bodies up to MAX_COMMENT_FETCHES.
+    const actR = await cli.runRead(['activity', '--limit', String(ACTIVITY_LIMIT)])
     const events = ((actR.parsedJson as {events?: Array<{id?: string; type?: string; time?: string; author?: unknown}>})
       ?.events) ?? []
-    let newestEventId: string | undefined
     let scanned = 0
     let placeholdersPosted = 0
     let skippedNotAllowed = 0
@@ -101,8 +108,6 @@ async function main(): Promise<void> {
     const siteAccount = config.seedSite.replace(/^hm:\/\//, '').split('/')[0]!
 
     for (const ev of events) {
-      if (!newestEventId && ev.id) newestEventId = ev.id
-      if (lastSeenId && ev.id === lastSeenId) break
       if (scanned >= MAX_COMMENT_FETCHES) {
         exhaustedBudget = true
         break
@@ -173,7 +178,6 @@ async function main(): Promise<void> {
       })
       placeholdersPosted++
     }
-    if (newestEventId) state.setCursor(newestEventId)
 
     // ── PASS B: finalise placeholders (DeepSeek + comment edit). ───────────
     const pending = state.pendingPlaceholders()
@@ -184,7 +188,12 @@ async function main(): Promise<void> {
       // counted each placeholder as a comment in Pass A, and `edit` does
       // not produce a new top-level comment.
       const question = rec.mention.text.replace(/￼/g, ' ').trim()
-      const context = await gatherSiteContext(cli, question, siteAccount, audit)
+      const context = await gatherCommentReplyContext({
+        cli,
+        mention: rec.mention,
+        siteAccount,
+        audit,
+      })
       const reply = await draftReply(question, context, audit)
       const body = reply ?? FALLBACK_BODY
       const r = await cli.runWrite(['comment', 'edit', rec.placeholderId, '--body', body])
