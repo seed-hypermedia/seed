@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"seed/backend/api/docrefs"
 	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
 	"seed/backend/core"
@@ -169,7 +170,14 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 		if srv.cfg.PublicOnly {
 			q = qIterCommentsPublicOnly()
 		}
-		comments, discard, check := sqlitex.QueryType(conn, srv.commentDBMapper(), q, iri).All()
+		canonicalIRI, ok, err := docrefs.ResolveCanonicalDocumentIRI(conn, string(iri))
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return resp, nil
+		}
+		comments, discard, check := sqlitex.QueryType(conn, srv.commentDBMapper(), q, canonicalIRI).All()
 		defer discard(&err)
 		for comment := range comments {
 			pb, err := commentToProto(lookup, comment.CID, comment.Comment, comment.TSID)
@@ -283,11 +291,10 @@ func (srv *Server) commentDBMapper() sqlitex.MapperFunc[indexedComment] {
 	}
 }
 
-// redirectAncestorsCTE resolves the canonical (current) document IRI from :iri
-// by following any forward redirect chain, then collects every resource that
-// transitively redirected to that canonical IRI. This ensures that ListComments
-// returns all comments for a document regardless of whether :iri is the current
-// path or a former path that now redirects elsewhere (e.g. after a document move).
+// redirectAncestorsCTE collects every resource whose latest generation transitively
+// redirects to :iri (plus :iri's own resource). Callers must resolve :iri forward to
+// its canonical path first. Seeded from :iri so the recursion only walks the redirect
+// chain relevant to the requested document, not every Comment in the database.
 const redirectAncestorsCTE = `
 	WITH RECURSIVE
 	latest_document_generations AS (
@@ -296,27 +303,10 @@ const redirectAncestorsCTE = `
 		GROUP BY dg.resource
 		HAVING dg.generation = MAX(dg.generation)
 	),
-	forward_redirect(iri, depth) AS (
-		SELECT :iri, 0
-
-		UNION ALL
-
-		SELECT dg.metadata->>'$."$db.redirect".v', fr.depth + 1
-		FROM forward_redirect fr
-		JOIN resources r ON r.iri = fr.iri
-		JOIN latest_document_generations dg ON dg.resource = r.id
-		WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
-		AND fr.depth < 16
-	),
-	canonical_iri(iri) AS (
-		SELECT fr.iri
-		FROM forward_redirect fr
-		WHERE fr.depth = (SELECT MAX(fr2.depth) FROM forward_redirect fr2)
-	),
 	redirect_ancestors(resource, iri, depth) AS (
-		SELECT r.id, r.iri, 0
-		FROM resources r
-		JOIN canonical_iri ci ON r.iri = ci.iri
+		SELECT id, iri, 0
+		FROM resources
+		WHERE iri = :iri
 
 		UNION ALL
 

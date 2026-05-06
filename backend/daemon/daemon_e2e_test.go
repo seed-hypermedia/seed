@@ -4750,6 +4750,18 @@ func TestMovedDocumentCommentsFollowRedirects(t *testing.T) {
 		require.Equal(t, "hm://"+comment.Id, search.Entities[0].Id)
 		require.Equal(t, "hm://"+account+"/comments-move-dst", search.Entities[0].DocId)
 		require.Contains(t, search.Entities[0].Content, "helloPearMovedUnique")
+
+		oldPathSearch, err := app.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:       "helloPearMovedUnique",
+			IncludeBody: true,
+			IriFilter:   "hm://" + account + "/comments-move-src",
+			PageSize:    10,
+		})
+		require.NoError(t, err)
+		require.Len(t, oldPathSearch.Entities, 1, "old path filter must resolve to the moved document")
+		require.Equal(t, "comment", oldPathSearch.Entities[0].Type)
+		require.Equal(t, "hm://"+comment.Id, oldPathSearch.Entities[0].Id)
+		require.Equal(t, "hm://"+account+"/comments-move-dst", oldPathSearch.Entities[0].DocId)
 	})
 
 	t.Run("ListEntityMentions", func(t *testing.T) {
@@ -4760,14 +4772,20 @@ func TestMovedDocumentCommentsFollowRedirects(t *testing.T) {
 			PageSize: 10,
 		})
 		require.NoError(t, err)
-		require.Empty(t, srcMentions.Mentions, "comment mentions must not remain on the original moved path")
+		require.Len(t, srcMentions.Mentions, 1, "comment mentions must be accessible via the original moved path")
+		require.Equal(t, "Comment", srcMentions.Mentions[0].SourceType)
+		require.Equal(t, "hm://"+comment.Id, srcMentions.Mentions[0].Source)
+		require.Equal(t, "hm://"+account+"/comments-move-dst", srcMentions.Mentions[0].SourceDocument)
 
 		midMentions, err := app.RPC.Entities.ListEntityMentions(ctx, &entities.ListEntityMentionsRequest{
 			Id:       "hm://" + account + "/comments-move-mid",
 			PageSize: 10,
 		})
 		require.NoError(t, err)
-		require.Empty(t, midMentions.Mentions, "comment mentions must not remain on an intermediate moved path")
+		require.Len(t, midMentions.Mentions, 1, "comment mentions must be accessible via an intermediate moved path")
+		require.Equal(t, "Comment", midMentions.Mentions[0].SourceType)
+		require.Equal(t, "hm://"+comment.Id, midMentions.Mentions[0].Source)
+		require.Equal(t, "hm://"+account+"/comments-move-dst", midMentions.Mentions[0].SourceDocument)
 
 		dstMentions, err := app.RPC.Entities.ListEntityMentions(ctx, &entities.ListEntityMentionsRequest{
 			Id:       "hm://" + account + "/comments-move-dst",
