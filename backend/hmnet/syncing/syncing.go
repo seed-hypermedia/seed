@@ -12,7 +12,6 @@ import (
 	docspb "seed/backend/genproto/documents/v3alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet/syncing/rbsr"
-	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -159,6 +158,58 @@ var (
 		Help:    "Wall-clock of each bitswap fetch, per outcome.",
 		Buckets: diagBuckets,
 	}, []string{"outcome"})
+
+	// MSyncDiscardedBlobs counts blocks that bitswap successfully delivered
+	// but were thrown away because the per-peer sync ctx was already cancelled
+	// by the time we reached the persist phase. Each one was paid for on the
+	// wire and will be re-fetched on the next sync cycle. Surfaced on
+	// /debug/network so the magnitude of "wasted bandwidth from late
+	// cancellation" is visible.
+	MSyncDiscardedBlobs = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "seed_syncpeer_discarded_blobs_total",
+		Help: "Blocks downloaded by bitswap then discarded because sync ctx was cancelled before persist.",
+	})
+
+	// MSyncDiscardedEvents counts how many sync attempts ended in this
+	// "downloaded then discarded" state. Lets us tell "many discards over a
+	// few events" (one big sync got cut short) from "many events" (chronic
+	// cancellation pattern).
+	MSyncDiscardedEvents = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "seed_syncpeer_discarded_events_total",
+		Help: "Sync attempts that downloaded blocks then discarded them due to ctx cancellation.",
+	})
+
+	// MSyncWantedBlobsPerPeer is the size of the bitswap wantlist RBSR
+	// produces per peer-sync. A healthy distribution clusters near zero with
+	// a long tail of small numbers — the diff is small because we already
+	// have most of what the peer has. Persistent high values mean RBSR's
+	// local-set query is undercounting what we actually have on disk, so
+	// every sync re-fetches the same blobs.
+	MSyncWantedBlobsPerPeer = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "seed_syncpeer_wanted_blobs",
+		Help:    "Number of blobs RBSR identified as missing from us per peer-sync.",
+		Buckets: []float64{1, 10, 100, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000},
+	})
+
+	// MSyncPersistRollbackTotal counts streaming-persist batches that failed
+	// PutMany — most often because indexBlob hit a cross-blob reference whose
+	// referent hadn't arrived yet (e.g. a Change ahead of its genesis_blob).
+	// Those blobs come back next sync cycle and converge once order doesn't
+	// matter; a small steady value here is expected during big initial syncs,
+	// while a sustained high value points at a real ordering / dependency bug.
+	MSyncPersistRollbackTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "seed_syncpeer_persist_rollback_total",
+		Help: "Streaming-persist PutMany batch failures (likely ordering dependency).",
+	})
+
+	// MSyncPersistRollbackBlocks counts the number of individual blocks lost
+	// to PutMany batch rollbacks. Useful alongside MSyncPersistRollbackTotal
+	// to size the cost: 1 rollback × 10-blob batch = 10 lost blocks.
+	MSyncPersistRollbackBlocks = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "seed_syncpeer_persist_rollback_blocks_total",
+		Help: "Blocks lost to PutMany batch rollbacks during streaming persist.",
+	})
+
 
 	// Server-side ReconcileBlobs handler sub-phase timing. Our daemon serves
 	// reconcile requests from other peers; gateways run the same code so this
@@ -790,6 +841,8 @@ func syncResources(
 		log.Debug("Blobs Reconciled", zap.Int("round", rounds), zap.Int("wants", len(allWants)))
 	}
 
+	MSyncWantedBlobsPerPeer.Observe(float64(len(allWants)))
+
 	if len(allWants) == 0 {
 		log.Debug("Peer does not have new content")
 		return nil
@@ -800,13 +853,44 @@ func syncResources(
 
 	*phase = "bitswap_fetch"
 	bitswapStart := time.Now()
-	downloaded := make([]blocks.Block, len(allWants))
 	ch, err := sess.GetBlocks(ctx, allWants)
 	if err != nil {
 		MSyncPeerPhaseSeconds.WithLabelValues("bitswap_fetch").Observe(time.Since(bitswapStart).Seconds())
 		MSyncBitswapOutcome.WithLabelValues("ctx_done").Inc()
 		return fmt.Errorf("failed to initiate bitswap session for syncing: %w", err)
 	}
+
+	// Streaming persist worker (per-peer). Bitswap is IO-bound (network),
+	// PutMany is CPU/disk-bound (SQLite write tx + indexBlob). Pre-fix these
+	// ran strictly sequentially: download all → accumulate → PutMany at the
+	// end. That held the entire wantlist in RAM and lost everything when the
+	// per-peer ctx fired before persist could begin. Streaming dispatches
+	// small batches as they arrive and persists them on a detached ctx so
+	// already-fetched bytes always land on disk.
+	const persistBatchSize = 10
+	const persistChCap = 4
+	persistCtx := context.WithoutCancel(ctx)
+	persistCh := make(chan []blocks.Block, persistChCap)
+	persistDone := make(chan struct{})
+
+	go func() {
+		defer close(persistDone)
+		for batch := range persistCh {
+			putmanyStart := time.Now()
+			err := idx.PutMany(persistCtx, batch)
+			MSyncPeerPhaseSeconds.WithLabelValues("putmany").Observe(time.Since(putmanyStart).Seconds())
+			if err != nil {
+				MSyncPersistRollbackTotal.Inc()
+				MSyncPersistRollbackBlocks.Add(float64(len(batch)))
+				log.Warn("PutManyBatchRolledBack",
+					zap.String("peerID", pid.String()),
+					zap.Int("batchSize", len(batch)),
+					zap.Error(err),
+				)
+				continue
+			}
+		}
+	}()
 
 	// bitswapOutcome is set by the download closure below and consumed by the
 	// metric observations after it returns.
@@ -816,6 +900,16 @@ func syncResources(
 	// that gap distinguishes "channel closed right after last block"
 	// (productive exit) from "we sat on the idle timer" (dead wait).
 	lastBlockAt := bitswapStart
+	var downloadedTotal int64
+	batch := make([]blocks.Block, 0, persistBatchSize)
+	flushBatch := func() {
+		if len(batch) == 0 {
+			return
+		}
+		// Hand off ownership; allocate a fresh slice for the next batch.
+		persistCh <- batch
+		batch = make([]blocks.Block, 0, persistBatchSize)
+	}
 	download := func() {
 		const idleTimeout = 10 * time.Second
 		t := time.NewTimer(idleTimeout)
@@ -836,8 +930,12 @@ func syncResources(
 				}
 				t.Reset(idleTimeout)
 				lastBlockAt = time.Now()
-				downloaded[wantsIdx[blk.Cid()]] = blk
 				prog.BlobsDownloaded.Add(1)
+				downloadedTotal++
+				batch = append(batch, blk)
+				if len(batch) >= persistBatchSize {
+					flushBatch()
+				}
 			case <-t.C:
 				prog.BlobsFailed.Add(int32(len(allWants)) - prog.BlobsDownloaded.Load()) //nolint:gosec
 				bitswapOutcome = "idle_timeout"
@@ -847,38 +945,34 @@ func syncResources(
 	}
 
 	download()
-	downloaded = slices.DeleteFunc(downloaded, func(x blocks.Block) bool { return x == nil })
+	flushBatch()     // partial trailing batch
+	close(persistCh) // signal persist worker to drain and exit
+
 	fetchElapsed := time.Since(bitswapStart).Seconds()
 	MSyncPeerPhaseSeconds.WithLabelValues("bitswap_fetch").Observe(fetchElapsed)
 	MSyncBitswapFetchSeconds.WithLabelValues(bitswapOutcome).Observe(fetchElapsed)
 	MSyncBitswapOutcome.WithLabelValues(bitswapOutcome).Inc()
 	MSyncBitswapLastBlockAge.WithLabelValues(bitswapOutcome).Observe(time.Since(lastBlockAt).Seconds())
 	if len(allWants) > 0 {
-		MSyncBitswapCompleteness.Observe(float64(len(downloaded)) / float64(len(allWants)))
+		MSyncBitswapCompleteness.Observe(float64(downloadedTotal) / float64(len(allWants)))
 	}
 
-	if len(downloaded) == 0 {
+	if downloadedTotal == 0 {
+		<-persistDone
 		return nil
 	}
 
 	tracker := longrunning.Start(log, "ReconcileBlobsWrite", 30*time.Second,
 		zap.String("peerID", pid.String()),
 		zap.Int("wantedCount", len(allWants)),
-		zap.Int("downloadedCount", len(downloaded)),
+		zap.Int64("downloadedCount", downloadedTotal),
 	)
 	defer func() {
 		tracker.Finish(nil)
 	}()
 
 	*phase = "putmany"
-	putmanyStart := time.Now()
-	if err := idx.PutMany(ctx, downloaded); err != nil {
-		MSyncPeerPhaseSeconds.WithLabelValues("putmany").Observe(time.Since(putmanyStart).Seconds())
-		tracker.Finish(err)
-		return fmt.Errorf("failed to put reconciled blobs: %w", err)
-	}
-	MSyncPeerPhaseSeconds.WithLabelValues("putmany").Observe(time.Since(putmanyStart).Seconds())
-
+	<-persistDone // wait for our per-peer persist worker to drain remaining batches
 	return nil
 }
 

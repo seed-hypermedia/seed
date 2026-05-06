@@ -32,6 +32,41 @@ var (
 		Name: "seed_ipfs_blockstore_calls_total",
 		Help: "The total of method calls on the IPFS' Blockstore public interface.",
 	}, []string{"method"})
+
+	// mPutBlockOutcome counts putBlock invocations bucketed by what happened to
+	// the incoming block: did we already have it, did we fill in a placeholder,
+	// or did we insert a fresh row. The "exists" outcome quantifies "block
+	// arrived from the network but local DB already had it" — the smoking gun
+	// for re-fetch loops surfaced on /debug/network.
+	mPutBlockOutcome = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "seed_blob_putblock_outcome_total",
+		Help: "putBlock outcome counts by disposition (exists|update|new).",
+	}, []string{"outcome"})
+
+	// mPutBlockBytes is the byte count for each putBlock outcome, using the
+	// incoming uncompressed blob length. Lets us compare bytes-already-stored
+	// against bitswap.Stat().DataReceived to confirm/refute the re-fetch
+	// hypothesis without staring at block counts.
+	mPutBlockBytes = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "seed_blob_putblock_bytes_total",
+		Help: "putBlock byte counts (uncompressed input) by disposition.",
+	}, []string{"outcome"})
+
+	// mHasInconsistent counts cases where blockStore.Has returned false but
+	// the blob IS present (size>=0) when looked up without filters. This is
+	// the smoking gun for "we keep asking peers for blobs we already have":
+	// bitswap consults Has, gets false, broadcasts a WANT, peer ships, the
+	// block lands at putBlock which then finds it under the unfiltered
+	// blobs lookup and bounces it as `exists`.
+	//
+	// Buckets:
+	//   reason="public_only_filter" — Has used IsPublicOnly(ctx)=true and the blob is private
+	//   reason="entity_cid_no_change" — CID is an entity-CID; resource exists but no Change blob, yet the blob row IS in blobs
+	//   reason="other"               — neither of the above; deeper bug
+	mHasInconsistent = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "seed_blockstore_has_false_but_present_total",
+		Help: "blockStore.Has returned false but the blob is present in the unfiltered blobs table; broken down by likely cause.",
+	}, []string{"reason"})
 )
 
 var _ blockstore.Blockstore = (*blockStore)(nil)
@@ -65,6 +100,11 @@ func newBlockstore(db *sqlitex.Pool) *blockStore {
 }
 
 // Has implements blockstore.Blockstore interface.
+//
+// On a "false" return, this also runs an unfiltered lookup against `blobs`
+// and increments mHasInconsistent if the row is actually present. Lets
+// /debug/network distinguish "we genuinely don't have it" from "we have it
+// but Has lied" (the symptom that drives bitswap re-fetch loops).
 func (b *blockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 	mCallsTotal.WithLabelValues("Has").Inc()
 
@@ -78,11 +118,39 @@ func (b *blockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 		}
 		defer release()
 
-		return b.has(conn, c, publicOnly)
+		ok, err := b.has(conn, c, publicOnly)
+		if err == nil && !ok {
+			// Cross-check: is the row actually present without filters?
+			// If yes, Has lied — the next step is bitswap will fetch it
+			// from peers and putBlock will bounce it as "exists".
+			res, perr := dbBlobsGetSize(conn, c.Hash(), false)
+			if perr == nil && res.BlobsID != 0 && res.BlobsSize >= 0 {
+				if publicOnly {
+					mHasInconsistent.WithLabelValues("public_only_filter").Inc()
+				} else {
+					mHasInconsistent.WithLabelValues("other").Inc()
+				}
+			}
+		}
+		return ok, err
 	}
+
 	ok, err := b.checkEntityExists(ctx, eid)
 	if err != nil {
 		return false, err
+	}
+	if !ok {
+		// Cross-check: entity-CID branch said "no Change blob exists for this
+		// entity", yet maybe the entity-CID's own blob row IS in `blobs`. If
+		// so, putBlock will see it and bounce as "exists" — that's the loop.
+		conn, release, cerr := b.db.Conn(ctx)
+		if cerr == nil {
+			res, perr := dbBlobsGetSize(conn, c.Hash(), false)
+			release()
+			if perr == nil && res.BlobsID != 0 && res.BlobsSize >= 0 {
+				mHasInconsistent.WithLabelValues("entity_cid_no_change").Inc()
+			}
+		}
 	}
 
 	return ok, nil
@@ -303,6 +371,8 @@ func (b *blockStore) putBlock(conn *sqlite.Conn, inID int64, codec uint64, hash 
 	switch {
 	// We have this blob already. Size can be 0 if data is inlined in the CID.
 	case size.BlobsID != 0 && size.BlobsSize >= 0:
+		mPutBlockOutcome.WithLabelValues("exists").Inc()
+		mPutBlockBytes.WithLabelValues("exists").Add(float64(len(data)))
 		return size.BlobsID, true, nil
 	// We know about the blob, but we don't have it.
 	case size.BlobsID != 0 && size.BlobsSize < 0:
@@ -330,10 +400,16 @@ func (b *blockStore) putBlock(conn *sqlite.Conn, inID int64, codec uint64, hash 
 		if err != nil {
 			return 0, false, err
 		}
+		mPutBlockOutcome.WithLabelValues("update").Inc()
+		mPutBlockBytes.WithLabelValues("update").Add(float64(len(data)))
 		return newID, false, blobsUpdateMissingData(conn, compressed, int64(len(data)), newID, size.BlobsID)
 	}
 
 	ins, err := dbBlobsInsert(conn, inID, hash, int64(codec), compressed, int64(len(data)))
+	if err == nil {
+		mPutBlockOutcome.WithLabelValues("new").Inc()
+		mPutBlockBytes.WithLabelValues("new").Add(float64(len(data)))
+	}
 	return ins, false, err
 }
 
