@@ -1,0 +1,32 @@
+{
+  "name": "@km/seed-cli-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "stdio MCP server wrapping seed-cli for the Knowledge Manager agent.",
+  "type": "module",
+  "bin": {
+    "seed-cli-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "bun build src/index.ts --target node --outdir dist --minify && bun build src/poll-cli.ts --target node --outdir dist --minify --outfile poll-cli.js && bun build src/cadence-cli.ts --target node --outdir dist --minify --outfile cadence-cli.js && bun build src/telegram-bot.ts --target node --outdir dist --minify --outfile telegram-bot.js",
+    "build:dev": "bun build src/index.ts --target node --outdir dist --external '@modelcontextprotocol/sdk' --external 'yaml' --external 'zod' --external 'ulid'",
+    "typecheck": "bunx tsc -p tsconfig.json --noEmit",
+    "test": "bun test src",
+    "test:watch": "bun test --watch src"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "yaml": "^2.6.0",
+    "zod": "^3.23.8",
+    "ulid": "^2.4.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "bun": ">=1.0",
+    "node": ">=20"
+  }
+}
