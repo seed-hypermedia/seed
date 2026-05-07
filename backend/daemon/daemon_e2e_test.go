@@ -3629,18 +3629,37 @@ func pushDocuments(t *testing.T, src, dst *App, resources ...string) {
 			Resources: resources,
 		}, stream)
 	}()
+	var lastProgress *p2p.AnnounceBlobsProgress
+	recordProgress := func(prog *p2p.AnnounceBlobsProgress) {
+		t.Helper()
+		t.Log(prog)
+		if prog != nil {
+			lastProgress = prog
+		}
+	}
 	for {
 		select {
 		case <-t.Context().Done():
 			return
 		case err := <-errc:
-			if errors.Is(err, io.EOF) {
-				err = nil
+			for {
+				select {
+				case prog := <-stream.C:
+					recordProgress(prog)
+				default:
+					if errors.Is(err, io.EOF) {
+						err = nil
+					}
+					require.NoError(t, err)
+					if lastProgress != nil {
+						require.Zero(t, lastProgress.BlobsFailed, "push failed to download blobs: %v", lastProgress)
+						require.Equal(t, lastProgress.BlobsWanted, lastProgress.BlobsProcessed, "push did not process all wanted blobs: %v", lastProgress)
+					}
+					return
+				}
 			}
-			require.NoError(t, err)
-			return
 		case prog := <-stream.C:
-			t.Log(prog)
+			recordProgress(prog)
 		}
 	}
 }
@@ -4840,19 +4859,24 @@ func TestMovedDocumentCommentsFollowRedirects(t *testing.T) {
 	t.Run("ListComments", func(t *testing.T) {
 		ctx, app, account, comment := setup(t, "alice")
 
+		// After a document move, querying any path in the redirect chain (original,
+		// intermediate, or destination) must return the same comments. This ensures
+		// that notification links — which store the historical path — still work.
 		srcComments, err := app.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
 			TargetAccount: account,
 			TargetPath:    "/comments-move-src",
 		})
 		require.NoError(t, err)
-		require.Empty(t, srcComments.Comments, "comments must not remain listed on the original moved path")
+		require.Len(t, srcComments.Comments, 1, "comments must be accessible via the original moved path")
+		require.Equal(t, comment.Id, srcComments.Comments[0].Id)
 
 		midComments, err := app.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
 			TargetAccount: account,
 			TargetPath:    "/comments-move-mid",
 		})
 		require.NoError(t, err)
-		require.Empty(t, midComments.Comments, "comments must not remain listed on an intermediate moved path")
+		require.Len(t, midComments.Comments, 1, "comments must be accessible via an intermediate moved path")
+		require.Equal(t, comment.Id, midComments.Comments[0].Id)
 
 		dstComments, err := app.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
 			TargetAccount: account,
@@ -4879,6 +4903,18 @@ func TestMovedDocumentCommentsFollowRedirects(t *testing.T) {
 		require.Equal(t, "hm://"+comment.Id, search.Entities[0].Id)
 		require.Equal(t, "hm://"+account+"/comments-move-dst", search.Entities[0].DocId)
 		require.Contains(t, search.Entities[0].Content, "helloPearMovedUnique")
+
+		oldPathSearch, err := app.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:       "helloPearMovedUnique",
+			IncludeBody: true,
+			IriFilter:   "hm://" + account + "/comments-move-src",
+			PageSize:    10,
+		})
+		require.NoError(t, err)
+		require.Len(t, oldPathSearch.Entities, 1, "old path filter must resolve to the moved document")
+		require.Equal(t, "comment", oldPathSearch.Entities[0].Type)
+		require.Equal(t, "hm://"+comment.Id, oldPathSearch.Entities[0].Id)
+		require.Equal(t, "hm://"+account+"/comments-move-dst", oldPathSearch.Entities[0].DocId)
 	})
 
 	t.Run("ListEntityMentions", func(t *testing.T) {
@@ -4889,14 +4925,20 @@ func TestMovedDocumentCommentsFollowRedirects(t *testing.T) {
 			PageSize: 10,
 		})
 		require.NoError(t, err)
-		require.Empty(t, srcMentions.Mentions, "comment mentions must not remain on the original moved path")
+		require.Len(t, srcMentions.Mentions, 1, "comment mentions must be accessible via the original moved path")
+		require.Equal(t, "Comment", srcMentions.Mentions[0].SourceType)
+		require.Equal(t, "hm://"+comment.Id, srcMentions.Mentions[0].Source)
+		require.Equal(t, "hm://"+account+"/comments-move-dst", srcMentions.Mentions[0].SourceDocument)
 
 		midMentions, err := app.RPC.Entities.ListEntityMentions(ctx, &entities.ListEntityMentionsRequest{
 			Id:       "hm://" + account + "/comments-move-mid",
 			PageSize: 10,
 		})
 		require.NoError(t, err)
-		require.Empty(t, midMentions.Mentions, "comment mentions must not remain on an intermediate moved path")
+		require.Len(t, midMentions.Mentions, 1, "comment mentions must be accessible via an intermediate moved path")
+		require.Equal(t, "Comment", midMentions.Mentions[0].SourceType)
+		require.Equal(t, "hm://"+comment.Id, midMentions.Mentions[0].Source)
+		require.Equal(t, "hm://"+account+"/comments-move-dst", midMentions.Mentions[0].SourceDocument)
 
 		dstMentions, err := app.RPC.Entities.ListEntityMentions(ctx, &entities.ListEntityMentionsRequest{
 			Id:       "hm://" + account + "/comments-move-dst",

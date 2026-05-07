@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"seed/backend/api/docrefs"
 	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
 	"seed/backend/config"
@@ -84,6 +85,10 @@ var validIriFilterRe = regexp.MustCompile(`^hm://[a-zA-Z0-9_\-./\*\?\[\]]*$`)
 
 func isValidIriFilter(s string) bool {
 	return validIriFilterRe.MatchString(s)
+}
+
+func isExactIriFilter(s string) bool {
+	return !strings.ContainsAny(s, "*?[")
 }
 
 const (
@@ -296,6 +301,8 @@ effective_comment_resources AS (
       cr.*,
       ROW_NUMBER() OVER (PARTITION BY cr.origin_resource ORDER BY cr.depth DESC) rn
     FROM comment_resource_chain cr
+    LEFT JOIN latest_document_generations dg ON dg.resource = cr.resource
+    WHERE dg.metadata IS NULL OR dg.metadata->>'$."$db.redirect".v' IS NULL
   )
   WHERE rn = 1
 ),
@@ -463,6 +470,8 @@ effective_comment_resources AS (
       cr.*,
       ROW_NUMBER() OVER (PARTITION BY cr.origin_resource ORDER BY cr.depth DESC) rn
     FROM comment_resource_chain cr
+    LEFT JOIN latest_document_generations dg ON dg.resource = cr.resource
+    WHERE dg.metadata IS NULL OR dg.metadata->>'$."$db.redirect".v' IS NULL
   )
   WHERE rn = 1
 )
@@ -988,6 +997,19 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			return nil, status.Errorf(codes.InvalidArgument, "iri_filter contains invalid characters")
 		}
 		iriGlob = in.IriFilter
+		if isExactIriFilter(iriGlob) {
+			var ok bool
+			if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+				var err error
+				iriGlob, ok, err = docrefs.ResolveCanonicalDocumentIRI(conn, iriGlob)
+				return err
+			}); err != nil {
+				return nil, err
+			}
+			if !ok {
+				return &entpb.SearchEntitiesResponse{}, nil
+			}
+		}
 	} else if in.AccountUid != "" {
 		iriGlob = "hm://" + in.AccountUid + "*"
 	} else {
@@ -1775,15 +1797,23 @@ func (srv *Server) ListEntityMentions(ctx context.Context, in *entpb.ListEntityM
 	var genesisBlobIDs []string
 	var deletedList []string
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		targetID, ok, err := docrefs.ResolveCanonicalDocumentIRI(conn, in.Id)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return nil
+		}
+
 		var eid int64
 		if err := sqlitex.Exec(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
 			eid = stmt.ColumnInt64(0)
 			return nil
-		}, in.Id); err != nil {
+		}, targetID); err != nil {
 			return err
 		}
 
-		commentExists, err := commentEntityExists(conn, in.Id)
+		commentExists, err := commentEntityExists(conn, targetID)
 		if err != nil {
 			return err
 		}
@@ -1954,7 +1984,7 @@ JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN public_blobs pb3 ON pb3.id = blobs.id
-WHERE resource_links.target = :target
+WHERE resource_links.target IN (SELECT resource FROM redirect_ancestors)
 AND structural_blobs.type IN ('Change')
 AND (:publicOnly = 0 OR pb3.id IS NOT NULL)
 )
