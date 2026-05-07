@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"seed/backend/api/docrefs"
 	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
 	"seed/backend/config"
@@ -48,23 +49,25 @@ const (
 
 // Server implements Documents API v3.
 type Server struct {
-	cfg  config.Base
-	keys core.KeyStore
-	idx  *blob.Index
-	db   *sqlitex.Pool
-	log  *zap.Logger
-	p2p  *hmnet.Node
+	cfg              config.Base
+	keys             core.KeyStore
+	idx              *blob.Index
+	db               *sqlitex.Pool
+	log              *zap.Logger
+	p2p              *hmnet.Node
+	redirectResolver *docrefs.Resolver
 }
 
 // NewServer creates a new Documents API v3 server.
 func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex.Pool, log *zap.Logger, p2p *hmnet.Node) *Server {
 	return &Server{
-		cfg:  cfg,
-		keys: keys,
-		idx:  idx,
-		db:   db,
-		log:  log,
-		p2p:  p2p,
+		cfg:              cfg,
+		keys:             keys,
+		idx:              idx,
+		db:               db,
+		log:              log,
+		p2p:              p2p,
+		redirectResolver: docrefs.NewResolver(docrefs.DefaultResolverSize, docrefs.DefaultResolverTTL),
 	}
 }
 
