@@ -35,17 +35,16 @@ import {
   useUpdateComment,
 } from '@shm/shared/comments-service-provider'
 import {useIsCurrentUser, useResource} from '@shm/shared/models/entity'
+import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {getRoutePanel} from '@shm/shared/routes'
 import {useTxString} from '@shm/shared/translation'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Link, MessageSquare, Pencil, Trash2, X} from 'lucide-react'
 import {memo, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {SelectionContent} from './accessories'
-import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {getBlockNodeById} from './blocks-content-utils'
 import {Button} from './button'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
-import {useCopyHmLink} from './use-copy-hm-link'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
 import {AuthorNameLink, getContextualProfileRoute, InlineDescriptor, Timestamp} from './inline-descriptor'
@@ -54,6 +53,7 @@ import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
 import {useAppDialog} from './universal-dialog'
+import {useCopyHmLink} from './use-copy-hm-link'
 import {cn} from './utils'
 
 export function CommentDiscussions({
@@ -907,7 +907,7 @@ export function QuotedDocBlock({
         <div className="flex-shrink-0 py-1.5">
           <BlockQuote size={23} />
         </div>
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           {blockContent && Viewer && (
             <Viewer
               blocks={[blockContent]}
