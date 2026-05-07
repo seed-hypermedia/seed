@@ -19,6 +19,7 @@ import (
 	"seed/backend/util/grpcprom"
 	"seed/backend/util/libp2px"
 	"seed/backend/util/must"
+	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"strings"
 	"sync/atomic"
