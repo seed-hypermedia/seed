@@ -286,9 +286,10 @@ func (srv *Server) commentDBMapper() sqlitex.MapperFunc[indexedComment] {
 // redirectAncestorsCTE collects every resource whose latest generation transitively
 // redirects to :iri (plus :iri's own resource). Seeded from :iri so the recursion
 // only walks the redirect chain relevant to the requested document, not every
-// Comment in the database. The seed is suppressed when :iri's own latest
-// generation is itself a redirect, so comments on a moved-away source/intermediate
-// path do not surface when querying that path.
+// Comment in the database. The seed is included unconditionally — even when :iri's
+// own latest generation is itself a redirect — so that comments authored against a
+// moved-away path remain reachable when queried by that path (e.g. notification
+// links that record the historical path).
 const redirectAncestorsCTE = `
 	WITH RECURSIVE
 	latest_document_generations AS (
@@ -298,11 +299,9 @@ const redirectAncestorsCTE = `
 		HAVING dg.generation = MAX(dg.generation)
 	),
 	redirect_ancestors(resource, iri, depth) AS (
-		SELECT r.id, r.iri, 0
-		FROM resources r
-		LEFT JOIN latest_document_generations dg ON dg.resource = r.id
-		WHERE r.iri = :iri
-		AND (dg.metadata IS NULL OR dg.metadata->>'$."$db.redirect".v' IS NULL)
+		SELECT id, iri, 0
+		FROM resources
+		WHERE iri = :iri
 
 		UNION ALL
 

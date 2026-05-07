@@ -1089,3 +1089,89 @@ func TestCommentCitations(t *testing.T) {
 		require.Equal(t, target.Version, mention.TargetVersion)
 	}
 }
+
+// TestListComments_AfterDocumentMove is a regression test for a bug where ListComments
+// returned no results when querying via an old document path that had been redirected
+// elsewhere (e.g. after moving a document). Notifications store the path at the time
+// the comment was written, so clicking a notification navigated to the old path and
+// found no comments, showing a false "deleted" message.
+func TestListComments_AfterDocumentMove(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	// Create a document at /old-path and add a comment to it.
+	oldDoc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "/old-path",
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Old Path Doc"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	cmt, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "/old-path",
+		TargetVersion:  oldDoc.Version,
+		Content: []*pb.BlockNode{
+			{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Comment on old path"}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Publish the document content at /new-path, then redirect /old-path → /new-path.
+	_, err = alice.CreateRef(ctx, &pb.CreateRefRequest{
+		Account: alice.me.Account.PublicKey.String(),
+		Path:    "/new-path",
+		Target: &pb.RefTarget{
+			Target: &pb.RefTarget_Version_{
+				Version: &pb.RefTarget_Version{
+					Genesis: oldDoc.Genesis,
+					Version: oldDoc.Version,
+				},
+			},
+		},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+
+	_, err = alice.CreateRef(ctx, &pb.CreateRefRequest{
+		Account: alice.me.Account.PublicKey.String(),
+		Path:    "/old-path",
+		Target: &pb.RefTarget{
+			Target: &pb.RefTarget_Redirect_{
+				Redirect: &pb.RefTarget_Redirect{
+					Account: alice.me.Account.PublicKey.String(),
+					Path:    "/new-path",
+				},
+			},
+		},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+
+	// Querying via the old (now-redirected) path must still return the comment.
+	// This is the notification scenario: the notification stored /old-path, and clicking
+	// it must find the comment rather than showing a false "deleted" message.
+	oldPathResult, err := alice.ListComments(ctx, &pb.ListCommentsRequest{
+		TargetAccount: alice.me.Account.PublicKey.String(),
+		TargetPath:    "/old-path",
+	})
+	require.NoError(t, err)
+	require.Len(t, oldPathResult.Comments, 1, "comment must be found via the redirected old path")
+	require.Equal(t, cmt.Id, oldPathResult.Comments[0].Id)
+
+	// Querying via the new (canonical) path must also return the comment
+	// because the backward walk finds the old-path resource.
+	newPathResult, err := alice.ListComments(ctx, &pb.ListCommentsRequest{
+		TargetAccount: alice.me.Account.PublicKey.String(),
+		TargetPath:    "/new-path",
+	})
+	require.NoError(t, err)
+	require.Len(t, newPathResult.Comments, 1, "comment must be found via the canonical new path")
+	require.Equal(t, cmt.Id, newPathResult.Comments[0].Id)
+}

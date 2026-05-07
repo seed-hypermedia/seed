@@ -4840,19 +4840,24 @@ func TestMovedDocumentCommentsFollowRedirects(t *testing.T) {
 	t.Run("ListComments", func(t *testing.T) {
 		ctx, app, account, comment := setup(t, "alice")
 
+		// After a document move, querying any path in the redirect chain (original,
+		// intermediate, or destination) must return the same comments. This ensures
+		// that notification links — which store the historical path — still work.
 		srcComments, err := app.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
 			TargetAccount: account,
 			TargetPath:    "/comments-move-src",
 		})
 		require.NoError(t, err)
-		require.Empty(t, srcComments.Comments, "comments must not remain listed on the original moved path")
+		require.Len(t, srcComments.Comments, 1, "comments must be accessible via the original moved path")
+		require.Equal(t, comment.Id, srcComments.Comments[0].Id)
 
 		midComments, err := app.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
 			TargetAccount: account,
 			TargetPath:    "/comments-move-mid",
 		})
 		require.NoError(t, err)
-		require.Empty(t, midComments.Comments, "comments must not remain listed on an intermediate moved path")
+		require.Len(t, midComments.Comments, 1, "comments must be accessible via an intermediate moved path")
+		require.Equal(t, comment.Id, midComments.Comments[0].Id)
 
 		dstComments, err := app.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
 			TargetAccount: account,
