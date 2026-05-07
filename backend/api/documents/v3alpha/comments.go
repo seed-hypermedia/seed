@@ -169,14 +169,7 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 		if srv.cfg.PublicOnly {
 			q = qIterCommentsPublicOnly()
 		}
-		canonicalIRI, ok, err := srv.redirectResolver.Resolve(conn, string(iri))
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			return resp, nil
-		}
-		comments, discard, check := sqlitex.QueryType(conn, srv.commentDBMapper(), q, canonicalIRI).All()
+		comments, discard, check := sqlitex.QueryType(conn, srv.commentDBMapper(), q, iri).All()
 		defer discard(&err)
 		for comment := range comments {
 			pb, err := commentToProto(lookup, comment.CID, comment.Comment, comment.TSID)
@@ -291,9 +284,12 @@ func (srv *Server) commentDBMapper() sqlitex.MapperFunc[indexedComment] {
 }
 
 // redirectAncestorsCTE collects every resource whose latest generation transitively
-// redirects to :iri (plus :iri's own resource). Callers must resolve :iri forward to
-// its canonical path first. Seeded from :iri so the recursion only walks the redirect
-// chain relevant to the requested document, not every Comment in the database.
+// redirects to :iri (plus :iri's own resource). Seeded from :iri so the recursion
+// only walks the redirect chain relevant to the requested document, not every
+// Comment in the database. The seed is included unconditionally — even when :iri's
+// own latest generation is itself a redirect — so that comments authored against a
+// moved-away path remain reachable when queried by that path (e.g. notification
+// links that record the historical path).
 const redirectAncestorsCTE = `
 	WITH RECURSIVE
 	latest_document_generations AS (
