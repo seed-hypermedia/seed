@@ -586,9 +586,12 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
     let comment = resourceContent.comment
     let commentAuthorTitle: string | undefined
     const openCommentId = (extraData as any)?.openComment as string | undefined
+    const commentVersion = (extraData as any)?.commentVersion as string | undefined
     if (!comment && openCommentId) {
       try {
-        comment = (await getComment(openCommentId)) ?? undefined
+        // Comment permalink routes use ?v for the comment version CID. The
+        // comments API accepts either the stable comment id or a version CID.
+        comment = (await getComment(commentVersion || openCommentId)) ?? undefined
         if (comment?.author) {
           try {
             const authorResource = await resolveResource(hmId(comment.author))
