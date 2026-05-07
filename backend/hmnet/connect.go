@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sethvargo/go-retry"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -47,6 +48,19 @@ const (
 	// response above which we log the sharer as suspicious. A healthy peer will
 	// have mostly fresh data; a misconfigured/malicious one dumps its whole table.
 	suspiciousStaleShare = 0.5
+
+	// targetConnectedPeers is the steady-state goal for active Seed-protocol
+	// peers. Once we're at or above this, the periodic peer-exchange
+	// scheduler is a no-op — we still react to disconnect events to top up.
+	targetConnectedPeers = 20
+
+	// peerExchangeTick is the period between scheduler waits. Was 15 s; with
+	// a per-peer dial budget driven by the connection gap, more frequent
+	// ticks just create churn.
+	peerExchangeTick = 60 * time.Second
+
+	// peerExchangeDialFanout caps concurrent storeRemotePeers calls per tick.
+	peerExchangeDialFanout = 8
 )
 
 var (
@@ -206,6 +220,106 @@ func (n *Node) peerWriteIsRedundant(ctx context.Context, pid, incomingAddrs stri
 // whole table in one round-trip; the loop is a correctness belt for the
 // degenerate case where a remote genuinely has more.
 const maxSharedPeersPerPage = 2000
+
+// runPeerExchangeTick keeps us at targetConnectedPeers Seed-protocol peers.
+// It is a no-op when we're already at the target; otherwise it dials
+// freshness-ranked candidates from the peers table with bounded concurrency.
+// Unlike the previous unconditional fan-out, it does NOT clear libp2p's
+// per-peer backoff (see client.dialPeer) so unreachable peers naturally fade
+// from the dial schedule until they come back online.
+func (n *Node) runPeerExchangeTick(ctx context.Context) error {
+	connected := n.connectedSeedPeers()
+	if len(connected) >= targetConnectedPeers {
+		return nil
+	}
+	need := targetConnectedPeers - len(connected)
+
+	candidates, err := n.peerExchangeCandidates(ctx, connected, need*4)
+	if err != nil {
+		return err
+	}
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(peerExchangeDialFanout)
+	for _, pid := range candidates[:min(need, len(candidates))] {
+		pid := pid
+		g.Go(func() error {
+			// storeRemotePeers handles its own per-call timeout.
+			if err := n.storeRemotePeers(pid); err != nil {
+				n.log.Debug("PeerExchangeDialFailed",
+					zap.String("PID", pid.String()), zap.Error(err))
+			}
+			_ = gctx
+			return nil
+		})
+	}
+	return g.Wait()
+}
+
+// connectedSeedPeers returns the subset of currently-connected libp2p peers
+// that have advertised our Seed protocol ID via Identify, excluding any
+// configured bootstrap peers. Bootstrap peers are infrastructure — the
+// ConnectionManager pins them and PeriodicBootstrap reconnects them — so
+// counting them as part of the "useful peers" budget would mask the case
+// where we have no organic peers and PEX-driven discovery has stalled.
+// Symmetric with peerExchangeCandidates, which also excludes bootstrap.
+func (n *Node) connectedSeedPeers() []peer.ID {
+	conns := n.p2p.Host.Network().Conns()
+	out := make([]peer.ID, 0, len(conns))
+	seen := make(map[peer.ID]struct{}, len(conns))
+	ps := n.p2p.Peerstore()
+	for _, c := range conns {
+		pid := c.RemotePeer()
+		if _, ok := seen[pid]; ok {
+			continue
+		}
+		seen[pid] = struct{}{}
+		if n.cfg.IsBootstrap(pid) {
+			continue
+		}
+		proto, err := ps.FirstSupportedProtocol(pid, n.protocol.ID)
+		if err != nil || proto != n.protocol.ID {
+			continue
+		}
+		out = append(out, pid)
+	}
+	return out
+}
+
+// peerExchangeCandidates returns up to limit peer IDs from the peers table,
+// ordered by updated_at DESC (most recently confirmed alive first), excluding
+// peers we are already connected to and any configured bootstrap peers.
+// Bootstrap peers are excluded because the libp2p host's connection manager
+// already keeps a live link to them.
+func (n *Node) peerExchangeCandidates(ctx context.Context, connected []peer.ID, limit int) ([]peer.ID, error) {
+	skip := make(map[peer.ID]struct{}, len(connected))
+	for _, pid := range connected {
+		skip[pid] = struct{}{}
+	}
+	var out []peer.ID
+	err := n.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn,
+			"SELECT pid FROM peers WHERE updated_at > (strftime('%s', 'now') - 30*86400) ORDER BY updated_at DESC LIMIT ?;",
+			func(stmt *sqlite.Stmt) error {
+				pid, err := peer.Decode(stmt.ColumnText(0))
+				if err != nil {
+					return nil // tolerate; bad rows aren't fatal
+				}
+				if _, dup := skip[pid]; dup {
+					return nil
+				}
+				if n.cfg.IsBootstrap(pid) {
+					return nil
+				}
+				out = append(out, pid)
+				return nil
+			}, limit*2) // overfetch to absorb skip filtering
+	})
+	return out, err
+}
 
 func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 	n.log.Debug("storeRemotePeers Called", zap.String("PID", id.String()))
