@@ -12,6 +12,8 @@ import {getAppTheme, shouldUseDarkColors} from './app-settings'
 import {appStore} from './app-store.mjs'
 import {getDaemonState, subscribeDaemonState} from './daemon'
 import {childLogger, debug, info, warn} from './logger'
+
+const quietNodeLogs = process.env.QUIET_NODE_LOGS === 'true'
 import {logWindowOpen, logWindowClose} from './memory-profiler-window'
 import {mergeWindowNavState, type WindowNavState} from './utils/account-selection'
 
@@ -422,13 +424,15 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
 
   debug('Window created', {windowId})
 
-  const windowLogger = childLogger(`seed/${windowId}`)
-  browserWindow.webContents.on('console-message', (e, level, message, line, sourceId) => {
-    if (level === 0) windowLogger.verbose(message)
-    else if (level === 1) windowLogger.info(message)
-    else if (level === 2) windowLogger.warn(message)
-    else windowLogger.error(message)
-  })
+  if (!quietNodeLogs) {
+    const windowLogger = childLogger(`seed/${windowId}`)
+    browserWindow.webContents.on('console-message', (e, level, message, line, sourceId) => {
+      if (level === 0) windowLogger.verbose(message)
+      else if (level === 1) windowLogger.info(message)
+      else if (level === 2) windowLogger.warn(message)
+      else windowLogger.error(message)
+    })
+  }
 
   // Handle links from embedded content (Twitter, YouTube, etc.) that try to open new windows
   browserWindow.webContents.setWindowOpenHandler(({url, frameName, features}) => {
@@ -929,9 +933,11 @@ export function createLoadingWindow(): BrowserWindow {
   })
 
   // Enable console logging from loading window
-  loadingWindow.webContents.on('console-message', (e, level, message) => {
-    info(`[LOADING WINDOW]: ${message}`)
-  })
+  if (!quietNodeLogs) {
+    loadingWindow.webContents.on('console-message', (e, level, message) => {
+      info(`[LOADING WINDOW]: ${message}`)
+    })
+  }
 
   // Load the loading window renderer
   // Debug: log what constants we have

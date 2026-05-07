@@ -245,6 +245,27 @@ export type EntitySubscription = {
 const entitySubscriptions: Record<string, {unsubscribe: () => void}> = {}
 const entitySubscriptionCounts: Record<string, number> = {}
 
+/** Stream of current subscription display keys for the footer panel. */
+const [writeSubscriptionKeys, subscriptionKeysStream] = writeableStateStream<string[]>([])
+
+/** Returns the stream of current subscription display keys. */
+export function getSubscriptionKeysStream(): StateStream<string[]> {
+  return subscriptionKeysStream
+}
+
+function emitSubscriptionKeys() {
+  const keys = new Set<string>()
+  for (const key of Object.keys(entitySubscriptionCounts)) {
+    if (entitySubscriptionCounts[key] > 0) {
+      // Strip !high priority suffix — it's an internal detail, not relevant for display
+      const displayKey = key.replace('!high', '')
+      keys.add(displayKey)
+    }
+  }
+  const sorted = Array.from(keys).sort()
+  writeSubscriptionKeys(sorted)
+}
+
 function getEntitySubscriptionKey(sub: EntitySubscription) {
   const {id, recursive} = sub
   if (!id) return null
@@ -269,8 +290,6 @@ export function addSubscribedEntity(sub: EntitySubscription) {
       {
         id: sub.id,
         recursive: sub.recursive,
-        priority: sub.priority,
-        scope: sub.scope,
       },
       {
         onData: () => {
@@ -289,6 +308,8 @@ export function addSubscribedEntity(sub: EntitySubscription) {
     })
     discoveryStreamEntry.unsubscribe = () => discoveryStateSub.unsubscribe()
   }
+
+  emitSubscriptionKeys()
 }
 
 export function removeSubscribedEntity(sub: EntitySubscription) {
@@ -312,6 +333,8 @@ export function removeSubscribedEntity(sub: EntitySubscription) {
           discoveryStreamEntry?.unsubscribe?.()
           discoveryStreams.delete(sub.id.id)
         }
+
+        emitSubscriptionKeys()
       }
     })
   }

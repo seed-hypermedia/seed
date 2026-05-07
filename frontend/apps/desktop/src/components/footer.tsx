@@ -1,16 +1,17 @@
 import {getUpdateStatusLabel, useUpdateStatus} from '@/components/auto-updater'
 import {useConnectionSummary} from '@/models/contacts'
 import {useDaemonInfo} from '@/models/daemon'
-import {getActiveDiscoveriesStream, getAggregatedDiscoveryStream} from '@/models/entities'
+import {getAggregatedDiscoveryStream, getDiscoveryStream, getSubscriptionKeysStream} from '@/models/entities'
 import {DiscoveryState} from '@seed-hypermedia/client/hm-types'
 import {Task, TaskName} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
-import {useResource, useResources} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {useRouteLink} from '@shm/shared/routing'
 import {useStream} from '@shm/shared/use-stream'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
+import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Progress} from '@shm/ui/components/progress'
 import {FooterWrapper} from '@shm/ui/footer'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from '@shm/ui/hover-card'
@@ -19,8 +20,8 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
-import {Bot, MessageCirclePlus} from 'lucide-react'
-import {ReactNode, useEffect, useState} from 'react'
+import {Binoculars, Bot, MessageCirclePlus} from 'lucide-react'
+import {ReactNode} from 'react'
 import {OnlineIndicator} from './indicator'
 import {useNetworkDialog} from './network-dialog'
 
@@ -57,7 +58,7 @@ export default function Footer({
 
       <div className="flex flex-1 items-center justify-end gap-1">
         <DaemonTasksIndicator />
-        <DiscoveryIndicator />
+        <SubscriptionsPanel />
         {children}
         {onToggleAssistant && (
           <Tooltip content={assistantOpen ? 'Close assistant panel' : 'Open assistant panel'}>
@@ -135,181 +136,104 @@ function FooterNetworkingButton() {
   )
 }
 
-function DiscoveryItem({discovery, hasLocalVersion}: {discovery: DiscoveryState; hasLocalVersion: boolean}) {
-  const id = unpackHmId(discovery.entityId)
-  const resource = useResource(id)
-  const linkProps = useRouteLink(id ? {key: 'document', id} : null)
+/** Single subscription item showing the resolved name and its sync state. */
+function SubscriptionItem({subscriptionKey}: {subscriptionKey: string}) {
+  // Extract the entity ID (strip /* and :profile suffixes) for discovery state lookup
+  const entityId = subscriptionKey.replace(/\/\*$/, '').replace(/:profile$/, '')
+  const id = unpackHmId(entityId)
+  const resource = useResource(id, {subscribed: false})
+  const discoveryState = useStream(getDiscoveryStream(entityId))
 
-  const name = resource.data?.type === 'document' ? resource.data.document.metadata.name : null
+  const isProfile = subscriptionKey.endsWith(':profile')
+  const isRecursive = subscriptionKey.includes('/*')
   const isAccount = id && !id.path?.length
+
+  const linkProps = useRouteLink(id ? (isProfile ? {key: 'profile', id} : {key: 'document', id}) : null)
+
+  // Resolve display name from resource metadata
+  const name = resource.data?.type === 'document' ? resource.data.document.metadata.name : null
   const fallbackName = id
     ? isAccount
-      ? `Account ${id.uid.slice(0, 8)}...`
+      ? `${id.uid.slice(0, 8)}…`
       : `${id.uid.slice(0, 6)}/${id.path?.join('/')}`
-    : discovery.entityId
+    : entityId
 
-  const statusLabel = discovery.isTombstone ? 'Deleted' : hasLocalVersion ? 'Checking' : 'Searching'
+  const suffix = isProfile ? ' (profile)' : isRecursive ? ' /*' : ''
+  const syncLabel = getSyncLabel(discoveryState)
 
   return (
     <div className="flex items-center gap-2 text-xs">
-      {discovery.isTombstone ? (
-        <span className="text-muted-foreground shrink-0 text-[10px]">{statusLabel}</span>
-      ) : (
+      {discoveryState?.isDiscovering ? (
         <Spinner size="small" className="size-3 shrink-0" />
+      ) : (
+        <span
+          className={cn(
+            'size-1.5 shrink-0 rounded-full',
+            discoveryState?.isTombstone
+              ? 'bg-destructive'
+              : discoveryState?.isNotFound
+              ? 'bg-muted-foreground'
+              : 'bg-green-500',
+          )}
+        />
       )}
       <a {...linkProps} className="text-foreground hover:text-foreground min-w-0 flex-1 truncate hover:underline">
         {name || fallbackName}
+        {suffix && <span className="text-muted-foreground/70">{suffix}</span>}
       </a>
-      <span className="text-muted-foreground/70 shrink-0 text-[10px]">{statusLabel}</span>
-      {discovery.recursive && <span className="text-muted-foreground/70 shrink-0 text-[10px]">recursive</span>}
-      {discovery.progress && discovery.progress.blobsDiscovered > 0 && (
-        <span className="text-muted-foreground/70 shrink-0">
-          {discovery.progress.blobsDownloaded}/{discovery.progress.blobsDiscovered}
-        </span>
-      )}
+      <span className="text-muted-foreground/70 shrink-0 text-[10px]">{syncLabel}</span>
     </div>
   )
 }
 
-function DiscoveryIndicator() {
-  const discovery = useStream(getAggregatedDiscoveryStream())
-  const activeDiscoveries = useStream(getActiveDiscoveriesStream())
-
-  // Delay showing indicator by 500ms to avoid flashing for quick syncs
-  const [showIndicator, setShowIndicator] = useState(false)
-  const activeCount = discovery?.activeCount ?? 0
-  const tombstoneCount = discovery?.tombstoneCount ?? 0
-
-  useEffect(() => {
-    if (activeCount > 0) {
-      // Start timer to show indicator after 500ms
-      const timer = setTimeout(() => setShowIndicator(true), 500)
-      return () => clearTimeout(timer)
-    } else {
-      // Reset when no active discoveries
-      setShowIndicator(false)
+function getSyncLabel(state: DiscoveryState | null | undefined): string {
+  if (!state) return 'watching'
+  if (state.isTombstone) return 'deleted'
+  if (state.isNotFound) return 'not found'
+  if (state.isDiscovering) {
+    if (state.progress && state.progress.blobsDiscovered > 0) {
+      return `${state.progress.blobsDownloaded}/${state.progress.blobsDiscovered}`
     }
-  }, [activeCount])
-
-  // Get IDs for all active discoveries to check local versions
-  const discoveryIds = (activeDiscoveries || [])
-    .filter((d) => !d.isTombstone && !d.isNotFound)
-    .map((d) => unpackHmId(d.entityId))
-    .filter((id) => id !== null)
-
-  // Batch fetch resources to check which have local versions
-  const resources = useResources(discoveryIds, {subscribed: false})
-
-  // Build map of entityId -> hasLocalVersion
-  const localVersionMap = new Map<string, boolean>()
-  discoveryIds.forEach((id, i) => {
-    if (id) {
-      const hasLocal = resources[i]?.data?.type === 'document'
-      localVersionMap.set(id.id, hasLocal)
-    }
-  })
-
-  // Don't show indicator if nothing is happening or delay hasn't passed
-  if (!discovery || (activeCount === 0 && tombstoneCount === 0)) return null
-  if (activeCount > 0 && !showIndicator) return null
-
-  const {blobsDiscovered, blobsDownloaded} = discovery
-  const hasBlobs = blobsDiscovered > 0 && blobsDownloaded < blobsDiscovered
-  const progress = hasBlobs ? (blobsDownloaded / blobsDiscovered) * 100 : 0
-
-  // Count searching vs checking
-  const activeNonTombstone = (activeDiscoveries || []).filter((d) => !d.isTombstone && !d.isNotFound)
-  const searchingCount = activeNonTombstone.filter((d) => !localVersionMap.get(d.entityId)).length
-  const checkingCount = activeNonTombstone.filter((d) => localVersionMap.get(d.entityId)).length
-
-  // Build header text based on what's happening
-  const headerParts: string[] = []
-  if (searchingCount > 0) {
-    headerParts.push(`Searching ${searchingCount} resource${searchingCount > 1 ? 's' : ''}`)
+    return 'syncing'
   }
-  if (checkingCount > 0) {
-    headerParts.push(`Checking ${checkingCount} for updates`)
-  }
-  if (tombstoneCount > 0) {
-    headerParts.push(`${tombstoneCount} deleted`)
-  }
+  return 'synced'
+}
 
-  const hoverContent = (
-    <div className="flex flex-col gap-2">
-      <SizableText size="sm" className="font-medium">
-        {headerParts.join(', ')}
-      </SizableText>
-      {activeDiscoveries && activeDiscoveries.length > 0 && (
-        <div className="flex max-h-48 flex-col gap-1.5 overflow-y-auto">
-          {activeDiscoveries.map((d) => (
-            <DiscoveryItem key={d.entityId} discovery={d} hasLocalVersion={localVersionMap.get(d.entityId) || false} />
-          ))}
-        </div>
-      )}
-      {hasBlobs && (
-        <div className="text-muted-foreground text-xs">
-          {blobsDownloaded}/{blobsDiscovered} blobs downloaded
-          {discovery.blobsFailed > 0 && <span className="text-destructive"> ({discovery.blobsFailed} failed)</span>}
-        </div>
-      )}
-    </div>
-  )
+/** Footer panel showing all active subscriptions for this window. */
+function SubscriptionsPanel() {
+  const subscriptionKeys = useStream(getSubscriptionKeysStream()) ?? []
+  const aggregated = useStream(getAggregatedDiscoveryStream())
+  const count = subscriptionKeys.length
+  const isAnySyncing = (aggregated?.activeCount ?? 0) > 0
 
-  // Only tombstones, no active discovery - show static indicator
-  if (activeCount === 0 && tombstoneCount > 0) {
-    return (
-      <HoverCard openDelay={200}>
-        <HoverCardTrigger asChild>
-          <div className="flex cursor-default items-center gap-2 px-2">
-            <SizableText size="xs" className="text-muted-foreground select-none" style={{fontSize: 10}}>
-              {tombstoneCount} deleted
-            </SizableText>
-          </div>
-        </HoverCardTrigger>
-        <HoverCardContent side="top" align="end" className="w-80">
-          {hoverContent}
-        </HoverCardContent>
-      </HoverCard>
-    )
-  }
-
-  // Determine main indicator text
-  let indicatorText: string
-  if (hasBlobs) {
-    indicatorText = `Downloading (${Math.round(progress)}%)`
-  } else if (searchingCount > 0 && checkingCount === 0) {
-    indicatorText = 'Searching'
-  } else if (checkingCount > 0 && searchingCount === 0) {
-    indicatorText = 'Checking for updates'
-  } else {
-    // Mix of both
-    indicatorText = 'Syncing'
-  }
+  if (count === 0) return null
 
   return (
-    <HoverCard openDelay={200}>
-      <HoverCardTrigger asChild>
-        <div className="flex cursor-default items-center gap-2 px-2">
-          {hasBlobs ? (
-            <>
-              <SizableText size="xs" className="text-muted-foreground select-none" style={{fontSize: 10}}>
-                {indicatorText}
-              </SizableText>
-              <Progress value={progress} className="h-1 w-16" />
-            </>
-          ) : (
-            <>
-              <SizableText size="xs" className="text-muted-foreground select-none" style={{fontSize: 10}}>
-                {indicatorText}
-              </SizableText>
-            </>
-          )}
+    <Popover>
+      <Tooltip content={`Subscribed to ${count} ${count === 1 ? 'entity' : 'entities'}`}>
+        <PopoverTrigger asChild>
+          <Button size="xs" variant="ghost" className="px-2">
+            {isAnySyncing ? (
+              <Spinner size="small" className="size-3" />
+            ) : (
+              <Binoculars className="text-muted-foreground size-3" />
+            )}
+          </Button>
+        </PopoverTrigger>
+      </Tooltip>
+      <PopoverContent side="top" align="end" className="w-96">
+        <div className="flex flex-col gap-2">
+          <SizableText size="sm" className="font-medium">
+            Watching {count} Resources
+          </SizableText>
+          <div className="flex max-h-64 flex-col gap-1.5 overflow-y-auto">
+            {subscriptionKeys.map((key) => (
+              <SubscriptionItem key={key} subscriptionKey={key} />
+            ))}
+          </div>
         </div>
-      </HoverCardTrigger>
-      <HoverCardContent side="top" align="end" className="w-80">
-        {hoverContent}
-      </HoverCardContent>
-    </HoverCard>
+      </PopoverContent>
+    </Popover>
   )
 }
 

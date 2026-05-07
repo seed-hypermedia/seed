@@ -9,6 +9,8 @@ import {userDataPath} from './app-paths'
 import {getDaemonBinaryPath} from './daemon-path'
 import * as log from './logger'
 
+const quietNodeLogs = process.env.QUIET_NODE_LOGS === 'true'
+
 let goDaemonExecutablePath = getDaemonBinaryPath()
 
 declare const __SEED_P2P_TESTNET_NAME__: string
@@ -144,11 +146,11 @@ export async function startMainDaemon(embeddingEnabled: boolean = false): Promis
       if (line.includes('DaemonStarted')) {
         updateGoDaemonState({t: 'ready'})
       }
-      log.rawMessage(line)
+      if (!quietNodeLogs) log.rawMessage(line)
     })
     const stdout = readline.createInterface({input: daemonProcess.stdout})
     stdout.on('line', (line: string) => {
-      log.rawMessage(line)
+      if (!quietNodeLogs) log.rawMessage(line)
     })
     daemonProcess.on('error', (err) => {
       log.error('Go daemon spawn error', {error: err})
@@ -321,11 +323,11 @@ export async function restartDaemonWithEmbedding(embeddingEnabled: boolean): Pro
       if (line.includes('DaemonStarted')) {
         updateGoDaemonState({t: 'ready'})
       }
-      log.rawMessage(line)
+      if (!quietNodeLogs) log.rawMessage(line)
     })
     const stdout = readline.createInterface({input: daemonProcess.stdout})
     stdout.on('line', (line: string) => {
-      log.rawMessage(line)
+      if (!quietNodeLogs) log.rawMessage(line)
     })
     daemonProcess.on('error', (err) => {
       log.error('Go daemon restart spawn error', {error: err})
