@@ -11,10 +11,12 @@ Production deployment connects against community site `hm://z6MkuBbsB1HbSNXLvJCR
 The agent:
 - Polls the site every 15 seconds for `@knowledge-manager` and `@<site>` mentions in comments.
 - Posts a placeholder reply ("Working on this — back in a moment. ⌛") within ~1–2s of detection so members get a typing-indicator equivalent.
-- Searches the community corpus (`seed-cli search`) for documents relevant to the question, fetches them, and feeds them to DeepSeek as grounding context.
+- Searches the community corpus (`seed-cli search`) for documents relevant to the question, fetches them, and feeds them to DeepSeek as grounding context. With `KM_USE_MASTRA_AGENT=1` this becomes a bounded tool-call loop where the model itself decides which docs / threads / profiles to pull (≤30 tool calls before a forced `final_answer`).
 - Edits the placeholder in place (or replies in a fresh top-level comment if seed-cli's `--reply` chain breaks) with the final answer, citing hm:// URLs.
 - Runs three scheduled cadences via systemd timers — weekly bulletin (Mon 09:00 UTC), gap report (Wed 10:00 UTC), monthly health report (1st of month 09:00 UTC) — each producing a Seed document under `/agents/knowledge-manager/state/...`.
 - Captures every action — LLM call, tool call, seed-cli invocation, mention enqueued, reply posted — to a per-run audit directory under `~km/km-logs/runs/`.
+- Runs entirely against a fully-subscribed local Seed daemon when `KM_USE_LOCAL_DAEMON=1`. A preflight `site sync-status` check refuses to run unless the daemon has both the subscription and the writer capability blob locally cached.
+- Models the per-mention lifecycle (detected → placeholder → agent → finalised) as an XState v5 actor with retry/backoff and JSONL snapshot/replay when `KM_USE_STATE_MACHINE=1`. Killing the service mid-run resumes mid-flight on restart.
 
 The agent's policy lives entirely in four Seed documents the operator can edit from any desktop client. Toggling `draft_only: true` in the rules doc disables doc-creating writes within ≤60s. The wrapper hardcodes a denylist that prevents the agent from rewriting its own rules.
 
@@ -64,13 +66,107 @@ The agent's policy lives entirely in four Seed documents the operator can edit f
 
 Components:
 
-- **Local Seed daemon** (Docker `seedhypermedia/site:latest`, runs as a pure peer): ports `55000` (P2P, public) and `127.0.0.1:55001` HTTP / `:55002` gRPC (loopback). Plus `seed-web:latest` on `127.0.0.1:3000` because `seed-cli` speaks the Remix `/api/<RPC>` shape, not raw gRPC-Web. Currently the wrapper points at `https://hyper.media` via `SEED_SERVER` because the local daemon's smart-syncing lags on capability blobs; switch back to `http://127.0.0.1:3000` once you have a more aggressive sync strategy.
+- **Local Seed daemon** (Docker `seedhypermedia/site:latest`, runs as a pure peer): ports `55000` (P2P, public) and `127.0.0.1:55001` HTTP / `:55002` gRPC (loopback). Plus `seed-web:latest` on `127.0.0.1:3000` because `seed-cli` speaks the Remix `/api/<RPC>` shape, not raw gRPC-Web. With `KM_USE_LOCAL_DAEMON=1` the wrapper points at `http://127.0.0.1:3000` and refuses to run until `seed-cli site sync-status` reports `ready_for_writes=true`.
 - **seed-cli** built from this repo's `frontend/apps/cli/` and dropped at `/home/km/.local/bin/seed-cli`. Published `@seed-hypermedia/cli@0.1.4` on npm has an unresolved `workspace:*` dep that breaks `npx`, so we ship a Bun-bundled binary instead.
 - **secret-tool shim** at `/home/km/.local/bin/secret-tool` (file-backed, `chmod 600` JSON in `~/.config/seed-keyring/secrets.json`). Replaces `gnome-keyring`/`libsecret`, which can't bootstrap on a headless server. Same on-wire format as the OS keyring entries seed-cli expects.
 - **Custom Bun-bundled drivers** (one ~430 KB `dist/index.js` + smaller per-task bundles): `poll-cli.js`, `cadence-cli.js`, `telegram-bot.js`, plus the optional MCP wrapper `index.js` for nanobot.
-- **DeepSeek** (`https://api.deepseek.com/v1/chat/completions`) as the LLM. One chat call per mention answered. Reasoning content not currently captured (set up but not exposed by `deepseek-chat`).
+- **DeepSeek** (`https://api.deepseek.com/v1/chat/completions`) as the LLM. One deterministic chat call per mention in legacy mode; bounded tool-call loop (≤30 calls + mandatory `final_answer`) when `KM_USE_MASTRA_AGENT=1`.
+- **XState v5 supervisor** — replaces the implicit two-pass placeholder/finalise loop with explicit per-mention machines, retry/backoff, and crash-resume via JSONL snapshots. Behind `KM_USE_STATE_MACHINE=1`.
+- **Mastra-style agent loop** — natural-language chat surface for both Telegram operator/community DMs and the polling finalise step. Re-implements the Mastra slice we need (tool registration → bounded loop → multi-turn history) directly, since the npm SDK's Vite/Hono dep graph does not bundle cleanly with `bun build`. Behind `KM_USE_MASTRA_AGENT=1`.
 
 We started with HKUDS/nanobot orchestrating the polling loop, but DeepSeek kept getting stuck in `read_file/grep` loops on nanobot's tool-result-spilled-to-disk pattern. The polling driver is now a deterministic Bun script that does one DeepSeek call per question and posts the reply directly. The `nanobot gateway` process can stay running for free-form interactive use, but it is no longer on the critical path.
+
+## What changed in this iteration
+
+Three workstreams ship behind feature flags so the legacy paths remain the default until each is verified live. Flip them in `secrets.env` one at a time.
+
+### Workstream A — Self-contained operation against the local daemon (`KM_USE_LOCAL_DAEMON`)
+
+Before this change the wrapper called the public gateway (`https://hyper.media`) for every read because the local daemon's smart-sync lagged on capability blobs. We now treat the local daemon as the source of truth.
+
+**New seed-cli commands** (defined in `frontend/apps/cli/src/commands/site.ts`):
+
+```bash
+# Subscribe the local daemon to a site, recursively. --wait blocks until the
+# first DiscoverObject completes (async=false at the gRPC layer).
+seed-cli -s http://127.0.0.1:3000 site subscribe hm://<SITE> --recursive --wait
+
+# Drop a subscription.
+seed-cli -s http://127.0.0.1:3000 site unsubscribe hm://<SITE>
+
+# Read what the daemon is mirroring.
+seed-cli -s http://127.0.0.1:3000 site list-subscriptions
+
+# Composite check: subscription present + at least one writer cap locally
+# cached for the agent. Returns ready_for_writes:true when both hold.
+seed-cli -s http://127.0.0.1:3000 site sync-status hm://<SITE> --writer z6Mkh11x...
+
+# Force the daemon's smart-sync to run immediately (wraps Daemon.ForceSync).
+seed-cli -s http://127.0.0.1:3000 site reconcile
+```
+
+Under the hood these wrap the existing `com.seed.activity.v1alpha.Subscriptions` and `Daemon.ForceSync` gRPC RPCs. We exposed them through the Remix `/api/<RPC>` surface by adding the corresponding entries to `HMGetRequestSchema`/`HMActionSchema` in `frontend/packages/client/src/hm-types.ts` and the implementations under `frontend/packages/shared/src/api-subscriptions.ts` + `api-force-sync.ts`.
+
+**Bootstrap script** `agent/scripts/bootstrap-subscription.sh` is idempotent — it records the site in `~/km-state/subscribed.flag` after the first subscribe, then waits up to 5 min for the writer capability to converge before exiting. Runs once on first deploy; safe to re-run on any subsequent deploy.
+
+**Periodic ForceSync** (`km-reconcile.timer`/`.service`) calls `seed-cli site reconcile` every 60 s. This is a userland band-aid; the proper backend fix is below.
+
+**Backend scheduler change** — `backend/hmnet/syncing/scheduler.go` now extends a subscription task's `hotDeadline` past its `nextRunTime` when `--syncing.subscription-hot-tier=true`. The dispatcher's lazy migration then promotes the task into the hot tier at dispatch time, so capability/comment blobs for subscribed sites no longer compete with cold ephemeral discovery requests. New flag in `backend/config/config.go`:
+
+```bash
+seed-daemon ... --syncing.subscription-hot-tier=true
+```
+
+Once this rolls out the `km-reconcile.timer` can be removed.
+
+**Preflight in poll-cli** — when `KM_USE_LOCAL_DAEMON=1`, the driver runs `site sync-status` before the poll loop and exits cleanly (status=`denied`, event `preflight_skipped`) if the local daemon does not yet have the writer cap. Prevents writes against a stale local mirror.
+
+### Workstream B — XState v5 polling pipeline (`KM_USE_STATE_MACHINE`)
+
+The legacy two-pass loop in `poll-cli.ts` (Pass A posts placeholders, Pass B finalises) has no formal state, no retry/backoff, and no resume-after-crash semantics beyond idempotency keys. Workstream B replaces Pass B with a per-mention XState v5 actor and a supervisor that persists every transition.
+
+**Files**:
+- `src/machines/mention-machine.ts` — the actor definition.
+- `src/machines/supervisor.ts` — actor lifecycle, JSONL persistence, `rehydrate()` for crash-replay.
+- `src/machines/poll-driver.ts` — glue called from `poll-cli.ts` Pass B when the flag is on.
+
+**State graph**:
+
+```
+detected → enqueued → placeholder_pending → placeholder_posted →
+agent_running → draft_ready → finalising → done
+
+   ↓ guards               ↓ retries (3, exp backoff 2s base)
+skipped_not_allowed    agent_backoff / finalise_backoff
+cap_exceeded           failed_terminal
+```
+
+Guards on `enqueued` enforce the existing governance limits (`maxCommentsPerRun`, `maxCommentsPerDay`, `moderation.blockedAuthors`) — same `limits.ts` checks as the legacy path, but now first-class transitions with named terminal states.
+
+**Snapshot / replay**: every state transition appends one JSON line to `${KM_STATE_DIR}/machines/<mentionId>.jsonl`. On startup the supervisor scans the directory, replays each file's events into a fresh actor, and resumes mid-flight. JSONL matches the existing `placeholders.jsonl` / `processed.jsonl` pattern — no new infra, easy to grep, easy to tail.
+
+**Inspectability**: each transition also emits a trace event (`state_machine_enabled`, `state_machine_rehydrated`) into `trace.jsonl`. `@xstate/inspect` can be enabled in dev for visual debugging.
+
+### Workstream C — Natural-language agent surface (`KM_USE_MASTRA_AGENT`)
+
+Replaces the single deterministic DeepSeek call with a bounded tool-call loop. The model is given the question + a set of tools and decides which to call before producing a final answer. This delivers the original goal of "users communicate with the agent in natural language and the agent dynamically expands context (thread roots, linked docs, related search results)".
+
+**Files**:
+- `src/agent/mastra-agent.ts` — the loop. ≤30 tool calls per turn, then a forced `final_answer` step.
+- `src/agent/tools-bridge.ts` — in-process tool registry: `seed_search`, `seed_get_doc`, `seed_get_comment_thread`, `seed_get_account_profile`. Each tool wraps a `seed-cli` subprocess.
+- `src/agent/prompts.ts` — community vs operator system prompts.
+- `src/tools.ts` — same surface also exposed as MCP tools (`seed_get_comment_thread`, `seed_site_sync_status`) for the optional nanobot gateway.
+
+**Why "Mastra-style" rather than the Mastra SDK directly**: the npm Mastra package depends on Vite + Hono and does not bundle cleanly with `bun build --target node --minify`. We re-implement the small slice we actually need (tool registration → bounded loop → multi-turn history) and keep the surface compatible so a future swap to the SDK is mechanical. See the header of `mastra-agent.ts`.
+
+**Telegram surface**: when the flag is on, both `/ask` (operator) and free-form DMs route through the Mastra loop with per-chat-id history. The legacy path (single `draftReply` / `draftSystemReply` call) remains as fallback.
+
+**Polling surface**: `poll-driver.ts` wires the agent into the `agent_running` state of each mention's machine. The supervisor's retry-with-backoff therefore wraps the agent loop — a 429 from DeepSeek triggers the exponential backoff before re-entering `agent_running`.
+
+**DeepSeek tool-call hardening**: known DeepSeek issues (#244, #336, #946) are mitigated by:
+1. Hard tool budget = 30. After 30 calls the model is forced into `final_answer` via `tool_choice: {type: 'function', function: {name: 'final_answer'}}`.
+2. Mandatory `final_answer` tool ensures explicit termination instead of "model just stops".
+3. Tool results are ≤4 KB (`MAX_DOC_CHARS`) and never paths to disk — so no `read_file/grep` loop pathology.
 
 ## Governance — the four Seed documents
 
@@ -316,12 +412,21 @@ The skill methodology (`SKILL.md`, `references/`, `templates/`) is rsynced into 
 
 ```
 DEEPSEEK_API_KEY=sk-...                 # required for replies + cadenced docs
-SEED_SERVER=https://hyper.media          # currently the gateway, not local daemon
+SEED_SERVER=http://127.0.0.1:3000        # local daemon when KM_USE_LOCAL_DAEMON=1; otherwise gateway
+SEED_LOCAL_DAEMON_URL=http://127.0.0.1:3000  # used by km-reconcile.service + bootstrap-subscription.sh
 SEED_SITE=hm://z6MkuBbsB1HbSNXLvJCRCrPhimY6g7tzhr4qvcYKPuSZzhno
 KM_KEY_NAME=knowledge-manager
+KM_AID=z6Mkh11xNzNLTrkDEjmPf19twBvAVsw3HoQtv5nPKVVbEUSJ  # gates ready_for_writes preflight
 TELEGRAM_TOKEN=...                       # only needed for km-telegram.service
 OPS_TELEGRAM_ID=12345,67890               # comma-sep allowlist of operator chat IDs
+
+# Workstream feature flags. All default off → legacy paths.
+KM_USE_LOCAL_DAEMON=1                    # poll-cli refuses to run unless site sync-status reports ready
+KM_USE_STATE_MACHINE=1                   # Pass B routes through XState supervisor with retry/backoff
+KM_USE_MASTRA_AGENT=1                    # Telegram + finalisation use bounded tool-call loop
 ```
+
+Each flag is independent. Bring them up in order A → B → C, verifying live for ~24h between flips.
 
 Systemd user units (all under `~/.config/systemd/user/`):
 
@@ -333,6 +438,7 @@ km-boletin.timer + .service  # weekly bulletin, Mon 09:00 UTC
 km-gap.timer + .service      # gap report, Wed 10:00 UTC
 km-health.timer + .service   # network health, 1st 09:00 UTC
 km-telegram.service          # operator Telegram bot (long-running)
+km-reconcile.timer + .service # periodic ForceSync against the local daemon (every 60s)
 ```
 
 Enable + start everything:
@@ -341,10 +447,18 @@ Enable + start everything:
 sudo -u km XDG_RUNTIME_DIR=/run/user/$(id -u km) bash -lc '
   systemctl --user daemon-reload
   systemctl --user enable --now seed-daemon.service
-  systemctl --user enable --now km-poll.timer km-boletin.timer km-gap.timer km-health.timer
+  systemctl --user enable --now km-poll.timer km-boletin.timer km-gap.timer km-health.timer km-reconcile.timer
   systemctl --user enable --now km-telegram.service
   systemctl --user list-timers
 '
+```
+
+Bootstrap the subscription (once, after seed-daemon comes up healthy):
+
+```bash
+sudo -u km bash /home/km/km-agent/scripts/bootstrap-subscription.sh \
+  hm://z6MkuBbsB1HbSNXLvJCRCrPhimY6g7tzhr4qvcYKPuSZzhno \
+  z6Mkh11xNzNLTrkDEjmPf19twBvAVsw3HoQtv5nPKVVbEUSJ
 ```
 
 > **NOTE — port 18790 collision:** The default nanobot gateway port `18790` is already taken by another service on `oc.hyper.media`. We pin it to `18791` via `--port 18791` in `nanobot-gateway.service`. Adjust if your host has different conflicts.
@@ -383,10 +497,22 @@ End-to-end checks. ✅ = verified live on production.
 | 20 | km-log helper works | ✅ `km-log latest 5`, `km-log show <id>`, `km-log mention <id>` all functional |
 | 21 | Secrets redaction | ✅ Grepping `km-logs/` for `DEEPSEEK_API_KEY` value returns 0 hits |
 | 22 | Telegram allowFrom enforced | ✅ Non-allowlisted chat IDs are silently ignored |
+| 23 | `seed-cli site subscribe --recursive --wait` returns | new — verify with `site list-subscriptions` showing the site |
+| 24 | `seed-cli site sync-status hm://<SITE> --writer <KM_AID>` reports `ready_for_writes:true` | new — only true once writer cap converges locally |
+| 25 | `KM_USE_LOCAL_DAEMON=1` preflight skips when not ready | new — `tcpdump -i any host hyper.media` shows zero traffic during the skipped run |
+| 26 | `KM_USE_LOCAL_DAEMON=1` preflight passes when ready | new — `trace.jsonl` shows `preflight_sync_status` with `ready:true` and a normal poll cycle follows |
+| 27 | Subscription hot-tier promotion | new — with `--syncing.subscription-hot-tier=true` capability blobs converge in ~1 minute instead of ~5 minutes |
+| 28 | XState rehydrate after crash | new — kill `km-poll.service` mid-mention, restart, see `state_machine_rehydrated` event in `trace.jsonl` and the mention completes |
+| 29 | XState retry-with-backoff | new — temporarily set `DEEPSEEK_API_KEY=invalid`, see `agent_running → agent_backoff → agent_running` (×3) in `${stateDir}/machines/<mid>.jsonl`, then `failed_terminal` |
+| 30 | XState cap_exceeded | new — set `maxCommentsPerDay=2` in agent-rules; third mention transitions to `cap_exceeded` |
+| 31 | Mastra tool-call loop | new — `tools.jsonl` shows ordered calls (`seed_search` → `seed_get_doc` → `seed_get_comment_thread` → `final_answer`) within budget |
+| 32 | Mastra tool budget enforced | new — model exceeding 30 calls is forced into `final_answer` via `tool_choice` |
+| 33 | Telegram multi-turn community Q&A | new — three follow-up messages share context across turns when `KM_USE_MASTRA_AGENT=1` |
+| 34 | `seed_get_comment_thread` MCP tool | new — `bun test src` covers thread walk; production check: `tools.jsonl` shows the call when a mention is in a reply chain |
 
 ## Known issues + workarounds
 
-- **Local daemon doesn't have current capability blob.** Wrapper uses `SEED_SERVER=https://hyper.media` (gateway) instead of `127.0.0.1:3000` (local) until a force-sync mechanism lands.
+- **Local daemon capability blob lag — superseded.** Previous workaround pinned `SEED_SERVER=https://hyper.media`. Now addressed by `seed-cli site subscribe`, the `--syncing.subscription-hot-tier` daemon flag, and the `KM_USE_LOCAL_DAEMON` preflight gate. Periodic `km-reconcile.timer` is the userland band-aid until the hot-tier change is verified live.
 - **`seed-cli comment create --reply <id>` returns `✗ Non-base58btc character` for some parents.** Reproduces specifically when the parent comment's chain includes an edited comment. `poll-cli.ts` retries without `--reply` (top-level reply on the doc) and logs `placeholder_reply_fallback`. Filed in our internal seed-cli backlog.
 - **`seed-cli document create --path /` returns `HTTP 500 from PublishBlobs`.** The CLI treats `--path ""` as falsy (slugifies the title). The Seed Vault publishes the agent's home-doc/profile metadata via a different RPC; the CLI can't currently publish at the account root.
 - **`seed-cli` writes success messages to stderr.** `comment create` prints `✓ Comment published: <CID>` to stderr (not stdout), and the CID is the version, not the record id. `postPlaceholder` parses stderr, then resolves CID → record id via `comment get`.
@@ -409,17 +535,26 @@ agent/
 │   ├── src/
 │   │   ├── audit.ts
 │   │   ├── cadence-cli.ts        ← weekly bulletin / gap / health driver
-│   │   ├── config.ts
+│   │   ├── config.ts             ← env → AgentConfig (incl. KM_USE_* flags)
 │   │   ├── governance.ts
 │   │   ├── index.ts              ← stdio MCP server entry point (optional)
 │   │   ├── limits.ts
 │   │   ├── mentions.ts
 │   │   ├── poll-cli.ts           ← polling + typing-indicator + grounded reply
+│   │   ├── reply-engine.ts       ← legacy single-shot DeepSeek call
 │   │   ├── redact.ts
 │   │   ├── seedcli.ts
 │   │   ├── state.ts
 │   │   ├── telegram-bot.ts       ← operator chat surface
-│   │   ├── tools.ts              ← MCP tool registry (used by stdio server)
+│   │   ├── tools.ts              ← MCP tool registry (incl. seed_get_comment_thread, seed_site_sync_status)
+│   │   ├── machines/
+│   │   │   ├── mention-machine.ts ← XState v5 actor: per-mention lifecycle
+│   │   │   ├── supervisor.ts      ← actor supervisor + JSONL snapshot/replay
+│   │   │   └── poll-driver.ts     ← glue from poll-cli Pass B → supervisor
+│   │   ├── agent/
+│   │   │   ├── mastra-agent.ts    ← bounded DeepSeek tool-call loop (multi-turn)
+│   │   │   ├── tools-bridge.ts    ← in-process tool registry for the agent
+│   │   │   └── prompts.ts         ← community + operator system prompts
 │   │   └── *.test.ts             ← bun:test unit tests
 │   └── dist/                     ← bun build output (deployed to server)
 ├── systemd/                      ← user-mode unit files
@@ -429,9 +564,11 @@ agent/
 │   ├── km-boletin.{service,timer}
 │   ├── km-gap.{service,timer}
 │   ├── km-health.{service,timer}
+│   ├── km-reconcile.{service,timer}  ← periodic ForceSync against local daemon
 │   └── km-telegram.service
 ├── scripts/
 │   ├── install-phase1.sh         ← idempotent server provisioning
+│   ├── bootstrap-subscription.sh ← idempotent site subscribe + writer-cap wait
 │   ├── km-log                    ← log browsing helper for /home/km/.local/bin
 │   └── secret-tool-shim          ← file-backed libsecret replacement
 ├── templates/                    ← bootstrap content for the four governance docs

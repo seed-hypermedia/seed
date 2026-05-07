@@ -14,6 +14,18 @@ export type AgentConfig = {
   rulesTtlMs: number
   writersTtlMs: number
   governanceBasePath: string
+  /** When true, drivers refuse to start unless `seed-cli site sync-status`
+   *  reports ready_for_writes. Set via KM_USE_LOCAL_DAEMON=1. */
+  useLocalDaemon: boolean
+  /** Account id whose WRITER capability gates ready_for_writes. Defaults to
+   *  KM_AID; if absent, falls back to "any writer cap present". */
+  writerAid: string | null
+  /** When true, poll-cli replaces the ad-hoc two-pass loop with the XState
+   *  supervisor (machines/supervisor.ts). Set via KM_USE_STATE_MACHINE=1. */
+  useStateMachine: boolean
+  /** When true, finalisation calls the Mastra agent via agent/mastra-agent.ts
+   *  instead of reply-engine.draftReply. Set via KM_USE_MASTRA_AGENT=1. */
+  useMastraAgent: boolean
 }
 
 const DEFAULT_RULES_TTL_MS = 60_000
@@ -36,6 +48,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AgentConfig {
     rulesTtlMs: numberOr(env.KM_RULES_TTL_MS, DEFAULT_RULES_TTL_MS),
     writersTtlMs: numberOr(env.KM_WRITERS_TTL_MS, DEFAULT_WRITERS_TTL_MS),
     governanceBasePath: env.KM_GOVERNANCE_BASE_PATH ?? '/agents/knowledge-manager',
+    useLocalDaemon: env.KM_USE_LOCAL_DAEMON === '1' || env.KM_USE_LOCAL_DAEMON === 'true',
+    writerAid: env.KM_AID ?? null,
+    useStateMachine: env.KM_USE_STATE_MACHINE === '1' || env.KM_USE_STATE_MACHINE === 'true',
+    useMastraAgent: env.KM_USE_MASTRA_AGENT === '1' || env.KM_USE_MASTRA_AGENT === 'true',
   }
 }
 

@@ -82,7 +82,7 @@ async function main(): Promise<void> {
       try {
         const text = msg.text.trim()
         if (text.startsWith('/ask')) {
-          await handleSystemQuestion(token, msg.chat.id, text.slice(4).trim(), config, governance, history)
+          await handleSystemQuestion(token, msg.chat.id, text.slice(4).trim(), config, governance, history, cli)
         } else if (text.startsWith('/')) {
           const reply = await handleCommand(text, config, governance)
           await sendMessage(token, msg.chat.id, reply)
@@ -113,6 +113,25 @@ async function handleCommunityQuestion(
     seedSite: config.seedSite,
   })
   try {
+    if (config.useMastraAgent) {
+      const {runMastraOperator} = await import('./agent/mastra-agent.js')
+      const turns = history.read(chatId).map((t) => ({role: t.role as 'user' | 'assistant', content: t.content}))
+      const result = await runMastraOperator({
+        question: text,
+        systemContextBlob: '(community mode — pull tools as needed)',
+        history: turns as any,
+        cli,
+        audit,
+      })
+      const reply = result.finalAnswer ?? 'I tried to draft a reply but hit a snag. Try rephrasing.'
+      await sendMessage(token, chatId, reply)
+      history.append(chatId, [
+        {role: 'user', content: text},
+        {role: 'assistant', content: reply},
+      ])
+      audit.trace({ts: new Date().toISOString(), level: 'info', event: 'telegram_reply_sent', data: {chatId, mode: 'mastra-community'}})
+      return
+    }
     const siteAccount = config.seedSite.replace(/^hm:\/\//, '').split('/')[0]!
     const ctx = await gatherSiteContext(cli, text, siteAccount, audit)
     const turns = history.read(chatId)
@@ -136,6 +155,7 @@ async function handleSystemQuestion(
   config: ReturnType<typeof loadConfig>,
   governance: GovernanceCache,
   history: ChatHistory,
+  cli?: SeedCli,
 ): Promise<void> {
   if (!question) {
     await sendMessage(token, chatId, 'Usage: /ask <question about the bot or its config>')
@@ -150,6 +170,25 @@ async function handleSystemQuestion(
   })
   try {
     const ctx = await buildSystemContext({governance, logsDir: config.logsDir})
+    if (config.useMastraAgent && cli) {
+      const {runMastraOperator} = await import('./agent/mastra-agent.js')
+      const turns = history.read(chatId).map((t) => ({role: t.role as 'user' | 'assistant', content: t.content}))
+      const result = await runMastraOperator({
+        question,
+        systemContextBlob: ctx,
+        history: turns as any,
+        cli,
+        audit,
+      })
+      const reply = result.finalAnswer ?? 'Could not draft a reply (DeepSeek error). Check logs.'
+      await sendMessage(token, chatId, reply)
+      history.append(chatId, [
+        {role: 'user', content: `/ask ${question}`},
+        {role: 'assistant', content: reply},
+      ])
+      audit.trace({ts: new Date().toISOString(), level: 'info', event: 'telegram_reply_sent', data: {chatId, mode: 'mastra-ask'}})
+      return
+    }
     const turns = history.read(chatId)
     const answer = await draftSystemReply(question, ctx, audit, turns)
     const reply = answer ?? 'Could not draft a reply (DeepSeek error). Check logs.'

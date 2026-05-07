@@ -65,6 +65,19 @@ async function main(): Promise<void> {
     const state = new State(config.stateDir)
     const governance = new GovernanceCache(config, cli)
 
+    if (config.useLocalDaemon) {
+      const writerArg = config.writerAid ? ['--writer', config.writerAid] : []
+      const syncStatus = await cli.runRead(['site', 'sync-status', config.seedSite, ...writerArg])
+      const parsed = syncStatus.parsedJson as {ready_for_writes?: boolean} | undefined
+      const ready = !!parsed?.ready_for_writes
+      audit.trace({ts: nowIso(), level: 'info', event: 'preflight_sync_status', data: {ready, output: parsed}})
+      if (!ready) {
+        audit.trace({ts: nowIso(), level: 'warn', event: 'preflight_skipped', data: {reason: 'local-daemon-not-ready'}})
+        audit.close({status: 'denied', logsDir: config.logsDir})
+        return
+      }
+    }
+
     const keyShow = await cli.runRead(['key', 'show', config.keyName])
     if (keyShow.exitCode !== 0) throw new Error(`key show failed: ${keyShow.stderr}`)
     const kmAccountId = (keyShow.parsedJson as {accountId?: string} | undefined)?.accountId
@@ -183,7 +196,29 @@ async function main(): Promise<void> {
     const pending = state.pendingPlaceholders()
     let finalised = 0
     let errored = 0
-    for (const rec of pending) {
+    if (config.useStateMachine) {
+      audit.trace({
+        ts: nowIso(),
+        level: 'info',
+        event: 'state_machine_enabled',
+        data: {pending: pending.length},
+      })
+      // Drive each pending placeholder through the XState supervisor. The
+      // machine owns retry/backoff for the LLM call + comment edit and
+      // persists transitions to ${stateDir}/machines/<mentionId>.jsonl.
+      const {runMachinePassB} = await import('./machines/poll-driver.js')
+      const result = await runMachinePassB({
+        config,
+        cli,
+        state,
+        audit,
+        pending,
+        siteAccount,
+        fallbackBody: FALLBACK_BODY,
+      })
+      finalised = result.finalised
+      errored = result.errored
+    } else for (const rec of pending) {
       // Per-run cap on comment edits is intentionally absent; we already
       // counted each placeholder as a comment in Pass A, and `edit` does
       // not produce a new top-level comment.

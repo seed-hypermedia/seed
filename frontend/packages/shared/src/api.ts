@@ -23,7 +23,9 @@ import {ListCommentsByAuthor} from './api-list-comments-by-author'
 import {PrepareDocumentChange} from './api-prepare-document-change'
 import {PublishBlobs} from './api-publish-blobs'
 import {Query} from './api-query'
+import {ForceSync} from './api-force-sync'
 import {QueryBlock} from './api-query-block'
+import {ListSubscriptions, Subscribe, Unsubscribe} from './api-subscriptions'
 import {Resource, ResourceParams} from './api-resource'
 import {ResourceMetadata, ResourceMetadataParams} from './api-resource-metadata'
 import {Search} from './api-search'
@@ -55,6 +57,7 @@ export const APIQueries = {
   ListCapabilities,
   ListDocumentCollaborators,
   InteractionSummary,
+  ListSubscriptions,
 } as const satisfies {
   [K in HMGetRequest['key']]: HMRequestImplementation<Extract<HMGetRequest, {key: K}>>
 }
@@ -62,6 +65,9 @@ export const APIQueries = {
 export const APIActions = {
   PublishBlobs,
   PrepareDocumentChange,
+  Subscribe,
+  Unsubscribe,
+  ForceSync,
 } as const satisfies {
   [K in HMAction['key']]: HMRequestImplementation<Extract<HMAction, {key: K}>>
 }

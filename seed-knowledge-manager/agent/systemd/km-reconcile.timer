@@ -1,0 +1,12 @@
+[Unit]
+Description=Knowledge Manager — periodic ForceSync every 60s
+
+[Timer]
+OnBootSec=120
+OnUnitActiveSec=60
+AccuracySec=5s
+Persistent=true
+Unit=km-reconcile.service
+
+[Install]
+WantedBy=timers.target

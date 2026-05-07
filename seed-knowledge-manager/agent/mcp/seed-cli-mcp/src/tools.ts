@@ -135,6 +135,42 @@ export function buildTools(deps: ToolDeps): ToolDef[] {
   })
 
   tools.push({
+    name: 'seed_get_comment_thread',
+    description:
+      'Walk the replyParent chain from a comment up to the thread root. Returns the thread oldest→newest with each comment’s author and body. Caps at 30 comments.',
+    inputSchema: z.object({commentId: z.string(), max: z.number().int().min(1).max(100).optional()}),
+    async call(input) {
+      const a = z.object({commentId: z.string(), max: z.number().int().optional()}).parse(input)
+      const max = a.max ?? 30
+      const collected: Array<Record<string, unknown>> = []
+      let current = a.commentId
+      for (let i = 0; i < max; i++) {
+        const r = await cli.runRead(['comment', 'get', current])
+        if (r.exitCode !== 0 || !r.parsedJson) break
+        const c = r.parsedJson as {replyParent?: string} & Record<string, unknown>
+        collected.unshift(c)
+        if (!c.replyParent) break
+        current = c.replyParent
+      }
+      return {thread: collected}
+    },
+  })
+
+  tools.push({
+    name: 'seed_site_sync_status',
+    description:
+      'Report local-daemon subscription state and writer-capability availability for a site. Wraps `seed-cli site sync-status`.',
+    inputSchema: z.object({siteId: z.string(), writer: z.string().optional()}),
+    async call(input) {
+      const a = z.object({siteId: z.string(), writer: z.string().optional()}).parse(input)
+      const argv = ['site', 'sync-status', a.siteId]
+      if (a.writer) argv.push('--writer', a.writer)
+      const r = await cli.runRead(argv)
+      return r.parsedJson ?? {raw: r.stdout, exitCode: r.exitCode}
+    },
+  })
+
+  tools.push({
     name: 'seed_get_activity',
     description: 'Fetch activity events for the target site. Optional cursor token for pagination. Wraps `seed-cli activity`.',
     inputSchema: z.object({

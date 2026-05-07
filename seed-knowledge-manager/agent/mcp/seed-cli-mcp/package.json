@@ -19,7 +19,8 @@
     "@modelcontextprotocol/sdk": "^1.0.4",
     "yaml": "^2.6.0",
     "zod": "^3.23.8",
-    "ulid": "^2.4.0"
+    "ulid": "^2.4.0",
+    "xstate": "^5.19.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
