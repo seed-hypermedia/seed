@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
-	"math/rand/v2"
 	"regexp"
 	"runtime"
 	"seed/backend/blob"
@@ -20,7 +18,6 @@ import (
 	"seed/backend/util/grpcprom"
 	"seed/backend/util/libp2px"
 	"seed/backend/util/must"
-	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"strings"
 	"sync/atomic"
@@ -61,6 +58,21 @@ const (
 )
 
 var userAgent = "seed/<dev>"
+
+// bitswapWorkerCount caps the boxo bitswap server's blockstore worker pool.
+// boxo defaults to 128 (BitswapEngineBlockstoreWorkerCount in
+// boxo/bitswap/internal/defaults/defaults.go), tuned for big public IPFS
+// gateways. With our SQLite pool size, 128 workers serialize on
+// sqlitex.Pool.Get and produce hundreds of thousands of mutex contention
+// events per minute. Scale with cores instead, with a small floor so a
+// single-core VPS still has enough parallelism to overlap I/O.
+func bitswapWorkerCount() int {
+	n := runtime.NumCPU() * 4
+	if n < 16 {
+		n = 16
+	}
+	return n
+}
 
 // DefaultRelays bootstrap seed-owned relays so they can reserve slots to do holepunch.
 func DefaultRelays() []peer.AddrInfo {
@@ -137,9 +149,7 @@ func New(cfg config.P2P, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Poo
 
 	bsOpts := []bitswap.Option{
 		bitswap.WithPeerBlockRequestFilter(index.CanPeerAccessCID),
-	}
-	if runtime.NumCPU() < 2 {
-		bsOpts = append(bsOpts, bitswap.EngineBlockstoreWorkerCount(64))
+		bitswap.EngineBlockstoreWorkerCount(bitswapWorkerCount()),
 	}
 	bitswap, err := ipfs.NewBitswap(
 		host,
@@ -324,45 +334,18 @@ func (n *Node) Start(ctx context.Context) (err error) {
 			return nil
 		})
 		g.Go(func() error {
-			t := time.NewTimer(15 * time.Second)
-			localPeers := make(map[peer.ID]time.Time)
+			t := time.NewTimer(peerExchangeTick)
 			defer t.Stop()
 			for {
-				if err = n.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-					return sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
-						pidStr := stmt.ColumnText(2)
-						pid, err := peer.Decode(pidStr)
-						if err != nil {
-							if ctx.Err() == nil {
-								return err
-							}
-						}
-
-						_, ok := localPeers[pid]
-						if ok && time.Now().Before(localPeers[pid]) {
-							return nil
-						}
-
-						localPeers[pid] = time.Now().Add(time.Duration(rand.IntN(60*5)) * time.Second).Add(60 * time.Second) //nolint:gosec // We don't need a secure random generator here.
-						return nil
-					}, math.MaxInt64, math.MaxInt64)
-				}); err != nil {
-					if ctx.Err() == nil {
-						return err
-					}
-					return nil
-				}
 				select {
 				case <-ctx.Done():
 					return nil
 				case <-t.C:
-					for pid, next := range localPeers {
-						if time.Now().After(next) {
-							go func(pid peer.ID) { _ = n.storeRemotePeers(pid) }(pid)
-						}
-					}
-					t.Reset(15 * time.Second)
 				}
+				if err := n.runPeerExchangeTick(ctx); err != nil && ctx.Err() == nil {
+					n.log.Debug("PeerExchangeTickFailed", zap.Error(err))
+				}
+				t.Reset(peerExchangeTick)
 			}
 		})
 	}

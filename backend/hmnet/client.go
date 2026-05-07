@@ -12,7 +12,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
-	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	"go.uber.org/multierr"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -136,11 +135,6 @@ func (c *Client) dialPeer(ctx context.Context, pid peer.ID) (*grpc.ClientConn, e
 
 	if c.me == pid {
 		return nil, errDialSelf
-	}
-
-	sw, ok := c.host.Network().(*swarm.Swarm)
-	if ok {
-		sw.Backoff().Clear(pid)
 	}
 
 	// We do lock sharding here. We don't want to hold the main lock for too long,
