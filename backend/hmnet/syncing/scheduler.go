@@ -12,6 +12,7 @@ import (
 	"seed/backend/util/maybe"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -59,6 +60,11 @@ type taskHandle struct {
 	subscription bool
 	hotDeadline  time.Time
 	runCount     uint64 // Number of times task has been executed.
+
+	// hotIndex tracks the position of this task inside scheduler.inProgressHot
+	// while it is running as an ephemeral hot task. Maintained by the heap's
+	// OnIndexChange callback. Unset for queued, completed, or subscription tasks.
+	hotIndex maybe.Value[int]
 
 	// Cancellation. Set by dispatchReadyTasks under s.mu before dispatching, cleared in executeTask's unwind.
 	cancelFunc context.CancelFunc
@@ -110,10 +116,27 @@ type scheduler struct {
 	tasks map[DiscoveryKey]*taskHandle
 	queue *heap.Heap[*taskHandle]
 
+	// inProgressHot indexes ephemeral hot tasks currently running, ordered
+	// by hotDeadline ascending so the head is always the oldest (the most
+	// likely preemption victim and the soonest heartbeat to expire). Lets
+	// preempt/cleanup/wake decisions stay O(1)/O(log n) instead of walking
+	// the full s.tasks map every dispatch tick.
+	inProgressHot *heap.Heap[*taskHandle]
+
+	// inProgressSubs indexes subscription tasks currently running. Keyed by
+	// DiscoveryKey for O(1) "any one" picks during subscription preemption.
+	inProgressSubs map[DiscoveryKey]*taskHandle
+
 	// inProgress counts tasks that are currently being executed by a worker
 	// goroutine. Bounded by cfg.MaxWorkers. Used to detect saturation for
 	// preemption decisions.
 	inProgress int
+
+	// Observability counters surfaced via /debug/network so we can confirm
+	// whether preemption ever fires in production. Atomics so reads from
+	// the debug page don't need to acquire s.mu.
+	preemptSubsCount atomic.Uint64
+	preemptHotCount  atomic.Uint64
 
 	// Heartbeat TTL for hot tasks. Installed from defaultHotTTL in newScheduler.
 	// Tests may assign a smaller value before calling run().
@@ -127,11 +150,12 @@ func newScheduler(disc discoverer, cfg config.Syncing) *scheduler {
 	}
 
 	s := &scheduler{
-		disc:        disc,
-		cfg:         cfg,
-		timer:       time.NewTimer(0),
-		tasks:       make(map[DiscoveryKey]*taskHandle),
-		hotTTL: defaultHotTTL,
+		disc:           disc,
+		cfg:            cfg,
+		timer:          time.NewTimer(0),
+		tasks:          make(map[DiscoveryKey]*taskHandle),
+		inProgressSubs: make(map[DiscoveryKey]*taskHandle),
+		hotTTL:         defaultHotTTL,
 		// Two-tier priority: hot tasks always before cold. Within hot tier,
 		// LIFO by hotDeadline desc (most recently touched wins); within cold
 		// tier, FIFO by nextRunTime asc (earliest due wins). nextRunTime is
@@ -148,6 +172,11 @@ func newScheduler(disc discoverer, cfg config.Syncing) *scheduler {
 			}
 			return a.nextRunTime.Before(b.nextRunTime)
 		}),
+		// Ascending by hotDeadline: head = oldest = next-to-expire = first
+		// preemption victim.
+		inProgressHot: heap.New(func(a, b *taskHandle) bool {
+			return a.hotDeadline.Before(b.hotDeadline)
+		}),
 	}
 
 	s.workers.SetLimit(cfg.MaxWorkers)
@@ -158,6 +187,13 @@ func newScheduler(disc discoverer, cfg config.Syncing) *scheduler {
 			task.queueIndex.Clear()
 		} else {
 			task.queueIndex.Set(newIndex)
+		}
+	}
+	s.inProgressHot.OnIndexChange = func(task *taskHandle, newIndex int) {
+		if newIndex < 0 {
+			task.hotIndex.Clear()
+		} else {
+			task.hotIndex.Set(newIndex)
 		}
 	}
 
@@ -183,8 +219,11 @@ func (s *scheduler) run(ctx context.Context) (err error) {
 		case <-s.timer.C:
 			s.mu.Lock()
 			nextWake := s.dispatchReadyTasks(ctx)
-			s.timer.Reset(nextWake)
 			s.mu.Unlock()
+			// time.Timer.Reset is goroutine-safe, so we keep it out of the
+			// critical section to shrink the window during which scheduleTask
+			// callers contend on s.mu.
+			s.timer.Reset(nextWake)
 		}
 	}
 }
@@ -192,12 +231,12 @@ func (s *scheduler) run(ctx context.Context) (err error) {
 // executeTask runs discovery and updates task state directly. It runs in a
 // goroutine spawned by the dispatch loop via errgroup.TryGo and owns a single
 // MaxWorkers slot for its lifetime.
-func (s *scheduler) executeTask(task *taskHandle) {
-	s.mu.Lock()
-	taskCtx := task.runCtx
-	prog := task.progress
-	s.mu.Unlock()
-
+//
+// taskCtx and prog are passed by value so executeTask never has to grab s.mu
+// just to read them off task — the dispatch path captures them locally
+// before assigning the task fields, so the closure already holds the
+// correct values.
+func (s *scheduler) executeTask(task *taskHandle, taskCtx context.Context, prog *Progress) {
 	var blobTypes []string
 	if task.key.BlobTypes != "" {
 		blobTypes = strings.Split(task.key.BlobTypes, ",")
@@ -223,6 +262,7 @@ func (s *scheduler) executeTask(task *taskHandle) {
 	}
 	task.runCtx = nil
 	s.inProgress--
+	s.markFinished(task)
 
 	now := time.Now()
 
@@ -302,6 +342,11 @@ func (s *scheduler) scheduleTaskLocked(key DiscoveryKey, now time.Time, opts sch
 	if task.state == TaskStateInProgress {
 		// Re-touching a running task only updates the heartbeat deadline.
 		// Re-running decisions happen when the current run completes.
+		// If the task is in inProgressHot, its order key (hotDeadline)
+		// just changed, so fix the in-progress hot heap too.
+		if task.hotIndex.IsSet() {
+			s.inProgressHot.Fix(task.hotIndex.Value())
+		}
 		return task.Info()
 	}
 
@@ -328,6 +373,13 @@ func (s *scheduler) removeSubscriptions(keys ...DiscoveryKey) {
 			continue
 		}
 
+		// If the task is currently running as a subscription, drop the
+		// in-progress subscription tracking now that it isn't one anymore.
+		// We don't migrate it into inProgressHot — it'll finish normally
+		// and exit through markFinished, which is idempotent.
+		if existing, ok := s.inProgressSubs[key]; ok && existing == task {
+			delete(s.inProgressSubs, key)
+		}
 		task.subscription = false
 		now := time.Now()
 
@@ -381,23 +433,38 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 			return s.boundedWake(wake, time.Now())
 		}
 
-		// Task is ready. Pop it from the queue and prepare its run context.
+		// Task is ready. Pop it from the queue.
 		s.queue.Pop()
-		task.state = TaskStateInProgress
-		task.progress = &Progress{}
-		taskCtx, cancel := context.WithCancel(ctx)
-		task.runCtx = taskCtx
-		task.cancelFunc = cancel
 
-		// Dispatch via errgroup.TryGo. TryGo respects the MaxWorkers limit
-		// set in newScheduler, so saturation is authoritative here — either
-		// we get a goroutine slot or we don't.
-		if s.inProgress < s.cfg.MaxWorkers && s.workers.TryGo(func() error {
-			s.executeTask(task)
-			return nil
-		}) {
-			s.inProgress++
-			continue
+		// Capacity check first — only allocate the per-task context when
+		// we're committed to dispatching. Under saturation the prior code
+		// allocated a context.WithCancel + Progress per peeked task and
+		// immediately discarded them, which showed up directly in the
+		// allocation profile.
+		if s.inProgress < s.cfg.MaxWorkers {
+			taskCtx, cancel := context.WithCancel(ctx)
+			prog := &Progress{}
+			task.state = TaskStateInProgress
+			task.progress = prog
+			task.runCtx = taskCtx
+			task.cancelFunc = cancel
+			// TryGo respects the MaxWorkers limit; on the rare losing race
+			// we unwind state and re-enqueue.
+			if s.workers.TryGo(func() error {
+				s.executeTask(task, taskCtx, prog)
+				return nil
+			}) {
+				s.inProgress++
+				s.markInProgress(task)
+				continue
+			}
+			// Race lost: TryGo refused despite the capacity check. Reset
+			// state and fall through to the saturation branch.
+			cancel()
+			task.runCtx = nil
+			task.cancelFunc = nil
+			task.state = TaskStateIdle
+			task.progress = nil
 		}
 
 		// Worker pool is full. For hot tasks, try to make room by preempting
@@ -413,12 +480,6 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 			}
 		}
 
-		// Release the unused context and reset the task.
-		cancel()
-		task.runCtx = nil
-		task.cancelFunc = nil
-		task.state = TaskStateIdle
-		task.progress = nil
 		s.enqueueLocked(task, now)
 
 		if preempted {
@@ -449,6 +510,34 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 	return s.boundedWake(wake, now)
 }
 
+// markInProgress adds a freshly-dispatched task to the appropriate
+// in-progress index. Caller must hold s.mu.
+func (s *scheduler) markInProgress(task *taskHandle) {
+	if task.subscription {
+		s.inProgressSubs[task.key] = task
+		return
+	}
+	if task.hotDeadline.IsZero() {
+		// Non-subscription, non-hot tasks aren't expected to land here —
+		// scheduleNext deletes them — but be defensive.
+		return
+	}
+	s.inProgressHot.Push(task)
+}
+
+// markFinished removes a completing or cancelling task from the in-progress
+// indexes. Idempotent: safe to call after preemption/cleanup paths have
+// already removed the task to keep it from being picked again.
+// Caller must hold s.mu.
+func (s *scheduler) markFinished(task *taskHandle) {
+	if existing, ok := s.inProgressSubs[task.key]; ok && existing == task {
+		delete(s.inProgressSubs, task.key)
+	}
+	if task.hotIndex.IsSet() {
+		s.inProgressHot.Remove(task.hotIndex.Value())
+	}
+}
+
 // enqueueLocked inserts or reorders the task in the queue. Caller must hold
 // s.mu. Must not be called while task.state == TaskStateInProgress.
 func (s *scheduler) enqueueLocked(task *taskHandle, now time.Time) {
@@ -467,18 +556,17 @@ func (s *scheduler) enqueueLocked(task *taskHandle, now time.Time) {
 // preemptSubscriptionLocked cancels an in-flight subscription so its worker
 // slot can be reused by a higher-priority hot task. Returns true if a
 // subscription was cancelled. Caller must hold s.mu.
+//
+// Pops the victim from inProgressSubs eagerly so a follow-up preemption in
+// the same dispatch sweep doesn't pick the same task.
 func (s *scheduler) preemptSubscriptionLocked() bool {
-	for _, t := range s.tasks {
-		if t.state != TaskStateInProgress {
-			continue
-		}
-		if !t.subscription {
-			continue
-		}
+	for key, t := range s.inProgressSubs {
 		if t.cancelFunc == nil {
 			continue
 		}
+		delete(s.inProgressSubs, key)
 		t.cancelFunc()
+		s.preemptSubsCount.Add(1)
 		return true
 	}
 	return false
@@ -490,84 +578,64 @@ func (s *scheduler) preemptSubscriptionLocked() bool {
 // cancellation branch. Returns true if a task was preempted. Caller must
 // hold s.mu.
 func (s *scheduler) preemptOldestHotLocked(incoming *taskHandle, now time.Time) bool {
-	var victim *taskHandle
-	for _, t := range s.tasks {
-		if t.state != TaskStateInProgress {
-			continue
-		}
-		if t.subscription {
-			continue
-		}
-		if !t.IsHot(now) {
-			// Heartbeat already expired; cleanupExpiredHotTasksLocked will reap it.
-			continue
-		}
-		if t.cancelFunc == nil {
-			continue
-		}
-		if t.key == incoming.key {
-			continue
-		}
-		// Victim must have a strictly older heartbeat than the incoming task;
-		// otherwise preempting just delays the user's most recent request.
-		if !t.hotDeadline.Before(incoming.hotDeadline) {
-			continue
-		}
-		if victim == nil || t.hotDeadline.Before(victim.hotDeadline) {
-			victim = t
-		}
-	}
-	if victim == nil {
+	if s.inProgressHot.Len() == 0 {
 		return false
 	}
+	victim := s.inProgressHot.Peek()
+	if victim.key == incoming.key {
+		return false
+	}
+	if !victim.IsHot(now) {
+		// Heartbeat already expired; cleanupExpiredHotTasksLocked will reap it.
+		return false
+	}
+	// Victim must have a strictly older heartbeat than the incoming task;
+	// otherwise preempting just delays the user's most recent request.
+	if !victim.hotDeadline.Before(incoming.hotDeadline) {
+		return false
+	}
+	if victim.cancelFunc == nil {
+		return false
+	}
+	s.inProgressHot.Remove(victim.hotIndex.Value())
 	victim.cancelFunc()
+	s.preemptHotCount.Add(1)
 	return true
 }
 
 // cleanupExpiredHotTasksLocked cancels in-progress ephemeral hot tasks whose
 // heartbeat deadline has expired (the frontend stopped polling, meaning the
-// user is no longer viewing that document) and drops any queued ephemeral
-// hot tasks in the same state. Caller must hold s.mu.
+// user is no longer viewing that document). Caller must hold s.mu.
+//
+// Idle-but-queued ephemeral hot tasks whose deadline expired are reaped
+// lazily by the dispatch-loop tier-migration check, so we don't sweep the
+// queue here.
 func (s *scheduler) cleanupExpiredHotTasksLocked(now time.Time) {
-	var toDelete []*taskHandle
-	for _, t := range s.tasks {
-		if t.subscription {
-			continue
+	for s.inProgressHot.Len() > 0 {
+		head := s.inProgressHot.Peek()
+		if !head.hotDeadline.Before(now) {
+			return
 		}
-		if t.IsHot(now) {
-			continue
+		s.inProgressHot.Remove(head.hotIndex.Value())
+		if head.cancelFunc != nil {
+			head.cancelFunc()
 		}
-		switch t.state {
-		case TaskStateInProgress:
-			if t.cancelFunc != nil {
-				t.cancelFunc()
-			}
-		default:
-			if t.queueIndex.IsSet() {
-				toDelete = append(toDelete, t)
-			}
-		}
-	}
-	for _, t := range toDelete {
-		s.queue.Remove(t.queueIndex.Value())
-		delete(s.tasks, t.key)
 	}
 }
 
 // boundedWake narrows `candidate` by the earliest in-progress hot-task
 // heartbeat expiry so cleanup runs promptly. Caller must hold s.mu.
 func (s *scheduler) boundedWake(candidate time.Duration, now time.Time) time.Duration {
-	for _, t := range s.tasks {
-		if t.state != TaskStateInProgress || t.subscription {
-			continue
-		}
-		if t.hotDeadline.IsZero() {
-			continue
-		}
-		d := max(t.hotDeadline.Sub(now), 0)
-		if d < candidate {
-			candidate = d
-		}
+	if s.inProgressHot.Len() == 0 {
+		return candidate
+	}
+	head := s.inProgressHot.Peek()
+	if head.hotDeadline.IsZero() {
+		return candidate
+	}
+	d := max(head.hotDeadline.Sub(now), 0)
+	if d < candidate {
+		return d
 	}
 	return candidate
 }
@@ -612,4 +680,34 @@ func (s *scheduler) resetTimer(now time.Time) {
 		wake = max(top.nextRunTime.Sub(now), 0)
 	}
 	s.timer.Reset(s.boundedWake(wake, now))
+}
+
+// SchedulerSnapshot is a point-in-time view of scheduler internals,
+// surfaced via /debug/network so we can confirm whether preemption ever
+// fires in production without standing up a metrics scraper. All fields
+// are cumulative since process start except Tasks/Queue/InProgress*, which
+// are instantaneous.
+type SchedulerSnapshot struct {
+	TasksTotal             int
+	QueueLen               int
+	InProgress             int
+	InProgressHot          int
+	InProgressSubscription int
+	PreemptHotCount        uint64
+	PreemptSubsCount       uint64
+}
+
+// snapshot returns a consistent view of the scheduler counters.
+func (s *scheduler) snapshot() SchedulerSnapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return SchedulerSnapshot{
+		TasksTotal:             len(s.tasks),
+		QueueLen:               s.queue.Len(),
+		InProgress:             s.inProgress,
+		InProgressHot:          s.inProgressHot.Len(),
+		InProgressSubscription: len(s.inProgressSubs),
+		PreemptHotCount:        s.preemptHotCount.Load(),
+		PreemptSubsCount:       s.preemptSubsCount.Load(),
+	}
 }

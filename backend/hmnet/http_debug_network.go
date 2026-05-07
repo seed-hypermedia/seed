@@ -9,6 +9,7 @@ import (
 	"sort"
 	"time"
 
+	"seed/backend/hmnet/syncing"
 	"seed/backend/util/bwcounter"
 
 	"github.com/libp2p/go-libp2p/core/network"
@@ -21,11 +22,16 @@ import (
 // sync/discovery latency, peer-table state, and reachability — modeled on
 // /debug/traces. Latency cells are color-coded against fixed thresholds
 // (p10>50ms, p50>100ms, p90>1s, p99>5s warn).
-func (n *Node) NetworkDebugHandler() http.Handler {
+//
+// schedulerSnap is an optional callback returning the syncing scheduler's
+// counters. Pass nil if no syncing service is wired up; the page omits the
+// scheduler section in that case.
+func (n *Node) NetworkDebugHandler(schedulerSnap func() syncing.SchedulerSnapshot) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 		page := n.buildPage(r.Context())
+		page.Scheduler = buildScheduler(schedulerSnap)
 
 		if err := pageTpl.Execute(w, page); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -44,6 +50,21 @@ type networkPage struct {
 	Sections     []section
 	Bandwidth    bandwidthSection
 	Reachability reachSection
+	Scheduler    *schedulerDebugSection
+}
+
+// schedulerDebugSection renders the syncing scheduler's instantaneous
+// queue/in-progress sizes plus cumulative preemption counters, so a human
+// looking at /debug/network can confirm whether the preemption machinery
+// is firing at all in production.
+type schedulerDebugSection struct {
+	TasksTotal             string
+	QueueLen               string
+	InProgress             string
+	InProgressHot          string
+	InProgressSubscription string
+	PreemptHotCount        string
+	PreemptSubsCount       string
 }
 
 // bandwidthSection holds all bandwidth-related tables for the page. Each table
@@ -372,6 +393,24 @@ func (n *Node) buildPage(ctx context.Context) networkPage {
 	page.Bandwidth = n.buildBandwidth(ctx)
 	page.Reachability = n.buildReachability()
 	return page
+}
+
+// buildScheduler renders a syncing-scheduler snapshot block, or nil if no
+// snapshot func was provided.
+func buildScheduler(snap func() syncing.SchedulerSnapshot) *schedulerDebugSection {
+	if snap == nil {
+		return nil
+	}
+	s := snap()
+	return &schedulerDebugSection{
+		TasksTotal:             fmt.Sprintf("%d", s.TasksTotal),
+		QueueLen:               fmt.Sprintf("%d", s.QueueLen),
+		InProgress:             fmt.Sprintf("%d", s.InProgress),
+		InProgressHot:          fmt.Sprintf("%d", s.InProgressHot),
+		InProgressSubscription: fmt.Sprintf("%d", s.InProgressSubscription),
+		PreemptHotCount:        fmt.Sprintf("%d", s.PreemptHotCount),
+		PreemptSubsCount:       fmt.Sprintf("%d", s.PreemptSubsCount),
+	}
 }
 
 // buildBandwidth assembles the bandwidth section from the libp2p metrics and
@@ -1556,6 +1595,26 @@ details.howto>summary{color:#0a58ca;font-weight:600}
 <summary>What does this mean?</summary>
 {{.Bandwidth.Help}}
 </details>
+
+{{if .Scheduler}}
+{{with .Scheduler}}
+<h2>Discovery scheduler</h2>
+<div class="subtitle">queue/in-progress sizes are instantaneous; preempt counts are cumulative since startup</div>
+<table class="kv">
+<tr><td>tasks tracked</td><td class="num">{{.TasksTotal}}</td></tr>
+<tr><td>queued</td><td class="num">{{.QueueLen}}</td></tr>
+<tr><td>in progress (total)</td><td class="num">{{.InProgress}}</td></tr>
+<tr><td>&nbsp;&nbsp;hot (ephemeral)</td><td class="num">{{.InProgressHot}}</td></tr>
+<tr><td>&nbsp;&nbsp;subscription</td><td class="num">{{.InProgressSubscription}}</td></tr>
+<tr><td>preempt total — subscription cancelled for hot</td><td class="num">{{.PreemptSubsCount}}</td></tr>
+<tr><td>preempt total — older hot cancelled for newer hot</td><td class="num">{{.PreemptHotCount}}</td></tr>
+</table>
+<details class="help">
+<summary>What does this mean?</summary>
+<p>Lifetime of a discovery task: <em>queued</em> → <em>in progress</em> (subscription or hot/ephemeral) → done. The two <em>preempt</em> counters track the only paths that cancel an in-flight task to make room for a higher-priority one. If both stay at zero across a busy session, the preemption machinery isn't actually load-bearing and could be removed.</p>
+</details>
+{{end}}
+{{end}}
 
 <h2>Reachability snapshot</h2>
 <div class="subtitle">peerstore peers, connected first; showing top {{len .Reachability.Rows}} of {{.Reachability.Total}}</div>

@@ -557,6 +557,14 @@ func (s *Service) listSubscriptionsFromDB(ctx context.Context) ([]Subscription, 
 	return subs, nil
 }
 
+// SchedulerSnapshot returns a point-in-time view of the scheduler's
+// internal counters and queue sizes. Safe to call from any goroutine.
+// Used by /debug/network to surface whether preemption is firing in
+// production.
+func (s *Service) SchedulerSnapshot() SchedulerSnapshot {
+	return s.scheduler.snapshot()
+}
+
 // TouchHotTask returns an existing task or creates a new ephemeral one.
 // If a subscription task already exists, it wakes it up and returns its info.
 //

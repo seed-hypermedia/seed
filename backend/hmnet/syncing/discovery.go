@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/ipfs/go-cid"
-	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multicodec"
@@ -115,34 +114,49 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	// state. We use them as a fallback before the DHT when no peer is connected,
 	// since syncWithPeer will dial on demand.
 	const maxKnownPeerFallback = 20
-	var knownPeers []peer.ID
-	if err = s.db.WithSave(ctxLocalPeers, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, qListPeersWithPid(), func(stmt *sqlite.Stmt) error {
-			addresStr := stmt.ColumnText(0)
-			pid := stmt.ColumnText(1)
-			addrList := strings.Split(addresStr, ",")
-			info, err := netutil.AddrInfoFromStrings(addrList...)
-			if err != nil {
-				s.log.Warn("Can't discover from peer since it has malformed addresses", zap.String("PID", pid), zap.Error(err))
-				return nil
-			}
-			if s.host.Network().Connectedness(info.ID) == network.Connected {
-				allPeers = append(allPeers, info.ID)
-			} else if len(knownPeers) < maxKnownPeerFallback {
-				s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
-				knownPeers = append(knownPeers, info.ID)
-			}
 
-			return nil
-		})
-	}); err != nil {
-		MDiscoverPhaseSeconds.WithLabelValues("peer_select").Observe(time.Since(peerSelectStart).Seconds())
-		return "", err
+	// Fast path: ask the host directly for the currently-connected peers
+	// instead of scanning the entire peers table and parsing every
+	// multiaddr just to filter on Connectedness. The host already maintains
+	// this set in O(connected) memory; it's the same predicate the original
+	// loop computed via Connectedness == Connected.
+	self := s.host.ID()
+	for _, pid := range s.host.Network().Peers() {
+		if pid == self {
+			continue
+		}
+		allPeers = append(allPeers, pid)
+	}
+
+	// Slow path: only when no peers are currently connected do we hit the
+	// DB to find a small fallback set we can dial. The query is bounded
+	// (LIMIT) so the multiaddr parse cost is bounded too — the prior
+	// unbounded scan was the source of the per-call CPU regression.
+	if len(allPeers) == 0 {
+		if err = s.db.WithSave(ctxLocalPeers, func(conn *sqlite.Conn) error {
+			return sqlitex.Exec(conn, qListPeersWithPidLimit(), func(stmt *sqlite.Stmt) error {
+				addresStr := stmt.ColumnText(0)
+				pid := stmt.ColumnText(1)
+				info, err := netutil.AddrInfoFromStrings(strings.Split(addresStr, ",")...)
+				if err != nil {
+					s.log.Warn("Can't discover from peer since it has malformed addresses", zap.String("PID", pid), zap.Error(err))
+					return nil
+				}
+				// peerstore.RecentlyConnectedAddrTTL is the right TTL for
+				// "we last saw this peer at this address" semantics — the
+				// dial path may run many seconds later as syncs queue up,
+				// and TempAddrTTL (the previous choice) is short enough
+				// that addresses can expire before we get to dial.
+				s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.RecentlyConnectedAddrTTL)
+				allPeers = append(allPeers, info.ID)
+				return nil
+			}, maxKnownPeerFallback)
+		}); err != nil {
+			MDiscoverPhaseSeconds.WithLabelValues("peer_select").Observe(time.Since(peerSelectStart).Seconds())
+			return "", err
+		}
 	}
 	MDiscoverPhaseSeconds.WithLabelValues("peer_select").Observe(time.Since(peerSelectStart).Seconds())
-	if len(allPeers) == 0 && len(knownPeers) > 0 {
-		allPeers = knownPeers
-	}
 
 	// Create RBSR store once for reuse across all peers.
 	dkeys := colx.HashSet[DiscoveryKey]{
@@ -859,4 +873,18 @@ var qListPeersWithPid = dqb.Str(`
 		addresses,
 		pid
 	FROM peers;
+`)
+
+// qListPeersWithPidLimit is the bounded variant used by the disconnected-peer
+// fallback in DiscoverObjectWithProgress. We only need a small set to seed
+// dialing — most-recently-updated peers first — and previously the unbounded
+// scan was reading every row out of the table even though only the first 20
+// were kept. Caps the SQLite work at the size of the fallback budget.
+var qListPeersWithPidLimit = dqb.Str(`
+	SELECT
+		addresses,
+		pid
+	FROM peers
+	ORDER BY updated_at DESC
+	LIMIT ?;
 `)
