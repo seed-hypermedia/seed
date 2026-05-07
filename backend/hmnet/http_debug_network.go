@@ -52,16 +52,31 @@ type networkPage struct {
 // so the user can compare loopback vs remote across libp2p / HTTP server /
 // HTTP client without scrolling.
 type bandwidthSection struct {
-	Help        template.HTML
-	Layers      []bwLayerRow
-	Protocols   []bwTagRow // libp2p protocol breakdown
-	Peers       []bwPeerRow
-	HTTPIn      []bwTagRow // inbound HTTP by URL-prefix tag
-	HTTPOut     []bwTagRow // outbound HTTP by destination host
-	Bitswap     *bitswapDedupRow
-	DB          *dbGrowthRow
-	SyncDiscard *syncDiscardRow
-	Drift       *indexDriftRow
+	Help          template.HTML
+	Layers        []bwLayerRow
+	Protocols     []bwTagRow // libp2p protocol breakdown
+	Peers         []bwPeerRow
+	HTTPIn        []bwTagRow // inbound HTTP by URL-prefix tag
+	HTTPOut       []bwTagRow // outbound HTTP by destination host
+	Bitswap       *bitswapDedupRow
+	DB            *dbGrowthRow
+	SyncDiscard   *syncDiscardRow
+	Drift         *indexDriftRow
+	CodecMismatch []codecMismatchRow
+	Preflight     *preflightRow
+}
+
+// preflightRow shows how many CIDs the syncing pre-flight Has filter has
+// dropped from RBSR-produced wantlists before bitswap got to fetch them.
+// Each skipped CID is one WANT_HAVE → HAVE → WANT_BLOCK → BLOCK round-trip
+// AND one block delivery NOT paid for on the wire — the inbound bandwidth
+// the filter is actively saving versus letting the request go through and
+// dropping at putBlock with the `exists` outcome.
+type preflightRow struct {
+	Skipped string
+	// SkippedClass goes "good" when we're saving real fetches, neutral
+	// when nothing has been filtered yet (newly started daemon).
+	SkippedClass string
 }
 
 // indexDriftRow surfaces the count of blobs present on disk but missing from
@@ -75,6 +90,16 @@ type indexDriftRow struct {
 	DagPb      string
 	Other      string
 	Class      string
+}
+
+// codecMismatchRow shows the (stored_codec → incoming_codec) pairs whenever
+// putBlock takes the `exists` branch. Non-zero rows mean RBSR's CID-keyed set
+// diff is asymmetric for the same content because peers ship the same
+// multihash under a different codec than we have stored.
+type codecMismatchRow struct {
+	StoredCodec   string
+	IncomingCodec string
+	Count         string
 }
 
 // dbGrowthRow shows SQLite logical size at startup vs now, with the absolute
@@ -459,6 +484,38 @@ func (n *Node) buildBandwidth(ctx context.Context) bandwidthSection {
 		}
 	}
 
+	// codec-mismatch table: rows are (stored,incoming) → count, sorted desc
+	if mfs, err := prometheus.DefaultGatherer.Gather(); err == nil {
+		var rows []codecMismatchRow
+		for _, mf := range mfs {
+			if mf.GetName() != "seed_blob_putblock_codec_mismatch_total" {
+				continue
+			}
+			for _, m := range mf.GetMetric() {
+				if m.Counter == nil {
+					continue
+				}
+				var stored, incoming string
+				for _, l := range m.GetLabel() {
+					switch l.GetName() {
+					case "stored_codec":
+						stored = l.GetValue()
+					case "incoming_codec":
+						incoming = l.GetValue()
+					}
+				}
+				rows = append(rows, codecMismatchRow{
+					StoredCodec:   stored + " (" + codecName(stored) + ")",
+					IncomingCodec: incoming + " (" + codecName(incoming) + ")",
+					Count:         fmt.Sprintf("%.0f", m.Counter.GetValue()),
+				})
+			}
+		}
+		if len(rows) > 0 {
+			out.CodecMismatch = rows
+		}
+	}
+
 	if drift, err := n.IndexDrift(ctx); err == nil {
 		row := &indexDriftRow{
 			Total:      fmt.Sprintf("%d", drift.Total),
@@ -477,6 +534,16 @@ func (n *Node) buildBandwidth(ctx context.Context) bandwidthSection {
 	discardBlocks, _ := collectSingleMetricValue("seed_syncpeer_discarded_blobs_total")
 	rollbackBatches, _ := collectSingleMetricValue("seed_syncpeer_persist_rollback_total")
 	rollbackBlocks, _ := collectSingleMetricValue("seed_syncpeer_persist_rollback_blocks_total")
+	preflightSkipped, _ := collectSingleMetricValue("seed_syncpeer_preflight_skipped_total")
+	{
+		row := &preflightRow{
+			Skipped: fmt.Sprintf("%.0f", preflightSkipped),
+		}
+		if preflightSkipped > 0 {
+			row.SkippedClass = "good"
+		}
+		out.Preflight = row
+	}
 	if discardEvents > 0 || rollbackBatches > 0 {
 		out.SyncDiscard = &syncDiscardRow{
 			Events:          fmt.Sprintf("%.0f", discardEvents),
@@ -588,6 +655,22 @@ func humanBytes(n uint64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
+}
+
+// codecName returns the short multicodec name for a numeric codec string.
+// Covers the codecs we actually see in this codebase; everything else is "?".
+func codecName(s string) string {
+	switch s {
+	case "85":
+		return "raw"
+	case "112":
+		return "dag-pb"
+	case "113":
+		return "dag-cbor"
+	case "0":
+		return "identity"
+	}
+	return "?"
 }
 
 func humanAgo(d time.Duration) string {
@@ -1176,6 +1259,8 @@ const helpBandwidth template.HTML = `
 <p><strong>scope</strong>: <em>loopback</em> means the remote endpoint is <code>127.0.0.0/8</code> or <code>::1</code>. <em>remote</em> means anything else, including LAN. So if your bandwidth feels too high but the loopback row is the dominant chunk, the bytes never left the machine.</p>
 <p><strong>bitswap duplicate-block waste</strong>: bitswap broadcasts WANT messages to every connected peer. When several peers race to send the same block, we accept all copies. <em>Duplicate data received</em> is the share of the bitswap recv stream that was wasted on blocks we already had. A high value (red &gt;20%) means most of the bitswap inbound traffic is amplification, not new content. Multiplied across a few hundred connected peers this is usually the dominant source of "why is my bandwidth so high".</p>
 <p><strong>putBlock disposition</strong>: every block that reaches our blockstore (delivered by bitswap or pushed via PutMany) goes through one of three branches in <code>blockStore.putBlock</code>: <em>new</em> writes a fresh row, <em>update</em> fills in a previously-known placeholder, <em>exists</em> means we already had a complete row and the data is dropped. A large <em>exists</em> share (red &gt;20%) means we paid full network cost to receive content already on disk — i.e. RBSR or bitswap thought we were missing blobs we actually have. Cross-check against <em>SQLite size — this session</em> below: if the DB barely grew but bitswap recv was big, the <em>exists</em> row is almost certainly where it went.</p>
+<p><strong>codec mismatch</strong>: when a peer ships a block, the bitswap-delivered CID carries a codec (raw, dag-pb, dag-cbor, …). When that block reaches <code>putBlock</code> and we already have the same multihash stored under a <em>different</em> codec, we hit the <code>exists</code> branch and drop the data. RBSR's set diff identifies items by full CID — codec + multihash — so two valid encodings of the same content (e.g. small UnixFS files stored as <code>raw</code> by some peers and as <code>dag-pb</code> by others) look like different items and get repeatedly fetched and dropped. Each row is a (stored→incoming) codec pair we observed, with the count of redundant deliveries. Empty table means peers and us agree on codecs; non-empty means we're paying real bandwidth for content we already have under a different CID.</p>
+<p><strong>syncing pre-flight Has filter</strong>: after RBSR computes a wantlist of CIDs the peer has and we don't, we run a multihash-keyed <code>blockstore.Has</code> on each before handing it to bitswap. CIDs we already have (codec mismatch or scope/orphan reachability — see the codec-mismatch table above) get filtered out at zero network cost, sparing us the WANT_HAVE → HAVE → WANT_BLOCK → BLOCK round-trip and the block delivery itself. The counter shows lifetime saved fetches; expect it to grow at the rate <code>putBlock disposition: exists</code> would have grown without the filter. A green non-zero value is direct inbound bandwidth saved; zero on a freshly-started daemon is normal.</p>
 <p><strong>blob index drift</strong>: count of rows in <code>blobs</code> with <code>size &gt;= 0</code> that have NO matching row in <code>structural_blobs</code>. RBSR builds its local-set view from <code>structural_blobs</code> via <code>collectBlobs</code>, so these blobs are present on disk but invisible to the diff. Each one will be re-fetched from peers every sync cycle and dropped at <code>putBlock</code> as <code>exists</code>. Red when the dag-cbor count is non-zero — those <em>should</em> be indexed and aren't.</p>
 <p><strong>persist pipeline — failures</strong>: post-streaming-refactor, fetched blocks are pipelined into <code>PutMany</code> batches and persisted on a detached ctx. Two failure modes can show up:</p>
 <dl>
@@ -1407,6 +1492,16 @@ details.howto>summary{color:#0a58ca;font-weight:600}
 {{end}}
 {{end}}
 
+{{if .Bandwidth.CodecMismatch}}
+<h3 style="font-size:13px;margin:14px 0 4px 0">codec mismatch — same multihash, different codec on the wire vs in our DB</h3>
+<table>
+<tr><th>stored codec</th><th>incoming codec (from peer)</th><th>count</th></tr>
+{{range .Bandwidth.CodecMismatch}}
+<tr><td>{{.StoredCodec}}</td><td>{{.IncomingCodec}}</td><td class="num warn">{{.Count}}</td></tr>
+{{end}}
+</table>
+{{end}}
+
 {{if .Bandwidth.Drift}}
 {{with .Bandwidth.Drift}}
 <h3 style="font-size:13px;margin:14px 0 4px 0">blob index drift — invisible to RBSR</h3>
@@ -1415,6 +1510,15 @@ details.howto>summary{color:#0a58ca;font-weight:600}
 <tr><td>&nbsp;&nbsp;dag-cbor (Hypermedia structural — should be indexed)</td><td class="num {{.Class}}">{{.DagCbor}}</td></tr>
 <tr><td>&nbsp;&nbsp;dag-pb (UnixFS chunks — usually fine to be unindexed)</td><td class="num">{{.DagPb}}</td></tr>
 <tr><td>&nbsp;&nbsp;other codec</td><td class="num">{{.Other}}</td></tr>
+</table>
+{{end}}
+{{end}}
+
+{{if .Bandwidth.Preflight}}
+{{with .Bandwidth.Preflight}}
+<h3 style="font-size:13px;margin:14px 0 4px 0">syncing pre-flight Has filter — wantlist CIDs we already have</h3>
+<table class="kv">
+<tr><td>CIDs skipped before bitswap (would have hit putBlock as <code>exists</code>)</td><td class="num {{.SkippedClass}}">{{.Skipped}}</td></tr>
 </table>
 {{end}}
 {{end}}

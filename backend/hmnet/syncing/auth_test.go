@@ -118,6 +118,10 @@ func (f *fakeAuthIndex) PutMany(context.Context, []blocks.Block) error {
 	panic("unexpected PutMany call")
 }
 
+func (f *fakeAuthIndex) Has(context.Context, cid.Cid) (bool, error) {
+	panic("unexpected Has call")
+}
+
 func (f *fakeAuthIndex) GetAuthorizedSpacesForPeer(context.Context, peer.ID, []blob.IRI) ([]core.Principal, error) {
 	panic("unexpected GetAuthorizedSpacesForPeer call")
 }

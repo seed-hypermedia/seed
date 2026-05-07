@@ -139,7 +139,7 @@ func newIndex(db *sqlitex.Pool, log *zap.Logger) *Index {
 	domains := NewDomainStore(db, resolver, log)
 	resolver.domainStore = domains
 	idx := &Index{
-		bs:               newBlockstore(db),
+		bs:               newBlockstore(db, log),
 		db:               db,
 		log:              log,
 		peerAuth:         newPeerAuthStore(),

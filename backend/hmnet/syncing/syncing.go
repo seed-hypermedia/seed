@@ -210,6 +210,32 @@ var (
 		Help: "Blocks lost to PutMany batch rollbacks during streaming persist.",
 	})
 
+	// MSyncPreflightSkipped counts CIDs that RBSR put on the wantlist but our
+	// blockstore already has by multihash. RBSR identifies items by full CID
+	// (codec + multihash); the blockstore is keyed by multihash alone, so the
+	// same content tagged under a different codec on a peer (raw=85 vs
+	// dag-pb=112 is the typical case) shows up as "they have, we don't" in
+	// the diff and gets fetched, only to be dropped at putBlock with the
+	// `exists` outcome. Filtering before bitswap saves the WANT_HAVE → HAVE →
+	// WANT_BLOCK → BLOCK round-trip and the block delivery itself. Should
+	// closely shadow the rate at which mPutBlockOutcome{outcome="exists"}
+	// would have grown without the filter — a non-zero value here is direct
+	// inbound bandwidth saved.
+	MSyncPreflightSkipped = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "seed_syncpeer_preflight_skipped_total",
+		Help: "Wantlist CIDs skipped because the blockstore already has the multihash.",
+	})
+
+	// MSyncPreflightWantsPerPeer is the post-filter wantlist size per
+	// peer-sync. Compare against MSyncWantedBlobsPerPeer (pre-filter) to see
+	// how much of the diff RBSR produced was wasted re-fetch and how much
+	// was real new content.
+	MSyncPreflightWantsPerPeer = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "seed_syncpeer_preflight_wants",
+		Help:    "Number of blobs we'll actually bitswap-fetch per peer-sync, after the local-Has pre-flight filter.",
+		Buckets: []float64{1, 10, 100, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000},
+	})
+
 
 	// Server-side ReconcileBlobs handler sub-phase timing. Our daemon serves
 	// reconcile requests from other peers; gateways run the same code so this
@@ -347,6 +373,10 @@ type ResourceAPI interface {
 type Index interface {
 	Put(context.Context, blocks.Block) error
 	PutMany(context.Context, []blocks.Block) error
+	// Has must be a multihash-keyed lookup so the syncing pre-flight filter
+	// can drop CIDs whose bytes we already have under a different codec —
+	// see the preflight_has phase in syncResources.
+	Has(context.Context, cid.Cid) (bool, error)
 	GetAuthorizedSpacesForPeer(ctx context.Context, peerID peer.ID, requestedResources []blob.IRI) ([]core.Principal, error)
 	GetSiteURL(ctx context.Context, space core.Principal) (string, error)
 	ResolveSiteURL(ctx context.Context, siteURL string) (peer.AddrInfo, error)
@@ -595,13 +625,6 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	// of messagequeue / donthave-timeout goroutines per session, so with
 	// maxPeerConcurrency=20 the prior per-peer-sync model spun up O(20)
 	// sessions per task. Sharing within a task drops that to 1.
-	//
-	// This is a resource-hygiene change, not a bandwidth fix: bitswap's
-	// session-level dedup only kicks in for callers within the same
-	// session, but the dominant duplicate traffic comes from sessions
-	// spawned by *different* discovery tasks (one per MaxWorkers slot, one
-	// per scheduler tick) re-fetching content other tasks already have.
-	// That broader bug lives elsewhere; see /debug/network for the data.
 	bswap := s.bitswap.NewSession(ctx)
 
 	var g errgroup.Group
@@ -857,6 +880,51 @@ func syncResources(
 
 	if len(allWants) == 0 {
 		log.Debug("Peer does not have new content")
+		return nil
+	}
+
+	// Pre-flight Has filter. RBSR identifies items by full CID
+	// (codec + multihash); the blockstore is keyed by multihash. Same
+	// content tagged under different codecs across nodes (raw=85 vs
+	// dag-pb=112 is the typical case) shows up as "they have, we don't"
+	// in the diff. Without this filter the spurious wants pay full
+	// network cost and get dropped at putBlock with the `exists`
+	// outcome. We mirror what blockservice.GetBlock does upstream of
+	// bitswap in the standard IPFS stack — bitswap.Session.GetBlocks
+	// itself does NOT consult the local blockstore, so the filter has
+	// to live here.
+	*phase = "preflight_has"
+	preflightStart := time.Now()
+	filtered := allWants[:0]
+	var preflightSkipped int
+	for _, wc := range allWants {
+		has, herr := idx.Has(ctx, wc)
+		if herr != nil {
+			// Don't silently drop on lookup error — better to fetch and
+			// have putBlock bounce a duplicate than to skip a block we
+			// genuinely need.
+			filtered = append(filtered, wc)
+			continue
+		}
+		if has {
+			preflightSkipped++
+			continue
+		}
+		filtered = append(filtered, wc)
+	}
+	allWants = filtered
+	MSyncPeerPhaseSeconds.WithLabelValues("preflight_has").Observe(time.Since(preflightStart).Seconds())
+	if preflightSkipped > 0 {
+		MSyncPreflightSkipped.Add(float64(preflightSkipped))
+		log.Debug("PreflightSkipped",
+			zap.Int("skipped", preflightSkipped),
+			zap.Int("remaining", len(allWants)),
+		)
+	}
+	MSyncPreflightWantsPerPeer.Observe(float64(len(allWants)))
+
+	if len(allWants) == 0 {
+		log.Debug("Peer does not have new content (all wants filtered by preflight Has)")
 		return nil
 	}
 
