@@ -28,8 +28,53 @@ import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {observable} from '@trpc/server/observable'
 import z from 'zod'
 import {isAnyWindowFocused, onAppFocusChange} from './app-focus'
-import {appInvalidateQueries} from './app-invalidation'
+import {appInvalidateQueries, getInvalidationHandlerCount} from './app-invalidation'
 import {t} from './app-trpc'
+
+// ============ Profile instrumentation ============
+
+const PROFILE_ENABLED = process.env.SEED_SYNC_PROFILE === '1'
+const PROFILE_FRAME_THRESHOLD_MS = 16
+
+function profileLog(msg: string) {
+  if (PROFILE_ENABLED) console.log(`[SyncProfile] ${msg}`)
+}
+
+function timeSync<T>(label: string, fn: () => T): T {
+  if (!PROFILE_ENABLED) return fn()
+  const start = performance.now()
+  try {
+    return fn()
+  } finally {
+    const dur = performance.now() - start
+    if (dur >= PROFILE_FRAME_THRESHOLD_MS) {
+      console.log(`[SyncProfile] ${label} took ${dur.toFixed(2)}ms`)
+    }
+  }
+}
+
+async function timeAsync<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  if (!PROFILE_ENABLED) return fn()
+  const start = performance.now()
+  try {
+    return await fn()
+  } finally {
+    const dur = performance.now() - start
+    if (dur >= PROFILE_FRAME_THRESHOLD_MS) {
+      console.log(`[SyncProfile] ${label} took ${dur.toFixed(2)}ms`)
+    }
+  }
+}
+
+function getPriorityBreakdown(): {high: number; normal: number} {
+  let high = 0
+  let normal = 0
+  state.subscriptionCounts.forEach((_count, key) => {
+    if (key.includes('!high')) high++
+    else normal++
+  })
+  return {high, normal}
+}
 
 // Polling intervals (base values, multiplied by getPollingMultiplier())
 const DISCOVERY_POLL_INTERVAL_MS = 20_000
@@ -224,9 +269,19 @@ function invalidateResource(resource: string) {
 function flushInvalidations() {
   state.debounceTimer = null
   const resources = Array.from(state.pendingInvalidations)
-  for (let i = 0; i < resources.length; i++) {
-    invalidateResource(resources[i]!)
+  if (PROFILE_ENABLED) {
+    const {high, normal} = getPriorityBreakdown()
+    profileLog(
+      `flushInvalidations: pending=${resources.length} subs=${
+        state.subscriptions.size
+      } (high=${high} normal=${normal}) handlers=${getInvalidationHandlerCount()}`,
+    )
   }
+  timeSync('flushInvalidations', () => {
+    for (let i = 0; i < resources.length; i++) {
+      invalidateResource(resources[i]!)
+    }
+  })
   state.pendingInvalidations.clear()
 }
 
@@ -316,6 +371,10 @@ export function getUnconditionalInvalidations(event: Event): Array<[string, stri
 
 /** Processes activity events and fires invalidations. Exported for testing. */
 export function processEvents(events: Event[]) {
+  return timeSync(`processEvents(${events.length})`, () => processEventsInner(events))
+}
+
+function processEventsInner(events: Event[]) {
   for (const event of events) {
     const resource = extractResource(event)
     if (resource && isResourceSubscribed(resource)) {
@@ -445,11 +504,16 @@ async function pollActivity() {
   state.isPolling = true
 
   try {
-    const newEvents = await fetchNewEvents()
-    if (newEvents.length > 0) {
-      processEvents(newEvents)
-      state.lastEventId = getEventId(newEvents[0]!)
-    }
+    await timeAsync('pollActivity', async () => {
+      const newEvents = await fetchNewEvents()
+      if (newEvents.length > 0) {
+        if (PROFILE_ENABLED) {
+          profileLog(`pollActivity: ${newEvents.length} new events`)
+        }
+        processEvents(newEvents)
+        state.lastEventId = getEventId(newEvents[0]!)
+      }
+    })
   } catch (error) {
     console.error('Sync poll error:', error)
   } finally {
@@ -561,6 +625,10 @@ type DiscoveryResult = {
 }
 
 async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult | null> {
+  return timeAsync(`runDiscovery(${sub.id.id} priority=${sub.priority ?? 'normal'})`, () => runDiscoveryInner(sub))
+}
+
+async function runDiscoveryInner(sub: ResourceSubscription): Promise<DiscoveryResult | null> {
   const {id, recursive, scope} = sub
   const discoveryStream = getOrCreateDiscoveryStream(id.id)
 
@@ -599,7 +667,9 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
     const errMsg = e instanceof Error ? e.message : String(e)
     // Single-line so `tail | grep` doesn't truncate the error.
     const errSingle = errMsg.replace(/\s+/g, ' ').slice(0, 240)
-    console.log(`[Discovery] ${id.id}: discovery error: ${errSingle}`)
+    if (!PROFILE_ENABLED) {
+      console.log(`[Discovery] ${id.id}: discovery error: ${errSingle}`)
+    }
   }
 
   // Profile-scoped discovery doesn't produce a full document, so checkResourceStatus
@@ -617,7 +687,9 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
 
   // After discovery, check resource status via GetResource
   const status = await checkResourceStatus(id)
-  console.log(`[Discovery] ${id.id}: status=${status}`)
+  if (!PROFILE_ENABLED) {
+    console.log(`[Discovery] ${id.id}: status=${status}`)
+  }
 
   // Get current stream state to detect transitions
   const currentState = discoveryStream.stream.get()
@@ -695,9 +767,11 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
   const lastKnownVersion = state.lastKnownVersions.get(id.id)
 
   const shouldInvalidate = !needsInvalidation && newVersion && newVersion !== lastKnownVersion
-  console.log(
-    `[Discovery] ${id.id}: newVersion=${newVersion}, lastKnown=${lastKnownVersion}, shouldInvalidate=${shouldInvalidate}`,
-  )
+  if (!PROFILE_ENABLED) {
+    console.log(
+      `[Discovery] ${id.id}: newVersion=${newVersion}, lastKnown=${lastKnownVersion}, shouldInvalidate=${shouldInvalidate}`,
+    )
+  }
 
   if (shouldInvalidate) {
     // Update tracked version with eviction to prevent unbounded growth
