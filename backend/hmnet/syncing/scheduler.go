@@ -236,7 +236,7 @@ func (s *scheduler) run(ctx context.Context) (err error) {
 // just to read them off task — the dispatch path captures them locally
 // before assigning the task fields, so the closure already holds the
 // correct values.
-func (s *scheduler) executeTask(task *taskHandle, taskCtx context.Context, prog *Progress) {
+func (s *scheduler) executeTask(taskCtx context.Context, task *taskHandle, prog *Progress) {
 	var blobTypes []string
 	if task.key.BlobTypes != "" {
 		blobTypes = strings.Split(task.key.BlobTypes, ",")
@@ -451,7 +451,7 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 			// TryGo respects the MaxWorkers limit; on the rare losing race
 			// we unwind state and re-enqueue.
 			if s.workers.TryGo(func() error {
-				s.executeTask(task, taskCtx, prog)
+				s.executeTask(taskCtx, task, prog)
 				return nil
 			}) {
 				s.inProgress++
