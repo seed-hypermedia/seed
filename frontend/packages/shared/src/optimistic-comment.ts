@@ -125,11 +125,15 @@ export function applyOptimisticComment(
 
   // Mirror the author into [ACCOUNT, uid] so useAccount consumers see fresh
   // metadata for the optimistic commenter without waiting for a refetch.
+  // Only register a rollback when populateAccountIfChanged actually wrote —
+  // otherwise we would rewrite identical (or sparser) data on rollback.
   if (authorMetadata && comment.author) {
     const accountKey = [queryKeys.ACCOUNT, comment.author]
     const prevAccount = qc.getQueryData(accountKey)
-    populateAccountIfChanged(qc, comment.author, authorMetadata)
-    rollbacks.push(() => qc.setQueryData(accountKey, prevAccount))
+    const wrote = populateAccountIfChanged(qc, comment.author, authorMetadata)
+    if (wrote) {
+      rollbacks.push(() => qc.setQueryData(accountKey, prevAccount))
+    }
   }
 
   // Also update BLOCK_DISCUSSIONS cache when quoting a specific block

@@ -122,6 +122,14 @@ describe('loadAccount', () => {
     expect(result).toMatchObject({type: 'account', id: {uid: 'A', version: 'v-A'}})
   })
 
+  it('populates profileOwner and version with the resolved-leaf uid for a non-alias account', async () => {
+    const grpcClient = makeGrpcClient({
+      A: {homeDocumentInfo: {version: 'v-A'}},
+    })
+    const result = await loadAccount(grpcClient, 'A')
+    expect(result).toMatchObject({type: 'account', profileOwner: 'A', version: 'v-A'})
+  })
+
   it('preserves legacy semantics: id.uid is the resolved target uid for an alias', async () => {
     const grpcClient = makeGrpcClient({
       A: {aliasAccount: 'B'},
@@ -129,6 +137,15 @@ describe('loadAccount', () => {
     })
     const result = await loadAccount(grpcClient, 'A')
     expect(result).toMatchObject({type: 'account', id: {uid: 'B', version: 'v-B'}})
+  })
+
+  it('populates profileOwner with the alias target so cache scans can find aliased entries', async () => {
+    const grpcClient = makeGrpcClient({
+      A: {aliasAccount: 'B'},
+      B: {homeDocumentInfo: {version: 'v-B'}},
+    })
+    const result = await loadAccount(grpcClient, 'A')
+    expect(result).toMatchObject({type: 'account', profileOwner: 'B', version: 'v-B'})
   })
 
   it('returns account-not-found with the leaf uid when the chain ends in error', async () => {

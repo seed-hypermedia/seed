@@ -69,16 +69,26 @@ export function setQueriesDataByKey(queryKey: QueryKey, data: unknown) {
 }
 
 /**
- * Write `data` into `[ACCOUNT, uid]` only when its `version` differs from
- * the cached entry's version. Skipping no-op writes avoids spurious
- * re-renders when comment queries refetch and re-emit the same author
- * metadata. Returns true when the cache was written, false when skipped.
+ * Write `data` into `[ACCOUNT, uid]` only when it is a real improvement over
+ * what's cached. Skipping no-op writes avoids spurious re-renders when comment
+ * queries refetch and re-emit the same author metadata. Returns true when the
+ * cache was written, false when skipped.
+ *
+ * The skip rules, in order:
+ * 1. If the existing entry has a `version` and `data` carries no version,
+ *    skip — the new payload is sparser (e.g. an optimistic write missing
+ *    alias info) and writing would degrade the cache.
+ * 2. If both have a `version` and they match, skip — the data is unchanged.
+ *
+ * Otherwise (no existing entry, no existing version, or a different version)
+ * write through.
  */
 export function populateAccountIfChanged(client: QueryClient, uid: string, data: HMMetadataPayload): boolean {
   const queryKey = [queryKeys.ACCOUNT, uid] as const
   const existing = client.getQueryData<HMMetadataPayload>(queryKey)
-  if (existing?.version && data.version && existing.version === data.version) {
-    return false
+  if (existing?.version) {
+    if (!data.version) return false
+    if (existing.version === data.version) return false
   }
   client.setQueryData(queryKey, data)
   return true

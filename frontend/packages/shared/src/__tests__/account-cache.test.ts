@@ -54,13 +54,14 @@ describe('populateAccountIfChanged', () => {
     expect(qc.getQueryData<HMMetadataPayload>([queryKeys.ACCOUNT, 'A'])?.version).toBe('v2')
   })
 
-  it('writes when the new payload has no version (cannot prove no-op)', () => {
+  it('skips writes that would degrade a versioned entry with sparser data', () => {
     populateAccountIfChanged(qc, 'A', payload('A', 'v1'))
     const wrote = populateAccountIfChanged(qc, 'A', payload('A', null))
-    expect(wrote).toBe(true)
+    expect(wrote).toBe(false)
+    expect(qc.getQueryData<HMMetadataPayload>([queryKeys.ACCOUNT, 'A'])?.version).toBe('v1')
   })
 
-  it('writes when the existing payload has no version (cannot prove no-op)', () => {
+  it('writes when the existing payload has no version (any data is improvement)', () => {
     populateAccountIfChanged(qc, 'A', payload('A', null))
     const wrote = populateAccountIfChanged(qc, 'A', payload('A', 'v1'))
     expect(wrote).toBe(true)
