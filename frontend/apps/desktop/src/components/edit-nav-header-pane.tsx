@@ -8,7 +8,9 @@ export function EditNavHeaderPane({homeId}: {homeId: UnpackedHypermediaId}) {
   const {canEdit, beginEditIfNeeded} = useEditorGate()
   const send = useDocumentSend()
   const machineNavigation = useDocumentNavigationOptional()
-  const homeResource = useResource(homeId, {subscribed: true})
+  // The home doc is already subscribed by the active resource page; this pane
+  // only reads cached navigation metadata and does not need its own discovery.
+  const homeResource = useResource(homeId)
   const homeDocument = homeResource.data?.type === 'document' ? homeResource.data.document : null
 
   if (!canEdit) return null

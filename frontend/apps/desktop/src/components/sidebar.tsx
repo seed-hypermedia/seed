@@ -299,9 +299,11 @@ function SubscriptionsSection() {
       )
     : undefined
 
-  // Fetch site resources for all joined sites to ensure metadata is available
+  // Fetch site resources for all joined sites to ensure metadata is available.
+  // Joined sites are already covered by derived-subscriptions' root recursive
+  // subscription, so this listing only needs cached metadata for display.
   const siteIds = siteSubscribed?.map((contact) => hmId(contact.subject)) || []
-  const siteResources = useResources(siteIds, {subscribed: true})
+  const siteResources = useResources(siteIds)
 
   // Sort by activity using the backend's account order (already sorted by activity desc)
   const accounts = accountList.data?.accounts || []
@@ -482,9 +484,11 @@ function FollowingSection() {
       )
     : undefined
 
-  // Fetch profile resources for all followed contacts to ensure metadata is available
+  // Fetch profile resources for all followed contacts to ensure metadata is
+  // available. Followed accounts are already covered by derived-subscriptions'
+  // root recursive subscription, so this listing only needs cached metadata.
   const profileIds = profileSubscribed?.map((contact) => hmId(contact.subject)) || []
-  const profileResources = useResources(profileIds, {subscribed: true})
+  const profileResources = useResources(profileIds)
 
   // Sort by activity using the backend's account order
   const accounts = accountList.data?.accounts || []
