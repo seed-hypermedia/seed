@@ -29,6 +29,7 @@ import {DocumentCard} from './newspaper'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
+import {useInViewport} from './use-in-viewport'
 
 /** Props shared by embed block renderers. */
 type BlockContentProps<BlockType extends HMBlock = HMBlock> = {
@@ -105,13 +106,26 @@ export function DeletedEmbedBanner({children, entityLabel = 'document'}: {childr
 }
 
 /** Renders an embedded document as a card view. */
-export function BlockEmbedCard({
+export function BlockEmbedCard(props: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean}) {
+  // Gate active discovery on viewport visibility so off-screen embeds in long
+  // documents do not each open a discovery loop. Grace period defaults inside
+  // the hook avoid churn on rapid scroll.
+  const {ref, isVisible} = useInViewport()
+  return (
+    <div ref={ref}>
+      <BlockEmbedCardInner {...props} subscribed={isVisible} />
+    </div>
+  )
+}
+
+function BlockEmbedCardInner({
   block,
   parentBlockId,
   openOnClick = true,
-}: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean}) {
+  subscribed,
+}: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean; subscribed: boolean}) {
   const id = unpackHmId(block.link) ?? undefined
-  const doc = useResource(id, {subscribed: true})
+  const doc = useResource(id, {subscribed})
   // Check tombstone on latest version for version-pinned embeds.
   // Version-specific fetches skip the backend's tombstone check.
   const latestCheckId = id?.version && !id?.latest ? hmId(id.uid, {path: id.path}) : undefined
@@ -193,14 +207,34 @@ export function BlockEmbedCard({
 }
 
 /** Renders full embedded document or comment content. */
-export function BlockEmbedContent({
+export function BlockEmbedContent(
+  props: BlockContentProps<HMBlockEmbed> & {
+    openOnClick?: boolean
+    renderDocumentContent?: (props: {
+      embedBlocks: HMBlockNode[]
+      document: HMDocument | null | undefined
+      id: UnpackedHypermediaId
+    }) => React.ReactNode
+  },
+) {
+  const {ref, isVisible} = useInViewport()
+  return (
+    <div ref={ref}>
+      <BlockEmbedContentInner {...props} subscribed={isVisible} />
+    </div>
+  )
+}
+
+function BlockEmbedContentInner({
   block,
   depth,
   parentBlockId,
   openOnClick = true,
   renderDocumentContent,
+  subscribed,
 }: BlockContentProps<HMBlockEmbed> & {
   openOnClick?: boolean
+  subscribed: boolean
   renderDocumentContent?: (props: {
     embedBlocks: HMBlockNode[]
     document: HMDocument | null | undefined
@@ -213,7 +247,7 @@ export function BlockEmbedContent({
   const [showReferenced, setShowReferenced] = useState(false)
   const id = unpackHmId(block.link)
 
-  const resource = useResource(id, {subscribed: true})
+  const resource = useResource(id, {subscribed})
   // Check tombstone on latest version for version-pinned embeds.
   // Version-specific fetches skip the backend's tombstone check.
   const latestCheckId = id?.version && !id?.latest ? hmId(id.uid, {path: id.path}) : null
@@ -315,17 +349,30 @@ export function BlockEmbedContent({
 }
 
 /** Renders embedded comments section for a document. */
-export function BlockEmbedComments({
+export function BlockEmbedComments(props: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean}) {
+  const {ref, isVisible} = useInViewport()
+  return (
+    <div ref={ref}>
+      <BlockEmbedCommentsInner {...props} subscribed={isVisible} />
+    </div>
+  )
+}
+
+function BlockEmbedCommentsInner({
   parentBlockId,
   block,
   openOnClick = true,
-}: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean}) {
+  subscribed,
+}: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean; subscribed: boolean}) {
   const client = useUniversalClient()
   const id = unpackHmId(block.link)
 
+  // recursive is meaningful only when subscribed — when off-screen, no daemon
+  // sub is created regardless. When the embed scrolls into view we re-subscribe
+  // recursively so the discussion thread's blobs are discovered as before.
   const resource = useResource(id, {
     recursive: true,
-    subscribed: true,
+    subscribed,
   })
   // Check tombstone on latest version for version-pinned embeds.
   const latestCheckId = id?.version && !id?.latest ? hmId(id.uid, {path: id.path}) : null
