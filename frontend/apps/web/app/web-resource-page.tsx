@@ -16,16 +16,26 @@ import {Spinner} from '@shm/ui/spinner'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
-import {EditProfileDialog, LogoutButton, getCurrentSigner, useCreateAccount, useLocalKeyPair, useVaultSuccessDialog} from './auth'
+import {
+  EditProfileDialog,
+  LogoutButton,
+  getCurrentSigner,
+  useCreateAccount,
+  useLocalKeyPair,
+  useVaultSuccessDialog,
+} from './auth'
 import {preloadCommenting} from './client-lazy'
 import {setPendingIntent} from './local-db'
 import {PageFooter} from './page-footer'
 import {processPendingIntent} from './pending-intent'
 import {WebHeaderActions, WebSitePageShell} from './web-utils'
+import {EditingDocToolsRight, DraftActionsToolbar, type EditingToolbarCallbacks} from '@shm/ui/editing-toolbar'
+import {createWebHMUrl} from '@shm/shared/utils/entity-id-url'
+import {pathNameify} from '@shm/shared/utils/path'
+import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {useWebCanEdit} from './document-edit/use-web-can-edit'
 import {createWebDocumentMachine, type WebEditorAccessor} from './document-edit/web-document-actors'
 import {cleanupOldWebDocDrafts, getLatestWebDocDraftForDoc} from './document-edit/web-draft-db'
-import {WebEditingToolbar} from './document-edit/web-editing-toolbar'
 import {makeWebFileUpload} from './document-edit/web-image-upload'
 
 /** Lazy-loaded inline comment editor — avoids pulling the full editor bundle eagerly. */
@@ -180,6 +190,38 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     return () => document.removeEventListener('mouseover', handler)
   }, [])
 
+  // Shared toolbar callbacks for web
+  const webToolbarCallbacks: EditingToolbarCallbacks = useMemo(
+    () => ({
+      getDocumentUrl: (id: UnpackedHypermediaId) =>
+        createWebHMUrl(id.uid, {
+          path: id.path,
+          hostname: origin || null,
+          originHomeId: originHomeId ?? undefined,
+        }),
+      onDiscardConfirm: (_draftId: string, send) => {
+        if (window.confirm('Discard draft changes?')) {
+          send({type: 'edit.discard'})
+        }
+      },
+      slugify: pathNameify,
+      computeFirstPublishPath: computeInlineDraftPublishPath,
+    }),
+    [origin, originHomeId],
+  )
+
+  const editingFloatingActions = canEdit
+    ? ({menuItems}: {menuItems: any[]}) => (
+        <EditingDocToolsRight docId={docId} existingMenuItems={menuItems} {...webToolbarCallbacks} />
+      )
+    : undefined
+
+  const draftActions = canEdit
+    ? ({menuItems}: {menuItems: any[]}) => (
+        <DraftActionsToolbar docId={docId} existingMenuItems={menuItems} {...webToolbarCallbacks} />
+      )
+    : undefined
+
   const siteUid = docId.uid
 
   // Inline subscribe box for non-members
@@ -303,7 +345,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
           existingDraft={existingDraft}
           existingDraftContent={existingDraftContent}
           existingDraftCursorPosition={existingDraftCursorPosition}
-          machineExtras={<WebEditingToolbar />}
+          editingFloatingActions={editingFloatingActions}
+          draftActions={draftActions}
           fileUpload={fileUpload}
         />
       </CommentsProvider>

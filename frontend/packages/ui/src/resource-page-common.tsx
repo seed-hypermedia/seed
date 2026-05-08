@@ -1279,7 +1279,6 @@ function DocumentBody({
     }
   }, [docId, navigate, route.key, experiments?.developerTools])
   const documentOptionsMenuItem = useMemo<MenuItemType | null>(() => {
-    if (!IS_DESKTOP) return null
     if (!canEdit) return null
     return {
       key: 'options',

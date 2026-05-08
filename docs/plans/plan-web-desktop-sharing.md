@@ -257,6 +257,8 @@ Final manual smoke against local daemon:
 
 ## Execution strategy
 
+**Base branch.** Round 2 stacks on `web-document-changes` (the Round 1 branch), not on `main`. Every Round 2 PR targets `web-document-changes` until Round 1 merges. Once Round 1 lands in `main`, the in-flight Round 2 PRs rebase onto `main` (or remain stacked until they each merge).
+
 **Sequencing principles:**
 
 1. **Land "shared infra is correct" fixes first.** Phase 0 (Options Panel gate) + Phase 2 (machine fix) derisk every later UI lift. Both trivial, both immediately user-visible improvements, both independently revertable.
@@ -318,7 +320,7 @@ Track each PR's status. Update at end of each session — append PR number, stat
 | Phase 4 — Lift `EditNavHeaderPane` + `EditNavPopover` to `@shm/ui` + wire into web | ⬜ pending | — | — | — | — | — | Both files already pure. Mechanical lift. |
 | Phase 5 — `useCommentTargetNavigation` shared hook + apply both apps | ⬜ pending | — | — | — | — | — | Optional `onCommentDraftFocus` callback for desktop. |
 | Phase 6 — `useLazyDocumentEditor` + `createDocumentMachineFromActors` | ⬜ pending | — | — | — | — | — | Drops `useClientDocumentEditor` from web; collapses actor `useMemo` boilerplate. |
-| Phase 1 — Lift editing toolbar to `@shm/ui` + replace web toolbar | ⬜ pending | — | — | — | — | — | Critical path. Two reviewers. ~500 lines moved + ~100 platform shims. |
+| Phase 1 — Lift editing toolbar to `@shm/ui` + replace web toolbar | 🟡 in-progress | — | Horacio | `doc-web-editing` | 2026-05-09 | — | Critical path. Also lifts `pathNameify` + `computeInlineDraftPublishPath` to shared. |
 | Phase 7 — Copy Link in shared menu items, surfaced on web | ⬜ pending | — | — | — | — | — | Depends on Phase 1 (menu pipeline). |
 | Phase 8 — Tests + manual QA pass | ⬜ pending | — | — | — | — | — | Snapshot tests, integration test, full gateway publish smoke. |
 
@@ -348,19 +350,29 @@ End-of-session ritual:
 
 ## 3. Worktrees for parallel phases
 
+**Round 2 base branch = `web-document-changes`** (the Round 1 branch — Round 2 stacks on top of it). PRs target `web-document-changes` until Round 1 merges to `main`.
+
 For phases marked **parallel-safe** with each other (rows 1–6 in the cadence table), use git worktrees so two engineers (or two sessions) can work concurrently without checkout thrash. Worktrees also avoid rebuilding `llama.cpp` and re-running `mise install` per branch switch.
 
 ```bash
 cd ~/jean/Seed/doc-web-editing
-git worktree add ../wt-phase-0 -b refactor/phase-0-options-panel main
-git worktree add ../wt-phase-2 -b refactor/phase-2-publish-flush main
-git worktree add ../wt-phase-3 -b refactor/phase-3-canedit main
+git worktree add ../wt-phase-0 -b refactor/phase-0-options-panel web-document-changes
+git worktree add ../wt-phase-2 -b refactor/phase-2-publish-flush web-document-changes
+git worktree add ../wt-phase-3 -b refactor/phase-3-canedit web-document-changes
 # ... per phase
+```
+
+PR creation:
+
+```bash
+gh pr create --base web-document-changes --title "Phase 0: Surface Document Options Panel on web"
 ```
 
 One Claude session per worktree. Each session locked to its phase. Cross-contamination = zero.
 
-For sequential phases inside a track (e.g. Track A: Phase 0 → Phase 2 → Phase 1 → Phase 7), reuse the same worktree, swap branches between PRs, start a fresh Claude session per PR.
+For sequential phases inside a track (e.g. Track A: Phase 0 → Phase 2 → Phase 1 → Phase 7), reuse the same worktree, swap branches between PRs (still branched off `web-document-changes`), start a fresh Claude session per PR.
+
+**When Round 1 merges to `main`:** rebase any in-flight Round 2 branches onto `main` (`git rebase --onto main web-document-changes refactor/phase-N-...`) or leave them targeting `web-document-changes` and let GitHub auto-retarget after merge. Either way works; rebase-onto-main is cleaner.
 
 ## 4. Solo vs two-engineer mode
 
