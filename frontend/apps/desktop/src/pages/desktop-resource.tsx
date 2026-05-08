@@ -26,7 +26,6 @@ import {useHostSession} from '@/models/host'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
-import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {fileUpload} from '@/utils/file-upload'
 import {useBroadcastWindowEvent, useListenAppEvent} from '@/utils/window-events'
@@ -722,7 +721,6 @@ export default function DesktopResourcePage() {
   return (
     <div className="relative h-full max-h-full overflow-hidden rounded-lg border bg-white">
       <CommentsProvider
-        useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
         renderInlineEditor={renderDesktopInlineEditor}

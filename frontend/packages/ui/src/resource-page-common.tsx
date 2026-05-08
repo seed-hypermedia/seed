@@ -17,7 +17,6 @@ import {
   unpackHmId,
   useUniversalAppContext,
 } from '@shm/shared'
-import {useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
 import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import type {BlockRangeSelectOptions, DocumentContentProps} from '@shm/shared/document-content-props'
 import {
@@ -1085,9 +1084,10 @@ function DocumentBody({
       showSidebars: !isHomeDoc && document.metadata?.showOutline !== false && activeView === 'content',
     })
 
-  // Fetch author metadata for document header and subscribe for discovery
+  // Fetch author metadata for document header. The DocumentHeader's per-author
+  // AuthorLink subscribes via `useAccount({subscribe: true})`, so each author's
+  // P2P discovery is triggered at the leaf level.
   const accountsMetadata = useAccountsMetadata(document.authors || [])
-  useHackyAuthorsSubscriptions(document.authors || [])
   const authorPayloads: AuthorPayload[] = useMemo(() => {
     return (document.authors || []).map((uid) => {
       const data = accountsMetadata.data[uid]

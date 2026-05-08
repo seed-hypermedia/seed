@@ -1,4 +1,4 @@
-import {useDeleteComment, useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
+import {useDeleteComment} from '@shm/shared/comments-service-provider'
 import {HMBlockNode, HMTimestamp, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {HMListEventsParams, LoadedCommentEvent, LoadedEvent} from '@shm/shared/models/activity-service'
 import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
@@ -11,7 +11,7 @@ import {commentIdToHmId, getCommentTargetId, getVersionHeads, hmId} from '@shm/s
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import _ from 'lodash'
 import {CircleAlert, Link, Merge, Trash2} from 'lucide-react'
-import {memo, useEffect, useMemo, useRef} from 'react'
+import {memo, useEffect, useRef} from 'react'
 import {SelectionContent} from './accessories'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {Button} from './button'
@@ -88,37 +88,10 @@ export function Feed({
     }
   }, [isLoading, hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  // Flatten all pages into a single array of events
+  // Flatten all pages into a single array of events. Author/subject/delegate
+  // discovery is handled in the leaf renderers via `useAccount({subscribe: true})`,
+  // so each rendered author triggers its own profile-scoped subscription.
   const allEvents = data?.pages.flatMap((page) => page.events) || []
-
-  // Extract unique account IDs from events and subscribe for discovery.
-  // Includes authors, reply parents, contact subjects, and capability delegates
-  // so their profiles are discovered before we render them.
-  const authorIds = useMemo(() => {
-    const ids = new Set<string>()
-    allEvents.forEach((event) => {
-      if (event.author?.id?.uid) {
-        ids.add(event.author.id.uid)
-      }
-      if (event.type === 'comment' && event.replyParentAuthor?.id?.uid) {
-        ids.add(event.replyParentAuthor.id.uid)
-      }
-      if (event.type === 'contact' && event.contact.subject?.id?.uid) {
-        ids.add(event.contact.subject.id.uid)
-      }
-      if (event.type === 'capability') {
-        event.delegates.forEach((delegate) => {
-          if (delegate?.id?.uid) {
-            ids.add(delegate.id.uid)
-          }
-        })
-      }
-    })
-    return Array.from(ids)
-  }, [allEvents])
-
-  // Subscribe to author accounts for discovery (desktop only, no-op on web)
-  useHackyAuthorsSubscriptions(authorIds)
 
   const isSingleResource = filterResource && !filterResource.endsWith('*') ? true : false
 
