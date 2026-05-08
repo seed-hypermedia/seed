@@ -365,7 +365,10 @@ export function PublishButtonWithPopover({
             changeCount={changeCount}
             onPublish={publishNow}
             onClose={() => popoverState.onOpenChange(false)}
-            publishDisabled={!draftId || changeCount === 0}
+            // Allow clicking Publish during editing.draft.changed (no draftId yet) —
+            // the machine queues the publish and flushes it once writeDraft completes.
+            // See documentMachine `pendingPublish` flag (Phase 2).
+            publishDisabled={changeCount === 0}
             getDocumentUrl={getDocumentUrl}
             onOpenPreview={onOpenPreview}
             slugify={slugify}

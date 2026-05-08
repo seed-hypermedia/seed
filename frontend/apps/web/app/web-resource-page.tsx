@@ -206,8 +206,15 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       },
       slugify: pathNameify,
       computeFirstPublishPath: computeInlineDraftPublishPath,
+      onGoToVersions: (id: UnpackedHypermediaId) => {
+        navigate({
+          key: 'document',
+          id,
+          panel: {key: 'activity', id, filterEventType: ['Ref']},
+        } as any)
+      },
     }),
-    [origin, originHomeId],
+    [origin, originHomeId, navigate],
   )
 
   const editingFloatingActions = canEdit
