@@ -15,6 +15,7 @@ import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
 import {usePushResource} from './documents'
+import {isThisWindowFocused, onThisWindowFocusChange} from './window-focus'
 
 type DeleteEntitiesInput = {
   ids: UnpackedHypermediaId[]
@@ -270,6 +271,14 @@ type EntityState = {
 
 const entityStates = new Map<string, EntityState>()
 
+// Per-window pause state: when this renderer window has been blurred for
+// longer than BLUR_PAUSE_GRACE_MS we tear down all of its outbound daemon
+// subscriptions; on focus we re-issue them. The grace window absorbs quick
+// alt-tabs without churning the daemon.
+const BLUR_PAUSE_GRACE_MS = 30_000
+let blurPauseTimer: ReturnType<typeof setTimeout> | null = null
+let isPaused = false
+
 /** Stream of current subscription display keys for the footer panel. */
 const [writeSubscriptionKeys, subscriptionKeysStream] = writeableStateStream<string[]>([])
 
@@ -309,6 +318,20 @@ function syncEntityState(state: EntityState) {
     return
   }
 
+  if (isPaused) {
+    // Window-blurred: tear down outbound subs but keep callers and state so we
+    // can resume on focus without losing the caller list.
+    if (state.daemonSub) {
+      state.daemonSub.unsubscribe()
+      state.daemonSub = null
+    }
+    if (state.discoveryStateSub) {
+      state.discoveryStateSub.unsubscribe()
+      state.discoveryStateSub = null
+    }
+    return
+  }
+
   const merged = mergeCallerOptions(state.callers.values())
 
   if (!state.daemonSub || state.currentRecursive !== merged.recursive) {
@@ -337,6 +360,48 @@ function syncEntityState(state: EntityState) {
     })
     state.discoveryStateSub = sub
   }
+}
+
+function syncAllEntityStates() {
+  // Iterate over a snapshot — syncEntityState may delete from entityStates
+  // when a state has zero callers.
+  for (const state of Array.from(entityStates.values())) {
+    syncEntityState(state)
+  }
+}
+
+// Wire window focus to the pause flag. Module-level so the listener registers
+// once per renderer process. Initial value reflects whether the window is
+// focused at module load time.
+if (typeof window !== 'undefined') {
+  if (!isThisWindowFocused()) {
+    // Started blurred — schedule the same grace timer we would on a transition.
+    blurPauseTimer = setTimeout(() => {
+      blurPauseTimer = null
+      isPaused = true
+      syncAllEntityStates()
+    }, BLUR_PAUSE_GRACE_MS)
+  }
+  onThisWindowFocusChange((focused) => {
+    if (focused) {
+      if (blurPauseTimer) {
+        clearTimeout(blurPauseTimer)
+        blurPauseTimer = null
+      }
+      if (isPaused) {
+        isPaused = false
+        syncAllEntityStates()
+      }
+      return
+    }
+    if (blurPauseTimer) clearTimeout(blurPauseTimer)
+    blurPauseTimer = setTimeout(() => {
+      blurPauseTimer = null
+      if (isPaused) return
+      isPaused = true
+      syncAllEntityStates()
+    }, BLUR_PAUSE_GRACE_MS)
+  })
 }
 
 export function addSubscribedEntity(sub: EntitySubscription) {
