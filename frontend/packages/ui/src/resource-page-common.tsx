@@ -55,9 +55,8 @@ import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
 import {activityFilterToSlug, getCommentTargetId, parseFragment} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {Folder, Search, Settings} from 'lucide-react'
+import {FilePen, Layers, Link2, Search} from 'lucide-react'
 import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {toast} from './toast'
 import {AccountPage} from './account-page'
 import {CollaboratorsPage} from './collaborators-page'
 import {
@@ -72,7 +71,6 @@ import {
 } from './components/alert-dialog'
 import {ScrollArea} from './components/scroll-area'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
-import {useCopyHmLink} from './use-copy-hm-link'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
@@ -80,7 +78,7 @@ import {AuthorPayload, BreadcrumbEntry, Breadcrumbs, DocumentHeader} from './doc
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
 import {FeedFilters} from './feed-filters'
-import {HistoryIcon, Link} from './icons'
+import {HistoryIcon} from './icons'
 import {useDocumentLayout} from './layout'
 import {MembersFacepile} from './members-facepile'
 import {MobilePanelSheet} from './mobile-panel-sheet'
@@ -99,8 +97,10 @@ import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-mess
 import {PanelLayout} from './panel-layout'
 import {GotoLatestBanner, SiteHeader} from './site-header'
 import {Spinner} from './spinner'
+import {toast} from './toast'
 // import {UnreferencedDocuments} from './unreferenced-documents'
 import {useBlockScroll} from './use-block-scroll'
+import {useCopyHmLink} from './use-copy-hm-link'
 import {useMedia} from './use-media'
 import {cn} from './utils'
 
@@ -119,8 +119,8 @@ export function useCommonMenuItems(docId: UnpackedHypermediaId): MenuItemType[] 
     () => [
       {
         key: 'copy-link',
-        label: 'Copy Link',
-        icon: <Link className="size-4" />,
+        label: 'Share link',
+        icon: <Link2 className="size-4 -rotate-45" />,
         onClick: () => {
           if (onCopyReference) {
             onCopyReference(docId)
@@ -131,7 +131,7 @@ export function useCommonMenuItems(docId: UnpackedHypermediaId): MenuItemType[] 
       },
       {
         key: 'versions',
-        label: 'Document Versions',
+        label: 'Versions history',
         icon: <HistoryIcon className="size-4" />,
         onClick: () => {
           if (isMobile) {
@@ -151,8 +151,8 @@ export function useCommonMenuItems(docId: UnpackedHypermediaId): MenuItemType[] 
       },
       {
         key: 'directory',
-        label: 'Directory',
-        icon: <Folder className="size-4" />,
+        label: 'Subdocuments',
+        icon: <Layers className="size-4" />,
         onClick: () => {
           navigate({key: 'directory', id: docId})
         },
@@ -1116,7 +1116,7 @@ function DocumentBody({
   const copyHmLink = useCopyHmLink()
   // Current origin for gateway-format links (web: site's own URL; desktop: the
   // configured gateway). Used as a fallback when the document has no site URL.
-  const {origin: appOrigin} = useUniversalAppContext()
+  const {origin: appOrigin, experiments} = useUniversalAppContext()
 
   const handleBlockCitationClick = useCallback(
     (blockId?: string | null) => {
@@ -1243,6 +1243,7 @@ function DocumentBody({
   // Options dropdown: common items + platform extras
   const commonMenuItems = useCommonMenuItems(docId)
   const inspectMenuItem = useMemo<MenuItemType | null>(() => {
+    if (!experiments?.developerTools) return null
     if (route.key === 'inspect') return null
     const inspectDocId = {...docId, blockRef: null, blockRange: null}
     return {
@@ -1253,14 +1254,14 @@ function DocumentBody({
         navigate(createInspectNavRoute(inspectDocId))
       },
     }
-  }, [docId, navigate, route.key])
+  }, [docId, navigate, route.key, experiments?.developerTools])
   const documentOptionsMenuItem = useMemo<MenuItemType | null>(() => {
     if (!IS_DESKTOP) return null
     if (!canEdit) return null
     return {
       key: 'options',
-      label: 'Document Options',
-      icon: <Settings className="size-4" />,
+      label: 'Document Settings',
+      icon: <FilePen className="size-4" />,
       onClick: () => {
         const newPanel = panelKey === 'options' ? null : {key: 'options' as const}
         replaceRoute({...route, panel: newPanel} as any)
@@ -1269,24 +1270,35 @@ function DocumentBody({
   }, [canEdit, panelKey, route, replaceRoute])
 
   const allMenuItems = useMemo(() => {
-    const extras = extraMenuItems || []
-    const nonDestructiveExtras = extras.filter((item) => item.variant !== 'destructive')
-    const destructiveExtras = extras.filter((item) => item.variant === 'destructive')
-    let items = [...commonMenuItems]
-    if (inspectMenuItem) {
-      const copyLinkIndex = items.findIndex((item) => item.key === 'copy-link')
-      items.splice(copyLinkIndex >= 0 ? copyLinkIndex + 1 : 0, 0, inspectMenuItem)
-    }
-    if (documentOptionsMenuItem) {
-      items.push(documentOptionsMenuItem)
-    }
+    let unorderedItems: MenuItemType[] = [...commonMenuItems, ...(extraMenuItems || [])]
+    if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
+    if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
     // Drop share/copy-link entries while the doc is an unpublished draft —
     // its URL won't resolve for anyone else, so any "share" action is a footgun.
     if (isUnpublishedDraft) {
       const drop = (key: string) => key === 'copy-link' || key.startsWith('copy-') || key === 'share'
-      items = items.filter((item) => !drop(item.key))
+      unorderedItems = unorderedItems.filter((item) => !drop(item.key))
     }
-    return [...nonDestructiveExtras, ...items, ...destructiveExtras]
+    // Contextual menu items ordering
+    const itemOrder = ['versions', 'options', 'copy-link', 'move', 'duplicate', 'branch', 'export', 'directory']
+    const byKey = new Map(unorderedItems.map((i) => [i.key, i]))
+    const orderedItems: MenuItemType[] = []
+    const consumed = new Set<string>()
+    for (const key of itemOrder) {
+      const item = byKey.get(key)
+      if (item && item.variant !== 'destructive') {
+        orderedItems.push(item)
+        consumed.add(key)
+      }
+    }
+    for (const item of unorderedItems) {
+      if (consumed.has(item.key) || item.variant === 'destructive') continue
+      orderedItems.push(item)
+    }
+    for (const item of unorderedItems) {
+      if (item.variant === 'destructive') orderedItems.push(item)
+    }
+    return orderedItems
   }, [extraMenuItems, commonMenuItems, inspectMenuItem, documentOptionsMenuItem, isUnpublishedDraft])
 
   const hasOptions = allMenuItems.length > 0

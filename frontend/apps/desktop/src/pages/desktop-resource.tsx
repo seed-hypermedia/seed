@@ -3,14 +3,15 @@ import {BranchDialog} from '@/components/branch-dialog'
 import {CommentBox, renderDesktopInlineEditor, triggerCommentDraftFocus} from '@/components/commenting'
 import {CreateDocumentButton} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
-import {DesktopDocumentActionsProvider} from '@/components/document-actions-provider'
 import {DesktopQueryBlockDraftSlot} from '@/components/desktop-query-block-draft-slot'
+import {DesktopDocumentActionsProvider} from '@/components/document-actions-provider'
 import {EditNavHeaderPane} from '@/components/edit-nav-header-pane'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {DraftActionsToolbar, EditingDocToolsRight} from '@/components/editing-toolbar'
 import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
 import {JoinButton} from '@/components/join-button'
 import {MoveDialog} from '@/components/move-dialog'
+import {ParentUpdateToast} from '@/components/parent-update-toast'
 import {usePublishSite, useRemoveSiteDialog} from '@/components/publish-site'
 import {SearchInput} from '@/components/search-input'
 import {domainResolver, grpcClient} from '@/grpc-client'
@@ -18,19 +19,18 @@ import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-contro
 import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
 import {autoLinkParentAfterPublish, useChildDrafts, useCreateInlineDraft, usePublishResource} from '@/models/documents'
-import {ParentUpdateToast} from '@/components/parent-update-toast'
 import {useExistingDraft} from '@/models/drafts'
 import {useGatewayUrl, useGatewayUrlStream} from '@/models/gateway-settings'
-import {usePushAfterAction} from '@/models/push-after-action'
 import {useHostSession} from '@/models/host'
+import {usePushAfterAction} from '@/models/push-after-action'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {fileUpload} from '@/utils/file-upload'
-import {useBroadcastWindowEvent, useListenAppEvent} from '@/utils/window-events'
 import {useNavigate} from '@/utils/useNavigate'
+import {useBroadcastWindowEvent, useListenAppEvent} from '@/utils/window-events'
 import {HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {DocumentEditor} from '@shm/editor/document-editor'
@@ -52,7 +52,7 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
-import {Copy, ForwardIcon, GitFork} from 'lucide-react'
+import {Copy, FileInput, Split} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {fromPromise} from 'xstate'
@@ -452,8 +452,8 @@ export default function DesktopResourcePage() {
   if (canEdit && myAccountIds.data?.length && docId.path?.length) {
     menuItems.push({
       key: 'move',
-      label: 'Move Document',
-      icon: <ForwardIcon className="size-4" />,
+      label: 'Move',
+      icon: <FileInput className="size-4" />,
       onClick: () => moveDialog.open({id: docId}),
     })
   }
@@ -461,7 +461,7 @@ export default function DesktopResourcePage() {
   if (canEdit && docId.path?.length) {
     menuItems.push({
       key: 'duplicate',
-      label: 'Duplicate Document',
+      label: 'Duplicate document',
       icon: <Copy className="size-4" />,
       onClick: async () => {
         if (!doc) return
@@ -502,7 +502,7 @@ export default function DesktopResourcePage() {
 
   menuItems.push({
     key: 'export',
-    label: 'Export Document',
+    label: 'Export document',
     icon: <Download className="size-4" />,
     onClick: async () => {
       if (!doc) return
@@ -541,8 +541,9 @@ export default function DesktopResourcePage() {
   if (myAccountIds.data?.length) {
     menuItems.push({
       key: 'branch',
-      label: 'Create Document Branch',
-      icon: <GitFork className="size-4" />,
+      label: 'Republish',
+      icon: <Split className="size-4" />,
+      tooltip: 'Republish means creating an independent copy that you can modify and keeps the original attribution.',
       onClick: () => branchDialog.open(docId),
     })
   }
