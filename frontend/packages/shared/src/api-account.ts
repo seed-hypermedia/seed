@@ -10,7 +10,6 @@ import {
   HMMetadataPayload,
 } from '@seed-hypermedia/client/hm-types'
 import {getErrorMessage, HMNotFoundError} from './models/entity'
-import {registerAlias} from './models/alias-registry'
 import {hmId} from './utils'
 
 export const AccountParams: HMRequestParams<HMAccountRequest> = {
@@ -81,22 +80,13 @@ export async function resolveAccountChain(
 /**
  * Load an account, transparently following aliases.
  *
- * Behavior preserved from the legacy recursive implementation:
- * - For an A→B alias, the returned `result.id.uid` is the resolved target
- *   (B), not the requested input (A). Callers depending on the resolved-uid
- *   semantics (e.g. notify's signer-to-effective-account resolution) keep
- *   working unchanged.
- *
- * Side effect added in Phase 2 of the account-normalization plan: each alias
- * hop discovered during resolution is registered with the alias registry, so
- * future profile changes on the target can fan out invalidations to every
- * account that aliases to it.
+ * For an A→B alias, the returned `result.id.uid` is the resolved target (B),
+ * not the requested input (A) — this preserves the legacy recursive
+ * behavior that callers like notify depend on for signer-to-effective-account
+ * resolution.
  */
 export async function loadAccount(client: GRPCClient, uid: string): Promise<HMAccountResult> {
-  const {hops, result} = await resolveAccountChain(client, uid)
-  for (const hop of hops) {
-    registerAlias(hop.source, hop.target)
-  }
+  const {result} = await resolveAccountChain(client, uid)
   if (result.type === 'account-not-found') {
     return {type: 'account-not-found', uid: result.uid} satisfies HMAccountNotFound
   }
@@ -107,10 +97,7 @@ export async function loadAccount(client: GRPCClient, uid: string): Promise<HMAc
   } satisfies HMAccountPayload
 }
 
-/**
- * Load multiple accounts individually. Aliases discovered during resolution
- * are registered as a side effect (via `loadAccount`).
- */
+/** Load multiple accounts individually. */
 export async function loadAccounts(client: GRPCClient, uids: string[]): Promise<Record<string, HMMetadataPayload>> {
   const results = await Promise.all(uids.map((uid) => loadAccount(client, uid)))
   const accounts: Record<string, HMMetadataPayload> = {}

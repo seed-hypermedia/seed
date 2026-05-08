@@ -1,6 +1,4 @@
 import {Query, QueryCache, QueryClient, type QueryKey} from '@tanstack/react-query'
-import type {CachedAccount} from '@seed-hypermedia/client/hm-types'
-import {queryKeys} from './query-keys'
 
 // Re-export for consumers to avoid duplicate package instances
 export {QueryClientProvider, useQueryClient} from '@tanstack/react-query'
@@ -66,22 +64,4 @@ export function setQueriesDataByKey(queryKey: QueryKey, data: unknown) {
   if (registeredClient) {
     registeredClient.setQueriesData({queryKey}, data)
   }
-}
-
-/**
- * Write `data` into `[ACCOUNT, uid]`, but only if it differs from what's
- * already there. Equality is determined by `version` (the home document
- * version CID) — when both versions are non-null and equal, the cache write
- * is skipped to avoid spurious re-renders for unchanged data.
- *
- * Returns `true` when the cache was written, `false` when skipped.
- */
-export function populateAccountIfChanged(client: QueryClient, uid: string, data: CachedAccount): boolean {
-  const queryKey = [queryKeys.ACCOUNT, uid] as const
-  const existing = client.getQueryData<CachedAccount>(queryKey)
-  if (existing && existing.version && data.version && existing.version === data.version) {
-    return false
-  }
-  client.setQueryData(queryKey, data)
-  return true
 }

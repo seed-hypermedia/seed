@@ -1,17 +1,20 @@
 /**
- * Tests for `resolveAccountChain` (the pure alias-walker) and the
- * `loadAccount` side effect of registering each discovered alias hop.
+ * Tests for `resolveAccountChain` (the pure alias-walker) and `loadAccount`
+ * (which delegates to it).
  *
- * `resolveAccountChain` is treated as the unit-of-test for chain logic:
- * cycles, depth caps, gRPC errors, and not-found handling. `loadAccount`
- * tests focus on the alias-registry side effect plus preserving the legacy
- * `id.uid === resolved-target` return semantics that callers like notify
- * depend on.
+ * Behavior under test:
+ * - Chain walking returns the right hops and leaf for non-alias, single-hop,
+ *   and multi-hop inputs.
+ * - Cycles are bounded by `maxDepth` (legacy recursive `loadAccount` would
+ *   stack-overflow on a cycle).
+ * - gRPC errors and missing accounts return `account-not-found` cleanly.
+ * - `loadAccount` preserves the legacy semantics that `id.uid` is the
+ *   resolved target uid for an aliased input — notify and other consumers
+ *   depend on this.
  */
 import {Code, ConnectError} from '@connectrpc/connect'
-import {afterEach, describe, expect, it, vi} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import {loadAccount, resolveAccountChain} from '../api-account'
-import {clearAliasRegistry, getAliasesOf} from '../models/alias-registry'
 
 type GetAccountResponse = {
   metadata?: unknown
@@ -23,8 +26,8 @@ type GetAccountResponse = {
 /**
  * Build a mock GRPCClient whose `documents.getAccount({id})` returns the
  * response keyed by `id` in `responses`, or throws when the value at that
- * key is an Error instance. Calls without a key produce the implicit
- * not-found error so accidental fetches surface clearly.
+ * key is an Error instance. Calls without a key produce a not-found error
+ * so accidental fetches surface clearly.
  */
 function makeGrpcClient(responses: Record<string, GetAccountResponse | Error>) {
   const getAccount = vi.fn(async ({id}: {id: string}) => {
@@ -35,10 +38,6 @@ function makeGrpcClient(responses: Record<string, GetAccountResponse | Error>) {
   })
   return {documents: {getAccount}} as any
 }
-
-afterEach(() => {
-  clearAliasRegistry()
-})
 
 describe('resolveAccountChain', () => {
   it('returns the leaf with no hops for a non-alias account', async () => {
@@ -103,7 +102,7 @@ describe('resolveAccountChain', () => {
     expect(result.type).toBe('account-not-found')
   })
 
-  it('records alias hops even when the chain exhausts via not-found', async () => {
+  it('records hops even when the chain exhausts via not-found', async () => {
     const grpcClient = makeGrpcClient({
       A: {aliasAccount: 'B'},
       // B is missing — chain stops at B with not-found
@@ -115,27 +114,15 @@ describe('resolveAccountChain', () => {
 })
 
 describe('loadAccount', () => {
-  it('does not register aliases for a non-alias account', async () => {
+  it('returns the resolved-target uid in id.uid for a non-alias account', async () => {
     const grpcClient = makeGrpcClient({
       A: {homeDocumentInfo: {version: 'v-A'}},
     })
     const result = await loadAccount(grpcClient, 'A')
-    expect(result).toMatchObject({type: 'account', id: {uid: 'A'}})
-    expect(getAliasesOf('A')).toEqual([])
+    expect(result).toMatchObject({type: 'account', id: {uid: 'A', version: 'v-A'}})
   })
 
-  it('registers each hop discovered during alias resolution', async () => {
-    const grpcClient = makeGrpcClient({
-      A: {aliasAccount: 'B'},
-      B: {aliasAccount: 'C'},
-      C: {homeDocumentInfo: {version: 'v-C'}},
-    })
-    await loadAccount(grpcClient, 'A')
-    expect(getAliasesOf('B')).toEqual(['A'])
-    expect(getAliasesOf('C')).toEqual(['B'])
-  })
-
-  it('preserves legacy id.uid semantics: returns the resolved target uid', async () => {
+  it('preserves legacy semantics: id.uid is the resolved target uid for an alias', async () => {
     const grpcClient = makeGrpcClient({
       A: {aliasAccount: 'B'},
       B: {homeDocumentInfo: {version: 'v-B'}},
@@ -150,18 +137,5 @@ describe('loadAccount', () => {
     })
     const result = await loadAccount(grpcClient, 'A')
     expect(result).toEqual({type: 'account-not-found', uid: 'B'})
-    // The hop is still registered before the error terminates the chain.
-    expect(getAliasesOf('B')).toEqual(['A'])
-  })
-
-  it('still registers earlier hops when a later hop fails generically', async () => {
-    const grpcClient = makeGrpcClient({
-      A: {aliasAccount: 'B'},
-      B: new ConnectError('boom', Code.Internal),
-    })
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    await loadAccount(grpcClient, 'A')
-    expect(getAliasesOf('B')).toEqual(['A'])
-    errorSpy.mockRestore()
   })
 })
