@@ -147,16 +147,16 @@ export function OptionsDropdown({
                         <div className="flex flex-col gap-1">
                           <SizableText>{item.label}</SizableText>
 
-                      <SizableText size="sm" className="text-muted-foreground text-xs">
-                        {item.subLabel}
-                      </SizableText>
-                    </div>
-                  ) : (
-                    <SizableText>{item.label}</SizableText>
+                          <SizableText size="sm" className="text-muted-foreground text-xs">
+                            {item.subLabel}
+                          </SizableText>
+                        </div>
+                      ) : (
+                        <SizableText>{item.label}</SizableText>
+                      )}
+                      {item.tooltip ? <MenuItemHelpIcon content={item.tooltip} /> : null}
+                    </DropdownMenuItem>
                   )}
-                  {item.tooltip ? <MenuItemHelpIcon content={item.tooltip} /> : null}
-                </DropdownMenuItem>
-              )}
                 </div>
               ))
             })()}
